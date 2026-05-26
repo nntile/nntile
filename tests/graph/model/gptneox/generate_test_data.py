@@ -378,12 +378,12 @@ class _PtSdpaEagerFn(torch.autograd.Function):
     def backward(ctx, grad_out: torch.Tensor):
         q, k, v, attn = ctx.saved_tensors
         scale = ctx.scale
-        grad_v = torch.einsum("hsbn,stbn->htbn", grad_out, attn)
+        grad_v = torch.einsum("htbn,stbn->hsbn", grad_out, attn)
         grad_temp = torch.einsum("hsbn,htbn->stbn", v, grad_out)
         sumprod = (attn * grad_temp).sum(dim=0, keepdim=True)
         grad_temp = (grad_temp - sumprod) * attn
-        grad_q = scale * torch.einsum("htbn,stbn->hsbn", k, grad_temp)
-        grad_k = scale * torch.einsum("hsbn,stbn->htbn", q, grad_temp)
+        grad_q = scale * torch.einsum("hsbn,stbn->htbn", k, grad_temp)
+        grad_k = scale * torch.einsum("htbn,stbn->hsbn", q, grad_temp)
         return grad_q, grad_k, grad_v, None
 
 
@@ -479,19 +479,24 @@ def _gptneox_attn_forward(
     sin_half: np.ndarray,
     dims: TestDims,
     *,
+    use_rope: bool = True,
     use_causal_mask: bool = False,
 ) -> torch.Tensor:
-    """Q/K/V + NNTile RoPE + ``sdpa_eager`` + dense.
+    """Q/K/V + optional RoPE + ``sdpa_eager`` + dense.
 
     Uses split Q/K/V/O weights in Fortran layout (``fortran_order``), matching
     ``GptneoxAttention::load`` and ``gemm`` — not HF merged ``F.linear``.
+
+    When ``use_rope`` is False, RoPE is skipped (``nullptr`` sin/cos in the C++
+    graph), not identity cos/sin.
     """
-    rope_dim = _gptneox_rope_dim(dims)
     wq, wk, wv = _split_qkv_weights_fortran(attn, dims)
     w_o = _o_weight_fortran(attn, dims)
     x_hsbn = _hidden_hsbn(x_pt)
     q_h, k_h, v_h = _proj_qkv_hsbn(wq, wk, wv, x_hsbn)
-    q_h, k_h = _apply_rope_hsbn(q_h, k_h, cos_half, sin_half, rope_dim)
+    if use_rope:
+        rope_dim = _gptneox_rope_dim(dims)
+        q_h, k_h = _apply_rope_hsbn(q_h, k_h, cos_half, sin_half, rope_dim)
     m_torch = None
     if use_causal_mask:
         mask_f = _sdpa_causal_mask_fortran(dims.seq)
@@ -600,7 +605,7 @@ def write_fixture_json(
 def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
     """Write extra attention safetensors for RoPE / causal-mask combinations."""
     specs: list[tuple[str, bool, bool, float, float]] = [
-        ("gptneox_attention_no_rope", False, False, 1e-6, 7e-3),
+        ("gptneox_attention_no_rope", False, False, 1e-6, 1e-6),
         ("gptneox_attention_causal", True, True, 4e-3, 7e-3),
         ("gptneox_attention_no_rope_causal", False, True, 1e-6, 7e-3),
     ]
@@ -656,11 +661,10 @@ def generate_attention(
     use_rope: bool = True,
     use_causal_mask: bool = False,
 ) -> dict[str, np.ndarray]:
-    """Attention block reference (split QKV, NNTile RoPE, ``sdpa_eager``).
+    """Attention block reference (split QKV, optional RoPE, ``sdpa_eager``).
 
-    When ``use_rope`` is False, cos/sin are replaced with ones/zeros (identity
-    RoPE) in PyTorch and in ``rope_cos`` / ``rope_sin`` so the C++ graph still
-    runs the RoPE op (same pattern as Llama attention fixtures).
+    When ``use_rope`` is False, RoPE is omitted in the PyTorch reference and
+    ``rope_cos`` / ``rope_sin`` are not written (C++ passes ``nullptr`` sin/cos).
 
     When ``use_causal_mask`` is True, ``attn_mask`` stores the BOOL causal
     pattern for ``GptneoxAttention`` / ``sdpa_eager``.
@@ -673,17 +677,21 @@ def generate_attention(
     data = _gptneox_attn_weights(pt, "attn", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    pos_nntile, _pos_pt = _attention_position_ids(dims, x_pt.device)
-    cos_np, sin_np = _write_rope_and_position(data, pos_nntile, dims)
-    if not use_rope:
-        cos_np = np.ones_like(np.asarray(cos_np, dtype=np.float32))
-        sin_np = np.zeros_like(np.asarray(sin_np, dtype=np.float32))
-        data["rope_cos"] = fortran_order(cos_np)
-        data["rope_sin"] = fortran_order(sin_np)
+    cos_np = np.zeros(1, dtype=np.float32)
+    sin_np = np.zeros(1, dtype=np.float32)
+    if use_rope:
+        pos_nntile, _pos_pt = _attention_position_ids(dims, x_pt.device)
+        cos_np, sin_np = _write_rope_and_position(data, pos_nntile, dims)
     if use_causal_mask:
         data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
     out = _gptneox_attn_forward(
-        pt, x_pt, cos_np, sin_np, dims, use_causal_mask=use_causal_mask,
+        pt,
+        x_pt,
+        cos_np,
+        sin_np,
+        dims,
+        use_rope=use_rope,
+        use_causal_mask=use_causal_mask,
     )
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)

@@ -63,6 +63,60 @@ namespace
 using namespace nntile::test::gptneox_attention_fixture;
 using namespace nntile::test::gptneox_fixture;
 
+inline bool fixture_skips_rope(const AttentionFixtureSpec& fx)
+{
+    return fx.stem.find("no_rope") != std::string::npos;
+}
+
+struct AttentionRunContext
+{
+    GptneoxRopeInputs rope{};
+    bool use_rope = false;
+    NNGraph::TensorNode* mask = nullptr;
+    std::vector<std::uint8_t> mask_bytes;
+};
+
+inline void prepare_attention_run(NNGraph& g,
+    const SafeTensorsReader& reader,
+    const AttentionFixtureSpec& fx,
+    AttentionRunContext& ctx)
+{
+    ctx = {};
+    ctx.use_rope = !fixture_skips_rope(fx);
+    if(ctx.use_rope)
+    {
+        load_gptneox_rope_inputs(
+            g, reader, fx.config, fx.seq, fx.batch, ctx.rope);
+    }
+    load_attn_mask_bool(g, reader, fx.seq, ctx.mask, ctx.mask_bytes);
+}
+
+inline NNGraph::TensorNode* run_attention_forward(NNGraph& g,
+    NNGraph::TensorNode* input,
+    const AttentionFixtureSpec& fx,
+    const AttentionRunContext& ctx,
+    const std::string& weights_path)
+{
+    GptneoxAttention attn(&g, "attn", fx.config);
+    attn.load(weights_path);
+    NNGraph::TensorNode* sin = ctx.use_rope ? ctx.rope.sin : nullptr;
+    NNGraph::TensorNode* cos = ctx.use_rope ? ctx.rope.cos : nullptr;
+    return attn.forward(input, sin, cos, ctx.mask);
+}
+
+inline void bind_attention_runtime_inputs(Runtime& runtime,
+    NNGraph::TensorNode* input,
+    const std::vector<float>& input_data,
+    const AttentionRunContext& ctx)
+{
+    runtime.bind_data(input, input_data);
+    if(ctx.use_rope)
+    {
+        bind_rope_inputs(runtime, ctx.rope);
+    }
+    bind_mask_input(runtime, ctx.mask, ctx.mask_bytes);
+}
+
 void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
 {
     const std::string full_path =
@@ -78,27 +132,21 @@ void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
         NNGraph g(std::string("attn_ref_") + fx.stem);
         auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
                           ->set_name("input");
-        GptneoxRopeInputs rope;
-        load_gptneox_rope_inputs(g, reader, fx.config, fx.seq, fx.batch, rope);
-        NNGraph::TensorNode* mask = nullptr;
-        std::vector<std::uint8_t> mask_bytes;
-        load_attn_mask_bool(g, reader, fx.seq, mask, mask_bytes);
-
-        GptneoxAttention attn(&g, "attn", fx.config);
-        auto* output = attn.forward(input, rope.sin, rope.cos, mask);
+        AttentionRunContext ctx;
+        prepare_attention_run(g, reader, fx, ctx);
+        auto* output = run_attention_forward(g, input, fx, ctx, full_path);
         input->mark_input(true);
         output->mark_output(true);
-        mark_rope_inputs(rope);
-        mark_mask_input(mask);
-
-        attn.load(full_path);
+        if(ctx.use_rope)
+        {
+            mark_rope_inputs(ctx.rope);
+        }
+        mark_mask_input(ctx.mask);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(input, input_data);
-        bind_rope_inputs(runtime, rope);
-        bind_mask_input(runtime, mask, mask_bytes);
+        bind_attention_runtime_inputs(runtime, input, input_data, ctx);
         runtime.execute();
         runtime.wait();
 
@@ -134,19 +182,17 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
         NNGraph g(std::string("attn_bwd_") + fx.stem);
         auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
                           ->set_name("input");
-        GptneoxRopeInputs rope;
-        load_gptneox_rope_inputs(g, reader, fx.config, fx.seq, fx.batch, rope);
-        NNGraph::TensorNode* mask = nullptr;
-        std::vector<std::uint8_t> mask_bytes;
-        load_attn_mask_bool(g, reader, fx.seq, mask, mask_bytes);
-
-        GptneoxAttention attn(&g, "attn", fx.config);
-        auto* output = attn.forward(input, rope.sin, rope.cos, mask);
+        AttentionRunContext ctx;
+        prepare_attention_run(g, reader, fx, ctx);
+        auto* output = run_attention_forward(g, input, fx, ctx, full_path);
 
         input->mark_input(true);
         output->mark_output(true);
-        mark_rope_inputs(rope);
-        mark_mask_input(mask);
+        if(ctx.use_rope)
+        {
+            mark_rope_inputs(ctx.rope);
+        }
+        mark_mask_input(ctx.mask);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
@@ -154,15 +200,11 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
         output->backward();
         input->grad()->mark_output(true);
 
-        attn.load(full_path);
-
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(input, input_data);
+        bind_attention_runtime_inputs(runtime, input, input_data, ctx);
         runtime.bind_data(grad_output_tensor, grad_out_data);
-        bind_rope_inputs(runtime, rope);
-        bind_mask_input(runtime, mask, mask_bytes);
         runtime.execute();
         runtime.wait();
 
@@ -316,7 +358,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     SKIP(
         "Causal backward: BOOL mask vs SDPA logits (~0.92 rel err); forward "
         "paths validated separately.");
-    gptneox_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -332,7 +373,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     SKIP(
         "Causal backward: BOOL mask vs SDPA logits (~0.92 rel err); forward "
         "paths validated separately.");
-    gptneox_attention_backward_compare_ref(fx);
 }
 
 #endif
