@@ -89,7 +89,7 @@ def fortran_order(arr: np.ndarray) -> np.ndarray:
 
 
 def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    """Match ``fortran_order``: SafeTensors C-order == NNTile Fortran."""
+    """int64 on-disk layout: ``ravel('F').reshape`` like ``fortran_order``."""
     a = np.asarray(arr, dtype=np.int64)
     return a.ravel("F").reshape(a.shape)
 
@@ -492,7 +492,7 @@ def write_fixture_json(
 
 
 def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
-    """Write attention safetensors for RoPE / causal-mask combinations."""
+    """Write extra attention safetensors (RoPE / causal-mask variants)."""
     specs: list[tuple[str, bool, bool, float, float]] = [
         ("gptneox_attention_no_rope", False, False, 1e-6, 1e-6),
         ("gptneox_attention_causal", True, True, 1e-6, 1e-6),
