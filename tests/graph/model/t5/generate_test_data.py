@@ -12,7 +12,8 @@
 """Generate reference test data for NNTile T5 graph C++ tests.
 
 Reference forwards/backwards mirror the C++ graph API (RMSNorm, gated GELU,
-``sdpa_eager`` layout, HF→NNTile weight layouts from ``examples/t5_generate.py``).
+``sdpa_eager`` layout, HF→NNTile weight layouts from
+``examples/t5_generate.py``).
 """
 
 from __future__ import annotations
@@ -29,13 +30,9 @@ import torch.nn.functional as F
 from safetensors.numpy import save_file
 from transformers import T5Config
 from transformers.models.t5.modeling_t5 import (
-    T5Attention as PtAttention,
-    T5Block as PtBlock,
-    T5ForConditionalGeneration as PtConditional,
-    T5LayerFF as PtLayerFF,
-    T5Model as PtModel,
-    T5Stack as PtStack,
-)
+    T5Attention as PtAttention, T5Block as PtBlock,
+    T5ForConditionalGeneration as PtConditional, T5LayerFF as PtLayerFF,
+    T5Model as PtModel)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -122,8 +119,11 @@ def _linear_weight(linear: torch.nn.Linear) -> np.ndarray:
     return fortran_order(linear.weight.detach().numpy().T)
 
 
-def _rms_gamma(layer_norm: torch.nn.Module, prefix: str) -> dict[str, np.ndarray]:
-    return {f"{prefix}.gamma": fortran_order(layer_norm.weight.detach().numpy())}
+def _rms_gamma(
+    layer_norm: torch.nn.Module, prefix: str,
+) -> dict[str, np.ndarray]:
+    w = layer_norm.weight.detach().numpy()
+    return {f"{prefix}.gamma": fortran_order(w)}
 
 
 def _t5_attn_weights(
@@ -152,18 +152,30 @@ def _t5_ff_weights(ff: PtLayerFF, prefix: str) -> dict[str, np.ndarray]:
     return d
 
 
-def _encoder_block_weights(block: PtBlock, prefix: str, dims: TestDims) -> dict:
+def _encoder_block_weights(
+    block: PtBlock, prefix: str, dims: TestDims,
+) -> dict:
     d: dict[str, np.ndarray] = {}
     d.update(_rms_gamma(block.layer[0].layer_norm, f"{prefix}.layer_norm_0"))
-    d.update(_t5_attn_weights(block.layer[0].SelfAttention, f"{prefix}.self_attn", dims))
+    d.update(
+        _t5_attn_weights(
+            block.layer[0].SelfAttention, f"{prefix}.self_attn", dims,
+        ),
+    )
     d.update(_t5_ff_weights(block.layer[1], f"{prefix}.ff"))
     return d
 
 
-def _decoder_block_weights(block: PtBlock, prefix: str, dims: TestDims) -> dict:
+def _decoder_block_weights(
+    block: PtBlock, prefix: str, dims: TestDims,
+) -> dict:
     d: dict[str, np.ndarray] = {}
     d.update(_rms_gamma(block.layer[0].layer_norm, f"{prefix}.layer_norm_0"))
-    d.update(_t5_attn_weights(block.layer[0].SelfAttention, f"{prefix}.self_attn", dims))
+    d.update(
+        _t5_attn_weights(
+            block.layer[0].SelfAttention, f"{prefix}.self_attn", dims,
+        ),
+    )
     d.update(_rms_gamma(block.layer[1].layer_norm, f"{prefix}.layer_norm_1"))
     d.update(
         _t5_attn_weights(
@@ -174,23 +186,38 @@ def _decoder_block_weights(block: PtBlock, prefix: str, dims: TestDims) -> dict:
     return d
 
 
-def _embed_weights(embed: torch.nn.Embedding, prefix: str) -> dict[str, np.ndarray]:
-    return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
+def _embed_weights(
+    embed: torch.nn.Embedding, prefix: str,
+) -> dict[str, np.ndarray]:
+    w = embed.weight.detach().numpy().T
+    return {f"{prefix}.vocab": fortran_order(w)}
 
 
 def _model_weights(model: PtModel, prefix: str, dims: TestDims) -> dict:
     d: dict[str, np.ndarray] = {}
     d.update(_embed_weights(model.shared, f"{prefix}.embed_tokens"))
-    d.update(_rms_gamma(model.encoder.final_layer_norm, f"{prefix}.encoder_final_norm"))
-    d.update(_rms_gamma(model.decoder.final_layer_norm, f"{prefix}.decoder_final_norm"))
+    d.update(
+        _rms_gamma(
+            model.encoder.final_layer_norm, f"{prefix}.encoder_final_norm",
+        ),
+    )
+    d.update(
+        _rms_gamma(
+            model.decoder.final_layer_norm, f"{prefix}.decoder_final_norm",
+        ),
+    )
     for i, layer in enumerate(model.encoder.block):
-        d.update(_encoder_block_weights(layer, f"{prefix}.encoder_layers_{i}", dims))
+        p = f"{prefix}.encoder_layers_{i}"
+        d.update(_encoder_block_weights(layer, p, dims))
     for i, layer in enumerate(model.decoder.block):
-        d.update(_decoder_block_weights(layer, f"{prefix}.decoder_layers_{i}", dims))
+        p = f"{prefix}.decoder_layers_{i}"
+        d.update(_decoder_block_weights(layer, p, dims))
     return d
 
 
-def _conditional_weights(model: PtConditional, prefix: str, dims: TestDims) -> dict:
+def _conditional_weights(
+    model: PtConditional, prefix: str, dims: TestDims,
+) -> dict:
     d = _model_weights(model, f"{prefix}.model", dims)
     d[f"{prefix}.lm_head.weight"] = fortran_order(
         model.lm_head.weight.detach().numpy().T,
@@ -208,7 +235,7 @@ def _torch_from_fortran(x_nt: np.ndarray) -> torch.Tensor:
 
 
 def _nntile_to_math_array(w_nt: np.ndarray) -> np.ndarray:
-    """Invert :func:`fortran_order` for PyTorch / NumPy math on logical indices."""
+    """Invert :func:`fortran_order` for PyTorch / NumPy math."""
     a = np.asarray(w_nt, dtype=np.float32)
     return a.ravel("C").reshape(a.shape, order="F")
 
@@ -236,7 +263,7 @@ def _pt_dsb_to_bsd(x: torch.Tensor) -> torch.Tensor:
 def _pt_rms_norm_dsb(
     x: torch.Tensor, gamma: torch.Tensor, eps: float,
 ) -> torch.Tensor:
-    """RMSNorm on axis 0 of ``(D,S,B)`` (matches C++ ``RMSNorm(..., axis=0)``)."""
+    """RMSNorm on axis 0 of ``(D,S,B)`` (C++ ``RMSNorm(..., axis=0)``)."""
     rms = torch.rsqrt(x.pow(2).mean(dim=0, keepdim=True) + eps)
     return x * rms * gamma.view(-1, 1, 1)
 
@@ -309,7 +336,7 @@ def _pt_t5_ff(
     down_w: torch.Tensor,
     eps: float,
 ) -> torch.Tensor:
-    """Match ``T5LayerFF``: RMS on ``(D,S,B)`` → transpose → GatedMlp → transpose → add."""
+    """Match ``T5LayerFF``: RMS → transpose → GatedMlp → transpose → add."""
     x_dsb = _pt_bsd_to_dsb(x)
     x_norm = _pt_rms_norm_dsb(x_dsb, gamma, eps)
     x_t = _cyclic_transpose(x_norm, 1)
@@ -318,9 +345,12 @@ def _pt_t5_ff(
     return _pt_dsb_to_bsd(x_dsb + ff_dsb)
 
 
-def _hidden_input(rng, dims: TestDims, *, seq: int | None = None, scale: float = 0.1):
+def _hidden_input(
+    rng, dims: TestDims, *, seq: int | None = None, scale: float = 0.1,
+):
     s = dims.seq if seq is None else seq
-    x = rng.standard_normal((dims.d_model, s, dims.batch)).astype(np.float32) * scale
+    x = rng.standard_normal((dims.d_model, s, dims.batch))
+    x = x.astype(np.float32) * scale
     x_nt = fortran_order(x)
     x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
     return x_nt, x_pt
@@ -367,7 +397,11 @@ def _cross_attn_mask_fortran(enc_seq: int, dec_seq: int) -> np.ndarray:
 
 
 def _load_block_weights(data: dict, prefix: str) -> dict[str, torch.Tensor]:
-    return {k: _weight_for_matmul(v) for k, v in data.items() if k.startswith(prefix)}
+    return {
+        k: _weight_for_matmul(v)
+        for k, v in data.items()
+        if k.startswith(prefix)
+    }
 
 
 def _pt_t5_ff_from_data(
@@ -556,7 +590,11 @@ def _t5_fixture_json(
 
 
 def write_fixture_json(
-    out: Path, stem: str, dims: TestDims, forward_tol: float, backward_tol: float,
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
     *,
     enc_seq: int | None = None,
     dec_seq: int | None = None,
@@ -717,7 +755,9 @@ def generate_decoder_block(
     return data
 
 
-def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarray]:
+def generate_model(
+    seed: int, dims: TestDims = MODEL_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -728,7 +768,9 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
     dec_nt, dec_ids = _ids_input(rng, dims, seq="dec")
     data["encoder_input_ids"] = enc_nt
     data["decoder_input_ids"] = dec_nt
-    data["decoder_attention_mask"] = _sdpa_causal_mask_fortran(dims.decoder_seq)
+    data["decoder_attention_mask"] = _sdpa_causal_mask_fortran(
+        dims.decoder_seq,
+    )
     data["cross_attention_mask"] = _cross_attn_mask_fortran(
         dims.encoder_seq, dims.decoder_seq,
     )
@@ -773,7 +815,9 @@ def generate_conditional(
     dec_nt, dec_ids = _ids_input(rng, dims, seq="dec")
     data["encoder_input_ids"] = enc_nt
     data["decoder_input_ids"] = dec_nt
-    data["decoder_attention_mask"] = _sdpa_causal_mask_fortran(dims.decoder_seq)
+    data["decoder_attention_mask"] = _sdpa_causal_mask_fortran(
+        dims.decoder_seq,
+    )
     data["cross_attention_mask"] = _cross_attn_mask_fortran(
         dims.encoder_seq, dims.decoder_seq,
     )
@@ -795,7 +839,8 @@ def generate_conditional(
         cross_m,
         vocab=vocab,
     )
-    data["output_ref"] = fortran_order(logits.detach().numpy().transpose(2, 1, 0))
+    logits_np = logits.detach().numpy().transpose(2, 1, 0)
+    data["output_ref"] = fortran_order(logits_np)
     g_nt, g_pt = _grad_output(rng, logits)
     data["grad_output"] = g_nt
     logits.backward(g_pt)
