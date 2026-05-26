@@ -35,7 +35,8 @@ from gpt2_generate import _conv1d_to_nntile_linear_weight  # noqa: E402
 
 # tests/graph/model/gpt2/generate_test_data.py
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from generate_test_data import _conv1d_to_linear_weight, _gpt2_mlp  # noqa: E402
+from generate_test_data import (  # noqa: E402
+    _conv1d_to_linear_weight, _gpt2_mlp)
 
 
 def _simulate_gpt2_mlp_graph(
@@ -70,8 +71,10 @@ def test_mlp_weights_match_generate_test_data() -> None:
 
     assert np.array_equal(ref["mlp.fc1.weight"], w1)
     assert np.array_equal(ref["mlp.fc2.weight"], w2)
-    assert np.array_equal(ref["mlp.fc1.weight"], _conv1d_to_linear_weight(mlp.c_fc))
-    assert np.array_equal(ref["mlp.fc2.weight"], _conv1d_to_linear_weight(mlp.c_proj))
+    assert np.array_equal(
+        ref["mlp.fc1.weight"], _conv1d_to_linear_weight(mlp.c_fc))
+    assert np.array_equal(
+        ref["mlp.fc2.weight"], _conv1d_to_linear_weight(mlp.c_proj))
 
 
 def test_mlp_forward_parity_with_hf() -> None:
@@ -86,7 +89,8 @@ def test_mlp_forward_parity_with_hf() -> None:
     )
     mlp = GPT2MLP(config.n_inner, config).eval()
 
-    x_hsb = np.random.randn(hidden, seq, batch).astype(np.float32)
+    rng = np.random.default_rng(1)
+    x_hsb = rng.standard_normal((hidden, seq, batch)).astype(np.float32)
     x_pt = torch.tensor(x_hsb.transpose(2, 1, 0).copy())
     with torch.no_grad():
         y_hf = mlp(x_pt).numpy()
@@ -99,7 +103,10 @@ def test_mlp_forward_parity_with_hf() -> None:
         config.n_inner, hidden, order="F")
 
     y_nt = _simulate_gpt2_mlp_graph(x_hsb, w1, w2)
-    rel = float(np.linalg.norm(y_hf - y_nt.transpose(2, 1, 0)) / np.linalg.norm(y_hf))
+    rel = float(
+        np.linalg.norm(y_hf - y_nt.transpose(2, 1, 0))
+        / np.linalg.norm(y_hf)
+    )
     assert rel < 1e-5, rel
 
 
