@@ -574,18 +574,32 @@ def generate_conditional(
     data["cross_attention_mask"] = _cross_attn_mask_fortran(
         dims.encoder_seq, dims.decoder_seq,
     )
-    pt.shared.weight.requires_grad_(True)
-    logits = pt(
-        input_ids=enc_ids,
-        decoder_input_ids=dec_ids,
-    ).logits
-    data["output_ref"] = _out_to_nntile(logits)
-    g_nt, g_pt = _grad_output(rng, logits)
-    data["grad_output"] = g_nt
-    logits.backward(g_pt)
-    data["grad_embed_tokens_vocab"] = fortran_order(
-        pt.shared.weight.grad.detach().numpy().T,
-    )
+    vocab = pt.shared.weight.detach().clone().requires_grad_(True)
+    lm_w = pt.lm_head.weight.detach()
+
+    def _embed_hook(_module, inp, _out):
+        return torch.nn.functional.embedding(inp[0], vocab)
+
+    def _lm_head_hook(_module, inp, _out):
+        return inp[0] @ lm_w.T
+
+    embed_hook = pt.shared.register_forward_hook(_embed_hook)
+    lm_hook = pt.lm_head.register_forward_hook(_lm_head_hook)
+    try:
+        logits = pt(
+            input_ids=enc_ids,
+            decoder_input_ids=dec_ids,
+        ).logits
+        data["output_ref"] = _out_to_nntile(logits)
+        g_nt, g_pt = _grad_output(rng, logits)
+        data["grad_output"] = g_nt
+        logits.backward(g_pt)
+        data["grad_embed_tokens_vocab"] = fortran_order(
+            vocab.grad.detach().numpy().T,
+        )
+    finally:
+        embed_hook.remove()
+        lm_hook.remove()
     return data
 
 
