@@ -378,12 +378,12 @@ class _PtSdpaEagerFn(torch.autograd.Function):
     def backward(ctx, grad_out: torch.Tensor):
         q, k, v, attn = ctx.saved_tensors
         scale = ctx.scale
-        grad_v = torch.einsum("hsbn,stbn->htbn", grad_out, attn)
+        grad_v = torch.einsum("htbn,stbn->hsbn", grad_out, attn)
         grad_temp = torch.einsum("hsbn,htbn->stbn", v, grad_out)
         sumprod = (attn * grad_temp).sum(dim=0, keepdim=True)
         grad_temp = (grad_temp - sumprod) * attn
-        grad_q = scale * torch.einsum("htbn,stbn->hsbn", k, grad_temp)
-        grad_k = scale * torch.einsum("hsbn,stbn->htbn", q, grad_temp)
+        grad_q = scale * torch.einsum("hsbn,stbn->htbn", k, grad_temp)
+        grad_k = scale * torch.einsum("htbn,stbn->hsbn", q, grad_temp)
         return grad_q, grad_k, grad_v, None
 
 

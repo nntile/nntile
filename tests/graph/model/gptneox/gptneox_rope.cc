@@ -137,21 +137,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const auto expected =
         static_cast<std::size_t>(n_seq * n_batch * sizeof(std::int64_t));
     REQUIRE(pos_bytes.size() == expected);
-    std::vector<std::int64_t> pos_c_flat(
-        static_cast<std::size_t>(n_seq * n_batch));
-    std::memcpy(pos_c_flat.data(), pos_bytes.data(), pos_bytes.size());
-    // Safetensors flat layout is C-order; ``rope_sin_cos_from_position_ids``
-    // expects ``pos[s + n_seq * b]`` (column-major ``(seq, batch)``).
     std::vector<std::int64_t> pos(
         static_cast<std::size_t>(n_seq * n_batch));
-    for(Index b = 0; b < n_batch; ++b)
-    {
-        for(Index s = 0; s < n_seq; ++s)
-        {
-            pos[s + static_cast<std::size_t>(n_seq * b)] =
-                pos_c_flat[s * static_cast<std::size_t>(n_batch) + b];
-        }
-    }
+    std::memcpy(pos.data(), pos_bytes.data(), pos_bytes.size());
 
     const Index half = gptneox_rope_dim(fx.config) / 2;
     const std::size_t rope_elems =
