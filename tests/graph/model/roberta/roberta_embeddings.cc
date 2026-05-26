@@ -77,6 +77,8 @@ inline bool try_load_emb_spec(
         out.config.vocab_size = json_index(G, "vocab_size");
         out.config.max_position_embeddings =
             json_index(G, "max_position_embeddings");
+        out.config.layer_norm_eps = static_cast<float>(
+            G.at("layer_norm_eps").get<double>());
         out.hidden = out.config.hidden_size;
         out.seq = json_index(j, "sequence_length");
         out.batch = json_index(j, "batch");

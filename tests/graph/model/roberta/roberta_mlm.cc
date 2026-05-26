@@ -80,6 +80,8 @@ inline bool try_load_mlm_fixture_spec(const std::string &data_dir,
         out.config.num_attention_heads = json_index(G, "num_attention_heads");
         out.config.max_position_embeddings =
             json_index(G, "max_position_embeddings");
+        out.config.layer_norm_eps = static_cast<float>(
+            G.at("layer_norm_eps").get<double>());
         out.seq = json_index(j, "sequence_length");
         out.batch = json_index(j, "batch");
         out.forward_tol =
