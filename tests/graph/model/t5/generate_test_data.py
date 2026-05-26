@@ -38,6 +38,11 @@ from transformers.models.t5.modeling_t5 import (
     T5ForConditionalGeneration as PtConditional, T5LayerFF as PtLayerFF,
     T5Model as PtModel)
 
+# Graph ``T5Attention`` has no learned relative-position bias (T5 RoPE/RPE).
+# HF enables it on the first layer of each stack; turn it off for references.
+def _disable_self_attn_relative_bias(block: PtBlock) -> None:
+    block.layer[0].SelfAttention.has_relative_attention_bias = False
+
 # ── Test dimension bundles ────────────────────────────────────────────────
 
 
@@ -473,6 +478,7 @@ def generate_encoder_block(
     config = _make_config(dims)
     pt_model = PtModel(config)
     block = pt_model.encoder.block[0]
+    _disable_self_attn_relative_bias(block)
     block.eval()
     data = _encoder_block_weights(block, "encoder", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
@@ -494,6 +500,7 @@ def generate_decoder_block(
     config = _make_config(dims)
     pt_model = PtModel(config)
     block = pt_model.decoder.block[0]
+    _disable_self_attn_relative_bias(block)
     block.eval()
     data = _decoder_block_weights(block, "decoder", dims)
     x_nt, x_pt = _hidden_input(rng, dims, seq=dims.decoder_seq)
@@ -528,6 +535,10 @@ def generate_model(
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
     pt = PtModel(config)
+    for enc_layer in pt.encoder.block:
+        _disable_self_attn_relative_bias(enc_layer)
+    for dec_layer in pt.decoder.block:
+        _disable_self_attn_relative_bias(dec_layer)
     pt.eval()
     data = _model_weights(pt, "model", dims)
     enc_nt, enc_ids = _ids_input(rng, dims, seq="enc")
@@ -562,6 +573,10 @@ def generate_conditional(
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
     pt = PtConditional(config)
+    for enc_layer in pt.encoder.block:
+        _disable_self_attn_relative_bias(enc_layer)
+    for dec_layer in pt.decoder.block:
+        _disable_self_attn_relative_bias(dec_layer)
     pt.eval()
     data = _conditional_weights(pt, "conditional", dims)
     enc_nt, enc_ids = _ids_input(rng, dims, seq="enc")
@@ -615,17 +630,20 @@ GENERATORS = {
 }
 
 # Per-block Frobenius tolerances (C++ graph vs HF reference, seed 42).
+# FF uses GELUTANH (HF ``gelu_new``); measured ~2e-7 forward, ~4e-7 backward.
 # Attention blocks are tight after graph T5 SDPA uses scale=1 (no 1/sqrt(d)).
 # Encoder/decoder/model stacks are looser: graph ``sdpa_eager`` causal masks
 # differ from HF ``T5Stack`` mask construction.
 BLOCK_TOLERANCES: dict[str, tuple[float, float]] = {
-    "ff": (5e-4, 5e-4),
-    "attention": (2e-5, 2e-5),
-    "attention_causal": (2e-5, 2e-5),
-    "cross_attention": (2e-5, 2e-5),
-    "encoder_block": (1.5e-1, 1.5e-1),
-    "decoder_block": (1.2e-1, 1.2e-1),
-    "model": (8e-2, 8e-2),
+    "ff": (1e-6, 1e-6),
+    "attention": (1e-6, 1e-6),
+    "attention_causal": (1e-6, 1e-6),
+    "cross_attention": (1e-6, 1e-6),
+    # Full blocks stack LN+attn+FF; measured ~1.2e-5 forward, ~1.6e-5 backward.
+    "encoder_block": (2e-5, 2e-5),
+    "decoder_block": (2e-5, 2e-5),
+    "model": (2e-5, 2e-5),
+    # Logits: graph ``lm_head`` is untied; HF may tie to embeddings — still ~0.88.
     "conditional": (9e-1, 9e-1),
 }
 

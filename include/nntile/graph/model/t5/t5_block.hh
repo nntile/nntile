@@ -9,9 +9,8 @@
  * @file include/nntile/graph/model/t5/t5_block.hh
  * T5EncoderBlock and T5DecoderBlock.
  *
- * Encoder: layer_norm -> self_attn -> add -> layer_norm -> ff -> add
- * Decoder: layer_norm -> self_attn -> add -> layer_norm -> cross_attn -> add
- *          -> layer_norm -> ff -> add
+ * Encoder: layer_norm -> self_attn -> add -> ff (internal ln + residual)
+ * Decoder: ln0 -> self_attn -> add -> ln1 -> cross_attn -> add -> ff
  *
  * @version 1.1.0
  * */
