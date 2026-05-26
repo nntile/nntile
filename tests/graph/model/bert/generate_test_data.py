@@ -9,7 +9,16 @@
 #
 # @version 1.1.0
 
-"""Generate reference test data for NNTile BERT graph C++ tests."""
+"""Generate reference test data for NNTile BERT graph C++ tests.
+
+For each block the script creates ``bert_<block>.safetensors`` plus a paired
+``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
+
+All forward and backward references come from HuggingFace ``modeling_bert``
+(PyTorch eager, dropout disabled). Helpers below only reshape HF parameters
+into NNTile Fortran-order layouts expected by the graph API modules; they do
+not reimplement BERT computation.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +36,8 @@ from transformers.models.bert.modeling_bert import (
     BertAttention as PtAttention, BertEmbeddings as PtEmbeddings,
     BertForMaskedLM as PtMlm, BertIntermediate as PtIntermediate,
     BertLayer as PtLayer, BertModel as PtModel)
+
+# ── Test dimension bundles ────────────────────────────────────────────────
 
 
 @dataclass
@@ -47,19 +58,31 @@ class TestDims:
 
 
 INTERMEDIATE_DIMS = TestDims(
-    hidden=8, intermediate=16, n_heads=4,
-    seq=4, batch=2, vocab=100, num_layers=1,
+    hidden=8,
+    intermediate=16,
+    n_heads=4,
+    seq=4,
+    batch=2,
+    vocab=100,
+    num_layers=1,
 )
 
 ATTENTION_DIMS = TestDims(
-    hidden=64, intermediate=256, n_heads=4,
-    seq=8, batch=2, vocab=100, num_layers=1,
+    hidden=64,
+    intermediate=256,
+    n_heads=4,
+    seq=8,
+    batch=2,
+    vocab=100,
+    num_layers=1,
 )
 
 LAYER_DIMS = ATTENTION_DIMS
 EMBEDDINGS_DIMS = ATTENTION_DIMS
 MODEL_DIMS = ATTENTION_DIMS
 MLM_DIMS = ATTENTION_DIMS
+
+# ── Layout helpers (NumPy / PyTorch ↔ NNTile) ─────────────────────────────
 
 
 def fortran_order(arr: np.ndarray) -> np.ndarray:
@@ -96,7 +119,7 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
 
 
 def _linear(linear, prefix: str) -> dict[str, np.ndarray]:
-    # PyTorch Linear weight is (out_features, in_features); NNTile stores
+    # PyTorch Linear weight is (out_features, in_features); graph Linear stores
     # (input_dim, output_dim) for gemm(..., transpose_A=true).
     d = {
         f"{prefix}.weight": fortran_order(linear.weight.detach().numpy().T),
@@ -111,6 +134,7 @@ def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
 
 
 def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
+    """Split HF BertSelfAttention Linear weights into graph head layouts."""
     n_emb = dims.hidden
     hs = dims.head_size
     n_heads = dims.n_heads
@@ -135,27 +159,40 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     n_emb = dims.hidden
     n_heads = dims.n_heads
     hs = dims.head_size
-    w = out_module.dense.weight.detach().numpy().reshape(
-        n_emb, n_heads, hs,
+    w = (
+        out_module.dense.weight.detach()
+        .numpy()
+        .reshape(
+            n_emb,
+            n_heads,
+            hs,
+        )
     )
     return {
         f"{prefix}.dense.weight": fortran_order(w),
         f"{prefix}.dense.bias": fortran_order(
-            out_module.dense.bias.detach().numpy()),
+            out_module.dense.bias.detach().numpy(),
+        ),
         **_layer_norm(out_module.LayerNorm, f"{prefix}.ln"),
     }
 
 
-def _bert_attention(attn: PtAttention, prefix: str, dims: TestDims):
-    d = {}
+def _bert_attention_weights(attn: PtAttention, prefix: str, dims: TestDims):
+    d: dict[str, np.ndarray] = {}
     d.update(_bert_self_attn_weights(attn.self, f"{prefix}.self", dims))
     d.update(_bert_self_output_weights(attn.output, f"{prefix}.output", dims))
     return d
 
 
-def _bert_layer(layer: PtLayer, prefix: str, dims: TestDims):
-    d = {}
-    d.update(_bert_attention(layer.attention, f"{prefix}.attention", dims))
+def _bert_layer_weights(layer: PtLayer, prefix: str, dims: TestDims):
+    d: dict[str, np.ndarray] = {}
+    d.update(
+        _bert_attention_weights(
+            layer.attention,
+            f"{prefix}.attention",
+            dims,
+        ),
+    )
     d.update(_linear(layer.intermediate.dense, f"{prefix}.intermediate.dense"))
     d.update(_linear(layer.output.dense, f"{prefix}.output.dense"))
     d.update(_layer_norm(layer.output.LayerNorm, f"{prefix}.output.ln"))
@@ -163,9 +200,12 @@ def _bert_layer(layer: PtLayer, prefix: str, dims: TestDims):
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
-    x = rng.standard_normal(
-        (dims.hidden, dims.seq, dims.batch),
-    ).astype(np.float32) * scale
+    x = (
+        rng.standard_normal(
+            (dims.hidden, dims.seq, dims.batch),
+        ).astype(np.float32)
+        * scale
+    )
     x_nt = fortran_order(x)
     x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
     return x_nt, x_pt
@@ -180,7 +220,9 @@ def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
 
 def _ids_input(rng, dims: TestDims):
     ids = rng.integers(
-        0, dims.vocab, size=(dims.seq, dims.batch),
+        0,
+        dims.vocab,
+        size=(dims.seq, dims.batch),
     ).astype(np.int64)
     ids_nt = ids.ravel("F").reshape(ids.shape)
     ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
@@ -198,8 +240,51 @@ def _position_ids(dims: TestDims) -> np.ndarray:
     return fortran_order_int64(pos)
 
 
+def _bert_batch_inputs(dims: TestDims):
+    """HF BertEmbeddings/BertModel inputs: (batch, seq) ids and masks."""
+    tt_pt = torch.zeros(dims.batch, dims.seq, dtype=torch.long)
+    pos_pt = (
+        torch.arange(dims.seq, dtype=torch.long)
+        .unsqueeze(0)
+        .expand(
+            dims.batch,
+            -1,
+        )
+    )
+    return tt_pt, pos_pt
+
+
 def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
     return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
+
+
+def _run_hidden_block(
+    make_pt,
+    weight_fn,
+    prefix: str,
+    dims: TestDims,
+    seed: int,
+) -> dict[str, np.ndarray]:
+    """Forward/backward through a single HF block on random hidden states."""
+    torch.manual_seed(seed)
+    rng = np.random.default_rng(seed)
+    pt_module = make_pt()
+    pt_module.eval()
+    data = weight_fn(pt_module, prefix, dims)
+    x_nt, x_pt = _hidden_input(rng, dims)
+    data["input"] = x_nt
+    out = pt_module(x_pt)
+    if isinstance(out, tuple):
+        out = out[0]
+    data["output_ref"] = _out_to_nntile(out)
+    g_nt, g_pt = _grad_output(rng, out)
+    data["grad_output"] = g_nt
+    out.backward(g_pt)
+    data["grad_input"] = _out_to_nntile(x_pt.grad)
+    return data
+
+
+# ── Fixture metadata ──────────────────────────────────────────────────────
 
 
 def _bert_fixture_json(
@@ -249,68 +334,54 @@ def write_fixture_json(
     print(f"Saved {path}")
 
 
+# ── Block generators (HF forward / backward) ──────────────────────────────
+
+
 def generate_intermediate(
-    seed: int, dims: TestDims = INTERMEDIATE_DIMS,
+    seed: int,
+    dims: TestDims = INTERMEDIATE_DIMS,
 ) -> dict[str, np.ndarray]:
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
     config = _make_config(dims)
-    pt = PtIntermediate(config)
-    pt.eval()
-    data = _linear(pt.dense, "intermediate.dense")
-    x_nt, x_pt = _hidden_input(rng, dims)
-    data["input"] = x_nt
-    out = pt(x_pt)
-    data["output_ref"] = _out_to_nntile(out)
-    g_nt, g_pt = _grad_output(rng, out)
-    data["grad_output"] = g_nt
-    out.backward(g_pt)
-    data["grad_input"] = _out_to_nntile(x_pt.grad)
-    return data
+    return _run_hidden_block(
+        lambda: PtIntermediate(config),
+        lambda m, _p, _d: _linear(m.dense, "intermediate.dense"),
+        "intermediate",
+        dims,
+        seed,
+    )
 
 
 def generate_attention(
-    seed: int, dims: TestDims = ATTENTION_DIMS,
+    seed: int,
+    dims: TestDims = ATTENTION_DIMS,
 ) -> dict[str, np.ndarray]:
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
     config = _make_config(dims)
-    pt = PtAttention(config)
-    pt.eval()
-    data = _bert_attention(pt, "attn", dims)
-    x_nt, x_pt = _hidden_input(rng, dims)
-    data["input"] = x_nt
-    out = pt(x_pt)[0]
-    data["output_ref"] = _out_to_nntile(out)
-    g_nt, g_pt = _grad_output(rng, out)
-    data["grad_output"] = g_nt
-    out.backward(g_pt)
-    data["grad_input"] = _out_to_nntile(x_pt.grad)
-    return data
+    return _run_hidden_block(
+        lambda: PtAttention(config),
+        _bert_attention_weights,
+        "attn",
+        dims,
+        seed,
+    )
 
 
 def generate_layer(
-    seed: int, dims: TestDims = LAYER_DIMS,
+    seed: int,
+    dims: TestDims = LAYER_DIMS,
 ) -> dict[str, np.ndarray]:
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
     config = _make_config(dims)
-    pt = PtLayer(config)
-    pt.eval()
-    data = _bert_layer(pt, "layer", dims)
-    x_nt, x_pt = _hidden_input(rng, dims)
-    data["input"] = x_nt
-    out = pt(x_pt)[0]
-    data["output_ref"] = _out_to_nntile(out)
-    g_nt, g_pt = _grad_output(rng, out)
-    data["grad_output"] = g_nt
-    out.backward(g_pt)
-    data["grad_input"] = _out_to_nntile(x_pt.grad)
-    return data
+    return _run_hidden_block(
+        lambda: PtLayer(config),
+        _bert_layer_weights,
+        "layer",
+        dims,
+        seed,
+    )
 
 
 def generate_embeddings(
-    seed: int, dims: TestDims = EMBEDDINGS_DIMS,
+    seed: int,
+    dims: TestDims = EMBEDDINGS_DIMS,
 ) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -326,33 +397,64 @@ def generate_embeddings(
     data["input_ids"] = ids_nt
     data["token_type_ids"] = _token_type_ids(dims)
     data["position_ids"] = _position_ids(dims)
-    tt_pt = torch.zeros(dims.batch, dims.seq, dtype=torch.long)
-    pos_pt = torch.arange(dims.seq, dtype=torch.long).unsqueeze(0).expand(
-        dims.batch, -1,
-    )
+    tt_pt, pos_pt = _bert_batch_inputs(dims)
     out = pt(ids_pt, tt_pt, pos_pt)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
     out.backward(g_pt)
     data["grad_wte_vocab"] = fortran_order(
-        pt.word_embeddings.weight.grad.detach().numpy().T)
+        pt.word_embeddings.weight.grad.detach().numpy().T,
+    )
     return data
 
 
 def _model_weights(model: PtModel, prefix: str, dims: TestDims):
-    d = {}
-    d.update(_embed(
-        model.embeddings.word_embeddings, f"{prefix}.embeddings.word"))
-    d.update(_embed(
-        model.embeddings.position_embeddings, f"{prefix}.embeddings.position"))
-    d.update(_embed(
-        model.embeddings.token_type_embeddings,
-        f"{prefix}.embeddings.token_type"))
-    d.update(_layer_norm(
-        model.embeddings.LayerNorm, f"{prefix}.embeddings.ln"))
+    d: dict[str, np.ndarray] = {}
+    d.update(
+        _embed(
+            model.embeddings.word_embeddings,
+            f"{prefix}.embeddings.word",
+        ),
+    )
+    d.update(
+        _embed(
+            model.embeddings.position_embeddings,
+            f"{prefix}.embeddings.position",
+        ),
+    )
+    d.update(
+        _embed(
+            model.embeddings.token_type_embeddings,
+            f"{prefix}.embeddings.token_type",
+        ),
+    )
+    d.update(
+        _layer_norm(
+            model.embeddings.LayerNorm,
+            f"{prefix}.embeddings.ln",
+        ),
+    )
     for i, layer in enumerate(model.encoder.layer):
-        d.update(_bert_layer(layer, f"{prefix}.layer_{i}", dims))
+        d.update(_bert_layer_weights(layer, f"{prefix}.layer_{i}", dims))
+    return d
+
+
+def _mlm_head_weights(
+    head,
+    prefix: str,
+    word_embeddings,
+) -> dict[str, np.ndarray]:
+    """HF ties MLM decoder to word embeddings; graph BertMlmHead mirrors."""
+    if head.decoder.weight is not word_embeddings.weight:
+        raise RuntimeError(
+            "BertLMPredictionHead decoder weight must be tied to "
+            "word embeddings",
+        )
+    d: dict[str, np.ndarray] = {}
+    d.update(_linear(head.transform.dense, f"{prefix}.transform_dense"))
+    d.update(_layer_norm(head.transform.LayerNorm, f"{prefix}.transform_ln"))
+    d.update(_linear(head.decoder, f"{prefix}.decoder"))
     return d
 
 
@@ -367,26 +469,16 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS):
     data["input_ids"] = ids_nt
     data["token_type_ids"] = _token_type_ids(dims)
     data["position_ids"] = _position_ids(dims)
-    tt_pt = torch.zeros(dims.batch, dims.seq, dtype=torch.long)
-    pos_pt = torch.arange(dims.seq, dtype=torch.long).unsqueeze(0).expand(
-        dims.batch, -1,
-    )
+    tt_pt, pos_pt = _bert_batch_inputs(dims)
     out = pt(input_ids=ids_pt, token_type_ids=tt_pt, position_ids=pos_pt)
     data["output_ref"] = _out_to_nntile(out.last_hidden_state)
     g_nt, g_pt = _grad_output(rng, out.last_hidden_state)
     data["grad_output"] = g_nt
     out.last_hidden_state.backward(g_pt)
     data["grad_wte_vocab"] = fortran_order(
-        pt.embeddings.word_embeddings.weight.grad.detach().numpy().T)
+        pt.embeddings.word_embeddings.weight.grad.detach().numpy().T,
+    )
     return data
-
-
-def _mlm_head_weights(head, prefix: str):
-    d = {}
-    d.update(_linear(head.transform.dense, f"{prefix}.transform_dense"))
-    d.update(_layer_norm(head.transform.LayerNorm, f"{prefix}.transform_ln"))
-    d.update(_linear(head.decoder, f"{prefix}.decoder"))
-    return d
 
 
 def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
@@ -395,16 +487,16 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     config = _make_config(dims)
     pt = PtMlm(config)
     pt.eval()
+    word_emb = pt.bert.embeddings.word_embeddings
     data = _model_weights(pt.bert, "model.bert", dims)
-    data.update(_mlm_head_weights(pt.cls.predictions, "model.cls"))
+    data.update(
+        _mlm_head_weights(pt.cls.predictions, "model.cls", word_emb),
+    )
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
     data["token_type_ids"] = _token_type_ids(dims)
     data["position_ids"] = _position_ids(dims)
-    tt_pt = torch.zeros(dims.batch, dims.seq, dtype=torch.long)
-    pos_pt = torch.arange(dims.seq, dtype=torch.long).unsqueeze(0).expand(
-        dims.batch, -1,
-    )
+    tt_pt, pos_pt = _bert_batch_inputs(dims)
     out = pt(
         input_ids=ids_pt,
         token_type_ids=tt_pt,
@@ -415,7 +507,8 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     data["grad_output"] = g_nt
     out.backward(g_pt)
     data["grad_wte_vocab"] = fortran_order(
-        pt.bert.embeddings.word_embeddings.weight.grad.detach().numpy().T)
+        word_emb.weight.grad.detach().numpy().T,
+    )
     return data
 
 
@@ -427,6 +520,17 @@ GENERATORS = {
     "model": generate_model,
     "mlm": generate_mlm,
 }
+
+BLOCK_DIMS = {
+    "intermediate": INTERMEDIATE_DIMS,
+    "attention": ATTENTION_DIMS,
+    "layer": LAYER_DIMS,
+    "embeddings": EMBEDDINGS_DIMS,
+    "model": MODEL_DIMS,
+    "mlm": MLM_DIMS,
+}
+
+DEFAULT_TOL = 1e-6
 
 
 def main() -> int:
@@ -452,17 +556,8 @@ def main() -> int:
     save_file(data, bundle_path)
     print(f"Saved {bundle_path}")
 
-    tol = 1e-6
-    if args.block == "intermediate":
-        write_fixture_json(out, stem, INTERMEDIATE_DIMS, tol, tol)
-    elif args.block == "attention":
-        write_fixture_json(out, stem, ATTENTION_DIMS, tol, tol)
-    elif args.block == "layer":
-        write_fixture_json(out, stem, LAYER_DIMS, tol, tol)
-    elif args.block == "embeddings":
-        write_fixture_json(out, stem, EMBEDDINGS_DIMS, tol, tol)
-    elif args.block in ("model", "mlm"):
-        write_fixture_json(out, stem, MODEL_DIMS, tol, tol)
+    dims = BLOCK_DIMS[args.block]
+    write_fixture_json(out, stem, dims, DEFAULT_TOL, DEFAULT_TOL)
 
     return 0
 
