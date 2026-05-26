@@ -16,8 +16,10 @@ For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
 backward references plus NumPy layout wrangling for NNTile safetensors — no
-custom attention reimplementation. Weights are split from HF ``query_key_value``
-/ ``dense`` into graph ``q/k/v/o`` layouts (``fortran_order``). Attention
+custom attention reimplementation. Weights are split from HF ``query_key_value`` / ``dense`` into graph
+``q/k/v/o`` layouts; Q/K get RoPE head-dim interleaving via
+``rotate_tensor_in`` (axis 1, ``rotary_pct``), matching
+``GPTNeoXAttention.from_torch`` and Llama fixtures. Attention
 references call ``GPTNeoXAttention`` with ``_attn_implementation="eager"``,
 ``GPTNeoXRotaryEmbedding`` cos/sin, and additive ``attention_mask``: causal
 upper-triangular when ``use_causal_mask=True``, **zeros** when False (no mask).
@@ -116,17 +118,70 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     }
 
 
+def _rotate_tensor_in_for_rope(
+    x: np.ndarray, axis: int, rotary_pct: float,
+) -> np.ndarray:
+    """Interleave RoPE pairs on ``axis`` (first ``rotary_pct`` of that axis).
+
+    Same layout as ``nntile.layer.GPTNeoXAttention.rotate_tensor_in`` and
+    ``kernel::rope`` — HF forward still uses unrotated weights; only the
+    safetensors Q/K layouts written for the C++ graph are transformed.
+    """
+    k_elements = int(x.shape[axis] * rotary_pct)
+    if axis == 0:
+        new_shape = (1, k_elements, int(np.prod(x.shape[1:])))
+    elif axis == x.ndim - 1:
+        new_shape = (int(np.prod(x.shape[:-1])), k_elements, 1)
+    else:
+        new_shape = (
+            int(np.prod(x.shape[:axis])),
+            k_elements,
+            int(np.prod(x.shape[axis + 1:])),
+        )
+    if axis == 0:
+        x_selected = x[:k_elements, ...]
+    elif axis == x.ndim - 1:
+        x_selected = x[..., :k_elements]
+    else:
+        slice_obj = [slice(None)] * x.ndim
+        slice_obj[axis] = slice(0, k_elements)
+        x_selected = x[tuple(slice_obj)]
+
+    x_reshaped = x_selected.reshape(new_shape)
+    mid = k_elements // 2
+    y_reshaped = np.empty_like(x_reshaped)
+    y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
+    y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
+
+    result = np.asarray(x, dtype=np.float32).copy()
+    if axis == 0:
+        result[:k_elements, ...] = y_reshaped.reshape(x_selected.shape)
+    elif axis == x.ndim - 1:
+        result[..., :k_elements] = y_reshaped.reshape(x_selected.shape)
+    else:
+        slice_obj = [slice(None)] * x.ndim
+        slice_obj[axis] = slice(0, k_elements)
+        result[tuple(slice_obj)] = y_reshaped.reshape(x_selected.shape)
+    return result
+
+
 def _gptneox_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF ``query_key_value`` + ``dense`` to NNTile layouts."""
+    """Map HF ``query_key_value`` + ``dense`` to NNTile graph layouts."""
     H = dims.hidden
     nh = dims.n_heads
     hd = dims.head_size
     qkv_w = attn.query_key_value.weight.detach().numpy()
     qkv = qkv_w.reshape(nh, 3 * hd, H)
-    q = qkv[:, :hd, :]
-    k = qkv[:, hd : 2 * hd, :]
+    q = _rotate_tensor_in_for_rope(
+        np.asarray(qkv[:, :hd, :], dtype=np.float32), 1, dims.rotary_pct,
+    )
+    k = _rotate_tensor_in_for_rope(
+        np.asarray(qkv[:, hd : 2 * hd, :], dtype=np.float32),
+        1,
+        dims.rotary_pct,
+    )
     v = qkv[:, 2 * hd : 3 * hd, :]
     o = attn.dense.weight.detach().numpy().reshape(H, nh, hd)
     return {
@@ -438,7 +493,7 @@ def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
     """Write extra attention safetensors for RoPE / causal-mask combinations."""
     specs: list[tuple[str, bool, bool, float, float]] = [
         ("gptneox_attention_no_rope", False, False, 1e-6, 1e-6),
-        ("gptneox_attention_causal", True, True, 4e-3, 7e-3),
+        ("gptneox_attention_causal", True, True, 1e-6, 7e-3),
         ("gptneox_attention_no_rope_causal", False, True, 1e-6, 7e-3),
     ]
     for stem, rope, causal, fwd_tol, bwd_tol in specs:
