@@ -628,7 +628,6 @@ def generate_decoder(
         use_rope=True,
         use_causal_mask=True,
     )
-    data["attn_out"] = _out_to_nntile(attn_out)
     post_attn = residual + attn_out
     data["post_attn"] = _out_to_nntile(post_attn)
     if pt.use_parallel_residual:
