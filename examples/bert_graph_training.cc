@@ -24,11 +24,13 @@
 #include <vector>
 
 #include "bert_config_json.hh"
+#include "bert_example_helpers.hh"
 #include <nntile.hh>
 #include <nntile/graph/model/bert/bert_mlm.hh>
 #include <nntile/graph/tensor/ops/clear.hh>
 
 using namespace nntile;
+using namespace nntile::examples;
 using namespace nntile::graph;
 using namespace nntile::model::bert;
 using namespace nntile::graph::optim;
@@ -38,21 +40,6 @@ namespace
 
 constexpr int EXIT_OK = 0;
 constexpr int EXIT_ERROR = 1;
-
-static BertConfig make_tiny_config()
-{
-    BertConfig c;
-    c.vocab_size = 64;
-    c.hidden_size = 32;
-    c.intermediate_size = 64;
-    c.num_hidden_layers = 2;
-    c.num_attention_heads = 4;
-    c.max_position_embeddings = 32;
-    c.type_vocab_size = 2;
-    c.layer_norm_eps = 1e-5f;
-    c.validate();
-    return c;
-}
 
 static void fill_arange_position_ids(
     std::vector<std::int64_t> &pos, Index n_seq, Index n_batch)
@@ -64,36 +51,6 @@ static void fill_arange_position_ids(
             pos[s + n_seq * b] = static_cast<std::int64_t>(s);
         }
     }
-}
-
-static void init_random_parameter_hints(BertMlm &model, std::mt19937 &gen)
-{
-    for (NNGraph::TensorNode *tensor : model.parameters_recursive())
-    {
-        const auto &shape = tensor->shape();
-        Index nelems = 1;
-        for (auto d : shape)
-        {
-            nelems *= d;
-        }
-        float fan_in = static_cast<float>(shape[0]);
-        if (fan_in < 1.f)
-        {
-            fan_in = 1.f;
-        }
-        float limit = std::sqrt(1.0f / fan_in);
-        std::uniform_real_distribution<float> wdist(-limit, limit);
-
-        std::vector<float> data(static_cast<std::size_t>(nelems));
-        for (auto &v : data)
-        {
-            v = wdist(gen);
-        }
-        std::vector<std::uint8_t> bytes(data.size() * sizeof(float));
-        std::memcpy(bytes.data(), data.data(), bytes.size());
-        tensor->data()->set_bind_hint(std::move(bytes));
-    }
-    model.mark_parameters_input_recursive();
 }
 
 static void sync_param_hint_from_runtime(
@@ -180,7 +137,7 @@ int main(int argc, char **argv)
     (void)argc;
     (void)argv;
 
-    BertConfig config = make_tiny_config();
+    BertConfig config = make_tiny_bert_config(2, 32, 1e-5f);
     const Index n_seq = 8;
     const Index n_batch = 2;
     const std::int64_t mask_token_id = 3;
@@ -211,7 +168,7 @@ int main(int argc, char **argv)
     labels->mark_input(true);
 
     std::mt19937 gen(42);
-    init_random_parameter_hints(model, gen);
+    init_random_bert_parameter_hints(model, gen);
 
     auto optimizer = std::make_unique<AdamW>(
         &graph,

@@ -9,63 +9,22 @@
  * @version 1.1.0
  * */
 
-#include <cmath>
-#include <cstdint>
-#include <cstring>
 #include <iostream>
 #include <random>
 #include <vector>
 
+#include "bert_example_helpers.hh"
 #include <nntile.hh>
 #include <nntile/graph/model/bert/bert_mlm.hh>
 
 using namespace nntile;
+using namespace nntile::examples;
 using namespace nntile::graph;
 using namespace nntile::model::bert;
 
-namespace
-{
-
-static BertConfig make_tiny_config()
-{
-    BertConfig c;
-    c.vocab_size = 64;
-    c.hidden_size = 32;
-    c.intermediate_size = 64;
-    c.num_hidden_layers = 1;
-    c.num_attention_heads = 4;
-    c.max_position_embeddings = 16;
-    c.validate();
-    return c;
-}
-
-static void init_random_parameter_hints(BertMlm &model, std::mt19937 &gen)
-{
-    for (NNGraph::TensorNode *tensor : model.parameters_recursive())
-    {
-        Index nelems = 1;
-        for (auto d : tensor->shape())
-        {
-            nelems *= d;
-        }
-        std::vector<float> data(static_cast<std::size_t>(nelems), 0.01f);
-        std::uniform_real_distribution<float> wdist(-0.05f, 0.05f);
-        for (auto &v : data)
-        {
-            v = wdist(gen);
-        }
-        std::vector<std::uint8_t> bytes(data.size() * sizeof(float));
-        std::memcpy(bytes.data(), data.data(), bytes.size());
-        tensor->data()->set_bind_hint(std::move(bytes));
-    }
-    model.mark_parameters_input_recursive();
-}
-
-} // namespace
-
 int main()
 {
-    BertConfig config = make_tiny_config();
+    BertConfig config = make_tiny_bert_config(1, 16);
     const Index n_seq = 4;
     const Index n_batch = 1;
 
@@ -87,7 +46,8 @@ int main()
     position_ids->mark_input(true);
 
     std::mt19937 gen(7);
-    init_random_parameter_hints(model, gen);
+    init_random_bert_parameter_hints(
+        model, gen, BertParamInitScale::Uniform05);
 
     auto *logits = model.forward(
         input_ids, token_type_ids, position_ids, nullptr);
