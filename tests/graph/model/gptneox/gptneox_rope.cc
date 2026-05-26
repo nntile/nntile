@@ -149,7 +149,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     read_tensor_nntile_fortran(reader, "rope_sin", sin_ref);
     read_tensor_nntile_fortran(reader, "rope_cos", cos_ref);
 
-    constexpr float k_tol = 1e-5f;
+    constexpr float k_tol = 1e-6f;
     require_relative_frobenius_error(sin_comp, sin_ref, k_tol);
     require_relative_frobenius_error(cos_comp, cos_ref, k_tol);
 }
