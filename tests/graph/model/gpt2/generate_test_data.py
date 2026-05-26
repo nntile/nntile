@@ -14,7 +14,11 @@
 For each block the script creates ``gpt2_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
-Uses HuggingFace ``modeling_gpt2`` and NumPy layout helpers only.
+Uses HuggingFace ``modeling_gpt2`` for all forward/backward references
+(``GPT2MLP``, ``GPT2Attention``, ``GPT2Block``, ``GPT2Model``, ``GPT2LMHeadModel``)
+plus NumPy layout helpers. Weight tensors are reshaped to the graph module layout;
+reference forwards call HF modules (or ``eager_attention_forward`` from the same
+file for bidirectional attention without a causal mask).
 """
 
 from __future__ import annotations
@@ -31,7 +35,8 @@ from safetensors.numpy import save_file
 from transformers import GPT2Config
 from transformers.models.gpt2.modeling_gpt2 import (
     GPT2MLP as PtMLP, GPT2Attention as PtAttention, GPT2Block as PtBlock,
-    GPT2LMHeadModel as PtCausalLM, GPT2Model as PtModel)
+    GPT2LMHeadModel as PtCausalLM, GPT2Model as PtModel,
+    eager_attention_forward)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -300,31 +305,46 @@ def generate_mlp(
     return data
 
 
-def _gpt2_attn_forward_bidirectional(
-    attn: PtAttention, x_pt: torch.Tensor,
+def _gpt2_attn_forward_hf(
+    attn: PtAttention,
+    hidden_states: torch.Tensor,
+    *,
+    attention_mask: torch.Tensor | None = None,
+    bidirectional: bool = False,
 ) -> torch.Tensor:
-    """Full (non-causal) self-attention reference for ``mask=nullptr`` tests.
+    """HF GPT-2 attention forward (``_attn_implementation="eager"``).
 
-    HuggingFace ``GPT2Attention`` applies a built-in causal mask even when
-    ``attention_mask`` is None, which does not match graph ``sdpa_eager`` with
-    a null mask (~0.8 relative Frobenius vs bidirectional refs). This path uses
-    ``scaled_dot_product_attention(..., is_causal=False)`` on the same Q/K/V
-    projections and biases as the C++ module.
+    Causal refs use the built-in lower-triangular mask (``bidirectional=False``).
+    For graph ``mask=nullptr`` tests, ``bidirectional=True`` temporarily sets
+    ``is_cross_attention`` so ``eager_attention_forward`` skips the causal mask
+    (``GPT2Attention.forward`` always applies causal masking in eager mode when
+    ``attention_mask`` is None).
     """
-    n_emb = x_pt.shape[-1]
-    n_head = attn.num_heads
-    head_dim = n_emb // n_head
-    qkv = attn.c_attn(x_pt)
-    q, k, v = qkv.split(n_emb, dim=2)
-    shape = (*x_pt.shape[:2], n_head, head_dim)
-    q = q.view(*shape).transpose(1, 2)
-    k = k.view(*shape).transpose(1, 2)
-    v = v.view(*shape).transpose(1, 2)
-    ctx = torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=None, is_causal=False,
+    query_states, key_states, value_states = attn.c_attn(hidden_states).split(
+        attn.split_size, dim=2,
     )
-    ctx = ctx.transpose(1, 2).contiguous().view(*x_pt.shape)
-    return attn.c_proj(ctx)
+    shape_q = (*query_states.shape[:-1], -1, attn.head_dim)
+    query_states = query_states.view(shape_q).transpose(1, 2)
+    key_states = key_states.view(shape_q).transpose(1, 2)
+    value_states = value_states.view(shape_q).transpose(1, 2)
+
+    saved_cross = attn.is_cross_attention
+    try:
+        if bidirectional:
+            attn.is_cross_attention = True
+        attn_output, _ = eager_attention_forward(
+            attn,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+        )
+    finally:
+        attn.is_cross_attention = saved_cross
+
+    attn_output = attn_output.reshape(*attn_output.shape[:-2], -1).contiguous()
+    attn_output = attn.c_proj(attn_output)
+    return attn.resid_dropout(attn_output)
 
 
 def generate_attention(
@@ -346,9 +366,11 @@ def generate_attention(
             dims.batch, dims.seq, x_pt.device,
         )
         data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-        out, _ = pt(x_pt, attention_mask=attn_mask)
+        out = _gpt2_attn_forward_hf(
+            pt, x_pt, attention_mask=attn_mask, bidirectional=False,
+        )
     else:
-        out = _gpt2_attn_forward_bidirectional(pt, x_pt)
+        out = _gpt2_attn_forward_hf(pt, x_pt, bidirectional=True)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
