@@ -519,10 +519,12 @@ def _write_rope_and_position(
     cos_np: np.ndarray,
     sin_np: np.ndarray,
 ) -> None:
-    """Store ``position_ids`` and NNTile-layout ``rope_*`` for graph tests."""
-    data["position_ids"] = fortran_order_int64(pos_nntile)
-    data["rope_cos"] = fortran_order(cos_np)
-    data["rope_sin"] = fortran_order(sin_np)
+    """Store RoPE inputs in SafeTensors C-order; C++ maps to NNTile Fortran."""
+    data["position_ids"] = np.ascontiguousarray(
+        pos_nntile, dtype=np.int64,
+    )
+    data["rope_cos"] = np.ascontiguousarray(cos_np, dtype=np.float32)
+    data["rope_sin"] = np.ascontiguousarray(sin_np, dtype=np.float32)
 
 
 def generate_mlp(

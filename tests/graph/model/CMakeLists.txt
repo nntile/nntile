@@ -287,6 +287,20 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
     endif()
 endforeach()
 
+add_test_set(TARGET_NAME tests_graph_model_safetensors_nntile_layout
+    EXEC_NAME test_safetensors_nntile_layout
+    SOURCES safetensors_nntile_layout.cc
+    LINK_LIBRARIES nntile Catch2::Catch2WithMain
+    COV_ENABLE ${BUILD_COVERAGE}
+    COV_NAME coverage_graph_model_safetensors_nntile_layout
+    COV_GLOBAL coverage_graph_model coverage
+)
+target_include_directories(tests_graph_model_safetensors_nntile_layout PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../..
+)
+
 # GPT-NeoX test data: generated at test time via CTest fixtures (one per block)
 set(GPTNEOX_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/gptneox_data")
 set(GPTNEOX_GENERATE_SCRIPT

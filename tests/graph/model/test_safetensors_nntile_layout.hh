@@ -46,6 +46,20 @@ inline Index c_order_linear_index(
     return off;
 }
 
+inline Index f_order_linear_index(
+    const std::vector<std::int64_t> &shape,
+    const std::vector<Index> &idx)
+{
+    Index off = 0;
+    Index stride = 1;
+    for(std::size_t d = 0; d < shape.size(); ++d)
+    {
+        off += idx[d] * stride;
+        stride *= static_cast<Index>(shape[d]);
+    }
+    return off;
+}
+
 //! SafeTensors stores tensors in C-order; NNTile ``bind_data`` uses Fortran
 //! linearization (first index stride 1). Convert element-wise.
 template <typename T>
@@ -77,9 +91,15 @@ inline void c_safetensors_to_nntile_fortran(
     for(Index f_lin = 0; f_lin < vol; ++f_lin)
     {
         const Index c_lin = c_order_linear_index(shape, idx);
+        const Index f_at = f_order_linear_index(shape, idx);
+        if(f_at != f_lin)
+        {
+            throw std::logic_error(
+                "c_safetensors_to_nntile_fortran: index walk mismatch");
+        }
         out[static_cast<std::size_t>(f_lin)] =
             reinterpret_cast<const T *>(raw)[static_cast<std::size_t>(c_lin)];
-        Index dim = static_cast<Index>(shape.size()) - 1;
+        Index dim = 0;
         for(;;)
         {
             idx[static_cast<std::size_t>(dim)] += 1;
@@ -89,11 +109,11 @@ inline void c_safetensors_to_nntile_fortran(
                 break;
             }
             idx[static_cast<std::size_t>(dim)] = 0;
-            if(dim == 0)
+            if(dim + 1 >= static_cast<Index>(shape.size()))
             {
                 break;
             }
-            --dim;
+            ++dim;
         }
     }
 }
