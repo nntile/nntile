@@ -593,6 +593,25 @@ def write_fixture_json(
     print(f"Saved {path}")
 
 
+def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
+    """Write extra attention safetensors for RoPE / causal-mask combinations."""
+    specs: list[tuple[str, bool, bool, float, float]] = [
+        # No-RoPE isolates SDPA/proj; forward ~1.5e-3, backward ~6.5e-3 vs C++.
+        ("gptneox_attention_no_rope", False, False, 2e-3, 7e-3),
+        ("gptneox_attention_causal", True, True, 4e-3, 7e-3),
+        ("gptneox_attention_no_rope_causal", False, True, 4e-3, 7e-3),
+    ]
+    for stem, rope, causal, fwd_tol, bwd_tol in specs:
+        payload = generate_attention(
+            seed, ATTENTION_DIMS, use_rope=rope, use_causal_mask=causal,
+        )
+        fname = f"{stem}.safetensors"
+        path = str(out / fname)
+        save_file(payload, path)
+        print(f"Saved {path}")
+        write_fixture_json(out, stem, ATTENTION_DIMS, fwd_tol, bwd_tol)
+
+
 def _write_rope_and_position(
     data: dict[str, np.ndarray],
     pos_nntile: np.ndarray,
@@ -631,8 +650,18 @@ def generate_attention(
     seed: int,
     dims: TestDims = ATTENTION_DIMS,
     *,
+    use_rope: bool = True,
     use_causal_mask: bool = False,
 ) -> dict[str, np.ndarray]:
+    """Attention block reference (split QKV, NNTile RoPE, ``sdpa_eager``).
+
+    When ``use_rope`` is False, cos/sin are replaced with ones/zeros (identity
+    RoPE) in PyTorch and in ``rope_cos`` / ``rope_sin`` so the C++ graph still
+    runs the RoPE op (same pattern as Llama attention fixtures).
+
+    When ``use_causal_mask`` is True, ``attn_mask`` stores the BOOL causal
+    pattern for ``GptneoxAttention`` / ``sdpa_eager``.
+    """
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -643,6 +672,11 @@ def generate_attention(
     data["input"] = x_nt
     pos_nntile, _pos_pt = _attention_position_ids(dims, x_pt.device)
     cos_np, sin_np = _write_rope_and_position(data, pos_nntile, dims)
+    if not use_rope:
+        cos_np = np.ones_like(np.asarray(cos_np, dtype=np.float32))
+        sin_np = np.zeros_like(np.asarray(sin_np, dtype=np.float32))
+        data["rope_cos"] = fortran_order(cos_np)
+        data["rope_sin"] = fortran_order(sin_np)
     if use_causal_mask:
         data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
     out = _gptneox_attn_forward(
@@ -772,11 +806,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate GPT-NeoX block test data (safetensors)",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
         "--block",
         choices=GENERATORS,
-        required=True,
         help="GPT-NeoX block to generate data for",
+    )
+    mode.add_argument(
+        "--write-attention-rope-mask-variants",
+        action="store_true",
+        help=(
+            "Write three extra attention safetensors (no-RoPE, causal, "
+            "no-RoPE+causal) for C++ graph tests; does not overwrite "
+            "gptneox_attention.safetensors from --block attention."
+        ),
     )
     parser.add_argument(
         "--output", "-o", required=True, help="Output directory",
@@ -788,6 +831,10 @@ def main() -> int:
 
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
+
+    if args.write_attention_rope_mask_variants:
+        write_attention_rope_mask_variant_files(out, args.seed)
+        return 0
 
     data = GENERATORS[args.block](args.seed)
     stem = f"gptneox_{args.block}"
