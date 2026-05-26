@@ -112,13 +112,22 @@ inline bool load_attn_mask_bool(nntile::graph::NNGraph &g,
         return false;
     }
     const auto &info = reader.tensor_info("attn_mask");
-    if(info.shape.size() != 2 || info.shape[0] != n_seq ||
-       info.shape[1] != n_seq)
+    const auto n_el = static_cast<size_t>(n_seq * n_seq);
+    if(info.shape.size() == 1)
+    {
+        if(info.shape[0] != static_cast<Index>(n_el))
+        {
+            throw std::runtime_error(
+                "GPT-NeoX test fixture: 1D attn_mask length mismatch");
+        }
+    }
+    else if(
+        info.shape.size() != 2 || info.shape[0] != n_seq ||
+        info.shape[1] != n_seq)
     {
         throw std::runtime_error(
             "GPT-NeoX test fixture: attn_mask shape mismatch");
     }
-    const auto n_el = static_cast<size_t>(n_seq * n_seq);
     out_mask = g.tensor({n_seq, n_seq}, nntile::graph::DataType::BOOL, false)
                    ->set_name("attn_mask");
     auto raw = reader.read_tensor("attn_mask");
@@ -169,6 +178,21 @@ inline void bind_mask_input(nntile::graph::Runtime &runtime,
         return;
     }
     runtime.bind_data(mask, mask_bytes);
+}
+
+inline void fill_sdpa_causal_mask_bytes(
+    Index n_seq, std::vector<std::uint8_t> &mask_bytes)
+{
+    mask_bytes.assign(static_cast<size_t>(n_seq * n_seq), 0);
+    for(Index query = 0; query < n_seq; ++query)
+    {
+        for(Index key = 0; key < n_seq; ++key)
+        {
+            mask_bytes[static_cast<size_t>(key + query * n_seq)] =
+                (key <= query) ? static_cast<std::uint8_t>(1)
+                               : static_cast<std::uint8_t>(0);
+        }
+    }
 }
 
 } // namespace nntile::test::gptneox_fixture

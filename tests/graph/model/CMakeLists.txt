@@ -295,6 +295,7 @@ set(GPTNEOX_GENERATE_SCRIPT
 set(TESTS_MODEL_GPTNEOX
     "gptneox/gptneox_config"
     "gptneox/gptneox_mlp"
+    "gptneox/gptneox_rope"
     "gptneox/gptneox_attention"
     "gptneox/gptneox_decoder"
     "gptneox/gptneox_model"
@@ -324,7 +325,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             GPTNEOX_DATA_DIR="${GPTNEOX_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND)
+        if(Python3_Interpreter_FOUND AND NOT test_name STREQUAL "gptneox_rope")
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEOX_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${GPTNEOX_DATA_DIR}"
@@ -359,6 +360,11 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
             endif()
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "${required_fixtures}"
+            )
+        endif()
+        if(test_name STREQUAL "gptneox_rope" AND Python3_Interpreter_FOUND)
+            set_tests_properties(tests_graph_model_${test_name} PROPERTIES
+                FIXTURES_REQUIRED "tests_graph_model_gptneox_attention_data"
             )
         endif()
     endif()
