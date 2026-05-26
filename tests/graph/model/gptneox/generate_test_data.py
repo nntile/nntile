@@ -88,8 +88,9 @@ def fortran_order(arr: np.ndarray) -> np.ndarray:
 
 
 def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    """Fortran-contiguous int64 array (NNTile layout) without permuting values."""
-    return np.asfortranarray(np.asarray(arr, dtype=np.int64))
+    """Match ``fortran_order``: SafeTensors C payload == NNTile Fortran layout."""
+    a = np.asarray(arr, dtype=np.int64)
+    return a.ravel("F").reshape(a.shape)
 
 
 def _make_config(dims: TestDims) -> GPTNeoXConfig:

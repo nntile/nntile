@@ -10,10 +10,7 @@
  * */
 
 #include <catch2/catch_test_macros.hpp>
-#include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <vector>
@@ -22,7 +19,9 @@
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/gptneox/gptneox_config.hh"
 #include "nntile/graph/model/gptneox/gptneox_rope.hh"
+#include "test_frobenius.hh"
 #include "test_gptneox_fixture_helpers.hh"
+#include "test_safetensors_nntile_layout.hh"
 
 using namespace nntile;
 using namespace nntile::graph::io;
@@ -102,20 +101,10 @@ inline bool try_load_attention_fixture_spec(
     return true;
 }
 
-static float max_abs_diff(
-    const std::vector<float> &a,
-    const std::vector<float> &b)
-{
-    REQUIRE(a.size() == b.size());
-    float m = 0.f;
-    for(std::size_t i = 0; i < a.size(); ++i)
-    {
-        m = std::max(m, std::abs(a[i] - b[i]));
-    }
-    return m;
-}
-
 } // namespace
+
+using nntile::test::require_relative_frobenius_error;
+using nntile::test::safetensors_nntile_layout::read_tensor_nntile_fortran;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "Gptneox RoPE sin/cos from position_ids matches attention fixture",
@@ -136,13 +125,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
     const Index n_seq = fx.seq;
     const Index n_batch = fx.batch;
-    std::vector<std::uint8_t> pos_bytes = reader.read_tensor("position_ids");
-    const auto expected =
-        static_cast<std::size_t>(n_seq * n_batch * sizeof(std::int64_t));
-    REQUIRE(pos_bytes.size() == expected);
-    std::vector<std::int64_t> pos(
-        static_cast<std::size_t>(n_seq * n_batch));
-    std::memcpy(pos.data(), pos_bytes.data(), pos_bytes.size());
+    std::vector<std::int64_t> pos;
+    read_tensor_nntile_fortran(reader, "position_ids", pos);
+    REQUIRE(
+        pos.size()
+        == static_cast<std::size_t>(n_seq * n_batch));
 
     const Index half = gptneox_rope_dim(fx.config) / 2;
     const std::size_t rope_elems =
@@ -157,16 +144,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         sin_comp.data(),
         cos_comp.data());
 
-    std::vector<std::uint8_t> sin_ref_b = reader.read_tensor("rope_sin");
-    std::vector<std::uint8_t> cos_ref_b = reader.read_tensor("rope_cos");
-    std::vector<float> sin_ref(sin_ref_b.size() / sizeof(float));
-    std::vector<float> cos_ref(cos_ref_b.size() / sizeof(float));
-    std::memcpy(sin_ref.data(), sin_ref_b.data(), sin_ref_b.size());
-    std::memcpy(cos_ref.data(), cos_ref_b.data(), cos_ref_b.size());
+    std::vector<float> sin_ref;
+    std::vector<float> cos_ref;
+    read_tensor_nntile_fortran(reader, "rope_sin", sin_ref);
+    read_tensor_nntile_fortran(reader, "rope_cos", cos_ref);
 
     constexpr float k_tol = 1e-5f;
-    REQUIRE(max_abs_diff(sin_comp, sin_ref) < k_tol);
-    REQUIRE(max_abs_diff(cos_comp, cos_ref) < k_tol);
+    require_relative_frobenius_error(sin_comp, sin_ref, k_tol);
+    require_relative_frobenius_error(cos_comp, cos_ref, k_tol);
 }
 
 #endif
