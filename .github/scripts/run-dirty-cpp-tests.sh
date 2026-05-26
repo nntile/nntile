@@ -218,8 +218,7 @@ while IFS= read -r file; do
             add_gptneo_model_tests ;;
         include/nntile/graph/model/gptneo.hh)
             add_gptneo_model_tests ;;
-        examples/gptneo_config_json.hh | examples/gptneo_generate.cc |
-        examples/gptneo_graph_training.cc | examples/gptneo_generate.py)
+        examples/gptneo_config_json.hh | examples/gptneo_generate.cc | examples/gptneo_graph_training.cc | examples/gptneo_generate.py)
             add_gptneo_model_tests ;;
         src/graph/model/t5/*.cc)
             add_t5_model_tests ;;
@@ -227,13 +226,9 @@ while IFS= read -r file; do
             add_t5_model_tests ;;
         include/nntile/graph/model/t5.hh)
             add_t5_model_tests ;;
-        examples/t5_generate.cc | examples/t5_generate.py |
-        examples/t5_graph_training.cc | examples/t5_config_json.hh |
-        examples/prepare_tiny_seq2seq_train_bin.py |
-        examples/run_t5_graph_training_demo.sh)
+        examples/t5_generate.cc | examples/t5_generate.py | examples/t5_graph_training.cc | examples/t5_config_json.hh | examples/prepare_tiny_seq2seq_train_bin.py | examples/run_t5_graph_training_demo.sh)
             add_t5_model_tests ;;
-        src/graph/dataset/seq2seq_lm_mmap.cc |
-        include/nntile/graph/dataset/seq2seq_lm_mmap.hh)
+        src/graph/dataset/seq2seq_lm_mmap.cc | include/nntile/graph/dataset/seq2seq_lm_mmap.hh)
             add_t5_model_tests ;;
     esac
 done <<< "$all_changed"
