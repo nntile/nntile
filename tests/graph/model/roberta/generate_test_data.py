@@ -24,13 +24,9 @@ import torch
 from safetensors.numpy import save_file
 from transformers import RobertaConfig
 from transformers.models.roberta.modeling_roberta import (
-    RobertaAttention as PtAttention,
-    RobertaEmbeddings as PtEmbeddings,
-    RobertaForMaskedLM as PtMlm,
-    RobertaIntermediate as PtIntermediate,
-    RobertaLayer as PtLayer,
-    RobertaModel as PtModel,
-)
+    RobertaAttention as PtAttention, RobertaEmbeddings as PtEmbeddings,
+    RobertaForMaskedLM as PtMlm, RobertaIntermediate as PtIntermediate,
+    RobertaLayer as PtLayer, RobertaModel as PtModel)
 
 
 @dataclass
@@ -51,13 +47,23 @@ class TestDims:
 
 
 INTERMEDIATE_DIMS = TestDims(
-    hidden=8, intermediate=16, n_heads=4,
-    seq=4, batch=2, vocab=100, num_layers=1,
+    hidden=8,
+    intermediate=16,
+    n_heads=4,
+    seq=4,
+    batch=2,
+    vocab=100,
+    num_layers=1,
 )
 
 ATTENTION_DIMS = TestDims(
-    hidden=64, intermediate=256, n_heads=4,
-    seq=8, batch=2, vocab=100, num_layers=1,
+    hidden=64,
+    intermediate=256,
+    n_heads=4,
+    seq=8,
+    batch=2,
+    vocab=100,
+    num_layers=1,
 )
 
 LAYER_DIMS = ATTENTION_DIMS
@@ -137,13 +143,20 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     n_emb = dims.hidden
     n_heads = dims.n_heads
     hs = dims.head_size
-    w = out_module.dense.weight.detach().numpy().reshape(
-        n_emb, n_heads, hs,
+    w = (
+        out_module.dense.weight.detach()
+        .numpy()
+        .reshape(
+            n_emb,
+            n_heads,
+            hs,
+        )
     )
     return {
         f"{prefix}.dense.weight": fortran_order(w),
         f"{prefix}.dense.bias": fortran_order(
-            out_module.dense.bias.detach().numpy()),
+            out_module.dense.bias.detach().numpy()
+        ),
         **_layer_norm(out_module.LayerNorm, f"{prefix}.ln"),
     }
 
@@ -165,9 +178,12 @@ def _bert_layer(layer: PtLayer, prefix: str, dims: TestDims):
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
-    x = rng.standard_normal(
-        (dims.hidden, dims.seq, dims.batch),
-    ).astype(np.float32) * scale
+    x = (
+        rng.standard_normal(
+            (dims.hidden, dims.seq, dims.batch),
+        ).astype(np.float32)
+        * scale
+    )
     x_nt = fortran_order(x)
     x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
     return x_nt, x_pt
@@ -183,7 +199,9 @@ def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
 def _ids_input(rng, dims: TestDims):
     low = dims.pad_token_id + 1
     ids = rng.integers(
-        low, dims.vocab, size=(dims.seq, dims.batch),
+        low,
+        dims.vocab,
+        size=(dims.seq, dims.batch),
     ).astype(np.int64)
     ids_nt = ids.ravel("F").reshape(ids.shape)
     ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
@@ -198,8 +216,13 @@ def _roberta_position_ids(dims: TestDims) -> np.ndarray:
 
 
 def _roberta_position_ids_torch(dims: TestDims, batch: int) -> torch.Tensor:
-    pos = torch.arange(dims.seq, dtype=torch.long).unsqueeze(0).expand(
-        batch, -1,
+    pos = (
+        torch.arange(dims.seq, dtype=torch.long)
+        .unsqueeze(0)
+        .expand(
+            batch,
+            -1,
+        )
     )
     return pos + dims.pad_token_id + 1
 
@@ -256,7 +279,8 @@ def write_fixture_json(
 
 
 def generate_intermediate(
-    seed: int, dims: TestDims = INTERMEDIATE_DIMS,
+    seed: int,
+    dims: TestDims = INTERMEDIATE_DIMS,
 ) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -276,7 +300,8 @@ def generate_intermediate(
 
 
 def generate_attention(
-    seed: int, dims: TestDims = ATTENTION_DIMS,
+    seed: int,
+    dims: TestDims = ATTENTION_DIMS,
 ) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -296,7 +321,8 @@ def generate_attention(
 
 
 def generate_layer(
-    seed: int, dims: TestDims = LAYER_DIMS,
+    seed: int,
+    dims: TestDims = LAYER_DIMS,
 ) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -316,7 +342,8 @@ def generate_layer(
 
 
 def generate_embeddings(
-    seed: int, dims: TestDims = EMBEDDINGS_DIMS,
+    seed: int,
+    dims: TestDims = EMBEDDINGS_DIMS,
 ) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -337,19 +364,25 @@ def generate_embeddings(
     data["grad_output"] = g_nt
     out.backward(g_pt)
     data["grad_wte_vocab"] = fortran_order(
-        pt.word_embeddings.weight.grad.detach().numpy().T)
+        pt.word_embeddings.weight.grad.detach().numpy().T
+    )
     return data
 
 
 def _model_weights(model: PtModel, prefix: str, dims: TestDims):
     d = {}
-    d.update(_embed(
-        model.embeddings.word_embeddings, f"{prefix}.embeddings.word"))
-    d.update(_embed(
-        model.embeddings.position_embeddings,
-        f"{prefix}.embeddings.position"))
-    d.update(_layer_norm(
-        model.embeddings.LayerNorm, f"{prefix}.embeddings.ln"))
+    d.update(
+        _embed(model.embeddings.word_embeddings, f"{prefix}.embeddings.word")
+    )
+    d.update(
+        _embed(
+            model.embeddings.position_embeddings,
+            f"{prefix}.embeddings.position",
+        )
+    )
+    d.update(
+        _layer_norm(model.embeddings.LayerNorm, f"{prefix}.embeddings.ln")
+    )
     for i, layer in enumerate(model.encoder.layer):
         d.update(_bert_layer(layer, f"{prefix}.layer_{i}", dims))
     return d
@@ -372,7 +405,8 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS):
     data["grad_output"] = g_nt
     out.last_hidden_state.backward(g_pt)
     data["grad_wte_vocab"] = fortran_order(
-        pt.embeddings.word_embeddings.weight.grad.detach().numpy().T)
+        pt.embeddings.word_embeddings.weight.grad.detach().numpy().T
+    )
     return data
 
 
@@ -403,7 +437,8 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     data["grad_output"] = g_nt
     out.backward(g_pt)
     data["grad_wte_vocab"] = fortran_order(
-        pt.roberta.embeddings.word_embeddings.weight.grad.detach().numpy().T)
+        pt.roberta.embeddings.word_embeddings.weight.grad.detach().numpy().T
+    )
     return data
 
 
