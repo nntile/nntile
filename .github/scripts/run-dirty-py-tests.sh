@@ -41,7 +41,7 @@ cat changed.txt
 
 # Unknown changes (e.g. only workflow files) — run full suite, like run-dirty-cpp-tests.sh.
 if [ ! -s changed.txt ]; then
-    all_changed=$(git diff --name-only main..$branch)
+    all_changed=$(git diff --name-only "${base_branch}..${branch}")
     if [ -n "$all_changed" ]; then
         echo ':: Unknown changes (no pattern matched), running all Python tests'
         pytest -vv \
