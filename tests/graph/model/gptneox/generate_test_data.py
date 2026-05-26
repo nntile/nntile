@@ -323,14 +323,14 @@ def _apply_rope_hsbn(
     q_rot, k_rot = q[:rope_dim], k[:rope_dim]
     q1, q2 = q_rot[0::2], q_rot[1::2]
     k1, k2 = k_rot[0::2], k_rot[1::2]
-    q_rot_out = torch.cat(
+    q_rot_out = torch.stack(
         [cos_t * q1 - sin_t * q2, sin_t * q1 + cos_t * q2],
-        dim=0,
-    )
-    k_rot_out = torch.cat(
+        dim=1,
+    ).reshape(rope_dim, n_seq, n_batch, q.shape[-1])
+    k_rot_out = torch.stack(
         [cos_t * k1 - sin_t * k2, sin_t * k1 + cos_t * k2],
-        dim=0,
-    )
+        dim=1,
+    ).reshape(rope_dim, n_seq, n_batch, k.shape[-1])
     if rope_dim < q.shape[0]:
         qo = torch.cat([q_rot_out, q[rope_dim:]], dim=0)
         ko = torch.cat([k_rot_out, k[rope_dim:]], dim=0)
