@@ -264,10 +264,6 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
     return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
 
 
-def _logits_to_nntile(logits: torch.Tensor) -> np.ndarray:
-    return fortran_order(logits.detach().numpy().transpose(2, 1, 0))
-
-
 def _cache_position(hidden_states: torch.Tensor) -> torch.Tensor:
     return torch.arange(
         hidden_states.shape[1],
@@ -583,7 +579,7 @@ def generate_conditional(
         input_ids=enc_ids,
         decoder_input_ids=dec_ids,
     ).logits
-    data["output_ref"] = _logits_to_nntile(logits)
+    data["output_ref"] = _out_to_nntile(logits)
     g_nt, g_pt = _grad_output(rng, logits)
     data["grad_output"] = g_nt
     logits.backward(g_pt)
