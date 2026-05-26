@@ -15,10 +15,11 @@ For each block the script creates ``gpt2_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 Uses HuggingFace ``modeling_gpt2`` for all forward/backward references
-(``GPT2MLP``, ``GPT2Attention``, ``GPT2Block``, ``GPT2Model``, ``GPT2LMHeadModel``)
-plus NumPy layout helpers. Weight tensors are reshaped to the graph module layout;
-reference forwards call HF modules (or ``eager_attention_forward`` from the same
-file for bidirectional attention without a causal mask).
+(``GPT2MLP``, ``GPT2Attention``, ``GPT2Block``, ``GPT2Model``,
+``GPT2LMHeadModel``) plus NumPy layout helpers. Weight tensors are reshaped to
+the graph module layout; reference forwards call HF modules (or
+``eager_attention_forward`` from the same file for bidirectional attention
+without a causal mask).
 """
 
 from __future__ import annotations
@@ -314,11 +315,12 @@ def _gpt2_attn_forward_hf(
 ) -> torch.Tensor:
     """HF GPT-2 attention forward (``_attn_implementation="eager"``).
 
-    Causal refs use the built-in lower-triangular mask (``bidirectional=False``).
-    For graph ``mask=nullptr`` tests, ``bidirectional=True`` temporarily sets
-    ``is_cross_attention`` so ``eager_attention_forward`` skips the causal mask
-    (``GPT2Attention.forward`` always applies causal masking in eager mode when
-    ``attention_mask`` is None).
+    Causal refs use the built-in lower-triangular mask
+    (``bidirectional=False``). For graph ``mask=nullptr`` tests,
+    ``bidirectional=True`` temporarily sets ``is_cross_attention`` so
+    ``eager_attention_forward`` skips the causal mask
+    (``GPT2Attention.forward`` always applies causal masking in eager mode
+    when ``attention_mask`` is None).
     """
     query_states, key_states, value_states = attn.c_attn(hidden_states).split(
         attn.split_size, dim=2,
