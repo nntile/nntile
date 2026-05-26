@@ -240,7 +240,7 @@ def _position_ids(dims: TestDims) -> np.ndarray:
     return fortran_order_int64(pos)
 
 
-def _bert_batch_inputs(dims: TestDims, ids_pt: torch.Tensor):
+def _bert_batch_inputs(dims: TestDims):
     """HF BertEmbeddings/BertModel inputs: (batch, seq) ids and masks."""
     tt_pt = torch.zeros(dims.batch, dims.seq, dtype=torch.long)
     pos_pt = (
@@ -397,7 +397,7 @@ def generate_embeddings(
     data["input_ids"] = ids_nt
     data["token_type_ids"] = _token_type_ids(dims)
     data["position_ids"] = _position_ids(dims)
-    tt_pt, pos_pt = _bert_batch_inputs(dims, ids_pt)
+    tt_pt, pos_pt = _bert_batch_inputs(dims)
     out = pt(ids_pt, tt_pt, pos_pt)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
@@ -469,7 +469,7 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS):
     data["input_ids"] = ids_nt
     data["token_type_ids"] = _token_type_ids(dims)
     data["position_ids"] = _position_ids(dims)
-    tt_pt, pos_pt = _bert_batch_inputs(dims, ids_pt)
+    tt_pt, pos_pt = _bert_batch_inputs(dims)
     out = pt(input_ids=ids_pt, token_type_ids=tt_pt, position_ids=pos_pt)
     data["output_ref"] = _out_to_nntile(out.last_hidden_state)
     g_nt, g_pt = _grad_output(rng, out.last_hidden_state)
@@ -496,7 +496,7 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     data["input_ids"] = ids_nt
     data["token_type_ids"] = _token_type_ids(dims)
     data["position_ids"] = _position_ids(dims)
-    tt_pt, pos_pt = _bert_batch_inputs(dims, ids_pt)
+    tt_pt, pos_pt = _bert_batch_inputs(dims)
     out = pt(
         input_ids=ids_pt,
         token_type_ids=tt_pt,
