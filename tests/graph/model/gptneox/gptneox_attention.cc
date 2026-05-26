@@ -3,8 +3,23 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file tests/graph/model/gptneox/gptneox_attention.cc
- * Tests for GptneoxAttention.
+ * Tests for GptneoxAttention (sdpa_eager-based).
+ *
+ * Each reference bundle is a **pair**: ``<stem>.json`` (geometry, tolerances)
+ * and ``<stem>.safetensors`` (weights and reference tensors). Pairs are
+ * produced by ``generate_test_data.py``. Catch tags:
+ * ``[nomask]`` — no causal ``attn_mask`` (RoPE and no-RoPE bundles);
+ * ``[causal_mask]`` — causal ``attn_mask``;
+ * ``[norope]`` — no-RoPE bundles only (with or without causal mask);
+ * ``[norope_nomask]`` — no-RoPE and no causal mask (subset of ``[nomask]``).
+ *
+ * Run subsets, e.g. ``ctest -R gptneox_attention --extra-tests-args
+ * '[nomask]'`` or ``'[norope]'`` / ``'~[causal_mask]'``, to see whether
+ * disabling mask or RoPE reaches tight relative error.
  *
  * @version 1.1.0
  * */
@@ -16,6 +31,7 @@
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/gptneox/gptneox_config.hh"
 #include "test_frobenius.hh"
+#include "test_gptneox_attention_fixture.hh"
 #include "test_gptneox_fixture_helpers.hh"
 
 #include <catch2/catch_test_macros.hpp>
@@ -23,7 +39,6 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
-#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 
@@ -42,111 +57,52 @@ TEST_CASE(
 
 #else
 
-namespace attn_fixture_stem
-{
-
-constexpr char gptneox_attention[] = "gptneox_attention";
-constexpr char gptneox_attention_causal[] = "gptneox_attention_causal";
-} // namespace attn_fixture_stem
-
 namespace
 {
 
+using namespace nntile::test::gptneox_attention_fixture;
 using namespace nntile::test::gptneox_fixture;
 
-struct AttentionFixtureSpec
+struct AttentionRunContext
 {
-    GptneoxConfig config{};
-    Index seq = 0;
-    Index batch = 0;
-    Index hidden = 0;
-    float forward_tol = 0.f;
-    float backward_tol = 0.f;
-    std::string stem;
+    GptneoxRopeInputs rope{};
+    NNGraph::TensorNode* mask = nullptr;
+    std::vector<std::uint8_t> mask_bytes;
 };
 
-inline bool try_load_attention_fixture_spec(const std::string &data_dir,
-    const char *stem_cstr,
-    AttentionFixtureSpec &out)
+inline void prepare_attention_run(NNGraph& g,
+    const SafeTensorsReader& reader,
+    const AttentionFixtureSpec& fx,
+    AttentionRunContext& ctx)
 {
-    out = {};
-    out.stem = stem_cstr;
-    const std::string jpath = data_dir + "/" + out.stem + ".json";
-    std::ifstream jf(jpath);
-    if (!jf)
-    {
-        return false;
-    }
-    nlohmann::json j;
-    try
-    {
-        jf >> j;
-        if (j.at("version").get<int>() != 2)
-        {
-            return false;
-        }
-        if (j.at("stem").get<std::string>() != out.stem)
-        {
-            return false;
-        }
-        const std::string expected_st = out.stem + ".safetensors";
-        if (j.at("safetensors").get<std::string>() != expected_st)
-        {
-            return false;
-        }
-        const auto &G = j.at("gptneox");
-        out.config.hidden_size = json_index(G, "hidden_size");
-        out.config.intermediate_size = json_index(G, "intermediate_size");
-        out.config.num_attention_heads = json_index(G, "num_attention_heads");
-        out.config.head_dim = json_index(G, "head_dim");
-        out.config.max_position_embeddings =
-            json_index(G, "max_position_embeddings");
-        if(G.contains("rotary_pct"))
-        {
-            out.config.rotary_pct =
-                static_cast<float>(G.at("rotary_pct").get<double>());
-        }
-        if(G.contains("rotary_emb_base"))
-        {
-            out.config.rotary_emb_base =
-                static_cast<float>(G.at("rotary_emb_base").get<double>());
-        }
-        out.hidden = out.config.hidden_size;
-        out.seq = json_index(j, "sequence_length");
-        out.batch = json_index(j, "batch");
-        out.forward_tol =
-            static_cast<float>(j.at("tolerances").at("forward").get<double>());
-        out.backward_tol = static_cast<float>(
-            j.at("tolerances").at("backward").get<double>());
-        out.config.validate();
-    }
-    catch (...)
-    {
-        return false;
-    }
-    prepare_gptneox_config(out.config);
-    return true;
+    ctx = {};
+    load_gptneox_rope_inputs(
+        g, reader, fx.config, fx.seq, fx.batch, ctx.rope);
+    load_attn_mask_bool(g, reader, fx.seq, ctx.mask, ctx.mask_bytes);
 }
 
-inline std::string attention_fixture_safetensors_path(
-    const std::string &data_dir, const AttentionFixtureSpec &spec)
+inline NNGraph::TensorNode* run_attention_forward(NNGraph& g,
+    NNGraph::TensorNode* input,
+    const AttentionFixtureSpec& fx,
+    const AttentionRunContext& ctx,
+    const std::string& weights_path)
 {
-    return data_dir + "/" + spec.stem + ".safetensors";
+    GptneoxAttention attn(&g, "attn", fx.config);
+    attn.load(weights_path);
+    return attn.forward(input, ctx.rope.sin, ctx.rope.cos, ctx.mask);
 }
 
-inline bool skip_unless_fixture_ready(
-    const char *stem, AttentionFixtureSpec &fx)
+inline void bind_attention_runtime_inputs(Runtime& runtime,
+    NNGraph::TensorNode* input,
+    const std::vector<float>& input_data,
+    const AttentionRunContext& ctx)
 {
-    const std::string dir = std::string(GPTNEOX_DATA_DIR);
-    if (!try_load_attention_fixture_spec(dir, stem, fx))
-    {
-        return false;
-    }
-    std::ifstream st(attention_fixture_safetensors_path(dir, fx));
-    return st.good();
+    runtime.bind_data(input, input_data);
+    bind_rope_inputs(runtime, ctx.rope);
+    bind_mask_input(runtime, ctx.mask, ctx.mask_bytes);
 }
 
-void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
+void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
 {
     const std::string full_path =
         attention_fixture_safetensors_path(std::string(GPTNEOX_DATA_DIR), fx);
@@ -159,29 +115,20 @@ void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
     std::vector<float> result;
     {
         NNGraph g(std::string("attn_ref_") + fx.stem);
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+        auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
                           ->set_name("input");
-        GptneoxRopeInputs rope;
-        load_gptneox_rope_inputs(g, reader, fx.config, fx.seq, fx.batch, rope);
-        NNGraph::TensorNode *mask = nullptr;
-        std::vector<std::uint8_t> mask_bytes;
-        load_attn_mask_bool(g, reader, fx.seq, mask, mask_bytes);
-
-        GptneoxAttention attn(&g, "attn", fx.config);
-        attn.load(full_path);
-
-        auto *output = attn.forward(input, rope.sin, rope.cos, mask);
+        AttentionRunContext ctx;
+        prepare_attention_run(g, reader, fx, ctx);
+        auto* output = run_attention_forward(g, input, fx, ctx, full_path);
         input->mark_input(true);
         output->mark_output(true);
-        mark_rope_inputs(rope);
-        mark_mask_input(mask);
+        mark_rope_inputs(ctx.rope);
+        mark_mask_input(ctx.mask);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(input, input_data);
-        bind_rope_inputs(runtime, rope);
-        bind_mask_input(runtime, mask, mask_bytes);
+        bind_attention_runtime_inputs(runtime, input, input_data, ctx);
         runtime.execute();
         runtime.wait();
 
@@ -196,7 +143,7 @@ void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
     require_relative_frobenius_error(result, ref_data, fx.forward_tol);
 }
 
-void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
+void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
 {
     const std::string full_path =
         attention_fixture_safetensors_path(std::string(GPTNEOX_DATA_DIR), fx);
@@ -215,23 +162,16 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
     std::vector<float> grad_input_result;
     {
         NNGraph g(std::string("attn_bwd_") + fx.stem);
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
+        auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
                           ->set_name("input");
-        GptneoxRopeInputs rope;
-        load_gptneox_rope_inputs(g, reader, fx.config, fx.seq, fx.batch, rope);
-        NNGraph::TensorNode *mask = nullptr;
-        std::vector<std::uint8_t> mask_bytes;
-        load_attn_mask_bool(g, reader, fx.seq, mask, mask_bytes);
-
-        GptneoxAttention attn(&g, "attn", fx.config);
-        attn.load(full_path);
-
-        auto *output = attn.forward(input, rope.sin, rope.cos, mask);
+        AttentionRunContext ctx;
+        prepare_attention_run(g, reader, fx, ctx);
+        auto* output = run_attention_forward(g, input, fx, ctx, full_path);
 
         input->mark_input(true);
         output->mark_output(true);
-        mark_rope_inputs(rope);
-        mark_mask_input(mask);
+        mark_rope_inputs(ctx.rope);
+        mark_mask_input(ctx.mask);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
@@ -242,10 +182,8 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(input, input_data);
+        bind_attention_runtime_inputs(runtime, input, input_data, ctx);
         runtime.bind_data(grad_output_tensor, grad_out_data);
-        bind_rope_inputs(runtime, rope);
-        bind_mask_input(runtime, mask, mask_bytes);
         runtime.execute();
         runtime.wait();
 
@@ -261,22 +199,20 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
         grad_input_result, grad_input_ref, fx.backward_tol);
 }
 
-
-
 } // namespace
 
 TEST_CASE("GptneoxAttention forward builds output", "[model][gptneox]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(attn_fixture_stem::gptneox_attention, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::gptneox_attention, fx))
     {
         SKIP("Missing or invalid gptneox_attention.json / .safetensors.");
     }
     NNGraph g("gptneox_attn");
     GptneoxAttention attn(&g, "attn", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
                       ->set_name("input");
-    auto *output = attn.forward(input, nullptr, nullptr, nullptr);
+    auto* output = attn.forward(input, nullptr, nullptr, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(
@@ -287,7 +223,7 @@ TEST_CASE("GptneoxAttention forward builds output", "[model][gptneox]")
 TEST_CASE("GptneoxAttention load from safetensors roundtrip", "[model][gptneox][io]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(attn_fixture_stem::gptneox_attention, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::gptneox_attention, fx))
     {
         SKIP("Missing or invalid gptneox_attention.json / .safetensors.");
     }
@@ -304,7 +240,7 @@ TEST_CASE("GptneoxAttention load from safetensors roundtrip", "[model][gptneox][
 
     SafeTensorsReader reader(data_path);
     SafeTensorsReader reader2(save_path);
-    for (const auto &name : reader2.tensor_names())
+    for(const auto& name : reader2.tensor_names())
     {
         REQUIRE(reader.has_tensor(name));
         REQUIRE(reader.read_tensor(name) == reader2.read_tensor(name));
@@ -313,54 +249,105 @@ TEST_CASE("GptneoxAttention load from safetensors roundtrip", "[model][gptneox][
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "GptneoxAttention forward matches PyTorch reference (no mask)",
+    "GptneoxAttention forward vs PyTorch (no causal mask, RoPE)",
     "[model][gptneox][nomask]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(attn_fixture_stem::gptneox_attention, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::gptneox_attention, fx))
     {
-        SKIP("GPT-NeoX attention fixture not found.");
+        SKIP("GPT-NeoX attention fixture pair not found.");
     }
     gptneox_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "GptneoxAttention backward matches PyTorch reference (no mask)",
-    "[model][gptneox][nomask]")
+    "GptneoxAttention forward vs PyTorch (no causal mask, no RoPE)",
+    "[model][gptneox][nomask][norope][norope_nomask]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(attn_fixture_stem::gptneox_attention, fx))
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::gptneox_attention_no_rope, fx))
     {
-        SKIP("GPT-NeoX attention fixture not found.");
-    }
-    gptneox_attention_backward_compare_ref(fx);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "GptneoxAttention causal forward matches PyTorch reference",
-    "[model][gptneox][causal_mask]")
-{
-    AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(
-            attn_fixture_stem::gptneox_attention_causal, fx))
-    {
-        SKIP("GPT-NeoX causal attention fixture not found.");
+        SKIP("GPT-NeoX attention fixture pair not found.");
     }
     gptneox_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "GptneoxAttention causal backward matches PyTorch reference",
+    "GptneoxAttention forward vs PyTorch (causal mask, RoPE)",
     "[model][gptneox][causal_mask]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(
+    if(!skip_unless_fixture_ready(
             attn_fixture_stem::gptneox_attention_causal, fx))
     {
-        SKIP("GPT-NeoX causal attention fixture not found.");
+        SKIP("GPT-NeoX attention fixture pair not found.");
+    }
+    gptneox_attention_forward_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoxAttention forward vs PyTorch (causal mask, no RoPE)",
+    "[model][gptneox][causal_mask][norope]")
+{
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::gptneox_attention_no_rope_causal, fx))
+    {
+        SKIP("GPT-NeoX attention fixture pair not found.");
+    }
+    gptneox_attention_forward_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoxAttention backward vs PyTorch (no causal mask, RoPE)",
+    "[model][gptneox][nomask]")
+{
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::gptneox_attention, fx))
+    {
+        SKIP("GPT-NeoX attention fixture pair not found.");
     }
     gptneox_attention_backward_compare_ref(fx);
 }
 
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoxAttention backward vs PyTorch (no causal mask, no RoPE)",
+    "[model][gptneox][nomask][norope][norope_nomask]")
+{
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::gptneox_attention_no_rope, fx))
+    {
+        SKIP("GPT-NeoX attention fixture pair not found.");
+    }
+    gptneox_attention_backward_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoxAttention backward vs PyTorch (causal mask, RoPE)",
+    "[model][gptneox][causal_mask]")
+{
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::gptneox_attention_causal, fx))
+    {
+        SKIP("GPT-NeoX attention fixture pair not found.");
+    }
+    gptneox_attention_backward_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoxAttention backward vs PyTorch (causal mask, no RoPE)",
+    "[model][gptneox][causal_mask][norope]")
+{
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::gptneox_attention_no_rope_causal, fx))
+    {
+        SKIP("GPT-NeoX attention fixture pair not found.");
+    }
+    gptneox_attention_backward_compare_ref(fx);
+}
 
 #endif

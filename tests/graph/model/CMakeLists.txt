@@ -287,6 +287,20 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
     endif()
 endforeach()
 
+add_test_set(TARGET_NAME tests_graph_model_safetensors_nntile_layout
+    EXEC_NAME test_safetensors_nntile_layout
+    SOURCES safetensors_nntile_layout.cc
+    LINK_LIBRARIES nntile Catch2::Catch2WithMain
+    COV_ENABLE ${BUILD_COVERAGE}
+    COV_NAME coverage_graph_model_safetensors_nntile_layout
+    COV_GLOBAL coverage_graph_model coverage
+)
+target_include_directories(tests_graph_model_safetensors_nntile_layout PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../..
+)
+
 # GPT-NeoX test data: generated at test time via CTest fixtures (one per block)
 set(GPTNEOX_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/gptneox_data")
 set(GPTNEOX_GENERATE_SCRIPT
@@ -295,6 +309,7 @@ set(GPTNEOX_GENERATE_SCRIPT
 set(TESTS_MODEL_GPTNEOX
     "gptneox/gptneox_config"
     "gptneox/gptneox_mlp"
+    "gptneox/gptneox_rope"
     "gptneox/gptneox_attention"
     "gptneox/gptneox_decoder"
     "gptneox/gptneox_model"
@@ -324,7 +339,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             GPTNEOX_DATA_DIR="${GPTNEOX_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND)
+        if(Python3_Interpreter_FOUND AND NOT test_name STREQUAL "gptneox_rope")
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEOX_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${GPTNEOX_DATA_DIR}"
@@ -356,9 +371,32 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneox_attention_causal_data")
+
+                add_test(
+                    NAME tests_graph_model_gptneox_attention_variant_data_setup
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEOX_GENERATE_SCRIPT}"
+                        --write-attention-rope-mask-variants
+                        --output "${GPTNEOX_DATA_DIR}" --seed 42
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                )
+                set_tests_properties(
+                    tests_graph_model_gptneox_attention_variant_data_setup
+                    PROPERTIES
+                        FIXTURES_SETUP
+                            "tests_graph_model_gptneox_attention_variant_data"
+                        ENVIRONMENT
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                )
+                list(APPEND required_fixtures
+                    "tests_graph_model_gptneox_attention_variant_data")
             endif()
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "${required_fixtures}"
+            )
+        endif()
+        if(test_name STREQUAL "gptneox_rope" AND Python3_Interpreter_FOUND)
+            set_tests_properties(tests_graph_model_${test_name} PROPERTIES
+                FIXTURES_REQUIRED "tests_graph_model_gptneox_attention_data"
             )
         endif()
     endif()

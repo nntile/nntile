@@ -14,11 +14,19 @@
 For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
-Uses HuggingFace ``modeling_gpt_neox`` with NNTile layout per
-``examples/gpt_neox_generate.py``. Reference forwards use HF LayerNorm
-(gamma/beta), GELU for MLP, merged QKV split into Q/K/V, and bias-free linear
-ops to match the graph modules. Decoder forward matches C++ ``GptneoxDecoder``
-parallel residual (``post_attention_layernorm`` on the residual stream ``x``).
+Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
+backward references plus NumPy layout wrangling for NNTile safetensors — no
+custom attention reimplementation. Weights are split from HF
+``query_key_value`` / ``dense`` into graph
+``q/k/v/o`` layouts; Q/K get RoPE head-dim interleaving via
+``rotate_tensor_in`` (axis 1, ``rotary_pct``), matching
+``GPTNeoXAttention.from_torch`` and Llama fixtures. Attention
+references call ``GPTNeoXAttention`` with ``_attn_implementation="eager"``,
+``GPTNeoXRotaryEmbedding`` cos/sin, and additive ``attention_mask``: causal
+upper-triangular when ``use_causal_mask=True``, **zeros** when False (no mask).
+``use_rope=False`` uses identity cos/sin in PyTorch and still writes
+``rope_cos`` / ``rope_sin`` for the C++ graph (Llama-style). Graph tests load
+``attn_mask`` as float32 Fortran ``(seq, seq)`` (1 = keep) for ``sdpa_eager``.
 """
 
 from __future__ import annotations
@@ -36,7 +44,8 @@ from safetensors.numpy import save_file
 from transformers import GPTNeoXConfig
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXAttention as PtAttention, GPTNeoXForCausalLM as PtCausalLM,
-    GPTNeoXLayer as PtLayer, GPTNeoXMLP as PtMLP, GPTNeoXModel as PtModel)
+    GPTNeoXLayer as PtLayer, GPTNeoXMLP as PtMLP, GPTNeoXModel as PtModel,
+    GPTNeoXRotaryEmbedding)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -79,11 +88,6 @@ def fortran_order(arr: np.ndarray) -> np.ndarray:
     return a.ravel("F").reshape(a.shape)
 
 
-def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.int64)
-    return a.ravel("F").reshape(a.shape)
-
-
 def _make_config(dims: TestDims) -> GPTNeoXConfig:
     return GPTNeoXConfig(
         vocab_size=dims.vocab,
@@ -110,17 +114,70 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     }
 
 
+def _rotate_tensor_in_for_rope(
+    x: np.ndarray, axis: int, rotary_pct: float,
+) -> np.ndarray:
+    """Interleave RoPE pairs on ``axis`` (first ``rotary_pct`` of that axis).
+
+    Same layout as ``nntile.layer.GPTNeoXAttention.rotate_tensor_in`` and
+    ``kernel::rope`` — HF forward still uses unrotated weights; only the
+    safetensors Q/K layouts written for the C++ graph are transformed.
+    """
+    k_elements = int(x.shape[axis] * rotary_pct)
+    if axis == 0:
+        new_shape = (1, k_elements, int(np.prod(x.shape[1:])))
+    elif axis == x.ndim - 1:
+        new_shape = (int(np.prod(x.shape[:-1])), k_elements, 1)
+    else:
+        new_shape = (
+            int(np.prod(x.shape[:axis])),
+            k_elements,
+            int(np.prod(x.shape[axis + 1:])),
+        )
+    if axis == 0:
+        x_selected = x[:k_elements, ...]
+    elif axis == x.ndim - 1:
+        x_selected = x[..., :k_elements]
+    else:
+        slice_obj = [slice(None)] * x.ndim
+        slice_obj[axis] = slice(0, k_elements)
+        x_selected = x[tuple(slice_obj)]
+
+    x_reshaped = x_selected.reshape(new_shape)
+    mid = k_elements // 2
+    y_reshaped = np.empty_like(x_reshaped)
+    y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
+    y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
+
+    result = np.asarray(x, dtype=np.float32).copy()
+    if axis == 0:
+        result[:k_elements, ...] = y_reshaped.reshape(x_selected.shape)
+    elif axis == x.ndim - 1:
+        result[..., :k_elements] = y_reshaped.reshape(x_selected.shape)
+    else:
+        slice_obj = [slice(None)] * x.ndim
+        slice_obj[axis] = slice(0, k_elements)
+        result[tuple(slice_obj)] = y_reshaped.reshape(x_selected.shape)
+    return result
+
+
 def _gptneox_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF ``query_key_value`` + ``dense`` to NNTile layouts."""
+    """Map HF ``query_key_value`` + ``dense`` to NNTile graph layouts."""
     H = dims.hidden
     nh = dims.n_heads
     hd = dims.head_size
     qkv_w = attn.query_key_value.weight.detach().numpy()
     qkv = qkv_w.reshape(nh, 3 * hd, H)
-    q = qkv[:, :hd, :]
-    k = qkv[:, hd : 2 * hd, :]
+    q = _rotate_tensor_in_for_rope(
+        np.asarray(qkv[:, :hd, :], dtype=np.float32), 1, dims.rotary_pct,
+    )
+    k = _rotate_tensor_in_for_rope(
+        np.asarray(qkv[:, hd : 2 * hd, :], dtype=np.float32),
+        1,
+        dims.rotary_pct,
+    )
     v = qkv[:, 2 * hd : 3 * hd, :]
     o = attn.dense.weight.detach().numpy().reshape(H, nh, hd)
     return {
@@ -201,16 +258,22 @@ def _ids_input(rng, dims: TestDims):
     return ids_nt, ids_pt
 
 
-def _position_ids(dims: TestDims) -> np.ndarray:
-    pos = np.arange(dims.seq, dtype=np.int64)[:, None]
-    pos = np.broadcast_to(pos, (dims.seq, dims.batch)).copy()
-    return fortran_order_int64(pos)
+def _attention_position_ids(
+    dims: TestDims,
+    device: torch.device,
+) -> tuple[np.ndarray, torch.Tensor]:
+    """``0 .. seq-1`` per batch row — matches C++ training/inference defaults.
 
-
-def _position_ids_pt(dims: TestDims, device: torch.device) -> torch.Tensor:
-    return torch.arange(
+    Returns ``position_ids`` in NNTile ``(seq, batch)`` Fortran layout and
+    PyTorch ``(batch, seq)`` for HF-style helpers.
+    """
+    pos_pt = torch.arange(
         dims.seq, device=device, dtype=torch.long,
     ).unsqueeze(0).expand(dims.batch, dims.seq)
+    pos_nntile = np.asfortranarray(
+        pos_pt.detach().cpu().numpy().T.astype(np.int64),
+    )
+    return pos_nntile, pos_pt
 
 
 def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
@@ -218,10 +281,17 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 
 
 def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
-    kk = np.arange(seq, dtype=np.int64)[:, None]
-    qq = np.arange(seq, dtype=np.int64)[None, :]
-    allowed = (kk <= qq).astype(np.float32)
-    return fortran_order(allowed)
+    """Causal mask for ``sdpa_eager`` (1 = keep).
+
+    Flat layout ``mask[key + query * seq]`` matches ``test_sdpa_eager`` and
+    ``load_attn_mask_bool``. Stored as 1-D ``(seq * seq,)`` so safetensors does
+    not permute a 2-D C/F layout.
+    """
+    flat = np.zeros(seq * seq, dtype=np.float32)
+    for qq in range(seq):
+        for kk in range(seq):
+            flat[kk + qq * seq] = float(kk <= qq)
+    return flat
 
 
 def _causal_additive_mask_torch(
@@ -250,84 +320,25 @@ def _gptneox_rope_dim(dims: TestDims) -> int:
     return dim
 
 
-def _rope_sin_cos_nntile_arrays(
-    dims: TestDims,
-    position_ids: np.ndarray,
+def _rope_half_from_hf(
+    cos: torch.Tensor, sin: torch.Tensor, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """``(half, seq, batch)`` sin/cos arrays.
+    """HF ``(B,S,D)`` cos/sin → NNTile-graph ``(half,S,B)`` float32."""
+    half = _gptneox_rope_dim(dims) // 2
+    cos_half = cos[:, :, :half].to(torch.float32).detach().cpu().numpy()
+    sin_half = sin[:, :, :half].to(torch.float32).detach().cpu().numpy()
+    cos_np = np.transpose(cos_half, (2, 1, 0))
+    sin_np = np.transpose(sin_half, (2, 1, 0))
+    return cos_np, sin_np
 
-    Matches C++ ``rope_sin_cos_from_position_ids``.
-    ``position_ids`` is NNTile layout ``(seq, batch)`` (Fortran order).
-    """
-    n_seq, n_batch = dims.seq, dims.batch
-    rope_dim = _gptneox_rope_dim(dims)
-    half = rope_dim // 2
-    inv = np.array(
-        [
-            1.0
-            / (dims.rotary_emb_base ** (2.0 * i / float(rope_dim)))
-            for i in range(half)
-        ],
-        dtype=np.float64,
+
+def _zero_additive_attention_mask_torch(
+    batch: int, seq: int, device: torch.device, dtype: torch.dtype,
+) -> torch.Tensor:
+    """Additive no-mask for HF eager attention (all zeros, ``[nomask]``)."""
+    return torch.zeros(
+        batch, 1, seq, seq, device=device, dtype=dtype,
     )
-    cos = np.zeros((half, n_seq, n_batch), dtype=np.float32)
-    sin = np.zeros((half, n_seq, n_batch), dtype=np.float32)
-    for b in range(n_batch):
-        for s in range(n_seq):
-            pos = float(position_ids[s, b])
-            angles = pos * inv
-            cos[:, s, b] = np.cos(angles).astype(np.float32)
-            sin[:, s, b] = np.sin(angles).astype(np.float32)
-    return fortran_order(cos), fortran_order(sin)
-
-
-def _apply_rope_nntile(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    cos_half: np.ndarray,
-    sin_half: np.ndarray,
-    rope_dim: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Pairwise RoPE matching NNTile ``kernel::rope``.
-
-    Not HF ``rotate_half``.
-    """
-    half = rope_dim // 2
-    n_seq, n_batch = q.shape[2], q.shape[0]
-    cos_sb = np.array(cos_half, dtype=np.float32, order="F").reshape(
-        half, n_seq, n_batch, order="F",
-    )
-    sin_sb = np.array(sin_half, dtype=np.float32, order="F").reshape(
-        half, n_seq, n_batch, order="F",
-    )
-    c = torch.tensor(
-        np.transpose(cos_sb, (2, 1, 0)),
-        device=q.device,
-        dtype=q.dtype,
-    ).unsqueeze(1)
-    s = torch.tensor(
-        np.transpose(sin_sb, (2, 1, 0)),
-        device=q.device,
-        dtype=q.dtype,
-    ).unsqueeze(1)
-    q_rot, q_pass = q[..., :rope_dim], q[..., rope_dim:]
-    k_rot, k_pass = k[..., :rope_dim], k[..., rope_dim:]
-    q1, q2 = q_rot[..., 0::2], q_rot[..., 1::2]
-    k1, k2 = k_rot[..., 0::2], k_rot[..., 1::2]
-    qo = torch.empty_like(q_rot)
-    ko = torch.empty_like(k_rot)
-    qo[..., 0::2] = c * q1 - s * q2
-    qo[..., 1::2] = s * q1 + c * q2
-    ko[..., 0::2] = c * k1 - s * k2
-    ko[..., 1::2] = s * k1 + c * k2
-    q_out = q.clone()
-    k_out = k.clone()
-    q_out[..., :rope_dim] = qo
-    k_out[..., :rope_dim] = ko
-    if q_pass.shape[-1] > 0:
-        q_out[..., rope_dim:] = q_pass
-        k_out[..., rope_dim:] = k_pass
-    return q_out, k_out
 
 
 def _gptneox_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
@@ -337,79 +348,89 @@ def _gptneox_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
     return mlp.dense_4h_to_h(h)
 
 
-def _gptneox_attn_forward(
+def _hf_attention_mask_torch(
+    dims: TestDims,
+    x_pt: torch.Tensor,
+    *,
+    use_causal_mask: bool,
+) -> torch.Tensor:
+    if use_causal_mask:
+        return _causal_additive_mask_torch(
+            dims.batch, dims.seq, x_pt.device,
+        ).to(dtype=x_pt.dtype)
+    return _zero_additive_attention_mask_torch(
+        dims.batch, dims.seq, x_pt.device, x_pt.dtype,
+    )
+
+
+def _hf_gptneox_attention(
     attn: PtAttention,
     x_pt: torch.Tensor,
-    cos_half: np.ndarray,
-    sin_half: np.ndarray,
     dims: TestDims,
+    rotary: GPTNeoXRotaryEmbedding,
+    pos_ids_pt: torch.Tensor,
     *,
-    attn_mask: torch.Tensor | None = None,
+    use_rope: bool,
+    use_causal_mask: bool,
 ) -> torch.Tensor:
-    """Q/K/V + NNTile RoPE + SDPA + dense.
-
-    Matches graph ``GptneoxAttention``.
-    """
-    n_head = attn.config.num_attention_heads
-    head_dim = attn.head_size
-    rope_dim = _gptneox_rope_dim(dims)
-    qkv = F.linear(x_pt, attn.query_key_value.weight, None)
-    shape = (*x_pt.shape[:2], n_head, 3 * head_dim)
-    qkv = qkv.view(*shape).transpose(1, 2)
-    q, k, v = qkv.chunk(3, dim=-1)
-    q, k = _apply_rope_nntile(q, k, cos_half, sin_half, rope_dim)
-    ctx = F.scaled_dot_product_attention(
-        q, k, v,
-        attn_mask=attn_mask,
-        is_causal=False,
+    """HF ``GPTNeoXAttention`` (eager), aligned with Llama fixtures."""
+    cos, sin = rotary(x_pt, pos_ids_pt)
+    if not use_rope:
+        cos = torch.ones_like(cos)
+        sin = torch.zeros_like(sin)
+    attn_mask = _hf_attention_mask_torch(
+        dims, x_pt, use_causal_mask=use_causal_mask,
     )
-    ctx = ctx.transpose(1, 2).contiguous().view(*x_pt.shape)
-    return F.linear(ctx, attn.dense.weight, None)
+    return attn(
+        x_pt,
+        attention_mask=attn_mask,
+        position_embeddings=(cos, sin),
+    )[0]
 
 
 def _gptneox_decoder_forward(
     layer: PtLayer,
     x_pt: torch.Tensor,
-    cos_half: np.ndarray,
-    sin_half: np.ndarray,
+    rotary: GPTNeoXRotaryEmbedding,
+    pos_ids_pt: torch.Tensor,
     dims: TestDims,
     *,
-    attn_mask: torch.Tensor | None = None,
+    use_causal_mask: bool = False,
 ) -> torch.Tensor:
-    """Matches C++ ``GptneoxDecoder`` (parallel or sequential residual)."""
-    residual = x_pt
-    x_norm = layer.input_layernorm(x_pt)
-    attn_out = _gptneox_attn_forward(
-        layer.attention,
-        x_norm,
-        cos_half,
-        sin_half,
-        dims,
-        attn_mask=attn_mask,
+    """HF ``GPTNeoXLayer`` forward (parallel residual when configured)."""
+    attn_mask = _hf_attention_mask_torch(
+        dims, x_pt, use_causal_mask=use_causal_mask,
     )
-    post_attn = residual + attn_out
-    if layer.use_parallel_residual:
-        mlp_in = layer.post_attention_layernorm(residual)
-    else:
-        mlp_in = layer.post_attention_layernorm(post_attn)
-    mlp_out = _gptneox_mlp_forward(layer.mlp, mlp_in)
-    return post_attn + mlp_out
+    cos, sin = rotary(x_pt, pos_ids_pt)
+    return layer(
+        x_pt,
+        attention_mask=attn_mask,
+        position_embeddings=(cos, sin),
+    )[0]
 
 
 def _gptneox_model_forward(
     model: PtModel,
     ids_pt: torch.Tensor,
-    cos_half: np.ndarray,
-    sin_half: np.ndarray,
     dims: TestDims,
     *,
-    attn_mask: torch.Tensor | None = None,
+    use_causal_mask: bool = False,
 ) -> torch.Tensor:
+    """HF ``GPTNeoXModel`` forward with additive attention mask."""
     x = model.embed_in(ids_pt)
+    pos_ids_pt = torch.arange(
+        dims.seq, device=x.device, dtype=torch.long,
+    ).unsqueeze(0).expand(dims.batch, dims.seq)
+    attn_mask = _hf_attention_mask_torch(
+        dims, x, use_causal_mask=use_causal_mask,
+    )
+    cos, sin = model.rotary_emb(x, pos_ids_pt)
     for layer in model.layers:
-        x = _gptneox_decoder_forward(
-            layer, x, cos_half, sin_half, dims, attn_mask=attn_mask,
-        )
+        x = layer(
+            x,
+            attention_mask=attn_mask,
+            position_embeddings=(cos, sin),
+        )[0]
     return model.final_layer_norm(x)
 
 
@@ -464,17 +485,40 @@ def write_fixture_json(
     print(f"Saved {path}")
 
 
+def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
+    """Write extra attention safetensors (RoPE / causal-mask variants).
+
+    ``gptneox_attention_causal`` is generated by ``--block attention_causal``
+    (CTest ``*_attention_causal_data_setup``), not here, to avoid concurrent
+    writes with ``--write-attention-rope-mask-variants``.
+    """
+    specs: list[tuple[str, bool, bool, float, float]] = [
+        ("gptneox_attention_no_rope", False, False, 1e-6, 1e-6),
+        ("gptneox_attention_no_rope_causal", False, True, 1e-6, 1e-6),
+    ]
+    for stem, rope, causal, fwd_tol, bwd_tol in specs:
+        payload = generate_attention(
+            seed, ATTENTION_DIMS, use_rope=rope, use_causal_mask=causal,
+        )
+        fname = f"{stem}.safetensors"
+        path = str(out / fname)
+        save_file(payload, path)
+        print(f"Saved {path}")
+        write_fixture_json(out, stem, ATTENTION_DIMS, fwd_tol, bwd_tol)
+
+
 def _write_rope_and_position(
     data: dict[str, np.ndarray],
-    pos_ids_pt: torch.Tensor,
-    dims: TestDims,
-) -> tuple[np.ndarray, np.ndarray]:
-    pos_nntile = pos_ids_pt.detach().cpu().numpy().T.astype(np.int64)
-    data["position_ids"] = fortran_order_int64(pos_nntile)
-    cos_np, sin_np = _rope_sin_cos_nntile_arrays(dims, pos_nntile)
-    data["rope_cos"] = cos_np
-    data["rope_sin"] = sin_np
-    return cos_np, sin_np
+    pos_nntile: np.ndarray,
+    cos_np: np.ndarray,
+    sin_np: np.ndarray,
+) -> None:
+    """Store RoPE inputs in SafeTensors C-order; C++ maps to NNTile Fortran."""
+    data["position_ids"] = np.ascontiguousarray(
+        pos_nntile, dtype=np.int64,
+    )
+    data["rope_cos"] = np.ascontiguousarray(cos_np, dtype=np.float32)
+    data["rope_sin"] = np.ascontiguousarray(sin_np, dtype=np.float32)
 
 
 def generate_mlp(
@@ -501,8 +545,20 @@ def generate_attention(
     seed: int,
     dims: TestDims = ATTENTION_DIMS,
     *,
+    use_rope: bool = True,
     use_causal_mask: bool = False,
 ) -> dict[str, np.ndarray]:
+    """HuggingFace ``GPTNeoXAttention`` reference (Llama-style fixtures).
+
+    ``use_rope=False`` replaces cos/sin with ones/zeros in PyTorch but still
+    writes ``rope_cos`` / ``rope_sin`` for the C++ graph.
+
+    ``use_causal_mask=False`` uses a zero additive ``attention_mask`` in HF;
+    the graph bundle omits ``attn_mask`` (no causal ``sdpa_eager`` mask).
+
+    ``use_causal_mask=True`` uses the causal additive HF mask and stores
+    ``attn_mask`` for the graph.
+    """
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -511,16 +567,27 @@ def generate_attention(
     data = _gptneox_attn_weights(pt, "attn", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    pos_ids_pt = _position_ids_pt(dims, x_pt.device)
-    cos_np, sin_np = _write_rope_and_position(data, pos_ids_pt, dims)
-    attn_mask = None
+
+    pos_nntile, pos_ids_pt = _attention_position_ids(dims, x_pt.device)
+    rotary = GPTNeoXRotaryEmbedding(config, device=x_pt.device)
+    cos, sin = rotary(x_pt, pos_ids_pt)
+    if not use_rope:
+        cos = torch.ones_like(cos)
+        sin = torch.zeros_like(sin)
+    cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+    _write_rope_and_position(data, pos_nntile, cos_np, sin_np)
+
     if use_causal_mask:
-        attn_mask = _causal_additive_mask_torch(
-            dims.batch, dims.seq, x_pt.device,
-        )
         data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-    out = _gptneox_attn_forward(
-        pt, x_pt, cos_np, sin_np, dims, attn_mask=attn_mask,
+
+    out = _hf_gptneox_attention(
+        pt,
+        x_pt,
+        dims,
+        rotary,
+        pos_ids_pt,
+        use_rope=use_rope,
+        use_causal_mask=use_causal_mask,
     )
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
@@ -544,28 +611,35 @@ def generate_decoder(
     data = _gptneox_decoder_weights(pt, "decoder", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    pos_ids_pt = _position_ids_pt(dims, x_pt.device)
-    cos_np, sin_np = _write_rope_and_position(data, pos_ids_pt, dims)
-    attn_mask = _causal_additive_mask_torch(
-        dims.batch, dims.seq, x_pt.device,
-    )
+    pos_nntile, pos_ids_pt = _attention_position_ids(dims, x_pt.device)
+    rotary = GPTNeoXRotaryEmbedding(config, device=x_pt.device)
+    cos, sin = rotary(x_pt, pos_ids_pt)
+    cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+    _write_rope_and_position(data, pos_nntile, cos_np, sin_np)
     data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
     residual = x_pt
     x_norm = pt.input_layernorm(x_pt)
     data["input_norm_out"] = _out_to_nntile(x_norm)
-    attn_out = _gptneox_attn_forward(
-        pt.attention, x_norm, cos_np, sin_np, dims, attn_mask=attn_mask,
+    attn_out = _hf_gptneox_attention(
+        pt.attention,
+        x_norm,
+        dims,
+        rotary,
+        pos_ids_pt,
+        use_rope=True,
+        use_causal_mask=True,
     )
-    data["attn_out"] = _out_to_nntile(attn_out)
     post_attn = residual + attn_out
     data["post_attn"] = _out_to_nntile(post_attn)
     if pt.use_parallel_residual:
         mlp_in = pt.post_attention_layernorm(residual)
     else:
         mlp_in = pt.post_attention_layernorm(post_attn)
-    mlp_out = pt.mlp(mlp_in)
+    mlp_out = _gptneox_mlp_forward(pt.mlp, mlp_in)
     data["mlp_out"] = _out_to_nntile(mlp_out)
-    out = post_attn + mlp_out
+    out = _gptneox_decoder_forward(
+        pt, x_pt, rotary, pos_ids_pt, dims, use_causal_mask=True,
+    )
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
@@ -586,14 +660,12 @@ def generate_model(
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
     data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-    pos_ids_pt = _position_ids_pt(dims, ids_pt.device)
-    cos_np, sin_np = _write_rope_and_position(data, pos_ids_pt, dims)
-    attn_mask = _causal_additive_mask_torch(
-        dims.batch, dims.seq, ids_pt.device,
-    )
-    out = _gptneox_model_forward(
-        pt, ids_pt, cos_np, sin_np, dims, attn_mask=attn_mask,
-    )
+    pos_nntile, pos_ids_pt = _attention_position_ids(dims, ids_pt.device)
+    hidden = pt.embed_in(ids_pt)
+    cos, sin = pt.rotary_emb(hidden, pos_ids_pt)
+    cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+    _write_rope_and_position(data, pos_nntile, cos_np, sin_np)
+    out = _gptneox_model_forward(pt, ids_pt, dims, use_causal_mask=True)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
@@ -616,13 +688,13 @@ def generate_causal(
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
     data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-    pos_ids_pt = _position_ids_pt(dims, ids_pt.device)
-    cos_np, sin_np = _write_rope_and_position(data, pos_ids_pt, dims)
-    attn_mask = _causal_additive_mask_torch(
-        dims.batch, dims.seq, ids_pt.device,
-    )
+    pos_nntile, pos_ids_pt = _attention_position_ids(dims, ids_pt.device)
+    embed = pt.gpt_neox.embed_in(ids_pt)
+    cos, sin = pt.gpt_neox.rotary_emb(embed, pos_ids_pt)
+    cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+    _write_rope_and_position(data, pos_nntile, cos_np, sin_np)
     hidden = _gptneox_model_forward(
-        pt.gpt_neox, ids_pt, cos_np, sin_np, dims, attn_mask=attn_mask,
+        pt.gpt_neox, ids_pt, dims, use_causal_mask=True,
     )
     logits = F.linear(hidden, pt.embed_out.weight, None)
     data["output_ref"] = _out_to_nntile(logits)
@@ -650,11 +722,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate GPT-NeoX block test data (safetensors)",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
         "--block",
         choices=GENERATORS,
-        required=True,
         help="GPT-NeoX block to generate data for",
+    )
+    mode.add_argument(
+        "--write-attention-rope-mask-variants",
+        action="store_true",
+        help=(
+            "Write two extra attention safetensors (no-RoPE, no-RoPE+causal) "
+            "for C++ graph tests; does not overwrite gptneox_attention or "
+            "gptneox_attention_causal from --block attention / "
+            "attention_causal."
+        ),
     )
     parser.add_argument(
         "--output", "-o", required=True, help="Output directory",
@@ -667,6 +749,10 @@ def main() -> int:
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
 
+    if args.write_attention_rope_mask_variants:
+        write_attention_rope_mask_variant_files(out, args.seed)
+        return 0
+
     data = GENERATORS[args.block](args.seed)
     stem = f"gptneox_{args.block}"
     bundle_path = str(out / f"{stem}.safetensors")
@@ -676,12 +762,11 @@ def main() -> int:
     if args.block == "mlp":
         write_fixture_json(out, stem, MLP_DIMS, 1e-6, 1e-6)
     elif args.block in ("attention", "attention_causal"):
-        # RoPE + ``sdpa_eager`` vs PyTorch SDPA (~3e-3 rel. Frobenius).
-        write_fixture_json(out, stem, ATTENTION_DIMS, 5e-3, 5e-3)
+        write_fixture_json(out, stem, ATTENTION_DIMS, 1e-6, 1e-6)
     elif args.block == "decoder":
-        write_fixture_json(out, stem, DECODER_DIMS, 1.6e-2, 5e-3)
+        write_fixture_json(out, stem, DECODER_DIMS, 1e-6, 1e-6)
     elif args.block in ("model", "causal"):
-        write_fixture_json(out, stem, MODEL_DIMS, 1.2e-2, 1.2e-2)
+        write_fixture_json(out, stem, MODEL_DIMS, 1e-6, 1e-6)
 
     return 0
 
