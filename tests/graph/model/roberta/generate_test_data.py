@@ -26,6 +26,7 @@ HF modules only (no custom RoBERTa reimplementation). Position ids follow
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from dataclasses import dataclass
@@ -41,11 +42,26 @@ from transformers.models.roberta.modeling_roberta import (
     RobertaLayer as PtLayer, RobertaModel as PtModel,
     create_position_ids_from_input_ids)
 
-# Reuse BERT safetensor layout helpers (same graph BertAttention / BertLayer).
-_BERT_GEN_DIR = Path(__file__).resolve().parent.parent / "bert"
-if str(_BERT_GEN_DIR) not in sys.path:
-    sys.path.insert(0, str(_BERT_GEN_DIR))
-import generate_test_data as bert_data  # noqa: E402
+
+def _load_bert_generate_test_data():
+    """Load BERT safetensor layout helpers for shared encoder blocks."""
+    path = (
+        Path(__file__).resolve().parent.parent
+        / "bert"
+        / "generate_test_data.py"
+    )
+    name = "nntile_bert_generate_test_data"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        msg = f"cannot import BERT test data module: {path}"
+        raise ImportError(msg)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+bert_data = _load_bert_generate_test_data()
 
 fortran_order = bert_data.fortran_order
 fortran_order_int64 = bert_data.fortran_order_int64
