@@ -22,6 +22,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include "test_safetensors_nntile_layout.hh"
+
 namespace nntile::test::gptneox_fixture
 {
 
@@ -67,14 +69,10 @@ inline bool load_gptneox_rope_inputs(
                   ->set_name("rope_sin");
     out.cos = g.tensor({half, n_seq, n_batch}, nntile::graph::DataType::FP32)
                   ->set_name("rope_cos");
-    auto read_f = [&](const char *name, std::vector<float> &dst)
-    {
-        std::vector<std::uint8_t> b = reader.read_tensor(name);
-        dst.resize(b.size() / sizeof(float));
-        std::memcpy(dst.data(), b.data(), b.size());
-    };
-    read_f("rope_sin", out.sin_data);
-    read_f("rope_cos", out.cos_data);
+    safetensors_nntile_layout::read_tensor_nntile_fortran(
+        reader, "rope_sin", out.sin_data);
+    safetensors_nntile_layout::read_tensor_nntile_fortran(
+        reader, "rope_cos", out.cos_data);
     return true;
 }
 
