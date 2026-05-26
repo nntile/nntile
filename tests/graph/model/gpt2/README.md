@@ -24,8 +24,9 @@ Shared building blocks used by GPT-2 (not covered only inside model tests):
 ### Attention masks
 
 - **`[nomask]`** — graph passes `mask=nullptr` (full attention). PyTorch refs use
-  `scaled_dot_product_attention(..., is_causal=False)`, not `GPT2Attention` with
-  `attention_mask=None` (HF still applies a built-in causal mask).
+  HuggingFace `eager_attention_forward` with causal masking disabled (not
+  `GPT2Attention.forward` with `attention_mask=None`, which still applies a
+  built-in causal mask in eager mode).
 - **`[causal_mask]`** — BOOL causal mask in safetensors; refs use HF with additive mask.
 
 ## Test Data (Safetensors)
