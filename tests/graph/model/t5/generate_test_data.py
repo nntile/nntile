@@ -228,12 +228,6 @@ def _conditional_weights(
 # ── NNTile-graph reference ops (match C++) ───────────────────────────────
 
 
-def _torch_from_fortran(x_nt: np.ndarray) -> torch.Tensor:
-    """NNTile ``(D,S,B)`` Fortran → PyTorch ``(B,S,D)``."""
-    x = np.array(x_nt, dtype=np.float32, order="F")
-    return torch.tensor(x.transpose(2, 1, 0).copy())
-
-
 def _nntile_to_math_array(w_nt: np.ndarray) -> np.ndarray:
     """Invert :func:`fortran_order` for PyTorch / NumPy math."""
     a = np.asarray(w_nt, dtype=np.float32)
@@ -394,14 +388,6 @@ def _mask_from_fortran(
 def _cross_attn_mask_fortran(enc_seq: int, dec_seq: int) -> np.ndarray:
     """``(k_seq, q_seq)`` = ``(enc_seq, dec_seq)`` for ``sdpa_eager``."""
     return fortran_order(np.ones((enc_seq, dec_seq), dtype=np.float32))
-
-
-def _load_block_weights(data: dict, prefix: str) -> dict[str, torch.Tensor]:
-    return {
-        k: _weight_for_matmul(v)
-        for k, v in data.items()
-        if k.startswith(prefix)
-    }
 
 
 def _pt_t5_ff_from_data(
