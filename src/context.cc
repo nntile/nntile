@@ -28,9 +28,6 @@
 #   include <cudnn_frontend.h>
 #endif // NNTILE_USE_CUDA
 
-extern "C" int nntile_starpu_disk_register_unistd(
-    void *parameter, starpu_ssize_t size);
-
 // Other NNTile headers
 #include "nntile/logger.hh"
 #include "nntile/starpu/handle.hh"
@@ -217,9 +214,11 @@ Context::Context(
     // Initialize Out-of-Core if enabled
     if(ooc != 0)
     {
-        ooc_disk_node_id = nntile_starpu_disk_register_unistd(
+        ooc_disk_node_id = starpu_disk_register(
+            &starpu_disk_unistd_ops, // Use unistd operations
             reinterpret_cast<void *>(const_cast<char *>(ooc_path)),
-            static_cast<starpu_ssize_t>(ooc_size));
+            ooc_size
+        );
         if(verbose > 0)
         {
             std::cout << "Initialized Out-of-Core disk\n";

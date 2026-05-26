@@ -168,7 +168,6 @@ endif(NOT HAVE_STARPU_SIMGRID)
 set(STARPU_BASE_SRC
     "starpu/handle.cc"
     "starpu/codelet.cc"
-    "starpu_disk_shim.c"
 )
 
 # StarPU-related wrappers (codelets) for low-level kernels
