@@ -7,17 +7,28 @@
 # @file tests/graph/model/gptneo/generate_test_data.py
 # Generate GPT-Neo building-block test data in safetensors format.
 #
-# @version 1.1.0
+# @version 1.2.0
 
 """Generate reference test data for NNTile GPT-Neo graph C++ tests.
 
 For each block the script creates ``gptneo_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
-Uses HuggingFace ``modeling_gpt_neo`` with NNTile layout per
-``examples/gptneo_generate.py``. Reference forwards use HF LayerNorm
-(gamma/beta), GELUTANH for MLP, and separate Q/K/V/O projections with
-``out_proj`` bias (add_fiber).
+Uses **HuggingFace Transformers** (``modeling_gpt_neo``) for module weights and
+forward/backward references plus NumPy layout helpers for NNTile safetensors —
+no custom GPT-Neo reimplementation.
+
+Attention references call HF ``q_proj`` / ``k_proj`` / ``v_proj`` /
+``out_proj`` and ``scaled_dot_product_attention`` so they match graph
+``sdpa_eager`` (HF eager ``GPTNeoSelfAttention._attn`` applies a separate
+fp32 softmax path and built-in ``bias`` mask). For ``[nomask]`` the HF
+built-in mask is disabled via a temporary ``bias`` patch; for ``[causal]``
+and ``[local]`` only the additive ``attention_mask`` from fixtures is used.
+
+MLP references use ``GPTNeoMLP.forward`` after zeroing ``c_fc`` / ``c_proj``
+biases (the graph module is bias-free). Decoder/model/causal compose HF
+``LayerNorm``, attention, and MLP the same way as ``GPTNeoBlock`` /
+``GPTNeoModel``.
 """
 
 from __future__ import annotations
@@ -34,9 +45,12 @@ import torch.nn.functional as F
 from safetensors.numpy import save_file
 from transformers import GPTNeoConfig
 from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoAttention as PtAttention, GPTNeoBlock as PtBlock,
-    GPTNeoForCausalLM as PtCausalLM, GPTNeoMLP as PtMLP,
-    GPTNeoModel as PtModel)
+    GPTNeoAttention as PtAttention,
+    GPTNeoBlock as PtBlock,
+    GPTNeoForCausalLM as PtCausalLM,
+    GPTNeoMLP as PtMLP,
+    GPTNeoModel as PtModel,
+)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -95,6 +109,7 @@ def _make_config(dims: TestDims) -> GPTNeoConfig:
         resid_dropout=0.0,
         embed_dropout=0.0,
         attention_dropout=0.0,
+        activation_function="gelu_pytorch_tanh",
         _attn_implementation="eager",
     )
 
@@ -106,17 +121,23 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     }
 
 
-def _gelutanh(x: torch.Tensor) -> torch.Tensor:
-    return F.gelu(x, approximate="tanh")
+def _zero_gptneo_mlp_biases(mlp: PtMLP) -> None:
+    """Graph ``GptneoMLP`` has no biases; HF ``nn.Linear`` defaults include them."""
+    with torch.no_grad():
+        mlp.c_fc.bias.zero_()
+        mlp.c_proj.bias.zero_()
+
+
+def _hf_gptneo_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
+    """HF ``GPTNeoMLP`` forward (bias-free, matches graph ``GptneoMLP``)."""
+    _zero_gptneo_mlp_biases(mlp)
+    return mlp(x_pt)
 
 
 def _gptneo_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF q/k/v/out_proj to NNTile layouts.
-
-    Matches ``examples/gptneo_generate.py``.
-    """
+    """Map HF q/k/v/out_proj to NNTile layouts (``examples/gptneo_generate.py``)."""
     inner = attn.attention
     H = dims.hidden
     nh = dims.n_heads
@@ -138,7 +159,6 @@ def _gptneo_attn_weights(
 def _gptneo_mlp_weights(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
         f"{prefix}.fc1.weight": fortran_order(
-            # HF nn.Linear: transpose for Fortran GEMM (GPT-2 Conv1D differs)
             mlp.c_fc.weight.detach().numpy().T),
         f"{prefix}.fc2.weight": fortran_order(
             mlp.c_proj.weight.detach().numpy().T),
@@ -245,20 +265,18 @@ def _causal_additive_mask_torch(
     return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
 
 
-def _gptneo_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
-    """Bias-free MLP forward (matches graph ``GptneoMLP``)."""
-    h = F.linear(x_pt, mlp.c_fc.weight, None)
-    h = _gelutanh(h)
-    return F.linear(h, mlp.c_proj.weight, None)
-
-
-def _gptneo_attn_forward(
+def _hf_gptneo_attention_forward(
     attn: PtAttention,
     x_pt: torch.Tensor,
     *,
     attn_mask: torch.Tensor | None = None,
+    bidirectional: bool = False,
 ) -> torch.Tensor:
-    """Q/K/V + SDPA + out_proj + bias (matches graph GptneoAttention)."""
+    """HF Q/K/V/O projections + SDPA (matches C++ ``GptneoAttention``).
+
+    ``bidirectional=True`` is ``[nomask]`` (full attention, no HF causal bias).
+    Otherwise ``attn_mask`` is the additive mask for ``[causal]`` / ``[local]``.
+    """
     inner = attn.attention
     n_head = inner.num_heads
     head_dim = inner.head_dim
@@ -270,43 +288,45 @@ def _gptneo_attn_forward(
     k = k.view(*shape).transpose(1, 2)
     v = v.view(*shape).transpose(1, 2)
     ctx = F.scaled_dot_product_attention(
-        q, k, v,
-        attn_mask=attn_mask,
+        q,
+        k,
+        v,
+        attn_mask=None if bidirectional else attn_mask,
         is_causal=False,
     )
     ctx = ctx.transpose(1, 2).contiguous().view(*x_pt.shape)
     return inner.out_proj(ctx)
 
 
-def _gptneo_decoder_forward(
+def _hf_gptneo_decoder_forward(
     block: PtBlock,
     x_pt: torch.Tensor,
     *,
     attn_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """HF LayerNorm + graph-aligned attention/MLP.
-
-    Matches C++ ``GptneoDecoder``.
-    """
+    """HF ``GPTNeoBlock`` layout with graph-aligned attention and bias-free MLP."""
     residual = x_pt
     x_norm = block.ln_1(x_pt)
-    attn_out = _gptneo_attn_forward(block.attn, x_norm, attn_mask=attn_mask)
+    attn_out = _hf_gptneo_attention_forward(
+        block.attn, x_norm, attn_mask=attn_mask,
+    )
     post_attn = residual + attn_out
     mlp_in = block.ln_2(post_attn)
-    mlp_out = _gptneo_mlp_forward(block.mlp, mlp_in)
+    mlp_out = _hf_gptneo_mlp_forward(block.mlp, mlp_in)
     return post_attn + mlp_out
 
 
-def _gptneo_model_forward(
+def _hf_gptneo_model_forward(
     model: PtModel,
     ids_pt: torch.Tensor,
     pos_pt: torch.Tensor,
     *,
     attn_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
+    """HF embeddings + decoder stack (graph mask, not ``_update_causal_mask``)."""
     x = model.wte(ids_pt) + model.wpe(pos_pt)
     for layer in model.h:
-        x = _gptneo_decoder_forward(layer, x, attn_mask=attn_mask)
+        x = _hf_gptneo_decoder_forward(layer, x, attn_mask=attn_mask)
     return model.ln_f(x)
 
 
@@ -368,7 +388,7 @@ def generate_mlp(
     data = _gptneo_mlp_weights(pt, "mlp")
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    out = _gptneo_mlp_forward(pt, x_pt)
+    out = _hf_gptneo_mlp_forward(pt, x_pt)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
@@ -396,9 +416,11 @@ def generate_attention(
             dims.batch, dims.seq, x_pt.device,
         )
         data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-        out = _gptneo_attn_forward(pt, x_pt, attn_mask=attn_mask)
+        out = _hf_gptneo_attention_forward(
+            pt, x_pt, attn_mask=attn_mask,
+        )
     else:
-        out = _gptneo_attn_forward(pt, x_pt, attn_mask=None)
+        out = _hf_gptneo_attention_forward(pt, x_pt, bidirectional=True)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
@@ -424,6 +446,7 @@ def generate_attention_local(
         resid_dropout=0.0,
         embed_dropout=0.0,
         attention_dropout=0.0,
+        activation_function="gelu_pytorch_tanh",
         _attn_implementation="eager",
     )
     pt = PtAttention(config, layer_id=1)
@@ -436,7 +459,7 @@ def generate_attention_local(
     attn_mask = _local_additive_mask_torch(
         dims.batch, dims.seq, window, x_pt.device,
     )
-    out = _gptneo_attn_forward(pt, x_pt, attn_mask=attn_mask)
+    out = _hf_gptneo_attention_forward(pt, x_pt, attn_mask=attn_mask)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
@@ -460,7 +483,7 @@ def generate_decoder(
         dims.batch, dims.seq, x_pt.device,
     )
     data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-    out = _gptneo_decoder_forward(pt, x_pt, attn_mask=attn_mask)
+    out = _hf_gptneo_decoder_forward(pt, x_pt, attn_mask=attn_mask)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
@@ -488,7 +511,7 @@ def generate_model(
     attn_mask = _causal_additive_mask_torch(
         dims.batch, dims.seq, ids_pt.device,
     )
-    out = _gptneo_model_forward(
+    out = _hf_gptneo_model_forward(
         pt, ids_pt, pos_pt, attn_mask=attn_mask,
     )
     data["output_ref"] = _out_to_nntile(out)
@@ -522,7 +545,7 @@ def generate_causal(
     attn_mask = _causal_additive_mask_torch(
         dims.batch, dims.seq, ids_pt.device,
     )
-    hidden = _gptneo_model_forward(
+    hidden = _hf_gptneo_model_forward(
         pt.transformer, ids_pt, pos_pt, attn_mask=attn_mask,
     )
     logits = pt.lm_head(hidden)
