@@ -35,12 +35,8 @@ import torch.nn.functional as F
 from safetensors.numpy import save_file
 from transformers import GPTNeoXConfig
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXAttention as PtAttention,
-    GPTNeoXForCausalLM as PtCausalLM,
-    GPTNeoXLayer as PtLayer,
-    GPTNeoXModel as PtModel,
-    GPTNeoXMLP as PtMLP,
-)
+    GPTNeoXAttention as PtAttention, GPTNeoXForCausalLM as PtCausalLM,
+    GPTNeoXLayer as PtLayer, GPTNeoXMLP as PtMLP, GPTNeoXModel as PtModel)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -153,7 +149,8 @@ def _gptneox_decoder_weights(
 ) -> dict[str, np.ndarray]:
     d: dict[str, np.ndarray] = {}
     d.update(_layer_norm(layer.input_layernorm, f"{prefix}.input_norm"))
-    d.update(_gptneox_attn_weights(layer.attention, f"{prefix}.attention", dims))
+    d.update(_gptneox_attn_weights(
+        layer.attention, f"{prefix}.attention", dims))
     d.update(_layer_norm(
         layer.post_attention_layernorm, f"{prefix}.post_attn_norm"))
     d.update(_gptneox_mlp_weights(layer.mlp, f"{prefix}.mlp"))
@@ -164,7 +161,9 @@ def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
     return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
 
 
-def _model_weights(model: PtModel, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
+def _model_weights(
+    model: PtModel, prefix: str, dims: TestDims,
+) -> dict[str, np.ndarray]:
     d: dict[str, np.ndarray] = {}
     d.update(_embed(model.embed_in, f"{prefix}.embed_tokens"))
     d.update(_layer_norm(model.final_layer_norm, f"{prefix}.norm"))
@@ -255,9 +254,10 @@ def _rope_sin_cos_nntile_arrays(
     dims: TestDims,
     position_ids: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """``(half, seq, batch)`` sin/cos like C++ ``rope_sin_cos_from_position_ids``.
+    """``(half, seq, batch)`` sin/cos arrays.
 
-    ``position_ids`` is NNTile layout ``(seq, batch)`` (Fortran).
+    Matches C++ ``rope_sin_cos_from_position_ids``.
+    ``position_ids`` is NNTile layout ``(seq, batch)`` (Fortran order).
     """
     n_seq, n_batch = dims.seq, dims.batch
     rope_dim = _gptneox_rope_dim(dims)
@@ -288,7 +288,10 @@ def _apply_rope_nntile(
     sin_half: np.ndarray,
     rope_dim: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Pairwise RoPE matching NNTile ``kernel::rope`` (not HF ``rotate_half``)."""
+    """Pairwise RoPE matching NNTile ``kernel::rope``.
+
+    Not HF ``rotate_half``.
+    """
     half = rope_dim // 2
     n_seq, n_batch = q.shape[2], q.shape[0]
     cos_sb = np.array(cos_half, dtype=np.float32, order="F").reshape(
@@ -343,8 +346,10 @@ def _gptneox_attn_forward(
     *,
     attn_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Q/K/V + NNTile RoPE + SDPA + dense (matches graph ``GptneoxAttention``)."""
-    n_emb = x_pt.shape[-1]
+    """Q/K/V + NNTile RoPE + SDPA + dense.
+
+    Matches graph ``GptneoxAttention``.
+    """
     n_head = attn.config.num_attention_heads
     head_dim = attn.head_size
     rope_dim = _gptneox_rope_dim(dims)
@@ -442,7 +447,11 @@ def _gptneox_fixture_json(
 
 
 def write_fixture_json(
-    out: Path, stem: str, dims: TestDims, forward_tol: float, backward_tol: float,
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
 ) -> None:
     path = out / f"{stem}.json"
     path.write_text(
@@ -468,7 +477,9 @@ def _write_rope_and_position(
     return cos_np, sin_np
 
 
-def generate_mlp(seed: int, dims: TestDims = MLP_DIMS) -> dict[str, np.ndarray]:
+def generate_mlp(
+    seed: int, dims: TestDims = MLP_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -525,8 +536,8 @@ def generate_decoder(
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
-    # Use layer 0 from ``PtModel`` so weights match ``generate_model`` (embed init
-    # advances the PyTorch RNG before layers are built).
+    # Use layer 0 from ``PtModel`` so weights match ``generate_model``
+    # (embed init advances the PyTorch RNG before layers are built).
     model = PtModel(config)
     model.eval()
     pt = model.layers[0]
@@ -563,7 +574,9 @@ def generate_decoder(
     return data
 
 
-def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarray]:
+def generate_model(
+    seed: int, dims: TestDims = MODEL_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -590,7 +603,9 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
     return data
 
 
-def generate_causal(seed: int, dims: TestDims = CAUSAL_DIMS) -> dict[str, np.ndarray]:
+def generate_causal(
+    seed: int, dims: TestDims = CAUSAL_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -664,8 +679,8 @@ def main() -> int:
         # SDPA/RoPE vs PyTorch eager can differ slightly at tight tol.
         write_fixture_json(out, stem, ATTENTION_DIMS, 5e-3, 5e-3)
     elif args.block == "decoder":
-        # Full block stacks LN, RoPE, masked SDPA, and biased MLP; allow slightly
-        # more slack on forward than standalone attention.
+        # Full block stacks LN, RoPE, masked SDPA, and biased MLP;
+        # allow slightly more slack on forward than standalone attention.
         write_fixture_json(out, stem, DECODER_DIMS, 2e-2, 5e-3)
     elif args.block in ("model", "causal"):
         write_fixture_json(out, stem, MODEL_DIMS, 2e-2, 2e-2)

@@ -15,8 +15,9 @@ For each block the script creates ``gptneo_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 Uses HuggingFace ``modeling_gpt_neo`` with NNTile layout per
-``examples/gptneo_generate.py``. Reference forwards use HF LayerNorm (gamma/beta), GELUTANH for MLP, and
-separate Q/K/V/O projections with ``out_proj`` bias (add_fiber).
+``examples/gptneo_generate.py``. Reference forwards use HF LayerNorm
+(gamma/beta), GELUTANH for MLP, and separate Q/K/V/O projections with
+``out_proj`` bias (add_fiber).
 """
 
 from __future__ import annotations
@@ -33,12 +34,9 @@ import torch.nn.functional as F
 from safetensors.numpy import save_file
 from transformers import GPTNeoConfig
 from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoAttention as PtAttention,
-    GPTNeoBlock as PtBlock,
-    GPTNeoForCausalLM as PtCausalLM,
-    GPTNeoMLP as PtMLP,
-    GPTNeoModel as PtModel,
-)
+    GPTNeoAttention as PtAttention, GPTNeoBlock as PtBlock,
+    GPTNeoForCausalLM as PtCausalLM, GPTNeoMLP as PtMLP,
+    GPTNeoModel as PtModel)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -115,7 +113,10 @@ def _gelutanh(x: torch.Tensor) -> torch.Tensor:
 def _gptneo_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF q/k/v/out_proj to NNTile layouts (``examples/gptneo_generate.py``)."""
+    """Map HF q/k/v/out_proj to NNTile layouts.
+
+    Matches ``examples/gptneo_generate.py``.
+    """
     inner = attn.attention
     H = dims.hidden
     nh = dims.n_heads
@@ -159,7 +160,9 @@ def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
     return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
 
 
-def _model_weights(model: PtModel, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
+def _model_weights(
+    model: PtModel, prefix: str, dims: TestDims,
+) -> dict[str, np.ndarray]:
     d: dict[str, np.ndarray] = {}
     d.update(_embed(model.wte, f"{prefix}.wte"))
     d.update(_embed(model.wpe, f"{prefix}.wpe"))
@@ -257,7 +260,6 @@ def _gptneo_attn_forward(
 ) -> torch.Tensor:
     """Q/K/V + SDPA + out_proj + bias (matches graph GptneoAttention)."""
     inner = attn.attention
-    n_emb = x_pt.shape[-1]
     n_head = inner.num_heads
     head_dim = inner.head_dim
     q = inner.q_proj(x_pt)
@@ -282,7 +284,10 @@ def _gptneo_decoder_forward(
     *,
     attn_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """HF LayerNorm + graph-aligned attention/MLP (matches C++ GptneoDecoder)."""
+    """HF LayerNorm + graph-aligned attention/MLP.
+
+    Matches C++ ``GptneoDecoder``.
+    """
     residual = x_pt
     x_norm = block.ln_1(x_pt)
     attn_out = _gptneo_attn_forward(block.attn, x_norm, attn_mask=attn_mask)
@@ -335,7 +340,11 @@ def _gptneo_fixture_json(
 
 
 def write_fixture_json(
-    out: Path, stem: str, dims: TestDims, forward_tol: float, backward_tol: float,
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
 ) -> None:
     path = out / f"{stem}.json"
     path.write_text(
@@ -348,7 +357,9 @@ def write_fixture_json(
     print(f"Saved {path}")
 
 
-def generate_mlp(seed: int, dims: TestDims = MLP_DIMS) -> dict[str, np.ndarray]:
+def generate_mlp(
+    seed: int, dims: TestDims = MLP_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -394,8 +405,6 @@ def generate_attention(
     out.backward(g_pt)
     data["grad_input"] = _out_to_nntile(x_pt.grad)
     return data
-
-
 
 
 def generate_attention_local(
@@ -460,7 +469,9 @@ def generate_decoder(
     return data
 
 
-def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarray]:
+def generate_model(
+    seed: int, dims: TestDims = MODEL_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -491,7 +502,9 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
     return data
 
 
-def generate_causal(seed: int, dims: TestDims = CAUSAL_DIMS) -> dict[str, np.ndarray]:
+def generate_causal(
+    seed: int, dims: TestDims = CAUSAL_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)

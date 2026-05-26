@@ -50,7 +50,9 @@ def build_token_stream(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Write a tiny uint16 train.bin for T5 graph training demos",
+        description=(
+            "Write a tiny uint16 train.bin for T5 graph training demos"
+        ),
     )
     parser.add_argument(
         "--output",
@@ -83,7 +85,8 @@ def main() -> int:
         or args.num_batches < 1
     ):
         raise SystemExit(
-            "enc-seq-len, dec-seq-len, batch-size, and num-batches must be >= 1",
+            "enc-seq-len, dec-seq-len, batch-size, and num-batches "
+            "must be >= 1",
         )
     if args.vocab_size < 2:
         raise SystemExit("vocab-size must be >= 2")

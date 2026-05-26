@@ -90,8 +90,6 @@ def _write_safetensors_streaming(
             del arr, raw
 
 
-
-
 def _conv1d_to_nntile_linear_weight(conv_weight: np.ndarray) -> np.ndarray:
     """Map HF GPT-2 Conv1D weight to graph ``Linear`` storage.
 

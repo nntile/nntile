@@ -16,7 +16,8 @@ The C++ trainers mmap a flat ``uint16`` stream. Each batch consumes
 labels). Token ids stay in ``[0, vocab_size)`` (default 256 for ``--tiny``).
 
 This script avoids HuggingFace downloads so the demo scripts run offline.
-For real text data, use ``wrappers/python/examples/causal_lm_data_preparation.py``.
+For real text data, use
+``wrappers/python/examples/causal_lm_data_preparation.py``.
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ def build_token_stream(
     vocab_size: int,
     seed: int,
 ) -> np.ndarray:
-    """Low-entropy stream: slowly drifting ids (learnable next-token pattern)."""
+    """Low-entropy stream: slowly drifting ids (learnable pattern)."""
     rng = np.random.default_rng(seed)
     tokens = np.empty(num_tokens, dtype=np.uint16)
     cur = int(rng.integers(0, vocab_size))

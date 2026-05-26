@@ -30,12 +30,8 @@ import torch
 from safetensors.numpy import save_file
 from transformers import GPT2Config
 from transformers.models.gpt2.modeling_gpt2 import (
-    GPT2Attention as PtAttention,
-    GPT2Block as PtBlock,
-    GPT2LMHeadModel as PtCausalLM,
-    GPT2MLP as PtMLP,
-    GPT2Model as PtModel,
-)
+    GPT2MLP as PtMLP, GPT2Attention as PtAttention, GPT2Block as PtBlock,
+    GPT2LMHeadModel as PtCausalLM, GPT2Model as PtModel)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -98,12 +94,12 @@ def _make_config(dims: TestDims) -> GPT2Config:
 
 
 def _lm_head_to_linear_weight(conv) -> np.ndarray:
-    """``lm_head`` Conv1D weight ``(vocab, hidden)`` → Linear ``(hidden, vocab)``."""
+    """``lm_head`` Conv1D ``(vocab, hidden)`` → Linear ``(hidden, vocab)``."""
     return fortran_order(conv.weight.detach().numpy().T)
 
 
 def _conv1d_to_linear_weight(conv) -> np.ndarray:
-    """HF Conv1D ``(in_features, out_features)`` → graph Linear (same shape)."""
+    """HF Conv1D ``(in, out)`` → graph Linear (same shape)."""
     return fortran_order(conv.weight.detach().numpy())
 
 
@@ -114,13 +110,13 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     }
 
 
-
 def _gpt2_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
     """Split HF ``c_attn`` into graph ``q/k/v`` layouts; ``c_proj`` → ``o``.
 
-    Matches ``GPT2Attention.from_torch`` in ``wrappers/python/nntile/model/gpt2_attention.py``.
+    Matches ``GPT2Attention.from_torch`` in
+    ``wrappers/python/nntile/model/gpt2_attention.py``.
     """
     w = attn.c_attn.weight.detach().numpy()
     n_emb = dims.hidden
@@ -158,7 +154,9 @@ def _gpt2_mlp(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     }
 
 
-def _gpt2_block(layer: PtBlock, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
+def _gpt2_block(
+    layer: PtBlock, prefix: str, dims: TestDims,
+) -> dict[str, np.ndarray]:
     d: dict[str, np.ndarray] = {}
     d.update(_layer_norm(layer.ln_1, f"{prefix}.ln_1"))
     d.update(_gpt2_attn_weights(layer.attn, f"{prefix}.attn", dims))
@@ -171,7 +169,9 @@ def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
     return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
 
 
-def _model_weights(model: PtModel, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
+def _model_weights(
+    model: PtModel, prefix: str, dims: TestDims,
+) -> dict[str, np.ndarray]:
     d: dict[str, np.ndarray] = {}
     d.update(_embed(model.wte, f"{prefix}.wte"))
     d.update(_embed(model.wpe, f"{prefix}.wpe"))
@@ -263,7 +263,11 @@ def _gpt2_fixture_json(
 
 
 def write_fixture_json(
-    out: Path, stem: str, dims: TestDims, forward_tol: float, backward_tol: float,
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
 ) -> None:
     path = out / f"{stem}.json"
     path.write_text(
@@ -276,7 +280,9 @@ def write_fixture_json(
     print(f"Saved {path}")
 
 
-def generate_mlp(seed: int, dims: TestDims = MLP_DIMS) -> dict[str, np.ndarray]:
+def generate_mlp(
+    seed: int, dims: TestDims = MLP_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -292,8 +298,6 @@ def generate_mlp(seed: int, dims: TestDims = MLP_DIMS) -> dict[str, np.ndarray]:
     out.backward(g_pt)
     data["grad_input"] = _out_to_nntile(x_pt.grad)
     return data
-
-
 
 
 def _gpt2_attn_forward_bidirectional(
@@ -377,7 +381,9 @@ def generate_block(
     return data
 
 
-def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarray]:
+def generate_model(
+    seed: int, dims: TestDims = MODEL_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -404,7 +410,9 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
     return data
 
 
-def generate_causal(seed: int, dims: TestDims = CAUSAL_DIMS) -> dict[str, np.ndarray]:
+def generate_causal(
+    seed: int, dims: TestDims = CAUSAL_DIMS,
+) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
