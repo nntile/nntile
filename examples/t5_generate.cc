@@ -323,20 +323,23 @@ int main(int argc, char** argv)
 
         NNGraph graph("t5_step");
 
-        auto* encoder_ids = graph.tensor(
-            {enc_seq, 1}, "encoder_input_ids", DataType::INT64, false);
+        auto *encoder_ids =
+            graph.tensor({enc_seq, 1}, DataType::INT64, false)
+                ->set_name("encoder_input_ids");
         encoder_ids->mark_input(true);
 
-        auto* decoder_ids = graph.tensor(
-            {dec_seq, 1}, "decoder_input_ids", DataType::INT64, false);
+        auto *decoder_ids =
+            graph.tensor({dec_seq, 1}, DataType::INT64, false)
+                ->set_name("decoder_input_ids");
         decoder_ids->mark_input(true);
 
-        auto* decoder_attn_mask = graph.tensor(
-            {dec_seq, dec_seq}, "decoder_attn_mask", DataType::BOOL, false);
+        auto *decoder_attn_mask =
+            graph.tensor({dec_seq, dec_seq}, DataType::BOOL, false)
+                ->set_name("decoder_attn_mask");
         decoder_attn_mask->mark_input(true);
 
         T5ForConditionalGeneration model(&graph, "model", config);
-        auto* output = model.forward(
+        auto *output = model.forward(
             encoder_ids, decoder_ids, nullptr, decoder_attn_mask, nullptr);
         output->mark_output(true);
 
@@ -347,15 +350,16 @@ int main(int argc, char** argv)
         std::vector<std::uint8_t> dec_mask_data(dec_mask_n);
         sdpa_causal_mask_bool_fortran_fill(dec_seq, dec_mask_data.data());
 
-        TensorGraph::Runtime runtime(graph.tensor_graph());
-        runtime.compile();
-        runtime.bind_data("encoder_input_ids", encoder_tokens);
-        runtime.bind_data("decoder_input_ids", decoder_tokens);
-        runtime.bind_data("decoder_attn_mask", dec_mask_data);
+        graph.finish_phase();
+        graph.lower_and_compile();
+        Runtime &runtime = graph.runtime();
+        runtime.bind_data(encoder_ids, encoder_tokens);
+        runtime.bind_data(decoder_ids, decoder_tokens);
+        runtime.bind_data(decoder_attn_mask, dec_mask_data);
         runtime.execute();
         runtime.wait();
 
-        auto logits = runtime.get_output<float>(output->name());
+        auto logits = runtime.get_output<float>(output);
 
         std::int64_t next_id = argmax_last_position(
             logits, config.vocab_size, dec_seq);

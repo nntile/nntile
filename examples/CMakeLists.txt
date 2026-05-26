@@ -106,6 +106,16 @@ add_example(TARGET_NAME examples_gpt2_generate
     SOURCES "gpt2_generate.cc"
     LINK_LIBRARIES nntile)
 
+add_example(TARGET_NAME examples_bert_graph_training
+    EXEC_NAME "bert_graph_training"
+    SOURCES "bert_graph_training.cc"
+    LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_bert_mlm_inference
+    EXEC_NAME "bert_mlm_inference"
+    SOURCES "bert_mlm_inference.cc"
+    LINK_LIBRARIES nntile)
+
 add_example(TARGET_NAME examples_gptneo_generate
     EXEC_NAME "gptneo_generate"
     SOURCES "gptneo_generate.cc"

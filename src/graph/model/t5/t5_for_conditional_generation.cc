@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/t5/t5_for_conditional_generation.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -49,11 +49,12 @@ graph::NNGraph::TensorNode* T5ForConditionalGeneration::forward(
         encoder_attention_mask, decoder_attention_mask, cross_attention_mask);
 
     // Transpose (d_model, seq, batch) -> (seq, batch, d_model) for lm_head
-    graph::NNGraph::TensorNode* hidden_t =
-        graph::transpose(hidden, tensor_name("hidden_t"), 1);
+    graph::NNGraph::TensorNode* hidden_t = graph::transpose(hidden, 1);
+    hidden_t->set_name(tensor_name("hidden_t"));
     graph::NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
-    // Transpose to (vocab, seq, batch) for output
-    return graph::transpose(logits_sbv, tensor_name("logits"), 2);
+    graph::NNGraph::TensorNode* logits = graph::transpose(logits_sbv, 2);
+    logits->set_name(tensor_name("logits"));
+    return logits;
 }
 
 std::string T5ForConditionalGeneration::repr() const

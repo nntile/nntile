@@ -5,13 +5,14 @@
 set -e
 
 branch=$1
+base_branch=${2:-main}
 if [ -z "$branch" ]; then
     branch=$(git branch --show-current)
     echo "no branch specified: assume current branch is $branch"
 fi
 
 function changed-files() {
-    git diff --name-only main..$branch -- "$@"
+    git diff --name-only "${base_branch}..${branch}" -- "$@"
 }
 
 # Start with an empty manifest so later appends always have a target file.

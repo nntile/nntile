@@ -442,3 +442,61 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
         endif()
     endif()
 endforeach()
+
+# BERT test data
+set(BERT_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/bert_data")
+set(BERT_GENERATE_SCRIPT
+    "${CMAKE_CURRENT_SOURCE_DIR}/bert/generate_test_data.py")
+
+set(TESTS_MODEL_BERT
+    "bert/bert_config"
+    "bert/bert_intermediate"
+    "bert/bert_attention"
+    "bert/bert_layer"
+    "bert/bert_embeddings"
+    "bert/bert_model"
+    "bert/bert_mlm"
+)
+
+foreach(test_path IN LISTS TESTS_MODEL_BERT)
+    get_filename_component(test_name ${test_path} NAME)
+    add_test_set(TARGET_NAME tests_graph_model_${test_name}
+        EXEC_NAME test_${test_name}
+        SOURCES ${test_path}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_graph_model_${test_name}
+        COV_GLOBAL coverage_graph_model coverage
+    )
+    target_include_directories(tests_graph_model_${test_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../nn
+    )
+    set_target_properties(tests_graph_model_${test_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bert)
+    if(NOT test_name STREQUAL "bert_config")
+        string(REPLACE "bert_" "" block_name "${test_name}")
+        target_compile_definitions(tests_graph_model_${test_name} PRIVATE
+            BERT_DATA_DIR="${BERT_DATA_DIR}"
+        )
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME tests_graph_model_${test_name}_data_setup
+                COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${BERT_GENERATE_SCRIPT}"
+                    --block "${block_name}" --output "${BERT_DATA_DIR}"
+                    --seed 42
+                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            )
+            set_tests_properties(tests_graph_model_${test_name}_data_setup
+                PROPERTIES
+                    FIXTURES_SETUP "tests_graph_model_${test_name}_data"
+                    ENVIRONMENT
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+            )
+            set_tests_properties(tests_graph_model_${test_name} PROPERTIES
+                FIXTURES_REQUIRED "tests_graph_model_${test_name}_data"
+            )
+        endif()
+    endif()
+endforeach()
