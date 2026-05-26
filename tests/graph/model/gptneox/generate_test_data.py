@@ -851,7 +851,7 @@ def main() -> int:
         # RoPE forward vs C++ StarPU ~3e-3; backward ~6.5e-3 (kernels vs torch autograd).
         write_fixture_json(out, stem, ATTENTION_DIMS, 4e-3, 7e-3)
     elif args.block == "decoder":
-        write_fixture_json(out, stem, DECODER_DIMS, 2e-1, 1e-2)
+        write_fixture_json(out, stem, DECODER_DIMS, 2e-2, 1e-2)
     elif args.block in ("model", "causal"):
         write_fixture_json(out, stem, MODEL_DIMS, 1e-5, 1e-5)
 
