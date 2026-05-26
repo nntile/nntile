@@ -91,11 +91,11 @@ graph::NNGraph::TensorNode* T5Attention::forward(
     // Hugging Face T5 attention scores omit the explicit 1/sqrt(d) scale used
     // by Llama-style SDPA (see ``T5Attention`` in ``layer/t5_attention.py``).
     constexpr Scalar t5_attn_scale = 1.0;
-    graph::NNGraph* graph = x->graph();
+    graph::NNGraph* nn_graph = x->graph();
     auto sdpa_op = std::make_shared<graph::NNSdpaEagerOp>(
         q, k, v, t5_attn_scale, 2, 0, mask);
     graph::NNGraph::TensorNode* attn_out = sdpa_op->forward();
-    graph->register_op(std::move(sdpa_op));
+    nn_graph->register_op(std::move(sdpa_op));
     attn_out->set_name(tensor_name("sdpa_out"));
 
     graph::NNGraph::TensorNode* attn_t = graph::transpose(attn_out, 3);
