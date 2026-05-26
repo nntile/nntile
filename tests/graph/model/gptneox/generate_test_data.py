@@ -16,7 +16,8 @@ For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
 backward references plus NumPy layout wrangling for NNTile safetensors — no
-custom attention reimplementation. Weights are split from HF ``query_key_value`` / ``dense`` into graph
+custom attention reimplementation. Weights are split from HF
+``query_key_value`` / ``dense`` into graph
 ``q/k/v/o`` layouts; Q/K get RoPE head-dim interleaving via
 ``rotate_tensor_in`` (axis 1, ``rotary_pct``), matching
 ``GPTNeoXAttention.from_torch`` and Llama fixtures. Attention
@@ -88,7 +89,7 @@ def fortran_order(arr: np.ndarray) -> np.ndarray:
 
 
 def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    """Match ``fortran_order``: SafeTensors C payload == NNTile Fortran layout."""
+    """Match ``fortran_order``: SafeTensors C-order == NNTile Fortran."""
     a = np.asarray(arr, dtype=np.int64)
     return a.ravel("F").reshape(a.shape)
 
@@ -378,7 +379,7 @@ def _hf_gptneox_attention(
     use_rope: bool,
     use_causal_mask: bool,
 ) -> torch.Tensor:
-    """HuggingFace ``GPTNeoXAttention`` (eager), aligned with Llama fixtures."""
+    """HF ``GPTNeoXAttention`` (eager), aligned with Llama fixtures."""
     cos, sin = rotary(x_pt, pos_ids_pt)
     if not use_rope:
         cos = torch.ones_like(cos)
@@ -491,7 +492,7 @@ def write_fixture_json(
 
 
 def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
-    """Write extra attention safetensors for RoPE / causal-mask combinations."""
+    """Write attention safetensors for RoPE / causal-mask combinations."""
     specs: list[tuple[str, bool, bool, float, float]] = [
         ("gptneox_attention_no_rope", False, False, 1e-6, 1e-6),
         ("gptneox_attention_causal", True, True, 1e-6, 1e-6),

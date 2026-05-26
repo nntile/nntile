@@ -34,10 +34,9 @@ from generate_test_data import (  # noqa: E402
     _gptneox_rope_dim,
     _hidden_hsbn,
     _make_config,
+    _o_weight_fortran,
     _proj_o_bsh,
     _proj_qkv_hsbn,
-    _split_qkv_weights_fortran,
-    _o_weight_fortran,
     nntile_layout_to_logical,
 )
 
@@ -70,7 +69,6 @@ def hf_attention_no_mask_norope(
     dims: TestDims,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """HF eager path: merged QKV, identity RoPE on rotary_ndims, no mask."""
-    rope_dim = _gptneox_rope_dim(dims)
     qkv = attn.query_key_value(x_bsh)
     qkv = qkv.view(
         x_bsh.shape[0],
@@ -170,11 +168,10 @@ def main() -> int:
 
     inp = nntile_layout_to_logical(data["input"])
     x_pt = torch.tensor(inp.transpose(2, 1, 0).copy(), dtype=torch.float32)
-    x_hsbn = _hidden_hsbn(x_pt)
     x_bsh = x_pt
 
     ref_out_hsbn = nntile_layout_to_logical(data["output_ref"])
-    # ``output_ref`` is Fortran (H,S,B); logical layout for comparison to (B,S,H)
+    # ``output_ref`` is Fortran (H,S,B); compare to (B,S,H) via transpose
     ref_out_bsh = ref_out_hsbn.transpose(2, 1, 0)
     cos_np = np.ones_like(np.asarray(data["rope_cos"], dtype=np.float32))
     sin_np = np.zeros_like(np.asarray(data["rope_sin"], dtype=np.float32))
@@ -192,26 +189,22 @@ def main() -> int:
         f"  regen _gptneox_attn_forward vs fixture: "
         f"{rel_frob(out_gen_bsh, ref_out_bsh):.6e}",
     )
-    print(f"  HF vs fixture output_ref:         {rel_frob(hf_out_np, ref_out_bsh):.6e}")
-    print(f"  HF vs regen NNTile ref:           {rel_frob(hf_out_np, out_gen_bsh):.6e}")
+    hf_vs_ref = rel_frob(hf_out_np, ref_out_bsh)
+    hf_vs_regen = rel_frob(hf_out_np, out_gen_bsh)
+    print(f"  HF vs fixture output_ref:         {hf_vs_ref:.6e}")
+    print(f"  HF vs regen NNTile ref:           {hf_vs_regen:.6e}")
 
     print("\n=== Per-stage: HF vs NNTile ref ===")
     q_hf, k_hf, v_hf = hf_st["q"], hf_st["k"], hf_st["v"]
     q_nt = stages["q"]
     k_nt = stages["k"]
     v_nt = stages["v"]
-    print(
-        f"  Q  rel: {rel_frob(bhsd_to_hsbn4(q_hf).detach().numpy(), q_nt):.6e}",
-    )
-    print(
-        f"  K  rel: {rel_frob(bhsd_to_hsbn4(k_hf).detach().numpy(), k_nt):.6e}",
-    )
-    print(
-        f"  V  rel: {rel_frob(bhsd_to_hsbn4(v_hf).detach().numpy(), v_nt):.6e}",
-    )
-    ctx_hf = hf_st["ctx_bhsd"].view(
-        dims.batch, dims.seq, dims.hidden,
-    ).detach().numpy()
+    q_rel = rel_frob(bhsd_to_hsbn4(q_hf).detach().numpy(), q_nt)
+    k_rel = rel_frob(bhsd_to_hsbn4(k_hf).detach().numpy(), k_nt)
+    v_rel = rel_frob(bhsd_to_hsbn4(v_hf).detach().numpy(), v_nt)
+    print(f"  Q  rel: {q_rel:.6e}")
+    print(f"  K  rel: {k_rel:.6e}")
+    print(f"  V  rel: {v_rel:.6e}")
     ctx_nt = stages["sdpa"]
     wo = _o_weight_fortran(attn, dims)
     ctx_nt_bsh = _proj_o_bsh(wo, torch.tensor(ctx_nt)).detach().numpy()
@@ -224,12 +217,9 @@ def main() -> int:
         f"  SDPA (HF QKV -> nntile sdpa): "
         f"{rel_frob(ctx_hf_from_nt_qkv.detach().numpy(), ctx_nt):.6e}",
     )
-    print(
-        f"  SDPA (each native): compare via out_proj skipped",
-    )
+    print("  SDPA (each native): compare via out_proj skipped")
 
     # HF QKV merged linear vs split gemm
-    wq_t = torch.tensor(nntile_layout_to_logical(wq))
     q_merged = torch.nn.functional.linear(x_bsh, attn.query_key_value.weight)
     q_merged = q_merged.view(
         dims.batch, dims.seq, dims.n_heads, 3 * dims.head_size,
@@ -243,10 +233,10 @@ def main() -> int:
         f"{rel_frob(q_nt, q_nt):.6e} (sanity 0)",
     )
     q_split = _proj_qkv_hsbn(wq, wk, wv, _hidden_hsbn(x_bsh))[0]
-    print(
-        f"  Q split-gemm vs HF Q: "
-        f"{rel_frob(bhsd_to_hsbn4(q_hf).detach().numpy(), q_split.numpy()):.6e}",
+    q_split_rel = rel_frob(
+        bhsd_to_hsbn4(q_hf).detach().numpy(), q_split.numpy(),
     )
+    print(f"  Q split-gemm vs HF Q: {q_split_rel:.6e}")
 
     return 0
 
