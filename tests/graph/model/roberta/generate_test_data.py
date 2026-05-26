@@ -118,6 +118,11 @@ def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
     return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
 
 
+def _zero_token_type_embeddings(pt_embeddings: PtEmbeddings) -> None:
+    # NNTile RobertaEmbeddings omits token-type; HF BertEmbeddings adds it.
+    pt_embeddings.token_type_embeddings.weight.data.zero_()
+
+
 def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
     n_emb = dims.hidden
     hs = dims.head_size
@@ -350,6 +355,7 @@ def generate_embeddings(
     config = _make_config(dims)
     pt = PtEmbeddings(config)
     pt.eval()
+    _zero_token_type_embeddings(pt)
     data = {}
     data.update(_embed(pt.word_embeddings, "embeddings.word"))
     data.update(_embed(pt.position_embeddings, "embeddings.position"))
@@ -394,6 +400,7 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS):
     config = _make_config(dims)
     pt = PtModel(config, add_pooling_layer=False)
     pt.eval()
+    _zero_token_type_embeddings(pt.embeddings)
     data = _model_weights(pt, "model", dims)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
@@ -425,6 +432,7 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     config = _make_config(dims)
     pt = PtMlm(config)
     pt.eval()
+    _zero_token_type_embeddings(pt.roberta.embeddings)
     data = _model_weights(pt.roberta, "model.roberta", dims)
     data.update(_roberta_mlm_head_weights(pt.lm_head, "model.cls"))
     ids_nt, ids_pt = _ids_input(rng, dims)
