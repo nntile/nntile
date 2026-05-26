@@ -763,9 +763,9 @@ def main() -> int:
     elif args.block in ("attention", "attention_causal"):
         write_fixture_json(out, stem, ATTENTION_DIMS, 1e-6, 1e-6)
     elif args.block == "decoder":
-        write_fixture_json(out, stem, DECODER_DIMS, 1.6e-2, 5e-3)
+        write_fixture_json(out, stem, DECODER_DIMS, 1e-6, 1e-6)
     elif args.block in ("model", "causal"):
-        write_fixture_json(out, stem, MODEL_DIMS, 1.2e-2, 1.2e-2)
+        write_fixture_json(out, stem, MODEL_DIMS, 1e-6, 1e-6)
 
     return 0
 
