@@ -347,7 +347,11 @@ def _gptneox_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
 
 
 class _PtSdpaEagerFn(torch.autograd.Function):
-    """``graph::sdpa_eager`` forward/backward (logits shape ``(k, q, batch, head)``)."""
+    """``graph::sdpa_eager`` forward/backward (logits shape ``(k, q, batch, head)``).
+
+    Use ``stbn`` (key, query, batch, head) — same as ``tests/graph/nn/ops/sdpa_eager.cc``
+    and T5 ``generate_test_data._pt_sdpa_eager``, not ``tsbn``.
+    """
 
     @staticmethod
     def forward(
@@ -596,10 +600,9 @@ def write_fixture_json(
 def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
     """Write extra attention safetensors for RoPE / causal-mask combinations."""
     specs: list[tuple[str, bool, bool, float, float]] = [
-        # No-RoPE isolates SDPA/proj; forward ~1.5e-3, backward ~6.5e-3 vs C++.
-        ("gptneox_attention_no_rope", False, False, 2e-3, 7e-3),
+        ("gptneox_attention_no_rope", False, False, 1e-6, 7e-3),
         ("gptneox_attention_causal", True, True, 4e-3, 7e-3),
-        ("gptneox_attention_no_rope_causal", False, True, 4e-3, 7e-3),
+        ("gptneox_attention_no_rope_causal", False, True, 1e-6, 7e-3),
     ]
     for stem, rope, causal, fwd_tol, bwd_tol in specs:
         payload = generate_attention(
@@ -845,7 +848,7 @@ def main() -> int:
     if args.block == "mlp":
         write_fixture_json(out, stem, MLP_DIMS, 1e-5, 1e-5)
     elif args.block in ("attention", "attention_causal"):
-        # No-mask forward ~3e-3 vs C++ (FP32 StarPU); backward ~6.5e-3.
+        # RoPE forward vs C++ StarPU ~3e-3; backward ~6.5e-3 (kernels vs torch autograd).
         write_fixture_json(out, stem, ATTENTION_DIMS, 4e-3, 7e-3)
     elif args.block == "decoder":
         write_fixture_json(out, stem, DECODER_DIMS, 2e-1, 1e-2)
