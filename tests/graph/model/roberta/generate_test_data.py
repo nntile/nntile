@@ -7,13 +7,26 @@
 # @file tests/graph/model/roberta/generate_test_data.py
 # Generate RoBERTa building-block test data in safetensors format.
 #
-# @version 1.1.0
+# @version 1.2.0
 
-"""Generate reference test data for NNTile RoBERTa graph C++ tests."""
+"""Generate reference test data for NNTile RoBERTa graph C++ tests.
+
+For each block the script creates ``roberta_<block>.safetensors`` plus a paired
+``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
+
+Uses HuggingFace ``modeling_roberta`` for all forward/backward references
+(``RobertaIntermediate``, ``RobertaAttention``, ``RobertaLayer``,
+``RobertaEmbeddings``, ``RobertaModel``, ``RobertaForMaskedLM``,
+``RobertaLMHead``) plus NumPy layout helpers shared with the BERT generator.
+Weight tensors are reshaped to the graph module layout; reference forwards call
+HF modules only (no custom RoBERTa reimplementation). Position ids follow
+``create_position_ids_from_input_ids`` from the same HF file.
+"""
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from dataclasses import dataclass
@@ -26,7 +39,40 @@ from transformers import RobertaConfig
 from transformers.models.roberta.modeling_roberta import (
     RobertaAttention as PtAttention, RobertaEmbeddings as PtEmbeddings,
     RobertaForMaskedLM as PtMlm, RobertaIntermediate as PtIntermediate,
-    RobertaLayer as PtLayer, RobertaModel as PtModel)
+    RobertaLayer as PtLayer, RobertaModel as PtModel,
+    create_position_ids_from_input_ids)
+
+
+def _load_bert_generate_test_data():
+    """Load BERT safetensor layout helpers for shared encoder blocks."""
+    path = (
+        Path(__file__).resolve().parent.parent
+        / "bert"
+        / "generate_test_data.py"
+    )
+    name = "nntile_bert_generate_test_data"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        msg = f"cannot import BERT test data module: {path}"
+        raise ImportError(msg)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+bert_data = _load_bert_generate_test_data()
+
+fortran_order = bert_data.fortran_order
+fortran_order_int64 = bert_data.fortran_order_int64
+_linear = bert_data._linear
+_layer_norm = bert_data._layer_norm
+_embed = bert_data._embed
+_encoder_attention_weights = bert_data._bert_attention
+_encoder_layer_weights = bert_data._bert_layer
+_hidden_input = bert_data._hidden_input
+_grad_output = bert_data._grad_output
+_out_to_nntile = bert_data._out_to_nntile
 
 
 @dataclass
@@ -72,16 +118,6 @@ MODEL_DIMS = ATTENTION_DIMS
 MLM_DIMS = ATTENTION_DIMS
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
-
-
-def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.int64)
-    return a.ravel("F").reshape(a.shape)
-
-
 def _make_config(dims: TestDims) -> RobertaConfig:
     return RobertaConfig(
         hidden_size=dims.hidden,
@@ -98,107 +134,10 @@ def _make_config(dims: TestDims) -> RobertaConfig:
     )
 
 
-def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
-    return {
-        f"{prefix}.gamma": fortran_order(ln.weight.detach().numpy()),
-        f"{prefix}.beta": fortran_order(ln.bias.detach().numpy()),
-    }
-
-
-def _linear(linear, prefix: str) -> dict[str, np.ndarray]:
-    d = {
-        f"{prefix}.weight": fortran_order(linear.weight.detach().numpy().T),
-    }
-    if linear.bias is not None:
-        d[f"{prefix}.bias"] = fortran_order(linear.bias.detach().numpy())
-    return d
-
-
-def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
-    return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
-
-
 def _zero_token_type_embeddings(pt_embeddings: PtEmbeddings) -> None:
-    # NNTile RobertaEmbeddings omits token-type; HF BertEmbeddings adds it.
+    # NNTile RobertaEmbeddings omits token-type; HF still adds
+    # token_type_embeddings when token_type_ids default to zero.
     pt_embeddings.token_type_embeddings.weight.data.zero_()
-
-
-def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
-    n_emb = dims.hidden
-    hs = dims.head_size
-    n_heads = dims.n_heads
-
-    def w(linear):
-        return linear.weight.detach().numpy().reshape(n_heads, hs, n_emb)
-
-    def b(linear):
-        return linear.bias.detach().numpy().reshape(n_heads, hs).T
-
-    return {
-        f"{prefix}.q_weight": fortran_order(w(self_attn.query)),
-        f"{prefix}.k_weight": fortran_order(w(self_attn.key)),
-        f"{prefix}.v_weight": fortran_order(w(self_attn.value)),
-        f"{prefix}.q_bias": fortran_order(b(self_attn.query)),
-        f"{prefix}.k_bias": fortran_order(b(self_attn.key)),
-        f"{prefix}.v_bias": fortran_order(b(self_attn.value)),
-    }
-
-
-def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
-    n_emb = dims.hidden
-    n_heads = dims.n_heads
-    hs = dims.head_size
-    w = (
-        out_module.dense.weight.detach()
-        .numpy()
-        .reshape(
-            n_emb,
-            n_heads,
-            hs,
-        )
-    )
-    return {
-        f"{prefix}.dense.weight": fortran_order(w),
-        f"{prefix}.dense.bias": fortran_order(
-            out_module.dense.bias.detach().numpy()
-        ),
-        **_layer_norm(out_module.LayerNorm, f"{prefix}.ln"),
-    }
-
-
-def _bert_attention(attn: PtAttention, prefix: str, dims: TestDims):
-    d = {}
-    d.update(_bert_self_attn_weights(attn.self, f"{prefix}.self", dims))
-    d.update(_bert_self_output_weights(attn.output, f"{prefix}.output", dims))
-    return d
-
-
-def _bert_layer(layer: PtLayer, prefix: str, dims: TestDims):
-    d = {}
-    d.update(_bert_attention(layer.attention, f"{prefix}.attention", dims))
-    d.update(_linear(layer.intermediate.dense, f"{prefix}.intermediate.dense"))
-    d.update(_linear(layer.output.dense, f"{prefix}.output.dense"))
-    d.update(_layer_norm(layer.output.LayerNorm, f"{prefix}.output.ln"))
-    return d
-
-
-def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
-    x = (
-        rng.standard_normal(
-            (dims.hidden, dims.seq, dims.batch),
-        ).astype(np.float32)
-        * scale
-    )
-    x_nt = fortran_order(x)
-    x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
-    return x_nt, x_pt
-
-
-def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
-    g = rng.standard_normal(pt_out.shape).astype(np.float32) * scale
-    g_pt = torch.tensor(g)
-    g_nt = fortran_order(g.transpose(2, 1, 0))
-    return g_nt, g_pt
 
 
 def _ids_input(rng, dims: TestDims):
@@ -213,27 +152,14 @@ def _ids_input(rng, dims: TestDims):
     return ids_nt, ids_pt
 
 
-def _roberta_position_ids(dims: TestDims) -> np.ndarray:
-    pos = np.arange(dims.seq, dtype=np.int64)[:, None]
-    pos = np.broadcast_to(pos, (dims.seq, dims.batch)).copy()
-    pos += dims.pad_token_id + 1
-    return fortran_order_int64(pos)
-
-
-def _roberta_position_ids_torch(dims: TestDims, batch: int) -> torch.Tensor:
-    pos = (
-        torch.arange(dims.seq, dtype=torch.long)
-        .unsqueeze(0)
-        .expand(
-            batch,
-            -1,
-        )
-    )
-    return pos + dims.pad_token_id + 1
-
-
-def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
-    return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
+def _position_ids_from_input_ids(
+    ids_pt: torch.Tensor,
+    padding_idx: int,
+) -> tuple[np.ndarray, torch.Tensor]:
+    """HF RoBERTa position ids (``create_position_ids_from_input_ids``)."""
+    pos_pt = create_position_ids_from_input_ids(ids_pt, padding_idx)
+    pos_nt = fortran_order_int64(pos_pt.detach().cpu().numpy().T)
+    return pos_nt, pos_pt
 
 
 def _roberta_fixture_json(
@@ -313,7 +239,7 @@ def generate_attention(
     config = _make_config(dims)
     pt = PtAttention(config)
     pt.eval()
-    data = _bert_attention(pt, "attn", dims)
+    data = _encoder_attention_weights(pt, "attn", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
     out = pt(x_pt)[0]
@@ -334,7 +260,7 @@ def generate_layer(
     config = _make_config(dims)
     pt = PtLayer(config)
     pt.eval()
-    data = _bert_layer(pt, "layer", dims)
+    data = _encoder_layer_weights(pt, "layer", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
     out = pt(x_pt)[0]
@@ -362,8 +288,8 @@ def generate_embeddings(
     data.update(_layer_norm(pt.LayerNorm, "embeddings.ln"))
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
-    data["position_ids"] = _roberta_position_ids(dims)
-    pos_pt = _roberta_position_ids_torch(dims, dims.batch)
+    pos_nt, pos_pt = _position_ids_from_input_ids(ids_pt, dims.pad_token_id)
+    data["position_ids"] = pos_nt
     out = pt(input_ids=ids_pt, position_ids=pos_pt)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
@@ -390,7 +316,7 @@ def _model_weights(model: PtModel, prefix: str, dims: TestDims):
         _layer_norm(model.embeddings.LayerNorm, f"{prefix}.embeddings.ln")
     )
     for i, layer in enumerate(model.encoder.layer):
-        d.update(_bert_layer(layer, f"{prefix}.layer_{i}", dims))
+        d.update(_encoder_layer_weights(layer, f"{prefix}.layer_{i}", dims))
     return d
 
 
@@ -404,8 +330,8 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS):
     data = _model_weights(pt, "model", dims)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
-    data["position_ids"] = _roberta_position_ids(dims)
-    pos_pt = _roberta_position_ids_torch(dims, dims.batch)
+    pos_nt, pos_pt = _position_ids_from_input_ids(ids_pt, dims.pad_token_id)
+    data["position_ids"] = pos_nt
     out = pt(input_ids=ids_pt, position_ids=pos_pt)
     data["output_ref"] = _out_to_nntile(out.last_hidden_state)
     g_nt, g_pt = _grad_output(rng, out.last_hidden_state)
@@ -437,8 +363,8 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     data.update(_roberta_mlm_head_weights(pt.lm_head, "model.cls"))
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
-    data["position_ids"] = _roberta_position_ids(dims)
-    pos_pt = _roberta_position_ids_torch(dims, dims.batch)
+    pos_nt, pos_pt = _position_ids_from_input_ids(ids_pt, dims.pad_token_id)
+    data["position_ids"] = pos_nt
     out = pt(input_ids=ids_pt, position_ids=pos_pt).logits
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)

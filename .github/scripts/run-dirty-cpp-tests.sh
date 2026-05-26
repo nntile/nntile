@@ -41,6 +41,8 @@ while IFS= read -r file; do
             run_all=true; break ;;
         tests/graph/model/t5/generate_test_data.py)
             run_all=true; break ;;
+        tests/graph/model/roberta/generate_test_data.py)
+            run_all=true; break ;;
     esac
 done <<< "$all_changed"
 
@@ -137,6 +139,8 @@ while IFS= read -r file; do
         tests/graph/model/gptneo/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         tests/graph/model/t5/*.cc)
+            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/model/roberta/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         tests/graph/model/test_gptneo_fixture_helpers.hh)
             add_gptneo_model_tests ;;
