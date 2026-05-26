@@ -45,12 +45,9 @@ import torch.nn.functional as F
 from safetensors.numpy import save_file
 from transformers import GPTNeoConfig
 from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoAttention as PtAttention,
-    GPTNeoBlock as PtBlock,
-    GPTNeoForCausalLM as PtCausalLM,
-    GPTNeoMLP as PtMLP,
-    GPTNeoModel as PtModel,
-)
+    GPTNeoAttention as PtAttention, GPTNeoBlock as PtBlock,
+    GPTNeoForCausalLM as PtCausalLM, GPTNeoMLP as PtMLP,
+    GPTNeoModel as PtModel)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -122,7 +119,7 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
 
 
 def _zero_gptneo_mlp_biases(mlp: PtMLP) -> None:
-    """Graph ``GptneoMLP`` has no biases; HF ``nn.Linear`` defaults include them."""
+    """Graph ``GptneoMLP`` has no biases; zero HF ``nn.Linear`` defaults."""
     with torch.no_grad():
         mlp.c_fc.bias.zero_()
         mlp.c_proj.bias.zero_()
@@ -137,7 +134,7 @@ def _hf_gptneo_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
 def _gptneo_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF q/k/v/out_proj to NNTile layouts (``examples/gptneo_generate.py``)."""
+    """Map HF q/k/v/out_proj to NNTile layouts (see ``gptneo_generate.py``)."""
     inner = attn.attention
     H = dims.hidden
     nh = dims.n_heads
@@ -275,7 +272,8 @@ def _hf_gptneo_attention_forward(
     """HF Q/K/V/O projections + SDPA (matches C++ ``GptneoAttention``).
 
     ``bidirectional=True`` is ``[nomask]`` (full attention, no HF causal bias).
-    Otherwise ``attn_mask`` is the additive mask for ``[causal]`` / ``[local]``.
+    Otherwise ``attn_mask`` is the additive mask for ``[causal]`` or
+    ``[local]``.
     """
     inner = attn.attention
     n_head = inner.num_heads
@@ -304,7 +302,7 @@ def _hf_gptneo_decoder_forward(
     *,
     attn_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """HF ``GPTNeoBlock`` layout with graph-aligned attention and bias-free MLP."""
+    """HF ``GPTNeoBlock`` layout; graph-aligned attention and bias-free MLP."""
     residual = x_pt
     x_norm = block.ln_1(x_pt)
     attn_out = _hf_gptneo_attention_forward(
@@ -323,7 +321,7 @@ def _hf_gptneo_model_forward(
     *,
     attn_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """HF embeddings + decoder stack (graph mask, not ``_update_causal_mask``)."""
+    """HF embeddings + decoder stack (fixture mask, not HF causal helper)."""
     x = model.wte(ids_pt) + model.wpe(pos_pt)
     for layer in model.h:
         x = _hf_gptneo_decoder_forward(layer, x, attn_mask=attn_mask)
