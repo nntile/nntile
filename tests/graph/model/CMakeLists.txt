@@ -500,3 +500,61 @@ foreach(test_path IN LISTS TESTS_MODEL_BERT)
         endif()
     endif()
 endforeach()
+
+# RoBERTa test data
+set(ROBERTA_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/roberta_data")
+set(ROBERTA_GENERATE_SCRIPT
+    "${CMAKE_CURRENT_SOURCE_DIR}/roberta/generate_test_data.py")
+
+set(TESTS_MODEL_ROBERTA
+    "roberta/roberta_config"
+    "roberta/roberta_intermediate"
+    "roberta/roberta_attention"
+    "roberta/roberta_layer"
+    "roberta/roberta_embeddings"
+    "roberta/roberta_model"
+    "roberta/roberta_mlm"
+)
+
+foreach(test_path IN LISTS TESTS_MODEL_ROBERTA)
+    get_filename_component(test_name ${test_path} NAME)
+    add_test_set(TARGET_NAME tests_graph_model_${test_name}
+        EXEC_NAME test_${test_name}
+        SOURCES ${test_path}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_graph_model_${test_name}
+        COV_GLOBAL coverage_graph_model coverage
+    )
+    target_include_directories(tests_graph_model_${test_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../nn
+    )
+    set_target_properties(tests_graph_model_${test_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/roberta)
+    if(NOT test_name STREQUAL "roberta_config")
+        string(REPLACE "roberta_" "" block_name "${test_name}")
+        target_compile_definitions(tests_graph_model_${test_name} PRIVATE
+            ROBERTA_DATA_DIR="${ROBERTA_DATA_DIR}"
+        )
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME tests_graph_model_${test_name}_data_setup
+                COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${ROBERTA_GENERATE_SCRIPT}"
+                    --block "${block_name}" --output "${ROBERTA_DATA_DIR}"
+                    --seed 42
+                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            )
+            set_tests_properties(tests_graph_model_${test_name}_data_setup
+                PROPERTIES
+                    FIXTURES_SETUP "tests_graph_model_${test_name}_data"
+                    ENVIRONMENT
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+            )
+            set_tests_properties(tests_graph_model_${test_name} PROPERTIES
+                FIXTURES_REQUIRED "tests_graph_model_${test_name}_data"
+            )
+        endif()
+    endif()
+endforeach()
