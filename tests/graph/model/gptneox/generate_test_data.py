@@ -88,12 +88,6 @@ def fortran_order(arr: np.ndarray) -> np.ndarray:
     return a.ravel("F").reshape(a.shape)
 
 
-def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    """int64 on-disk layout: ``ravel('F').reshape`` like ``fortran_order``."""
-    a = np.asarray(arr, dtype=np.int64)
-    return a.ravel("F").reshape(a.shape)
-
-
 def _make_config(dims: TestDims) -> GPTNeoXConfig:
     return GPTNeoXConfig(
         vocab_size=dims.vocab,
