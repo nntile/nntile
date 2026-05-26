@@ -54,6 +54,14 @@ cmake --build build --target t5_graph_training t5_generate
 ./examples/run_t5_graph_training_demo.sh
 ```
 
+**BERT / RoBERTa** (in-process toy MLM batches; no `train.bin`)
+
+```bash
+cmake --build build --target bert_graph_training roberta_graph_training
+./examples/run_bert_graph_training_demo.sh
+./examples/run_roberta_graph_training_demo.sh
+```
+
 Each script writes data under `build/examples/demo_data/<model>/` and prints a
 short loss summary (first vs last step). Tune without editing the script:
 
@@ -201,6 +209,22 @@ Or let the binary invoke the Python converter:
     --model EleutherAI/gpt-neo-125M \
     --prompt "Hello" \
     --max-tokens 16
+```
+
+## RoBERTa
+
+| Artifact | Role |
+|----------|------|
+| `roberta_graph_training` | Tiny MLM training + save/load checkpoint (graph API) |
+| `run_roberta_graph_training_demo.sh` | Runs training and prints scratch / best / loaded losses |
+| `roberta_graph_training.cc` | Same flow as `bert_graph_training` (fixed toy batch) |
+| `roberta_mlm_inference` | Forward-only MLM smoke test |
+
+Example:
+
+```bash
+cmake --build build --target roberta_graph_training
+./examples/run_roberta_graph_training_demo.sh
 ```
 
 ## T5

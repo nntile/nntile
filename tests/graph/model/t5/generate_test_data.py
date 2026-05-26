@@ -864,7 +864,7 @@ def main() -> int:
     save_file(data, bundle_path)
     print(f"Saved {bundle_path}")
 
-    tol = 2e-5
+    tol = 1e-6
     if args.block == "ff":
         write_fixture_json(out, stem, FF_DIMS, tol, tol)
     elif args.block in ("attention", "attention_causal"):

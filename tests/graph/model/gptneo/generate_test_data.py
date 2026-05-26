@@ -577,14 +577,15 @@ def main() -> int:
     save_file(data, bundle_path)
     print(f"Saved {bundle_path}")
 
+    tol = 1e-6
     if args.block == "mlp":
-        write_fixture_json(out, stem, MLP_DIMS, 2e-5, 2e-5)
+        write_fixture_json(out, stem, MLP_DIMS, tol, tol)
     elif args.block in ("attention", "attention_causal", "attention_local"):
-        write_fixture_json(out, stem, ATTENTION_DIMS, 2e-5, 2e-5)
+        write_fixture_json(out, stem, ATTENTION_DIMS, tol, tol)
     elif args.block == "decoder":
-        write_fixture_json(out, stem, DECODER_DIMS, 2e-5, 2e-5)
+        write_fixture_json(out, stem, DECODER_DIMS, tol, tol)
     elif args.block in ("model", "causal"):
-        write_fixture_json(out, stem, MODEL_DIMS, 2e-5, 2e-5)
+        write_fixture_json(out, stem, MODEL_DIMS, tol, tol)
 
     return 0
 
