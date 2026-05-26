@@ -452,7 +452,7 @@ def main() -> int:
     save_file(data, bundle_path)
     print(f"Saved {bundle_path}")
 
-    tol = 2e-5
+    tol = 1e-6
     if args.block == "intermediate":
         write_fixture_json(out, stem, INTERMEDIATE_DIMS, tol, tol)
     elif args.block == "attention":

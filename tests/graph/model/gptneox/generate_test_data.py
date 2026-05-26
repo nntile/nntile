@@ -674,16 +674,14 @@ def main() -> int:
     print(f"Saved {bundle_path}")
 
     if args.block == "mlp":
-        write_fixture_json(out, stem, MLP_DIMS, 2e-5, 2e-5)
+        write_fixture_json(out, stem, MLP_DIMS, 1e-6, 1e-6)
     elif args.block in ("attention", "attention_causal"):
-        # SDPA/RoPE vs PyTorch eager can differ slightly at tight tol.
+        # RoPE + ``sdpa_eager`` vs PyTorch SDPA (~3e-3 rel. Frobenius).
         write_fixture_json(out, stem, ATTENTION_DIMS, 5e-3, 5e-3)
     elif args.block == "decoder":
-        # Full block stacks LN, RoPE, masked SDPA, and biased MLP;
-        # allow slightly more slack on forward than standalone attention.
-        write_fixture_json(out, stem, DECODER_DIMS, 2e-2, 5e-3)
+        write_fixture_json(out, stem, DECODER_DIMS, 1.6e-2, 5e-3)
     elif args.block in ("model", "causal"):
-        write_fixture_json(out, stem, MODEL_DIMS, 2e-2, 2e-2)
+        write_fixture_json(out, stem, MODEL_DIMS, 1.2e-2, 1.2e-2)
 
     return 0
 
