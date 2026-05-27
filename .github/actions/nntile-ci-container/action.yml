@@ -1,7 +1,8 @@
 name: NNTile CI container setup
 description: >-
-  Bootstrap Ubuntu container, checkout, StarPU, optional PR deepen,
-  and Python+Torch dependencies for NNTile CI jobs.
+  StarPU, optional PR deepen, and Python+Torch dependencies for NNTile CI
+  jobs. Callers must run container bootstrap and actions/checkout@v6 first
+  (local actions are not available before checkout).
 inputs:
   python-version:
     description: Python version for setup-python
@@ -13,14 +14,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Bootstrap container (git for checkout)
-      working-directory: /
-      shell: bash
-      run: |
-        rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-        apt-get update
-        apt-get install -y --no-install-recommends ca-certificates git
-    - uses: actions/checkout@v6
     - uses: ./.github/actions/nntile-starpu-setup
     - name: Pull all PR commits
       if: >-
