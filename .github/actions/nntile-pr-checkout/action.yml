@@ -8,7 +8,13 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        cd "${{ github.workspace }}"
+        owner="${GITHUB_REPOSITORY%%/*}"
+        repo="${GITHUB_REPOSITORY##*/}"
+        if [ -d "/__w/${owner}/${repo}/.git" ]; then
+          cd "/__w/${owner}/${repo}"
+        else
+          cd "${GITHUB_WORKSPACE}"
+        fi
         git config --global --add safe.directory "$(pwd)"
         git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
         git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
