@@ -6,21 +6,11 @@ runs:
     - name: Pull all PR commits
       if: github.event.pull_request
       shell: bash
+      working-directory: ${{ github.workspace }}
       run: |
         set -euo pipefail
-        # Container jobs use /__w/<repo>/<repo>, not /__w/<owner>/<repo>.
-        repo="${GITHUB_REPOSITORY##*/}"
-        found=false
-        for candidate in "${GITHUB_WORKSPACE}" "/__w/${repo}/${repo}"; do
-          if [[ -n "${candidate}" ]] && \
-            git -C "${candidate}" rev-parse --is-inside-work-tree &>/dev/null; then
-            cd "${candidate}"
-            found=true
-            break
-          fi
-        done
-        if ! $found; then
-          echo "No git repository found for ${GITHUB_REPOSITORY}" >&2
+        if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+          echo "No git repository at workspace: $(pwd)" >&2
           exit 1
         fi
         git config --global --add safe.directory "$(pwd)"
