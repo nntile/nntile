@@ -22,6 +22,7 @@ set(CORE_BASE_HDR
     )
 
 set(CORE_KERNEL_HDR
+    "nntile/core/kernel.hh"
     "nntile/core/kernel/accumulate_maxsumexp.hh"
     "nntile/core/kernel/accumulate_maxsumexp/cpu.hh"
     "nntile/core/kernel/accumulate_attn_output.hh"
