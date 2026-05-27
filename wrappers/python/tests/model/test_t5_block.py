@@ -22,6 +22,7 @@ from transformers.models.t5.modeling_t5 import (
 
 import nntile
 import nntile.utils.constructors as nntc
+from conftest import assert_rel_frobenius_close
 from nntile.model.t5_block import T5Block
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
@@ -237,7 +238,7 @@ class TestT5Block:
 
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="forward")
 
     def test_backward(
         self, context, torch_rng, params: T5BlockTestParams, dtype: str
@@ -260,8 +261,9 @@ class TestT5Block:
         # Compare gradients
         grad_nntile = torch.Tensor(nntc.to_numpy(nntile_block.activations[0].grad).T)
         rtol = dtype2tol[dtype]["rtol"]
-
-        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
+        assert_rel_frobenius_close(
+            x.grad, grad_nntile, rtol, label="backward_input"
+        )
 
         # Clean up
         nntile_block.unregister()

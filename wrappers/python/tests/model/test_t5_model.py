@@ -26,6 +26,7 @@ from transformers.models.t5.modeling_t5 import (
 import nntile
 import nntile.functions
 import nntile.utils.constructors as nntc
+from conftest import assert_rel_frobenius_close
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.model.t5_model import T5ForSequenceClassification, T5Model
 from nntile.tensor import TensorMoments, TensorTraits
@@ -273,8 +274,10 @@ class TestT5Model:
 
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(
+            y_encoder, y_encoder_nntile, rtol, label="encoder_forward"
+        )
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="decoder_forward")
 
         # Clean up
         nntile_model.unregister()
@@ -310,8 +313,10 @@ class TestT5Model:
 
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(
+            y_encoder, y_encoder_nntile, rtol, label="encoder_forward"
+        )
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="decoder_forward")
 
         # Clean up
         nntile_model.unregister()
@@ -358,9 +363,12 @@ class TestT5Model:
         )
 
         rtol = dtype2tol[dtype]["rtol"]
-
-        assert torch.norm(enc_x.grad - enc_grad_nntile) <= rtol * torch.norm(enc_x.grad)
-        assert torch.norm(dec_x.grad - dec_grad_nntile) <= rtol * torch.norm(dec_x.grad)
+        assert_rel_frobenius_close(
+            enc_x.grad, enc_grad_nntile, rtol, label="backward_encoder"
+        )
+        assert_rel_frobenius_close(
+            dec_x.grad, dec_grad_nntile, rtol, label="backward_decoder"
+        )
 
         # Clean up
         nntile_model.unregister()
@@ -456,7 +464,9 @@ class TestT5Model:
 
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y_original - y_converted) <= rtol * torch.norm(y_original)
+        assert_rel_frobenius_close(
+            y_original, y_converted, rtol, label="convert_logits"
+        )
 
         # Clean up
         nntile_model.unregister()

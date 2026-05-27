@@ -21,6 +21,7 @@ from transformers.models.t5.modeling_t5 import (
     T5Attention as T5AttentionTorch, T5Config as T5ConfigTorch)
 
 import nntile
+from conftest import assert_rel_frobenius_close
 from nntile.layer.t5_attention import (
     T5Attention, relative_position_bucket_numpy)
 from nntile.model.t5_config import T5ConfigNNTile
@@ -240,7 +241,7 @@ class TestT5Attention:
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations_output[0].value).T)
         # nntile_layer.unregister()
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="forward")
 
         nntile_layer.unregister()
 
@@ -270,23 +271,30 @@ class TestT5Attention:
 
         grad_nntile = torch.Tensor(to_numpy(nntile_layer.activations_input[0].grad).T)
         rtol = dtype2tol[dtype]["rtol"]
-
-        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
+        assert_rel_frobenius_close(
+            x.grad, grad_nntile, rtol, label="backward_input"
+        )
         if params.has_relative_bias:
             nnt_bias_grad = torch.Tensor(
                 to_numpy(nntile_layer.relative_bias_embedding.grad).T
             )
-            assert torch.norm(
-                nnt_bias_grad - torch_layer.relative_attention_bias.weight.grad
-            ) <= rtol * torch.norm(torch_layer.relative_attention_bias.weight.grad)
+            assert_rel_frobenius_close(
+                torch_layer.relative_attention_bias.weight.grad,
+                nnt_bias_grad,
+                rtol,
+                label="backward_relative_bias",
+            )
 
         if is_cross_attn:
             encoder_output_grad = torch.Tensor(
                 to_numpy(nntile_layer.activations_input[1].grad).T
             )
-            assert torch.norm(
-                encoder_output_grad - encoder_output_torch.grad
-            ) <= rtol * torch.norm(encoder_output_torch.grad)
+            assert_rel_frobenius_close(
+                encoder_output_torch.grad,
+                encoder_output_grad,
+                rtol,
+                label="backward_encoder",
+            )
 
         nntile_layer.unregister()
 

@@ -21,6 +21,7 @@ from transformers.models.t5.modeling_t5 import (
     T5Config as T5ConfigTorch, T5LayerFF as T5LayerFFTorch)
 
 import nntile
+from conftest import assert_rel_frobenius_close
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.model.t5_ff import T5LayerFF
 from nntile.tensor import TensorMoments, TensorTraits
@@ -174,7 +175,7 @@ class TestT5LayerFF:
             torch_layer.named_parameters(), torch_layer_other.named_parameters()
         ):
             assert n1 == n2
-            assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
+            assert_rel_frobenius_close(p1, p2, rtol, label=f"weights_{n1}")
 
     def test_forward(
         self, context, torch_rng, params: T5FFTestParams, dtype: str
@@ -186,7 +187,7 @@ class TestT5LayerFF:
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
         nntile_layer.unregister()
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="forward")
 
     def test_backward(
         self, context, torch_rng, params: T5FFTestParams, dtype: str
@@ -203,7 +204,9 @@ class TestT5LayerFF:
         grad_nntile = torch.Tensor(to_numpy(nntile_layer.activations[0].grad).T)
         nntile_layer.unregister()
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
+        assert_rel_frobenius_close(
+            x.grad, grad_nntile, rtol, label="backward_input"
+        )
 
         for (n1, p1), (n2, p2) in zip(
             torch_layer.named_parameters(), torch_layer_other.named_parameters()
@@ -212,4 +215,6 @@ class TestT5LayerFF:
             assert p1.requires_grad == p2.requires_grad
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
-                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+                assert_rel_frobenius_close(
+                    g1, g2, rtol, label=f"backward_param_{n1}"
+                )
