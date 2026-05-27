@@ -19,7 +19,7 @@
 
 #include <cmath>
 #include <iostream>
-#include <nntile/context.hh>
+#include <nntile/core/context.hh>
 #include <nntile/graph.hh>
 #include <string>
 #include <vector>
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     bool x_requires_grad = (argc > 1 && std::string(argv[1]) != "0");
     bool y_requires_grad = (argc > 2 && std::string(argv[2]) != "0");
 
-    nntile::Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0);
+    nntile::core::Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0);
 
     NNGraph g("autograd_add_example");
 
@@ -52,11 +52,11 @@ int main(int argc, char **argv)
     auto *y = g.tensor({2, 3}, DataType::FP32, y_requires_grad)->set_name("y");
 
     auto *w =
-        add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y)->set_name("w");
+        add(nntile::core::Scalar(1.0), x, nntile::core::Scalar(1.0), y)->set_name("w");
     auto *v =
-        add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), y)->set_name("v");
+        add(nntile::core::Scalar(1.0), w, nntile::core::Scalar(1.0), y)->set_name("v");
     auto *z =
-        add(nntile::Scalar(1.0), v, nntile::Scalar(1.0), w)->set_name("z");
+        add(nntile::core::Scalar(1.0), v, nntile::core::Scalar(1.0), w)->set_name("z");
 
     std::cout << "=== Forward (diamond) ===" << std::endl;
     std::cout << "  w = x + y,  v = w + y,  z = v + w" << std::endl;
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
               << ", y_requires_grad=" << y_requires_grad << std::endl;
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    gt::fill(nntile::Scalar(1.0), z_grad->data());
+    gt::fill(nntile::core::Scalar(1.0), z_grad->data());
     z->backward();
 
     std::cout << "\n=== After z.backward() ===" << std::endl;

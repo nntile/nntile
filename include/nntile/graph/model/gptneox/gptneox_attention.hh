@@ -25,7 +25,7 @@
 #include <nntile/graph/model/gptneox/gptneox_config.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 //! GPT-NeoXAttention - Q/K/V projections via gemm, RoPE, SDPA, output projection
@@ -63,4 +63,4 @@ public:
     Index num_heads() const { return n_heads_; }
 };
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

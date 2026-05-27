@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::t5;
+using namespace nntile::graph::model::t5;
 using namespace nntile::graph::io;
 
 #ifndef T5_DATA_DIR
@@ -52,7 +52,7 @@ constexpr char t5_decoder_block[] = "t5_decoder_block";
 namespace
 {
 
-using namespace nntile::test::t5_fixture;
+using namespace nntile::graph::test::t5_fixture;
 
 struct DecoderBlockFixtureSpec
 {
@@ -325,7 +325,7 @@ TEST_CASE("T5DecoderBlock load from safetensors roundtrip", "[model][t5][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "T5DecoderBlock forward matches PyTorch reference", "[model][t5]")
 {
     DecoderBlockFixtureSpec fx;
@@ -337,7 +337,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     decoder_block_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "T5DecoderBlock backward matches PyTorch reference",
     "[model][t5]")
 {

@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -17,7 +18,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 T5Model::T5Model(graph::NNGraph* graph,
@@ -108,4 +109,4 @@ std::string T5Model::repr() const
            ", decoder_layers=" + std::to_string(config_.num_decoder_layers) + ")";
 }
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

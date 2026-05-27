@@ -25,7 +25,7 @@
 #include <nntile/graph/module/linear.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 //! T5ForConditionalGeneration - encoder + decoder + lm_head
@@ -56,4 +56,4 @@ public:
     T5Model* model() { return model_.get(); }
 };
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

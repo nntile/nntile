@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/silu_inplace.cc
- * TileGraph silu_inplace vs nntile::tile::silu_inplace (in-place parity B).
+ * TileGraph silu_inplace vs nntile::core::tile::silu_inplace (in-place parity B).
  *
  * @version 1.1.0
  * */
@@ -18,12 +18,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/silu_inplace.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/silu_inplace.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/silu_inplace.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph silu_inplace matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph silu_inplace matches tile", "[graph][tile]")
 {
     const std::vector<Index> sh = {2, 3};
     const Index nelems = 6;
@@ -40,14 +40,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph silu_inplace matches t
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> td(sh);
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> td(sh);
+    using Y = typename nntile::core::fp32_t::repr_t;
     {
         auto l1 = td.acquire(STARPU_W);
         for(Index i = 0; i < nelems; ++i) { l1[i] = Y(dv[static_cast<size_t>(i)]); }
         l1.release();
     }
-    nntile::tile::silu_inplace<fp32_t>(td);
+    nntile::core::tile::silu_inplace<fp32_t>(td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

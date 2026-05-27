@@ -19,7 +19,7 @@
 #include <nntile/graph/model/bert/bert_self_output.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 class BertAttention : public graph::module::Module
@@ -45,4 +45,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

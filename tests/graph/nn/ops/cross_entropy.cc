@@ -25,10 +25,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph cross_entropy structure",
     "[graph][nn_graph]")
 {
@@ -49,7 +49,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.tensor_graph().num_ops() > 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph cross_entropy backward",
     "[graph][nn_graph]")
 {
@@ -70,7 +70,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(x->grad()->shape() == x_shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph cross_entropy forward and backward",
     "[graph][nn_graph]")
 {
@@ -97,14 +97,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
-using nntile::test::nn_pytorch_tile_logits_5x7;
-using nntile::test::permute_rowmajor;
-using nntile::test::pytorch_tolerance;
+using nntile::core::test::colmajor_to_rowmajor;
+using nntile::core::test::compare_float_vectors;
+using nntile::core::test::nn_pytorch_tile_heterogeneous_1d_len7;
+using nntile::core::test::nn_pytorch_tile_logits_5x7;
+using nntile::core::test::permute_rowmajor;
+using nntile::core::test::pytorch_tolerance;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph cross_entropy matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

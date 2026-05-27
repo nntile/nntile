@@ -24,10 +24,10 @@
 #include <nntile/graph/model/gptneo/gptneo_config.hh>
 
 
-namespace nntile::test::gptneo_fixture
+namespace nntile::graph::test::gptneo_fixture
 {
 
-inline void prepare_gptneo_config(model::gptneo::GptneoConfig &cfg)
+inline void prepare_gptneo_config(nntile::graph::model::gptneo::GptneoConfig &cfg)
 {
     cfg.compute_head_dim();
     cfg.validate();
@@ -158,4 +158,4 @@ inline void bind_mask_input(nntile::graph::Runtime &runtime,
     runtime.bind_data(mask, mask_bytes);
 }
 
-} // namespace nntile::test::gptneo_fixture
+} // namespace nntile::graph::test::gptneo_fixture

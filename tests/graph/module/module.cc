@@ -25,7 +25,7 @@
 #include "nntile/graph.hh"
 #include "nntile/graph/module/module.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 

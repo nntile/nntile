@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/norm_fiber.cc
- * Test TensorGraph norm_fiber operation against nntile::tensor::norm_fiber.
+ * Test TensorGraph norm_fiber operation against nntile::core::tensor::norm_fiber.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/norm_fiber.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/norm_fiber.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -123,15 +123,15 @@ void check_norm_fiber_vs_tensor_api(const std::vector<Index> &x_shape,
     std::vector<float> graph_result = runtime.get_output<float>(out_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
-    nntile::tensor::TensorTraits y_traits(y_shape, y_shape);
-    nntile::tensor::TensorTraits out_traits(y_shape, y_shape);
+    nntile::core::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::core::tensor::TensorTraits y_traits(y_shape, y_shape);
+    nntile::core::tensor::TensorTraits out_traits(y_shape, y_shape);
     std::vector<int> x_distr(x_traits.grid.nelems, distr_rank_single);
     std::vector<int> y_distr(y_traits.grid.nelems, distr_rank_single);
     std::vector<int> out_distr(out_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src(x_traits, x_distr);
-    nntile::tensor::Tensor<T> src2(y_traits, y_distr);
-    nntile::tensor::Tensor<T> dst(out_traits, out_distr);
+    nntile::core::tensor::Tensor<T> src(x_traits, x_distr);
+    nntile::core::tensor::Tensor<T> src2(y_traits, y_distr);
+    nntile::core::tensor::Tensor<T> dst(out_traits, out_distr);
 
     {
         auto tile = src.get_tile(0);
@@ -163,7 +163,7 @@ void check_norm_fiber_vs_tensor_api(const std::vector<Index> &x_shape,
         loc.release();
     }
 
-    nntile::tensor::norm_fiber<T>(
+    nntile::core::tensor::norm_fiber<T>(
         alpha, src, beta, src2, dst, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
 
@@ -226,8 +226,8 @@ TEST_CASE(
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm_fiber matches nntile::tensor::norm_fiber",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph norm_fiber matches nntile::core::tensor::norm_fiber",
     "[graph][tensor]")
 {
     const auto [x_shape, axis, batch_ndim, redux, alpha, beta] =
@@ -274,11 +274,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_half});
 
-    check_norm_fiber_vs_tensor_api<nntile::fp32_t>(
+    check_norm_fiber_vs_tensor_api<nntile::core::fp32_t>(
         x_shape, axis, batch_ndim, redux, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph norm_fiber tiled matches untiled",
     "[graph][tensor]")
 {
@@ -296,7 +296,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_zero});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index x_nelems = std::accumulate(
         x_shape.begin(), x_shape.end(), Index(1), std::multiplies<>());

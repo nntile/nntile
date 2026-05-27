@@ -16,7 +16,7 @@
 
 #include "nntile/graph/model/gpt2/gpt2_config.hh"
 
-using namespace nntile::model::gpt2;
+using namespace nntile::graph::model::gpt2;
 
 TEST_CASE("Gpt2Config default values", "[model][gpt2]")
 {

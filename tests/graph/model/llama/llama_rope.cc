@@ -26,10 +26,10 @@
 #include "nntile/graph/model/llama/llama_config.hh"
 #include "nntile/graph/model/llama/llama_rope.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph::io;
-using namespace nntile::model::llama;
-using namespace nntile::test::llama_attention_fixture;
+using namespace nntile::graph::model::llama;
+using namespace nntile::graph::test::llama_attention_fixture;
 
 #ifndef LLAMA_DATA_DIR
 
@@ -55,7 +55,7 @@ static float max_abs_diff(
 
 //! ``rope_sin_cos_from_position_ids`` must match HF ``rope_sin`` / ``rope_cos``
 //! in the attention fixture (requires ``position_ids`` in safetensors).
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Llama RoPE sin/cos from position_ids matches HF fixture",
     "[model][llama][rope]")
 {

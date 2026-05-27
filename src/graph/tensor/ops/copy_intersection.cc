@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -35,7 +36,7 @@ namespace
 {
 
 //! Per-axis global intersection of src/dst in tensor coordinates (same rules
-//! as nntile::tensor::copy_intersection). Returns false if no overlap.
+//! as nntile::core::tensor::copy_intersection). Returns false if no overlap.
 bool compute_global_intersection(
     const std::vector<Index>& src_shape,
     const std::vector<Index>& dst_shape,
@@ -127,7 +128,7 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& tdst = tile_lower::tiles_of(ctx.tile_map, dst);
 
     // Copy_intersection "easy" case: aligned offsets, same shape, same
-    // elementwise layout -> per-tile copy (nntile::tensor::copy_intersection
+    // elementwise layout -> per-tile copy (nntile::core::tensor::copy_intersection
     // fast path, src/tensor/copy_intersection.cc).
     if(src_offset == dst_offset && same_shape_same_offset_fast_path_tiling(
                                     src, dst)
@@ -172,7 +173,7 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
         std::vector<Index>{2 * ndim}, scratch_name, DataType::INT64);
 
     // Nested dst-tile / src-tile iteration aligned with
-    // nntile::tensor::copy_intersection (src/tensor/copy_intersection.cc),
+    // nntile::core::tensor::copy_intersection (src/tensor/copy_intersection.cc),
     // using TensorAxisLayout segment origins instead of uniform basetiles.
     std::vector<Index> dst_tile_index_begin(static_cast<size_t>(ndim));
     std::vector<Index> dst_tile_index_end(static_cast<size_t>(ndim));

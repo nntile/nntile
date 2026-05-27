@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/norm_slice_inplace.cc
  * Test TensorGraph norm_slice_inplace operation against
- * nntile::tensor::norm_slice_inplace.
+ * nntile::core::tensor::norm_slice_inplace.
  *
  * @version 1.1.0
  * */
@@ -19,14 +19,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/norm_slice_inplace.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/norm_slice_inplace.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -120,12 +120,12 @@ void check_norm_slice_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits dst_traits(dst_sh, dst_sh);
+    nntile::core::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::core::tensor::TensorTraits dst_traits(dst_sh, dst_sh);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::core::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -146,7 +146,7 @@ void check_norm_slice_inplace_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::norm_slice_inplace<T>(
+    nntile::core::tensor::norm_slice_inplace<T>(
         alpha, src_t, beta, dst_t, axis, redux);
     starpu_task_wait_for_all();
 
@@ -200,9 +200,9 @@ TEST_CASE("TensorGraph norm_slice_inplace rejects duplicate tensors",
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph norm_slice_inplace matches "
-    "nntile::tensor::norm_slice_inplace",
+    "nntile::core::tensor::norm_slice_inplace",
     "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] =
@@ -237,11 +237,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_one});
 
-    check_norm_slice_inplace_vs_tensor_api<nntile::fp32_t>(
+    check_norm_slice_inplace_vs_tensor_api<nntile::core::fp32_t>(
         src_shape, axis, redux, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph norm_slice_inplace tiled matches untiled",
     "[graph][tensor]")
 {
@@ -257,7 +257,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_zero});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index src_nelems = std::accumulate(
         src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());

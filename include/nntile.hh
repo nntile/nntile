@@ -7,41 +7,12 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile.hh
- * Main header file of the NNTile framework.
+ * Full NNTile framework (core + graph).
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Compile-time definitions
-#include <nntile/defs.h>
-
-// Base data types (e.g., Index, fp64_t, fp32_t)
-#include <nntile/base_types.hh>
-
-// Constants (e.g., transposition for gemm)
-#include <nntile/constants.hh>
-
-// NNTile context
-#include <nntile/context.hh>
-
-// StarPU init/deinit and data handles
-#include <nntile/starpu.hh>
-
-// Kernel-level operations
-#ifndef STARPU_SIMGRID
-#include <nntile/kernel.hh>
-#endif // STARPU_SIMGRID
-
-// Fortran-contiguous tile with its operations
-#include <nntile/tile.hh>
-
-// Tensor as a set of tiles with its operations
-#include <nntile/tensor.hh>
-
-// Graph API: TensorGraph, NNGraph, I/O, Modules, Optimizers
+#include <nntile/core.hh>
 #include <nntile/graph.hh>
-
-// Logger thread to log activities
-#include <nntile/logger.hh>

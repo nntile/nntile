@@ -18,11 +18,11 @@
 #include <stdexcept>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "append_tensor_graph_phase two additive phases",
     "[graph][tile]")
 {
@@ -67,7 +67,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(out[2] == 12.f);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Runtime compile incremental",
     "[graph][tile]")
 {
@@ -106,7 +106,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(zout[1] == 9.f);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "append_tensor_graph_phase throws on tiling change",
     "[graph][tile]")
 {
@@ -136,7 +136,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::runtime_error);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "compile_incremental_nn_phase pushes tensor_phase_archive",
     "[graph][tile]")
 {

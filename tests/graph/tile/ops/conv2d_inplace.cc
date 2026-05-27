@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/conv2d_inplace.cc
- * Test TileGraph conv2d inplace vs nntile::tile (parity).
+ * Test TileGraph conv2d inplace vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/conv2d_inplace.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/conv2d_inplace.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_inplace", "[graph][tile]")
+#include "nntile/core/tile/conv2d_inplace.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph conv2d_inplace", "[graph][tile]")
 {
     const std::vector<Index> xh={3,3,1,1}, ch={2,2,1,1}, yh={2,2,1,1};
     const Index nx=9, nc=4, ny=4;
@@ -37,14 +37,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_inplace", "[gra
     r.bind_data(X, xv); r.bind_data(C, cv); r.bind_data(Y, yv);
     r.execute(); r.wait();
     const auto gout = r.get_output<float>(Y);
-    nntile::tile::Tile<fp32_t> TX(xh), TC(ch), TY(yh);
+    nntile::core::tile::Tile<fp32_t> TX(xh), TC(ch), TY(yh);
     using Yf = typename fp32_t::repr_t;
     { auto a=TX.acquire(STARPU_W),b=TC.acquire(STARPU_W),c=TY.acquire(STARPU_W);
       for(Index i=0;i<nx;++i) a[i]=Yf(xv[static_cast<size_t>(i)]);
       for(Index i=0;i<nc;++i) b[i]=Yf(cv[static_cast<size_t>(i)]);
       for(Index i=0;i<ny;++i) c[i]=Yf(0.0f);
       a.release();b.release();c.release(); }
-    nntile::tile::conv2d_inplace<fp32_t>(3,3,1,1,2,2,1,1,1,0,0,1.0,TX,TC,2,2,1,1,0.0,TY);
+    nntile::core::tile::conv2d_inplace<fp32_t>(3,3,1,1,2,2,1,1,1,0,0,1.0,TX,TC,2,2,1,1,0.0,TY);
     starpu_task_wait_for_all();
     std::vector<float> tr(4);
     { auto L=TY.acquire(STARPU_R);

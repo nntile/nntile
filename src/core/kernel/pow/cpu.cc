@@ -1,0 +1,68 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/kernel/pow/cpu.cc
+ * Power operation on CPU
+ *
+ * @version 1.1.0
+ * */
+
+#include "nntile/core/kernel/pow/cpu.hh"
+#include <cmath>
+#include "nntile/core/kernel/cpu.hh"
+
+namespace nntile::core::kernel::pow
+{
+
+template<typename T>
+void cpu(Index nelems, Scalar alpha_, Scalar exp_, T *data)
+    noexcept
+//! Inplace power operation on CPU
+/*! Does the following per-element operation:
+ * pow(z) = alpha * z^exp
+ *
+ * @params[in] nelems: Number of elements in a buffer
+ * @params[in] alpha_: scalar multplier for output
+ * @params[in] exp_: exponent parameter
+ * @params[inout] data_: Buffer to apply power function
+ * */
+{
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_}, exp{exp_};
+    for(Index i = 0; i < nelems; ++i)
+    {
+        Y z = Y{data[i]};
+        if(exp == -1)
+        {
+            data[i] = T{alpha / z};
+        }
+        else
+        {
+            data[i] = T{alpha * std::pow(z, exp)};
+        }
+    }
+}
+
+// Explicit instantiation
+template
+void cpu<fp32_t>(Index nelems, Scalar alpha, Scalar exp, fp32_t *data)
+    noexcept;
+
+template
+void cpu<fp64_t>(Index nelems, Scalar alpha, Scalar exp, fp64_t *data)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, Scalar alpha, Scalar exp, bf16_t *data)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index nelems, Scalar alpha, Scalar exp, fp16_t *data)
+    noexcept;
+
+} // namespace nntile::core::kernel::pow

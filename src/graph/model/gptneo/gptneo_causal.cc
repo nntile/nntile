@@ -17,7 +17,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 GptneoCausal::GptneoCausal(graph::NNGraph* graph,
@@ -84,4 +84,4 @@ std::string GptneoCausal::repr() const
            std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

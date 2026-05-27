@@ -15,7 +15,7 @@
 #include "nntile/graph/model/gptneo/gptneo_mlp.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 GptneoMLP::GptneoMLP(graph::NNGraph* graph,
@@ -51,4 +51,4 @@ std::string GptneoMLP::repr() const
     return "GptneoMLP(" + graph::module::Mlp::repr() + ")";
 }
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

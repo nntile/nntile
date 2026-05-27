@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::bert;
+using namespace nntile::graph::model::bert;
 using namespace nntile::graph::io;
 
 #ifndef BERT_DATA_DIR
@@ -51,7 +51,7 @@ constexpr char bert_attention[] = "bert_attention";
 namespace
 {
 
-using namespace nntile::test::bert_fixture;
+using namespace nntile::graph::test::bert_fixture;
 
 struct AttentionFixtureSpec
 {
@@ -291,7 +291,7 @@ TEST_CASE("BertAttention load from safetensors roundtrip", "[model][bert][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "BertAttention forward matches PyTorch reference (no mask)",
     "[model][bert][nomask]")
 {
@@ -303,7 +303,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     bert_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "BertAttention backward matches PyTorch reference (no mask)",
     "[model][bert][nomask]")
 {

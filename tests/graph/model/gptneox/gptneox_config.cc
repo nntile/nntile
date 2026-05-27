@@ -15,8 +15,8 @@
 #include "nntile/graph/model/gptneox/gptneox_config.hh"
 #include "nntile/graph/model/gptneox/gptneox_config_json.hh"
 
-using nntile::Index;
-using namespace nntile::model::gptneox;
+using nntile::core::Index;
+using namespace nntile::graph::model::gptneox;
 
 TEST_CASE("GptneoxConfig default values", "[model][gptneox]")
 {

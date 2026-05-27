@@ -23,8 +23,8 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
 
 # Define mapping between tested function and numpy type
 copy_intersection = {
-    np.float32: nntile.nntile_core.tensor.copy_intersection_fp32,
-    np.float64: nntile.nntile_core.tensor.copy_intersection_fp64}
+    np.float32: nntile.core.tensor.copy_intersection_fp32,
+    np.float64: nntile.core.tensor.copy_intersection_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])

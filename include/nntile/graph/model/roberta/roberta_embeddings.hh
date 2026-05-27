@@ -19,7 +19,7 @@
 #include <nntile/graph/module/layer_norm.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 class RobertaEmbeddings : public graph::module::Module
@@ -50,4 +50,4 @@ public:
     }
 };
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

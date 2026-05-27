@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::bert;
+using namespace nntile::graph::model::bert;
 using namespace nntile::graph::io;
 
 #ifndef BERT_DATA_DIR
@@ -52,7 +52,7 @@ constexpr char bert_layer[] = "bert_layer";
 namespace
 {
 
-using namespace nntile::test::bert_fixture;
+using namespace nntile::graph::test::bert_fixture;
 
 struct BlockFixtureSpec
 {
@@ -285,7 +285,7 @@ TEST_CASE("BertLayer load from safetensors roundtrip", "[model][bert][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "BertLayer forward matches PyTorch reference", "[model][bert]")
 {
     BlockFixtureSpec fx;
@@ -297,7 +297,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "BertLayer backward matches PyTorch reference",
     "[model][bert]")
 {

@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/logsumexp.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/logsumexp.hh>
+#include <nntile/core/tile/logsumexp.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -25,7 +25,7 @@ namespace
 template<typename T>
 void run_lse(Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::tile::logsumexp<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d));
+    nntile::core::tile::logsumexp<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
 } // namespace
 void logsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst)
@@ -46,25 +46,25 @@ void TileLogsumexpOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_lse<nntile::fp32_t>(runtime, src, dst);
+            run_lse<nntile::core::fp32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_lse<nntile::fp32_fast_tf32_t>(runtime, src, dst);
+            run_lse<nntile::core::fp32_fast_tf32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_lse<nntile::fp32_fast_fp16_t>(runtime, src, dst);
+            run_lse<nntile::core::fp32_fast_fp16_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_lse<nntile::fp32_fast_bf16_t>(runtime, src, dst);
+            run_lse<nntile::core::fp32_fast_bf16_t>(runtime, src, dst);
             break;
         case DataType::FP64:
-            run_lse<nntile::fp64_t>(runtime, src, dst);
+            run_lse<nntile::core::fp64_t>(runtime, src, dst);
             break;
         case DataType::FP16:
-            run_lse<nntile::fp16_t>(runtime, src, dst);
+            run_lse<nntile::core::fp16_t>(runtime, src, dst);
             break;
         case DataType::BF16:
-            run_lse<nntile::bf16_t>(runtime, src, dst);
+            run_lse<nntile::core::bf16_t>(runtime, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

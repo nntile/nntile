@@ -26,7 +26,7 @@
 
 namespace py = pybind11;
 using pybind11::literals::operator""_a;
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 
 //! Owns a TileGraph and its ``nntile::graph::Runtime`` executor.
@@ -387,7 +387,7 @@ PYBIND11_MODULE(nntile_graph, m)
     auto nn = m.def_submodule("nn", "Neural network graph operations");
 
     nn.def("gemm",
-        &graph::gemm,
+        &nntile::graph::gemm,
         "a"_a,
         "b"_a,
         "alpha"_a = 1.0f,
@@ -398,20 +398,20 @@ PYBIND11_MODULE(nntile_graph, m)
         py::return_value_policy::reference);
 
     nn.def("transpose",
-        &graph::transpose,
+        &nntile::graph::transpose,
         "src"_a,
         "ndim"_a,
         py::return_value_policy::reference);
 
     nn.def("rope",
-        &graph::rope,
+        &nntile::graph::rope,
         "sin"_a,
         "cos"_a,
         "x"_a,
         py::return_value_policy::reference);
 
     nn.def("sdpa_eager",
-        &graph::sdpa_eager,
+        &nntile::graph::sdpa_eager,
         "q"_a,
         "k"_a,
         "v"_a,
@@ -421,7 +421,7 @@ PYBIND11_MODULE(nntile_graph, m)
         py::return_value_policy::reference);
 
     nn.def("scale_slice",
-        &graph::scale_slice,
+        &nntile::graph::scale_slice,
         "alpha"_a,
         "src"_a,
         "axis"_a,
@@ -429,13 +429,13 @@ PYBIND11_MODULE(nntile_graph, m)
         py::return_value_policy::reference);
 
     nn.def("scale",
-        &graph::scale,
+        &nntile::graph::scale,
         "alpha"_a,
         "src"_a,
         py::return_value_policy::reference);
 
     nn.def("add",
-        &graph::add,
+        &nntile::graph::add,
         "alpha"_a,
         "x"_a,
         "beta"_a,
@@ -443,20 +443,20 @@ PYBIND11_MODULE(nntile_graph, m)
         py::return_value_policy::reference);
 
     nn.def("multiply",
-        &graph::multiply,
+        &nntile::graph::multiply,
         "x"_a,
         "y"_a,
         "alpha"_a = 1.0f,
         py::return_value_policy::reference);
 
-    nn.def("silu", &graph::silu, "x"_a, py::return_value_policy::reference);
+    nn.def("silu", &nntile::graph::silu, "x"_a, py::return_value_policy::reference);
 
-    nn.def("gelu", &graph::gelu, "x"_a, py::return_value_policy::reference);
+    nn.def("gelu", &nntile::graph::gelu, "x"_a, py::return_value_policy::reference);
 
-    nn.def("relu", &graph::relu, "x"_a, py::return_value_policy::reference);
+    nn.def("relu", &nntile::graph::relu, "x"_a, py::return_value_policy::reference);
 
     nn.def("rms_norm",
-        &graph::rms_norm,
+        &nntile::graph::rms_norm,
         "x"_a,
         "gamma"_a,
         "axis"_a = 0,
@@ -465,14 +465,14 @@ PYBIND11_MODULE(nntile_graph, m)
         py::return_value_policy::reference);
 
     nn.def("softmax",
-        &graph::softmax,
+        &nntile::graph::softmax,
         "x"_a,
         "axis"_a = 0,
         "redux"_a = 0,
         py::return_value_policy::reference);
 
     nn.def("embedding",
-        &graph::embedding,
+        &nntile::graph::embedding,
         "index"_a,
         "vocab"_a,
         "axis"_a = 0,
@@ -480,7 +480,7 @@ PYBIND11_MODULE(nntile_graph, m)
         py::return_value_policy::reference);
 
     nn.def("cross_entropy",
-        &graph::cross_entropy,
+        &nntile::graph::cross_entropy,
         "x"_a,
         "labels"_a,
         "redux"_a = 0,
@@ -488,38 +488,38 @@ PYBIND11_MODULE(nntile_graph, m)
         "ignore_index"_a = -100,
         py::return_value_policy::reference);
 
-    nn.def("fill", &graph::fill, "val"_a, "x"_a);
+    nn.def("fill", &nntile::graph::fill, "val"_a, "x"_a);
 
-    nn.def("clear", &graph::clear, "x"_a);
+    nn.def("clear", &nntile::graph::clear, "x"_a);
 
     // -----------------------------------------------------------------------
     // Module base class
     // -----------------------------------------------------------------------
-    py::class_<graph::module::Module>(m, "Module")
-        .def_property_readonly("name", &graph::module::Module::name)
+    py::class_<nntile::graph::module::Module>(m, "Module")
+        .def_property_readonly("name", &nntile::graph::module::Module::name)
         .def("parameters",
             static_cast<std::vector<NNGraph::TensorNode *> (
-                graph::module::Module::*)() const>(
-                &graph::module::Module::parameters),
+                nntile::graph::module::Module::*)() const>(
+                &nntile::graph::module::Module::parameters),
             py::return_value_policy::reference)
         .def("named_parameters",
-            &graph::module::Module::named_parameters,
+            &nntile::graph::module::Module::named_parameters,
             py::return_value_policy::reference)
         .def("parameters_recursive",
-            &graph::module::Module::parameters_recursive,
+            &nntile::graph::module::Module::parameters_recursive,
             py::return_value_policy::reference)
         .def("named_parameters_recursive",
-            &graph::module::Module::named_parameters_recursive,
+            &nntile::graph::module::Module::named_parameters_recursive,
             py::return_value_policy::reference)
         .def("parameter_gradients",
-            &graph::module::Module::parameter_gradients,
+            &nntile::graph::module::Module::parameter_gradients,
             py::return_value_policy::reference)
         .def("parameter_gradients_recursive",
-            &graph::module::Module::parameter_gradients_recursive,
+            &nntile::graph::module::Module::parameter_gradients_recursive,
             py::return_value_policy::reference)
         .def("children",
-            &graph::module::Module::children,
+            &nntile::graph::module::Module::children,
             py::return_value_policy::reference)
-        .def("repr", &graph::module::Module::repr)
-        .def("__repr__", &graph::module::Module::to_string);
+        .def("repr", &nntile::graph::module::Module::repr)
+        .def("__repr__", &nntile::graph::module::Module::to_string);
 }

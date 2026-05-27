@@ -7,23 +7,23 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/flash_sdpa_bwd_cudnn.cc
- * Test TileGraph flash sdpa bwd cudnn vs nntile::tile (parity).
+ * Test TileGraph flash sdpa bwd cudnn vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
 
-#include "nntile/defs.h"
+#include "nntile/core/defs.h"
 #ifdef NNTILE_USE_CUDA
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/graph/tile.hh"
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
 TEST_CASE("TileGraph flash_sdpa_bwd_cudnn structure", "[graph][tile][cuda]")
 {
-    nntile::test::CudaContextFixture fx;
+    nntile::core::test::CudaContextFixture fx;
     (void)fx;
     std::vector<Index> kv{32, 64, 2, 1, 1};
     std::vector<Index> lse{64, 2, 1, 1};

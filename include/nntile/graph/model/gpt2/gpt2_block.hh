@@ -27,7 +27,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/layer_norm.hh>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 //! GPT2Block - Pre-norm: ln_1 -> attention -> residual -> ln_2 -> mlp
@@ -56,4 +56,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

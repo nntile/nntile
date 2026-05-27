@@ -17,7 +17,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 Gpt2Block::Gpt2Block(graph::NNGraph* graph,
@@ -70,4 +70,4 @@ std::string Gpt2Block::repr() const
     return "Gpt2Block(hidden=" + std::to_string(config_.hidden_size) + ")";
 }
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

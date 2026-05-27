@@ -21,7 +21,7 @@
 #include <nntile/graph/model/roberta/roberta_embeddings.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 class RobertaModel : public graph::module::Module
@@ -55,4 +55,4 @@ public:
     }
 };
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

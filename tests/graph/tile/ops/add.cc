@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/add.cc
- * Test TileGraph add operation against nntile::tile::add.
+ * Test TileGraph add operation against nntile::core::tile::add.
  *
  * @version 1.1.0
  * */
@@ -16,14 +16,14 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/add.hh"
-#include "nntile/tile/tile.hh"
+#include "nntile/core/tile/add.hh"
+#include "nntile/core/tile/tile.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
 
@@ -62,9 +62,9 @@ void check_tile_add_vs_tile_api(
 
     std::vector<float> graph_result = runtime.get_output<float>(z_node);
 
-    nntile::tile::Tile<T> src1(shape);
-    nntile::tile::Tile<T> src2(shape);
-    nntile::tile::Tile<T> dst(shape);
+    nntile::core::tile::Tile<T> src1(shape);
+    nntile::core::tile::Tile<T> src2(shape);
+    nntile::core::tile::Tile<T> dst(shape);
 
     {
         auto loc1 = src1.acquire(STARPU_W);
@@ -78,7 +78,7 @@ void check_tile_add_vs_tile_api(
         loc2.release();
     }
 
-    nntile::tile::add<T>(alpha, src1, beta, src2, dst);
+    nntile::core::tile::add<T>(alpha, src1, beta, src2, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tile_result(nelems);
@@ -133,8 +133,8 @@ TEST_CASE("TileGraph add rejects duplicate tiles")
     REQUIRE_THROWS_AS(tg::add(1.0, x, 1.0, x), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TileGraph add matches nntile::tile::add",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TileGraph add matches nntile::core::tile::add",
     "[graph][tile]")
 {
     const auto [alpha, beta, shape] =
@@ -144,5 +144,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{1.0, 2.0, std::vector<Index>{3, 4}},
             std::tuple{-0.5, 1.5, std::vector<Index>{2, 2}});
 
-    check_tile_add_vs_tile_api<nntile::fp32_t>(shape, alpha, beta);
+    check_tile_add_vs_tile_api<nntile::core::fp32_t>(shape, alpha, beta);
 }

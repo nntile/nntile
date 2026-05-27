@@ -54,7 +54,7 @@
 
 #include "gptneo_config_json.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::model::gptneo;
 using nntile::examples::load_gptneo_config_json;

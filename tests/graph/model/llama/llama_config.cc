@@ -16,7 +16,7 @@
 
 #include "nntile/graph/model/llama/llama_config.hh"
 
-using namespace nntile::model::llama;
+using namespace nntile::graph::model::llama;
 
 TEST_CASE("LlamaConfig default values", "[model][llama]")
 {

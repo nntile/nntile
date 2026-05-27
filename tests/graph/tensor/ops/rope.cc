@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/rope.cc
- * Test TensorGraph rope operation against nntile::tensor::rope.
+ * Test TensorGraph rope operation against nntile::core::tensor::rope.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/rope.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/rope.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -89,16 +89,16 @@ void check_rope_vs_tensor_api(const std::vector<Index> &sin_shape)
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits sin_traits(sin_shape, sin_shape);
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::core::tensor::TensorTraits sin_traits(sin_shape, sin_shape);
+    nntile::core::tensor::TensorTraits src_traits(src_shape, src_shape);
     std::vector<int> distr_single(1, distr_rank_single);
     std::vector<int> sin_distr(sin_traits.grid.nelems, distr_rank_single);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
 
-    nntile::tensor::Tensor<T> sin_t(sin_traits, sin_distr);
-    nntile::tensor::Tensor<T> cos_t(sin_traits, sin_distr);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> dst_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> sin_t(sin_traits, sin_distr);
+    nntile::core::tensor::Tensor<T> cos_t(sin_traits, sin_distr);
+    nntile::core::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> dst_t(src_traits, src_distr);
 
     {
         auto tile = sin_t.get_tile(0);
@@ -128,7 +128,7 @@ void check_rope_vs_tensor_api(const std::vector<Index> &sin_shape)
         loc.release();
     }
 
-    nntile::tensor::rope<T>(sin_t, cos_t, src_t, dst_t);
+    nntile::core::tensor::rope<T>(sin_t, cos_t, src_t, dst_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(src_nelems);
@@ -183,17 +183,17 @@ TEST_CASE("TensorGraph rope rejects null", "[graph][tensor]")
     REQUIRE_THROWS_AS(gt::rope(sin, cos, nullptr), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph rope matches nntile::tensor::rope",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph rope matches nntile::core::tensor::rope",
     "[graph][tensor]")
 {
     const auto sin_shape =
         GENERATE(std::vector<Index>{2, 4}, std::vector<Index>{4, 3, 2});
 
-    check_rope_vs_tensor_api<nntile::fp32_t>(sin_shape);
+    check_rope_vs_tensor_api<nntile::core::fp32_t>(sin_shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph rope tiled matches untiled",
     "[graph][tensor]")
 {

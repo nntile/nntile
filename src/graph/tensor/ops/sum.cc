@@ -16,19 +16,19 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/sum.hh"
-#include "nntile/tensor/sum.hh"
+#include "nntile/core/tensor/sum.hh"
 
 namespace nntile::graph::tensor
 {
 
 void TensorSumOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::sum_async (src/tensor/sum.cc).
+    // Match nntile::core::tensor::sum_async (src/tensor/sum.cc).
     const auto& tiles_src = tile_lower::tiles_of(ctx.tile_map, src);
     const auto& tiles_dst = tile_lower::tiles_of(ctx.tile_map, dst);
     if(tiles_dst.size() != 1)

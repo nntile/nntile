@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/embedding_backward.cc
- * Test TileGraph embedding backward vs nntile::tile (parity).
+ * Test TileGraph embedding backward vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/embedding_backward.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/embedding_backward.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "[graph][tile]")
+#include "nntile/core/tile/embedding_backward.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph embedding_backward", "[graph][tile]")
 {
     const Index m=2,n=2,k=3,k0=0,ks=3; const int redux=0;
     const std::vector<Index> ih={m,n}, egh={m,k,n}, vh={ks,5};
@@ -41,8 +41,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     r.bind_data(vg, vga);
     r.execute(); r.wait();
     const auto gout = r.get_output<float>(vg);
-    nntile::tile::Tile<nntile::int64_t> I(ih);
-    nntile::tile::Tile<fp32_t> Eg(egh), Vg(vh);
+    nntile::core::tile::Tile<nntile::core::int64_t> I(ih);
+    nntile::core::tile::Tile<fp32_t> Eg(egh), Vg(vh);
     using Y = typename fp32_t::repr_t;
     { auto a=I.acquire(STARPU_W); a[0]=0; a[1]=2; a[2]=4; a[3]=1; a.release(); }
     { auto b=Eg.acquire(STARPU_W);
@@ -51,7 +51,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     { auto c=Vg.acquire(STARPU_W);
       for(int j=0;j<15;++j) c[j]=Y(vga[static_cast<size_t>(j)]);
       c.release(); }
-    nntile::tile::embedding_backward<fp32_t>(m,n,k,k0,ks,I,Eg,Vg,redux);
+    nntile::core::tile::embedding_backward<fp32_t>(m,n,k,k0,ks,I,Eg,Vg,redux);
     starpu_task_wait_for_all();
     std::vector<float> tr(15);
     { auto L=Vg.acquire(STARPU_R);

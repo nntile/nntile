@@ -29,9 +29,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneox;
+using namespace nntile::graph::model::gptneox;
 using namespace nntile::graph::io;
 
 #ifndef GPTNEOX_DATA_DIR
@@ -54,7 +54,7 @@ constexpr char gptneox_decoder[] = "gptneox_decoder";
 namespace
 {
 
-using namespace nntile::test::gptneox_fixture;
+using namespace nntile::graph::test::gptneox_fixture;
 
 struct DecoderFixtureSpec
 {
@@ -279,10 +279,10 @@ void decoder_run_and_compare_ref(
     const DecoderFixtureSpec &fx,
     const char *ref_tensor,
     NNGraph &g,
-    graph::NNGraph::TensorNode *input,
-    graph::NNGraph::TensorNode *out,
+    NNGraph::TensorNode *input,
+    NNGraph::TensorNode *out,
     const GptneoxRopeInputs *rope,
-    graph::NNGraph::TensorNode *mask,
+    NNGraph::TensorNode *mask,
     const std::vector<std::uint8_t> *mask_bytes,
     const std::vector<float> &input_data)
 {
@@ -370,7 +370,7 @@ void decoder_mlp_out_compare_ref(const DecoderFixtureSpec &fx)
     auto *x_norm = decoder.input_norm().forward(input);
     auto *attn_out =
         decoder.attention().forward(x_norm, rope.sin, rope.cos, mask);
-    auto *post_attn = graph::add(1.0, input, 1.0, attn_out);
+    auto *post_attn = add(1.0, input, 1.0, attn_out);
     auto *mlp_in = fx.config.use_parallel_residual
         ? decoder.post_attn_norm().forward(input)
         : decoder.post_attn_norm().forward(post_attn);
@@ -434,7 +434,7 @@ TEST_CASE("GptneoxDecoder load from safetensors roundtrip", "[model][gptneox][io
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxDecoder input_norm matches PyTorch reference", "[model][gptneox]")
 {
     DecoderFixtureSpec fx;
@@ -445,7 +445,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     decoder_input_norm_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxDecoder mlp matches PyTorch reference", "[model][gptneox]")
 {
     DecoderFixtureSpec fx;
@@ -456,7 +456,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     decoder_mlp_out_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxDecoder forward matches PyTorch reference", "[model][gptneox]")
 {
     DecoderFixtureSpec fx;
@@ -468,7 +468,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxDecoder backward matches PyTorch reference",
     "[model][gptneox]")
 {

@@ -18,10 +18,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph grad_mode disabled: add does not set producer",
     "[graph][nn_graph]")
 {
@@ -46,7 +46,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(z->is_leaf());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph grad_mode enabled: add sets producer",
     "[graph][nn_graph]")
 {

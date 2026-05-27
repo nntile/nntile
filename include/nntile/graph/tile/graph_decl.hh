@@ -25,7 +25,7 @@
 #include <vector>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tensor/graph_decl.hh>
 #include <nntile/graph/tensor/graph_data_node.hh>

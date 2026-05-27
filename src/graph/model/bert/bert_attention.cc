@@ -11,7 +11,7 @@
 
 #include "nntile/graph/model/bert/bert_attention.hh"
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 BertAttention::BertAttention(graph::NNGraph* graph,
@@ -44,4 +44,4 @@ std::string BertAttention::repr() const
     return "BertAttention(hidden=" + std::to_string(config_.hidden_size) + ")";
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

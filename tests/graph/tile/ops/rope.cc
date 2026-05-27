@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/rope.cc
- * Test TileGraph rope vs nntile::tile (parity).
+ * Test TileGraph rope vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/rope.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/rope.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]")
+#include "nntile/core/tile/rope.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph rope", "[graph][tile]")
 {
     const std::vector<Index> sh = {2}, tsh = {4,5};
     const Index n2=2, n=20;
@@ -43,14 +43,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
     r.bind_data(d, dv);
     r.execute(); r.wait();
     const auto gout = r.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> Si(sh), Co(sh), Src(tsh), D(tsh);
+    nntile::core::tile::Tile<fp32_t> Si(sh), Co(sh), Src(tsh), D(tsh);
     using Y = typename fp32_t::repr_t;
     { auto a=Si.acquire(STARPU_W),b=Co.acquire(STARPU_W);
       for(int i=0;i<2;++i) {a[i]=Y(sv[static_cast<size_t>(i)]); b[i]=Y(cv[static_cast<size_t>(i)]);}a.release();b.release(); }
     { auto c=Src.acquire(STARPU_W);
       for(int i=0;i<20;++i) c[i]=Y(src[static_cast<size_t>(i)]); c.release(); }
     { auto d0=D.acquire(STARPU_W); for(int i=0;i<20;++i) d0[i]=Y(0.0f); d0.release(); }
-    nntile::tile::rope<fp32_t>(Si, Co, Src, D);
+    nntile::core::tile::rope<fp32_t>(Si, Co, Src, D);
     starpu_task_wait_for_all();
     std::vector<float> tr(20);
     { auto L=D.acquire(STARPU_R);

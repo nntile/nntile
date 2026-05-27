@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/scale_inplace.cc
  * Test TensorGraph scale_inplace operation against
- * nntile::tensor::scale_inplace.
+ * nntile::core::tensor::scale_inplace.
  *
  * @version 1.1.0
  * */
@@ -19,14 +19,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/scale_inplace.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/scale_inplace.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -71,9 +71,9 @@ void check_scale_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> dst(traits, distr);
+    nntile::core::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = dst.get_tile(0);
@@ -85,7 +85,7 @@ void check_scale_inplace_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::scale_inplace<T>(alpha, dst);
+    nntile::core::tensor::scale_inplace<T>(alpha, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -128,8 +128,8 @@ TEST_CASE("TensorGraph scale_inplace structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale_inplace matches nntile::tensor::scale_inplace",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph scale_inplace matches nntile::core::tensor::scale_inplace",
     "[graph][tensor]")
 {
     const auto [alpha, shape] =
@@ -138,10 +138,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{1.0, std::vector<Index>{2, 3}},
             std::tuple{0.5, std::vector<Index>{1, 10}});
 
-    check_scale_inplace_vs_tensor_api<nntile::fp32_t>(shape, alpha);
+    check_scale_inplace_vs_tensor_api<nntile::core::fp32_t>(shape, alpha);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph scale_inplace tiled matches untiled",
     "[graph][tensor]")
 {
@@ -150,7 +150,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{-1.0, std::vector<Index>{6}},
             std::tuple{0.5, std::vector<Index>{2, 4}});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

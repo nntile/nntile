@@ -24,8 +24,8 @@ import nntile
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-gelu_inplace = {np.float32: nntile.nntile_core.tensor.gelu_inplace_fp32,
-        np.float64: nntile.nntile_core.tensor.gelu_inplace_fp64}
+gelu_inplace = {np.float32: nntile.core.tensor.gelu_inplace_fp32,
+        np.float64: nntile.core.tensor.gelu_inplace_fp64}
 
 
 def gelu_inplace_numpy(z, approximate=True):

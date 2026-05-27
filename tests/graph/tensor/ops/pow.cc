@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/pow.cc
- * Test TensorGraph pow operation against nntile::tensor::pow.
+ * Test TensorGraph pow operation against nntile::core::tensor::pow.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/pow.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/pow.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -72,9 +72,9 @@ void check_pow_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> dst(traits, distr);
+    nntile::core::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = dst.get_tile(0);
@@ -86,7 +86,7 @@ void check_pow_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::pow<T>(alpha_val, exponent_val, dst);
+    nntile::core::tensor::pow<T>(alpha_val, exponent_val, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -129,8 +129,8 @@ TEST_CASE("TensorGraph pow structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph pow matches nntile::tensor::pow",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph pow matches nntile::core::tensor::pow",
     "[graph][tensor]")
 {
     const auto [alpha_val, exponent_val, shape] =
@@ -139,10 +139,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{1.0, 3.0, std::vector<Index>{2, 3}},
             std::tuple{0.5, 2.0, std::vector<Index>{1, 10}});
 
-    check_pow_vs_tensor_api<nntile::fp32_t>(shape, alpha_val, exponent_val);
+    check_pow_vs_tensor_api<nntile::core::fp32_t>(shape, alpha_val, exponent_val);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph pow tiled matches untiled",
     "[graph][tensor]")
 {
@@ -153,7 +153,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Scalar alpha_val = 2.0;
     constexpr Scalar exponent_val = 2.0;
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

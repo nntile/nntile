@@ -16,7 +16,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 BertOutput::BertOutput(graph::NNGraph* graph,
@@ -68,4 +68,4 @@ std::string BertOutput::repr() const
     return "BertOutput(hidden=" + std::to_string(config_.hidden_size) + ")";
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

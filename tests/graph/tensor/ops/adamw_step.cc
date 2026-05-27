@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/adamw_step.cc
- * Test TensorGraph adamw_step operation against nntile::tensor::adamw_step.
+ * Test TensorGraph adamw_step operation against nntile::core::tensor::adamw_step.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/adamw_step.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/adamw_step.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -110,15 +110,15 @@ void check_adamw_step_vs_tensor_api(const std::vector<Index> &shape,
     std::vector<float> graph_p = runtime.get_output<float>(p_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> grad_t(traits, distr);
-    nntile::tensor::Tensor<T> first_moment_t(traits, distr);
-    nntile::tensor::Tensor<T> second_moment_t(traits, distr);
-    nntile::tensor::Tensor<T> p_t(traits, distr);
+    nntile::core::tensor::Tensor<T> grad_t(traits, distr);
+    nntile::core::tensor::Tensor<T> first_moment_t(traits, distr);
+    nntile::core::tensor::Tensor<T> second_moment_t(traits, distr);
+    nntile::core::tensor::Tensor<T> p_t(traits, distr);
 
     auto init_tile =
-        [&](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
+        [&](nntile::core::tensor::Tensor<T> &t, const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -133,7 +133,7 @@ void check_adamw_step_vs_tensor_api(const std::vector<Index> &shape,
     init_tile(second_moment_t, second_moment_data);
     init_tile(p_t, p_data);
 
-    nntile::tensor::adamw_step<T>(num_iter,
+    nntile::core::tensor::adamw_step<T>(num_iter,
         beta_1,
         beta_2,
         eps,
@@ -232,8 +232,8 @@ TEST_CASE("TensorGraph adamw_step rejects null tensors", "[graph][tensor]")
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph adamw_step matches nntile::tensor::adamw_step",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph adamw_step matches nntile::core::tensor::adamw_step",
     "[graph][tensor]")
 {
     const auto [shape,
@@ -254,11 +254,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{
             std::vector<Index>{2, 3}, Index(1), 0.95, 0.99, 1e-6, 0.001, 0.0});
 
-    check_adamw_step_vs_tensor_api<nntile::fp32_t>(
+    check_adamw_step_vs_tensor_api<nntile::core::fp32_t>(
         shape, num_iter, beta_1, beta_2, eps, lr, weight_decay);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph adamw_step tiled matches untiled",
     "[graph][tensor]")
 {

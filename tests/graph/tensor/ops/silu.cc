@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/silu.cc
- * Test TensorGraph silu operation against nntile::tensor::silu.
+ * Test TensorGraph silu operation against nntile::core::tensor::silu.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/silu.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/silu.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -64,10 +64,10 @@ void check_silu_vs_tensor_api(const std::vector<Index> &shape)
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> src(traits, distr);
-    nntile::tensor::Tensor<T> dst(traits, distr);
+    nntile::core::tensor::Tensor<T> src(traits, distr);
+    nntile::core::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = src.get_tile(0);
@@ -79,7 +79,7 @@ void check_silu_vs_tensor_api(const std::vector<Index> &shape)
         loc.release();
     }
 
-    nntile::tensor::silu<T>(src, dst);
+    nntile::core::tensor::silu<T>(src, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -135,8 +135,8 @@ TEST_CASE("TensorGraph silu rejects duplicate tensors", "[graph][tensor]")
     REQUIRE_THROWS_AS(gt::silu(src, src), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph silu matches nntile::tensor::silu",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph silu matches nntile::core::tensor::silu",
     "[graph][tensor]")
 {
     const auto shape = GENERATE(std::vector<Index>{4, 5},
@@ -144,10 +144,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<Index>{2, 3},
         std::vector<Index>{1, 10});
 
-    check_silu_vs_tensor_api<nntile::fp32_t>(shape);
+    check_silu_vs_tensor_api<nntile::core::fp32_t>(shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph silu tiled matches untiled",
     "[graph][tensor]")
 {
@@ -155,7 +155,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<Index>{6},
         std::vector<Index>{2, 4});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = T::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

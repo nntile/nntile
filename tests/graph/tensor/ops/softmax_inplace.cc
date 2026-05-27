@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/softmax_inplace.cc
  * Test TensorGraph softmax_inplace operation against
- * nntile::tensor::softmax_inplace.
+ * nntile::core::tensor::softmax_inplace.
  *
  * @version 1.1.0
  * */
@@ -20,16 +20,16 @@
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor/ops/maxsumexp.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/maxsumexp.hh"
-#include "nntile/tensor/softmax_inplace.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/clear.hh"
+#include "nntile/core/tensor/maxsumexp.hh"
+#include "nntile/core/tensor/softmax_inplace.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -101,17 +101,17 @@ void check_softmax_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits maxsumexp_traits(
+    nntile::core::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::core::tensor::TensorTraits maxsumexp_traits(
         maxsumexp_shape, maxsumexp_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> mse_distr(
         maxsumexp_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(src_traits.grid.nelems, distr_rank_single);
 
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> maxsumexp_t(maxsumexp_traits, mse_distr);
-    nntile::tensor::Tensor<T> dst_t(src_traits, dst_distr);
+    nntile::core::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> maxsumexp_t(maxsumexp_traits, mse_distr);
+    nntile::core::tensor::Tensor<T> dst_t(src_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -131,9 +131,9 @@ void check_softmax_inplace_vs_tensor_api(
         }
         loc.release();
     }
-    nntile::tensor::clear<T>(maxsumexp_t);
-    nntile::tensor::maxsumexp<T>(src_t, maxsumexp_t, axis, redux);
-    nntile::tensor::softmax_inplace<T>(maxsumexp_t, alpha, dst_t, axis);
+    nntile::core::tensor::clear<T>(maxsumexp_t);
+    nntile::core::tensor::maxsumexp<T>(src_t, maxsumexp_t, axis, redux);
+    nntile::core::tensor::softmax_inplace<T>(maxsumexp_t, alpha, dst_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(src_nelems);
@@ -190,8 +190,8 @@ TEST_CASE("TensorGraph softmax_inplace rejects null", "[graph][tensor]")
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph softmax_inplace matches nntile::tensor::softmax_inplace",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph softmax_inplace matches nntile::core::tensor::softmax_inplace",
     "[graph][tensor]")
 {
     const auto [shape, axis, alpha] =
@@ -199,10 +199,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{std::vector<Index>{6}, Index(0), 1.0},
             std::tuple{std::vector<Index>{3, 4}, Index(0), 0.5});
 
-    check_softmax_inplace_vs_tensor_api<nntile::fp32_t>(shape, axis, alpha);
+    check_softmax_inplace_vs_tensor_api<nntile::core::fp32_t>(shape, axis, alpha);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph softmax_inplace tiled matches untiled",
     "[graph][tensor]")
 {
@@ -210,7 +210,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(std::tuple{std::vector<Index>{4, 6}, Index(0), 1.0},
             std::tuple{std::vector<Index>{3, 4}, Index(0), 0.5});
 
-    using Y = nntile::fp32_t::repr_t;
+    using Y = nntile::core::fp32_t::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 

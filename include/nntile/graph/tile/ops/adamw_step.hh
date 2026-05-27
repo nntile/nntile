@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/tile/ops/adamw_step.hh
- * TileGraph AdamW step for one tile (calls nntile::tile::adamw_step).
+ * TileGraph AdamW step for one tile (calls nntile::core::tile::adamw_step).
  *
  * @version 1.1.0
  * */
@@ -18,7 +18,7 @@
 #include <memory>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph

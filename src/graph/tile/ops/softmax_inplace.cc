@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,10 +15,10 @@
 
 #include "nntile/graph/tile/ops/softmax_inplace.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/softmax_inplace.hh>
+#include <nntile/core/tile/softmax_inplace.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +27,7 @@ template<typename T>
 void run_smi(
     Runtime& runtime, TileGraph::TileNode* m, Scalar a, TileGraph::TileNode* d, Index ax)
 {
-    nntile::tile::softmax_inplace<T>(runtime.get_tile<T>(m), a, runtime.get_tile<T>(d), ax);
+    nntile::core::tile::softmax_inplace<T>(runtime.get_tile<T>(m), a, runtime.get_tile<T>(d), ax);
 }
 } // namespace
 void softmax_inplace(TileGraph::TileNode* mse, Scalar alpha, TileGraph::TileNode* dst, Index axis)
@@ -39,7 +40,7 @@ void softmax_inplace(TileGraph::TileNode* mse, Scalar alpha, TileGraph::TileNode
         throw std::invalid_argument("tile softmax_inplace: dtype");
     if(mse == dst)
         throw std::invalid_argument("tile softmax_inplace: maxsumexp and dst must be distinct");
-    // Shape compatibility follows nntile::tile::softmax_inplace
+    // Shape compatibility follows nntile::core::tile::softmax_inplace
     mse->graph()->add_op(std::make_shared<TileSoftmaxInplaceOp>(mse, alpha, dst, axis));
 }
 void TileSoftmaxInplaceOp::execute(Runtime& runtime) const
@@ -48,25 +49,25 @@ void TileSoftmaxInplaceOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_smi<nntile::fp32_t>(runtime, maxsumexp_n, alpha, dst, axis);
+            run_smi<nntile::core::fp32_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP32_FAST_TF32:
-            run_smi<nntile::fp32_fast_tf32_t>(runtime, maxsumexp_n, alpha, dst, axis);
+            run_smi<nntile::core::fp32_fast_tf32_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP32_FAST_FP16:
-            run_smi<nntile::fp32_fast_fp16_t>(runtime, maxsumexp_n, alpha, dst, axis);
+            run_smi<nntile::core::fp32_fast_fp16_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP32_FAST_BF16:
-            run_smi<nntile::fp32_fast_bf16_t>(runtime, maxsumexp_n, alpha, dst, axis);
+            run_smi<nntile::core::fp32_fast_bf16_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP64:
-            run_smi<nntile::fp64_t>(runtime, maxsumexp_n, alpha, dst, axis);
+            run_smi<nntile::core::fp64_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP16:
-            run_smi<nntile::fp16_t>(runtime, maxsumexp_n, alpha, dst, axis);
+            run_smi<nntile::core::fp16_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::BF16:
-            run_smi<nntile::bf16_t>(runtime, maxsumexp_n, alpha, dst, axis);
+            run_smi<nntile::core::bf16_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::INT64:
         case DataType::BOOL:

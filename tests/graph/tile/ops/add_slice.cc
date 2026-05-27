@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/add_slice.cc
- * Test TileGraph add slice vs nntile::tile (parity).
+ * Test TileGraph add slice vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/add_slice.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/add_slice.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/add_slice.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_slice", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph add_slice", "[graph][tile]")
 {
     const std::vector<Index> t1s = {4, 5}, t2s = {3, 4, 5}, ds = {3, 4, 5};
     const Index n1 = 20, n2 = 60;
@@ -48,13 +48,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_slice", "[graph][t
     rt.execute();
     rt.wait();
     const std::vector<float> gout = rt.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> T1(t1s), T2(t2s), D(ds);
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> T1(t1s), T2(t2s), D(ds);
+    using Y = typename nntile::core::fp32_t::repr_t;
     { auto A = T1.acquire(STARPU_W), B = T2.acquire(STARPU_W), C = D.acquire(STARPU_W);
       for(Index i = 0; i < n1; ++i) A[i] = Y(v1[static_cast<size_t>(i)]);
       for(Index i = 0; i < n2; ++i) { B[i] = Y(v2[static_cast<size_t>(i)]); C[i] = Y(0); }
       A.release(); B.release(); C.release(); }
-    nntile::tile::add_slice<fp32_t>(a, T1, b, T2, D, axis);
+    nntile::core::tile::add_slice<fp32_t>(a, T1, b, T2, D, axis);
     starpu_task_wait_for_all();
     std::vector<float> tref(60);
     { auto L = D.acquire(STARPU_R);

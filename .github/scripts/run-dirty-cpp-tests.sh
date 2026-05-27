@@ -25,11 +25,11 @@ while IFS= read -r file; do
     case "$file" in
         *CMakeLists.txt | cmake_modules/* | external/*)
             run_all=true; break ;;
-        include/nntile/defs.h.in | include/nntile/nntile.hh)
+        include/nntile/core/defs.h.in | include/nntile.hh | include/nntile/core.hh)
             run_all=true; break ;;
-        include/nntile/starpu.hh | include/nntile/starpu/config.hh)
+        include/nntile/core/starpu.hh | include/nntile/core/starpu/config.hh)
             run_all=true; break ;;
-        src/kernel/cblas.cc | src/kernel/cublas.cc)
+        src/core/kernel/cblas.cc | src/core/kernel/cublas.cc)
             run_all=true; break ;;
         src/graph/runtime.cc | src/graph/tensor/graph_data_node.cc)
             run_all=true; break ;;
@@ -58,7 +58,7 @@ declare -A affected
 # ---------- helper functions for layer propagation -------------------------
 add_all_layers() {
     local op=$1
-    for p in tests_kernel tests_starpu tests_tile tests_tensor \
+    for p in tests_core_kernel tests_core_starpu tests_core_tile tests_core_tensor \
              tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
@@ -66,21 +66,21 @@ add_all_layers() {
 
 add_from_starpu() {
     local op=$1
-    for p in tests_starpu tests_tile tests_tensor tests_graph_tensor_ops; do
+    for p in tests_core_starpu tests_core_tile tests_core_tensor tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
 }
 
 add_from_tile() {
     local op=$1
-    for p in tests_tile tests_tensor tests_graph_tensor_ops; do
+    for p in tests_core_tile tests_core_tensor tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
 }
 
 add_from_tensor() {
     local op=$1
-    for p in tests_tensor tests_graph_tensor_ops; do
+    for p in tests_core_tensor tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
 }
@@ -127,15 +127,15 @@ while IFS= read -r file; do
     case "$file" in
         # ---- test files: run the specific test ----------------------------
         tests/constants.cc)
-            affected["tests_constants"]=1 ;;
-        tests/kernel/*.cc)
-            affected["tests_kernel_$(basename "$file" .cc)"]=1 ;;
-        tests/starpu/*.cc)
-            affected["tests_starpu_$(basename "$file" .cc)"]=1 ;;
-        tests/tile/*.cc)
-            affected["tests_tile_$(basename "$file" .cc)"]=1 ;;
-        tests/tensor/*.cc)
-            affected["tests_tensor_$(basename "$file" .cc)"]=1 ;;
+            affected["tests_core_constants"]=1 ;;
+        tests/core/kernel/*.cc)
+            affected["tests_core_kernel_$(basename "$file" .cc)"]=1 ;;
+        tests/core/starpu/*.cc)
+            affected["tests_core_starpu_$(basename "$file" .cc)"]=1 ;;
+        tests/core/tile/*.cc)
+            affected["tests_core_tile_$(basename "$file" .cc)"]=1 ;;
+        tests/core/tensor/*.cc)
+            affected["tests_core_tensor_$(basename "$file" .cc)"]=1 ;;
         tests/graph/tensor/ops/*.cc)
             affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
         tests/graph/tensor/*.cc)
@@ -173,29 +173,29 @@ while IFS= read -r file; do
             affected["tests_graph_$(basename "$file" .cc)"]=1 ;;
 
         # ---- kernel sources / headers → all layers -----------------------
-        src/kernel/*/cpu.cc | src/kernel/*/cuda.cc | src/kernel/*/cuda.cu)
+        src/core/kernel/*/cpu.cc | src/core/kernel/*/cuda.cc | src/core/kernel/*/cuda.cu)
             add_all_layers "$(basename "$(dirname "$file")")" ;;
-        include/nntile/kernel/*/cpu.hh | include/nntile/kernel/*/cuda.hh)
+        include/nntile/core/kernel/*/cpu.hh | include/nntile/core/kernel/*/cuda.hh)
             add_all_layers "$(basename "$(dirname "$file")")" ;;
-        include/nntile/kernel/*.hh)
+        include/nntile/core/kernel/*.hh)
             add_all_layers "$(basename "$file" .hh)" ;;
 
         # ---- starpu sources / headers → from starpu up -------------------
-        src/starpu/*.cc)
+        src/core/starpu/*.cc)
             add_from_starpu "$(basename "$file" .cc)" ;;
-        include/nntile/starpu/*.hh)
+        include/nntile/core/starpu/*.hh)
             add_from_starpu "$(basename "$file" .hh)" ;;
 
         # ---- tile sources / headers → from tile up -----------------------
-        src/tile/*.cc)
+        src/core/tile/*.cc)
             add_from_tile "$(basename "$file" .cc)" ;;
-        include/nntile/tile/*.hh)
+        include/nntile/core/tile/*.hh)
             add_from_tile "$(basename "$file" .hh)" ;;
 
         # ---- tensor sources / headers → from tensor up -------------------
-        src/tensor/*.cc)
+        src/core/tensor/*.cc)
             add_from_tensor "$(basename "$file" .cc)" ;;
-        include/nntile/tensor/*.hh)
+        include/nntile/core/tensor/*.hh)
             add_from_tensor "$(basename "$file" .hh)" ;;
 
         # ---- graph-level: only the matching test --------------------------
@@ -268,7 +268,7 @@ if [ ${#affected[@]} -eq 0 ]; then
 fi
 
 # Build an anchored ctest regex.  The (_[0-9]+)? suffix accounts for
-# multi-argument tests that get a numeric suffix (e.g. tests_tile_gemm_1).
+# multi-argument tests that get a numeric suffix (e.g. tests_core_tile_gemm_1).
 patterns=$(printf '%s\n' "${!affected[@]}" | sort | paste -sd '|')
 regex="^(${patterns})(_[0-9]+)?$"
 

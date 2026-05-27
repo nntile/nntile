@@ -24,7 +24,7 @@
 #include "nntile/graph/module/rms_norm.hh"
 #include "nntile/graph/tensor/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 namespace gt = nntile::graph::tensor;

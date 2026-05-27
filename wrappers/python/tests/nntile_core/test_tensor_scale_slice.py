@@ -22,13 +22,13 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
 
 # Define mapping between tested function and numpy type
 scale_slice = {
-    np.float32: nntile.nntile_core.tensor.scale_slice_fp32,
-    np.float64: nntile.nntile_core.tensor.scale_slice_fp64
+    np.float32: nntile.core.tensor.scale_slice_fp32,
+    np.float64: nntile.core.tensor.scale_slice_fp64
 }
 
 add_slice_inplace = {
-    np.float32: nntile.nntile_core.tensor.add_slice_inplace_fp32,
-    np.float64: nntile.nntile_core.tensor.add_slice_inplace_fp64
+    np.float32: nntile.core.tensor.add_slice_inplace_fp32,
+    np.float64: nntile.core.tensor.add_slice_inplace_fp64
 }
 
 

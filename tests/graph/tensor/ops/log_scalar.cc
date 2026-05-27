@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/log_scalar.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/log_scalar.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -57,7 +57,7 @@ TEST_CASE("TensorGraph log_scalar rejects null", "[graph][tensor]")
     REQUIRE_THROWS_AS(gt::log_scalar("name", nullptr), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph log_scalar executes and preserves value",
     "[graph][tensor]")
 {

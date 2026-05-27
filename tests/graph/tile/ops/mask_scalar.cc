@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/mask_scalar.cc
- * Test TileGraph mask scalar vs nntile::tile (parity).
+ * Test TileGraph mask scalar vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,13 +16,13 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/mask_scalar.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/mask_scalar.hh"
-#include "nntile/tile/tile.hh"
+#include "nntile/core/tile/mask_scalar.hh"
+#include "nntile/core/tile/tile.hh"
 #include <array>
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph mask_scalar", "[graph][tile]")
 {
     const std::vector<Index> sh = {2, 3};
     const Index n = 6;
@@ -46,16 +46,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph]
     r.execute();
     r.wait();
     const std::vector<float> gout = r.get_output<float>(a);
-    nntile::tile::Tile<bool_t> Tm(sh);
-    nntile::tile::Tile<fp32_t> Ta(sh);
+    nntile::core::tile::Tile<bool_t> Tm(sh);
+    nntile::core::tile::Tile<fp32_t> Ta(sh);
     using Y = typename fp32_t::repr_t;
     { auto mloc = Tm.acquire(STARPU_W);
-      for(Index i = 0; i < n; ++i) { mloc[i] = nntile::bool_t(mb[static_cast<size_t>(i)]); }
+      for(Index i = 0; i < n; ++i) { mloc[i] = nntile::core::bool_t(mb[static_cast<size_t>(i)]); }
       mloc.release(); }
     { auto aloc = Ta.acquire(STARPU_W);
       for(Index i = 0; i < n; ++i) { aloc[i] = Y(static_cast<float>(i + 1)); }
       aloc.release(); }
-    nntile::tile::mask_scalar<fp32_t>(Tm, val, Ta, batch);
+    nntile::core::tile::mask_scalar<fp32_t>(Tm, val, Ta, batch);
     starpu_task_wait_for_all();
     std::vector<float> tref(n);
     { auto L = Ta.acquire(STARPU_R);

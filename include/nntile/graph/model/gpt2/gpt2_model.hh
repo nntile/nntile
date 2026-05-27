@@ -27,7 +27,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/layer_norm.hh>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 //! GPT2Model - wte + wpe + add -> num_hidden_layers x Gpt2Block + ln_f
@@ -64,4 +64,4 @@ public:
     }
 };
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

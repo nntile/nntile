@@ -27,13 +27,13 @@ Tensor = {
 
 # Define mapping between tested function and numpy type
 norm_fiber = {
-    np.float32: nntile.nntile_core.tensor.norm_fiber_async_fp32,
-    np.float64: nntile.nntile_core.tensor.norm_fiber_async_fp64
+    np.float32: nntile.core.tensor.norm_fiber_async_fp32,
+    np.float64: nntile.core.tensor.norm_fiber_async_fp64
 }
 
 norm_fiber_inplace = {
-    np.float32: nntile.nntile_core.tensor.norm_fiber_inplace_async_fp32,
-    np.float64: nntile.nntile_core.tensor.norm_fiber_inplace_async_fp64
+    np.float32: nntile.core.tensor.norm_fiber_inplace_async_fp32,
+    np.float64: nntile.core.tensor.norm_fiber_inplace_async_fp64
 }
 
 

@@ -54,7 +54,7 @@
 #include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::model::gptneox;
 using json = nlohmann::json;

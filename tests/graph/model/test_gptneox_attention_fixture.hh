@@ -19,7 +19,7 @@
 #include "test_gptneox_fixture_helpers.hh"
 #include <nntile/graph/model/gptneox/gptneox_config.hh>
 
-namespace nntile::test::gptneox_attention_fixture
+namespace nntile::graph::test::gptneox_attention_fixture
 {
 
 //! Basenames (no extension) for paired ``.json`` / ``.safetensors`` in
@@ -37,7 +37,7 @@ constexpr char gptneox_attention_no_rope_causal[] =
 
 struct AttentionFixtureSpec
 {
-    nntile::model::gptneox::GptneoxConfig config{};
+    nntile::graph::model::gptneox::GptneoxConfig config{};
     Index seq = 0;
     Index batch = 0;
     Index hidden = 0;
@@ -138,4 +138,4 @@ inline bool skip_unless_fixture_ready(
 #endif
 }
 
-} // namespace nntile::test::gptneox_attention_fixture
+} // namespace nntile::graph::test::gptneox_attention_fixture

@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/log_scalar.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/log_scalar.hh>
+#include <nntile/core/tile/log_scalar.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -25,7 +25,7 @@ namespace
 template<typename T>
 void run_ls(Runtime& runtime, const std::string& n, TileGraph::TileNode* v)
 {
-    nntile::tile::log_scalar<T>(n, runtime.get_tile<T>(v));
+    nntile::core::tile::log_scalar<T>(n, runtime.get_tile<T>(v));
 }
 } // namespace
 void log_scalar(const std::string& name, TileGraph::TileNode* value)
@@ -40,24 +40,24 @@ void TileLogScalarOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_ls<nntile::fp32_t>(runtime, name, value);
+            run_ls<nntile::core::fp32_t>(runtime, name, value);
             break;
         case DataType::FP32_FAST_TF32:
-            run_ls<nntile::fp32_fast_tf32_t>(runtime, name, value);
+            run_ls<nntile::core::fp32_fast_tf32_t>(runtime, name, value);
             break;
         case DataType::FP32_FAST_FP16:
-            run_ls<nntile::fp32_fast_fp16_t>(runtime, name, value);
+            run_ls<nntile::core::fp32_fast_fp16_t>(runtime, name, value);
             break;
         case DataType::FP32_FAST_BF16:
-            run_ls<nntile::fp32_fast_bf16_t>(runtime, name, value);
+            run_ls<nntile::core::fp32_fast_bf16_t>(runtime, name, value);
             break;
         case DataType::FP64:
-            run_ls<nntile::fp64_t>(runtime, name, value);
+            run_ls<nntile::core::fp64_t>(runtime, name, value);
             break;
         case DataType::FP16:
             throw std::runtime_error("FP16 not supported for tile log_scalar in this build");
         case DataType::BF16:
-            run_ls<nntile::bf16_t>(runtime, name, value);
+            run_ls<nntile::core::bf16_t>(runtime, name, value);
             break;
         case DataType::INT64:
         case DataType::BOOL:

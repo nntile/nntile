@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gpt2;
+using namespace nntile::graph::model::gpt2;
 using namespace nntile::graph::io;
 
 #ifndef GPT2_DATA_DIR
@@ -53,7 +53,7 @@ constexpr char gpt2_attention_causal[] = "gpt2_attention_causal";
 namespace
 {
 
-using namespace nntile::test::gpt2_fixture;
+using namespace nntile::graph::test::gpt2_fixture;
 
 struct AttentionFixtureSpec
 {
@@ -293,7 +293,7 @@ TEST_CASE("Gpt2Attention load from safetensors roundtrip", "[model][gpt2][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Gpt2Attention forward matches PyTorch reference (no mask)",
     "[model][gpt2][nomask]")
 {
@@ -305,7 +305,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gpt2_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Gpt2Attention backward matches PyTorch reference (no mask)",
     "[model][gpt2][nomask]")
 {
@@ -317,7 +317,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gpt2_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Gpt2Attention causal forward matches PyTorch reference",
     "[model][gpt2][causal_mask]")
 {
@@ -330,7 +330,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gpt2_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Gpt2Attention causal backward matches PyTorch reference",
     "[model][gpt2][causal_mask]")
 {

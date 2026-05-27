@@ -109,11 +109,13 @@ jobs:
             torch --index-url https://download.pytorch.org/whl/cpu
           $HOME/.local/bin/uv pip install --system \
             numpy safetensors "transformers<4.53"
+      - name: Check core include paths
+        run: .github/scripts/check-core-includes.sh .
       - name: Restore ccache
         uses: actions/cache@v5
         with:
           path: /tmp/ccache
-          key: ccache-nightly-${{ runner.os }}-${{ matrix.python-version }}-${{ github.sha }}
+          key: ccache-nightly-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('src/core/**', 'src/graph/**', 'include/**', 'CMakeLists.txt', 'src/**/CMakeLists.txt') }}
           restore-keys: |
             ccache-nightly-${{ runner.os }}-${{ matrix.python-version }}-
             ccache-${{ runner.os }}-${{ matrix.python-version }}-
@@ -126,10 +128,12 @@ jobs:
         run: |
           export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DBUILD_EXAMPLES=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake --build build -j
+          cmake --build build --target nntile_compile_smoke
       - name: Show ccache stats
         if: always()
         run: ccache --show-stats

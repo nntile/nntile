@@ -24,7 +24,7 @@
 
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -43,7 +43,7 @@ void add_heterogeneous_tiling_6x7(NNGraph::TensorNode *x_leaf)
 } // namespace
 #endif
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph add rejects shape mismatch",
     "[graph][nn_graph]")
 {
@@ -56,7 +56,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph add structure", "[graph][nn_graph]")
+    nntile::core::test::ContextFixture, "NNGraph add structure", "[graph][nn_graph]")
 {
     const auto [alpha, beta] = GENERATE(std::tuple{Scalar(1.0), Scalar(1.0)},
         std::tuple{Scalar(2.0), Scalar(3.0)},
@@ -78,7 +78,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph add backward", "[graph][nn_graph]")
+    nntile::core::test::ContextFixture, "NNGraph add backward", "[graph][nn_graph]")
 {
     const auto [alpha, beta, grad_fill_val] =
         GENERATE(std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
@@ -113,7 +113,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph add chain", "[graph][nn_graph]")
+    nntile::core::test::ContextFixture, "NNGraph add chain", "[graph][nn_graph]")
 {
     const auto [add_alpha, add_beta, grad_fill_val] =
         GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
@@ -138,7 +138,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph add diamond", "[graph][nn_graph]")
+    nntile::core::test::ContextFixture, "NNGraph add diamond", "[graph][nn_graph]")
 {
     const auto [add_alpha, add_beta, grad_fill_val] =
         GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
@@ -162,7 +162,7 @@ TEST_CASE_METHOD(
     REQUIRE(v->has_grad());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph add forward and backward",
     "[graph][nn_graph]")
 {
@@ -190,9 +190,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::compare_float_vectors;
+using nntile::core::test::compare_float_vectors;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph add forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -248,7 +248,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     compare_float_vectors(nntile_out, z_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph add backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

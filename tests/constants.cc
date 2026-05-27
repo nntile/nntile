@@ -12,10 +12,10 @@
  * @version 1.1.0
  * */
 
-#include "nntile/constants.hh"
+#include "nntile/core/constants.hh"
 #include "testing.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 
 int main(int argc, char **argv)
 {

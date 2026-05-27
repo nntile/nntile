@@ -19,7 +19,7 @@ import nntile.utils.constructors as nntc
 from nntile.graph_capture_sched import (
     graph_recording_begin, graph_recording_end)
 from nntile.model.base_model import BaseModel
-from nntile.nntile_core.starpu import iteration_pop, iteration_push
+from nntile.core.starpu import iteration_pop, iteration_push
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorTraits, clear_async, copy_async, isfinite_async,
     log_scalar_async, scale_inplace_async)

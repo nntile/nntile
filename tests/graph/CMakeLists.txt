@@ -34,7 +34,7 @@ foreach(test IN LISTS TESTS_CATCH2)
     add_test_set(TARGET_NAME tests_graph_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_${test}
         COV_GLOBAL coverage_graph coverage

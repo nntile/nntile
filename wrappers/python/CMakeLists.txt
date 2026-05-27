@@ -19,20 +19,24 @@ set(EXT_SRC
     "nntile/nntile_core.cc"
 )
 
-# Set up python extension module nntile_core and its properties
-pybind11_add_module(nntile_core ${EXT_SRC})
-set_target_properties(nntile_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY "nntile"
+# Set up python extension module (target name distinct from libnntile_core)
+pybind11_add_module(nntile_core_py ${EXT_SRC})
+set_target_properties(nntile_core_py PROPERTIES
+    OUTPUT_NAME "nntile_core"
+    LIBRARY_OUTPUT_DIRECTORY "nntile"
     SUFFIX ".so")
-target_link_libraries(nntile_core PRIVATE nntile)
+target_link_libraries(nntile_core_py PRIVATE nntile_core)
 
 # Graph API extension module
 set(GRAPH_SRC
     "nntile/nntile_graph.cc"
 )
-pybind11_add_module(nntile_graph ${GRAPH_SRC})
-set_target_properties(nntile_graph PROPERTIES LIBRARY_OUTPUT_DIRECTORY "nntile"
+pybind11_add_module(nntile_graph_py ${GRAPH_SRC})
+set_target_properties(nntile_graph_py PROPERTIES
+    OUTPUT_NAME "nntile_graph"
+    LIBRARY_OUTPUT_DIRECTORY "nntile"
     SUFFIX ".so")
-target_link_libraries(nntile_graph PRIVATE nntile)
+target_link_libraries(nntile_graph_py PRIVATE nntile_graph)
 
 # Collect all *.py source files and copy them into build directory
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/nntile DESTINATION
@@ -101,6 +105,11 @@ foreach(py_test IN LISTS PY_TESTS)
         set_tests_properties(${test_name} PROPERTIES LABELS "NotImplemented")
     endif()
 endforeach()
+
+if(BUILD_CORE AND BUILD_GRAPH)
+    add_custom_target(nntile_compile_smoke
+        DEPENDS nntile_core nntile_graph nntile_core_py nntile_graph_py)
+endif()
 
 # Install Python module
 install(CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} install)")

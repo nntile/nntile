@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::bert;
+using namespace nntile::graph::model::bert;
 using namespace nntile::graph::io;
 
 #ifndef BERT_DATA_DIR
@@ -52,7 +52,7 @@ constexpr char bert_model[] = "bert_model";
 namespace
 {
 
-using namespace nntile::test::bert_fixture;
+using namespace nntile::graph::test::bert_fixture;
 
 struct ModelFixtureSpec
 {
@@ -248,7 +248,7 @@ TEST_CASE("BertModel load from safetensors roundtrip", "[model][bert][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "BertModel forward matches PyTorch reference", "[model][bert]")
 {
     ModelFixtureSpec fx;
@@ -306,7 +306,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "BertModel backward matches PyTorch reference",
     "[model][bert]")
 {

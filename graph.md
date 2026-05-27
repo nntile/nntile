@@ -1,13 +1,18 @@
 # NNTile Graph System
 
 This document describes the current graph implementation in NNTile. It reflects
-the code in `include/nntile/graph/` and `src/graph/`.
+the code in `include/nntile/graph/` and `src/graph/`. Eager execution (kernels,
+StarPU, tile, tensor) lives in the **core** package (`include/nntile/core/`,
+`src/core/`, CMake target `nntile_core`, namespace `nntile::core`).
 
 ## File layout
 
 ```
 include/nntile/
+├── nntile.hh          # core + graph umbrellas
+├── core.hh
 ├── graph.hh
+├── core/              # kernels, starpu, tile, tensor, context
 └── graph/
     ├── dtype.hh
     ├── tensor.hh
@@ -177,7 +182,7 @@ This mirrors PyTorch: outputs and temporaries appear in the forward pass, not at
 - Implement the builder: validate inputs, create output via `graph->data()`,
   build op, call `graph->add_op(op)`.
 - Implement `TensorXxxOp::execute()`: dispatch on DataType and call
-  `nntile::tensor::*` kernel.
+  `nntile::core::tensor::*` kernel.
 
 Add to `graph_ops.hh` if needed.
 
@@ -206,12 +211,12 @@ Using NNGraph with gradients (see `examples/graph_mlp_example.cc` and
 `examples/linear_layer_example.cc` for full examples):
 
 ```cpp
-#include <nntile/context.hh>
+#include <nntile/core/context.hh>
 #include <nntile/graph.hh>
 
 using namespace nntile::graph;
 
-nntile::Context context(
+nntile::core::Context context(
     1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
 NNGraph graph("demo");

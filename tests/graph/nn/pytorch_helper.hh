@@ -22,7 +22,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-namespace nntile::test
+namespace nntile::graph::test
 {
 
 //! Floor for relative scales (tiny activations / gradients).
@@ -66,15 +66,15 @@ inline void require_relative_frobenius_error(const std::vector<float>& a,
     REQUIRE(relative_frobenius_error(a, b, epsilon) < tol);
 }
 
-} // namespace nntile::test
+} // namespace nntile::graph::test
 
 #ifdef NNTILE_HAVE_TORCH
 
 #include <torch/torch.h>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 
-namespace nntile::test
+namespace nntile::graph::test
 {
 
 //! Default relative tolerance for float comparison with PyTorch (element and Frobenius).
@@ -226,6 +226,6 @@ inline std::vector<T> permute_rowmajor(const std::vector<T>& data,
     return result;
 }
 
-} // namespace nntile::test
+} // namespace nntile::graph::test
 
 #endif // NNTILE_HAVE_TORCH

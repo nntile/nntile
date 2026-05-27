@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/multiply_slice.cc
  * Test TensorGraph multiply_slice operation against
- * nntile::tensor::multiply_slice.
+ * nntile::core::tensor::multiply_slice.
  *
  * @version 1.1.0
  * */
@@ -19,14 +19,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/multiply_slice.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/multiply_slice.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -112,12 +112,12 @@ void check_multiply_slice_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_sh, src_sh);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::core::tensor::TensorTraits src_traits(src_sh, src_sh);
+    nntile::core::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::core::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -138,7 +138,7 @@ void check_multiply_slice_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::multiply_slice<T>(alpha, src_t, dst_t, axis);
+    nntile::core::tensor::multiply_slice<T>(alpha, src_t, dst_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -191,8 +191,8 @@ TEST_CASE(
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_slice matches nntile::tensor::multiply_slice",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph multiply_slice matches nntile::core::tensor::multiply_slice",
     "[graph][tensor]")
 {
     const auto [dst_shape, axis, alpha] = GENERATE(
@@ -204,10 +204,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{
             std::vector<Index>{dim_2, dim_3, dim_4}, axis_2, alpha_two});
 
-    check_multiply_slice_vs_tensor_api<nntile::fp32_t>(dst_shape, axis, alpha);
+    check_multiply_slice_vs_tensor_api<nntile::core::fp32_t>(dst_shape, axis, alpha);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph multiply_slice tiled matches untiled",
     "[graph][tensor]")
 {
@@ -215,7 +215,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
             std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = T::repr_t;
     std::vector<Index> src_sh = slice_shape(dst_shape, axis);
     const Index dst_nelems = std::accumulate(

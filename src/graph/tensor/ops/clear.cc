@@ -16,7 +16,7 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 

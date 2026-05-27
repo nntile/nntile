@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,14 +15,14 @@
 
 #include "nntile/graph/tensor/ops/transpose.hh"
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/transpose.hh"
-#include "nntile/tensor/transpose.hh"
-#include "nntile/tile/traits.hh"
+#include "nntile/core/tensor/transpose.hh"
+#include "nntile/core/tile/traits.hh"
 
 #include <stdexcept>
 #include <utility>
@@ -55,7 +56,7 @@ Index fortran_tile_linear_to_layout_linear(
 
 void TensorTransposeOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    // Match nntile::tensor::transpose_async (src/tensor/transpose.cc).
+    // Match nntile::core::tensor::transpose_async (src/tensor/transpose.cc).
     const TensorAxisLayout *lay_s = ctx.tiling.find(src);
     const TensorAxisLayout *lay_d = ctx.tiling.find(dst);
     if (lay_s == nullptr || lay_d == nullptr)
@@ -63,7 +64,7 @@ void TensorTransposeOp::lower_to_tile(const LoweringContext &ctx) const
         throw std::runtime_error(
             "lower_to_tile TRANSPOSE: missing tiling for src or dst");
     }
-    const nntile::tile::TileTraits grid_src(lay_s->grid_shape());
+    const nntile::core::tile::TileTraits grid_src(lay_s->grid_shape());
     const Index grid_m = grid_src.matrix_shape[static_cast<size_t>(ndim)][0];
     const Index grid_n = grid_src.matrix_shape[static_cast<size_t>(ndim)][1];
     const auto &tiles_s = tile_lower::tiles_of(ctx.tile_map, src);

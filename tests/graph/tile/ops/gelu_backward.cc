@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/gelu_backward.cc
- * Test TileGraph gelu backward vs nntile::tile (parity).
+ * Test TileGraph gelu backward vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/gelu_backward.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/gelu_backward.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/gelu_backward.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelu_backward matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph gelu_backward matches tile", "[graph][tile]")
 {
     const std::vector<Index> sh = {2, 3};
     const Index nelems = 6;
@@ -49,8 +49,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelu_backward matches 
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(dx);
-    nntile::tile::Tile<fp32_t> tx(sh), tdy(sh), tdx(sh);
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> tx(sh), tdy(sh), tdx(sh);
+    using Y = typename nntile::core::fp32_t::repr_t;
     {
         auto l1 = tx.acquire(STARPU_W);
         auto l2 = tdy.acquire(STARPU_W);
@@ -65,7 +65,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelu_backward matches 
         l2.release();
         l3.release();
     }
-    nntile::tile::gelu_backward<fp32_t>(tx, tdy, tdx);
+    nntile::core::tile::gelu_backward<fp32_t>(tx, tdy, tdx);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

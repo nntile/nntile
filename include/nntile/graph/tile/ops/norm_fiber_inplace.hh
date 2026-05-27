@@ -15,7 +15,7 @@
 #pragma once
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph

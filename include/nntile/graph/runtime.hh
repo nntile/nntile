@@ -25,17 +25,17 @@
 #include <vector>
 
 // Third-party headers
-#include <starpu.h>
+#include <nntile/core/starpu_c.hh>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/nn/graph_decl.hh>
 #include <nntile/graph/tensor/graph_data_node.hh>
 #include <nntile/graph/tensor/tensor_graph_tiling.hh>
 #include <nntile/graph/tile/graph_data_node.hh>
 #include <nntile/graph/tile/graph_decl.hh>
-#include <nntile/tile/tile.hh>
+#include <nntile/core/tile/tile.hh>
 
 namespace nntile::graph
 {
@@ -96,7 +96,7 @@ class Runtime
     template <typename T> std::vector<T> get_output(TileNode const *tile);
 
     template <typename T>
-    nntile::tile::Tile<T> &get_tile(const TileNode *node);
+    nntile::core::tile::Tile<T> &get_tile(const TileNode *node);
 
     DataType get_dtype(TensorGraph::TensorNode const *tensor) const;
 
@@ -183,39 +183,39 @@ template <typename T> struct dtype_for
         "fp16_t, bf16_t, int64_t, bool_t, or fp32_fast_* variants");
 };
 
-template <> struct dtype_for<nntile::fp32_t>
+template <> struct dtype_for<nntile::core::fp32_t>
 {
     static constexpr DataType value = DataType::FP32;
 };
-template <> struct dtype_for<nntile::fp32_fast_tf32_t>
+template <> struct dtype_for<nntile::core::fp32_fast_tf32_t>
 {
     static constexpr DataType value = DataType::FP32_FAST_TF32;
 };
-template <> struct dtype_for<nntile::fp32_fast_fp16_t>
+template <> struct dtype_for<nntile::core::fp32_fast_fp16_t>
 {
     static constexpr DataType value = DataType::FP32_FAST_FP16;
 };
-template <> struct dtype_for<nntile::fp32_fast_bf16_t>
+template <> struct dtype_for<nntile::core::fp32_fast_bf16_t>
 {
     static constexpr DataType value = DataType::FP32_FAST_BF16;
 };
-template <> struct dtype_for<nntile::fp64_t>
+template <> struct dtype_for<nntile::core::fp64_t>
 {
     static constexpr DataType value = DataType::FP64;
 };
-template <> struct dtype_for<nntile::fp16_t>
+template <> struct dtype_for<nntile::core::fp16_t>
 {
     static constexpr DataType value = DataType::FP16;
 };
-template <> struct dtype_for<nntile::bf16_t>
+template <> struct dtype_for<nntile::core::bf16_t>
 {
     static constexpr DataType value = DataType::BF16;
 };
-template <> struct dtype_for<nntile::int64_t>
+template <> struct dtype_for<nntile::core::int64_t>
 {
     static constexpr DataType value = DataType::INT64;
 };
-template <> struct dtype_for<nntile::bool_t>
+template <> struct dtype_for<nntile::core::bool_t>
 {
     static constexpr DataType value = DataType::BOOL;
 };
@@ -226,7 +226,7 @@ namespace tile_graph_layout_io
 {
 
 //! Decode a flat offset into tile-local coordinates matching
-//! nntile::tile::TileTraits / tile storage (Fortran order: dim 0 stride 1).
+//! nntile::core::tile::TileTraits / tile storage (Fortran order: dim 0 stride 1).
 inline void fortran_tile_linear_to_index(Index linear_offset,
     const std::vector<Index> &shape,
     std::vector<Index> &index)
@@ -375,7 +375,7 @@ void gather_logical_tensor(const TensorAxisLayout &lay,
 } // namespace tile_graph_layout_io
 
 template <typename T>
-nntile::tile::Tile<T> &Runtime::get_tile(const TileNode *node)
+nntile::core::tile::Tile<T> &Runtime::get_tile(const TileNode *node)
 {
     auto it = tile_map_.find(node);
     if (it == tile_map_.end())
@@ -389,7 +389,7 @@ nntile::tile::Tile<T> &Runtime::get_tile(const TileNode *node)
             "Runtime::get_tile: wrong type (requested type does "
             "not match tile dtype)");
     }
-    auto ptr = std::static_pointer_cast<nntile::tile::Tile<T>>(it->second);
+    auto ptr = std::static_pointer_cast<nntile::core::tile::Tile<T>>(it->second);
     return *ptr;
 }
 
@@ -434,47 +434,47 @@ void Runtime::bind_data(
         {
         case DataType::FP32:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::fp32_t,
+                nntile::core::fp32_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP32_FAST_TF32:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::fp32_fast_tf32_t,
+                nntile::core::fp32_fast_tf32_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP32_FAST_FP16:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::fp32_fast_fp16_t,
+                nntile::core::fp32_fast_fp16_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP32_FAST_BF16:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::fp32_fast_bf16_t,
+                nntile::core::fp32_fast_bf16_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP64:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::fp64_t,
+                nntile::core::fp64_t,
                 double>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP16:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::fp16_t,
+                nntile::core::fp16_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::BF16:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::bf16_t,
+                nntile::core::bf16_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::INT64:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::int64_t,
+                nntile::core::int64_t,
                 std::int64_t>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::BOOL:
             tile_graph_layout_io::scatter_logical_tensor<T,
-                nntile::bool_t,
+                nntile::core::bool_t,
                 bool>(*lay, desc->tiles, data, count, *this);
             break;
         default:
@@ -506,31 +506,31 @@ void Runtime::bind_data(
     switch (dtype)
     {
     case DataType::FP32:
-        bind_data_impl<T, nntile::fp32_t, float>(tnode, data, count);
+        bind_data_impl<T, nntile::core::fp32_t, float>(tnode, data, count);
         break;
     case DataType::FP32_FAST_TF32:
-        bind_data_impl<T, nntile::fp32_fast_tf32_t, float>(tnode, data, count);
+        bind_data_impl<T, nntile::core::fp32_fast_tf32_t, float>(tnode, data, count);
         break;
     case DataType::FP32_FAST_FP16:
-        bind_data_impl<T, nntile::fp32_fast_fp16_t, float>(tnode, data, count);
+        bind_data_impl<T, nntile::core::fp32_fast_fp16_t, float>(tnode, data, count);
         break;
     case DataType::FP32_FAST_BF16:
-        bind_data_impl<T, nntile::fp32_fast_bf16_t, float>(tnode, data, count);
+        bind_data_impl<T, nntile::core::fp32_fast_bf16_t, float>(tnode, data, count);
         break;
     case DataType::FP64:
-        bind_data_impl<T, nntile::fp64_t, double>(tnode, data, count);
+        bind_data_impl<T, nntile::core::fp64_t, double>(tnode, data, count);
         break;
     case DataType::FP16:
-        bind_data_impl<T, nntile::fp16_t, float>(tnode, data, count);
+        bind_data_impl<T, nntile::core::fp16_t, float>(tnode, data, count);
         break;
     case DataType::BF16:
-        bind_data_impl<T, nntile::bf16_t, float>(tnode, data, count);
+        bind_data_impl<T, nntile::core::bf16_t, float>(tnode, data, count);
         break;
     case DataType::INT64:
-        bind_data_impl<T, nntile::int64_t, std::int64_t>(tnode, data, count);
+        bind_data_impl<T, nntile::core::int64_t, std::int64_t>(tnode, data, count);
         break;
     case DataType::BOOL:
-        bind_data_impl<T, nntile::bool_t, bool>(tnode, data, count);
+        bind_data_impl<T, nntile::core::bool_t, bool>(tnode, data, count);
         break;
     default:
         throw std::runtime_error("Unsupported data type for binding");
@@ -592,31 +592,31 @@ void Runtime::bind_data(
     switch (dtype)
     {
     case DataType::FP32:
-        bind_data_impl<T, nntile::fp32_t, float>(tile, data, count);
+        bind_data_impl<T, nntile::core::fp32_t, float>(tile, data, count);
         break;
     case DataType::FP32_FAST_TF32:
-        bind_data_impl<T, nntile::fp32_fast_tf32_t, float>(tile, data, count);
+        bind_data_impl<T, nntile::core::fp32_fast_tf32_t, float>(tile, data, count);
         break;
     case DataType::FP32_FAST_FP16:
-        bind_data_impl<T, nntile::fp32_fast_fp16_t, float>(tile, data, count);
+        bind_data_impl<T, nntile::core::fp32_fast_fp16_t, float>(tile, data, count);
         break;
     case DataType::FP32_FAST_BF16:
-        bind_data_impl<T, nntile::fp32_fast_bf16_t, float>(tile, data, count);
+        bind_data_impl<T, nntile::core::fp32_fast_bf16_t, float>(tile, data, count);
         break;
     case DataType::FP64:
-        bind_data_impl<T, nntile::fp64_t, double>(tile, data, count);
+        bind_data_impl<T, nntile::core::fp64_t, double>(tile, data, count);
         break;
     case DataType::FP16:
-        bind_data_impl<T, nntile::fp16_t, float>(tile, data, count);
+        bind_data_impl<T, nntile::core::fp16_t, float>(tile, data, count);
         break;
     case DataType::BF16:
-        bind_data_impl<T, nntile::bf16_t, float>(tile, data, count);
+        bind_data_impl<T, nntile::core::bf16_t, float>(tile, data, count);
         break;
     case DataType::INT64:
-        bind_data_impl<T, nntile::int64_t, std::int64_t>(tile, data, count);
+        bind_data_impl<T, nntile::core::int64_t, std::int64_t>(tile, data, count);
         break;
     case DataType::BOOL:
-        bind_data_impl<T, nntile::bool_t, bool>(tile, data, count);
+        bind_data_impl<T, nntile::core::bool_t, bool>(tile, data, count);
         break;
     default:
         throw std::runtime_error("Unsupported data type for binding");
@@ -691,47 +691,47 @@ std::vector<T> Runtime::get_output(
         {
         case DataType::FP32:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::fp32_t,
+                nntile::core::fp32_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP32_FAST_TF32:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::fp32_fast_tf32_t,
+                nntile::core::fp32_fast_tf32_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP32_FAST_FP16:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::fp32_fast_fp16_t,
+                nntile::core::fp32_fast_fp16_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP32_FAST_BF16:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::fp32_fast_bf16_t,
+                nntile::core::fp32_fast_bf16_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP64:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::fp64_t,
+                nntile::core::fp64_t,
                 double>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP16:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::fp16_t,
+                nntile::core::fp16_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::BF16:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::bf16_t,
+                nntile::core::bf16_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::INT64:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::int64_t,
+                nntile::core::int64_t,
                 std::int64_t>(*lay, desc->tiles, result, *this);
             break;
         case DataType::BOOL:
             tile_graph_layout_io::gather_logical_tensor<T,
-                nntile::bool_t,
+                nntile::core::bool_t,
                 bool>(*lay, desc->tiles, result, *this);
             break;
         default:
@@ -765,31 +765,31 @@ std::vector<T> Runtime::get_output(
     switch (dtype)
     {
     case DataType::FP32:
-        get_output_impl<T, nntile::fp32_t, float>(tnode, result);
+        get_output_impl<T, nntile::core::fp32_t, float>(tnode, result);
         break;
     case DataType::FP32_FAST_TF32:
-        get_output_impl<T, nntile::fp32_fast_tf32_t, float>(tnode, result);
+        get_output_impl<T, nntile::core::fp32_fast_tf32_t, float>(tnode, result);
         break;
     case DataType::FP32_FAST_FP16:
-        get_output_impl<T, nntile::fp32_fast_fp16_t, float>(tnode, result);
+        get_output_impl<T, nntile::core::fp32_fast_fp16_t, float>(tnode, result);
         break;
     case DataType::FP32_FAST_BF16:
-        get_output_impl<T, nntile::fp32_fast_bf16_t, float>(tnode, result);
+        get_output_impl<T, nntile::core::fp32_fast_bf16_t, float>(tnode, result);
         break;
     case DataType::FP64:
-        get_output_impl<T, nntile::fp64_t, double>(tnode, result);
+        get_output_impl<T, nntile::core::fp64_t, double>(tnode, result);
         break;
     case DataType::FP16:
-        get_output_impl<T, nntile::fp16_t, float>(tnode, result);
+        get_output_impl<T, nntile::core::fp16_t, float>(tnode, result);
         break;
     case DataType::BF16:
-        get_output_impl<T, nntile::bf16_t, float>(tnode, result);
+        get_output_impl<T, nntile::core::bf16_t, float>(tnode, result);
         break;
     case DataType::INT64:
-        get_output_impl<T, nntile::int64_t, std::int64_t>(tnode, result);
+        get_output_impl<T, nntile::core::int64_t, std::int64_t>(tnode, result);
         break;
     case DataType::BOOL:
-        get_output_impl<T, nntile::bool_t, bool>(tnode, result);
+        get_output_impl<T, nntile::core::bool_t, bool>(tnode, result);
         break;
     default:
         throw std::runtime_error("Unsupported data type for get_output");
@@ -831,31 +831,31 @@ std::vector<T> Runtime::get_output(TileNode const *tile)
     switch (dtype)
     {
     case DataType::FP32:
-        get_output_impl<T, nntile::fp32_t, float>(tile, result);
+        get_output_impl<T, nntile::core::fp32_t, float>(tile, result);
         break;
     case DataType::FP32_FAST_TF32:
-        get_output_impl<T, nntile::fp32_fast_tf32_t, float>(tile, result);
+        get_output_impl<T, nntile::core::fp32_fast_tf32_t, float>(tile, result);
         break;
     case DataType::FP32_FAST_FP16:
-        get_output_impl<T, nntile::fp32_fast_fp16_t, float>(tile, result);
+        get_output_impl<T, nntile::core::fp32_fast_fp16_t, float>(tile, result);
         break;
     case DataType::FP32_FAST_BF16:
-        get_output_impl<T, nntile::fp32_fast_bf16_t, float>(tile, result);
+        get_output_impl<T, nntile::core::fp32_fast_bf16_t, float>(tile, result);
         break;
     case DataType::FP64:
-        get_output_impl<T, nntile::fp64_t, double>(tile, result);
+        get_output_impl<T, nntile::core::fp64_t, double>(tile, result);
         break;
     case DataType::FP16:
-        get_output_impl<T, nntile::fp16_t, float>(tile, result);
+        get_output_impl<T, nntile::core::fp16_t, float>(tile, result);
         break;
     case DataType::BF16:
-        get_output_impl<T, nntile::bf16_t, float>(tile, result);
+        get_output_impl<T, nntile::core::bf16_t, float>(tile, result);
         break;
     case DataType::INT64:
-        get_output_impl<T, nntile::int64_t, std::int64_t>(tile, result);
+        get_output_impl<T, nntile::core::int64_t, std::int64_t>(tile, result);
         break;
     case DataType::BOOL:
-        get_output_impl<T, nntile::bool_t, bool>(tile, result);
+        get_output_impl<T, nntile::core::bool_t, bool>(tile, result);
         break;
     default:
         throw std::runtime_error("Unsupported data type for get_output");

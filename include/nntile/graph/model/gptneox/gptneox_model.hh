@@ -27,7 +27,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/layer_norm.hh>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 //! GptneoxModel - embed_tokens + num_hidden_layers x GptneoxDecoder + norm
@@ -65,4 +65,4 @@ public:
     }
 };
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

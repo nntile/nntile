@@ -27,7 +27,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/layer_norm.hh>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 //! GPT-Neo model - wte + wpe + add + num_hidden_layers x GptneoDecoder + norm
@@ -76,4 +76,4 @@ public:
     }
 };
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

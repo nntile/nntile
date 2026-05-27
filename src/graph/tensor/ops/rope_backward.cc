@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -20,7 +21,7 @@
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/rope_backward.hh"
-#include "nntile/tensor/rope_backward.hh"
+#include "nntile/core/tensor/rope_backward.hh"
 
 #include <stdexcept>
 #include <utility>
@@ -86,7 +87,7 @@ void rope_backward(TensorGraph::TensorNode *sin,
 
 void TensorRopeBackwardOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    // Match nntile::tensor::rope_backward_async (src/tensor/rope_backward.cc).
+    // Match nntile::core::tensor::rope_backward_async (src/tensor/rope_backward.cc).
     tile_lower::assert_same_elementwise_layout(dy, dx, "ROPE_BACKWARD dy/dx");
 
     const TensorAxisLayout *lay_dy = ctx.tiling.find(dy);

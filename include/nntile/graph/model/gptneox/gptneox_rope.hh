@@ -16,10 +16,10 @@
 
 #include <cstdint>
 
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 #include <nntile/graph/model/gptneox/gptneox_config.hh>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 //! Number of head dimensions that receive RoPE (even, from ``rotary_pct``).
@@ -39,4 +39,4 @@ void rope_sin_cos_from_position_ids(
     float* out_sin,
     float* out_cos);
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

@@ -30,7 +30,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/rms_norm.hh>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 //! T5EncoderBlock - self_attn + ff with residuals
@@ -87,4 +87,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

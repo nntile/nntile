@@ -23,7 +23,7 @@
 #include <nntile/graph/module/activation.hh>
 #include <nntile/graph/module/gated_mlp.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 //! LlamaMLP - Llama-style gated MLP using SiLU activation
@@ -48,4 +48,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

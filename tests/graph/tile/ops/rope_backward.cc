@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/rope_backward.cc
- * Test TileGraph rope backward vs nntile::tile (parity).
+ * Test TileGraph rope backward vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/rope_backward.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/rope_backward.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[graph][tile]")
+#include "nntile/core/tile/rope_backward.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph rope_backward", "[graph][tile]")
 {
     const std::vector<Index> sh = {2}, tsh = {4,5};
     TileGraph g("g");
@@ -38,7 +38,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[grap
     r.bind_data(si, siv); r.bind_data(co, cev); r.bind_data(dy, dyy); r.bind_data(dx, dxx);
     r.execute(); r.wait();
     const auto gout = r.get_output<float>(dx);
-    nntile::tile::Tile<fp32_t> Si(sh), Co(sh), DY(tsh), DX(tsh);
+    nntile::core::tile::Tile<fp32_t> Si(sh), Co(sh), DY(tsh), DX(tsh);
     using Y = typename fp32_t::repr_t;
     { auto a=Si.acquire(STARPU_W),b=Co.acquire(STARPU_W);
       for(int i=0;i<2;++i){a[i]=Y(0.1f);b[i]=Y(0.2f);} a.release(); b.release(); }
@@ -47,7 +47,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[grap
     { auto d=DX.acquire(STARPU_W);
       for(int i=0;i<20;++i) d[i]=Y(0.01f);
       d.release(); }
-    nntile::tile::rope_backward<fp32_t>(Si, Co, DY, DX);
+    nntile::core::tile::rope_backward<fp32_t>(Si, Co, DY, DX);
     starpu_task_wait_for_all();
     std::vector<float> tr(20);
     { auto L=DX.acquire(STARPU_R);

@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 //! Expand HF ``attention_types`` like ``GPTNeoXConfig.expand_attention_types``.
@@ -87,4 +87,4 @@ inline void parse_gptneox_attention_layers(
     }
 }
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

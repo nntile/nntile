@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/gemm.cc
- * Test TensorGraph gemm operation against nntile::tensor::gemm.
+ * Test TensorGraph gemm operation against nntile::core::tensor::gemm.
  *
  * @version 1.1.0
  * */
@@ -15,19 +15,19 @@
 #include "nntile/graph/tensor/ops/gemm.hh"
 
 #include "context_fixture.hh"
-#include "nntile/constants.hh"
+#include "nntile/core/constants.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/gemm.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/clear.hh"
+#include "nntile/core/tensor/gemm.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -91,14 +91,14 @@ void check_gemm_vs_tensor_api(Index M, Index K, Index N, Scalar alpha)
     std::vector<float> graph_result = runtime.get_output<float>(c_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits a_traits(a_shape, a_shape);
-    nntile::tensor::TensorTraits b_traits(b_shape, b_shape);
-    nntile::tensor::TensorTraits c_traits(c_shape, c_shape);
+    nntile::core::tensor::TensorTraits a_traits(a_shape, a_shape);
+    nntile::core::tensor::TensorTraits b_traits(b_shape, b_shape);
+    nntile::core::tensor::TensorTraits c_traits(c_shape, c_shape);
     std::vector<int> distr_single(1, distr_rank_single);
 
-    nntile::tensor::Tensor<T> a_t(a_traits, distr_single);
-    nntile::tensor::Tensor<T> b_t(b_traits, distr_single);
-    nntile::tensor::Tensor<T> c_t(c_traits, distr_single);
+    nntile::core::tensor::Tensor<T> a_t(a_traits, distr_single);
+    nntile::core::tensor::Tensor<T> b_t(b_traits, distr_single);
+    nntile::core::tensor::Tensor<T> c_t(c_traits, distr_single);
 
     {
         auto tile = a_t.get_tile(0);
@@ -118,9 +118,9 @@ void check_gemm_vs_tensor_api(Index M, Index K, Index N, Scalar alpha)
         }
         loc.release();
     }
-    nntile::tensor::clear<T>(c_t);
+    nntile::core::tensor::clear<T>(c_t);
 
-    nntile::tensor::gemm<T>(alpha,
+    nntile::core::tensor::gemm<T>(alpha,
         TransOp(TransOp::NoTrans),
         a_t,
         TransOp(TransOp::NoTrans),
@@ -186,8 +186,8 @@ TEST_CASE("TensorGraph gemm rejects null", "[graph][tensor]")
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph gemm matches nntile::tensor::gemm",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph gemm matches nntile::core::tensor::gemm",
     "[graph][tensor]")
 {
     const auto [M, K, N, alpha] =
@@ -195,10 +195,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Index(3), Index(4), Index(3), 1.0},
             std::tuple{Index(2), Index(3), Index(4), 0.5});
 
-    check_gemm_vs_tensor_api<nntile::fp32_t>(M, K, N, alpha);
+    check_gemm_vs_tensor_api<nntile::core::fp32_t>(M, K, N, alpha);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph gemm tiled matches untiled",
     "[graph][tensor]")
 {
@@ -206,7 +206,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(std::tuple{Index(4), Index(6), Index(8), 1.0},
             std::tuple{Index(2), Index(4), Index(6), 0.5});
 
-    using Y = nntile::fp32_t::repr_t;
+    using Y = nntile::core::fp32_t::repr_t;
     std::vector<Index> a_shape = {M, K};
     std::vector<Index> b_shape = {K, N};
 

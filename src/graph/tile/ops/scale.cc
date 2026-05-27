@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/scale.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/scale.hh>
+#include <nntile/core/tile/scale.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +26,7 @@ template<typename T>
 void run_scale(
     Runtime& runtime, Scalar alpha, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::tile::scale<T>(alpha, runtime.get_tile<T>(s), runtime.get_tile<T>(d));
+    nntile::core::tile::scale<T>(alpha, runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
 } // namespace
 void scale(Scalar alpha, TileGraph::TileNode* src, TileGraph::TileNode* dst)
@@ -50,25 +50,25 @@ void TileScaleOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_scale<nntile::fp32_t>(runtime, alpha, src, dst);
+            run_scale<nntile::core::fp32_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_scale<nntile::fp32_fast_tf32_t>(runtime, alpha, src, dst);
+            run_scale<nntile::core::fp32_fast_tf32_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_scale<nntile::fp32_fast_fp16_t>(runtime, alpha, src, dst);
+            run_scale<nntile::core::fp32_fast_fp16_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_scale<nntile::fp32_fast_bf16_t>(runtime, alpha, src, dst);
+            run_scale<nntile::core::fp32_fast_bf16_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP64:
-            run_scale<nntile::fp64_t>(runtime, alpha, src, dst);
+            run_scale<nntile::core::fp64_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP16:
-            run_scale<nntile::fp16_t>(runtime, alpha, src, dst);
+            run_scale<nntile::core::fp16_t>(runtime, alpha, src, dst);
             break;
         case DataType::BF16:
-            run_scale<nntile::bf16_t>(runtime, alpha, src, dst);
+            run_scale<nntile::core::bf16_t>(runtime, alpha, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

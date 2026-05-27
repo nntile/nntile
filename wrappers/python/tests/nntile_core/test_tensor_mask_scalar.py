@@ -23,8 +23,8 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           bool: nntile.tensor.Tensor_bool}
 
 # Define mapping between tested function and numpy type
-mask_scalar_func = {np.float32: nntile.nntile_core.tensor.mask_scalar_fp32,
-                    np.float64: nntile.nntile_core.tensor.mask_scalar_fp64}
+mask_scalar_func = {np.float32: nntile.core.tensor.mask_scalar_fp32,
+                    np.float64: nntile.core.tensor.mask_scalar_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])

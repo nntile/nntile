@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/sum_fiber.cc
- * Test TensorGraph sum_fiber operation against nntile::tensor::sum_fiber.
+ * Test TensorGraph sum_fiber operation against nntile::core::tensor::sum_fiber.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/sum_fiber.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/sum_fiber.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -122,12 +122,12 @@ void check_sum_fiber_vs_tensor_api(const std::vector<Index> &x_shape,
     std::vector<float> graph_result = runtime.get_output<float>(y_node);
 
     // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
-    nntile::tensor::TensorTraits y_traits(y_shape, y_shape);
+    nntile::core::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::core::tensor::TensorTraits y_traits(y_shape, y_shape);
     std::vector<int> x_distr(x_traits.grid.nelems, distr_rank_single);
     std::vector<int> y_distr(y_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src(x_traits, x_distr);
-    nntile::tensor::Tensor<T> dst(y_traits, y_distr);
+    nntile::core::tensor::Tensor<T> src(x_traits, x_distr);
+    nntile::core::tensor::Tensor<T> dst(y_traits, y_distr);
 
     {
         auto tile = src.get_tile(0);
@@ -149,7 +149,7 @@ void check_sum_fiber_vs_tensor_api(const std::vector<Index> &x_shape,
         loc.release();
     }
 
-    nntile::tensor::sum_fiber<T>(
+    nntile::core::tensor::sum_fiber<T>(
         alpha, src, beta, dst, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
 
@@ -205,8 +205,8 @@ TEST_CASE("TensorGraph sum_fiber rejects duplicate tensors", "[graph][tensor]")
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sum_fiber matches nntile::tensor::sum_fiber",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph sum_fiber matches nntile::core::tensor::sum_fiber",
     "[graph][tensor]")
 {
     const auto [x_shape, axis, batch_ndim, redux, alpha, beta] =
@@ -259,11 +259,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_half});
 
-    check_sum_fiber_vs_tensor_api<nntile::fp32_t>(
+    check_sum_fiber_vs_tensor_api<nntile::core::fp32_t>(
         x_shape, axis, batch_ndim, redux, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph sum_fiber tiled matches untiled",
     "[graph][tensor]")
 {
@@ -281,7 +281,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_zero});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index x_nelems = std::accumulate(
         x_shape.begin(), x_shape.end(), Index(1), std::multiplies<>());

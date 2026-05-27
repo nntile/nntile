@@ -19,7 +19,7 @@
 #include <nntile/graph/module/layer_norm.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 class BertEmbeddings : public graph::module::Module
@@ -52,4 +52,4 @@ public:
     }
 };
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

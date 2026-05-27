@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneo;
+using namespace nntile::graph::model::gptneo;
 using namespace nntile::graph::io;
 
 #ifndef GPTNEO_DATA_DIR
@@ -52,7 +52,7 @@ constexpr char gptneo_causal[] = "gptneo_causal";
 namespace
 {
 
-using namespace nntile::test::gptneo_fixture;
+using namespace nntile::graph::test::gptneo_fixture;
 
 struct CausalFixtureSpec
 {
@@ -260,7 +260,7 @@ TEST_CASE("GptneoCausal load from safetensors roundtrip", "[model][gptneo][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoCausal forward matches PyTorch reference", "[model][gptneo]")
 {
     CausalFixtureSpec fx;
@@ -319,7 +319,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoCausal backward matches PyTorch reference",
     "[model][gptneo]")
 {

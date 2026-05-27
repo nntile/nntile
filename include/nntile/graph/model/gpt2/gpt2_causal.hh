@@ -25,7 +25,7 @@
 #include <nntile/graph/module/linear.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 //! Gpt2Causal - GPT2Model + lm_head for next-token prediction
@@ -55,4 +55,4 @@ public:
     Gpt2Model* model() { return model_.get(); }
 };
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

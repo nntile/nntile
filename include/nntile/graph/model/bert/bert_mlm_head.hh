@@ -20,7 +20,7 @@
 #include <nntile/graph/module/linear.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 //! BertLMPredictionHead: transform (Linear+GELUTANH+LN) + decoder Linear.
@@ -47,4 +47,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

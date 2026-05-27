@@ -10,7 +10,7 @@
  * Convenience header for GPT-Neo model components.
  *
  * Naming follows ``Gpt2*`` / ``Llama*``: PascalCase type prefix ``Gptneo``,
- * lowercase paths ``gptneo/``, namespace ``nntile::model::gptneo``.
+ * lowercase paths ``gptneo/``, namespace ``nntile::graph::model::gptneo``.
  *
  * @version 1.1.0
  * */

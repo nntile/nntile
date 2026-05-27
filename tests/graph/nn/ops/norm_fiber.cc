@@ -18,7 +18,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -32,7 +32,7 @@ constexpr Index dim_4 = 4;
 
 } // anonymous namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph norm_fiber structure",
     "[graph][nn_graph]")
 {
@@ -57,7 +57,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.num_ops() >= 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph norm_fiber forward",
     "[graph][nn_graph]")
 {
@@ -98,7 +98,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(v > 0.0);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph norm_fiber backward throws",
     "[graph][nn_graph]")
 {

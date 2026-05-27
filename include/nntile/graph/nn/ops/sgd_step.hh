@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/nn/graph_op_node.hh>
 #include <nntile/graph/tensor/ops/sgd_step.hh>
 

@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::t5;
+using namespace nntile::graph::model::t5;
 using namespace nntile::graph::io;
 
 #ifndef T5_DATA_DIR
@@ -53,7 +53,7 @@ constexpr char t5_attention_causal[] = "t5_attention_causal";
 namespace
 {
 
-using namespace nntile::test::t5_fixture;
+using namespace nntile::graph::test::t5_fixture;
 
 struct AttentionFixtureSpec
 {
@@ -261,7 +261,7 @@ TEST_CASE("T5Attention load from safetensors roundtrip", "[model][t5][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "T5Attention forward matches PyTorch reference (no mask)",
     "[model][t5][nomask]")
 {
@@ -273,7 +273,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     t5_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "T5Attention backward matches PyTorch reference (no mask)",
     "[model][t5][nomask]")
 {
@@ -285,7 +285,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     t5_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "T5Attention causal forward matches PyTorch reference",
     "[model][t5][causal_mask]")
 {
@@ -298,7 +298,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     t5_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "T5Attention causal backward matches PyTorch reference",
     "[model][t5][causal_mask]")
 {

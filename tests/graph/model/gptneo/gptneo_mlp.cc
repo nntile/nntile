@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneo;
+using namespace nntile::graph::model::gptneo;
 using namespace nntile::graph::io;
 
 #ifndef GPTNEO_DATA_DIR
@@ -52,7 +52,7 @@ constexpr char gptneo_mlp[] = "gptneo_mlp";
 namespace
 {
 
-using namespace nntile::test::gptneo_fixture;
+using namespace nntile::graph::test::gptneo_fixture;
 
 struct MlpFixtureSpec
 {
@@ -184,7 +184,7 @@ TEST_CASE("GptneoMLP load from safetensors roundtrip", "[model][gptneo][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoMLP matches PyTorch reference",
     "[model][gptneo]")
 {
@@ -233,7 +233,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     require_relative_frobenius_error(result, ref_data, fx.forward_tol);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoMLP backward matches PyTorch reference",
     "[model][gptneo]")
 {

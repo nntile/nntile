@@ -19,7 +19,7 @@
 #include <nntile/graph/module/linear.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 //! Maps attention heads to hidden, adds residual, applies LayerNorm.
@@ -46,4 +46,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

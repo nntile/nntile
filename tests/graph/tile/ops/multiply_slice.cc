@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/multiply_slice.cc
- * Test TileGraph multiply slice vs nntile::tile (parity).
+ * Test TileGraph multiply slice vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/multiply_slice.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/multiply_slice.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/multiply_slice.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_slice", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph multiply_slice", "[graph][tile]")
 {
     const std::vector<Index> shs = {3, 5}, shd = {3, 4, 5};
     const Index ns = 15, n = 60;
@@ -45,13 +45,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_slice", "[gra
     rt.execute();
     rt.wait();
     const std::vector<float> gout = rt.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> ts(shs), td(shd);
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> ts(shs), td(shd);
+    using Y = typename nntile::core::fp32_t::repr_t;
     { auto A = ts.acquire(STARPU_W), B = td.acquire(STARPU_W);
       for(Index i = 0; i < ns; ++i) { A[i] = Y(sv[static_cast<size_t>(i)]); }
       for(Index i = 0; i < n; ++i) { B[i] = Y(dv[static_cast<size_t>(i)]); }
       A.release(); B.release(); }
-    nntile::tile::multiply_slice<fp32_t>(a, ts, td, axis);
+    nntile::core::tile::multiply_slice<fp32_t>(a, ts, td, axis);
     starpu_task_wait_for_all();
     std::vector<float> tref(n);
     { auto L = td.acquire(STARPU_R);

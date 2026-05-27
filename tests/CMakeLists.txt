@@ -138,21 +138,20 @@ function(add_test_set)
     endif()
 endfunction()
 
-add_test_set(TARGET_NAME tests_constants
+add_test_set(TARGET_NAME tests_core_constants
     EXEC_NAME test_constants
     SOURCES constants.cc
-    LINK_LIBRARIES nntile
+    LINK_LIBRARIES nntile_core
+    LABELS core smoke
     COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_constants
+    COV_NAME coverage_core_constants
     COV_GLOBAL coverage
     )
 
-# Kernels are not compiled in case of SimGrid mode
-if(NOT HAVE_STARPU_SIMGRID)
-    add_subdirectory("kernel")
+if(BUILD_TESTS_CORE)
+    add_subdirectory("core")
 endif()
-add_subdirectory("starpu")
-add_subdirectory("tile")
-add_subdirectory("tensor")
-add_subdirectory("graph")
+if(BUILD_TESTS_GRAPH)
+    add_subdirectory("graph")
+endif()
 # add_subdirectory("layer")

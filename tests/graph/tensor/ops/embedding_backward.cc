@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/embedding_backward.cc
  * Test TensorGraph embedding_backward operation against
- * nntile::tensor::embedding_backward.
+ * nntile::core::tensor::embedding_backward.
  *
  * @version 1.1.0
  * */
@@ -19,15 +19,15 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/embedding_backward.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/embedding_backward.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -116,28 +116,28 @@ void check_embedding_backward_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(vocab_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits index_traits(index_shape, index_shape);
-    nntile::tensor::TensorTraits embed_traits(embed_shape, embed_shape);
-    nntile::tensor::TensorTraits vocab_traits(vocab_shape, vocab_shape);
+    nntile::core::tensor::TensorTraits index_traits(index_shape, index_shape);
+    nntile::core::tensor::TensorTraits embed_traits(embed_shape, embed_shape);
+    nntile::core::tensor::TensorTraits vocab_traits(vocab_shape, vocab_shape);
     std::vector<int> distr(1, distr_rank_single);
 
-    nntile::tensor::Tensor<nntile::int64_t> index_t(index_traits, distr);
-    nntile::tensor::Tensor<T> embed_t(embed_traits, distr);
-    nntile::tensor::Tensor<T> vocab_t(vocab_traits, distr);
+    nntile::core::tensor::Tensor<nntile::core::int64_t> index_t(index_traits, distr);
+    nntile::core::tensor::Tensor<T> embed_t(embed_traits, distr);
+    nntile::core::tensor::Tensor<T> vocab_t(vocab_traits, distr);
 
-    auto init_index = [](nntile::tensor::Tensor<nntile::int64_t> &t,
+    auto init_index = [](nntile::core::tensor::Tensor<nntile::core::int64_t> &t,
                           const std::vector<std::int64_t> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
         for (Index i = 0; i < static_cast<Index>(data.size()); ++i)
         {
-            loc[i] = nntile::int64_t(data[i]);
+            loc[i] = nntile::core::int64_t(data[i]);
         }
         loc.release();
     };
     auto init_float =
-        [](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
+        [](nntile::core::tensor::Tensor<T> &t, const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -152,7 +152,7 @@ void check_embedding_backward_vs_tensor_api(
     init_float(embed_t, embed_data);
     init_float(vocab_t, vocab_data);
 
-    nntile::tensor::embedding_backward<T>(
+    nntile::core::tensor::embedding_backward<T>(
         index_t, embed_t, vocab_t, axis, redux);
     starpu_task_wait_for_all();
 
@@ -210,9 +210,9 @@ TEST_CASE(
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph embedding_backward matches "
-    "nntile::tensor::embedding_backward",
+    "nntile::core::tensor::embedding_backward",
     "[graph][tensor]")
 {
     const auto [index_shape, vocab_shape, axis, redux] =
@@ -227,11 +227,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 Index(3),
                 0});
 
-    check_embedding_backward_vs_tensor_api<nntile::fp32_t>(
+    check_embedding_backward_vs_tensor_api<nntile::core::fp32_t>(
         index_shape, vocab_shape, axis, redux);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph embedding_backward tiled matches untiled",
     "[graph][tensor]")
 {

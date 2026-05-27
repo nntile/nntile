@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/multiply.cc
- * Test TensorGraph multiply operation against nntile::tensor::multiply.
+ * Test TensorGraph multiply operation against nntile::core::tensor::multiply.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/multiply.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/multiply.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -67,11 +67,11 @@ void check_multiply_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(z_node);
 
     // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> src1(traits, distr);
-    nntile::tensor::Tensor<T> src2(traits, distr);
-    nntile::tensor::Tensor<T> dst(traits, distr);
+    nntile::core::tensor::Tensor<T> src1(traits, distr);
+    nntile::core::tensor::Tensor<T> src2(traits, distr);
+    nntile::core::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile1 = src1.get_tile(0);
@@ -87,7 +87,7 @@ void check_multiply_vs_tensor_api(
         loc2.release();
     }
 
-    nntile::tensor::multiply<T>(alpha, src1, src2, dst);
+    nntile::core::tensor::multiply<T>(alpha, src1, src2, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -143,8 +143,8 @@ TEST_CASE("TensorGraph multiply rejects duplicate tensors", "[graph][tensor]")
     REQUIRE_THROWS_AS(gt::multiply(x, x, 1.0), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply matches nntile::tensor::multiply",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph multiply matches nntile::core::tensor::multiply",
     "[graph][tensor]")
 {
     const auto [alpha, shape] =
@@ -154,10 +154,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{1.0, std::vector<Index>{6}},
             std::tuple{3.0, std::vector<Index>{1, 10}});
 
-    check_multiply_vs_tensor_api<nntile::fp32_t>(shape, alpha);
+    check_multiply_vs_tensor_api<nntile::core::fp32_t>(shape, alpha);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph multiply tiled matches untiled",
     "[graph][tensor]")
 {
@@ -166,7 +166,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{2.5, std::vector<Index>{2, 4}},
             std::tuple{0.5, std::vector<Index>{6}});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

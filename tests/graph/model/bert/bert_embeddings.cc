@@ -26,9 +26,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::bert;
+using namespace nntile::graph::model::bert;
 using namespace nntile::graph::io;
 
 #ifndef BERT_DATA_DIR
@@ -44,7 +44,7 @@ TEST_CASE(
 namespace
 {
 
-using namespace nntile::test::bert_fixture;
+using namespace nntile::graph::test::bert_fixture;
 
 struct EmbFixtureSpec
 {
@@ -93,7 +93,7 @@ inline bool try_load_emb_spec(
 
 } // namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "BertEmbeddings forward matches PyTorch reference",
     "[model][bert]")
 {

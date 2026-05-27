@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/embedding.cc
- * Test TileGraph embedding vs nntile::tile (parity).
+ * Test TileGraph embedding vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,14 +17,14 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/embedding.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/embedding.hh"
-#include "nntile/tile/tile.hh"
+#include "nntile/core/tile/embedding.hh"
+#include "nntile/core/tile/tile.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph embedding", "[graph][tile]")
 {
     const Index m = 2, n = 2, k = 3, k0 = 0, ks = 3;
     const std::vector<Index> ih = {m, n}, vh = {ks, 5}, eh = {m, k, n};
@@ -55,8 +55,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
     r.execute();
     r.wait();
     const auto gout = r.get_output<float>(embed);
-    nntile::tile::Tile<nntile::int64_t> I(ih);
-    nntile::tile::Tile<fp32_t> V(vh), E(eh);
+    nntile::core::tile::Tile<nntile::core::int64_t> I(ih);
+    nntile::core::tile::Tile<fp32_t> V(vh), E(eh);
     {
         auto a = I.acquire(STARPU_W);
         a[0] = 0;
@@ -82,7 +82,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
         }
         c.release();
     }
-    nntile::tile::embedding<fp32_t>(m, n, k, k0, ks, I, V, E);
+    nntile::core::tile::embedding<fp32_t>(m, n, k, k0, ks, I, V, E);
     starpu_task_wait_for_all();
     std::vector<float> tr(12);
     {

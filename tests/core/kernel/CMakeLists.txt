@@ -1,0 +1,150 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file tests/kernel/CMakeLists.txt
+# Tests for nntile::kernel functions
+#
+# @version 1.1.0
+
+# All unit tests without arguments to test executable
+set(TESTS
+    "conv2d_bwd_input_inplace"
+    "conv2d_bwd_weight_inplace"
+    "conv2d_inplace"
+    "mask_scalar"
+    "norm_fiber_inplace"
+    "randn"
+    "rope"
+    "rope_backward"
+    "scale_inplace"
+    "softmax_inplace"
+    "sqrt_inplace"
+    "subcopy"
+    "subtract_indexed_outputs"
+    "sum_slice"
+    "sumprod_fiber"
+    "sumprod_slice"
+    "total_sum_accum"
+    "transpose"
+)
+
+# Describe all tests that are not yet implemented
+set(TESTS_NOT_IMPLEMENTED
+    "conv2d_bwd_input_inplace"
+    "conv2d_bwd_weight_inplace"
+    "conv2d_inplace"
+    "scale_inplace"
+    "subtract_indexed_outputs"
+    "sumprod_fiber"
+    "total_sum_accum"
+)
+
+# Setup a target for coverage of kernels
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_kernel
+        EXECUTABLE ctest -R tests_kernel_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
+
+foreach(test IN LISTS TESTS)
+    set(labels core)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented core")
+    endif()
+    add_test_set(TARGET_NAME tests_core_kernel_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES nntile_core $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_core_kernel_${test}
+        COV_GLOBAL coverage_kernel coverage
+        LABELS ${labels}
+    )
+endforeach()
+
+set(TESTS_CATCH2
+    "accumulate_attn_output"
+    "add"
+    "accumulate_maxsumexp"
+    "add_fiber"
+    "add_fiber_inplace"
+    "scale_fiber"
+    "add_inplace"
+    "add_slice_inplace"
+    "adam_step"
+    "adamw_step"
+    "sgd_step"
+    "add_slice"
+    "embedding"
+    "embedding_backward"
+    "fill"
+    "gelu"
+    "gelu_inplace"
+    "gelu_backward"
+    "gelutanh"
+    "gelutanh_inplace"
+    "gelutanh_backward"
+    "hypot_inplace"
+    "hypot"
+    "hypot_scalar_inverse"
+    "logsumexp"
+    "maxsumexp"
+    "norm"
+    "norm_fiber"
+    "norm_slice_inplace"
+    "norm_slice"
+    "pow"
+    "multiply_fiber_inplace"
+    "multiply_fiber"
+    "multiply_inplace"
+    "multiply_slice"
+    "multiply"
+    "relu_inplace"
+    "relu_backward"
+    "relu"
+    "scale"
+    "scale_slice"
+    "silu_backward"
+    "silu"
+    "silu_inplace"
+    "softmax"
+    "sqrt"
+    "sum"
+    "sum_fiber"
+)
+
+# CUDA-only tests (only added when CUDA is available)
+if(NNTILE_USE_CUDA)
+    list(APPEND TESTS_CATCH2
+        "flash_sdpa_fwd_cudnn"
+        "flash_sdpa_bwd_cudnn"
+    )
+endif()
+
+foreach(test IN LISTS TESTS_CATCH2)
+    set(labels core)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented core")
+    endif()
+    if(test STREQUAL "add")
+        set(labels "${labels} smoke")
+    endif()
+    add_test_set(TARGET_NAME tests_core_kernel_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES
+            nntile_core
+            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_core_kernel_${test}
+        COV_GLOBAL coverage_kernel coverage
+        LABELS ${labels}
+    )
+endforeach()

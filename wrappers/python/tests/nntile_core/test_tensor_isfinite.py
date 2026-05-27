@@ -28,8 +28,8 @@ Tensor = {
 
 # Define mapping between tested function and numpy type
 isfinite = {
-    np.float32: nntile.nntile_core.tensor.isfinite_fp32,
-    np.float64: nntile.nntile_core.tensor.isfinite_fp64
+    np.float32: nntile.core.tensor.isfinite_fp32,
+    np.float64: nntile.core.tensor.isfinite_fp64
 }
 
 

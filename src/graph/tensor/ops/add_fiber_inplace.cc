@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,9 +17,9 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/add_fiber_inplace.hh"
+#include "nntile/core/tensor/add_fiber_inplace.hh"
 
 #include "nntile/graph/tile/ops/add_fiber_inplace.hh"
 #include "nntile/graph/tile/lowering_context.hh"
@@ -68,7 +69,7 @@ void add_fiber_inplace(
 
 void TensorAddFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::add_fiber_inplace_async (src/tensor/add_fiber_inplace.cc).
+    // Match nntile::core::tensor::add_fiber_inplace_async (src/tensor/add_fiber_inplace.cc).
     if(alpha == 0.0)
     {
         return;

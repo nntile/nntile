@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/transpose.cc
- * Test TileGraph transpose vs nntile::tile (parity).
+ * Test TileGraph transpose vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/transpose.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/transpose.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/transpose.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph transpose matches tile", "[graph][tile]")
 {
     const std::vector<Index> sshape = {3, 5};
     const std::vector<Index> dshape = {5, 3};
@@ -45,8 +45,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> ts(sshape), td(dshape);
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> ts(sshape), td(dshape);
+    using Y = typename nntile::core::fp32_t::repr_t;
     {
         auto a = ts.acquire(STARPU_W);
         auto b = td.acquire(STARPU_W);
@@ -55,7 +55,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile
         a.release();
         b.release();
     }
-    nntile::tile::transpose<fp32_t>(alpha, ts, td, ndim);
+    nntile::core::tile::transpose<fp32_t>(alpha, ts, td, ndim);
     starpu_task_wait_for_all();
     std::vector<float> tref(15);
     {

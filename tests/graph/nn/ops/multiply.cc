@@ -23,7 +23,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -35,7 +35,7 @@ constexpr Index dim_3 = 3;
 
 } // anonymous namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply structure",
     "[graph][nn_graph]")
 {
@@ -54,7 +54,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "MULTIPLY");
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply backward",
     "[graph][nn_graph]")
 {
@@ -79,10 +79,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::core::test::compare_float_vectors;
+using nntile::core::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -137,7 +137,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     compare_float_vectors(nntile_out, z_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

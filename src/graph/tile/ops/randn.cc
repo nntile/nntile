@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,10 +15,10 @@
 
 #include "nntile/graph/tile/ops/randn.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/randn.hh>
+#include <nntile/core/tile/randn.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +27,7 @@ template<typename T>
 void run_rd(
     Runtime& runtime, TileGraph::TileNode* d, const std::vector<Index>& st, const std::vector<Index>& us, unsigned long long sd, Scalar m, Scalar s)
 {
-    nntile::tile::randn<T>(runtime.get_tile<T>(d), st, us, sd, m, s);
+    nntile::core::tile::randn<T>(runtime.get_tile<T>(d), st, us, sd, m, s);
 }
 } // namespace
 void randn(
@@ -48,24 +49,24 @@ void TileRandnOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_rd<nntile::fp32_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
+            run_rd<nntile::core::fp32_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
             break;
         case DataType::FP32_FAST_TF32:
-            run_rd<nntile::fp32_fast_tf32_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
+            run_rd<nntile::core::fp32_fast_tf32_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
             break;
         case DataType::FP32_FAST_FP16:
-            run_rd<nntile::fp32_fast_fp16_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
+            run_rd<nntile::core::fp32_fast_fp16_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
             break;
         case DataType::FP32_FAST_BF16:
-            run_rd<nntile::fp32_fast_bf16_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
+            run_rd<nntile::core::fp32_fast_bf16_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
             break;
         case DataType::FP64:
-            run_rd<nntile::fp64_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
+            run_rd<nntile::core::fp64_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
             break;
         case DataType::FP16:
             throw std::runtime_error("FP16 not supported for tile randn in this build");
         case DataType::BF16:
-            run_rd<nntile::bf16_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
+            run_rd<nntile::core::bf16_t>(runtime, dst, start, underlying_shape, seed, mean, stddev);
             break;
         case DataType::INT64:
         case DataType::BOOL:

@@ -16,10 +16,10 @@
 
 #include <stdexcept>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/pow.hh>
+#include <nntile/core/tile/pow.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -35,7 +35,7 @@ void run_pow(
     TileGraph::TileNode* A)
 {
     auto& t = runtime.get_tile<T>(A);
-    nntile::tile::pow<T>(alpha, exp, t);
+    nntile::core::tile::pow<T>(alpha, exp, t);
 }
 
 } // namespace
@@ -57,25 +57,25 @@ void TilePowOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_pow<nntile::fp32_t>(runtime, alpha, exp, A);
+            run_pow<nntile::core::fp32_t>(runtime, alpha, exp, A);
             break;
         case DataType::FP32_FAST_TF32:
-            run_pow<nntile::fp32_fast_tf32_t>(runtime, alpha, exp, A);
+            run_pow<nntile::core::fp32_fast_tf32_t>(runtime, alpha, exp, A);
             break;
         case DataType::FP32_FAST_FP16:
-            run_pow<nntile::fp32_fast_fp16_t>(runtime, alpha, exp, A);
+            run_pow<nntile::core::fp32_fast_fp16_t>(runtime, alpha, exp, A);
             break;
         case DataType::FP32_FAST_BF16:
-            run_pow<nntile::fp32_fast_bf16_t>(runtime, alpha, exp, A);
+            run_pow<nntile::core::fp32_fast_bf16_t>(runtime, alpha, exp, A);
             break;
         case DataType::FP64:
-            run_pow<nntile::fp64_t>(runtime, alpha, exp, A);
+            run_pow<nntile::core::fp64_t>(runtime, alpha, exp, A);
             break;
         case DataType::FP16:
             throw std::runtime_error(
                 "FP16 data type not supported for tile pow");
         case DataType::BF16:
-            run_pow<nntile::bf16_t>(runtime, alpha, exp, A);
+            run_pow<nntile::core::bf16_t>(runtime, alpha, exp, A);
             break;
         case DataType::INT64:
         case DataType::BOOL:

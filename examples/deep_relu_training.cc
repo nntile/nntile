@@ -44,7 +44,7 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 using namespace nntile::graph::optim;
@@ -224,7 +224,7 @@ int main(int argc, char **argv)
 
     auto [loss_grad, loss_grad_first] =
         graph.get_or_create_grad(loss, "loss_grad");
-    graph::tensor::fill(Scalar(1.0), loss_grad->data());
+    nntile::graph::tensor::fill(Scalar(1.0), loss_grad->data());
 
     // ---- Backward pass ----
     loss->backward(true);

@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/norm.cc
- * Test TileGraph norm vs nntile::tile (parity).
+ * Test TileGraph norm vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/norm.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/norm.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/norm.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph norm matches tile", "[graph][tile]")
 {
     const std::vector<Index> sh = {2, 3};
     const Index nelems = 6;
@@ -43,8 +43,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm matches tile", "[
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> ts(sh), td(std::vector<Index>{});
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> ts(sh), td(std::vector<Index>{});
+    using Y = typename nntile::core::fp32_t::repr_t;
     {
         auto a = ts.acquire(STARPU_W);
         for(Index i = 0; i < nelems; ++i) { a[i] = Y(sv[static_cast<size_t>(i)]); }
@@ -55,7 +55,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm matches tile", "[
         b[0] = Y(0);
         b.release();
     }
-    nntile::tile::norm<fp32_t>(alpha, ts, beta, td);
+    nntile::core::tile::norm<fp32_t>(alpha, ts, beta, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(1);
     {

@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,9 +15,9 @@
 
 #include "nntile/graph/tile/ops/add.hh"
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/add.hh>
+#include <nntile/core/tile/add.hh>
 #include <stdexcept>
 #include <utility>
 
@@ -37,7 +38,7 @@ void run_add(Runtime &runtime,
     auto &x_t = runtime.get_tile<T>(x);
     auto &y_t = runtime.get_tile<T>(y);
     auto &z_t = runtime.get_tile<T>(z);
-    nntile::tile::add<T>(alpha, x_t, beta, y_t, z_t);
+    nntile::core::tile::add<T>(alpha, x_t, beta, y_t, z_t);
 }
 
 } // namespace
@@ -116,25 +117,25 @@ void TileAddOp::execute(Runtime &runtime) const
     switch (dtype)
     {
     case DataType::FP32:
-        run_add<nntile::fp32_t>(runtime, alpha, beta, x, y, z);
+        run_add<nntile::core::fp32_t>(runtime, alpha, beta, x, y, z);
         break;
     case DataType::FP32_FAST_TF32:
-        run_add<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, x, y, z);
+        run_add<nntile::core::fp32_fast_tf32_t>(runtime, alpha, beta, x, y, z);
         break;
     case DataType::FP32_FAST_FP16:
-        run_add<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, x, y, z);
+        run_add<nntile::core::fp32_fast_fp16_t>(runtime, alpha, beta, x, y, z);
         break;
     case DataType::FP32_FAST_BF16:
-        run_add<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, x, y, z);
+        run_add<nntile::core::fp32_fast_bf16_t>(runtime, alpha, beta, x, y, z);
         break;
     case DataType::FP64:
-        run_add<nntile::fp64_t>(runtime, alpha, beta, x, y, z);
+        run_add<nntile::core::fp64_t>(runtime, alpha, beta, x, y, z);
         break;
     case DataType::FP16:
-        run_add<nntile::fp16_t>(runtime, alpha, beta, x, y, z);
+        run_add<nntile::core::fp16_t>(runtime, alpha, beta, x, y, z);
         break;
     case DataType::BF16:
-        run_add<nntile::bf16_t>(runtime, alpha, beta, x, y, z);
+        run_add<nntile::core::bf16_t>(runtime, alpha, beta, x, y, z);
         break;
     case DataType::INT64:
     case DataType::BOOL:

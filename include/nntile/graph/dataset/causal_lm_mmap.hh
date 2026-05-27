@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 
 namespace nntile::graph::dataset
 {

@@ -55,7 +55,7 @@
 
 #include "gpt2_config_json.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::model::gpt2;
 using json = nlohmann::json;

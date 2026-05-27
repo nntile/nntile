@@ -13,7 +13,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 inline void throw_if_causal_flag_set(bool causal, const char* module_name)
@@ -25,4 +25,4 @@ inline void throw_if_causal_flag_set(bool causal, const char* module_name)
     }
 }
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

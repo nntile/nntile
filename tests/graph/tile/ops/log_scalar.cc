@@ -18,11 +18,11 @@
 #include "nntile/graph/tile/ops/log_scalar.hh"
 #include "nntile/graph/tile.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph log_scalar runs", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph log_scalar runs", "[graph][tile]")
 {
     TileGraph g("g");
     auto* v = g.data(std::vector<Index>{1}, "v", DataType::FP32);

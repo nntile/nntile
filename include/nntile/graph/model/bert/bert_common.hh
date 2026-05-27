@@ -13,7 +13,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 inline void throw_if_causal_flag_set(bool causal, const char* module_name)
@@ -25,4 +25,4 @@ inline void throw_if_causal_flag_set(bool causal, const char* module_name)
     }
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

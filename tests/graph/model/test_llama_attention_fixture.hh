@@ -20,7 +20,7 @@
 #include "test_llama_fixture_helpers.hh"
 #include <nntile/graph/model/llama/llama_config.hh>
 
-namespace nntile::test::llama_attention_fixture
+namespace nntile::graph::test::llama_attention_fixture
 {
 
 //! Basenames (no extension) for paired ``.json`` / ``.safetensors`` in
@@ -46,7 +46,7 @@ constexpr char llama_attention_gqa_no_rope_causal[] =
 //! Parsed ``<stem>.json`` (``version`` 2) next to ``<stem>.safetensors``.
 struct AttentionFixtureSpec
 {
-    nntile::model::llama::LlamaConfig config{};
+    nntile::graph::model::llama::LlamaConfig config{};
     Index seq = 0;
     Index batch = 0;
     Index hidden = 0;
@@ -134,4 +134,4 @@ inline bool skip_unless_fixture_ready(
 #endif
 }
 
-} // namespace nntile::test::llama_attention_fixture
+} // namespace nntile::graph::test::llama_attention_fixture

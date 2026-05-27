@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/conv2d_bwd_weight_inplace.cc
  * Test TensorGraph conv2d_bwd_weight_inplace operation against
- * nntile::tensor::conv2d_bwd_weight_inplace.
+ * nntile::core::tensor::conv2d_bwd_weight_inplace.
  *
  * @version 1.1.0
  * */
@@ -18,15 +18,15 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/conv2d_bwd_weight_inplace.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/conv2d_bwd_weight_inplace.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -157,17 +157,17 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dc_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
-    nntile::tensor::TensorTraits dy_traits(dy_shape, dy_shape);
-    nntile::tensor::TensorTraits dc_traits(dc_shape, dc_shape);
+    nntile::core::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::core::tensor::TensorTraits dy_traits(dy_shape, dy_shape);
+    nntile::core::tensor::TensorTraits dc_traits(dc_shape, dc_shape);
     std::vector<int> distr(1, distr_rank_single);
 
-    nntile::tensor::Tensor<T> x_t(x_traits, distr);
-    nntile::tensor::Tensor<T> dy_t(dy_traits, distr);
-    nntile::tensor::Tensor<T> dc_t(dc_traits, distr);
+    nntile::core::tensor::Tensor<T> x_t(x_traits, distr);
+    nntile::core::tensor::Tensor<T> dy_t(dy_traits, distr);
+    nntile::core::tensor::Tensor<T> dc_t(dc_traits, distr);
 
     auto init_tile =
-        [](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
+        [](nntile::core::tensor::Tensor<T> &t, const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -181,7 +181,7 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
     init_tile(dy_t, dy_data);
     init_tile(dc_t, dc_data);
 
-    nntile::tensor::conv2d_bwd_weight_inplace<T>(
+    nntile::core::tensor::conv2d_bwd_weight_inplace<T>(
         alpha, x_t, dy_t, beta, dc_t, padding, stride, dilation);
     starpu_task_wait_for_all();
 
@@ -203,7 +203,7 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
     }
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph conv2d_bwd_weight_inplace matches tensor API",
     "[graph][tensor]")
 {
@@ -223,6 +223,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 std::array<Index, 2>{1, 1},
                 std::array<Index, 2>{1, 1}});
 
-    check_conv2d_bwd_weight_inplace_vs_tensor_api<nntile::fp32_t>(
+    check_conv2d_bwd_weight_inplace_vs_tensor_api<nntile::core::fp32_t>(
         x_shape, dc_shape, alpha, beta, padding, stride, dilation);
 }

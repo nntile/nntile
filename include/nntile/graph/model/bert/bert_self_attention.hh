@@ -17,7 +17,7 @@
 #include <nntile/graph/model/bert/bert_config.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 //! Q/K/V projections and SDPA; output projection lives in BertSelfOutput.
@@ -50,4 +50,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

@@ -17,7 +17,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 T5ForConditionalGeneration::T5ForConditionalGeneration(
@@ -63,4 +63,4 @@ std::string T5ForConditionalGeneration::repr() const
            ", vocab=" + std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

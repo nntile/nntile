@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,10 +15,10 @@
 
 #include "nntile/graph/tile/ops/total_sum_accum.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/total_sum_accum.hh>
+#include <nntile/core/tile/total_sum_accum.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -32,8 +33,8 @@ void run(
     TileGraph::TileNode* v,
     Index ig)
 {
-    nntile::tile::total_sum_accum<T>(
-        a, runtime.get_tile<T>(lse), runtime.get_tile<T>(s), runtime.get_tile<nntile::int64_t>(cl), runtime.get_tile<nntile::fp32_t>(v), ig);
+    nntile::core::tile::total_sum_accum<T>(
+        a, runtime.get_tile<T>(lse), runtime.get_tile<T>(s), runtime.get_tile<nntile::core::int64_t>(cl), runtime.get_tile<nntile::core::fp32_t>(v), ig);
 }
 } // namespace
 void total_sum_accum(Scalar a, TileGraph::TileNode* lse, TileGraph::TileNode* src, TileGraph::TileNode* labels, TileGraph::TileNode* val, Index ignore_index)
@@ -55,25 +56,25 @@ void TileTotalSumAccumOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
+            run<nntile::core::fp32_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
+            run<nntile::core::fp32_fast_tf32_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
+            run<nntile::core::fp32_fast_fp16_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
+            run<nntile::core::fp32_fast_bf16_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
+            run<nntile::core::fp64_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
+            run<nntile::core::fp16_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
+            run<nntile::core::bf16_t>(runtime, alpha, logsumexp, src, class_labels, val, ignore_index);
             break;
         case DataType::INT64:
         case DataType::BOOL:

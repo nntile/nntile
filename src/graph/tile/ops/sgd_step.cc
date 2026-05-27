@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,10 +17,10 @@
 
 #include <stdexcept>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/sgd_step.hh>
+#include <nntile/core/tile/sgd_step.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -40,7 +41,7 @@ void run_sgd(
     TileGraph::TileNode* vel,
     TileGraph::TileNode* pn)
 {
-    nntile::tile::sgd_step<T>(num_iter, momentum, lr, weight_decay, dampening,
+    nntile::core::tile::sgd_step<T>(num_iter, momentum, lr, weight_decay, dampening,
         nesterov, runtime.get_tile<T>(g), runtime.get_tile<T>(vel),
         runtime.get_tile<T>(pn));
 }
@@ -97,31 +98,31 @@ void TileSgdStepOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_sgd<nntile::fp32_t>(runtime, num_iter, momentum, lr, weight_decay,
+            run_sgd<nntile::core::fp32_t>(runtime, num_iter, momentum, lr, weight_decay,
                 dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_TF32:
-            run_sgd<nntile::fp32_fast_tf32_t>(runtime, num_iter, momentum, lr,
+            run_sgd<nntile::core::fp32_fast_tf32_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_FP16:
-            run_sgd<nntile::fp32_fast_fp16_t>(runtime, num_iter, momentum, lr,
+            run_sgd<nntile::core::fp32_fast_fp16_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_BF16:
-            run_sgd<nntile::fp32_fast_bf16_t>(runtime, num_iter, momentum, lr,
+            run_sgd<nntile::core::fp32_fast_bf16_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP64:
-            run_sgd<nntile::fp64_t>(runtime, num_iter, momentum, lr, weight_decay,
+            run_sgd<nntile::core::fp64_t>(runtime, num_iter, momentum, lr, weight_decay,
                 dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP16:
-            run_sgd<nntile::fp16_t>(runtime, num_iter, momentum, lr, weight_decay,
+            run_sgd<nntile::core::fp16_t>(runtime, num_iter, momentum, lr, weight_decay,
                 dampening, nesterov, grad, velocity, p);
             break;
         case DataType::BF16:
-            run_sgd<nntile::bf16_t>(runtime, num_iter, momentum, lr, weight_decay,
+            run_sgd<nntile::core::bf16_t>(runtime, num_iter, momentum, lr, weight_decay,
                 dampening, nesterov, grad, velocity, p);
             break;
         case DataType::INT64:

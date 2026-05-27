@@ -99,13 +99,18 @@ if(NNTILE_USE_CUDA)
 endif()
 
 foreach(test IN LISTS TESTS_TENSOR_CATCH2)
+    set(_tg_labels graph)
+    if(test STREQUAL "add")
+        set(_tg_labels "graph smoke")
+    endif()
     add_test_set(TARGET_NAME tests_graph_tensor_ops_${test}
         EXEC_NAME test_${test}
         SOURCES ops/${test}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_tensor_ops_${test}
         COV_GLOBAL coverage_graph coverage
+        LABELS ${_tg_labels}
     )
     target_include_directories(tests_graph_tensor_ops_${test} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -115,7 +120,7 @@ foreach(test IN LISTS TESTS_TENSOR_ROOT_CATCH2)
     add_test_set(TARGET_NAME tests_graph_tensor_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_tensor_${test}
         COV_GLOBAL coverage_graph coverage
@@ -129,7 +134,7 @@ foreach(test IN LISTS TESTS_TENSOR_CUDA)
         EXEC_NAME test_${test}
         SOURCES ops/${test}.cc
         LINK_LIBRARIES
-            nntile
+            nntile_graph
             Catch2::Catch2WithMain
             $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}

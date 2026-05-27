@@ -35,7 +35,7 @@
 #include "pytorch_tile_helpers.hh"
 #endif
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 namespace gt = nntile::graph::tensor;
@@ -177,7 +177,7 @@ TEST_CASE("Linear BackwardCreatesGradients", "[module]")
 }
 
 #ifdef NNTILE_HAVE_TORCH
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Linear bind_weight applies data on compile",
     "[module]")
 {
@@ -195,7 +195,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         weight_data[i] = 0.1f * static_cast<float>(i + 1);
     linear.bind_weight(weight_data);
 
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -221,7 +221,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(std::abs(out[0] - expected) < 1e-5f);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Linear bind_bias applies data on compile",
     "[module]")
 {
@@ -242,7 +242,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         bias_data[i] = static_cast<float>(i + 1);
     linear.bind_bias(bias_data);
 
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -267,10 +267,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(std::abs(out[6] - 4.0f) < 1e-5f);
 }
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::pytorch_tolerance;
+using nntile::core::test::colmajor_to_rowmajor;
+using nntile::core::test::pytorch_tolerance;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Linear from PyTorch binds weight and bias in constructor",
     "[module][pytorch]")
 {
@@ -294,7 +294,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < batch * in_dim; ++i)
         input_data[i] = 0.1f * static_cast<float>(i + 1);
 
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -323,7 +323,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Linear forward matches PyTorch (no bias)",
     "[module][pytorch]")
 {
@@ -367,7 +367,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     linear.weight_tensor()->grad()->mark_output(true);
     input->grad()->mark_output(true);
 
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -409,11 +409,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.get_output<float>(input->grad());
     std::vector<float> nntile_grad_input_rowmajor =
         colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
-    nntile::test::compare_float_vectors(
+    nntile::core::test::compare_float_vectors(
         nntile_grad_input_rowmajor, input_pt.grad());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Linear forward matches PyTorch (with bias)",
     "[module][pytorch]")
 {
@@ -457,7 +457,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     linear.bias_tensor()->grad()->mark_output(true);
     input->grad()->mark_output(true);
 
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -497,18 +497,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_bias =
         runtime.get_output<float>(linear.bias_tensor()->grad());
-    nntile::test::compare_float_vectors(
+    nntile::core::test::compare_float_vectors(
         nntile_grad_bias, linear_pt->bias.grad());
 
     std::vector<float> nntile_grad_input =
         runtime.get_output<float>(input->grad());
     std::vector<float> nntile_grad_input_rowmajor =
         colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
-    nntile::test::compare_float_vectors(
+    nntile::core::test::compare_float_vectors(
         nntile_grad_input_rowmajor, input_pt.grad());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Linear from PyTorch forward-backward",
     "[module][pytorch]")
 {
@@ -550,7 +550,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         input->grad()->mark_output(true);
     }
 
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

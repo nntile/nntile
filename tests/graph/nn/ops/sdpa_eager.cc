@@ -28,10 +28,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph sdpa_eager forward",
     "[graph][nn_graph]")
 {
@@ -63,7 +63,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(softmax_count == 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph sdpa_eager forward with mask",
     "[graph][nn_graph]")
 {
@@ -87,7 +87,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(mask_count == 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph sdpa_eager validates shape",
     "[graph][nn_graph]")
 {
@@ -103,14 +103,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1;
-using nntile::test::nn_pytorch_tile_mask_nn;
-using nntile::test::permute_rowmajor;
-using nntile::test::pytorch_tolerance;
+using nntile::core::test::colmajor_to_rowmajor;
+using nntile::core::test::compare_float_vectors;
+using nntile::core::test::nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1;
+using nntile::core::test::nn_pytorch_tile_mask_nn;
+using nntile::core::test::permute_rowmajor;
+using nntile::core::test::pytorch_tolerance;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph sdpa_eager forward and backward match PyTorch",
     "[graph][nn_graph][pytorch]")
 {

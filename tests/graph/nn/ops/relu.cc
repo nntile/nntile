@@ -23,11 +23,11 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph relu structure",
     "[graph][nn_graph]")
 {
@@ -46,7 +46,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph relu backward", "[graph][nn_graph]")
+    nntile::core::test::ContextFixture, "NNGraph relu backward", "[graph][nn_graph]")
 {
     const auto [shape, grad_fill_val] =
         GENERATE(std::tuple{std::vector<Index>{2, 3}, Scalar(1.0)},
@@ -64,7 +64,7 @@ TEST_CASE_METHOD(
     REQUIRE(x->grad()->shape() == shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph relu forward and backward",
     "[graph][nn_graph]")
 {
@@ -92,10 +92,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::core::test::compare_float_vectors;
+using nntile::core::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph relu forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -133,7 +133,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     compare_float_vectors(nntile_out, y_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph relu backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

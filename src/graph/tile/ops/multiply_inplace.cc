@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/multiply_inplace.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/multiply_inplace.hh>
+#include <nntile/core/tile/multiply_inplace.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -25,7 +25,7 @@ namespace
 template<typename T>
 void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::tile::multiply_inplace<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d));
+    nntile::core::tile::multiply_inplace<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d));
 }
 } // namespace
 void multiply_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)
@@ -46,25 +46,25 @@ void TileMultiplyInplaceOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, alpha, src, dst);
+            run<nntile::core::fp32_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, alpha, src, dst);
+            run<nntile::core::fp32_fast_tf32_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, alpha, src, dst);
+            run<nntile::core::fp32_fast_fp16_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, alpha, src, dst);
+            run<nntile::core::fp32_fast_bf16_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, alpha, src, dst);
+            run<nntile::core::fp64_t>(runtime, alpha, src, dst);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, alpha, src, dst);
+            run<nntile::core::fp16_t>(runtime, alpha, src, dst);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, alpha, src, dst);
+            run<nntile::core::bf16_t>(runtime, alpha, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

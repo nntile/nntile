@@ -33,7 +33,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
     add_test_set(TARGET_NAME tests_graph_model_${test_name}
         EXEC_NAME test_${test_name}
         SOURCES ${test_path}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_model_${test_name}
         COV_GLOBAL coverage_graph_model coverage
@@ -137,7 +137,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
     add_test_set(TARGET_NAME tests_graph_model_${test_name}
         EXEC_NAME test_${test_name}
         SOURCES ${test_path}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_model_${test_name}
         COV_GLOBAL coverage_graph_model coverage
@@ -214,7 +214,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
     add_test_set(TARGET_NAME tests_graph_model_${test_name}
         EXEC_NAME test_${test_name}
         SOURCES ${test_path}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_model_${test_name}
         COV_GLOBAL coverage_graph_model coverage
@@ -290,7 +290,7 @@ endforeach()
 add_test_set(TARGET_NAME tests_graph_model_safetensors_nntile_layout
     EXEC_NAME test_safetensors_nntile_layout
     SOURCES safetensors_nntile_layout.cc
-    LINK_LIBRARIES nntile Catch2::Catch2WithMain
+    LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_graph_model_safetensors_nntile_layout
     COV_GLOBAL coverage_graph_model coverage
@@ -322,7 +322,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
     add_test_set(TARGET_NAME tests_graph_model_${test_name}
         EXEC_NAME test_${test_name}
         SOURCES ${test_path}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_model_${test_name}
         COV_GLOBAL coverage_graph_model coverage
@@ -423,7 +423,7 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
     add_test_set(TARGET_NAME tests_graph_model_${test_name}
         EXEC_NAME test_${test_name}
         SOURCES ${test_path}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_model_${test_name}
         COV_GLOBAL coverage_graph_model coverage
@@ -501,7 +501,7 @@ foreach(test_path IN LISTS TESTS_MODEL_BERT)
     add_test_set(TARGET_NAME tests_graph_model_${test_name}
         EXEC_NAME test_${test_name}
         SOURCES ${test_path}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_model_${test_name}
         COV_GLOBAL coverage_graph_model coverage
@@ -559,7 +559,7 @@ foreach(test_path IN LISTS TESTS_MODEL_ROBERTA)
     add_test_set(TARGET_NAME tests_graph_model_${test_name}
         EXEC_NAME test_${test_name}
         SOURCES ${test_path}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile_graph Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_model_${test_name}
         COV_GLOBAL coverage_graph_model coverage

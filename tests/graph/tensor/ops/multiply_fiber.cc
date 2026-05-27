@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/multiply_fiber.cc
  * Test TensorGraph multiply_fiber operation against
- * nntile::tensor::multiply_fiber.
+ * nntile::core::tensor::multiply_fiber.
  *
  * @version 1.1.0
  * */
@@ -19,14 +19,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/multiply_fiber.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/multiply_fiber.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -106,14 +106,14 @@ void check_multiply_fiber_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(out_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
-    nntile::tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
+    nntile::core::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
+    nntile::core::tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
     std::vector<int> fiber_distr(fiber_traits.grid.nelems, distr_rank_single);
     std::vector<int> tensor_distr(
         tensor_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
-    nntile::tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
-    nntile::tensor::Tensor<T> out_t(tensor_traits, tensor_distr);
+    nntile::core::tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
+    nntile::core::tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
+    nntile::core::tensor::Tensor<T> out_t(tensor_traits, tensor_distr);
 
     {
         auto tile = fiber_t.get_tile(0);
@@ -134,7 +134,7 @@ void check_multiply_fiber_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::multiply_fiber<T>(alpha, fiber_t, tensor_t, out_t, axis);
+    nntile::core::tensor::multiply_fiber<T>(alpha, fiber_t, tensor_t, out_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(tensor_nelems);
@@ -188,8 +188,8 @@ TEST_CASE(
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_fiber matches nntile::tensor::multiply_fiber",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph multiply_fiber matches nntile::core::tensor::multiply_fiber",
     "[graph][tensor]")
 {
     const auto [tensor_shape, axis, alpha] = GENERATE(
@@ -201,11 +201,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{
             std::vector<Index>{dim_2, dim_3, dim_4}, axis_2, alpha_two});
 
-    check_multiply_fiber_vs_tensor_api<nntile::fp32_t>(
+    check_multiply_fiber_vs_tensor_api<nntile::core::fp32_t>(
         tensor_shape, axis, alpha);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph multiply_fiber tiled matches untiled",
     "[graph][tensor]")
 {
@@ -213,7 +213,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
             std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = T::repr_t;
     std::vector<Index> fiber_sh = fiber_shape(tensor_shape, axis);
     const Index tensor_nelems = std::accumulate(tensor_shape.begin(),

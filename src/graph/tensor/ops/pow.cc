@@ -16,10 +16,10 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/pow.hh"
+#include "nntile/core/tensor/pow.hh"
 
 #include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>

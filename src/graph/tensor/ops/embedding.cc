@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -20,8 +21,8 @@
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/clear.hh"
 #include "nntile/graph/tile/ops/embedding.hh"
-#include "nntile/tensor/embedding.hh"
-#include "nntile/tile/traits.hh"
+#include "nntile/core/tensor/embedding.hh"
+#include "nntile/core/tile/traits.hh"
 
 #include <stdexcept>
 #include <vector>
@@ -173,7 +174,7 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
         const Index k_axis = embed_ts[static_cast<size_t>(axis)];
         const Index vocab_span = (k_axis - 1) / vocab_b0 + 1;
 
-        nntile::tile::TileTraits embed_traits(embed_ts);
+        nntile::core::tile::TileTraits embed_traits(embed_ts);
         const Index m = embed_traits.stride[axis];
         const Index n =
             embed_traits.matrix_shape[static_cast<size_t>(axis) + 1][1];
@@ -191,7 +192,7 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
                 TileGraph::TileNode *vocab_tile =
                     tiles_v[static_cast<size_t>(lin_v)];
                 const auto vocab_ts = lay_v->tile_shape_at(vocab_coord);
-                nntile::tile::TileTraits vocab_traits(vocab_ts);
+                nntile::core::tile::TileTraits vocab_traits(vocab_ts);
 
                 const Index k_start = (tv0 - vocab_tile0_start) * vocab_b0;
                 const Index k_size = vocab_traits.shape[0];

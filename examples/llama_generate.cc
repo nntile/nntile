@@ -54,7 +54,7 @@
 #include <unistd.h>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::model::llama;
 using json = nlohmann::json;

@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -18,7 +19,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 Index gptneox_rope_dim(GptneoxConfig const& config)
@@ -104,4 +105,4 @@ void rope_sin_cos_from_position_ids(
     }
 }
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

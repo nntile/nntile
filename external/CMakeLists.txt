@@ -37,4 +37,6 @@ FetchContent_MakeAvailable(nlohmann_json)
 #include(GoogleTest)
 
 # Append external sources and headers.
-target_sources(nntile PRIVATE "random.h")
+if(BUILD_CORE)
+    target_sources(nntile_core PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/random.h")
+endif()

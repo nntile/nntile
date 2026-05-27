@@ -20,8 +20,8 @@ import nntile
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-hypot = {np.float32: nntile.nntile_core.tensor.hypot_fp32,
-         np.float64: nntile.nntile_core.tensor.hypot_fp64}
+hypot = {np.float32: nntile.core.tensor.hypot_fp32,
+         np.float64: nntile.core.tensor.hypot_fp64}
 
 
 def hypot_numpy(alpha, src1, beta, src2):
@@ -143,7 +143,7 @@ def test_hypot_async(context, dtype):
     dst.from_array(dst_data)
 
     # Apply hypot async
-    from nntile.nntile_core import tensor as core_tensor
+    from nntile.core import tensor as core_tensor
     hypot_async_func = {np.float32: core_tensor.hypot_async_fp32,
                        np.float64: core_tensor.hypot_async_fp64}
     hypot_async_func[dtype](1.5, src1, -0.5, src2, dst)

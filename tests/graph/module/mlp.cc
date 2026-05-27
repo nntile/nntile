@@ -37,7 +37,7 @@
 #include "pytorch_tile_helpers.hh"
 #endif
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 namespace gt = nntile::graph::tensor;
@@ -132,9 +132,9 @@ TEST_CASE("Mlp ActivationTypes", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
-using nntile::test::pytorch_tolerance;
+using nntile::core::test::colmajor_to_rowmajor;
+using nntile::core::test::compare_float_vectors;
+using nntile::core::test::pytorch_tolerance;
 
 namespace
 {
@@ -159,7 +159,7 @@ torch::Tensor apply_activation_pt(torch::Tensor x, ActivationType t)
 
 } // anonymous namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Mlp forward and backward match PyTorch",
     "[module][pytorch]")
 {
@@ -275,7 +275,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
     input->grad()->mark_output(true);
 
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -331,14 +331,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         std::vector<float> nntile_grad_b1 =
             runtime.get_output<float>(mlp.fc1().bias_tensor()->grad());
-        nntile::test::compare_float_vectors(
+        nntile::core::test::compare_float_vectors(
             nntile_grad_b1, fc1->bias.grad(), tol);
     }
     if (mlp.fc2().bias_tensor())
     {
         std::vector<float> nntile_grad_b2 =
             runtime.get_output<float>(mlp.fc2().bias_tensor()->grad());
-        nntile::test::compare_float_vectors(
+        nntile::core::test::compare_float_vectors(
             nntile_grad_b2, fc2->bias.grad(), tol);
     }
 
@@ -346,11 +346,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.get_output<float>(input->grad());
     std::vector<float> nntile_grad_input_rowmajor =
         colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
-    nntile::test::compare_float_vectors(
+    nntile::core::test::compare_float_vectors(
         nntile_grad_input_rowmajor, input_pt.grad(), tol);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Mlp from PyTorch forward-backward",
     "[module][pytorch]")
 {
@@ -398,7 +398,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         input->grad()->mark_output(true);
     }
 
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

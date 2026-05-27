@@ -24,7 +24,7 @@
 #include <numeric>
 #include <tuple>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 namespace layout = nntile::graph::tile_graph_layout_io;
@@ -124,7 +124,7 @@ TEST_CASE("TensorGraph concat rejects invalid arguments")
     REQUIRE_THROWS_AS(gt::concat(a, b_1d, 0), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph concat matches Fortran reference (untiled)",
     "[graph][tensor]")
 {
@@ -181,7 +181,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph concat tiled matches untiled",
     "[graph][tensor]")
 {

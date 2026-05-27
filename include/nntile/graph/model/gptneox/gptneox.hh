@@ -16,10 +16,10 @@
 
 #include <nntile/graph/model/gptneox/gptneox_model.hh>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 //! Gptneox - same as GptneoxModel (embedding + decoder layers + final norm)
 using Gptneox = GptneoxModel;
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

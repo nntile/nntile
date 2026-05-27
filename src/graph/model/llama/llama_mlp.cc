@@ -16,7 +16,7 @@
 
 #include "nntile/graph/nn/ops/transpose.hh"
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 LlamaMLP::LlamaMLP(graph::NNGraph *graph,
@@ -51,4 +51,4 @@ std::string LlamaMLP::repr() const
     return "LlamaMLP(" + graph::module::GatedMlp::repr() + ")";
 }
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

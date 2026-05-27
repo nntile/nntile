@@ -13,7 +13,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 BertLayer::BertLayer(graph::NNGraph* graph,
@@ -56,4 +56,4 @@ std::string BertLayer::repr() const
     return "BertLayer(hidden=" + std::to_string(config_.hidden_size) + ")";
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

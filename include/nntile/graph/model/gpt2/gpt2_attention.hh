@@ -25,7 +25,7 @@
 #include <nntile/graph/model/gpt2/gpt2_config.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 //! GPT2Attention - Q/K/V projections, SDPA, output projection
@@ -70,4 +70,4 @@ public:
     Index num_heads() const { return n_heads_; }
 };
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

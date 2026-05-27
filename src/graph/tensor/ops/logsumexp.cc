@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -20,7 +21,7 @@
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/logsumexp.hh"
-#include "nntile/tensor/logsumexp.hh"
+#include "nntile/core/tensor/logsumexp.hh"
 
 #include <stdexcept>
 #include <utility>
@@ -30,7 +31,7 @@ namespace nntile::graph::tensor
 
 void TensorLogsumexpOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    // Match nntile::tensor::logsumexp_async (src/tensor/logsumexp.cc).
+    // Match nntile::core::tensor::logsumexp_async (src/tensor/logsumexp.cc).
     const TensorAxisLayout *lay_src = ctx.tiling.find(src);
     const TensorAxisLayout *lay_dst = ctx.tiling.find(dst);
     if (lay_src == nullptr || lay_dst == nullptr)

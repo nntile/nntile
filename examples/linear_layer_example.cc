@@ -24,7 +24,7 @@ namespace gt = nntile::graph::tensor;
 int main(int argc, char **argv)
 {
     // Initialize NNTile context (this initializes StarPU)
-    nntile::Context context(1, // ncpu: number of CPU workers
+    nntile::core::Context context(1, // ncpu: number of CPU workers
         0,                     // ncuda: number of CUDA workers
         0,                     // ooc: enable Out-of-Core (0=disabled)
         "/tmp/nntile_ooc",     // ooc_path: path for OOC disk
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
     // Attach an external gradient to the output (e.g., loss gradient)
     auto [grad_output_tensor, _] =
         graph.get_or_create_grad(output_tensor, "external_grad_output");
-    gt::fill(nntile::Scalar(1.0f), grad_output_tensor->data());
+    gt::fill(nntile::core::Scalar(1.0f), grad_output_tensor->data());
 
     // Bind weight data early (before compile); Runtime::compile() will apply
     // it

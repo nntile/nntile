@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,13 +15,13 @@
 
 #include "nntile/graph/tensor/ops/gemm.hh"
 
-#include "nntile/base_types.hh"
-#include "nntile/constants.hh"
+#include "nntile/core/base_types.hh"
+#include "nntile/core/constants.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/graph_ops.hh"
-#include "nntile/tensor/gemm.hh"
+#include "nntile/core/tensor/gemm.hh"
 
 #include <sstream>
 #include <stdexcept>

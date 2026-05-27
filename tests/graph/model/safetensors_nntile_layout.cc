@@ -13,7 +13,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using nntile::test::safetensors_nntile_layout::c_safetensors_to_nntile_fortran;
+using nntile::graph::test::safetensors_nntile_layout::c_safetensors_to_nntile_fortran;
 
 TEST_CASE(
     "c_safetensors_to_nntile_fortran permutes 2-D C-order payload",

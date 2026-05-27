@@ -17,7 +17,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 // ── T5EncoderBlock ─────────────────────────────────────────────────────────
@@ -129,4 +129,4 @@ std::string T5DecoderBlock::repr() const
     return "T5DecoderBlock(d_model=" + std::to_string(config_.d_model) + ")";
 }
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

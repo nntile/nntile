@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <nntile/graph/common.hh>
+
 // Tensor-level and tile-level graph headers (nntile/graph/tensor.hh has no
 // tile dependency; include both here for a full stack entry point).
 #include <nntile/graph/tensor.hh>

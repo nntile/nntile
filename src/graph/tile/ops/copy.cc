@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/copy.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/copy.hh>
+#include <nntile/core/tile/copy.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -25,7 +25,7 @@ namespace
 template<typename T>
 void run_cp(Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::tile::copy<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d));
+    nntile::core::tile::copy<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
 } // namespace
 void copy(TileGraph::TileNode* src, TileGraph::TileNode* dst)
@@ -46,31 +46,31 @@ void TileCopyOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_cp<nntile::fp32_t>(runtime, src, dst);
+            run_cp<nntile::core::fp32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_cp<nntile::fp32_fast_tf32_t>(runtime, src, dst);
+            run_cp<nntile::core::fp32_fast_tf32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_cp<nntile::fp32_fast_fp16_t>(runtime, src, dst);
+            run_cp<nntile::core::fp32_fast_fp16_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_cp<nntile::fp32_fast_bf16_t>(runtime, src, dst);
+            run_cp<nntile::core::fp32_fast_bf16_t>(runtime, src, dst);
             break;
         case DataType::FP64:
-            run_cp<nntile::fp64_t>(runtime, src, dst);
+            run_cp<nntile::core::fp64_t>(runtime, src, dst);
             break;
         case DataType::FP16:
-            run_cp<nntile::fp16_t>(runtime, src, dst);
+            run_cp<nntile::core::fp16_t>(runtime, src, dst);
             break;
         case DataType::BF16:
-            run_cp<nntile::bf16_t>(runtime, src, dst);
+            run_cp<nntile::core::bf16_t>(runtime, src, dst);
             break;
         case DataType::INT64:
-            run_cp<nntile::int64_t>(runtime, src, dst);
+            run_cp<nntile::core::int64_t>(runtime, src, dst);
             break;
         case DataType::BOOL:
-            run_cp<nntile::bool_t>(runtime, src, dst);
+            run_cp<nntile::core::bool_t>(runtime, src, dst);
             break;
         default:
             throw std::runtime_error("Unsupported data type for tile copy");

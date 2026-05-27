@@ -25,11 +25,11 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rms_norm structure",
     "[graph][nn_graph]")
 {
@@ -52,7 +52,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.tensor_graph().num_ops() > 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rms_norm backward",
     "[graph][nn_graph]")
 {
@@ -77,7 +77,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(gamma->grad()->shape() == gamma_shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rms_norm forward and backward",
     "[graph][nn_graph]")
 {
@@ -111,16 +111,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
-using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
-using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
-using nntile::test::pytorch_tolerance;
+using nntile::core::test::colmajor_to_rowmajor;
+using nntile::core::test::compare_float_vectors;
+using nntile::core::test::nn_pytorch_tile_heterogeneous_1d_len6;
+using nntile::core::test::nn_pytorch_tile_heterogeneous_1d_len7;
+using nntile::core::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::core::test::pytorch_tolerance;
 
 // PyTorch rms_norm normalizes over trailing dimensions. We test with axis =
 // ndim-1 to match.
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rms_norm forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -196,7 +196,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     compare_float_vectors(nntile_out, y_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rms_norm backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

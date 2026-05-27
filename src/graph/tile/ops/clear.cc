@@ -16,10 +16,10 @@
 
 #include <stdexcept>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/clear.hh>
+#include <nntile/core/tile/clear.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -33,7 +33,7 @@ void run_clear(
     TileGraph::TileNode* x)
 {
     auto& x_t = runtime.get_tile<T>(x);
-    nntile::tile::clear<T>(x_t);
+    nntile::core::tile::clear<T>(x_t);
 }
 
 } // namespace
@@ -57,31 +57,31 @@ void TileClearOp::execute(
     switch(dtype)
     {
         case DataType::FP32:
-            run_clear<nntile::fp32_t>(runtime, x);
+            run_clear<nntile::core::fp32_t>(runtime, x);
             break;
         case DataType::FP32_FAST_TF32:
-            run_clear<nntile::fp32_fast_tf32_t>(runtime, x);
+            run_clear<nntile::core::fp32_fast_tf32_t>(runtime, x);
             break;
         case DataType::FP32_FAST_FP16:
-            run_clear<nntile::fp32_fast_fp16_t>(runtime, x);
+            run_clear<nntile::core::fp32_fast_fp16_t>(runtime, x);
             break;
         case DataType::FP32_FAST_BF16:
-            run_clear<nntile::fp32_fast_bf16_t>(runtime, x);
+            run_clear<nntile::core::fp32_fast_bf16_t>(runtime, x);
             break;
         case DataType::FP64:
-            run_clear<nntile::fp64_t>(runtime, x);
+            run_clear<nntile::core::fp64_t>(runtime, x);
             break;
         case DataType::FP16:
-            run_clear<nntile::fp16_t>(runtime, x);
+            run_clear<nntile::core::fp16_t>(runtime, x);
             break;
         case DataType::BF16:
-            run_clear<nntile::bf16_t>(runtime, x);
+            run_clear<nntile::core::bf16_t>(runtime, x);
             break;
         case DataType::INT64:
-            run_clear<nntile::int64_t>(runtime, x);
+            run_clear<nntile::core::int64_t>(runtime, x);
             break;
         case DataType::BOOL:
-            run_clear<nntile::bool_t>(runtime, x);
+            run_clear<nntile::core::bool_t>(runtime, x);
             break;
         default:
             throw std::runtime_error("Unsupported data type for tile clear");

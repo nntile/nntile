@@ -16,7 +16,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 

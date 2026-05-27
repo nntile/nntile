@@ -29,7 +29,7 @@
 #include <nntile/graph/module/activation.hh>
 #include <nntile/graph/module/mlp.hh>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 //! GPT-Neo MLP - up_proj -> GELU (gelutanh) -> down_proj
@@ -55,4 +55,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

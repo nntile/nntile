@@ -13,7 +13,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 RobertaMlm::RobertaMlm(graph::NNGraph* graph,
@@ -58,4 +58,4 @@ std::string RobertaMlm::repr() const
            std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

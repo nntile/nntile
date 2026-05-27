@@ -25,7 +25,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/layer_norm.hh>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 //! GPT-Neo decoder block: ln_1 -> attention -> residual -> ln_2 -> MLP -> residual
@@ -58,4 +58,4 @@ public:
     GptneoMLP& mlp() { return mlp_; }
 };
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

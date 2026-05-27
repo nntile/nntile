@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,15 +15,15 @@
 
 #include "nntile/graph/tensor/ops/maxsumexp.hh"
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/ops/clear.hh"
 #include "nntile/graph/tile/ops/maxsumexp.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/maxsumexp.hh"
+#include "nntile/core/tensor/clear.hh"
+#include "nntile/core/tensor/maxsumexp.hh"
 
 #include <stdexcept>
 #include <utility>
@@ -92,7 +93,7 @@ void maxsumexp(TensorGraph::TensorNode *src,
 
 void TensorMaxsumexpOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    // Match nntile::tensor::maxsumexp_async: iterate dst tiles, aggregate
+    // Match nntile::core::tensor::maxsumexp_async: iterate dst tiles, aggregate
     // all src tiles along `axis` into each dst tile (see
     // src/tensor/maxsumexp.cc).
     const TensorAxisLayout *lay_src = ctx.tiling.find(src);

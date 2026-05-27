@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/randn.cc
- * Test TileGraph randn vs nntile::tile (parity).
+ * Test TileGraph randn vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/randn.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/randn.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]")
+#include "nntile/core/tile/randn.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph randn", "[graph][tile]")
 {
     const std::vector<Index> sh = {3,4,5};
     const std::vector<Index> st = {1,1,1}, us = {5,6,7};
@@ -37,8 +37,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]
     r.execute();
     r.wait();
     const auto gout = r.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> Td(sh);
-    nntile::tile::randn<fp32_t>(Td, st, us, seed, mean, std);
+    nntile::core::tile::Tile<fp32_t> Td(sh);
+    nntile::core::tile::randn<fp32_t>(Td, st, us, seed, mean, std);
     starpu_task_wait_for_all();
     std::vector<float> tref(60);
     { auto L=Td.acquire(STARPU_R);

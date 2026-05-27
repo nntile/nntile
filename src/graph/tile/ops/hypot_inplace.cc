@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/hypot_inplace.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/hypot_inplace.hh>
+#include <nntile/core/tile/hypot_inplace.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +26,7 @@ template<typename T>
 void run(
     Runtime& runtime, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d)
 {
-    nntile::tile::hypot_inplace<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
+    nntile::core::tile::hypot_inplace<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
 }
 } // namespace
 void hypot_inplace(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNode* dst)
@@ -49,24 +49,24 @@ void TileHypotInplaceOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, alpha, src, beta, dst);
+            run<nntile::core::fp32_t>(runtime, alpha, src, beta, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, alpha, src, beta, dst);
+            run<nntile::core::fp32_fast_tf32_t>(runtime, alpha, src, beta, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, alpha, src, beta, dst);
+            run<nntile::core::fp32_fast_fp16_t>(runtime, alpha, src, beta, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, alpha, src, beta, dst);
+            run<nntile::core::fp32_fast_bf16_t>(runtime, alpha, src, beta, dst);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, alpha, src, beta, dst);
+            run<nntile::core::fp64_t>(runtime, alpha, src, beta, dst);
             break;
         case DataType::FP16:
             throw std::runtime_error("FP16 not supported for tile hypot_inplace in this build");
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, alpha, src, beta, dst);
+            run<nntile::core::bf16_t>(runtime, alpha, src, beta, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:
