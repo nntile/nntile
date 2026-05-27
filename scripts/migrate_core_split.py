@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-shot physical layout + include/namespace rewrites for core/graph split."""
+"""One-shot layout + include/namespace rewrites for core/graph split."""
 from __future__ import annotations
 
 import re
@@ -18,6 +18,7 @@ CORE_LAYERS = (
     "logger",
     "base_types",
 )
+
 
 def rewrite_includes(text: str) -> str:
     # Manual cleaner pass
@@ -151,7 +152,11 @@ def main() -> None:
 
     changed = 0
     for path in ROOT.rglob("*"):
-        if path.is_file() and "build" not in path.parts and ".git" not in path.parts:
+        if (
+            path.is_file()
+            and "build" not in path.parts
+            and ".git" not in path.parts
+        ):
             if process_file(path):
                 changed += 1
     print(f"Rewrote {changed} files")

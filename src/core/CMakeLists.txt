@@ -427,4 +427,3 @@ set(NNTILE_CORE_SRC
 )
 
 target_sources(nntile_core PRIVATE ${NNTILE_CORE_SRC})
-

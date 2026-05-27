@@ -16,11 +16,11 @@ from typing import Sequence
 
 import numpy as np
 
-from nntile.functions import clear_async, copy_async, fill_async, gather_async
 from nntile.core.tensor import (
     Tensor_bf16, Tensor_bool, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16,
     Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_fp64, Tensor_int64,
     TensorTraits)
+from nntile.functions import clear_async, copy_async, fill_async, gather_async
 from nntile.types import Tensor
 
 nnt2np_type_mapping = {

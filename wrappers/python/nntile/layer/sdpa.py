@@ -18,10 +18,10 @@ from typing import Optional
 import numpy as np
 
 import nntile.utils.constructors as nntc
+from nntile.core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
 from nntile.functions import (
     flash_sdpa_bwd_cudnn_async, flash_sdpa_fwd_cudnn_async, is_tensor_of)
 from nntile.layer.base_layer import BaseLayer
-from nntile.core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
     add_slice_inplace_async, clear_async, copy_intersection_async, fill_async,
