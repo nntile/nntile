@@ -92,7 +92,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
+        if: github.event.pull_request
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$(pwd)"
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+          git checkout ${{ github.event.pull_request.head.ref }}
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
@@ -188,7 +197,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
+        if: github.event.pull_request
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$(pwd)"
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+          git checkout ${{ github.event.pull_request.head.ref }}
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100
       - name: Download nntile_core artifact
         uses: actions/download-artifact@v8
         with:
