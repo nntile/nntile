@@ -68,6 +68,7 @@ jobs:
           export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
             -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TESTS=OFF \
             -DBUILD_TESTS_PYTORCH=OFF \
             -DBUILD_PYTHON_WRAPPERS=OFF
 

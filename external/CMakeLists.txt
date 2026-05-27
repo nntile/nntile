@@ -15,8 +15,10 @@ include(FetchContent)
 
 #add_subdirectory(googletest)
 #add_subdirectory(nvbench)
-add_subdirectory(pybind11)
-FetchContent_MakeAvailable(pybind11)
+if(BUILD_PYTHON_WRAPPERS)
+    add_subdirectory(pybind11)
+    FetchContent_MakeAvailable(pybind11)
+endif()
 
 FetchContent_Declare(
     Catch2
