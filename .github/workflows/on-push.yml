@@ -129,13 +129,14 @@ jobs:
             numpy safetensors "transformers<4.53"
       - name: Check core include paths
         run: .github/scripts/check-core-includes.sh .
-      - name: Restore ccache
+      - name: Restore ccache (core)
         uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}
+          key: ccache-nntile-${{ runner.os }}-core-${{ github.sha }}
           restore-keys: |
-            ccache-nntile-${{ runner.os }}
+            ccache-nntile-${{ runner.os }}-core-
+            ccache-nntile-${{ runner.os }}-
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=2G
@@ -158,11 +159,11 @@ jobs:
           cmake --build build -j
           cmake --build build --target nntile_compile_smoke
           cmake --install build
-      - name: Save ccache
+      - name: Save ccache (core)
         uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}
+          key: ccache-nntile-${{ runner.os }}-core-${{ github.run_id }}
       - name: Show ccache stats
         if: always()
         run: ccache --show-stats
@@ -248,13 +249,22 @@ jobs:
             torch --index-url https://download.pytorch.org/whl/cpu
           $HOME/.local/bin/uv pip install --system \
             numpy safetensors "transformers<4.53"
-      - name: Restore ccache
+      - name: Restore ccache (core)
         uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}
+          key: ccache-nntile-${{ runner.os }}-core-${{ github.sha }}
           restore-keys: |
-            ccache-nntile-${{ runner.os }}
+            ccache-nntile-${{ runner.os }}-core-
+            ccache-nntile-${{ runner.os }}-
+      - name: Restore ccache (graph)
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-nntile-${{ runner.os }}-graph-${{ github.sha }}
+          restore-keys: |
+            ccache-nntile-${{ runner.os }}-graph-
+            ccache-nntile-${{ runner.os }}-
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=2G
@@ -277,11 +287,11 @@ jobs:
             -DCMAKE_PREFIX_PATH="${NNTILE_INSTALL}:${TORCH_PREFIX}"
           cmake --build build -j
           cmake --build build --target nntile_compile_smoke
-      - name: Save ccache
+      - name: Save ccache (graph)
         uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}
+          key: ccache-nntile-${{ runner.os }}-graph-${{ github.run_id }}
       - name: Show ccache stats
         if: always()
         run: ccache --show-stats
