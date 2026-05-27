@@ -77,6 +77,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-pr-checkout
+        if: github.event_name == 'pull_request'
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -150,6 +152,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-pr-checkout
+        if: github.event_name == 'pull_request'
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -223,10 +227,11 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-pr-checkout
+        if: github.event_name == 'pull_request'
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
-          deepen-pr: 'true'
       - name: Download core C++ test build tree
         uses: actions/download-artifact@v8
         with:
@@ -277,6 +282,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-pr-checkout
+        if: github.event_name == 'pull_request'
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -378,6 +385,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-pr-checkout
+        if: github.event_name == 'pull_request'
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -460,10 +469,11 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-pr-checkout
+        if: github.event_name == 'pull_request'
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
-          deepen-pr: 'true'
       - name: Download graph C++ test build tree
         uses: actions/download-artifact@v8
         with:
@@ -514,10 +524,11 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-pr-checkout
+        if: github.event_name == 'pull_request'
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
-          deepen-pr: 'false'
       - name: Download nntile_graph library
         uses: actions/download-artifact@v8
         with:

@@ -8,15 +8,15 @@ inputs:
     description: Python version for setup-python
     required: true
   deepen-pr:
-    description: Deepen and checkout PR head when event is pull_request
+    description: >-
+      Deprecated; run ./.github/actions/nntile-pr-checkout after checkout
+      instead (StarPU cache restore must not run before the repo exists).
     required: false
-    default: 'true'
+    default: 'false'
 runs:
   using: composite
   steps:
     - uses: ./.github/actions/nntile-starpu-setup
-    - uses: ./.github/actions/nntile-pr-checkout
-      if: inputs.deepen-pr == 'true'
     - name: Set up Python ${{ inputs.python-version }}
       uses: actions/setup-python@v6
       with:
