@@ -428,10 +428,10 @@ void nn_pytorch_tile_gemm_batched_operands(NNGraph::TensorNode *a,
 
 } // namespace
 
-using nntile::core::test::colmajor_to_rowmajor;
-using nntile::core::test::nn_pytorch_tile_gemm_operands_6_7_6;
-using nntile::core::test::permute_rowmajor;
-using nntile::core::test::require_relative_frobenius_error;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::nn_pytorch_tile_gemm_operands_6_7_6;
+using nntile::graph::test::permute_rowmajor;
+using nntile::graph::test::require_relative_frobenius_error;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm forward matches PyTorch",

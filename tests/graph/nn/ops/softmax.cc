@@ -97,10 +97,10 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::core::test::colmajor_to_rowmajor;
-using nntile::core::test::compare_float_vectors;
-using nntile::core::test::nn_pytorch_tile_softmax_axis0_6x7;
-using nntile::core::test::nn_pytorch_tile_softmax_axis1_6x7;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::nn_pytorch_tile_softmax_axis0_6x7;
+using nntile::graph::test::nn_pytorch_tile_softmax_axis1_6x7;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph softmax forward matches PyTorch",

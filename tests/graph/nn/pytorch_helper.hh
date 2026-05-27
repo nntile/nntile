@@ -72,10 +72,12 @@ inline void require_relative_frobenius_error(const std::vector<float>& a,
 
 #include <torch/torch.h>
 
-#include "nntile/core/base_types.hh"
+#include <nntile/graph/common.hh>
 
 namespace nntile::graph::test
 {
+
+using nntile::graph::Index;
 
 //! Default relative tolerance for float comparison with PyTorch (element and Frobenius).
 constexpr float pytorch_tolerance = 1e-5f;

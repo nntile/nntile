@@ -79,8 +79,8 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::core::test::compare_float_vectors;
-using nntile::core::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply forward matches PyTorch",

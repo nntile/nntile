@@ -103,12 +103,12 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::core::test::colmajor_to_rowmajor;
-using nntile::core::test::compare_float_vectors;
-using nntile::core::test::nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1;
-using nntile::core::test::nn_pytorch_tile_mask_nn;
-using nntile::core::test::permute_rowmajor;
-using nntile::core::test::pytorch_tolerance;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1;
+using nntile::graph::test::nn_pytorch_tile_mask_nn;
+using nntile::graph::test::permute_rowmajor;
+using nntile::graph::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph sdpa_eager forward and backward match PyTorch",

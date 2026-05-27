@@ -190,7 +190,7 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::core::test::compare_float_vectors;
+using nntile::graph::test::compare_float_vectors;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph add forward matches PyTorch",

@@ -113,8 +113,8 @@ torch::Tensor apply_activation_pt(torch::Tensor x, ActivationType t)
 
 } // anonymous namespace
 
-using nntile::core::test::compare_float_vectors;
-using nntile::core::test::pytorch_tolerance;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Activation forward and backward match PyTorch",
@@ -157,7 +157,7 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
 
     input->grad()->mark_output(true);
 
-    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

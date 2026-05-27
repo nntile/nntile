@@ -161,7 +161,7 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     emb.bind_weight(vocab_data);
 
     nntile::core::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
-    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -186,8 +186,8 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
         REQUIRE(std::abs(out[i * stride] - vocab_data[i]) < 1e-5f);
 }
 
-using nntile::core::test::colmajor_to_rowmajor;
-using nntile::core::test::pytorch_tolerance;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Embedding from PyTorch binds weight in constructor",
@@ -215,7 +215,7 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
 
     nntile::core::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
-    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -279,7 +279,7 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     emb.vocab_tensor()->grad()->mark_output(true);
 
     nntile::core::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
-    nntile::core::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

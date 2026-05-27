@@ -128,13 +128,13 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::core::test::colmajor_to_rowmajor;
-using nntile::core::test::compare_float_vectors;
-using nntile::core::test::nn_pytorch_tile_index_4x5;
-using nntile::core::test::nn_pytorch_tile_index_len3;
-using nntile::core::test::nn_pytorch_tile_vocab_10x10;
-using nntile::core::test::nn_pytorch_tile_vocab_8x8;
-using nntile::core::test::pytorch_tolerance;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::nn_pytorch_tile_index_4x5;
+using nntile::graph::test::nn_pytorch_tile_index_len3;
+using nntile::graph::test::nn_pytorch_tile_vocab_10x10;
+using nntile::graph::test::nn_pytorch_tile_vocab_8x8;
+using nntile::graph::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph embedding forward matches PyTorch",

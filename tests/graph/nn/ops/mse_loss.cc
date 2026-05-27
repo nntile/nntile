@@ -95,9 +95,9 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::core::test::colmajor_to_rowmajor;
-using nntile::core::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
-using nntile::core::test::require_relative_frobenius_error;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::graph::test::require_relative_frobenius_error;
 
 TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph mse_loss forward and backward match PyTorch",
