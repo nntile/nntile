@@ -259,10 +259,12 @@ if(BUILD_CORE)
         FILES_MATCHING PATTERN "*.hh"
     )
     install(
-        FILES
-            "${PROJECT_SOURCE_DIR}/include/nntile.hh"
-            "${PROJECT_SOURCE_DIR}/include/nntile/core.hh"
+        FILES "${PROJECT_SOURCE_DIR}/include/nntile.hh"
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+    install(
+        FILES "${PROJECT_SOURCE_DIR}/include/nntile/core.hh"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nntile
     )
     install(
         FILES "${PROJECT_BINARY_DIR}/include/nntile/core/defs.h"
