@@ -130,13 +130,12 @@ jobs:
       - name: Check core include paths
         run: .github/scripts/check-core-includes.sh .
       - name: Restore ccache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
           key: ccache-nntile-${{ runner.os }}
           restore-keys: |
             ccache-nntile-${{ runner.os }}
-          save-always: true
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=2G
@@ -159,6 +158,11 @@ jobs:
           cmake --build build -j
           cmake --build build --target nntile_compile_smoke
           cmake --install build
+      - name: Save ccache
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-nntile-${{ runner.os }}
       - name: Show ccache stats
         if: always()
         run: ccache --show-stats
@@ -245,13 +249,12 @@ jobs:
           $HOME/.local/bin/uv pip install --system \
             numpy safetensors "transformers<4.53"
       - name: Restore ccache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
           key: ccache-nntile-${{ runner.os }}
           restore-keys: |
             ccache-nntile-${{ runner.os }}
-          save-always: true
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=2G
@@ -274,6 +277,11 @@ jobs:
             -DCMAKE_PREFIX_PATH="${NNTILE_INSTALL}:${TORCH_PREFIX}"
           cmake --build build -j
           cmake --build build --target nntile_compile_smoke
+      - name: Save ccache
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-nntile-${{ runner.os }}
       - name: Show ccache stats
         if: always()
         run: ccache --show-stats
