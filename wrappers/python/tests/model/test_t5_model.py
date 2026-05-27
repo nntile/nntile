@@ -46,9 +46,9 @@ dtype2np = {
 }
 
 dtype2tol = {
-    "fp32": {"rtol": 2.5e-5},
-    "fp32_fast_tf32": {"rtol": 1e-4},
-    "bf16": {"rtol": 3e-3},
+    "fp32": {"rtol": 2.5e-5, "convert_rtol": 4e-5},
+    "fp32_fast_tf32": {"rtol": 1e-4, "convert_rtol": 1e-4},
+    "bf16": {"rtol": 3e-3, "convert_rtol": 3e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")
@@ -462,8 +462,8 @@ class TestT5Model:
                 use_cache=False,
             ).logits
 
-        # Compare results
-        rtol = dtype2tol[dtype]["rtol"]
+        # Compare results (round-trip conversion is looser than direct forward)
+        rtol = dtype2tol[dtype]["convert_rtol"]
         assert_rel_frobenius_close(
             y_original, y_converted, rtol, label="convert_logits"
         )
