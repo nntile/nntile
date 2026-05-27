@@ -17,11 +17,11 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from conftest import assert_rel_frobenius_close
 from transformers.models.t5.modeling_t5 import (
     T5Config as T5ConfigTorch, T5LayerFF as T5LayerFFTorch)
 
 import nntile
-from conftest import assert_rel_frobenius_close
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.model.t5_ff import T5LayerFF
 from nntile.tensor import TensorMoments, TensorTraits

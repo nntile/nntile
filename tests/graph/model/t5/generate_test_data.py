@@ -40,6 +40,8 @@ from transformers.models.t5.modeling_t5 import (
 
 # Graph ``T5Attention`` has no learned relative-position bias (T5 RoPE/RPE).
 # HF enables it on the first layer of each stack; turn it off for references.
+
+
 def _disable_self_attn_relative_bias(block: PtBlock) -> None:
     block.layer[0].SelfAttention.has_relative_attention_bias = False
 

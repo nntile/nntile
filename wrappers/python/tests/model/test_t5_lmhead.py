@@ -18,12 +18,12 @@ import numpy as np
 import pytest
 import torch
 import torch.nn as nn
+from conftest import assert_allclose_report
 # Import the official HuggingFace implementation
 from transformers.models.t5.modeling_t5 import T5Config as T5ConfigTorch
 
 import nntile
 import nntile.utils.constructors as nntc
-from conftest import assert_allclose_report
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.model.t5_lmhead import T5ClassificationHead
 from nntile.tensor import TensorMoments, TensorTraits

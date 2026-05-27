@@ -74,7 +74,10 @@ def benchmark_model(benchmark):
 
 
 def rel_frobenius_error(ref, got) -> float:
-    """Relative Frobenius error ||ref - got|| / ||ref|| (T5 wrapper test convention)."""
+    """Relative Frobenius error ||ref - got|| / ||ref||.
+
+    T5 wrapper test convention.
+    """
     import torch
 
     ref_t = ref.detach() if hasattr(ref, "detach") else ref

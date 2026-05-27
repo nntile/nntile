@@ -17,11 +17,11 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from conftest import assert_rel_frobenius_close
 from transformers.models.t5.modeling_t5 import (
     T5Attention as T5AttentionTorch, T5Config as T5ConfigTorch)
 
 import nntile
-from conftest import assert_rel_frobenius_close
 from nntile.layer.t5_attention import (
     T5Attention, relative_position_bucket_numpy)
 from nntile.model.t5_config import T5ConfigNNTile

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from conftest import assert_rel_frobenius_close
 from transformers import T5Tokenizer
 from transformers.models.t5.modeling_t5 import (
     T5Config as T5ConfigTorch,
@@ -26,7 +27,6 @@ from transformers.models.t5.modeling_t5 import (
 import nntile
 import nntile.functions
 import nntile.utils.constructors as nntc
-from conftest import assert_rel_frobenius_close
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.model.t5_model import T5ForSequenceClassification, T5Model
 from nntile.tensor import TensorMoments, TensorTraits
