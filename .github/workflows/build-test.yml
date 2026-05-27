@@ -1,12 +1,20 @@
-name: Build and test (reusable)
+name: Build and test
 
 on:
+  push:
+    branches:
+      - main
+      - graph_api
+  pull_request:
+    branches:
+      - main
+      - graph_api
   workflow_call:
     inputs:
       is-pull-request:
         description: >-
           When true, run dirty C++ and Python tests on PR diffs instead of
-          full suites.
+          full suites. Ignored when this workflow is triggered by pull_request.
         required: false
         type: boolean
         default: false
@@ -237,7 +245,9 @@ jobs:
           ctest --test-dir build -L smoke -E wrappers -LE "(MPI|NotImplemented)" \
             --output-on-failure
       - name: Run dirty C++ tests (core)
-        if: inputs.is-pull-request == true
+        if: >-
+          github.event_name == 'pull_request' ||
+          inputs.is-pull-request == true
         run: |
           export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           .github/scripts/run-dirty-cpp-tests.sh \
@@ -245,7 +255,9 @@ jobs:
             ${{ github.base_ref }} \
             core
       - name: Run core C++ tests
-        if: inputs.is-pull-request == false
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.is-pull-request != true
         run: |
           export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           ctest --test-dir build -L core -E wrappers -LE "(MPI|NotImplemented)" \
@@ -477,7 +489,9 @@ jobs:
           ctest --test-dir build -L smoke -E wrappers -LE "(MPI|NotImplemented)" \
             --output-on-failure
       - name: Run dirty C++ tests (graph)
-        if: inputs.is-pull-request == true
+        if: >-
+          github.event_name == 'pull_request' ||
+          inputs.is-pull-request == true
         run: |
           export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           .github/scripts/run-dirty-cpp-tests.sh \
@@ -485,7 +499,9 @@ jobs:
             ${{ github.base_ref }} \
             graph
       - name: Run graph C++ tests
-        if: inputs.is-pull-request == false
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.is-pull-request != true
         run: |
           export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           ctest --test-dir build -L graph -E wrappers -LE "(MPI|NotImplemented)" \
@@ -635,7 +651,9 @@ jobs:
             --index https://pypi.org/simple \
             --index-strategy unsafe-best-match
       - name: Run dirty tests with PyTest
-        if: inputs.is-pull-request == true
+        if: >-
+          github.event_name == 'pull_request' ||
+          inputs.is-pull-request == true
         run: |
           . .venv/bin/activate
           export LD_LIBRARY_PATH=$PWD/build/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
@@ -646,7 +664,9 @@ jobs:
             ${{ github.event.pull_request.head.ref }} \
             ${{ github.base_ref }}
       - name: Run all tests with PyTest
-        if: inputs.is-pull-request == false
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.is-pull-request != true
         run: |
           . .venv/bin/activate
           export LD_LIBRARY_PATH=$PWD/build/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
