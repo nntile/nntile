@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from conftest import assert_rel_frobenius_close
 from transformers.models.t5.modeling_t5 import (
     T5Block as T5BlockTorch, T5Config as T5ConfigTorch)
 
@@ -41,9 +42,9 @@ dtype2np = {
 }
 
 dtype2tol = {
-    "fp32": {"rtol": 4.5e-5},
-    "fp32_fast_tf32": {"rtol": 7e-4},
-    "bf16": {"rtol": 1.2e-2},
+    "fp32": {"rtol": 1e-5},
+    "fp32_fast_tf32": {"rtol": 5e-5},
+    "bf16": {"rtol": 2e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")
@@ -237,7 +238,7 @@ class TestT5Block:
 
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="forward")
 
     def test_backward(
         self, context, torch_rng, params: T5BlockTestParams, dtype: str
@@ -260,8 +261,9 @@ class TestT5Block:
         # Compare gradients
         grad_nntile = torch.Tensor(nntc.to_numpy(nntile_block.activations[0].grad).T)
         rtol = dtype2tol[dtype]["rtol"]
-
-        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
+        assert_rel_frobenius_close(
+            x.grad, grad_nntile, rtol, label="backward_input"
+        )
 
         # Clean up
         nntile_block.unregister()

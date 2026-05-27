@@ -194,8 +194,10 @@ void cross_attention_backward_compare_ref(const CrossAttentionFixtureSpec &fx)
         auto *input =
             g.tensor({fx.hidden, fx.dec_seq, fx.batch}, DataType::FP32, true)
                 ->set_name("input");
+        // Encoder states are fixed keys/values; only decoder ``input`` grads
+        // are compared to the Hugging Face reference.
         auto *encoder_input =
-            g.tensor({fx.hidden, fx.enc_seq, fx.batch}, DataType::FP32, true)
+            g.tensor({fx.hidden, fx.enc_seq, fx.batch}, DataType::FP32, false)
                 ->set_name("encoder_input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;

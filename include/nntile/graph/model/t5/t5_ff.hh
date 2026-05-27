@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/model/t5/t5_ff.hh
- * T5LayerFF - layer_norm + gated MLP (GELU) + residual.
+ * T5LayerFF - layer_norm + gated MLP (GELUTANH / HF gelu_new) + residual.
  *
  * T5 uses: layer_norm -> DenseReluDense -> add(x, ...)
  * DenseReluDense: wo(gate(wi_0(x)) * wi_1(x)) with GELU activation.
@@ -30,8 +30,8 @@
 namespace nntile::model::t5
 {
 
-//! T5LayerFF - layer_norm -> gated MLP (GELU) -> residual add
-//! Architecture: x + wo(GELU(wi_0(x)) * wi_1(x))
+//! T5LayerFF - layer_norm -> gated MLP (GELUTANH) -> residual add
+//! Architecture: x + wo(GELUTANH(wi_0(x)) * wi_1(x))
 class T5LayerFF : public graph::module::Module
 {
 private:

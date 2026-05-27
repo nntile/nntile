@@ -32,7 +32,7 @@ T5LayerFF::T5LayerFF(graph::NNGraph* graph,
              config.d_model,
              config.d_ff,
              config.d_model,
-             graph::module::ActivationType::GELU,
+             graph::module::ActivationType::GELUTANH,
              dtype)
     , config_(config)
     , dtype_(dtype)

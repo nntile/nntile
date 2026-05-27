@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from conftest import assert_rel_frobenius_close
 from transformers import T5Tokenizer
 from transformers.models.t5.modeling_t5 import (
     T5Config as T5ConfigTorch,
@@ -45,9 +46,9 @@ dtype2np = {
 }
 
 dtype2tol = {
-    "fp32": {"rtol": 6e-4},
-    "fp32_fast_tf32": {"rtol": 2.0e-3},
-    "bf16": {"rtol": 3.2e-2},
+    "fp32": {"rtol": 2.5e-5, "convert_rtol": 4e-5},
+    "fp32_fast_tf32": {"rtol": 1e-4, "convert_rtol": 1e-4},
+    "bf16": {"rtol": 3e-3, "convert_rtol": 3e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")
@@ -273,8 +274,10 @@ class TestT5Model:
 
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(
+            y_encoder, y_encoder_nntile, rtol, label="encoder_forward"
+        )
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="decoder_forward")
 
         # Clean up
         nntile_model.unregister()
@@ -310,8 +313,10 @@ class TestT5Model:
 
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(
+            y_encoder, y_encoder_nntile, rtol, label="encoder_forward"
+        )
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="decoder_forward")
 
         # Clean up
         nntile_model.unregister()
@@ -358,9 +363,12 @@ class TestT5Model:
         )
 
         rtol = dtype2tol[dtype]["rtol"]
-
-        assert torch.norm(enc_x.grad - enc_grad_nntile) <= rtol * torch.norm(enc_x.grad)
-        assert torch.norm(dec_x.grad - dec_grad_nntile) <= rtol * torch.norm(dec_x.grad)
+        assert_rel_frobenius_close(
+            enc_x.grad, enc_grad_nntile, rtol, label="backward_encoder"
+        )
+        assert_rel_frobenius_close(
+            dec_x.grad, dec_grad_nntile, rtol, label="backward_decoder"
+        )
 
         # Clean up
         nntile_model.unregister()
@@ -454,9 +462,11 @@ class TestT5Model:
                 use_cache=False,
             ).logits
 
-        # Compare results
-        rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y_original - y_converted) <= rtol * torch.norm(y_original)
+        # Compare results (round-trip conversion is looser than direct forward)
+        rtol = dtype2tol[dtype]["convert_rtol"]
+        assert_rel_frobenius_close(
+            y_original, y_converted, rtol, label="convert_logits"
+        )
 
         # Clean up
         nntile_model.unregister()

@@ -42,6 +42,9 @@ struct T5Config
 
     std::string feed_forward_proj = "gated-gelu";  // gated-gelu for T5
     bool is_gated_act = true;
+    //! HF ``T5ForConditionalGeneration``: scale decoder output by
+    //! ``d_model**-0.5`` before ``lm_head`` when embeddings are tied.
+    bool tie_word_embeddings = true;
 
     int pad_token_id = 0;
     int eos_token_id = 1;

@@ -73,6 +73,46 @@ def benchmark_model(benchmark):
     return bench_fn
 
 
+def rel_frobenius_error(ref, got) -> float:
+    """Relative Frobenius error ||ref - got|| / ||ref||.
+
+    T5 wrapper test convention.
+    """
+    import torch
+
+    ref_t = ref.detach() if hasattr(ref, "detach") else ref
+    got_t = got.detach() if hasattr(got, "detach") else got
+    ref_norm = torch.norm(ref_t)
+    diff_norm = torch.norm(ref_t - got_t)
+    if ref_norm == 0:
+        return float(diff_norm)
+    return float(diff_norm / ref_norm)
+
+
+def assert_rel_frobenius_close(
+    ref, got, rtol: float, label: str = ""
+) -> None:
+    rel_err = rel_frobenius_error(ref, got)
+    prefix = f"{label}: " if label else ""
+    print(f"{prefix}rel_err={rel_err:.6e} rtol={rtol:.6e}")
+    assert rel_err <= rtol, (
+        f"{prefix}rel_err={rel_err:.6e} exceeds rtol={rtol:.6e}"
+    )
+
+
+def assert_allclose_report(
+    ref_np, got_np, label: str = "", **allclose_kwargs
+) -> None:
+    max_abs = float(np.max(np.abs(ref_np - got_np)))
+    atol = allclose_kwargs.get("atol", 0.0)
+    rtol = allclose_kwargs.get("rtol", 0.0)
+    prefix = f"{label}: " if label else ""
+    print(
+        f"{prefix}max_abs_err={max_abs:.6e} atol={atol:.6e} rtol={rtol:.6e}"
+    )
+    np.testing.assert_allclose(ref_np, got_np, **allclose_kwargs)
+
+
 def pytest_collection_modifyitems(config, items):
     # If the user asked for benchmarks (e.g., `-m benchmark`), don't skip them
     markexpr = config.getoption("-m") or ""

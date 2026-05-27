@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 import torch
 import torch.nn as nn
+from conftest import assert_allclose_report
 # Import the official HuggingFace implementation
 from transformers.models.t5.modeling_t5 import T5Config as T5ConfigTorch
 
@@ -35,9 +36,9 @@ dtype2nntile = {
 }
 
 dtype2tol = {
-    "fp32": {"atol": 5e-4},
-    "fp32_fast_tf32": {"atol": 5e-4},
-    "bf16": {"atol": 1e-2},
+    "fp32": {"atol": 1e-6},
+    "fp32_fast_tf32": {"atol": 5e-6},
+    "bf16": {"atol": 1e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")
@@ -188,8 +189,11 @@ class TestT5ClassificationHead:
         y_nntile = torch.Tensor(nntc.to_numpy(nntile_head.activations[-1].value).T)
 
         # Check if results match
-        np.testing.assert_allclose(
-            y_torch.detach().numpy(), y_nntile.detach().numpy(), **dtype2tol[dtype]
+        assert_allclose_report(
+            y_torch.detach().numpy(),
+            y_nntile.detach().numpy(),
+            label="forward",
+            **dtype2tol[dtype],
         )
 
     def test_backward(
@@ -208,8 +212,9 @@ class TestT5ClassificationHead:
 
         # Compare gradients for input
         x_grad_nntile = torch.Tensor(nntc.to_numpy(nntile_head.activations[0].grad).T)
-        np.testing.assert_allclose(
+        assert_allclose_report(
             x_torch.grad.detach().numpy(),
             x_grad_nntile.detach().numpy(),
+            label="backward_input",
             **dtype2tol[dtype],
         )

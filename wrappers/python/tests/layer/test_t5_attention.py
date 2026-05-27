@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from conftest import assert_rel_frobenius_close
 from transformers.models.t5.modeling_t5 import (
     T5Attention as T5AttentionTorch, T5Config as T5ConfigTorch)
 
@@ -42,9 +43,9 @@ dtype2np = {
 }
 
 dtype2tol = {
-    "fp32": {"rtol": 3e-4},
-    "fp32_fast_tf32": {"rtol": 1.3e-3},
-    "bf16": {"rtol": 4e-2},
+    "fp32": {"rtol": 2e-6},
+    "fp32_fast_tf32": {"rtol": 1e-5},
+    "bf16": {"rtol": 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")
@@ -240,7 +241,7 @@ class TestT5Attention:
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations_output[0].value).T)
         # nntile_layer.unregister()
         rtol = dtype2tol[dtype]["rtol"]
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert_rel_frobenius_close(y, y_nntile, rtol, label="forward")
 
         nntile_layer.unregister()
 
@@ -270,23 +271,30 @@ class TestT5Attention:
 
         grad_nntile = torch.Tensor(to_numpy(nntile_layer.activations_input[0].grad).T)
         rtol = dtype2tol[dtype]["rtol"]
-
-        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
+        assert_rel_frobenius_close(
+            x.grad, grad_nntile, rtol, label="backward_input"
+        )
         if params.has_relative_bias:
             nnt_bias_grad = torch.Tensor(
                 to_numpy(nntile_layer.relative_bias_embedding.grad).T
             )
-            assert torch.norm(
-                nnt_bias_grad - torch_layer.relative_attention_bias.weight.grad
-            ) <= rtol * torch.norm(torch_layer.relative_attention_bias.weight.grad)
+            assert_rel_frobenius_close(
+                torch_layer.relative_attention_bias.weight.grad,
+                nnt_bias_grad,
+                rtol,
+                label="backward_relative_bias",
+            )
 
         if is_cross_attn:
             encoder_output_grad = torch.Tensor(
                 to_numpy(nntile_layer.activations_input[1].grad).T
             )
-            assert torch.norm(
-                encoder_output_grad - encoder_output_torch.grad
-            ) <= rtol * torch.norm(encoder_output_torch.grad)
+            assert_rel_frobenius_close(
+                encoder_output_torch.grad,
+                encoder_output_grad,
+                rtol,
+                label="backward_encoder",
+            )
 
         nntile_layer.unregister()
 

@@ -7,13 +7,18 @@
 # @file tests/graph/model/t5/generate_test_data.py
 # Generate T5 building-block test data in safetensors format.
 #
-# @version 1.1.0
+# @version 1.2.0
 
 """Generate reference test data for NNTile T5 graph C++ tests.
 
-Reference forwards/backwards mirror the C++ graph API (RMSNorm, gated GELU,
-``sdpa_eager`` layout, HF→NNTile weight layouts from
-``examples/t5_generate.py``).
+Uses **Hugging Face Transformers** (``modeling_t5``) for forward and backward
+references. Weight tensors are converted to the NNTile graph layout (same
+naming and Fortran-order bytes as ``examples/t5_generate.py``). Mask tensors
+stored for C++ use the ``sdpa_eager`` layout expected by graph tests.
+
+PyTorch runs with ``_attn_implementation="eager"`` and ``cache_position`` on
+attention modules, matching
+``wrappers/python/tests/layer/test_t5_attention.py``.
 """
 
 from __future__ import annotations
@@ -26,13 +31,19 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from safetensors.numpy import save_file
 from transformers import T5Config
 from transformers.models.t5.modeling_t5 import (
     T5Attention as PtAttention, T5Block as PtBlock,
     T5ForConditionalGeneration as PtConditional, T5LayerFF as PtLayerFF,
     T5Model as PtModel)
+
+# Graph ``T5Attention`` has no learned relative-position bias (T5 RoPE/RPE).
+# HF enables it on the first layer of each stack; turn it off for references.
+
+
+def _disable_self_attn_relative_bias(block: PtBlock) -> None:
+    block.layer[0].SelfAttention.has_relative_attention_bias = False
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -225,118 +236,7 @@ def _conditional_weights(
     return d
 
 
-# ── NNTile-graph reference ops (match C++) ───────────────────────────────
-
-
-def _nntile_to_math_array(w_nt: np.ndarray) -> np.ndarray:
-    """Invert :func:`fortran_order` for PyTorch / NumPy math."""
-    a = np.asarray(w_nt, dtype=np.float32)
-    return a.ravel("C").reshape(a.shape, order="F")
-
-
-def _weight_for_matmul(w_nt: np.ndarray) -> torch.Tensor:
-    return torch.tensor(_nntile_to_math_array(w_nt))
-
-
-def _cyclic_transpose(x: torch.Tensor, ndim: int) -> torch.Tensor:
-    n = x.dim()
-    perm = [(i + ndim) % n for i in range(n)]
-    return x.permute(perm).contiguous()
-
-
-def _pt_bsd_to_dsb(x: torch.Tensor) -> torch.Tensor:
-    """PyTorch ``(B,S,D)`` → NNTile ``(D,S,B)``."""
-    return x.permute(2, 1, 0).contiguous()
-
-
-def _pt_dsb_to_bsd(x: torch.Tensor) -> torch.Tensor:
-    """NNTile ``(D,S,B)`` → PyTorch ``(B,S,D)``."""
-    return x.permute(2, 1, 0).contiguous()
-
-
-def _pt_rms_norm_dsb(
-    x: torch.Tensor, gamma: torch.Tensor, eps: float,
-) -> torch.Tensor:
-    """RMSNorm on axis 0 of ``(D,S,B)`` (C++ ``RMSNorm(..., axis=0)``)."""
-    rms = torch.rsqrt(x.pow(2).mean(dim=0, keepdim=True) + eps)
-    return x * rms * gamma.view(-1, 1, 1)
-
-
-def _pt_gated_mlp(
-    x: torch.Tensor,
-    gate_w: torch.Tensor,
-    up_w: torch.Tensor,
-    down_w: torch.Tensor,
-) -> torch.Tensor:
-    gate = x @ gate_w
-    up = x @ up_w
-    hidden = F.gelu(gate) * up
-    return hidden @ down_w
-
-
-def _pt_sdpa_eager(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    mask: torch.Tensor | None,
-) -> torch.Tensor:
-    """Match ``graph::sdpa_eager`` (scale = 1/sqrt(q.shape[0]))."""
-    scale = 1.0 / (q.shape[0] ** 0.5)
-    scores = torch.einsum("hsbn,htbn->stbn", k, q) * scale
-    if mask is not None:
-        scores = torch.where(
-            mask > 0.5,
-            scores,
-            torch.full_like(scores, -torch.finfo(scores.dtype).max),
-        )
-    attn = torch.softmax(scores, dim=0)
-    return torch.einsum("hsbn,stbn->htbn", v, attn)
-
-
-def _pt_t5_attention(
-    x: torch.Tensor,
-    w_q: torch.Tensor,
-    w_k: torch.Tensor,
-    w_v: torch.Tensor,
-    w_o: torch.Tensor,
-    encoder: torch.Tensor | None = None,
-    mask: torch.Tensor | None = None,
-) -> torch.Tensor:
-    k_src = encoder if encoder is not None else x
-    x_dsb = x.permute(2, 1, 0).contiguous()
-    k_dsb = k_src.permute(2, 1, 0).contiguous()
-    q_proj = torch.einsum("hkd,dsb->hksb", w_q, x_dsb)
-    k_proj = torch.einsum("hkd,dsb->hksb", w_k, k_dsb)
-    v_proj = torch.einsum("hkd,dsb->hksb", w_v, k_dsb)
-    q = _cyclic_transpose(q_proj, 1)
-    k = _cyclic_transpose(k_proj, 1)
-    v = _cyclic_transpose(v_proj, 1)
-    if mask is not None:
-        # mask (k_seq, q_seq) float → (k_seq, q_seq, 1, 1)
-        m = mask.unsqueeze(-1).unsqueeze(-1)
-    else:
-        m = None
-    attn_out = _pt_sdpa_eager(q, k, v, m)
-    attn_t = _cyclic_transpose(attn_out, 3)
-    out = torch.einsum("dnh,nhsb->dsb", w_o, attn_t)
-    return out.permute(2, 1, 0).contiguous()
-
-
-def _pt_t5_ff(
-    x: torch.Tensor,
-    gamma: torch.Tensor,
-    gate_w: torch.Tensor,
-    up_w: torch.Tensor,
-    down_w: torch.Tensor,
-    eps: float,
-) -> torch.Tensor:
-    """Match ``T5LayerFF``: RMS → transpose → GatedMlp → transpose → add."""
-    x_dsb = _pt_bsd_to_dsb(x)
-    x_norm = _pt_rms_norm_dsb(x_dsb, gamma, eps)
-    x_t = _cyclic_transpose(x_norm, 1)
-    ff = _pt_gated_mlp(x_t, gate_w, up_w, down_w)
-    ff_dsb = _cyclic_transpose(ff, 2)
-    return _pt_dsb_to_bsd(x_dsb + ff_dsb)
+# ── Input / output / mask helpers ─────────────────────────────────────────
 
 
 def _hidden_input(
@@ -371,174 +271,51 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
     return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
 
 
+def _cache_position(hidden_states: torch.Tensor) -> torch.Tensor:
+    return torch.arange(
+        hidden_states.shape[1],
+        dtype=torch.long,
+        device=hidden_states.device,
+    )
+
+
+def _hf_causal_attention_mask_4d(
+    batch: int,
+    seq: int,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Additive causal mask ``(batch, 1, seq, seq)`` for HF ``T5Attention``."""
+    mask = torch.zeros(batch, 1, seq, seq, device=device, dtype=dtype)
+    upper = torch.triu(
+        torch.ones(seq, seq, device=device, dtype=torch.bool), diagonal=1,
+    )
+    min_val = torch.finfo(dtype).min
+    return mask.masked_fill(upper.unsqueeze(0).unsqueeze(0), min_val)
+
+
 def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
     kk = np.arange(seq, dtype=np.int64)[:, None]
     qq = np.arange(seq, dtype=np.int64)[None, :]
     return fortran_order((kk <= qq).astype(np.float32))
 
 
-def _mask_from_fortran(
-    m_nt: np.ndarray, k_seq: int, q_seq: int,
-) -> torch.Tensor:
-    """Decode ``(k_seq, q_seq)`` mask stored with :func:`fortran_order`."""
-    m = _nntile_to_math_array(m_nt.reshape(k_seq, q_seq))
-    return torch.tensor(m)
-
-
 def _cross_attn_mask_fortran(enc_seq: int, dec_seq: int) -> np.ndarray:
-    """``(k_seq, q_seq)`` = ``(enc_seq, dec_seq)`` for ``sdpa_eager``."""
+    """``(k_seq, q_seq)`` = ``(enc_seq, dec_seq)`` for graph ``sdpa_eager``."""
     return fortran_order(np.ones((enc_seq, dec_seq), dtype=np.float32))
 
 
-def _pt_t5_ff_from_data(
-    x_pt: torch.Tensor,
-    data: dict[str, np.ndarray],
-    prefix: str,
-    eps: float,
-) -> torch.Tensor:
-    gamma = _weight_for_matmul(data[f"{prefix}.layer_norm.gamma"])
-    gate_w = _weight_for_matmul(data[f"{prefix}.dense.gate_proj.weight"])
-    up_w = _weight_for_matmul(data[f"{prefix}.dense.up_proj.weight"])
-    down_w = _weight_for_matmul(data[f"{prefix}.dense.down_proj.weight"])
-    return _pt_t5_ff(x_pt, gamma, gate_w, up_w, down_w, eps)
-
-
-def _pt_t5_attn_from_data(
-    x_pt: torch.Tensor,
-    data: dict[str, np.ndarray],
-    prefix: str,
-    encoder_pt: torch.Tensor | None = None,
-    mask: torch.Tensor | None = None,
-) -> torch.Tensor:
-    w_q = _weight_for_matmul(data[f"{prefix}.q_weight"])
-    w_k = _weight_for_matmul(data[f"{prefix}.k_weight"])
-    w_v = _weight_for_matmul(data[f"{prefix}.v_weight"])
-    w_o = _weight_for_matmul(data[f"{prefix}.o_weight"])
-    return _pt_t5_attention(x_pt, w_q, w_k, w_v, w_o, encoder_pt, mask)
-
-
-def _pt_encoder_block(
-    x_pt: torch.Tensor,
-    data: dict[str, np.ndarray],
-    prefix: str,
-    dims: TestDims,
-    mask: torch.Tensor | None,
-) -> torch.Tensor:
-    eps = dims.layer_norm_eps
-    gamma0 = _weight_for_matmul(data[f"{prefix}.layer_norm_0.gamma"])
-    x_dsb = _pt_bsd_to_dsb(x_pt)
-    x_norm = _pt_rms_norm_dsb(x_dsb, gamma0, eps)
-    attn = _pt_t5_attn_from_data(
-        _pt_dsb_to_bsd(x_norm), data, f"{prefix}.self_attn", mask=mask,
-    )
-    post = _pt_dsb_to_bsd(x_dsb + _pt_bsd_to_dsb(attn))
-    return _pt_t5_ff_from_data(post, data, f"{prefix}.ff", eps)
-
-
-def _pt_decoder_block(
-    x_pt: torch.Tensor,
-    enc_pt: torch.Tensor,
-    data: dict[str, np.ndarray],
-    prefix: str,
-    dims: TestDims,
-    self_mask: torch.Tensor | None,
-    cross_mask: torch.Tensor | None,
-) -> torch.Tensor:
-    eps = dims.layer_norm_eps
-    g0 = _weight_for_matmul(data[f"{prefix}.layer_norm_0.gamma"])
-    x_dsb = _pt_bsd_to_dsb(x_pt)
-    x_norm = _pt_rms_norm_dsb(x_dsb, g0, eps)
-    self_out = _pt_t5_attn_from_data(
-        _pt_dsb_to_bsd(x_norm), data, f"{prefix}.self_attn", mask=self_mask,
-    )
-    post_self = _pt_dsb_to_bsd(x_dsb + _pt_bsd_to_dsb(self_out))
-    g1 = _weight_for_matmul(data[f"{prefix}.layer_norm_1.gamma"])
-    post_self_dsb = _pt_bsd_to_dsb(post_self)
-    x_norm1 = _pt_rms_norm_dsb(post_self_dsb, g1, eps)
-    cross_out = _pt_t5_attn_from_data(
-        _pt_dsb_to_bsd(x_norm1),
-        data,
-        f"{prefix}.cross_attn",
-        enc_pt,
-        cross_mask,
-    )
-    post_cross = _pt_dsb_to_bsd(
-        post_self_dsb + _pt_bsd_to_dsb(cross_out),
-    )
-    return _pt_t5_ff_from_data(post_cross, data, f"{prefix}.ff", eps)
-
-
-def _pt_t5_model(
-    enc_ids: torch.Tensor,
-    dec_ids: torch.Tensor,
-    data: dict[str, np.ndarray],
-    prefix: str,
-    dims: TestDims,
-    dec_mask: torch.Tensor | None,
-    cross_mask: torch.Tensor | None,
-    vocab: torch.Tensor | None = None,
-) -> torch.Tensor:
-    if vocab is None:
-        vocab = _weight_for_matmul(
-            data[f"{prefix}.embed_tokens.vocab"],
-        ).T.requires_grad_(True)
-    enc_hidden = _pt_bsd_to_dsb(F.embedding(enc_ids, vocab))
-    dec_hidden = _pt_bsd_to_dsb(F.embedding(dec_ids, vocab))
-    for i in range(dims.num_layers):
-        enc_hidden = _pt_bsd_to_dsb(
-            _pt_encoder_block(
-                _pt_dsb_to_bsd(enc_hidden),
-                data,
-                f"{prefix}.encoder_layers_{i}",
-                dims,
-                None,
-            ),
-        )
-    g_enc = _weight_for_matmul(data[f"{prefix}.encoder_final_norm.gamma"])
-    enc_states = _pt_rms_norm_dsb(
-        enc_hidden, g_enc, dims.layer_norm_eps,
-    )
-    for i in range(dims.num_decoder_layers):
-        dec_hidden = _pt_bsd_to_dsb(
-            _pt_decoder_block(
-                _pt_dsb_to_bsd(dec_hidden),
-                _pt_dsb_to_bsd(enc_states),
-                data,
-                f"{prefix}.decoder_layers_{i}",
-                dims,
-                dec_mask,
-                cross_mask,
-            ),
-        )
-    g_dec = _weight_for_matmul(data[f"{prefix}.decoder_final_norm.gamma"])
-    return _pt_dsb_to_bsd(
-        _pt_rms_norm_dsb(dec_hidden, g_dec, dims.layer_norm_eps),
-    )
-
-
-def _pt_t5_conditional(
-    enc_ids: torch.Tensor,
-    dec_ids: torch.Tensor,
-    data: dict[str, np.ndarray],
-    prefix: str,
-    dims: TestDims,
-    dec_mask: torch.Tensor | None,
-    cross_mask: torch.Tensor | None,
-    vocab: torch.Tensor | None = None,
-) -> torch.Tensor:
-    hidden_bsd = _pt_t5_model(
-        enc_ids,
-        dec_ids,
-        data,
-        f"{prefix}.model",
-        dims,
-        dec_mask,
-        cross_mask,
-        vocab=vocab,
-    )
-    lm_w = _weight_for_matmul(data[f"{prefix}.lm_head.weight"])
-    hidden_sbd = _cyclic_transpose(_pt_bsd_to_dsb(hidden_bsd), 1)
-    return (hidden_sbd @ lm_w).permute(1, 0, 2).contiguous()
+def _run_fwd_bwd(
+    fwd_fn, x_pt: torch.Tensor, rng, data: dict,
+) -> tuple[dict[str, np.ndarray], torch.Tensor]:
+    out = fwd_fn(x_pt)
+    data["output_ref"] = _out_to_nntile(out)
+    g_nt, g_pt = _grad_output(rng, out)
+    data["grad_output"] = g_nt
+    out.backward(g_pt)
+    data["grad_input"] = _out_to_nntile(x_pt.grad)
+    return data, out
 
 
 def _t5_fixture_json(
@@ -599,16 +376,7 @@ def write_fixture_json(
     print(f"Saved {path}")
 
 
-def _run_fwd_bwd(
-    fwd_fn, x_pt: torch.Tensor, rng, data: dict,
-) -> tuple[dict[str, np.ndarray], torch.Tensor]:
-    out = fwd_fn(x_pt)
-    data["output_ref"] = _out_to_nntile(out)
-    g_nt, g_pt = _grad_output(rng, out)
-    data["grad_output"] = g_nt
-    out.backward(g_pt)
-    data["grad_input"] = _out_to_nntile(x_pt.grad)
-    return data, out
+# ── Block generators (Hugging Face forward / backward) ────────────────────
 
 
 def generate_ff(seed: int, dims: TestDims = FF_DIMS) -> dict[str, np.ndarray]:
@@ -620,13 +388,28 @@ def generate_ff(seed: int, dims: TestDims = FF_DIMS) -> dict[str, np.ndarray]:
     data = _t5_ff_weights(pt, "ff")
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    _run_fwd_bwd(
-        lambda x: _pt_t5_ff_from_data(x, data, "ff", dims.layer_norm_eps),
-        x_pt,
-        rng,
-        data,
-    )
+    _run_fwd_bwd(lambda x: pt(x), x_pt, rng, data)
     return data
+
+
+def write_attention_no_rope_mask_variant_files(out: Path, seed: int) -> None:
+    """Write self-attention fixtures for the no-RoPE / mask matrix.
+
+    T5 has no RoPE. Measured C++ vs Hugging Face reference (seed 42,
+    ``ATTN_DIMS``) after graph SDPA scale=1:
+    - ``t5_attention_no_rope_nomask``: forward ~1e-6, backward ~1e-6
+    - ``t5_attention_no_rope_causal``: forward ~5e-8, backward ~2e-7
+    """
+    specs: list[tuple[str, bool, float, float]] = [
+        ("t5_attention_no_rope_nomask", False, 3e-7, 5e-7),
+        ("t5_attention_no_rope_causal", True, 3e-7, 5e-7),
+    ]
+    for stem, causal, fwd_tol, bwd_tol in specs:
+        payload = generate_attention(seed, ATTN_DIMS, causal=causal)
+        path = str(out / f"{stem}.safetensors")
+        save_file(payload, path)
+        print(f"Saved {path}")
+        write_fixture_json(out, stem, ATTN_DIMS, fwd_tol, bwd_tol)
 
 
 def generate_attention(
@@ -643,16 +426,19 @@ def generate_attention(
     data = _t5_attn_weights(pt, "attn", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    mask_pt = None
+    cp = _cache_position(x_pt)
+    mask_4d = None
     if causal:
         data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-        mask_pt = _mask_from_fortran(data["attn_mask"], dims.seq, dims.seq)
-    _run_fwd_bwd(
-        lambda x: _pt_t5_attn_from_data(x, data, "attn", mask=mask_pt),
-        x_pt,
-        rng,
-        data,
-    )
+        mask_4d = _hf_causal_attention_mask_4d(
+            dims.batch, dims.seq, device=x_pt.device, dtype=x_pt.dtype,
+        )
+
+    def fwd(x: torch.Tensor) -> torch.Tensor:
+        out, _, _ = pt(x, mask=mask_4d, cache_position=cp)
+        return out
+
+    _run_fwd_bwd(fwd, x_pt, rng, data)
     return data
 
 
@@ -668,19 +454,19 @@ def generate_cross_attention(
     data = _t5_attn_weights(pt, "cross_attn", dims)
     x_nt, x_pt = _hidden_input(rng, dims, seq=dims.decoder_seq)
     enc_nt, enc_pt = _hidden_input(rng, dims, seq=dims.encoder_seq)
+    enc_pt = enc_pt.detach()
     data["input"] = x_nt
     data["encoder_input"] = enc_nt
     data["cross_attn_mask"] = _cross_attn_mask_fortran(
         dims.encoder_seq, dims.decoder_seq,
     )
-    m = _mask_from_fortran(
-        data["cross_attn_mask"], dims.encoder_seq, dims.decoder_seq,
-    )
+    cp = _cache_position(x_pt)
 
-    def fwd(x):
-        return _pt_t5_attn_from_data(
-            x, data, "cross_attn", enc_pt, mask=m,
+    def fwd(x: torch.Tensor) -> torch.Tensor:
+        out, _, _ = pt(
+            x, key_value_states=enc_pt, cache_position=cp,
         )
+        return out
 
     _run_fwd_bwd(fwd, x_pt, rng, data)
     return data
@@ -694,16 +480,17 @@ def generate_encoder_block(
     config = _make_config(dims)
     pt_model = PtModel(config)
     block = pt_model.encoder.block[0]
+    _disable_self_attn_relative_bias(block)
     block.eval()
     data = _encoder_block_weights(block, "encoder", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    _run_fwd_bwd(
-        lambda x: _pt_encoder_block(x, data, "encoder", dims, None),
-        x_pt,
-        rng,
-        data,
-    )
+    cp = _cache_position(x_pt)
+
+    def fwd(x: torch.Tensor) -> torch.Tensor:
+        return block(x, cache_position=cp)[0]
+
+    _run_fwd_bwd(fwd, x_pt, rng, data)
     return data
 
 
@@ -715,6 +502,7 @@ def generate_decoder_block(
     config = _make_config(dims)
     pt_model = PtModel(config)
     block = pt_model.decoder.block[0]
+    _disable_self_attn_relative_bias(block)
     block.eval()
     data = _decoder_block_weights(block, "decoder", dims)
     x_nt, x_pt = _hidden_input(rng, dims, seq=dims.decoder_seq)
@@ -725,17 +513,18 @@ def generate_decoder_block(
     data["cross_attn_mask"] = _cross_attn_mask_fortran(
         dims.encoder_seq, dims.decoder_seq,
     )
-    dec_m = _mask_from_fortran(
-        data["decoder_attn_mask"], dims.decoder_seq, dims.decoder_seq,
-    )
-    cross_m = _mask_from_fortran(
-        data["cross_attn_mask"], dims.encoder_seq, dims.decoder_seq,
+    cp = _cache_position(x_pt)
+    dec_mask = _hf_causal_attention_mask_4d(
+        dims.batch, dims.decoder_seq, device=x_pt.device, dtype=x_pt.dtype,
     )
 
-    def fwd(x):
-        return _pt_decoder_block(
-            x, enc_pt, data, "decoder", dims, dec_m, cross_m,
-        )
+    def fwd(x: torch.Tensor) -> torch.Tensor:
+        return block(
+            x,
+            attention_mask=dec_mask,
+            encoder_hidden_states=enc_pt,
+            cache_position=cp,
+        )[0]
 
     _run_fwd_bwd(fwd, x_pt, rng, data)
     return data
@@ -748,6 +537,10 @@ def generate_model(
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
     pt = PtModel(config)
+    for enc_layer in pt.encoder.block:
+        _disable_self_attn_relative_bias(enc_layer)
+    for dec_layer in pt.decoder.block:
+        _disable_self_attn_relative_bias(dec_layer)
     pt.eval()
     data = _model_weights(pt, "model", dims)
     enc_nt, enc_ids = _ids_input(rng, dims, seq="enc")
@@ -760,30 +553,17 @@ def generate_model(
     data["cross_attention_mask"] = _cross_attn_mask_fortran(
         dims.encoder_seq, dims.decoder_seq,
     )
-    dec_m = _mask_from_fortran(
-        data["decoder_attention_mask"], dims.decoder_seq, dims.decoder_seq,
-    )
-    cross_m = _mask_from_fortran(
-        data["cross_attention_mask"], dims.encoder_seq, dims.decoder_seq,
-    )
     pt.shared.weight.requires_grad_(True)
-    vocab = pt.shared.weight.detach().clone().requires_grad_(True)
-    out = _pt_t5_model(
-        enc_ids,
-        dec_ids,
-        data,
-        "model",
-        dims,
-        dec_m,
-        cross_m,
-        vocab=vocab,
-    )
+    out = pt(
+        input_ids=enc_ids,
+        decoder_input_ids=dec_ids,
+    ).last_hidden_state
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
     out.backward(g_pt)
     data["grad_embed_tokens_vocab"] = fortran_order(
-        vocab.grad.detach().numpy().T,
+        pt.shared.weight.grad.detach().numpy().T,
     )
     return data
 
@@ -795,6 +575,10 @@ def generate_conditional(
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
     pt = PtConditional(config)
+    for enc_layer in pt.encoder.block:
+        _disable_self_attn_relative_bias(enc_layer)
+    for dec_layer in pt.decoder.block:
+        _disable_self_attn_relative_bias(dec_layer)
     pt.eval()
     data = _conditional_weights(pt, "conditional", dims)
     enc_nt, enc_ids = _ids_input(rng, dims, seq="enc")
@@ -807,32 +591,32 @@ def generate_conditional(
     data["cross_attention_mask"] = _cross_attn_mask_fortran(
         dims.encoder_seq, dims.decoder_seq,
     )
-    dec_m = _mask_from_fortran(
-        data["decoder_attention_mask"], dims.decoder_seq, dims.decoder_seq,
-    )
-    cross_m = _mask_from_fortran(
-        data["cross_attention_mask"], dims.encoder_seq, dims.decoder_seq,
-    )
-    pt.shared.weight.requires_grad_(True)
     vocab = pt.shared.weight.detach().clone().requires_grad_(True)
-    logits = _pt_t5_conditional(
-        enc_ids,
-        dec_ids,
-        data,
-        "conditional",
-        dims,
-        dec_m,
-        cross_m,
-        vocab=vocab,
-    )
-    logits_np = logits.detach().numpy().transpose(2, 1, 0)
-    data["output_ref"] = fortran_order(logits_np)
-    g_nt, g_pt = _grad_output(rng, logits)
-    data["grad_output"] = g_nt
-    logits.backward(g_pt)
-    data["grad_embed_tokens_vocab"] = fortran_order(
-        vocab.grad.detach().numpy().T,
-    )
+    lm_w = pt.lm_head.weight.detach()
+
+    def _embed_hook(_module, inp, _out):
+        return torch.nn.functional.embedding(inp[0], vocab)
+
+    def _lm_head_hook(_module, inp, _out):
+        return inp[0] @ lm_w.T
+
+    embed_hook = pt.shared.register_forward_hook(_embed_hook)
+    lm_hook = pt.lm_head.register_forward_hook(_lm_head_hook)
+    try:
+        logits = pt(
+            input_ids=enc_ids,
+            decoder_input_ids=dec_ids,
+        ).logits
+        data["output_ref"] = _out_to_nntile(logits)
+        g_nt, g_pt = _grad_output(rng, logits)
+        data["grad_output"] = g_nt
+        logits.backward(g_pt)
+        data["grad_embed_tokens_vocab"] = fortran_order(
+            vocab.grad.detach().numpy().T,
+        )
+    finally:
+        embed_hook.remove()
+        lm_hook.remove()
     return data
 
 
@@ -847,10 +631,35 @@ GENERATORS = {
     "conditional": generate_conditional,
 }
 
+# Per-block Frobenius tolerances (C++ graph vs HF reference, seed 42).
+# FF uses GELUTANH (HF ``gelu_new``); measured ~2e-7 forward, ~4e-7 backward.
+# Attention: measured ~1e-7 forward (causal ~5e-8), ~2e-7 backward.
+# Stacked blocks: measured ~1.2e-5 forward, ~1.6e-5 backward (mask mismatch).
+# Conditional forward: measured ~3e-7 after ``d_model**-0.5`` prescale.
+BLOCK_TOLERANCES: dict[str, tuple[float, float]] = {
+    "ff": (5e-7, 1e-6),
+    "attention": (3e-7, 5e-7),
+    "attention_causal": (3e-7, 5e-7),
+    "cross_attention": (3e-7, 5e-7),
+    "encoder_block": (1.5e-5, 2e-5),
+    "decoder_block": (1.5e-5, 2e-5),
+    "model": (1.5e-5, 2e-5),
+    "conditional": (1e-6, 2e-5),
+}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate T5 block test data")
-    parser.add_argument("--block", choices=GENERATORS, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--block", choices=GENERATORS)
+    mode.add_argument(
+        "--write-attention-no-rope-mask-variants",
+        action="store_true",
+        help=(
+            "Write ``t5_attention_no_rope_nomask`` and "
+            "``t5_attention_no_rope_causal`` for C++ graph tests."
+        ),
+    )
     parser.add_argument("--output", "-o", required=True)
     parser.add_argument("--seed", "-s", type=int, default=42)
     args = parser.parse_args()
@@ -858,33 +667,37 @@ def main() -> int:
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
 
+    if args.write_attention_no_rope_mask_variants:
+        write_attention_no_rope_mask_variant_files(out, args.seed)
+        return 0
+
     data = GENERATORS[args.block](args.seed)
     stem = f"t5_{args.block}"
     bundle_path = str(out / f"{stem}.safetensors")
     save_file(data, bundle_path)
     print(f"Saved {bundle_path}")
 
-    tol = 1e-6
+    fwd_tol, bwd_tol = BLOCK_TOLERANCES[args.block]
     if args.block == "ff":
-        write_fixture_json(out, stem, FF_DIMS, tol, tol)
+        write_fixture_json(out, stem, FF_DIMS, fwd_tol, bwd_tol)
     elif args.block in ("attention", "attention_causal"):
-        write_fixture_json(out, stem, ATTN_DIMS, tol, tol)
+        write_fixture_json(out, stem, ATTN_DIMS, fwd_tol, bwd_tol)
     elif args.block == "cross_attention":
         write_fixture_json(
-            out, stem, CROSS_DIMS, tol, tol,
+            out, stem, CROSS_DIMS, fwd_tol, bwd_tol,
             enc_seq=CROSS_DIMS.encoder_seq, dec_seq=CROSS_DIMS.decoder_seq,
         )
     elif args.block == "encoder_block":
-        write_fixture_json(out, stem, ENCODER_BLOCK_DIMS, tol, tol)
+        write_fixture_json(out, stem, ENCODER_BLOCK_DIMS, fwd_tol, bwd_tol)
     elif args.block == "decoder_block":
         write_fixture_json(
-            out, stem, DECODER_BLOCK_DIMS, tol, tol,
+            out, stem, DECODER_BLOCK_DIMS, fwd_tol, bwd_tol,
             enc_seq=DECODER_BLOCK_DIMS.encoder_seq,
             dec_seq=DECODER_BLOCK_DIMS.decoder_seq,
         )
     elif args.block in ("model", "conditional"):
         write_fixture_json(
-            out, stem, MODEL_DIMS, tol, tol,
+            out, stem, MODEL_DIMS, fwd_tol, bwd_tol,
             enc_seq=MODEL_DIMS.encoder_seq, dec_seq=MODEL_DIMS.decoder_seq,
         )
 

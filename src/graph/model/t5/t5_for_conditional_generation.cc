@@ -13,8 +13,10 @@
  * */
 
 #include "nntile/graph/model/t5/t5_for_conditional_generation.hh"
+#include "nntile/graph/nn/ops/scale.hh"
 #include "nntile/graph/nn/ops/transpose.hh"
 
+#include <cmath>
 #include <stdexcept>
 
 namespace nntile::model::t5
@@ -47,6 +49,16 @@ graph::NNGraph::TensorNode* T5ForConditionalGeneration::forward(
     graph::NNGraph::TensorNode* hidden = model_->forward(
         encoder_input_ids, decoder_input_ids,
         encoder_attention_mask, decoder_attention_mask, cross_attention_mask);
+
+    // HF ``T5ForConditionalGeneration`` (``tie_word_embeddings=True``):
+    // sequence_output *= d_model**-0.5 before lm_head projection.
+    if(config_.tie_word_embeddings)
+    {
+        const Scalar inv_sqrt_d_model =
+            1.f / std::sqrt(static_cast<Scalar>(config_.d_model));
+        hidden = graph::scale(inv_sqrt_d_model, hidden)
+                     ->set_name(tensor_name("hidden_scaled"));
+    }
 
     // Transpose (d_model, seq, batch) -> (seq, batch, d_model) for lm_head
     graph::NNGraph::TensorNode* hidden_t = graph::transpose(hidden, 1);

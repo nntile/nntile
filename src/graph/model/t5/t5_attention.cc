@@ -17,6 +17,7 @@
 #include "nntile/graph/nn/ops/sdpa_eager.hh"
 #include "nntile/graph/nn/ops/transpose.hh"
 
+#include <memory>
 #include <stdexcept>
 
 namespace nntile::model::t5
@@ -87,8 +88,14 @@ graph::NNGraph::TensorNode* T5Attention::forward(
     graph::NNGraph::TensorNode* v = graph::transpose(v_proj, 1);
     v->set_name(tensor_name("v"));
 
-    graph::NNGraph::TensorNode* attn_out =
-        graph::sdpa_eager(q, k, v, mask, 2, 0);
+    // Hugging Face T5 attention scores omit the explicit 1/sqrt(d) scale used
+    // by Llama-style SDPA (see ``T5Attention`` in ``layer/t5_attention.py``).
+    constexpr Scalar t5_attn_scale = 1.0;
+    graph::NNGraph* nn_graph = x->graph();
+    auto sdpa_op = std::make_shared<graph::NNSdpaEagerOp>(
+        q, k, v, t5_attn_scale, 2, 0, mask);
+    graph::NNGraph::TensorNode* attn_out = sdpa_op->forward();
+    nn_graph->register_op(std::move(sdpa_op));
     attn_out->set_name(tensor_name("sdpa_out"));
 
     graph::NNGraph::TensorNode* attn_t = graph::transpose(attn_out, 3);
