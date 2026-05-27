@@ -4,6 +4,10 @@
 
 set -e
 
+if [ -d build/tests ]; then
+    "$(dirname "$0")/restore-ctest-execute-bits.sh" build/tests
+fi
+
 branch=$1
 base_branch=${2:-main}
 ctest_label=${3:-}

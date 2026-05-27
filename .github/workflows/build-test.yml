@@ -275,6 +275,8 @@ jobs:
         with:
           name: nntile-core-ctest-${{ matrix.python-version }}
           path: .
+      - name: Restore CTest binary permissions
+        run: .github/scripts/restore-ctest-execute-bits.sh build/tests
       - name: Run dirty C++ tests (core)
         run: |
           export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
@@ -543,6 +545,8 @@ jobs:
         with:
           name: nntile-graph-ctest-${{ matrix.python-version }}
           path: .
+      - name: Restore CTest binary permissions
+        run: .github/scripts/restore-ctest-execute-bits.sh build/tests
       - name: Run dirty C++ tests (graph)
         run: |
           export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
