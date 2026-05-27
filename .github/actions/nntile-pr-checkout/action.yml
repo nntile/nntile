@@ -8,7 +8,8 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+        cd "${{ github.workspace }}"
+        git config --global --add safe.directory "$(pwd)"
         git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
         git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
           --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
