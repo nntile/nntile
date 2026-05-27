@@ -96,7 +96,7 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
         d_model_tile=params.d_model_tile,
         d_ff=params.d_ff,
         d_ff_tile=params.d_ff_tile,
-        dense_act_fn="gelu",
+        dense_act_fn="gelutanh",
         dropout_rate=0.0,
         is_gated_act=True,
         redux=params.redux,

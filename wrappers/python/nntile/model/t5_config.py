@@ -24,7 +24,8 @@ class T5ConfigNNTile:
     d_ff_tile: int
     n_head: int
     n_head_tile: int
-    dense_act_fn: str = "gelu"
+    # HF T5 ``dense_act_fn="gelu_new"`` maps to NNTile ``gelutanh``.
+    dense_act_fn: str = "gelutanh"
     dropout_rate: float = 0
     is_gated_act: bool = True
     layer_norm_epsilon: float = 1e-5

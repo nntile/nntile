@@ -27,6 +27,8 @@ class Act(BaseLayer):
     activations = {
         "relu": (relu_async, relu_backward_async),
         "gelu": (gelu_async, gelu_backward_async),
+        # HF T5 ``gelu_new`` (tanh GELU approximation).
+        "gelu_new": (gelutanh_async, gelutanh_backward_async),
         "gelutanh": (gelutanh_async, gelutanh_backward_async),
         "silu": (silu_async, silu_backward_async),
     }
