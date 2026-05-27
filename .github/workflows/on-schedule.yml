@@ -38,8 +38,8 @@ jobs:
       CCACHE_DIR: /tmp/ccache
       NNTILE_INSTALL: ${{ github.workspace }}/install
     steps:
-      - uses: ./.github/actions/nntile-starpu-setup
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
@@ -113,8 +113,8 @@ jobs:
       CCACHE_DIR: /tmp/ccache
       NNTILE_INSTALL: ${{ github.workspace }}/install
     steps:
-      - uses: ./.github/actions/nntile-starpu-setup
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
       - name: Download nntile_core artifact
         uses: actions/download-artifact@v8
         with:
