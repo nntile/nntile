@@ -14,14 +14,13 @@
 import sys
 
 from .. import nntile_core
-
-_SUBMODULES = ('tensor', 'starpu', 'tile')
-for _subname in _SUBMODULES:
-    _submod = getattr(nntile_core, _subname)
-    sys.modules[f'{__name__}.{_subname}'] = _submod
-    globals()[_subname] = _submod
-
 from ..nntile_core import Context, TransOp, notrans, starpu, tile, trans
+
+tensor = nntile_core.tensor
+
+sys.modules[f'{__name__}.tensor'] = tensor
+sys.modules[f'{__name__}.starpu'] = starpu
+sys.modules[f'{__name__}.tile'] = tile
 
 __all__ = [
     'Context',
