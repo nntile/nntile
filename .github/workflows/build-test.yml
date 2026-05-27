@@ -208,6 +208,19 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}"
           cmake --build build -j
+      - name: Run smoke C++ tests (core)
+        run: |
+          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          ctest --test-dir build -L smoke -E wrappers -LE "(MPI|NotImplemented)" \
+            --output-on-failure
+      - name: Run core C++ tests
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.is-pull-request != true
+        run: |
+          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          ctest --test-dir build -L core -E wrappers -LE "(MPI|NotImplemented)" \
+            --output-on-failure
       - name: Save ccache (core)
         uses: actions/cache/save@v4
         with:
@@ -223,7 +236,8 @@ jobs:
           retention-days: 2
 
   core-tests-run:
-    name: Run nntile_core C++ tests
+    name: Run nntile_core C++ tests (dirty, PR)
+    if: github.event_name == 'pull_request' || inputs.is-pull-request == true
     needs: core-tests-build
     runs-on: ubuntu-24.04
     strategy:
@@ -261,29 +275,13 @@ jobs:
         with:
           name: nntile-core-ctest-${{ matrix.python-version }}
           path: .
-      - name: Run smoke C++ tests (core)
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L smoke -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
       - name: Run dirty C++ tests (core)
-        if: >-
-          github.event_name == 'pull_request' ||
-          inputs.is-pull-request == true
         run: |
           export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           .github/scripts/run-dirty-cpp-tests.sh \
             ${{ github.event.pull_request.head.ref }} \
             ${{ github.base_ref }} \
             core
-      - name: Run core C++ tests
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.is-pull-request != true
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L core -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
 
   graph-lib-build:
     name: Build nntile_graph library
@@ -387,7 +385,9 @@ jobs:
           name: nntile-graph-lib-${{ matrix.python-version }}
           path: |
             install/
-            build/
+            build/libnntile_graph.so
+            build/wrappers/python/nntile/nntile_core.so
+            build/wrappers/python/nntile/nntile_graph.so
           retention-days: 7
       - name: Upload Python extensions
         uses: actions/upload-artifact@v7
@@ -435,6 +435,8 @@ jobs:
         with:
           name: nntile-graph-lib-${{ matrix.python-version }}
           path: .
+      - name: Remove stale CMake build tree
+        run: rm -rf build
       - name: Restore ccache (core)
         uses: actions/cache/restore@v4
         with:
@@ -474,6 +476,19 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_PREFIX_PATH="${NNTILE_INSTALL}:${TORCH_PREFIX}"
           cmake --build build -j
+      - name: Run smoke C++ tests (graph)
+        run: |
+          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          ctest --test-dir build -L smoke -E wrappers -LE "(MPI|NotImplemented)" \
+            --output-on-failure
+      - name: Run graph C++ tests
+        if: >-
+          github.event_name != 'pull_request' &&
+          inputs.is-pull-request != true
+        run: |
+          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          ctest --test-dir build -L graph -E wrappers -LE "(MPI|NotImplemented)" \
+            --output-on-failure
       - name: Save ccache (graph)
         uses: actions/cache/save@v4
         with:
@@ -489,7 +504,8 @@ jobs:
           retention-days: 2
 
   graph-tests-run:
-    name: Run nntile_graph C++ tests
+    name: Run nntile_graph C++ tests (dirty, PR)
+    if: github.event_name == 'pull_request' || inputs.is-pull-request == true
     needs: graph-tests-build
     runs-on: ubuntu-24.04
     strategy:
@@ -527,29 +543,13 @@ jobs:
         with:
           name: nntile-graph-ctest-${{ matrix.python-version }}
           path: .
-      - name: Run smoke C++ tests (graph)
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L smoke -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
       - name: Run dirty C++ tests (graph)
-        if: >-
-          github.event_name == 'pull_request' ||
-          inputs.is-pull-request == true
         run: |
           export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           .github/scripts/run-dirty-cpp-tests.sh \
             ${{ github.event.pull_request.head.ref }} \
             ${{ github.base_ref }} \
             graph
-      - name: Run graph C++ tests
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.is-pull-request != true
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L graph -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
 
   examples-build:
     name: Build examples
@@ -590,6 +590,8 @@ jobs:
         with:
           name: nntile-graph-lib-${{ matrix.python-version }}
           path: .
+      - name: Remove stale CMake build tree
+        run: rm -rf build
       - name: Restore ccache (graph)
         uses: actions/cache/restore@v4
         with:
@@ -647,7 +649,16 @@ jobs:
           apt update
           apt install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
+        if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - name: Install system dependencies
         run: |
           rm -rfv /etc/apt/apt.conf.d/docker*
