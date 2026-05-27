@@ -160,7 +160,7 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
         vocab_data[i] = 0.1f * static_cast<float>(i + 1);
     emb.bind_weight(vocab_data);
 
-    nntile::core::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::graph::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
     nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
@@ -214,7 +214,7 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     for (Index i = 0; i < batch * seq_len; ++i)
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
 
-    nntile::core::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::graph::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
     nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
@@ -278,7 +278,7 @@ TEST_CASE_METHOD(nntile::core::test::ContextFixture,
 
     emb.vocab_tensor()->grad()->mark_output(true);
 
-    nntile::core::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::graph::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
     nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 

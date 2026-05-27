@@ -153,7 +153,7 @@ jobs:
             ccache-${{ runner.os }}-${{ matrix.python-version }}-
       - name: Configure ccache
         run: |
-          ccache --set-config=max_size=500M
+          ccache --set-config=max_size=2G
           ccache --set-config=compression=true
           ccache --zero-stats
       - name: Build NNTile native libraries
