@@ -24,15 +24,7 @@ jobs:
         python-version: ['3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        run: |
-          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
-            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
-          git checkout ${{ github.event.pull_request.head.ref }}
-          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} \
-            --depth=100
+      - uses: ./.github/actions/nntile-pr-checkout
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:

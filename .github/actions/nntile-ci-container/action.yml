@@ -15,20 +15,8 @@ runs:
   using: composite
   steps:
     - uses: ./.github/actions/nntile-starpu-setup
-    - name: Pull all PR commits
-      if: >-
-        inputs.deepen-pr == 'true' &&
-        github.event_name == 'pull_request'
-      shell: bash
-      run: |
-        set -euo pipefail
-        git config --global --add safe.directory "$(pwd)"
-        git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-        git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
-          --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
-        git checkout ${{ github.event.pull_request.head.ref }}
-        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} \
-          --depth=100
+    - uses: ./.github/actions/nntile-pr-checkout
+      if: inputs.deepen-pr == 'true'
     - name: Set up Python ${{ inputs.python-version }}
       uses: actions/setup-python@v6
       with:

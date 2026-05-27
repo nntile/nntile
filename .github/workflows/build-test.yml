@@ -223,13 +223,6 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - name: Bootstrap container (git for checkout)
-        working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
-      - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -467,13 +460,6 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - name: Bootstrap container (git for checkout)
-        working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
-      - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -521,13 +507,6 @@ jobs:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - name: Bootstrap container (git for checkout)
-        working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
-      - uses: actions/checkout@v6
       - name: Bootstrap container (git for checkout)
         working-directory: /
         run: |
@@ -601,15 +580,7 @@ jobs:
           apt update
           apt install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        run: |
-          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
-            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
-          git checkout ${{ github.event.pull_request.head.ref }}
-          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100
+      - uses: ./.github/actions/nntile-pr-checkout
       - name: Install system dependencies
         run: |
           rm -rfv /etc/apt/apt.conf.d/docker*
