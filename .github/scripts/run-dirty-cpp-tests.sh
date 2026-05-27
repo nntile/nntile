@@ -100,6 +100,26 @@ add_t5_model_tests() {
     done
 }
 
+add_bert_model_tests() {
+    affected["tests_graph_model_bert_config"]=1
+    for t in bert_intermediate bert_attention bert_layer \
+             bert_embeddings bert_model bert_mlm; do
+        affected["tests_graph_model_${t}"]=1
+        affected["tests_graph_model_${t}_data_setup"]=1
+    done
+}
+
+# RoBERTa graph tests import safetensor layout helpers from
+# tests/graph/model/bert/generate_test_data.py only (not other BERT sources).
+add_roberta_model_tests() {
+    affected["tests_graph_model_roberta_config"]=1
+    for t in roberta_intermediate roberta_attention roberta_layer \
+             roberta_embeddings roberta_model roberta_mlm; do
+        affected["tests_graph_model_${t}"]=1
+        affected["tests_graph_model_${t}_data_setup"]=1
+    done
+}
+
 # ---------- classify every changed file ------------------------------------
 while IFS= read -r file; do
     [ -z "$file" ] && continue
@@ -146,6 +166,9 @@ while IFS= read -r file; do
             add_gptneo_model_tests ;;
         tests/graph/model/test_t5_fixture_helpers.hh)
             add_t5_model_tests ;;
+        tests/graph/model/bert/generate_test_data.py)
+            add_bert_model_tests
+            add_roberta_model_tests ;;
         tests/graph/*.cc)
             affected["tests_graph_$(basename "$file" .cc)"]=1 ;;
 
