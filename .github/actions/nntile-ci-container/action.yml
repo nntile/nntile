@@ -1,0 +1,51 @@
+name: NNTile CI container setup
+description: >-
+  Bootstrap Ubuntu container, checkout, StarPU, optional PR deepen,
+  and Python+Torch dependencies for NNTile CI jobs.
+inputs:
+  python-version:
+    description: Python version for setup-python
+    required: true
+  deepen-pr:
+    description: Deepen and checkout PR head when event is pull_request
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Bootstrap container (git for checkout)
+      working-directory: /
+      shell: bash
+      run: |
+        rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
+        apt-get update
+        apt-get install -y --no-install-recommends ca-certificates git
+    - uses: actions/checkout@v6
+    - uses: ./.github/actions/nntile-starpu-setup
+    - name: Pull all PR commits
+      if: >-
+        inputs.deepen-pr == 'true' &&
+        github.event_name == 'pull_request'
+      shell: bash
+      run: |
+        set -euo pipefail
+        git config --global --add safe.directory "$(pwd)"
+        git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+        git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+          --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+        git checkout ${{ github.event.pull_request.head.ref }}
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} \
+          --depth=100
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install Python dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        $HOME/.local/bin/uv pip install --system \
+          torch --index-url https://download.pytorch.org/whl/cpu
+        $HOME/.local/bin/uv pip install --system \
+          numpy safetensors "transformers<4.53"
