@@ -8,10 +8,9 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        owner="${GITHUB_REPOSITORY%%/*}"
         repo="${GITHUB_REPOSITORY##*/}"
         found=false
-        for candidate in "/__w/${owner}/${repo}" "${GITHUB_WORKSPACE}"; do
+        for candidate in "/__w/${repo}/${repo}" "${GITHUB_WORKSPACE}"; do
           if git -C "${candidate}" rev-parse --is-inside-work-tree &>/dev/null; then
             cd "${candidate}"
             found=true

@@ -282,13 +282,17 @@ jobs:
           set -euo pipefail
           test -f build/wrappers/python/nntile/nntile_core.so
           test -f build/wrappers/python/nntile/nntile_graph.so
+      - name: Stage runtime libraries for artifact
+        run: |
+          set -euo pipefail
+          mkdir -p build/lib
+          cp -a "${NNTILE_INSTALL}/lib/libnntile_core.so" build/lib/
+          cp -a build/src/graph/libnntile_graph.so build/lib/
       - name: Upload Python extensions
         uses: actions/upload-artifact@v7
         with:
           name: shared-objects-${{ matrix.python-version }}
-          path: |
-            build/wrappers/python/nntile/nntile_graph.so
-            build/wrappers/python/nntile/nntile_core.so
+          path: build/**/*.so
           retention-days: 7
       - name: Run smoke C++ tests (graph)
         run: |
@@ -405,7 +409,7 @@ jobs:
         if: 'github.event.pull_request'
         run: |
           . .venv/bin/activate
-          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          export LD_LIBRARY_PATH=$PWD/build/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
@@ -416,7 +420,7 @@ jobs:
         if: '!github.event.pull_request'
         run: |
           . .venv/bin/activate
-          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          export LD_LIBRARY_PATH=$PWD/build/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
