@@ -36,6 +36,7 @@ jobs:
       image: ubuntu:24.04
     defaults:
       run:
+        shell: bash
         working-directory: /__w/nntile/nntile
     env:
       CCACHE_DIR: /tmp/ccache
@@ -114,6 +115,7 @@ jobs:
       image: ubuntu:24.04
     defaults:
       run:
+        shell: bash
         working-directory: /__w/nntile/nntile
     env:
       CCACHE_DIR: /tmp/ccache

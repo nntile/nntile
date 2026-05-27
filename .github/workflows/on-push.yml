@@ -57,6 +57,7 @@ jobs:
       image: ubuntu:24.04
     defaults:
       run:
+        shell: bash
         working-directory: /__w/nntile/nntile
     steps:
       - uses: actions/checkout@v6
@@ -85,6 +86,7 @@ jobs:
       image: ubuntu:24.04
     defaults:
       run:
+        shell: bash
         working-directory: /__w/nntile/nntile
     env:
       CCACHE_DIR: /tmp/ccache
@@ -190,6 +192,7 @@ jobs:
       image: ubuntu:24.04
     defaults:
       run:
+        shell: bash
         working-directory: /__w/nntile/nntile
     env:
       CCACHE_DIR: /tmp/ccache
