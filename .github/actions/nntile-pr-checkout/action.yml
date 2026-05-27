@@ -10,10 +10,17 @@ runs:
         set -euo pipefail
         owner="${GITHUB_REPOSITORY%%/*}"
         repo="${GITHUB_REPOSITORY##*/}"
-        if [ -d "/__w/${owner}/${repo}/.git" ]; then
-          cd "/__w/${owner}/${repo}"
-        else
-          cd "${GITHUB_WORKSPACE}"
+        found=false
+        for candidate in "/__w/${owner}/${repo}" "${GITHUB_WORKSPACE}"; do
+          if git -C "${candidate}" rev-parse --is-inside-work-tree &>/dev/null; then
+            cd "${candidate}"
+            found=true
+            break
+          fi
+        done
+        if ! $found; then
+          echo "No git repository found for ${GITHUB_REPOSITORY}" >&2
+          exit 1
         fi
         git config --global --add safe.directory "$(pwd)"
         git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"

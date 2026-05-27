@@ -55,10 +55,12 @@ jobs:
     runs-on: ubuntu-24.04
     container:
       image: ubuntu:24.04
+    defaults:
+      run:
+        working-directory: /__w/nntile/nntile
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
-      - uses: ./.github/actions/nntile-pr-checkout
       - name: Check core include paths
         run: .github/scripts/check-core-includes.sh .
       - name: Configure NNTile (smoke)
@@ -80,9 +82,12 @@ jobs:
         python-version: ['3.12']
     container:
       image: ubuntu:24.04
+    defaults:
+      run:
+        working-directory: /__w/nntile/nntile
     env:
       CCACHE_DIR: /tmp/ccache
-      NNTILE_INSTALL: ${{ github.workspace }}/install
+      NNTILE_INSTALL: /__w/nntile/nntile/install
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
@@ -173,9 +178,12 @@ jobs:
         python-version: ['3.12']
     container:
       image: ubuntu:24.04
+    defaults:
+      run:
+        working-directory: /__w/nntile/nntile
     env:
       CCACHE_DIR: /tmp/ccache
-      NNTILE_INSTALL: ${{ github.workspace }}/install
+      NNTILE_INSTALL: /__w/nntile/nntile/install
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
