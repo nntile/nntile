@@ -60,6 +60,12 @@ jobs:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
+      - name: Bootstrap container (git for checkout)
+        working-directory: /
+        run: |
+          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
       - name: Check core include paths
@@ -92,6 +98,12 @@ jobs:
       CCACHE_DIR: /tmp/ccache
       NNTILE_INSTALL: /__w/nntile/nntile/install
     steps:
+      - name: Bootstrap container (git for checkout)
+        working-directory: /
+        run: |
+          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
       - name: Pull all PR commits
@@ -198,6 +210,12 @@ jobs:
       CCACHE_DIR: /tmp/ccache
       NNTILE_INSTALL: /__w/nntile/nntile/install
     steps:
+      - name: Bootstrap container (git for checkout)
+        working-directory: /
+        run: |
+          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
       - name: Pull all PR commits
