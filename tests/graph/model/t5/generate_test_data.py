@@ -396,11 +396,11 @@ def write_attention_no_rope_mask_variant_files(out: Path, seed: int) -> None:
     T5 has no RoPE. Measured C++ vs Hugging Face reference (seed 42,
     ``ATTN_DIMS``) after graph SDPA scale=1:
     - ``t5_attention_no_rope_nomask``: forward ~1e-6, backward ~1e-6
-    - ``t5_attention_no_rope_causal``: forward ~1e-6, backward ~1e-6
+    - ``t5_attention_no_rope_causal``: forward ~5e-8, backward ~2e-7
     """
     specs: list[tuple[str, bool, float, float]] = [
-        ("t5_attention_no_rope_nomask", False, 1e-6, 1e-6),
-        ("t5_attention_no_rope_causal", True, 1e-6, 1e-6),
+        ("t5_attention_no_rope_nomask", False, 3e-7, 5e-7),
+        ("t5_attention_no_rope_causal", True, 3e-7, 5e-7),
     ]
     for stem, causal, fwd_tol, bwd_tol in specs:
         payload = generate_attention(seed, ATTN_DIMS, causal=causal)
@@ -631,20 +631,18 @@ GENERATORS = {
 
 # Per-block Frobenius tolerances (C++ graph vs HF reference, seed 42).
 # FF uses GELUTANH (HF ``gelu_new``); measured ~2e-7 forward, ~4e-7 backward.
-# Attention blocks are tight after graph T5 SDPA uses scale=1 (no 1/sqrt(d)).
-# Encoder/decoder/model stacks are looser: graph ``sdpa_eager`` causal masks
-# differ from HF ``T5Stack`` mask construction.
+# Attention: measured ~1e-7 forward (causal ~5e-8), ~2e-7 backward.
+# Stacked blocks: measured ~1.2e-5 forward, ~1.6e-5 backward (mask mismatch).
+# Conditional forward: measured ~3e-7 after ``d_model**-0.5`` prescale.
 BLOCK_TOLERANCES: dict[str, tuple[float, float]] = {
-    "ff": (1e-6, 1e-6),
-    "attention": (1e-6, 1e-6),
-    "attention_causal": (1e-6, 1e-6),
-    "cross_attention": (1e-6, 1e-6),
-    # Full blocks stack LN+attn+FF; measured ~1.2e-5 forward, ~1.6e-5 backward.
-    "encoder_block": (2e-5, 2e-5),
-    "decoder_block": (2e-5, 2e-5),
-    "model": (2e-5, 2e-5),
-    # Conditional: requires ``d_model**-0.5`` prescale when tie_word_embeddings.
-    "conditional": (2e-5, 2e-5),
+    "ff": (5e-7, 1e-6),
+    "attention": (3e-7, 5e-7),
+    "attention_causal": (3e-7, 5e-7),
+    "cross_attention": (3e-7, 5e-7),
+    "encoder_block": (1.5e-5, 2e-5),
+    "decoder_block": (1.5e-5, 2e-5),
+    "model": (1.5e-5, 2e-5),
+    "conditional": (1e-6, 2e-5),
 }
 
 
