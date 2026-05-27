@@ -643,8 +643,8 @@ BLOCK_TOLERANCES: dict[str, tuple[float, float]] = {
     "encoder_block": (2e-5, 2e-5),
     "decoder_block": (2e-5, 2e-5),
     "model": (2e-5, 2e-5),
-    # Logits: graph ``lm_head`` is untied; HF may tie to embeddings — still ~0.88.
-    "conditional": (9e-1, 9e-1),
+    # Conditional: requires ``d_model**-0.5`` prescale when tie_word_embeddings.
+    "conditional": (2e-5, 2e-5),
 }
 
 
