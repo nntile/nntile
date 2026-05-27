@@ -781,5 +781,9 @@ set(CORE_HDR ${CORE_BASE_HDR} ${CORE_KERNEL_HDR} ${CORE_STARPU_HDR} ${CORE_TILE_
 set(GRAPH_INSTALL_HDR ${GRAPH_HDR})
 
 
-target_sources(nntile_core PUBLIC ${CORE_HDR})
-target_sources(nntile_graph PUBLIC ${GRAPH_INSTALL_HDR})
+if(BUILD_CORE)
+    target_sources(nntile_core PUBLIC ${CORE_HDR})
+endif()
+if(BUILD_GRAPH)
+    target_sources(nntile_graph PUBLIC ${GRAPH_INSTALL_HDR})
+endif()

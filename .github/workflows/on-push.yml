@@ -6,12 +6,10 @@ on:
     branches:
       - main
       - graph_api
-      - cursor/core-graph-split-6f49
   pull_request:
     branches:
       - main
       - graph_api
-      - cursor/core-graph-split-6f49
 
 permissions:
   contents: read
