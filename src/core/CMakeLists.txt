@@ -413,9 +413,15 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
 )
 
+if(KERNEL_CPU_SRC)
+    add_library(nntile_core_kernel_cpu OBJECT ${KERNEL_CPU_SRC})
+    nntile_apply_common_includes(nntile_core_kernel_cpu)
+    nntile_apply_cblas(nntile_core_kernel_cpu)
+    target_link_libraries(nntile_core PRIVATE nntile_core_kernel_cpu)
+endif()
+
 set(NNTILE_CORE_SRC
     ${BASE_SRC}
-    ${KERNEL_CPU_SRC}
     ${KERNEL_CUDA_SRC}
     ${STARPU_BASE_SRC}
     ${STARPU_CODELET_SRC}

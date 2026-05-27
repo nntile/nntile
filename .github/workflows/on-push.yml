@@ -49,9 +49,91 @@ jobs:
         uses: pre-commit/action@v3.0.0
         if: '!github.event.pull_request'
 
+  configure-smoke:
+    name: Configure smoke (CMake only)
+    needs: lint
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:24.04
+    steps:
+      - name: Cache system packages
+        uses: actions/cache@v5
+        env:
+          cache-name: cache-apt-packages
+        with:
+          path: /var/cache/apt
+          key: ${{ runner.os }}-build-${{ env.cache-name }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}
+            ${{ runner.os }}-build-
+            ${{ runner.os }}
+      - name: Install system dependencies
+        run: |
+          rm -rfv /etc/apt/apt.conf.d/docker*
+          apt update
+          apt install -y --no-install-recommends \
+              autoconf automake binutils build-essential ca-certificates \
+              clang cmake curl fxt-tools git libfxt-dev libhwloc-dev \
+              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
+              lsb-release ninja-build openmpi-bin pkg-config sqlite3
+      - name: Cache StarPU
+        id: cache-starpu
+        uses: actions/cache@v5
+        with:
+          path: /opt/starpu
+          key: starpu-1.4.8-${{ runner.os }}-v2
+      - name: Build StarPU from source
+        if: steps.cache-starpu.outputs.cache-hit != 'true'
+        run: |
+          export STARPU_VERSION=starpu-1.4.8
+          export STARPU_LABEL=$STARPU_VERSION
+          mkdir -p /usr/src
+          curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | tar -xzC /usr/src
+          ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu
+          cd /usr/src/starpu
+          ./autogen.sh
+          ./configure \
+              --disable-build-doc \
+              --disable-build-examples \
+              --disable-build-tests \
+              --disable-fortran \
+              --disable-opencl \
+              --disable-socl \
+              --disable-starpufft \
+              --disable-starpupy \
+              --enable-blas-lib=none \
+              --enable-maxcudadev=8 \
+              --enable-maxbuffers=16 \
+              --with-fxt \
+              --prefix=/opt/starpu \
+              --libdir=/opt/starpu/lib
+          make -j 4 install
+          rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
+      - uses: actions/checkout@v6
+      - name: Pull all PR commits
+        if: github.event.pull_request
+        run: |
+          git config --global --add safe.directory ${GITHUB_WORKSPACE}
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+          git checkout ${{ github.event.pull_request.head.ref }}
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100
+      - name: Check core include paths
+        run: .github/scripts/check-core-includes.sh .
+      - name: Configure NNTile (smoke)
+        run: |
+          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TESTS_PYTORCH=OFF \
+            -DBUILD_PYTHON_WRAPPERS=OFF
+
   build:
     name: Build a CPU-only extension for Python ${{ matrix.python-version }}
-    needs: 'lint'
+    needs:
+      - lint
+      - configure-smoke
     runs-on: 'ubuntu-24.04'
     strategy:
       matrix:
@@ -148,9 +230,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: /tmp/ccache
-          key: ccache-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('src/core/**', 'src/graph/**', 'include/**', 'CMakeLists.txt', 'src/**/CMakeLists.txt') }}
+          key: ccache-nntile-${{ runner.os }}
           restore-keys: |
-            ccache-${{ runner.os }}-${{ matrix.python-version }}-
+            ccache-nntile-${{ runner.os }}
+          save-always: true
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=2G
@@ -187,11 +270,18 @@ jobs:
           .github/scripts/run-dirty-cpp-tests.sh \
             ${{ github.event.pull_request.head.ref }} \
             ${{ github.base_ref }}
-      - name: Run all C++ tests
+      - name: Run core C++ tests
         if: '!github.event.pull_request'
         run: |
           export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
+          ctest --test-dir build -L core -E wrappers -LE "(MPI|NotImplemented)" \
+            --output-on-failure
+      - name: Run graph C++ tests
+        if: '!github.event.pull_request'
+        run: |
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          ctest --test-dir build -L graph -E wrappers -LE "(MPI|NotImplemented)" \
+            --output-on-failure
 
   test-python:
     name: Run CPU-only tests with Python ${{ matrix.python-version }}
