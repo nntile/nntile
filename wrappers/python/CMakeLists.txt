@@ -19,24 +19,28 @@ set(EXT_SRC
     "nntile/nntile_core.cc"
 )
 
-# Set up python extension module (target name distinct from libnntile_core)
-pybind11_add_module(nntile_core_py ${EXT_SRC})
-set_target_properties(nntile_core_py PROPERTIES
-    OUTPUT_NAME "nntile_core"
-    LIBRARY_OUTPUT_DIRECTORY "nntile"
-    SUFFIX ".so")
-target_link_libraries(nntile_core_py PRIVATE nntile_core)
+if(BUILD_CORE)
+    # Set up python extension module (target name distinct from libnntile_core)
+    pybind11_add_module(nntile_core_py ${EXT_SRC})
+    set_target_properties(nntile_core_py PROPERTIES
+        OUTPUT_NAME "nntile_core"
+        LIBRARY_OUTPUT_DIRECTORY "nntile"
+        SUFFIX ".so")
+    target_link_libraries(nntile_core_py PRIVATE nntile_core)
+endif()
 
-# Graph API extension module
-set(GRAPH_SRC
-    "nntile/nntile_graph.cc"
-)
-pybind11_add_module(nntile_graph_py ${GRAPH_SRC})
-set_target_properties(nntile_graph_py PROPERTIES
-    OUTPUT_NAME "nntile_graph"
-    LIBRARY_OUTPUT_DIRECTORY "nntile"
-    SUFFIX ".so")
-target_link_libraries(nntile_graph_py PRIVATE nntile_graph)
+if(BUILD_GRAPH)
+    # Graph API extension module
+    set(GRAPH_SRC
+        "nntile/nntile_graph.cc"
+    )
+    pybind11_add_module(nntile_graph_py ${GRAPH_SRC})
+    set_target_properties(nntile_graph_py PROPERTIES
+        OUTPUT_NAME "nntile_graph"
+        LIBRARY_OUTPUT_DIRECTORY "nntile"
+        SUFFIX ".so")
+    target_link_libraries(nntile_graph_py PRIVATE nntile_graph)
+endif()
 
 # Collect all *.py source files and copy them into build directory
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/nntile DESTINATION
@@ -109,6 +113,12 @@ endforeach()
 if(BUILD_CORE AND BUILD_GRAPH)
     add_custom_target(nntile_compile_smoke
         DEPENDS nntile_core nntile_graph nntile_core_py nntile_graph_py)
+elseif(BUILD_CORE)
+    add_custom_target(nntile_compile_smoke
+        DEPENDS nntile_core nntile_core_py)
+elseif(BUILD_GRAPH)
+    add_custom_target(nntile_compile_smoke
+        DEPENDS nntile_graph nntile_graph_py)
 endif()
 
 # Install Python module

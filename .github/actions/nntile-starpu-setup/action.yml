@@ -1,0 +1,66 @@
+name: NNTile StarPU and apt setup
+description: Install Ubuntu build dependencies and StarPU 1.4.8 under /opt/starpu
+runs:
+  using: composite
+  steps:
+    - name: Cache system packages
+      uses: actions/cache@v5
+      with:
+        path: /var/cache/apt
+        key: ${{ runner.os }}-build-cache-apt-packages
+        restore-keys: |
+          ${{ runner.os }}-build-cache-apt-packages
+          ${{ runner.os }}-build-
+          ${{ runner.os }}
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        rm -rfv /etc/apt/apt.conf.d/docker*
+        apt update
+        apt install -y --no-install-recommends \
+            autoconf automake binutils build-essential ca-certificates \
+            ccache clang cmake curl fxt-tools gdb git lcov libfxt-dev \
+            libhwloc-dev libopenblas-dev libopenmpi-dev libopenmpi3 \
+            libtool-bin lsb-release ninja-build openmpi-bin pkg-config \
+            sqlite3
+    - name: Cache StarPU
+      id: cache-starpu
+      uses: actions/cache@v5
+      with:
+        path: /opt/starpu
+        key: starpu-1.4.8-${{ runner.os }}-v2
+    - name: Build StarPU from source
+      if: steps.cache-starpu.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        export STARPU_VERSION=starpu-1.4.8
+        export STARPU_LABEL=$STARPU_VERSION
+        mkdir -p /usr/src
+        curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | tar -xzC /usr/src
+        ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu
+        cd /usr/src/starpu
+        ./autogen.sh
+        ./configure \
+            --disable-build-doc \
+            --disable-build-examples \
+            --disable-build-tests \
+            --disable-fortran \
+            --disable-opencl \
+            --disable-socl \
+            --disable-starpufft \
+            --disable-starpupy \
+            --enable-blas-lib=none \
+            --enable-maxcudadev=8 \
+            --enable-maxbuffers=16 \
+            --with-fxt \
+            --prefix=/opt/starpu \
+            --libdir=/opt/starpu/lib
+        make -j 4 install
+        rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
+    - name: Verify StarPU installation
+      shell: bash
+      run: |
+        set -euo pipefail
+        PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig pkg-config --modversion starpu-1.4

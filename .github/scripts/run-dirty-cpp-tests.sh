@@ -6,10 +6,25 @@ set -e
 
 branch=$1
 base_branch=${2:-main}
+ctest_label=${3:-}
 if [ -z "$branch" ]; then
     branch=$(git branch --show-current)
     echo "no branch specified: assume current branch is $branch"
 fi
+
+ctest_label_args=()
+case "$ctest_label" in
+    core|graph)
+        ctest_label_args=(-L "$ctest_label")
+        echo ":: CTest label filter: ${ctest_label}"
+        ;;
+    "")
+        ;;
+    *)
+        echo "Unknown ctest label filter: ${ctest_label}" >&2
+        exit 2
+        ;;
+esac
 
 echo ":: Diff base ${base_branch}..${branch}"
 all_changed=$(git diff --name-only "${base_branch}..${branch}")
@@ -49,7 +64,7 @@ done <<< "$all_changed"
 if $run_all; then
     echo ":: Core files changed, running all C++ tests"
     ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" \
-        --output-on-failure
+        "${ctest_label_args[@]}" --output-on-failure
     exit
 fi
 
@@ -263,7 +278,7 @@ done <<< "$all_changed"
 if [ ${#affected[@]} -eq 0 ]; then
     echo ":: Unknown changes (no pattern matched), running all C++ tests"
     ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" \
-        --output-on-failure
+        "${ctest_label_args[@]}" --output-on-failure
     exit
 fi
 
@@ -277,4 +292,4 @@ printf '  - %s\n' "${!affected[@]}" | sort
 echo ":: CTest regex: $regex"
 
 ctest --test-dir build -R "$regex" -E wrappers -LE "(MPI|NotImplemented)" \
-    --output-on-failure
+    "${ctest_label_args[@]}" --output-on-failure

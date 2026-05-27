@@ -25,10 +25,10 @@ jobs:
       - name: Run pre-commit on merge
         uses: pre-commit/action@v3.0.0
 
-  build:
-    name: Build a CPU-only extension for Python ${{ matrix.python-version }}
-    needs: 'lint'
-    runs-on: 'ubuntu-24.04'
+  build-core:
+    name: Build nntile_core for Python ${{ matrix.python-version }}
+    needs: lint
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ['3.12']
@@ -36,67 +36,9 @@ jobs:
       image: ubuntu:24.04
     env:
       CCACHE_DIR: /tmp/ccache
+      NNTILE_INSTALL: ${{ github.workspace }}/install
     steps:
-      - name: Cache system packages
-        id: cache-apt
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-apt-packages
-        with:
-          path: /var/cache/apt
-          key: ${{ runner.os }}-build-${{ env.cache-name }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}
-            ${{ runner.os }}-build-
-            ${{ runner.os }}
-      - name: Install system dependencies
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker*
-          apt update
-          apt install -y --no-install-recommends \
-              autoconf automake binutils build-essential ca-certificates \
-              ccache clang cmake curl fxt-tools gdb git lcov libfxt-dev \
-              libhwloc-dev libopenblas-dev libopenmpi-dev libopenmpi3 \
-              libtool-bin lsb-release ninja-build openmpi-bin pkg-config \
-              sqlite3
-      - name: Cache StarPU
-        id: cache-starpu
-        uses: actions/cache@v5
-        with:
-          path: /opt/starpu
-          key: starpu-1.4.8-${{ runner.os }}-v2
-      - name: Build StarPU from source
-        if: steps.cache-starpu.outputs.cache-hit != 'true'
-        run: |
-          export STARPU_VERSION=starpu-1.4.8
-          export STARPU_LABEL=$STARPU_VERSION
-          mkdir -p /usr/src
-          curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | tar -xzC /usr/src
-          ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu
-          cd /usr/src/starpu
-          ./autogen.sh
-          ./configure \
-              --disable-build-doc \
-              --disable-build-examples \
-              --disable-build-tests \
-              --disable-fortran \
-              --disable-opencl \
-              --disable-socl \
-              --disable-starpufft \
-              --disable-starpupy \
-              --enable-blas-lib=none \
-              --enable-maxcudadev=8 \
-              --enable-maxbuffers=16 \
-              --with-fxt \
-              --prefix=/opt/starpu \
-              --libdir=/opt/starpu/lib
-          make -j 4 install
-          rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
-      - name: Verify StarPU installation
-        run: |
-          echo ":: StarPU tree"
-          find /opt/starpu -name '*.pc' -o -name 'libstarpu*' | head -20
-          PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig pkg-config --modversion starpu-1.4
+      - uses: ./.github/actions/nntile-starpu-setup
       - uses: actions/checkout@v6
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
@@ -124,39 +66,126 @@ jobs:
           ccache --set-config=max_size=2G
           ccache --set-config=compression=true
           ccache --zero-stats
-      - name: Build NNTile native libraries
+      - name: Configure and build nntile_core
         run: |
+          set -euo pipefail
           export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+          export TORCH_PREFIX=$(
+            python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DBUILD_GRAPH=OFF \
+            -DBUILD_TESTS_GRAPH=OFF \
             -DBUILD_EXAMPLES=OFF \
+            -DCMAKE_INSTALL_PREFIX="${NNTILE_INSTALL}" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}"
+          cmake --build build -j
+          cmake --build build --target nntile_compile_smoke
+          cmake --install build
+      - name: Show ccache stats
+        if: always()
+        run: ccache --show-stats
+      - name: Upload nntile_core install and extension
+        uses: actions/upload-artifact@v7
+        with:
+          name: nntile-core-${{ matrix.python-version }}
+          path: |
+            install/
+            build/wrappers/python/nntile/nntile_core.so
+          retention-days: 7
+      - name: Run core C++ tests
+        run: |
+          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          ctest --test-dir build -L core -E wrappers -LE "(MPI|NotImplemented)" \
+            --output-on-failure
+
+  build-graph:
+    name: Build nntile_graph for Python ${{ matrix.python-version }}
+    needs: build-core
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ['3.12']
+    container:
+      image: ubuntu:24.04
+    env:
+      CCACHE_DIR: /tmp/ccache
+      NNTILE_INSTALL: ${{ github.workspace }}/install
+    steps:
+      - uses: ./.github/actions/nntile-starpu-setup
+      - uses: actions/checkout@v6
+      - name: Download nntile_core artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: nntile-core-${{ matrix.python-version }}
+          path: .
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python dependencies
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          $HOME/.local/bin/uv pip install --system \
+            torch --index-url https://download.pytorch.org/whl/cpu
+          $HOME/.local/bin/uv pip install --system \
+            numpy safetensors "transformers<4.53"
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: /tmp/ccache
+          key: ccache-nntile-${{ runner.os }}
+          restore-keys: |
+            ccache-nntile-${{ runner.os }}
+          save-always: true
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=2G
+          ccache --set-config=compression=true
+          ccache --zero-stats
+      - name: Configure and build nntile_graph
+        run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+          export TORCH_PREFIX=$(
+            python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DBUILD_CORE=OFF \
+            -DBUILD_TESTS_CORE=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DNNTILE_CORE_PREFIX="${NNTILE_INSTALL}" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_PREFIX_PATH="${NNTILE_INSTALL}:${TORCH_PREFIX}"
           cmake --build build -j
           cmake --build build --target nntile_compile_smoke
       - name: Show ccache stats
         if: always()
         run: ccache --show-stats
-      - name: Upload all shared objects (*.so)
+      - name: Verify Python extensions
+        run: |
+          set -euo pipefail
+          test -f build/wrappers/python/nntile/nntile_core.so
+          test -f build/wrappers/python/nntile/nntile_graph.so
+      - name: Upload Python extensions
         uses: actions/upload-artifact@v7
         with:
           name: shared-objects-${{ matrix.python-version }}
-          path: build/**/*.so
+          path: |
+            build/wrappers/python/nntile/nntile_graph.so
+            build/wrappers/python/nntile/nntile_core.so
           retention-days: 7
-      - name: Run core C++ tests
-        run: |
-          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L core -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
       - name: Run graph C++ tests
         run: |
-          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           ctest --test-dir build -L graph -E wrappers -LE "(MPI|NotImplemented)" \
             --output-on-failure
 
   test-python:
     name: Run CPU-only tests with Python ${{ matrix.python-version }}
-    needs: 'build'
+    needs: build-graph
     runs-on: 'ubuntu-24.04'
     strategy:
       matrix:

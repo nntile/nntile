@@ -1,0 +1,16 @@
+name: NNTile PR checkout helper
+description: Deepen and checkout the PR head branch inside a container job
+runs:
+  using: composite
+  steps:
+    - name: Pull all PR commits
+      if: github.event.pull_request
+      shell: bash
+      run: |
+        set -euo pipefail
+        git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+        git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+        git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+          --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+        git checkout ${{ github.event.pull_request.head.ref }}
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100

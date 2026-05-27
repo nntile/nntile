@@ -89,15 +89,27 @@ add_subdirectory("external")
 
 pkg_check_modules(StarPU REQUIRED starpu-1.4)
 
+if(NOT BUILD_CORE AND BUILD_GRAPH)
+    set(NNTILE_CORE_PREFIX "" CACHE PATH
+        "Install prefix of a pre-built nntile_core (lib/ and include/)")
+    if(NOT NNTILE_CORE_PREFIX)
+        message(FATAL_ERROR
+            "NNTILE_CORE_PREFIX must point at a core install when BUILD_CORE=OFF")
+    endif()
+    include("${PROJECT_SOURCE_DIR}/cmake/NNTileCoreImported.cmake")
+    nntile_import_installed_core("${NNTILE_CORE_PREFIX}")
+endif()
+
 if(BUILD_CORE)
     target_link_libraries(nntile_core PUBLIC ${StarPU_LDFLAGS} nlohmann_json::nlohmann_json)
     nntile_apply_common_includes(nntile_core)
 endif()
-if(BUILD_GRAPH AND BUILD_CORE)
+if(BUILD_GRAPH)
+    if(NOT TARGET nntile_core)
+        message(FATAL_ERROR "nntile_graph requires target nntile_core")
+    endif()
     target_link_libraries(nntile_graph PUBLIC nntile_core)
     nntile_apply_common_includes(nntile_graph)
-elseif(BUILD_GRAPH)
-    message(FATAL_ERROR "BUILD_GRAPH=ON requires BUILD_CORE=ON")
 endif()
 
 include(CheckSymbolExists)
@@ -182,8 +194,10 @@ if(BUILD_CORE)
     nntile_apply_cblas(nntile_core)
 endif()
 
-configure_file("${PROJECT_SOURCE_DIR}/include/nntile/core/defs.h.in"
-    "${PROJECT_BINARY_DIR}/include/nntile/core/defs.h" @ONLY)
+if(BUILD_CORE)
+    configure_file("${PROJECT_SOURCE_DIR}/include/nntile/core/defs.h.in"
+        "${PROJECT_BINARY_DIR}/include/nntile/core/defs.h" @ONLY)
+endif()
 
 if(BUILD_COVERAGE)
     message(STATUS "Code coverage report was requested, so option BUILD_TESTS"
@@ -227,4 +241,29 @@ endif()
 
 if(BUILD_PYTHON_WRAPPERS)
     add_subdirectory("wrappers/python")
+endif()
+
+if(BUILD_CORE)
+    include(GNUInstallDirs)
+
+    install(
+        TARGETS nntile_core
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+
+    install(
+        DIRECTORY "${PROJECT_SOURCE_DIR}/include/nntile"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING PATTERN "*.hh"
+    )
+    install(
+        FILES "${PROJECT_SOURCE_DIR}/include/nntile.hh"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+    install(
+        FILES "${PROJECT_BINARY_DIR}/include/nntile/core/defs.h"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nntile/core
+    )
 endif()
