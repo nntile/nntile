@@ -1,5 +1,7 @@
 # Import a pre-built nntile_core from an install prefix (CI graph-only builds).
 
+include(GNUInstallDirs)
+
 function(nntile_import_installed_core prefix)
     if(NOT IS_ABSOLUTE "${prefix}")
         get_filename_component(prefix "${prefix}" ABSOLUTE BASE_DIR
