@@ -56,7 +56,7 @@
 
 using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneo;
+using namespace nntile::graph::model::gptneo;
 using nntile::examples::load_gptneo_config_json;
 
 namespace

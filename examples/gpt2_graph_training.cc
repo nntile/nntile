@@ -61,7 +61,7 @@ using json = nlohmann::json;
 
 using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gpt2;
+using namespace nntile::graph::model::gpt2;
 using namespace nntile::graph::dataset;
 using namespace nntile::graph::optim;
 

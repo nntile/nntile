@@ -23,12 +23,12 @@
 namespace nntile::examples
 {
 
-inline model::roberta::RobertaConfig make_tiny_roberta_config(
+inline graph::model::roberta::RobertaConfig make_tiny_roberta_config(
     Index num_hidden_layers,
     Index max_position_embeddings,
     float layer_norm_eps = 1e-5f)
 {
-    model::roberta::RobertaConfig c;
+    graph::model::roberta::RobertaConfig c;
     c.vocab_size = 64;
     c.hidden_size = 32;
     c.intermediate_size = 64;
@@ -49,7 +49,7 @@ enum class RobertaParamInitScale
 };
 
 inline void init_random_roberta_parameter_hints(
-    model::roberta::RobertaMlm &model,
+    graph::model::roberta::RobertaMlm &model,
     std::mt19937 &gen,
     RobertaParamInitScale scale = RobertaParamInitScale::FanInSqrt)
 {

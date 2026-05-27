@@ -103,7 +103,7 @@ using nntile::examples::config_get_int;
 
 using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::llama;
+using namespace nntile::graph::model::llama;
 using namespace nntile::graph::dataset;
 using namespace nntile::graph::optim;
 

@@ -31,7 +31,7 @@
 using namespace nntile::core;
 using namespace nntile::examples;
 using namespace nntile::graph;
-using namespace nntile::model::bert;
+using namespace nntile::graph::model::bert;
 using namespace nntile::graph::optim;
 
 namespace

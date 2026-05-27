@@ -56,7 +56,7 @@
 
 using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneox;
+using namespace nntile::graph::model::gptneox;
 using json = nlohmann::json;
 
 // ── CLI helpers ──────────────────────────────────────────────────────────

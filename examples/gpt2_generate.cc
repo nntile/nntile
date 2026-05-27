@@ -57,7 +57,7 @@
 
 using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gpt2;
+using namespace nntile::graph::model::gpt2;
 using json = nlohmann::json;
 
 namespace

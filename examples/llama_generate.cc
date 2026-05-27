@@ -56,7 +56,7 @@
 
 using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::llama;
+using namespace nntile::graph::model::llama;
 using json = nlohmann::json;
 using nntile::examples::config_get_float;
 using nntile::examples::config_get_int;

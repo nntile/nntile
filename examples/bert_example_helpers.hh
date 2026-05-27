@@ -23,12 +23,12 @@
 namespace nntile::examples
 {
 
-inline model::bert::BertConfig make_tiny_bert_config(
+inline graph::model::bert::BertConfig make_tiny_bert_config(
     Index num_hidden_layers,
     Index max_position_embeddings,
     float layer_norm_eps = 1e-12f)
 {
-    model::bert::BertConfig c;
+    graph::model::bert::BertConfig c;
     c.vocab_size = 64;
     c.hidden_size = 32;
     c.intermediate_size = 64;
@@ -48,7 +48,7 @@ enum class BertParamInitScale
 };
 
 inline void init_random_bert_parameter_hints(
-    model::bert::BertMlm &model,
+    graph::model::bert::BertMlm &model,
     std::mt19937 &gen,
     BertParamInitScale scale = BertParamInitScale::FanInSqrt)
 {
