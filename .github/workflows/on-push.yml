@@ -287,7 +287,7 @@ jobs:
           set -euo pipefail
           mkdir -p build/lib
           cp -a "${NNTILE_INSTALL}/lib/libnntile_core.so" build/lib/
-          cp -a build/src/graph/libnntile_graph.so build/lib/
+          cp -a build/libnntile_graph.so build/lib/
       - name: Upload Python extensions
         uses: actions/upload-artifact@v7
         with:
