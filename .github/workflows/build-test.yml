@@ -77,8 +77,16 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -152,8 +160,16 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -227,8 +243,16 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -282,8 +306,16 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -385,8 +417,16 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -469,8 +509,16 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
@@ -524,8 +572,16 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}

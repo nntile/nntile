@@ -24,7 +24,15 @@ jobs:
         python-version: ['3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-pr-checkout
+      - name: Pull all PR commits
+        if: github.event_name == 'pull_request'
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
