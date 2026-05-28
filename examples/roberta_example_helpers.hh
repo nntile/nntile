@@ -54,7 +54,8 @@ inline void init_random_roberta_parameter_hints(
     std::mt19937 &gen,
     RobertaParamInitScale scale = RobertaParamInitScale::FanInSqrt)
 {
-    for (NNGraph::TensorNode *tensor : model.parameters_recursive())
+    for (nntile::graph::NNGraph::TensorNode *tensor :
+         model.parameters_recursive())
     {
         const auto &shape = tensor->shape();
         graph::Index nelems = 1;
