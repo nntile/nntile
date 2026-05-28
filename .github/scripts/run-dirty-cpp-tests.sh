@@ -286,6 +286,29 @@ if [ ${#affected[@]} -eq 0 ]; then
     exit
 fi
 
+# Split CI passes core|graph so each job only has that layer's tests in its
+# build tree. Drop affected names from the other layer to avoid ctest exit 8
+# ("No tests were found") when -R matches nothing in this tree.
+if [ "$ctest_label" = core ] || [ "$ctest_label" = graph ]; then
+    declare -A layer_affected
+    for name in "${!affected[@]}"; do
+        case "$name" in
+            tests_"${ctest_label}"_*)
+                layer_affected["$name"]=1
+                ;;
+        esac
+    done
+    unset affected
+    declare -A affected
+    for name in "${!layer_affected[@]}"; do
+        affected["$name"]=1
+    done
+    if [ ${#affected[@]} -eq 0 ]; then
+        echo ":: No ${ctest_label}-layer tests affected by this diff; skipping"
+        exit 0
+    fi
+fi
+
 # Build an anchored ctest regex.  The (_[0-9]+)? suffix accounts for
 # multi-argument tests that get a numeric suffix (e.g. tests_core_tile_gemm_1).
 patterns=$(printf '%s\n' "${!affected[@]}" | sort | paste -sd '|')
