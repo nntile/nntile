@@ -32,7 +32,7 @@
 #include "pytorch_tile_helpers.hh"
 #endif
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 namespace gt = nntile::graph::tensor;
@@ -84,12 +84,12 @@ TEST_CASE("LayerNorm Repr", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
-using nntile::test::module_tile_all_untiled_axis_groups_heterogeneous;
-using nntile::test::pytorch_tolerance;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous;
+using nntile::graph::test::pytorch_tolerance;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LayerNorm forward matches PyTorch",
     "[module][pytorch]")
 {
@@ -162,7 +162,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     compare_float_vectors(nntile_out, y_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LayerNorm forward-backward matches PyTorch",
     "[module][pytorch]")
 {

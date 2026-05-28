@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,21 +17,21 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/total_sum_accum.hh"
-#include "nntile/tensor/total_sum_accum.hh"
+#include "nntile/core/tensor/total_sum_accum.hh"
 
 namespace nntile::graph::tensor
 {
 
 void TensorTotalSumAccumOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::total_sum_accum_async (src/tensor/total_sum_accum.cc).
+    // Match nntile::core::tensor::total_sum_accum_async (src/tensor/total_sum_accum.cc).
     const TensorAxisLayout* lay_l = ctx.tiling.find(class_labels);
     if(lay_l == nullptr)
     {

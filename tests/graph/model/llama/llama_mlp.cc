@@ -40,9 +40,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::llama;
+using namespace nntile::graph::model::llama;
 using namespace nntile::graph::io;
 
 #ifndef LLAMA_DATA_DIR
@@ -67,7 +67,7 @@ constexpr char llama_mlp[] = "llama_mlp";
 namespace
 {
 
-using namespace nntile::test::llama_fixture;
+using namespace nntile::graph::test::llama_fixture;
 
 //! Parsed ``<stem>.json`` (``version`` 2) next to ``<stem>.safetensors``.
 struct MlpFixtureSpec
@@ -202,7 +202,7 @@ TEST_CASE("LlamaMLP load from safetensors roundtrip", "[model][llama][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaMLP matches PyTorch reference",
     "[model][llama]")
 {
@@ -252,7 +252,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     require_relative_frobenius_error(result, ref_data, tol);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaMLP backward matches PyTorch reference",
     "[model][llama]")
 {

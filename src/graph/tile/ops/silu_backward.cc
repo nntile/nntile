@@ -16,10 +16,10 @@
 
 #include <stdexcept>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/silu_backward.hh>
+#include <nntile/core/tile/silu_backward.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -37,7 +37,7 @@ void run_silu_backward(
     auto& x_t = runtime.get_tile<T>(x);
     auto& dy_t = runtime.get_tile<T>(dy);
     auto& dx_t = runtime.get_tile<T>(dx);
-    nntile::tile::silu_backward<T>(x_t, dy_t, dx_t);
+    nntile::core::tile::silu_backward<T>(x_t, dy_t, dx_t);
 }
 
 } // namespace
@@ -75,25 +75,25 @@ void TileSiluBackwardOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_silu_backward<nntile::fp32_t>(runtime, x, dy, dx);
+            run_silu_backward<nntile::core::fp32_t>(runtime, x, dy, dx);
             break;
         case DataType::FP32_FAST_TF32:
-            run_silu_backward<nntile::fp32_fast_tf32_t>(runtime, x, dy, dx);
+            run_silu_backward<nntile::core::fp32_fast_tf32_t>(runtime, x, dy, dx);
             break;
         case DataType::FP32_FAST_FP16:
-            run_silu_backward<nntile::fp32_fast_fp16_t>(runtime, x, dy, dx);
+            run_silu_backward<nntile::core::fp32_fast_fp16_t>(runtime, x, dy, dx);
             break;
         case DataType::FP32_FAST_BF16:
-            run_silu_backward<nntile::fp32_fast_bf16_t>(runtime, x, dy, dx);
+            run_silu_backward<nntile::core::fp32_fast_bf16_t>(runtime, x, dy, dx);
             break;
         case DataType::FP64:
-            run_silu_backward<nntile::fp64_t>(runtime, x, dy, dx);
+            run_silu_backward<nntile::core::fp64_t>(runtime, x, dy, dx);
             break;
         case DataType::FP16:
-            run_silu_backward<nntile::fp16_t>(runtime, x, dy, dx);
+            run_silu_backward<nntile::core::fp16_t>(runtime, x, dy, dx);
             break;
         case DataType::BF16:
-            run_silu_backward<nntile::bf16_t>(runtime, x, dy, dx);
+            run_silu_backward<nntile::core::bf16_t>(runtime, x, dy, dx);
             break;
         case DataType::INT64:
         case DataType::BOOL:

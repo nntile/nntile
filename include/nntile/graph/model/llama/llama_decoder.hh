@@ -25,7 +25,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/rms_norm.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 //! LlamaDecoder - input_norm -> attention -> residual -> post_attn_norm -> MLP -> residual
@@ -70,4 +70,4 @@ public:
     LlamaMLP& mlp() { return mlp_; }
 };
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

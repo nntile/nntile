@@ -21,9 +21,9 @@
 #include <vector>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 //! GPT-Neo model configuration (mirrors HuggingFace GPTNeoConfig)
@@ -87,4 +87,4 @@ struct GptneoConfig
     }
 };
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

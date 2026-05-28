@@ -15,7 +15,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 BertEmbeddings::BertEmbeddings(graph::NNGraph* graph,
@@ -81,4 +81,4 @@ std::string BertEmbeddings::repr() const
            ", vocab=" + std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

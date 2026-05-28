@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,9 +17,9 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/mask_scalar.hh"
+#include "nntile/core/tensor/mask_scalar.hh"
 
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/mask_scalar.hh"
@@ -68,7 +69,7 @@ void mask_scalar(TensorGraph::TensorNode* mask,
 
 void TensorMaskScalarOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::mask_scalar_async (src/tensor/mask_scalar.cc).
+    // Match nntile::core::tensor::mask_scalar_async (src/tensor/mask_scalar.cc).
     const TensorAxisLayout* lay_a = ctx.tiling.find(A);
     const TensorAxisLayout* lay_m = ctx.tiling.find(mask);
     if(lay_a == nullptr || lay_m == nullptr)

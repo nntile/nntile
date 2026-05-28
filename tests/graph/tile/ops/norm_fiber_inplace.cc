@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/norm_fiber_inplace.cc
- * Test TileGraph norm fiber inplace vs nntile::tile (parity).
+ * Test TileGraph norm fiber inplace vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/norm_fiber_inplace.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/norm_fiber_inplace.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/norm_fiber_inplace.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber_inplace", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph norm_fiber_inplace", "[graph][tile]")
 {
     const std::vector<Index> sh = {5, 3, 20, 1};
     const std::vector<Index> dh = {5};
@@ -46,13 +46,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber_inplace", "
     rt.execute();
     rt.wait();
     const std::vector<float> gout = rt.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> S(sh), D(dh);
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> S(sh), D(dh);
+    using Y = typename nntile::core::fp32_t::repr_t;
     { auto a1 = S.acquire(STARPU_W), a2 = D.acquire(STARPU_W);
       for(Index i = 0; i < n1; ++i) a1[i] = Y(-1.0f);
       for(Index j = 0; j < n2; ++j) a2[j] = Y(-1.0f);
       a1.release(); a2.release(); }
-    nntile::tile::norm_fiber_inplace<fp32_t>(a, S, b, D, ax, bd, redux);
+    nntile::core::tile::norm_fiber_inplace<fp32_t>(a, S, b, D, ax, bd, redux);
     starpu_task_wait_for_all();
     std::vector<float> tref(5);
     { auto L = D.acquire(STARPU_R);

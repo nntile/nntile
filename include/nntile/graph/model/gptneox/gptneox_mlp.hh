@@ -23,7 +23,7 @@
 #include <nntile/graph/module/activation.hh>
 #include <nntile/graph/module/mlp.hh>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 //! GPT-NeoXMLP - MLP with GELU and HF ``dense_*`` biases (like ``Gpt2MLP``).
@@ -45,4 +45,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

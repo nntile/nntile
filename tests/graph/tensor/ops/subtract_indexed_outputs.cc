@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/subtract_indexed_outputs.cc
  * Test TensorGraph subtract_indexed_outputs against
- * nntile::tensor::subtract_indexed_outputs.
+ * nntile::core::tensor::subtract_indexed_outputs.
  *
  * @version 1.1.0
  * */
@@ -19,15 +19,15 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/subtract_indexed_outputs.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/subtract_indexed_outputs.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <cstdint>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -92,14 +92,14 @@ void check_subtract_indexed_outputs_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits labels_traits(labels_shape, labels_shape);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::core::tensor::TensorTraits labels_traits(labels_shape, labels_shape);
+    nntile::core::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> labels_distr(
         labels_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<nntile::int64_t> labels_t(
+    nntile::core::tensor::Tensor<nntile::core::int64_t> labels_t(
         labels_traits, labels_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::core::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = labels_t.get_tile(0);
@@ -120,7 +120,7 @@ void check_subtract_indexed_outputs_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::subtract_indexed_outputs<T>(
+    nntile::core::tensor::subtract_indexed_outputs<T>(
         val, labels_t, dst_t, ignore_index);
     starpu_task_wait_for_all();
 
@@ -201,9 +201,9 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects ndim mismatch",
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph subtract_indexed_outputs matches "
-    "nntile::tensor::subtract_indexed_outputs",
+    "nntile::core::tensor::subtract_indexed_outputs",
     "[graph][tensor]")
 {
     const auto [labels_shape, n_class] =
@@ -211,11 +211,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{std::vector<Index>{6}, Index(3)},
             std::tuple{std::vector<Index>{2, 3}, Index(4)});
 
-    check_subtract_indexed_outputs_vs_tensor_api<nntile::fp32_t>(
+    check_subtract_indexed_outputs_vs_tensor_api<nntile::core::fp32_t>(
         labels_shape, n_class);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph subtract_indexed_outputs tiled matches untiled",
     "[graph][tensor]")
 {

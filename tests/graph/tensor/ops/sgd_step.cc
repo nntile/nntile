@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/sgd_step.cc
- * Test TensorGraph sgd_step operation against nntile::tensor::sgd_step.
+ * Test TensorGraph sgd_step operation against nntile::core::tensor::sgd_step.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/sgd_step.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/sgd_step.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -100,14 +100,14 @@ void check_sgd_step_vs_tensor_api(const std::vector<Index> &shape,
     std::vector<float> graph_p = runtime.get_output<float>(p_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> grad_t(traits, distr);
-    nntile::tensor::Tensor<T> velocity_t(traits, distr);
-    nntile::tensor::Tensor<T> p_t(traits, distr);
+    nntile::core::tensor::Tensor<T> grad_t(traits, distr);
+    nntile::core::tensor::Tensor<T> velocity_t(traits, distr);
+    nntile::core::tensor::Tensor<T> p_t(traits, distr);
 
     auto init_tile =
-        [&](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
+        [&](nntile::core::tensor::Tensor<T> &t, const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -121,7 +121,7 @@ void check_sgd_step_vs_tensor_api(const std::vector<Index> &shape,
     init_tile(velocity_t, velocity_data);
     init_tile(p_t, p_data);
 
-    nntile::tensor::sgd_step<T>(num_iter,
+    nntile::core::tensor::sgd_step<T>(num_iter,
         momentum,
         lr,
         weight_decay,
@@ -191,8 +191,8 @@ TEST_CASE("TensorGraph sgd_step rejects null tensors", "[graph][tensor]")
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sgd_step matches nntile::tensor::sgd_step",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph sgd_step matches nntile::core::tensor::sgd_step",
     "[graph][tensor]")
 {
     const auto [shape,
@@ -215,11 +215,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{
             std::vector<Index>{4, 5}, Index(1), 0.9, 0.001, 0.0, 0.0, true});
 
-    check_sgd_step_vs_tensor_api<nntile::fp32_t>(
+    check_sgd_step_vs_tensor_api<nntile::core::fp32_t>(
         shape, num_iter, momentum, lr, weight_decay, dampening, nesterov);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph sgd_step tiled matches untiled",
     "[graph][tensor]")
 {

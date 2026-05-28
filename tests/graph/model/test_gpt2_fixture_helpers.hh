@@ -21,7 +21,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace nntile::test::gpt2_fixture
+namespace nntile::graph::test::gpt2_fixture
 {
 
 inline Index json_index(const nlohmann::json &o, const char *key)
@@ -149,4 +149,4 @@ inline void bind_mask_input(nntile::graph::Runtime &runtime,
     runtime.bind_data(mask, mask_bytes);
 }
 
-} // namespace nntile::test::gpt2_fixture
+} // namespace nntile::graph::test::gpt2_fixture

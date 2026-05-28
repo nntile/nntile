@@ -16,11 +16,14 @@
 #   include <stdexcept>
 #   include <vector>
 
+#   include <nntile/graph/common.hh>
 #   include <nntile/graph/nn/graph.hh>
 #   include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::test
+namespace nntile::graph::test
 {
+
+using nntile::graph::Index;
 
 //! 2D tensor shape (6, 7): heterogeneous splits on both axes.
 inline void nn_pytorch_tile_heterogeneous_rank2_6x7(graph::NNGraph::TensorNode* t)
@@ -277,6 +280,6 @@ inline void module_apply_embedding_vocab_tiling(graph::NNGraph::TensorNode* voca
     }
 }
 
-} // namespace nntile::test
+} // namespace nntile::graph::test
 
 #endif // NNTILE_HAVE_TORCH

@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/copy_intersection.cc
- * Test TileGraph copy intersection vs nntile::tile (parity).
+ * Test TileGraph copy intersection vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/copy_intersection.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/copy_intersection.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[graph][tile]")
+#include "nntile/core/tile/copy_intersection.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph copy_intersection", "[graph][tile]")
 {
     const std::vector<Index> sh = {2,2,3};
     const std::vector<Index> sc = {6};
@@ -44,13 +44,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     r.execute();
     r.wait();
     const auto gout = r.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> S(sh), D(sh);
-    nntile::tile::Tile<nntile::int64_t> Sc(sc);
+    nntile::core::tile::Tile<fp32_t> S(sh), D(sh);
+    nntile::core::tile::Tile<nntile::core::int64_t> Sc(sc);
     using Y = typename fp32_t::repr_t;
     { auto a=S.acquire(STARPU_W), b=D.acquire(STARPU_W);
       for(Index i=0;i<n;++i) { a[i]=Y(sv[static_cast<size_t>(i)]); b[i]=Y(0);} a.release(); b.release(); }
     { auto L=Sc.acquire(STARPU_W); for(Index j=0;j<6;++j) L[j]=0; L.release(); }
-    nntile::tile::copy_intersection<fp32_t>(
+    nntile::core::tile::copy_intersection<fp32_t>(
         S, {0, 0, 0}, D, {0, 0, 0}, Sc);
     starpu_task_wait_for_all();
     std::vector<float> tr(n);

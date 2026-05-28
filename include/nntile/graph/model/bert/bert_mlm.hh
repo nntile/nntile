@@ -20,7 +20,7 @@
 #include <nntile/graph/model/bert/bert_mlm_head.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 class BertMlm : public graph::module::Module
@@ -50,4 +50,4 @@ public:
     BertModel* model() { return model_.get(); }
 };
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

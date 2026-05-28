@@ -18,7 +18,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
-#include <nntile/context.hh>
+#include <nntile/core/context.hh>
 #include <nntile/graph.hh>
 #include <nntile/graph/module/activation.hh>
 #include <nntile/graph/module/mlp.hh>
@@ -33,10 +33,10 @@ namespace mod = nntile::graph::module;
 //! Label each axis equivalence class for this MLP layout. Extents
 //! batch / in_dim / hid_dim / out_dim must be pairwise distinct (true here).
 static void name_mlp_axis_groups_from_extents(nntile::graph::TensorGraph &tg,
-    nntile::Index batch,
-    nntile::Index in_dim,
-    nntile::Index hid_dim,
-    nntile::Index out_dim)
+    nntile::core::Index batch,
+    nntile::core::Index in_dim,
+    nntile::core::Index hid_dim,
+    nntile::core::Index out_dim)
 {
     for (nntile::graph::AxisDescriptor *ad : tg.axis_groups())
     {
@@ -77,8 +77,8 @@ static void name_mlp_axis_groups_from_extents(nntile::graph::TensorGraph &tg,
 
 //! Segment sizes for AxisDescriptor::set_tiling: positive, sum to `extent`.
 //! Uses unequal tile sizes whenever extent >= 3 (extent 2 only allows 1+1).
-static std::vector<nntile::Index> heterogeneous_tile_sizes(
-    nntile::Index extent)
+static std::vector<nntile::core::Index> heterogeneous_tile_sizes(
+    nntile::core::Index extent)
 {
     if (extent < 1)
     {
@@ -100,7 +100,7 @@ static std::vector<nntile::Index> heterogeneous_tile_sizes(
     {
         return {1, 1, 2};
     }
-    return {1, 2, static_cast<nntile::Index>(extent - 3)};
+    return {1, 2, static_cast<nntile::core::Index>(extent - 3)};
 }
 
 //! Sets a heterogeneous split on every axis group that is still untiled.
@@ -170,9 +170,9 @@ static void bind_same_weights(nntile::graph::Runtime &rt,
 int main()
 {
     using namespace nntile::graph;
-    using nntile::Index;
+    using nntile::core::Index;
 
-    nntile::Context context(1, // ncpu: StarPU CPU workers (-1 => STARPU_NCPU)
+    nntile::core::Context context(1, // ncpu: StarPU CPU workers (-1 => STARPU_NCPU)
         0, // ncuda: CUDA workers (-1 => STARPU_NCUDA; 0 => none)
         0, // ooc: out-of-core (nonzero enables disk-backed buffers)
         "/tmp/nntile_ooc", // ooc_path: backing store when OOC is on
@@ -226,7 +226,7 @@ int main()
     out->mark_output(true);
 
     auto [g_out, _] = nn.get_or_create_grad(out, "dloss");
-    gt::fill(nntile::Scalar(1.0f), g_out->data());
+    gt::fill(nntile::core::Scalar(1.0f), g_out->data());
 
     mlp.fc1().weight_tensor()->mark_input(true);
     mlp.fc2().weight_tensor()->mark_input(true);

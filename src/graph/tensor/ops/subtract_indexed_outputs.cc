@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -17,7 +18,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
@@ -29,7 +30,7 @@ namespace nntile::graph::tensor
 
 void TensorSubtractIndexedOutputsOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::subtract_indexed_outputs_async
+    // Match nntile::core::tensor::subtract_indexed_outputs_async
     // (src/tensor/subtract_indexed_outputs.cc): one tile op per dst grid cell,
     // paired with the labels tile at grid coords (dst_coord[1], ..., dst_coord[ndim-1]).
     // That equals shared linear index i with labels.get_tile(i) when dst axis 0 has

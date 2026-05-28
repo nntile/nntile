@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/add_inplace.cc
- * Test TensorGraph add_inplace operation against nntile::tensor::add_inplace.
+ * Test TensorGraph add_inplace operation against nntile::core::tensor::add_inplace.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/add_inplace.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/add_inplace.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -75,10 +75,10 @@ void check_add_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(y_node);
 
     // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> src(traits, distr);
-    nntile::tensor::Tensor<T> dst(traits, distr);
+    nntile::core::tensor::Tensor<T> src(traits, distr);
+    nntile::core::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile1 = src.get_tile(0);
@@ -94,7 +94,7 @@ void check_add_inplace_vs_tensor_api(
         loc2.release();
     }
 
-    nntile::tensor::add_inplace<T>(alpha, src, beta, dst);
+    nntile::core::tensor::add_inplace<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -148,8 +148,8 @@ TEST_CASE(
         gt::add_inplace(alpha, t, beta, t), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add_inplace matches nntile::tensor::add_inplace",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph add_inplace matches nntile::core::tensor::add_inplace",
     "[graph][tensor]")
 {
     const auto [alpha, beta, shape] =
@@ -158,10 +158,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{0.5, -1.0, std::vector<Index>{6}},
             std::tuple{1.0, 2.0, std::vector<Index>{3, 4}});
 
-    check_add_inplace_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
+    check_add_inplace_vs_tensor_api<nntile::core::fp32_t>(shape, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph add_inplace tiled matches untiled",
     "[graph][tensor]")
 {
@@ -171,7 +171,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{0.5, -1.0, std::vector<Index>{6}},
             std::tuple{1.0, 2.0, std::vector<Index>{4, 4}});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

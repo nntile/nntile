@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/sum.cc
- * Test TileGraph sum vs nntile::tile (parity).
+ * Test TileGraph sum vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/sum.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/sum.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/sum.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph sum matches tile", "[graph][tile]")
 {
     const std::vector<Index> sh = {2, 3, 4};
     const Index nelems = 2 * 3 * 4;
@@ -44,9 +44,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[g
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> ts(sh);
-    nntile::tile::Tile<fp32_t> td(std::vector<Index>{});
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> ts(sh);
+    nntile::core::tile::Tile<fp32_t> td(std::vector<Index>{});
+    using Y = typename nntile::core::fp32_t::repr_t;
     {
         auto l1 = ts.acquire(STARPU_W);
         auto l2 = td.acquire(STARPU_W);
@@ -55,7 +55,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[g
         l1.release();
         l2.release();
     }
-    nntile::tile::sum<fp32_t>(alpha, ts, beta, td);
+    nntile::core::tile::sum<fp32_t>(alpha, ts, beta, td);
     starpu_task_wait_for_all();
     constexpr float tol = 1e-3f;
     REQUIRE(gout.size() == 1);

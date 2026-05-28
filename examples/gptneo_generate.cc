@@ -54,9 +54,9 @@
 
 #include "gptneo_config_json.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneo;
+using namespace nntile::graph::model::gptneo;
 using nntile::examples::load_gptneo_config_json;
 
 namespace
@@ -169,7 +169,7 @@ static WeightCache load_weights_to_memory(const std::string& path)
 }
 
 static void apply_weight_cache(
-    graph::module::Module& model,
+    module::Module& model,
     const WeightCache& cache)
 {
     for(const auto& [name, tensor] : model.named_parameters_recursive())

@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/embedding.cc
- * Test TensorGraph embedding operation against nntile::tensor::embedding.
+ * Test TensorGraph embedding operation against nntile::core::tensor::embedding.
  *
  * @version 1.1.0
  * */
@@ -18,15 +18,15 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/embedding.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/embedding.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -114,28 +114,28 @@ void check_embedding_vs_tensor_api(const std::vector<Index> &index_shape,
     std::vector<float> graph_result = runtime.get_output<float>(embed_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits index_traits(index_shape, index_shape);
-    nntile::tensor::TensorTraits vocab_traits(vocab_shape, vocab_shape);
-    nntile::tensor::TensorTraits embed_traits(embed_shape, embed_shape);
+    nntile::core::tensor::TensorTraits index_traits(index_shape, index_shape);
+    nntile::core::tensor::TensorTraits vocab_traits(vocab_shape, vocab_shape);
+    nntile::core::tensor::TensorTraits embed_traits(embed_shape, embed_shape);
     std::vector<int> distr(1, distr_rank_single);
 
-    nntile::tensor::Tensor<nntile::int64_t> index_t(index_traits, distr);
-    nntile::tensor::Tensor<T> vocab_t(vocab_traits, distr);
-    nntile::tensor::Tensor<T> embed_t(embed_traits, distr);
+    nntile::core::tensor::Tensor<nntile::core::int64_t> index_t(index_traits, distr);
+    nntile::core::tensor::Tensor<T> vocab_t(vocab_traits, distr);
+    nntile::core::tensor::Tensor<T> embed_t(embed_traits, distr);
 
-    auto init_index = [](nntile::tensor::Tensor<nntile::int64_t> &t,
+    auto init_index = [](nntile::core::tensor::Tensor<nntile::core::int64_t> &t,
                           const std::vector<std::int64_t> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
         for (Index i = 0; i < static_cast<Index>(data.size()); ++i)
         {
-            loc[i] = nntile::int64_t(data[i]);
+            loc[i] = nntile::core::int64_t(data[i]);
         }
         loc.release();
     };
     auto init_float =
-        [](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
+        [](nntile::core::tensor::Tensor<T> &t, const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -149,7 +149,7 @@ void check_embedding_vs_tensor_api(const std::vector<Index> &index_shape,
     init_index(index_t, index_data);
     init_float(vocab_t, vocab_data);
 
-    nntile::tensor::embedding<T>(index_t, vocab_t, embed_t, axis);
+    nntile::core::tensor::embedding<T>(index_t, vocab_t, embed_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(embed_nelems);
@@ -220,8 +220,8 @@ TEST_CASE("TensorGraph embedding with output_name", "[graph][tensor]")
     REQUIRE(graph.num_ops() == 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph embedding matches nntile::tensor::embedding",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph embedding matches nntile::core::tensor::embedding",
     "[graph][tensor]")
 {
     const auto [index_shape, vocab_shape, axis] = GENERATE(
@@ -231,11 +231,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{
             std::vector<Index>{2, 3, 4}, std::vector<Index>{6, 20}, Index(3)});
 
-    check_embedding_vs_tensor_api<nntile::fp32_t>(
+    check_embedding_vs_tensor_api<nntile::core::fp32_t>(
         index_shape, vocab_shape, axis);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph embedding tiled matches untiled",
     "[graph][tensor]")
 {

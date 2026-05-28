@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/add_fiber.cc
- * Test TensorGraph add_fiber operation against nntile::tensor::add_fiber.
+ * Test TensorGraph add_fiber operation against nntile::core::tensor::add_fiber.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/add_fiber.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/add_fiber.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -114,14 +114,14 @@ void check_add_fiber_vs_tensor_api(const std::vector<Index> &tensor_shape,
     std::vector<float> graph_result = runtime.get_output<float>(out_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
-    nntile::tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
+    nntile::core::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
+    nntile::core::tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
     std::vector<int> fiber_distr(fiber_traits.grid.nelems, distr_rank_single);
     std::vector<int> tensor_distr(
         tensor_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
-    nntile::tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
-    nntile::tensor::Tensor<T> out_t(tensor_traits, tensor_distr);
+    nntile::core::tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
+    nntile::core::tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
+    nntile::core::tensor::Tensor<T> out_t(tensor_traits, tensor_distr);
 
     {
         auto tile = fiber_t.get_tile(0);
@@ -142,7 +142,7 @@ void check_add_fiber_vs_tensor_api(const std::vector<Index> &tensor_shape,
         loc.release();
     }
 
-    nntile::tensor::add_fiber<T>(
+    nntile::core::tensor::add_fiber<T>(
         alpha, fiber_t, beta, tensor_t, out_t, axis, batch_ndim);
     starpu_task_wait_for_all();
 
@@ -201,8 +201,8 @@ TEST_CASE("TensorGraph add_fiber rejects duplicate tensors", "[graph][tensor]")
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add_fiber matches nntile::tensor::add_fiber",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph add_fiber matches nntile::core::tensor::add_fiber",
     "[graph][tensor]")
 {
     const auto [tensor_shape, axis, batch_ndim, alpha, beta] =
@@ -222,11 +222,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_zero});
 
-    check_add_fiber_vs_tensor_api<nntile::fp32_t>(
+    check_add_fiber_vs_tensor_api<nntile::core::fp32_t>(
         tensor_shape, axis, batch_ndim, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph add_fiber tiled matches untiled",
     "[graph][tensor]")
 {
@@ -234,7 +234,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{std::vector<Index>{2, 4}, Index(1), Index(0), 1.0, 1.0},
         std::tuple{std::vector<Index>{2, 4}, Index(0), Index(0), 1.0, 1.0});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = T::repr_t;
     std::vector<Index> fiber_sh = fiber_shape(tensor_shape, axis, batch_ndim);
     const Index tensor_nelems = std::accumulate(tensor_shape.begin(),

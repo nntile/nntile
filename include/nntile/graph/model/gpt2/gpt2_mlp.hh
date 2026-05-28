@@ -25,7 +25,7 @@
 #include <nntile/graph/module/activation.hh>
 #include <nntile/graph/module/mlp.hh>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 //! GPT2MLP - MLP with GELUTANH and HF ``c_fc`` / ``c_proj`` biases
@@ -47,4 +47,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

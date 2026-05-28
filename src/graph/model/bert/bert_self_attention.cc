@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -18,7 +19,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 BertSelfAttention::BertSelfAttention(graph::NNGraph* graph,
@@ -109,4 +110,4 @@ std::string BertSelfAttention::repr() const
            ", n_heads=" + std::to_string(n_heads_) + ")";
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

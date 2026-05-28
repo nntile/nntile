@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneox;
+using namespace nntile::graph::model::gptneox;
 using namespace nntile::graph::io;
 
 #ifndef GPTNEOX_DATA_DIR
@@ -52,7 +52,7 @@ constexpr char gptneox_model[] = "gptneox_model";
 namespace
 {
 
-using namespace nntile::test::gptneox_fixture;
+using namespace nntile::graph::test::gptneox_fixture;
 
 struct ModelFixtureSpec
 {
@@ -264,7 +264,7 @@ TEST_CASE("GptneoxModel load from safetensors roundtrip", "[model][gptneox][io]"
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxModel forward matches PyTorch reference", "[model][gptneox]")
 {
     ModelFixtureSpec fx;
@@ -321,7 +321,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxModel backward matches PyTorch reference",
     "[model][gptneox]")
 {

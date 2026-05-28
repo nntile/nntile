@@ -21,7 +21,7 @@
 #include <nntile/graph/model/bert/bert_layer.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 class BertModel : public graph::module::Module
@@ -56,4 +56,4 @@ public:
     }
 };
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

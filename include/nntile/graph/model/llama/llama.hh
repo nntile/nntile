@@ -16,10 +16,10 @@
 
 #include <nntile/graph/model/llama/llama_model.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 //! Llama - same as LlamaModel (embedding + decoder layers + final norm)
 using Llama = LlamaModel;
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

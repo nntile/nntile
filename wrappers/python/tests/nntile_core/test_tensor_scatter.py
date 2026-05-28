@@ -22,8 +22,8 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
 # Define mapping between tested function and numpy type
-scatter = {np.float32: nntile.nntile_core.tensor.scatter_fp32,
-           np.float64: nntile.nntile_core.tensor.scatter_fp64}
+scatter = {np.float32: nntile.core.tensor.scatter_fp32,
+           np.float64: nntile.core.tensor.scatter_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])

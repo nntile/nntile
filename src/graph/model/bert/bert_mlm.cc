@@ -13,7 +13,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 BertMlm::BertMlm(graph::NNGraph* graph,
@@ -63,4 +63,4 @@ std::string BertMlm::repr() const
            std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

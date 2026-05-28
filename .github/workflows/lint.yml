@@ -1,0 +1,50 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+      - graph_api
+  pull_request:
+    branches:
+      - main
+      - graph_api
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Linting with Python ${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v6
+      - name: Pull all PR commits
+        if: github.event_name == 'pull_request'
+        env:
+          PR_REF: ${{ github.ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: .github/scripts/deepen-pr-checkout.sh
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          cache: pip
+          python-version: ${{ matrix.python-version }}
+      - name: Run pre-commit on pull request
+        uses: pre-commit/action@v3.0.0
+        if: github.event_name == 'pull_request'
+        with:
+          extra_args: >
+            --from-ref "$(git merge-base ${{ github.base_ref }} HEAD)"
+            --to-ref "${{ github.head_ref }}"
+      - name: Run pre-commit on merge
+        uses: pre-commit/action@v3.0.0
+        if: github.event_name != 'pull_request'

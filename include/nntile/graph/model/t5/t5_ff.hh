@@ -27,7 +27,7 @@
 #include <nntile/graph/module/gated_mlp.hh>
 #include <nntile/graph/module/rms_norm.hh>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 //! T5LayerFF - layer_norm -> gated MLP (GELUTANH) -> residual add
@@ -53,4 +53,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

@@ -13,7 +13,7 @@
 
 #include "nntile/graph/model/bert/bert_config.hh"
 
-using namespace nntile::model::bert;
+using namespace nntile::graph::model::bert;
 using namespace nntile::graph::module;
 
 TEST_CASE("BertConfig default values", "[model][bert]")

@@ -20,11 +20,11 @@
 #include <utility>
 
 // Include other NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/tensor.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
 #include <nntile/graph/tile/graph_ops.hh>
-#include <nntile/tensor/add.hh>
+#include <nntile/core/tensor/add.hh>
 
 namespace nntile::graph::tensor
 {

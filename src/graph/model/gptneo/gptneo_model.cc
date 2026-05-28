@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -18,7 +19,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 GptneoModel::GptneoModel(graph::NNGraph* graph,
@@ -98,4 +99,4 @@ std::string GptneoModel::repr() const
            ", layers=" + std::to_string(config_.num_hidden_layers) + ")";
 }
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

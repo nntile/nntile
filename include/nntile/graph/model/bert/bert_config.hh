@@ -18,10 +18,10 @@
 #include <stdexcept>
 #include <string>
 
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 #include <nntile/graph/module/activation.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 //! BERT model configuration (mirrors HuggingFace BertConfig)
@@ -94,4 +94,4 @@ inline void BertConfig::validate() const
     (void)activation_type_from_hidden_act(hidden_act);
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

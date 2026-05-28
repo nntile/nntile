@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/mask_scalar.cc
- * Test TensorGraph mask_scalar operation against nntile::tensor::mask_scalar.
+ * Test TensorGraph mask_scalar operation against nntile::core::tensor::mask_scalar.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/mask_scalar.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/mask_scalar.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -87,12 +87,12 @@ void check_mask_scalar_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(A_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits A_traits(A_shape, A_shape);
+    nntile::core::tensor::TensorTraits A_traits(A_shape, A_shape);
     std::vector<int> distr(A_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> A_t(A_traits, distr);
+    nntile::core::tensor::Tensor<T> A_t(A_traits, distr);
 
-    nntile::tensor::TensorTraits mask_traits(mask_shape, mask_shape);
-    nntile::tensor::Tensor<nntile::bool_t> mask_t(mask_traits, distr);
+    nntile::core::tensor::TensorTraits mask_traits(mask_shape, mask_shape);
+    nntile::core::tensor::Tensor<nntile::core::bool_t> mask_t(mask_traits, distr);
 
     {
         auto tile = A_t.get_tile(0);
@@ -108,12 +108,12 @@ void check_mask_scalar_vs_tensor_api(
         auto loc = tile.acquire(STARPU_W);
         for (Index i = 0; i < mask_nelems; ++i)
         {
-            loc[i] = nntile::bool_t(mask_data[i] != 0.0f);
+            loc[i] = nntile::core::bool_t(mask_data[i] != 0.0f);
         }
         loc.release();
     }
 
-    nntile::tensor::mask_scalar<T>(mask_t, val, A_t, batch_ndim);
+    nntile::core::tensor::mask_scalar<T>(mask_t, val, A_t, batch_ndim);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(A_nelems);
@@ -199,8 +199,8 @@ TEST_CASE(
         gt::mask_scalar(mask2, val, A2, 0), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph mask_scalar matches nntile::tensor::mask_scalar",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph mask_scalar matches nntile::core::tensor::mask_scalar",
     "[graph][tensor]")
 {
     const auto [A_shape, batch_ndim] =
@@ -210,10 +210,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::make_pair(std::vector<Index>{4, 5, 8}, Index(1)),
             std::make_pair(std::vector<Index>{2, 3, 4, 5}, Index(2)));
 
-    check_mask_scalar_vs_tensor_api<nntile::fp32_t>(A_shape, batch_ndim);
+    check_mask_scalar_vs_tensor_api<nntile::core::fp32_t>(A_shape, batch_ndim);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph mask_scalar tiled matches untiled",
     "[graph][tensor]")
 {
@@ -231,7 +231,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index A_nelems = std::accumulate(
         A_shape.begin(), A_shape.end(), Index(1), std::multiplies<>());
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     std::vector<float> mask_data(mask_nelems);
     std::vector<float> A_data(A_nelems);

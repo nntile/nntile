@@ -21,8 +21,8 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
 # Define mapping between tested function and numpy type
-gemm = {np.float32: nntile.nntile_core.tensor.gemm_fp32,
-        np.float64: nntile.nntile_core.tensor.gemm_fp64}
+gemm = {np.float32: nntile.core.tensor.gemm_fp32,
+        np.float64: nntile.core.tensor.gemm_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])

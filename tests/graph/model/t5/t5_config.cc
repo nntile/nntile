@@ -13,7 +13,7 @@
 
 #include "nntile/graph/model/t5/t5_config.hh"
 
-using namespace nntile::model::t5;
+using namespace nntile::graph::model::t5;
 
 TEST_CASE("T5Config default values", "[model][t5]")
 {

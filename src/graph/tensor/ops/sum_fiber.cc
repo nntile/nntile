@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,13 +15,13 @@
 
 #include "nntile/graph/tensor/ops/sum_fiber.hh"
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/sum_fiber.hh"
-#include "nntile/tensor/sum_fiber.hh"
+#include "nntile/core/tensor/sum_fiber.hh"
 
 #include <stdexcept>
 #include <utility>
@@ -119,7 +120,7 @@ void sum_fiber(TensorGraph::TensorNode *x,
 
 void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    // Match nntile::tensor::sum_fiber_async (src/tensor/sum_fiber.cc).
+    // Match nntile::core::tensor::sum_fiber_async (src/tensor/sum_fiber.cc).
     const TensorAxisLayout *lay_x = ctx.tiling.find(x);
     const TensorAxisLayout *lay_y = ctx.tiling.find(y);
     if (lay_x == nullptr || lay_y == nullptr)

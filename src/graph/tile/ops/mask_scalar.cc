@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,10 +15,10 @@
 
 #include "nntile/graph/tile/ops/mask_scalar.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/mask_scalar.hh>
+#include <nntile/core/tile/mask_scalar.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +27,7 @@ template<typename T>
 void run_mask(
     Runtime& runtime, TileGraph::TileNode* m, Scalar v, TileGraph::TileNode* A, Index bnd)
 {
-    nntile::tile::mask_scalar<T>(runtime.get_tile<nntile::bool_t>(m), v, runtime.get_tile<T>(A), bnd);
+    nntile::core::tile::mask_scalar<T>(runtime.get_tile<nntile::core::bool_t>(m), v, runtime.get_tile<T>(A), bnd);
 }
 } // namespace
 void mask_scalar(TileGraph::TileNode* mask, Scalar val, TileGraph::TileNode* a, Index batch_ndim)
@@ -45,25 +46,25 @@ void TileMaskScalarOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_mask<nntile::fp32_t>(runtime, mask, val, a, batch_ndim);
+            run_mask<nntile::core::fp32_t>(runtime, mask, val, a, batch_ndim);
             break;
         case DataType::FP32_FAST_TF32:
-            run_mask<nntile::fp32_fast_tf32_t>(runtime, mask, val, a, batch_ndim);
+            run_mask<nntile::core::fp32_fast_tf32_t>(runtime, mask, val, a, batch_ndim);
             break;
         case DataType::FP32_FAST_FP16:
-            run_mask<nntile::fp32_fast_fp16_t>(runtime, mask, val, a, batch_ndim);
+            run_mask<nntile::core::fp32_fast_fp16_t>(runtime, mask, val, a, batch_ndim);
             break;
         case DataType::FP32_FAST_BF16:
-            run_mask<nntile::fp32_fast_bf16_t>(runtime, mask, val, a, batch_ndim);
+            run_mask<nntile::core::fp32_fast_bf16_t>(runtime, mask, val, a, batch_ndim);
             break;
         case DataType::FP64:
-            run_mask<nntile::fp64_t>(runtime, mask, val, a, batch_ndim);
+            run_mask<nntile::core::fp64_t>(runtime, mask, val, a, batch_ndim);
             break;
         case DataType::FP16:
-            run_mask<nntile::fp16_t>(runtime, mask, val, a, batch_ndim);
+            run_mask<nntile::core::fp16_t>(runtime, mask, val, a, batch_ndim);
             break;
         case DataType::BF16:
-            run_mask<nntile::bf16_t>(runtime, mask, val, a, batch_ndim);
+            run_mask<nntile::core::bf16_t>(runtime, mask, val, a, batch_ndim);
             break;
         case DataType::INT64:
         case DataType::BOOL:

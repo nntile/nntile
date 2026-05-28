@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/defs.h"
+#include "nntile/core/defs.h"
 
 #ifdef NNTILE_USE_CUDA
 
@@ -21,9 +21,9 @@
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor/ops/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/clear.hh"
+#include "nntile/core/tensor/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
@@ -31,7 +31,7 @@
 #include <numeric>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -97,11 +97,11 @@ TEST_CASE("TensorGraph flash_sdpa_fwd_cudnn rejects null tensors",
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::CudaContextFixture,
+TEST_CASE_METHOD(nntile::core::test::CudaContextFixture,
     "TensorGraph flash_sdpa_fwd_cudnn matches tensor API",
     "[graph][tensor][cuda]")
 {
-    using T = nntile::fp16_t;
+    using T = nntile::core::fp16_t;
     using Y = typename T::repr_t;
 
     Index head_size = 32;
@@ -175,25 +175,25 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     std::vector<float> graph_A = runtime.get_output<float>(A_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits K_traits(K_shape, K_shape);
-    nntile::tensor::TensorTraits Q_traits(K_shape, K_shape);
-    nntile::tensor::TensorTraits V_traits(K_shape, K_shape);
-    nntile::tensor::TensorTraits A_traits(K_shape, K_shape);
-    nntile::tensor::TensorTraits mask_traits(mask_shape, mask_shape);
-    nntile::tensor::TensorTraits logsumexp_traits(
+    nntile::core::tensor::TensorTraits K_traits(K_shape, K_shape);
+    nntile::core::tensor::TensorTraits Q_traits(K_shape, K_shape);
+    nntile::core::tensor::TensorTraits V_traits(K_shape, K_shape);
+    nntile::core::tensor::TensorTraits A_traits(K_shape, K_shape);
+    nntile::core::tensor::TensorTraits mask_traits(mask_shape, mask_shape);
+    nntile::core::tensor::TensorTraits logsumexp_traits(
         logsumexp_shape, logsumexp_shape);
     std::vector<int> distr(1, distr_rank_single);
 
-    nntile::tensor::Tensor<T> K_t(K_traits, distr);
-    nntile::tensor::Tensor<T> Q_t(Q_traits, distr);
-    nntile::tensor::Tensor<T> V_t(V_traits, distr);
-    nntile::tensor::Tensor<T> A_t(A_traits, distr);
-    nntile::tensor::Tensor<T> mask_t(mask_traits, distr);
-    nntile::tensor::Tensor<nntile::fp32_t> logsumexp_t(
+    nntile::core::tensor::Tensor<T> K_t(K_traits, distr);
+    nntile::core::tensor::Tensor<T> Q_t(Q_traits, distr);
+    nntile::core::tensor::Tensor<T> V_t(V_traits, distr);
+    nntile::core::tensor::Tensor<T> A_t(A_traits, distr);
+    nntile::core::tensor::Tensor<T> mask_t(mask_traits, distr);
+    nntile::core::tensor::Tensor<nntile::core::fp32_t> logsumexp_t(
         logsumexp_traits, distr);
 
     auto init_tile =
-        [](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
+        [](nntile::core::tensor::Tensor<T> &t, const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -203,7 +203,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         }
         loc.release();
     };
-    auto init_logsumexp = [](nntile::tensor::Tensor<nntile::fp32_t> &t)
+    auto init_logsumexp = [](nntile::core::tensor::Tensor<nntile::core::fp32_t> &t)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -219,9 +219,9 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     init_tile(V_t, V_data);
     init_tile(mask_t, mask_data);
     init_logsumexp(logsumexp_t);
-    nntile::tensor::clear_async(A_t);
+    nntile::core::tensor::clear_async(A_t);
 
-    nntile::tensor::flash_sdpa_fwd_cudnn<T>(
+    nntile::core::tensor::flash_sdpa_fwd_cudnn<T>(
         K_t, Q_t, mask_t, logsumexp_t, V_t, A_t);
 
     std::vector<float> tensor_A(kv_nelems);
@@ -242,7 +242,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     }
 }
 
-TEST_CASE_METHOD(nntile::test::CudaContextFixture,
+TEST_CASE_METHOD(nntile::core::test::CudaContextFixture,
     "TensorGraph flash_sdpa_fwd_cudnn tiled matches untiled",
     "[graph][tensor][cuda]")
 {

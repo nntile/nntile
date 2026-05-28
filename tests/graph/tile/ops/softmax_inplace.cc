@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/softmax_inplace.cc
- * Test TileGraph softmax inplace vs nntile::tile (parity).
+ * Test TileGraph softmax inplace vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,10 +17,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/softmax_inplace.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/softmax_inplace.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax_inplace axis0", "[graph][tile]")
+#include "nntile/core/tile/softmax_inplace.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph softmax_inplace axis0", "[graph][tile]")
 {
     const std::vector<Index> mh = {2,4,5}, dh = {3,4,5};
     const Index nms=40, n=60; const Scalar al=1.0; const Index axis=0;
@@ -38,13 +38,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax_inplace axis0"
     r.bind_data(m, mv); r.bind_data(d, dd);
     r.execute(); r.wait();
     const auto gout = r.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> M(mh), D(dh);
+    nntile::core::tile::Tile<fp32_t> M(mh), D(dh);
     using Y = typename fp32_t::repr_t;
     { auto a=M.acquire(STARPU_W),c=D.acquire(STARPU_W);
       for(Index j=0;j<nms;j+=2) {a[j]=Y(mv[static_cast<size_t>(j)]); a[j+1]=Y(mv[static_cast<size_t>(j+1)]);}
       for(Index i=0;i<n;++i) c[i]=Y(static_cast<float>(i+1));
       a.release(); c.release(); }
-    nntile::tile::softmax_inplace<fp32_t>(M, al, D, axis);
+    nntile::core::tile::softmax_inplace<fp32_t>(M, al, D, axis);
     starpu_task_wait_for_all();
     std::vector<float> tr(n);
     { auto L=D.acquire(STARPU_R); for(Index i=0;i<n;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]); L.release(); }

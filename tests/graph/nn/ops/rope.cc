@@ -18,7 +18,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 
 namespace
@@ -77,7 +77,7 @@ static std::vector<Index> make_src_shape(const std::vector<Index> &sin_shape)
     return src_shape;
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rope structure",
     "[graph][nn_graph]")
 {
@@ -98,7 +98,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph rope backward", "[graph][nn_graph]")
+    nntile::core::test::ContextFixture, "NNGraph rope backward", "[graph][nn_graph]")
 {
     const auto [sin_shape, grad_fill_val] =
         GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
@@ -119,7 +119,7 @@ TEST_CASE_METHOD(
     REQUIRE(x->grad()->shape() == src_shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rope forward and backward",
     "[graph][nn_graph]")
 {
@@ -200,7 +200,7 @@ static Index rope_n_for_graph(
     return n;
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rope forward matches reference",
     "[graph][nn_graph]")
 {
@@ -264,7 +264,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(std::abs(nntile_out[i] - ref_out[i]) < float_tolerance);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph rope backward matches reference",
     "[graph][nn_graph]")
 {

@@ -16,10 +16,10 @@
 
 #include <stdexcept>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/gelutanh_inplace.hh>
+#include <nntile/core/tile/gelutanh_inplace.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -31,7 +31,7 @@ template<typename T>
 void run_gelutanh_inplace(Runtime& runtime, TileGraph::TileNode* d)
 {
     auto& t = runtime.get_tile<T>(d);
-    nntile::tile::gelutanh_inplace<T>(t);
+    nntile::core::tile::gelutanh_inplace<T>(t);
 }
 
 } // namespace
@@ -54,25 +54,25 @@ void TileGelutanhInplaceOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_gelutanh_inplace<nntile::fp32_t>(runtime, dst);
+            run_gelutanh_inplace<nntile::core::fp32_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_gelutanh_inplace<nntile::fp32_fast_tf32_t>(runtime, dst);
+            run_gelutanh_inplace<nntile::core::fp32_fast_tf32_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_gelutanh_inplace<nntile::fp32_fast_fp16_t>(runtime, dst);
+            run_gelutanh_inplace<nntile::core::fp32_fast_fp16_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_gelutanh_inplace<nntile::fp32_fast_bf16_t>(runtime, dst);
+            run_gelutanh_inplace<nntile::core::fp32_fast_bf16_t>(runtime, dst);
             break;
         case DataType::FP64:
-            run_gelutanh_inplace<nntile::fp64_t>(runtime, dst);
+            run_gelutanh_inplace<nntile::core::fp64_t>(runtime, dst);
             break;
         case DataType::FP16:
             throw std::runtime_error(
                 "FP16 data type not supported for tile gelutanh_inplace");
         case DataType::BF16:
-            run_gelutanh_inplace<nntile::bf16_t>(runtime, dst);
+            run_gelutanh_inplace<nntile::core::bf16_t>(runtime, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

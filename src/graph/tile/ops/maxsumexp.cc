@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,10 +15,10 @@
 
 #include "nntile/graph/tile/ops/maxsumexp.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/maxsumexp.hh>
+#include <nntile/core/tile/maxsumexp.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +27,7 @@ template<typename T>
 void run_me(
     Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, int r)
 {
-    nntile::tile::maxsumexp<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d), ax, r);
+    nntile::core::tile::maxsumexp<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d), ax, r);
 }
 } // namespace
 void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, int redux)
@@ -47,25 +48,25 @@ void TileMaxsumexpOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_me<nntile::fp32_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::core::fp32_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP32_FAST_TF32:
-            run_me<nntile::fp32_fast_tf32_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::core::fp32_fast_tf32_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP32_FAST_FP16:
-            run_me<nntile::fp32_fast_fp16_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::core::fp32_fast_fp16_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP32_FAST_BF16:
-            run_me<nntile::fp32_fast_bf16_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::core::fp32_fast_bf16_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP64:
-            run_me<nntile::fp64_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::core::fp64_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP16:
-            run_me<nntile::fp16_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::core::fp16_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::BF16:
-            run_me<nntile::bf16_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::core::bf16_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::INT64:
         case DataType::BOOL:

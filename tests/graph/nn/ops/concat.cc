@@ -22,7 +22,7 @@
 #include <tuple>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 namespace layout = nntile::graph::tile_graph_layout_io;
@@ -70,7 +70,7 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
 
 } // namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph concat structure",
     "[graph][nn_graph]")
 {
@@ -94,7 +94,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.num_ops() == 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph concat no_grad does not register autograd op",
     "[graph][nn_graph]")
 {
@@ -111,7 +111,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.num_ops() == 0);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph concat rejects invalid arguments",
     "[graph][nn_graph]")
 {
@@ -133,7 +133,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE_THROWS_AS(concat(a, bf, 1), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph concat forward matches Fortran reference (untiled)",
     "[graph][nn_graph]")
 {
@@ -189,7 +189,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph concat tiled matches untiled",
     "[graph][nn_graph]")
 {
@@ -261,7 +261,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph concat backward is not supported yet",
     "[graph][nn_graph]")
 {

@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/hypot_scalar_inverse.cc
  * Test TensorGraph hypot_scalar_inverse operation against
- * nntile::tensor::hypot_scalar_inverse.
+ * nntile::core::tensor::hypot_scalar_inverse.
  *
  * @version 1.1.0
  * */
@@ -19,14 +19,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/hypot_scalar_inverse.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/hypot_scalar_inverse.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -75,9 +75,9 @@ void check_hypot_scalar_inverse_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> dst(traits, distr);
+    nntile::core::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = dst.get_tile(0);
@@ -89,7 +89,7 @@ void check_hypot_scalar_inverse_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::hypot_scalar_inverse<T>(eps, alpha, dst);
+    nntile::core::tensor::hypot_scalar_inverse<T>(eps, alpha, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -131,9 +131,9 @@ TEST_CASE("TensorGraph hypot_scalar_inverse structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph hypot_scalar_inverse matches "
-    "nntile::tensor::hypot_scalar_inverse",
+    "nntile::core::tensor::hypot_scalar_inverse",
     "[graph][tensor]")
 {
     const auto [eps, alpha, shape] =
@@ -141,11 +141,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{1e-5, 0.5, std::vector<Index>{6}},
             std::tuple{1e-4, 1.0, std::vector<Index>{2, 3}});
 
-    check_hypot_scalar_inverse_vs_tensor_api<nntile::fp32_t>(
+    check_hypot_scalar_inverse_vs_tensor_api<nntile::core::fp32_t>(
         shape, eps, alpha);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph hypot_scalar_inverse tiled matches untiled",
     "[graph][tensor]")
 {
@@ -156,7 +156,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Scalar eps = 1e-6;
     constexpr Scalar alpha = 1.0;
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

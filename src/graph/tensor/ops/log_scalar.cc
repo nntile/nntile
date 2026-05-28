@@ -20,14 +20,14 @@
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/ops/log_scalar.hh"
 #include "nntile/graph/tile/lowering_context.hh"
-#include "nntile/tensor/log_scalar.hh"
+#include "nntile/core/tensor/log_scalar.hh"
 
 namespace nntile::graph::tensor
 {
 
 void TensorLogScalarOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::log_scalar_async (src/tensor/log_scalar.cc).
+    // Match nntile::core::tensor::log_scalar_async (src/tensor/log_scalar.cc).
     const auto& tiles = tile_lower::tiles_of(ctx.tile_map, value);
     if(tiles.size() != 1)
     {

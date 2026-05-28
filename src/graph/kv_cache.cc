@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -162,11 +163,11 @@ void KVCache::bind(
             {
                 std::vector<float> k_tmp(nelems);
                 std::vector<float> v_tmp(nelems);
-                const nntile::fp16_t *k_src =
-                    reinterpret_cast<const nntile::fp16_t *>(
+                const nntile::core::fp16_t *k_src =
+                    reinterpret_cast<const nntile::core::fp16_t *>(
                         k_buffers_bytes_[static_cast<size_t>(i)].data());
-                const nntile::fp16_t *v_src =
-                    reinterpret_cast<const nntile::fp16_t *>(
+                const nntile::core::fp16_t *v_src =
+                    reinterpret_cast<const nntile::core::fp16_t *>(
                         v_buffers_bytes_[static_cast<size_t>(i)].data());
                 for (size_t j = 0; j < nelems; ++j)
                 {
@@ -181,11 +182,11 @@ void KVCache::bind(
             {
                 std::vector<float> k_tmp(nelems);
                 std::vector<float> v_tmp(nelems);
-                const nntile::bf16_t *k_src =
-                    reinterpret_cast<const nntile::bf16_t *>(
+                const nntile::core::bf16_t *k_src =
+                    reinterpret_cast<const nntile::core::bf16_t *>(
                         k_buffers_bytes_[static_cast<size_t>(i)].data());
-                const nntile::bf16_t *v_src =
-                    reinterpret_cast<const nntile::bf16_t *>(
+                const nntile::core::bf16_t *v_src =
+                    reinterpret_cast<const nntile::core::bf16_t *>(
                         v_buffers_bytes_[static_cast<size_t>(i)].data());
                 for (size_t j = 0; j < nelems; ++j)
                 {
@@ -243,14 +244,14 @@ void KVCache::update_from(
             {
                 auto k_out = runtime.get_output<float>(k_node);
                 auto v_out = runtime.get_output<float>(v_node);
-                nntile::fp16_t *k_dst = reinterpret_cast<nntile::fp16_t *>(
+                nntile::core::fp16_t *k_dst = reinterpret_cast<nntile::core::fp16_t *>(
                     k_buffers_bytes_[static_cast<size_t>(i)].data());
-                nntile::fp16_t *v_dst = reinterpret_cast<nntile::fp16_t *>(
+                nntile::core::fp16_t *v_dst = reinterpret_cast<nntile::core::fp16_t *>(
                     v_buffers_bytes_[static_cast<size_t>(i)].data());
                 for (size_t j = 0; j < nelems; ++j)
                 {
-                    k_dst[j] = nntile::fp16_t(k_out[j]);
-                    v_dst[j] = nntile::fp16_t(v_out[j]);
+                    k_dst[j] = nntile::core::fp16_t(k_out[j]);
+                    v_dst[j] = nntile::core::fp16_t(v_out[j]);
                 }
                 break;
             }
@@ -258,14 +259,14 @@ void KVCache::update_from(
             {
                 auto k_out = runtime.get_output<float>(k_node);
                 auto v_out = runtime.get_output<float>(v_node);
-                nntile::bf16_t *k_dst = reinterpret_cast<nntile::bf16_t *>(
+                nntile::core::bf16_t *k_dst = reinterpret_cast<nntile::core::bf16_t *>(
                     k_buffers_bytes_[static_cast<size_t>(i)].data());
-                nntile::bf16_t *v_dst = reinterpret_cast<nntile::bf16_t *>(
+                nntile::core::bf16_t *v_dst = reinterpret_cast<nntile::core::bf16_t *>(
                     v_buffers_bytes_[static_cast<size_t>(i)].data());
                 for (size_t j = 0; j < nelems; ++j)
                 {
-                    k_dst[j] = nntile::bf16_t(k_out[j]);
-                    v_dst[j] = nntile::bf16_t(v_out[j]);
+                    k_dst[j] = nntile::core::bf16_t(k_out[j]);
+                    v_dst[j] = nntile::core::bf16_t(v_out[j]);
                 }
                 break;
             }
@@ -414,35 +415,35 @@ void KVCache::append(const float *k_data, const float *v_data, Index seq_len)
                         {
                         case DataType::FP16:
                         {
-                            nntile::fp16_t *k_dst =
-                                reinterpret_cast<nntile::fp16_t *>(
+                            nntile::core::fp16_t *k_dst =
+                                reinterpret_cast<nntile::core::fp16_t *>(
                                     k_buffers_bytes_[layer].data());
-                            nntile::fp16_t *v_dst =
-                                reinterpret_cast<nntile::fp16_t *>(
+                            nntile::core::fp16_t *v_dst =
+                                reinterpret_cast<nntile::core::fp16_t *>(
                                     v_buffers_bytes_[layer].data());
                             for (Index h = 0; h < H; ++h)
                             {
                                 k_dst[dst_offset + h] =
-                                    nntile::fp16_t(k_src[src_offset + h]);
+                                    nntile::core::fp16_t(k_src[src_offset + h]);
                                 v_dst[dst_offset + h] =
-                                    nntile::fp16_t(v_src[src_offset + h]);
+                                    nntile::core::fp16_t(v_src[src_offset + h]);
                             }
                             break;
                         }
                         case DataType::BF16:
                         {
-                            nntile::bf16_t *k_dst =
-                                reinterpret_cast<nntile::bf16_t *>(
+                            nntile::core::bf16_t *k_dst =
+                                reinterpret_cast<nntile::core::bf16_t *>(
                                     k_buffers_bytes_[layer].data());
-                            nntile::bf16_t *v_dst =
-                                reinterpret_cast<nntile::bf16_t *>(
+                            nntile::core::bf16_t *v_dst =
+                                reinterpret_cast<nntile::core::bf16_t *>(
                                     v_buffers_bytes_[layer].data());
                             for (Index h = 0; h < H; ++h)
                             {
                                 k_dst[dst_offset + h] =
-                                    nntile::bf16_t(k_src[src_offset + h]);
+                                    nntile::core::bf16_t(k_src[src_offset + h]);
                                 v_dst[dst_offset + h] =
-                                    nntile::bf16_t(v_src[src_offset + h]);
+                                    nntile::core::bf16_t(v_src[src_offset + h]);
                             }
                             break;
                         }

@@ -20,7 +20,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace nntile::test::bert_fixture
+namespace nntile::graph::test::bert_fixture
 {
 
 inline Index json_index(const nlohmann::json &o, const char *key)
@@ -161,4 +161,4 @@ inline void bind_mask_input(nntile::graph::Runtime &runtime,
     }
 }
 
-} // namespace nntile::test::bert_fixture
+} // namespace nntile::graph::test::bert_fixture

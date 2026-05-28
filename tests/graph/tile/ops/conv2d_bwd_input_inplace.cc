@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/conv2d_bwd_input_inplace.cc
- * Test TileGraph conv2d bwd input inplace vs nntile::tile (parity).
+ * Test TileGraph conv2d bwd input inplace vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/conv2d_bwd_input_inplace.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/conv2d_bwd_input_inplace.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_bwd_input_inplace", "[graph][tile]")
+#include "nntile/core/tile/conv2d_bwd_input_inplace.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph conv2d_bwd_input_inplace", "[graph][tile]")
 {
     const std::vector<Index> dYh={2,2,1,1}, Ch={2,2,1,1}, dXh={3,3,1,1};
     const Index n=4, nc=4, nx=9;
@@ -37,13 +37,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_bwd_input_inpla
     r.bind_data(dY, a); r.bind_data(Cg, b); r.bind_data(dX, c);
     r.execute(); r.wait();
     const auto gout = r.get_output<float>(dX);
-    nntile::tile::Tile<fp32_t> DY(dYh), CgT(Ch), DX(dXh);
+    nntile::core::tile::Tile<fp32_t> DY(dYh), CgT(Ch), DX(dXh);
     using Yf = typename fp32_t::repr_t;
     { auto p=DY.acquire(STARPU_W),q=CgT.acquire(STARPU_W),s=DX.acquire(STARPU_W);
       for(Index i=0;i<4;++i) {p[i]=Yf(static_cast<float>(i+1));q[i]=Yf(static_cast<float>(i+1));}
       for(Index i=0;i<9;++i) s[i]=Yf(0.0f);
       p.release();q.release();s.release(); }
-    nntile::tile::conv2d_bwd_input_inplace<fp32_t>(2,2,1,1,1,1,2,2,1,1,1,0,0,1.0,DY,CgT,3,3,0.0,DX);
+    nntile::core::tile::conv2d_bwd_input_inplace<fp32_t>(2,2,1,1,1,1,2,2,1,1,1,0,0,1.0,DY,CgT,3,3,0.0,DX);
     starpu_task_wait_for_all();
     std::vector<float> tr(9);
     { auto L=DX.acquire(STARPU_R);

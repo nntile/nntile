@@ -23,10 +23,10 @@
 #include "test_gptneox_fixture_helpers.hh"
 #include "test_safetensors_nntile_layout.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph::io;
-using namespace nntile::model::gptneox;
-using namespace nntile::test::gptneox_fixture;
+using namespace nntile::graph::model::gptneox;
+using namespace nntile::graph::test::gptneox_fixture;
 
 #ifndef GPTNEOX_DATA_DIR
 
@@ -103,10 +103,10 @@ inline bool try_load_attention_fixture_spec(
 
 } // namespace
 
-using nntile::test::require_relative_frobenius_error;
-using nntile::test::safetensors_nntile_layout::read_tensor_nntile_fortran;
+using nntile::graph::test::require_relative_frobenius_error;
+using nntile::graph::test::safetensors_nntile_layout::read_tensor_nntile_fortran;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Gptneox RoPE sin/cos from position_ids matches attention fixture",
     "[model][gptneox][rope]")
 {

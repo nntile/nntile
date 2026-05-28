@@ -13,7 +13,7 @@
 #include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 RobertaMlmHead::RobertaMlmHead(graph::NNGraph* graph,
@@ -81,4 +81,4 @@ std::string RobertaMlmHead::repr() const
     return "RobertaMlmHead(vocab=" + std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

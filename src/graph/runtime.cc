@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,14 +17,14 @@
 
 // TileGraph::get_tensor_descriptor is inline in graph.hh; this TU must see
 // the definition when calling it on const TileGraph&.
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor/graph_data_node.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tile/graph.hh"
 #include "nntile/graph/tile/graph_data_node.hh"
 #include "nntile/graph/tile/graph_op_node.hh"
-#include "nntile/tile/tile.hh"
+#include "nntile/core/tile/tile.hh"
 
 #include <cstring>
 #include <set>
@@ -42,7 +43,7 @@ void allocate_tile_and_register(const TileGraph::TileNode *node,
     const std::vector<Index> &shape,
     std::map<const TileGraph::TileNode *, std::shared_ptr<void>> &tile_map)
 {
-    auto t = std::make_shared<nntile::tile::Tile<T>>(shape);
+    auto t = std::make_shared<nntile::core::tile::Tile<T>>(shape);
     tile_map[node] = t;
 }
 
@@ -71,7 +72,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
     {
     case DataType::FP32:
         tile_graph_layout_io::
-            scatter_logical_tensor<float, nntile::fp32_t, float>(*lay,
+            scatter_logical_tensor<float, nntile::core::fp32_t, float>(*lay,
                 td.tiles,
                 reinterpret_cast<const float *>(hint->data()),
                 hint->size() / sizeof(float),
@@ -79,34 +80,34 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
         break;
     case DataType::FP32_FAST_TF32:
         tile_graph_layout_io::scatter_logical_tensor<float,
-            nntile::fp32_fast_tf32_t,
+            nntile::core::fp32_fast_tf32_t,
             float>(*lay,
             td.tiles,
             reinterpret_cast<const float *>(hint->data()),
-            hint->size() / sizeof(nntile::fp32_fast_tf32_t),
+            hint->size() / sizeof(nntile::core::fp32_fast_tf32_t),
             rt);
         break;
     case DataType::FP32_FAST_FP16:
         tile_graph_layout_io::scatter_logical_tensor<float,
-            nntile::fp32_fast_fp16_t,
+            nntile::core::fp32_fast_fp16_t,
             float>(*lay,
             td.tiles,
             reinterpret_cast<const float *>(hint->data()),
-            hint->size() / sizeof(nntile::fp32_fast_fp16_t),
+            hint->size() / sizeof(nntile::core::fp32_fast_fp16_t),
             rt);
         break;
     case DataType::FP32_FAST_BF16:
         tile_graph_layout_io::scatter_logical_tensor<float,
-            nntile::fp32_fast_bf16_t,
+            nntile::core::fp32_fast_bf16_t,
             float>(*lay,
             td.tiles,
             reinterpret_cast<const float *>(hint->data()),
-            hint->size() / sizeof(nntile::fp32_fast_bf16_t),
+            hint->size() / sizeof(nntile::core::fp32_fast_bf16_t),
             rt);
         break;
     case DataType::FP64:
         tile_graph_layout_io::
-            scatter_logical_tensor<double, nntile::fp64_t, double>(*lay,
+            scatter_logical_tensor<double, nntile::core::fp64_t, double>(*lay,
                 td.tiles,
                 reinterpret_cast<const double *>(hint->data()),
                 hint->size() / sizeof(double),
@@ -114,23 +115,23 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
         break;
     case DataType::FP16:
         tile_graph_layout_io::
-            scatter_logical_tensor<float, nntile::fp16_t, float>(*lay,
+            scatter_logical_tensor<float, nntile::core::fp16_t, float>(*lay,
                 td.tiles,
                 reinterpret_cast<const float *>(hint->data()),
-                hint->size() / sizeof(nntile::fp16_t),
+                hint->size() / sizeof(nntile::core::fp16_t),
                 rt);
         break;
     case DataType::BF16:
         tile_graph_layout_io::
-            scatter_logical_tensor<float, nntile::bf16_t, float>(*lay,
+            scatter_logical_tensor<float, nntile::core::bf16_t, float>(*lay,
                 td.tiles,
                 reinterpret_cast<const float *>(hint->data()),
-                hint->size() / sizeof(nntile::bf16_t),
+                hint->size() / sizeof(nntile::core::bf16_t),
                 rt);
         break;
     case DataType::INT64:
         tile_graph_layout_io::scatter_logical_tensor<std::int64_t,
-            nntile::int64_t,
+            nntile::core::int64_t,
             std::int64_t>(*lay,
             td.tiles,
             reinterpret_cast<const std::int64_t *>(hint->data()),
@@ -139,7 +140,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
         break;
     case DataType::BOOL:
         tile_graph_layout_io::
-            scatter_logical_tensor<bool, nntile::bool_t, bool>(*lay,
+            scatter_logical_tensor<bool, nntile::core::bool_t, bool>(*lay,
                 td.tiles,
                 reinterpret_cast<const bool *>(hint->data()),
                 hint->size() / sizeof(bool),
@@ -153,7 +154,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
 
 template <typename T>
 void apply_bind_hint_impl(
-    nntile::tile::Tile<T> &tile, const std::vector<std::uint8_t> &data)
+    nntile::core::tile::Tile<T> &tile, const std::vector<std::uint8_t> &data)
 {
     if (data.size() != static_cast<size_t>(tile.nelems) * sizeof(T))
     {
@@ -234,40 +235,40 @@ void Runtime::compile()
         switch (dtype)
         {
         case DataType::FP32:
-            apply_bind_hint_impl<nntile::fp32_t>(
-                get_tile<nntile::fp32_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::fp32_t>(
+                get_tile<nntile::core::fp32_t>(tile_ptr), *hint);
             break;
         case DataType::FP32_FAST_TF32:
-            apply_bind_hint_impl<nntile::fp32_fast_tf32_t>(
-                get_tile<nntile::fp32_fast_tf32_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::fp32_fast_tf32_t>(
+                get_tile<nntile::core::fp32_fast_tf32_t>(tile_ptr), *hint);
             break;
         case DataType::FP32_FAST_FP16:
-            apply_bind_hint_impl<nntile::fp32_fast_fp16_t>(
-                get_tile<nntile::fp32_fast_fp16_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::fp32_fast_fp16_t>(
+                get_tile<nntile::core::fp32_fast_fp16_t>(tile_ptr), *hint);
             break;
         case DataType::FP32_FAST_BF16:
-            apply_bind_hint_impl<nntile::fp32_fast_bf16_t>(
-                get_tile<nntile::fp32_fast_bf16_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::fp32_fast_bf16_t>(
+                get_tile<nntile::core::fp32_fast_bf16_t>(tile_ptr), *hint);
             break;
         case DataType::FP64:
-            apply_bind_hint_impl<nntile::fp64_t>(
-                get_tile<nntile::fp64_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::fp64_t>(
+                get_tile<nntile::core::fp64_t>(tile_ptr), *hint);
             break;
         case DataType::FP16:
-            apply_bind_hint_impl<nntile::fp16_t>(
-                get_tile<nntile::fp16_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::fp16_t>(
+                get_tile<nntile::core::fp16_t>(tile_ptr), *hint);
             break;
         case DataType::BF16:
-            apply_bind_hint_impl<nntile::bf16_t>(
-                get_tile<nntile::bf16_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::bf16_t>(
+                get_tile<nntile::core::bf16_t>(tile_ptr), *hint);
             break;
         case DataType::INT64:
-            apply_bind_hint_impl<nntile::int64_t>(
-                get_tile<nntile::int64_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::int64_t>(
+                get_tile<nntile::core::int64_t>(tile_ptr), *hint);
             break;
         case DataType::BOOL:
-            apply_bind_hint_impl<nntile::bool_t>(
-                get_tile<nntile::bool_t>(tile_ptr), *hint);
+            apply_bind_hint_impl<nntile::core::bool_t>(
+                get_tile<nntile::core::bool_t>(tile_ptr), *hint);
             break;
         default:
             throw std::runtime_error(
@@ -319,39 +320,39 @@ void Runtime::allocate_missing_tiles()
         switch (dtype)
         {
         case DataType::FP32:
-            allocate_tile_and_register<nntile::fp32_t>(
+            allocate_tile_and_register<nntile::core::fp32_t>(
                 node.get(), shape, tile_map_);
             break;
         case DataType::FP32_FAST_TF32:
-            allocate_tile_and_register<nntile::fp32_fast_tf32_t>(
+            allocate_tile_and_register<nntile::core::fp32_fast_tf32_t>(
                 node.get(), shape, tile_map_);
             break;
         case DataType::FP32_FAST_FP16:
-            allocate_tile_and_register<nntile::fp32_fast_fp16_t>(
+            allocate_tile_and_register<nntile::core::fp32_fast_fp16_t>(
                 node.get(), shape, tile_map_);
             break;
         case DataType::FP32_FAST_BF16:
-            allocate_tile_and_register<nntile::fp32_fast_bf16_t>(
+            allocate_tile_and_register<nntile::core::fp32_fast_bf16_t>(
                 node.get(), shape, tile_map_);
             break;
         case DataType::FP64:
-            allocate_tile_and_register<nntile::fp64_t>(
+            allocate_tile_and_register<nntile::core::fp64_t>(
                 node.get(), shape, tile_map_);
             break;
         case DataType::FP16:
-            allocate_tile_and_register<nntile::fp16_t>(
+            allocate_tile_and_register<nntile::core::fp16_t>(
                 node.get(), shape, tile_map_);
             break;
         case DataType::BF16:
-            allocate_tile_and_register<nntile::bf16_t>(
+            allocate_tile_and_register<nntile::core::bf16_t>(
                 node.get(), shape, tile_map_);
             break;
         case DataType::INT64:
-            allocate_tile_and_register<nntile::int64_t>(
+            allocate_tile_and_register<nntile::core::int64_t>(
                 node.get(), shape, tile_map_);
             break;
         case DataType::BOOL:
-            allocate_tile_and_register<nntile::bool_t>(
+            allocate_tile_and_register<nntile::core::bool_t>(
                 node.get(), shape, tile_map_);
             break;
         default:

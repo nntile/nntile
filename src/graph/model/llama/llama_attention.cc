@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -25,7 +26,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 LlamaAttention::LlamaAttention(graph::NNGraph *graph,
@@ -244,4 +245,4 @@ std::string LlamaAttention::repr() const
            ", head_size=" + std::to_string(head_size_) + ")";
 }
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

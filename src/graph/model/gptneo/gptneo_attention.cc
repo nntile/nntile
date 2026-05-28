@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -21,7 +22,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 GptneoAttention::GptneoAttention(graph::NNGraph* graph,
@@ -109,4 +110,4 @@ std::string GptneoAttention::repr() const
            ", head_size=" + std::to_string(head_size_) + ")";
 }
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

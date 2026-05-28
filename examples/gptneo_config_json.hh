@@ -28,7 +28,7 @@ namespace nntile::examples
 {
 
 //! Load ``GptneoConfig`` from JSON (``gptneo_generate.py``, training save, HF).
-inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &path)
+inline graph::model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &path)
 {
     std::ifstream f(path);
     if (!f.good())
@@ -37,7 +37,7 @@ inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &pa
     }
     nlohmann::json j = nlohmann::json::parse(f);
 
-    model::gptneo::GptneoConfig cfg;
+    graph::model::gptneo::GptneoConfig cfg;
     cfg.vocab_size = config_get_int(j, "vocab_size", 50257);
     cfg.hidden_size = config_get_int(
         j, "hidden_size", config_get_int(j, "n_embd", 768));
@@ -65,7 +65,7 @@ inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &pa
     {
         cfg.name = j["name"].get<std::string>();
     }
-    model::gptneo::parse_gptneo_attention_layers(j, cfg);
+    graph::model::gptneo::parse_gptneo_attention_layers(j, cfg);
     cfg.build_attention_layers();
     cfg.compute_head_dim();
     cfg.validate();
@@ -74,7 +74,7 @@ inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &pa
 
 //! Write ``GptneoConfig`` for training checkpoints (``layer_norm_eps`` key).
 inline void save_gptneo_config_json(
-    model::gptneo::GptneoConfig const &cfg,
+    graph::model::gptneo::GptneoConfig const &cfg,
     std::string const &path)
 {
     nlohmann::json j;

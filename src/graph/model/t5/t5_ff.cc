@@ -18,7 +18,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 T5LayerFF::T5LayerFF(graph::NNGraph* graph,
@@ -69,4 +69,4 @@ std::string T5LayerFF::repr() const
            ", d_ff=" + std::to_string(config_.d_ff) + ")";
 }
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

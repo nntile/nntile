@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/total_sum_accum.cc
- * Test TileGraph total sum accum vs nntile::tile (parity).
+ * Test TileGraph total sum accum vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/total_sum_accum.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/total_sum_accum.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[graph][tile]")
+#include "nntile/core/tile/total_sum_accum.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph total_sum_accum", "[graph][tile]")
 {
     const std::vector<Index> leh = {2,2}, srh = {3,2,2}, clh = {2,2}, vh = std::vector<Index>{};
     const Scalar a = 1.0; const Index ign = -1;
@@ -44,8 +44,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     r.execute();
     r.wait();
     const auto gout = r.get_output<float>(v);
-    nntile::tile::Tile<fp32_t> L(leh), S(srh), Vref(vh);
-    nntile::tile::Tile<nntile::int64_t> C(clh);
+    nntile::core::tile::Tile<fp32_t> L(leh), S(srh), Vref(vh);
+    nntile::core::tile::Tile<nntile::core::int64_t> C(clh);
     using Y = typename fp32_t::repr_t;
     { auto a1=L.acquire(STARPU_W),a2=S.acquire(STARPU_W);
       for(Index i=0;i<4;++i) a1[i]=Y(lse[static_cast<size_t>(i)]);
@@ -54,7 +54,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     { auto b=C.acquire(STARPU_W);
       b[0]=0; b[1]=1; b[2]=2; b[3]=0; b.release(); }
     { auto z=Vref.acquire(STARPU_W); z[0]=Y(0.0f); z.release(); }
-    nntile::tile::total_sum_accum<fp32_t>(a, L, S, C, Vref, ign);
+    nntile::core::tile::total_sum_accum<fp32_t>(a, L, S, C, Vref, ign);
     starpu_task_wait_for_all();
     float tref=0; { auto L2=Vref.acquire(STARPU_R); tref=static_cast<float>(L2[0]); L2.release(); }
     REQUIRE(std::abs(gout[0]-tref)<1e-3f);

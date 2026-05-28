@@ -13,7 +13,7 @@
 
 #include "nntile/graph/model/roberta/roberta_config.hh"
 
-using namespace nntile::model::roberta;
+using namespace nntile::graph::model::roberta;
 using namespace nntile::graph::module;
 
 TEST_CASE("RobertaConfig default values", "[model][roberta]")

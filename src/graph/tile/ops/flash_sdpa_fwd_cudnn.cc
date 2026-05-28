@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/flash_sdpa_fwd_cudnn.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/flash_sdpa_fwd_cudnn.hh>
+#include <nntile/core/tile/flash_sdpa_fwd_cudnn.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +26,7 @@ template<typename T>
 void run(
     Runtime& runtime, TileGraph::TileNode* K_, TileGraph::TileNode* Q_, TileGraph::TileNode* m, TileGraph::TileNode* l, TileGraph::TileNode* V_, TileGraph::TileNode* A_)
 {
-    nntile::tile::flash_sdpa_fwd_cudnn<T>(runtime.get_tile<T>(K_), runtime.get_tile<T>(Q_), runtime.get_tile<T>(m), runtime.get_tile<nntile::fp32_t>(l), runtime.get_tile<T>(V_), runtime.get_tile<T>(A_));
+    nntile::core::tile::flash_sdpa_fwd_cudnn<T>(runtime.get_tile<T>(K_), runtime.get_tile<T>(Q_), runtime.get_tile<T>(m), runtime.get_tile<nntile::core::fp32_t>(l), runtime.get_tile<T>(V_), runtime.get_tile<T>(A_));
 }
 } // namespace
 void flash_sdpa_fwd_cudnn(
@@ -44,16 +44,16 @@ void flash_sdpa_fwd_cudnn(
 }
 void TileFlashSdpaFwdCudnnOp::execute(Runtime& runtime) const
 {
-    // nntile::tile::flash_sdpa_fwd_cudnn is only explicitly instantiated for
+    // nntile::core::tile::flash_sdpa_fwd_cudnn is only explicitly instantiated for
     // fp16_t and bf16_t (see src/tile/flash_sdpa_fwd_cudnn.cc).
     DataType dtype = runtime.get_dtype(K);
     switch(dtype)
     {
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, K, Q, mask, logsumexp, V, A);
+            run<nntile::core::fp16_t>(runtime, K, Q, mask, logsumexp, V, A);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, K, Q, mask, logsumexp, V, A);
+            run<nntile::core::bf16_t>(runtime, K, Q, mask, logsumexp, V, A);
             break;
         default:
             throw std::runtime_error("flash_sdpa_fwd_cudnn: only FP16 and BF16 are supported");

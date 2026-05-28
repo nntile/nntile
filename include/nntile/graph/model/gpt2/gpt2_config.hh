@@ -20,9 +20,9 @@
 #include <string>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 //! GPT-2 model configuration (mirrors HuggingFace GPT2Config)
@@ -62,4 +62,4 @@ struct Gpt2Config
     }
 };
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

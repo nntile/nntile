@@ -22,7 +22,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace nntile::test::llama_fixture
+namespace nntile::graph::test::llama_fixture
 {
 
 //! Read a JSON integer field as ``Index`` (fixture ``*.json`` schema).
@@ -43,7 +43,7 @@ struct LlamaRopeInputs
 
 inline bool load_llama_rope_inputs(nntile::graph::NNGraph &g,
     const nntile::graph::io::SafeTensorsReader &reader,
-    const nntile::model::llama::LlamaConfig &config,
+    const nntile::graph::model::llama::LlamaConfig &config,
     Index n_seq,
     Index n_batch,
     LlamaRopeInputs &out)
@@ -168,4 +168,4 @@ inline void bind_mask_input(nntile::graph::Runtime &runtime,
     runtime.bind_data(mask, mask_bytes);
 }
 
-} // namespace nntile::test::llama_fixture
+} // namespace nntile::graph::test::llama_fixture

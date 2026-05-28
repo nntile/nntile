@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/sumprod_slice.cc
  * Test TensorGraph sumprod_slice operation against
- * nntile::tensor::sumprod_slice.
+ * nntile::core::tensor::sumprod_slice.
  *
  * @version 1.1.0
  * */
@@ -19,14 +19,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/sumprod_slice.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/sumprod_slice.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -122,13 +122,13 @@ void check_sumprod_slice_vs_tensor_api(const std::vector<Index> &src_shape,
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::core::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::core::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src1_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> src2_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::core::tensor::Tensor<T> src1_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> src2_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src1_t.get_tile(0);
@@ -158,7 +158,7 @@ void check_sumprod_slice_vs_tensor_api(const std::vector<Index> &src_shape,
         loc.release();
     }
 
-    nntile::tensor::sumprod_slice<T>(
+    nntile::core::tensor::sumprod_slice<T>(
         alpha, src1_t, src2_t, beta, dst_t, axis, redux);
     starpu_task_wait_for_all();
 
@@ -220,8 +220,8 @@ TEST_CASE(
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sumprod_slice matches nntile::tensor::sumprod_slice",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph sumprod_slice matches nntile::core::tensor::sumprod_slice",
     "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] =
@@ -251,11 +251,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_one});
 
-    check_sumprod_slice_vs_tensor_api<nntile::fp32_t>(
+    check_sumprod_slice_vs_tensor_api<nntile::core::fp32_t>(
         src_shape, axis, redux, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph sumprod_slice tiled matches untiled",
     "[graph][tensor]")
 {
@@ -271,7 +271,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_one});
 
-    using Y = nntile::fp32_t::repr_t;
+    using Y = nntile::core::fp32_t::repr_t;
     const Index src_nelems = std::accumulate(
         src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
     std::vector<Index> dst_shape = sumprod_slice_dst_shape(src_shape, axis);

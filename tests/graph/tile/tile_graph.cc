@@ -20,7 +20,7 @@
 #include <cstring>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 namespace tg = nntile::graph::tile_graph;
@@ -228,7 +228,7 @@ TEST_CASE(
     REQUIRE(tile_graph.ops()[1]->op_name() == "TILE_ADD_INPLACE");
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TileGraph from_tensor_graph execute matches TensorGraph",
     "[graph][tile]")
 {
@@ -281,7 +281,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TileGraph add_inplace execute",
     "[graph][tile]")
 {
@@ -317,7 +317,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(std::abs(result[3] - 48.0f) < tol);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TileGraph compile resolves bind hints from source TensorNode",
     "[graph][tile]")
 {
@@ -357,7 +357,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(std::abs(result[1] - 22.0f) < tol);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TileGraph fill and clear execute",
     "[graph][tile]")
 {
@@ -388,7 +388,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TileGraph multitile execute matches TensorGraph",
     "[graph][tile]")
 {

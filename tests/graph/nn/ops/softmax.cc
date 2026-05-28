@@ -25,10 +25,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph softmax structure",
     "[graph][nn_graph]")
 {
@@ -49,7 +49,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             1); // softmax expands to multiple tensor ops
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph softmax backward",
     "[graph][nn_graph]")
 {
@@ -69,7 +69,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(x->grad()->shape() == shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph softmax forward and backward",
     "[graph][nn_graph]")
 {
@@ -97,12 +97,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_softmax_axis0_6x7;
-using nntile::test::nn_pytorch_tile_softmax_axis1_6x7;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::nn_pytorch_tile_softmax_axis0_6x7;
+using nntile::graph::test::nn_pytorch_tile_softmax_axis1_6x7;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph softmax forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -157,7 +157,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     compare_float_vectors(nntile_out, y_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph softmax backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

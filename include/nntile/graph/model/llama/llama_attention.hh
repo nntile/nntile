@@ -28,7 +28,7 @@
 #include <nntile/graph/model/llama/llama_config.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 //! LlamaAttention - Q/K/V projections via gemm, RoPE, SDPA, output projection
@@ -93,4 +93,4 @@ public:
     Index num_heads() const { return n_heads_; }
 };
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

@@ -16,7 +16,7 @@
 #include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 Gpt2MLP::Gpt2MLP(graph::NNGraph* graph,
@@ -63,4 +63,4 @@ std::string Gpt2MLP::repr() const
     return "Gpt2MLP(" + graph::module::Mlp::repr() + ")";
 }
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

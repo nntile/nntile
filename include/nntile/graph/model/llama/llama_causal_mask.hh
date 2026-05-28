@@ -13,9 +13,9 @@
 
 #include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 using nntile::graph::sdpa_causal_mask_bool_fortran_fill;
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

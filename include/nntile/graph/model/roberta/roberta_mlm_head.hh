@@ -20,7 +20,7 @@
 #include <nntile/graph/module/linear.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 //! RobertaLMHead: dense + GELU + LN + decoder Linear + vocab bias.
@@ -47,4 +47,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

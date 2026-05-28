@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/sqrt_inplace.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/sqrt_inplace.hh>
+#include <nntile/core/tile/sqrt_inplace.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -27,7 +27,7 @@ template<typename T>
 void run(Runtime& runtime, TileGraph::TileNode* d)
 {
     auto& t = runtime.get_tile<T>(d);
-    nntile::tile::sqrt_inplace<T>(t);
+    nntile::core::tile::sqrt_inplace<T>(t);
 }
 } // namespace
 void sqrt_inplace(TileGraph::TileNode* dst)
@@ -44,24 +44,24 @@ void TileSqrtInplaceOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, dst);
+            run<nntile::core::fp32_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, dst);
+            run<nntile::core::fp32_fast_tf32_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, dst);
+            run<nntile::core::fp32_fast_fp16_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, dst);
+            run<nntile::core::fp32_fast_bf16_t>(runtime, dst);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, dst);
+            run<nntile::core::fp64_t>(runtime, dst);
             break;
         case DataType::FP16:
             throw std::runtime_error("FP16 not supported for tile sqrt_inplace in this build");
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, dst);
+            run<nntile::core::bf16_t>(runtime, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

@@ -16,10 +16,10 @@
 
 #include <cstdint>
 
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 #include <nntile/graph/model/llama/llama_config.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 //! Inverse frequencies for default Llama RoPE (HF
@@ -42,4 +42,4 @@ void rope_sin_cos_from_position_ids(
     float* out_sin,
     float* out_cos);
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

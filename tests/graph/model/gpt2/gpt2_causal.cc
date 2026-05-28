@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gpt2;
+using namespace nntile::graph::model::gpt2;
 using namespace nntile::graph::io;
 
 #ifndef GPT2_DATA_DIR
@@ -52,7 +52,7 @@ constexpr char gpt2_causal[] = "gpt2_causal";
 namespace
 {
 
-using namespace nntile::test::gpt2_fixture;
+using namespace nntile::graph::test::gpt2_fixture;
 
 struct CausalFixtureSpec
 {
@@ -244,7 +244,7 @@ TEST_CASE("Gpt2Causal load from safetensors roundtrip", "[model][gpt2][io]")
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Gpt2Causal forward matches PyTorch reference", "[model][gpt2]")
 {
     CausalFixtureSpec fx;
@@ -303,7 +303,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Gpt2Causal backward matches PyTorch reference",
     "[model][gpt2]")
 {

@@ -16,10 +16,10 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/norm.hh"
+#include "nntile/core/tensor/norm.hh"
 
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/norm.hh"
@@ -64,7 +64,7 @@ void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
 
 void TensorNormOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::norm_async (src/tensor/norm.cc).
+    // Match nntile::core::tensor::norm_async (src/tensor/norm.cc).
     const auto& tiles_x = tile_lower::tiles_of(ctx.tile_map, x);
     const auto& tiles_y = tile_lower::tiles_of(ctx.tile_map, y);
     if(tiles_y.size() != 1)

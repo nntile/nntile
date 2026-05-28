@@ -14,7 +14,7 @@
 #include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 namespace
@@ -95,4 +95,4 @@ std::string BertMlmHead::repr() const
     return "BertMlmHead(vocab=" + std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

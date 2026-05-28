@@ -15,11 +15,11 @@
 #include <stdexcept>
 #include <string>
 
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 #include <nntile/graph/model/bert/bert_config.hh>
 #include <nntile/graph/module/activation.hh>
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 //! RoBERTa model configuration (mirrors HuggingFace RobertaConfig)
@@ -81,4 +81,4 @@ inline void RobertaConfig::validate() const
     (void)bert::activation_type_from_hidden_act(hidden_act);
 }
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

@@ -16,7 +16,7 @@
 #include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 GptneoxMlp::GptneoxMlp(graph::NNGraph* graph,
@@ -63,4 +63,4 @@ std::string GptneoxMlp::repr() const
     return "GptneoxMlp(" + graph::module::Mlp::repr() + ")";
 }
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

@@ -20,7 +20,7 @@
 #include <nntile/graph/model/roberta/roberta_mlm_head.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 class RobertaMlm : public graph::module::Module
@@ -49,4 +49,4 @@ public:
     RobertaModel* model() { return model_.get(); }
 };
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

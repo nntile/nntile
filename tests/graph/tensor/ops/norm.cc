@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/norm.cc
- * Test TensorGraph norm operation against nntile::tensor::norm.
+ * Test TensorGraph norm operation against nntile::core::tensor::norm.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/norm.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/norm.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -79,12 +79,12 @@ void check_norm_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(y_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
-    nntile::tensor::TensorTraits y_traits({}, {});
+    nntile::core::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::core::tensor::TensorTraits y_traits({}, {});
     std::vector<int> x_distr(x_traits.grid.nelems, distr_rank_single);
     std::vector<int> y_distr(1, distr_rank_single);
-    nntile::tensor::Tensor<T> x_t(x_traits, x_distr);
-    nntile::tensor::Tensor<T> y_t(y_traits, y_distr);
+    nntile::core::tensor::Tensor<T> x_t(x_traits, x_distr);
+    nntile::core::tensor::Tensor<T> y_t(y_traits, y_distr);
 
     {
         auto tile = x_t.get_tile(0);
@@ -102,7 +102,7 @@ void check_norm_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::norm<T>(alpha, x_t, beta, y_t);
+    nntile::core::tensor::norm<T>(alpha, x_t, beta, y_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(1);
@@ -150,8 +150,8 @@ TEST_CASE("TensorGraph norm rejects duplicate tensors", "[graph][tensor]")
         gt::norm(t, t, alpha_one, beta_zero), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm matches nntile::tensor::norm",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph norm matches nntile::core::tensor::norm",
     "[graph][tensor]")
 {
     const auto [alpha, beta, shape] =
@@ -159,10 +159,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{2.0, 0.0, std::vector<Index>{6}},
             std::tuple{1.0, 1.0, std::vector<Index>{3, 4}});
 
-    check_norm_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
+    check_norm_vs_tensor_api<nntile::core::fp32_t>(shape, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph norm tiled matches untiled",
     "[graph][tensor]")
 {
@@ -170,7 +170,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{4, 6}},
             std::tuple{1.0, 1.0, std::vector<Index>{6}});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index x_nelems = std::accumulate(
         x_shape.begin(), x_shape.end(), Index(1), std::multiplies<>());

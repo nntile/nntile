@@ -23,7 +23,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -35,7 +35,7 @@ constexpr Index dim_3 = 3;
 
 } // anonymous namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph scale structure",
     "[graph][nn_graph]")
 {
@@ -53,7 +53,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "SCALE");
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph scale backward",
     "[graph][nn_graph]")
 {
@@ -76,10 +76,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph scale forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -121,7 +121,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     compare_float_vectors(nntile_out, y_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph scale backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

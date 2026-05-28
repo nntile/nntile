@@ -15,7 +15,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::roberta
+namespace nntile::graph::model::roberta
 {
 
 RobertaEmbeddings::RobertaEmbeddings(graph::NNGraph* graph,
@@ -71,4 +71,4 @@ std::string RobertaEmbeddings::repr() const
            ", vocab=" + std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::roberta
+} // namespace nntile::graph::model::roberta

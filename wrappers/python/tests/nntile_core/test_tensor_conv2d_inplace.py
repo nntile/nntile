@@ -26,8 +26,8 @@ Tensor = {
 }
 # Define mapping between tested function and numpy type
 conv2d_inplace = {
-    np.float32: nntile.nntile_core.tensor.conv2d_inplace_fp32,
-    np.float64: nntile.nntile_core.tensor.conv2d_inplace_fp64,
+    np.float32: nntile.core.tensor.conv2d_inplace_fp32,
+    np.float64: nntile.core.tensor.conv2d_inplace_fp64,
 }
 
 

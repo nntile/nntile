@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,10 +17,10 @@
 
 #include <stdexcept>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/adamw_step.hh>
+#include <nntile/core/tile/adamw_step.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -41,7 +42,7 @@ void run_adamw(
     TileGraph::TileNode* v,
     TileGraph::TileNode* pn)
 {
-    nntile::tile::adamw_step<T>(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+    nntile::core::tile::adamw_step<T>(num_iter, beta_1, beta_2, eps, lr, weight_decay,
         runtime.get_tile<T>(g), runtime.get_tile<T>(m), runtime.get_tile<T>(v),
         runtime.get_tile<T>(pn));
 }
@@ -104,31 +105,31 @@ void TileAdamwStepOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_adamw<nntile::fp32_t>(runtime, num_iter, beta_1, beta_2, eps, lr,
+            run_adamw<nntile::core::fp32_t>(runtime, num_iter, beta_1, beta_2, eps, lr,
                 weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP32_FAST_TF32:
-            run_adamw<nntile::fp32_fast_tf32_t>(runtime, num_iter, beta_1, beta_2,
+            run_adamw<nntile::core::fp32_fast_tf32_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP32_FAST_FP16:
-            run_adamw<nntile::fp32_fast_fp16_t>(runtime, num_iter, beta_1, beta_2,
+            run_adamw<nntile::core::fp32_fast_fp16_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP32_FAST_BF16:
-            run_adamw<nntile::fp32_fast_bf16_t>(runtime, num_iter, beta_1, beta_2,
+            run_adamw<nntile::core::fp32_fast_bf16_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP64:
-            run_adamw<nntile::fp64_t>(runtime, num_iter, beta_1, beta_2, eps, lr,
+            run_adamw<nntile::core::fp64_t>(runtime, num_iter, beta_1, beta_2, eps, lr,
                 weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP16:
-            run_adamw<nntile::fp16_t>(runtime, num_iter, beta_1, beta_2, eps, lr,
+            run_adamw<nntile::core::fp16_t>(runtime, num_iter, beta_1, beta_2, eps, lr,
                 weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::BF16:
-            run_adamw<nntile::bf16_t>(runtime, num_iter, beta_1, beta_2, eps, lr,
+            run_adamw<nntile::core::bf16_t>(runtime, num_iter, beta_1, beta_2, eps, lr,
                 weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::INT64:

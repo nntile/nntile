@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/rope_backward.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/rope_backward.hh>
+#include <nntile/core/tile/rope_backward.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +26,7 @@ template<typename T>
 void run(
     Runtime& runtime, TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* y, TileGraph::TileNode* x)
 {
-    nntile::tile::rope_backward<T>(runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(y), runtime.get_tile<T>(x));
+    nntile::core::tile::rope_backward<T>(runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(y), runtime.get_tile<T>(x));
 }
 } // namespace
 void rope_backward(TileGraph::TileNode* s1, TileGraph::TileNode* c, TileGraph::TileNode* y, TileGraph::TileNode* x)
@@ -47,25 +47,25 @@ void TileRopeBackwardOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, sin, cos, dy, dx);
+            run<nntile::core::fp32_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, sin, cos, dy, dx);
+            run<nntile::core::fp32_fast_tf32_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, sin, cos, dy, dx);
+            run<nntile::core::fp32_fast_fp16_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, sin, cos, dy, dx);
+            run<nntile::core::fp32_fast_bf16_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, sin, cos, dy, dx);
+            run<nntile::core::fp64_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, sin, cos, dy, dx);
+            run<nntile::core::fp16_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, sin, cos, dy, dx);
+            run<nntile::core::bf16_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::INT64:
         case DataType::BOOL:

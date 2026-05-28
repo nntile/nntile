@@ -35,7 +35,7 @@
 #include "pytorch_tile_helpers.hh"
 #endif
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 
@@ -138,7 +138,7 @@ TEST_CASE("Embedding BackwardCreatesGradients", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Embedding bind_weight applies data on compile",
     "[module]")
 {
@@ -160,8 +160,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         vocab_data[i] = 0.1f * static_cast<float>(i + 1);
     emb.bind_weight(vocab_data);
 
-    nntile::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::graph::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -186,10 +186,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(std::abs(out[i * stride] - vocab_data[i]) < 1e-5f);
 }
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::pytorch_tolerance;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::pytorch_tolerance;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Embedding from PyTorch binds weight in constructor",
     "[module][pytorch]")
 {
@@ -214,8 +214,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < batch * seq_len; ++i)
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
 
-    nntile::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::graph::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -248,7 +248,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "Embedding from PyTorch forward-backward",
     "[module][pytorch]")
 {
@@ -278,8 +278,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     emb.vocab_tensor()->grad()->mark_output(true);
 
-    nntile::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
-    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+    nntile::graph::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::graph::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

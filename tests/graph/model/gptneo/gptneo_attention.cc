@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneo;
+using namespace nntile::graph::model::gptneo;
 using namespace nntile::graph::io;
 
 #ifndef GPTNEO_DATA_DIR
@@ -54,7 +54,7 @@ constexpr char gptneo_attention_local[] = "gptneo_attention_local";
 namespace
 {
 
-using namespace nntile::test::gptneo_fixture;
+using namespace nntile::graph::test::gptneo_fixture;
 
 struct AttentionFixtureSpec
 {
@@ -296,7 +296,7 @@ TEST_CASE("GptneoAttention load from safetensors roundtrip", "[model][gptneo][io
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoAttention forward matches PyTorch reference (no mask)",
     "[model][gptneo][nomask]")
 {
@@ -308,7 +308,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneo_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoAttention backward matches PyTorch reference (no mask)",
     "[model][gptneo][nomask]")
 {
@@ -320,7 +320,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneo_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoAttention causal forward matches PyTorch reference",
     "[model][gptneo][causal_mask]")
 {
@@ -333,7 +333,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneo_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoAttention causal backward matches PyTorch reference",
     "[model][gptneo][causal_mask]")
 {
@@ -347,7 +347,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoAttention local forward matches PyTorch reference",
     "[model][gptneo][local_mask]")
 {
@@ -360,7 +360,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneo_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoAttention local backward matches PyTorch reference",
     "[model][gptneo][local_mask]")
 {

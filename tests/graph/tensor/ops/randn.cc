@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/randn.cc
- * Test TensorGraph randn operation against nntile::tensor::randn.
+ * Test TensorGraph randn operation against nntile::core::tensor::randn.
  *
  * @version 1.1.0
  * */
@@ -17,14 +17,14 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/randn.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/randn.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -65,11 +65,11 @@ void check_randn_vs_tensor_api(const std::vector<Index> &shape)
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> dst_t(traits, distr);
+    nntile::core::tensor::Tensor<T> dst_t(traits, distr);
 
-    nntile::tensor::randn<T>(dst_t, start, shape, seed, mean, stddev);
+    nntile::core::tensor::randn<T>(dst_t, start, shape, seed, mean, stddev);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -127,13 +127,13 @@ TEST_CASE("TensorGraph randn rejects mismatched start/underlying_shape",
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph randn matches nntile::tensor::randn",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph randn matches nntile::core::tensor::randn",
     "[graph][tensor]")
 {
     const auto shape = GENERATE(std::vector<Index>{4, 5},
         std::vector<Index>{6},
         std::vector<Index>{2, 3, 4});
 
-    check_randn_vs_tensor_api<nntile::fp32_t>(shape);
+    check_randn_vs_tensor_api<nntile::core::fp32_t>(shape);
 }

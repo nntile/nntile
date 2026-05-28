@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -21,7 +22,7 @@
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/copy.hh"
 #include "nntile/graph/tile/ops/copy_intersection.hh"
-#include "nntile/tensor/gather.hh"
+#include "nntile/core/tensor/gather.hh"
 
 #include <cstddef>
 #include <stdexcept>
@@ -33,7 +34,7 @@ namespace nntile::graph::tensor
 
 void TensorGatherOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    // Match nntile::tensor::gather_async (src/tensor/gather.cc).
+    // Match nntile::core::tensor::gather_async (src/tensor/gather.cc).
     const TensorAxisLayout *lay_src = ctx.tiling.find(src);
     if (lay_src == nullptr)
     {

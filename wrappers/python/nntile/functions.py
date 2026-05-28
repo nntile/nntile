@@ -20,9 +20,9 @@
 
 from typing import Any, List, Sequence, Type, TypeGuard, TypeVar
 
-import nntile.nntile_core.tensor as ops
-from nntile.nntile_core import TransOp
-from nntile.nntile_core.tensor import (
+import nntile.core.tensor as ops
+from nntile.core import TransOp
+from nntile.core.tensor import (
     Tensor_bf16, Tensor_bool, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16,
     Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_fp64, Tensor_int64)
 from nntile.types import Tensor, TensorFloatOrInt
@@ -39,10 +39,10 @@ def is_tensor_of(tensors: Sequence[Any],
     >>> b: Tensor_fp32
     >>> tensors: list[Tensor] = [a, b]
     >>> reveal_type(tensors)
-    # Revealed type is "builtins.list[nntile.nntile_core.tensor.Tensor]
+    # Revealed type is "builtins.list[nntile.core.tensor.Tensor]
     >>> if is_tensor_of(tensors, Tensor_fp32):
     >>>     reveal_type(tensors)
-    # Revealed type is "typing.Sequence[nntile.nntile_core.tensor.Tensor_fp32]
+    # Revealed type is "typing.Sequence[nntile.core.tensor.Tensor_fp32]
     """
     return all(isinstance(t, tensor_type) for t in tensors)
 

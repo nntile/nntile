@@ -27,8 +27,8 @@ Tensor = {
 
 # Define mapping between tested function and numpy type
 norm = {
-    np.float32: nntile.nntile_core.tensor.norm_fp32,
-    np.float64: nntile.nntile_core.tensor.norm_fp64
+    np.float32: nntile.core.tensor.norm_fp32,
+    np.float64: nntile.core.tensor.norm_fp64
 }
 
 

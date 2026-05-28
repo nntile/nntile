@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/gemm.cc
- * Test TileGraph gemm vs nntile::tile (parity).
+ * Test TileGraph gemm vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,13 +17,13 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/gemm.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/gemm.hh"
-#include "nntile/tile/tile.hh"
-#include "nntile/constants.hh"
-using namespace nntile;
+#include "nntile/core/tile/gemm.hh"
+#include "nntile/core/tile/tile.hh"
+#include "nntile/core/constants.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph gemm matches tile", "[graph][tile]")
 {
     const std::vector<Index> sh = {2, 2};
     const Index nelems = 4;
@@ -55,8 +55,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(c);
-    nntile::tile::Tile<fp32_t> ta(sh), tb(sh), tc(sh);
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> ta(sh), tb(sh), tc(sh);
+    using Y = typename nntile::core::fp32_t::repr_t;
     {
         auto l1 = ta.acquire(STARPU_W);
         auto l2 = tb.acquire(STARPU_W);
@@ -72,7 +72,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[
         l3.release();
     }
     const TransOp opN(TransOp::NoTrans);
-    nntile::tile::gemm<fp32_t>(alpha, opN, ta, opN, tb, beta, tc, ndim, batch_ndim, 0);
+    nntile::core::tile::gemm<fp32_t>(alpha, opN, ta, opN, tb, beta, tc, ndim, batch_ndim, 0);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

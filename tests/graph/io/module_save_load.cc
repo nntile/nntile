@@ -28,7 +28,7 @@
 #include "nntile/graph/module/linear.hh"
 #include "nntile/graph/module/mlp.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 using namespace nntile::graph::io;

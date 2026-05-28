@@ -14,10 +14,10 @@
 
 #include "nntile/graph/tile/ops/hypot.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/hypot.hh>
+#include <nntile/core/tile/hypot.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -26,7 +26,7 @@ template<typename T>
 void run_hy(
     Runtime& runtime, Scalar a, TileGraph::TileNode* s1, Scalar b, TileGraph::TileNode* s2, TileGraph::TileNode* d)
 {
-    nntile::tile::hypot<T>(a, runtime.get_tile<T>(s1), b, runtime.get_tile<T>(s2), runtime.get_tile<T>(d));
+    nntile::core::tile::hypot<T>(a, runtime.get_tile<T>(s1), b, runtime.get_tile<T>(s2), runtime.get_tile<T>(d));
 }
 } // namespace
 void hypot(
@@ -50,25 +50,25 @@ void TileHypotOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_hy<nntile::fp32_t>(runtime, alpha, src1, beta, src2, dst);
+            run_hy<nntile::core::fp32_t>(runtime, alpha, src1, beta, src2, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_hy<nntile::fp32_fast_tf32_t>(runtime, alpha, src1, beta, src2, dst);
+            run_hy<nntile::core::fp32_fast_tf32_t>(runtime, alpha, src1, beta, src2, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_hy<nntile::fp32_fast_fp16_t>(runtime, alpha, src1, beta, src2, dst);
+            run_hy<nntile::core::fp32_fast_fp16_t>(runtime, alpha, src1, beta, src2, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_hy<nntile::fp32_fast_bf16_t>(runtime, alpha, src1, beta, src2, dst);
+            run_hy<nntile::core::fp32_fast_bf16_t>(runtime, alpha, src1, beta, src2, dst);
             break;
         case DataType::FP64:
-            run_hy<nntile::fp64_t>(runtime, alpha, src1, beta, src2, dst);
+            run_hy<nntile::core::fp64_t>(runtime, alpha, src1, beta, src2, dst);
             break;
         case DataType::FP16:
-            run_hy<nntile::fp16_t>(runtime, alpha, src1, beta, src2, dst);
+            run_hy<nntile::core::fp16_t>(runtime, alpha, src1, beta, src2, dst);
             break;
         case DataType::BF16:
-            run_hy<nntile::bf16_t>(runtime, alpha, src1, beta, src2, dst);
+            run_hy<nntile::core::bf16_t>(runtime, alpha, src1, beta, src2, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

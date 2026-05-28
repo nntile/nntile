@@ -59,99 +59,99 @@ endfunction()
 add_example(TARGET_NAME examples_autograd_add
     EXEC_NAME "autograd_add_example"
     SOURCES "autograd_add_example.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_graph_mlp
     EXEC_NAME "graph_mlp_example"
     SOURCES "graph_mlp_example.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_autograd_mlp_tile_compare
     EXEC_NAME "autograd_mlp_tile_compare_example"
     SOURCES "autograd_mlp_tile_compare_example.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_linear_layer
     EXEC_NAME "linear_layer_example"
     SOURCES "linear_layer_example.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_deep_relu_forward
     EXEC_NAME "deep_relu_forward"
     SOURCES "deep_relu_forward.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_deep_relu_training
     EXEC_NAME "deep_relu_training"
     SOURCES "deep_relu_training.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_llama_generate
     EXEC_NAME "llama_generate"
     SOURCES "llama_generate.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_llama_graph_training
     EXEC_NAME "llama_graph_training"
     SOURCES "llama_graph_training.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_gpt2_graph_training
     EXEC_NAME "gpt2_graph_training"
     SOURCES "gpt2_graph_training.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_gpt2_generate
     EXEC_NAME "gpt2_generate"
     SOURCES "gpt2_generate.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_bert_graph_training
     EXEC_NAME "bert_graph_training"
     SOURCES "bert_graph_training.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_bert_mlm_inference
     EXEC_NAME "bert_mlm_inference"
     SOURCES "bert_mlm_inference.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_roberta_graph_training
     EXEC_NAME "roberta_graph_training"
     SOURCES "roberta_graph_training.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_roberta_mlm_inference
     EXEC_NAME "roberta_mlm_inference"
     SOURCES "roberta_mlm_inference.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_gptneo_generate
     EXEC_NAME "gptneo_generate"
     SOURCES "gptneo_generate.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_gptneo_graph_training
     EXEC_NAME "gptneo_graph_training"
     SOURCES "gptneo_graph_training.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_gpt_neox_generate
     EXEC_NAME "gpt_neox_generate"
     SOURCES "gpt_neox_generate.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_gptneox_graph_training
     EXEC_NAME "gptneox_graph_training"
     SOURCES "gptneox_graph_training.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_t5_generate
     EXEC_NAME "t5_generate"
     SOURCES "t5_generate.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)
 
 add_example(TARGET_NAME examples_t5_graph_training
     EXEC_NAME "t5_graph_training"
     SOURCES "t5_graph_training.cc"
-    LINK_LIBRARIES nntile)
+    LINK_LIBRARIES nntile_graph)

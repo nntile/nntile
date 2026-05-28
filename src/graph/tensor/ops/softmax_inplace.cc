@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,13 +17,13 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/ops/softmax_inplace.hh"
-#include "nntile/tensor/softmax_inplace.hh"
+#include "nntile/core/tensor/softmax_inplace.hh"
 
 namespace nntile::graph::tensor
 {
@@ -59,7 +60,7 @@ void softmax_inplace(
 
 void TensorSoftmaxInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::softmax_inplace_async: iterate maxsumexp tiles,
+    // Match nntile::core::tensor::softmax_inplace_async: iterate maxsumexp tiles,
     // then all dst tiles along `axis` sharing that fiber (see
     // src/tensor/softmax_inplace.cc and src/tensor/softmax.cc).
     const TensorAxisLayout* lay_m = ctx.tiling.find(maxsumexp);

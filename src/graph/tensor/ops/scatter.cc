@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -25,14 +26,14 @@
 #include "nntile/graph/tile/ops/copy.hh"
 #include "nntile/graph/tile/ops/copy_intersection.hh"
 #include "nntile/graph/tile/lowering_context.hh"
-#include "nntile/tensor/scatter.hh"
+#include "nntile/core/tensor/scatter.hh"
 
 namespace nntile::graph::tensor
 {
 
 void TensorScatterOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::scatter_async (src/tensor/scatter.cc).
+    // Match nntile::core::tensor::scatter_async (src/tensor/scatter.cc).
     const TensorAxisLayout* lay_dst = ctx.tiling.find(dst);
     if(lay_dst == nullptr)
     {

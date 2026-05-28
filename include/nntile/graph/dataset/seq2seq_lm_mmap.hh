@@ -28,7 +28,7 @@
 #include <string>
 #include <vector>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dataset/causal_lm_mmap.hh>
 
 namespace nntile::graph::dataset

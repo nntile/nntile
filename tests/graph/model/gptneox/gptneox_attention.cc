@@ -42,9 +42,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneox;
+using namespace nntile::graph::model::gptneox;
 using namespace nntile::graph::io;
 
 #ifndef GPTNEOX_DATA_DIR
@@ -60,8 +60,8 @@ TEST_CASE(
 namespace
 {
 
-using namespace nntile::test::gptneox_attention_fixture;
-using namespace nntile::test::gptneox_fixture;
+using namespace nntile::graph::test::gptneox_attention_fixture;
+using namespace nntile::graph::test::gptneox_fixture;
 
 struct AttentionRunContext
 {
@@ -248,7 +248,7 @@ TEST_CASE("GptneoxAttention load from safetensors roundtrip", "[model][gptneox][
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxAttention forward vs PyTorch (no causal mask, RoPE)",
     "[model][gptneox][nomask]")
 {
@@ -260,7 +260,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneox_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxAttention forward vs PyTorch (no causal mask, no RoPE)",
     "[model][gptneox][nomask][norope][norope_nomask]")
 {
@@ -273,7 +273,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneox_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxAttention forward vs PyTorch (causal mask, RoPE)",
     "[model][gptneox][causal_mask]")
 {
@@ -286,7 +286,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneox_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxAttention forward vs PyTorch (causal mask, no RoPE)",
     "[model][gptneox][causal_mask][norope]")
 {
@@ -299,7 +299,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneox_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxAttention backward vs PyTorch (no causal mask, RoPE)",
     "[model][gptneox][nomask]")
 {
@@ -311,7 +311,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneox_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxAttention backward vs PyTorch (no causal mask, no RoPE)",
     "[model][gptneox][nomask][norope][norope_nomask]")
 {
@@ -324,7 +324,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneox_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxAttention backward vs PyTorch (causal mask, RoPE)",
     "[model][gptneox][causal_mask]")
 {
@@ -337,7 +337,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneox_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "GptneoxAttention backward vs PyTorch (causal mask, no RoPE)",
     "[model][gptneox][causal_mask][norope]")
 {

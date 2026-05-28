@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -20,7 +21,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 T5Attention::T5Attention(graph::NNGraph* graph,
@@ -115,4 +116,4 @@ std::string T5Attention::repr() const
            ", cross=" + (is_cross_attention_ ? "true" : "false") + ")";
 }
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

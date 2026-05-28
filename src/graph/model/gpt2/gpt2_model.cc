@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -18,7 +19,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 Gpt2Model::Gpt2Model(graph::NNGraph* graph,
@@ -89,4 +90,4 @@ std::string Gpt2Model::repr() const
            ", layers=" + std::to_string(config_.num_hidden_layers) + ")";
 }
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

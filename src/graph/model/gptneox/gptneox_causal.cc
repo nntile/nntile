@@ -17,7 +17,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 GptneoxCausal::GptneoxCausal(graph::NNGraph* graph,
@@ -57,4 +57,4 @@ std::string GptneoxCausal::repr() const
            std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

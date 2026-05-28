@@ -18,7 +18,7 @@
 
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/gelu_inplace.hh"
+#include "nntile/core/tensor/gelu_inplace.hh"
 
 #include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>

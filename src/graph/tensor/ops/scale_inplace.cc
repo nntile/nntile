@@ -16,12 +16,12 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/scale_inplace.hh"
-#include "nntile/tensor/scale_inplace.hh"
+#include "nntile/core/tensor/scale_inplace.hh"
 
 namespace nntile::graph::tensor
 {

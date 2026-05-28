@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/scale_fiber.cc
- * Test TensorGraph scale_fiber operation against nntile::tensor::scale_fiber.
+ * Test TensorGraph scale_fiber operation against nntile::core::tensor::scale_fiber.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/scale_fiber.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/scale_fiber.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -102,12 +102,12 @@ void check_scale_fiber_vs_tensor_api(const std::vector<Index> &dst_shape,
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(fiber_sh, fiber_sh);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::core::tensor::TensorTraits src_traits(fiber_sh, fiber_sh);
+    nntile::core::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::core::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -119,7 +119,7 @@ void check_scale_fiber_vs_tensor_api(const std::vector<Index> &dst_shape,
         loc.release();
     }
 
-    nntile::tensor::scale_fiber<T>(alpha_val, src_t, dst_t, axis, batch_ndim);
+    nntile::core::tensor::scale_fiber<T>(alpha_val, src_t, dst_t, axis, batch_ndim);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -172,8 +172,8 @@ TEST_CASE(
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale_fiber matches nntile::tensor::scale_fiber",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph scale_fiber matches nntile::core::tensor::scale_fiber",
     "[graph][tensor]")
 {
     const auto [dst_shape, axis, batch_ndim, alpha_val] = GENERATE(
@@ -186,11 +186,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             batch_ndim_none,
             alpha_one});
 
-    check_scale_fiber_vs_tensor_api<nntile::fp32_t>(
+    check_scale_fiber_vs_tensor_api<nntile::core::fp32_t>(
         dst_shape, axis, batch_ndim, alpha_val);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph scale_fiber tiled matches untiled",
     "[graph][tensor]")
 {
@@ -198,7 +198,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), Index(0), 2.5},
             std::tuple{std::vector<Index>{2, 4}, Index(0), Index(0), 1.0});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = T::repr_t;
     std::vector<Index> fiber_sh = fiber_shape(dst_shape, axis, batch_ndim);
     const Index fiber_nelems = std::accumulate(

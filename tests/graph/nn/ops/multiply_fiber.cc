@@ -23,7 +23,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -35,7 +35,7 @@ constexpr Index dim_4 = 4;
 
 } // anonymous namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply_fiber structure",
     "[graph][nn_graph]")
 {
@@ -58,7 +58,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "MULTIPLY_FIBER");
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply_fiber backward",
     "[graph][nn_graph]")
 {
@@ -85,15 +85,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::broadcast_fiber;
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
-using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
-using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
-using nntile::test::pytorch_tolerance;
+using nntile::graph::test::broadcast_fiber;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::nn_pytorch_tile_heterogeneous_1d_len6;
+using nntile::graph::test::nn_pytorch_tile_heterogeneous_1d_len7;
+using nntile::graph::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::graph::test::pytorch_tolerance;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply_fiber forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -167,7 +167,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph multiply_fiber backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,10 +15,10 @@
 
 #include "nntile/graph/tile/ops/conv2d_inplace.hh"
 #include <stdexcept>
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/conv2d_inplace.hh>
+#include <nntile/core/tile/conv2d_inplace.hh>
 namespace nntile::graph::tile_graph
 {
 namespace
@@ -25,7 +26,7 @@ namespace
 template<typename T>
 void run(const TileConv2dInplaceOp& o, Runtime& runtime)
 {
-    nntile::tile::conv2d_inplace<T>(o.src1_m, o.src1_n, o.src1_channels, o.batch, o.src2_m, o.src2_n, o.dilation_m, o.dilation_n, o.dst_channels, o.offset_m, o.offset_n, o.alpha, runtime.get_tile<T>(o.s1), runtime.get_tile<T>(o.s2), o.dst_m, o.dst_n, o.stride_m, o.stride_n, o.beta, runtime.get_tile<T>(o.dst));
+    nntile::core::tile::conv2d_inplace<T>(o.src1_m, o.src1_n, o.src1_channels, o.batch, o.src2_m, o.src2_n, o.dilation_m, o.dilation_n, o.dst_channels, o.offset_m, o.offset_n, o.alpha, runtime.get_tile<T>(o.s1), runtime.get_tile<T>(o.s2), o.dst_m, o.dst_n, o.stride_m, o.stride_n, o.beta, runtime.get_tile<T>(o.dst));
 }
 } // namespace
 void conv2d_inplace(
@@ -44,24 +45,24 @@ void TileConv2dInplaceOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(*this, runtime);
+            run<nntile::core::fp32_t>(*this, runtime);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(*this, runtime);
+            run<nntile::core::fp32_fast_tf32_t>(*this, runtime);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(*this, runtime);
+            run<nntile::core::fp32_fast_fp16_t>(*this, runtime);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(*this, runtime);
+            run<nntile::core::fp32_fast_bf16_t>(*this, runtime);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(*this, runtime);
+            run<nntile::core::fp64_t>(*this, runtime);
             break;
         case DataType::FP16:
             throw std::runtime_error("FP16 not supported for tile conv2d_inplace in this build");
         case DataType::BF16:
-            run<nntile::bf16_t>(*this, runtime);
+            run<nntile::core::bf16_t>(*this, runtime);
             break;
         case DataType::INT64:
         case DataType::BOOL:

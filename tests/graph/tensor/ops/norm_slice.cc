@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/norm_slice.cc
- * Test TensorGraph norm_slice operation against nntile::tensor::norm_slice.
+ * Test TensorGraph norm_slice operation against nntile::core::tensor::norm_slice.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/norm_slice.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/norm_slice.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -123,15 +123,15 @@ void check_norm_slice_vs_tensor_api(const std::vector<Index> &src_shape,
     std::vector<float> graph_result = runtime.get_output<float>(out_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
-    nntile::tensor::TensorTraits out_traits(dst_shape, dst_shape);
+    nntile::core::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::core::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::core::tensor::TensorTraits out_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
     std::vector<int> out_distr(out_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> src2_t(dst_traits, dst_distr);
-    nntile::tensor::Tensor<T> out_t(out_traits, out_distr);
+    nntile::core::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> src2_t(dst_traits, dst_distr);
+    nntile::core::tensor::Tensor<T> out_t(out_traits, out_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -163,7 +163,7 @@ void check_norm_slice_vs_tensor_api(const std::vector<Index> &src_shape,
         loc.release();
     }
 
-    nntile::tensor::norm_slice<T>(
+    nntile::core::tensor::norm_slice<T>(
         alpha, src_t, beta, src2_t, out_t, axis, redux);
     starpu_task_wait_for_all();
 
@@ -222,8 +222,8 @@ TEST_CASE(
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm_slice matches nntile::tensor::norm_slice",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph norm_slice matches nntile::core::tensor::norm_slice",
     "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] =
@@ -268,11 +268,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_half});
 
-    check_norm_slice_vs_tensor_api<nntile::fp32_t>(
+    check_norm_slice_vs_tensor_api<nntile::core::fp32_t>(
         src_shape, axis, redux, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph norm_slice tiled matches untiled",
     "[graph][tensor]")
 {
@@ -288,7 +288,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 alpha_one,
                 beta_zero});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index src_nelems = std::accumulate(
         src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());

@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -14,7 +15,7 @@
 
 #include "nntile/graph/tensor/ops/norm_fiber.hh"
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
@@ -22,7 +23,7 @@
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/norm_fiber.hh"
 #include "nntile/graph/tile/ops/norm_fiber_inplace.hh"
-#include "nntile/tensor/norm_fiber.hh"
+#include "nntile/core/tensor/norm_fiber.hh"
 
 #include <stdexcept>
 #include <utility>
@@ -108,7 +109,7 @@ void norm_fiber(Scalar alpha,
 
 void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    // Match nntile::tensor::norm_fiber_async (src/tensor/norm_fiber.cc).
+    // Match nntile::core::tensor::norm_fiber_async (src/tensor/norm_fiber.cc).
     const TensorAxisLayout *lay1 = ctx.tiling.find(src1);
     if (lay1 == nullptr)
     {

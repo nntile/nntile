@@ -22,7 +22,7 @@
 #include <random>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 namespace mod = nntile::graph::module;
@@ -98,7 +98,7 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     out_ref->mark_output(true);
 
     auto [g_out_ref, _] = g_ref.get_or_create_grad(out_ref, "dloss");
-    gt::fill(nntile::Scalar(1.0f), g_out_ref->data());
+    gt::fill(nntile::core::Scalar(1.0f), g_out_ref->data());
 
     mlp_ref.fc1().weight_tensor()->mark_input(true);
     mlp_ref.fc2().weight_tensor()->mark_input(true);
@@ -143,7 +143,7 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     out_tile->mark_output(true);
 
     auto [g_out_tile, __] = g_tile.get_or_create_grad(out_tile, "dloss");
-    gt::fill(nntile::Scalar(1.0f), g_out_tile->data());
+    gt::fill(nntile::core::Scalar(1.0f), g_out_tile->data());
 
     mlp_tile.fc1().weight_tensor()->mark_input(true);
     mlp_tile.fc2().weight_tensor()->mark_input(true);

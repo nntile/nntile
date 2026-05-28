@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/total_sum_accum.cc
  * Test TensorGraph total_sum_accum operation against
- * nntile::tensor::total_sum_accum.
+ * nntile::core::tensor::total_sum_accum.
  *
  * @version 1.1.0
  * */
@@ -19,15 +19,15 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/tensor.hh"
-#include "nntile/tensor/total_sum_accum.hh"
+#include "nntile/core/tensor/tensor.hh"
+#include "nntile/core/tensor/total_sum_accum.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <cstdint>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -110,20 +110,20 @@ void check_total_sum_accum_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(val_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits logsumexp_traits(labels_shape, labels_shape);
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits labels_traits(labels_shape, labels_shape);
-    nntile::tensor::TensorTraits val_traits({}, {});
+    nntile::core::tensor::TensorTraits logsumexp_traits(labels_shape, labels_shape);
+    nntile::core::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::core::tensor::TensorTraits labels_traits(labels_shape, labels_shape);
+    nntile::core::tensor::TensorTraits val_traits({}, {});
     std::vector<int> distr_single(1, distr_rank_single);
     std::vector<int> labels_distr(
         labels_traits.grid.nelems, distr_rank_single);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
 
-    nntile::tensor::Tensor<T> logsumexp_t(logsumexp_traits, labels_distr);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<nntile::int64_t> labels_t(
+    nntile::core::tensor::Tensor<T> logsumexp_t(logsumexp_traits, labels_distr);
+    nntile::core::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<nntile::core::int64_t> labels_t(
         labels_traits, labels_distr);
-    nntile::tensor::Tensor<nntile::fp32_t> val_t(val_traits, distr_single);
+    nntile::core::tensor::Tensor<nntile::core::fp32_t> val_t(val_traits, distr_single);
 
     {
         auto tile = logsumexp_t.get_tile(0);
@@ -159,7 +159,7 @@ void check_total_sum_accum_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::total_sum_accum<T>(
+    nntile::core::tensor::total_sum_accum<T>(
         alpha_one, logsumexp_t, src_t, labels_t, val_t, ignore_index);
     starpu_task_wait_for_all();
 
@@ -239,8 +239,8 @@ TEST_CASE(
         std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph total_sum_accum matches nntile::tensor::total_sum_accum",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph total_sum_accum matches nntile::core::tensor::total_sum_accum",
     "[graph][tensor]")
 {
     const auto [labels_shape, n_class] =
@@ -248,10 +248,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{std::vector<Index>{6}, Index(5)},
             std::tuple{std::vector<Index>{2, 3}, Index(4)});
 
-    check_total_sum_accum_vs_tensor_api<nntile::fp32_t>(labels_shape, n_class);
+    check_total_sum_accum_vs_tensor_api<nntile::core::fp32_t>(labels_shape, n_class);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph total_sum_accum tiled matches untiled",
     "[graph][tensor]")
 {

@@ -16,9 +16,9 @@
 
 #include <cstddef>
 
-#include "nntile/context.hh"
+#include "nntile/core/context.hh"
 
-namespace nntile
+namespace nntile::core
 {
 namespace test
 {

@@ -48,9 +48,9 @@
 #include <nntile/graph/model/t5/t5_config.hh>
 #include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::t5;
+using namespace nntile::graph::model::t5;
 using nntile::examples::load_t5_config_json;
 
 // ── CLI helpers ──────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ static WeightCache load_weights_to_memory(const std::string& path)
 }
 
 static void apply_weight_cache(
-    graph::module::Module& model,
+    module::Module& model,
     const WeightCache& cache)
 {
     for(const auto& [name, tensor] : model.named_parameters_recursive())

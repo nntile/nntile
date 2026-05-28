@@ -27,7 +27,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/rms_norm.hh>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 //! T5Model - shared embed + encoder stack + decoder stack
@@ -74,4 +74,4 @@ public:
     Index num_decoder_layers() const { return config_.num_decoder_layers; }
 };
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

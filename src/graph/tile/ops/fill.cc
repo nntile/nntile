@@ -16,10 +16,10 @@
 
 #include <stdexcept>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/fill.hh>
+#include <nntile/core/tile/fill.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -34,7 +34,7 @@ void run_fill(
     TileGraph::TileNode* x)
 {
     auto& x_t = runtime.get_tile<T>(x);
-    nntile::tile::fill<T>(val, x_t);
+    nntile::core::tile::fill<T>(val, x_t);
 }
 
 } // namespace
@@ -58,25 +58,25 @@ void TileFillOp::execute(
     switch(dtype)
     {
         case DataType::FP32:
-            run_fill<nntile::fp32_t>(runtime, val, x);
+            run_fill<nntile::core::fp32_t>(runtime, val, x);
             break;
         case DataType::FP32_FAST_TF32:
-            run_fill<nntile::fp32_fast_tf32_t>(runtime, val, x);
+            run_fill<nntile::core::fp32_fast_tf32_t>(runtime, val, x);
             break;
         case DataType::FP32_FAST_FP16:
-            run_fill<nntile::fp32_fast_fp16_t>(runtime, val, x);
+            run_fill<nntile::core::fp32_fast_fp16_t>(runtime, val, x);
             break;
         case DataType::FP32_FAST_BF16:
-            run_fill<nntile::fp32_fast_bf16_t>(runtime, val, x);
+            run_fill<nntile::core::fp32_fast_bf16_t>(runtime, val, x);
             break;
         case DataType::FP64:
-            run_fill<nntile::fp64_t>(runtime, val, x);
+            run_fill<nntile::core::fp64_t>(runtime, val, x);
             break;
         case DataType::FP16:
-            run_fill<nntile::fp16_t>(runtime, val, x);
+            run_fill<nntile::core::fp16_t>(runtime, val, x);
             break;
         case DataType::BF16:
-            run_fill<nntile::bf16_t>(runtime, val, x);
+            run_fill<nntile::core::bf16_t>(runtime, val, x);
             break;
         case DataType::INT64:
         case DataType::BOOL:

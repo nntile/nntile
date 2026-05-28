@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -13,7 +14,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 void GptneoxConfig::build_attention_layers()
@@ -44,4 +45,4 @@ bool GptneoxConfig::is_local_attention_layer(Index layer_id) const
     return attention_layers[static_cast<std::size_t>(layer_id)] == "local";
 }
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

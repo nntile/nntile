@@ -23,11 +23,11 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph mse_loss structure",
     "[graph][nn_graph]")
 {
@@ -47,7 +47,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.num_ops() >= 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph mse_loss backward",
     "[graph][nn_graph]")
 {
@@ -67,7 +67,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(x->grad()->shape() == x_shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph mse_loss forward and backward",
     "[graph][nn_graph]")
 {
@@ -95,11 +95,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
-using nntile::test::require_relative_frobenius_error;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::graph::test::require_relative_frobenius_error;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph mse_loss forward and backward match PyTorch",
     "[graph][nn_graph][pytorch]")
 {

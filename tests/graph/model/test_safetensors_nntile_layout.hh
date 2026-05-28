@@ -16,10 +16,10 @@
 #include <stdexcept>
 #include <vector>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/io/safetensors.hh>
 
-namespace nntile::test::safetensors_nntile_layout
+namespace nntile::graph::test::safetensors_nntile_layout
 {
 
 inline Index shape_volume(const std::vector<std::int64_t> &shape)
@@ -137,4 +137,4 @@ inline void read_tensor_nntile_fortran(
     c_safetensors_to_nntile_fortran<T>(raw.data(), info.shape, out);
 }
 
-} // namespace nntile::test::safetensors_nntile_layout
+} // namespace nntile::graph::test::safetensors_nntile_layout

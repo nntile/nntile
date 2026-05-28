@@ -18,7 +18,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 LlamaCausal::LlamaCausal(graph::NNGraph *graph,
@@ -68,4 +68,4 @@ std::string LlamaCausal::repr() const
            ", vocab=" + std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

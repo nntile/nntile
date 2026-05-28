@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,21 +17,21 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/randn.hh"
-#include "nntile/tensor/randn.hh"
+#include "nntile/core/tensor/randn.hh"
 
 namespace nntile::graph::tensor
 {
 
 void TensorRandnOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::randn_async tile loop (src/tensor/randn.cc).
+    // Match nntile::core::tensor::randn_async tile loop (src/tensor/randn.cc).
     const TensorAxisLayout* lay = ctx.tiling.find(dst);
     if(lay == nullptr)
     {

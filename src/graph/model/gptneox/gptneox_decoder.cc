@@ -17,7 +17,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 GptneoxDecoder::GptneoxDecoder(graph::NNGraph* graph,
@@ -91,4 +91,4 @@ std::string GptneoxDecoder::repr() const
            (config_.use_parallel_residual ? "true" : "false") + ")";
 }
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

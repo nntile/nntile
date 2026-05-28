@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/maxsumexp.cc
- * Test TileGraph maxsumexp vs nntile::tile (parity).
+ * Test TileGraph maxsumexp vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,10 +17,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/maxsumexp.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/maxsumexp.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[graph][tile]")
+#include "nntile/core/tile/maxsumexp.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph maxsumexp axis0", "[graph][tile]")
 {
     const std::vector<Index> sh = {3,4,5}, dh = {2,4,5};
     const Index n1 = 60, n2 = 2*4*5;
@@ -37,13 +37,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
     r.bind_data(s, a); r.bind_data(d, b);
     r.execute(); r.wait();
     const auto gout = r.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> S(sh), D(dh);
+    nntile::core::tile::Tile<fp32_t> S(sh), D(dh);
     using Y = typename fp32_t::repr_t;
     { auto p=S.acquire(STARPU_W), q=D.acquire(STARPU_W);
       for(Index i=0;i<n1;++i) p[i]=Y(a[static_cast<size_t>(i)]);
       for(Index j=0;j<n2;++j) q[j]=Y(0);
       p.release(); q.release(); }
-    nntile::tile::maxsumexp<fp32_t>(S, D, axis, redux);
+    nntile::core::tile::maxsumexp<fp32_t>(S, D, axis, redux);
     starpu_task_wait_for_all();
     std::vector<float> tr(n2);
     { auto L=D.acquire(STARPU_R);

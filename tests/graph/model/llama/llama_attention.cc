@@ -49,9 +49,9 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::llama;
+using namespace nntile::graph::model::llama;
 using namespace nntile::graph::io;
 
 #ifndef LLAMA_DATA_DIR
@@ -67,8 +67,8 @@ TEST_CASE("LlamaAttention tests skipped (LLAMA_DATA_DIR undefined)",
 namespace
 {
 
-using namespace nntile::test::llama_fixture;
-using namespace nntile::test::llama_attention_fixture;
+using namespace nntile::graph::test::llama_fixture;
+using namespace nntile::graph::test::llama_attention_fixture;
 
 void llama_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
 {
@@ -272,7 +272,7 @@ TEST_CASE(
     std::remove(save_path.c_str());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention MHA forward vs PyTorch (no causal mask, RoPE)",
     "[model][llama][nomask]")
 {
@@ -284,7 +284,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention MHA forward vs PyTorch (no causal mask, no RoPE)",
     "[model][llama][nomask][norope][norope_nomask]")
 {
@@ -297,7 +297,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention MHA forward vs PyTorch (causal mask, RoPE)",
     "[model][llama][causal_mask]")
 {
@@ -310,7 +310,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention MHA forward vs PyTorch (causal mask, no RoPE)",
     "[model][llama][causal_mask][norope]")
 {
@@ -323,7 +323,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention MHA backward vs PyTorch (no causal mask, RoPE)",
     "[model][llama][nomask]")
 {
@@ -335,7 +335,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention MHA backward vs PyTorch (no causal mask, no RoPE)",
     "[model][llama][nomask][norope][norope_nomask]")
 {
@@ -348,7 +348,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention MHA backward vs PyTorch (causal mask, RoPE)",
     "[model][llama][causal_mask]")
 {
@@ -361,7 +361,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention MHA backward vs PyTorch (causal mask, no RoPE)",
     "[model][llama][causal_mask][norope]")
 {
@@ -374,7 +374,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention GQA forward vs PyTorch (no causal mask, RoPE)",
     "[model][llama][gqa][nomask]")
 {
@@ -386,7 +386,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention GQA forward vs PyTorch (no causal mask, no RoPE)",
     "[model][llama][gqa][nomask][norope][norope_nomask]")
 {
@@ -399,7 +399,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention GQA forward vs PyTorch (causal mask, RoPE)",
     "[model][llama][gqa][causal_mask]")
 {
@@ -412,7 +412,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention GQA forward vs PyTorch (causal mask, no RoPE)",
     "[model][llama][gqa][causal_mask][norope]")
 {
@@ -425,7 +425,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_forward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention GQA backward vs PyTorch (no causal mask, RoPE)",
     "[model][llama][gqa][nomask]")
 {
@@ -437,7 +437,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention GQA backward vs PyTorch (no causal mask, no RoPE)",
     "[model][llama][gqa][nomask][norope][norope_nomask]")
 {
@@ -450,7 +450,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention GQA backward vs PyTorch (causal mask, RoPE)",
     "[model][llama][gqa][causal_mask]")
 {
@@ -463,7 +463,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     llama_attention_backward_compare_ref(fx);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "LlamaAttention GQA backward vs PyTorch (causal mask, no RoPE)",
     "[model][llama][gqa][causal_mask][norope]")
 {

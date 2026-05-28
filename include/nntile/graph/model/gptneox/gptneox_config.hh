@@ -21,9 +21,9 @@
 #include <vector>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 //! GPT-NeoX model configuration (mirrors HuggingFace GPTNeoXConfig)
@@ -92,4 +92,4 @@ struct GptneoxConfig
     }
 };
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

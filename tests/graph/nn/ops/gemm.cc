@@ -23,7 +23,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -40,7 +40,7 @@ constexpr Index batch_ndim_one = 1;
 
 } // anonymous namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm structure",
     "[graph][nn_graph]")
 {
@@ -65,7 +65,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "GEMM");
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm structure multi-dimensional",
     "[graph][nn_graph]")
 {
@@ -128,7 +128,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph gemm backward", "[graph][nn_graph]")
+    nntile::core::test::ContextFixture, "NNGraph gemm backward", "[graph][nn_graph]")
 {
     const auto [M, K, N, grad_fill_val] =
         GENERATE(std::tuple{Index(2), Index(3), Index(4), Scalar(1.0)},
@@ -155,7 +155,7 @@ TEST_CASE_METHOD(
     REQUIRE(b->grad()->shape() == (std::vector<Index>{K, N}));
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm backward multi-dimensional",
     "[graph][nn_graph]")
 {
@@ -224,7 +224,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm forward and backward",
     "[graph][nn_graph]")
 {
@@ -258,7 +258,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(b->grad()->shape() == (std::vector<Index>{K, N}));
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm forward and backward multi-dimensional",
     "[graph][nn_graph]")
 {
@@ -309,7 +309,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(b->grad()->shape() == b_shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm backward transposed A",
     "[graph][nn_graph]")
 {
@@ -428,12 +428,12 @@ void nn_pytorch_tile_gemm_batched_operands(NNGraph::TensorNode *a,
 
 } // namespace
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::nn_pytorch_tile_gemm_operands_6_7_6;
-using nntile::test::permute_rowmajor;
-using nntile::test::require_relative_frobenius_error;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::nn_pytorch_tile_gemm_operands_6_7_6;
+using nntile::graph::test::permute_rowmajor;
+using nntile::graph::test::require_relative_frobenius_error;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -500,7 +500,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     require_relative_frobenius_error(nntile_out, out_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -586,7 +586,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     require_relative_frobenius_error(nntile_grad_b, b_pt.grad());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm forward matches PyTorch 4D",
     "[graph][nn_graph][pytorch]")
 {
@@ -670,7 +670,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     require_relative_frobenius_error(nntile_out, out_pt, 2e-5f);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm forward matches PyTorch batched",
     "[graph][nn_graph][pytorch]")
 {
@@ -738,7 +738,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     require_relative_frobenius_error(nntile_out, out_pt);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm backward matches PyTorch 4D",
     "[graph][nn_graph][pytorch]")
 {
@@ -836,7 +836,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         nntile_grad_b, b_pt.grad().reshape({K1, K2, N1, N2}));
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph gemm backward matches PyTorch batched",
     "[graph][nn_graph][pytorch]")
 {

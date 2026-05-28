@@ -17,7 +17,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 GptneoDecoder::GptneoDecoder(graph::NNGraph* graph,
@@ -73,4 +73,4 @@ std::string GptneoDecoder::repr() const
     return "GptneoDecoder(hidden=" + std::to_string(config_.hidden_size) + ")";
 }
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

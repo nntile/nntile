@@ -18,6 +18,8 @@
 #include <cstddef>
 #include <string>
 
+#include <nntile/graph/common.hh>
+
 namespace nntile::graph
 {
 

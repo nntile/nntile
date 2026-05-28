@@ -29,7 +29,7 @@
 #include <nntile/graph/module/rms_norm.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 //! LlamaModel - embed_tokens + num_hidden_layers x LlamaDecoder + norm
@@ -68,4 +68,4 @@ public:
     Index num_layers() const { return config_.num_hidden_layers; }
 };
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

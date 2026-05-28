@@ -18,7 +18,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 Gpt2Causal::Gpt2Causal(graph::NNGraph* graph,
@@ -86,4 +86,4 @@ std::string Gpt2Causal::repr() const
            std::to_string(config_.vocab_size) + ")";
 }
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

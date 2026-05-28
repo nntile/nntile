@@ -27,8 +27,8 @@ Tensor = {
 
 # Define mapping between tested function and numpy type
 sum_func = {
-    np.float32: nntile.nntile_core.tensor.sum_fp32,
-    np.float64: nntile.nntile_core.tensor.sum_fp64
+    np.float32: nntile.core.tensor.sum_fp32,
+    np.float64: nntile.core.tensor.sum_fp64
 }
 
 

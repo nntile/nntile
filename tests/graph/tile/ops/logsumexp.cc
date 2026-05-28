@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/logsumexp.cc
- * TileGraph logsumexp vs nntile::tile::logsumexp (small parity B).
+ * TileGraph logsumexp vs nntile::core::tile::logsumexp (small parity B).
  *
  * @version 1.1.0
  * */
@@ -18,12 +18,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/logsumexp.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/logsumexp.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/logsumexp.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph logsumexp matches tile", "[graph][tile]")
 {
     const std::vector<Index> sh_src = {2, 2, 3};
     const std::vector<Index> sh_dst = {2, 3};
@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile
     Runtime runtime(g);
     runtime.compile();
     std::vector<float> sv(n_src);
-    using Y = nntile::fp32_t::repr_t;
+    using Y = nntile::core::fp32_t::repr_t;
     for(Index i = 0; i < n_src; i += 2)
     {
         sv[static_cast<size_t>(i)] = static_cast<float>(Y(0.5) * (Y(i / 2) + Y(1)));
@@ -49,14 +49,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> ts(sh_src), td(sh_dst);
+    nntile::core::tile::Tile<fp32_t> ts(sh_src), td(sh_dst);
     {
-        using Y2 = typename nntile::fp32_t::repr_t;
+        using Y2 = typename nntile::core::fp32_t::repr_t;
         auto l1 = ts.acquire(STARPU_W);
         for(Index i = 0; i < n_src; ++i) { l1[i] = Y2(sv[static_cast<size_t>(i)]); }
         l1.release();
     }
-    nntile::tile::logsumexp<fp32_t>(ts, td);
+    nntile::core::tile::logsumexp<fp32_t>(ts, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(n_dst);
     {

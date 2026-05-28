@@ -16,10 +16,10 @@
 
 #include <stdexcept>
 
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile.hh>
-#include <nntile/tile/sqrt.hh>
+#include <nntile/core/tile/sqrt.hh>
 
 namespace nntile::graph::tile_graph
 {
@@ -35,7 +35,7 @@ void run_sqrt(
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
-    nntile::tile::sqrt<T>(s, d);
+    nntile::core::tile::sqrt<T>(s, d);
 }
 
 } // namespace
@@ -71,25 +71,25 @@ void TileSqrtOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_sqrt<nntile::fp32_t>(runtime, src, dst);
+            run_sqrt<nntile::core::fp32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_sqrt<nntile::fp32_fast_tf32_t>(runtime, src, dst);
+            run_sqrt<nntile::core::fp32_fast_tf32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_sqrt<nntile::fp32_fast_fp16_t>(runtime, src, dst);
+            run_sqrt<nntile::core::fp32_fast_fp16_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_sqrt<nntile::fp32_fast_bf16_t>(runtime, src, dst);
+            run_sqrt<nntile::core::fp32_fast_bf16_t>(runtime, src, dst);
             break;
         case DataType::FP64:
-            run_sqrt<nntile::fp64_t>(runtime, src, dst);
+            run_sqrt<nntile::core::fp64_t>(runtime, src, dst);
             break;
         case DataType::FP16:
             throw std::runtime_error(
                 "FP16 data type not supported for tile sqrt");
         case DataType::BF16:
-            run_sqrt<nntile::bf16_t>(runtime, src, dst);
+            run_sqrt<nntile::core::bf16_t>(runtime, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

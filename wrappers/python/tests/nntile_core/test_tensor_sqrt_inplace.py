@@ -21,8 +21,8 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
 # Define mapping between tested function and numpy type
-sqrt_inplace = {np.float32: nntile.nntile_core.tensor.sqrt_inplace_fp32,
-                np.float64: nntile.nntile_core.tensor.sqrt_inplace_fp64}
+sqrt_inplace = {np.float32: nntile.core.tensor.sqrt_inplace_fp32,
+                np.float64: nntile.core.tensor.sqrt_inplace_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])

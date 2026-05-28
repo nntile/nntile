@@ -28,7 +28,7 @@
 #include <nntile/graph/module/linear.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 //! LlamaCausal - LlamaModel + lm_head for next-token prediction
@@ -62,4 +62,4 @@ public:
     LlamaModel* model() { return model_.get(); }
 };
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

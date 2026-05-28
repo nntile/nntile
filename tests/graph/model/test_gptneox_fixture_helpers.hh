@@ -24,10 +24,11 @@
 
 #include "test_safetensors_nntile_layout.hh"
 
-namespace nntile::test::gptneox_fixture
+namespace nntile::graph::test::gptneox_fixture
 {
 
-inline void prepare_gptneox_config(model::gptneox::GptneoxConfig &cfg)
+inline void prepare_gptneox_config(
+    nntile::graph::model::gptneox::GptneoxConfig &cfg)
 {
     cfg.compute_head_dim();
     cfg.validate();
@@ -49,7 +50,7 @@ struct GptneoxRopeInputs
 inline bool load_gptneox_rope_inputs(
     nntile::graph::NNGraph &g,
     const nntile::graph::io::SafeTensorsReader &reader,
-    const nntile::model::gptneox::GptneoxConfig &config,
+    const nntile::graph::model::gptneox::GptneoxConfig &config,
     Index n_seq,
     Index n_batch,
     GptneoxRopeInputs &out)
@@ -59,7 +60,8 @@ inline bool load_gptneox_rope_inputs(
     {
         return false;
     }
-    const Index rope_dim = nntile::model::gptneox::gptneox_rope_dim(config);
+    const Index rope_dim =
+        nntile::graph::model::gptneox::gptneox_rope_dim(config);
     const Index half = rope_dim / 2;
     if(half <= 0)
     {
@@ -193,4 +195,4 @@ inline void fill_sdpa_causal_mask_bytes(
     }
 }
 
-} // namespace nntile::test::gptneox_fixture
+} // namespace nntile::graph::test::gptneox_fixture

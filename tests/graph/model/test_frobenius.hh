@@ -13,5 +13,5 @@
 
 #include "../nn/pytorch_helper.hh"
 
-using nntile::test::relative_frobenius_error;
-using nntile::test::require_relative_frobenius_error;
+using nntile::graph::test::relative_frobenius_error;
+using nntile::graph::test::require_relative_frobenius_error;

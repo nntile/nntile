@@ -25,7 +25,7 @@
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/dtype.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph::io;
 using namespace nntile::graph;
 

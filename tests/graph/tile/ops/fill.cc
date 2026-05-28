@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/fill.cc
- * Test TileGraph fill vs nntile::tile (parity).
+ * Test TileGraph fill vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/fill.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/fill.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/fill.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph fill matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph fill matches tile", "[graph][tile]")
 {
     const std::vector<Index> sh = {2, 3};
     const Index nelems = 6;
@@ -39,8 +39,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph fill matches tile", "[
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(x);
-    nntile::tile::Tile<fp32_t> tx(sh);
-    nntile::tile::fill<fp32_t>(v, tx);
+    nntile::core::tile::Tile<fp32_t> tx(sh);
+    nntile::core::tile::fill<fp32_t>(v, tx);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

@@ -23,7 +23,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 
 // NNTile layout: vocab [embed_dim, num_embeddings]; embed.shape[axis] ==
@@ -37,7 +37,7 @@ static std::vector<Index> embed_output_shape(
     return embed_shape;
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph embedding structure",
     "[graph][nn_graph]")
 {
@@ -60,7 +60,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.num_ops() >= 1);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph embedding backward",
     "[graph][nn_graph]")
 {
@@ -88,7 +88,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(vocab->grad()->shape() == vocab_shape);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph embedding forward and backward",
     "[graph][nn_graph]")
 {
@@ -128,15 +128,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
-using nntile::test::nn_pytorch_tile_index_4x5;
-using nntile::test::nn_pytorch_tile_index_len3;
-using nntile::test::nn_pytorch_tile_vocab_10x10;
-using nntile::test::nn_pytorch_tile_vocab_8x8;
-using nntile::test::pytorch_tolerance;
+using nntile::graph::test::colmajor_to_rowmajor;
+using nntile::graph::test::compare_float_vectors;
+using nntile::graph::test::nn_pytorch_tile_index_4x5;
+using nntile::graph::test::nn_pytorch_tile_index_len3;
+using nntile::graph::test::nn_pytorch_tile_vocab_10x10;
+using nntile::graph::test::nn_pytorch_tile_vocab_8x8;
+using nntile::graph::test::pytorch_tolerance;
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph embedding forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
@@ -231,7 +231,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph embedding backward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {

@@ -23,7 +23,7 @@
 namespace nntile::examples
 {
 
-inline model::roberta::RobertaConfig load_roberta_config_json(
+inline graph::model::roberta::RobertaConfig load_roberta_config_json(
     std::string const &path)
 {
     std::ifstream f(path);
@@ -33,7 +33,7 @@ inline model::roberta::RobertaConfig load_roberta_config_json(
     }
     nlohmann::json j = nlohmann::json::parse(f);
 
-    model::roberta::RobertaConfig cfg;
+    graph::model::roberta::RobertaConfig cfg;
     cfg.vocab_size = config_get_int(j, "vocab_size", 50265);
     cfg.hidden_size = config_get_int(j, "hidden_size", 768);
     cfg.num_hidden_layers = config_get_int(j, "num_hidden_layers", 12);

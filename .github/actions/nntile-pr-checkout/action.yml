@@ -1,0 +1,27 @@
+name: NNTile PR checkout helper
+description: Deepen and checkout the PR head branch inside a container job
+runs:
+  using: composite
+  steps:
+    - name: Pull all PR commits
+      if: github.event.pull_request
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        set -euo pipefail
+        repo="${GITHUB_REPOSITORY##*/}"
+        if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+          container_ws="/__w/${repo}/${repo}"
+          if git -C "${container_ws}" rev-parse --is-inside-work-tree &>/dev/null; then
+            cd "${container_ws}"
+          else
+            echo "No git repository at workspace: $(pwd) or ${container_ws}" >&2
+            exit 1
+          fi
+        fi
+        git config --global --add safe.directory "$(pwd)"
+        git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+        git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+          --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+        git checkout ${{ github.event.pull_request.head.ref }}
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100

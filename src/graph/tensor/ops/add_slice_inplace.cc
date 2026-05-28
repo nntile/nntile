@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -16,9 +17,9 @@
 
 #include <stdexcept>
 
-#include "nntile/base_types.hh"
+#include "nntile/core/base_types.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/add_slice_inplace.hh"
+#include "nntile/core/tensor/add_slice_inplace.hh"
 
 #include "nntile/graph/tile/ops/add_slice_inplace.hh"
 #include "nntile/graph/tile/lowering_context.hh"
@@ -67,7 +68,7 @@ void add_slice_inplace(
 
 void TensorAddSliceInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::add_slice_inplace_async (src/tensor/add_slice_inplace.cc).
+    // Match nntile::core::tensor::add_slice_inplace_async (src/tensor/add_slice_inplace.cc).
     const TensorAxisLayout* lay_s = ctx.tiling.find(src);
     const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
     if(lay_s == nullptr || lay_d == nullptr)

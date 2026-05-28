@@ -20,7 +20,7 @@
 #include <nntile/graph/model/bert/bert_output.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 class BertLayer : public graph::module::Module
@@ -47,4 +47,4 @@ public:
     std::string repr() const override;
 };
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

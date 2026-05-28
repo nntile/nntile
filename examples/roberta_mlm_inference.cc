@@ -17,10 +17,10 @@
 #include <nntile.hh>
 #include <nntile/graph/model/roberta/roberta_mlm.hh>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::examples;
 using namespace nntile::graph;
-using namespace nntile::model::roberta;
+using namespace nntile::graph::model::roberta;
 
 int main()
 {

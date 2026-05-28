@@ -19,7 +19,7 @@
 #include <nntile/graph.hh>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 namespace tt = nntile::graph::tile_tests;

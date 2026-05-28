@@ -20,9 +20,9 @@
 #include <string>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 //! T5 model configuration (mirrors HuggingFace T5Config)
@@ -85,4 +85,4 @@ struct T5Config
     }
 };
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

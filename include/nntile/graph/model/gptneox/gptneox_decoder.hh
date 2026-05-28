@@ -28,7 +28,7 @@
 #include <nntile/graph/module/module.hh>
 #include <nntile/graph/module/layer_norm.hh>
 
-namespace nntile::model::gptneox
+namespace nntile::graph::model::gptneox
 {
 
 //! GPT-NeoXDecoder - input_norm -> [attention, post_attn_norm->mlp] with parallel residual
@@ -65,4 +65,4 @@ public:
     GptneoxMlp& mlp() { return mlp_; }
 };
 
-} // namespace nntile::model::gptneox
+} // namespace nntile::graph::model::gptneox

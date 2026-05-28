@@ -25,7 +25,7 @@
 #include <nntile/graph/module/linear.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 //! GptneoCausal - GptneoModel + lm_head for next-token prediction
@@ -57,4 +57,4 @@ public:
     GptneoModel* model() { return model_.get(); }
 };
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

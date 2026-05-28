@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/subtract_indexed_outputs.cc
- * Test TileGraph subtract indexed outputs vs nntile::tile (parity).
+ * Test TileGraph subtract indexed outputs vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,10 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/subtract_indexed_outputs.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/subtract_indexed_outputs.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outputs", "[graph][tile]")
+#include "nntile/core/tile/subtract_indexed_outputs.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core; using namespace nntile::graph; namespace tg = nntile::graph::tile_graph;
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph subtract_indexed_outputs", "[graph][tile]")
 {
     const std::vector<Index> lh = {2,2}, dh = {3,2,2};
     const Index nl = 4, nd = 3*2*2;
@@ -43,15 +43,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outpu
     r.execute();
     r.wait();
     const auto gout = r.get_output<float>(d);
-    nntile::tile::Tile<nntile::int64_t> L(lh);
-    nntile::tile::Tile<fp32_t> D(dh);
+    nntile::core::tile::Tile<nntile::core::int64_t> L(lh);
+    nntile::core::tile::Tile<fp32_t> D(dh);
     using Y = typename fp32_t::repr_t;
     { auto a=L.acquire(STARPU_W);
       a[0]=0; a[1]=1; a[2]=2; a[3]=0; a.release(); }
     { auto b=D.acquire(STARPU_W);
       for(Index i=0;i<nd;++i) b[i]=Y(1.0f+0.1f*static_cast<float>(i));
       b.release(); }
-    nntile::tile::subtract_indexed_outputs<fp32_t>(v, L, D, ign);
+    nntile::core::tile::subtract_indexed_outputs<fp32_t>(v, L, D, ign);
     starpu_task_wait_for_all();
     std::vector<float> tr(nd);
     { auto L2=D.acquire(STARPU_R);

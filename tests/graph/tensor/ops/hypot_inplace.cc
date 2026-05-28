@@ -8,7 +8,7 @@
  *
  * @file tests/graph/tensor/hypot_inplace.cc
  * Test TensorGraph hypot_inplace operation against
- * nntile::tensor::hypot_inplace.
+ * nntile::core::tensor::hypot_inplace.
  *
  * @version 1.1.0
  * */
@@ -19,14 +19,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/hypot_inplace.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/hypot_inplace.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -79,10 +79,10 @@ void check_hypot_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(traits, distr);
-    nntile::tensor::Tensor<T> dst_t(traits, distr);
+    nntile::core::tensor::Tensor<T> src_t(traits, distr);
+    nntile::core::tensor::Tensor<T> dst_t(traits, distr);
 
     {
         auto tile1 = src_t.get_tile(0);
@@ -98,7 +98,7 @@ void check_hypot_inplace_vs_tensor_api(
         loc2.release();
     }
 
-    nntile::tensor::hypot_inplace<T>(alpha, src_t, beta, dst_t);
+    nntile::core::tensor::hypot_inplace<T>(alpha, src_t, beta, dst_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -151,8 +151,8 @@ TEST_CASE(
         gt::hypot_inplace(alpha_one, t, beta_one, t), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph hypot_inplace matches nntile::tensor::hypot_inplace",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph hypot_inplace matches nntile::core::tensor::hypot_inplace",
     "[graph][tensor]")
 {
     const auto [alpha, beta, shape] =
@@ -161,10 +161,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{0.5, 1.0, std::vector<Index>{6}},
             std::tuple{1.0, 2.0, std::vector<Index>{3, 4}});
 
-    check_hypot_inplace_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
+    check_hypot_inplace_vs_tensor_api<nntile::core::fp32_t>(shape, alpha, beta);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph hypot_inplace tiled matches untiled",
     "[graph][tensor]")
 {
@@ -173,7 +173,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{2.0, 3.0, std::vector<Index>{4, 6}},
             std::tuple{0.5, -1.0, std::vector<Index>{6}});
 
-    using T = nntile::fp32_t;
+    using T = nntile::core::fp32_t;
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

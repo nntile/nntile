@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/maxsumexp.cc
- * Test TensorGraph maxsumexp operation against nntile::tensor::maxsumexp.
+ * Test TensorGraph maxsumexp operation against nntile::core::tensor::maxsumexp.
  *
  * @version 1.1.0
  * */
@@ -18,15 +18,15 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/maxsumexp.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/clear.hh"
+#include "nntile/core/tensor/maxsumexp.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -92,12 +92,12 @@ void check_maxsumexp_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::core::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::core::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::core::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::core::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -108,8 +108,8 @@ void check_maxsumexp_vs_tensor_api(
         }
         loc.release();
     }
-    nntile::tensor::clear<T>(dst_t);
-    nntile::tensor::maxsumexp<T>(src_t, dst_t, axis, redux);
+    nntile::core::tensor::clear<T>(dst_t);
+    nntile::core::tensor::maxsumexp<T>(src_t, dst_t, axis, redux);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -163,8 +163,8 @@ TEST_CASE("TensorGraph maxsumexp rejects null", "[graph][tensor]")
         gt::maxsumexp(nullptr, axis_0, redux), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph maxsumexp matches nntile::tensor::maxsumexp",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph maxsumexp matches nntile::core::tensor::maxsumexp",
     "[graph][tensor]")
 {
     const auto [shape, axis] =
@@ -172,10 +172,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{std::vector<Index>{6}, Index(0)},
             std::tuple{std::vector<Index>{3, 4}, Index(0)});
 
-    check_maxsumexp_vs_tensor_api<nntile::fp32_t>(shape, axis);
+    check_maxsumexp_vs_tensor_api<nntile::core::fp32_t>(shape, axis);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph maxsumexp tiled matches untiled",
     "[graph][tensor]")
 {

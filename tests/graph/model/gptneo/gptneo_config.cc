@@ -15,8 +15,8 @@
 #include "nntile/graph/model/gptneo/gptneo_config.hh"
 #include "nntile/graph/model/gptneo/gptneo_config_json.hh"
 
-using nntile::Index;
-using namespace nntile::model::gptneo;
+using nntile::core::Index;
+using namespace nntile::graph::model::gptneo;
 
 TEST_CASE("GptneoConfig default values", "[model][gptneo]")
 {

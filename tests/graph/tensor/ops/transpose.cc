@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/transpose.cc
- * Test TensorGraph transpose operation against nntile::tensor::transpose.
+ * Test TensorGraph transpose operation against nntile::core::tensor::transpose.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/tensor.hh"
-#include "nntile/tensor/transpose.hh"
+#include "nntile/core/tensor/tensor.hh"
+#include "nntile/core/tensor/transpose.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -82,12 +82,12 @@ void check_transpose_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits src_traits(shape, shape);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::core::tensor::TensorTraits src_traits(shape, shape);
+    nntile::core::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> distr_src(src_traits.grid.nelems, 0);
     std::vector<int> distr_dst(dst_traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> src(src_traits, distr_src);
-    nntile::tensor::Tensor<T> dst(dst_traits, distr_dst);
+    nntile::core::tensor::Tensor<T> src(src_traits, distr_src);
+    nntile::core::tensor::Tensor<T> dst(dst_traits, distr_dst);
 
     {
         auto tile = src.get_tile(0);
@@ -99,7 +99,7 @@ void check_transpose_vs_tensor_api(
         loc.release();
     }
 
-    nntile::tensor::transpose<T>(alpha, src, dst, ndim);
+    nntile::core::tensor::transpose<T>(alpha, src, dst, ndim);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -157,8 +157,8 @@ TEST_CASE("TensorGraph transpose rejects duplicate tensors", "[graph][tensor]")
         gt::transpose(alpha, src, src, Index(1)), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph transpose matches nntile::tensor::transpose",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph transpose matches nntile::core::tensor::transpose",
     "[graph][tensor]")
 {
     const auto [alpha, ndim, shape] =
@@ -168,10 +168,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{1.0, Index(1), std::vector<Index>{2, 3, 4}},
             std::tuple{1.0, Index(2), std::vector<Index>{2, 3, 4}});
 
-    check_transpose_vs_tensor_api<nntile::fp32_t>(shape, alpha, ndim);
+    check_transpose_vs_tensor_api<nntile::core::fp32_t>(shape, alpha, ndim);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph transpose tiled matches untiled",
     "[graph][tensor]")
 {
@@ -179,7 +179,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(std::tuple{std::vector<Index>{4, 6}, Index(1)},
             std::tuple{std::vector<Index>{2, 4, 6}, Index(1)});
 
-    using Y = nntile::fp32_t::repr_t;
+    using Y = nntile::core::fp32_t::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 

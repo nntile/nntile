@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/fill.cc
- * Test TensorGraph fill operation against nntile::tensor::fill.
+ * Test TensorGraph fill operation against nntile::core::tensor::fill.
  *
  * @version 1.1.0
  * */
@@ -18,14 +18,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tensor/fill.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/core/tensor/fill.hh"
+#include "nntile/core/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 #include <numeric>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
@@ -65,11 +65,11 @@ void check_fill_vs_tensor_api(const std::vector<Index> &shape, Scalar val)
     std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits traits(shape, shape);
+    nntile::core::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> dst(traits, distr);
+    nntile::core::tensor::Tensor<T> dst(traits, distr);
 
-    nntile::tensor::fill<T>(val, dst);
+    nntile::core::tensor::fill<T>(val, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -113,8 +113,8 @@ TEST_CASE("TensorGraph fill structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == src);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph fill matches nntile::tensor::fill",
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
+    "TensorGraph fill matches nntile::core::tensor::fill",
     "[graph][tensor]")
 {
     const auto [val, shape] =
@@ -123,10 +123,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{0.0, std::vector<Index>{2, 3}},
             std::tuple{3.14, std::vector<Index>{1, 10}});
 
-    check_fill_vs_tensor_api<nntile::fp32_t>(shape, val);
+    check_fill_vs_tensor_api<nntile::core::fp32_t>(shape, val);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "TensorGraph fill tiled matches untiled",
     "[graph][tensor]")
 {

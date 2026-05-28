@@ -26,10 +26,10 @@
 #include <string>
 #include <vector>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::bert;
-using namespace nntile::model::roberta;
+using namespace nntile::graph::model::bert;
+using namespace nntile::graph::model::roberta;
 using namespace nntile::graph::io;
 
 #ifndef ROBERTA_DATA_DIR
@@ -46,7 +46,7 @@ TEST_CASE(
 namespace
 {
 
-using namespace nntile::test::roberta_fixture;
+using namespace nntile::graph::test::roberta_fixture;
 
 struct MlpFixtureSpec
 {
@@ -94,7 +94,7 @@ inline bool try_load_mlp_fixture_spec(
 
 } // namespace
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "RobertaIntermediate forward matches PyTorch reference",
     "[model][roberta]")
 {

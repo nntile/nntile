@@ -26,13 +26,13 @@
 #include "nntile/graph/module/linear.hh"
 #include "nntile/graph/module/module.hh"
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
 using namespace nntile::graph::module;
 namespace gt = nntile::graph::tensor;
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph TensorNodeNullData", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph TensorNodeNullData", "[graph]")
 {
     NNGraph g("test");
     REQUIRE_THROWS_AS(
@@ -40,7 +40,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph TensorCreationAndLookup", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph TensorCreationAndLookup", "[graph]")
 {
     NNGraph g("test");
 
@@ -67,7 +67,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph OpNullInputs", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph OpNullInputs", "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
     const bool trans_a = GENERATE(false);
@@ -101,7 +101,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph GradHelpersAndToString", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph GradHelpersAndToString", "[graph]")
 {
     NNGraph g("grad");
 
@@ -139,7 +139,7 @@ TEST_CASE_METHOD(
     REQUIRE(graph_text.find("Tensors:") != std::string::npos);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
+TEST_CASE_METHOD(nntile::core::test::ContextFixture,
     "NNGraph ToMermaidDelegatesToTensorGraph",
     "[graph]")
 {
@@ -167,7 +167,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph MarkInputOutput", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph MarkInputOutput", "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
     const bool trans_a = GENERATE(false);
@@ -191,7 +191,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph Autograd Add Backward", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph Autograd Add Backward", "[graph]")
 {
     // Example: z = add(alpha, x, beta, y) with z.backward()
     // Mimics PyTorch: z = alpha*x + beta*y, then z.backward()
@@ -252,7 +252,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph Autograd Add Chain", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph Autograd Add Chain", "[graph]")
 {
     // Chain: w = x + y, z = w + u. Each tensor gets its gradient.
     const Scalar add_alpha = GENERATE(Scalar(1.0));
@@ -281,7 +281,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph Autograd Add Diamond", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph Autograd Add Diamond", "[graph]")
 {
     // Diamond: w = x + y, v = w + y, z = v + w.
     // w feeds into both v and z; backward must process v and z before w
@@ -309,7 +309,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph BackwardRequiresGrad", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph BackwardRequiresGrad", "[graph]")
 {
     // backward() must be called only when grad is already set
     const Scalar add_alpha = GENERATE(Scalar(1.0));
@@ -330,7 +330,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph ParametersLazyRebuild", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph ParametersLazyRebuild", "[graph]")
 {
     NNGraph g("lazy");
     REQUIRE(g.parameters().empty());
@@ -343,7 +343,7 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph ParametersMultipleRoots", "[graph]")
+    nntile::core::test::ContextFixture, "NNGraph ParametersMultipleRoots", "[graph]")
 {
     NNGraph g("multi");
     Linear a(&g, "encoder", 2, 3, DataType::FP32);

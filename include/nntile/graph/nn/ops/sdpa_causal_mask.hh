@@ -16,7 +16,7 @@
 
 #include <cstdint>
 
-#include <nntile/base_types.hh>
+#include <nntile/graph/common.hh>
 
 namespace nntile::graph
 {

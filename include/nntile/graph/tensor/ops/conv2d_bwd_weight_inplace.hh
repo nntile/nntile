@@ -18,7 +18,7 @@
 #include <array>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/core/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph

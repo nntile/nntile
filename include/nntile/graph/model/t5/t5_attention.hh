@@ -25,7 +25,7 @@
 #include <nntile/graph/model/t5/t5_config.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::t5
+namespace nntile::graph::model::t5
 {
 
 //! T5Attention - Q/K/V projections via gemm, SDPA, output projection
@@ -70,4 +70,4 @@ public:
     bool is_cross_attention() const { return is_cross_attention_; }
 };
 
-} // namespace nntile::model::t5
+} // namespace nntile::graph::model::t5

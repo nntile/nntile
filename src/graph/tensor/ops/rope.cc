@@ -1,3 +1,4 @@
+#include <nntile/graph/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -20,7 +21,7 @@
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/graph/tile/ops/rope.hh"
-#include "nntile/tensor/rope.hh"
+#include "nntile/core/tensor/rope.hh"
 
 #include <stdexcept>
 #include <utility>
@@ -85,7 +86,7 @@ void rope(TensorGraph::TensorNode *sin,
 
 void TensorRopeOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    // Match nntile::tensor::rope_async (src/tensor/rope.cc).
+    // Match nntile::core::tensor::rope_async (src/tensor/rope.cc).
     tile_lower::assert_same_elementwise_layout(src, dst, "ROPE src/dst");
 
     const TensorAxisLayout *lay_src = ctx.tiling.find(src);

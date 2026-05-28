@@ -23,7 +23,7 @@
 namespace nntile::examples
 {
 
-inline model::gptneox::GptneoxConfig load_gptneox_config_json(
+inline graph::model::gptneox::GptneoxConfig load_gptneox_config_json(
     std::string const &path)
 {
     std::ifstream f(path);
@@ -33,7 +33,7 @@ inline model::gptneox::GptneoxConfig load_gptneox_config_json(
     }
     nlohmann::json j = nlohmann::json::parse(f);
 
-    model::gptneox::GptneoxConfig cfg;
+    graph::model::gptneox::GptneoxConfig cfg;
     cfg.vocab_size = config_get_int(j, "vocab_size", 50280);
     cfg.hidden_size = config_get_int(
         j, "hidden_size", config_get_int(j, "n_embd", 1024));
@@ -67,7 +67,7 @@ inline model::gptneox::GptneoxConfig load_gptneox_config_json(
 }
 
 inline void save_gptneox_config_json(
-    model::gptneox::GptneoxConfig const &cfg,
+    graph::model::gptneox::GptneoxConfig const &cfg,
     std::string const &path)
 {
     nlohmann::json j;

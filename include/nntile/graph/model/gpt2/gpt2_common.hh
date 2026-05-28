@@ -13,7 +13,7 @@
 
 #include <stdexcept>
 
-namespace nntile::model::gpt2
+namespace nntile::graph::model::gpt2
 {
 
 //! Placeholder until built-in causal masking is implemented.
@@ -28,4 +28,4 @@ inline void throw_if_causal_flag_set(bool causal, const char* module_name)
     }
 }
 
-} // namespace nntile::model::gpt2
+} // namespace nntile::graph::model::gpt2

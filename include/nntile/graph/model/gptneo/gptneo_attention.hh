@@ -25,7 +25,7 @@
 #include <nntile/graph/model/gptneo/gptneo_config.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::model::gptneo
+namespace nntile::graph::model::gptneo
 {
 
 //! GPT-Neo attention - Q/K/V projections, SDPA, output projection with bias
@@ -64,4 +64,4 @@ public:
     Index num_heads() const { return n_heads_; }
 };
 
-} // namespace nntile::model::gptneo
+} // namespace nntile::graph::model::gptneo

@@ -14,7 +14,7 @@
 #include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
-namespace nntile::model::bert
+namespace nntile::graph::model::bert
 {
 
 BertIntermediate::BertIntermediate(graph::NNGraph* graph,
@@ -59,4 +59,4 @@ std::string BertIntermediate::repr() const
            ", intermediate=" + std::to_string(config_.intermediate_size) + ")";
 }
 
-} // namespace nntile::model::bert
+} // namespace nntile::graph::model::bert

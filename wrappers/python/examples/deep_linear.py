@@ -112,13 +112,13 @@ for i in range(n_batches):
     x_full.from_array(X)
     # Scatter input batch
     x = nntile.tensor.Tensor_fp32(x_traits)
-    nntile.nntile_core.tensor.scatter_fp32(x_full, x)
+    nntile.core.tensor.scatter_fp32(x_full, x)
     batch_input.append(x)
     # Wrap numpy tensor into NNTile tensor
     y_full.from_array(Y)
     # Scatter output batch
     y = nntile.tensor.Tensor_fp32(y_traits)
-    nntile.nntile_core.tensor.scatter_fp32(y_full, y)
+    nntile.core.tensor.scatter_fp32(y_full, y)
     batch_output.append(y)
 
 # Wait for all computations to finish

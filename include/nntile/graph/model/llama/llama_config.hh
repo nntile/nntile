@@ -20,9 +20,9 @@
 #include <string>
 
 // NNTile headers
-#include <nntile/base_types.hh>
+#include <nntile/graph/model/common.hh>
 
-namespace nntile::model::llama
+namespace nntile::graph::model::llama
 {
 
 //! Llama model configuration (mirrors HuggingFace LlamaConfig)
@@ -79,4 +79,4 @@ struct LlamaConfig
     }
 };
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph::model::llama

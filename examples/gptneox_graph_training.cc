@@ -60,9 +60,9 @@
 
 using json = nlohmann::json;
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneox;
+using namespace nntile::graph::model::gptneox;
 using namespace nntile::graph::dataset;
 using namespace nntile::graph::optim;
 
@@ -537,7 +537,7 @@ int main(int argc, char **argv)
             {
                 if (p->grad() != nullptr)
                 {
-                    graph::tensor::clear(p->grad()->data());
+                    nntile::graph::tensor::clear(p->grad()->data());
                 }
             }
 
@@ -559,7 +559,7 @@ int main(int argc, char **argv)
             auto [loss_grad, loss_grad_first] =
                 graph.get_or_create_grad(loss, loss_grad_name);
             (void) loss_grad_first;
-            graph::tensor::fill(Scalar(1.0), loss_grad->data());
+            nntile::graph::tensor::fill(Scalar(1.0), loss_grad->data());
             loss->backward(true);
 
             Scalar const step_lr = scheduled_lr(train_step, args);

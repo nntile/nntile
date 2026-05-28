@@ -54,9 +54,9 @@
 #include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
-using namespace nntile;
+using namespace nntile::core;
 using namespace nntile::graph;
-using namespace nntile::model::gptneox;
+using namespace nntile::graph::model::gptneox;
 using json = nlohmann::json;
 
 // ── CLI helpers ──────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ static WeightCache load_weights_to_memory(const std::string& path)
 }
 
 static void apply_weight_cache(
-    graph::module::Module& model,
+    module::Module& model,
     const WeightCache& cache)
 {
     for(const auto& [name, tensor] : model.named_parameters_recursive())

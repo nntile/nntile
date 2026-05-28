@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tile/scale.cc
- * Test TileGraph scale vs nntile::tile (parity).
+ * Test TileGraph scale vs nntile::core::tile (parity).
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tile/ops/scale.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/tile/scale.hh"
-#include "nntile/tile/tile.hh"
-using namespace nntile;
+#include "nntile/core/tile/scale.hh"
+#include "nntile/core/tile/tile.hh"
+using namespace nntile::core;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale matches tile", "[graph][tile]")
+TEST_CASE_METHOD(nntile::core::test::ContextFixture, "TileGraph scale matches tile", "[graph][tile]")
 {
     const std::vector<Index> sh = {2, 3};
     const Index nelems = 6;
@@ -43,8 +43,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale matches tile", "
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::tile::Tile<fp32_t> ts(sh), td(sh);
-    using Y = typename nntile::fp32_t::repr_t;
+    nntile::core::tile::Tile<fp32_t> ts(sh), td(sh);
+    using Y = typename nntile::core::fp32_t::repr_t;
     {
         auto a = ts.acquire(STARPU_W);
         auto b = td.acquire(STARPU_W);
@@ -56,7 +56,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale matches tile", "
         a.release();
         b.release();
     }
-    nntile::tile::scale<fp32_t>(alpha, ts, td);
+    nntile::core::tile::scale<fp32_t>(alpha, ts, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {
