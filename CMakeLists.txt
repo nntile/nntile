@@ -68,6 +68,8 @@ macro(nntile_apply_cuda target)
     if(NNTILE_LINK_CUDA)
         target_link_libraries(${target} PUBLIC CUDA::cublas CUDNN::cudnn_all)
         target_include_directories(${target} PUBLIC ${cudnn_frontend_SOURCE_DIR}/include)
+    elseif(NNTILE_USE_CUDA)
+        target_include_directories(${target} PUBLIC ${CUDAToolkit_INCLUDE_DIRS})
     endif()
 endmacro()
 
@@ -189,9 +191,36 @@ elseif(USE_CBLAS)
     endif()
 endif()
 
+if(BUILD_GRAPH AND NOT BUILD_CORE)
+    nntile_installed_core_defs_has("${NNTILE_CORE_PREFIX}" NNTILE_USE_CUDA
+        _imported_core_cuda)
+    nntile_installed_core_defs_has("${NNTILE_CORE_PREFIX}" NNTILE_USE_CBLAS
+        _imported_core_cblas)
+    if(_imported_core_cuda AND NOT NNTILE_USE_CUDA)
+        message(FATAL_ERROR
+            "Installed nntile_core was built with CUDA (NNTILE_USE_CUDA in "
+            "defs.h) but USE_CUDA=OFF. Enable USE_CUDA or use a CPU-only core "
+            "install.")
+    endif()
+    if(_imported_core_cblas AND NOT NNTILE_USE_CBLAS)
+        message(FATAL_ERROR
+            "Installed nntile_core was built with CBLAS (NNTILE_USE_CBLAS in "
+            "defs.h) but USE_CBLAS=OFF. Enable USE_CBLAS or use a core install "
+            "without CBLAS.")
+    endif()
+endif()
+
 if(BUILD_CORE)
     nntile_apply_cuda(nntile_core)
     nntile_apply_cblas(nntile_core)
+endif()
+if(BUILD_GRAPH AND NOT BUILD_CORE)
+    nntile_apply_cuda(nntile_core)
+    nntile_apply_cblas(nntile_core)
+endif()
+if(BUILD_GRAPH)
+    nntile_apply_cuda(nntile_graph)
+    nntile_apply_cblas(nntile_graph)
 endif()
 
 if(BUILD_CORE)
