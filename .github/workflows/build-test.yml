@@ -324,14 +324,6 @@ jobs:
         with:
           name: nntile-core-lib-${{ matrix.python-version }}
           path: .
-      - name: Restore ccache (core)
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-core-${{ github.sha }}
-          restore-keys: |
-            ccache-nntile-${{ runner.os }}-core-
-            ccache-nntile-${{ runner.os }}-
       - name: Restore ccache (graph)
         uses: actions/cache/restore@v4
         with:
@@ -439,14 +431,6 @@ jobs:
           path: .
       - name: Remove stale CMake build tree
         run: rm -rf build
-      - name: Restore ccache (core)
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-core-${{ github.sha }}
-          restore-keys: |
-            ccache-nntile-${{ runner.os }}-core-
-            ccache-nntile-${{ runner.os }}-
       - name: Restore ccache (graph)
         uses: actions/cache/restore@v4
         with:
