@@ -79,8 +79,6 @@ macro(nntile_apply_cuda target)
         target_link_libraries(${target} ${_scope} CUDA::cublas CUDNN::cudnn_all)
         target_include_directories(${target} ${_scope}
             ${cudnn_frontend_SOURCE_DIR}/include)
-    elseif(NNTILE_USE_CUDA)
-        target_include_directories(${target} ${_scope} ${CUDAToolkit_INCLUDE_DIRS})
     endif()
 endmacro()
 
