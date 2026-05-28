@@ -774,6 +774,7 @@ set(GRAPH_OPTIM_HDR
 
 set(GRAPH_HDR
     "nntile/graph.hh"
+    "nntile/graph/common.hh"
     ${GRAPH_TENSOR_HDR}
     ${GRAPH_TILE_HDR}
     ${GRAPH_RUNTIME_HDR}
