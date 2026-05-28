@@ -184,7 +184,7 @@ static WeightCache load_weights_to_memory(const std::string& path)
 }
 
 static void apply_weight_cache(
-    graph::module::Module& model,
+    module::Module& model,
     const WeightCache& cache)
 {
     for(const auto& [name, tensor] : model.named_parameters_recursive())

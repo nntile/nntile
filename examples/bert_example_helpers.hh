@@ -17,6 +17,7 @@
 #include <random>
 #include <vector>
 
+#include <nntile/graph/common.hh>
 #include <nntile/graph/model/bert/bert_config.hh>
 #include <nntile/graph/model/bert/bert_mlm.hh>
 
@@ -24,8 +25,8 @@ namespace nntile::examples
 {
 
 inline graph::model::bert::BertConfig make_tiny_bert_config(
-    Index num_hidden_layers,
-    Index max_position_embeddings,
+    graph::Index num_hidden_layers,
+    graph::Index max_position_embeddings,
     float layer_norm_eps = 1e-12f)
 {
     graph::model::bert::BertConfig c;
@@ -52,11 +53,10 @@ inline void init_random_bert_parameter_hints(
     std::mt19937 &gen,
     BertParamInitScale scale = BertParamInitScale::FanInSqrt)
 {
-    for (graph::NNGraph::TensorNode *tensor :
-         model.parameters_recursive())
+    for (NNGraph::TensorNode *tensor : model.parameters_recursive())
     {
         const auto &shape = tensor->shape();
-        Index nelems = 1;
+        graph::Index nelems = 1;
         for (auto d : shape)
         {
             nelems *= d;
