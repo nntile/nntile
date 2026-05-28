@@ -424,10 +424,10 @@ jobs:
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Download nntile_graph library
+      - name: Download nntile_core library
         uses: actions/download-artifact@v8
         with:
-          name: nntile-graph-lib-${{ matrix.python-version }}
+          name: nntile-core-lib-${{ matrix.python-version }}
           path: .
       - name: Remove stale CMake build tree
         run: rm -rf build
@@ -573,10 +573,10 @@ jobs:
       - uses: ./.github/actions/nntile-ci-container
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Download nntile_graph library
+      - name: Download nntile_core library
         uses: actions/download-artifact@v8
         with:
-          name: nntile-graph-lib-${{ matrix.python-version }}
+          name: nntile-core-lib-${{ matrix.python-version }}
           path: .
       - name: Remove stale CMake build tree
         run: rm -rf build
