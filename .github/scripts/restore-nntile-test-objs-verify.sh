@@ -7,25 +7,26 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file .github/scripts/cmake-test-build-targets.sh
+# @file .github/scripts/restore-nntile-test-objs-verify.sh
 #
-# List CMake executable targets for one test subsystem (for selective build-tests).
+# Verify cached test OBJECT tree exists before link-only build-tests.
 #
 # @version 1.1.0
 set -euo pipefail
+
 sub="${1:?subsystem name required}"
 build_dir="${2:-build}"
 
-re="$(.github/scripts/ctest-run-subsystem.sh "$sub")"
-mapfile -t targets < <(
-    cd "$build_dir"
-    ctest -N -R "$re" 2>/dev/null \
-        | sed -n 's/^[[:space:]]*Test[[:space:]]*#[0-9]*:[[:space:]]*\([^[:space:]]*\).*/\1/p'
-)
-
-if ((${#targets[@]} == 0)); then
-    echo "No CTest targets matched subsystem '${sub}' (regex: ${re})" >&2
+obj_dir="${build_dir}/nntile/tests/CMakeFiles/nntile_test_objs_${sub}.dir"
+if [ ! -d "$obj_dir" ]; then
+    echo "missing test object dir: $obj_dir" >&2
     exit 1
 fi
 
-printf '%s\n' "${targets[@]}"
+count=$(find "$obj_dir" -name '*.o' | wc -l)
+if [ "$count" -eq 0 ]; then
+    echo "no .o files in $obj_dir" >&2
+    exit 1
+fi
+
+echo "ok ${sub}: ${count} cached test object file(s)"

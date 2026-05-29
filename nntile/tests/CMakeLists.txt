@@ -61,7 +61,20 @@ function(add_test_set)
         arguments: ${_args_UNPARSED_ARGUMENTS}")
     endif()
     # Register executable with its unique target name
-    add_executable(${_args_TARGET_NAME} ${_args_SOURCES})
+    if(NNTILE_LINK_CACHED_TEST_OBJECTS)
+        set(_link_objs "")
+        foreach(_src IN LISTS _args_SOURCES)
+            nntile_test_cached_object_path("${_src}" _obj)
+            if(NOT EXISTS "${_obj}")
+                message(FATAL_ERROR
+                    "Missing cached test object for ${_src}: ${_obj}")
+            endif()
+            list(APPEND _link_objs "${_obj}")
+        endforeach()
+        add_executable(${_args_TARGET_NAME} ${_link_objs})
+    else()
+        add_executable(${_args_TARGET_NAME} ${_args_SOURCES})
+    endif()
     # Set name of executable file
     if(_args_EXEC_NAME)
         set_target_properties(${_args_TARGET_NAME} PROPERTIES OUTPUT_NAME

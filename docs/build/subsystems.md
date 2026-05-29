@@ -66,13 +66,14 @@ PR workflow uses three separate test stages per subsystem:
 | `compile-check-*` | Compile one subsystem's lib sources; cache `nntile_objs_*` |
 | `build-nntile` | Link `libnntile` from cached objects (no subsystem recompile) |
 | `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
-| `compile-check-tests-*` | Compile test sources only (reuse cached Catch2) |
-| `test-build-*` | `-DNNTILE_TEST_SUBSYSTEM=<name>`, link only that subsystem's test binaries |
+| `compile-check-tests-*` | Compile test `.cc` into `nntile_test_objs_*`; cache tarball |
+| `build-tests-*` | Link `libnntile` + test binaries from cached lib/test objects only |
 | `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile) |
 
-`test-build` does **not** run `cmake --build` on the default `all` target (that would
-build every enabled test). It builds `nntile` plus only the CTest targets for the
-matrix subsystem.
+`build-tests` uses `-DNNTILE_LINK_CACHED_OBJECTS=ON`,
+`-DNNTILE_LINK_CACHED_TEST_OBJECTS=ON`, and restores the matching
+`nntile_test_objs_<subsystem>.tar.gz` from `compile-check-tests-*`. It does **not**
+recompile subsystem library or test translation units.
 
 ## Running tests locally (requires full libnntile)
 

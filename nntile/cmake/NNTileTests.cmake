@@ -35,6 +35,32 @@ endforeach()
 set(NNTILE_TEST_SUBSYSTEM "" CACHE STRING
     "Enable BUILD_TESTS_* only for this subsystem (and its test deps)")
 
+set(NNTILE_LINK_CACHED_TEST_OBJECTS OFF CACHE BOOL
+    "Link test executables from prebuilt objects (CI build-tests)")
+
+function(nntile_test_cached_object_path src out_var)
+    if(NOT NNTILE_TEST_SUBSYSTEM)
+        message(FATAL_ERROR "nntile_test_cached_object_path requires NNTILE_TEST_SUBSYSTEM")
+    endif()
+    string(TOLOWER "${NNTILE_TEST_SUBSYSTEM}" _sub)
+    get_filename_component(_name "${src}" NAME)
+    set(_obj_dir
+        "${CMAKE_BINARY_DIR}/nntile/tests/CMakeFiles/nntile_test_objs_${_sub}.dir")
+    file(GLOB_RECURSE _candidates
+        "${_obj_dir}/${_name}.o"
+        "${_obj_dir}/*/${_name}.o")
+    list(LENGTH _candidates _n)
+    if(_n EQUAL 1)
+        set(${out_var} "${_candidates}" PARENT_SCOPE)
+    elseif(_n GREATER 1)
+        message(FATAL_ERROR
+            "Ambiguous cached test object for ${src}: ${_candidates}")
+    else()
+        message(FATAL_ERROR
+            "Missing cached test object for ${src} under ${_obj_dir}")
+    endif()
+endfunction()
+
 function(_nntile_force_build_tests)
     foreach(_sub IN LISTS ARGN)
         string(TOUPPER "${_sub}" _u)
@@ -99,6 +125,9 @@ function(nntile_add_test_compile_check subsystem)
     endif()
     set(_dir "${CMAKE_CURRENT_SOURCE_DIR}/${_sub}")
     file(GLOB_RECURSE _test_src CONFIGURE_DEPENDS "${_dir}/*.cc")
+    if(_sub STREQUAL "kernel")
+        list(APPEND _test_src "${CMAKE_CURRENT_SOURCE_DIR}/constants.cc")
+    endif()
     if(_sub STREQUAL "starpu")
         list(FILTER _test_src EXCLUDE REGEX "/config\\.cc$")
     endif()
