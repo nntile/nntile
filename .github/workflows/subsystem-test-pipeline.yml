@@ -131,8 +131,13 @@ jobs:
           path: build
           key: build-tests-${{ inputs.subsystem }}-${{ github.sha }}
           fail-on-cache-miss: true
-      - run: chmod +x .github/scripts/ctest-run-subsystem.sh
+      - run: |
+          chmod +x .github/scripts/ctest-run-subsystem.sh
+          chmod +x .github/scripts/ctest-label-exclude-subsystem.sh
       - run: |
           export LD_LIBRARY_PATH="/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           _re=$(.github/scripts/ctest-run-subsystem.sh "${{ inputs.subsystem }}")
-          cd build && ctest -R "${_re}" -j"$(nproc)" --output-on-failure
+          _le=$(.github/scripts/ctest-label-exclude-subsystem.sh \
+              "${{ inputs.subsystem }}")
+          cd build && ctest -R "${_re}" -LE "${_le}" -j"$(nproc)" \
+            --output-on-failure

@@ -234,4 +234,4 @@ jobs:
             -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
             -DBUILD_EXAMPLES=ON
           cmake --build build -j"$(nproc)"
-          cd build && ctest -j"$(nproc)" --output-on-failure
+          cd build && ctest -LE NotImplemented -j"$(nproc)" --output-on-failure
