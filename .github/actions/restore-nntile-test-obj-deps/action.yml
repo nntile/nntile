@@ -1,0 +1,39 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file .github/actions/restore-nntile-test-obj-deps/action.yml
+#
+# Restore compile-check-tests OBJECT tarballs for build-tests (incl. deps).
+#
+# @version 1.1.0
+name: Restore NNTile test object caches (with deps)
+description: Restore nntile_test_objs_*.tar.gz for a subsystem and its test deps
+inputs:
+  subsystem:
+    description: Test subsystem for build-tests (kernel, starpu, core, tile, ...)
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@v4
+      if: inputs.subsystem == 'starpu' || inputs.subsystem == 'core'
+      with:
+        path: build/nntile_test_objs_cache/nntile_test_objs_kernel.tar.gz
+        key: nntile-test-obj-kernel-${{ github.sha }}
+        fail-on-cache-miss: true
+    - uses: actions/cache/restore@v4
+      if: inputs.subsystem == 'core'
+      with:
+        path: build/nntile_test_objs_cache/nntile_test_objs_starpu.tar.gz
+        key: nntile-test-obj-starpu-${{ github.sha }}
+        fail-on-cache-miss: true
+    - uses: actions/cache/restore@v4
+      with:
+        path: build/nntile_test_objs_cache/nntile_test_objs_${{ inputs.subsystem }}.tar.gz
+        key: nntile-test-obj-${{ inputs.subsystem }}-${{ github.sha }}
+        fail-on-cache-miss: true
