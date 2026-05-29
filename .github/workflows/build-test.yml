@@ -85,6 +85,7 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
+      - uses: ./.github/actions/nntile-model-test-python
       - uses: actions/download-artifact@v4
         with:
           name: nntile-build
@@ -129,6 +130,7 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
+      - uses: ./.github/actions/nntile-model-test-python
       - uses: actions/download-artifact@v4
         with:
           name: nntile-build-tests
@@ -142,7 +144,7 @@ jobs:
       - run: |
           export LD_LIBRARY_PATH="${PWD}/build/nntile:${PWD}/build/_deps/catch2-build/src:${LD_LIBRARY_PATH}"
           cd build
-          ctest -E wrappers -LE "(NotImplemented|FixtureData)" \
+          ctest -E wrappers -LE NotImplemented \
             -j"$(nproc)" --output-on-failure
 
   build-examples:

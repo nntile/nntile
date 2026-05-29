@@ -1,0 +1,29 @@
+name: NNTile model-test Python dependencies
+description: >-
+  CPU PyTorch, transformers, and safetensors on /usr/bin/python3 for CTest
+  model fixture scripts (must match Python3 found at cmake configure time).
+  Use after actions/checkout and nntile-starpu-setup in build-tests/run-tests.
+runs:
+  using: composite
+  steps:
+    - name: Install Python 3
+      shell: bash
+      run: |
+        set -euo pipefail
+        apt-get update
+        apt-get install -y --no-install-recommends python3 ca-certificates curl
+    - name: Restore StarPU pkg-config path
+      shell: bash
+      run: |
+        echo "PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig:${PKG_CONFIG_PATH:-}" \
+          >> "$GITHUB_ENV"
+    - name: Install Python dependencies for model fixtures
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        $HOME/.local/bin/uv pip install --python /usr/bin/python3 --system \
+          torch --index-url https://download.pytorch.org/whl/cpu
+        $HOME/.local/bin/uv pip install --python /usr/bin/python3 --system \
+          numpy safetensors "transformers<4.53"
+        /usr/bin/python3 -c "import torch, transformers, safetensors"

@@ -1,19 +1,5 @@
-# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
-#                              (Skoltech), Russia. All rights reserved.
-#                 2023-present Artificial Intelligence Research Institute
-#                              (AIRI), Russia. All rights reserved.
-#
-# @file nntile/tests/model/CMakeLists.txt
-# Tests for nntile::model components
-#
-# @version 1.1.0
-
-# Model block tests need generated safetensors; CI skips them with
-# ctest -LE FixtureData (see .github/workflows/build-test.yml).
-macro(nntile_model_label_fixture_data test_name)
-    set_tests_properties(tests_graph_model_${test_name} PROPERTIES
-        LABELS FixtureData)
-endmacro()
+# Model block tests use CTest fixtures: *_data_setup generates safetensors,
+# then the C++ test runs with FIXTURES_REQUIRED.
 
 # Llama test data: generated at test time via CTest fixtures (one per block)
 set(LLAMA_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/llama_data")
@@ -63,7 +49,6 @@ foreach(test_path IN LISTS TESTS_MODEL)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             LLAMA_DATA_DIR="${LLAMA_DATA_DIR}"
         )
-        nntile_model_label_fixture_data(${test_name})
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
@@ -73,10 +58,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
             )
             set_tests_properties(tests_graph_model_${test_name}_data_setup
                 PROPERTIES
-                    LABELS FixtureData
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
-                    ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -91,11 +73,8 @@ foreach(test_path IN LISTS TESTS_MODEL)
                 set_tests_properties(
                     tests_graph_model_${test_name}_gqa_data_setup
                     PROPERTIES
-                        LABELS FixtureData
                         FIXTURES_SETUP
                             "tests_graph_model_${test_name}_gqa_data"
-                        ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_${test_name}_gqa_data")
@@ -112,11 +91,8 @@ foreach(test_path IN LISTS TESTS_MODEL)
                 set_tests_properties(
                     tests_graph_model_llama_attention_variant_data_setup
                     PROPERTIES
-                        LABELS FixtureData
                         FIXTURES_SETUP
                             "tests_graph_model_llama_attention_variant_data"
-                        ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_llama_attention_variant_data")
@@ -166,7 +142,6 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             GPT2_DATA_DIR="${GPT2_DATA_DIR}"
         )
-        nntile_model_label_fixture_data(${test_name})
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPT2_GENERATE_SCRIPT}"
@@ -176,10 +151,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
             )
             set_tests_properties(tests_graph_model_${test_name}_data_setup
                 PROPERTIES
-                    LABELS FixtureData
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
-                    ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -193,11 +165,8 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
                 set_tests_properties(
                     tests_graph_model_gpt2_attention_causal_data_setup
                     PROPERTIES
-                        LABELS FixtureData
                         FIXTURES_SETUP
                             "tests_graph_model_gpt2_attention_causal_data"
-                        ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gpt2_attention_causal_data")
@@ -245,7 +214,6 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             GPTNEO_DATA_DIR="${GPTNEO_DATA_DIR}"
         )
-        nntile_model_label_fixture_data(${test_name})
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
@@ -255,10 +223,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
             )
             set_tests_properties(tests_graph_model_${test_name}_data_setup
                 PROPERTIES
-                    LABELS FixtureData
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
-                    ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -272,11 +237,8 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
                 set_tests_properties(
                     tests_graph_model_gptneo_attention_causal_data_setup
                     PROPERTIES
-                        LABELS FixtureData
                         FIXTURES_SETUP
                             "tests_graph_model_gptneo_attention_causal_data"
-                        ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneo_attention_causal_data")
@@ -289,11 +251,8 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
                 set_tests_properties(
                     tests_graph_model_gptneo_attention_local_data_setup
                     PROPERTIES
-                        LABELS FixtureData
                         FIXTURES_SETUP
                             "tests_graph_model_gptneo_attention_local_data"
-                        ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneo_attention_local_data")
@@ -357,7 +316,6 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             GPTNEOX_DATA_DIR="${GPTNEOX_DATA_DIR}"
         )
-        nntile_model_label_fixture_data(${test_name})
         if(Python3_Interpreter_FOUND AND NOT test_name STREQUAL "gptneox_rope")
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEOX_GENERATE_SCRIPT}"
@@ -367,10 +325,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
             )
             set_tests_properties(tests_graph_model_${test_name}_data_setup
                 PROPERTIES
-                    LABELS FixtureData
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
-                    ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -384,11 +339,8 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
                 set_tests_properties(
                     tests_graph_model_gptneox_attention_causal_data_setup
                     PROPERTIES
-                        LABELS FixtureData
                         FIXTURES_SETUP
                             "tests_graph_model_gptneox_attention_causal_data"
-                        ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneox_attention_causal_data")
@@ -403,11 +355,8 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
                 set_tests_properties(
                     tests_graph_model_gptneox_attention_variant_data_setup
                     PROPERTIES
-                        LABELS FixtureData
                         FIXTURES_SETUP
                             "tests_graph_model_gptneox_attention_variant_data"
-                        ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneox_attention_variant_data")
@@ -418,7 +367,6 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
         endif()
         if(test_name STREQUAL "gptneox_rope" AND Python3_Interpreter_FOUND)
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
-                LABELS FixtureData
                 FIXTURES_REQUIRED "tests_graph_model_gptneox_attention_data"
             )
         endif()
@@ -464,7 +412,6 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             T5_DATA_DIR="${T5_DATA_DIR}"
         )
-        nntile_model_label_fixture_data(${test_name})
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${T5_GENERATE_SCRIPT}"
@@ -474,10 +421,7 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
             )
             set_tests_properties(tests_graph_model_${test_name}_data_setup
                 PROPERTIES
-                    LABELS FixtureData
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
-                    ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -491,11 +435,8 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
                 set_tests_properties(
                     tests_graph_model_t5_attention_causal_data_setup
                     PROPERTIES
-                        LABELS FixtureData
                         FIXTURES_SETUP
                             "tests_graph_model_t5_attention_causal_data"
-                        ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_t5_attention_causal_data")
@@ -545,7 +486,6 @@ foreach(test_path IN LISTS TESTS_MODEL_BERT)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             BERT_DATA_DIR="${BERT_DATA_DIR}"
         )
-        nntile_model_label_fixture_data(${test_name})
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${BERT_GENERATE_SCRIPT}"
@@ -555,10 +495,7 @@ foreach(test_path IN LISTS TESTS_MODEL_BERT)
             )
             set_tests_properties(tests_graph_model_${test_name}_data_setup
                 PROPERTIES
-                    LABELS FixtureData
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
-                    ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "tests_graph_model_${test_name}_data"
@@ -605,7 +542,6 @@ foreach(test_path IN LISTS TESTS_MODEL_ROBERTA)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             ROBERTA_DATA_DIR="${ROBERTA_DATA_DIR}"
         )
-        nntile_model_label_fixture_data(${test_name})
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${ROBERTA_GENERATE_SCRIPT}"
@@ -615,10 +551,7 @@ foreach(test_path IN LISTS TESTS_MODEL_ROBERTA)
             )
             set_tests_properties(tests_graph_model_${test_name}_data_setup
                 PROPERTIES
-                    LABELS FixtureData
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
-                    ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "tests_graph_model_${test_name}_data"
