@@ -13,7 +13,6 @@ git grep -E "$pattern" -- \
     ':(exclude)external' \
     ':(exclude)build' \
     ':(exclude).git' \
-    ':(exclude)scripts/migrate_core_split.py' \
     >"$bad" 2>/dev/null || true
 
 if [ -s "$bad" ]; then
