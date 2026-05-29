@@ -16,6 +16,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/log_scalar.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 
 using namespace nntile;

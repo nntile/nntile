@@ -16,6 +16,7 @@
 #include <cmath>
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/sum.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile/sum.hh"
 #include "nntile/tile/tile.hh"

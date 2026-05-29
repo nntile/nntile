@@ -17,9 +17,8 @@
 
 #include <nntile/common.hh>
 
-// Tensor-level and tile-level graph headers (nntile/tensor.hh has no
-// tile dependency; include both here for a full stack entry point).
-#include <nntile/tensor.hh>
+// TensorGraph and TileGraph stack (tensor_graph has no tile dependency).
+#include <nntile/tensor_graph.hh>
 #include <nntile/tile_graph.hh>
 #include <nntile/nn.hh>
 #include <nntile/io.hh>

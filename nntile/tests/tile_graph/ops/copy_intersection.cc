@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/copy_intersection.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile/copy_intersection.hh"
 #include "nntile/tile/tile.hh"

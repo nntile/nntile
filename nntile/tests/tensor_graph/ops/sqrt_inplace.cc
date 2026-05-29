@@ -18,7 +18,7 @@
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor_graph/axis_descriptor.hh"
-#include "nntile/tile.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tensor/sqrt_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 

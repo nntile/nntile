@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tensor.hh"
+#include "nntile/tensor_graph.hh"
 
 #include <catch2/catch_test_macros.hpp>
 

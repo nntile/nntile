@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/conv2d_inplace.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile/conv2d_inplace.hh"
 #include "nntile/tile/tile.hh"

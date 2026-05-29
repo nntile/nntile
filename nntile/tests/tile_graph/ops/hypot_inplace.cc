@@ -16,6 +16,7 @@
 #include <cmath>
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/hypot_inplace.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile/hypot_inplace.hh"
 #include "nntile/tile/tile.hh"

@@ -10,9 +10,7 @@
 #include "nntile/tile_graph/append_tensor_graph_phase.hh"
 
 #include "context_fixture.hh"
-#include "nntile/nn_graph/graph.hh"
-#include "nntile/tensor.hh"
-#include "nntile/tile.hh"
+#include "nntile/graph.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>

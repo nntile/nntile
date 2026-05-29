@@ -16,6 +16,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/embedding.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile/embedding.hh"
 #include "nntile/tile/tile.hh"

@@ -43,6 +43,12 @@ function(nntile_add_test_compile_check subsystem)
     endif()
     set(_dir "${CMAKE_CURRENT_SOURCE_DIR}/${_sub}")
     file(GLOB_RECURSE _test_src CONFIGURE_DEPENDS "${_dir}/*.cc")
+    if(_sub STREQUAL "starpu")
+        list(FILTER _test_src EXCLUDE REGEX "/config\\.cc$")
+    endif()
+    if(NOT NNTILE_USE_CUDA)
+        list(FILTER _test_src EXCLUDE REGEX "flash_sdpa_(fwd|bwd)_cudnn\\.cc$")
+    endif()
     if(NOT _test_src)
         message(STATUS "No test sources under ${_dir}; "
             "nntile_compile_check_tests_${_sub} is empty")
@@ -52,10 +58,9 @@ function(nntile_add_test_compile_check subsystem)
     add_library(nntile_test_objs_${_sub} OBJECT ${_test_src})
     nntile_apply_common_includes(nntile_test_objs_${_sub})
     nntile_apply_cuda(nntile_test_objs_${_sub})
-    set(_test_inc_dirs "${CMAKE_CURRENT_SOURCE_DIR}")
-    if(_sub STREQUAL "model")
-        list(APPEND _test_inc_dirs "${CMAKE_CURRENT_SOURCE_DIR}/model")
-    endif()
+    set(_test_inc_dirs
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/${_sub}")
     target_include_directories(nntile_test_objs_${_sub} PRIVATE
         ${_test_inc_dirs})
     target_link_libraries(nntile_test_objs_${_sub} PRIVATE

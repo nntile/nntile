@@ -14,6 +14,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 
 #include <catch2/catch_test_macros.hpp>

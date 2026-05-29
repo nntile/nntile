@@ -17,6 +17,7 @@
 #include <numeric>
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/scale_inplace.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile/scale_inplace.hh"
 #include "nntile/tile/tile.hh"

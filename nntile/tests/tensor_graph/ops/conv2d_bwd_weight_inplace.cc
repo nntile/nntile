@@ -17,7 +17,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tile.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tensor/conv2d_bwd_weight_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 

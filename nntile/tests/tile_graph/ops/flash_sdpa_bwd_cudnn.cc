@@ -17,6 +17,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/flash_sdpa_bwd_cudnn.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 using namespace nntile;
 using namespace nntile;

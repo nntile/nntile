@@ -21,6 +21,11 @@ runs:
       uses: actions/setup-python@v6
       with:
         python-version: ${{ inputs.python-version }}
+    - name: Restore StarPU pkg-config path
+      shell: bash
+      run: |
+        echo "PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig:${PKG_CONFIG_PATH:-}" \
+          >> "$GITHUB_ENV"
     - name: Install Python dependencies
       shell: bash
       run: |

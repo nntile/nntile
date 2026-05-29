@@ -18,6 +18,7 @@
 #include <numeric>
 #include "context_fixture.hh"
 #include "nntile/tile_graph/ops/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 using namespace nntile;
 using namespace nntile;

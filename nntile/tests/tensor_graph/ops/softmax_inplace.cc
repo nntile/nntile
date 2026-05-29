@@ -19,7 +19,7 @@
 #include "nntile/tensor.hh"
 #include "nntile/tensor_graph/axis_descriptor.hh"
 #include "nntile/tensor_graph/ops/maxsumexp.hh"
-#include "nntile/tile.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/maxsumexp.hh"
 #include "nntile/tensor/softmax_inplace.hh"

@@ -18,6 +18,7 @@
 #include "nntile/starpu/handle.hh"
 #include "../testing.hh"
 #include "nntile/constants.hh"
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <iostream>

@@ -15,6 +15,7 @@
 #include "nntile/tile_graph/ops/add.hh"
 
 #include "context_fixture.hh"
+#include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile/add.hh"
 #include "nntile/tile/tile.hh"
