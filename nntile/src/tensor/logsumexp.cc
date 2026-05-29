@@ -1,0 +1,128 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/tensor/logsumexp.cc
+ * Log sum of exponents of Tensor<T>
+ *
+ * @version 1.1.0
+ * */
+
+#include "nntile/tensor/logsumexp.hh"
+#include "nntile/tile/logsumexp.hh"
+#include "nntile/starpu/config.hh"
+
+namespace nntile::tensor
+{
+
+//! Compute log of sum of exponents baased on maxsumexp result
+template<typename T>
+void logsumexp_async(const Tensor<T> &src, const Tensor<T> &dst)
+{
+    // Check dimensions
+    if(src.ndim-1 != dst.ndim)
+    {
+        throw std::runtime_error("src.ndim - 1 != dst.ndim");
+    }
+    // Treat special case of src.ndim=0
+    if(src.ndim == 0)
+    {
+        throw std::runtime_error("Scalar input makes no sense");
+    }
+    // Check shapes of src and dst
+    if(src.shape[0] != 2)
+    {
+        throw std::runtime_error("src.shape[0] != 2");
+    }
+    if(src.basetile_shape[0] != 2)
+    {
+        throw std::runtime_error("src.basetile_shape[0] != 2");
+    }
+    for(Index i = 0; i < src.ndim-1; ++i)
+    {
+        if(src.shape[i+1] != dst.shape[i])
+        {
+            throw std::runtime_error("src.shape[i+1] != dst.shape[i]");
+        }
+        if(src.basetile_shape[i+1] != dst.basetile_shape[i])
+        {
+            throw std::runtime_error("src.basetile_shape[i+1] != "
+                    "dst.basetile_shape[i]");
+        }
+    }
+    // Do actual calculations
+    for(Index i = 0; i < dst.grid.nelems; ++i)
+    {
+        auto dst_tile_handle = dst.get_tile_handle(i);
+        auto src_tile = src.get_tile(i);
+        auto dst_tile = dst.get_tile(i);
+        tile::logsumexp_async<T>(src_tile, dst_tile);
+        // Flush cache for the output tile on every node
+        dst_tile_handle.mpi_flush();
+    }
+}
+
+
+template<typename T>
+void logsumexp(const Tensor<T> &src, const Tensor<T> &dst)
+{
+    logsumexp_async<T>(src, dst);
+    starpu_task_wait_for_all();
+    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
+}
+
+// Explicit instantiation
+template
+void logsumexp_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
+
+template
+void logsumexp_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+                                       const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void logsumexp_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+                                 const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void logsumexp_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+                                 const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void logsumexp_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+template
+void logsumexp_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
+template
+void logsumexp_async<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+
+// Explicit instantiation
+template
+void logsumexp<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
+
+template
+void logsumexp<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+                                 const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void logsumexp<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+                                 const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void logsumexp<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+                                 const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void logsumexp<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+template
+void logsumexp<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
+template
+void logsumexp<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+
+} // namespace nntile::tensor

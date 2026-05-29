@@ -44,23 +44,23 @@ while IFS= read -r file; do
     case "$file" in
         *CMakeLists.txt | cmake_modules/* | external/*)
             run_all=true; break ;;
-        include/nntile/core/defs.h.in | include/nntile.hh | include/nntile/core.hh)
+        include/nntile/defs.h.in | include/nntile.hh | include/nntile/core.hh)
             run_all=true; break ;;
-        include/nntile/core/starpu.hh | include/nntile/core/starpu/config.hh)
+        include/nntile/starpu.hh | include/nntile/starpu/config.hh)
             run_all=true; break ;;
-        src/core/kernel/cblas.cc | src/core/kernel/cublas.cc)
+        nntile/src/kernel/cblas.cc | nntile/src/kernel/cublas.cc)
             run_all=true; break ;;
-        src/graph/runtime.cc | src/graph/tensor/graph_data_node.cc)
+        nntile/src/runtime.cc | nntile/src/tensor_graph/graph_data_node.cc)
             run_all=true; break ;;
-        tests/graph/model/llama/generate_test_data.py)
+        nntile/tests/model/llama/generate_test_data.py)
             run_all=true; break ;;
-        tests/graph/model/gpt2/generate_test_data.py)
+        nntile/tests/model/gpt2/generate_test_data.py)
             run_all=true; break ;;
-        tests/graph/model/gptneo/generate_test_data.py)
+        nntile/tests/model/gptneo/generate_test_data.py)
             run_all=true; break ;;
-        tests/graph/model/t5/generate_test_data.py)
+        nntile/tests/model/t5/generate_test_data.py)
             run_all=true; break ;;
-        tests/graph/model/roberta/generate_test_data.py)
+        nntile/tests/model/roberta/generate_test_data.py)
             run_all=true; break ;;
     esac
 done <<< "$all_changed"
@@ -129,7 +129,7 @@ add_bert_model_tests() {
 }
 
 # RoBERTa graph tests import safetensor layout helpers from
-# tests/graph/model/bert/generate_test_data.py only (not other BERT sources).
+# nntile/tests/model/bert/generate_test_data.py only (not other BERT sources).
 add_roberta_model_tests() {
     affected["tests_graph_model_roberta_config"]=1
     for t in roberta_intermediate roberta_attention roberta_layer \
@@ -147,134 +147,134 @@ while IFS= read -r file; do
         # ---- test files: run the specific test ----------------------------
         tests/constants.cc)
             affected["tests_core_constants"]=1 ;;
-        tests/core/kernel/*.cc)
+        nntile/tests/eager/kernel/*.cc)
             affected["tests_core_kernel_$(basename "$file" .cc)"]=1 ;;
-        tests/core/starpu/*.cc)
+        nntile/tests/eager/starpu/*.cc)
             affected["tests_core_starpu_$(basename "$file" .cc)"]=1 ;;
-        tests/core/tile/*.cc)
+        nntile/tests/eager/tile/*.cc)
             affected["tests_core_tile_$(basename "$file" .cc)"]=1 ;;
-        tests/core/tensor/*.cc)
+        nntile/tests/eager/tensor/*.cc)
             affected["tests_core_tensor_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/tensor/ops/*.cc)
+        nntile/tests/tensor_graph/ops/*.cc)
             affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/tensor/*.cc)
+        nntile/tests/tensor_graph/*.cc)
             affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/tile/ops/*.cc)
+        nntile/tests/tile_graph/ops/*.cc)
             affected["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/tile/*.cc)
+        nntile/tests/tile_graph/*.cc)
             affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/nn/ops/*.cc)
+        nntile/tests/nn_graph/ops/*.cc)
             affected["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/nn/*.cc)
+        nntile/tests/nn_graph/*.cc)
             affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/module/*.cc)
+        nntile/tests/module/*.cc)
             affected["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/io/*.cc)
+        nntile/tests/io/*.cc)
             affected["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/model/llama/*.cc)
+        nntile/tests/model/llama/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/model/gpt2/*.cc)
+        nntile/tests/model/gpt2/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/model/gptneo/*.cc)
+        nntile/tests/model/gptneo/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/model/t5/*.cc)
+        nntile/tests/model/t5/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/model/roberta/*.cc)
+        nntile/tests/model/roberta/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
-        tests/graph/model/test_gptneo_fixture_helpers.hh)
+        nntile/tests/model/test_gptneo_fixture_helpers.hh)
             add_gptneo_model_tests ;;
-        tests/graph/model/test_t5_fixture_helpers.hh)
+        nntile/tests/model/test_t5_fixture_helpers.hh)
             add_t5_model_tests ;;
-        tests/graph/model/bert/generate_test_data.py)
+        nntile/tests/model/bert/generate_test_data.py)
             add_bert_model_tests
             add_roberta_model_tests ;;
-        tests/graph/*.cc)
+        nntile/tests/*.cc)
             affected["tests_graph_$(basename "$file" .cc)"]=1 ;;
 
         # ---- kernel sources / headers → all layers -----------------------
-        src/core/kernel/*/cpu.cc | src/core/kernel/*/cuda.cc | src/core/kernel/*/cuda.cu)
+        nntile/src/kernel/*/cpu.cc | nntile/src/kernel/*/cuda.cc | nntile/src/kernel/*/cuda.cu)
             add_all_layers "$(basename "$(dirname "$file")")" ;;
-        include/nntile/core/kernel/*/cpu.hh | include/nntile/core/kernel/*/cuda.hh)
+        include/nntile/kernel/*/cpu.hh | include/nntile/kernel/*/cuda.hh)
             add_all_layers "$(basename "$(dirname "$file")")" ;;
-        include/nntile/core/kernel/*.hh)
+        include/nntile/kernel/*.hh)
             add_all_layers "$(basename "$file" .hh)" ;;
 
         # ---- starpu sources / headers → from starpu up -------------------
-        src/core/starpu/*.cc)
+        nntile/src/starpu/*.cc)
             add_from_starpu "$(basename "$file" .cc)" ;;
-        include/nntile/core/starpu/*.hh)
+        include/nntile/starpu/*.hh)
             add_from_starpu "$(basename "$file" .hh)" ;;
 
         # ---- tile sources / headers → from tile up -----------------------
-        src/core/tile/*.cc)
+        nntile/src/tile/*.cc)
             add_from_tile "$(basename "$file" .cc)" ;;
-        include/nntile/core/tile/*.hh)
+        include/nntile/tile/*.hh)
             add_from_tile "$(basename "$file" .hh)" ;;
 
         # ---- tensor sources / headers → from tensor up -------------------
-        src/core/tensor/*.cc)
+        nntile/src/tensor/*.cc)
             add_from_tensor "$(basename "$file" .cc)" ;;
-        include/nntile/core/tensor/*.hh)
+        include/nntile/tensor/*.hh)
             add_from_tensor "$(basename "$file" .hh)" ;;
 
         # ---- graph-level: only the matching test --------------------------
-        src/graph/tensor/ops/*.cc)
+        nntile/src/tensor_graph/ops/*.cc)
             affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/tensor/ops/*.hh)
+        include/nntile/tensor_graph/ops/*.hh)
             affected["tests_graph_tensor_ops_$(basename "$file" .hh)"]=1 ;;
-        src/graph/tensor/*.cc)
+        nntile/src/tensor_graph/*.cc)
             affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/tensor/*.hh)
+        include/nntile/tensor_graph/*.hh)
             affected["tests_graph_tensor_$(basename "$file" .hh)"]=1 ;;
-        src/graph/tile/ops/*.cc)
+        nntile/src/tile_graph/ops/*.cc)
             affected["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/tile/ops/*.hh)
+        include/nntile/tile_graph/ops/*.hh)
             affected["tests_graph_tile_ops_$(basename "$file" .hh)"]=1 ;;
-        src/graph/tile/*.cc)
+        nntile/src/tile_graph/*.cc)
             affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/tile/*.hh)
+        include/nntile/tile_graph/*.hh)
             affected["tests_graph_tile_$(basename "$file" .hh)"]=1 ;;
-        src/graph/nn/ops/*.cc)
+        nntile/src/nn_graph/ops/*.cc)
             affected["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/nn/ops/*.hh)
+        include/nntile/nn_graph/ops/*.hh)
             affected["tests_graph_nn_ops_$(basename "$file" .hh)"]=1 ;;
-        src/graph/nn/*.cc)
+        nntile/src/nn_graph/*.cc)
             affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/nn/*.hh)
+        include/nntile/nn_graph/*.hh)
             affected["tests_graph_nn_$(basename "$file" .hh)"]=1 ;;
-        src/graph/module/*.cc)
+        nntile/src/module/*.cc)
             affected["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/module/*.hh)
+        include/nntile/module/*.hh)
             affected["tests_graph_module_$(basename "$file" .hh)"]=1 ;;
-        src/graph/io/*.cc)
+        nntile/src/io/*.cc)
             affected["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/io/*.hh)
+        include/nntile/io/*.hh)
             affected["tests_graph_io_$(basename "$file" .hh)"]=1 ;;
-        src/graph/model/llama/*.cc)
+        nntile/src/model/llama/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/model/llama/*.hh)
+        include/nntile/model/llama/*.hh)
             affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
-        src/graph/model/gpt2/*.cc)
+        nntile/src/model/gpt2/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/model/gpt2/*.hh)
+        include/nntile/model/gpt2/*.hh)
             affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
-        src/graph/model/gptneo/*.cc)
+        nntile/src/model/gptneo/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/graph/model/gptneo/*.hh)
+        include/nntile/model/gptneo/*.hh)
             add_gptneo_model_tests ;;
-        include/nntile/graph/model/gptneo.hh)
+        include/nntile/model/gptneo.hh)
             add_gptneo_model_tests ;;
         examples/gptneo_config_json.hh | examples/gptneo_generate.cc | examples/gptneo_graph_training.cc | examples/gptneo_generate.py)
             add_gptneo_model_tests ;;
-        src/graph/model/t5/*.cc)
+        nntile/src/model/t5/*.cc)
             add_t5_model_tests ;;
-        include/nntile/graph/model/t5/*.hh)
+        include/nntile/model/t5/*.hh)
             add_t5_model_tests ;;
-        include/nntile/graph/model/t5.hh)
+        include/nntile/model/t5.hh)
             add_t5_model_tests ;;
         examples/t5_generate.cc | examples/t5_generate.py | examples/t5_graph_training.cc | examples/t5_config_json.hh | examples/prepare_tiny_seq2seq_train_bin.py | examples/run_t5_graph_training_demo.sh)
             add_t5_model_tests ;;
-        src/graph/dataset/seq2seq_lm_mmap.cc | include/nntile/graph/dataset/seq2seq_lm_mmap.hh)
+        nntile/src/dataset/seq2seq_lm_mmap.cc | include/nntile/dataset/seq2seq_lm_mmap.hh)
             add_t5_model_tests ;;
     esac
 done <<< "$all_changed"

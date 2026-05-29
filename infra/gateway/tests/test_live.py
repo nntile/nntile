@@ -5,7 +5,7 @@ under a single CUDA-backed nntile.Context.
 
 Requires:
   - A working nntile install for the active interpreter (StarPU + the
-    nntile_core extension built for matching Python), with CUDA.
+    nntile extension built for matching Python), with CUDA.
   - transformers + the chosen HF models available locally or via download.
 
 Opt in with:

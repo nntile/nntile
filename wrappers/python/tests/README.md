@@ -5,7 +5,7 @@ This directory contains correctness tests and benchmarks, divided into subfolder
 2. `model` — tests and benchmarks for complete models and major subparts (e.g., blocks)
 3. `loss` — tests and benchmarks for loss functions
 4. `optimizer` — tests and benchmarks for optimizers
-5. `nntile_core` — tests and benchmarks for core tensor operations and utilities
+5. `nntile` — tests and benchmarks for core tensor operations and utilities
 
 Common helpers and initializers are implemented as pytest fixtures in `nntile/wrappers/python/tests/conftest.py`. It also provides:
 - `context`, `context_cuda` — runtime initialization and teardown
@@ -24,12 +24,12 @@ pytest
 
 Run a single test file:
 ```
-pytest nntile_core/test_tensor_add_inplace.py
+pytest nntile/test_tensor_add_inplace.py
 ```
 
 Run a single test:
 ```
-pytest nntile_core/test_tensor_add_inplace.py::test_add_inplace
+pytest nntile/test_tensor_add_inplace.py::test_add_inplace
 ```
 
 Filter by keyword:

@@ -4,13 +4,13 @@ NNTile is split into two CMake packages:
 
 | Package | Libraries | Umbrella headers |
 |---------|-----------|------------------|
-| **core** | `nntile_core` | [`include/nntile/core.hh`](../../include/nntile/core.hh) |
-| **graph** | `nntile_graph` (links core) | [`include/nntile/graph.hh`](../../include/nntile/graph.hh) |
+| **core** | `nntile` | [`include/nntile/core.hh`](../../include/nntile/core.hh) |
+| **graph** | `nntile` (links core) | [`include/nntile/graph.hh`](../../include/nntile/graph.hh) |
 | **full** | both | [`include/nntile.hh`](../../include/nntile.hh) |
 
-Core code lives under `src/core/` and `include/nntile/core/` with namespace
-`nntile::core::{kernel,starpu,tile,tensor,...}`. Graph code lives under
-`src/graph/` and `include/nntile/graph/` with namespace `nntile::graph`.
+Core code lives under `nntile/src/` and `include/nntile/` with namespace
+`nntile::{kernel,starpu,tile,tensor,...}`. Graph code lives under
+`nntile/src/` and `include/nntile/` with namespace `nntile::graph`.
 
 ```mermaid
 flowchart TB
@@ -20,45 +20,45 @@ flowchart TB
     RT[Runtime]
   end
   subgraph core_pkg [core]
-    Tensor[nntile::core::tensor]
-    Tile[nntile::core::tile]
-    StarPU[nntile::core::starpu]
-    Kernel[nntile::core::kernel]
+    Tensor[nntile::tensor]
+    Tile[nntile::tile]
+    StarPU[nntile::starpu]
+    Kernel[nntile::kernel]
   end
   graph_pkg --> core_pkg
 ```
 
 ## Core layer headers
 
-- [`include/nntile/core/kernel.hh`](../../include/nntile/core/kernel.hh)
-- [`include/nntile/core/starpu.hh`](../../include/nntile/core/starpu.hh)
-- [`include/nntile/core/tile.hh`](../../include/nntile/core/tile.hh)
-- [`include/nntile/core/tensor.hh`](../../include/nntile/core/tensor.hh)
+- [`include/nntile/kernel.hh`](../../include/nntile/kernel.hh)
+- [`include/nntile/starpu.hh`](../../include/nntile/starpu.hh)
+- [`include/nntile/tile.hh`](../../include/nntile/tile.hh)
+- [`include/nntile/tensor.hh`](../../include/nntile/tensor.hh)
 
-Sources mirror tests: `src/core/<level>/<op>.cc` ↔ `tests/core/<level>/<op>.cc`.
+Sources mirror tests: `nntile/src/<level>/<op>.cc` ↔ `nntile/tests/eager/<level>/<op>.cc`.
 
 ## kernel
 
-**Namespace:** `nntile::core::kernel::<op>`
+**Namespace:** `nntile::kernel::<op>`
 
 Raw numerical kernels on contiguous buffers (CPU and CUDA translation units under
-`src/core/kernel/<op>/`).
+`nntile/src/kernel/<op>/`).
 
 ## starpu
 
-**Namespace:** `nntile::core::starpu`
+**Namespace:** `nntile::starpu`
 
 StarPU codelets wrapping kernel calls.
 
 ## tile
 
-**Namespace:** `nntile::core::tile`
+**Namespace:** `nntile::tile`
 
 Single-tile operations (`Tile<T>`).
 
 ## tensor
 
-**Namespace:** `nntile::core::tensor`
+**Namespace:** `nntile::tensor`
 
 Distributed tensors (`Tensor<T>`).
 

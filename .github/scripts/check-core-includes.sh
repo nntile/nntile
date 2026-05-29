@@ -17,9 +17,9 @@ git grep -E "$pattern" -- \
     >"$bad" 2>/dev/null || true
 
 if [ -s "$bad" ]; then
-    echo "::error::Forbidden include paths (use nntile/core/...):"
+    echo "::error::Forbidden include paths (use nntile/...):"
     cat "$bad"
     exit 1
 fi
 
-echo ":: All core includes use the nntile/core/ prefix"
+echo ":: All core includes use the nntile/ prefix"

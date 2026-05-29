@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/nntile_core/starpu.pyi
+# @file wrappers/python/nntile/nntile/starpu.pyi
 #
 # @version 1.1.0
 

@@ -25,12 +25,12 @@ def rewrite_includes(text: str) -> str:
     for layer in CORE_LAYERS:
         text = re.sub(
             rf'#include\s*([<"])nntile/{re.escape(layer)}(/|\.hh)',
-            rf"#include \1nntile/core/{layer}\2",
+            rf"#include \1nntile/{layer}\2",
             text,
         )
     text = re.sub(
         r'#include\s*([<"])nntile/defs\.h([>"])',
-        r"#include \1nntile/core/defs.h\2",
+        r"#include \1nntile/defs.h\2",
         text,
     )
     return text
@@ -41,36 +41,36 @@ def rewrite_namespaces(text: str) -> str:
     for layer in ("kernel", "starpu", "tile", "tensor", "logger"):
         text = re.sub(
             rf"\bnntile::{layer}::",
-            rf"nntile::core::{layer}::",
+            rf"nntile::{layer}::",
             text,
         )
         text = re.sub(
             rf"namespace nntile::{layer}\b",
-            rf"namespace nntile::core::{layer}",
+            rf"namespace nntile::{layer}",
             text,
         )
         text = re.sub(
             rf"}} // namespace nntile::{layer}",
-            rf"}} // namespace nntile::core::{layer}",
+            rf"}} // namespace nntile::{layer}",
             text,
         )
         text = re.sub(
             rf"@namespace nntile::{layer}",
-            rf"@namespace nntile::core::{layer}",
+            rf"@namespace nntile::{layer}",
             text,
         )
     # Context and top-level nntile members
-    text = re.sub(r"\bnntile::Context\b", "nntile::core::Context", text)
+    text = re.sub(r"\bnntile::Context\b", "nntile::Context", text)
     text = re.sub(
         r"namespace nntile\s*\{",
-        "namespace nntile::core\n{",
+        "namespace nntile\n{",
         text,
         count=0,
     )
     # Fix double core if any
-    text = text.replace("nntile::core::", "nntile::core::")
-    text = text.replace("namespace nntile::graph", "namespace nntile::graph")
-    text = text.replace("nntile::graph::", "nntile::graph::")
+    text = text.replace("nntile::", "nntile::")
+    text = text.replace("namespace nntile", "namespace nntile")
+    text = text.replace("nntile::", "nntile::")
     return text
 
 
@@ -117,34 +117,34 @@ def main() -> None:
     (ROOT / "tests" / "core").mkdir(parents=True, exist_ok=True)
 
     src_moves = [
-        ("src/kernel", "src/core/kernel"),
-        ("src/starpu", "src/core/starpu"),
-        ("src/tile", "src/core/tile"),
-        ("src/tensor", "src/core/tensor"),
-        ("src/logger", "src/core/logger"),
-        ("src/context.cc", "src/core/context.cc"),
+        ("src/kernel", "nntile/src/kernel"),
+        ("src/starpu", "nntile/src/starpu"),
+        ("src/tile", "nntile/src/tile"),
+        ("src/tensor", "nntile/src/tensor"),
+        ("src/logger", "nntile/src/logger"),
+        ("src/context.cc", "nntile/src/context.cc"),
     ]
     inc_moves = [
-        ("include/nntile/kernel", "include/nntile/core/kernel"),
-        ("include/nntile/starpu", "include/nntile/core/starpu"),
-        ("include/nntile/tile", "include/nntile/core/tile"),
-        ("include/nntile/tensor", "include/nntile/core/tensor"),
-        ("include/nntile/logger", "include/nntile/core/logger"),
-        ("include/nntile/base_types.hh", "include/nntile/core/base_types.hh"),
-        ("include/nntile/constants.hh", "include/nntile/core/constants.hh"),
-        ("include/nntile/context.hh", "include/nntile/core/context.hh"),
-        ("include/nntile/defs.h.in", "include/nntile/core/defs.h.in"),
-        ("include/nntile/kernel.hh", "include/nntile/core/kernel.hh"),
-        ("include/nntile/starpu.hh", "include/nntile/core/starpu.hh"),
-        ("include/nntile/tile.hh", "include/nntile/core/tile.hh"),
-        ("include/nntile/tensor.hh", "include/nntile/core/tensor.hh"),
-        ("include/nntile/logger.hh", "include/nntile/core/logger.hh"),
+        ("include/nntile/kernel", "include/nntile/kernel"),
+        ("include/nntile/starpu", "include/nntile/starpu"),
+        ("include/nntile/tile", "include/nntile/tile"),
+        ("include/nntile/tensor", "include/nntile/tensor"),
+        ("include/nntile/logger", "include/nntile/logger"),
+        ("include/nntile/base_types.hh", "include/nntile/base_types.hh"),
+        ("include/nntile/constants.hh", "include/nntile/constants.hh"),
+        ("include/nntile/context.hh", "include/nntile/context.hh"),
+        ("include/nntile/defs.h.in", "include/nntile/defs.h.in"),
+        ("include/nntile/kernel.hh", "include/nntile/kernel.hh"),
+        ("include/nntile/starpu.hh", "include/nntile/starpu.hh"),
+        ("include/nntile/tile.hh", "include/nntile/tile.hh"),
+        ("include/nntile/tensor.hh", "include/nntile/tensor.hh"),
+        ("include/nntile/logger.hh", "include/nntile/logger.hh"),
     ]
     test_moves = [
-        ("tests/kernel", "tests/core/kernel"),
-        ("tests/starpu", "tests/core/starpu"),
-        ("tests/tile", "tests/core/tile"),
-        ("tests/tensor", "tests/core/tensor"),
+        ("tests/kernel", "nntile/tests/eager/kernel"),
+        ("tests/starpu", "nntile/tests/eager/starpu"),
+        ("tests/tile", "nntile/tests/eager/tile"),
+        ("tests/tensor", "nntile/tests/eager/tensor"),
     ]
     for s, d in src_moves + inc_moves + test_moves:
         if (ROOT / s).exists():

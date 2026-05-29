@@ -19,15 +19,15 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import Buffer
 
-from .nntile_core.tensor import (
+from .nntile.tensor import (
     Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16,
     Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_fp64, Tensor_int64,
     TensorTraits)
-from .nntile_core.tile import TileTraits
+from .nntile.tile import TileTraits
 
 if TYPE_CHECKING:
-    from .nntile_core.tensor import Tensor as TensorProtocol
-    from .nntile_core.tile import Tile as TileProtocol
+    from .nntile.tensor import Tensor as TensorProtocol
+    from .nntile.tile import Tile as TileProtocol
 else:
     class TileProtocol(Protocol):
         """Tile type specification for duck typing."""

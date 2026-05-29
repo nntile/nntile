@@ -1,4 +1,4 @@
-# @file wrappers/python/tests/nntile_core/test_tensor_flash_sdpa_bwd_cudnn.py
+# @file wrappers/python/tests/nntile/test_tensor_flash_sdpa_bwd_cudnn.py
 # Tests for tensor::flash_sdpa_bwd_cudnn<T> Python wrapper
 #
 # This test runs the cuDNN flash backward kernel and checks dQ/dK/dV against a

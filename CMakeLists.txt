@@ -7,18 +7,9 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file CMakeLists.txt
-# This is a top-level CMake script, that is tested to work only with a
-# single-configuration build systems like Ninja or Unix Makefile.
+# Top-level CMake (Plan B unified nntile package).
 #
 # @version 1.1.0
-
-
-###############################################################################
-#                       THIS IS A TOP-LEVEL CMAKELISTS.txt                    #
-#                                                                             #
-#        It is intended to find all dependencies (required or optional)       #
-#                    and set up corresponding variables                       #
-###############################################################################
 
 cmake_minimum_required(VERSION 3.24)
 message(STATUS "Using CMake ${CMAKE_VERSION}")
@@ -28,8 +19,7 @@ project(NNTile VERSION 1.1.0 LANGUAGES CXX C)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
-option(BUILD_CORE "Build nntile_core library" ON)
-option(BUILD_GRAPH "Build nntile_graph library" ON)
+option(BUILD_NNTILE "Build unified nntile library" ON)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
@@ -37,16 +27,33 @@ option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_TESTS "Build tests" ON)
-option(BUILD_TESTS_CORE "Build core C++ tests" ON)
-option(BUILD_TESTS_GRAPH "Build graph C++ tests" ON)
-option(BUILD_TESTS_PYTORCH "Build NNGraph tests comparing against PyTorch C++ frontend (LibTorch)" ON)
+option(BUILD_TESTS_EAGER "Build eager subsystem tests (kernel/starpu/tile)" ON)
+option(BUILD_TESTS_GRAPH "Build graph subsystem tests" ON)
+option(BUILD_TESTS_TILE_GRAPH "Build tile_graph tests" ON)
+option(BUILD_TESTS_TENSOR_GRAPH "Build tensor_graph tests" ON)
+option(BUILD_TESTS_NN_GRAPH "Build nn_graph tests" ON)
+option(BUILD_TESTS_MODULE "Build module tests" ON)
+option(BUILD_TESTS_MODEL "Build model tests" ON)
+option(BUILD_TESTS_PYTORCH "Build NNGraph tests comparing against PyTorch" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
-option(BUILD_EXAMPLES "Build examples" ON)
+option(BUILD_EXAMPLES "Build C++ examples under nntile/examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
-option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
+option(BUILD_PYTHON_WRAPPERS "Build python/ package (not wrappers/python)" ON)
+option(BUILD_LEGACY_PYTHON_WRAPPERS "Build legacy wrappers/python (reference)" OFF)
+
+# Back-compat aliases
+if(DEFINED BUILD_TESTS_CORE)
+    set(BUILD_TESTS_EAGER ${BUILD_TESTS_CORE})
+endif()
+if(BUILD_TESTS_GRAPH)
+    set(BUILD_TESTS_TILE_GRAPH ON)
+    set(BUILD_TESTS_TENSOR_GRAPH ON)
+    set(BUILD_TESTS_NN_GRAPH ON)
+    set(BUILD_TESTS_MODULE ON)
+    set(BUILD_TESTS_MODEL ON)
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CUDA_STANDARD 17)
@@ -55,7 +62,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 macro(nntile_apply_common_includes target)
     target_include_directories(${target} PUBLIC
-        "${PROJECT_SOURCE_DIR}/include"
+        "${PROJECT_SOURCE_DIR}/nntile/include"
         "${PROJECT_BINARY_DIR}/include"
         ${StarPU_INCLUDE_DIRS}
     )
@@ -89,52 +96,16 @@ macro(nntile_apply_cblas target)
     endif()
 endmacro()
 
-if(BUILD_CORE)
-    add_library(nntile_core)
-endif()
-if(BUILD_GRAPH)
-    add_library(nntile_graph)
-endif()
-
 find_package(PkgConfig REQUIRED)
 add_subdirectory("external")
 
 pkg_check_modules(StarPU REQUIRED starpu-1.4)
-
-if(NOT BUILD_CORE AND BUILD_GRAPH)
-    set(NNTILE_CORE_PREFIX "" CACHE PATH
-        "Install prefix of a pre-built nntile_core (lib/ and include/)")
-    if(NOT NNTILE_CORE_PREFIX)
-        message(FATAL_ERROR
-            "NNTILE_CORE_PREFIX must point at a core install when BUILD_CORE=OFF")
-    endif()
-    include("${PROJECT_SOURCE_DIR}/cmake/NNTileCoreImported.cmake")
-    nntile_import_installed_core("${NNTILE_CORE_PREFIX}")
-endif()
-
-if(BUILD_CORE)
-    target_link_libraries(nntile_core PUBLIC ${StarPU_LDFLAGS} nlohmann_json::nlohmann_json)
-    nntile_apply_common_includes(nntile_core)
-endif()
-if(BUILD_GRAPH)
-    if(NOT TARGET nntile_core)
-        message(FATAL_ERROR "nntile_graph requires target nntile_core")
-    endif()
-    target_link_libraries(nntile_graph PUBLIC nntile_core)
-    nntile_apply_common_includes(nntile_graph)
-endif()
 
 include(CheckSymbolExists)
 set(CMAKE_REQUIRED_INCLUDES ${StarPU_INCLUDE_DIRS})
 check_symbol_exists(STARPU_SIMGRID "starpu_config.h" HAVE_STARPU_SIMGRID)
 if(HAVE_STARPU_SIMGRID)
     message(STATUS "StarPU is compiled in SIMGRID mode")
-    if(BUILD_CORE)
-        target_compile_definitions(nntile_core PUBLIC STARPU_SIMGRID)
-    endif()
-    if(BUILD_GRAPH)
-        target_compile_definitions(nntile_graph PUBLIC STARPU_SIMGRID)
-    endif()
 endif()
 
 set(NNTILE_USE_CUDA OFF)
@@ -150,38 +121,28 @@ elseif(USE_CUDA)
         enable_language(CUDA)
         find_package(CUDAToolkit 11.0 REQUIRED)
         add_subdirectory("external/cudnn_frontend")
-        message(STATUS "cuDNN frontend SOURCE: ${cudnn_frontend_SOURCE_DIR}")
-        message(STATUS "cuDNN frontend BINARY: ${cudnn_frontend_BINARY_DIR}")
         include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
         set(NNTILE_USE_CUDA ON)
         set(NNTILE_LINK_CUDA ON)
         if(USE_CUDA_FP16)
             set(NNTILE_USE_CUDA_FP16 ON)
-            message(STATUS "CUDA FP16 support enabled")
         else()
             set(NNTILE_USE_CUDA_FP16 OFF)
-            message(STATUS "CUDA FP16 support disabled")
         endif()
         if(USE_CUDA_TF32)
             set(NNTILE_USE_CUDA_TF32 ON)
-            message(STATUS "CUDA TF32 support enabled")
         else()
             set(NNTILE_USE_CUDA_TF32 OFF)
-            message(STATUS "CUDA TF32 support disabled")
         endif()
         if(USE_CUDA_BF16)
             set(NNTILE_USE_CUDA_BF16 ON)
-            message(STATUS "CUDA BF16 support enabled")
         else()
             set(NNTILE_USE_CUDA_BF16 OFF)
-            message(STATUS "CUDA BF16 support disabled")
         endif()
         if(USE_CUDA_FP8 AND CUDAToolkit_VERSION GREATER_EQUAL 11.8)
             set(NNTILE_USE_CUDA_FP8 ON)
-            message(STATUS "CUDA FP8 support enabled")
         else()
             set(NNTILE_USE_CUDA_FP8 OFF)
-            message(STATUS "CUDA FP8 support disabled")
         endif()
     endif()
 endif()
@@ -191,7 +152,6 @@ set(NNTILE_LINK_CBLAS OFF)
 if(HAVE_STARPU_SIMGRID)
     if(USE_CBLAS)
         set(NNTILE_USE_CBLAS ON)
-        set(NNTILE_LINK_CBLAS OFF)
     endif()
 elseif(USE_CBLAS)
     find_package(BLAS)
@@ -201,112 +161,42 @@ elseif(USE_CBLAS)
     endif()
 endif()
 
-if(BUILD_GRAPH AND NOT BUILD_CORE)
-    nntile_installed_core_defs_has("${NNTILE_CORE_PREFIX}" NNTILE_USE_CUDA
-        _imported_core_cuda)
-    nntile_installed_core_defs_has("${NNTILE_CORE_PREFIX}" NNTILE_USE_CBLAS
-        _imported_core_cblas)
-    if(_imported_core_cuda AND NOT NNTILE_USE_CUDA)
-        message(FATAL_ERROR
-            "Installed nntile_core was built with CUDA (NNTILE_USE_CUDA in "
-            "defs.h) but USE_CUDA=OFF. Enable USE_CUDA or use a CPU-only core "
-            "install.")
-    endif()
-    if(_imported_core_cblas AND NOT NNTILE_USE_CBLAS)
-        message(FATAL_ERROR
-            "Installed nntile_core was built with CBLAS (NNTILE_USE_CBLAS in "
-            "defs.h) but USE_CBLAS=OFF. Enable USE_CBLAS or use a core install "
-            "without CBLAS.")
-    endif()
-endif()
-
-if(BUILD_CORE)
-    nntile_apply_cuda(nntile_core)
-    nntile_apply_cblas(nntile_core)
-endif()
-if(BUILD_GRAPH AND NOT BUILD_CORE)
-    nntile_apply_cuda(nntile_core)
-    nntile_apply_cblas(nntile_core)
-endif()
-if(BUILD_GRAPH)
-    nntile_apply_cuda(nntile_graph)
-    nntile_apply_cblas(nntile_graph)
-endif()
-
-if(BUILD_CORE)
-    configure_file("${PROJECT_SOURCE_DIR}/include/nntile/core/defs.h.in"
-        "${PROJECT_BINARY_DIR}/include/nntile/core/defs.h" @ONLY)
-endif()
-
 if(BUILD_COVERAGE)
-    message(STATUS "Code coverage report was requested, so option BUILD_TESTS"
-        " is ON."
-        " The report itself can be generated by \"make coverage\" command.")
     set(BUILD_TESTS ON)
     include(CodeCoverage)
     append_coverage_compiler_flags()
-    set(COVERAGE_EXCLUDES "${PROJECT_SOURCE_DIR}/tests/*"
-        "${PROJECT_BINARY_DIR}/tests/*")
+    set(COVERAGE_EXCLUDES "${PROJECT_SOURCE_DIR}/nntile/tests/*"
+        "${PROJECT_BINARY_DIR}/nntile/tests/*")
     setup_target_for_coverage_lcov(NAME coverage
         EXECUTABLE ctest
         LCOV_ARGS --no-external
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-add_subdirectory("src")
-add_subdirectory("include")
+if(BUILD_NNTILE)
+    add_subdirectory(nntile)
+endif()
 
 set(NNTILE_HAVE_TORCH OFF)
-if(BUILD_TESTS_PYTORCH AND BUILD_TESTS AND BUILD_GRAPH AND NOT HAVE_STARPU_SIMGRID)
+if(BUILD_TESTS_PYTORCH AND BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID)
     find_package(Torch QUIET)
     if(Torch_FOUND)
         set(NNTILE_HAVE_TORCH ON)
         message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
     else()
-        message(WARNING "BUILD_TESTS_PYTORCH=ON but LibTorch not found. "
-            "Set CMAKE_PREFIX_PATH to LibTorch root, e.g.: "
-            "cmake -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)') ..")
+        message(WARNING "BUILD_TESTS_PYTORCH=ON but LibTorch not found.")
     endif()
 endif()
 
-if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
+if(BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID
+        AND NOT NNTILE_COMPILE_CHECK_SUBSYSTEM)
     include(CTest)
-    add_subdirectory("tests")
 endif()
 
-if(BUILD_EXAMPLES)
-    add_subdirectory("examples")
+if(BUILD_PYTHON_WRAPPERS AND BUILD_NNTILE)
+    add_subdirectory(python)
 endif()
 
-if(BUILD_PYTHON_WRAPPERS)
-    add_subdirectory("wrappers/python")
-endif()
-
-if(BUILD_CORE)
-    include(GNUInstallDirs)
-
-    install(
-        TARGETS nntile_core
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-
-    install(
-        DIRECTORY "${PROJECT_SOURCE_DIR}/include/nntile/core"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nntile
-        FILES_MATCHING PATTERN "*.hh"
-    )
-    install(
-        FILES "${PROJECT_SOURCE_DIR}/include/nntile.hh"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    )
-    install(
-        FILES "${PROJECT_SOURCE_DIR}/include/nntile/core.hh"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nntile
-    )
-    install(
-        FILES "${PROJECT_BINARY_DIR}/include/nntile/core/defs.h"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nntile/core
-    )
+if(BUILD_LEGACY_PYTHON_WRAPPERS)
+    add_subdirectory(wrappers/python)
 endif()

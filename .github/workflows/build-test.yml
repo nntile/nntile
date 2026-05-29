@@ -2,19 +2,12 @@ name: Build and test
 
 on:
   push:
-    branches:
-      - main
-      - graph_api
+    branches: [main, graph_api]
   pull_request:
-    branches:
-      - main
-      - graph_api
+    branches: [main, graph_api]
   workflow_call:
     inputs:
       is-pull-request:
-        description: >-
-          When true, run dirty C++ and Python tests on PR diffs instead of
-          full suites. Ignored when this workflow is triggered by pull_request.
         required: false
         type: boolean
         default: false
@@ -24,705 +17,131 @@ permissions:
 
 env:
   CCACHE_DIR: /tmp/ccache
-  NNTILE_INSTALL: /__w/nntile/nntile/install
+  PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
 
 jobs:
   configure-smoke:
     name: Configure smoke (CMake only)
     runs-on: ubuntu-24.04
-    container:
-      image: ubuntu:24.04
+    container: {image: ubuntu:24.04}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - name: Bootstrap container (git for checkout)
-        working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
+      - run: |
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git
+        working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
-      - name: Check core include paths
-        run: .github/scripts/check-core-includes.sh .
-      - name: Configure NNTile (smoke)
-        run: |
-          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+      - run: chmod +x .github/scripts/check-nntile-includes.sh
+      - run: .github/scripts/check-nntile-includes.sh .
+      - run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DBUILD_EXAMPLES=OFF \
-            -DBUILD_TESTS=OFF \
-            -DBUILD_TESTS_PYTORCH=OFF \
-            -DBUILD_PYTHON_WRAPPERS=OFF
+            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF
 
-  core-lib-build:
-    name: Build nntile_core library
+  compile-check:
+    name: compile-check-${{ matrix.subsystem }}
     needs: configure-smoke
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ['3.12']
-    container:
-      image: ubuntu:24.04
+        subsystem:
+          - kernel
+          - starpu
+          - tile
+          - tile_graph
+          - tensor_graph
+          - nn_graph
+          - runtime
+          - module
+          - optim
+          - io
+          - dataset
+          - model
+    container: {image: ubuntu:24.04}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - name: Bootstrap container (git for checkout)
+      - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          PR_REF: ${{ github.ref }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE_REF: ${{ github.base_ref }}
-          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
-        run: .github/scripts/deepen-pr-checkout.sh
-      - uses: ./.github/actions/nntile-ci-container
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Check core include paths
-        run: .github/scripts/check-core-includes.sh .
-      - name: Restore ccache (core)
-        uses: actions/cache/restore@v4
+      - uses: ./.github/actions/nntile-starpu-setup
+      - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-core-${{ github.sha }}
-          restore-keys: |
-            ccache-nntile-${{ runner.os }}-core-
-            ccache-nntile-${{ runner.os }}-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=2G
-          ccache --set-config=compression=true
-          ccache --zero-stats
-      - name: Configure and build nntile_core
-        run: |
-          set -euo pipefail
-          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export TORCH_PREFIX=$(
-            python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+          key: ccache-compile-${{ matrix.subsystem }}-${{ github.sha }}
+          restore-keys: ccache-compile-${{ matrix.subsystem }}-
+      - run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DBUILD_GRAPH=OFF \
-            -DBUILD_TESTS=OFF \
-            -DBUILD_EXAMPLES=OFF \
-            -DCMAKE_INSTALL_PREFIX="${NNTILE_INSTALL}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}"
-          cmake --build build -j
-          cmake --build build --target nntile_compile_smoke
-          cmake --install build
-      - name: Save ccache (core)
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-core-${{ github.run_id }}
-      - name: Show ccache stats
-        if: always()
-        run: ccache --show-stats
-      - name: Upload nntile_core library
-        uses: actions/upload-artifact@v7
-        with:
-          name: nntile-core-lib-${{ matrix.python-version }}
-          path: |
-            install/
-            build/wrappers/python/nntile/nntile_core.so
-          retention-days: 7
+            -DNNTILE_COMPILE_CHECK_SUBSYSTEM=${{ matrix.subsystem }} \
+            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build --target nntile_compile_check_${{ matrix.subsystem }}
 
-  core-tests-build:
-    name: Build nntile_core C++ tests
-    needs: core-lib-build
+  test-kernel:
+    name: test-kernel
+    needs: [configure-smoke, compile-check]
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    container:
-      image: ubuntu:24.04
+    container: {image: ubuntu:24.04}
     defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
+      run: {shell: bash, working-directory: /__w/nntile/nntile}
     steps:
-      - name: Bootstrap container (git for checkout)
+      - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          PR_REF: ${{ github.ref }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE_REF: ${{ github.base_ref }}
-          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
-        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Download nntile_core library
-        uses: actions/download-artifact@v8
-        with:
-          name: nntile-core-lib-${{ matrix.python-version }}
-          path: .
-      - name: Restore ccache (core)
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-core-${{ github.sha }}
-          restore-keys: |
-            ccache-nntile-${{ runner.os }}-core-
-            ccache-nntile-${{ runner.os }}-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=2G
-          ccache --set-config=compression=true
-          ccache --zero-stats
-      - name: Configure and build core C++ tests
-        run: |
-          set -euo pipefail
-          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export TORCH_PREFIX=$(
-            python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+        with: {python-version: '3.12'}
+      - run: |
+          mapfile -t _flags < <(.github/scripts/cmake-test-subsystem.sh kernel)
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DBUILD_GRAPH=OFF \
-            -DBUILD_TESTS=ON \
-            -DBUILD_TESTS_CORE=ON \
-            -DBUILD_TESTS_GRAPH=OFF \
-            -DBUILD_EXAMPLES=OFF \
-            -DCMAKE_INSTALL_PREFIX="${NNTILE_INSTALL}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}"
-          cmake --build build -j
-      - name: Run smoke C++ tests (core)
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L smoke -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
-      - name: Run core C++ tests
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.is-pull-request != true
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L core -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
-      - name: Save ccache (core)
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-core-${{ github.run_id }}
-      - name: Upload core C++ test build tree
-        uses: actions/upload-artifact@v7
-        with:
-          name: nntile-core-ctest-${{ matrix.python-version }}
-          path: |
-            build/
-            install/
-          retention-days: 2
+            -DBUILD_TESTS=ON -DBUILD_TESTS_EAGER=ON "${_flags[@]}"
+          cmake --build build -j"$(nproc)"
+          cd build && ctest -R tests_nntile_constants -V --output-on-failure
 
-  core-tests-run:
-    name: Run nntile_core C++ tests (dirty, PR)
-    if: github.event_name == 'pull_request' || inputs.is-pull-request == true
-    needs: core-tests-build
+  test-full:
+    name: test-full-integration
+    needs: [compile-check]
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    container:
-      image: ubuntu:24.04
+    container: {image: ubuntu:24.04}
     defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
+      run: {shell: bash, working-directory: /__w/nntile/nntile}
     steps:
-      - name: Bootstrap container (git for checkout)
+      - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
       - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          PR_REF: ${{ github.ref }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE_REF: ${{ github.base_ref }}
-          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
-        run: .github/scripts/deepen-pr-checkout.sh
       - uses: ./.github/actions/nntile-ci-container
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Download core C++ test build tree
-        uses: actions/download-artifact@v8
-        with:
-          name: nntile-core-ctest-${{ matrix.python-version }}
-          path: .
-      - name: Restore CTest binary permissions
-        run: .github/scripts/restore-ctest-execute-bits.sh build/tests
-      - name: Run dirty C++ tests (core)
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          .github/scripts/run-dirty-cpp-tests.sh \
-            ${{ github.event.pull_request.head.ref }} \
-            ${{ github.base_ref }} \
-            core
-
-  graph-lib-build:
-    name: Build nntile_graph library
-    needs: core-lib-build
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    container:
-      image: ubuntu:24.04
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - name: Bootstrap container (git for checkout)
-        working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
-      - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          PR_REF: ${{ github.ref }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE_REF: ${{ github.base_ref }}
-          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
-        run: .github/scripts/deepen-pr-checkout.sh
-      - uses: ./.github/actions/nntile-ci-container
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Download nntile_core library
-        uses: actions/download-artifact@v8
-        with:
-          name: nntile-core-lib-${{ matrix.python-version }}
-          path: .
-      - name: Restore ccache (graph)
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-graph-${{ github.sha }}
-          restore-keys: |
-            ccache-nntile-${{ runner.os }}-graph-
-            ccache-nntile-${{ runner.os }}-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=2G
-          ccache --set-config=compression=true
-          ccache --zero-stats
-      - name: Configure and build nntile_graph
-        run: |
-          set -euo pipefail
-          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export TORCH_PREFIX=$(
-            python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+        with: {python-version: '3.12'}
+      - run: |
+          export TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DBUILD_CORE=OFF \
-            -DBUILD_TESTS=OFF \
-            -DBUILD_EXAMPLES=OFF \
-            -DNNTILE_CORE_PREFIX="${NNTILE_INSTALL}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_PREFIX_PATH="${NNTILE_INSTALL}:${TORCH_PREFIX}"
-          cmake --build build -j
-          cmake --build build --target nntile_compile_smoke
-      - name: Save ccache (graph)
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-graph-${{ github.run_id }}
-      - name: Show ccache stats
-        if: always()
-        run: ccache --show-stats
-      - name: Verify Python extensions
-        run: |
-          set -euo pipefail
-          test -f build/wrappers/python/nntile/nntile_core.so
-          test -f build/wrappers/python/nntile/nntile_graph.so
-      - name: Stage runtime libraries for artifact
-        run: |
-          set -euo pipefail
-          mkdir -p build/lib
-          cp -a "${NNTILE_INSTALL}/lib/libnntile_core.so" build/lib/
-          cp -a build/libnntile_graph.so build/lib/
-      - name: Upload nntile_graph library
-        uses: actions/upload-artifact@v7
-        with:
-          name: nntile-graph-lib-${{ matrix.python-version }}
-          path: |
-            install/
-            build/libnntile_graph.so
-            build/wrappers/python/nntile/nntile_core.so
-            build/wrappers/python/nntile/nntile_graph.so
-          retention-days: 7
-      - name: Upload Python extensions
-        uses: actions/upload-artifact@v7
-        with:
-          name: shared-objects-${{ matrix.python-version }}
-          path: build/**/*.so
-          retention-days: 7
-
-  graph-tests-build:
-    name: Build nntile_graph C++ tests
-    needs: graph-lib-build
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    container:
-      image: ubuntu:24.04
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - name: Bootstrap container (git for checkout)
-        working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
-      - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          PR_REF: ${{ github.ref }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE_REF: ${{ github.base_ref }}
-          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
-        run: .github/scripts/deepen-pr-checkout.sh
-      - uses: ./.github/actions/nntile-ci-container
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Download nntile_core library
-        uses: actions/download-artifact@v8
-        with:
-          name: nntile-core-lib-${{ matrix.python-version }}
-          path: .
-      - name: Remove stale CMake build tree
-        run: rm -rf build
-      - name: Restore ccache (graph)
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-graph-${{ github.sha }}
-          restore-keys: |
-            ccache-nntile-${{ runner.os }}-graph-
-            ccache-nntile-${{ runner.os }}-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=2G
-          ccache --set-config=compression=true
-          ccache --zero-stats
-      - name: Configure and build graph C++ tests
-        run: |
-          set -euo pipefail
-          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export TORCH_PREFIX=$(
-            python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DBUILD_CORE=OFF \
-            -DBUILD_TESTS=ON \
-            -DBUILD_TESTS_CORE=OFF \
-            -DBUILD_TESTS_GRAPH=ON \
-            -DBUILD_EXAMPLES=OFF \
-            -DNNTILE_CORE_PREFIX="${NNTILE_INSTALL}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_PREFIX_PATH="${NNTILE_INSTALL}:${TORCH_PREFIX}"
-          cmake --build build -j
-      - name: Run smoke C++ tests (graph)
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L smoke -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
-      - name: Run graph C++ tests
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.is-pull-request != true
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          ctest --test-dir build -L graph -E wrappers -LE "(MPI|NotImplemented)" \
-            --output-on-failure
-      - name: Save ccache (graph)
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-graph-${{ github.run_id }}
-      - name: Upload graph C++ test build tree
-        uses: actions/upload-artifact@v7
-        with:
-          name: nntile-graph-ctest-${{ matrix.python-version }}
-          path: |
-            build/
-            install/
-          retention-days: 2
-
-  graph-tests-run:
-    name: Run nntile_graph C++ tests (dirty, PR)
-    if: github.event_name == 'pull_request' || inputs.is-pull-request == true
-    needs: graph-tests-build
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    container:
-      image: ubuntu:24.04
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - name: Bootstrap container (git for checkout)
-        working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
-      - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          PR_REF: ${{ github.ref }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE_REF: ${{ github.base_ref }}
-          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
-        run: .github/scripts/deepen-pr-checkout.sh
-      - uses: ./.github/actions/nntile-ci-container
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Download graph C++ test build tree
-        uses: actions/download-artifact@v8
-        with:
-          name: nntile-graph-ctest-${{ matrix.python-version }}
-          path: .
-      - name: Restore CTest binary permissions
-        run: .github/scripts/restore-ctest-execute-bits.sh build/tests
-      - name: Run dirty C++ tests (graph)
-        run: |
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          .github/scripts/run-dirty-cpp-tests.sh \
-            ${{ github.event.pull_request.head.ref }} \
-            ${{ github.base_ref }} \
-            graph
-
-  examples-build:
-    name: Build examples
-    needs: graph-lib-build
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    container:
-      image: ubuntu:24.04
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - name: Bootstrap container (git for checkout)
-        working-directory: /
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker* 2>/dev/null || true
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
-      - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          PR_REF: ${{ github.ref }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE_REF: ${{ github.base_ref }}
-          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
-        run: .github/scripts/deepen-pr-checkout.sh
-      - uses: ./.github/actions/nntile-ci-container
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Download nntile_core library
-        uses: actions/download-artifact@v8
-        with:
-          name: nntile-core-lib-${{ matrix.python-version }}
-          path: .
-      - name: Remove stale CMake build tree
-        run: rm -rf build
-      - name: Restore ccache (graph)
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-nntile-${{ runner.os }}-graph-${{ github.sha }}
-          restore-keys: |
-            ccache-nntile-${{ runner.os }}-graph-
-            ccache-nntile-${{ runner.os }}-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=2G
-          ccache --set-config=compression=true
-          ccache --zero-stats
-      - name: Configure and build examples
-        run: |
-          set -euo pipefail
-          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export TORCH_PREFIX=$(
-            python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
-          export LD_LIBRARY_PATH=${NNTILE_INSTALL}/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DBUILD_CORE=OFF \
-            -DBUILD_TESTS=OFF \
-            -DBUILD_EXAMPLES=ON \
-            -DNNTILE_CORE_PREFIX="${NNTILE_INSTALL}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_PREFIX_PATH="${NNTILE_INSTALL}:${TORCH_PREFIX}"
-          cmake --build build -j
+            -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_GRAPH=ON \
+            -DBUILD_TESTS_EAGER=ON -DBUILD_TESTS_PYTORCH=ON \
+            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
+            -DBUILD_EXAMPLES=ON
+          cmake --build build -j"$(nproc)"
+          cd build && ctest -j"$(nproc)" --output-on-failure
 
   test-python:
-    name: Run CPU-only tests with Python ${{ matrix.python-version }}
-    needs: graph-lib-build
+    name: test-python
+    needs: test-full
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    container:
-      image: ubuntu:24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run: {shell: bash, working-directory: /__w/nntile/nntile}
     steps:
-      - name: Cache system packages
-        uses: actions/cache@v5
-        env:
-          cache-name: cache-apt-packages
-        with:
-          path: /var/cache/apt
-          key: ${{ runner.os }}-build-${{ env.cache-name }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}
-            ${{ runner.os }}-build-
-            ${{ runner.os }}
-      - name: Install Git in container
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker*
-          apt update
-          apt install -y --no-install-recommends ca-certificates git
+      - run: apt-get update && apt-get install -y ca-certificates git
+        working-directory: /
       - uses: actions/checkout@v6
-      - name: Pull all PR commits
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          PR_REF: ${{ github.ref }}
-          PR_HEAD_REF: ${{ github.head_ref }}
-          PR_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_BASE_REF: ${{ github.base_ref }}
-          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
-        run: .github/scripts/deepen-pr-checkout.sh
-      - name: Install system dependencies
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker*
-          apt update
-          apt install -y --no-install-recommends \
-              binutils build-essential ca-certificates \
-              clang cmake curl libfxt-dev git lcov libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 \
-              lsb-release ninja-build openmpi-bin pkg-config sqlite3
-      - name: Restore StarPU cache
-        uses: actions/cache@v5
-        with:
-          path: /opt/starpu
-          key: starpu-1.4.8-${{ runner.os }}-v2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Download all shared objects (*.so)
-        uses: actions/download-artifact@v8
-        with:
-          name: shared-objects-${{ matrix.python-version }}
-          path: build
-      - name: Make in-tree symlink to an extension
-        run: |
-          ln -rs \
-            build/wrappers/python/nntile/nntile_core.so \
-            wrappers/python/nntile/nntile_core.so
-          ln -rs \
-            build/wrappers/python/nntile/nntile_graph.so \
-            wrappers/python/nntile/nntile_graph.so
-      - name: Install Python dependencies
-        run: |
-          python -m pip install uv --root-user-action=ignore
-          uv sync --extra ci --extra test \
-            --no-install-project --no-build-isolation \
-            --default-index https://download.pytorch.org/whl/cpu \
-            --index https://download.pytorch.org/whl/cpu \
-            --index https://pypi.org/simple \
-            --index-strategy unsafe-best-match
-      - name: Run dirty tests with PyTest
-        if: >-
-          github.event_name == 'pull_request' ||
-          inputs.is-pull-request == true
-        run: |
-          . .venv/bin/activate
-          export LD_LIBRARY_PATH=$PWD/build/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          export PYTHON_TAG=$(
-            python -c 'import sys; print(sys.implementation.cache_tag)')
-          export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
-          .github/scripts/run-dirty-py-tests.sh \
-            ${{ github.event.pull_request.head.ref }} \
-            ${{ github.base_ref }}
-      - name: Run all tests with PyTest
-        if: >-
-          github.event_name != 'pull_request' &&
-          inputs.is-pull-request != true
-        run: |
-          . .venv/bin/activate
-          export LD_LIBRARY_PATH=$PWD/build/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-          export PYTHON_TAG=$(
-            python -c 'import sys; print(sys.implementation.cache_tag)')
-          export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
-          pytest -vv \
-            --cov=wrappers/python/nntile \
-            --cov-report=html:coverage/html/${PYTHON_TAG} \
-            --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
-            --junitxml=pytest/report.${PYTHON_TAG}.xml
-      - name: Upload PyTest report for Python ${{ matrix.python-version }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: pytest-report
-          path: |
-            coverage
-            pytest
-      - name: Run type checking
-        run: |
-          . .venv/bin/activate
-          mypy wrappers/python/nntile || true
+      - uses: ./.github/actions/nntile-ci-container
+        with: {python-version: '3.12'}
+      - run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DNNTILE_PRESET=full -DBUILD_PYTHON_WRAPPERS=ON -DBUILD_TESTS=OFF
+          cmake --build build --target nntile_py -j"$(nproc)"
+          export PYTHONPATH="${PWD}/build/python"
+          python3 -c "import nntile; print('ok', nntile.NNGraph)"

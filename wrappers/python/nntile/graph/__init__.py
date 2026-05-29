@@ -6,12 +6,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/graph/__init__.py
-# Python interface for the NNTile Graph API (nntile_graph extension module).
+# @file wrappers/python/nntile/__init__.py
+# Python interface for the NNTile Graph API (nntile extension module).
 #
 # @version 1.1.0
 
-from ..nntile_graph import (
+from ..nntile import (
     DataType, Module, NNGraph, Runtime, TensorDataNode, TensorGraph,
     TensorNode, TileGraph, dtype_to_string, nn)
 

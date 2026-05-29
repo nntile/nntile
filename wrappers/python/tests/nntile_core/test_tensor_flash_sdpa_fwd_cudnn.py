@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_flash_sdpa_fwd_cudnn.py
+# @file wrappers/python/tests/nntile/test_tensor_flash_sdpa_fwd_cudnn.py
 # Test for tensor::flash_sdpa_fwd_cudnn<T> Python wrapper
 #
 # This test validates the cuDNN Flash Attention implementation by running the

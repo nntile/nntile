@@ -143,7 +143,7 @@ TENSOR_DATA_RECEIVERS = frozenset(
 
 def is_tensor_test_file(path: Path) -> bool:
     p = str(path).replace("\\", "/")
-    return "tests/graph/tensor/" in p
+    return "nntile/tests/tensor_graph/" in p
 
 
 def should_migrate_data(receiver: str, path: Path) -> bool:
@@ -317,14 +317,14 @@ def main(argv: list[str]) -> int:
     paths = [Path(p) for p in argv if not p.startswith("-")]
     if not paths:
         roots = [
-            Path("tests/graph/tensor"),
+            Path("nntile/tests/tensor"),
             Path("examples"),
-            Path("tests/graph/tile/append_tensor_graph_phase.cc"),
-            Path("tests/graph/tile/tile_graph.cc"),
-            Path("tests/graph/tile/add_mixed_tile.cc"),
-            Path("tests/graph/nn"),
-            Path("tests/graph/module"),
-            Path("tests/graph/model"),
+            Path("nntile/tests/tile_graph/append_tensor_graph_phase.cc"),
+            Path("nntile/tests/tile_graph/tile_graph.cc"),
+            Path("nntile/tests/tile_graph/add_mixed_tile.cc"),
+            Path("nntile/tests/nn"),
+            Path("nntile/tests/module"),
+            Path("nntile/tests/model"),
         ]
         paths = []
         for r in roots:

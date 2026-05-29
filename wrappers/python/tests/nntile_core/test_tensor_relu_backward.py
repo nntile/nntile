@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_relu_backward.py
+# @file wrappers/python/tests/nntile/test_tensor_relu_backward.py
 # Test for tensor::relu_backward<T> Python wrapper
 #
 # @version 1.1.0

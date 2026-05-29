@@ -18,7 +18,7 @@ function changed-files() {
 # Start with an empty manifest so later appends always have a target file.
 : > changed.txt
 
-# Is native extension (aka nntile_core*.so) affected?
+# Is native extension (aka nntile*.so) affected?
 changed-files '**/CMakeLists.txt' > cmake-lists.txt
 changed-files 'include/**/*.cuh' \
     'include/**/*.h' 'include/**/*.hh' 'include/**/*.hpp' > headers.txt
@@ -30,8 +30,8 @@ echo "$(wc -l headers.txt) headers changed"
 echo "$(wc -l sources.txt) sources changed"
 cat cmake-lists.txt headers.txt sources.txt > total.txt
 if [ -s total.txt ]; then
-    echo wrappers/python/nntile/nntile_core*.so >> changed.txt
-    echo wrappers/python/nntile/nntile_graph*.so >> changed.txt
+    echo wrappers/python/nntile/nntile*.so >> changed.txt
+    echo wrappers/python/nntile/nntile*.so >> changed.txt
 fi
 
 # What pure python modules are changed in this PR?

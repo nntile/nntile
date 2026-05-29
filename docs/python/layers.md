@@ -56,7 +56,7 @@ KV cache helpers in [`cache_utils.py`](../../wrappers/python/nntile/layer/cache_
 import nntile
 from nntile.tensor import TensorMoments, TensorTraits, from_array
 from nntile.layer import Linear
-from nntile.nntile_core import notrans
+from nntile.nntile import notrans
 import numpy as np
 
 context = nntile.Context(ncpu=1, ncuda=1, ooc=0, verbose=0)

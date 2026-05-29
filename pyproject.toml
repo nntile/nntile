@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nntile"
-version = "1.0.0"
+version = "1.1.0"
 description = """
 Framework for training large neural network in heterogeneous distributed-memory
 systems."""
@@ -107,7 +107,7 @@ plugins = ["numpy.typing.mypy_plugin"]
 [tool.pytest.ini_options]
 minversion = "8.2"
 addopts = "-ra -q -m 'not slow'"
-testpaths = ["wrappers/python/tests"]
+testpaths = ["python/tests", "wrappers/python/tests"]
 markers = [
     "slow: slow tests (deselect with '-m \"not slow\"')",
     "cuda: tests that requires CUDA",
@@ -119,8 +119,8 @@ packages = [
     "datasets", "fastapi", "numpy", "pydantic", "pytest", "scipy", "torch",
     "torchvision", "transformers", "uvicorn",
 ]
-sources = ["wrappers/python/nntile"]
-targets = ["wrappers/python/tests"]
+sources = ["python/nntile", "wrappers/python/nntile"]
+targets = ["python/tests", "wrappers/python/tests"]
 
 [tool.pytest-dirty.dependency]
 "wrappers/python/tests/**/test_*.py" = ["wrappers/python/tests/conftest.py"]
@@ -147,5 +147,5 @@ platforms = ["Linux"]
 zip-safe = false
 
 [tool.setuptools.packages.find]
-where = "wrappers/python"
+where = ["python", "wrappers/python"]
 include = ["nntile*"]

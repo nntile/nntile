@@ -16,30 +16,30 @@ add_subdirectory("../../external/pybind11" "pybind11")
 
 # If a single source file will become huge, it will be split into several files
 set(EXT_SRC
-    "nntile/nntile_core.cc"
+    "nntile/nntile.cc"
 )
 
 if(BUILD_CORE)
-    # Set up python extension module (target name distinct from libnntile_core)
-    pybind11_add_module(nntile_core_py ${EXT_SRC})
-    set_target_properties(nntile_core_py PROPERTIES
-        OUTPUT_NAME "nntile_core"
+    # Set up python extension module (target name distinct from libnntile)
+    pybind11_add_module(nntile_py ${EXT_SRC})
+    set_target_properties(nntile_py PROPERTIES
+        OUTPUT_NAME "nntile"
         LIBRARY_OUTPUT_DIRECTORY "nntile"
         SUFFIX ".so")
-    target_link_libraries(nntile_core_py PRIVATE nntile_core)
+    target_link_libraries(nntile_py PRIVATE nntile)
 endif()
 
 if(BUILD_GRAPH)
     # Graph API extension module
     set(GRAPH_SRC
-        "nntile/nntile_graph.cc"
+        "nntile/nntile.cc"
     )
-    pybind11_add_module(nntile_graph_py ${GRAPH_SRC})
-    set_target_properties(nntile_graph_py PROPERTIES
-        OUTPUT_NAME "nntile_graph"
+    pybind11_add_module(nntile_py ${GRAPH_SRC})
+    set_target_properties(nntile_py PROPERTIES
+        OUTPUT_NAME "nntile"
         LIBRARY_OUTPUT_DIRECTORY "nntile"
         SUFFIX ".so")
-    target_link_libraries(nntile_graph_py PRIVATE nntile_graph)
+    target_link_libraries(nntile_py PRIVATE nntile)
 endif()
 
 # Collect all *.py source files and copy them into build directory
@@ -68,26 +68,26 @@ file(GLOB_RECURSE PY_TESTS FOLLOW_SYMLINKS LIST_DIRECTORIES FALSE
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "nntile_core/test_tensor_add_fiber_inplace.py"
-    "nntile_core/test_tensor_sum_fiber.py"
-    "nntile_core/test_tensor_sum_slice.py"
-    "nntile_core/test_tensor_fill.py"
-    "nntile_core/test_tensor_gelu_backward.py"
-    "nntile_core/test_tensor_gelutanh_backward.py"
-    "nntile_core/test_tensor_relu_backward.py"
-    "nntile_core/test_tensor_logsumexp.py"
-    "nntile_core/test_tensor_norm_slice_inplace.py"
-    "nntile_core/test_tensor_pow.py"
-    "nntile_core/test_tensor_multiply_fiber_inplace.py"
-    "nntile_core/test_tensor_multiply_slice.py"
-    "nntile_core/test_tensor_sumprod_fiber.py"
-    "nntile_core/test_tensor_sumprod_slice.py"
-    "nntile_core/test_tensor_total_sum_accum.py"
-    "nntile_core/test_tensor_add_slice_inplace.py"
-    "nntile_core/test_tensor_hypot_inplace.py"
-    "nntile_core/test_tensor_multiply_fiber.py"
-    "nntile_core/test_tensor_scale.py"
-    "nntile_core/test_tensor_scale_inplace.py"
+    "nntile/test_tensor_add_fiber_inplace.py"
+    "nntile/test_tensor_sum_fiber.py"
+    "nntile/test_tensor_sum_slice.py"
+    "nntile/test_tensor_fill.py"
+    "nntile/test_tensor_gelu_backward.py"
+    "nntile/test_tensor_gelutanh_backward.py"
+    "nntile/test_tensor_relu_backward.py"
+    "nntile/test_tensor_logsumexp.py"
+    "nntile/test_tensor_norm_slice_inplace.py"
+    "nntile/test_tensor_pow.py"
+    "nntile/test_tensor_multiply_fiber_inplace.py"
+    "nntile/test_tensor_multiply_slice.py"
+    "nntile/test_tensor_sumprod_fiber.py"
+    "nntile/test_tensor_sumprod_slice.py"
+    "nntile/test_tensor_total_sum_accum.py"
+    "nntile/test_tensor_add_slice_inplace.py"
+    "nntile/test_tensor_hypot_inplace.py"
+    "nntile/test_tensor_multiply_fiber.py"
+    "nntile/test_tensor_scale.py"
+    "nntile/test_tensor_scale_inplace.py"
     "layer/test_add.py"
     "layer/test_add_slice.py"
     "layer/test_gpt2mlp.py"
@@ -112,13 +112,13 @@ endforeach()
 
 if(BUILD_CORE AND BUILD_GRAPH)
     add_custom_target(nntile_compile_smoke
-        DEPENDS nntile_core nntile_graph nntile_core_py nntile_graph_py)
+        DEPENDS nntile nntile nntile_py nntile_py)
 elseif(BUILD_CORE)
     add_custom_target(nntile_compile_smoke
-        DEPENDS nntile_core nntile_core_py)
+        DEPENDS nntile nntile_py)
 elseif(BUILD_GRAPH)
     add_custom_target(nntile_compile_smoke
-        DEPENDS nntile_graph nntile_graph_py)
+        DEPENDS nntile nntile_py)
 endif()
 
 # Install Python module

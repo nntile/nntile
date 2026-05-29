@@ -12,9 +12,9 @@
 # @version 1.1.0
 
 from . import (
-    functions, graph, inference, layer, loss, model, nntile_core as core,
+    functions, graph, inference, layer, loss, model, nntile as core,
     optimizer, pipeline, tensor)
-from .nntile_core import Context, TransOp, notrans, starpu, tile, trans
+from .nntile import Context, TransOp, notrans, starpu, tile, trans
 
 __all__ = (
     'core', 'functions', 'graph', 'inference', 'layer', 'loss', 'model',

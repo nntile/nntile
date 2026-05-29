@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TENSOR_OPS_HH = ROOT / "include/nntile/graph/tensor/ops"
-TENSOR_OPS_CC = ROOT / "src/graph/tensor/ops"
+TENSOR_OPS_HH = ROOT / "include/nntile/tensor_graph/ops"
+TENSOR_OPS_CC = ROOT / "nntile/src/tensor_graph/ops"
 
 _GEMM_PATCH_RE = (
     r"(TensorGraph::TensorNode\* gemm\(\s*\n\s*TensorGraph::TensorNode\* a,"

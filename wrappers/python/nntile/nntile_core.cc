@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file wrappers/python/nntile/nntile_core.cc
+ * @file wrappers/python/nntile/nntile.cc
  * Extension module with NNTile wrappers
  *
  * @version 1.1.0
@@ -22,7 +22,7 @@
 #include <thread>
 
 using pybind11::literals::operator""_a;
-using namespace nntile::core;
+using namespace nntile;
 namespace py = pybind11;
 
 constexpr auto _wait_for_all_sleep_time = std::chrono::milliseconds(1);
@@ -30,7 +30,7 @@ constexpr auto _wait_for_all_sleep_time = std::chrono::milliseconds(1);
 // Extend (sub)module with nntile::starpu functionality
 void def_mod_starpu(py::module_ &m)
 {
-    using namespace nntile::core::starpu;
+    using namespace nntile::starpu;
     using namespace std::chrono_literals;
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
@@ -187,11 +187,11 @@ void tile_to_array(const tile::Tile<T> &tile,
     tile_local.release();
 }
 
-// Extend (sub)module with nntile::core::tile::Tile<T>
+// Extend (sub)module with nntile::tile::Tile<T>
 template<typename T>
 void def_class_tile(py::module_ &m, const char *name)
 {
-    using namespace nntile::core::tile;
+    using namespace nntile::tile;
     py::class_<Tile<T>, TileTraits>(m, name, py::multiple_inheritance()).
         def(py::init<const TileTraits &>()).
         def("unregister", &Tile<T>::unregister).
@@ -207,7 +207,7 @@ void def_class_tile(py::module_ &m, const char *name)
 // Extend (sub)module with nntile::tile functionality
 void def_mod_tile(py::module_ &m)
 {
-    using namespace nntile::core::tile;
+    using namespace nntile::tile;
     // Define wrapper for the Class
     py::class_<TileTraits>(m, "TileTraits").
         // Constructor
@@ -402,11 +402,11 @@ bool tensor_try_gathered_to_array(const tensor::Tensor<T> &tensor,
     return true;
 }
 
-// Extend (sub)module with nntile::core::tensor::Tensor<T>
+// Extend (sub)module with nntile::tensor::Tensor<T>
 template<typename T>
 void def_class_tensor(py::module_ &m, const char *name)
 {
-    using namespace nntile::core::tensor;
+    using namespace nntile::tensor;
     py::class_<Tensor<T>, TensorTraits>(m, name, py::multiple_inheritance()).
         def(py::init<const TensorTraits &, const std::vector<int> &, const char *>(),
             py::arg("traits"),
@@ -443,17 +443,17 @@ void def_class_tensor(py::module_ &m, const char *name)
 
 }
 
-// Extend (sub)module with nntile::core::tensor::distributions functionality
+// Extend (sub)module with nntile::tensor::distributions functionality
 void def_tensor_distributions(py::module_ &m)
 {
-    using namespace nntile::core::tensor::distributions;
+    using namespace nntile::tensor::distributions;
     m.def("block_cyclic", &block_cyclic);
 }
 
 // Extend (sub)module with nntile::tensor functionality
 void def_mod_tensor(py::module_ &m)
 {
-    using namespace nntile::core::tensor;
+    using namespace nntile::tensor;
     // Define wrapper for TensorTraits
     py::class_<TensorTraits, tile::TileTraits>(m, "TensorTraits",
             py::multiple_inheritance()).
@@ -475,7 +475,7 @@ void def_mod_tensor(py::module_ &m)
         // Get grid (TileTraits)
         def_readonly("grid", &TensorTraits::grid);
     // Define wrappers for Tensor<T>
-    def_class_tensor<nntile::core::int64_t>(m, "Tensor_int64");
+    def_class_tensor<nntile::int64_t>(m, "Tensor_int64");
     def_class_tensor<bool_t>(m, "Tensor_bool");
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
     def_class_tensor<fp32_fast_tf32_t>(m, "Tensor_fp32_fast_tf32");
@@ -764,12 +764,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("pow_async_fp32_fast_bf16", &pow_async<fp32_fast_bf16_t>);
     m.def("pow_async_bf16", &pow_async<bf16_t>);
 
-    m.def("pow_fp64", &nntile::core::tensor::pow<fp64_t>);
-    m.def("pow_fp32", &nntile::core::tensor::pow<fp32_t>);
-    m.def("pow_fp32_fast_tf32", &nntile::core::tensor::pow<fp32_fast_tf32_t>);
-    m.def("pow_fp32_fast_fp16", &nntile::core::tensor::pow<fp32_fast_fp16_t>);
-    m.def("pow_fp32_fast_bf16", &nntile::core::tensor::pow<fp32_fast_bf16_t>);
-    m.def("pow_bf16", &nntile::core::tensor::pow<bf16_t>);
+    m.def("pow_fp64", &nntile::tensor::pow<fp64_t>);
+    m.def("pow_fp32", &nntile::tensor::pow<fp32_t>);
+    m.def("pow_fp32_fast_tf32", &nntile::tensor::pow<fp32_fast_tf32_t>);
+    m.def("pow_fp32_fast_fp16", &nntile::tensor::pow<fp32_fast_fp16_t>);
+    m.def("pow_fp32_fast_bf16", &nntile::tensor::pow<fp32_fast_bf16_t>);
+    m.def("pow_bf16", &nntile::tensor::pow<bf16_t>);
 
     m.def("softmax_async_fp64", &softmax_async<fp64_t>);
     m.def("softmax_async_fp32", &softmax_async<fp32_t>);
@@ -803,7 +803,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("softmax_inplace_bf16", &softmax_inplace<bf16_t>);
     m.def("softmax_inplace_fp16", &softmax_inplace<fp16_t>);
 
-    m.def("scatter_async_int64", &scatter_async<nntile::core::int64_t>);
+    m.def("scatter_async_int64", &scatter_async<nntile::int64_t>);
     m.def("scatter_async_bool", &scatter_async<bool_t>);
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
@@ -813,7 +813,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("scatter_async_bf16", &scatter_async<bf16_t>);
     m.def("scatter_async_fp16", &scatter_async<fp16_t>);
 
-    m.def("scatter_int64", &scatter<nntile::core::int64_t>);
+    m.def("scatter_int64", &scatter<nntile::int64_t>);
     m.def("scatter_bool", &scatter<bool_t>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
@@ -1060,7 +1060,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("multiply_fiber_bf16", &multiply_fiber<bf16_t>);
     m.def("multiply_fiber_fp16", &multiply_fiber<fp16_t>);
 
-    m.def("gather_async_int64", &gather_async<nntile::core::int64_t>);
+    m.def("gather_async_int64", &gather_async<nntile::int64_t>);
     m.def("gather_async_bool", &gather_async<bool_t>);
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
@@ -1070,7 +1070,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_async_bf16", &gather_async<bf16_t>);
     m.def("gather_async_fp16", &gather_async<fp16_t>);
 
-    m.def("gather_int64", &gather<nntile::core::int64_t>);
+    m.def("gather_int64", &gather<nntile::int64_t>);
     m.def("gather_bool", &gather<bool_t>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
@@ -1080,7 +1080,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_bf16", &gather<bf16_t>);
     m.def("gather_fp16", &gather<fp16_t>);
 
-    m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::core::int64_t>);
+    m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::int64_t>);
     m.def("copy_intersection_async_bool", &copy_intersection_async<bool_t>);
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
@@ -1090,7 +1090,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("copy_intersection_async_bf16", &copy_intersection_async<bf16_t>);
     m.def("copy_intersection_async_fp16", &copy_intersection_async<fp16_t>);
 
-    m.def("copy_intersection_int64", &copy_intersection<nntile::core::int64_t>);
+    m.def("copy_intersection_int64", &copy_intersection<nntile::int64_t>);
     m.def("copy_intersection_bool", &copy_intersection<bool_t>);
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
@@ -1100,7 +1100,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("copy_intersection_bf16", &copy_intersection<bf16_t>);
     m.def("copy_intersection_fp16", &copy_intersection<bf16_t>);
 
-    m.def("copy_async_int64", &copy_async<nntile::core::int64_t>);
+    m.def("copy_async_int64", &copy_async<nntile::int64_t>);
     m.def("copy_async_bool", &copy_async<bool_t>);
     m.def("copy_async_fp64", &copy_async<fp64_t>);
     m.def("copy_async_fp32", &copy_async<fp32_t>);
@@ -1110,7 +1110,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("copy_async_bf16", &copy_async<bf16_t>);
     m.def("copy_async_fp16", &copy_async<fp16_t>);
 
-    m.def("copy_int64", &copy<nntile::core::int64_t>);
+    m.def("copy_int64", &copy<nntile::int64_t>);
     m.def("copy_bool", &copy<bool_t>);
     m.def("copy_fp64", &copy<fp64_t>);
     m.def("copy_fp32", &copy<fp32_t>);
@@ -1120,7 +1120,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("copy_bf16", &copy<bf16_t>);
     m.def("copy_fp16", &copy<fp16_t>);
 
-    m.def("clear_async_int64", &clear_async<nntile::core::int64_t>);
+    m.def("clear_async_int64", &clear_async<nntile::int64_t>);
     m.def("clear_async_bool", &clear_async<bool_t>);
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
@@ -1130,7 +1130,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_bf16", &clear_async<bf16_t>);
     m.def("clear_async_fp16", &clear_async<fp16_t>);
 
-    m.def("clear_int64", &clear<nntile::core::int64_t>);
+    m.def("clear_int64", &clear<nntile::int64_t>);
     m.def("clear_bool", &clear<bool_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
@@ -1147,12 +1147,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("sqrt_async_fp32_fast_bf16", &sqrt_async<fp32_fast_bf16_t>);
     m.def("sqrt_async_bf16", &sqrt_async<bf16_t>);
 
-    m.def("sqrt_fp64", &nntile::core::tensor::sqrt<fp64_t>);
-    m.def("sqrt_fp32", &nntile::core::tensor::sqrt<fp32_t>);
-    m.def("sqrt_fp32_fast_tf32", &nntile::core::tensor::sqrt<fp32_fast_tf32_t>);
-    m.def("sqrt_fp32_fast_fp16", &nntile::core::tensor::sqrt<fp32_fast_fp16_t>);
-    m.def("sqrt_fp32_fast_bf16", &nntile::core::tensor::sqrt<fp32_fast_bf16_t>);
-    m.def("sqrt_bf16", &nntile::core::tensor::sqrt<bf16_t>);
+    m.def("sqrt_fp64", &nntile::tensor::sqrt<fp64_t>);
+    m.def("sqrt_fp32", &nntile::tensor::sqrt<fp32_t>);
+    m.def("sqrt_fp32_fast_tf32", &nntile::tensor::sqrt<fp32_fast_tf32_t>);
+    m.def("sqrt_fp32_fast_fp16", &nntile::tensor::sqrt<fp32_fast_fp16_t>);
+    m.def("sqrt_fp32_fast_bf16", &nntile::tensor::sqrt<fp32_fast_bf16_t>);
+    m.def("sqrt_bf16", &nntile::tensor::sqrt<bf16_t>);
 
     m.def("sqrt_inplace_async_fp64", &sqrt_inplace_async<fp64_t>);
     m.def("sqrt_inplace_async_fp32", &sqrt_inplace_async<fp32_t>);
@@ -1504,13 +1504,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("hypot_async_bf16", &hypot_async<bf16_t>);
     m.def("hypot_async_fp16", &hypot_async<fp16_t>);
 
-    m.def("hypot_fp64", &nntile::core::tensor::hypot<fp64_t>);
-    m.def("hypot_fp32", &nntile::core::tensor::hypot<fp32_t>);
-    m.def("hypot_fp32_fast_tf32", &nntile::core::tensor::hypot<fp32_fast_tf32_t>);
-    m.def("hypot_fp32_fast_fp16", &nntile::core::tensor::hypot<fp32_fast_fp16_t>);
-    m.def("hypot_fp32_fast_bf16", &nntile::core::tensor::hypot<fp32_fast_bf16_t>);
-    m.def("hypot_bf16", &nntile::core::tensor::hypot<bf16_t>);
-    m.def("hypot_fp16", &nntile::core::tensor::hypot<fp16_t>);
+    m.def("hypot_fp64", &nntile::tensor::hypot<fp64_t>);
+    m.def("hypot_fp32", &nntile::tensor::hypot<fp32_t>);
+    m.def("hypot_fp32_fast_tf32", &nntile::tensor::hypot<fp32_fast_tf32_t>);
+    m.def("hypot_fp32_fast_fp16", &nntile::tensor::hypot<fp32_fast_fp16_t>);
+    m.def("hypot_fp32_fast_bf16", &nntile::tensor::hypot<fp32_fast_bf16_t>);
+    m.def("hypot_bf16", &nntile::tensor::hypot<bf16_t>);
+    m.def("hypot_fp16", &nntile::tensor::hypot<fp16_t>);
 
     m.def("hypot_scalar_inverse_async_fp64", &hypot_scalar_inverse_async<fp64_t>);
     m.def("hypot_scalar_inverse_async_fp32", &hypot_scalar_inverse_async<fp32_t>);
@@ -1674,11 +1674,11 @@ void def_mod_tensor(py::module_ &m)
 }
 
 // Main extension module with all wrappers
-PYBIND11_MODULE(nntile_core, m)
+PYBIND11_MODULE(nntile, m)
 {
-    using namespace nntile::core::tensor;
+    using namespace nntile::tensor;
     // Add NNTile configuration class
-    py::class_<nntile::core::Context>(m, "Context")
+    py::class_<nntile::Context>(m, "Context")
         .def(
             py::init<int, int, int, const char *, size_t, int,
                 const char *, int, int>(),
@@ -1691,10 +1691,10 @@ PYBIND11_MODULE(nntile_core, m)
             py::arg("logger_addr")="localhost",
             py::arg("logger_port")=5001,
             py::arg("verbose")=0)
-        .def("shutdown", &nntile::core::Context::shutdown)
-        .def("restrict_cpu", &nntile::core::Context::restrict_cpu)
-        .def("restrict_cuda", &nntile::core::Context::restrict_cuda)
-        .def("restore_where", &nntile::core::Context::restore_where);
+        .def("shutdown", &nntile::Context::shutdown)
+        .def("restrict_cpu", &nntile::Context::restrict_cpu)
+        .def("restrict_cuda", &nntile::Context::restrict_cuda)
+        .def("restore_where", &nntile::Context::restore_where);
 
     // Add starpu submodule
     auto starpu = m.def_submodule("starpu");

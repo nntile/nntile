@@ -1,4 +1,4 @@
-# Import a pre-built nntile_core from an install prefix (CI graph-only builds).
+# Import a pre-built nntile from an install prefix (CI graph-only builds).
 
 include(GNUInstallDirs)
 
@@ -8,12 +8,12 @@ function(nntile_import_installed_core prefix)
             "${CMAKE_CURRENT_BINARY_DIR}")
     endif()
 
-    set(_lib "${prefix}/${CMAKE_INSTALL_LIBDIR}/libnntile_core.so")
+    set(_lib "${prefix}/${CMAKE_INSTALL_LIBDIR}/libnntile.so")
     if(NOT EXISTS "${_lib}")
-        set(_lib "${prefix}/lib/libnntile_core.so")
+        set(_lib "${prefix}/lib/libnntile.so")
     endif()
     if(NOT EXISTS "${_lib}")
-        message(FATAL_ERROR "libnntile_core.so not found under ${prefix}")
+        message(FATAL_ERROR "libnntile.so not found under ${prefix}")
     endif()
 
     set(_inc "${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
@@ -21,14 +21,14 @@ function(nntile_import_installed_core prefix)
         set(_inc "${prefix}/include")
     endif()
 
-    if(NOT TARGET nntile_core)
-        add_library(nntile_core SHARED IMPORTED GLOBAL)
+    if(NOT TARGET nntile)
+        add_library(nntile SHARED IMPORTED GLOBAL)
     endif()
-    set_target_properties(nntile_core PROPERTIES
+    set_target_properties(nntile PROPERTIES
         IMPORTED_LOCATION "${_lib}"
         INTERFACE_INCLUDE_DIRECTORIES "${_inc}"
     )
-    target_link_libraries(nntile_core INTERFACE
+    target_link_libraries(nntile INTERFACE
         ${StarPU_LDFLAGS}
         nlohmann_json::nlohmann_json
     )
@@ -40,7 +40,7 @@ function(nntile_installed_core_defs_has prefix symbol out_var)
     if(NOT IS_DIRECTORY "${_inc}")
         set(_inc "${prefix}/include")
     endif()
-    set(_defs "${_inc}/nntile/core/defs.h")
+    set(_defs "${_inc}/nntile/defs.h")
     if(NOT EXISTS "${_defs}")
         set(${out_var} FALSE PARENT_SCOPE)
         return()
