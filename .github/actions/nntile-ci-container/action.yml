@@ -1,37 +1,27 @@
 name: NNTile CI container setup
 description: >-
-  StarPU, optional PR deepen, and Python+Torch dependencies for NNTile CI
-  jobs. Callers must run container bootstrap and actions/checkout@v6 first
-  (local actions are not available before checkout).
+  Python extras for model integration tests in test-full. StarPU, compilers,
+  and PyTorch are provided by the CI sandbox container image.
 inputs:
   python-version:
-    description: Python version for setup-python
-    required: true
+    description: Deprecated; Python comes from the sandbox image
+    required: false
+    default: ''
   deepen-pr:
-    description: >-
-      Deprecated; run ./.github/actions/nntile-pr-checkout after checkout
-      instead (StarPU cache restore must not run before the repo exists).
+    description: Deprecated; unused
     required: false
     default: 'false'
 runs:
   using: composite
   steps:
-    - uses: ./.github/actions/nntile-starpu-setup
-    - name: Set up Python ${{ inputs.python-version }}
-      uses: actions/setup-python@v6
-      with:
-        python-version: ${{ inputs.python-version }}
-    - name: Restore StarPU pkg-config path
-      shell: bash
-      run: |
-        echo "PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig:${PKG_CONFIG_PATH:-}" \
-          >> "$GITHUB_ENV"
-    - name: Install Python dependencies
+    - name: Verify StarPU installation
       shell: bash
       run: |
         set -euo pipefail
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        $HOME/.local/bin/uv pip install --system \
-          torch --index-url https://download.pytorch.org/whl/cpu
-        $HOME/.local/bin/uv pip install --system \
-          numpy safetensors "transformers<4.53"
+        PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig pkg-config --modversion starpu-1.4
+    - name: Verify PyTorch and install model test dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        python3 -c "import torch; print(torch.__version__)"
+        python3 -m pip install --quiet numpy safetensors "transformers<4.53"

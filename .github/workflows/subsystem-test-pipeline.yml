@@ -12,26 +12,30 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
+  NNTILE_CI_CONTAINER_IMAGE: >-
+    ghcr.io/nntile/nntile_sandbox:starpu1.4-9253daf_sgoc_pytorch2.9.1_cuda12.9.1
 
 jobs:
   compile-check-tests:
     name: compile-check-tests-${{ inputs.subsystem }}
     runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
       - uses: ./.github/actions/download-nntile-catch2-deps
       - run: |
           chmod +x .github/scripts/verify-catch2-deps-for-compile-check.sh
@@ -60,16 +64,17 @@ jobs:
     name: build-tests-${{ inputs.subsystem }}
     needs: compile-check-tests
     runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
       - uses: ./.github/actions/download-nntile-catch2-deps
       - uses: ./.github/actions/restore-nntile-prebuilt-lib-cache
       - uses: ./.github/actions/restore-nntile-test-obj-deps
@@ -116,16 +121,17 @@ jobs:
     name: test-run-${{ inputs.subsystem }}
     needs: build-tests
     runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
       - uses: actions/cache/restore@v4
         with:
           path: build

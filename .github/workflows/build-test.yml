@@ -15,28 +15,30 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
+  NNTILE_CI_CONTAINER_IMAGE: >-
+    ghcr.io/nntile/nntile_sandbox:starpu1.4-9253daf_sgoc_pytorch2.9.1_cuda12.9.1
 
 jobs:
   configure-smoke:
     name: Configure smoke (CMake only)
     runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: |
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
       - run: chmod +x .github/scripts/check-nntile-includes.sh
       - run: .github/scripts/check-nntile-includes.sh .
       - run: |
@@ -64,16 +66,17 @@ jobs:
           - io
           - dataset
           - model
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
@@ -98,16 +101,17 @@ jobs:
     name: bundle lib object archives
     needs: compile-check
     runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
       - uses: ./.github/actions/restore-all-nntile-obj-caches
       - run: .github/scripts/restore-nntile-objs-verify.sh build
       - uses: actions/cache/save@v4
@@ -120,16 +124,17 @@ jobs:
     name: build-test-prerequisites
     needs: configure-smoke
     runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
@@ -152,16 +157,17 @@ jobs:
     name: build-nntile (link only)
     needs: bundle-nntile-lib-objs
     runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
       - run: chmod +x .github/scripts/restore-nntile-objs-verify.sh
       - uses: ./.github/actions/restore-bundled-nntile-obj-cache
       - run: .github/scripts/restore-nntile-objs-verify.sh build
@@ -216,17 +222,18 @@ jobs:
     name: test-full-integration
     needs: [build-nntile, subsystem-test]
     runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
+    container:
+      image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-ci-container
-        with: {python-version: '3.12'}
       - run: |
           export TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \

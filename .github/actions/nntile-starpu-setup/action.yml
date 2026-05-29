@@ -1,5 +1,7 @@
 name: NNTile StarPU and apt setup
-description: Install Ubuntu build dependencies and StarPU 1.4.8 under /opt/starpu
+description: >-
+  Legacy: install Ubuntu packages and build StarPU on ubuntu:24.04. CI uses
+  ghcr.io/nntile/nntile_sandbox (see NNTILE_CI_CONTAINER_IMAGE in workflows).
 runs:
   using: composite
   steps:

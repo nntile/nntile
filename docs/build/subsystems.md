@@ -70,6 +70,13 @@ cmake -S . -B build -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=nn \
 cmake --build build --target nntile_compile_check_tests_nn
 ```
 
+## CI container image
+
+GitHub Actions jobs run inside
+`ghcr.io/nntile/nntile_sandbox:starpu1.4-9253daf_sgoc_pytorch2.9.1_cuda12.9.1`
+(StarPU 1.4, build toolchain, PyTorch 2.9). Workflows set
+`NNTILE_CI_CONTAINER_IMAGE` and do not run apt or compile StarPU on the runner.
+
 ## Test build and run (CI)
 
 PR workflow uses three separate test stages per subsystem:
