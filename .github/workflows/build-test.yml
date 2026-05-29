@@ -62,7 +62,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: nntile-build
-          path: build/
+          path: |
+            build/
+            !build/_deps/**
           retention-days: 1
 
   build-tests:
@@ -83,6 +85,7 @@ jobs:
         with:
           name: nntile-build
           path: build
+      - run: rm -rf build/_deps
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
@@ -99,7 +102,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: nntile-build-tests
-          path: build/
+          path: |
+            build/
+            !build/_deps/**
           retention-days: 1
 
   run-tests:
@@ -143,6 +148,7 @@ jobs:
         with:
           name: nntile-build
           path: build
+      - run: rm -rf build/_deps
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache

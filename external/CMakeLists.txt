@@ -18,12 +18,14 @@ if(BUILD_PYTHON_WRAPPERS)
     FetchContent_MakeAvailable(pybind11)
 endif()
 
-FetchContent_Declare(
-    Catch2
-    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG v3.11.0
-)
-FetchContent_MakeAvailable(Catch2)
+if(BUILD_TESTS)
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG v3.11.0
+    )
+    FetchContent_MakeAvailable(Catch2)
+endif()
 
 FetchContent_Declare(
     nlohmann_json
