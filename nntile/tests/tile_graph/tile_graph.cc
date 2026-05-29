@@ -18,6 +18,7 @@
 #include "nntile/tile.hh"
 
 #include <catch2/catch_test_macros.hpp>
+#include <nntile/graph.hh>
 #include <cstring>
 #include <numeric>
 
