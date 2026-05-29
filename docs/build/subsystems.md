@@ -52,8 +52,8 @@ lookups.
 Job `build-nntile` configures `-DNNTILE_PRESET=full -DNNTILE_LINK_CACHED_OBJECTS=ON`,
 restores the bundled archives, then links `libnntile`. CMake does **not** register
 subsystem sources for compilation in that mode (only `context.cc`, logger sources,
-and the shared-library link). This job validates the link-only path; it does not
-gate `build-tests-*`.
+and the shared-library link). It saves cache key `nntile-lib-linked-<sha>` with
+`build/lib/libnntile.so` and `build/include/nntile/defs.h` for `build-tests-*`.
 
 ## Test compile-check (no libnntile)
 
@@ -74,17 +74,17 @@ PR workflow uses three separate test stages per subsystem:
 |-----|---------|
 | `compile-check-*` | Compile one subsystem's lib sources; cache `nntile_objs_*` |
 | `bundle-nntile-lib-objs` | Restore all lib archives once; save bundled cache |
-| `build-nntile` | Link `libnntile` from bundled archives (validation; parallel with tests) |
+| `build-nntile` | Link `libnntile` from bundled archives; cache `libnntile.so` |
 | `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
 | `compile-check-tests-*` | Compile test `.cc` into `nntile_test_objs_*`; cache tarball |
-| `build-tests-*` | Link `libnntile` + test binaries from bundled lib + cached test objects |
+| `build-tests-*` | Restore cached `libnntile.so`; link test binaries from cached test `.o` |
 | `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile) |
 
-`build-tests-*` depends on `bundle-nntile-lib-objs` and `compile-check-tests-*`, not
-on `build-nntile`. Each matrix job restores the bundled lib archives and its own
-test-object tarball, then links locally. It uses `-DNNTILE_LINK_CACHED_OBJECTS=ON`,
-`-DNNTILE_LINK_CACHED_TEST_OBJECTS=ON`, and does **not** recompile subsystem library
-or test translation units.
+`build-tests-*` depends on `build-nntile`, `compile-check-tests-*`, and
+`build-test-prerequisites`. Each job restores the linked library from
+`build-nntile` (`-DNNTILE_PREBUILT_LIBRARY=...`), restores its test-object tarball,
+and runs `cmake --build` for test targets only. It does **not** re-link
+`libnntile` from per-subsystem `.a` archives or recompile library or test sources.
 
 ## Running tests locally (requires full libnntile)
 

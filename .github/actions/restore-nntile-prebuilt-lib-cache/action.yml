@@ -1,0 +1,25 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file .github/actions/restore-nntile-prebuilt-lib-cache/action.yml
+#
+# Restore libnntile.so and generated defs.h saved by build-nntile.
+#
+# @version 1.1.0
+name: Restore prebuilt libnntile cache
+description: Restore linked libnntile.so from build-nntile job cache
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@v4
+      with:
+        path: |
+          build/lib
+          build/include/nntile/defs.h
+        key: nntile-lib-linked-${{ github.sha }}
+        fail-on-cache-miss: true
