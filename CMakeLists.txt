@@ -18,9 +18,6 @@ project(NNTile VERSION 1.1.0 LANGUAGES CXX C)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 
-set(NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM "" CACHE STRING
-    "Compile-check test sources for one subsystem (no libnntile link/run)")
-
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(BUILD_NNTILE "Build unified nntile library" ON)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
@@ -35,9 +32,6 @@ option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build C++ examples under nntile/examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 option(BUILD_PYTHON_WRAPPERS "Build python/ package" ON)
-option(NNTILE_FETCHCONTENT_DISCONNECTED
-    "Reuse populated build/_deps from CI test-prerequisites job (FetchContent)" OFF)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
@@ -146,9 +140,7 @@ elseif(USE_CBLAS)
     endif()
 endif()
 
-if(BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID
-        AND NOT NNTILE_COMPILE_CHECK_SUBSYSTEM
-        AND NOT NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM)
+if(BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID)
     include(CTest)
 endif()
 
@@ -164,7 +156,7 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-if(BUILD_NNTILE OR NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM)
+if(BUILD_NNTILE)
     add_subdirectory(nntile)
 endif()
 

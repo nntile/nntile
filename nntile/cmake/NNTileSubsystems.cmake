@@ -7,23 +7,11 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file nntile/cmake/NNTileSubsystems.cmake
-# NNTileSubsystems.cmake
+# Per-subsystem build options and presets for unified target nntile.
 #
 # @version 1.1.0
-# @file nntile/cmake/NNTileSubsystems.cmake
-# Per-subsystem build options and presets for unified target nntile.
-# Stack (bottom to top): kernel -> starpu -> core -> tile -> tensor -> nn
 
 option(BUILD_NNTILE "Build unified nntile library" ON)
-
-set(NNTILE_COMPILE_CHECK_SUBSYSTEM "" CACHE STRING
-    "Compile-check one subsystem only (kernel|starpu|core|graph_base|tile|...) or OFF")
-
-set(NNTILE_LINK_CACHED_OBJECTS OFF CACHE BOOL
-    "Link libnntile from prebuilt per-subsystem archives (CI build-nntile)")
-
-set(NNTILE_PREBUILT_LIBRARY "" CACHE FILEPATH
-    "Path to prebuilt libnntile.so from CI build-nntile (build-tests link-only)")
 
 set(NNTILE_PRESET "" CACHE STRING "core|graph_min|full")
 
@@ -80,22 +68,20 @@ else()
     message(FATAL_ERROR "Unknown NNTILE_PRESET=${NNTILE_PRESET}")
 endif()
 
-if(NOT NNTILE_COMPILE_CHECK_SUBSYSTEM)
-    set(NNTILE_BUILD_KERNEL ${_preset_kernel} CACHE BOOL "Build kernel subsystem" FORCE)
-    set(NNTILE_BUILD_STARPU ${_preset_starpu} CACHE BOOL "Build starpu subsystem" FORCE)
-    set(NNTILE_BUILD_CORE ${_preset_core} CACHE BOOL "Build core (eager tile) subsystem" FORCE)
-    set(NNTILE_BUILD_LOGGER ON CACHE BOOL "Build logger" FORCE)
-    set(NNTILE_BUILD_GRAPH_BASE ${_preset_graph_base} CACHE BOOL "Build graph base (dtype)" FORCE)
-    set(NNTILE_BUILD_TILE ${_preset_tile} CACHE BOOL "Build tile graph subsystem" FORCE)
-    set(NNTILE_BUILD_TENSOR ${_preset_tensor} CACHE BOOL "Build tensor graph subsystem" FORCE)
-    set(NNTILE_BUILD_NN ${_preset_nn} CACHE BOOL "Build nn graph subsystem" FORCE)
-    set(NNTILE_BUILD_RUNTIME ${_preset_runtime} CACHE BOOL "Build runtime" FORCE)
-    set(NNTILE_BUILD_MODULE ${_preset_module} CACHE BOOL "Build module" FORCE)
-    set(NNTILE_BUILD_MODEL ${_preset_model} CACHE BOOL "Build model" FORCE)
-    set(NNTILE_BUILD_OPTIM ${_preset_optim} CACHE BOOL "Build optim" FORCE)
-    set(NNTILE_BUILD_IO ${_preset_io} CACHE BOOL "Build io" FORCE)
-    set(NNTILE_BUILD_DATASET ${_preset_dataset} CACHE BOOL "Build dataset" FORCE)
-endif()
+set(NNTILE_BUILD_KERNEL ${_preset_kernel} CACHE BOOL "Build kernel subsystem" FORCE)
+set(NNTILE_BUILD_STARPU ${_preset_starpu} CACHE BOOL "Build starpu subsystem" FORCE)
+set(NNTILE_BUILD_CORE ${_preset_core} CACHE BOOL "Build core (eager tile) subsystem" FORCE)
+set(NNTILE_BUILD_LOGGER ON CACHE BOOL "Build logger" FORCE)
+set(NNTILE_BUILD_GRAPH_BASE ${_preset_graph_base} CACHE BOOL "Build graph base (dtype)" FORCE)
+set(NNTILE_BUILD_TILE ${_preset_tile} CACHE BOOL "Build tile graph subsystem" FORCE)
+set(NNTILE_BUILD_TENSOR ${_preset_tensor} CACHE BOOL "Build tensor graph subsystem" FORCE)
+set(NNTILE_BUILD_NN ${_preset_nn} CACHE BOOL "Build nn graph subsystem" FORCE)
+set(NNTILE_BUILD_RUNTIME ${_preset_runtime} CACHE BOOL "Build runtime" FORCE)
+set(NNTILE_BUILD_MODULE ${_preset_module} CACHE BOOL "Build module" FORCE)
+set(NNTILE_BUILD_MODEL ${_preset_model} CACHE BOOL "Build model" FORCE)
+set(NNTILE_BUILD_OPTIM ${_preset_optim} CACHE BOOL "Build optim" FORCE)
+set(NNTILE_BUILD_IO ${_preset_io} CACHE BOOL "Build io" FORCE)
+set(NNTILE_BUILD_DATASET ${_preset_dataset} CACHE BOOL "Build dataset" FORCE)
 
 # Parent/child propagation along the stack
 if(NNTILE_BUILD_STARPU AND NOT NNTILE_BUILD_KERNEL)
@@ -139,29 +125,6 @@ if(NNTILE_BUILD_MODEL AND NOT NNTILE_BUILD_RUNTIME)
 endif()
 if(NNTILE_BUILD_DATASET AND NOT NNTILE_BUILD_IO)
     set(NNTILE_BUILD_IO ON CACHE BOOL "" FORCE)
-endif()
-
-if(NNTILE_COMPILE_CHECK_SUBSYSTEM)
-    foreach(_s IN ITEMS KERNEL STARPU CORE LOGGER GRAPH_BASE TILE TENSOR NN
-            RUNTIME MODULE MODEL OPTIM IO DATASET)
-        set(NNTILE_BUILD_${_s} OFF CACHE BOOL "" FORCE)
-    endforeach()
-    string(TOUPPER "${NNTILE_COMPILE_CHECK_SUBSYSTEM}" _cc_upper)
-    set(NNTILE_BUILD_${_cc_upper} ON CACHE BOOL "" FORCE)
-    if(_cc_upper STREQUAL "TILE" OR _cc_upper STREQUAL "TENSOR"
-            OR _cc_upper STREQUAL "NN" OR _cc_upper STREQUAL "IO")
-        set(NNTILE_BUILD_GRAPH_BASE ON CACHE BOOL "" FORCE)
-    endif()
-    if(_cc_upper STREQUAL "TENSOR" OR _cc_upper STREQUAL "NN")
-        set(NNTILE_BUILD_TILE ON CACHE BOOL "" FORCE)
-    endif()
-    if(_cc_upper STREQUAL "NN" OR _cc_upper STREQUAL "RUNTIME"
-            OR _cc_upper STREQUAL "MODULE" OR _cc_upper STREQUAL "OPTIM")
-        set(NNTILE_BUILD_TENSOR ON CACHE BOOL "" FORCE)
-    endif()
-    if(NOT _cc_upper STREQUAL "KERNEL")
-        set(NNTILE_BUILD_KERNEL ON CACHE BOOL "" FORCE)
-    endif()
 endif()
 
 function(nntile_enable_subsystems_through LAST)
