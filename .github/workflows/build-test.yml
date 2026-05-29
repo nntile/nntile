@@ -84,10 +84,13 @@ jobs:
             -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build --target nntile_compile_check_${{ matrix.subsystem }}
+      - run: |
+          chmod +x .github/scripts/pack-nntile-objs-archive.sh
+          .github/scripts/pack-nntile-objs-archive.sh "${{ matrix.subsystem }}" build
       - uses: actions/cache/save@v4
         with:
-          path: build/nntile/src/CMakeFiles/nntile_objs_${{ matrix.subsystem }}.dir
-          key: nntile-objs-${{ matrix.subsystem }}-${{ github.sha }}
+          path: build/nntile_objs_cache/libnntile_objs_${{ matrix.subsystem }}.a
+          key: nntile-obj-a-${{ matrix.subsystem }}-${{ github.sha }}
 
   # Build Catch2 (FetchContent) once; compile-check-tests / test-build reuse build/_deps.
   build-test-prerequisites:
@@ -174,10 +177,10 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
       - run: |
-          chmod +x .github/scripts/restore-nntile-objs-verify.sh \
-            .github/scripts/touch-nntile-objs.sh
+          chmod +x .github/scripts/restore-nntile-objs-verify.sh
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_PRESET=full -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF \
+            -DNNTILE_PRESET=full -DNNTILE_LINK_CACHED_OBJECTS=ON \
+            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF \
             -DBUILD_PYTHON_WRAPPERS=OFF
       - uses: ./.github/actions/restore-nntile-obj-cache
         with: {subsystem: kernel}
@@ -207,14 +210,13 @@ jobs:
         with: {subsystem: dataset}
       - run: |
           .github/scripts/restore-nntile-objs-verify.sh build
-          .github/scripts/touch-nntile-objs.sh build
-          echo "=== ninja plan (expect link + context/logger only) ==="
+          echo "=== ninja plan (no subsystem .cc compile; link + context/logger only) ==="
           ninja -C build -n nntile 2>&1 | tee /tmp/nntile-ninja-plan.txt
           if grep -E 'CXX_COMPILER|CUDA_COMPILER' /tmp/nntile-ninja-plan.txt \
-              | grep -q 'nntile_objs_'; then
-            echo "unexpected recompile of cached subsystem objects" >&2
+              | grep -qE 'nntile/src/CMakeFiles/nntile_objs_'; then
+            echo "unexpected subsystem source compile (use cached .a only)" >&2
             grep -E 'CXX_COMPILER|CUDA_COMPILER' /tmp/nntile-ninja-plan.txt \
-              | grep 'nntile_objs_' >&2 || true
+              | grep 'nntile/src/CMakeFiles/nntile_objs_' >&2 || true
             exit 1
           fi
           cmake --build build --target nntile -j"$(nproc)"

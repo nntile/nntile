@@ -19,6 +19,9 @@ option(BUILD_NNTILE "Build unified nntile library" ON)
 set(NNTILE_COMPILE_CHECK_SUBSYSTEM "" CACHE STRING
     "Compile-check one subsystem only (kernel|starpu|core|graph_base|tile|...) or OFF")
 
+set(NNTILE_LINK_CACHED_OBJECTS OFF CACHE BOOL
+    "Link libnntile from prebuilt per-subsystem archives (CI build-nntile)")
+
 set(NNTILE_PRESET "" CACHE STRING "core|graph_min|full")
 
 function(nntile_subsystem_option NAME DESCRIPTION PARENT)

@@ -9,7 +9,7 @@
 #
 # @file .github/scripts/restore-nntile-objs-verify.sh
 #
-# Verify cached OBJECT dirs exist before link-only libnntile build.
+# Verify prebuilt subsystem archives exist before link-only libnntile build.
 #
 # @version 1.1.0
 set -euo pipefail
@@ -27,19 +27,19 @@ while IFS= read -r sub || [ -n "$sub" ]; do
   case "$sub" in
     '' | \#*) continue ;;
   esac
-  obj_dir="${build_dir}/nntile/src/CMakeFiles/nntile_objs_${sub}.dir"
-  if [ ! -d "$obj_dir" ]; then
-    echo "missing object dir: $obj_dir" >&2
+  lib="${build_dir}/nntile_objs_cache/libnntile_objs_${sub}.a"
+  if [ ! -f "$lib" ]; then
+    echo "missing archive: $lib" >&2
     missing=1
     continue
   fi
-  count=$(find "$obj_dir" -name '*.o' | wc -l)
+  count=$(ar t "$lib" | wc -l)
   if [ "$count" -eq 0 ]; then
-    echo "no .o files in $obj_dir" >&2
+    echo "empty archive: $lib" >&2
     missing=1
     continue
   fi
-  echo "ok ${sub}: ${count} object file(s)"
+  echo "ok ${sub}: ${count} member(s) in archive"
 done <"$list"
 
 if [ "$missing" -ne 0 ]; then

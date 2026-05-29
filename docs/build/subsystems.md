@@ -27,7 +27,8 @@ cmake --build build
 ## Compile-check (CI / local)
 
 Compiles **only** one subsystem's `.cc` files into `nntile_objs_<name>` (no link).
-CI saves each `nntile_objs_<name>.dir` to cache for the link-only library job.
+CI packs them into `build/nntile_objs_cache/libnntile_objs_<name>.a` and caches that
+archive for the link-only library job.
 
 ```bash
 cmake -S . -B build -DNNTILE_COMPILE_CHECK_SUBSYSTEM=tensor \
@@ -40,10 +41,10 @@ Subsystems: see `.github/scripts/nntile-lib-obj-subsystems.txt` (`graph_base` is
 
 ## build-nntile (CI, link only)
 
-Job `build-nntile` configures `-DNNTILE_PRESET=full`, restores all cached
-`nntile_objs_*` directories from `compile-check-*`, then links `libnntile`.
-It should **not** recompile subsystem translation units (only `context.cc`,
-logger sources, and the shared library link step).
+Job `build-nntile` configures `-DNNTILE_PRESET=full -DNNTILE_LINK_CACHED_OBJECTS=ON`,
+restores all cached `libnntile_objs_*.a` archives from `compile-check-*`, then
+links `libnntile`. CMake does **not** register subsystem sources for compilation
+in that mode (only `context.cc`, logger sources, and the shared-library link).
 
 ## Test compile-check (no libnntile)
 
