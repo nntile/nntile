@@ -8,13 +8,11 @@
 #
 # @version 1.1.0
 
-# Per-subsystem CI links cached test objects compiled without per-target DATA_DIR
-# macros; exclude fixture-driven tests with ctest -LE FixtureData.
+# Model block tests need generated safetensors; CI skips them with
+# ctest -LE FixtureData (see .github/workflows/build-test.yml).
 macro(nntile_model_label_fixture_data test_name)
-    if(NNTILE_REGISTER_CTEST)
-        set_tests_properties(tests_graph_model_${test_name} PROPERTIES
-            LABELS FixtureData)
-    endif()
+    set_tests_properties(tests_graph_model_${test_name} PROPERTIES
+        LABELS FixtureData)
 endmacro()
 
 # Llama test data: generated at test time via CTest fixtures (one per block)
