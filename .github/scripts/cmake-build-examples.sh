@@ -20,6 +20,8 @@ chmod +x .github/scripts/nntile-prebuilt-lib-path.sh
 _lib=$(.github/scripts/nntile-prebuilt-lib-path.sh "$build_dir")
 
 cmake -S . -B "$build_dir" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+    -DCMAKE_C_COMPILER="${CMAKE_C_COMPILER:-gcc}" \
+    -DCMAKE_CXX_COMPILER="${CMAKE_CXX_COMPILER:-g++}" \
     -DNNTILE_PRESET=full -DNNTILE_PREBUILT_LIBRARY="${_lib}" \
     -DBUILD_NNTILE=ON -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON \
     -DBUILD_PYTHON_WRAPPERS=OFF -DBUILD_TESTS_PYTORCH=OFF
