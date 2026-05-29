@@ -20,7 +20,6 @@ env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
-  DIFF_BASE: graph_api
   CMAKE_COMMON: >-
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
     -DUSE_CUDA=OFF
@@ -72,16 +71,11 @@ jobs:
             !build/_deps/**
           retention-days: 1
 
-  dirty-tests:
-    name: build and run dirty tests
+  build-and-run-tests:
+    name: build and run tests
     needs: build-lib
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
-    env:
-      NNTILE_DIFF_BASE: >-
-        ${{ github.event_name == 'pull_request'
-            && github.event.pull_request.base.sha
-            || github.event.before || '' }}
     defaults:
       run:
         shell: bash
@@ -90,23 +84,6 @@ jobs:
       - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - name: Prepare git worktree in container
-        run: |
-          chmod +x .github/scripts/ci-ensure-git-worktree.sh
-          .github/scripts/ci-ensure-git-worktree.sh
-      - name: Fetch diff base for dirty tests
-        run: |
-          set -euo pipefail
-          base="${NNTILE_DIFF_BASE:-}"
-          if [ -z "$base" ]; then
-            base_ref="${GITHUB_BASE_REF:-${DIFF_BASE:-graph_api}}"
-            git fetch --no-tags origin \
-              "${base_ref}:refs/remotes/origin/${base_ref}" --depth=500
-          else
-            git fetch --no-tags origin "${base}" --depth=1
-          fi
       - uses: ./.github/actions/nntile-starpu-setup
       - uses: ./.github/actions/nntile-model-test-python
       - uses: actions/download-artifact@v4
@@ -117,24 +94,28 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-dirty-tests-${{ github.sha }}
-          restore-keys: ccache-dirty-tests-
+          key: ccache-build-tests-${{ github.sha }}
+          restore-keys: ccache-build-tests-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF \
             -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}"
-      - run: |
-          chmod +x .github/scripts/ci-dirty-cpp-tests.sh
-          .github/scripts/ci-dirty-cpp-tests.sh plan
-      - run: .github/scripts/ci-dirty-cpp-tests.sh build
+          cmake --build build -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
-          .github/scripts/ccache-print-stats.sh dirty-tests
+          .github/scripts/ccache-print-stats.sh build-tests
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-dirty-tests-${{ github.sha }}
-      - run: .github/scripts/ci-dirty-cpp-tests.sh run
+          key: ccache-build-tests-${{ github.sha }}
+      - run: |
+          chmod +x .github/scripts/restore-ctest-execute-bits.sh
+          chmod +x .github/scripts/list-not-implemented-tests.sh
+          .github/scripts/restore-ctest-execute-bits.sh build/nntile/tests
+          export LD_LIBRARY_PATH="${PWD}/build/nntile:${PWD}/build/_deps/catch2-build/src:${LD_LIBRARY_PATH:-}"
+          .github/scripts/list-not-implemented-tests.sh build || true
+          ctest --test-dir build -E wrappers -LE NotImplemented \
+            -j"$(nproc)" --output-on-failure
 
   build-examples:
     name: build examples

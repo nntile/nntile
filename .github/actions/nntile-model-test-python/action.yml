@@ -2,7 +2,7 @@ name: NNTile model-test Python dependencies
 description: >-
   CPU PyTorch, transformers, and safetensors in /opt/nntile-model-venv for CTest
   fixture scripts. Sets NNTILE_MODEL_PYTHON for cmake. Use after checkout and
-  nntile-starpu-setup in the dirty-tests CI job.
+  nntile-starpu-setup in the build-and-run-tests CI job.
 runs:
   using: composite
   steps:
