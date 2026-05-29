@@ -77,7 +77,7 @@ declare -A affected
 # ---------- helper functions for layer propagation -------------------------
 add_all_layers() {
     local op=$1
-    for p in tests_kernel tests_starpu tests_core_tile \
+    for p in tests_kernel tests_starpu tests_core \
              tests_graph_tile_ops tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
@@ -85,7 +85,7 @@ add_all_layers() {
 
 add_from_starpu() {
     local op=$1
-    for p in tests_starpu tests_core_tile tests_graph_tile_ops \
+    for p in tests_starpu tests_core tests_graph_tile_ops \
              tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
@@ -93,7 +93,7 @@ add_from_starpu() {
 
 add_from_tile() {
     local op=$1
-    for p in tests_core_tile tests_graph_tile_ops tests_graph_tensor_ops; do
+    for p in tests_core tests_graph_tile_ops tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
 }
@@ -151,7 +151,7 @@ while IFS= read -r file; do
         nntile/tests/starpu/*.cc)
             affected["tests_starpu_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/core/*.cc)
-            affected["tests_core_tile_$(basename "$file" .cc)"]=1 ;;
+            affected["tests_core_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/tensor/ops/*.cc)
             affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/tensor/*.cc)
@@ -307,7 +307,7 @@ if [ "$ctest_label" = core ] || [ "$ctest_label" = graph ]; then
 fi
 
 # Build an anchored ctest regex.  The (_[0-9]+)? suffix accounts for
-# multi-argument tests that get a numeric suffix (e.g. tests_core_tile_gemm_1).
+# multi-argument tests that get a numeric suffix (e.g. tests_core_gemm_1).
 patterns=$(printf '%s\n' "${!affected[@]}" | sort | paste -sd '|')
 regex="^(${patterns})(_[0-9]+)?$"
 

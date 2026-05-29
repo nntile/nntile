@@ -96,8 +96,8 @@ set(TESTS_NOT_IMPLEMENTED
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
-    setup_target_for_coverage_lcov(NAME coverage_tile
-        EXECUTABLE ctest -R tests_tile_
+    setup_target_for_coverage_lcov(NAME coverage_core
+        EXECUTABLE ctest -R tests_core_
         LCOV_ARGS --no-external
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
@@ -110,13 +110,13 @@ foreach(test IN LISTS TESTS)
     if(test STREQUAL "add")
         set(labels "${labels} smoke")
     endif()
-    add_test_set(TARGET_NAME tests_core_tile_${test}
+    add_test_set(TARGET_NAME tests_core_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES nntile
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_core_tile_${test}
-        COV_GLOBAL coverage_tile coverage
+        COV_NAME coverage_core_${test}
+        COV_GLOBAL coverage_core coverage
         LABELS ${labels}
     )
 endforeach()
@@ -140,7 +140,7 @@ foreach(test IN LISTS TESTS_CATCH2)
     if(test STREQUAL "add")
         set(labels "${labels} smoke")
     endif()
-    add_test_set(TARGET_NAME tests_core_tile_${test}
+    add_test_set(TARGET_NAME tests_core_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES
@@ -148,8 +148,8 @@ foreach(test IN LISTS TESTS_CATCH2)
             $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
             Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_core_tile_${test}
-        COV_GLOBAL coverage_tile coverage
+        COV_NAME coverage_core_${test}
+        COV_GLOBAL coverage_core coverage
         LABELS ${labels}
     )
 endforeach()

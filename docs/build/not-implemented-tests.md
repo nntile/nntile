@@ -13,7 +13,7 @@ Source of truth: `TESTS_NOT_IMPLEMENTED` in:
 
 - `nntile/tests/kernel/CMakeLists.txt` → `tests_kernel_*`
 - `nntile/tests/starpu/CMakeLists.txt` → `tests_starpu_*`
-- `nntile/tests/core/CMakeLists.txt` → `tests_core_tile_*` (currently empty)
+- `nntile/tests/core/CMakeLists.txt` → `tests_core_*` (currently empty)
 
 ## Kernel (`tests_kernel_*`, 7)
 
@@ -81,7 +81,7 @@ Source of truth: `TESTS_NOT_IMPLEMENTED` in:
 | `tests_starpu_sumprod_fiber` |
 | `tests_starpu_total_sum_accum` |
 
-## Core / tile (`tests_core_tile_*`)
+## Core (`tests_core_*`)
 
 None (`TESTS_NOT_IMPLEMENTED` is empty in `nntile/tests/core/CMakeLists.txt`).
 
