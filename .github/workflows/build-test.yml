@@ -27,6 +27,8 @@ env:
     -DBUILD_PYTHON_WRAPPERS=OFF
     -DCMAKE_C_COMPILER=gcc
     -DCMAKE_CXX_COMPILER=g++
+    -DCMAKE_C_COMPILER_LAUNCHER=ccache
+    -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 jobs:
   build-lib:
