@@ -15,10 +15,15 @@ cmd=${1:?usage: ci-dirty-cpp-tests.sh plan|build|run}
 base_ref=${DIFF_BASE:-${GITHUB_BASE_REF:-graph_api}}
 
 ensure_git_repo() {
-    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        echo "::error::Not a git repository (cwd=$(pwd))" >&2
-        exit 1
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        return 0
     fi
+    if [ -x "${script_dir}/ci-ensure-git-worktree.sh" ]; then
+        "${script_dir}/ci-ensure-git-worktree.sh"
+        return 0
+    fi
+    echo "::error::Not a git repository (cwd=$(pwd))" >&2
+    exit 1
 }
 
 # Resolve a commit SHA for the diff base (never a branch name like origin/graph_api).

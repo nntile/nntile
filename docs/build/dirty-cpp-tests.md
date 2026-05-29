@@ -27,6 +27,9 @@ targets are built. CTest runs fixture scripts before the test when required.
 
 ## CI job flow
 
+0. After `actions/checkout`, **Prepare git worktree in container** runs
+   `.github/scripts/ci-ensure-git-worktree.sh` so `git diff` works inside the
+   `ubuntu:24.04` container (the default checkout gitfile points at host paths).
 1. Restore `libnntile` from **build libnntile**.
 2. Configure with `BUILD_TESTS=ON` and model-fixture Python (`NNTILE_MODEL_PYTHON`).
 3. **plan** — compute dirty targets from `origin/<base>..HEAD`.
