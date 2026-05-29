@@ -20,6 +20,7 @@ env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
+  DIFF_BASE: graph_api
   CMAKE_COMMON: >-
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
     -DUSE_CUDA=OFF
@@ -31,7 +32,7 @@ env:
 
 jobs:
   build-lib:
-    name: build-lib
+    name: build libnntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -71,8 +72,8 @@ jobs:
             !build/_deps/**
           retention-days: 1
 
-  build-tests:
-    name: build-tests
+  dirty-tests:
+    name: build and run dirty tests
     needs: build-lib
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
@@ -84,6 +85,8 @@ jobs:
       - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/nntile-starpu-setup
       - uses: ./.github/actions/nntile-model-test-python
       - uses: actions/download-artifact@v4
@@ -94,62 +97,27 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-tests-${{ github.sha }}
-          restore-keys: ccache-build-tests-
+          key: ccache-dirty-tests-${{ github.sha }}
+          restore-keys: ccache-dirty-tests-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF \
             -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}"
-          cmake --build build -j"$(nproc)"
+      - run: |
+          chmod +x .github/scripts/ci-dirty-cpp-tests.sh
+          .github/scripts/ci-dirty-cpp-tests.sh plan
+      - run: .github/scripts/ci-dirty-cpp-tests.sh build
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
-          .github/scripts/ccache-print-stats.sh build-tests
+          .github/scripts/ccache-print-stats.sh dirty-tests
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-tests-${{ github.sha }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nntile-build-tests
-          path: |
-            build/
-            !build/_deps/**
-            build/_deps/catch2-build/**
-          retention-days: 1
-
-  run-tests:
-    name: run-tests
-    needs: build-tests
-    runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
-      - uses: ./.github/actions/nntile-model-test-python
-      - uses: actions/download-artifact@v4
-        with:
-          name: nntile-build-tests
-          path: build
-      - run: |
-          chmod +x .github/scripts/restore-ctest-execute-bits.sh
-          .github/scripts/restore-ctest-execute-bits.sh build/nntile/tests
-      - run: |
-          chmod +x .github/scripts/list-not-implemented-tests.sh
-          .github/scripts/list-not-implemented-tests.sh build
-      - run: |
-          export LD_LIBRARY_PATH="${PWD}/build/nntile:${PWD}/build/_deps/catch2-build/src:${LD_LIBRARY_PATH}"
-          cd build
-          ctest -E wrappers -LE NotImplemented \
-            -j"$(nproc)" --output-on-failure
+          key: ccache-dirty-tests-${{ github.sha }}
+      - run: .github/scripts/ci-dirty-cpp-tests.sh run
 
   build-examples:
-    name: build-examples
+    name: build examples
     needs: build-lib
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
