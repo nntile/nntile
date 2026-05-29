@@ -3,9 +3,16 @@
 
 # Llama test data: generated at test time via CTest fixtures (one per block)
 set(LLAMA_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/llama_data")
-find_package(Python3 COMPONENTS Interpreter QUIET)
-# Prefer venv Python (has torch, transformers, safetensors); fallback to system
-set(GRAPH_MODEL_DATA_PYTHON "${Python3_EXECUTABLE}")
+set(NNTILE_MODEL_PYTHON "" CACHE FILEPATH
+    "Python for model fixture scripts (CI: /opt/nntile-model-venv/bin/python3)")
+if(NNTILE_MODEL_PYTHON)
+    set(GRAPH_MODEL_DATA_PYTHON "${NNTILE_MODEL_PYTHON}")
+else()
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        set(GRAPH_MODEL_DATA_PYTHON "${Python3_EXECUTABLE}")
+    endif()
+endif()
 
 set(LLAMA_GENERATE_SCRIPT
     "${CMAKE_CURRENT_SOURCE_DIR}/llama/generate_test_data.py")
@@ -49,7 +56,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             LLAMA_DATA_DIR="${LLAMA_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND)
+        if(GRAPH_MODEL_DATA_PYTHON)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${LLAMA_DATA_DIR}"
@@ -142,7 +149,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             GPT2_DATA_DIR="${GPT2_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND)
+        if(GRAPH_MODEL_DATA_PYTHON)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPT2_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${GPT2_DATA_DIR}"
@@ -214,7 +221,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             GPTNEO_DATA_DIR="${GPTNEO_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND)
+        if(GRAPH_MODEL_DATA_PYTHON)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${GPTNEO_DATA_DIR}"
@@ -316,7 +323,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             GPTNEOX_DATA_DIR="${GPTNEOX_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND AND NOT test_name STREQUAL "gptneox_rope")
+        if(GRAPH_MODEL_DATA_PYTHON AND NOT test_name STREQUAL "gptneox_rope")
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEOX_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${GPTNEOX_DATA_DIR}"
@@ -365,7 +372,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
                 FIXTURES_REQUIRED "${required_fixtures}"
             )
         endif()
-        if(test_name STREQUAL "gptneox_rope" AND Python3_Interpreter_FOUND)
+        if(test_name STREQUAL "gptneox_rope" AND GRAPH_MODEL_DATA_PYTHON)
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "tests_graph_model_gptneox_attention_data"
             )
@@ -412,7 +419,7 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             T5_DATA_DIR="${T5_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND)
+        if(GRAPH_MODEL_DATA_PYTHON)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${T5_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${T5_DATA_DIR}"
@@ -486,7 +493,7 @@ foreach(test_path IN LISTS TESTS_MODEL_BERT)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             BERT_DATA_DIR="${BERT_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND)
+        if(GRAPH_MODEL_DATA_PYTHON)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${BERT_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${BERT_DATA_DIR}"
@@ -542,7 +549,7 @@ foreach(test_path IN LISTS TESTS_MODEL_ROBERTA)
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             ROBERTA_DATA_DIR="${ROBERTA_DATA_DIR}"
         )
-        if(Python3_Interpreter_FOUND)
+        if(GRAPH_MODEL_DATA_PYTHON)
             add_test(NAME tests_graph_model_${test_name}_data_setup
                 COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${ROBERTA_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${ROBERTA_DATA_DIR}"

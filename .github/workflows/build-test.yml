@@ -98,7 +98,8 @@ jobs:
           restore-keys: ccache-build-tests-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF
+            -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF \
+            -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}"
           cmake --build build -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
