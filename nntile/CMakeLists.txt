@@ -37,15 +37,24 @@ if(NOT BUILD_NNTILE)
     return()
 endif()
 
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/nntile/defs.h.in"
-    "${PROJECT_BINARY_DIR}/include/nntile/defs.h"
-    @ONLY
-)
-
-if(NNTILE_PREBUILT_LIBRARY)
+set(_nntile_defs "${PROJECT_BINARY_DIR}/include/nntile/defs.h")
+if(NNTILE_PREBUILT_LIBRARY AND EXISTS "${_nntile_defs}")
     list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
     include(NNTileCoreImported)
+    nntile_apply_link_options_from_defs("${_nntile_defs}")
+else()
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/nntile/defs.h.in"
+        "${_nntile_defs}"
+        @ONLY
+    )
+endif()
+
+if(NNTILE_PREBUILT_LIBRARY)
+    if(NOT COMMAND nntile_import_prebuilt_library)
+        list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+        include(NNTileCoreImported)
+    endif()
     nntile_import_prebuilt_library("${NNTILE_PREBUILT_LIBRARY}")
 elseif(NOT TARGET nntile AND NOT NNTILE_COMPILE_CHECK_SUBSYSTEM)
     add_library(nntile)

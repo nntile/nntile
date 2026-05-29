@@ -91,9 +91,11 @@ subsystem. Inside that workflow, `build-tests-*` depends only on
 job waits for `build-nntile` and `build-test-prerequisites` before starting any
 subsystem pipeline.
 
-Each `build-tests-*` job restores the linked library from
-`build-nntile` (`-DNNTILE_PREBUILT_LIBRARY=...`), restores its test-object tarball,
-and runs `cmake --build` for test targets only. It does **not** re-link
+Each `build-tests-*` job restores the linked library and `defs.h` from
+`build-nntile`, extracts its test-object tarball **before** `cmake` configure,
+then uses `-DNNTILE_PREBUILT_LIBRARY=...` (link flags are taken from the cached
+`defs.h`, including CBLAS/OpenBLAS). It runs `cmake --build` for test targets
+only. It does **not** re-link
 `libnntile` from per-subsystem `.a` archives or recompile library or test sources.
 
 ## Running tests locally (requires full libnntile)

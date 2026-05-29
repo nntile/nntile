@@ -78,6 +78,10 @@ jobs:
             .github/scripts/nntile-prebuilt-lib-path.sh build
           )
           mapfile -t _test_flags < <(.github/scripts/cmake-build-tests-subsystem.sh "${{ inputs.subsystem }}")
+          mkdir -p build/nntile/tests/CMakeFiles
+          tar -xzf "build/nntile_test_objs_cache/nntile_test_objs_${{ inputs.subsystem }}.tar.gz" \
+            -C build/nntile/tests/CMakeFiles
+          .github/scripts/restore-nntile-test-objs-verify.sh "${{ inputs.subsystem }}" build
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
             -DNNTILE_PRESET=full -DNNTILE_PREBUILT_LIBRARY="${_lib}" \
             -DNNTILE_LINK_CACHED_TEST_OBJECTS=ON \
@@ -85,10 +89,6 @@ jobs:
             -DNNTILE_FETCHCONTENT_DISCONNECTED=ON \
             -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
             "${_test_flags[@]}"
-          mkdir -p build/nntile/tests/CMakeFiles
-          tar -xzf "build/nntile_test_objs_cache/nntile_test_objs_${{ inputs.subsystem }}.tar.gz" \
-            -C build/nntile/tests/CMakeFiles
-          .github/scripts/restore-nntile-test-objs-verify.sh "${{ inputs.subsystem }}" build
           echo "=== BUILD_TESTS_* (must enable only this subsystem) ==="
           grep '^BUILD_TESTS_' build/CMakeCache.txt || true
           mapfile -t _test_targets < <(.github/scripts/cmake-test-build-targets.sh \
