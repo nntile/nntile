@@ -17,7 +17,7 @@
 option(BUILD_NNTILE "Build unified nntile library" ON)
 
 set(NNTILE_COMPILE_CHECK_SUBSYSTEM "" CACHE STRING
-    "Compile-check one subsystem only (kernel|starpu|core|tile|tensor|nn|...) or OFF")
+    "Compile-check one subsystem only (kernel|starpu|core|graph_base|tile|...) or OFF")
 
 set(NNTILE_PRESET "" CACHE STRING "core|graph_min|full")
 

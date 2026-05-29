@@ -1,0 +1,14 @@
+# One NNTile library OBJECT subsystem per line (compile-check + build-nntile reuse).
+kernel
+starpu
+core
+graph_base
+tile
+tensor
+nn
+runtime
+module
+model
+optim
+io
+dataset

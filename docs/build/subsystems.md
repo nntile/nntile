@@ -26,13 +26,24 @@ cmake --build build
 
 ## Compile-check (CI / local)
 
-Compiles **only** one subsystem's `.cc` files into `nntile_objs_<name>` (no link):
+Compiles **only** one subsystem's `.cc` files into `nntile_objs_<name>` (no link).
+CI saves each `nntile_objs_<name>.dir` to cache for the link-only library job.
 
 ```bash
 cmake -S . -B build -DNNTILE_COMPILE_CHECK_SUBSYSTEM=tensor \
   -DBUILD_TESTS=OFF
 cmake --build build --target nntile_compile_check_tensor
 ```
+
+Subsystems: see `.github/scripts/nntile-lib-obj-subsystems.txt` (`graph_base` is
+`dtype.cc` / `kv_cache.cc`, separate from `tile` / `tensor` / `nn`).
+
+## build-nntile (CI, link only)
+
+Job `build-nntile` configures `-DNNTILE_PRESET=full`, restores all cached
+`nntile_objs_*` directories from `compile-check-*`, then links `libnntile`.
+It should **not** recompile subsystem translation units (only `context.cc`,
+logger sources, and the shared library link step).
 
 ## Test compile-check (no libnntile)
 
@@ -51,6 +62,8 @@ PR workflow uses three separate test stages per subsystem:
 
 | Job | Purpose |
 |-----|---------|
+| `compile-check-*` | Compile one subsystem's lib sources; cache `nntile_objs_*` |
+| `build-nntile` | Link `libnntile` from cached objects (no subsystem recompile) |
 | `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
 | `compile-check-tests-*` | Compile test sources only (reuse cached Catch2) |
 | `test-build-*` | `-DNNTILE_TEST_SUBSYSTEM=<name>`, link only that subsystem's test binaries |
