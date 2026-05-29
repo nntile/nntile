@@ -33,10 +33,3 @@ FetchContent_Declare(
     GIT_TAG v3.11.3
 )
 FetchContent_MakeAvailable(nlohmann_json)
-
-if(TARGET nntile)
-    get_target_property(_nntile_imported nntile IMPORTED)
-    if(NOT _nntile_imported)
-        target_sources(nntile PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/random.h")
-    endif()
-endif()
