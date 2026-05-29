@@ -52,7 +52,7 @@ if echo "$changed" | grep -qE '^nntile/(src|include/nntile)/model/'; then
 fi
 
 if [ ${#subsystems[@]} -eq 0 ]; then
-    echo "kernel starpu tile tile_graph tensor_graph nn_graph module model"
+    echo "kernel starpu tile tile_graph tensor_graph nn_graph runtime module optim io dataset model"
 else
     printf '%s\n' "${subsystems[@]}" | sort -u | tr '\n' ' '
 fi
