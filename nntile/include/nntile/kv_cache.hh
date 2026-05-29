@@ -26,8 +26,8 @@
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
-#include <nntile/nn_graph/graph_decl.hh>
-#include <nntile/tensor_graph/graph_decl.hh>
+#include <nntile/nn/graph_decl.hh>
+#include <nntile/tensor/graph_decl.hh>
 #include <nntile/runtime.hh>
 
 namespace nntile

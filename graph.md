@@ -104,7 +104,7 @@ free memory. Input and output tensors are never invalidated.
 
 ### Tensor graph operations
 
-Defined in `include/nntile/tensor_graph/` and `graph_ops.hh`:
+Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 
 **Element-wise operations:**
 - `add(alpha, x, beta, y, output_name)` — creates z = alpha*x + beta*y
@@ -172,7 +172,7 @@ This mirrors PyTorch: outputs and temporaries appear in the forward pass, not at
 
 ### 1. Add a TensorGraph operation
 
-**Header** (`include/nntile/tensor_graph/<op>.hh`):
+**Header** (`include/nntile/tensor/<op>.hh`):
 
 - Define `TensorXxxOp : TensorGraphOpNode` with `execute()` and `clone()`.
 - Declare free functions for the builder API.
@@ -188,7 +188,7 @@ Add to `graph_ops.hh` if needed.
 
 ### 2. Add an NNGraph (autograd) operation
 
-**Header** (`include/nntile/nn_graph/<op>.hh`):
+**Header** (`include/nntile/nn/<op>.hh`):
 
 - Define `NNXxxOp : NNGraph::OpNode` with constructor (inputs only), `forward(output_name)` returning `TensorNode*`, and `backward()`.
 - Declare convenience free function.

@@ -21,7 +21,7 @@ flowchart TB
   end
   subgraph core_pkg [core]
     Tensor[nntile::tensor]
-    Tile[nntile::tile]
+    Tile[nntile::core]
     StarPU[nntile::starpu]
     Kernel[nntile::kernel]
   end
@@ -52,7 +52,7 @@ StarPU codelets wrapping kernel calls.
 
 ## tile
 
-**Namespace:** `nntile::tile`
+**Namespace:** `nntile::core`
 
 Single-tile operations (`Tile<T>`).
 

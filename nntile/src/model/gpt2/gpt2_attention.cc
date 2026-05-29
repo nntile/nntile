@@ -15,10 +15,10 @@
 
 #include "nntile/model/gpt2/gpt2_attention.hh"
 #include "nntile/model/gpt2/gpt2_common.hh"
-#include "nntile/nn_graph/ops/add_fiber.hh"
-#include "nntile/nn_graph/ops/gemm.hh"
-#include "nntile/nn_graph/ops/sdpa_eager.hh"
-#include "nntile/nn_graph/ops/transpose.hh"
+#include "nntile/nn/ops/add_fiber.hh"
+#include "nntile/nn/ops/gemm.hh"
+#include "nntile/nn/ops/sdpa_eager.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 

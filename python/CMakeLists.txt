@@ -1,7 +1,7 @@
 # @file python/CMakeLists.txt
 # Graph-first Python bindings (nntile_py -> nntile.so inside package).
 
-if(NOT BUILD_PYTHON_WRAPPERS OR NOT NNTILE_BUILD_NN_GRAPH)
+if(NOT BUILD_PYTHON_WRAPPERS OR NOT NNTILE_BUILD_NN)
     return()
 endif()
 

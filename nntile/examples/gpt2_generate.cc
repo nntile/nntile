@@ -50,7 +50,7 @@
 #include <nntile/io/safetensors.hh>
 #include <nntile/model/gpt2/gpt2_causal.hh>
 #include <nntile/model/gpt2/gpt2_config.hh>
-#include <nntile/nn_graph/ops/sdpa_causal_mask.hh>
+#include <nntile/nn/ops/sdpa_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
 #include "gpt2_config_json.hh"

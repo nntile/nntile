@@ -30,12 +30,12 @@
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
-#include <nntile/nn_graph/graph_decl.hh>
-#include <nntile/tensor_graph/graph_data_node.hh>
-#include <nntile/tensor_graph/tensor_graph_tiling.hh>
-#include <nntile/tile_graph/graph_data_node.hh>
-#include <nntile/tile_graph/graph_decl.hh>
-#include <nntile/tile/tile.hh>
+#include <nntile/nn/graph_decl.hh>
+#include <nntile/tensor/graph_data_node.hh>
+#include <nntile/tensor/tensor_graph_tiling.hh>
+#include <nntile/tile/graph_data_node.hh>
+#include <nntile/tile/graph_decl.hh>
+#include <nntile/core/tile.hh>
 
 namespace nntile
 {
@@ -96,7 +96,7 @@ class Runtime
     template <typename T> std::vector<T> get_output(TileNode const *tile);
 
     template <typename T>
-    nntile::tile::Tile<T> &get_tile(const TileNode *node);
+    nntile::core::Tile<T> &get_tile(const TileNode *node);
 
     DataType get_dtype(TensorGraph::TensorNode const *tensor) const;
 
@@ -123,7 +123,7 @@ class Runtime
 
 } // namespace nntile
 
-#include <nntile/nn_graph/graph_data_node.hh>
+#include <nntile/nn/graph_data_node.hh>
 
 namespace nntile
 {
@@ -132,7 +132,7 @@ namespace nntile
 // Runtime template implementation
 // ---------------------------------------------------------------------------
 
-namespace tile_graph_bind_detail
+namespace tile_bind_detail
 {
 
 inline bool tensor_desc_has_input_tile(TileGraph::TensorDescriptor const &d)
@@ -171,7 +171,7 @@ inline bool use_logical_layout(TileGraph::TensorDescriptor const *desc,
                desc->tiles[0]->name() != tensor->name());
 }
 
-} // namespace tile_graph_bind_detail
+} // namespace tile_bind_detail
 
 namespace tile_detail
 {
@@ -222,11 +222,11 @@ template <> struct dtype_for<nntile::bool_t>
 
 } // namespace tile_detail
 
-namespace tile_graph_layout_io
+namespace tile_layout_io
 {
 
 //! Decode a flat offset into tile-local coordinates matching
-//! nntile::tile::TileTraits / tile storage (Fortran order: dim 0 stride 1).
+//! nntile::core::TileTraits / tile storage (Fortran order: dim 0 stride 1).
 inline void fortran_tile_linear_to_index(Index linear_offset,
     const std::vector<Index> &shape,
     std::vector<Index> &index)
@@ -372,10 +372,10 @@ void gather_logical_tensor(const TensorAxisLayout &lay,
     }
 }
 
-} // namespace tile_graph_layout_io
+} // namespace tile_layout_io
 
 template <typename T>
-nntile::tile::Tile<T> &Runtime::get_tile(const TileNode *node)
+nntile::core::Tile<T> &Runtime::get_tile(const TileNode *node)
 {
     auto it = tile_map_.find(node);
     if (it == tile_map_.end())
@@ -389,7 +389,7 @@ nntile::tile::Tile<T> &Runtime::get_tile(const TileNode *node)
             "Runtime::get_tile: wrong type (requested type does "
             "not match tile dtype)");
     }
-    auto ptr = std::static_pointer_cast<nntile::tile::Tile<T>>(it->second);
+    auto ptr = std::static_pointer_cast<nntile::core::Tile<T>>(it->second);
     return *ptr;
 }
 
@@ -413,7 +413,7 @@ void Runtime::bind_data(
     const TensorGraphTiling *tsch = graph_.tiling_scheme();
     const bool use_logical =
         tsch != nullptr &&
-        tile_graph_bind_detail::use_logical_layout(desc, tensor);
+        tile_bind_detail::use_logical_layout(desc, tensor);
     if (use_logical)
     {
         const TensorAxisLayout *lay = tsch->find(desc->source_node);
@@ -423,8 +423,8 @@ void Runtime::bind_data(
                 "Runtime::bind_data: missing tiling for tensor '" +
                 tensor->name() + "'");
         }
-        if (!tile_graph_bind_detail::tensor_desc_has_input_tile(*desc) &&
-            !tile_graph_bind_detail::tensor_desc_has_output_tile(*desc))
+        if (!tile_bind_detail::tensor_desc_has_input_tile(*desc) &&
+            !tile_bind_detail::tensor_desc_has_output_tile(*desc))
         {
             throw std::runtime_error("bind_data: mark_input(true) or "
                                      "mark_output(true) on tensor '" +
@@ -433,47 +433,47 @@ void Runtime::bind_data(
         switch (desc->dtype)
         {
         case DataType::FP32:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::fp32_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP32_FAST_TF32:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::fp32_fast_tf32_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP32_FAST_FP16:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::fp32_fast_fp16_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP32_FAST_BF16:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::fp32_fast_bf16_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP64:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::fp64_t,
                 double>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::FP16:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::fp16_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::BF16:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::bf16_t,
                 float>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::INT64:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::int64_t,
                 std::int64_t>(*lay, desc->tiles, data, count, *this);
             break;
         case DataType::BOOL:
-            tile_graph_layout_io::scatter_logical_tensor<T,
+            tile_layout_io::scatter_logical_tensor<T,
                 nntile::bool_t,
                 bool>(*lay, desc->tiles, data, count, *this);
             break;
@@ -668,7 +668,7 @@ std::vector<T> Runtime::get_output(
     const TensorGraphTiling *tsch = graph_.tiling_scheme();
     const bool use_logical =
         tsch != nullptr &&
-        tile_graph_bind_detail::use_logical_layout(desc, tensor);
+        tile_bind_detail::use_logical_layout(desc, tensor);
     if (use_logical)
     {
         const TensorAxisLayout *lay = tsch->find(desc->source_node);
@@ -678,8 +678,8 @@ std::vector<T> Runtime::get_output(
                 "Runtime::get_output: missing tiling for tensor '" +
                 tensor->name() + "'");
         }
-        if (!tile_graph_bind_detail::tensor_desc_has_output_tile(*desc) &&
-            !tile_graph_bind_detail::tensor_desc_has_input_tile(*desc))
+        if (!tile_bind_detail::tensor_desc_has_output_tile(*desc) &&
+            !tile_bind_detail::tensor_desc_has_input_tile(*desc))
         {
             throw std::runtime_error(
                 "get_output: tensor '" + tensor->name() +
@@ -690,47 +690,47 @@ std::vector<T> Runtime::get_output(
         switch (desc->dtype)
         {
         case DataType::FP32:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::fp32_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP32_FAST_TF32:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::fp32_fast_tf32_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP32_FAST_FP16:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::fp32_fast_fp16_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP32_FAST_BF16:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::fp32_fast_bf16_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP64:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::fp64_t,
                 double>(*lay, desc->tiles, result, *this);
             break;
         case DataType::FP16:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::fp16_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::BF16:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::bf16_t,
                 float>(*lay, desc->tiles, result, *this);
             break;
         case DataType::INT64:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::int64_t,
                 std::int64_t>(*lay, desc->tiles, result, *this);
             break;
         case DataType::BOOL:
-            tile_graph_layout_io::gather_logical_tensor<T,
+            tile_layout_io::gather_logical_tensor<T,
                 nntile::bool_t,
                 bool>(*lay, desc->tiles, result, *this);
             break;

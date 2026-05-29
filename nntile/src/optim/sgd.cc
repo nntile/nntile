@@ -15,7 +15,7 @@
 
 #include "nntile/optim/sgd.hh"
 
-#include "nntile/nn_graph/ops/sgd_step.hh"
+#include "nntile/nn/ops/sgd_step.hh"
 
 #include <fstream>
 #include <nlohmann/json.hpp>

@@ -51,8 +51,8 @@
 #include <nntile/dataset/causal_lm_mmap.hh>
 #include <nntile/model/gpt2/gpt2_causal.hh>
 #include <nntile/model/gpt2/gpt2_config.hh>
-#include <nntile/nn_graph/ops/sdpa_causal_mask.hh>
-#include <nntile/tensor_graph/ops/clear.hh>
+#include <nntile/nn/ops/sdpa_causal_mask.hh>
+#include <nntile/tensor/ops/clear.hh>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -516,7 +516,7 @@ int main(int argc, char **argv)
             {
                 if (p->grad() != nullptr)
                 {
-                    nntile::tensor_graph::clear(p->grad()->data());
+                    nntile::core::clear(p->grad()->data());
                 }
             }
 
@@ -538,7 +538,7 @@ int main(int argc, char **argv)
             auto [loss_grad, loss_grad_first] =
                 graph.get_or_create_grad(loss, loss_grad_name);
             (void) loss_grad_first;
-            nntile::tensor_graph::fill(Scalar(1.0), loss_grad->data());
+            nntile::core::fill(Scalar(1.0), loss_grad->data());
             loss->backward(true);
 
             Scalar const step_lr = scheduled_lr(train_step, args);

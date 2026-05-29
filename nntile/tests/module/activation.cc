@@ -30,7 +30,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #include "context_fixture.hh"
-#include "nntile/tensor_graph/graph.hh"
+#include "nntile/tensor/graph.hh"
 #include "pytorch_helper.hh"
 #include "pytorch_tile_helpers.hh"
 #endif
@@ -38,7 +38,7 @@
 using namespace nntile;
 using namespace nntile;
 using namespace nntile::module;
-namespace gt = nntile::tensor_graph;
+namespace gt = nntile::tensor;
 
 TEST_CASE("Activation AllTypes", "[module]")
 {

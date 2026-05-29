@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-namespace gt = nntile::tensor;
+namespace gt = nntile::core;
 namespace mod = nntile::module;
 
 //! Label each axis equivalence class for this MLP layout. Extents

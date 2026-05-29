@@ -15,8 +15,8 @@
 #pragma once
 
 // NNTile headers
-#include <nntile/nn_graph/graph.hh>
-#include <nntile/nn_graph/graph_data_node.hh>
-#include <nntile/nn_graph/graph_op_node.hh>
-#include <nntile/nn_graph/graph_ops.hh>
-#include <nntile/nn_graph/tensor_node_chain.hh>
+#include <nntile/nn/graph.hh>
+#include <nntile/nn/graph_data_node.hh>
+#include <nntile/nn/graph_op_node.hh>
+#include <nntile/nn/graph_ops.hh>
+#include <nntile/nn/tensor_node_chain.hh>

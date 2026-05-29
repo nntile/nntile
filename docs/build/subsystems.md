@@ -2,13 +2,22 @@
 
 Unified library target **`nntile`** with per-subsystem switches `NNTILE_BUILD_*`.
 
+## Stack (bottom to top)
+
+`kernel` → `starpu` → `core` → `tile` → `tensor` → `nn` → `runtime` / `module` / `model` / …
+
+- **core** — eager tile execution (former `tile` layer)
+- **tile**, **tensor**, **nn** — graph layers (`TileGraph`, `TensorGraph`, `NNGraph`)
+
+The deprecated eager **tensor** layer has been removed.
+
 ## Presets
 
 | Preset | Use |
 |--------|-----|
 | `full` | Default development / PR integration |
-| `core` | Kernel → StarPU → Tile only |
-| `graph_min` | Through NNGraph + Runtime |
+| `core` | Kernel → StarPU → core only |
+| `graph_min` | Through NN graph + runtime |
 
 ```bash
 cmake -S . -B build -DNNTILE_PRESET=full
@@ -20,31 +29,26 @@ cmake --build build
 Compiles **only** one subsystem's `.cc` files into `nntile_objs_<name>` (no link):
 
 ```bash
-cmake -S . -B build -DNNTILE_COMPILE_CHECK_SUBSYSTEM=tensor_graph \
+cmake -S . -B build -DNNTILE_COMPILE_CHECK_SUBSYSTEM=tensor \
   -DBUILD_TESTS=OFF
-cmake --build build --target nntile_compile_check_tensor_graph
+cmake --build build --target nntile_compile_check_tensor
 ```
 
 ## Test compile-check (no libnntile)
 
-Compiles test `.cc` files for one subsystem into `nntile_test_objs_<name>` (no link, no CTest):
-
 ```bash
-cmake -S . -B build -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=nn_graph \
+cmake -S . -B build -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=nn \
   -DBUILD_TESTS=OFF
-cmake --build build --target nntile_compile_check_tests_nn_graph
+cmake --build build --target nntile_compile_check_tests_nn
 ```
 
 ## Running tests (requires full libnntile)
 
-Per-subsystem test trees live directly under `nntile/tests/<subsystem>/` (e.g. `kernel/`,
-`tile_graph/`). Enable with `BUILD_TESTS_<SUBSYSTEM>` (see `nntile/cmake/NNTileTests.cmake`).
-
-CI order: source `compile-check-*` → `build-nntile` (full preset) →
-`compile-check-tests-*` → `test-run-*` (link tests against `nntile`, then `ctest`).
+Per-subsystem test trees live under `nntile/tests/<subsystem>/`.
+Enable with `BUILD_TESTS_<SUBSYSTEM>` (see `nntile/cmake/NNTileTests.cmake`).
 
 ```bash
-cmake -S . -B build -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_NN_GRAPH=ON \
+cmake -S . -B build -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_NN=ON \
   -DBUILD_TESTS_KERNEL=OFF ...
 cmake --build build
 ctest -R tests_graph_nn_

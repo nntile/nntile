@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/model/gpt2/gpt2_block.hh"
-#include "nntile/nn_graph/ops/add.hh"
+#include "nntile/nn/ops/add.hh"
 
 #include <stdexcept>
 

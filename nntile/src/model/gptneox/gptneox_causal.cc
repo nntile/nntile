@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/model/gptneox/gptneox_causal.hh"
-#include "nntile/nn_graph/ops/transpose.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 

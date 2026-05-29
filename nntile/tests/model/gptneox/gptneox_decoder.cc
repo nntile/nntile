@@ -12,7 +12,7 @@
 #include "nntile/model/gptneox/gptneox_decoder.hh"
 
 #include "context_fixture.hh"
-#include "nntile/nn_graph/ops/add.hh"
+#include "nntile/nn/ops/add.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/gptneox/gptneox_config.hh"

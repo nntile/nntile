@@ -1,0 +1,155 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file tests/core/CMakeLists.txt
+# Tests for nntile::core functions
+#
+# @version 1.1.0
+#
+# Test layout: each src/core/<name>.cc should have a matching tests/core/<name>.cc
+# registered in TESTS below (or in TESTS_CATCH2 when using Catch2/CUDA-only).
+# tests/core/tile.cc is the exception (Tile class tests; there is no src/core/tile.cc).
+# When adding a new tile op: add the implementation under src/core/, add the test
+# file under tests/core/, and append the basename to TESTS or TESTS_CATCH2.
+
+# All unit tests without arguments to test executable
+set(TESTS
+    "add"
+    "add_inplace"
+    "add_fiber_inplace"
+    "add_fiber"
+    "add_slice_inplace"
+    "add_slice"
+    "clear"
+    "conv2d_bwd_input_inplace"
+    "conv2d_bwd_weight_inplace"
+    "conv2d_inplace"
+    "copy"
+    "copy_intersection"
+    "embedding"
+    "embedding_backward"
+    "fill"
+    "gelu"
+    "gelu_inplace"
+    "gelu_backward"
+    "gelutanh"
+    "gelutanh_inplace"
+    "gelutanh_backward"
+    "gemm"
+    "log_scalar"
+    "logsumexp"
+    "mask_scalar"
+    "maxsumexp"
+    "norm"
+    "norm_fiber"
+    "norm_fiber_inplace"
+    "norm_slice"
+    "norm_slice_inplace"
+    "pow"
+    "multiply_inplace"
+    "multiply_fiber_inplace"
+    "multiply_fiber"
+    "multiply"
+    "multiply_slice"
+    "randn"
+    "relu_inplace"
+    "relu_backward"
+    "relu"
+    "rope"
+    "rope_backward"
+    "scale_inplace"
+    "adam_step"
+    "adamw_step"
+    "sgd_step"
+    "silu_backward"
+    "silu"
+    "silu_inplace"
+    "softmax"
+    "softmax_inplace"
+    "sqrt"
+    "sqrt_inplace"
+    "subtract_indexed_outputs"
+    "sum_fiber"
+    "sum_slice"
+    "sum"
+    "sumprod_fiber"
+    "sumprod_slice"
+    "transpose"
+    "tile"
+    "total_sum_accum"
+    "traits"
+    "scale"
+    "scale_fiber"
+    "hypot_inplace"
+    "hypot"
+    "hypot_scalar_inverse"
+)
+
+# Describe all tests that are not yet implemented
+set(TESTS_NOT_IMPLEMENTED
+)
+
+# Add target for local coverage
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_tile
+        EXECUTABLE ctest -R tests_tile_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
+
+foreach(test IN LISTS TESTS)
+    set(labels core)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented core")
+    endif()
+    if(test STREQUAL "add")
+        set(labels "${labels} smoke")
+    endif()
+    add_test_set(TARGET_NAME tests_core_tile_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES nntile
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_core_tile_${test}
+        COV_GLOBAL coverage_tile coverage
+        LABELS ${labels}
+    )
+endforeach()
+
+set(TESTS_CATCH2
+)
+
+# CUDA-only tests (only added when CUDA is available)
+if(NNTILE_USE_CUDA)
+    list(APPEND TESTS_CATCH2
+        "flash_sdpa_fwd_cudnn"
+        "flash_sdpa_bwd_cudnn"
+    )
+endif()
+
+foreach(test IN LISTS TESTS_CATCH2)
+    set(labels core)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented core")
+    endif()
+    if(test STREQUAL "add")
+        set(labels "${labels} smoke")
+    endif()
+    add_test_set(TARGET_NAME tests_core_tile_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES
+            nntile
+            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_core_tile_${test}
+        COV_GLOBAL coverage_tile coverage
+        LABELS ${labels}
+    )
+endforeach()

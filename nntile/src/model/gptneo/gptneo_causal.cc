@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/model/gptneo/gptneo_causal.hh"
-#include "nntile/nn_graph/ops/gemm.hh"
+#include "nntile/nn/ops/gemm.hh"
 
 #include <stdexcept>
 

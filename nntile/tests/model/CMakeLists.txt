@@ -67,7 +67,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
                     ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -85,7 +85,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
                         FIXTURES_SETUP
                             "tests_graph_model_${test_name}_gqa_data"
                         ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_${test_name}_gqa_data")
@@ -105,7 +105,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
                         FIXTURES_SETUP
                             "tests_graph_model_llama_attention_variant_data"
                         ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_llama_attention_variant_data")
@@ -166,7 +166,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
                     ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -183,7 +183,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
                         FIXTURES_SETUP
                             "tests_graph_model_gpt2_attention_causal_data"
                         ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gpt2_attention_causal_data")
@@ -242,7 +242,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
                     ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -259,7 +259,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
                         FIXTURES_SETUP
                             "tests_graph_model_gptneo_attention_causal_data"
                         ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneo_attention_causal_data")
@@ -275,7 +275,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
                         FIXTURES_SETUP
                             "tests_graph_model_gptneo_attention_local_data"
                         ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneo_attention_local_data")
@@ -350,7 +350,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
                     ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -367,7 +367,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
                         FIXTURES_SETUP
                             "tests_graph_model_gptneox_attention_causal_data"
                         ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneox_attention_causal_data")
@@ -385,7 +385,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
                         FIXTURES_SETUP
                             "tests_graph_model_gptneox_attention_variant_data"
                         ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneox_attention_variant_data")
@@ -452,7 +452,7 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
                     ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -469,7 +469,7 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
                         FIXTURES_SETUP
                             "tests_graph_model_t5_attention_causal_data"
                         ENVIRONMENT
-                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_t5_attention_causal_data")
@@ -530,7 +530,7 @@ foreach(test_path IN LISTS TESTS_MODEL_BERT)
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
                     ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "tests_graph_model_${test_name}_data"
@@ -588,7 +588,7 @@ foreach(test_path IN LISTS TESTS_MODEL_ROBERTA)
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
                     ENVIRONMENT
-                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/build/python:$ENV{PYTHONPATH}"
             )
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "tests_graph_model_${test_name}_data"

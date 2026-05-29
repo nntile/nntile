@@ -14,7 +14,7 @@
  * */
 
 #include "nntile/model/gptneox/gptneox_model.hh"
-#include "nntile/nn_graph/ops/transpose.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 

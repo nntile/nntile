@@ -15,7 +15,7 @@
 
 #include "nntile/optim/adam.hh"
 
-#include "nntile/nn_graph/ops/adam_step.hh"
+#include "nntile/nn/ops/adam_step.hh"
 
 #include <fstream>
 #include <nlohmann/json.hpp>

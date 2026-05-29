@@ -15,7 +15,7 @@
 #include <cstring>
 #include <memory>
 #include <nntile/graph.hh>
-#include <nntile/nn_graph/graph_ops.hh>
+#include <nntile/nn/graph_ops.hh>
 
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>

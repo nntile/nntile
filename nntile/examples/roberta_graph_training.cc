@@ -22,7 +22,7 @@
 #include "roberta_example_helpers.hh"
 #include <nntile.hh>
 #include <nntile/model/roberta/roberta_mlm.hh>
-#include <nntile/tensor_graph/ops/clear.hh>
+#include <nntile/tensor/ops/clear.hh>
 
 using namespace nntile;
 using namespace nntile::examples;
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
         {
             if (p->grad() != nullptr)
             {
-                nntile::tensor_graph::clear(p->grad()->data());
+                nntile::core::clear(p->grad()->data());
             }
         }
 
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
         auto [loss_grad, loss_grad_first] =
             graph.get_or_create_grad(loss, "loss_grad");
         (void)loss_grad_first;
-        nntile::tensor_graph::fill(Scalar(1.0), loss_grad->data());
+        nntile::core::fill(Scalar(1.0), loss_grad->data());
         loss->backward(true);
         optimizer->step(static_cast<Scalar>(learning_rate));
 

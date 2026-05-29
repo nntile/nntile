@@ -24,7 +24,7 @@
 
 #include "nntile/graph.hh"
 #include "nntile/module/layer_norm.hh"
-#include "nntile/tensor_graph/graph.hh"
+#include "nntile/tensor/graph.hh"
 
 #ifdef NNTILE_HAVE_TORCH
 #include "context_fixture.hh"
@@ -35,7 +35,7 @@
 using namespace nntile;
 using namespace nntile;
 using namespace nntile::module;
-namespace gt = nntile::tensor_graph;
+namespace gt = nntile::tensor;
 
 TEST_CASE("LayerNorm ConstructorCreatesParameters", "[module]")
 {

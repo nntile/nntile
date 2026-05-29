@@ -4,14 +4,14 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file include/nntile/model/llama/llama_causal_mask.hh
- * Deprecated include: use ``nntile/nn_graph/ops/sdpa_causal_mask.hh``.
+ * Deprecated include: use ``nntile/nn/ops/sdpa_causal_mask.hh``.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/nn_graph/ops/sdpa_causal_mask.hh>
+#include <nntile/nn/ops/sdpa_causal_mask.hh>
 
 namespace nntile::model::llama
 {

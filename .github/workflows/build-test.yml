@@ -52,10 +52,10 @@ jobs:
         subsystem:
           - kernel
           - starpu
+          - core
           - tile
-          - tile_graph
-          - tensor_graph
-          - nn_graph
+          - tensor
+          - nn
           - runtime
           - module
           - optim
@@ -94,11 +94,10 @@ jobs:
         subsystem:
           - kernel
           - starpu
+          - core
           - tile
           - tensor
-          - tile_graph
-          - tensor_graph
-          - nn_graph
+          - nn
           - module
           - model
           - io
@@ -150,11 +149,10 @@ jobs:
         subsystem:
           - kernel
           - starpu
+          - core
           - tile
           - tensor
-          - tile_graph
-          - tensor_graph
-          - nn_graph
+          - nn
           - module
           - model
           - io

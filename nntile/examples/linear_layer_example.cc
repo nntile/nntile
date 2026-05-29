@@ -19,7 +19,7 @@
 #include <random>
 #include <vector>
 
-namespace gt = nntile::tensor;
+namespace gt = nntile::core;
 
 int main(int argc, char **argv)
 {

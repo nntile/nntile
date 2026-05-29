@@ -13,8 +13,8 @@
  * */
 
 #include "nntile/model/gpt2/gpt2_causal.hh"
-#include "nntile/nn_graph/ops/gemm.hh"
-#include "nntile/nn_graph/ops/transpose.hh"
+#include "nntile/nn/ops/gemm.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 

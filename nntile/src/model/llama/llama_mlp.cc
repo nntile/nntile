@@ -14,7 +14,7 @@
 
 #include "nntile/model/llama/llama_mlp.hh"
 
-#include "nntile/nn_graph/ops/transpose.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 namespace nntile::model::llama
 {

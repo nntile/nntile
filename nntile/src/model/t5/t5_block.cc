@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/model/t5/t5_block.hh"
-#include "nntile/nn_graph/ops/add.hh"
+#include "nntile/nn/ops/add.hh"
 
 #include <stdexcept>
 

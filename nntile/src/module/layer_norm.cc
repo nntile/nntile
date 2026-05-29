@@ -14,7 +14,7 @@
  * */
 
 #include "nntile/module/layer_norm.hh"
-#include "nntile/nn_graph/ops/layer_norm.hh"
+#include "nntile/nn/ops/layer_norm.hh"
 
 #include <stdexcept>
 

@@ -22,12 +22,12 @@
 // Include other NNTile headers
 #include "nntile/graph.hh"
 #include "nntile/module/rms_norm.hh"
-#include "nntile/tensor_graph/graph.hh"
+#include "nntile/tensor/graph.hh"
 
 using namespace nntile;
 using namespace nntile;
 using namespace nntile::module;
-namespace gt = nntile::tensor_graph;
+namespace gt = nntile::tensor;
 
 TEST_CASE("RMSNorm ConstructorCreatesParameters", "[module]")
 {

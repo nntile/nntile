@@ -51,7 +51,7 @@
 #include <nntile/model/gptneox/gptneox_causal.hh>
 #include <nntile/model/gptneox/gptneox_config.hh>
 #include <nntile/model/gptneox/gptneox_rope.hh>
-#include <nntile/nn_graph/ops/sdpa_causal_mask.hh>
+#include <nntile/nn/ops/sdpa_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
 using namespace nntile;

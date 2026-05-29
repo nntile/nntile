@@ -13,8 +13,8 @@
  * */
 
 #include "nntile/model/t5/t5_for_conditional_generation.hh"
-#include "nntile/nn_graph/ops/scale.hh"
-#include "nntile/nn_graph/ops/transpose.hh"
+#include "nntile/nn/ops/scale.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <cmath>
 #include <stdexcept>

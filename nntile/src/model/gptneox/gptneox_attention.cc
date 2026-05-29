@@ -14,10 +14,10 @@
  * */
 
 #include "nntile/model/gptneox/gptneox_attention.hh"
-#include "nntile/nn_graph/ops/gemm.hh"
-#include "nntile/nn_graph/ops/rope.hh"
-#include "nntile/nn_graph/ops/sdpa_eager.hh"
-#include "nntile/nn_graph/ops/transpose.hh"
+#include "nntile/nn/ops/gemm.hh"
+#include "nntile/nn/ops/rope.hh"
+#include "nntile/nn/ops/sdpa_eager.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 

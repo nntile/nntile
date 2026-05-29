@@ -17,9 +17,9 @@
 
 #include <nntile/common.hh>
 
-// TensorGraph and TileGraph stack (tensor_graph has no tile dependency).
-#include <nntile/tensor_graph.hh>
-#include <nntile/tile_graph.hh>
+// Graph stack: tensor -> tile -> nn (tensor layer has no tile graph dependency).
+#include <nntile/tensor.hh>
+#include <nntile/tile.hh>
 #include <nntile/nn.hh>
 #include <nntile/io.hh>
 #include <nntile/kv_cache.hh>

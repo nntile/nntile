@@ -1,6 +1,6 @@
 # How to Add a New Autograd Function
 
-This guide describes how to add a new autograd (differentiable) operation to the NNGraph system. Autograd functions live in `include/nntile/nn_graph/` and `nntile/src/nn_graph/`.
+This guide describes how to add a new autograd (differentiable) operation to the NNGraph system. Autograd functions live in `include/nntile/nn/` and `nntile/src/nn_graph/`.
 
 **Important:** Autograd functions use `TensorGraph::TensorNode` operations for forward and backward. All logic is expressed via the tensor graph API (e.g., `add`, `add_inplace`, `gemm`, `gelu_backward`, etc.). You access the underlying data node from an `NNGraph::TensorNode*` via `.data()` — tensor ops take `TensorGraph::TensorNode*` and return `TensorGraph::TensorNode*` where applicable.
 
@@ -16,28 +16,28 @@ Autograd ops follow a **PyTorch-style** design: **outputs and temporaries are cr
 
 Each autograd function consists of:
 
-1. **Header** (`include/nntile/nn_graph/<op>.hh`) — struct with `forward()` and `backward()`, plus a convenience free function
+1. **Header** (`include/nntile/nn/<op>.hh`) — struct with `forward()` and `backward()`, plus a convenience free function
 2. **Source** (`nntile/src/nn_graph/<op>.cc`) — implementation of forward and backward
-3. **Tensor ops** — existing or new operations in `include/nntile/tensor_graph/` that operate on `TensorGraph::TensorNode*`
+3. **Tensor ops** — existing or new operations in `include/nntile/tensor/` that operate on `TensorGraph::TensorNode*`
 
 ---
 
 ## Step 1: Ensure Tensor Ops Exist
 
-Your autograd function must be built from `TensorGraph::TensorNode` operations only. Check `include/nntile/tensor_graph/` for existing ops (e.g., `add`, `add_inplace`, `gemm`, `gelu`, `gelu_backward`, `sum_fiber`, `add_fiber`, `add_fiber_inplace`). If you need a new tensor op, add it first in the tensor graph layer.
+Your autograd function must be built from `TensorGraph::TensorNode` operations only. Check `include/nntile/tensor/` for existing ops (e.g., `add`, `add_inplace`, `gemm`, `gelu`, `gelu_backward`, `sum_fiber`, `add_fiber`, `add_fiber_inplace`). If you need a new tensor op, add it first in the tensor graph layer.
 
 ---
 
 ## Step 2: Create the Header
 
-Create `include/nntile/nn_graph/<op>.hh`:
+Create `include/nntile/nn/<op>.hh`:
 
 ```cpp
 #pragma once
 
 #include <string>
 
-#include <nntile/tensor_graph/<op>.hh>
+#include <nntile/tensor/<op>.hh>
 #include <nntile/nn.hh>
 
 namespace nntile
@@ -205,10 +205,10 @@ NNGraph::TensorNode* add(
 
 ## Step 6: Register in graph_ops.hh
 
-Add an include for your new op in `include/nntile/nn_graph/graph_ops.hh`:
+Add an include for your new op in `include/nntile/nn/graph_ops.hh`:
 
 ```cpp
-#include <nntile/nn_graph/my_op.hh>
+#include <nntile/nn/my_op.hh>
 ```
 
 ---

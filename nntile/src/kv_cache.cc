@@ -16,8 +16,8 @@
 #include "nntile/kv_cache.hh"
 
 #include "nntile/dtype.hh"
-#include "nntile/nn_graph/graph_data_node.hh"
-#include "nntile/tile_graph/graph.hh"
+#include "nntile/nn/graph_data_node.hh"
+#include "nntile/tile/graph.hh"
 #include "nntile/runtime.hh"
 
 #include <cstring>

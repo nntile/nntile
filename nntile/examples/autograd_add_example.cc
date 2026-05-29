@@ -27,7 +27,7 @@
 int main(int argc, char **argv)
 {
     using namespace nntile;
-    namespace gt = nntile::tensor;
+    namespace gt = nntile::core;
 
     if (argc > 1 &&
         (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))

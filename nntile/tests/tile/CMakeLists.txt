@@ -6,150 +6,132 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file tests/tile/CMakeLists.txt
-# Tests for nntile::tile functions
+# @file nntile/tests/tile_graph/CMakeLists.txt
+# Tests for TileGraph operations
 #
 # @version 1.1.0
-#
-# Test layout: each src/tile/<name>.cc should have a matching tests/tile/<name>.cc
-# registered in TESTS below (or in TESTS_CATCH2 when using Catch2/CUDA-only).
-# tests/tile/tile.cc is the exception (Tile class tests; there is no src/tile/tile.cc).
-# When adding a new tile op: add the implementation under src/tile/, add the test
-# file under tests/tile/, and append the basename to TESTS or TESTS_CATCH2.
 
-# All unit tests without arguments to test executable
-set(TESTS
+set(TESTS_TILE_CATCH2
+    "adam_step"
+    "adamw_step"
     "add"
-    "add_inplace"
-    "add_fiber_inplace"
     "add_fiber"
-    "add_slice_inplace"
+    "add_fiber_inplace"
+    "add_inplace"
     "add_slice"
+    "add_slice_inplace"
     "clear"
+    "copy"
+    "copy_intersection"
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
-    "copy"
-    "copy_intersection"
     "embedding"
     "embedding_backward"
     "fill"
     "gelu"
-    "gelu_inplace"
     "gelu_backward"
-    "gelutanh"
-    "gelutanh_inplace"
-    "gelutanh_backward"
+    "gelu_inplace"
     "gemm"
+    "gelutanh"
+    "gelutanh_backward"
+    "gelutanh_inplace"
+    "hypot"
+    "hypot_inplace"
+    "hypot_scalar_inverse"
     "log_scalar"
     "logsumexp"
     "mask_scalar"
     "maxsumexp"
+    "multiply"
+    "multiply_fiber"
+    "multiply_fiber_inplace"
+    "multiply_inplace"
+    "multiply_slice"
     "norm"
     "norm_fiber"
     "norm_fiber_inplace"
     "norm_slice"
     "norm_slice_inplace"
     "pow"
-    "multiply_inplace"
-    "multiply_fiber_inplace"
-    "multiply_fiber"
-    "multiply"
-    "multiply_slice"
     "randn"
-    "relu_inplace"
-    "relu_backward"
     "relu"
+    "relu_backward"
+    "relu_inplace"
     "rope"
     "rope_backward"
+    "scale"
+    "scale_fiber"
     "scale_inplace"
-    "adam_step"
-    "adamw_step"
+    "scale_slice"
     "sgd_step"
-    "silu_backward"
     "silu"
+    "silu_backward"
     "silu_inplace"
     "softmax"
     "softmax_inplace"
     "sqrt"
     "sqrt_inplace"
     "subtract_indexed_outputs"
+    "sum"
     "sum_fiber"
     "sum_slice"
-    "sum"
     "sumprod_fiber"
     "sumprod_slice"
-    "transpose"
-    "tile"
     "total_sum_accum"
-    "traits"
-    "scale"
-    "scale_fiber"
-    "hypot_inplace"
-    "hypot"
-    "hypot_scalar_inverse"
+    "transpose"
 )
 
-# Describe all tests that are not yet implemented
-set(TESTS_NOT_IMPLEMENTED
+set(TESTS_TILE_ROOT_CATCH2
+    "append_tensor_graph_phase"
+    "add_mixed_tile"
+    "mlp"
+    "tile_graph"
 )
 
-# Add target for local coverage
-if(BUILD_COVERAGE)
-    setup_target_for_coverage_lcov(NAME coverage_tile
-        EXECUTABLE ctest -R tests_tile_
-        LCOV_ARGS --no-external
-        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
-endif()
-
-foreach(test IN LISTS TESTS)
-    set(labels core)
-    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
-        set(labels "NotImplemented core")
-    endif()
-    if(test STREQUAL "add")
-        set(labels "${labels} smoke")
-    endif()
-    add_test_set(TARGET_NAME tests_core_tile_${test}
+foreach(test IN LISTS TESTS_TILE_CATCH2)
+    add_test_set(TARGET_NAME tests_graph_tile_ops_${test}
         EXEC_NAME test_${test}
-        SOURCES ${test}.cc
-        LINK_LIBRARIES nntile
+        SOURCES ops/${test}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_core_tile_${test}
-        COV_GLOBAL coverage_tile coverage
-        LABELS ${labels}
+        COV_NAME coverage_graph_tile_ops_${test}
+        COV_GLOBAL coverage_graph coverage
     )
+    target_include_directories(tests_graph_tile_ops_${test} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endforeach()
 
-set(TESTS_CATCH2
-)
+foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
+    add_test_set(TARGET_NAME tests_graph_tile_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_graph_tile_${test}
+        COV_GLOBAL coverage_graph coverage
+    )
+    target_include_directories(tests_graph_tile_${test} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+endforeach()
 
-# CUDA-only tests (only added when CUDA is available)
 if(NNTILE_USE_CUDA)
-    list(APPEND TESTS_CATCH2
-        "flash_sdpa_fwd_cudnn"
-        "flash_sdpa_bwd_cudnn"
-    )
+    foreach(test IN ITEMS flash_sdpa_fwd_cudnn flash_sdpa_bwd_cudnn)
+        add_test_set(TARGET_NAME tests_graph_tile_ops_${test}
+            EXEC_NAME test_${test}
+            SOURCES ops/${test}.cc
+            LINK_LIBRARIES
+                nntile
+                Catch2::Catch2WithMain
+                $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            COV_ENABLE ${BUILD_COVERAGE}
+            COV_NAME coverage_graph_tile_ops_${test}
+            COV_GLOBAL coverage_graph coverage
+        )
+        target_include_directories(tests_graph_tile_ops_${test} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/..)
+    endforeach()
 endif()
-
-foreach(test IN LISTS TESTS_CATCH2)
-    set(labels core)
-    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
-        set(labels "NotImplemented core")
-    endif()
-    if(test STREQUAL "add")
-        set(labels "${labels} smoke")
-    endif()
-    add_test_set(TARGET_NAME tests_core_tile_${test}
-        EXEC_NAME test_${test}
-        SOURCES ${test}.cc
-        LINK_LIBRARIES
-            nntile
-            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
-            Catch2::Catch2WithMain
-        COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_core_tile_${test}
-        COV_GLOBAL coverage_tile coverage
-        LABELS ${labels}
-    )
-endforeach()

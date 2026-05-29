@@ -50,7 +50,7 @@
 #include <nntile/io/safetensors.hh>
 #include <nntile/model/gptneo/gptneo_causal.hh>
 #include <nntile/model/gptneo/gptneo_config.hh>
-#include <nntile/nn_graph/ops/sdpa_causal_mask.hh>
+#include <nntile/nn/ops/sdpa_causal_mask.hh>
 
 #include "gptneo_config_json.hh"
 

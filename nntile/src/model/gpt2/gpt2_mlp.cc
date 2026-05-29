@@ -13,8 +13,8 @@
  * */
 
 #include "nntile/model/gpt2/gpt2_mlp.hh"
-#include "nntile/nn_graph/ops/add_fiber.hh"
-#include "nntile/nn_graph/ops/gemm.hh"
+#include "nntile/nn/ops/add_fiber.hh"
+#include "nntile/nn/ops/gemm.hh"
 
 namespace nntile::model::gpt2
 {

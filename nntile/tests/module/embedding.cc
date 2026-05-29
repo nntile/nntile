@@ -27,7 +27,7 @@
 // Include other NNTile headers
 #include "nntile/graph.hh"
 #include "nntile/module/embedding.hh"
-#include "nntile/tensor_graph/graph.hh"
+#include "nntile/tensor/graph.hh"
 
 #ifdef NNTILE_HAVE_TORCH
 #include "context_fixture.hh"

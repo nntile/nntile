@@ -11,9 +11,9 @@
  * */
 
 #include "nntile/model/bert/bert_self_output.hh"
-#include "nntile/nn_graph/ops/add.hh"
-#include "nntile/nn_graph/ops/add_fiber.hh"
-#include "nntile/nn_graph/ops/gemm.hh"
+#include "nntile/nn/ops/add.hh"
+#include "nntile/nn/ops/add_fiber.hh"
+#include "nntile/nn/ops/gemm.hh"
 
 #include <stdexcept>
 

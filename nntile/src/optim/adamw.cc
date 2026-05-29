@@ -15,7 +15,7 @@
 
 #include "nntile/optim/adamw.hh"
 
-#include "nntile/nn_graph/ops/adamw_step.hh"
+#include "nntile/nn/ops/adamw_step.hh"
 
 #include <fstream>
 #include <nlohmann/json.hpp>

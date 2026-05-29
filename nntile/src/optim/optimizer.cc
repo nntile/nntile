@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/optim/optimizer.hh"
-#include "nntile/tile_graph/graph.hh"
+#include "nntile/tile/graph.hh"
 
 #include <cstring>
 #include <iostream>

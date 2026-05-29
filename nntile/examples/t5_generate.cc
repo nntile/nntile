@@ -46,7 +46,7 @@
 #include <nntile/io/safetensors.hh>
 #include <nntile/model/t5/t5_for_conditional_generation.hh>
 #include <nntile/model/t5/t5_config.hh>
-#include <nntile/nn_graph/ops/sdpa_causal_mask.hh>
+#include <nntile/nn/ops/sdpa_causal_mask.hh>
 
 using namespace nntile;
 using namespace nntile;

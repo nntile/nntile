@@ -263,7 +263,7 @@ protected:
 
 ## 6. Example: Add Operation
 
-### Header (`include/nntile/tensor_graph/add.hh`)
+### Header (`include/nntile/tensor/add.hh`)
 
 ```cpp
 struct TensorAddOp : BaseOpNode<TensorGraph>

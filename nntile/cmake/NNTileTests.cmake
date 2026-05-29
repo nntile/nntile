@@ -5,11 +5,10 @@
 set(NNTILE_TEST_SUBSYSTEMS
     kernel
     starpu
+    core
     tile
     tensor
-    tile_graph
-    tensor_graph
-    nn_graph
+    nn
     module
     model
     io
@@ -17,13 +16,6 @@ set(NNTILE_TEST_SUBSYSTEMS
 
 foreach(_sub IN LISTS NNTILE_TEST_SUBSYSTEMS)
     string(TOUPPER "${_sub}" _u)
-    if(_sub STREQUAL "tile_graph")
-        set(_u TILE_GRAPH)
-    elseif(_sub STREQUAL "tensor_graph")
-        set(_u TENSOR_GRAPH)
-    elseif(_sub STREQUAL "nn_graph")
-        set(_u NN_GRAPH)
-    endif()
     option(BUILD_TESTS_${_u} "Build and run tests for ${_sub}" ON)
 endforeach()
 

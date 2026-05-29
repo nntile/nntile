@@ -16,7 +16,7 @@
 #include "nntile/module/rms_norm.hh"
 
 #include "nntile/io/safetensors.hh"
-#include "nntile/nn_graph/ops/rms_norm.hh"
+#include "nntile/nn/ops/rms_norm.hh"
 
 #include <stdexcept>
 

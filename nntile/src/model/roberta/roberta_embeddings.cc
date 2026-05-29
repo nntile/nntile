@@ -10,8 +10,8 @@
  * */
 
 #include "nntile/model/roberta/roberta_embeddings.hh"
-#include "nntile/nn_graph/ops/add.hh"
-#include "nntile/nn_graph/ops/transpose.hh"
+#include "nntile/nn/ops/add.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 

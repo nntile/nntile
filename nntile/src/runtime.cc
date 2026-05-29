@@ -19,12 +19,12 @@
 // the definition when calling it on const TileGraph&.
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
-#include "nntile/tensor_graph/graph_data_node.hh"
-#include "nntile/tensor_graph/tensor_graph_tiling.hh"
-#include "nntile/tile_graph/graph.hh"
-#include "nntile/tile_graph/graph_data_node.hh"
-#include "nntile/tile_graph/graph_op_node.hh"
-#include "nntile/tile/tile.hh"
+#include "nntile/tensor/graph_data_node.hh"
+#include "nntile/tensor/tensor_graph_tiling.hh"
+#include "nntile/tile/graph.hh"
+#include "nntile/tile/graph_data_node.hh"
+#include "nntile/tile/graph_op_node.hh"
+#include "nntile/core/tile.hh"
 
 #include <cstring>
 #include <set>
@@ -43,7 +43,7 @@ void allocate_tile_and_register(const TileGraph::TileNode *node,
     const std::vector<Index> &shape,
     std::map<const TileGraph::TileNode *, std::shared_ptr<void>> &tile_map)
 {
-    auto t = std::make_shared<nntile::tile::Tile<T>>(shape);
+    auto t = std::make_shared<nntile::core::Tile<T>>(shape);
     tile_map[node] = t;
 }
 
@@ -71,7 +71,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
     switch (td.dtype)
     {
     case DataType::FP32:
-        tile_graph_layout_io::
+        tile_layout_io::
             scatter_logical_tensor<float, nntile::fp32_t, float>(*lay,
                 td.tiles,
                 reinterpret_cast<const float *>(hint->data()),
@@ -79,7 +79,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
                 rt);
         break;
     case DataType::FP32_FAST_TF32:
-        tile_graph_layout_io::scatter_logical_tensor<float,
+        tile_layout_io::scatter_logical_tensor<float,
             nntile::fp32_fast_tf32_t,
             float>(*lay,
             td.tiles,
@@ -88,7 +88,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
             rt);
         break;
     case DataType::FP32_FAST_FP16:
-        tile_graph_layout_io::scatter_logical_tensor<float,
+        tile_layout_io::scatter_logical_tensor<float,
             nntile::fp32_fast_fp16_t,
             float>(*lay,
             td.tiles,
@@ -97,7 +97,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
             rt);
         break;
     case DataType::FP32_FAST_BF16:
-        tile_graph_layout_io::scatter_logical_tensor<float,
+        tile_layout_io::scatter_logical_tensor<float,
             nntile::fp32_fast_bf16_t,
             float>(*lay,
             td.tiles,
@@ -106,7 +106,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
             rt);
         break;
     case DataType::FP64:
-        tile_graph_layout_io::
+        tile_layout_io::
             scatter_logical_tensor<double, nntile::fp64_t, double>(*lay,
                 td.tiles,
                 reinterpret_cast<const double *>(hint->data()),
@@ -114,7 +114,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
                 rt);
         break;
     case DataType::FP16:
-        tile_graph_layout_io::
+        tile_layout_io::
             scatter_logical_tensor<float, nntile::fp16_t, float>(*lay,
                 td.tiles,
                 reinterpret_cast<const float *>(hint->data()),
@@ -122,7 +122,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
                 rt);
         break;
     case DataType::BF16:
-        tile_graph_layout_io::
+        tile_layout_io::
             scatter_logical_tensor<float, nntile::bf16_t, float>(*lay,
                 td.tiles,
                 reinterpret_cast<const float *>(hint->data()),
@@ -130,7 +130,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
                 rt);
         break;
     case DataType::INT64:
-        tile_graph_layout_io::scatter_logical_tensor<std::int64_t,
+        tile_layout_io::scatter_logical_tensor<std::int64_t,
             nntile::int64_t,
             std::int64_t>(*lay,
             td.tiles,
@@ -139,7 +139,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
             rt);
         break;
     case DataType::BOOL:
-        tile_graph_layout_io::
+        tile_layout_io::
             scatter_logical_tensor<bool, nntile::bool_t, bool>(*lay,
                 td.tiles,
                 reinterpret_cast<const bool *>(hint->data()),
@@ -154,7 +154,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
 
 template <typename T>
 void apply_bind_hint_impl(
-    nntile::tile::Tile<T> &tile, const std::vector<std::uint8_t> &data)
+    nntile::core::Tile<T> &tile, const std::vector<std::uint8_t> &data)
 {
     if (data.size() != static_cast<size_t>(tile.nelems) * sizeof(T))
     {
