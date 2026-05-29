@@ -8,7 +8,7 @@ if(NOT BUILD_NNTILE)
     return()
 endif()
 
-if(NOT TARGET nntile)
+if(NOT TARGET nntile AND NOT NNTILE_COMPILE_CHECK_SUBSYSTEM)
     add_library(nntile)
     target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS} nlohmann_json::nlohmann_json)
     nntile_apply_common_includes(nntile)
