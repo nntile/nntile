@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/log_scalar.hh"
 #include "nntile/starpu/log_scalar.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

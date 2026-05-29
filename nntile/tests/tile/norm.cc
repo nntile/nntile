@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/norm.hh"
 #include "nntile/starpu/norm.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <cmath>
 
 using namespace nntile;

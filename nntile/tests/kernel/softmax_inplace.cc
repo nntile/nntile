@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/softmax_inplace.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <limits>

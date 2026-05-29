@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/subtract_indexed_outputs.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <iostream>
 
 using namespace nntile;

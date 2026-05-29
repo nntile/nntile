@@ -20,7 +20,7 @@
 #include "nntile/starpu/gemm.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/config.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;

@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/scale_inplace.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <iostream>
 
 using namespace nntile;

@@ -19,7 +19,7 @@
 #include "nntile/starpu/add_fiber.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;

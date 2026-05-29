@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/total_sum_accum.hh"
 #include "nntile/starpu/total_sum_accum.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

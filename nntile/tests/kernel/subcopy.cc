@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/subcopy.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>

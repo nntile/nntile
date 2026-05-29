@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/tile.hh"
 #include <limits>
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

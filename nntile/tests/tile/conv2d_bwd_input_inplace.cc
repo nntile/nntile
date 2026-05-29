@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/conv2d_bwd_input_inplace.hh"
 #include "nntile/starpu/conv2d_bwd_input_inplace.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

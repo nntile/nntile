@@ -6,7 +6,7 @@
 #include "nntile/starpu/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/kernel/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/kernel/cuda.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 #ifdef NNTILE_USE_CUDA
 #    include <cuda_runtime.h>

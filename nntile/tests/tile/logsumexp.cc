@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/logsumexp.hh"
 #include "nntile/starpu/logsumexp.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <cmath>
 
 using namespace nntile;

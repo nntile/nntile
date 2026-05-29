@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/copy.hh"
 #include "nntile/starpu/copy.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

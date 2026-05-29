@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/kernel/subcopy.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>

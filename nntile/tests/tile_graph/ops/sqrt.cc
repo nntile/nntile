@@ -21,7 +21,7 @@
 
 using namespace nntile;
 using namespace nntile;
-namespace gt = nntile::tensor;
+namespace gt = nntile::tensor_graph;
 namespace tt = nntile::tile_tests;
 
 TEST_CASE("sqrt mixed tile parity", "[graph][tile]")

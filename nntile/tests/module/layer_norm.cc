@@ -35,7 +35,7 @@
 using namespace nntile;
 using namespace nntile;
 using namespace nntile::module;
-namespace gt = nntile::tensor;
+namespace gt = nntile::tensor_graph;
 
 TEST_CASE("LayerNorm ConstructorCreatesParameters", "[module]")
 {

@@ -28,7 +28,7 @@
 
 using namespace nntile;
 using namespace nntile;
-namespace gt = nntile::tensor;
+namespace gt = nntile::tensor_graph;
 
 //! Run add via TensorGraph (compile + execute) and via tensor API, compare
 template <typename T>

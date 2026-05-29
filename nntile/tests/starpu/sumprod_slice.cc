@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/starpu/sumprod_slice.hh"
 #include "nntile/kernel/sumprod_slice.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA

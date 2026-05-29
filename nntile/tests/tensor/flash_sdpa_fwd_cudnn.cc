@@ -19,7 +19,7 @@
 #include "nntile/tile/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/starpu/config.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <algorithm>
 #include <cmath>
 #include <limits>

@@ -20,7 +20,7 @@
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/context.hh"
 #include "nntile/starpu/config.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <limits>
 
 using namespace nntile;

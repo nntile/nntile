@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/multiply_slice.hh"
 #include "nntile/starpu/multiply_slice.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

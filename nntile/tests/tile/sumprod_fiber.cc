@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/sumprod_fiber.hh"
 #include "nntile/starpu/sumprod_fiber.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

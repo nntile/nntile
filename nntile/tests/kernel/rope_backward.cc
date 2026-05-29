@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/rope_backward.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <cmath>

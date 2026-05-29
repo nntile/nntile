@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/mask_scalar.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <cmath>

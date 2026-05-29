@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/traits.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

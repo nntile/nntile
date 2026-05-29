@@ -25,7 +25,7 @@
 
 using namespace nntile;
 using namespace nntile;
-namespace gt = nntile::tensor;
+namespace gt = nntile::tensor_graph;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph relu structure",

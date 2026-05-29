@@ -26,7 +26,7 @@
 
 using namespace nntile;
 using namespace nntile;
-namespace gt = nntile::tensor;
+namespace gt = nntile::tensor_graph;
 
 #ifdef NNTILE_HAVE_TORCH
 namespace

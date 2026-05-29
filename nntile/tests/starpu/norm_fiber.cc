@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/starpu/norm_fiber.hh"
 #include "nntile/kernel/norm_fiber.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA

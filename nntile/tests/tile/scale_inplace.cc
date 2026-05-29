@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/scale_inplace.hh"
 #include "nntile/starpu/scale_inplace.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <cmath>
 #include <limits>
 

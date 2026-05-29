@@ -16,7 +16,7 @@
 #include "nntile/tile/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/starpu/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/starpu/handle.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include "nntile/constants.hh"
 #include <cmath>
 #include <limits>

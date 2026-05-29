@@ -28,7 +28,7 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile_graph;
-namespace gt = nntile::tensor;
+namespace gt = nntile::tensor_graph;
 namespace tt = nntile::tile_tests;
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TileGraph relu matches tile",

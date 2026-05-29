@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/softmax.hh"
 #include "nntile/starpu/softmax.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <cmath>
 
 using namespace nntile;

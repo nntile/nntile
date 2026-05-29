@@ -18,7 +18,7 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/tile/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/starpu/config.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <algorithm>
 #include <cmath>
 #include <limits>

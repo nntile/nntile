@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/conv2d_bwd_weight_inplace.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <iostream>
 
 using namespace nntile;

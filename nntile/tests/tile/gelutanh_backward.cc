@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/gelutanh_backward.hh"
 #include "nntile/starpu/gelutanh_backward.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

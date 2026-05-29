@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/add.hh"
 #include "nntile/starpu/add.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/subtract_indexed_outputs.hh"
 #include "nntile/starpu/subtract_indexed_outputs.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

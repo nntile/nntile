@@ -15,7 +15,7 @@
 #include "nntile/tensor/tensor.hh"
 #include "nntile/context.hh"
 #include "nntile/starpu/config.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;

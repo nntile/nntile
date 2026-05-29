@@ -22,7 +22,7 @@
 
 using namespace nntile;
 using namespace nntile;
-namespace gt = nntile::tensor;
+namespace gt = nntile::tensor_graph;
 namespace tg = nntile::tile_graph;
 
 TEST_CASE("TileGraph basic construction", "[graph][tile]")

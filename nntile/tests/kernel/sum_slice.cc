@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/sum_slice.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <limits>

@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/norm_fiber_inplace.hh"
 #include "nntile/starpu/norm_fiber_inplace.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <cmath>
 
 using namespace nntile;

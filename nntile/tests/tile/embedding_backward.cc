@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/embedding_backward.hh"
 #include "nntile/starpu/embedding_backward.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

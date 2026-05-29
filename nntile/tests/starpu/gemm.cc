@@ -16,7 +16,7 @@
 #include "nntile/starpu/gemm.hh"
 #include "nntile/kernel/cblas.hh"
 #include "nntile/kernel/cublas.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>

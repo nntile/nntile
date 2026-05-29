@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/hypot_scalar_inverse.hh"
 #include "nntile/starpu/hypot_scalar_inverse.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;

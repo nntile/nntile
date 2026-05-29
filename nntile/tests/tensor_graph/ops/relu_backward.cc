@@ -28,7 +28,7 @@
 
 using namespace nntile;
 using namespace nntile;
-namespace gt = nntile::tensor;
+namespace gt = nntile::tensor_graph;
 
 template <typename T>
 void check_relu_backward_vs_tensor_api(const std::vector<Index> &shape)

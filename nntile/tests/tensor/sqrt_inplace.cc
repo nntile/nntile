@@ -22,7 +22,7 @@
 #include "nntile/context.hh"
 #include "nntile/starpu/config.hh"
 #include "nntile/kernel/cpu.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;

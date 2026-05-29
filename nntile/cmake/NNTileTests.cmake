@@ -52,8 +52,12 @@ function(nntile_add_test_compile_check subsystem)
     add_library(nntile_test_objs_${_sub} OBJECT ${_test_src})
     nntile_apply_common_includes(nntile_test_objs_${_sub})
     nntile_apply_cuda(nntile_test_objs_${_sub})
+    set(_test_inc_dirs "${CMAKE_CURRENT_SOURCE_DIR}")
+    if(_sub STREQUAL "model")
+        list(APPEND _test_inc_dirs "${CMAKE_CURRENT_SOURCE_DIR}/model")
+    endif()
     target_include_directories(nntile_test_objs_${_sub} PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}")
+        ${_test_inc_dirs})
     target_link_libraries(nntile_test_objs_${_sub} PRIVATE
         Catch2::Catch2WithMain)
     add_custom_target(nntile_compile_check_tests_${_sub}

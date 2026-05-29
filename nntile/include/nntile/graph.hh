@@ -20,7 +20,7 @@
 // Tensor-level and tile-level graph headers (nntile/tensor.hh has no
 // tile dependency; include both here for a full stack entry point).
 #include <nntile/tensor.hh>
-#include <nntile/tile.hh>
+#include <nntile/tile_graph.hh>
 #include <nntile/nn.hh>
 #include <nntile/io.hh>
 #include <nntile/kv_cache.hh>

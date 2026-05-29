@@ -15,7 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/kernel/flash_sdpa_fwd_cudnn.hh"
-#include "../../testing.hh"
+#include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
 #   include <cudnn_frontend.h>
