@@ -56,6 +56,9 @@ jobs:
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
           cmake --build build --target nntile -j"$(nproc)"
+      - run: |
+          chmod +x .github/scripts/ccache-print-stats.sh
+          .github/scripts/ccache-print-stats.sh build-lib
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
@@ -96,6 +99,9 @@ jobs:
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF
           cmake --build build -j"$(nproc)"
+      - run: |
+          chmod +x .github/scripts/ccache-print-stats.sh
+          .github/scripts/ccache-print-stats.sh build-tests
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
@@ -167,6 +173,9 @@ jobs:
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON
           cmake --build build --target nntile_all_examples -j"$(nproc)"
+      - run: |
+          chmod +x .github/scripts/ccache-print-stats.sh
+          .github/scripts/ccache-print-stats.sh build-examples
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
