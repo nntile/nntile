@@ -699,7 +699,10 @@ if(NNTILE_LINK_CACHED_OBJECTS)
         if(NOT EXISTS "${_lib}")
             message(FATAL_ERROR "Missing prebuilt archive: ${_lib}")
         endif()
-        target_link_libraries(nntile PRIVATE "${_lib}")
+        # Pull every .o from each cached archive into libnntile.so (default linker
+        # would drop members not referenced during the shared-library link).
+        target_link_libraries(nntile PRIVATE
+            -Wl,--whole-archive "${_lib}" -Wl,--no-whole-archive)
     endforeach()
 endif()
 

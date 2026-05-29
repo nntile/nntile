@@ -58,7 +58,10 @@ endif()
 
 #include(GoogleTest)
 
-# Append external sources and headers.
+# Append external sources and headers (not for IMPORTED prebuilt nntile).
 if(TARGET nntile)
-    target_sources(nntile PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/random.h")
+    get_target_property(_nntile_imported nntile IMPORTED)
+    if(NOT _nntile_imported)
+        target_sources(nntile PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/random.h")
+    endif()
 endif()
