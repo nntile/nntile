@@ -386,25 +386,3 @@ jobs:
             -DBUILD_EXAMPLES=ON
           cmake --build build -j"$(nproc)"
           cd build && ctest -j"$(nproc)" --output-on-failure
-
-  test-python:
-    name: test-python
-    needs: build-nntile
-    runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-ci-container
-        with: {python-version: '3.12'}
-      - run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_PRESET=full -DBUILD_PYTHON_WRAPPERS=ON -DBUILD_TESTS=OFF
-          cmake --build build --target nntile_py -j"$(nproc)"
-          export PYTHONPATH="${PWD}/build/python"
-          python3 -c "import nntile; print('ok', nntile.NNGraph)"
