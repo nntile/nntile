@@ -55,10 +55,14 @@ subsystem sources for compilation in that mode (only `context.cc`, logger source
 and the shared-library link). It saves cache key `nntile-lib-linked-<sha>` with
 `build/lib/libnntile.so` and `build/include/nntile/defs.h` for `build-tests-*`.
 
-## Test compile-check (no libnntile)
+## Test compile-check (no libnntile, no Catch2 build)
 
 CI job `compile-check-tests-<subsystem>`: compiles test `.cc` files into an
-OBJECT library only (no link, no `ctest`).
+OBJECT library only (no link, no `ctest`, no `libnntile`). It downloads
+`catch2-src` from the `build-test-prerequisites` artifact and uses those headers
+only (`NNTILE_FETCHCONTENT_DISCONNECTED=ON` skips `FetchContent_MakeAvailable`
+for Catch2 in that job). Catch2 is built once in `build-test-prerequisites`, not
+in each `compile-check-tests-*` matrix leg.
 
 ```bash
 cmake -S . -B build -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=nn \

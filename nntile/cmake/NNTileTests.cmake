@@ -116,6 +116,27 @@ else()
     set(NNTILE_REGISTER_CTEST ON)
 endif()
 
+# OBJECT compile-check: Catch2 headers only (no Catch2 build/link).
+function(nntile_apply_catch2_compile_headers target)
+    if(NNTILE_FETCHCONTENT_DISCONNECTED)
+        set(_catch2_inc "${CMAKE_BINARY_DIR}/_deps/catch2-src/src")
+    else()
+        if(NOT TARGET Catch2::Catch2WithMain)
+            message(FATAL_ERROR
+                "Catch2::Catch2WithMain missing; configure external/Catch2 first")
+        endif()
+        get_target_property(_catch2_inc Catch2::Catch2WithMain
+            INTERFACE_INCLUDE_DIRECTORIES)
+        if(_catch2_inc MATCHES ";")
+            list(GET _catch2_inc 0 _catch2_inc)
+        endif()
+    endif()
+    if(NOT _catch2_inc OR NOT EXISTS "${_catch2_inc}/catch2/catch_test_macros.hpp")
+        message(FATAL_ERROR "Catch2 headers not found (expected under ${_catch2_inc})")
+    endif()
+    target_include_directories(${target} PRIVATE "${_catch2_inc}")
+endfunction()
+
 function(nntile_add_test_compile_check subsystem)
     string(TOLOWER "${subsystem}" _sub)
     list(FIND NNTILE_TEST_SUBSYSTEMS "${_sub}" _idx)
@@ -148,8 +169,8 @@ function(nntile_add_test_compile_check subsystem)
         "${CMAKE_CURRENT_SOURCE_DIR}/${_sub}")
     target_include_directories(nntile_test_objs_${_sub} PRIVATE
         ${_test_inc_dirs})
+    nntile_apply_catch2_compile_headers(nntile_test_objs_${_sub})
     target_link_libraries(nntile_test_objs_${_sub} PRIVATE
-        Catch2::Catch2WithMain
         nlohmann_json::nlohmann_json)
     add_custom_target(nntile_compile_check_tests_${_sub}
         DEPENDS nntile_test_objs_${_sub})
