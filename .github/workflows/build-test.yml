@@ -284,7 +284,8 @@ jobs:
       - uses: ./.github/actions/restore-nntile-obj-cache
         with: {subsystem: dataset}
       - uses: ./.github/actions/restore-nntile-test-obj-cache
-        with: {subsystem: ${{ matrix.subsystem }}}
+        with:
+          subsystem: ${{ matrix.subsystem }}
       - run: |
           chmod +x .github/scripts/cmake-build-tests-subsystem.sh \
             .github/scripts/cmake-test-build-targets.sh \
