@@ -8,11 +8,12 @@
 #
 # @file .github/actions/restore-nntile-test-obj-deps/action.yml
 #
-# Restore compile-check-tests OBJECT tarballs for build-tests (incl. deps).
+# Restore test OBJECT tarballs produced by compile-check-tests (primary subsystem
+# and its deps, e.g. kernel+starpu for starpu) in one cache entry.
 #
 # @version 1.1.0
 name: Restore NNTile test object caches (with deps)
-description: Restore nntile_test_objs_*.tar.gz for a subsystem and its test deps
+description: Restore bundled nntile_test_objs_*.tar.gz for build-tests
 inputs:
   subsystem:
     description: Test subsystem for build-tests (kernel, starpu, core, tile, ...)
@@ -21,19 +22,7 @@ runs:
   using: composite
   steps:
     - uses: actions/cache/restore@v4
-      if: inputs.subsystem == 'starpu' || inputs.subsystem == 'core'
       with:
-        path: build/nntile_test_objs_cache/nntile_test_objs_kernel.tar.gz
-        key: nntile-test-obj-kernel-${{ github.sha }}
-        fail-on-cache-miss: true
-    - uses: actions/cache/restore@v4
-      if: inputs.subsystem == 'core'
-      with:
-        path: build/nntile_test_objs_cache/nntile_test_objs_starpu.tar.gz
-        key: nntile-test-obj-starpu-${{ github.sha }}
-        fail-on-cache-miss: true
-    - uses: actions/cache/restore@v4
-      with:
-        path: build/nntile_test_objs_cache/nntile_test_objs_${{ inputs.subsystem }}.tar.gz
-        key: nntile-test-obj-${{ inputs.subsystem }}-${{ github.sha }}
+        path: build/nntile_test_objs_cache
+        key: nntile-test-obj-deps-${{ inputs.subsystem }}-${{ github.sha }}
         fail-on-cache-miss: true

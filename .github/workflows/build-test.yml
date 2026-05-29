@@ -19,6 +19,7 @@ permissions:
 env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
+  LD_LIBRARY_PATH: /opt/starpu/lib
 
 jobs:
   configure-smoke:

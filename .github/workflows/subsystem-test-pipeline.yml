@@ -16,6 +16,7 @@ permissions:
 env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
+  LD_LIBRARY_PATH: /opt/starpu/lib
 
 jobs:
   compile-check-tests:
@@ -34,21 +35,26 @@ jobs:
       - uses: ./.github/actions/download-nntile-catch2-deps
       - run: |
           chmod +x .github/scripts/verify-catch2-deps-for-compile-check.sh
-          chmod +x .github/scripts/cmake-build-tests-subsystem.sh
+          chmod +x .github/scripts/nntile-test-obj-subsystems.sh
           chmod +x .github/scripts/pack-nntile-test-objs.sh
           .github/scripts/verify-catch2-deps-for-compile-check.sh build
       - run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=${{ inputs.subsystem }} \
-            -DNNTILE_FETCHCONTENT_DISCONNECTED=ON \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-          cmake --build build --target nntile_compile_check_tests_${{ inputs.subsystem }}
-      - run: .github/scripts/pack-nntile-test-objs.sh "${{ inputs.subsystem }}" build
+          for _dep in $(.github/scripts/nntile-test-obj-subsystems.sh \
+              "${{ inputs.subsystem }}"); do
+            echo "=== compile-check-tests ${_dep} ==="
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+              -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM="${_dep}" \
+              -DNNTILE_FETCHCONTENT_DISCONNECTED=ON \
+              -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            cmake --build build --target "nntile_compile_check_tests_${_dep}"
+            .github/scripts/pack-nntile-test-objs.sh "${_dep}" build
+          done
       - uses: actions/cache/save@v4
         with:
-          path: build/nntile_test_objs_cache/nntile_test_objs_${{ inputs.subsystem }}.tar.gz
-          key: nntile-test-obj-${{ inputs.subsystem }}-${{ github.sha }}
+          path: build/nntile_test_objs_cache
+          key: nntile-test-obj-deps-${{ inputs.subsystem }}-${{ github.sha }}
 
   build-tests:
     name: build-tests-${{ inputs.subsystem }}
@@ -127,5 +133,6 @@ jobs:
           fail-on-cache-miss: true
       - run: chmod +x .github/scripts/ctest-run-subsystem.sh
       - run: |
+          export LD_LIBRARY_PATH="/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           _re=$(.github/scripts/ctest-run-subsystem.sh "${{ inputs.subsystem }}")
           cd build && ctest -R "${_re}" -j"$(nproc)" --output-on-failure

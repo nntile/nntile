@@ -81,7 +81,7 @@ PR workflow uses three separate test stages per subsystem:
 | `build-nntile` | Link `libnntile` from bundled archives; cache `libnntile.so` |
 | `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
 | `subsystem-test-*` | Reusable pipeline per subsystem (see below) |
-| `compile-check-tests-*` | Compile test `.cc` into `nntile_test_objs_*`; cache tarball |
+| `compile-check-tests-*` | Compile test `.cc` for subsystem + deps; cache tarball bundle |
 | `build-tests-*` | Restore cached `libnntile.so`; link test binaries from cached test `.o` |
 | `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile) |
 
@@ -92,7 +92,9 @@ job waits for `build-nntile` and `build-test-prerequisites` before starting any
 subsystem pipeline.
 
 Each `build-tests-*` job restores the linked library and `defs.h` from
-`build-nntile`, extracts its test-object tarball **before** `cmake` configure,
+`build-nntile`, extracts all required test-object tarballs (e.g. `kernel` for
+`starpu`/`core`, plus nested paths like `tensor/ops/*.o`) **before** `cmake`
+configure,
 then uses `-DNNTILE_PREBUILT_LIBRARY=...` (link flags are taken from the cached
 `defs.h`, including CBLAS/OpenBLAS). It runs `cmake --build` for test targets
 only. It does **not** re-link
