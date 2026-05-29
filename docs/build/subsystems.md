@@ -39,12 +39,21 @@ cmake --build build --target nntile_compile_check_tensor
 Subsystems: see `.github/scripts/nntile-lib-obj-subsystems.txt` (`graph_base` is
 `dtype.cc` / `kv_cache.cc`, separate from `tile` / `tensor` / `nn`).
 
+## Bundled library archives (CI)
+
+Job `bundle-nntile-lib-objs` runs once after all `compile-check-*` jobs finish,
+restores every per-subsystem `libnntile_objs_*.a`, and saves a single cache key
+`nntile-objs-all-a-<sha>` for the whole `build/nntile_objs_cache/` directory.
+Downstream link jobs restore that bundle once instead of thirteen separate cache
+lookups.
+
 ## build-nntile (CI, link only)
 
 Job `build-nntile` configures `-DNNTILE_PRESET=full -DNNTILE_LINK_CACHED_OBJECTS=ON`,
-restores all cached `libnntile_objs_*.a` archives from `compile-check-*`, then
-links `libnntile`. CMake does **not** register subsystem sources for compilation
-in that mode (only `context.cc`, logger sources, and the shared-library link).
+restores the bundled archives, then links `libnntile`. CMake does **not** register
+subsystem sources for compilation in that mode (only `context.cc`, logger sources,
+and the shared-library link). This job validates the link-only path; it does not
+gate `build-tests-*`.
 
 ## Test compile-check (no libnntile)
 
@@ -64,16 +73,18 @@ PR workflow uses three separate test stages per subsystem:
 | Job | Purpose |
 |-----|---------|
 | `compile-check-*` | Compile one subsystem's lib sources; cache `nntile_objs_*` |
-| `build-nntile` | Link `libnntile` from cached objects (no subsystem recompile) |
+| `bundle-nntile-lib-objs` | Restore all lib archives once; save bundled cache |
+| `build-nntile` | Link `libnntile` from bundled archives (validation; parallel with tests) |
 | `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
 | `compile-check-tests-*` | Compile test `.cc` into `nntile_test_objs_*`; cache tarball |
-| `build-tests-*` | Link `libnntile` + test binaries from cached lib/test objects only |
+| `build-tests-*` | Link `libnntile` + test binaries from bundled lib + cached test objects |
 | `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile) |
 
-`build-tests` uses `-DNNTILE_LINK_CACHED_OBJECTS=ON`,
-`-DNNTILE_LINK_CACHED_TEST_OBJECTS=ON`, and restores the matching
-`nntile_test_objs_<subsystem>.tar.gz` from `compile-check-tests-*`. It does **not**
-recompile subsystem library or test translation units.
+`build-tests-*` depends on `bundle-nntile-lib-objs` and `compile-check-tests-*`, not
+on `build-nntile`. Each matrix job restores the bundled lib archives and its own
+test-object tarball, then links locally. It uses `-DNNTILE_LINK_CACHED_OBJECTS=ON`,
+`-DNNTILE_LINK_CACHED_TEST_OBJECTS=ON`, and does **not** recompile subsystem library
+or test translation units.
 
 ## Running tests locally (requires full libnntile)
 
