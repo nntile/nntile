@@ -40,7 +40,7 @@ NNGraph::TensorNode *NNScaleFiberOp::forward()
     }
     NNGraph *graph = src->graph();
     bool out_requires_grad = any_input_requires_grad({src});
-    TensorGraph::TensorNode *output_data = tensor_graph::scale_fiber(
+    TensorGraph::TensorNode *output_data = tensor::scale_fiber(
         alpha, src->data(), dst_shape, axis, batch_ndim);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
@@ -66,7 +66,7 @@ void NNScaleFiberOp::backward() const
         auto [grad_src, is_first] =
             graph->get_or_create_grad(src, nn_grad_slot_name(src));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor_graph::sum_fiber(grad_out->data(),
+        tensor::sum_fiber(grad_out->data(),
             grad_src->data(),
             axis,
             batch_ndim,

@@ -21,7 +21,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/transpose.hh"
-#include "nntile/tensor/transpose.hh"
+#include "nntile/tensor/ops/transpose.hh"
 #include "nntile/core/traits.hh"
 
 #include <stdexcept>

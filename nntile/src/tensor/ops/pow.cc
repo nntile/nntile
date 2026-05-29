@@ -19,7 +19,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/pow.hh"
+#include "nntile/tensor/ops/pow.hh"
 
 #include <nntile/tile/graph_ops.hh>
 #include <nntile/tensor/tile_lowering_helpers.hh>

@@ -21,7 +21,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/rope.hh"
-#include "nntile/tensor/rope.hh"
+#include "nntile/tensor/ops/rope.hh"
 
 #include <stdexcept>
 #include <utility>

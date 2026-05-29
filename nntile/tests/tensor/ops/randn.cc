@@ -17,8 +17,8 @@
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tile.hh"
-#include "nntile/tensor/randn.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/tensor/ops/randn.hh"
+#include "nntile/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>

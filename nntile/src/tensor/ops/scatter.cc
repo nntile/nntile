@@ -26,7 +26,7 @@
 #include "nntile/tile/ops/copy.hh"
 #include "nntile/tile/ops/copy_intersection.hh"
 #include "nntile/tile/lowering_context.hh"
-#include "nntile/tensor/scatter.hh"
+#include "nntile/tensor/ops/scatter.hh"
 
 namespace nntile::tensor
 {

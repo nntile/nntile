@@ -19,7 +19,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/add_fiber_inplace.hh"
+#include "nntile/tensor/ops/add_fiber_inplace.hh"
 
 #include "nntile/tile/ops/add_fiber_inplace.hh"
 #include "nntile/tile/lowering_context.hh"

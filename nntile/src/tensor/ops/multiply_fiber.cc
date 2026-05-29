@@ -22,7 +22,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/multiply_fiber.hh"
-#include "nntile/tensor/multiply_fiber.hh"
+#include "nntile/tensor/ops/multiply_fiber.hh"
 
 #include <stdexcept>
 #include <utility>

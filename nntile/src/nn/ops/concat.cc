@@ -39,7 +39,7 @@ NNGraph::TensorNode *NNConcatOp::forward()
     NNGraph *graph = a->graph();
     const bool out_requires_grad = any_input_requires_grad({a, b});
     TensorGraph::TensorNode *out_data =
-        tensor_graph::concat(a->data(), b->data(), axis);
+        tensor::concat(a->data(), b->data(), axis);
     NNGraph::TensorNode *out = graph->tensor(out_data, out_requires_grad);
     outputs_ = {out};
     return out;

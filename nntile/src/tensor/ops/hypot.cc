@@ -21,7 +21,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/hypot.hh"
-#include "nntile/tensor/hypot.hh"
+#include "nntile/tensor/ops/hypot.hh"
 
 #include <stdexcept>
 #include <utility>

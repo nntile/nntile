@@ -15,7 +15,7 @@
 #include "nntile/tensor/ops/relu_backward.hh"
 
 #include "nntile/tensor.hh"
-#include "nntile/tensor/relu_backward.hh"
+#include "nntile/tensor/ops/relu_backward.hh"
 
 #include <nntile/tensor/tile_lowering_helpers.hh>
 #include <nntile/tile/graph_ops.hh>

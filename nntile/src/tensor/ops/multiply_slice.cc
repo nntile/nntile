@@ -20,7 +20,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/multiply_slice.hh"
+#include "nntile/tensor/ops/multiply_slice.hh"
 
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"

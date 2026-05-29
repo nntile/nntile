@@ -20,7 +20,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/log_scalar.hh"
 #include "nntile/tile/lowering_context.hh"
-#include "nntile/tensor/log_scalar.hh"
+#include "nntile/tensor/ops/log_scalar.hh"
 
 namespace nntile::tensor
 {

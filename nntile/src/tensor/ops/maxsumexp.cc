@@ -22,8 +22,8 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/clear.hh"
 #include "nntile/tile/ops/maxsumexp.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/maxsumexp.hh"
+#include "nntile/tensor/ops/clear.hh"
+#include "nntile/tensor/ops/maxsumexp.hh"
 
 #include <stdexcept>
 #include <utility>

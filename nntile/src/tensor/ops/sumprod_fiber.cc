@@ -23,7 +23,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/sumprod_fiber.hh"
-#include "nntile/tensor/sumprod_fiber.hh"
+#include "nntile/tensor/ops/sumprod_fiber.hh"
 
 namespace nntile::tensor
 {

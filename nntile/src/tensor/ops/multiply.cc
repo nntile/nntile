@@ -18,7 +18,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/multiply.hh"
+#include "nntile/tensor/ops/multiply.hh"
 
 #include <nntile/tensor/tile_lowering_helpers.hh>
 #include <nntile/tile/graph_ops.hh>

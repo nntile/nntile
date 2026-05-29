@@ -18,7 +18,7 @@
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/copy.hh"
-#include "nntile/tensor/copy.hh"
+#include "nntile/tensor/ops/copy.hh"
 
 #include <stdexcept>
 #include <utility>

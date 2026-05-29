@@ -24,7 +24,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/norm_fiber_inplace.hh"
-#include "nntile/tensor/norm_fiber_inplace.hh"
+#include "nntile/tensor/ops/norm_fiber_inplace.hh"
 
 namespace nntile::tensor
 {

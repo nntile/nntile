@@ -17,8 +17,8 @@
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tile.hh"
-#include "nntile/tensor/log_scalar.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/tensor/ops/log_scalar.hh"
+#include "nntile/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 

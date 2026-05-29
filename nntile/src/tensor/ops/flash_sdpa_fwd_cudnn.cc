@@ -21,9 +21,9 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/flash_sdpa_fwd_cudnn.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/fill.hh"
-#include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/tensor/ops/clear.hh"
+#include "nntile/tensor/ops/fill.hh"
+#include "nntile/tensor/ops/flash_sdpa_fwd_cudnn.hh"
 
 #include <cmath>
 #include <limits>

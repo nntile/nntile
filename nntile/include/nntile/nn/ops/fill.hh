@@ -31,7 +31,7 @@ inline void fill(Scalar val, NNGraph::TensorNode* x)
     {
         throw std::invalid_argument("fill: input tensor must be non-null");
     }
-    tensor_graph::fill(val, x->data());
+    tensor::fill(val, x->data());
 }
 
 } // namespace nntile

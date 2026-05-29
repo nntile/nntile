@@ -22,7 +22,7 @@
 #include "nntile/tensor.hh"
 #include "nntile/tile/graph_ops.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
-#include "nntile/tensor/adamw_step.hh"
+#include "nntile/tensor/ops/adamw_step.hh"
 
 namespace nntile::tensor
 {

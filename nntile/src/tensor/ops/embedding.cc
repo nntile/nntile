@@ -21,7 +21,7 @@
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/clear.hh"
 #include "nntile/tile/ops/embedding.hh"
-#include "nntile/tensor/embedding.hh"
+#include "nntile/tensor/ops/embedding.hh"
 #include "nntile/core/traits.hh"
 
 #include <stdexcept>

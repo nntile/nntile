@@ -19,8 +19,8 @@
 #include "nntile/tensor.hh"
 #include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tile.hh"
-#include "nntile/tensor/hypot_inplace.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/tensor/ops/hypot_inplace.hh"
+#include "nntile/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>

@@ -22,7 +22,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/hypot_inplace.hh"
 #include "nntile/tile/lowering_context.hh"
-#include "nntile/tensor/hypot_inplace.hh"
+#include "nntile/tensor/ops/hypot_inplace.hh"
 
 namespace nntile::tensor
 {

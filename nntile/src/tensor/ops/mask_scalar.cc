@@ -19,7 +19,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/mask_scalar.hh"
+#include "nntile/tensor/ops/mask_scalar.hh"
 
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/mask_scalar.hh"

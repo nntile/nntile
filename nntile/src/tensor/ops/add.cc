@@ -24,7 +24,6 @@
 #include <nntile/tensor.hh>
 #include <nntile/tensor/tile_lowering_helpers.hh>
 #include <nntile/tile/graph_ops.hh>
-#include <nntile/tensor/add.hh>
 
 namespace nntile::tensor
 {

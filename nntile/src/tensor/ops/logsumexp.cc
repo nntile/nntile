@@ -21,7 +21,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/logsumexp.hh"
-#include "nntile/tensor/logsumexp.hh"
+#include "nntile/tensor/ops/logsumexp.hh"
 
 #include <stdexcept>
 #include <utility>

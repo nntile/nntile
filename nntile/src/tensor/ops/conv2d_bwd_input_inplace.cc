@@ -27,7 +27,7 @@
 #include "nntile/tile/ops/conv2d_bwd_input_inplace.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/scale_inplace.hh"
-#include "nntile/tensor/conv2d_bwd_input_inplace.hh"
+#include "nntile/tensor/ops/conv2d_bwd_input_inplace.hh"
 
 namespace nntile::tensor
 {

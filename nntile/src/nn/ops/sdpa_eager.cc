@@ -65,7 +65,7 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
 
     NNGraph::TensorNode *attn =
         graph->tensor(attn_shape, q->dtype(), out_requires_grad);
-    tensor_graph::gemm(k->data(),
+    tensor::gemm(k->data(),
         q->data(),
         attn->data(),
         scale,
@@ -77,7 +77,7 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
 
     if (mask != nullptr)
     {
-        tensor_graph::mask_scalar(
+        tensor::mask_scalar(
             mask->data(), mask_val, attn->data(), batch_ndim);
     }
 
@@ -87,8 +87,8 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
     NNGraph::TensorNode *maxsumexp_buf =
         graph->tensor(attn_max_shape, q->dtype(), false);
     clear(maxsumexp_buf);
-    tensor_graph::maxsumexp(attn->data(), maxsumexp_buf->data(), 0, redux);
-    tensor_graph::softmax_inplace(
+    tensor::maxsumexp(attn->data(), maxsumexp_buf->data(), 0, redux);
+    tensor::softmax_inplace(
         maxsumexp_buf->data(), attn->data(), 1.0, 0);
 
     std::vector<Index> sumprod_shape = {q_seq};
@@ -103,7 +103,7 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
     std::vector<Index> y_shape = q_shape;
     NNGraph::TensorNode *out =
         graph->tensor(y_shape, q->dtype(), out_requires_grad);
-    tensor_graph::gemm(v->data(),
+    tensor::gemm(v->data(),
         attn->data(),
         out->data(),
         1.0,
@@ -144,7 +144,7 @@ void NNSdpaEagerOp::backward() const
         auto [grad_v, is_first] =
             graph->get_or_create_grad(v, nn_grad_slot_name(v));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor_graph::gemm(grad_out->data(),
+        tensor::gemm(grad_out->data(),
             attn->data(),
             grad_v->data(),
             1.0,
@@ -156,7 +156,7 @@ void NNSdpaEagerOp::backward() const
     }
 
     // d_attn = V^T @ grad_out, stored in grad_temp buffer
-    tensor_graph::gemm(v->data(),
+    tensor::gemm(v->data(),
         grad_out->data(),
         grad_temp->data(),
         1.0,
@@ -167,23 +167,23 @@ void NNSdpaEagerOp::backward() const
         batch_ndim);
 
     // grad_temp = (grad_temp - sumprod(attn, grad_temp)) * attn
-    tensor_graph::sumprod_slice(attn->data(),
+    tensor::sumprod_slice(attn->data(),
         grad_temp->data(),
         sumprod_buf->data(),
         0,
         redux,
         1.0,
         0.0);
-    tensor_graph::add_slice_inplace(
+    tensor::add_slice_inplace(
         -1.0, sumprod_buf->data(), 1.0, grad_temp->data(), 0);
-    tensor_graph::multiply_inplace(1.0, attn->data(), grad_temp->data());
+    tensor::multiply_inplace(1.0, attn->data(), grad_temp->data());
 
     if (q != nullptr && q->requires_grad())
     {
         auto [grad_q, is_first] =
             graph->get_or_create_grad(q, nn_grad_slot_name(q));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor_graph::gemm(k->data(),
+        tensor::gemm(k->data(),
             grad_temp->data(),
             grad_q->data(),
             scale,
@@ -199,7 +199,7 @@ void NNSdpaEagerOp::backward() const
         auto [grad_k, is_first] =
             graph->get_or_create_grad(k, nn_grad_slot_name(k));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor_graph::gemm(q->data(),
+        tensor::gemm(q->data(),
             grad_temp->data(),
             grad_k->data(),
             scale,

@@ -23,7 +23,7 @@
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/clear.hh"
 #include "nntile/tile/ops/scale_fiber.hh"
-#include "nntile/tensor/scale_fiber.hh"
+#include "nntile/tensor/ops/scale_fiber.hh"
 
 #include <stdexcept>
 #include <utility>

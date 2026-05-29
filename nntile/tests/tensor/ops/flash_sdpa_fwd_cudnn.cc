@@ -21,9 +21,9 @@
 #include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tensor/ops/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/tile.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/tensor/ops/clear.hh"
+#include "nntile/tensor/ops/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>

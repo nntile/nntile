@@ -24,7 +24,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/randn.hh"
-#include "nntile/tensor/randn.hh"
+#include "nntile/tensor/ops/randn.hh"
 
 namespace nntile::tensor
 {

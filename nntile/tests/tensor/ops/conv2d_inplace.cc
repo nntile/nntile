@@ -18,8 +18,8 @@
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tile.hh"
-#include "nntile/tensor/conv2d_inplace.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/tensor/ops/conv2d_inplace.hh"
+#include "nntile/tensor.hh"
 
 #include <array>
 #include <catch2/catch_test_macros.hpp>

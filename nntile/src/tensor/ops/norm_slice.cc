@@ -23,7 +23,7 @@
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/norm_slice.hh"
 #include "nntile/tile/ops/norm_slice_inplace.hh"
-#include "nntile/tensor/norm_slice.hh"
+#include "nntile/tensor/ops/norm_slice.hh"
 
 #include <stdexcept>
 #include <utility>

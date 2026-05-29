@@ -28,7 +28,7 @@ void NNSgdStepOp::forward()
         throw std::invalid_argument(
             "NNSgdStepOp::forward: param, grad, velocity must be non-null");
     }
-    tensor_graph::sgd_step(
+    tensor::sgd_step(
         num_iter, momentum, lr, weight_decay, dampening, nesterov,
         grad->data(), velocity->data(), param->data());
 }

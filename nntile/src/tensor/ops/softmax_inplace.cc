@@ -23,7 +23,7 @@
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/softmax_inplace.hh"
-#include "nntile/tensor/softmax_inplace.hh"
+#include "nntile/tensor/ops/softmax_inplace.hh"
 
 namespace nntile::tensor
 {

@@ -18,7 +18,7 @@
 
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/gelutanh_inplace.hh"
+#include "nntile/tensor/ops/gelutanh_inplace.hh"
 
 #include <nntile/tile/graph_ops.hh>
 #include <nntile/tensor/tile_lowering_helpers.hh>

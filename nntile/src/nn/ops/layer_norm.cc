@@ -75,26 +75,26 @@ NNGraph::TensorNode *NNLayerNormOp::forward(const std::string &output_name)
 
     NNGraph::TensorNode *mean =
         graph->tensor(reduced_shape, x->dtype(), false);
-    tensor_graph::sum_slice(
+    tensor::sum_slice(
         x->data(), mean->data(), axis, redux, inv_l, 0.0);
 
-    TensorGraph::TensorNode *tmp_y_data = tensor_graph::add_slice(
+    TensorGraph::TensorNode *tmp_y_data = tensor::add_slice(
         -1.0, mean->data(), 1.0, x->data(), axis);
     NNGraph::TensorNode *tmp_y = graph->tensor(tmp_y_data, false);
 
     NNGraph::TensorNode *inv_stddev =
         graph->tensor(reduced_shape, x->dtype(), false);
-    tensor_graph::norm_slice_inplace(
+    tensor::norm_slice_inplace(
         inv_sqrt_l, tmp_y->data(), 0.0, inv_stddev->data(), axis, redux);
-    tensor_graph::hypot_scalar_inverse(eps_sqrt, 1.0, inv_stddev->data());
+    tensor::hypot_scalar_inverse(eps_sqrt, 1.0, inv_stddev->data());
 
-    tensor_graph::multiply_slice(
+    tensor::multiply_slice(
         1.0, inv_stddev->data(), tmp_y->data(), axis);
 
     TensorGraph::TensorNode *y_data =
-        tensor_graph::multiply_fiber(1.0, gamma->data(), tmp_y->data(), axis);
+        tensor::multiply_fiber(1.0, gamma->data(), tmp_y->data(), axis);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
-    tensor_graph::add_fiber_inplace(
+    tensor::add_fiber_inplace(
         1.0, beta->data(), 1.0, y->data(), axis, batch_ndim);
     y->set_name(output_name);
 
@@ -139,7 +139,7 @@ void NNLayerNormOp::backward() const
         auto [grad_beta, is_first] =
             graph->get_or_create_grad(beta, nn_grad_slot_name(beta));
         Scalar beta_acc = is_first ? grad_overwrite : grad_accumulate;
-        tensor_graph::sum_fiber(grad_out->data(),
+        tensor::sum_fiber(grad_out->data(),
             grad_beta->data(),
             axis,
             batch_ndim,
@@ -153,7 +153,7 @@ void NNLayerNormOp::backward() const
         auto [grad_gamma, is_first] =
             graph->get_or_create_grad(gamma, nn_grad_slot_name(gamma));
         Scalar gamma_acc = is_first ? grad_overwrite : grad_accumulate;
-        tensor_graph::sumprod_fiber(grad_out->data(),
+        tensor::sumprod_fiber(grad_out->data(),
             tmp_y_value->data(),
             grad_gamma->data(),
             axis,
@@ -168,33 +168,33 @@ void NNLayerNormOp::backward() const
             graph->get_or_create_grad(x, nn_grad_slot_name(x));
         if (is_first)
         {
-            tensor_graph::clear(grad_x->data());
+            tensor::clear(grad_x->data());
         }
 
-        TensorGraph::TensorNode *grad_temp_data = tensor_graph::multiply_fiber(
+        TensorGraph::TensorNode *grad_temp_data = tensor::multiply_fiber(
             1.0, gamma->data(), grad_out->data(), axis);
         NNGraph::TensorNode *grad_temp = graph->tensor(grad_temp_data, false);
 
         // x_hat buffer must stay intact for gamma grad; mutate scratch only
-        tensor_graph::copy(tmp_y_value->data(), tmp_y_grad->data());
-        tensor_graph::sumprod_slice(grad_temp->data(),
+        tensor::copy(tmp_y_value->data(), tmp_y_grad->data());
+        tensor::sumprod_slice(grad_temp->data(),
             tmp_y_grad->data(),
             mean_buf->data(),
             axis,
             redux,
             -inv_l,
             0.0);
-        tensor_graph::multiply_slice(
+        tensor::multiply_slice(
             1.0, mean_buf->data(), tmp_y_grad->data(), axis);
-        tensor_graph::add_inplace(
+        tensor::add_inplace(
             1.0, grad_temp->data(), 1.0, tmp_y_grad->data());
-        tensor_graph::sum_slice(
+        tensor::sum_slice(
             grad_temp->data(), mean_buf->data(), axis, redux, inv_l, 0.0);
-        tensor_graph::add_slice_inplace(
+        tensor::add_slice_inplace(
             -1.0, mean_buf->data(), 1.0, tmp_y_grad->data(), axis);
-        tensor_graph::multiply_slice(
+        tensor::multiply_slice(
             1.0, inv_stddev->data(), tmp_y_grad->data(), axis);
-        tensor_graph::add_inplace(
+        tensor::add_inplace(
             1.0, tmp_y_grad->data(), grad_accumulate, grad_x->data());
     }
 }

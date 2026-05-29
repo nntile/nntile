@@ -46,7 +46,7 @@ NNGraph::TensorNode *NNTransposeOp::forward()
     NNGraph *graph = src->graph();
     bool out_requires_grad = any_input_requires_grad({src});
     TensorGraph::TensorNode *output_data =
-        tensor_graph::transpose(1.0, src->data(), ndim);
+        tensor::transpose(1.0, src->data(), ndim);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
@@ -83,7 +83,7 @@ void NNTransposeOp::backward() const
         }
         if (is_first)
         {
-            tensor_graph::transpose(
+            tensor::transpose(
                 1.0, grad_out->data(), grad_src->data(), inv_ndim);
         }
         else
@@ -95,9 +95,9 @@ void NNTransposeOp::backward() const
                 throw std::runtime_error(
                     "NNTransposeOp::backward: gradient buffer is missing");
             }
-            tensor_graph::transpose(
+            tensor::transpose(
                 1.0, grad_out->data(), grad_buf->data(), inv_ndim);
-            tensor_graph::add_inplace(
+            tensor::add_inplace(
                 1.0, grad_buf->data(), grad_accumulate, grad_src->data());
         }
     }

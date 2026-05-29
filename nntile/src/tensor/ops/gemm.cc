@@ -21,7 +21,7 @@
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/graph_ops.hh"
-#include "nntile/tensor/gemm.hh"
+#include "nntile/tensor/ops/gemm.hh"
 
 #include <sstream>
 #include <stdexcept>

@@ -22,7 +22,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/sqrt_inplace.hh"
-#include "nntile/tensor/sqrt_inplace.hh"
+#include "nntile/tensor/ops/sqrt_inplace.hh"
 
 namespace nntile::tensor
 {

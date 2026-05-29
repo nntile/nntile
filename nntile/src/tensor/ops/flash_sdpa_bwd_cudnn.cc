@@ -24,7 +24,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/tile/lowering_context.hh"
-#include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
+#include "nntile/tensor/ops/flash_sdpa_bwd_cudnn.hh"
 
 namespace nntile::tensor
 {

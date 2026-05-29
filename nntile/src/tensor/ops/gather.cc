@@ -22,7 +22,7 @@
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/copy.hh"
 #include "nntile/tile/ops/copy_intersection.hh"
-#include "nntile/tensor/gather.hh"
+#include "nntile/tensor/ops/gather.hh"
 
 #include <cstddef>
 #include <stdexcept>

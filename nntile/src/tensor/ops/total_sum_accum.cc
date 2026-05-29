@@ -24,7 +24,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/total_sum_accum.hh"
-#include "nntile/tensor/total_sum_accum.hh"
+#include "nntile/tensor/ops/total_sum_accum.hh"
 
 namespace nntile::tensor
 {

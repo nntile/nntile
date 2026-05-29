@@ -18,7 +18,7 @@
 
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/gelu_backward.hh"
+#include "nntile/tensor/ops/gelu_backward.hh"
 
 #include <nntile/tile/graph_ops.hh>
 #include <nntile/tensor/tile_lowering_helpers.hh>

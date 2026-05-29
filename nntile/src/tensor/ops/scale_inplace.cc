@@ -21,7 +21,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/scale_inplace.hh"
-#include "nntile/tensor/scale_inplace.hh"
+#include "nntile/tensor/ops/scale_inplace.hh"
 
 namespace nntile::tensor
 {

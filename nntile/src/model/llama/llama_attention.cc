@@ -175,11 +175,11 @@ NNGraph::TensorNode *LlamaAttention::forward(
             NNGraph::TensorNode *v_cache_slice = graph_->tensor(
                 {head_size_, cache_len, n_batch, n_head_kv_}, dtype_, false);
             v_cache_slice->set_name(tensor_name("v_cache_slice"));
-            tensor_graph::copy_intersection(k_cache->data(),
+            tensor::copy_intersection(k_cache->data(),
                 {0, 0, 0, 0},
                 k_cache_slice->data(),
                 {0, 0, 0, 0});
-            tensor_graph::copy_intersection(v_cache->data(),
+            tensor::copy_intersection(v_cache->data(),
                 {0, 0, 0, 0},
                 v_cache_slice->data(),
                 {0, 0, 0, 0});
@@ -189,11 +189,11 @@ NNGraph::TensorNode *LlamaAttention::forward(
             v_for_sdpa->set_name(tensor_name("v_full"));
         }
         // Update cache: write new K,V at position cache_len
-        tensor_graph::copy_intersection(k_rope->data(),
+        tensor::copy_intersection(k_rope->data(),
             {0, 0, 0, 0},
             k_cache->data(),
             {0, cache_len, 0, 0});
-        tensor_graph::copy_intersection(
+        tensor::copy_intersection(
             v->data(), {0, 0, 0, 0}, v_cache->data(), {0, cache_len, 0, 0});
     }
 

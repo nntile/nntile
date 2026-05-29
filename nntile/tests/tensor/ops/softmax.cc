@@ -19,10 +19,10 @@
 #include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tensor/ops/maxsumexp.hh"
 #include "nntile/tile.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/maxsumexp.hh"
-#include "nntile/tensor/softmax.hh"
-#include "nntile/tensor/tensor.hh"
+#include "nntile/tensor/ops/clear.hh"
+#include "nntile/tensor/ops/maxsumexp.hh"
+#include "nntile/tensor/ops/softmax.hh"
+#include "nntile/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>

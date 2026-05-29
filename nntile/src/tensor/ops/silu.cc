@@ -17,7 +17,7 @@
 
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/silu.hh"
+#include "nntile/tensor/ops/silu.hh"
 
 #include <nntile/tensor/tile_lowering_helpers.hh>
 #include <nntile/tile/graph_ops.hh>

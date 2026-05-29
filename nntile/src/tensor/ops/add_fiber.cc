@@ -21,7 +21,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/add_fiber.hh"
-#include "nntile/tensor/add_fiber.hh"
+#include "nntile/tensor/ops/add_fiber.hh"
 
 #include <stdexcept>
 #include <utility>

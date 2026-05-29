@@ -12,15 +12,12 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/ops/add.hh"
-
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/axis_descriptor.hh"
+#include "nntile/tensor/ops/add.hh"
+#include "nntile/tensor/ops/fill.hh"
 #include "nntile/tile.hh"
-#include "nntile/tensor/add.hh"
-#include "nntile/tensor/fill.hh"
-#include "nntile/tensor/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>

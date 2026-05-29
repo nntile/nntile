@@ -22,7 +22,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/scale.hh"
-#include "nntile/tensor/scale.hh"
+#include "nntile/tensor/ops/scale.hh"
 
 #include <stdexcept>
 #include <utility>

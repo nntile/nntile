@@ -23,7 +23,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/embedding_backward.hh"
 #include "nntile/tile/lowering_context.hh"
-#include "nntile/tensor/embedding_backward.hh"
+#include "nntile/tensor/ops/embedding_backward.hh"
 #include "nntile/core/traits.hh"
 
 namespace nntile::tensor

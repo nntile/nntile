@@ -21,7 +21,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/sum_slice.hh"
-#include "nntile/tensor/sum_slice.hh"
+#include "nntile/tensor/ops/sum_slice.hh"
 
 #include <stdexcept>
 #include <utility>

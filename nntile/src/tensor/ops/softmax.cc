@@ -22,7 +22,7 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/softmax.hh"
-#include "nntile/tensor/softmax.hh"
+#include "nntile/tensor/ops/softmax.hh"
 
 #include <stdexcept>
 #include <utility>

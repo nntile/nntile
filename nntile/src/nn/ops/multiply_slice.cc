@@ -47,8 +47,8 @@ NNGraph::TensorNode *NNMultiplySliceOp::forward()
     TensorGraph::TensorNode *tensor_data = tensor->data();
     bool out_requires_grad = any_input_requires_grad({slice, tensor});
 
-    TensorGraph::TensorNode *dst = tensor_graph::copy(tensor_data);
-    tensor_graph::multiply_slice(alpha, slice_data, dst, axis);
+    TensorGraph::TensorNode *dst = tensor::copy(tensor_data);
+    tensor::multiply_slice(alpha, slice_data, dst, axis);
 
     NNGraph::TensorNode *output = graph->tensor(dst, out_requires_grad);
     outputs_ = {output};
@@ -74,8 +74,8 @@ void NNMultiplySliceOp::backward() const
             graph->get_or_create_grad(slice, nn_grad_slot_name(slice));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
         TensorGraph::TensorNode *buf =
-            tensor_graph::multiply(grad_out->data(), tensor->data(), 1.0);
-        tensor_graph::sum_slice(
+            tensor::multiply(grad_out->data(), tensor->data(), 1.0);
+        tensor::sum_slice(
             buf, grad_slice->data(), axis, sum_slice_redux, alpha, grad_beta);
     }
     if (tensor != nullptr && tensor->requires_grad())
@@ -83,9 +83,9 @@ void NNMultiplySliceOp::backward() const
         auto [grad_tensor, is_first] =
             graph->get_or_create_grad(tensor, nn_grad_slot_name(tensor));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        TensorGraph::TensorNode *buf = tensor_graph::copy(grad_out->data());
-        tensor_graph::multiply_slice(alpha, slice->data(), buf, axis);
-        tensor_graph::add_inplace(1.0, buf, grad_beta, grad_tensor->data());
+        TensorGraph::TensorNode *buf = tensor::copy(grad_out->data());
+        tensor::multiply_slice(alpha, slice->data(), buf, axis);
+        tensor::add_inplace(1.0, buf, grad_beta, grad_tensor->data());
     }
 }
 

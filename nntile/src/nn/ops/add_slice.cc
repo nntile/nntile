@@ -41,7 +41,7 @@ NNGraph::TensorNode *NNAddSliceOp::forward()
     }
     NNGraph *graph = src1->graph();
     bool out_requires_grad = any_input_requires_grad({src1, src2});
-    TensorGraph::TensorNode *output_data = tensor_graph::add_slice(
+    TensorGraph::TensorNode *output_data = tensor::add_slice(
         alpha, src1->data(), beta, src2->data(), axis);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
@@ -67,7 +67,7 @@ void NNAddSliceOp::backward() const
         auto [grad_src1, is_first] =
             graph->get_or_create_grad(src1, nn_grad_slot_name(src1));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor_graph::sum_slice(grad_out->data(),
+        tensor::sum_slice(grad_out->data(),
             grad_src1->data(),
             axis,
             sum_slice_redux,
@@ -79,7 +79,7 @@ void NNAddSliceOp::backward() const
         auto [grad_src2, is_first] =
             graph->get_or_create_grad(src2, nn_grad_slot_name(src2));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor_graph::add_inplace(
+        tensor::add_inplace(
             beta, grad_out->data(), grad_beta, grad_src2->data());
     }
 }
