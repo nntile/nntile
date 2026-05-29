@@ -27,7 +27,7 @@ option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_TESTS "Build tests" ON)
-option(BUILD_TESTS_EAGER "Build eager subsystem tests (kernel/starpu/tile)" ON)
+option(BUILD_TESTS_CORE "Build core subsystem tests (kernel/starpu/tile)" ON)
 option(BUILD_TESTS_GRAPH "Build graph subsystem tests" ON)
 option(BUILD_TESTS_TILE_GRAPH "Build tile_graph tests" ON)
 option(BUILD_TESTS_TENSOR_GRAPH "Build tensor_graph tests" ON)
@@ -42,8 +42,8 @@ option(BUILD_PYTHON_WRAPPERS "Build python/ package (not wrappers/python)" ON)
 option(BUILD_LEGACY_PYTHON_WRAPPERS "Build legacy wrappers/python (reference)" OFF)
 
 # Back-compat aliases
-if(DEFINED BUILD_TESTS_CORE)
-    set(BUILD_TESTS_EAGER ${BUILD_TESTS_CORE})
+if(DEFINED BUILD_TESTS_EAGER)
+    set(BUILD_TESTS_CORE ${BUILD_TESTS_EAGER})
 endif()
 # BUILD_TESTS_GRAPH: back-compat umbrella only when passed explicitly (see
 # nntile/tests/CMakeLists.txt). Do not force individual layer options ON here;

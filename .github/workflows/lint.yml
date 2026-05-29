@@ -2,13 +2,10 @@ name: Lint
 
 on:
   push:
-    branches:
-      - main
-      - graph_api
+    branches: [main, graph_api, 'cursor/**']
   pull_request:
-    branches:
-      - main
-      - graph_api
+    branches: [main, graph_api]
+  workflow_dispatch:
   schedule:
     - cron: '0 3 * * *'
 

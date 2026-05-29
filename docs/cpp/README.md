@@ -35,7 +35,7 @@ flowchart TB
 - [`include/nntile/tile.hh`](../../include/nntile/tile.hh)
 - [`include/nntile/tensor.hh`](../../include/nntile/tensor.hh)
 
-Sources mirror tests: `nntile/src/<level>/<op>.cc` ↔ `nntile/tests/eager/<level>/<op>.cc`.
+Sources mirror tests: `nntile/src/<level>/<op>.cc` ↔ `nntile/tests/core/<level>/<op>.cc`.
 
 ## kernel
 

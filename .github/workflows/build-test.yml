@@ -2,9 +2,10 @@ name: Build and test
 
 on:
   push:
-    branches: [main, graph_api]
+    branches: [main, graph_api, 'cursor/**']
   pull_request:
     branches: [main, graph_api]
+  workflow_dispatch:
   workflow_call:
     inputs:
       is-pull-request:
@@ -99,7 +100,7 @@ jobs:
       - run: |
           mapfile -t _flags < <(.github/scripts/cmake-test-subsystem.sh kernel)
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DBUILD_TESTS=ON -DBUILD_TESTS_EAGER=ON "${_flags[@]}"
+            -DBUILD_TESTS=ON -DBUILD_TESTS_CORE=ON "${_flags[@]}"
           cmake --build build -j"$(nproc)"
           cd build && ctest -R tests_nntile_constants -V --output-on-failure
 
@@ -120,7 +121,7 @@ jobs:
           export TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
             -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_GRAPH=ON \
-            -DBUILD_TESTS_EAGER=ON -DBUILD_TESTS_PYTORCH=ON \
+            -DBUILD_TESTS_CORE=ON -DBUILD_TESTS_PYTORCH=ON \
             -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
             -DBUILD_EXAMPLES=ON
           cmake --build build -j"$(nproc)"

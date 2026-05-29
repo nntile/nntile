@@ -7,7 +7,7 @@ Unified library target **`nntile`** with per-subsystem switches `NNTILE_BUILD_*`
 | Preset | Use |
 |--------|-----|
 | `full` | Default development / PR integration |
-| `eager` | Kernel → StarPU → Tile only |
+| `core` | Kernel → StarPU → Tile only |
 | `graph_min` | Through NNGraph + Runtime |
 
 ```bash

@@ -1,4 +1,4 @@
-# @file nntile/tests/eager/CMakeLists.txt
+# @file nntile/tests/core/CMakeLists.txt
 # Core package tests (kernel, starpu, tile, tensor)
 
 if(NOT HAVE_STARPU_SIMGRID)

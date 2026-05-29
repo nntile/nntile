@@ -148,8 +148,8 @@ add_test_set(TARGET_NAME tests_nntile_constants
     COV_GLOBAL coverage
 )
 
-if(BUILD_TESTS_EAGER OR BUILD_TESTS_CORE)
-    add_subdirectory(eager)
+if(BUILD_TESTS_CORE)
+    add_subdirectory(core)
 endif()
 if(BUILD_TESTS_GRAPH OR BUILD_TESTS_TILE_GRAPH OR BUILD_TESTS_TENSOR_GRAPH
         OR BUILD_TESTS_NN_GRAPH OR BUILD_TESTS_MODULE OR BUILD_TESTS_MODEL)
