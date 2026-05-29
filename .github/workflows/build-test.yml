@@ -126,6 +126,10 @@ jobs:
           name: nntile-build-tests
           path: build
       - run: |
+          chmod +x .github/scripts/restore-ctest-execute-bits.sh
+          .github/scripts/restore-ctest-execute-bits.sh build/nntile/tests
+      - run: |
+          export LD_LIBRARY_PATH="${PWD}/build/nntile:${LD_LIBRARY_PATH}"
           cd build
           ctest -E wrappers -LE "(MPI|NotImplemented|FixtureData)" \
             -j"$(nproc)" --output-on-failure
