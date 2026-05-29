@@ -67,7 +67,7 @@ done <<< "$all_changed"
 
 if $run_all; then
     echo ":: Core files changed, running all C++ tests"
-    ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" \
+    ctest --test-dir build -E wrappers -LE "(NotImplemented|FixtureData)" \
         "${ctest_label_args[@]}" --output-on-failure
     exit
 fi
@@ -278,7 +278,7 @@ done <<< "$all_changed"
 
 if [ ${#affected[@]} -eq 0 ]; then
     echo ":: Unknown changes (no pattern matched), running all C++ tests"
-    ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" \
+    ctest --test-dir build -E wrappers -LE "(NotImplemented|FixtureData)" \
         "${ctest_label_args[@]}" --output-on-failure
     exit
 fi
@@ -315,5 +315,5 @@ echo ":: Running ${#affected[@]} affected C++ test pattern(s):"
 printf '  - %s\n' "${!affected[@]}" | sort
 echo ":: CTest regex: $regex"
 
-ctest --test-dir build -R "$regex" -E wrappers -LE "(MPI|NotImplemented)" \
+ctest --test-dir build -R "$regex" -E wrappers -LE "(NotImplemented|FixtureData)" \
     "${ctest_label_args[@]}" --output-on-failure

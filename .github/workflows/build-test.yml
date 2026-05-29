@@ -131,9 +131,12 @@ jobs:
           chmod +x .github/scripts/restore-ctest-execute-bits.sh
           .github/scripts/restore-ctest-execute-bits.sh build/nntile/tests
       - run: |
+          chmod +x .github/scripts/list-not-implemented-tests.sh
+          .github/scripts/list-not-implemented-tests.sh build
+      - run: |
           export LD_LIBRARY_PATH="${PWD}/build/nntile:${PWD}/build/_deps/catch2-build/src:${LD_LIBRARY_PATH}"
           cd build
-          ctest -E wrappers -LE "(MPI|NotImplemented|FixtureData)" \
+          ctest -E wrappers -LE "(NotImplemented|FixtureData)" \
             -j"$(nproc)" --output-on-failure
 
   build-examples:
