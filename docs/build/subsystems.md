@@ -21,100 +21,32 @@ The deprecated eager **tensor** layer has been removed.
 
 ```bash
 cmake -S . -B build -DNNTILE_PRESET=full
-cmake --build build
+cmake --build build -j"$(nproc)"
 ```
 
-## Compile-check (CI / local)
+## CI
 
-Compiles **only** one subsystem's `.cc` files into `nntile_objs_<name>` (no link).
-CI packs them into `build/nntile_objs_cache/libnntile_objs_<name>.a` and caches that
-archive for the link-only library job.
-
-```bash
-cmake -S . -B build -DNNTILE_COMPILE_CHECK_SUBSYSTEM=tensor \
-  -DBUILD_TESTS=OFF
-cmake --build build --target nntile_compile_check_tensor
-```
-
-Subsystems: see `.github/scripts/nntile-lib-obj-subsystems.txt` (`graph_base` is
-`dtype.cc` / `kv_cache.cc`, separate from `tile` / `tensor` / `nn`).
-
-## Bundled library archives (CI)
-
-Job `bundle-nntile-lib-objs` runs once after all `compile-check-*` jobs finish,
-restores every per-subsystem `libnntile_objs_*.a`, and saves a single cache key
-`nntile-objs-all-a-<sha>` for the whole `build/nntile_objs_cache/` directory.
-Downstream link jobs restore that bundle once instead of thirteen separate cache
-lookups.
-
-## build-nntile (CI, link only)
-
-Job `build-nntile` configures `-DNNTILE_PRESET=full -DNNTILE_LINK_CACHED_OBJECTS=ON`,
-restores the bundled archives, then links `libnntile`. CMake does **not** register
-subsystem sources for compilation in that mode (only `context.cc`, logger sources,
-and the shared-library link). It saves cache key `nntile-lib-linked-<sha>` with
-`build/nntile/libnntile.so` and `build/include/nntile/defs.h` for `build-tests-*`.
-
-## Test compile-check (no libnntile, no Catch2 build)
-
-CI job `compile-check-tests-<subsystem>`: compiles test `.cc` files into an
-OBJECT library only (no link, no `ctest`, no `libnntile`). It downloads
-`build/_deps` from `build-test-prerequisites` (Catch2 sources plus
-`catch2-build/generated-includes` for `catch_user_config.hpp`) and compiles with
-header paths only — no `FetchContent_MakeAvailable(Catch2)` and no Catch2 library
-build in that job. Catch2 libraries are built once in `build-test-prerequisites`.
-
-```bash
-cmake -S . -B build -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=nn \
-  -DBUILD_TESTS=OFF
-cmake --build build --target nntile_compile_check_tests_nn
-```
-
-## Test build and run (CI)
-
-PR workflow uses three separate test stages per subsystem:
+`.github/workflows/build-test.yml` runs four jobs:
 
 | Job | Purpose |
 |-----|---------|
-| `compile-check-*` | Compile one subsystem's lib sources; cache `nntile_objs_*` |
-| `bundle-nntile-lib-objs` | Restore all lib archives once; save bundled cache |
-| `build-nntile` | Link `libnntile` from bundled archives; cache `libnntile.so` |
-| `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
-| `subsystem-test-*` | Reusable pipeline per subsystem (see below) |
-| `compile-check-tests-*` | Compile test `.cc` for subsystem + deps; cache tarball bundle |
-| `build-tests-*` | Restore cached `libnntile.so`; link test binaries from cached test `.o` |
-| `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile); `-LE NotImplemented` and, for `model`, `-LE FixtureData` |
-| `build-examples` | Restore prebuilt `libnntile.so`; link `nntile_all_examples` (no lib recompile) |
+| `build-lib` | Configure and build `libnntile` |
+| `build-tests` | Reconfigure with tests, build test binaries (`-j`) |
+| `run-tests` | `ctest -j` (excludes MPI, NotImplemented, FixtureData) |
+| `build-examples` | Link `nntile_all_examples` against the library from `build-lib` |
 
-`subsystem-test-*` runs `.github/workflows/subsystem-test-pipeline.yml` once per
-subsystem. Inside that workflow, `build-tests-*` depends only on
-`compile-check-tests-*` for the same subsystem (not the other eight). The caller
-job waits for `build-nntile` and `build-test-prerequisites` before starting any
-subsystem pipeline.
+`build-tests` and `build-examples` both depend on `build-lib` and may run in parallel.
 
-Each `build-tests-*` job restores the linked library and `defs.h` from
-`build-nntile`, extracts all required test-object tarballs (e.g. `kernel` for
-`starpu`/`core`, plus nested paths like `tensor/ops/*.o`) **before** `cmake`
-configure,
-then uses `-DNNTILE_PREBUILT_LIBRARY=...` (link flags are taken from the cached
-`defs.h`, including CBLAS/OpenBLAS). It runs `cmake --build` for test targets
-only. It does **not** re-link
-`libnntile` from per-subsystem `.a` archives or recompile library or test sources.
-
-## Running tests locally (requires full libnntile)
+## Running tests locally
 
 Per-subsystem test trees live under `nntile/tests/<subsystem>/`.
-Enable with `BUILD_TESTS_<SUBSYSTEM>` (see `nntile/cmake/NNTileTests.cmake`).
+Enable with `BUILD_TESTS_<SUBSYSTEM>` or `NNTILE_TEST_SUBSYSTEM` (see `nntile/cmake/NNTileTests.cmake`).
 
 ```bash
 cmake -S . -B build -DNNTILE_PRESET=full -DBUILD_TESTS=ON \
   -DNNTILE_TEST_SUBSYSTEM=nn
-cmake --build build --target nntile $(.github/scripts/cmake-test-build-targets.sh nn build)
+cmake --build build -j"$(nproc)"
 ctest -R tests_graph_nn_
 ```
 
-Plain `-DBUILD_TESTS=ON` without `NNTILE_TEST_SUBSYSTEM` enables all subsystem
-test trees (local full test build).
-
-See `.github/scripts/cmake-test-subsystem.sh` (`NNTILE_BUILD_*`) and
-`cmake-build-tests-subsystem.sh` / `NNTILE_TEST_SUBSYSTEM`.
+Plain `-DBUILD_TESTS=ON` without `NNTILE_TEST_SUBSYSTEM` enables all subsystem test trees.

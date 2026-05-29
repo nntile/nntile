@@ -60,22 +60,7 @@ function(add_test_set)
         message(FATAL_ERROR "add_test_set() had the following unpared \
         arguments: ${_args_UNPARSED_ARGUMENTS}")
     endif()
-    # Register executable with its unique target name
-    if(NNTILE_LINK_CACHED_TEST_OBJECTS)
-        set(_link_objs "")
-        foreach(_src IN LISTS _args_SOURCES)
-            nntile_test_cached_object_path("${_src}" _obj)
-            if(NOT EXISTS "${_obj}")
-                message(FATAL_ERROR
-                    "Missing cached test object for ${_src}: ${_obj}")
-            endif()
-            list(APPEND _link_objs "${_obj}")
-        endforeach()
-        add_executable(${_args_TARGET_NAME} ${_link_objs})
-        set_target_properties(${_args_TARGET_NAME} PROPERTIES LINKER_LANGUAGE CXX)
-    else()
-        add_executable(${_args_TARGET_NAME} ${_args_SOURCES})
-    endif()
+    add_executable(${_args_TARGET_NAME} ${_args_SOURCES})
     # Set name of executable file
     if(_args_EXEC_NAME)
         set_target_properties(${_args_TARGET_NAME} PROPERTIES OUTPUT_NAME
@@ -101,9 +86,6 @@ function(add_test_set)
             DEPENDENCIES ${_args_TARGET_NAME}
             LCOV_ARGS --no-external
             GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
-    endif()
-    if(NOT NNTILE_REGISTER_CTEST)
-        return()
     endif()
     # Add test suite to the CTest
     list(LENGTH _args_ARGS ntests)
@@ -154,11 +136,6 @@ function(add_test_set)
         endforeach()
     endif()
 endfunction()
-
-if(NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM)
-    nntile_add_test_compile_check("${NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM}")
-    return()
-endif()
 
 if(BUILD_TESTS_KERNEL)
     add_test_set(TARGET_NAME tests_nntile_constants

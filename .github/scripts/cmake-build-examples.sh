@@ -9,31 +9,18 @@
 #
 # @file .github/scripts/cmake-build-examples.sh
 #
-# Configure and link all C++ examples against prebuilt libnntile (CI).
+# Configure and build all C++ examples (local or CI helper).
 #
 # @version 1.1.0
 set -euo pipefail
 
 build_dir="${1:-build}"
 
-chmod +x .github/scripts/nntile-prebuilt-lib-path.sh
-_lib=$(.github/scripts/nntile-prebuilt-lib-path.sh "$build_dir")
-
 cmake -S . -B "$build_dir" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
     -DCMAKE_C_COMPILER="${CMAKE_C_COMPILER:-gcc}" \
     -DCMAKE_CXX_COMPILER="${CMAKE_CXX_COMPILER:-g++}" \
-    -DNNTILE_PRESET=full -DNNTILE_PREBUILT_LIBRARY="${_lib}" \
+    -DNNTILE_PRESET=full \
     -DBUILD_NNTILE=ON -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON \
     -DBUILD_PYTHON_WRAPPERS=OFF -DBUILD_TESTS_PYTORCH=OFF
-
-echo "=== ninja plan (examples only; libnntile is prebuilt) ==="
-ninja -C "$build_dir" -n nntile_all_examples 2>&1 | tee /tmp/examples-ninja-plan.txt
-if grep -E 'CXX_COMPILER|CUDA_COMPILER' /tmp/examples-ninja-plan.txt \
-    | grep -qE 'nntile/src/'; then
-    echo "unexpected library source compile (use prebuilt libnntile only)" >&2
-    grep -E 'CXX_COMPILER|CUDA_COMPILER' /tmp/examples-ninja-plan.txt \
-        | grep 'nntile/src/' >&2 || true
-    exit 1
-fi
 
 cmake --build "$build_dir" --target nntile_all_examples -j"$(nproc)"
