@@ -80,12 +80,18 @@ PR workflow uses three separate test stages per subsystem:
 | `bundle-nntile-lib-objs` | Restore all lib archives once; save bundled cache |
 | `build-nntile` | Link `libnntile` from bundled archives; cache `libnntile.so` |
 | `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
+| `subsystem-test-*` | Reusable pipeline per subsystem (see below) |
 | `compile-check-tests-*` | Compile test `.cc` into `nntile_test_objs_*`; cache tarball |
 | `build-tests-*` | Restore cached `libnntile.so`; link test binaries from cached test `.o` |
 | `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile) |
 
-`build-tests-*` depends on `build-nntile`, `compile-check-tests-*`, and
-`build-test-prerequisites`. Each job restores the linked library from
+`subsystem-test-*` runs `.github/workflows/subsystem-test-pipeline.yml` once per
+subsystem. Inside that workflow, `build-tests-*` depends only on
+`compile-check-tests-*` for the same subsystem (not the other eight). The caller
+job waits for `build-nntile` and `build-test-prerequisites` before starting any
+subsystem pipeline.
+
+Each `build-tests-*` job restores the linked library from
 `build-nntile` (`-DNNTILE_PREBUILT_LIBRARY=...`), restores its test-object tarball,
 and runs `cmake --build` for test targets only. It does **not** re-link
 `libnntile` from per-subsystem `.a` archives or recompile library or test sources.

@@ -147,53 +147,6 @@ jobs:
           path: build/_deps
           retention-days: 1
 
-  # Compile test translation units only (OBJECT lib, no libnntile / no executables).
-  compile-check-tests:
-    name: compile-check-tests-${{ matrix.subsystem }}
-    needs: [configure-smoke, build-test-prerequisites]
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        subsystem:
-          - kernel
-          - starpu
-          - core
-          - tile
-          - tensor
-          - nn
-          - module
-          - model
-          - io
-    container: {image: ubuntu:24.04}
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
-      - uses: ./.github/actions/download-nntile-catch2-deps
-      - run: |
-          chmod +x .github/scripts/verify-catch2-deps-for-compile-check.sh
-          chmod +x .github/scripts/cmake-build-tests-subsystem.sh
-          chmod +x .github/scripts/pack-nntile-test-objs.sh
-          .github/scripts/verify-catch2-deps-for-compile-check.sh build
-      - run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=${{ matrix.subsystem }} \
-            -DNNTILE_FETCHCONTENT_DISCONNECTED=ON \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-          cmake --build build --target nntile_compile_check_tests_${{ matrix.subsystem }}
-      - run: .github/scripts/pack-nntile-test-objs.sh "${{ matrix.subsystem }}" build
-      - uses: actions/cache/save@v4
-        with:
-          path: build/nntile_test_objs_cache/nntile_test_objs_${{ matrix.subsystem }}.tar.gz
-          key: nntile-test-obj-${{ matrix.subsystem }}-${{ github.sha }}
-
   build-nntile:
     name: build-nntile (link only)
     needs: bundle-nntile-lib-objs
@@ -237,11 +190,10 @@ jobs:
             build/include/nntile/defs.h
           key: nntile-lib-linked-${{ github.sha }}
 
-  # Link test executables (prebuilt libnntile.so + cached test .o from compile-check-tests).
-  build-tests:
-    name: build-tests-${{ matrix.subsystem }}
-    needs: [build-nntile, compile-check-tests, build-test-prerequisites]
-    runs-on: ubuntu-24.04
+  # Per subsystem: compile-check-tests → build-tests → test-run (1:1 deps inside reusable workflow).
+  subsystem-test:
+    name: subsystem-test-${{ matrix.subsystem }}
+    needs: [configure-smoke, build-nntile, build-test-prerequisites]
     strategy:
       fail-fast: false
       matrix:
@@ -255,102 +207,13 @@ jobs:
           - module
           - model
           - io
-    container: {image: ubuntu:24.04}
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
-      - uses: ./.github/actions/download-nntile-catch2-deps
-      - uses: ./.github/actions/restore-nntile-prebuilt-lib-cache
-      - uses: ./.github/actions/restore-nntile-test-obj-cache
-        with:
-          subsystem: ${{ matrix.subsystem }}
-      - run: |
-          chmod +x .github/scripts/cmake-build-tests-subsystem.sh
-          chmod +x .github/scripts/cmake-test-build-targets.sh
-          chmod +x .github/scripts/nntile-prebuilt-lib-path.sh
-          chmod +x .github/scripts/restore-nntile-test-objs-verify.sh
-          _lib=$(
-            .github/scripts/nntile-prebuilt-lib-path.sh build
-          )
-          mapfile -t _test_flags < <(.github/scripts/cmake-build-tests-subsystem.sh "${{ matrix.subsystem }}")
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_PRESET=full -DNNTILE_PREBUILT_LIBRARY="${_lib}" \
-            -DNNTILE_LINK_CACHED_TEST_OBJECTS=ON \
-            -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF \
-            -DNNTILE_FETCHCONTENT_DISCONNECTED=ON \
-            -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
-            "${_test_flags[@]}"
-          mkdir -p build/nntile/tests/CMakeFiles
-          tar -xzf "build/nntile_test_objs_cache/nntile_test_objs_${{ matrix.subsystem }}.tar.gz" \
-            -C build/nntile/tests/CMakeFiles
-          .github/scripts/restore-nntile-test-objs-verify.sh "${{ matrix.subsystem }}" build
-          echo "=== BUILD_TESTS_* (must enable only this subsystem) ==="
-          grep '^BUILD_TESTS_' build/CMakeCache.txt || true
-          mapfile -t _test_targets < <(.github/scripts/cmake-test-build-targets.sh \
-            "${{ matrix.subsystem }}" build)
-          echo "=== ninja plan (link test executables only; libnntile is prebuilt) ==="
-          ninja -C build -n "${_test_targets[@]}" 2>&1 | tee /tmp/build-tests-ninja-plan.txt
-          if grep -E 'CXX_COMPILER|CUDA_COMPILER' /tmp/build-tests-ninja-plan.txt \
-              | grep -qE 'nntile/src/|nntile/tests/CMakeFiles/nntile_test_objs_.*\.cc\.o:'; then
-            echo "unexpected library or test source compile" >&2
-            grep -E 'CXX_COMPILER|CUDA_COMPILER' /tmp/build-tests-ninja-plan.txt \
-              | grep -E 'nntile/src/|nntile_test_objs_.*\.cc\.o:' >&2 || true
-            exit 1
-          fi
-          echo "Linking ${#_test_targets[@]} test executable(s) against prebuilt libnntile"
-          cmake --build build --target "${_test_targets[@]}" -j"$(nproc)"
-      - uses: actions/cache/save@v4
-        with:
-          path: build
-          key: build-tests-${{ matrix.subsystem }}-${{ github.sha }}
-
-  # Run CTest for one subsystem only (no compile; uses build-tests cache).
-  test-run:
-    name: test-run-${{ matrix.subsystem }}
-    needs: build-tests
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        subsystem:
-          - kernel
-          - starpu
-          - core
-          - tile
-          - tensor
-          - nn
-          - module
-          - model
-          - io
-    container: {image: ubuntu:24.04}
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
-      - uses: actions/cache/restore@v4
-        with:
-          path: build
-          key: build-tests-${{ matrix.subsystem }}-${{ github.sha }}
-          fail-on-cache-miss: true
-      - run: chmod +x .github/scripts/ctest-run-subsystem.sh
-      - run: |
-          _re=$(.github/scripts/ctest-run-subsystem.sh "${{ matrix.subsystem }}")
-          cd build && ctest -R "${_re}" -j"$(nproc)" --output-on-failure
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with:
+      subsystem: ${{ matrix.subsystem }}
 
   test-full:
     name: test-full-integration
-    needs: [build-nntile, compile-check-tests, build-tests, test-run]
+    needs: [build-nntile, subsystem-test]
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
