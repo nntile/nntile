@@ -197,30 +197,66 @@ jobs:
             build/include/nntile/defs.h
           key: nntile-lib-linked-${{ github.sha }}
 
-  # Per subsystem: compile-check-tests → build-tests → test-run (1:1 deps inside reusable workflow).
-  subsystem-test:
-    name: subsystem-test-${{ matrix.subsystem }}
+  # One job per subsystem: compile test .o once, link once, ctest (see subsystem-test-pipeline).
+  # starpu/core depend on prior test-object caches (kernel, then starpu).
+  subsystem-test-kernel:
     needs: [configure-smoke, build-nntile, build-test-prerequisites]
-    strategy:
-      fail-fast: false
-      matrix:
-        subsystem:
-          - kernel
-          - starpu
-          - core
-          - tile
-          - tensor
-          - nn
-          - module
-          - model
-          - io
     uses: ./.github/workflows/subsystem-test-pipeline.yml
-    with:
-      subsystem: ${{ matrix.subsystem }}
+    with: {subsystem: kernel}
+
+  subsystem-test-starpu:
+    needs: [configure-smoke, build-nntile, build-test-prerequisites, subsystem-test-kernel]
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with: {subsystem: starpu}
+
+  subsystem-test-core:
+    needs: [configure-smoke, build-nntile, build-test-prerequisites, subsystem-test-starpu]
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with: {subsystem: core}
+
+  subsystem-test-tile:
+    needs: [configure-smoke, build-nntile, build-test-prerequisites]
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with: {subsystem: tile}
+
+  subsystem-test-tensor:
+    needs: [configure-smoke, build-nntile, build-test-prerequisites]
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with: {subsystem: tensor}
+
+  subsystem-test-nn:
+    needs: [configure-smoke, build-nntile, build-test-prerequisites]
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with: {subsystem: nn}
+
+  subsystem-test-module:
+    needs: [configure-smoke, build-nntile, build-test-prerequisites]
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with: {subsystem: module}
+
+  subsystem-test-model:
+    needs: [configure-smoke, build-nntile, build-test-prerequisites]
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with: {subsystem: model}
+
+  subsystem-test-io:
+    needs: [configure-smoke, build-nntile, build-test-prerequisites]
+    uses: ./.github/workflows/subsystem-test-pipeline.yml
+    with: {subsystem: io}
 
   test-full:
     name: test-full-integration
-    needs: [build-nntile, subsystem-test]
+    needs:
+      - build-nntile
+      - subsystem-test-kernel
+      - subsystem-test-starpu
+      - subsystem-test-core
+      - subsystem-test-tile
+      - subsystem-test-tensor
+      - subsystem-test-nn
+      - subsystem-test-module
+      - subsystem-test-model
+      - subsystem-test-io
     runs-on: ubuntu-24.04
     container:
       image: ${{ env.NNTILE_CI_CONTAINER_IMAGE }}

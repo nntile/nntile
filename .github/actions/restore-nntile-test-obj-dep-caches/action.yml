@@ -1,0 +1,30 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# @file .github/actions/restore-nntile-test-obj-dep-caches/action.yml
+#
+# Restore test OBJECT tarballs for dependency subsystems only (not the primary).
+#
+# @version 1.1.0
+name: Restore NNTile test object dependency caches
+description: >-
+  Restore nntile_test_objs_<dep>.tar.gz archives required before compiling the
+  primary test subsystem (kernel for starpu/core; kernel+starpu for core).
+inputs:
+  subsystem:
+    description: Primary test subsystem being built (kernel, starpu, core, ...)
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/restore-nntile-test-obj-cache
+      if: >-
+        inputs.subsystem == 'starpu' || inputs.subsystem == 'core'
+      with:
+        subsystem: kernel
+    - uses: ./.github/actions/restore-nntile-test-obj-cache
+      if: inputs.subsystem == 'core'
+      with:
+        subsystem: starpu

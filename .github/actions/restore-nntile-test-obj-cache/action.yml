@@ -23,5 +23,5 @@ runs:
     - uses: actions/cache/restore@v4
       with:
         path: build/nntile_test_objs_cache/nntile_test_objs_${{ inputs.subsystem }}.tar.gz
-        key: nntile-test-obj-${{ inputs.subsystem }}-${{ github.sha }}
+        key: nntile-test-obj-a-${{ inputs.subsystem }}-${{ github.sha }}
         fail-on-cache-miss: true

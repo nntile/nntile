@@ -79,33 +79,26 @@ GitHub Actions jobs run inside
 
 ## Test build and run (CI)
 
-PR workflow uses three separate test stages per subsystem:
-
 | Job | Purpose |
 |-----|---------|
 | `compile-check-*` | Compile one subsystem's lib sources; cache `nntile_objs_*` |
 | `bundle-nntile-lib-objs` | Restore all lib archives once; save bundled cache |
 | `build-nntile` | Link `libnntile` from bundled archives; cache `libnntile.so` |
 | `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
-| `subsystem-test-*` | Reusable pipeline per subsystem (see below) |
-| `compile-check-tests-*` | Compile test `.cc` for subsystem + deps; cache tarball bundle |
-| `build-tests-*` | Restore cached `libnntile.so`; link test binaries from cached test `.o` |
-| `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile); `-LE NotImplemented` and, for `model`, `-LE FixtureData` (Python-generated weights run in `test-full`) |
+| `subsystem-test-<name>` | One job per test subsystem (see below) |
 
-`subsystem-test-*` runs `.github/workflows/subsystem-test-pipeline.yml` once per
-subsystem. Inside that workflow, `build-tests-*` depends only on
-`compile-check-tests-*` for the same subsystem (not the other eight). The caller
-job waits for `build-nntile` and `build-test-prerequisites` before starting any
-subsystem pipeline.
+`subsystem-test-<name>` runs `.github/workflows/subsystem-test-pipeline.yml` in a
+**single container job**: restore upstream test-object caches (if any), compile
+**only** that subsystem's test `.cc` once, link test executables once against
+prebuilt `libnntile`, then `ctest`. There is no second compile/link pass and no
+full `build/` tree cache between steps.
 
-Each `build-tests-*` job restores the linked library and `defs.h` from
-`build-nntile`, extracts all required test-object tarballs (e.g. `kernel` for
-`starpu`/`core`, plus nested paths like `tensor/ops/*.o`) **before** `cmake`
-configure,
-then uses `-DNNTILE_PREBUILT_LIBRARY=...` (link flags are taken from the cached
-`defs.h`, including CBLAS/OpenBLAS). It runs `cmake --build` for test targets
-only. It does **not** re-link
-`libnntile` from per-subsystem `.a` archives or recompile library or test sources.
+Ordering: `subsystem-test-starpu` needs `subsystem-test-kernel`;
+`subsystem-test-core` needs `subsystem-test-starpu`. Each job saves
+`nntile-test-obj-a-<subsystem>-<sha>` (one tarball) for downstream deps.
+
+`ctest` uses `-LE NotImplemented`; for `model`, also `-LE FixtureData` (fixture
+tests run in `test-full`).
 
 ## Running tests locally (requires full libnntile)
 

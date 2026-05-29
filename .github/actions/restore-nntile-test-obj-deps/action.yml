@@ -3,17 +3,16 @@
 #                2023-present Artificial Intelligence Research Institute
 #                              (AIRI), Russia. All rights reserved.
 #
-# NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
-#
 # @file .github/actions/restore-nntile-test-obj-deps/action.yml
 #
-# Restore test OBJECT tarballs produced by compile-check-tests (primary subsystem
-# and its deps, e.g. kernel+starpu for starpu) in one cache entry.
+# Restore per-subsystem test OBJECT tarballs (see restore-nntile-test-obj-cache).
 #
 # @version 1.1.0
-name: Restore NNTile test object caches (with deps)
-description: Restore bundled nntile_test_objs_*.tar.gz for build-tests
+name: Restore NNTile test object caches (subsystem + deps)
+description: >-
+  Restore nntile_test_objs_<dep>.tar.gz for every dependency of the given test
+  subsystem (including itself). Prefer restore-nntile-test-obj-dep-caches for
+  compile jobs that only need upstream deps.
 inputs:
   subsystem:
     description: Test subsystem for build-tests (kernel, starpu, core, tile, ...)
@@ -21,8 +20,22 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/cache/restore@v4
+    - uses: ./.github/actions/restore-nntile-test-obj-cache
+      if: >-
+        inputs.subsystem == 'kernel' || inputs.subsystem == 'starpu'
+        || inputs.subsystem == 'core'
       with:
-        path: build/nntile_test_objs_cache
-        key: nntile-test-obj-deps-${{ inputs.subsystem }}-${{ github.sha }}
-        fail-on-cache-miss: true
+        subsystem: kernel
+    - uses: ./.github/actions/restore-nntile-test-obj-cache
+      if: inputs.subsystem == 'starpu' || inputs.subsystem == 'core'
+      with:
+        subsystem: starpu
+    - uses: ./.github/actions/restore-nntile-test-obj-cache
+      if: >-
+        inputs.subsystem == 'kernel' || inputs.subsystem == 'starpu'
+        || inputs.subsystem == 'core' || inputs.subsystem == 'tile'
+        || inputs.subsystem == 'tensor' || inputs.subsystem == 'nn'
+        || inputs.subsystem == 'module' || inputs.subsystem == 'model'
+        || inputs.subsystem == 'io'
+      with:
+        subsystem: ${{ inputs.subsystem }}
