@@ -73,7 +73,7 @@ void silu(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
 
 void TensorSiluOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    tile_lower::lower_unary2(src, dst, ctx.tile_map, "SILU", tile_graph::silu);
+    tile_lower::lower_unary2(src, dst, ctx.tile_map, "SILU", tile::silu);
 }
 
 } // namespace nntile::tensor

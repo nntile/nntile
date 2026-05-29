@@ -82,7 +82,7 @@ void TensorReluBackwardOp::lower_to_tile(const LoweringContext &ctx) const
     tile_lower::assert_same_elementwise_layout(x, dx, "RELU_BACKWARD x/dx");
     for (size_t i = 0; i < vx.size(); ++i)
     {
-        tile_graph::relu_backward(vx[i], vdy[i], vdx[i]);
+        tile::relu_backward(vx[i], vdy[i], vdx[i]);
     }
 }
 

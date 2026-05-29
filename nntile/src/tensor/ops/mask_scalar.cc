@@ -94,7 +94,7 @@ void TensorMaskScalarOp::lower_to_tile(const LoweringContext& ctx) const
                 a_coord[static_cast<size_t>(j)];
         }
         const Index lin_m = lay_m->grid_linear(mask_coord);
-        tile_graph::mask_scalar(
+        tile::mask_scalar(
             tiles_mask[static_cast<size_t>(lin_m)],
             val,
             tiles_a[static_cast<size_t>(lin_a)],

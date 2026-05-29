@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/scale_slice.cc
- * Test TensorGraph scale_slice operation against nntile::tensor::scale_slice.
+ * Test TensorGraph scale_slice operation.
  *
  * @version 1.1.0
  * */
@@ -64,84 +64,6 @@ static std::vector<Index> slice_shape(
     return out;
 }
 
-template <typename T>
-void check_scale_slice_vs_tensor_api(
-    const std::vector<Index> &dst_shape, Index axis, Scalar alpha)
-{
-    using Y = typename T::repr_t;
-    const Index dst_nelems = std::accumulate(
-        dst_shape.begin(), dst_shape.end(), Index(1), std::multiplies<>());
-
-    std::vector<Index> src_sh = slice_shape(dst_shape, axis);
-    const Index src_nelems = std::accumulate(
-        src_sh.begin(), src_sh.end(), Index(1), std::multiplies<>());
-    const Index axis_size = dst_shape[axis];
-
-    // --- TensorGraph path ---
-    TensorGraph graph("scale_slice_test");
-    auto *src_node = graph.data(src_sh, DataType::FP32)->set_name("src");
-    src_node->mark_input(true);
-
-    auto *out_node =
-        gt::scale_slice(alpha, src_node, axis, axis_size)->set_name("out");
-    out_node->mark_output(true);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> src_data(src_nelems);
-    for (Index i = 0; i < src_nelems; ++i)
-    {
-        src_data[i] = static_cast<float>(Y(i + 1));
-    }
-
-    runtime.bind_data(src_node, src_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(out_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_sh, src_sh);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
-    std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
-    std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> out_t(dst_traits, dst_distr);
-
-    {
-        auto tile = src_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < src_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(src_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::scale_slice<T>(alpha, src_t, out_t, axis);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(dst_nelems);
-    {
-        auto tile = out_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
-
 TEST_CASE("TensorGraph scale_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
@@ -170,22 +92,6 @@ TEST_CASE(
 
     REQUIRE_THROWS_AS(
         gt::scale_slice(alpha_one, src, src, axis_0), std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale_slice matches nntile::tensor::scale_slice",
-    "[graph][tensor]")
-{
-    const auto [dst_shape, axis, alpha] = GENERATE(
-        std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one},
-        std::tuple{std::vector<Index>{dim_2, dim_4}, axis_0, alpha_one},
-        std::tuple{std::vector<Index>{dim_2, dim_3, dim_4}, axis_0, alpha_one},
-        std::tuple{
-            std::vector<Index>{dim_2, dim_3, dim_4}, axis_1, alpha_half},
-        std::tuple{
-            std::vector<Index>{dim_2, dim_3, dim_4}, axis_2, alpha_two});
-
-    check_scale_slice_vs_tensor_api<nntile::fp32_t>(dst_shape, axis, alpha);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

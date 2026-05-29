@@ -163,12 +163,12 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
 
         if (init_first)
         {
-            tile_graph::sum_fiber(
+            tile::sum_fiber(
                 alpha, x_tile, beta, y_tile, axis, batch_ndim, redux);
         }
         else
         {
-            tile_graph::sum_fiber(
+            tile::sum_fiber(
                 alpha, x_tile, Scalar(1.0), y_tile, axis, batch_ndim, redux);
         }
     }

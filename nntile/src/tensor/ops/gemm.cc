@@ -552,7 +552,7 @@ void TensorGemmOp::lower_to_tile(const LoweringContext &ctx) const
             const bool first_k = (kk == 0);
             const Scalar beta_use = (first_k ? beta : Scalar(1.0));
 
-            tile_graph::gemm(ta,
+            tile::gemm(ta,
                 tb,
                 tc,
                 alpha,

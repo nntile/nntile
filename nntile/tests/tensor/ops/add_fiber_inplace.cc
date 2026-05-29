@@ -7,8 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/add_fiber_inplace.cc
- * Test TensorGraph add_fiber_inplace operation against
- * nntile::tensor::add_fiber_inplace.
+ * Test TensorGraph add_fiber_inplace operation.
  *
  * @version 1.1.0
  * */
@@ -62,109 +61,6 @@ static std::vector<Index> fiber_shape(
     return out;
 }
 
-template <typename T>
-void check_add_fiber_inplace_vs_tensor_api(
-    const std::vector<Index> &tensor_shape,
-    Index axis,
-    Index batch_ndim,
-    Scalar alpha,
-    Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index tensor_nelems = std::accumulate(tensor_shape.begin(),
-        tensor_shape.end(),
-        Index(1),
-        std::multiplies<>());
-
-    std::vector<Index> fiber_sh = fiber_shape(tensor_shape, axis, batch_ndim);
-    const Index fiber_nelems = std::accumulate(
-        fiber_sh.begin(), fiber_sh.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("add_fiber_inplace_test");
-    auto *fiber_node = graph.data(fiber_sh, DataType::FP32)->set_name("fiber");
-    auto *tensor_node =
-        graph.data(tensor_shape, DataType::FP32)->set_name("tensor");
-    fiber_node->mark_input(true);
-    tensor_node->mark_input(true);
-    tensor_node->mark_output(true);
-
-    gt::add_fiber_inplace(
-        alpha, fiber_node, beta, tensor_node, axis, batch_ndim);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> fiber_data(fiber_nelems);
-    std::vector<float> tensor_data(tensor_nelems);
-    for (Index i = 0; i < fiber_nelems; ++i)
-    {
-        fiber_data[i] = static_cast<float>(Y(i + 1));
-    }
-    for (Index i = 0; i < tensor_nelems; ++i)
-    {
-        tensor_data[i] = static_cast<float>(Y(-i - 1));
-    }
-
-    runtime.bind_data(fiber_node, fiber_data);
-    runtime.bind_data(tensor_node, tensor_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(tensor_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
-    nntile::tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
-    std::vector<int> fiber_distr(fiber_traits.grid.nelems, distr_rank_single);
-    std::vector<int> tensor_distr(
-        tensor_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
-    nntile::tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
-
-    {
-        auto tile = fiber_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < fiber_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(fiber_data[i]);
-        }
-        loc.release();
-    }
-    {
-        auto tile = tensor_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < tensor_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(tensor_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::add_fiber_inplace<T>(
-        alpha, fiber_t, beta, tensor_t, axis, batch_ndim);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(tensor_nelems);
-    {
-        auto tile = tensor_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < tensor_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
-
 TEST_CASE("TensorGraph add_fiber_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
@@ -195,31 +91,6 @@ TEST_CASE("TensorGraph add_fiber_inplace rejects duplicate tensors",
         gt::add_fiber_inplace(
             alpha_one, fiber, beta_one, fiber, axis_1, batch_ndim_none),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add_fiber_inplace matches nntile::tensor::add_fiber_inplace",
-    "[graph][tensor]")
-{
-    const auto [tensor_shape, axis, batch_ndim, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_2, dim_4},
-                     axis_1,
-                     batch_ndim_none,
-                     alpha_one,
-                     beta_one},
-            std::tuple{std::vector<Index>{dim_2, dim_4},
-                axis_0,
-                batch_ndim_none,
-                alpha_one,
-                beta_one},
-            std::tuple{std::vector<Index>{dim_4, dim_5},
-                axis_1,
-                batch_ndim_none,
-                alpha_one,
-                beta_zero});
-
-    check_add_fiber_inplace_vs_tensor_api<nntile::fp32_t>(
-        tensor_shape, axis, batch_ndim, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

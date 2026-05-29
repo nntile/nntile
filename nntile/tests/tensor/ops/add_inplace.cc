@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/add_inplace.cc
- * Test TensorGraph add_inplace operation against nntile::tensor::add_inplace.
+ * Test TensorGraph add_inplace operation.
  *
  * @version 1.1.0
  * */
@@ -35,86 +35,7 @@ namespace
 constexpr Scalar alpha = 1.0;
 constexpr Scalar beta = 1.0;
 
-} // anonymous namespace
-
-template <typename T>
-void check_add_inplace_vs_tensor_api(
-    const std::vector<Index> &shape, Scalar alpha, Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index nelems = std::accumulate(
-        shape.begin(), shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("add_inplace_test");
-    auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-    auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-    x_node->mark_input(true);
-    y_node->mark_input(true);
-    y_node->mark_output(true);
-
-    gt::add_inplace(alpha, x_node, beta, y_node);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> x_data(nelems), y_data(nelems);
-    for (Index i = 0; i < nelems; ++i)
-    {
-        x_data[i] = static_cast<float>(Y(i));
-        y_data[i] = static_cast<float>(Y(-i - 1));
-    }
-
-    runtime.bind_data(x_node, x_data);
-    runtime.bind_data(y_node, y_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(y_node);
-
-    // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
-    std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> src(traits, distr);
-    nntile::tensor::Tensor<T> dst(traits, distr);
-
-    {
-        auto tile1 = src.get_tile(0);
-        auto tile2 = dst.get_tile(0);
-        auto loc1 = tile1.acquire(STARPU_W);
-        auto loc2 = tile2.acquire(STARPU_W);
-        for (Index i = 0; i < nelems; ++i)
-        {
-            loc1[i] = static_cast<Y>(x_data[i]);
-            loc2[i] = static_cast<Y>(y_data[i]);
-        }
-        loc1.release();
-        loc2.release();
-    }
-
-    nntile::tensor::add_inplace<T>(alpha, src, beta, dst);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(nelems);
-    {
-        auto tile = dst.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    constexpr float tol = 1e-5f;
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
-    }
-}
+} 
 
 TEST_CASE("TensorGraph add_inplace structure", "[graph][tensor]")
 {
@@ -146,19 +67,6 @@ TEST_CASE(
 
     REQUIRE_THROWS_AS(
         gt::add_inplace(alpha, t, beta, t), std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add_inplace matches nntile::tensor::add_inplace",
-    "[graph][tensor]")
-{
-    const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},
-            std::tuple{2.0, 3.0, std::vector<Index>{4, 5}},
-            std::tuple{0.5, -1.0, std::vector<Index>{6}},
-            std::tuple{1.0, 2.0, std::vector<Index>{3, 4}});
-
-    check_add_inplace_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

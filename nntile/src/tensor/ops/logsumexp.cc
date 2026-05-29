@@ -53,7 +53,7 @@ void TensorLogsumexpOp::lower_to_tile(const LoweringContext &ctx) const
     }
     for (size_t i = 0; i < tiles_src.size(); ++i)
     {
-        tile_graph::logsumexp(tiles_src[i], tiles_dst[i]);
+        tile::logsumexp(tiles_src[i], tiles_dst[i]);
     }
 }
 

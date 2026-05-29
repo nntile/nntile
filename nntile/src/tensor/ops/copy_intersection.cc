@@ -136,7 +136,7 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
     {
         for(size_t i = 0; i < tsrc.size(); ++i)
         {
-            tile_graph::copy(tsrc[i], tdst[i]);
+            tile::copy(tsrc[i], tdst[i]);
         }
         return;
     }
@@ -162,7 +162,7 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
     {
         if(tsrc.size() == 1 && tdst.size() == 1)
         {
-            tile_graph::copy(tsrc[0], tdst[0]);
+            tile::copy(tsrc[0], tdst[0]);
         }
         return;
     }
@@ -249,7 +249,7 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
                 (void)d_hi_incl2;
                 dst_corner[kz] = d_lo2 - g_dst[kz] + g_src[kz];
             }
-            tile_graph::copy_intersection(tsrc[static_cast<size_t>(lin_s)],
+            tile::copy_intersection(tsrc[static_cast<size_t>(lin_s)],
                 src_corner, tdst[static_cast<size_t>(lin_d)], dst_corner,
                 scratch);
             if(j + 1 < src_ntiles)

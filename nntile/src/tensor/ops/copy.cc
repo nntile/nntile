@@ -68,7 +68,7 @@ void TensorCopyOp::lower_to_tile(const LoweringContext &ctx) const
     tile_lower::assert_same_elementwise_layout(src, dst, "COPY src/dst");
     for (size_t i = 0; i < v_src.size(); ++i)
     {
-        tile_graph::copy(v_src[i], v_dst[i]);
+        tile::copy(v_src[i], v_dst[i]);
     }
 }
 

@@ -103,7 +103,7 @@ void TensorMultiplySliceOp::lower_to_tile(const LoweringContext& ctx) const
         {
             d_coord[static_cast<size_t>(axis)] = jj;
             const Index lin_d = lay_d->grid_linear(d_coord);
-            tile_graph::multiply_slice(
+            tile::multiply_slice(
                 alpha,
                 s_tile,
                 tiles_d[static_cast<size_t>(lin_d)],

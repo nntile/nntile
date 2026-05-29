@@ -127,7 +127,7 @@ void TensorMaxsumexpOp::lower_to_tile(const LoweringContext &ctx) const
                 dst_coord[static_cast<size_t>(j)];
         }
 
-        tile_graph::clear(dst_tile);
+        tile::clear(dst_tile);
 
         const Index nseg_along_axis =
             lay_src->grid_shape()[static_cast<size_t>(axis)];
@@ -137,7 +137,7 @@ void TensorMaxsumexpOp::lower_to_tile(const LoweringContext &ctx) const
             const Index lin_src = lay_src->grid_linear(src_coord);
             TileGraph::TileNode *src_tile =
                 tiles_src[static_cast<size_t>(lin_src)];
-            tile_graph::maxsumexp(src_tile, dst_tile, axis, redux);
+            tile::maxsumexp(src_tile, dst_tile, axis, redux);
         }
     }
 }

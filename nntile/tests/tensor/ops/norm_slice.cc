@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/norm_slice.cc
- * Test TensorGraph norm_slice operation against nntile::tensor::norm_slice.
+ * Test TensorGraph norm_slice operation.
  *
  * @version 1.1.0
  * */
@@ -70,121 +70,6 @@ static std::vector<Index> norm_slice_output_shape(
     return out;
 }
 
-template <typename T>
-void check_norm_slice_vs_tensor_api(const std::vector<Index> &src_shape,
-    Index axis,
-    int redux,
-    Scalar alpha,
-    Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index src_nelems = std::accumulate(
-        src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
-
-    std::vector<Index> dst_shape = norm_slice_output_shape(src_shape, axis);
-    const Index dst_nelems = std::accumulate(
-        dst_shape.begin(), dst_shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path (5-arg: creates distinct output) ---
-    TensorGraph graph("norm_slice_test");
-    auto *src_node = graph.data(src_shape, DataType::FP32)->set_name("src");
-    auto *dst_node = graph.data(dst_shape, DataType::FP32)->set_name("dst");
-    src_node->mark_input(true);
-    dst_node->mark_input(true);
-
-    auto *out_node =
-        gt::norm_slice(alpha, src_node, beta, dst_node, axis, redux)
-            ->set_name("out");
-    out_node->mark_output(true);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> src_data(src_nelems);
-    for (Index i = 0; i < src_nelems; ++i)
-    {
-        src_data[i] = static_cast<float>(Y(i + x_fill_offset));
-    }
-
-    std::vector<float> dst_data(dst_nelems);
-    for (Index i = 0; i < dst_nelems; ++i)
-    {
-        dst_data[i] =
-            (beta != beta_zero) ? y_init_accumulate : y_init_overwrite;
-    }
-
-    runtime.bind_data(src_node, src_data);
-    runtime.bind_data(dst_node, dst_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(out_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
-    nntile::tensor::TensorTraits out_traits(dst_shape, dst_shape);
-    std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
-    std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    std::vector<int> out_distr(out_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> src2_t(dst_traits, dst_distr);
-    nntile::tensor::Tensor<T> out_t(out_traits, out_distr);
-
-    {
-        auto tile = src_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < src_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(src_data[i]);
-        }
-        loc.release();
-    }
-
-    {
-        auto tile = src2_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(dst_data[i]);
-        }
-        loc.release();
-    }
-
-    {
-        auto tile = out_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(dst_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::norm_slice<T>(
-        alpha, src_t, beta, src2_t, out_t, axis, redux);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(dst_nelems);
-    {
-        auto tile = out_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
-
 TEST_CASE("TensorGraph norm_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
@@ -220,56 +105,6 @@ TEST_CASE(
         gt::norm_slice(
             alpha_one, src, beta_zero, dst, dst, axis_1, redux_none),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm_slice matches nntile::tensor::norm_slice",
-    "[graph][tensor]")
-{
-    const auto [src_shape, axis, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
-                     axis_0,
-                     redux_none,
-                     alpha_one,
-                     beta_zero},
-            std::tuple{std::vector<Index>{dim_4, dim_5},
-                axis_1,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_3, dim_6},
-                axis_0,
-                redux_none,
-                alpha_two,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_3, dim_6},
-                axis_1,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_0,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_1,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_2,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_4, dim_5},
-                axis_0,
-                redux_none,
-                alpha_one,
-                beta_half});
-
-    check_norm_slice_vs_tensor_api<nntile::fp32_t>(
-        src_shape, axis, redux, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

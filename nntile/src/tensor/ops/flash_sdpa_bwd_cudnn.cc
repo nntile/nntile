@@ -173,7 +173,7 @@ void TensorFlashSdpaBwdCudnnOp::lower_to_tile(const LoweringContext& ctx) const
             mask_coord[1] = dq_coord[1];
             const Index lin_mask = lay_mask->grid_linear(mask_coord);
 
-            tile_graph::flash_sdpa_bwd_cudnn(
+            tile::flash_sdpa_bwd_cudnn(
                 tiles_k[static_cast<size_t>(lin_kv)],
                 tiles_q[static_cast<size_t>(lin_dq)],
                 tiles_v[static_cast<size_t>(lin_kv)],

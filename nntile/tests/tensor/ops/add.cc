@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/add.cc
- * Test TensorGraph add operation against nntile::tensor::add.
+ * Test TensorGraph add operation.
  *
  * @version 1.1.0
  * */
@@ -26,89 +26,6 @@
 using namespace nntile;
 using namespace nntile;
 namespace gt = nntile::tensor;
-
-//! Run add via TensorGraph (compile + execute) and via tensor API, compare
-template <typename T>
-void check_add_vs_tensor_api(
-    const std::vector<Index> &shape, Scalar alpha, Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index nelems = std::accumulate(
-        shape.begin(), shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("add_test");
-    auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-    auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-    x_node->mark_input(true);
-    y_node->mark_input(true);
-
-    auto *z_node = gt::add(alpha, x_node, beta, y_node)->set_name("z");
-    z_node->mark_output(true);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    // Generate input data once
-    std::vector<float> x_data(nelems), y_data(nelems);
-    for (Index i = 0; i < nelems; ++i)
-    {
-        x_data[i] = static_cast<float>(Y(i));
-        y_data[i] = static_cast<float>(Y(-i - 1));
-    }
-
-    // --- TensorGraph path ---
-    runtime.bind_data(x_node, x_data);
-    runtime.bind_data(y_node, y_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(z_node);
-
-    // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
-    std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> src1(traits, distr);
-    nntile::tensor::Tensor<T> src2(traits, distr);
-    nntile::tensor::Tensor<T> dst(traits, distr);
-
-    {
-        auto tile1 = src1.get_tile(0);
-        auto tile2 = src2.get_tile(0);
-        auto loc1 = tile1.acquire(STARPU_W);
-        auto loc2 = tile2.acquire(STARPU_W);
-        for (Index i = 0; i < nelems; ++i)
-        {
-            loc1[i] = static_cast<Y>(x_data[i]);
-            loc2[i] = static_cast<Y>(y_data[i]);
-        }
-        loc1.release();
-        loc2.release();
-    }
-
-    nntile::tensor::add<T>(alpha, src1, beta, src2, dst);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(nelems);
-    {
-        auto tile = dst.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    constexpr float tol = 1e-5f;
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
-    }
-}
 
 TEST_CASE("TensorGraph add structure", "[graph][tensor]")
 {
@@ -144,20 +61,6 @@ TEST_CASE("TensorGraph add rejects duplicate tensors")
 
     REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, x), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, y, x), std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add matches nntile::tensor::add",
-    "[graph][tensor]")
-{
-    const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},
-            std::tuple{2.0, 3.0, std::vector<Index>{4, 5}},
-            std::tuple{0.5, -1.0, std::vector<Index>{6}},
-            std::tuple{1.0, 2.0, std::vector<Index>{3, 4}},
-            std::tuple{-0.5, 1.5, std::vector<Index>{2, 2}});
-
-    check_add_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

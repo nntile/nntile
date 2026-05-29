@@ -75,7 +75,7 @@ void sqrt(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
 
 void TensorSqrtOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    tile_lower::lower_unary2(src, dst, ctx.tile_map, "SQRT", tile_graph::sqrt);
+    tile_lower::lower_unary2(src, dst, ctx.tile_map, "SQRT", tile::sqrt);
 }
 
 } // namespace nntile::tensor

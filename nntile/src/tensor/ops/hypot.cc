@@ -43,7 +43,7 @@ void TensorHypotOp::lower_to_tile(const LoweringContext &ctx) const
     tile_lower::assert_same_elementwise_layout(src1, dst, "HYPOT src1/dst");
     for (size_t i = 0; i < v1.size(); ++i)
     {
-        tile_graph::hypot(alpha, v1[i], beta, v2[i], vd[i]);
+        tile::hypot(alpha, v1[i], beta, v2[i], vd[i]);
     }
 }
 

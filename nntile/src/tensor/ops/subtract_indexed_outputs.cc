@@ -58,7 +58,7 @@ void TensorSubtractIndexedOutputsOp::lower_to_tile(const LoweringContext& ctx) c
                 dst_coord[static_cast<size_t>(j + 1)];
         }
         const Index lin_l = lay_lab->grid_linear(lab_coord);
-        tile_graph::subtract_indexed_outputs(val,
+        tile::subtract_indexed_outputs(val,
             t_lab[static_cast<size_t>(lin_l)],
             t_dst[static_cast<size_t>(lin_d)], ignore_index);
     }

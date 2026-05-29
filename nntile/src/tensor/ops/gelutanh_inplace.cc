@@ -43,7 +43,7 @@ void gelutanh_inplace(TensorGraph::TensorNode* dst)
 void TensorGelutanhInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
     tile_lower::lower_inplace1(dst, ctx.tile_map, "GELUTANH_INPLACE",
-        tile_graph::gelutanh_inplace);
+        tile::gelutanh_inplace);
 }
 
 } // namespace nntile::tensor

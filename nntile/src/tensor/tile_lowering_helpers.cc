@@ -18,7 +18,7 @@
 
 #include "nntile/tile/graph_ops.hh"
 
-namespace nntile::core_lower
+namespace nntile::tile_lower
 {
 
 void assert_same_elementwise_layout(
@@ -125,4 +125,4 @@ void lower_backward3(
     }
 }
 
-} // namespace nntile::core_lower
+} // namespace nntile::tile_lower

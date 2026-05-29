@@ -50,7 +50,7 @@ void TensorScatterOp::lower_to_tile(const LoweringContext& ctx) const
     const Index ndim = dst->ndim();
     if(tdst.size() == 1)
     {
-        tile_graph::copy(src_tile, tdst[0]);
+        tile::copy(src_tile, tdst[0]);
         return;
     }
     const std::string scratch_name = std::string("__scatter_scr_") +
@@ -70,7 +70,7 @@ void TensorScatterOp::lower_to_tile(const LoweringContext& ctx) const
             lay_dst->tile_axis_global_range(grid_coord, k, lo, hi);
             dst_corner[static_cast<size_t>(k)] = lo;
         }
-        tile_graph::copy_intersection(src_tile, src_corner,
+        tile::copy_intersection(src_tile, src_corner,
             tdst[static_cast<size_t>(lin)], dst_corner, scratch);
     }
 }

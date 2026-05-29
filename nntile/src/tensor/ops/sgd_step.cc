@@ -64,7 +64,7 @@ void TensorSgdStepOp::lower_to_tile(const LoweringContext& ctx) const
     const size_t n = vg.size();
     for(size_t i = 0; i < n; ++i)
     {
-        tile_graph::sgd_step(num_iter, momentum, lr, weight_decay, dampening,
+        tile::sgd_step(num_iter, momentum, lr, weight_decay, dampening,
             nesterov, vg[i], vv[i], vp[i]);
     }
 }

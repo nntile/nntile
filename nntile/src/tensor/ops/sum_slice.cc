@@ -156,7 +156,7 @@ void TensorSumSliceOp::lower_to_tile(const LoweringContext &ctx) const
 
         s_coord[static_cast<size_t>(axis)] = 0;
         Index lin_s0 = lay_s->grid_linear(s_coord);
-        tile_graph::sum_slice(alpha,
+        tile::sum_slice(alpha,
             tiles_s[static_cast<size_t>(lin_s0)],
             beta,
             dst_tile,
@@ -167,7 +167,7 @@ void TensorSumSliceOp::lower_to_tile(const LoweringContext &ctx) const
         {
             s_coord[static_cast<size_t>(axis)] = jj;
             const Index lin_s = lay_s->grid_linear(s_coord);
-            tile_graph::sum_slice(alpha,
+            tile::sum_slice(alpha,
                 tiles_s[static_cast<size_t>(lin_s)],
                 Scalar(1.0),
                 dst_tile,

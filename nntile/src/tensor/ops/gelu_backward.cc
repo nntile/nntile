@@ -63,7 +63,7 @@ void gelu_backward(
 void TensorGeluBackwardOp::lower_to_tile(const LoweringContext& ctx) const
 {
     tile_lower::lower_backward3(x, dy, dx, ctx.tile_map, "GELU_BACKWARD",
-        tile_graph::gelu_backward);
+        tile::gelu_backward);
 }
 
 } // namespace nntile::tensor

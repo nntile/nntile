@@ -20,7 +20,7 @@
 
 #include <nntile/tile/lowering_context.hh>
 
-namespace nntile::core_lower
+namespace nntile::tile_lower
 {
 
 void assert_same_elementwise_layout(
@@ -57,4 +57,4 @@ void lower_backward3(
     const char* ctx,
     void (*fn)(TileGraph::TileNode*, TileGraph::TileNode*, TileGraph::TileNode*));
 
-} // namespace nntile::core_lower
+} // namespace nntile::tile_lower

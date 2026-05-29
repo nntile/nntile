@@ -74,7 +74,7 @@ void TensorAdamStepOp::lower_to_tile(const LoweringContext& ctx) const
     const size_t n = vg.size();
     for(size_t i = 0; i < n; ++i)
     {
-        tile_graph::adam_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+        tile::adam_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
             vg[i], vm[i], vv[i], vp[i]);
     }
 }

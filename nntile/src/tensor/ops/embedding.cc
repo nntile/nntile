@@ -150,7 +150,7 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
     for (Index lin_e = 0; lin_e < lay_e->grid_volume(); ++lin_e)
     {
         lay_e->grid_coord_from_linear(lin_e, embed_coord);
-        tile_graph::clear(tiles_e[static_cast<size_t>(lin_e)]);
+        tile::clear(tiles_e[static_cast<size_t>(lin_e)]);
 
         index_coord.resize(static_cast<size_t>(index->ndim()));
         for (Index j = 0; j < axis; ++j)
@@ -196,7 +196,7 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
 
                 const Index k_start = (tv0 - vocab_tile0_start) * vocab_b0;
                 const Index k_size = vocab_traits.shape[0];
-                tile_graph::embedding(m,
+                tile::embedding(m,
                     n,
                     k,
                     k_start,

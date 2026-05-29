@@ -54,7 +54,7 @@ void TensorRandnOp::lower_to_tile(const LoweringContext& ctx) const
             lay->tile_axis_global_range(grid_coord, d, glo, ghi);
             tile_start[static_cast<size_t>(d)] = glo;
         }
-        tile_graph::randn(tiles[static_cast<size_t>(lin)], tile_start,
+        tile::randn(tiles[static_cast<size_t>(lin)], tile_start,
             underlying_shape, seed, mean, stddev);
     }
 }

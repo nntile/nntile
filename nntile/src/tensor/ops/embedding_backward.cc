@@ -169,7 +169,7 @@ void TensorEmbeddingBackwardOp::lower_to_tile(const LoweringContext& ctx) const
 
                 const Index k_start = (tv0 - vocab_tile0_start) * vocab_b0;
                 const Index k_size = vocab_traits.shape[0];
-                tile_graph::embedding_backward(
+                tile::embedding_backward(
                     m,
                     n,
                     k,

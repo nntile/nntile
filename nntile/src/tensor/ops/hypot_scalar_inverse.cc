@@ -31,7 +31,7 @@ void TensorHypotScalarInverseOp::lower_to_tile(const LoweringContext& ctx) const
 {
     for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, dst))
     {
-        tile_graph::hypot_scalar_inverse(eps, alpha, t);
+        tile::hypot_scalar_inverse(eps, alpha, t);
     }
 }
 

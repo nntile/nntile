@@ -30,7 +30,7 @@ namespace nntile::tensor
 void TensorReluInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
     tile_lower::lower_inplace1(
-        dst, ctx.tile_map, "RELU_INPLACE", tile_graph::relu_inplace);
+        dst, ctx.tile_map, "RELU_INPLACE", tile::relu_inplace);
 }
 
 void relu_inplace(TensorGraph::TensorNode* dst)

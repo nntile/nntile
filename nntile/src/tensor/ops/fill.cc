@@ -41,7 +41,7 @@ void TensorFillOp::lower_to_tile(const LoweringContext& ctx) const
 {
     for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, x))
     {
-        tile_graph::fill(val, t);
+        tile::fill(val, t);
     }
 }
 

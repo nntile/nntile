@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/sum.cc
- * Test TensorGraph sum operation against nntile::tensor::sum.
+ * Test TensorGraph sum operation.
  *
  * @version 1.1.0
  * */
@@ -38,85 +38,7 @@ constexpr Scalar beta_one = 1.0;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-} // anonymous namespace
-
-template <typename T>
-void check_sum_vs_tensor_api(
-    const std::vector<Index> &src_shape, Scalar alpha, Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index src_nelems = std::accumulate(
-        src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("sum_test");
-    auto *src_node = graph.data(src_shape, DataType::FP32)->set_name("src");
-    auto *dst_node = graph.data({}, DataType::FP32)->set_name("dst"); // scalar
-    src_node->mark_input(true);
-    dst_node->mark_input(true);
-    dst_node->mark_output(true);
-
-    gt::sum(src_node, dst_node, alpha, beta);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> src_data(src_nelems);
-    std::vector<float> dst_data(1);
-    for (Index i = 0; i < src_nelems; ++i)
-    {
-        src_data[i] = static_cast<float>(Y(i + 1));
-    }
-    dst_data[0] = (beta != beta_zero) ? 1.0f : 0.0f;
-
-    runtime.bind_data(src_node, src_data);
-    runtime.bind_data(dst_node, dst_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits dst_traits({}, {});
-    std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
-    std::vector<int> dst_distr(1, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
-
-    {
-        auto tile = src_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < src_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(src_data[i]);
-        }
-        loc.release();
-    }
-    {
-        auto tile = dst_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        loc[0] = static_cast<Y>(dst_data[0]);
-        loc.release();
-    }
-
-    nntile::tensor::sum<T>(alpha, src_t, beta, dst_t);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(1);
-    {
-        auto tile = dst_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        tensor_result[0] = static_cast<float>(loc[0]);
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == 1);
-    REQUIRE(tensor_result.size() == 1);
-    REQUIRE(std::abs(graph_result[0] - tensor_result[0]) < tolerance);
-}
+} 
 
 TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
 {
@@ -148,18 +70,6 @@ TEST_CASE("TensorGraph sum rejects duplicate tensors", "[graph][tensor]")
 
     REQUIRE_THROWS_AS(
         gt::sum(t, t, alpha_one, beta_zero), std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sum matches nntile::tensor::sum",
-    "[graph][tensor]")
-{
-    const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{4, 5}},
-            std::tuple{2.0, 0.0, std::vector<Index>{6}},
-            std::tuple{1.0, 1.0, std::vector<Index>{3, 4}});
-
-    check_sum_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

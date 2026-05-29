@@ -48,7 +48,7 @@ void TensorPowOp::lower_to_tile(const LoweringContext& ctx) const
 {
     for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, A))
     {
-        tile_graph::pow(alpha, exp, t);
+        tile::pow(alpha, exp, t);
     }
 }
 

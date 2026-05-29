@@ -7,8 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/multiply_fiber.cc
- * Test TensorGraph multiply_fiber operation against
- * nntile::tensor::multiply_fiber.
+ * Test TensorGraph multiply_fiber operation.
  *
  * @version 1.1.0
  * */
@@ -56,105 +55,6 @@ static std::vector<Index> fiber_shape(
     return {tensor_shape[axis]};
 }
 
-template <typename T>
-void check_multiply_fiber_vs_tensor_api(
-    const std::vector<Index> &tensor_shape, Index axis, Scalar alpha)
-{
-    using Y = typename T::repr_t;
-    const Index tensor_nelems = std::accumulate(tensor_shape.begin(),
-        tensor_shape.end(),
-        Index(1),
-        std::multiplies<>());
-
-    std::vector<Index> fiber_sh = fiber_shape(tensor_shape, axis);
-    const Index fiber_nelems = std::accumulate(
-        fiber_sh.begin(), fiber_sh.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("multiply_fiber_test");
-    auto *fiber_node = graph.data(fiber_sh, DataType::FP32)->set_name("fiber");
-    auto *tensor_node =
-        graph.data(tensor_shape, DataType::FP32)->set_name("tensor");
-    fiber_node->mark_input(true);
-    tensor_node->mark_input(true);
-
-    auto *out_node = gt::multiply_fiber(alpha, fiber_node, tensor_node, axis)
-                         ->set_name("out");
-    out_node->mark_output(true);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> fiber_data(fiber_nelems);
-    std::vector<float> tensor_data(tensor_nelems);
-    for (Index i = 0; i < fiber_nelems; ++i)
-    {
-        fiber_data[i] = static_cast<float>(Y(i + 1));
-    }
-    for (Index i = 0; i < tensor_nelems; ++i)
-    {
-        tensor_data[i] = static_cast<float>(Y(-i - 1));
-    }
-
-    runtime.bind_data(fiber_node, fiber_data);
-    runtime.bind_data(tensor_node, tensor_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(out_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
-    nntile::tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
-    std::vector<int> fiber_distr(fiber_traits.grid.nelems, distr_rank_single);
-    std::vector<int> tensor_distr(
-        tensor_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
-    nntile::tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
-    nntile::tensor::Tensor<T> out_t(tensor_traits, tensor_distr);
-
-    {
-        auto tile = fiber_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < fiber_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(fiber_data[i]);
-        }
-        loc.release();
-    }
-    {
-        auto tile = tensor_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < tensor_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(tensor_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::multiply_fiber<T>(alpha, fiber_t, tensor_t, out_t, axis);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(tensor_nelems);
-    {
-        auto tile = out_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < tensor_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
-
 TEST_CASE("TensorGraph multiply_fiber structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
@@ -186,23 +86,6 @@ TEST_CASE(
     REQUIRE_THROWS_AS(
         gt::multiply_fiber(alpha_one, fiber, tensor, tensor, axis_1),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_fiber matches nntile::tensor::multiply_fiber",
-    "[graph][tensor]")
-{
-    const auto [tensor_shape, axis, alpha] = GENERATE(
-        std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one},
-        std::tuple{std::vector<Index>{dim_2, dim_4}, axis_0, alpha_one},
-        std::tuple{std::vector<Index>{dim_2, dim_3, dim_4}, axis_0, alpha_one},
-        std::tuple{
-            std::vector<Index>{dim_2, dim_3, dim_4}, axis_1, alpha_half},
-        std::tuple{
-            std::vector<Index>{dim_2, dim_3, dim_4}, axis_2, alpha_two});
-
-    check_multiply_fiber_vs_tensor_api<nntile::fp32_t>(
-        tensor_shape, axis, alpha);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

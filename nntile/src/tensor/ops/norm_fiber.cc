@@ -158,7 +158,7 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
 
         if (init_first)
         {
-            tile_graph::norm_fiber(alpha,
+            tile::norm_fiber(alpha,
                 tiles_s1[static_cast<size_t>(lin1)],
                 beta,
                 tiles_s2[static_cast<size_t>(lin_d)],
@@ -169,7 +169,7 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
         }
         else
         {
-            tile_graph::norm_fiber_inplace(alpha,
+            tile::norm_fiber_inplace(alpha,
                 tiles_s1[static_cast<size_t>(lin1)],
                 one,
                 tiles_d[static_cast<size_t>(lin_d)],

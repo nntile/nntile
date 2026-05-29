@@ -40,7 +40,7 @@ void TensorHypotInplaceOp::lower_to_tile(const LoweringContext& ctx) const
     tile_lower::assert_same_elementwise_layout(src, dst, "HYPOT_INPLACE");
     for(size_t i = 0; i < vs.size(); ++i)
     {
-        tile_graph::hypot_inplace(alpha, vs[i], beta, vd[i]);
+        tile::hypot_inplace(alpha, vs[i], beta, vd[i]);
     }
 }
 

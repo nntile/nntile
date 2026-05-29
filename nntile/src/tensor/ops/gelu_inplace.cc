@@ -43,7 +43,7 @@ void gelu_inplace(TensorGraph::TensorNode* dst)
 void TensorGeluInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
     tile_lower::lower_inplace1(
-        dst, ctx.tile_map, "GELU_INPLACE", tile_graph::gelu_inplace);
+        dst, ctx.tile_map, "GELU_INPLACE", tile::gelu_inplace);
 }
 
 } // namespace nntile::tensor

@@ -46,7 +46,7 @@ void TensorMultiplyFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) con
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
         const Index j = dst_coord[static_cast<size_t>(axis)];
-        tile_graph::multiply_fiber_inplace(
+        tile::multiply_fiber_inplace(
             alpha, ts[static_cast<size_t>(j)], td[static_cast<size_t>(lin_d)], axis);
     }
 }

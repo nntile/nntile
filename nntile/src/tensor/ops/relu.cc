@@ -83,7 +83,7 @@ void TensorReluOp::lower_to_tile(const LoweringContext &ctx) const
     tile_lower::assert_same_elementwise_layout(src, dst, "RELU src/dst");
     for (size_t i = 0; i < vs.size(); ++i)
     {
-        tile_graph::relu(vs[i], vd[i]);
+        tile::relu(vs[i], vd[i]);
     }
 }
 

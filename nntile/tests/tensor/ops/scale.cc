@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/scale.cc
- * Test TensorGraph scale operation against nntile::tensor::scale.
+ * Test TensorGraph scale operation.
  *
  * @version 1.1.0
  * */
@@ -34,80 +34,7 @@ namespace
 
 constexpr Scalar alpha = 2.5;
 
-} // anonymous namespace
-
-template <typename T>
-void check_scale_vs_tensor_api(const std::vector<Index> &shape, Scalar alpha)
-{
-    using Y = typename T::repr_t;
-    const Index nelems = std::accumulate(
-        shape.begin(), shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("scale_test");
-    auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-    src_node->mark_input(true);
-
-    auto *dst_node = gt::scale(alpha, src_node)->set_name("dst");
-    dst_node->mark_output(true);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    // Generate input data once
-    std::vector<float> src_data(nelems);
-    for (Index i = 0; i < nelems; ++i)
-    {
-        src_data[i] = static_cast<float>(Y(i + 1));
-    }
-
-    // --- TensorGraph path ---
-    runtime.bind_data(src_node, src_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
-
-    // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
-    std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> src(traits, distr);
-    nntile::tensor::Tensor<T> dst(traits, distr);
-
-    {
-        auto tile = src.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(src_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::scale<T>(alpha, src, dst);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(nelems);
-    {
-        auto tile = dst.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    // --- Compare ---
-    constexpr float tol = 1e-5f;
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
-    }
-}
+} 
 
 TEST_CASE("TensorGraph scale structure", "[graph][tensor]")
 {
@@ -138,19 +65,6 @@ TEST_CASE("TensorGraph scale rejects duplicate tensors", "[graph][tensor]")
     auto *src = graph.data({4, 5})->set_name("src");
 
     REQUIRE_THROWS_AS(gt::scale(alpha, src, src), std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale matches nntile::tensor::scale",
-    "[graph][tensor]")
-{
-    const auto [alpha, shape] =
-        GENERATE(std::tuple{2.5, std::vector<Index>{4, 5}},
-            std::tuple{-1.0, std::vector<Index>{6}},
-            std::tuple{1.0, std::vector<Index>{2, 3}},
-            std::tuple{0.5, std::vector<Index>{1}});
-
-    check_scale_vs_tensor_api<nntile::fp32_t>(shape, alpha);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

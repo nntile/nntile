@@ -34,7 +34,7 @@ void TensorLogScalarOp::lower_to_tile(const LoweringContext& ctx) const
         throw std::runtime_error(
             "lower_to_tile LOG_SCALAR: value must be single-tile scalar tensor");
     }
-    tile_graph::log_scalar(name, tiles[0]);
+    tile::log_scalar(name, tiles[0]);
 }
 
 void log_scalar(const std::string& name,

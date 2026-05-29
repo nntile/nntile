@@ -140,7 +140,7 @@ void TensorMultiplyFiberOp::lower_to_tile(const LoweringContext &ctx) const
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
         const Index j = dst_coord[static_cast<size_t>(axis)];
-        tile_graph::multiply_fiber(alpha,
+        tile::multiply_fiber(alpha,
             tiles_s1[static_cast<size_t>(j)],
             tiles_s2[static_cast<size_t>(lin_d)],
             tiles_d[static_cast<size_t>(lin_d)],

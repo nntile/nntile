@@ -7,8 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/embedding_backward.cc
- * Test TensorGraph embedding_backward operation against
- * nntile::tensor::embedding_backward.
+ * Test TensorGraph embedding_backward operation.
  *
  * @version 1.1.0
  * */
@@ -56,123 +55,7 @@ std::vector<Index> embed_output_shape(const std::vector<Index> &index_shape,
     return embed_shape;
 }
 
-} // anonymous namespace
-
-template <typename T>
-void check_embedding_backward_vs_tensor_api(
-    const std::vector<Index> &index_shape,
-    const std::vector<Index> &vocab_shape,
-    Index axis,
-    int redux)
-{
-    using Y = typename T::repr_t;
-    auto embed_shape = embed_output_shape(index_shape, vocab_shape, axis);
-
-    const Index index_nelems = std::accumulate(
-        index_shape.begin(), index_shape.end(), Index(1), std::multiplies<>());
-    const Index vocab_nelems = std::accumulate(
-        vocab_shape.begin(), vocab_shape.end(), Index(1), std::multiplies<>());
-    const Index embed_nelems = std::accumulate(
-        embed_shape.begin(), embed_shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("embedding_backward_test");
-    auto *index_node =
-        graph.data(index_shape, DataType::INT64)->set_name("index");
-    auto *embed_node =
-        graph.data(embed_shape, DataType::FP32)->set_name("embed");
-    auto *vocab_node =
-        graph.data(vocab_shape, DataType::FP32)->set_name("vocab");
-    index_node->mark_input(true);
-    embed_node->mark_input(true);
-    vocab_node->mark_input(true);
-    vocab_node->mark_output(true);
-
-    gt::embedding_backward(index_node, embed_node, vocab_node, axis, redux);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<std::int64_t> index_data(index_nelems);
-    std::vector<float> embed_data(embed_nelems);
-    std::vector<float> vocab_data(vocab_nelems, 0.0f);
-    for (Index i = 0; i < index_nelems; ++i)
-    {
-        index_data[i] = static_cast<std::int64_t>(i % vocab_shape[1]);
-    }
-    for (Index i = 0; i < embed_nelems; ++i)
-    {
-        embed_data[i] = 0.1f * static_cast<float>(i % 5);
-    }
-
-    runtime.bind_data(index_node, index_data);
-    runtime.bind_data(embed_node, embed_data);
-    runtime.bind_data(vocab_node, vocab_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(vocab_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits index_traits(index_shape, index_shape);
-    nntile::tensor::TensorTraits embed_traits(embed_shape, embed_shape);
-    nntile::tensor::TensorTraits vocab_traits(vocab_shape, vocab_shape);
-    std::vector<int> distr(1, distr_rank_single);
-
-    nntile::tensor::Tensor<nntile::int64_t> index_t(index_traits, distr);
-    nntile::tensor::Tensor<T> embed_t(embed_traits, distr);
-    nntile::tensor::Tensor<T> vocab_t(vocab_traits, distr);
-
-    auto init_index = [](nntile::tensor::Tensor<nntile::int64_t> &t,
-                          const std::vector<std::int64_t> &data)
-    {
-        auto tile = t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < static_cast<Index>(data.size()); ++i)
-        {
-            loc[i] = nntile::int64_t(data[i]);
-        }
-        loc.release();
-    };
-    auto init_float =
-        [](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
-    {
-        auto tile = t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < static_cast<Index>(data.size()); ++i)
-        {
-            loc[i] = static_cast<Y>(data[i]);
-        }
-        loc.release();
-    };
-
-    init_index(index_t, index_data);
-    init_float(embed_t, embed_data);
-    init_float(vocab_t, vocab_data);
-
-    nntile::tensor::embedding_backward<T>(
-        index_t, embed_t, vocab_t, axis, redux);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(vocab_nelems);
-    {
-        auto tile = vocab_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < vocab_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
+} 
 
 TEST_CASE("TensorGraph embedding_backward structure", "[graph][tensor]")
 {
@@ -208,27 +91,6 @@ TEST_CASE(
         std::invalid_argument);
     REQUIRE_THROWS_AS(gt::embedding_backward(index, embed, nullptr, 2, 0),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph embedding_backward matches "
-    "nntile::tensor::embedding_backward",
-    "[graph][tensor]")
-{
-    const auto [index_shape, vocab_shape, axis, redux] =
-        GENERATE(std::tuple{std::vector<Index>{4, 5},
-                     std::vector<Index>{10, 100},
-                     Index(2),
-                     0},
-            std::tuple{
-                std::vector<Index>{3}, std::vector<Index>{8, 50}, Index(1), 0},
-            std::tuple{std::vector<Index>{2, 3, 4},
-                std::vector<Index>{6, 20},
-                Index(3),
-                0});
-
-    check_embedding_backward_vs_tensor_api<nntile::fp32_t>(
-        index_shape, vocab_shape, axis, redux);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

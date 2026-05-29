@@ -115,7 +115,7 @@ void TensorSumprodSliceOp::lower_to_tile(const LoweringContext& ctx) const
 
         s1_coord[static_cast<size_t>(axis)] = 0;
         Index lin_s0 = lay_s1->grid_linear(s1_coord);
-        tile_graph::sumprod_slice(
+        tile::sumprod_slice(
             alpha,
             tiles_s1[static_cast<size_t>(lin_s0)],
             tiles_s2[static_cast<size_t>(lin_s0)],
@@ -128,7 +128,7 @@ void TensorSumprodSliceOp::lower_to_tile(const LoweringContext& ctx) const
         {
             s1_coord[static_cast<size_t>(axis)] = jj;
             const Index lin_s = lay_s1->grid_linear(s1_coord);
-            tile_graph::sumprod_slice(
+            tile::sumprod_slice(
                 alpha,
                 tiles_s1[static_cast<size_t>(lin_s)],
                 tiles_s2[static_cast<size_t>(lin_s)],

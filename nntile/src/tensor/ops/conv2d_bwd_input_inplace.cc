@@ -186,11 +186,11 @@ void TensorConv2dBwdInputInplaceOp::lower_to_tile(
         {
             if(beta == 0.0)
             {
-                tile_graph::clear(dx_tile);
+                tile::clear(dx_tile);
             }
             else if(beta != 1.0)
             {
-                tile_graph::scale_inplace(beta, dx_tile);
+                tile::scale_inplace(beta, dx_tile);
             }
             continue;
         }
@@ -215,7 +215,7 @@ void TensorConv2dBwdInputInplaceOp::lower_to_tile(
                     dX_start_m + padding[0] - stride[0] * dY_i * dy_bs0;
                 const Index offset_n =
                     dX_start_n + padding[1] - stride[1] * dY_j * dy_bs1;
-                tile_graph::conv2d_bwd_input_inplace(
+                tile::conv2d_bwd_input_inplace(
                     dy_ts[0],
                     dy_ts[1],
                     stride[0],

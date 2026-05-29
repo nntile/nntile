@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/mask_scalar.cc
- * Test TensorGraph mask_scalar operation against nntile::tensor::mask_scalar.
+ * Test TensorGraph mask_scalar operation.
  *
  * @version 1.1.0
  * */
@@ -36,103 +36,7 @@ constexpr Scalar val = -0.5;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-} // anonymous namespace
-
-template <typename T>
-void check_mask_scalar_vs_tensor_api(
-    const std::vector<Index> &A_shape, Index batch_ndim)
-{
-    using Y = typename T::repr_t;
-    const Index A_nelems = std::accumulate(
-        A_shape.begin(), A_shape.end(), Index(1), std::multiplies<>());
-    const Index A_data_ndim = static_cast<Index>(A_shape.size()) - batch_ndim;
-    std::vector<Index> mask_shape(
-        A_shape.begin(), A_shape.begin() + A_data_ndim);
-    const Index mask_nelems = std::accumulate(
-        mask_shape.begin(), mask_shape.end(), Index(1), std::multiplies<>());
-
-    // Build mask: true = keep, false = replace with val
-    std::vector<float> mask_data(mask_nelems);
-    std::vector<float> A_data(A_nelems);
-    for (Index i = 0; i < mask_nelems; ++i)
-    {
-        mask_data[i] =
-            (i % 2 == 0) ? 0.0f : 1.0f; // even -> false, odd -> true
-    }
-    for (Index i = 0; i < A_nelems; ++i)
-    {
-        A_data[i] = static_cast<float>(Y(i + 1));
-    }
-
-    // --- TensorGraph path ---
-    TensorGraph graph("mask_scalar_test");
-    auto *mask_node = graph.data(mask_shape, DataType::BOOL)->set_name("mask");
-    auto *A_node = graph.data(A_shape, DataType::FP32)->set_name("A");
-    mask_node->mark_input(true);
-    A_node->mark_input(true);
-    A_node->mark_output(true);
-
-    gt::mask_scalar(mask_node, val, A_node, batch_ndim);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    runtime.bind_data(mask_node, mask_data);
-    runtime.bind_data(A_node, A_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(A_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits A_traits(A_shape, A_shape);
-    std::vector<int> distr(A_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> A_t(A_traits, distr);
-
-    nntile::tensor::TensorTraits mask_traits(mask_shape, mask_shape);
-    nntile::tensor::Tensor<nntile::bool_t> mask_t(mask_traits, distr);
-
-    {
-        auto tile = A_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < A_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(A_data[i]);
-        }
-        loc.release();
-    }
-    {
-        auto tile = mask_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < mask_nelems; ++i)
-        {
-            loc[i] = nntile::bool_t(mask_data[i] != 0.0f);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::mask_scalar<T>(mask_t, val, A_t, batch_ndim);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(A_nelems);
-    {
-        auto tile = A_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < A_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
+} 
 
 TEST_CASE("TensorGraph mask_scalar structure", "[graph][tensor]")
 {
@@ -197,20 +101,6 @@ TEST_CASE(
     auto *A2 = graph2.data({4, 5})->set_name("A");
     REQUIRE_THROWS_AS(
         gt::mask_scalar(mask2, val, A2, 0), std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph mask_scalar matches nntile::tensor::mask_scalar",
-    "[graph][tensor]")
-{
-    const auto [A_shape, batch_ndim] =
-        GENERATE(std::make_pair(std::vector<Index>{4, 5}, Index(0)),
-            std::make_pair(std::vector<Index>{6}, Index(0)),
-            std::make_pair(std::vector<Index>{2, 3}, Index(0)),
-            std::make_pair(std::vector<Index>{4, 5, 8}, Index(1)),
-            std::make_pair(std::vector<Index>{2, 3, 4, 5}, Index(2)));
-
-    check_mask_scalar_vs_tensor_api<nntile::fp32_t>(A_shape, batch_ndim);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

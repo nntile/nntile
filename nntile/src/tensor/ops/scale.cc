@@ -72,7 +72,7 @@ void TensorScaleOp::lower_to_tile(const LoweringContext &ctx) const
     tile_lower::assert_same_elementwise_layout(src, dst, "SCALE src/dst");
     for (size_t i = 0; i < tiles_src.size(); ++i)
     {
-        tile_graph::scale(alpha, tiles_src[i], tiles_dst[i]);
+        tile::scale(alpha, tiles_src[i], tiles_dst[i]);
     }
 }
 

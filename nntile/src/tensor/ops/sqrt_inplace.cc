@@ -30,7 +30,7 @@ namespace nntile::tensor
 void TensorSqrtInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
     tile_lower::lower_inplace1(
-        dst, ctx.tile_map, "SQRT_INPLACE", tile_graph::sqrt_inplace);
+        dst, ctx.tile_map, "SQRT_INPLACE", tile::sqrt_inplace);
 }
 
 void sqrt_inplace(TensorGraph::TensorNode* dst)

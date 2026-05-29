@@ -74,7 +74,7 @@ void gelu(TensorGraph::TensorNode *x, TensorGraph::TensorNode *y)
 
 void TensorGeluOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    tile_lower::lower_unary2(x, y, ctx.tile_map, "GELU", tile_graph::gelu);
+    tile_lower::lower_unary2(x, y, ctx.tile_map, "GELU", tile::gelu);
 }
 
 } // namespace nntile::tensor

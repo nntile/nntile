@@ -41,11 +41,11 @@ void TensorSumOp::lower_to_tile(const LoweringContext& ctx) const
     {
         if(i == 0)
         {
-            tile_graph::sum(alpha, tiles_src[i], beta, tiles_dst[0]);
+            tile::sum(alpha, tiles_src[i], beta, tiles_dst[0]);
         }
         else
         {
-            tile_graph::sum(alpha, tiles_src[i], one, tiles_dst[0]);
+            tile::sum(alpha, tiles_src[i], one, tiles_dst[0]);
         }
     }
 }

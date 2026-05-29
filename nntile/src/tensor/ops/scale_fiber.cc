@@ -100,7 +100,7 @@ void TensorScaleFiberOp::lower_to_tile(const LoweringContext &ctx) const
     {
         for (TileGraph::TileNode *t : tiles_d)
         {
-            tile_graph::clear(t);
+            tile::clear(t);
         }
         return;
     }
@@ -125,7 +125,7 @@ void TensorScaleFiberOp::lower_to_tile(const LoweringContext &ctx) const
                 dst_coord[static_cast<size_t>(dst->ndim() - batch_ndim + b)];
         }
         const Index lin_s = lay_s->grid_linear(src_coord);
-        tile_graph::scale_fiber(alpha,
+        tile::scale_fiber(alpha,
             tiles_s[static_cast<size_t>(lin_s)],
             tiles_d[static_cast<size_t>(lin_d)],
             axis,

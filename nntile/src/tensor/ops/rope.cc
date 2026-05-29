@@ -115,7 +115,7 @@ void TensorRopeOp::lower_to_tile(const LoweringContext &ctx) const
                 src_coord[static_cast<size_t>(d)];
         }
         const Index j = lay_sin->grid_linear(sincos_coord);
-        tile_graph::rope(tiles_sin[static_cast<size_t>(j)],
+        tile::rope(tiles_sin[static_cast<size_t>(j)],
             tiles_cos[static_cast<size_t>(j)],
             tiles_src[static_cast<size_t>(lin)],
             tiles_dst[static_cast<size_t>(lin)]);

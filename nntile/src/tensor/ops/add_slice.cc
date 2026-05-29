@@ -144,7 +144,7 @@ void TensorAddSliceOp::lower_to_tile(const LoweringContext &ctx) const
         {
             dst_coord[static_cast<size_t>(axis)] = jj;
             const Index lin_d = lay_d->grid_linear(dst_coord);
-            tile_graph::add_slice(alpha,
+            tile::add_slice(alpha,
                 s1_tile,
                 beta,
                 tiles_s2[static_cast<size_t>(lin_d)],

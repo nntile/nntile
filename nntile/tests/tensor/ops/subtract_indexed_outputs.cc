@@ -39,108 +39,7 @@ constexpr Index ignore_index = -1;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-} // anonymous namespace
-
-// dst shape: [n_class, ...labels_shape], labels.ndim = dst.ndim - 1
-template <typename T>
-void check_subtract_indexed_outputs_vs_tensor_api(
-    const std::vector<Index> &labels_shape, Index n_class)
-{
-    using Y = typename T::repr_t;
-    std::vector<Index> dst_shape = {n_class};
-    dst_shape.insert(
-        dst_shape.end(), labels_shape.begin(), labels_shape.end());
-    const Index labels_nelems = std::accumulate(labels_shape.begin(),
-        labels_shape.end(),
-        Index(1),
-        std::multiplies<>());
-    const Index dst_nelems = std::accumulate(
-        dst_shape.begin(), dst_shape.end(), Index(1), std::multiplies<>());
-
-    std::vector<std::int64_t> labels_data(labels_nelems);
-    std::vector<float> dst_data(dst_nelems);
-    for (Index i = 0; i < labels_nelems; ++i)
-    {
-        labels_data[i] = static_cast<std::int64_t>(i % n_class);
-    }
-    for (Index i = 0; i < dst_nelems; ++i)
-    {
-        dst_data[i] = static_cast<float>(Y(i));
-    }
-
-    // --- TensorGraph path ---
-    TensorGraph graph("subtract_indexed_outputs_test");
-    auto *labels_node =
-        graph.data(labels_shape, DataType::INT64)->set_name("labels");
-    auto *dst_node = graph.data(dst_shape, DataType::FP32)->set_name("dst");
-    labels_node->mark_input(true);
-    dst_node->mark_input(true);
-    dst_node->mark_output(true);
-
-    gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    runtime.bind_data(labels_node, labels_data);
-    runtime.bind_data(dst_node, dst_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits labels_traits(labels_shape, labels_shape);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
-    std::vector<int> labels_distr(
-        labels_traits.grid.nelems, distr_rank_single);
-    std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<nntile::int64_t> labels_t(
-        labels_traits, labels_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
-
-    {
-        auto tile = labels_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < labels_nelems; ++i)
-        {
-            loc[i] = labels_data[i];
-        }
-        loc.release();
-    }
-    {
-        auto tile = dst_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(dst_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::subtract_indexed_outputs<T>(
-        val, labels_t, dst_t, ignore_index);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(dst_nelems);
-    {
-        auto tile = dst_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
+} 
 
 TEST_CASE("TensorGraph subtract_indexed_outputs structure", "[graph][tensor]")
 {
@@ -199,20 +98,6 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects ndim mismatch",
     REQUIRE_THROWS_AS(
         gt::subtract_indexed_outputs(val, labels, dst, ignore_index),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph subtract_indexed_outputs matches "
-    "nntile::tensor::subtract_indexed_outputs",
-    "[graph][tensor]")
-{
-    const auto [labels_shape, n_class] =
-        GENERATE(std::tuple{std::vector<Index>{4}, Index(5)},
-            std::tuple{std::vector<Index>{6}, Index(3)},
-            std::tuple{std::vector<Index>{2, 3}, Index(4)});
-
-    check_subtract_indexed_outputs_vs_tensor_api<nntile::fp32_t>(
-        labels_shape, n_class);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

@@ -72,7 +72,7 @@ void TensorMultiplyInplaceOp::lower_to_tile(const LoweringContext& ctx) const
         src, dst, "MULTIPLY_INPLACE src/dst");
     for(size_t i = 0; i < tiles_src.size(); ++i)
     {
-        tile_graph::multiply_inplace(alpha, tiles_src[i], tiles_dst[i]);
+        tile::multiply_inplace(alpha, tiles_src[i], tiles_dst[i]);
     }
 }
 

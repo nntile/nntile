@@ -93,7 +93,7 @@ void silu_backward(TensorGraph::TensorNode *x,
 void TensorSiluBackwardOp::lower_to_tile(const LoweringContext &ctx) const
 {
     tile_lower::lower_backward3(
-        x, dy, dx, ctx.tile_map, "SILU_BACKWARD", tile_graph::silu_backward);
+        x, dy, dx, ctx.tile_map, "SILU_BACKWARD", tile::silu_backward);
 }
 
 } // namespace nntile::tensor

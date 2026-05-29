@@ -109,7 +109,7 @@ void TensorAddOp::lower_to_tile(const LoweringContext &ctx) const
     tile_lower::assert_same_elementwise_layout(x, z, "ADD x/z");
     for (size_t i = 0; i < vx.size(); ++i)
     {
-        tile_graph::add(alpha, vx[i], beta, vy[i], vz[i]);
+        tile::add(alpha, vx[i], beta, vy[i], vz[i]);
     }
 }
 

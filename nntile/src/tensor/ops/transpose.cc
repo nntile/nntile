@@ -79,7 +79,7 @@ void TensorTransposeOp::lower_to_tile(const LoweringContext &ctx) const
                 fortran_tile_linear_to_layout_linear(lin_src_f, *lay_s);
             const Index lin_d =
                 fortran_tile_linear_to_layout_linear(lin_dst_f, *lay_d);
-            tile_graph::transpose(alpha,
+            tile::transpose(alpha,
                 tiles_s[static_cast<size_t>(lin_s)],
                 tiles_d[static_cast<size_t>(lin_d)],
                 ndim);

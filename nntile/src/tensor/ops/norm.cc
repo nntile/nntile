@@ -76,11 +76,11 @@ void TensorNormOp::lower_to_tile(const LoweringContext& ctx) const
     {
         if(i == 0)
         {
-            tile_graph::norm(alpha, tiles_x[i], beta, tiles_y[0]);
+            tile::norm(alpha, tiles_x[i], beta, tiles_y[0]);
         }
         else
         {
-            tile_graph::norm(alpha, tiles_x[i], one, tiles_y[0]);
+            tile::norm(alpha, tiles_x[i], one, tiles_y[0]);
         }
     }
 }

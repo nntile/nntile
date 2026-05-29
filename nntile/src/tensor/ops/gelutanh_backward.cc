@@ -97,7 +97,7 @@ void TensorGelutanhBackwardOp::lower_to_tile(const LoweringContext &ctx) const
         dx,
         ctx.tile_map,
         "GELUTANH_BACKWARD",
-        tile_graph::gelutanh_backward);
+        tile::gelutanh_backward);
 }
 
 } // namespace nntile::tensor

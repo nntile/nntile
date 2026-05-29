@@ -30,7 +30,7 @@ void TensorScaleInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
     for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, dst))
     {
-        tile_graph::scale_inplace(alpha, t);
+        tile::scale_inplace(alpha, t);
     }
 }
 

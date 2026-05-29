@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/norm.cc
- * Test TensorGraph norm operation against nntile::tensor::norm.
+ * Test TensorGraph norm operation.
  *
  * @version 1.1.0
  * */
@@ -38,85 +38,7 @@ constexpr Scalar beta_one = 1.0;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-} // anonymous namespace
-
-template <typename T>
-void check_norm_vs_tensor_api(
-    const std::vector<Index> &x_shape, Scalar alpha, Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index x_nelems = std::accumulate(
-        x_shape.begin(), x_shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("norm_test");
-    auto *x_node = graph.data(x_shape, DataType::FP32)->set_name("x");
-    auto *y_node = graph.data({}, DataType::FP32)->set_name("y"); // scalar
-    x_node->mark_input(true);
-    y_node->mark_input(true);
-    y_node->mark_output(true);
-
-    gt::norm(x_node, y_node, alpha, beta);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> x_data(x_nelems);
-    std::vector<float> y_data(1);
-    for (Index i = 0; i < x_nelems; ++i)
-    {
-        x_data[i] = static_cast<float>(Y(i + 1));
-    }
-    y_data[0] = (beta != beta_zero) ? 1.0f : 0.0f;
-
-    runtime.bind_data(x_node, x_data);
-    runtime.bind_data(y_node, y_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(y_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
-    nntile::tensor::TensorTraits y_traits({}, {});
-    std::vector<int> x_distr(x_traits.grid.nelems, distr_rank_single);
-    std::vector<int> y_distr(1, distr_rank_single);
-    nntile::tensor::Tensor<T> x_t(x_traits, x_distr);
-    nntile::tensor::Tensor<T> y_t(y_traits, y_distr);
-
-    {
-        auto tile = x_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < x_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(x_data[i]);
-        }
-        loc.release();
-    }
-    {
-        auto tile = y_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        loc[0] = static_cast<Y>(y_data[0]);
-        loc.release();
-    }
-
-    nntile::tensor::norm<T>(alpha, x_t, beta, y_t);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(1);
-    {
-        auto tile = y_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        tensor_result[0] = static_cast<float>(loc[0]);
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == 1);
-    REQUIRE(tensor_result.size() == 1);
-    REQUIRE(std::abs(graph_result[0] - tensor_result[0]) < tolerance);
-}
+} 
 
 TEST_CASE("TensorGraph norm structure", "[graph][tensor]")
 {
@@ -148,18 +70,6 @@ TEST_CASE("TensorGraph norm rejects duplicate tensors", "[graph][tensor]")
 
     REQUIRE_THROWS_AS(
         gt::norm(t, t, alpha_one, beta_zero), std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm matches nntile::tensor::norm",
-    "[graph][tensor]")
-{
-    const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{4, 5}},
-            std::tuple{2.0, 0.0, std::vector<Index>{6}},
-            std::tuple{1.0, 1.0, std::vector<Index>{3, 4}});
-
-    check_norm_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

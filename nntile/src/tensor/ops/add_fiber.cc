@@ -138,7 +138,7 @@ void TensorAddFiberOp::lower_to_tile(const LoweringContext &ctx) const
                     output->ndim() - batch_ndim + b)];
         }
         const Index lin_f = lay_f->grid_linear(fiber_coord);
-        tile_graph::add_fiber(alpha,
+        tile::add_fiber(alpha,
             tiles_f[static_cast<size_t>(lin_f)],
             beta,
             tiles_t[static_cast<size_t>(lin_d)],

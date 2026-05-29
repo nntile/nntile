@@ -52,7 +52,7 @@ void TensorGatherOp::lower_to_tile(const LoweringContext &ctx) const
     const Index ndim = src->ndim();
     if (tsrc.size() == 1)
     {
-        tile_graph::copy(tsrc[0], dst_tile);
+        tile::copy(tsrc[0], dst_tile);
         return;
     }
     const std::string scratch_name =
@@ -73,7 +73,7 @@ void TensorGatherOp::lower_to_tile(const LoweringContext &ctx) const
             lay_src->tile_axis_global_range(grid_coord, k, lo, hi);
             src_corner[static_cast<size_t>(k)] = lo;
         }
-        tile_graph::copy_intersection(tsrc[static_cast<size_t>(lin)],
+        tile::copy_intersection(tsrc[static_cast<size_t>(lin)],
             src_corner,
             dst_tile,
             dst_corner,

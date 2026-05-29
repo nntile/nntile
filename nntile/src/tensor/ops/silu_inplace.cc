@@ -43,7 +43,7 @@ void silu_inplace(TensorGraph::TensorNode* dst)
 void TensorSiluInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
     tile_lower::lower_inplace1(
-        dst, ctx.tile_map, "SILU_INPLACE", tile_graph::silu_inplace);
+        dst, ctx.tile_map, "SILU_INPLACE", tile::silu_inplace);
 }
 
 } // namespace nntile::tensor

@@ -75,7 +75,7 @@ void gelutanh(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
 void TensorGelutanhOp::lower_to_tile(const LoweringContext &ctx) const
 {
     tile_lower::lower_unary2(
-        src, dst, ctx.tile_map, "GELUTANH", tile_graph::gelutanh);
+        src, dst, ctx.tile_map, "GELUTANH", tile::gelutanh);
 }
 
 } // namespace nntile::tensor

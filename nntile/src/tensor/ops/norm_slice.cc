@@ -148,7 +148,7 @@ void TensorNormSliceOp::lower_to_tile(const LoweringContext &ctx) const
             const Index lin_s1 = lay_s1->grid_linear(s1_coord);
             if (jj == 0)
             {
-                tile_graph::norm_slice(alpha,
+                tile::norm_slice(alpha,
                     tiles_s1[static_cast<size_t>(lin_s1)],
                     beta,
                     tiles_s2[static_cast<size_t>(lin_d)],
@@ -158,7 +158,7 @@ void TensorNormSliceOp::lower_to_tile(const LoweringContext &ctx) const
             }
             else
             {
-                tile_graph::norm_slice_inplace(alpha,
+                tile::norm_slice_inplace(alpha,
                     tiles_s1[static_cast<size_t>(lin_s1)],
                     one,
                     tiles_d[static_cast<size_t>(lin_d)],

@@ -183,11 +183,11 @@ void TensorConv2dInplaceOp::lower_to_tile(const LoweringContext& ctx) const
         {
             if(beta == 0.0)
             {
-                tile_graph::clear(y_tile);
+                tile::clear(y_tile);
             }
             else if(beta != 1.0)
             {
-                tile_graph::scale_inplace(beta, y_tile);
+                tile::scale_inplace(beta, y_tile);
             }
             continue;
         }
@@ -212,7 +212,7 @@ void TensorConv2dInplaceOp::lower_to_tile(const LoweringContext& ctx) const
                     X_i * x_bs0 + padding[0] - stride[0] * Y_start_m;
                 const Index offset_n =
                     X_j * x_bs1 + padding[1] - stride[1] * Y_start_n;
-                tile_graph::conv2d_inplace(
+                tile::conv2d_inplace(
                     x_ts[0],
                     x_ts[1],
                     x_ts[2],

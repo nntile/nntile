@@ -57,7 +57,7 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
         }
         if(init_first)
         {
-            tile_graph::sumprod_fiber(
+            tile::sumprod_fiber(
                 alpha,
                 t1[static_cast<size_t>(lin1)],
                 t2[static_cast<size_t>(lin1)],
@@ -68,7 +68,7 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
         }
         else
         {
-            tile_graph::sumprod_fiber(
+            tile::sumprod_fiber(
                 alpha,
                 t1[static_cast<size_t>(lin1)],
                 t2[static_cast<size_t>(lin1)],

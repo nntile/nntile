@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/add_slice.cc
- * Test TensorGraph add_slice operation against nntile::tensor::add_slice.
+ * Test TensorGraph add_slice operation.
  *
  * @version 1.1.0
  * */
@@ -66,100 +66,6 @@ static std::vector<Index> slice_shape(
     return out;
 }
 
-template <typename T>
-void check_add_slice_vs_tensor_api(
-    const std::vector<Index> &dst_shape, Index axis, Scalar alpha, Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index dst_nelems = std::accumulate(
-        dst_shape.begin(), dst_shape.end(), Index(1), std::multiplies<>());
-
-    std::vector<Index> src1_sh = slice_shape(dst_shape, axis);
-    const Index src1_nelems = std::accumulate(
-        src1_sh.begin(), src1_sh.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("add_slice_test");
-    auto *src1_node = graph.data(src1_sh, DataType::FP32)->set_name("src1");
-    auto *src2_node = graph.data(dst_shape, DataType::FP32)->set_name("src2");
-    src1_node->mark_input(true);
-    src2_node->mark_input(true);
-
-    auto *out_node = gt::add_slice(alpha, src1_node, beta, src2_node, axis);
-    out_node->mark_output(true);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> src1_data(src1_nelems);
-    std::vector<float> src2_data(dst_nelems);
-    for (Index i = 0; i < src1_nelems; ++i)
-    {
-        src1_data[i] = static_cast<float>(Y(i + 1));
-    }
-    for (Index i = 0; i < dst_nelems; ++i)
-    {
-        src2_data[i] = static_cast<float>(Y(-i - 1));
-    }
-
-    runtime.bind_data(src1_node, src1_data);
-    runtime.bind_data(src2_node, src2_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(out_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src1_traits(src1_sh, src1_sh);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
-    std::vector<int> src1_distr(src1_traits.grid.nelems, distr_rank_single);
-    std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src1_t(src1_traits, src1_distr);
-    nntile::tensor::Tensor<T> src2_t(dst_traits, dst_distr);
-    nntile::tensor::Tensor<T> out_t(dst_traits, dst_distr);
-
-    {
-        auto tile = src1_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < src1_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(src1_data[i]);
-        }
-        loc.release();
-    }
-    {
-        auto tile = src2_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(src2_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::add_slice<T>(alpha, src1_t, beta, src2_t, out_t, axis);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(dst_nelems);
-    {
-        auto tile = out_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
-
 TEST_CASE("TensorGraph add_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
@@ -190,34 +96,6 @@ TEST_CASE("TensorGraph add_slice rejects duplicate tensors", "[graph][tensor]")
     REQUIRE_THROWS_AS(
         gt::add_slice(alpha_one, src1, beta_one, src2, src2, axis_1),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add_slice matches nntile::tensor::add_slice",
-    "[graph][tensor]")
-{
-    const auto [dst_shape, axis, alpha, beta] = GENERATE(
-        std::tuple{
-            std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one, beta_one},
-        std::tuple{
-            std::vector<Index>{dim_2, dim_4}, axis_0, alpha_one, beta_one},
-        std::tuple{
-            std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one, beta_zero},
-        std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-            axis_0,
-            alpha_one,
-            beta_one},
-        std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-            axis_1,
-            alpha_two,
-            beta_half},
-        std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-            axis_2,
-            alpha_one,
-            beta_one});
-
-    check_add_slice_vs_tensor_api<nntile::fp32_t>(
-        dst_shape, axis, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

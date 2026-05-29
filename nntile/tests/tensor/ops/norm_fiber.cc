@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/norm_fiber.cc
- * Test TensorGraph norm_fiber operation against nntile::tensor::norm_fiber.
+ * Test TensorGraph norm_fiber operation.
  *
  * @version 1.1.0
  * */
@@ -69,122 +69,6 @@ static std::vector<Index> norm_fiber_output_shape(
     return out_shape;
 }
 
-template <typename T>
-void check_norm_fiber_vs_tensor_api(const std::vector<Index> &x_shape,
-    Index axis,
-    Index batch_ndim,
-    int redux,
-    Scalar alpha,
-    Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index x_nelems = std::accumulate(
-        x_shape.begin(), x_shape.end(), Index(1), std::multiplies<>());
-
-    std::vector<Index> y_shape =
-        norm_fiber_output_shape(x_shape, axis, batch_ndim);
-    const Index y_nelems = std::accumulate(
-        y_shape.begin(), y_shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path (5-arg: creates distinct output) ---
-    TensorGraph graph("norm_fiber_test");
-    auto *x_node = graph.data(x_shape, DataType::FP32)->set_name("x");
-    auto *y_node = graph.data(y_shape, DataType::FP32)->set_name("y");
-    x_node->mark_input(true);
-    y_node->mark_input(true);
-
-    auto *out_node =
-        gt::norm_fiber(alpha, x_node, beta, y_node, axis, batch_ndim, redux)
-            ->set_name("out");
-    out_node->mark_output(true);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> x_data(x_nelems);
-    for (Index i = 0; i < x_nelems; ++i)
-    {
-        x_data[i] = static_cast<float>(Y(i + x_fill_offset));
-    }
-
-    std::vector<float> y_data(y_nelems);
-    for (Index i = 0; i < y_nelems; ++i)
-    {
-        y_data[i] = (beta != beta_zero) ? y_init_accumulate : y_init_overwrite;
-    }
-
-    runtime.bind_data(x_node, x_data);
-    runtime.bind_data(y_node, y_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(out_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
-    nntile::tensor::TensorTraits y_traits(y_shape, y_shape);
-    nntile::tensor::TensorTraits out_traits(y_shape, y_shape);
-    std::vector<int> x_distr(x_traits.grid.nelems, distr_rank_single);
-    std::vector<int> y_distr(y_traits.grid.nelems, distr_rank_single);
-    std::vector<int> out_distr(out_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src(x_traits, x_distr);
-    nntile::tensor::Tensor<T> src2(y_traits, y_distr);
-    nntile::tensor::Tensor<T> dst(out_traits, out_distr);
-
-    {
-        auto tile = src.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < x_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(x_data[i]);
-        }
-        loc.release();
-    }
-
-    {
-        auto tile = src2.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < y_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(y_data[i]);
-        }
-        loc.release();
-    }
-
-    {
-        auto tile = dst.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < y_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(y_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::norm_fiber<T>(
-        alpha, src, beta, src2, dst, axis, batch_ndim, redux);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(y_nelems);
-    {
-        auto tile = dst.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < y_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
-
 TEST_CASE("TensorGraph norm_fiber structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
@@ -224,58 +108,6 @@ TEST_CASE(
                           batch_ndim_none,
                           redux_none),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm_fiber matches nntile::tensor::norm_fiber",
-    "[graph][tensor]")
-{
-    const auto [x_shape, axis, batch_ndim, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
-                     axis_0,
-                     batch_ndim_none,
-                     redux_none,
-                     alpha_one,
-                     beta_zero},
-            std::tuple{std::vector<Index>{dim_4, dim_5},
-                axis_1,
-                batch_ndim_none,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_3, dim_6},
-                axis_0,
-                batch_ndim_none,
-                redux_none,
-                alpha_two,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_0,
-                batch_ndim_none,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_1,
-                batch_ndim_none,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_2,
-                batch_ndim_none,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_4, dim_5},
-                axis_0,
-                batch_ndim_none,
-                redux_none,
-                alpha_one,
-                beta_half});
-
-    check_norm_fiber_vs_tensor_api<nntile::fp32_t>(
-        x_shape, axis, batch_ndim, redux, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

@@ -41,7 +41,7 @@ void TensorClearOp::lower_to_tile(const LoweringContext& ctx) const
 {
     for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, x))
     {
-        tile_graph::clear(t);
+        tile::clear(t);
     }
 }
 

@@ -79,7 +79,7 @@ void TensorMultiplyOp::lower_to_tile(const LoweringContext &ctx) const
     tile_lower::assert_same_elementwise_layout(x, z, "MULTIPLY x/z");
     for (size_t i = 0; i < vx.size(); ++i)
     {
-        tile_graph::multiply(alpha, vx[i], vy[i], vz[i]);
+        tile::multiply(alpha, vx[i], vy[i], vz[i]);
     }
 }
 

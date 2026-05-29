@@ -73,7 +73,7 @@ void TensorAddInplaceOp::lower_to_tile(const LoweringContext& ctx) const
     tile_lower::assert_same_elementwise_layout(x, y, "ADD_INPLACE x/y");
     for(size_t i = 0; i < vx.size(); ++i)
     {
-        tile_graph::add_inplace(alpha, vx[i], beta, vy[i]);
+        tile::add_inplace(alpha, vx[i], beta, vy[i]);
     }
 }
 

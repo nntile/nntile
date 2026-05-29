@@ -49,7 +49,7 @@ void TensorTotalSumAccumOp::lower_to_tile(const LoweringContext& ctx) const
     }
     for(Index lin = 0; lin < lay_l->grid_volume(); ++lin)
     {
-        tile_graph::total_sum_accum(
+        tile::total_sum_accum(
             alpha,
             t_lse[static_cast<size_t>(lin)],
             t_src[static_cast<size_t>(lin)],

@@ -213,7 +213,7 @@ void TensorConv2dBwdWeightInplaceOp::lower_to_tile(
                     X_start_m + padding[0] - stride[0] * dY_i * dy_bs0;
                 const Index offset_n =
                     X_start_n + padding[1] - stride[1] * dY_j * dy_bs1;
-                tile_graph::conv2d_bwd_weight_inplace(
+                tile::conv2d_bwd_weight_inplace(
                     x_ts[0],
                     x_ts[1],
                     x_ts[2],
@@ -244,11 +244,11 @@ void TensorConv2dBwdWeightInplaceOp::lower_to_tile(
     {
         if(beta == 0.0)
         {
-            tile_graph::clear(dc_tile);
+            tile::clear(dc_tile);
         }
         else if(beta != 1.0)
         {
-            tile_graph::scale_inplace(beta, dc_tile);
+            tile::scale_inplace(beta, dc_tile);
         }
     }
 }

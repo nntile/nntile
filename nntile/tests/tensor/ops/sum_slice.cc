@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/sum_slice.cc
- * Test TensorGraph sum_slice operation against nntile::tensor::sum_slice.
+ * Test TensorGraph sum_slice operation.
  *
  * @version 1.1.0
  * */
@@ -70,105 +70,6 @@ static std::vector<Index> sum_slice_output_shape(
     return out;
 }
 
-template <typename T>
-void check_sum_slice_vs_tensor_api(const std::vector<Index> &src_shape,
-    Index axis,
-    int redux,
-    Scalar alpha,
-    Scalar beta)
-{
-    using Y = typename T::repr_t;
-    const Index src_nelems = std::accumulate(
-        src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
-
-    std::vector<Index> dst_shape = sum_slice_output_shape(src_shape, axis);
-    const Index dst_nelems = std::accumulate(
-        dst_shape.begin(), dst_shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("sum_slice_test");
-    auto *src_node = graph.data(src_shape, DataType::FP32)->set_name("src");
-    auto *dst_node = graph.data(dst_shape, DataType::FP32)->set_name("dst");
-    src_node->mark_input(true);
-    dst_node->mark_input(true);
-    dst_node->mark_output(true);
-
-    gt::sum_slice(src_node, dst_node, axis, redux, alpha, beta);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    std::vector<float> src_data(src_nelems);
-    for (Index i = 0; i < src_nelems; ++i)
-    {
-        src_data[i] = static_cast<float>(Y(i + x_fill_offset));
-    }
-
-    std::vector<float> dst_data(dst_nelems);
-    for (Index i = 0; i < dst_nelems; ++i)
-    {
-        dst_data[i] =
-            (beta != beta_zero) ? y_init_accumulate : y_init_overwrite;
-    }
-
-    runtime.bind_data(src_node, src_data);
-    runtime.bind_data(dst_node, dst_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
-
-    // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
-    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
-    std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
-    std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
-    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
-
-    {
-        auto tile = src_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < src_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(src_data[i]);
-        }
-        loc.release();
-    }
-
-    {
-        auto tile = dst_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(dst_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::sum_slice<T>(alpha, src_t, beta, dst_t, axis, redux);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(dst_nelems);
-    {
-        auto tile = dst_t.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < dst_nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
-    }
-}
-
 TEST_CASE("TensorGraph sum_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
@@ -198,56 +99,6 @@ TEST_CASE("TensorGraph sum_slice rejects duplicate tensors", "[graph][tensor]")
     REQUIRE_THROWS_AS(
         gt::sum_slice(src, src, axis_1, redux_none, alpha_one, beta_zero),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sum_slice matches nntile::tensor::sum_slice",
-    "[graph][tensor]")
-{
-    const auto [src_shape, axis, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
-                     axis_0,
-                     redux_none,
-                     alpha_one,
-                     beta_zero},
-            std::tuple{std::vector<Index>{dim_4, dim_5},
-                axis_1,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_3, dim_6},
-                axis_0,
-                redux_none,
-                alpha_two,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_3, dim_6},
-                axis_1,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_0,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_1,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
-                axis_2,
-                redux_none,
-                alpha_one,
-                beta_zero},
-            std::tuple{std::vector<Index>{dim_4, dim_5},
-                axis_0,
-                redux_none,
-                alpha_one,
-                beta_half});
-
-    check_sum_slice_vs_tensor_api<nntile::fp32_t>(
-        src_shape, axis, redux, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

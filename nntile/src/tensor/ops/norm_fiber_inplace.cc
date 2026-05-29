@@ -68,7 +68,7 @@ void TensorNormFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
         const Index lin_d = lay_d->grid_linear(dst_coord);
         if(init_first)
         {
-            tile_graph::norm_fiber_inplace(
+            tile::norm_fiber_inplace(
                 alpha,
                 tiles_s[static_cast<size_t>(lin1)],
                 beta,
@@ -79,7 +79,7 @@ void TensorNormFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
         }
         else
         {
-            tile_graph::norm_fiber_inplace(
+            tile::norm_fiber_inplace(
                 alpha,
                 tiles_s[static_cast<size_t>(lin1)],
                 one,

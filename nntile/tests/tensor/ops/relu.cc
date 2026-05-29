@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/tests/tensor_graph/relu.cc
- * Test TensorGraph relu operation against nntile::tensor::relu.
+ * Test TensorGraph relu operation.
  *
  * @version 1.1.0
  * */
@@ -28,80 +28,6 @@
 using namespace nntile;
 using namespace nntile;
 namespace gt = nntile::tensor;
-
-template <typename T>
-void check_relu_vs_tensor_api(const std::vector<Index> &shape)
-{
-    using Y = typename T::repr_t;
-    const Index nelems = std::accumulate(
-        shape.begin(), shape.end(), Index(1), std::multiplies<>());
-
-    // --- TensorGraph path ---
-    TensorGraph graph("relu_test");
-    auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-    src_node->mark_input(true);
-
-    auto *dst_node = gt::relu(src_node);
-
-    dst_node->set_name("dst");
-    dst_node->mark_output(true);
-
-    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-    Runtime runtime(tile_graph);
-    runtime.compile();
-
-    // Mix of positive and negative values to exercise ReLU
-    std::vector<float> src_data(nelems);
-    for (Index i = 0; i < nelems; ++i)
-    {
-        src_data[i] = static_cast<float>(Y(i - nelems / 2));
-    }
-
-    runtime.bind_data(src_node, src_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
-
-    // --- Direct tensor API path (same input data) ---
-    nntile::tensor::TensorTraits traits(shape, shape);
-    std::vector<int> distr(traits.grid.nelems, 0);
-    nntile::tensor::Tensor<T> src(traits, distr);
-    nntile::tensor::Tensor<T> dst(traits, distr);
-
-    {
-        auto tile = src.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
-        for (Index i = 0; i < nelems; ++i)
-        {
-            loc[i] = static_cast<Y>(src_data[i]);
-        }
-        loc.release();
-    }
-
-    nntile::tensor::relu<T>(src, dst);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tensor_result(nelems);
-    {
-        auto tile = dst.get_tile(0);
-        auto loc = tile.acquire(STARPU_R);
-        for (Index i = 0; i < nelems; ++i)
-        {
-            tensor_result[i] = static_cast<float>(loc[i]);
-        }
-        loc.release();
-    }
-
-    // --- Compare ---
-    constexpr float tol = 1e-5f;
-    REQUIRE(graph_result.size() == tensor_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
-    }
-}
 
 TEST_CASE("TensorGraph relu structure", "[graph][tensor]")
 {
@@ -134,18 +60,6 @@ TEST_CASE("TensorGraph relu rejects duplicate tensors", "[graph][tensor]")
     auto *t = graph.data({4, 5})->set_name("t");
 
     REQUIRE_THROWS_AS(gt::relu(t, t), std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph relu matches nntile::tensor::relu",
-    "[graph][tensor]")
-{
-    const auto shape = GENERATE(std::vector<Index>{4, 5},
-        std::vector<Index>{6},
-        std::vector<Index>{2, 3},
-        std::vector<Index>{1, 10});
-
-    check_relu_vs_tensor_api<nntile::fp32_t>(shape);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
