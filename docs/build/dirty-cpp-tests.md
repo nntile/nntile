@@ -14,7 +14,8 @@ can affect it, according to `.github/scripts/dirty-cpp-tests-lib.sh`:
 | `nntile/src/kernel/...` | Kernel, StarPU, core tile, and graph tensor-op tests for that op |
 | `nntile/src/starpu/...` | StarPU and above |
 | `nntile/src/core/...` | Core tile and graph tensor-op tests |
-| `nntile/src/tensor/...` | Matching graph tensor / tensor-op tests |
+| `nntile/src/tensor/ops/...` | `tests_graph_tensor_ops_*` |
+| `nntile/src/tensor/<file>.cc` (not under `ops/`) | `tests_graph_tensor_*` |
 | Graph headers/sources under `tile/`, `nn/`, `module/`, `io/`, `model/` | Matching `tests_graph_*` tests |
 | Model `generate_test_data.py` (per family) | All block tests for that model family |
 | CMake, `external/`, top-level headers, runtime, BLAS glue | **Full** C++ suite |

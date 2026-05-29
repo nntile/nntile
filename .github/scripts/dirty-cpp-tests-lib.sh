@@ -41,11 +41,6 @@ add_from_tile() {
     done
 }
 
-add_from_tensor() {
-    local op=$1
-    NNTILE_DIRTY_AFFECTED["tests_graph_tensor_ops_${op}"]=1
-}
-
 # GPT-Neo graph model: run all block tests when shared code changes.
 add_gptneo_model_tests() {
     for t in gptneo_config gptneo_mlp gptneo_attention gptneo_decoder \
@@ -195,36 +190,32 @@ nntile_dirty_cpp_collect() {
         include/nntile/core/*.hh)
             add_from_tile "$(basename "$file" .hh)" ;;
 
-        # ---- tensor sources / headers → from tensor up -------------------
-        nntile/src/tensor/*.cc)
-            add_from_tensor "$(basename "$file" .cc)" ;;
-        include/nntile/tensor/*.hh)
-            add_from_tensor "$(basename "$file" .hh)" ;;
-
         # ---- graph-level: only the matching test --------------------------
+        # ops/ before parent dir: in case, * matches / so tensor/*.cc also
+        # matches tensor/ops/foo.cc unless ops/ or [^/]* is listed first.
         nntile/src/tensor/ops/*.cc)
             NNTILE_DIRTY_AFFECTED["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
         include/nntile/tensor/ops/*.hh)
             NNTILE_DIRTY_AFFECTED["tests_graph_tensor_ops_$(basename "$file" .hh)"]=1 ;;
-        nntile/src/tensor/*.cc)
+        nntile/src/tensor/[^/]*.cc)
             NNTILE_DIRTY_AFFECTED["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/tensor/*.hh)
+        include/nntile/tensor/[^/]*.hh)
             NNTILE_DIRTY_AFFECTED["tests_graph_tensor_$(basename "$file" .hh)"]=1 ;;
         nntile/src/tile/ops/*.cc)
             NNTILE_DIRTY_AFFECTED["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
         include/nntile/tile/ops/*.hh)
             NNTILE_DIRTY_AFFECTED["tests_graph_tile_ops_$(basename "$file" .hh)"]=1 ;;
-        nntile/src/tile/*.cc)
+        nntile/src/tile/[^/]*.cc)
             NNTILE_DIRTY_AFFECTED["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/tile/*.hh)
+        include/nntile/tile/[^/]*.hh)
             NNTILE_DIRTY_AFFECTED["tests_graph_tile_$(basename "$file" .hh)"]=1 ;;
         nntile/src/nn/ops/*.cc)
             NNTILE_DIRTY_AFFECTED["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
         include/nntile/nn/ops/*.hh)
             NNTILE_DIRTY_AFFECTED["tests_graph_nn_ops_$(basename "$file" .hh)"]=1 ;;
-        nntile/src/nn/*.cc)
+        nntile/src/nn/[^/]*.cc)
             NNTILE_DIRTY_AFFECTED["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
-        include/nntile/nn/*.hh)
+        include/nntile/nn/[^/]*.hh)
             NNTILE_DIRTY_AFFECTED["tests_graph_nn_$(basename "$file" .hh)"]=1 ;;
         nntile/src/module/*.cc)
             NNTILE_DIRTY_AFFECTED["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
