@@ -9,14 +9,14 @@
 #
 # @file .github/scripts/ctest-label-exclude-subsystem.sh
 #
-# Print a semicolon-separated ctest -LE label list for a test subsystem job.
+# Print a ctest -LE label regex for a test subsystem job (OR with |).
 #
 # @version 1.1.0
 set -euo pipefail
 sub="${1:?subsystem name required}"
 _le='NotImplemented'
 case "$sub" in
-    model) _le='NotImplemented;FixtureData' ;;
+    model) _le='(NotImplemented|FixtureData)' ;;
     kernel|starpu|core|tile|tensor|nn|module|io) ;;
     *)
         echo "unknown test subsystem: $sub" >&2
