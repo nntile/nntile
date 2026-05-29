@@ -45,12 +45,15 @@ option(BUILD_LEGACY_PYTHON_WRAPPERS "Build legacy wrappers/python (reference)" O
 if(DEFINED BUILD_TESTS_CORE)
     set(BUILD_TESTS_EAGER ${BUILD_TESTS_CORE})
 endif()
-if(BUILD_TESTS_GRAPH)
-    set(BUILD_TESTS_TILE_GRAPH ON)
-    set(BUILD_TESTS_TENSOR_GRAPH ON)
-    set(BUILD_TESTS_NN_GRAPH ON)
-    set(BUILD_TESTS_MODULE ON)
-    set(BUILD_TESTS_MODEL ON)
+# BUILD_TESTS_GRAPH: back-compat umbrella only when passed explicitly (see
+# nntile/tests/CMakeLists.txt). Do not force individual layer options ON here;
+# that would override e.g. -DBUILD_TESTS_MODEL=OFF while GRAPH defaults ON.
+if(DEFINED BUILD_TESTS_GRAPH AND NOT BUILD_TESTS_GRAPH)
+    set(BUILD_TESTS_TILE_GRAPH OFF)
+    set(BUILD_TESTS_TENSOR_GRAPH OFF)
+    set(BUILD_TESTS_NN_GRAPH OFF)
+    set(BUILD_TESTS_MODULE OFF)
+    set(BUILD_TESTS_MODEL OFF)
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -161,6 +164,11 @@ elseif(USE_CBLAS)
     endif()
 endif()
 
+if(BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID
+        AND NOT NNTILE_COMPILE_CHECK_SUBSYSTEM)
+    include(CTest)
+endif()
+
 if(BUILD_COVERAGE)
     set(BUILD_TESTS ON)
     include(CodeCoverage)
@@ -186,11 +194,6 @@ if(BUILD_TESTS_PYTORCH AND BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMG
     else()
         message(WARNING "BUILD_TESTS_PYTORCH=ON but LibTorch not found.")
     endif()
-endif()
-
-if(BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID
-        AND NOT NNTILE_COMPILE_CHECK_SUBSYSTEM)
-    include(CTest)
 endif()
 
 if(BUILD_PYTHON_WRAPPERS AND BUILD_NNTILE)

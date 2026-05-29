@@ -20,22 +20,27 @@ function changed-files() {
 
 # Is native extension (aka nntile*.so) affected?
 changed-files '**/CMakeLists.txt' > cmake-lists.txt
-changed-files 'include/**/*.cuh' \
+changed-files \
+    'nntile/include/**/*.cuh' \
+    'nntile/include/**/*.h' 'nntile/include/**/*.hh' \
+    'nntile/include/**/*.hpp' \
+    'include/**/*.cuh' \
     'include/**/*.h' 'include/**/*.hh' 'include/**/*.hpp' > headers.txt
 changed-files \
+    'nntile/src/**/*.cc' 'nntile/src/**/*.cpp' 'nntile/src/**/*.cu' \
     'src/**/*.cc' 'src/**/*.cpp' 'src/**/*.cu' \
+    'python/nntile/_bindings/*.cc' 'python/nntile/_bindings/**/*.cpp' \
     'wrappers/python/*.cc' 'wrappers/python/**/*.cpp' > sources.txt
 echo "$(wc -l cmake-lists.txt) cmake-lists changed"
 echo "$(wc -l headers.txt) headers changed"
 echo "$(wc -l sources.txt) sources changed"
 cat cmake-lists.txt headers.txt sources.txt > total.txt
 if [ -s total.txt ]; then
-    echo wrappers/python/nntile/nntile*.so >> changed.txt
-    echo wrappers/python/nntile/nntile*.so >> changed.txt
+    echo python/nntile/nntile*.so >> changed.txt
 fi
 
 # What pure python modules are changed in this PR?
-changed-files 'wrappers/python/**/*.py' >> changed.txt
+changed-files 'python/**/*.py' 'wrappers/python/**/*.py' >> changed.txt
 
 echo ':: Changed python modules'
 cat changed.txt
