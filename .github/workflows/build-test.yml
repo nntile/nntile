@@ -173,15 +173,22 @@ jobs:
           path: /tmp/ccache
           key: ccache-test-build-${{ matrix.subsystem }}-${{ github.sha }}
           restore-keys: ccache-test-build-${{ matrix.subsystem }}-
-      - run: chmod +x .github/scripts/cmake-build-tests-subsystem.sh
+      - run: |
+          chmod +x .github/scripts/cmake-build-tests-subsystem.sh \
+            .github/scripts/cmake-test-build-targets.sh
       - run: |
           mapfile -t _test_flags < <(.github/scripts/cmake-build-tests-subsystem.sh "${{ matrix.subsystem }}")
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_EXAMPLES=OFF \
-            -DBUILD_PYTHON_WRAPPERS=OFF \
+            -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF \
+            -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             "${_test_flags[@]}"
-          cmake --build build -j"$(nproc)"
+          echo "=== BUILD_TESTS_* (must enable only this subsystem) ==="
+          grep '^BUILD_TESTS_' build/CMakeCache.txt || true
+          mapfile -t _test_targets < <(.github/scripts/cmake-test-build-targets.sh \
+            "${{ matrix.subsystem }}" build)
+          echo "Building libnntile + ${#_test_targets[@]} test executable(s)"
+          cmake --build build --target nntile "${_test_targets[@]}" -j"$(nproc)"
       - uses: actions/cache/save@v4
         with:
           path: build

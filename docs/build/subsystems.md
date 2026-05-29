@@ -52,8 +52,12 @@ PR workflow uses three separate test stages per subsystem:
 | Job | Purpose |
 |-----|---------|
 | `compile-check-tests-*` | Compile test sources only |
-| `test-build-*` | Configure with `BUILD_TESTS_*`, link executables vs `libnntile` |
+| `test-build-*` | `-DNNTILE_TEST_SUBSYSTEM=<name>`, link only that subsystem's test binaries |
 | `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile) |
+
+`test-build` does **not** run `cmake --build` on the default `all` target (that would
+build every enabled test). It builds `nntile` plus only the CTest targets for the
+matrix subsystem.
 
 ## Running tests locally (requires full libnntile)
 
@@ -61,11 +65,14 @@ Per-subsystem test trees live under `nntile/tests/<subsystem>/`.
 Enable with `BUILD_TESTS_<SUBSYSTEM>` (see `nntile/cmake/NNTileTests.cmake`).
 
 ```bash
-cmake -S . -B build -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_NN=ON \
-  -DBUILD_TESTS_KERNEL=OFF ...
-cmake --build build
+cmake -S . -B build -DNNTILE_PRESET=full -DBUILD_TESTS=ON \
+  -DNNTILE_TEST_SUBSYSTEM=nn
+cmake --build build --target nntile $(.github/scripts/cmake-test-build-targets.sh nn build)
 ctest -R tests_graph_nn_
 ```
 
+Plain `-DBUILD_TESTS=ON` without `NNTILE_TEST_SUBSYSTEM` enables all subsystem
+test trees (local full test build).
+
 See `.github/scripts/cmake-test-subsystem.sh` (`NNTILE_BUILD_*`) and
-`cmake-build-tests-subsystem.sh` (`BUILD_TESTS_*`).
+`cmake-build-tests-subsystem.sh` / `NNTILE_TEST_SUBSYSTEM`.
