@@ -53,7 +53,7 @@ Job `build-nntile` configures `-DNNTILE_PRESET=full -DNNTILE_LINK_CACHED_OBJECTS
 restores the bundled archives, then links `libnntile`. CMake does **not** register
 subsystem sources for compilation in that mode (only `context.cc`, logger sources,
 and the shared-library link). It saves cache key `nntile-lib-linked-<sha>` with
-`build/lib/libnntile.so` and `build/include/nntile/defs.h` for `build-tests-*`.
+`build/nntile/libnntile.so` and `build/include/nntile/defs.h` for `build-tests-*`.
 
 ## Test compile-check (no libnntile, no Catch2 build)
 
