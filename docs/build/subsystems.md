@@ -83,7 +83,7 @@ PR workflow uses three separate test stages per subsystem:
 | `subsystem-test-*` | Reusable pipeline per subsystem (see below) |
 | `compile-check-tests-*` | Compile test `.cc` for subsystem + deps; cache tarball bundle |
 | `build-tests-*` | Restore cached `libnntile.so`; link test binaries from cached test `.o` |
-| `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile) |
+| `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile); `-LE NotImplemented` and, for `model`, `-LE FixtureData` (Python-generated weights run in `test-full`) |
 
 `subsystem-test-*` runs `.github/workflows/subsystem-test-pipeline.yml` once per
 subsystem. Inside that workflow, `build-tests-*` depends only on
