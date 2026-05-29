@@ -145,8 +145,8 @@ while IFS= read -r file; do
 
     case "$file" in
         # ---- test files: run the specific test ----------------------------
-        tests/constants.cc)
-            affected["tests_core_constants"]=1 ;;
+        nntile/tests/constants.cc)
+            affected["tests_nntile_constants"]=1 ;;
         nntile/tests/eager/kernel/*.cc)
             affected["tests_core_kernel_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/eager/starpu/*.cc)
