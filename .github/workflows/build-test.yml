@@ -97,9 +97,15 @@ jobs:
           key: ccache-build-tests-${{ github.sha }}
           restore-keys: ccache-build-tests-
       - run: |
+          lib="${PWD}/build/nntile/libnntile.so"
+          if [ ! -f "${lib}" ]; then
+            echo "::error::Missing ${lib} from build-lib artifact"
+            exit 1
+          fi
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF \
-            -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}"
+            -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}" \
+            -DNNTILE_PREBUILT_LIBRARY="${lib}"
           cmake --build build -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh

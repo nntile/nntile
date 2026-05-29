@@ -32,6 +32,8 @@ option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build C++ examples under nntile/examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 option(BUILD_PYTHON_WRAPPERS "Build python/ package" ON)
+set(NNTILE_PREBUILT_LIBRARY "" CACHE FILEPATH
+    "Pre-built libnntile.so (CI test job; skip compiling library sources)")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
