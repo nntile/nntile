@@ -3,7 +3,7 @@
 Build with CMake from the repository root:
 
 ```bash
-cmake -S . -B build -DNNTILE_PRESET=full -DBUILD_PYTHON_WRAPPERS=ON
+cmake -S . -B build -DBUILD_PYTHON_WRAPPERS=ON
 cmake --build build --target nntile_py
 export PYTHONPATH=build/python
 python -c "import nntile; print(nntile.NNGraph)"

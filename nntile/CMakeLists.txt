@@ -11,10 +11,6 @@
 #
 # @version 1.1.0
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(NNTileSubsystems)
-include(NNTileTests)
-
 if(NOT BUILD_NNTILE)
     return()
 endif()
@@ -26,9 +22,7 @@ configure_file(
 )
 
 add_library(nntile)
-if(NNTILE_BUILD_KERNEL)
-    target_sources(nntile PRIVATE "${PROJECT_SOURCE_DIR}/external/random.h")
-endif()
+target_sources(nntile PRIVATE "${PROJECT_SOURCE_DIR}/external/random.h")
 target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS} nlohmann_json::nlohmann_json)
 nntile_apply_common_includes(nntile)
 nntile_apply_cuda(nntile)
