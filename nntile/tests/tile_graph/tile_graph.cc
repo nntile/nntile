@@ -13,7 +13,7 @@
  * */
 
 #include "context_fixture.hh"
-#include "nntile/tensor.hh"
+#include "nntile/graph.hh"
 #include "nntile/tile_graph.hh"
 #include "nntile/tile.hh"
 

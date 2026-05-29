@@ -64,7 +64,8 @@ function(nntile_add_test_compile_check subsystem)
     target_include_directories(nntile_test_objs_${_sub} PRIVATE
         ${_test_inc_dirs})
     target_link_libraries(nntile_test_objs_${_sub} PRIVATE
-        Catch2::Catch2WithMain)
+        Catch2::Catch2WithMain
+        nlohmann_json::nlohmann_json)
     add_custom_target(nntile_compile_check_tests_${_sub}
         DEPENDS nntile_test_objs_${_sub})
 endfunction()
