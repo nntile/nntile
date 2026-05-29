@@ -1,4 +1,4 @@
-# NNTile Python package (Plan B)
+# NNTile Python package
 
 Build with CMake from the repository root:
 

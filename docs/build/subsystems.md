@@ -1,4 +1,4 @@
-# NNTile subsystem builds (Plan B)
+# NNTile subsystem builds
 
 Unified library target **`nntile`** with per-subsystem switches `NNTILE_BUILD_*`.
 

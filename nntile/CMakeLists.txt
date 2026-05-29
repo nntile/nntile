@@ -1,5 +1,5 @@
 # @file nntile/CMakeLists.txt
-# Unified nntile library (Plan B monorepo layout).
+# Unified nntile library.
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(NNTileSubsystems)

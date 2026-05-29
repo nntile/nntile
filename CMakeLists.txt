@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file CMakeLists.txt
-# Top-level CMake (Plan B unified nntile package).
+# Top-level CMake (unified nntile package).
 #
 # @version 1.1.0
 
