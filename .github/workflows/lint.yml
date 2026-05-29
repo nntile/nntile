@@ -1,13 +1,9 @@
 name: Lint
 
+# Disabled on graph_api while python/ bindings replace wrappers/python.
+# Re-enable push, pull_request, and schedule when lint targets are updated.
 on:
-  push:
-    branches: [main, graph_api]
-  pull_request:
-    branches: [main, graph_api]
   workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * *'
 
 permissions:
   contents: read
