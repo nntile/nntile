@@ -149,7 +149,12 @@ add_test_set(TARGET_NAME tests_nntile_constants
 )
 
 if(BUILD_TESTS_CORE)
-    add_subdirectory(core)
+    if(NOT HAVE_STARPU_SIMGRID)
+        add_subdirectory(kernel)
+    endif()
+    add_subdirectory(starpu)
+    add_subdirectory(tile)
+    add_subdirectory(tensor)
 endif()
 if(BUILD_TESTS_GRAPH OR BUILD_TESTS_TILE_GRAPH OR BUILD_TESTS_TENSOR_GRAPH
         OR BUILD_TESTS_NN_GRAPH OR BUILD_TESTS_MODULE OR BUILD_TESTS_MODEL)

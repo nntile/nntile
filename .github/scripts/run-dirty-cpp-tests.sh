@@ -147,13 +147,13 @@ while IFS= read -r file; do
         # ---- test files: run the specific test ----------------------------
         nntile/tests/constants.cc)
             affected["tests_nntile_constants"]=1 ;;
-        nntile/tests/core/kernel/*.cc)
+        nntile/tests/kernel/*.cc)
             affected["tests_core_kernel_$(basename "$file" .cc)"]=1 ;;
-        nntile/tests/core/starpu/*.cc)
+        nntile/tests/starpu/*.cc)
             affected["tests_core_starpu_$(basename "$file" .cc)"]=1 ;;
-        nntile/tests/core/tile/*.cc)
+        nntile/tests/tile/*.cc)
             affected["tests_core_tile_$(basename "$file" .cc)"]=1 ;;
-        nntile/tests/core/tensor/*.cc)
+        nntile/tests/tensor/*.cc)
             affected["tests_core_tensor_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/tensor_graph/ops/*.cc)
             affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
