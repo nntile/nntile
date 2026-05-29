@@ -19,7 +19,7 @@ runs:
     - uses: actions/cache/restore@v4
       with:
         path: |
-          build/lib
+          build/nntile/libnntile.so
           build/include/nntile/defs.h
         key: nntile-lib-linked-${{ github.sha }}
         fail-on-cache-miss: true

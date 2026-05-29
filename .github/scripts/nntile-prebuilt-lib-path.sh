@@ -16,6 +16,7 @@ set -euo pipefail
 
 build_dir="${1:-build}"
 for candidate in \
+    "${build_dir}/nntile/libnntile.so" \
     "${build_dir}/lib/libnntile.so" \
     "${build_dir}/libnntile.so"; do
     if [ -f "$candidate" ]; then
