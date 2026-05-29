@@ -212,8 +212,8 @@ jobs:
     with:
       subsystem: ${{ matrix.subsystem }}
 
-  test-full:
-    name: test-full-integration
+  build-examples:
+    name: build-examples
     needs: [build-nntile, subsystem-test]
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
@@ -225,13 +225,8 @@ jobs:
       - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-ci-container
-        with: {python-version: '3.12'}
+      - uses: ./.github/actions/nntile-starpu-setup
+      - uses: ./.github/actions/restore-nntile-prebuilt-lib-cache
       - run: |
-          export TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=ON \
-            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
-            -DBUILD_EXAMPLES=ON
-          cmake --build build -j"$(nproc)"
-          cd build && ctest -LE NotImplemented -j"$(nproc)" --output-on-failure
+          chmod +x .github/scripts/cmake-build-examples.sh
+          .github/scripts/cmake-build-examples.sh build

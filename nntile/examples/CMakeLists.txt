@@ -155,3 +155,28 @@ add_example(TARGET_NAME examples_t5_graph_training
     EXEC_NAME "t5_graph_training"
     SOURCES "t5_graph_training.cc"
     LINK_LIBRARIES nntile)
+
+set(NNTILE_EXAMPLE_TARGETS
+    examples_autograd_add
+    examples_graph_mlp
+    examples_autograd_mlp_tile_compare
+    examples_linear_layer
+    examples_deep_relu_forward
+    examples_deep_relu_training
+    examples_llama_generate
+    examples_llama_graph_training
+    examples_gpt2_graph_training
+    examples_gpt2_generate
+    examples_bert_graph_training
+    examples_bert_mlm_inference
+    examples_roberta_graph_training
+    examples_roberta_mlm_inference
+    examples_gptneo_generate
+    examples_gptneo_graph_training
+    examples_gpt_neox_generate
+    examples_gptneox_graph_training
+    examples_t5_generate
+    examples_t5_graph_training
+)
+
+add_custom_target(nntile_all_examples DEPENDS ${NNTILE_EXAMPLE_TARGETS})
