@@ -57,12 +57,12 @@ foreach(test IN LISTS TESTS)
     if(test IN_LIST TESTS_NOT_IMPLEMENTED)
         set(labels "NotImplemented core")
     endif()
-    add_test_set(TARGET_NAME tests_core_kernel_${test}
+    add_test_set(TARGET_NAME tests_kernel_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_core_kernel_${test}
+        COV_NAME coverage_kernel_${test}
         COV_GLOBAL coverage_kernel coverage
         LABELS ${labels}
     )
@@ -135,7 +135,7 @@ foreach(test IN LISTS TESTS_CATCH2)
     if(test STREQUAL "add")
         set(labels "${labels} smoke")
     endif()
-    add_test_set(TARGET_NAME tests_core_kernel_${test}
+    add_test_set(TARGET_NAME tests_kernel_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES
@@ -143,7 +143,7 @@ foreach(test IN LISTS TESTS_CATCH2)
             $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
             Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_core_kernel_${test}
+        COV_NAME coverage_kernel_${test}
         COV_GLOBAL coverage_kernel coverage
         LABELS ${labels}
     )

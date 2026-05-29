@@ -14,7 +14,7 @@ fi
 
 mapfile -t _tests < <(
     grep -rh 'LABELS "NotImplemented' "$tests_root" --include='CTestTestfile.cmake' \
-        | grep -oE 'tests_(core|graph)_[a-zA-Z0-9_]+' \
+        | grep -oE 'tests_(kernel|starpu|core|graph)_[a-zA-Z0-9_]+' \
         | sort -u
 )
 

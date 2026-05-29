@@ -156,13 +156,13 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-#add_test_set(TARGET_NAME tests_core_starpu_config
+#add_test_set(TARGET_NAME tests_starpu_config
 #    EXEC_NAME test_config
 #    SOURCES config.cc
 #    LINK_LIBRARIES nntile
 #    ARGS "1" "2" "3" "4" "5"
 #    COV_ENABLE ${BUILD_COVERAGE}
-#    COV_NAME coverage_core_starpu_config
+#    COV_NAME coverage_starpu_config
 #    COV_GLOBAL coverage_starpu coverage
 #    )
 
@@ -174,12 +174,12 @@ foreach(test IN LISTS TESTS)
     if(test STREQUAL "add")
         set(labels "${labels} smoke")
     endif()
-    add_test_set(TARGET_NAME tests_core_starpu_${test}
+    add_test_set(TARGET_NAME tests_starpu_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_core_starpu_${test}
+        COV_NAME coverage_starpu_${test}
         COV_GLOBAL coverage_starpu coverage
         LABELS ${labels}
         )
@@ -196,7 +196,7 @@ foreach(test IN LISTS TESTS_CATCH2)
     if(test STREQUAL "add")
         set(labels "${labels} smoke")
     endif()
-    add_test_set(TARGET_NAME tests_core_starpu_${test}
+    add_test_set(TARGET_NAME tests_starpu_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES
@@ -204,7 +204,7 @@ foreach(test IN LISTS TESTS_CATCH2)
             $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
             Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_core_starpu_${test}
+        COV_NAME coverage_starpu_${test}
         COV_GLOBAL coverage_starpu coverage
         LABELS ${labels}
     )

@@ -77,7 +77,7 @@ declare -A affected
 # ---------- helper functions for layer propagation -------------------------
 add_all_layers() {
     local op=$1
-    for p in tests_core_kernel tests_core_starpu tests_core_tile \
+    for p in tests_kernel tests_starpu tests_core_tile \
              tests_graph_tile_ops tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
@@ -85,7 +85,7 @@ add_all_layers() {
 
 add_from_starpu() {
     local op=$1
-    for p in tests_core_starpu tests_core_tile tests_graph_tile_ops \
+    for p in tests_starpu tests_core_tile tests_graph_tile_ops \
              tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
@@ -147,9 +147,9 @@ while IFS= read -r file; do
         nntile/tests/constants.cc)
             affected["tests_nntile_constants"]=1 ;;
         nntile/tests/kernel/*.cc)
-            affected["tests_core_kernel_$(basename "$file" .cc)"]=1 ;;
+            affected["tests_kernel_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/starpu/*.cc)
-            affected["tests_core_starpu_$(basename "$file" .cc)"]=1 ;;
+            affected["tests_starpu_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/core/*.cc)
             affected["tests_core_tile_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/tensor/ops/*.cc)
