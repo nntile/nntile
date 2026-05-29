@@ -3,6 +3,18 @@
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(NNTileSubsystems)
+include(NNTileTests)
+
+# Test compile-check: compile test .cc only; no libnntile, no CTest run.
+if(NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/nntile/defs.h.in"
+        "${PROJECT_BINARY_DIR}/include/nntile/defs.h"
+        @ONLY
+    )
+    add_subdirectory(tests)
+    return()
+endif()
 
 if(NOT BUILD_NNTILE)
     return()

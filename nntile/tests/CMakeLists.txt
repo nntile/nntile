@@ -88,6 +88,9 @@ function(add_test_set)
             LCOV_ARGS --no-external
             GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
     endif()
+    if(NOT NNTILE_REGISTER_CTEST)
+        return()
+    endif()
     # Add test suite to the CTest
     list(LENGTH _args_ARGS ntests)
     if(DEFINED _args_MPI_NUMPROC)
@@ -138,7 +141,13 @@ function(add_test_set)
     endif()
 endfunction()
 
-add_test_set(TARGET_NAME tests_nntile_constants
+if(NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM)
+    nntile_add_test_compile_check("${NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM}")
+    return()
+endif()
+
+if(BUILD_TESTS_KERNEL)
+    add_test_set(TARGET_NAME tests_nntile_constants
     EXEC_NAME test_constants
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/constants.cc
     LINK_LIBRARIES nntile
@@ -146,23 +155,37 @@ add_test_set(TARGET_NAME tests_nntile_constants
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_nntile_constants
     COV_GLOBAL coverage
-)
+    )
+endif()
 
-if(BUILD_TESTS_CORE)
-    if(NOT HAVE_STARPU_SIMGRID)
-        add_subdirectory(kernel)
-    endif()
+if(BUILD_TESTS_KERNEL AND NOT HAVE_STARPU_SIMGRID)
+    add_subdirectory(kernel)
+endif()
+if(BUILD_TESTS_STARPU)
     add_subdirectory(starpu)
+endif()
+if(BUILD_TESTS_TILE)
     add_subdirectory(tile)
+endif()
+if(BUILD_TESTS_TENSOR)
     add_subdirectory(tensor)
 endif()
-if(BUILD_TESTS_GRAPH OR BUILD_TESTS_TILE_GRAPH OR BUILD_TESTS_TENSOR_GRAPH
-        OR BUILD_TESTS_NN_GRAPH OR BUILD_TESTS_MODULE OR BUILD_TESTS_MODEL)
+if(BUILD_TESTS_TILE_GRAPH)
     add_subdirectory(tile_graph)
+endif()
+if(BUILD_TESTS_TENSOR_GRAPH)
     add_subdirectory(tensor_graph)
+endif()
+if(BUILD_TESTS_NN_GRAPH)
     add_subdirectory(nn_graph)
+endif()
+if(BUILD_TESTS_MODULE)
     add_subdirectory(module)
+endif()
+if(BUILD_TESTS_MODEL)
     add_subdirectory(model)
+endif()
+if(BUILD_TESTS_IO)
     add_subdirectory(io)
 endif()
 

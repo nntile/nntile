@@ -18,6 +18,9 @@ project(NNTile VERSION 1.1.0 LANGUAGES CXX C)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 
+set(NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM "" CACHE STRING
+    "Compile-check test sources for one subsystem (no libnntile link/run)")
+
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(BUILD_NNTILE "Build unified nntile library" ON)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
@@ -26,35 +29,13 @@ option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
 option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
-option(BUILD_TESTS "Build tests" ON)
-option(BUILD_TESTS_CORE "Build core subsystem tests (kernel/starpu/tile)" ON)
-option(BUILD_TESTS_GRAPH "Build graph subsystem tests" ON)
-option(BUILD_TESTS_TILE_GRAPH "Build tile_graph tests" ON)
-option(BUILD_TESTS_TENSOR_GRAPH "Build tensor_graph tests" ON)
-option(BUILD_TESTS_NN_GRAPH "Build nn_graph tests" ON)
-option(BUILD_TESTS_MODULE "Build module tests" ON)
-option(BUILD_TESTS_MODEL "Build model tests" ON)
+option(BUILD_TESTS "Build and run tests (requires linked libnntile)" ON)
 option(BUILD_TESTS_PYTORCH "Build NNGraph tests comparing against PyTorch" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build C++ examples under nntile/examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 option(BUILD_PYTHON_WRAPPERS "Build python/ package (not wrappers/python)" ON)
 option(BUILD_LEGACY_PYTHON_WRAPPERS "Build legacy wrappers/python (reference)" OFF)
-
-# Back-compat aliases
-if(DEFINED BUILD_TESTS_EAGER)
-    set(BUILD_TESTS_CORE ${BUILD_TESTS_EAGER})
-endif()
-# BUILD_TESTS_GRAPH: back-compat umbrella only when passed explicitly (see
-# nntile/tests/CMakeLists.txt). Do not force individual layer options ON here;
-# that would override e.g. -DBUILD_TESTS_MODEL=OFF while GRAPH defaults ON.
-if(DEFINED BUILD_TESTS_GRAPH AND NOT BUILD_TESTS_GRAPH)
-    set(BUILD_TESTS_TILE_GRAPH OFF)
-    set(BUILD_TESTS_TENSOR_GRAPH OFF)
-    set(BUILD_TESTS_NN_GRAPH OFF)
-    set(BUILD_TESTS_MODULE OFF)
-    set(BUILD_TESTS_MODEL OFF)
-endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -165,7 +146,8 @@ elseif(USE_CBLAS)
 endif()
 
 if(BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID
-        AND NOT NNTILE_COMPILE_CHECK_SUBSYSTEM)
+        AND NOT NNTILE_COMPILE_CHECK_SUBSYSTEM
+        AND NOT NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM)
     include(CTest)
 endif()
 
@@ -181,7 +163,7 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-if(BUILD_NNTILE)
+if(BUILD_NNTILE OR NNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM)
     add_subdirectory(nntile)
 endif()
 

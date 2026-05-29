@@ -84,33 +84,109 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build --target nntile_compile_check_${{ matrix.subsystem }}
 
-  test-kernel:
-    name: test-kernel
-    needs: [configure-smoke, compile-check]
+  compile-check-tests:
+    name: compile-check-tests-${{ matrix.subsystem }}
+    needs: configure-smoke
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        subsystem:
+          - kernel
+          - starpu
+          - tile
+          - tensor
+          - tile_graph
+          - tensor_graph
+          - nn_graph
+          - module
+          - model
+          - io
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: apt-get update && apt-get install -y ca-certificates git
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - run: chmod +x .github/scripts/cmake-build-tests-subsystem.sh
+      - run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=${{ matrix.subsystem }} \
+            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build --target nntile_compile_check_tests_${{ matrix.subsystem }}
+
+  build-nntile:
+    name: build-nntile (full library)
+    needs: compile-check
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
-      run: {shell: bash, working-directory: /__w/nntile/nntile}
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: apt-get update && apt-get install -y ca-certificates git
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DNNTILE_PRESET=full -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF \
+            -DBUILD_PYTHON_WRAPPERS=OFF
+          cmake --build build --target nntile -j"$(nproc)"
+
+  test-run:
+    name: test-run-${{ matrix.subsystem }}
+    needs: [build-nntile, compile-check-tests]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        subsystem:
+          - kernel
+          - starpu
+          - tile
+          - tensor
+          - tile_graph
+          - tensor_graph
+          - nn_graph
+          - module
+          - model
+          - io
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
     steps:
       - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-ci-container
         with: {python-version: '3.12'}
+      - run: chmod +x .github/scripts/cmake-build-tests-subsystem.sh .github/scripts/ctest-run-subsystem.sh
       - run: |
-          mapfile -t _flags < <(.github/scripts/cmake-test-subsystem.sh kernel)
+          mapfile -t _test_flags < <(.github/scripts/cmake-build-tests-subsystem.sh "${{ matrix.subsystem }}")
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DBUILD_TESTS=ON -DBUILD_TESTS_CORE=ON "${_flags[@]}"
+            -DNNTILE_PRESET=full -DBUILD_TESTS=ON "${_test_flags[@]}"
           cmake --build build -j"$(nproc)"
-          cd build && ctest -R tests_nntile_constants -V --output-on-failure
+          _re=$(.github/scripts/ctest-run-subsystem.sh "${{ matrix.subsystem }}")
+          cd build && ctest -R "${_re}" -j"$(nproc)" --output-on-failure
 
   test-full:
     name: test-full-integration
-    needs: [compile-check]
+    needs: [build-nntile, compile-check-tests, test-run]
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
-      run: {shell: bash, working-directory: /__w/nntile/nntile}
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
     steps:
       - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /
@@ -120,8 +196,7 @@ jobs:
       - run: |
           export TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_GRAPH=ON \
-            -DBUILD_TESTS_CORE=ON -DBUILD_TESTS_PYTORCH=ON \
+            -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=ON \
             -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
             -DBUILD_EXAMPLES=ON
           cmake --build build -j"$(nproc)"
@@ -129,11 +204,13 @@ jobs:
 
   test-python:
     name: test-python
-    needs: test-full
+    needs: build-nntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
-      run: {shell: bash, working-directory: /__w/nntile/nntile}
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
     steps:
       - run: apt-get update && apt-get install -y ca-certificates git
         working-directory: /

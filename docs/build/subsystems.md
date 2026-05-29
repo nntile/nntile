@@ -25,10 +25,30 @@ cmake -S . -B build -DNNTILE_COMPILE_CHECK_SUBSYSTEM=tensor_graph \
 cmake --build build --target nntile_compile_check_tensor_graph
 ```
 
-## Tests by subsystem
+## Test compile-check (no libnntile)
+
+Compiles test `.cc` files for one subsystem into `nntile_test_objs_<name>` (no link, no CTest):
 
 ```bash
-ctest -L SUBSYSTEM_NN_GRAPH
+cmake -S . -B build -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=nn_graph \
+  -DBUILD_TESTS=OFF
+cmake --build build --target nntile_compile_check_tests_nn_graph
 ```
 
-See `.github/scripts/cmake-test-subsystem.sh` for cumulative `-DNNTILE_BUILD_*` flags used in CI test jobs.
+## Running tests (requires full libnntile)
+
+Per-subsystem test trees live directly under `nntile/tests/<subsystem>/` (e.g. `kernel/`,
+`tile_graph/`). Enable with `BUILD_TESTS_<SUBSYSTEM>` (see `nntile/cmake/NNTileTests.cmake`).
+
+CI order: source `compile-check-*` → `build-nntile` (full preset) →
+`compile-check-tests-*` → `test-run-*` (link tests against `nntile`, then `ctest`).
+
+```bash
+cmake -S . -B build -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_TESTS_NN_GRAPH=ON \
+  -DBUILD_TESTS_KERNEL=OFF ...
+cmake --build build
+ctest -R tests_graph_nn_
+```
+
+See `.github/scripts/cmake-test-subsystem.sh` (`NNTILE_BUILD_*`) and
+`cmake-build-tests-subsystem.sh` (`BUILD_TESTS_*`).
