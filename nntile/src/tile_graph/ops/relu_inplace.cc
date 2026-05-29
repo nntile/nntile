@@ -19,6 +19,8 @@
 #include <nntile/tile.hh>
 #include <nntile/tile/relu_inplace.hh>
 
+#include <nntile/runtime.hh>
+
 namespace nntile::tile_graph
 {
 namespace

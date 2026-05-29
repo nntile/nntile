@@ -32,9 +32,9 @@ NNGraph::TensorNode *NNNormOp::forward()
     NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
     NNGraph::TensorNode *y = graph->tensor({}, x->dtype(), out_requires_grad);
-    graph::tensor::clear(y->data());
+    tensor_graph::clear(y->data());
     constexpr Scalar beta_fresh = 0.0; // NNGraph always outputs fresh data
-    graph::tensor::norm(x->data(), y->data(), alpha, beta_fresh);
+    tensor_graph::norm(x->data(), y->data(), alpha, beta_fresh);
     outputs_ = {y};
     return y;
 }

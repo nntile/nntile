@@ -32,30 +32,30 @@ namespace nntile::model::llama
 {
 
 //! LlamaCausal - LlamaModel + lm_head for next-token prediction
-class LlamaCausal : public graph::module::Module
+class LlamaCausal : public module::Module
 {
 private:
     std::unique_ptr<LlamaModel> model_;
-    graph::module::Linear lm_head_;
+    module::Linear lm_head_;
 
     LlamaConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    LlamaCausal(graph::NNGraph* graph,
+    LlamaCausal(NNGraph* graph,
                 const std::string& name,
                 const LlamaConfig& config,
-                graph::DataType dtype = graph::DataType::FP32);
+                DataType dtype = DataType::FP32);
 
     //! Forward pass
     //! @param kv_cache Optional KV cache; when non-null, use_cache is implied
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* sin = nullptr,
-        graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr,
-        graph::KVCache* kv_cache = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* sin = nullptr,
+        NNGraph::TensorNode* cos = nullptr,
+        NNGraph::TensorNode* mask = nullptr,
+        KVCache* kv_cache = nullptr);
 
     std::string repr() const override;
 

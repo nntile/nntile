@@ -18,11 +18,11 @@
 namespace nntile::model::roberta
 {
 
-RobertaModel::RobertaModel(graph::NNGraph* graph,
+RobertaModel::RobertaModel(NNGraph* graph,
                            const std::string& name,
                            const RobertaConfig& config,
-                           graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                           DataType dtype)
+    : module::Module(graph, name)
     , embeddings_(graph, name + "_embeddings", config, dtype)
     , config_(config)
     , dtype_(dtype)
@@ -40,10 +40,10 @@ RobertaModel::RobertaModel(graph::NNGraph* graph,
     }
 }
 
-graph::NNGraph::TensorNode* RobertaModel::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* RobertaModel::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* position_ids,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
     if(input_ids == nullptr || position_ids == nullptr)
@@ -54,7 +54,7 @@ graph::NNGraph::TensorNode* RobertaModel::forward(
     }
     throw_if_causal_flag_set(causal, "RobertaModel");
 
-    graph::NNGraph::TensorNode* x =
+    NNGraph::TensorNode* x =
         embeddings_.forward(input_ids, position_ids);
 
     for(auto& layer : layers_)

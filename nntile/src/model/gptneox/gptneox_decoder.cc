@@ -20,11 +20,11 @@
 namespace nntile::model::gptneox
 {
 
-GptneoxDecoder::GptneoxDecoder(graph::NNGraph* graph,
+GptneoxDecoder::GptneoxDecoder(NNGraph* graph,
                                const std::string& name,
                                const GptneoxConfig& config,
-                               graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                               DataType dtype)
+    : module::Module(graph, name)
     , input_norm_(graph, name + "_input_norm",
                   config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
     , attention_(graph, name + "_attention", config, dtype)
@@ -41,11 +41,11 @@ GptneoxDecoder::GptneoxDecoder(graph::NNGraph* graph,
     register_module("mlp", &mlp_);
 }
 
-graph::NNGraph::TensorNode* GptneoxDecoder::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* sin,
-    graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask)
+NNGraph::TensorNode* GptneoxDecoder::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* sin,
+    NNGraph::TensorNode* cos,
+    NNGraph::TensorNode* mask)
 {
     if(x == nullptr)
     {
@@ -53,33 +53,33 @@ graph::NNGraph::TensorNode* GptneoxDecoder::forward(
             "GptneoxDecoder::forward: input tensor must be non-null");
     }
 
-    graph::NNGraph::TensorNode* x_norm = input_norm_.forward(x);
-    graph::NNGraph::TensorNode* attn_out =
+    NNGraph::TensorNode* x_norm = input_norm_.forward(x);
+    NNGraph::TensorNode* attn_out =
         attention_.forward(x_norm, sin, cos, mask);
 
     if(config_.use_parallel_residual)
     {
         // HF: x + attn + mlp(ln2(x)); skip post_attn = x + attn intermediate.
-        graph::NNGraph::TensorNode* ln2_in = post_attn_norm_.forward(x);
-        graph::NNGraph::TensorNode* mlp_out = mlp_.forward(ln2_in);
-        graph::NNGraph::TensorNode* attn_plus_mlp =
-            graph::add(1.0, attn_out, 1.0, mlp_out);
+        NNGraph::TensorNode* ln2_in = post_attn_norm_.forward(x);
+        NNGraph::TensorNode* mlp_out = mlp_.forward(ln2_in);
+        NNGraph::TensorNode* attn_plus_mlp =
+            add(1.0, attn_out, 1.0, mlp_out);
         attn_plus_mlp->set_name(tensor_name("attn_plus_mlp"));
-        graph::NNGraph::TensorNode* out =
-            graph::add(1.0, x, 1.0, attn_plus_mlp);
+        NNGraph::TensorNode* out =
+            add(1.0, x, 1.0, attn_plus_mlp);
         out->set_name(tensor_name("decoder_out"));
         return out;
     }
 
     // Sequential: ln2(x + attn) -> mlp, like GPT-Neo decoder block.
-    graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out);
+    NNGraph::TensorNode* post_attn =
+        add(1.0, x, 1.0, attn_out);
     post_attn->set_name(tensor_name("post_attn"));
 
-    graph::NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
-    graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
-    graph::NNGraph::TensorNode* out =
-        graph::add(1.0, post_attn, 1.0, mlp_out);
+    NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
+    NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
+    NNGraph::TensorNode* out =
+        add(1.0, post_attn, 1.0, mlp_out);
     out->set_name(tensor_name("decoder_out"));
     return out;
 }

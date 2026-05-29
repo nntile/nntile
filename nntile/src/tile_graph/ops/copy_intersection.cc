@@ -23,6 +23,8 @@
 #include <nntile/tile.hh>
 #include <nntile/tile/copy_intersection.hh>
 
+#include <nntile/runtime.hh>
+
 namespace nntile::tile_graph
 {
 namespace

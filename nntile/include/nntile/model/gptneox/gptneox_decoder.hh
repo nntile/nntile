@@ -32,35 +32,35 @@ namespace nntile::model::gptneox
 {
 
 //! GPT-NeoXDecoder - input_norm -> [attention, post_attn_norm->mlp] with parallel residual
-class GptneoxDecoder : public graph::module::Module
+class GptneoxDecoder : public module::Module
 {
 private:
-    graph::module::LayerNorm input_norm_;
+    module::LayerNorm input_norm_;
     GptneoxAttention attention_;
-    graph::module::LayerNorm post_attn_norm_;
+    module::LayerNorm post_attn_norm_;
     GptneoxMlp mlp_;
 
     GptneoxConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    GptneoxDecoder(graph::NNGraph* graph,
+    GptneoxDecoder(NNGraph* graph,
                    const std::string& name,
                    const GptneoxConfig& config,
-                   graph::DataType dtype = graph::DataType::FP32);
+                   DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* sin = nullptr,
-        graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* sin = nullptr,
+        NNGraph::TensorNode* cos = nullptr,
+        NNGraph::TensorNode* mask = nullptr);
 
     std::string repr() const override;
 
-    graph::module::LayerNorm& input_norm() { return input_norm_; }
-    graph::module::LayerNorm& post_attn_norm() { return post_attn_norm_; }
+    module::LayerNorm& input_norm() { return input_norm_; }
+    module::LayerNorm& post_attn_norm() { return post_attn_norm_; }
     GptneoxAttention& attention() { return attention_; }
     GptneoxMlp& mlp() { return mlp_; }
 };

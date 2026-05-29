@@ -22,11 +22,11 @@
 namespace nntile::model::llama
 {
 
-LlamaDecoder::LlamaDecoder(graph::NNGraph *graph,
+LlamaDecoder::LlamaDecoder(NNGraph *graph,
     const std::string &name,
     const LlamaConfig &config,
-    graph::DataType dtype) :
-    graph::module::Module(graph, name),
+    DataType dtype) :
+    module::Module(graph, name),
     input_norm_(graph,
         name + "_input_norm",
         config.hidden_size,
@@ -54,13 +54,13 @@ LlamaDecoder::LlamaDecoder(graph::NNGraph *graph,
     register_module("mlp", &mlp_);
 }
 
-graph::NNGraph::TensorNode *LlamaDecoder::forward(
-    graph::NNGraph::TensorNode *x,
-    graph::NNGraph::TensorNode *sin,
-    graph::NNGraph::TensorNode *cos,
-    graph::NNGraph::TensorNode *mask,
-    graph::NNGraph::TensorNode *k_cache,
-    graph::NNGraph::TensorNode *v_cache,
+NNGraph::TensorNode *LlamaDecoder::forward(
+    NNGraph::TensorNode *x,
+    NNGraph::TensorNode *sin,
+    NNGraph::TensorNode *cos,
+    NNGraph::TensorNode *mask,
+    NNGraph::TensorNode *k_cache,
+    NNGraph::TensorNode *v_cache,
     Index cache_len)
 {
     if (x == nullptr)
@@ -70,21 +70,21 @@ graph::NNGraph::TensorNode *LlamaDecoder::forward(
     }
 
     // input_norm -> attention
-    graph::NNGraph::TensorNode *x_norm = input_norm_.forward(x);
-    graph::NNGraph::TensorNode *attn_out = attention_.forward(
+    NNGraph::TensorNode *x_norm = input_norm_.forward(x);
+    NNGraph::TensorNode *attn_out = attention_.forward(
         x_norm, sin, cos, mask, k_cache, v_cache, cache_len);
 
     // residual: x + attn_out
-    graph::NNGraph::TensorNode *post_attn = graph::add(1.0, x, 1.0, attn_out);
+    NNGraph::TensorNode *post_attn = add(1.0, x, 1.0, attn_out);
     post_attn->set_name(tensor_name("post_attn"));
 
     // post_attn_norm -> mlp
-    graph::NNGraph::TensorNode *mlp_in = post_attn_norm_.forward(post_attn);
-    graph::NNGraph::TensorNode *mlp_out = mlp_.forward(mlp_in);
+    NNGraph::TensorNode *mlp_in = post_attn_norm_.forward(post_attn);
+    NNGraph::TensorNode *mlp_out = mlp_.forward(mlp_in);
 
     // residual: post_attn + mlp_out
-    graph::NNGraph::TensorNode *decoder_out =
-        graph::add(1.0, post_attn, 1.0, mlp_out);
+    NNGraph::TensorNode *decoder_out =
+        add(1.0, post_attn, 1.0, mlp_out);
     decoder_out->set_name(tensor_name("decoder_out"));
     return decoder_out;
 }

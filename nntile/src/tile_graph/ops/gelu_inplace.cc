@@ -21,6 +21,8 @@
 #include <nntile/tile.hh>
 #include <nntile/tile/gelu_inplace.hh>
 
+#include <nntile/runtime.hh>
+
 namespace nntile::tile_graph
 {
 

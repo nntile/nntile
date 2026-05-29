@@ -16,11 +16,11 @@
 namespace nntile::model::bert
 {
 
-BertLayer::BertLayer(graph::NNGraph* graph,
+BertLayer::BertLayer(NNGraph* graph,
                      const std::string& name,
                      const BertConfig& config,
-                     graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                     DataType dtype)
+    : module::Module(graph, name)
     , attention_(graph, name + "_attention", config, dtype)
     , intermediate_(graph, name + "_intermediate", config, dtype)
     , output_(graph, name + "_output", config, dtype)
@@ -33,9 +33,9 @@ BertLayer::BertLayer(graph::NNGraph* graph,
     register_module("output", &output_);
 }
 
-graph::NNGraph::TensorNode* BertLayer::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* BertLayer::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
     if(x == nullptr)
@@ -44,9 +44,9 @@ graph::NNGraph::TensorNode* BertLayer::forward(
             "BertLayer::forward: input tensor must be non-null");
     }
 
-    graph::NNGraph::TensorNode* attn_out =
+    NNGraph::TensorNode* attn_out =
         attention_.forward(x, mask, causal);
-    graph::NNGraph::TensorNode* inter =
+    NNGraph::TensorNode* inter =
         intermediate_.forward(attn_out);
     return output_.forward(inter, attn_out);
 }

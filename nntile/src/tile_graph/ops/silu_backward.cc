@@ -21,6 +21,8 @@
 #include <nntile/tile.hh>
 #include <nntile/tile/silu_backward.hh>
 
+#include <nntile/runtime.hh>
+
 namespace nntile::tile_graph
 {
 

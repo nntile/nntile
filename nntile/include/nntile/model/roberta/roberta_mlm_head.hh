@@ -24,25 +24,25 @@ namespace nntile::model::roberta
 {
 
 //! RobertaLMHead: dense + GELU + LN + decoder Linear + vocab bias.
-class RobertaMlmHead : public graph::module::Module
+class RobertaMlmHead : public module::Module
 {
 private:
-    graph::module::Linear transform_dense_;
-    graph::module::Activation transform_act_;
-    graph::module::LayerNorm transform_ln_;
-    graph::module::Linear decoder_;
-    graph::NNGraph::TensorNode* head_bias_tensor_ = nullptr;
+    module::Linear transform_dense_;
+    module::Activation transform_act_;
+    module::LayerNorm transform_ln_;
+    module::Linear decoder_;
+    NNGraph::TensorNode* head_bias_tensor_ = nullptr;
 
     RobertaConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    RobertaMlmHead(graph::NNGraph* graph,
+    RobertaMlmHead(NNGraph* graph,
                    const std::string& name,
                    const RobertaConfig& config,
-                   graph::DataType dtype = graph::DataType::FP32);
+                   DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(graph::NNGraph::TensorNode* hidden);
+    NNGraph::TensorNode* forward(NNGraph::TensorNode* hidden);
 
     std::string repr() const override;
 };

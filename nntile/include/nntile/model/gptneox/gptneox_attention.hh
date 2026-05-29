@@ -29,33 +29,33 @@ namespace nntile::model::gptneox
 {
 
 //! GPT-NeoXAttention - Q/K/V projections via gemm, RoPE, SDPA, output projection
-class GptneoxAttention : public graph::module::Module
+class GptneoxAttention : public module::Module
 {
 private:
-    graph::NNGraph::TensorNode* w_q_ = nullptr;  // (n_heads, head_size, n_emb)
-    graph::NNGraph::TensorNode* w_k_ = nullptr;  // (n_heads, head_size, n_emb)
-    graph::NNGraph::TensorNode* w_v_ = nullptr;  // (n_heads, head_size, n_emb)
-    graph::NNGraph::TensorNode* w_o_ = nullptr;  // (n_emb, n_heads, head_size)
+    NNGraph::TensorNode* w_q_ = nullptr;  // (n_heads, head_size, n_emb)
+    NNGraph::TensorNode* w_k_ = nullptr;  // (n_heads, head_size, n_emb)
+    NNGraph::TensorNode* w_v_ = nullptr;  // (n_heads, head_size, n_emb)
+    NNGraph::TensorNode* w_o_ = nullptr;  // (n_emb, n_heads, head_size)
 
     GptneoxConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
     Index head_size_;
     Index n_heads_;
 
 public:
     //! Constructor
-    GptneoxAttention(graph::NNGraph* graph,
+    GptneoxAttention(NNGraph* graph,
                      const std::string& name,
                      const GptneoxConfig& config,
-                     graph::DataType dtype = graph::DataType::FP32);
+                     DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* sin = nullptr,
-        graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* sin = nullptr,
+        NNGraph::TensorNode* cos = nullptr,
+        NNGraph::TensorNode* mask = nullptr);
 
     std::string repr() const override;
 

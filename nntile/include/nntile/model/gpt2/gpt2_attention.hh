@@ -30,38 +30,38 @@ namespace nntile::model::gpt2
 
 //! GPT2Attention - Q/K/V projections, SDPA, output projection
 //! No RoPE, no GQA (num_attention_heads == num_key_value_heads)
-class Gpt2Attention : public graph::module::Module
+class Gpt2Attention : public module::Module
 {
 private:
-    graph::NNGraph::TensorNode* w_q_ = nullptr;
-    graph::NNGraph::TensorNode* w_k_ = nullptr;
-    graph::NNGraph::TensorNode* w_v_ = nullptr;
-    graph::NNGraph::TensorNode* w_o_ = nullptr;
-    graph::NNGraph::TensorNode* q_bias_ = nullptr;
-    graph::NNGraph::TensorNode* k_bias_ = nullptr;
-    graph::NNGraph::TensorNode* v_bias_ = nullptr;
-    graph::NNGraph::TensorNode* o_bias_ = nullptr;
+    NNGraph::TensorNode* w_q_ = nullptr;
+    NNGraph::TensorNode* w_k_ = nullptr;
+    NNGraph::TensorNode* w_v_ = nullptr;
+    NNGraph::TensorNode* w_o_ = nullptr;
+    NNGraph::TensorNode* q_bias_ = nullptr;
+    NNGraph::TensorNode* k_bias_ = nullptr;
+    NNGraph::TensorNode* v_bias_ = nullptr;
+    NNGraph::TensorNode* o_bias_ = nullptr;
 
     Gpt2Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
     Index head_size_;
     Index n_heads_;
 
 public:
     //! Constructor
-    Gpt2Attention(graph::NNGraph* graph,
+    Gpt2Attention(NNGraph* graph,
                   const std::string& name,
                   const Gpt2Config& config,
-                  graph::DataType dtype = graph::DataType::FP32);
+                  DataType dtype = DataType::FP32);
 
     //! Forward pass
     //! @param mask Optional BOOL mask for ``sdpa_eager``; ``nullptr`` is full
     //!        bidirectional attention.
     //! @param causal Placeholder (not implemented); must be ``false``.
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;

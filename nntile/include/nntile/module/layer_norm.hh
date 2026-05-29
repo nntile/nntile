@@ -29,39 +29,39 @@ namespace nntile::module
 class LayerNorm : public Module
 {
 private:
-    graph::NNGraph::TensorNode* gamma_tensor_ = nullptr;
-    graph::NNGraph::TensorNode* beta_tensor_ = nullptr;
+    NNGraph::TensorNode* gamma_tensor_ = nullptr;
+    NNGraph::TensorNode* beta_tensor_ = nullptr;
     Index normalized_shape_;
     Index axis_;
     float eps_;
     int redux_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    LayerNorm(graph::NNGraph* graph,
+    LayerNorm(NNGraph* graph,
               const std::string& name,
               Index normalized_shape,
               Index axis = 0,
               float eps = 1e-5f,
               int redux = 0,
-              graph::DataType dtype = graph::DataType::FP32);
+              DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x);
 
     //! Get string representation
     std::string repr() const;
 
-    void import_hf(const graph::io::SafeTensorsReader& reader,
+    void import_hf(const io::SafeTensorsReader& reader,
                    const std::string& hf_prefix);
 
-    void export_hf(graph::io::SafeTensorsWriter& writer,
+    void export_hf(io::SafeTensorsWriter& writer,
                    const std::string& hf_prefix) const;
 
-    graph::NNGraph::TensorNode* gamma_tensor() const { return gamma_tensor_; }
-    graph::NNGraph::TensorNode* beta_tensor() const { return beta_tensor_; }
+    NNGraph::TensorNode* gamma_tensor() const { return gamma_tensor_; }
+    NNGraph::TensorNode* beta_tensor() const { return beta_tensor_; }
 };
 
 } // namespace nntile::module

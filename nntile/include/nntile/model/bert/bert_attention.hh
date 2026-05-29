@@ -22,24 +22,24 @@
 namespace nntile::model::bert
 {
 
-class BertAttention : public graph::module::Module
+class BertAttention : public module::Module
 {
 private:
     BertSelfAttention self_attn_;
     BertSelfOutput self_out_;
 
     BertConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    BertAttention(graph::NNGraph* graph,
+    BertAttention(NNGraph* graph,
                   const std::string& name,
                   const BertConfig& config,
-                  graph::DataType dtype = graph::DataType::FP32);
+                  DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;

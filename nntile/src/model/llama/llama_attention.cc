@@ -29,11 +29,11 @@
 namespace nntile::model::llama
 {
 
-LlamaAttention::LlamaAttention(graph::NNGraph *graph,
+LlamaAttention::LlamaAttention(NNGraph *graph,
     const std::string &name,
     const LlamaConfig &config,
-    graph::DataType dtype) :
-    graph::module::Module(graph, name),
+    DataType dtype) :
+    module::Module(graph, name),
     config_(config),
     dtype_(dtype),
     head_size_(config.head_dim),
@@ -85,13 +85,13 @@ LlamaAttention::LlamaAttention(graph::NNGraph *graph,
     register_parameter("o_weight", w_o_);
 }
 
-graph::NNGraph::TensorNode *LlamaAttention::forward(
-    graph::NNGraph::TensorNode *x,
-    graph::NNGraph::TensorNode *sin,
-    graph::NNGraph::TensorNode *cos,
-    graph::NNGraph::TensorNode *mask,
-    graph::NNGraph::TensorNode *k_cache,
-    graph::NNGraph::TensorNode *v_cache,
+NNGraph::TensorNode *LlamaAttention::forward(
+    NNGraph::TensorNode *x,
+    NNGraph::TensorNode *sin,
+    NNGraph::TensorNode *cos,
+    NNGraph::TensorNode *mask,
+    NNGraph::TensorNode *k_cache,
+    NNGraph::TensorNode *v_cache,
     Index cache_len)
 {
     if (x == nullptr)
@@ -106,122 +106,122 @@ graph::NNGraph::TensorNode *LlamaAttention::forward(
 
     // Q = gemm(w_q, x), no transpose on x
     // x: (hidden, seq, batch), w_q: (..., n_emb) for contraction
-    graph::NNGraph::TensorNode *q_proj;
-    graph::NNGraph::TensorNode *q;
+    NNGraph::TensorNode *q_proj;
+    NNGraph::TensorNode *q;
     if (use_gqa_)
     {
         // w_q (kv_group_size, n_head_kv, head_size, n_emb) x (n_emb, seq,
         // batch) gemm ndim=1 -> (kv_group_size, n_head_kv, head_size, seq,
         // batch)
-        q_proj = graph::gemm(w_q_, x, 1.0, false, false, 1, 0);
+        q_proj = gemm(w_q_, x, 1.0, false, false, 1, 0);
         q_proj->set_name(tensor_name("q_proj"));
         // transpose ndim=2: (d0,d1,d2,d3,d4) -> (d2,d3,d4,d0,d1)
         // (kv_group_size, n_head_kv, head_size, seq, batch) -> (head_size,
         // seq, batch, kv_group_size, n_head_kv)
-        q = graph::transpose(q_proj, 2);
+        q = transpose(q_proj, 2);
         q->set_name(tensor_name("q"));
     }
     else
     {
         // w_q (n_heads, head_size, n_emb) x (n_emb, seq, batch)
         // gemm ndim=1 -> (n_heads, head_size, seq, batch)
-        q_proj = graph::gemm(w_q_, x, 1.0, false, false, 1, 0);
+        q_proj = gemm(w_q_, x, 1.0, false, false, 1, 0);
         q_proj->set_name(tensor_name("q_proj"));
         // transpose ndim=1: (d0,d1,d2,d3) -> (d1,d2,d3,d0)
         // (n_heads, head_size, seq, batch) -> (head_size, seq, batch, n_heads)
-        q = graph::transpose(q_proj, 1);
+        q = transpose(q_proj, 1);
         q->set_name(tensor_name("q"));
     }
 
     // K = gemm(w_k, x), then transpose
     // w_k (n_head_kv, head_size, n_emb) x (n_emb, seq, batch)
-    graph::NNGraph::TensorNode *k_proj =
-        graph::gemm(w_k_, x, 1.0, false, false, 1, 0);
+    NNGraph::TensorNode *k_proj =
+        gemm(w_k_, x, 1.0, false, false, 1, 0);
     k_proj->set_name(tensor_name("k_proj"));
     // transpose ndim=1: (n_head_kv, head_size, seq, batch) -> (head_size, seq,
     // batch, n_head_kv)
-    graph::NNGraph::TensorNode *k = graph::transpose(k_proj, 1);
+    NNGraph::TensorNode *k = transpose(k_proj, 1);
     k->set_name(tensor_name("k"));
 
     // V = gemm(w_v, x), then transpose
-    graph::NNGraph::TensorNode *v_proj =
-        graph::gemm(w_v_, x, 1.0, false, false, 1, 0);
+    NNGraph::TensorNode *v_proj =
+        gemm(w_v_, x, 1.0, false, false, 1, 0);
     v_proj->set_name(tensor_name("v_proj"));
-    graph::NNGraph::TensorNode *v = graph::transpose(v_proj, 1);
+    NNGraph::TensorNode *v = transpose(v_proj, 1);
     v->set_name(tensor_name("v"));
 
     // RoPE on Q and K (if sin/cos provided)
-    graph::NNGraph::TensorNode *q_rope = q;
-    graph::NNGraph::TensorNode *k_rope = k;
+    NNGraph::TensorNode *q_rope = q;
+    NNGraph::TensorNode *k_rope = k;
     if (sin != nullptr && cos != nullptr)
     {
-        q_rope = graph::rope(sin, cos, q);
+        q_rope = rope(sin, cos, q);
         q_rope->set_name(tensor_name("q_rope"));
-        k_rope = graph::rope(sin, cos, k);
+        k_rope = rope(sin, cos, k);
         k_rope->set_name(tensor_name("k_rope"));
     }
 
     // KV cache: use cached K,V when available, update cache with new K,V
-    graph::NNGraph::TensorNode *k_for_sdpa = k_rope;
-    graph::NNGraph::TensorNode *v_for_sdpa = v;
+    NNGraph::TensorNode *k_for_sdpa = k_rope;
+    NNGraph::TensorNode *v_for_sdpa = v;
     if (k_cache != nullptr && v_cache != nullptr)
     {
         if (cache_len > 0)
         {
             // Decode: concat cached prefix with new K,V
-            graph::NNGraph::TensorNode *k_cache_slice = graph_->tensor(
+            NNGraph::TensorNode *k_cache_slice = graph_->tensor(
                 {head_size_, cache_len, n_batch, n_head_kv_}, dtype_, false);
             k_cache_slice->set_name(tensor_name("k_cache_slice"));
-            graph::NNGraph::TensorNode *v_cache_slice = graph_->tensor(
+            NNGraph::TensorNode *v_cache_slice = graph_->tensor(
                 {head_size_, cache_len, n_batch, n_head_kv_}, dtype_, false);
             v_cache_slice->set_name(tensor_name("v_cache_slice"));
-            graph::tensor::copy_intersection(k_cache->data(),
+            tensor_graph::copy_intersection(k_cache->data(),
                 {0, 0, 0, 0},
                 k_cache_slice->data(),
                 {0, 0, 0, 0});
-            graph::tensor::copy_intersection(v_cache->data(),
+            tensor_graph::copy_intersection(v_cache->data(),
                 {0, 0, 0, 0},
                 v_cache_slice->data(),
                 {0, 0, 0, 0});
-            k_for_sdpa = graph::concat(k_cache_slice, k_rope, 1);
+            k_for_sdpa = concat(k_cache_slice, k_rope, 1);
             k_for_sdpa->set_name(tensor_name("k_full"));
-            v_for_sdpa = graph::concat(v_cache_slice, v, 1);
+            v_for_sdpa = concat(v_cache_slice, v, 1);
             v_for_sdpa->set_name(tensor_name("v_full"));
         }
         // Update cache: write new K,V at position cache_len
-        graph::tensor::copy_intersection(k_rope->data(),
+        tensor_graph::copy_intersection(k_rope->data(),
             {0, 0, 0, 0},
             k_cache->data(),
             {0, cache_len, 0, 0});
-        graph::tensor::copy_intersection(
+        tensor_graph::copy_intersection(
             v->data(), {0, 0, 0, 0}, v_cache->data(), {0, cache_len, 0, 0});
     }
 
     // For GQA: repeat K and V to match Q's head count
-    graph::NNGraph::TensorNode *k_rep = k_for_sdpa;
-    graph::NNGraph::TensorNode *v_rep = v_for_sdpa;
+    NNGraph::TensorNode *k_rep = k_for_sdpa;
+    NNGraph::TensorNode *v_rep = v_for_sdpa;
     if (use_gqa_)
     {
         // k_for_sdpa: (head_size, seq, batch, n_head_kv) - 4D
         // k_rep: (head_size, seq, batch, kv_group_size, n_head_kv) - 5D
         // scale_slice broadcasts k along axis 3
-        k_rep = graph::scale_slice(1.0, k_for_sdpa, 3, kv_group_size_);
+        k_rep = scale_slice(1.0, k_for_sdpa, 3, kv_group_size_);
         k_rep->set_name(tensor_name("k_rep"));
 
-        v_rep = graph::scale_slice(1.0, v_for_sdpa, 3, kv_group_size_);
+        v_rep = scale_slice(1.0, v_for_sdpa, 3, kv_group_size_);
         v_rep->set_name(tensor_name("v_rep"));
     }
 
     // SDPA: q, k, v layout (head_size, seq, batch, ...)
     Index batch_ndim = use_gqa_ ? 3 : 2;
-    graph::NNGraph::TensorNode *attn_out =
-        graph::sdpa_eager(q_rope, k_rep, v_rep, mask, batch_ndim, 0);
+    NNGraph::TensorNode *attn_out =
+        sdpa_eager(q_rope, k_rep, v_rep, mask, batch_ndim, 0);
     attn_out->set_name(tensor_name("sdpa_out"));
 
     // Transpose to (..., head_size) for output projection
     // attn_out: (head_size, seq, batch, ...) -> attn_t: (..., head_size, seq,
     // batch)
-    graph::NNGraph::TensorNode *attn_t = graph::transpose(attn_out, 3);
+    NNGraph::TensorNode *attn_t = transpose(attn_out, 3);
     attn_t->set_name(tensor_name("attn_t"));
 
     // Output projection: gemm(w_o, attn_t)
@@ -230,8 +230,8 @@ graph::NNGraph::TensorNode *LlamaAttention::forward(
     // (n_heads, head_size, seq, batch) Contract last 2 dims of w_o with first
     // 2 dims of attn_t for 3D w_o; last 3 with first 3 for 4D w_o
     Index out_ndim = use_gqa_ ? 3 : 2;
-    graph::NNGraph::TensorNode *out =
-        graph::gemm(w_o_, attn_t, 1.0, false, false, out_ndim, 0);
+    NNGraph::TensorNode *out =
+        gemm(w_o_, attn_t, 1.0, false, false, out_ndim, 0);
     out->set_name(tensor_name("out_proj"));
 
     // Output is already (hidden, seq, batch)

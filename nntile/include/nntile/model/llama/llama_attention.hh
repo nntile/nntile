@@ -33,17 +33,17 @@ namespace nntile::model::llama
 
 //! LlamaAttention - Q/K/V projections via gemm, RoPE, SDPA, output projection
 //! Uses gemm directly (not Linear) to support 3D/4D weight layouts like Python.
-class LlamaAttention : public graph::module::Module
+class LlamaAttention : public module::Module
 {
 private:
     // Weight tensors: 3D/4D as in Python (not 2D Linear)
-    graph::NNGraph::TensorNode* w_q_ = nullptr;  // (kv_group_size, n_head_kv, head_size, n_emb) or (n_heads, head_size, n_emb)
-    graph::NNGraph::TensorNode* w_k_ = nullptr;  // (n_head_kv, head_size, n_emb)
-    graph::NNGraph::TensorNode* w_v_ = nullptr;  // (n_head_kv, head_size, n_emb)
-    graph::NNGraph::TensorNode* w_o_ = nullptr;   // (n_emb, kv_group_size, n_head_kv, head_size) or (n_emb, n_heads, head_size)
+    NNGraph::TensorNode* w_q_ = nullptr;  // (kv_group_size, n_head_kv, head_size, n_emb) or (n_heads, head_size, n_emb)
+    NNGraph::TensorNode* w_k_ = nullptr;  // (n_head_kv, head_size, n_emb)
+    NNGraph::TensorNode* w_v_ = nullptr;  // (n_head_kv, head_size, n_emb)
+    NNGraph::TensorNode* w_o_ = nullptr;   // (n_emb, kv_group_size, n_head_kv, head_size) or (n_emb, n_heads, head_size)
 
     LlamaConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
     Index head_size_;
     Index n_heads_;
@@ -57,10 +57,10 @@ public:
     //! @param name Module name
     //! @param config Llama configuration
     //! @param dtype Data type
-    LlamaAttention(graph::NNGraph* graph,
+    LlamaAttention(NNGraph* graph,
                    const std::string& name,
                    const LlamaConfig& config,
-                   graph::DataType dtype = graph::DataType::FP32);
+                   DataType dtype = DataType::FP32);
 
     //! Forward pass
     //! @param x Input tensor (hidden_size, seq, batch)
@@ -76,13 +76,13 @@ public:
     //! @param k_cache Optional KV cache for K (head_size, max_seq, batch, n_head_kv)
     //! @param v_cache Optional KV cache for V (head_size, max_seq, batch, n_head_kv)
     //! @param cache_len Current valid length in cache (0 = prefill, >0 = decode)
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* sin = nullptr,
-        graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr,
-        graph::NNGraph::TensorNode* k_cache = nullptr,
-        graph::NNGraph::TensorNode* v_cache = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* sin = nullptr,
+        NNGraph::TensorNode* cos = nullptr,
+        NNGraph::TensorNode* mask = nullptr,
+        NNGraph::TensorNode* k_cache = nullptr,
+        NNGraph::TensorNode* v_cache = nullptr,
         Index cache_len = 0);
 
     //! Get string representation

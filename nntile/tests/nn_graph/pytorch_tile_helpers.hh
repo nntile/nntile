@@ -26,26 +26,26 @@ namespace nntile::test
 using nntile::Index;
 
 //! 2D tensor shape (6, 7): heterogeneous splits on both axes.
-inline void nn_pytorch_tile_heterogeneous_rank2_6x7(graph::NNGraph::TensorNode* t)
+inline void nn_pytorch_tile_heterogeneous_rank2_6x7(NNGraph::TensorNode* t)
 {
     t->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
     t->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
 }
 
 //! 1D tensor length 7.
-inline void nn_pytorch_tile_heterogeneous_1d_len7(graph::NNGraph::TensorNode* t)
+inline void nn_pytorch_tile_heterogeneous_1d_len7(NNGraph::TensorNode* t)
 {
     t->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
 }
 
 //! 1D tensor length 6.
-inline void nn_pytorch_tile_heterogeneous_1d_len6(graph::NNGraph::TensorNode* t)
+inline void nn_pytorch_tile_heterogeneous_1d_len6(NNGraph::TensorNode* t)
 {
     t->data()->axis(0)->set_tiling(std::vector<Index>{2, 4});
 }
 
 //! 1D tensor length 4.
-inline void nn_pytorch_tile_heterogeneous_1d_len4(graph::NNGraph::TensorNode* t)
+inline void nn_pytorch_tile_heterogeneous_1d_len4(NNGraph::TensorNode* t)
 {
     t->data()->axis(0)->set_tiling(std::vector<Index>{2, 2});
 }
@@ -54,7 +54,7 @@ inline void nn_pytorch_tile_heterogeneous_1d_len4(graph::NNGraph::TensorNode* t)
 //! Class axis (0) is a single tile: `subtract_indexed_outputs` / its kernel use
 //! global class ids as row indices with `n_labels = dst.shape[0]` per tile
 //! (see `src/tensor/subtract_indexed_outputs.cc` / `dst.shape[0] == basetile_shape[0]`).
-inline void nn_pytorch_tile_logits_5x7(graph::NNGraph::TensorNode* x)
+inline void nn_pytorch_tile_logits_5x7(NNGraph::TensorNode* x)
 {
     x->data()->axis(0)->set_tiling(std::vector<Index>{5});
     x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
@@ -62,7 +62,7 @@ inline void nn_pytorch_tile_logits_5x7(graph::NNGraph::TensorNode* x)
 
 //! GEMM A (6,7) * B (7,6); K axis set on A only (merged with B axis 0).
 inline void nn_pytorch_tile_gemm_operands_6_7_6(
-    graph::NNGraph::TensorNode* a, graph::NNGraph::TensorNode* b)
+    NNGraph::TensorNode* a, NNGraph::TensorNode* b)
 {
     a->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
     a->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
@@ -77,42 +77,42 @@ inline void nn_pytorch_tile_gemm_operands_6_7_6(
 //! global token id into each vocab tile buffer `(k_size, local_width)`; tiles
 //! must span all `num_embeddings` (same pattern as `nntile/tests/tensor_graph/embedding.cc`
 //! tiled case, which sets axis 1 to a single segment).
-inline void nn_pytorch_tile_vocab_10x10(graph::NNGraph::TensorNode* vocab)
+inline void nn_pytorch_tile_vocab_10x10(NNGraph::TensorNode* vocab)
 {
     vocab->data()->axis(0)->set_tiling(std::vector<Index>{5, 5});
     vocab->data()->axis(1)->set_tiling(std::vector<Index>{10});
 }
 
 //! Index tensor (4, 5).
-inline void nn_pytorch_tile_index_4x5(graph::NNGraph::TensorNode* index)
+inline void nn_pytorch_tile_index_4x5(NNGraph::TensorNode* index)
 {
     index->data()->axis(0)->set_tiling(std::vector<Index>{2, 2});
     index->data()->axis(1)->set_tiling(std::vector<Index>{2, 3});
 }
 
 //! Index vector length 3.
-inline void nn_pytorch_tile_index_len3(graph::NNGraph::TensorNode* index)
+inline void nn_pytorch_tile_index_len3(NNGraph::TensorNode* index)
 {
     index->data()->axis(0)->set_tiling(std::vector<Index>{1, 2});
 }
 
 //! Vocab (8, 8). Same axis-0 uniform and axis-1 unsplit constraints as
 //! `nn_pytorch_tile_vocab_10x10`.
-inline void nn_pytorch_tile_vocab_8x8(graph::NNGraph::TensorNode* vocab)
+inline void nn_pytorch_tile_vocab_8x8(NNGraph::TensorNode* vocab)
 {
     vocab->data()->axis(0)->set_tiling(std::vector<Index>{4, 4});
     vocab->data()->axis(1)->set_tiling(std::vector<Index>{8});
 }
 
 //! Softmax along axis 0 on (6, 7): heterogeneous on axis 1 only; axis 0 unsplit.
-inline void nn_pytorch_tile_softmax_axis0_6x7(graph::NNGraph::TensorNode* x)
+inline void nn_pytorch_tile_softmax_axis0_6x7(NNGraph::TensorNode* x)
 {
     x->data()->axis(0)->set_tiling(std::vector<Index>{6});
     x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
 }
 
 //! Softmax along axis 1 on (6, 7): heterogeneous on axis 0 only; axis 1 unsplit.
-inline void nn_pytorch_tile_softmax_axis1_6x7(graph::NNGraph::TensorNode* x)
+inline void nn_pytorch_tile_softmax_axis1_6x7(NNGraph::TensorNode* x)
 {
     x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
     x->data()->axis(1)->set_tiling(std::vector<Index>{7});
@@ -120,7 +120,7 @@ inline void nn_pytorch_tile_softmax_axis1_6x7(graph::NNGraph::TensorNode* x)
 
 
 //! Rank-3 tensor shape (2, 3, 4): heterogeneous splits on every axis.
-inline void nn_pytorch_tile_heterogeneous_rank3_2x3x4(graph::NNGraph::TensorNode* t)
+inline void nn_pytorch_tile_heterogeneous_rank3_2x3x4(NNGraph::TensorNode* t)
 {
     t->data()->axis(0)->set_tiling(std::vector<Index>{1, 1});
     t->data()->axis(1)->set_tiling(std::vector<Index>{1, 2});
@@ -128,7 +128,7 @@ inline void nn_pytorch_tile_heterogeneous_rank3_2x3x4(graph::NNGraph::TensorNode
 }
 
 //! Rank-4 `(h, s, b0, b1)` operands (e.g. SDPA Q/K/V): non-uniform splits per axis.
-inline void nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1(graph::NNGraph::TensorNode* t)
+inline void nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1(NNGraph::TensorNode* t)
 {
     for(Index d = 0; d < t->ndim(); ++d)
     {
@@ -153,7 +153,7 @@ inline void nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1(graph::NNGraph::Tenso
 }
 
 //! Boolean mask `(n, n)` with non-uniform row/col tiling when possible.
-inline void nn_pytorch_tile_mask_nn(graph::NNGraph::TensorNode* mask)
+inline void nn_pytorch_tile_mask_nn(NNGraph::TensorNode* mask)
 {
     for(Index d = 0; d < mask->ndim(); ++d)
     {
@@ -179,9 +179,9 @@ inline void nn_pytorch_tile_mask_nn(graph::NNGraph::TensorNode* mask)
 
 //! RoPE: `sin`, `cos`, `src` layouts compatible with `src.shape[0] == 2*sin.shape[0]`.
 inline void nn_pytorch_tile_rope_sin_cos_src(
-    graph::NNGraph::TensorNode* sin,
-    graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* src)
+    NNGraph::TensorNode* sin,
+    NNGraph::TensorNode* cos,
+    NNGraph::TensorNode* src)
 {
     for(Index d = 0; d < sin->ndim(); ++d)
     {
@@ -250,9 +250,9 @@ inline std::vector<Index> module_heterogeneous_tile_sizes(Index extent)
 }
 
 //! Heterogeneous split on every axis group that is still untiled (module / PyTorch tests).
-inline void module_tile_all_untiled_axis_groups_heterogeneous(graph::TensorGraph& tg)
+inline void module_tile_all_untiled_axis_groups_heterogeneous(TensorGraph& tg)
 {
-    for(graph::AxisDescriptor* ag : tg.axis_groups())
+    for(AxisDescriptor* ag : tg.axis_groups())
     {
         if(!ag->is_tiled())
         {
@@ -265,7 +265,7 @@ inline void module_tile_all_untiled_axis_groups_heterogeneous(graph::TensorGraph
 //! must use a uniform basetile extent (see `lower_to_tile EMBEDDING` and
 //! `kernel::embedding`). Uses two equal row tiles when embed_dim is even and >= 2;
 //! otherwise a single full row tile.
-inline void module_apply_embedding_vocab_tiling(graph::NNGraph::TensorNode* vocab)
+inline void module_apply_embedding_vocab_tiling(NNGraph::TensorNode* vocab)
 {
     const Index ed = vocab->shape()[0];
     const Index ne = vocab->shape()[1];

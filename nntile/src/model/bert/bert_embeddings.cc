@@ -18,11 +18,11 @@
 namespace nntile::model::bert
 {
 
-BertEmbeddings::BertEmbeddings(graph::NNGraph* graph,
+BertEmbeddings::BertEmbeddings(NNGraph* graph,
                                const std::string& name,
                                const BertConfig& config,
-                               graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                               DataType dtype)
+    : module::Module(graph, name)
     , word_embeddings_(graph, name + "_word",
                        config.vocab_size, config.hidden_size,
                        2, 0, dtype)
@@ -46,10 +46,10 @@ BertEmbeddings::BertEmbeddings(graph::NNGraph* graph,
     register_module("ln", &layer_norm_);
 }
 
-graph::NNGraph::TensorNode* BertEmbeddings::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* token_type_ids,
-    graph::NNGraph::TensorNode* position_ids)
+NNGraph::TensorNode* BertEmbeddings::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* token_type_ids,
+    NNGraph::TensorNode* position_ids)
 {
     if(input_ids == nullptr || token_type_ids == nullptr ||
        position_ids == nullptr)
@@ -59,19 +59,19 @@ graph::NNGraph::TensorNode* BertEmbeddings::forward(
             "position_ids must be non-null");
     }
 
-    graph::NNGraph::TensorNode* word =
+    NNGraph::TensorNode* word =
         word_embeddings_.forward(input_ids);
-    graph::NNGraph::TensorNode* token_type =
+    NNGraph::TensorNode* token_type =
         token_type_embeddings_.forward(token_type_ids);
-    graph::NNGraph::TensorNode* position =
+    NNGraph::TensorNode* position =
         position_embeddings_.forward(position_ids);
 
-    graph::NNGraph::TensorNode* wt =
-        graph::add(1.0, word, 1.0, token_type);
-    graph::NNGraph::TensorNode* embed =
-        graph::add(1.0, wt, 1.0, position);
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(embed, 2);
+    NNGraph::TensorNode* wt =
+        add(1.0, word, 1.0, token_type);
+    NNGraph::TensorNode* embed =
+        add(1.0, wt, 1.0, position);
+    NNGraph::TensorNode* x =
+        transpose(embed, 2);
     return layer_norm_.forward(x);
 }
 

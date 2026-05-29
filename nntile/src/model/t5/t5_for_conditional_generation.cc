@@ -23,11 +23,11 @@ namespace nntile::model::t5
 {
 
 T5ForConditionalGeneration::T5ForConditionalGeneration(
-    graph::NNGraph* graph,
+    NNGraph* graph,
     const std::string& name,
     const T5Config& config,
-    graph::DataType dtype)
-    : graph::module::Module(graph, name)
+    DataType dtype)
+    : module::Module(graph, name)
     , model_(std::make_unique<T5Model>(graph, name + "_model", config, dtype))
     , lm_head_(graph, name + "_lm_head",
                config.d_model, config.vocab_size, false, dtype)
@@ -38,15 +38,15 @@ T5ForConditionalGeneration::T5ForConditionalGeneration(
     register_module("lm_head", &lm_head_);
 }
 
-graph::NNGraph::TensorNode* T5ForConditionalGeneration::forward(
-    graph::NNGraph::TensorNode* encoder_input_ids,
-    graph::NNGraph::TensorNode* decoder_input_ids,
-    graph::NNGraph::TensorNode* encoder_attention_mask,
-    graph::NNGraph::TensorNode* decoder_attention_mask,
-    graph::NNGraph::TensorNode* cross_attention_mask)
+NNGraph::TensorNode* T5ForConditionalGeneration::forward(
+    NNGraph::TensorNode* encoder_input_ids,
+    NNGraph::TensorNode* decoder_input_ids,
+    NNGraph::TensorNode* encoder_attention_mask,
+    NNGraph::TensorNode* decoder_attention_mask,
+    NNGraph::TensorNode* cross_attention_mask)
 {
     // Model output: (d_model, dec_seq, batch)
-    graph::NNGraph::TensorNode* hidden = model_->forward(
+    NNGraph::TensorNode* hidden = model_->forward(
         encoder_input_ids, decoder_input_ids,
         encoder_attention_mask, decoder_attention_mask, cross_attention_mask);
 
@@ -56,15 +56,15 @@ graph::NNGraph::TensorNode* T5ForConditionalGeneration::forward(
     {
         const Scalar inv_sqrt_d_model =
             1.f / std::sqrt(static_cast<Scalar>(config_.d_model));
-        hidden = graph::scale(inv_sqrt_d_model, hidden)
+        hidden = scale(inv_sqrt_d_model, hidden)
                      ->set_name(tensor_name("hidden_scaled"));
     }
 
     // Transpose (d_model, seq, batch) -> (seq, batch, d_model) for lm_head
-    graph::NNGraph::TensorNode* hidden_t = graph::transpose(hidden, 1);
+    NNGraph::TensorNode* hidden_t = transpose(hidden, 1);
     hidden_t->set_name(tensor_name("hidden_t"));
-    graph::NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
-    graph::NNGraph::TensorNode* logits = graph::transpose(logits_sbv, 2);
+    NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
+    NNGraph::TensorNode* logits = transpose(logits_sbv, 2);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

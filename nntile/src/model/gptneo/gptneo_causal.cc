@@ -20,18 +20,18 @@
 namespace nntile::model::gptneo
 {
 
-GptneoCausal::GptneoCausal(graph::NNGraph* graph,
+GptneoCausal::GptneoCausal(NNGraph* graph,
                            const std::string& name,
                            const GptneoConfig& config,
-                           graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                           DataType dtype)
+    : module::Module(graph, name)
     , model_(std::make_unique<GptneoModel>(graph, name + "_model", config, dtype))
     , lm_head_(config.tie_word_embeddings
-          ? graph::module::Linear(
+          ? module::Linear(
                 graph,
                 name + "_lm_head",
                 model_->wte_vocab_tensor())
-          : graph::module::Linear(
+          : module::Linear(
                 graph,
                 name + "_lm_head",
                 config.hidden_size,
@@ -46,11 +46,11 @@ GptneoCausal::GptneoCausal(graph::NNGraph* graph,
     register_module("lm_head", &lm_head_);
 }
 
-graph::NNGraph::TensorNode* GptneoCausal::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask,
-    graph::NNGraph::TensorNode* local_mask)
+NNGraph::TensorNode* GptneoCausal::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* position_ids,
+    NNGraph::TensorNode* mask,
+    NNGraph::TensorNode* local_mask)
 {
     if(input_ids == nullptr)
     {
@@ -63,11 +63,11 @@ graph::NNGraph::TensorNode* GptneoCausal::forward(
             "GptneoCausal::forward: position_ids must be non-null");
     }
 
-    graph::NNGraph::TensorNode* hidden =
+    NNGraph::TensorNode* hidden =
         model_->forward(input_ids, position_ids, mask, local_mask);
 
-    graph::NNGraph::TensorNode* logits =
-        graph::gemm(lm_head_.weight_tensor(),
+    NNGraph::TensorNode* logits =
+        gemm(lm_head_.weight_tensor(),
             hidden,
             1.0,
             true,

@@ -201,7 +201,7 @@ NNGraph::TensorNode *Linear::forward(NNGraph::TensorNode *input)
     const std::string gemm_name = bias_tensor_ != nullptr
                                       ? tensor_name("gemm_output")
                                       : tensor_name("output");
-    NNGraph::TensorNode *gemm_out = graph::gemm(input,
+    NNGraph::TensorNode *gemm_out = gemm(input,
         weight_tensor_,
         GEMM_ALPHA,
         NO_TRANSPOSE,
@@ -213,7 +213,7 @@ NNGraph::TensorNode *Linear::forward(NNGraph::TensorNode *input)
     if (bias_tensor_ != nullptr)
     {
         const Index feature_axis = gemm_out->ndim() - 1;
-        output_tensor_ = graph::add_fiber(ADD_FIBER_ALPHA,
+        output_tensor_ = add_fiber(ADD_FIBER_ALPHA,
             bias_tensor_,
             ADD_FIBER_BETA,
             gemm_out,

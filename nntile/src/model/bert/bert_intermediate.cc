@@ -17,11 +17,11 @@
 namespace nntile::model::bert
 {
 
-BertIntermediate::BertIntermediate(graph::NNGraph* graph,
+BertIntermediate::BertIntermediate(NNGraph* graph,
                                    const std::string& name,
                                    const BertConfig& config,
-                                   graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                                   DataType dtype)
+    : module::Module(graph, name)
     , dense_(graph, name + "_dense",
              config.hidden_size,
              config.intermediate_size,
@@ -37,10 +37,10 @@ BertIntermediate::BertIntermediate(graph::NNGraph* graph,
     register_module("act", &activation_);
 }
 
-graph::NNGraph::TensorNode* BertIntermediate::forward(
-    graph::NNGraph::TensorNode* x)
+NNGraph::TensorNode* BertIntermediate::forward(
+    NNGraph::TensorNode* x)
 {
-    graph::NNGraph::TensorNode* hidden = graph::gemm(
+    NNGraph::TensorNode* hidden = gemm(
         dense_.weight_tensor(),
         x,
         1.0,
@@ -48,7 +48,7 @@ graph::NNGraph::TensorNode* BertIntermediate::forward(
         false,
         1,
         0);
-    hidden = graph::add_fiber(1.0, dense_.bias_tensor(), 1.0, hidden, 0, 0);
+    hidden = add_fiber(1.0, dense_.bias_tensor(), 1.0, hidden, 0, 0);
     return activation_.forward(hidden);
 }
 

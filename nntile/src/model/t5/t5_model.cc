@@ -21,11 +21,11 @@
 namespace nntile::model::t5
 {
 
-T5Model::T5Model(graph::NNGraph* graph,
+T5Model::T5Model(NNGraph* graph,
                 const std::string& name,
                 const T5Config& config,
-                graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                DataType dtype)
+    : module::Module(graph, name)
     , embed_tokens_(graph, name + "_embed_tokens",
                     config.vocab_size, config.d_model,
                     2, 0, dtype)  // axis=2 for (seq,batch) -> (seq,batch,d_model)
@@ -57,12 +57,12 @@ T5Model::T5Model(graph::NNGraph* graph,
     }
 }
 
-graph::NNGraph::TensorNode* T5Model::forward(
-    graph::NNGraph::TensorNode* encoder_input_ids,
-    graph::NNGraph::TensorNode* decoder_input_ids,
-    graph::NNGraph::TensorNode* encoder_attention_mask,
-    graph::NNGraph::TensorNode* decoder_attention_mask,
-    graph::NNGraph::TensorNode* cross_attention_mask)
+NNGraph::TensorNode* T5Model::forward(
+    NNGraph::TensorNode* encoder_input_ids,
+    NNGraph::TensorNode* decoder_input_ids,
+    NNGraph::TensorNode* encoder_attention_mask,
+    NNGraph::TensorNode* decoder_attention_mask,
+    NNGraph::TensorNode* cross_attention_mask)
 {
     if(encoder_input_ids == nullptr || decoder_input_ids == nullptr)
     {
@@ -71,28 +71,28 @@ graph::NNGraph::TensorNode* T5Model::forward(
     }
 
     // Shared embedding
-    graph::NNGraph::TensorNode* encoder_embed =
+    NNGraph::TensorNode* encoder_embed =
         embed_tokens_.forward(encoder_input_ids);
-    graph::NNGraph::TensorNode* decoder_embed =
+    NNGraph::TensorNode* decoder_embed =
         embed_tokens_.forward(decoder_input_ids);
 
     // Transpose to (d_model, seq, batch)
-    graph::NNGraph::TensorNode* encoder_x = graph::transpose(encoder_embed, 2);
+    NNGraph::TensorNode* encoder_x = transpose(encoder_embed, 2);
     encoder_x->set_name(tensor_name("encoder_x"));
-    graph::NNGraph::TensorNode* decoder_x = graph::transpose(decoder_embed, 2);
+    NNGraph::TensorNode* decoder_x = transpose(decoder_embed, 2);
     decoder_x->set_name(tensor_name("decoder_x"));
 
     // Encoder stack
-    graph::NNGraph::TensorNode* enc_hidden = encoder_x;
+    NNGraph::TensorNode* enc_hidden = encoder_x;
     for(auto& layer : encoder_layers_)
     {
         enc_hidden = layer->forward(enc_hidden, encoder_attention_mask);
     }
-    graph::NNGraph::TensorNode* encoder_hidden_states =
+    NNGraph::TensorNode* encoder_hidden_states =
         encoder_final_norm_.forward(enc_hidden);
 
     // Decoder stack
-    graph::NNGraph::TensorNode* dec_hidden = decoder_x;
+    NNGraph::TensorNode* dec_hidden = decoder_x;
     for(auto& layer : decoder_layers_)
     {
         dec_hidden = layer->forward(

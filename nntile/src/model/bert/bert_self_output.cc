@@ -20,11 +20,11 @@
 namespace nntile::model::bert
 {
 
-BertSelfOutput::BertSelfOutput(graph::NNGraph* graph,
+BertSelfOutput::BertSelfOutput(NNGraph* graph,
                                const std::string& name,
                                const BertConfig& config,
-                               graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                               DataType dtype)
+    : module::Module(graph, name)
     , layer_norm_(graph, name + "_ln",
                   config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
     , config_(config)
@@ -47,9 +47,9 @@ BertSelfOutput::BertSelfOutput(graph::NNGraph* graph,
     register_module("ln", &layer_norm_);
 }
 
-graph::NNGraph::TensorNode* BertSelfOutput::forward(
-    graph::NNGraph::TensorNode* attn_heads,
-    graph::NNGraph::TensorNode* residual)
+NNGraph::TensorNode* BertSelfOutput::forward(
+    NNGraph::TensorNode* attn_heads,
+    NNGraph::TensorNode* residual)
 {
     if(attn_heads == nullptr || residual == nullptr)
     {
@@ -57,13 +57,13 @@ graph::NNGraph::TensorNode* BertSelfOutput::forward(
             "BertSelfOutput::forward: attn_heads and residual must be non-null");
     }
 
-    graph::NNGraph::TensorNode* dense_out =
-        graph::gemm(w_dense_, attn_heads, 1.0, false, false, 2, 0);
-    dense_out = graph::add_fiber(1.0, b_dense_, 1.0, dense_out, 0, 0);
+    NNGraph::TensorNode* dense_out =
+        gemm(w_dense_, attn_heads, 1.0, false, false, 2, 0);
+    dense_out = add_fiber(1.0, b_dense_, 1.0, dense_out, 0, 0);
     dense_out->set_name(tensor_name("dense_out"));
 
-    graph::NNGraph::TensorNode* summed =
-        graph::add(1.0, residual, 1.0, dense_out);
+    NNGraph::TensorNode* summed =
+        add(1.0, residual, 1.0, dense_out);
     return layer_norm_.forward(summed);
 }
 

@@ -31,34 +31,34 @@ namespace nntile::model::gpt2
 {
 
 //! GPT2Model - wte + wpe + add -> num_hidden_layers x Gpt2Block + ln_f
-class Gpt2Model : public graph::module::Module
+class Gpt2Model : public module::Module
 {
 private:
-    graph::module::Embedding wte_;
-    graph::module::Embedding wpe_;
+    module::Embedding wte_;
+    module::Embedding wpe_;
     std::vector<std::unique_ptr<Gpt2Block>> layers_;
-    graph::module::LayerNorm ln_f_;
+    module::LayerNorm ln_f_;
 
     Gpt2Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    Gpt2Model(graph::NNGraph* graph,
+    Gpt2Model(NNGraph* graph,
               const std::string& name,
               const Gpt2Config& config,
-              graph::DataType dtype = graph::DataType::FP32);
+              DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* position_ids,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;
 
     Index num_layers() const { return config_.num_hidden_layers; }
 
-    graph::NNGraph::TensorNode* wte_vocab_tensor() const
+    NNGraph::TensorNode* wte_vocab_tensor() const
     {
         return wte_.vocab_tensor();
     }

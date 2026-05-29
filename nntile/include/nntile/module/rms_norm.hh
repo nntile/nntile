@@ -28,31 +28,31 @@ namespace nntile::module
 class RMSNorm : public Module
 {
 private:
-    graph::NNGraph::TensorNode* gamma_tensor_ = nullptr;
+    NNGraph::TensorNode* gamma_tensor_ = nullptr;
     Index normalized_shape_;
     Index axis_;
     float eps_;
     int redux_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    RMSNorm(graph::NNGraph* graph,
+    RMSNorm(NNGraph* graph,
             const std::string& name,
             Index normalized_shape,
             Index axis = 0,
             float eps = 1e-6f,
             int redux = 0,
-            graph::DataType dtype = graph::DataType::FP32);
+            DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x);
 
     //! Get string representation
     std::string repr() const override;
 
-    graph::NNGraph::TensorNode* gamma_tensor() const { return gamma_tensor_; }
+    NNGraph::TensorNode* gamma_tensor() const { return gamma_tensor_; }
 };
 
 } // namespace nntile::module

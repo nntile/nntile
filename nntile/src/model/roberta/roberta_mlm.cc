@@ -16,11 +16,11 @@
 namespace nntile::model::roberta
 {
 
-RobertaMlm::RobertaMlm(graph::NNGraph* graph,
+RobertaMlm::RobertaMlm(NNGraph* graph,
                        const std::string& name,
                        const RobertaConfig& config,
-                       graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                       DataType dtype)
+    : module::Module(graph, name)
     , model_(std::make_unique<RobertaModel>(
           graph, name + "_roberta", config, dtype))
     , cls_(graph, name + "_cls", config, dtype)
@@ -32,10 +32,10 @@ RobertaMlm::RobertaMlm(graph::NNGraph* graph,
     register_module("cls", &cls_);
 }
 
-graph::NNGraph::TensorNode* RobertaMlm::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* RobertaMlm::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* position_ids,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
     if(input_ids == nullptr || position_ids == nullptr)
@@ -45,9 +45,9 @@ graph::NNGraph::TensorNode* RobertaMlm::forward(
             "non-null");
     }
 
-    graph::NNGraph::TensorNode* hidden =
+    NNGraph::TensorNode* hidden =
         model_->forward(input_ids, position_ids, mask, causal);
-    graph::NNGraph::TensorNode* logits = cls_.forward(hidden);
+    NNGraph::TensorNode* logits = cls_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

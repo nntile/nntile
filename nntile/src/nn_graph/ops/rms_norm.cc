@@ -67,18 +67,18 @@ NNGraph::TensorNode *NNRmsNormOp::forward()
     NNGraph::TensorNode *inv_stddev =
         graph->tensor(inv_stddev_shape, x->dtype(), false);
 
-    graph::tensor::norm_slice_inplace(
+    tensor_graph::norm_slice_inplace(
         inv_sqrt_l, x->data(), 0.0, inv_stddev->data(), axis, redux);
-    graph::tensor::hypot_scalar_inverse(eps_sqrt, 1.0, inv_stddev->data());
+    tensor_graph::hypot_scalar_inverse(eps_sqrt, 1.0, inv_stddev->data());
 
-    TensorGraph::TensorNode *tmp_y_data = graph::tensor::copy(x->data());
+    TensorGraph::TensorNode *tmp_y_data = tensor_graph::copy(x->data());
     NNGraph::TensorNode *tmp_y = graph->tensor(tmp_y_data, false);
 
-    graph::tensor::multiply_slice(
+    tensor_graph::multiply_slice(
         1.0, inv_stddev->data(), tmp_y->data(), axis);
 
     TensorGraph::TensorNode *y_data =
-        graph::tensor::multiply_fiber(1.0, gamma->data(), tmp_y->data(), axis);
+        tensor_graph::multiply_fiber(1.0, gamma->data(), tmp_y->data(), axis);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
 
@@ -126,7 +126,7 @@ void NNRmsNormOp::backward() const
     {
         auto [grad_gamma, is_first] =
             graph->get_or_create_grad(gamma, nn_grad_slot_name(gamma));
-        graph::tensor::sumprod_fiber(grad_out->data(),
+        tensor_graph::sumprod_fiber(grad_out->data(),
             tmp_y_value->data(),
             grad_gamma->data(),
             axis,
@@ -141,28 +141,28 @@ void NNRmsNormOp::backward() const
             graph->get_or_create_grad(x, nn_grad_slot_name(x));
         if (is_first)
         {
-            graph::tensor::clear(grad_x->data());
+            tensor_graph::clear(grad_x->data());
         }
 
         // grad_temp = gamma * grad_out
-        graph::tensor::multiply_fiber(
+        tensor_graph::multiply_fiber(
             1.0, gamma->data(), grad_out->data(), grad_temp->data(), axis);
-        graph::tensor::copy(tmp_y_value->data(), tmp_y_grad->data());
+        tensor_graph::copy(tmp_y_value->data(), tmp_y_grad->data());
         // mean = -1/l * sumprod_slice(grad_temp, tmp_y_grad)
-        graph::tensor::sumprod_slice(grad_temp->data(),
+        tensor_graph::sumprod_slice(grad_temp->data(),
             tmp_y_grad->data(),
             mean_buf->data(),
             axis,
             redux,
             inv_l,
             0.0);
-        graph::tensor::multiply_slice(
+        tensor_graph::multiply_slice(
             1.0, mean_buf->data(), tmp_y_grad->data(), axis);
-        graph::tensor::add_inplace(
+        tensor_graph::add_inplace(
             1.0, grad_temp->data(), 1.0, tmp_y_grad->data());
-        graph::tensor::multiply_slice(
+        tensor_graph::multiply_slice(
             1.0, inv_stddev->data(), tmp_y_grad->data(), axis);
-        graph::tensor::add_inplace(
+        tensor_graph::add_inplace(
             1.0, tmp_y_grad->data(), grad_accumulate, grad_x->data());
     }
 }

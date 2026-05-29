@@ -22,11 +22,11 @@
 namespace nntile::model::gpt2
 {
 
-Gpt2Model::Gpt2Model(graph::NNGraph* graph,
+Gpt2Model::Gpt2Model(NNGraph* graph,
                     const std::string& name,
                     const Gpt2Config& config,
-                    graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                    DataType dtype)
+    : module::Module(graph, name)
     , wte_(graph, name + "_wte",
            config.vocab_size, config.hidden_size,
            2, 0, dtype)
@@ -52,10 +52,10 @@ Gpt2Model::Gpt2Model(graph::NNGraph* graph,
     }
 }
 
-graph::NNGraph::TensorNode* Gpt2Model::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* Gpt2Model::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* position_ids,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
     if(input_ids == nullptr)
@@ -69,12 +69,12 @@ graph::NNGraph::TensorNode* Gpt2Model::forward(
             "Gpt2Model::forward: position_ids must be non-null");
     }
 
-    graph::NNGraph::TensorNode* wte_out = wte_.forward(input_ids);
-    graph::NNGraph::TensorNode* wpe_out = wpe_.forward(position_ids);
-    graph::NNGraph::TensorNode* embed =
-        graph::add(1.0, wte_out, 1.0, wpe_out);
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(embed, 2);
+    NNGraph::TensorNode* wte_out = wte_.forward(input_ids);
+    NNGraph::TensorNode* wpe_out = wpe_.forward(position_ids);
+    NNGraph::TensorNode* embed =
+        add(1.0, wte_out, 1.0, wpe_out);
+    NNGraph::TensorNode* x =
+        transpose(embed, 2);
 
     for(auto& layer : layers_)
     {

@@ -45,16 +45,16 @@ NNGraph::TensorNode *NNMseLossOp::forward()
 
     // norm = ||x|| (scalar)
     NNGraph::TensorNode *norm_node = graph->tensor({}, x->dtype(), false);
-    graph::tensor::clear(norm_node->data());
-    graph::tensor::norm(x->data(), norm_node->data(), 1.0, beta_fresh);
+    tensor_graph::clear(norm_node->data());
+    tensor_graph::norm(x->data(), norm_node->data(), 1.0, beta_fresh);
 
     // norm_copy for multiply (multiply requires distinct tensors)
     TensorGraph::TensorNode *norm_copy_data =
-        graph::tensor::copy(norm_node->data());
+        tensor_graph::copy(norm_node->data());
 
     // loss = scale * norm^2 = scale * ||x||^2
     TensorGraph::TensorNode *loss_data =
-        graph::tensor::multiply(norm_node->data(), norm_copy_data, scale);
+        tensor_graph::multiply(norm_node->data(), norm_copy_data, scale);
 
     NNGraph::TensorNode *loss = graph->tensor(loss_data, out_requires_grad);
     outputs_ = {loss};
@@ -77,7 +77,7 @@ void NNMseLossOp::backward() const
             graph->get_or_create_grad(x, nn_grad_slot_name(x));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
         // grad_x += 2*scale*x (grad_loss implicitly 1.0)
-        graph::tensor::add_inplace(
+        tensor_graph::add_inplace(
             2.0 * scale, x->data(), grad_beta, grad_x->data());
     }
 }

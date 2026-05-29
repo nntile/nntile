@@ -40,7 +40,7 @@ NNGraph::TensorNode *NNGemmOp::forward()
     }
     NNGraph *graph = a->graph();
     bool out_requires_grad = any_input_requires_grad({a, b});
-    TensorGraph::TensorNode *c_data = graph::tensor::gemm(
+    TensorGraph::TensorNode *c_data = tensor_graph::gemm(
         a->data(), b->data(), alpha, trans_a, trans_b, ndim, batch_ndim);
     NNGraph::TensorNode *c = graph->tensor(c_data, out_requires_grad);
     outputs_ = {c};
@@ -67,7 +67,7 @@ void NNGemmOp::backward() const
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if (!trans_a)
         {
-            graph::tensor::gemm(grad_out->data(),
+            tensor_graph::gemm(grad_out->data(),
                 b->data(),
                 grad_a->data(),
                 alpha,
@@ -79,7 +79,7 @@ void NNGemmOp::backward() const
         }
         else
         {
-            graph::tensor::gemm(b->data(),
+            tensor_graph::gemm(b->data(),
                 grad_out->data(),
                 grad_a->data(),
                 alpha,
@@ -97,7 +97,7 @@ void NNGemmOp::backward() const
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if (!trans_b)
         {
-            graph::tensor::gemm(a->data(),
+            tensor_graph::gemm(a->data(),
                 grad_out->data(),
                 grad_b->data(),
                 alpha,
@@ -109,7 +109,7 @@ void NNGemmOp::backward() const
         }
         else
         {
-            graph::tensor::gemm(grad_out->data(),
+            tensor_graph::gemm(grad_out->data(),
                 a->data(),
                 grad_b->data(),
                 alpha,

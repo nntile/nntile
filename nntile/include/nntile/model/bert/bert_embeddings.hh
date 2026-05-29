@@ -22,31 +22,31 @@
 namespace nntile::model::bert
 {
 
-class BertEmbeddings : public graph::module::Module
+class BertEmbeddings : public module::Module
 {
 private:
-    graph::module::Embedding word_embeddings_;
-    graph::module::Embedding position_embeddings_;
-    graph::module::Embedding token_type_embeddings_;
-    graph::module::LayerNorm layer_norm_;
+    module::Embedding word_embeddings_;
+    module::Embedding position_embeddings_;
+    module::Embedding token_type_embeddings_;
+    module::LayerNorm layer_norm_;
 
     BertConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    BertEmbeddings(graph::NNGraph* graph,
+    BertEmbeddings(NNGraph* graph,
                    const std::string& name,
                    const BertConfig& config,
-                   graph::DataType dtype = graph::DataType::FP32);
+                   DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* token_type_ids,
-        graph::NNGraph::TensorNode* position_ids);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* token_type_ids,
+        NNGraph::TensorNode* position_ids);
 
     std::string repr() const override;
 
-    graph::NNGraph::TensorNode* word_vocab_tensor() const
+    NNGraph::TensorNode* word_vocab_tensor() const
     {
         return word_embeddings_.vocab_tensor();
     }

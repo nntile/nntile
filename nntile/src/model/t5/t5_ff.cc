@@ -21,18 +21,18 @@
 namespace nntile::model::t5
 {
 
-T5LayerFF::T5LayerFF(graph::NNGraph* graph,
+T5LayerFF::T5LayerFF(NNGraph* graph,
                      const std::string& name,
                      const T5Config& config,
-                     graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                     DataType dtype)
+    : module::Module(graph, name)
     , layer_norm_(graph, name + "_layer_norm",
                   config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
     , dense_(graph, name + "_dense",
              config.d_model,
              config.d_ff,
              config.d_model,
-             graph::module::ActivationType::GELUTANH,
+             module::ActivationType::GELUTANH,
              dtype)
     , config_(config)
     , dtype_(dtype)
@@ -41,8 +41,8 @@ T5LayerFF::T5LayerFF(graph::NNGraph* graph,
     register_module("dense", &dense_);
 }
 
-graph::NNGraph::TensorNode* T5LayerFF::forward(
-    graph::NNGraph::TensorNode* input)
+NNGraph::TensorNode* T5LayerFF::forward(
+    NNGraph::TensorNode* input)
 {
     if(input == nullptr)
     {
@@ -51,16 +51,16 @@ graph::NNGraph::TensorNode* T5LayerFF::forward(
     }
 
     // layer_norm
-    graph::NNGraph::TensorNode* x_norm = layer_norm_.forward(input);
+    NNGraph::TensorNode* x_norm = layer_norm_.forward(input);
 
     // Transpose (d_model, seq, batch) -> (seq, batch, d_model) for GatedMlp
-    graph::NNGraph::TensorNode* x_t = graph::transpose(x_norm, 1);
+    NNGraph::TensorNode* x_t = transpose(x_norm, 1);
     x_t->set_name(tensor_name("x_t"));
-    graph::NNGraph::TensorNode* ff_out = dense_.forward(x_t);
-    graph::NNGraph::TensorNode* ff_out_t = graph::transpose(ff_out, 2);
+    NNGraph::TensorNode* ff_out = dense_.forward(x_t);
+    NNGraph::TensorNode* ff_out_t = transpose(ff_out, 2);
     ff_out_t->set_name(tensor_name("ff_out_t"));
 
-    return graph::add(1.0, input, 1.0, ff_out_t);
+    return add(1.0, input, 1.0, ff_out_t);
 }
 
 std::string T5LayerFF::repr() const

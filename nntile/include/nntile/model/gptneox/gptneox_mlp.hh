@@ -27,20 +27,20 @@ namespace nntile::model::gptneox
 {
 
 //! GPT-NeoXMLP - MLP with GELU and HF ``dense_*`` biases (like ``Gpt2MLP``).
-class GptneoxMlp : public graph::module::Mlp
+class GptneoxMlp : public module::Mlp
 {
 private:
-    graph::NNGraph::TensorNode* fc1_bias_ = nullptr;
-    graph::NNGraph::TensorNode* fc2_bias_ = nullptr;
+    NNGraph::TensorNode* fc1_bias_ = nullptr;
+    NNGraph::TensorNode* fc2_bias_ = nullptr;
 
 public:
-    GptneoxMlp(graph::NNGraph* graph,
+    GptneoxMlp(NNGraph* graph,
                const std::string& name,
                const GptneoxConfig& config,
-               graph::DataType dtype = graph::DataType::FP32);
+               DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     std::string repr() const override;
 };

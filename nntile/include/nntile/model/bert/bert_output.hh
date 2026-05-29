@@ -22,24 +22,24 @@
 namespace nntile::model::bert
 {
 
-class BertOutput : public graph::module::Module
+class BertOutput : public module::Module
 {
 private:
-    graph::module::Linear dense_;
-    graph::module::LayerNorm layer_norm_;
+    module::Linear dense_;
+    module::LayerNorm layer_norm_;
 
     BertConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    BertOutput(graph::NNGraph* graph,
+    BertOutput(NNGraph* graph,
                const std::string& name,
                const BertConfig& config,
-               graph::DataType dtype = graph::DataType::FP32);
+               DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* hidden,
-        graph::NNGraph::TensorNode* residual);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* hidden,
+        NNGraph::TensorNode* residual);
 
     std::string repr() const override;
 };

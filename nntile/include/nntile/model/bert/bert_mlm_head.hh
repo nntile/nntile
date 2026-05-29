@@ -24,25 +24,25 @@ namespace nntile::model::bert
 {
 
 //! BertLMPredictionHead: transform (Linear+GELUTANH+LN) + decoder Linear.
-class BertMlmHead : public graph::module::Module
+class BertMlmHead : public module::Module
 {
 private:
-    graph::module::Linear transform_dense_;
-    graph::module::Activation transform_act_;
-    graph::module::LayerNorm transform_ln_;
-    graph::module::Linear decoder_;
+    module::Linear transform_dense_;
+    module::Activation transform_act_;
+    module::LayerNorm transform_ln_;
+    module::Linear decoder_;
 
     BertConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    BertMlmHead(graph::NNGraph* graph,
+    BertMlmHead(NNGraph* graph,
                 const std::string& name,
                 const BertConfig& config,
-                graph::NNGraph::TensorNode* tied_word_vocab,
-                graph::DataType dtype = graph::DataType::FP32);
+                NNGraph::TensorNode* tied_word_vocab,
+                DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(graph::NNGraph::TensorNode* hidden);
+    NNGraph::TensorNode* forward(NNGraph::TensorNode* hidden);
 
     std::string repr() const override;
 };

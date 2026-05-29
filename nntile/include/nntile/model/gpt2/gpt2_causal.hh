@@ -29,25 +29,25 @@ namespace nntile::model::gpt2
 {
 
 //! Gpt2Causal - GPT2Model + lm_head for next-token prediction
-class Gpt2Causal : public graph::module::Module
+class Gpt2Causal : public module::Module
 {
 private:
     std::unique_ptr<Gpt2Model> model_;
-    graph::module::Linear lm_head_;
+    module::Linear lm_head_;
 
     Gpt2Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    Gpt2Causal(graph::NNGraph* graph,
+    Gpt2Causal(NNGraph* graph,
                const std::string& name,
                const Gpt2Config& config,
-               graph::DataType dtype = graph::DataType::FP32);
+               DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* position_ids,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;

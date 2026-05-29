@@ -71,7 +71,7 @@ NNGraph::TensorNode *GatedMlp::forward(NNGraph::TensorNode *input)
     gate_tensor_ = gate_proj_(input);
     up_tensor_ = up_proj_(input);
     gate_act_tensor_ = activation_(gate_tensor_);
-    hidden_tensor_ = graph::multiply(gate_act_tensor_, up_tensor_)
+    hidden_tensor_ = multiply(gate_act_tensor_, up_tensor_)
                          ->set_name(tensor_name("hidden"));
     output_tensor_ = down_proj_(hidden_tensor_);
     return output_tensor_;

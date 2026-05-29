@@ -20,11 +20,11 @@
 namespace nntile::model::gptneo
 {
 
-GptneoDecoder::GptneoDecoder(graph::NNGraph* graph,
+GptneoDecoder::GptneoDecoder(NNGraph* graph,
                              const std::string& name,
                              const GptneoConfig& config,
-                             graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                             DataType dtype)
+    : module::Module(graph, name)
     , input_norm_(graph, name + "_input_norm",
                   config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
     , attention_(graph, name + "_self_attn", config, dtype)
@@ -41,9 +41,9 @@ GptneoDecoder::GptneoDecoder(graph::NNGraph* graph,
     register_module("mlp", &mlp_);
 }
 
-graph::NNGraph::TensorNode* GptneoDecoder::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* mask)
+NNGraph::TensorNode* GptneoDecoder::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* mask)
 {
     if(x == nullptr)
     {
@@ -51,19 +51,19 @@ graph::NNGraph::TensorNode* GptneoDecoder::forward(
             "GptneoDecoder::forward: input tensor must be non-null");
     }
 
-    graph::NNGraph::TensorNode* x_norm = input_norm_.forward(x);
-    graph::NNGraph::TensorNode* attn_out =
+    NNGraph::TensorNode* x_norm = input_norm_.forward(x);
+    NNGraph::TensorNode* attn_out =
         attention_.forward(x_norm, mask);
 
-    graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out);
+    NNGraph::TensorNode* post_attn =
+        add(1.0, x, 1.0, attn_out);
     post_attn->set_name(tensor_name("post_attn"));
 
-    graph::NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
-    graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
+    NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
+    NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
 
-    graph::NNGraph::TensorNode* out =
-        graph::add(1.0, post_attn, 1.0, mlp_out);
+    NNGraph::TensorNode* out =
+        add(1.0, post_attn, 1.0, mlp_out);
     out->set_name(tensor_name("decoder_out"));
     return out;
 }

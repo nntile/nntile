@@ -29,23 +29,23 @@ namespace nntile::model::llama
 {
 
 //! LlamaDecoder - input_norm -> attention -> residual -> post_attn_norm -> MLP -> residual
-class LlamaDecoder : public graph::module::Module
+class LlamaDecoder : public module::Module
 {
 private:
-    graph::module::RMSNorm input_norm_;
+    module::RMSNorm input_norm_;
     LlamaAttention attention_;
-    graph::module::RMSNorm post_attn_norm_;
+    module::RMSNorm post_attn_norm_;
     LlamaMLP mlp_;
 
     LlamaConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    LlamaDecoder(graph::NNGraph* graph,
+    LlamaDecoder(NNGraph* graph,
                  const std::string& name,
                  const LlamaConfig& config,
-                 graph::DataType dtype = graph::DataType::FP32);
+                 DataType dtype = DataType::FP32);
 
     //! Forward pass
     //! @param x Input (hidden_size, seq, batch) in Fortran order
@@ -55,13 +55,13 @@ public:
     //! @param k_cache Optional KV cache for K (optional)
     //! @param v_cache Optional KV cache for V (optional)
     //! @param cache_len Current valid length in cache (0 = prefill)
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* sin = nullptr,
-        graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr,
-        graph::NNGraph::TensorNode* k_cache = nullptr,
-        graph::NNGraph::TensorNode* v_cache = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* sin = nullptr,
+        NNGraph::TensorNode* cos = nullptr,
+        NNGraph::TensorNode* mask = nullptr,
+        NNGraph::TensorNode* k_cache = nullptr,
+        NNGraph::TensorNode* v_cache = nullptr,
         Index cache_len = 0);
 
     std::string repr() const override;

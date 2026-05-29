@@ -22,22 +22,22 @@
 namespace nntile::model::bert
 {
 
-class BertIntermediate : public graph::module::Module
+class BertIntermediate : public module::Module
 {
 private:
-    graph::module::Linear dense_;
-    graph::module::Activation activation_;
+    module::Linear dense_;
+    module::Activation activation_;
 
     BertConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    BertIntermediate(graph::NNGraph* graph,
+    BertIntermediate(NNGraph* graph,
                      const std::string& name,
                      const BertConfig& config,
-                     graph::DataType dtype = graph::DataType::FP32);
+                     DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(graph::NNGraph::TensorNode* x);
+    NNGraph::TensorNode* forward(NNGraph::TensorNode* x);
 
     std::string repr() const override;
 };

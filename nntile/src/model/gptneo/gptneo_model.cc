@@ -22,11 +22,11 @@
 namespace nntile::model::gptneo
 {
 
-GptneoModel::GptneoModel(graph::NNGraph* graph,
+GptneoModel::GptneoModel(NNGraph* graph,
                          const std::string& name,
                          const GptneoConfig& config,
-                         graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                         DataType dtype)
+    : module::Module(graph, name)
     , wte_(graph, name + "_wte",
            config.vocab_size, config.hidden_size,
            2, 0, dtype)
@@ -53,11 +53,11 @@ GptneoModel::GptneoModel(graph::NNGraph* graph,
     }
 }
 
-graph::NNGraph::TensorNode* GptneoModel::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask,
-    graph::NNGraph::TensorNode* local_mask)
+NNGraph::TensorNode* GptneoModel::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* position_ids,
+    NNGraph::TensorNode* mask,
+    NNGraph::TensorNode* local_mask)
 {
     if(input_ids == nullptr)
     {
@@ -70,18 +70,18 @@ graph::NNGraph::TensorNode* GptneoModel::forward(
             "GptneoModel::forward: position_ids required for GPT-Neo");
     }
 
-    graph::NNGraph::TensorNode* token_embed = wte_.forward(input_ids);
-    graph::NNGraph::TensorNode* pos_embed = wpe_.forward(position_ids);
-    graph::NNGraph::TensorNode* embed =
-        graph::add(1.0, token_embed, 1.0, pos_embed);
+    NNGraph::TensorNode* token_embed = wte_.forward(input_ids);
+    NNGraph::TensorNode* pos_embed = wpe_.forward(position_ids);
+    NNGraph::TensorNode* embed =
+        add(1.0, token_embed, 1.0, pos_embed);
     embed->set_name(tensor_name("embed"));
 
-    graph::NNGraph::TensorNode* x = graph::transpose(embed, 2);
+    NNGraph::TensorNode* x = transpose(embed, 2);
     x->set_name(tensor_name("embed_out"));
 
     for(Index i = 0; i < config_.num_hidden_layers; ++i)
     {
-        graph::NNGraph::TensorNode* layer_mask = mask;
+        NNGraph::TensorNode* layer_mask = mask;
         if(config_.is_local_attention_layer(i))
         {
             layer_mask = local_mask != nullptr ? local_mask : mask;

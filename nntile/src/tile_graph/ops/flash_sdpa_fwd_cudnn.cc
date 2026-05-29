@@ -18,6 +18,8 @@
 #include <nntile/dtype.hh>
 #include <nntile/tile.hh>
 #include <nntile/tile/flash_sdpa_fwd_cudnn.hh>
+
+#include <nntile/runtime.hh>
 namespace nntile::tile_graph
 {
 namespace

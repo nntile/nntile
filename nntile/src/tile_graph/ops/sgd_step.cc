@@ -22,6 +22,8 @@
 #include <nntile/tile.hh>
 #include <nntile/tile/sgd_step.hh>
 
+#include <nntile/runtime.hh>
+
 namespace nntile::tile_graph
 {
 

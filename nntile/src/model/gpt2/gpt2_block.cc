@@ -20,11 +20,11 @@
 namespace nntile::model::gpt2
 {
 
-Gpt2Block::Gpt2Block(graph::NNGraph* graph,
+Gpt2Block::Gpt2Block(NNGraph* graph,
                     const std::string& name,
                     const Gpt2Config& config,
-                    graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                    DataType dtype)
+    : module::Module(graph, name)
     , ln_1_(graph, name + "_ln_1",
             config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
     , attention_(graph, name + "_attn", config, dtype)
@@ -41,9 +41,9 @@ Gpt2Block::Gpt2Block(graph::NNGraph* graph,
     register_module("mlp", &mlp_);
 }
 
-graph::NNGraph::TensorNode* Gpt2Block::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* Gpt2Block::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
     if(x == nullptr)
@@ -52,17 +52,17 @@ graph::NNGraph::TensorNode* Gpt2Block::forward(
             "Gpt2Block::forward: input tensor must be non-null");
     }
 
-    graph::NNGraph::TensorNode* x_norm = ln_1_.forward(x);
-    graph::NNGraph::TensorNode* attn_out =
+    NNGraph::TensorNode* x_norm = ln_1_.forward(x);
+    NNGraph::TensorNode* attn_out =
         attention_.forward(x_norm, mask, causal);
 
-    graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out);
+    NNGraph::TensorNode* post_attn =
+        add(1.0, x, 1.0, attn_out);
 
-    graph::NNGraph::TensorNode* mlp_in = ln_2_.forward(post_attn);
-    graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
+    NNGraph::TensorNode* mlp_in = ln_2_.forward(post_attn);
+    NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
 
-    return graph::add(1.0, post_attn, 1.0, mlp_out);
+    return add(1.0, post_attn, 1.0, mlp_out);
 }
 
 std::string Gpt2Block::repr() const

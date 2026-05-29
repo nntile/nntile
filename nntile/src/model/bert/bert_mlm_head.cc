@@ -20,8 +20,8 @@ namespace nntile::model::bert
 namespace
 {
 
-graph::NNGraph::TensorNode* require_tied_word_vocab(
-    graph::NNGraph::TensorNode* tied_word_vocab)
+NNGraph::TensorNode* require_tied_word_vocab(
+    NNGraph::TensorNode* tied_word_vocab)
 {
     if(tied_word_vocab == nullptr)
     {
@@ -33,12 +33,12 @@ graph::NNGraph::TensorNode* require_tied_word_vocab(
 
 } // anonymous namespace
 
-BertMlmHead::BertMlmHead(graph::NNGraph* graph,
+BertMlmHead::BertMlmHead(NNGraph* graph,
                          const std::string& name,
                          const BertConfig& config,
-                         graph::NNGraph::TensorNode* tied_word_vocab,
-                         graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                         NNGraph::TensorNode* tied_word_vocab,
+                         DataType dtype)
+    : module::Module(graph, name)
     , transform_dense_(graph, name + "_transform_dense",
                        config.hidden_size,
                        config.hidden_size,
@@ -62,10 +62,10 @@ BertMlmHead::BertMlmHead(graph::NNGraph* graph,
     register_module("decoder", &decoder_);
 }
 
-graph::NNGraph::TensorNode* BertMlmHead::forward(
-    graph::NNGraph::TensorNode* hidden)
+NNGraph::TensorNode* BertMlmHead::forward(
+    NNGraph::TensorNode* hidden)
 {
-    graph::NNGraph::TensorNode* t = graph::gemm(
+    NNGraph::TensorNode* t = gemm(
         transform_dense_.weight_tensor(),
         hidden,
         1.0,
@@ -73,12 +73,12 @@ graph::NNGraph::TensorNode* BertMlmHead::forward(
         false,
         1,
         0);
-    t = graph::add_fiber(
+    t = add_fiber(
         1.0, transform_dense_.bias_tensor(), 1.0, t, 0, 0);
     t = transform_act_.forward(t);
     t = transform_ln_.forward(t);
 
-    graph::NNGraph::TensorNode* logits = graph::gemm(
+    NNGraph::TensorNode* logits = gemm(
         decoder_.weight_tensor(),
         t,
         1.0,
@@ -86,7 +86,7 @@ graph::NNGraph::TensorNode* BertMlmHead::forward(
         false,
         1,
         0);
-    logits = graph::add_fiber(1.0, decoder_.bias_tensor(), 1.0, logits, 0, 0);
+    logits = add_fiber(1.0, decoder_.bias_tensor(), 1.0, logits, 0, 0);
     return logits;
 }
 

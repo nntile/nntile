@@ -16,11 +16,11 @@
 namespace nntile::model::roberta
 {
 
-RobertaMlmHead::RobertaMlmHead(graph::NNGraph* graph,
+RobertaMlmHead::RobertaMlmHead(NNGraph* graph,
                                const std::string& name,
                                const RobertaConfig& config,
-                               graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                               DataType dtype)
+    : module::Module(graph, name)
     , transform_dense_(graph, name + "_transform_dense",
                        config.hidden_size,
                        config.hidden_size,
@@ -48,10 +48,10 @@ RobertaMlmHead::RobertaMlmHead(graph::NNGraph* graph,
     register_module("decoder", &decoder_);
 }
 
-graph::NNGraph::TensorNode* RobertaMlmHead::forward(
-    graph::NNGraph::TensorNode* hidden)
+NNGraph::TensorNode* RobertaMlmHead::forward(
+    NNGraph::TensorNode* hidden)
 {
-    graph::NNGraph::TensorNode* t = graph::gemm(
+    NNGraph::TensorNode* t = gemm(
         transform_dense_.weight_tensor(),
         hidden,
         1.0,
@@ -59,12 +59,12 @@ graph::NNGraph::TensorNode* RobertaMlmHead::forward(
         false,
         1,
         0);
-    t = graph::add_fiber(
+    t = add_fiber(
         1.0, transform_dense_.bias_tensor(), 1.0, t, 0, 0);
     t = transform_act_.forward(t);
     t = transform_ln_.forward(t);
 
-    graph::NNGraph::TensorNode* logits = graph::gemm(
+    NNGraph::TensorNode* logits = gemm(
         decoder_.weight_tensor(),
         t,
         1.0,
@@ -72,7 +72,7 @@ graph::NNGraph::TensorNode* RobertaMlmHead::forward(
         false,
         1,
         0);
-    logits = graph::add_fiber(1.0, head_bias_tensor_, 1.0, logits, 0, 0);
+    logits = add_fiber(1.0, head_bias_tensor_, 1.0, logits, 0, 0);
     return logits;
 }
 

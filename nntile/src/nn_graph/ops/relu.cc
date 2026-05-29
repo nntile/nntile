@@ -33,7 +33,7 @@ NNGraph::TensorNode *NNReluOp::forward()
     }
     NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
-    TensorGraph::TensorNode *y_data = graph::tensor::relu(x->data());
+    TensorGraph::TensorNode *y_data = tensor_graph::relu(x->data());
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     return y;
@@ -58,9 +58,9 @@ void NNReluOp::backward() const
             graph->get_or_create_grad(x, nn_grad_slot_name(x));
         if (is_first)
         {
-            graph::tensor::clear(grad_x->data());
+            tensor_graph::clear(grad_x->data());
         }
-        graph::tensor::relu_backward(
+        tensor_graph::relu_backward(
             x->data(), grad_out->data(), grad_x->data());
     }
 }

@@ -159,9 +159,18 @@ def move_tree() -> None:
 def rewrite_text(text: str) -> str:
     # Includes: most specific first
     inc_pairs = [
-        (r"#include\s*([<\"])nntile/graph/tile/", r"#include \1nntile/tile_graph/"),
-        (r"#include\s*([<\"])nntile/graph/tensor/", r"#include \1nntile/tensor_graph/"),
-        (r"#include\s*([<\"])nntile/graph/nn/", r"#include \1nntile/nn_graph/"),
+        (
+            r"#include\s*([<\"])nntile/graph/tile/",
+            r"#include \1nntile/tile_graph/",
+        ),
+        (
+            r"#include\s*([<\"])nntile/graph/tensor/",
+            r"#include \1nntile/tensor_graph/",
+        ),
+        (
+            r"#include\s*([<\"])nntile/graph/nn/",
+            r"#include \1nntile/nn_graph/",
+        ),
         (r"#include\s*([<\"])nntile/core/", r"#include \1nntile/"),
         (r"#include\s*([<\"])nntile/graph/", r"#include \1nntile/"),
         (r"#include\s*([<\"])nntile/core\.hh", r"#include \1nntile/core.hh"),
@@ -195,7 +204,10 @@ def rewrite_text(text: str) -> str:
         ("namespace nntile::graph::model", "namespace nntile::model"),
         ("namespace nntile::graph::module", "namespace nntile::module"),
         ("namespace nntile::graph::optim", "namespace nntile::optim"),
-        ("namespace nntile::graph::tile_graph", "namespace nntile::tile_graph"),
+        (
+            "namespace nntile::graph::tile_graph",
+            "namespace nntile::tile_graph",
+        ),
         ("namespace nntile::graph::tensor", "namespace nntile::tensor_graph"),
         ("namespace nntile::core::kernel", "namespace nntile::kernel"),
         ("namespace nntile::core::starpu", "namespace nntile::starpu"),
@@ -204,10 +216,22 @@ def rewrite_text(text: str) -> str:
         ("namespace nntile::core::logger", "namespace nntile::logger"),
         ("namespace nntile::graph", "namespace nntile"),
         ("namespace nntile::core", "namespace nntile"),
-        ("} // namespace nntile::graph::model", "} // namespace nntile::model"),
-        ("} // namespace nntile::graph::module", "} // namespace nntile::module"),
-        ("} // namespace nntile::graph::tile_graph", "} // namespace nntile::tile_graph"),
-        ("} // namespace nntile::graph::tensor", "} // namespace nntile::tensor_graph"),
+        (
+            "} // namespace nntile::graph::model",
+            "} // namespace nntile::model",
+        ),
+        (
+            "} // namespace nntile::graph::module",
+            "} // namespace nntile::module",
+        ),
+        (
+            "} // namespace nntile::graph::tile_graph",
+            "} // namespace nntile::tile_graph",
+        ),
+        (
+            "} // namespace nntile::graph::tensor",
+            "} // namespace nntile::tensor_graph",
+        ),
         ("} // namespace nntile::graph", "} // namespace nntile"),
         ("} // namespace nntile::core", "} // namespace nntile"),
         ("nntile::graph::", "nntile::"),
@@ -215,6 +239,25 @@ def rewrite_text(text: str) -> str:
     ]
     for old, new in ns_pairs:
         text = text.replace(old, new)
+
+    # Bare graph:: in namespace nntile (not tile_/tensor_/fe::graph::).
+    bare_graph_pairs = [
+        ("graph::tensor::", "tensor_graph::"),
+        ("graph::tile_lower::", "tensor_graph::tile_lower::"),
+        ("graph::model::", "model::"),
+        ("graph::module::", "module::"),
+        ("graph::optim::", "optim::"),
+        ("graph::io::", "io::"),
+        ("graph::dataset::", "dataset::"),
+        ("graph::tile_graph::", "tile_graph::"),
+        ("graph::NNGraph", "NNGraph"),
+        ("graph::TensorGraph", "TensorGraph"),
+        ("graph::DataType", "DataType"),
+        ("graph::AxisDescriptor", "AxisDescriptor"),
+    ]
+    for old, new in bare_graph_pairs:
+        text = text.replace(old, new)
+    text = re.sub(r"(?<!tile_)(?<!tensor_)(?<!fe::)graph::", "", text)
 
     # Source tree paths in comments / cmake
     text = text.replace("src/core/", "nntile/src/")

@@ -33,22 +33,22 @@ namespace nntile::model::llama
 {
 
 //! LlamaModel - embed_tokens + num_hidden_layers x LlamaDecoder + norm
-class LlamaModel : public graph::module::Module
+class LlamaModel : public module::Module
 {
 private:
-    graph::module::Embedding embed_tokens_;
+    module::Embedding embed_tokens_;
     std::vector<std::unique_ptr<LlamaDecoder>> layers_;
-    graph::module::RMSNorm norm_;
+    module::RMSNorm norm_;
 
     LlamaConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    LlamaModel(graph::NNGraph* graph,
+    LlamaModel(NNGraph* graph,
                const std::string& name,
                const LlamaConfig& config,
-               graph::DataType dtype = graph::DataType::FP32);
+               DataType dtype = DataType::FP32);
 
     //! Forward pass
     //! @param input_ids (seq, batch) INT64 token indices; output is (hidden_size, seq, batch)
@@ -56,12 +56,12 @@ public:
     //! @param cos RoPE cos per layer (optional)
     //! @param mask Attention mask (optional)
     //! @param kv_cache Optional KV cache; when non-null, uses cache for decode
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* sin = nullptr,
-        graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr,
-        graph::KVCache* kv_cache = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* sin = nullptr,
+        NNGraph::TensorNode* cos = nullptr,
+        NNGraph::TensorNode* mask = nullptr,
+        KVCache* kv_cache = nullptr);
 
     std::string repr() const override;
 

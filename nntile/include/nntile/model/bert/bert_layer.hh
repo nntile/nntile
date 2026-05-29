@@ -23,7 +23,7 @@
 namespace nntile::model::bert
 {
 
-class BertLayer : public graph::module::Module
+class BertLayer : public module::Module
 {
 private:
     BertAttention attention_;
@@ -31,17 +31,17 @@ private:
     BertOutput output_;
 
     BertConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    BertLayer(graph::NNGraph* graph,
+    BertLayer(NNGraph* graph,
               const std::string& name,
               const BertConfig& config,
-              graph::DataType dtype = graph::DataType::FP32);
+              DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;

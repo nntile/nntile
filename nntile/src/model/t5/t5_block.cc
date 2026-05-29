@@ -22,11 +22,11 @@ namespace nntile::model::t5
 
 // ── T5EncoderBlock ─────────────────────────────────────────────────────────
 
-T5EncoderBlock::T5EncoderBlock(graph::NNGraph* graph,
+T5EncoderBlock::T5EncoderBlock(NNGraph* graph,
                                const std::string& name,
                                const T5Config& config,
-                               graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                               DataType dtype)
+    : module::Module(graph, name)
     , layer_norm_0_(graph, name + "_layer_norm_0",
                     config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
     , self_attn_(graph, name + "_self_attn", config, false, dtype)
@@ -39,9 +39,9 @@ T5EncoderBlock::T5EncoderBlock(graph::NNGraph* graph,
     register_module("ff", &ff_);
 }
 
-graph::NNGraph::TensorNode* T5EncoderBlock::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* mask)
+NNGraph::TensorNode* T5EncoderBlock::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* mask)
 {
     if(x == nullptr)
     {
@@ -50,11 +50,11 @@ graph::NNGraph::TensorNode* T5EncoderBlock::forward(
     }
 
     // layer_norm_0 -> self_attn -> add
-    graph::NNGraph::TensorNode* x_norm = layer_norm_0_.forward(x);
-    graph::NNGraph::TensorNode* attn_out =
+    NNGraph::TensorNode* x_norm = layer_norm_0_.forward(x);
+    NNGraph::TensorNode* attn_out =
         self_attn_.forward(x_norm, nullptr, mask);
-    graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out);
+    NNGraph::TensorNode* post_attn =
+        add(1.0, x, 1.0, attn_out);
 
     // layer_norm_1 -> ff (ff includes residual)
     return ff_.forward(post_attn);
@@ -67,11 +67,11 @@ std::string T5EncoderBlock::repr() const
 
 // ── T5DecoderBlock ─────────────────────────────────────────────────────────
 
-T5DecoderBlock::T5DecoderBlock(graph::NNGraph* graph,
+T5DecoderBlock::T5DecoderBlock(NNGraph* graph,
                                const std::string& name,
                                const T5Config& config,
-                               graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                               DataType dtype)
+    : module::Module(graph, name)
     , layer_norm_0_(graph, name + "_layer_norm_0",
                     config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
     , self_attn_(graph, name + "_self_attn", config, false, dtype)
@@ -89,11 +89,11 @@ T5DecoderBlock::T5DecoderBlock(graph::NNGraph* graph,
     register_module("ff", &ff_);
 }
 
-graph::NNGraph::TensorNode* T5DecoderBlock::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* encoder_hidden_states,
-    graph::NNGraph::TensorNode* self_attn_mask,
-    graph::NNGraph::TensorNode* cross_attn_mask)
+NNGraph::TensorNode* T5DecoderBlock::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* encoder_hidden_states,
+    NNGraph::TensorNode* self_attn_mask,
+    NNGraph::TensorNode* cross_attn_mask)
 {
     if(x == nullptr)
     {
@@ -107,18 +107,18 @@ graph::NNGraph::TensorNode* T5DecoderBlock::forward(
     }
 
     // Self-attention
-    graph::NNGraph::TensorNode* x_norm = layer_norm_0_.forward(x);
-    graph::NNGraph::TensorNode* self_attn_out =
+    NNGraph::TensorNode* x_norm = layer_norm_0_.forward(x);
+    NNGraph::TensorNode* self_attn_out =
         self_attn_.forward(x_norm, nullptr, self_attn_mask);
-    graph::NNGraph::TensorNode* post_self =
-        graph::add(1.0, x, 1.0, self_attn_out);
+    NNGraph::TensorNode* post_self =
+        add(1.0, x, 1.0, self_attn_out);
 
     // Cross-attention
-    graph::NNGraph::TensorNode* x_norm1 = layer_norm_1_.forward(post_self);
-    graph::NNGraph::TensorNode* cross_attn_out =
+    NNGraph::TensorNode* x_norm1 = layer_norm_1_.forward(post_self);
+    NNGraph::TensorNode* cross_attn_out =
         cross_attn_.forward(x_norm1, encoder_hidden_states, cross_attn_mask);
-    graph::NNGraph::TensorNode* post_cross =
-        graph::add(1.0, post_self, 1.0, cross_attn_out);
+    NNGraph::TensorNode* post_cross =
+        add(1.0, post_self, 1.0, cross_attn_out);
 
     // FF
     return ff_.forward(post_cross);

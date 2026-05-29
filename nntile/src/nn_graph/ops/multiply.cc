@@ -39,7 +39,7 @@ NNGraph::TensorNode *NNMultiplyOp::forward()
     NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x, y});
     TensorGraph::TensorNode *z_data =
-        graph::tensor::multiply(x->data(), y->data(), alpha);
+        tensor_graph::multiply(x->data(), y->data(), alpha);
     NNGraph::TensorNode *z = graph->tensor(z_data, out_requires_grad);
     outputs_ = {z};
     return z;
@@ -64,8 +64,8 @@ void NNMultiplyOp::backward() const
             graph->get_or_create_grad(x, nn_grad_slot_name(x));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
         TensorGraph::TensorNode *grad_x_buf =
-            graph::tensor::multiply(grad_out->data(), y->data(), alpha);
-        graph::tensor::add_inplace(1.0, grad_x_buf, grad_beta, grad_x->data());
+            tensor_graph::multiply(grad_out->data(), y->data(), alpha);
+        tensor_graph::add_inplace(1.0, grad_x_buf, grad_beta, grad_x->data());
     }
     if (y != nullptr && y->requires_grad())
     {
@@ -73,8 +73,8 @@ void NNMultiplyOp::backward() const
             graph->get_or_create_grad(y, nn_grad_slot_name(y));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
         TensorGraph::TensorNode *grad_y_buf =
-            graph::tensor::multiply(grad_out->data(), x->data(), alpha);
-        graph::tensor::add_inplace(1.0, grad_y_buf, grad_beta, grad_y->data());
+            tensor_graph::multiply(grad_out->data(), x->data(), alpha);
+        tensor_graph::add_inplace(1.0, grad_y_buf, grad_beta, grad_y->data());
     }
 }
 

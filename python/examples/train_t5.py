@@ -7,5 +7,6 @@ def main() -> None:
     _ = ctx, NNGraph()
     raise SystemExit('Example scaffold: implement t5 training')
 
+
 if __name__ == '__main__':
     main()

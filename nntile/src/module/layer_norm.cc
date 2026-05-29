@@ -23,13 +23,13 @@
 namespace nntile::module
 {
 
-LayerNorm::LayerNorm(graph::NNGraph* graph,
+LayerNorm::LayerNorm(NNGraph* graph,
                      const std::string& name,
                      Index normalized_shape,
                      Index axis,
                      float eps,
                      int redux,
-                     graph::DataType dtype)
+                     DataType dtype)
     : Module(graph, name)
     , normalized_shape_(normalized_shape)
     , axis_(axis)
@@ -45,15 +45,15 @@ LayerNorm::LayerNorm(graph::NNGraph* graph,
     register_parameter("beta", beta_tensor_);
 }
 
-graph::NNGraph::TensorNode* LayerNorm::forward(
-    graph::NNGraph::TensorNode* x)
+NNGraph::TensorNode* LayerNorm::forward(
+    NNGraph::TensorNode* x)
 {
     if(x == nullptr)
     {
         throw std::invalid_argument(
             "LayerNorm::forward: input tensor must be non-null");
     }
-    return graph::layer_norm(x, gamma_tensor_, beta_tensor_,
+    return layer_norm(x, gamma_tensor_, beta_tensor_,
                              tensor_name("out"), axis_, eps_, redux_);
 }
 
@@ -63,7 +63,7 @@ std::string LayerNorm::repr() const
            ", eps=" + std::to_string(eps_) + ")";
 }
 
-void LayerNorm::import_hf(const graph::io::SafeTensorsReader& reader,
+void LayerNorm::import_hf(const io::SafeTensorsReader& reader,
                           const std::string& hf_prefix)
 {
     const std::string gamma_key =
@@ -104,7 +104,7 @@ void LayerNorm::import_hf(const graph::io::SafeTensorsReader& reader,
     beta_tensor_->mark_input(true);
 }
 
-void LayerNorm::export_hf(graph::io::SafeTensorsWriter& writer,
+void LayerNorm::export_hf(io::SafeTensorsWriter& writer,
                           const std::string& hf_prefix) const
 {
     const std::string gamma_key =

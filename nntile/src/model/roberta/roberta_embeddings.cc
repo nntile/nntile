@@ -18,11 +18,11 @@
 namespace nntile::model::roberta
 {
 
-RobertaEmbeddings::RobertaEmbeddings(graph::NNGraph* graph,
+RobertaEmbeddings::RobertaEmbeddings(NNGraph* graph,
                                      const std::string& name,
                                      const RobertaConfig& config,
-                                     graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                                     DataType dtype)
+    : module::Module(graph, name)
     , word_embeddings_(graph, name + "_word",
                        config.vocab_size, config.hidden_size,
                        2, 0, dtype)
@@ -41,9 +41,9 @@ RobertaEmbeddings::RobertaEmbeddings(graph::NNGraph* graph,
     register_module("ln", &layer_norm_);
 }
 
-graph::NNGraph::TensorNode* RobertaEmbeddings::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* position_ids)
+NNGraph::TensorNode* RobertaEmbeddings::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* position_ids)
 {
     if(input_ids == nullptr || position_ids == nullptr)
     {
@@ -52,15 +52,15 @@ graph::NNGraph::TensorNode* RobertaEmbeddings::forward(
             "non-null");
     }
 
-    graph::NNGraph::TensorNode* word =
+    NNGraph::TensorNode* word =
         word_embeddings_.forward(input_ids);
-    graph::NNGraph::TensorNode* position =
+    NNGraph::TensorNode* position =
         position_embeddings_.forward(position_ids);
 
-    graph::NNGraph::TensorNode* embed =
-        graph::add(1.0, word, 1.0, position);
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(embed, 2);
+    NNGraph::TensorNode* embed =
+        add(1.0, word, 1.0, position);
+    NNGraph::TensorNode* x =
+        transpose(embed, 2);
     return layer_norm_.forward(x);
 }
 

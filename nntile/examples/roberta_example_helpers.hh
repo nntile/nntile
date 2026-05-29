@@ -24,12 +24,12 @@
 namespace nntile::examples
 {
 
-inline graph::model::roberta::RobertaConfig make_tiny_roberta_config(
-    graph::Index num_hidden_layers,
-    graph::Index max_position_embeddings,
+inline model::roberta::RobertaConfig make_tiny_roberta_config(
+    Index num_hidden_layers,
+    Index max_position_embeddings,
     float layer_norm_eps = 1e-5f)
 {
-    graph::model::roberta::RobertaConfig c;
+    model::roberta::RobertaConfig c;
     c.vocab_size = 64;
     c.hidden_size = 32;
     c.intermediate_size = 64;
@@ -50,7 +50,7 @@ enum class RobertaParamInitScale
 };
 
 inline void init_random_roberta_parameter_hints(
-    graph::model::roberta::RobertaMlm &model,
+    model::roberta::RobertaMlm &model,
     std::mt19937 &gen,
     RobertaParamInitScale scale = RobertaParamInitScale::FanInSqrt)
 {
@@ -58,7 +58,7 @@ inline void init_random_roberta_parameter_hints(
          model.parameters_recursive())
     {
         const auto &shape = tensor->shape();
-        graph::Index nelems = 1;
+        Index nelems = 1;
         for (auto d : shape)
         {
             nelems *= d;
@@ -96,14 +96,14 @@ inline void init_random_roberta_parameter_hints(
 
 inline void fill_roberta_position_ids(
     std::vector<std::int64_t> &pos,
-    graph::Index n_seq,
-    graph::Index n_batch,
+    Index n_seq,
+    Index n_batch,
     std::int64_t pad_token_id)
 {
     const std::int64_t offset = pad_token_id + 1;
-    for (graph::Index b = 0; b < n_batch; ++b)
+    for (Index b = 0; b < n_batch; ++b)
     {
-        for (graph::Index s = 0; s < n_seq; ++s)
+        for (Index s = 0; s < n_seq; ++s)
         {
             pos[s + n_seq * b] = offset + static_cast<std::int64_t>(s);
         }

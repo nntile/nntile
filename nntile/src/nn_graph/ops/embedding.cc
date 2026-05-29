@@ -37,7 +37,7 @@ NNGraph::TensorNode *NNEmbeddingOp::forward()
     bool out_requires_grad = any_input_requires_grad({vocab});
 
     TensorGraph::TensorNode *embed_data =
-        graph::tensor::embedding(index->data(), vocab->data(), axis);
+        tensor_graph::embedding(index->data(), vocab->data(), axis);
     NNGraph::TensorNode *embed = graph->tensor(embed_data, out_requires_grad);
     outputs_ = {embed};
     return embed;
@@ -65,9 +65,9 @@ void NNEmbeddingOp::backward() const
         graph->get_or_create_grad(vocab, nn_grad_slot_name(vocab));
     if (is_first)
     {
-        graph::tensor::clear(grad_vocab->data());
+        tensor_graph::clear(grad_vocab->data());
     }
-    graph::tensor::embedding_backward(
+    tensor_graph::embedding_backward(
         index->data(), grad_out->data(), grad_vocab->data(), axis, redux);
 }
 

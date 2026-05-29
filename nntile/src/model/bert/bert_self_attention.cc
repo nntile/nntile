@@ -22,11 +22,11 @@
 namespace nntile::model::bert
 {
 
-BertSelfAttention::BertSelfAttention(graph::NNGraph* graph,
+BertSelfAttention::BertSelfAttention(NNGraph* graph,
                                      const std::string& name,
                                      const BertConfig& config,
-                                     graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                                     DataType dtype)
+    : module::Module(graph, name)
     , config_(config)
     , dtype_(dtype)
     , head_size_(config.hidden_size / config.num_attention_heads)
@@ -61,9 +61,9 @@ BertSelfAttention::BertSelfAttention(graph::NNGraph* graph,
     register_parameter("v_bias", v_bias_);
 }
 
-graph::NNGraph::TensorNode* BertSelfAttention::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* BertSelfAttention::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
     throw_if_causal_flag_set(causal, "BertSelfAttention");
@@ -74,32 +74,32 @@ graph::NNGraph::TensorNode* BertSelfAttention::forward(
             "BertSelfAttention::forward: input tensor must be non-null");
     }
 
-    graph::NNGraph::TensorNode* q_proj =
-        graph::gemm(w_q_, x, 1.0, false, false, 1, 0);
+    NNGraph::TensorNode* q_proj =
+        gemm(w_q_, x, 1.0, false, false, 1, 0);
     q_proj->set_name(tensor_name("q_proj"));
-    graph::NNGraph::TensorNode* q = graph::transpose(q_proj, 1);
-    q = graph::add_fiber(1.0, q_bias_, 1.0, q, 0, 1);
+    NNGraph::TensorNode* q = transpose(q_proj, 1);
+    q = add_fiber(1.0, q_bias_, 1.0, q, 0, 1);
     q->set_name(tensor_name("q"));
 
-    graph::NNGraph::TensorNode* k_proj =
-        graph::gemm(w_k_, x, 1.0, false, false, 1, 0);
+    NNGraph::TensorNode* k_proj =
+        gemm(w_k_, x, 1.0, false, false, 1, 0);
     k_proj->set_name(tensor_name("k_proj"));
-    graph::NNGraph::TensorNode* k = graph::transpose(k_proj, 1);
-    k = graph::add_fiber(1.0, k_bias_, 1.0, k, 0, 1);
+    NNGraph::TensorNode* k = transpose(k_proj, 1);
+    k = add_fiber(1.0, k_bias_, 1.0, k, 0, 1);
     k->set_name(tensor_name("k"));
 
-    graph::NNGraph::TensorNode* v_proj =
-        graph::gemm(w_v_, x, 1.0, false, false, 1, 0);
+    NNGraph::TensorNode* v_proj =
+        gemm(w_v_, x, 1.0, false, false, 1, 0);
     v_proj->set_name(tensor_name("v_proj"));
-    graph::NNGraph::TensorNode* v = graph::transpose(v_proj, 1);
-    v = graph::add_fiber(1.0, v_bias_, 1.0, v, 0, 1);
+    NNGraph::TensorNode* v = transpose(v_proj, 1);
+    v = add_fiber(1.0, v_bias_, 1.0, v, 0, 1);
     v->set_name(tensor_name("v"));
 
-    graph::NNGraph::TensorNode* attn_out =
-        graph::sdpa_eager(q, k, v, mask, 2, 0);
+    NNGraph::TensorNode* attn_out =
+        sdpa_eager(q, k, v, mask, 2, 0);
     attn_out->set_name(tensor_name("sdpa_out"));
 
-    graph::NNGraph::TensorNode* attn_t = graph::transpose(attn_out, 3);
+    NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
     attn_t->set_name(tensor_name("attn_heads"));
     return attn_t;
 }

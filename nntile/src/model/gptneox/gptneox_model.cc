@@ -21,11 +21,11 @@
 namespace nntile::model::gptneox
 {
 
-GptneoxModel::GptneoxModel(graph::NNGraph* graph,
+GptneoxModel::GptneoxModel(NNGraph* graph,
                            const std::string& name,
                            const GptneoxConfig& config,
-                           graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                           DataType dtype)
+    : module::Module(graph, name)
     , embed_tokens_(graph, name + "_embed_tokens",
                     config.vocab_size, config.hidden_size,
                     2, 0, dtype)
@@ -47,11 +47,11 @@ GptneoxModel::GptneoxModel(graph::NNGraph* graph,
     }
 }
 
-graph::NNGraph::TensorNode* GptneoxModel::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* sin,
-    graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask)
+NNGraph::TensorNode* GptneoxModel::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* sin,
+    NNGraph::TensorNode* cos,
+    NNGraph::TensorNode* mask)
 {
     if(input_ids == nullptr)
     {
@@ -59,8 +59,8 @@ graph::NNGraph::TensorNode* GptneoxModel::forward(
             "GptneoxModel::forward: input_ids must be non-null");
     }
 
-    graph::NNGraph::TensorNode* embed = embed_tokens_.forward(input_ids);
-    graph::NNGraph::TensorNode* x = graph::transpose(embed, 2);
+    NNGraph::TensorNode* embed = embed_tokens_.forward(input_ids);
+    NNGraph::TensorNode* x = transpose(embed, 2);
     x->set_name(tensor_name("embed_out"));
 
     for(auto& layer : layers_)

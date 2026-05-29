@@ -24,32 +24,32 @@
 namespace nntile::model::roberta
 {
 
-class RobertaModel : public graph::module::Module
+class RobertaModel : public module::Module
 {
 private:
     RobertaEmbeddings embeddings_;
     std::vector<std::unique_ptr<bert::BertLayer>> layers_;
 
     RobertaConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    RobertaModel(graph::NNGraph* graph,
+    RobertaModel(NNGraph* graph,
                  const std::string& name,
                  const RobertaConfig& config,
-                 graph::DataType dtype = graph::DataType::FP32);
+                 DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* position_ids,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;
 
     Index num_layers() const { return config_.num_hidden_layers; }
 
-    graph::NNGraph::TensorNode* word_vocab_tensor() const
+    NNGraph::TensorNode* word_vocab_tensor() const
     {
         return embeddings_.word_vocab_tensor();
     }

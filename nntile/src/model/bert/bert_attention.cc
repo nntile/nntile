@@ -14,11 +14,11 @@
 namespace nntile::model::bert
 {
 
-BertAttention::BertAttention(graph::NNGraph* graph,
+BertAttention::BertAttention(NNGraph* graph,
                              const std::string& name,
                              const BertConfig& config,
-                             graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                             DataType dtype)
+    : module::Module(graph, name)
     , self_attn_(graph, name + "_self", config, dtype)
     , self_out_(graph, name + "_output", config, dtype)
     , config_(config)
@@ -29,12 +29,12 @@ BertAttention::BertAttention(graph::NNGraph* graph,
     register_module("output", &self_out_);
 }
 
-graph::NNGraph::TensorNode* BertAttention::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* BertAttention::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
-    graph::NNGraph::TensorNode* heads =
+    NNGraph::TensorNode* heads =
         self_attn_.forward(x, mask, causal);
     return self_out_.forward(heads, x);
 }

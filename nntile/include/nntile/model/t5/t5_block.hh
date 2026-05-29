@@ -34,54 +34,54 @@ namespace nntile::model::t5
 
 //! T5EncoderBlock - self_attn + ff with residuals
 //! Flow: layer_norm_0 -> self_attn -> add -> ff (ff has layer_norm inside)
-class T5EncoderBlock : public graph::module::Module
+class T5EncoderBlock : public module::Module
 {
 private:
-    graph::module::RMSNorm layer_norm_0_;
+    module::RMSNorm layer_norm_0_;
     T5Attention self_attn_;
     T5LayerFF ff_;
 
     T5Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    T5EncoderBlock(graph::NNGraph* graph,
+    T5EncoderBlock(NNGraph* graph,
                    const std::string& name,
                    const T5Config& config,
-                   graph::DataType dtype = graph::DataType::FP32);
+                   DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* mask = nullptr);
 
     std::string repr() const override;
 };
 
 //! T5DecoderBlock - self_attn + cross_attn + ff with residuals
 //! Flow: ln0->self_attn->add -> ln1->cross_attn->add -> ff (ff has ln inside)
-class T5DecoderBlock : public graph::module::Module
+class T5DecoderBlock : public module::Module
 {
 private:
-    graph::module::RMSNorm layer_norm_0_;
+    module::RMSNorm layer_norm_0_;
     T5Attention self_attn_;
-    graph::module::RMSNorm layer_norm_1_;
+    module::RMSNorm layer_norm_1_;
     T5Attention cross_attn_;
     T5LayerFF ff_;
 
     T5Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    T5DecoderBlock(graph::NNGraph* graph,
+    T5DecoderBlock(NNGraph* graph,
                    const std::string& name,
                    const T5Config& config,
-                   graph::DataType dtype = graph::DataType::FP32);
+                   DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* encoder_hidden_states,
-        graph::NNGraph::TensorNode* self_attn_mask = nullptr,
-        graph::NNGraph::TensorNode* cross_attn_mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* encoder_hidden_states,
+        NNGraph::TensorNode* self_attn_mask = nullptr,
+        NNGraph::TensorNode* cross_attn_mask = nullptr);
 
     std::string repr() const override;
 };

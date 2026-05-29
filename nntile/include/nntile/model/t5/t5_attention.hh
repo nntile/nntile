@@ -31,16 +31,16 @@ namespace nntile::model::t5
 //! T5Attention - Q/K/V projections via gemm, SDPA, output projection
 //! For self-attention: Q,K,V from same input x
 //! For cross-attention: Q from x, K,V from encoder_output
-class T5Attention : public graph::module::Module
+class T5Attention : public module::Module
 {
 private:
-    graph::NNGraph::TensorNode* w_q_ = nullptr;  // (n_heads, head_size, d_model)
-    graph::NNGraph::TensorNode* w_k_ = nullptr;  // (n_heads, head_size, d_kv) for cross, d_model for self
-    graph::NNGraph::TensorNode* w_v_ = nullptr;  // (n_heads, head_size, d_kv) for cross, d_model for self
-    graph::NNGraph::TensorNode* w_o_ = nullptr;  // (d_model, n_heads, head_size)
+    NNGraph::TensorNode* w_q_ = nullptr;  // (n_heads, head_size, d_model)
+    NNGraph::TensorNode* w_k_ = nullptr;  // (n_heads, head_size, d_kv) for cross, d_model for self
+    NNGraph::TensorNode* w_v_ = nullptr;  // (n_heads, head_size, d_kv) for cross, d_model for self
+    NNGraph::TensorNode* w_o_ = nullptr;  // (d_model, n_heads, head_size)
 
     T5Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
     bool is_cross_attention_;
 
     Index head_size_;
@@ -48,20 +48,20 @@ private:
 
 public:
     //! Constructor
-    T5Attention(graph::NNGraph* graph,
+    T5Attention(NNGraph* graph,
                 const std::string& name,
                 const T5Config& config,
                 bool is_cross_attention = false,
-                graph::DataType dtype = graph::DataType::FP32);
+                DataType dtype = DataType::FP32);
 
     //! Forward pass
     //! @param x Input (d_model, seq, batch) - query source
     //! @param encoder_output For cross-attention: (d_model, enc_seq, batch). For self-attn: nullptr
     //! @param mask Optional attention mask (k_seq, q_seq)
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* encoder_output = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* encoder_output = nullptr,
+        NNGraph::TensorNode* mask = nullptr);
 
     std::string repr() const override;
 

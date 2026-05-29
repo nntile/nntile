@@ -48,7 +48,7 @@ struct RobertaConfig
     void validate() const;
 };
 
-inline graph::module::ActivationType activation_type_from_config(
+inline module::ActivationType activation_type_from_config(
     const RobertaConfig& config)
 {
     return bert::activation_type_from_hidden_act(config.hidden_act);

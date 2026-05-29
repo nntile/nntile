@@ -21,30 +21,30 @@ namespace nntile::model::bert
 {
 
 //! Q/K/V projections and SDPA; output projection lives in BertSelfOutput.
-class BertSelfAttention : public graph::module::Module
+class BertSelfAttention : public module::Module
 {
 private:
-    graph::NNGraph::TensorNode* w_q_ = nullptr;
-    graph::NNGraph::TensorNode* w_k_ = nullptr;
-    graph::NNGraph::TensorNode* w_v_ = nullptr;
-    graph::NNGraph::TensorNode* q_bias_ = nullptr;
-    graph::NNGraph::TensorNode* k_bias_ = nullptr;
-    graph::NNGraph::TensorNode* v_bias_ = nullptr;
+    NNGraph::TensorNode* w_q_ = nullptr;
+    NNGraph::TensorNode* w_k_ = nullptr;
+    NNGraph::TensorNode* w_v_ = nullptr;
+    NNGraph::TensorNode* q_bias_ = nullptr;
+    NNGraph::TensorNode* k_bias_ = nullptr;
+    NNGraph::TensorNode* v_bias_ = nullptr;
 
     BertConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
     Index head_size_;
     Index n_heads_;
 
 public:
-    BertSelfAttention(graph::NNGraph* graph,
+    BertSelfAttention(NNGraph* graph,
                       const std::string& name,
                       const BertConfig& config,
-                      graph::DataType dtype = graph::DataType::FP32);
+                      DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;

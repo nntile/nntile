@@ -7,5 +7,6 @@ def main() -> None:
     _ = ctx, NNGraph()
     raise SystemExit('Example scaffold: implement llama inference')
 
+
 if __name__ == '__main__':
     main()

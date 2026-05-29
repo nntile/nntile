@@ -27,7 +27,7 @@ namespace nntile::examples
 {
 
 //! Load ``Gpt2Config`` from JSON (``gpt2_generate.py``, training save, HF).
-inline graph::model::gpt2::Gpt2Config load_gpt2_config_json(std::string const &path)
+inline model::gpt2::Gpt2Config load_gpt2_config_json(std::string const &path)
 {
     std::ifstream f(path);
     if (!f.good())
@@ -36,7 +36,7 @@ inline graph::model::gpt2::Gpt2Config load_gpt2_config_json(std::string const &p
     }
     nlohmann::json j = nlohmann::json::parse(f);
 
-    graph::model::gpt2::Gpt2Config cfg;
+    model::gpt2::Gpt2Config cfg;
     cfg.vocab_size = config_get_int(j, "vocab_size", 50257);
     cfg.hidden_size = config_get_int(
         j, "hidden_size", config_get_int(j, "n_embd", 768));
@@ -67,7 +67,7 @@ inline graph::model::gpt2::Gpt2Config load_gpt2_config_json(std::string const &p
 
 //! Write ``Gpt2Config`` for training checkpoints (``layer_norm_eps`` key).
 inline void save_gpt2_config_json(
-    graph::model::gpt2::Gpt2Config const &cfg,
+    model::gpt2::Gpt2Config const &cfg,
     std::string const &path)
 {
     nlohmann::json j;

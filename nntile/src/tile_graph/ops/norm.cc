@@ -18,6 +18,8 @@
 #include <nntile/dtype.hh>
 #include <nntile/tile.hh>
 #include <nntile/tile/norm.hh>
+
+#include <nntile/runtime.hh>
 namespace nntile::tile_graph
 {
 namespace

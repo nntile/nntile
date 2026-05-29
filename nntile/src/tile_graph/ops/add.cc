@@ -21,6 +21,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include <nntile/runtime.hh>
+
 namespace nntile::tile_graph
 {
 

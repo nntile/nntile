@@ -29,27 +29,27 @@ namespace nntile::model::t5
 {
 
 //! T5ForConditionalGeneration - encoder + decoder + lm_head
-class T5ForConditionalGeneration : public graph::module::Module
+class T5ForConditionalGeneration : public module::Module
 {
 private:
     std::unique_ptr<T5Model> model_;
-    graph::module::Linear lm_head_;
+    module::Linear lm_head_;
 
     T5Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    T5ForConditionalGeneration(graph::NNGraph* graph,
+    T5ForConditionalGeneration(NNGraph* graph,
                                const std::string& name,
                                const T5Config& config,
-                               graph::DataType dtype = graph::DataType::FP32);
+                               DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* encoder_input_ids,
-        graph::NNGraph::TensorNode* decoder_input_ids,
-        graph::NNGraph::TensorNode* encoder_attention_mask = nullptr,
-        graph::NNGraph::TensorNode* decoder_attention_mask = nullptr,
-        graph::NNGraph::TensorNode* cross_attention_mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* encoder_input_ids,
+        NNGraph::TensorNode* decoder_input_ids,
+        NNGraph::TensorNode* encoder_attention_mask = nullptr,
+        NNGraph::TensorNode* decoder_attention_mask = nullptr,
+        NNGraph::TensorNode* cross_attention_mask = nullptr);
 
     std::string repr() const override;
 

@@ -29,28 +29,28 @@ namespace nntile::model::gptneox
 {
 
 //! GptneoxCausal - GptneoxModel + lm_head for next-token prediction
-class GptneoxCausal : public graph::module::Module
+class GptneoxCausal : public module::Module
 {
 private:
     std::unique_ptr<GptneoxModel> model_;
-    graph::module::Linear lm_head_;
+    module::Linear lm_head_;
 
     GptneoxConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    GptneoxCausal(graph::NNGraph* graph,
+    GptneoxCausal(NNGraph* graph,
                   const std::string& name,
                   const GptneoxConfig& config,
-                  graph::DataType dtype = graph::DataType::FP32);
+                  DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* sin = nullptr,
-        graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* sin = nullptr,
+        NNGraph::TensorNode* cos = nullptr,
+        NNGraph::TensorNode* mask = nullptr);
 
     std::string repr() const override;
 

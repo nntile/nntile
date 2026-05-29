@@ -23,13 +23,13 @@
 namespace nntile::module
 {
 
-RMSNorm::RMSNorm(graph::NNGraph *graph,
+RMSNorm::RMSNorm(NNGraph *graph,
     const std::string &name,
     Index normalized_shape,
     Index axis,
     float eps,
     int redux,
-    graph::DataType dtype) :
+    DataType dtype) :
     Module(graph, name),
     normalized_shape_(normalized_shape),
     axis_(axis),
@@ -42,14 +42,14 @@ RMSNorm::RMSNorm(graph::NNGraph *graph,
     register_parameter("gamma", gamma_tensor_);
 }
 
-graph::NNGraph::TensorNode *RMSNorm::forward(graph::NNGraph::TensorNode *x)
+NNGraph::TensorNode *RMSNorm::forward(NNGraph::TensorNode *x)
 {
     if (x == nullptr)
     {
         throw std::invalid_argument(
             "RMSNorm::forward: input tensor must be non-null");
     }
-    return graph::rms_norm(x, gamma_tensor_, axis_, eps_, redux_)
+    return rms_norm(x, gamma_tensor_, axis_, eps_, redux_)
         ->set_name(tensor_name("out"));
 }
 

@@ -21,11 +21,11 @@
 namespace nntile::model::llama
 {
 
-LlamaCausal::LlamaCausal(graph::NNGraph *graph,
+LlamaCausal::LlamaCausal(NNGraph *graph,
     const std::string &name,
     const LlamaConfig &config,
-    graph::DataType dtype) :
-    graph::module::Module(graph, name),
+    DataType dtype) :
+    module::Module(graph, name),
     model_(
         std::make_unique<LlamaModel>(graph, name + "_model", config, dtype)),
     lm_head_(graph,
@@ -41,23 +41,23 @@ LlamaCausal::LlamaCausal(graph::NNGraph *graph,
     register_module("lm_head", &lm_head_);
 }
 
-graph::NNGraph::TensorNode *LlamaCausal::forward(
-    graph::NNGraph::TensorNode *input_ids,
-    graph::NNGraph::TensorNode *sin,
-    graph::NNGraph::TensorNode *cos,
-    graph::NNGraph::TensorNode *mask,
-    graph::KVCache *kv_cache)
+NNGraph::TensorNode *LlamaCausal::forward(
+    NNGraph::TensorNode *input_ids,
+    NNGraph::TensorNode *sin,
+    NNGraph::TensorNode *cos,
+    NNGraph::TensorNode *mask,
+    KVCache *kv_cache)
 {
     // Model output: (hidden, seq, batch)
-    graph::NNGraph::TensorNode *hidden =
+    NNGraph::TensorNode *hidden =
         model_->forward(input_ids, sin, cos, mask, kv_cache);
     // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for lm_head
     // (ndim=1)
-    graph::NNGraph::TensorNode *hidden_t = graph::transpose(hidden, 1);
+    NNGraph::TensorNode *hidden_t = transpose(hidden, 1);
     hidden_t->set_name(tensor_name("hidden_t"));
-    graph::NNGraph::TensorNode *logits_sbv = lm_head_.forward(hidden_t);
+    NNGraph::TensorNode *logits_sbv = lm_head_.forward(hidden_t);
     // Transpose to (vocab, seq, batch) for output (ndim=2)
-    graph::NNGraph::TensorNode *logits = graph::transpose(logits_sbv, 2);
+    NNGraph::TensorNode *logits = transpose(logits_sbv, 2);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

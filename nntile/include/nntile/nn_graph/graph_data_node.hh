@@ -60,7 +60,7 @@ class NNGraph::TensorNode
     //! Label for debugging/bind keys (delegates to underlying tensor node).
     TensorNode *set_name(std::string new_name);
 
-    //! z = alpha * this + beta * rhs (same as free ``graph::add``).
+    //! z = alpha * this + beta * rhs (same as free ``add``).
     TensorNode *add(TensorNode *rhs,
         Scalar alpha = Scalar{1.0f},
         Scalar beta = Scalar{1.0f}) const;

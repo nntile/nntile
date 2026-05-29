@@ -29,33 +29,33 @@ namespace nntile::model::gptneo
 {
 
 //! GPT-Neo attention - Q/K/V projections, SDPA, output projection with bias
-class GptneoAttention : public graph::module::Module
+class GptneoAttention : public module::Module
 {
 private:
-    graph::NNGraph::TensorNode* w_q_ = nullptr;  // (n_heads, head_size, n_emb)
-    graph::NNGraph::TensorNode* w_k_ = nullptr;
-    graph::NNGraph::TensorNode* w_v_ = nullptr;
-    graph::NNGraph::TensorNode* w_o_ = nullptr;  // (n_emb, n_heads, head_size)
-    graph::NNGraph::TensorNode* out_bias_ = nullptr;  // (n_emb)
+    NNGraph::TensorNode* w_q_ = nullptr;  // (n_heads, head_size, n_emb)
+    NNGraph::TensorNode* w_k_ = nullptr;
+    NNGraph::TensorNode* w_v_ = nullptr;
+    NNGraph::TensorNode* w_o_ = nullptr;  // (n_emb, n_heads, head_size)
+    NNGraph::TensorNode* out_bias_ = nullptr;  // (n_emb)
 
     GptneoConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
     Index head_size_;
     Index n_heads_;
 
 public:
     //! Constructor
-    GptneoAttention(graph::NNGraph* graph,
+    GptneoAttention(NNGraph* graph,
                     const std::string& name,
                     const GptneoConfig& config,
-                    graph::DataType dtype = graph::DataType::FP32);
+                    DataType dtype = DataType::FP32);
 
     //! Forward pass
     //! @param causal Placeholder (not implemented); must be ``false``.
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;

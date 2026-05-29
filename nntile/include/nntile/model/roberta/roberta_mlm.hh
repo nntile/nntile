@@ -23,25 +23,25 @@
 namespace nntile::model::roberta
 {
 
-class RobertaMlm : public graph::module::Module
+class RobertaMlm : public module::Module
 {
 private:
     std::unique_ptr<RobertaModel> model_;
     RobertaMlmHead cls_;
 
     RobertaConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    RobertaMlm(graph::NNGraph* graph,
+    RobertaMlm(NNGraph* graph,
                const std::string& name,
                const RobertaConfig& config,
-               graph::DataType dtype = graph::DataType::FP32);
+               DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* position_ids,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;

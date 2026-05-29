@@ -38,17 +38,17 @@ NNGraph::TensorNode *Activation::forward(NNGraph::TensorNode *input)
     switch (type_)
     {
     case ActivationType::GELU:
-        output_tensor_ = graph::gelu(input)->set_name(tensor_name("output"));
+        output_tensor_ = gelu(input)->set_name(tensor_name("output"));
         break;
     case ActivationType::GELUTANH:
         output_tensor_ =
-            graph::gelutanh(input)->set_name(tensor_name("output"));
+            gelutanh(input)->set_name(tensor_name("output"));
         break;
     case ActivationType::RELU:
-        output_tensor_ = graph::relu(input)->set_name(tensor_name("output"));
+        output_tensor_ = relu(input)->set_name(tensor_name("output"));
         break;
     case ActivationType::SILU:
-        output_tensor_ = graph::silu(input)->set_name(tensor_name("output"));
+        output_tensor_ = silu(input)->set_name(tensor_name("output"));
         break;
     }
     return output_tensor_;

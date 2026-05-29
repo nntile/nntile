@@ -32,23 +32,23 @@ namespace nntile::model::t5
 
 //! T5LayerFF - layer_norm -> gated MLP (GELUTANH) -> residual add
 //! Architecture: x + wo(GELUTANH(wi_0(x)) * wi_1(x))
-class T5LayerFF : public graph::module::Module
+class T5LayerFF : public module::Module
 {
 private:
-    graph::module::RMSNorm layer_norm_;
-    graph::module::GatedMlp dense_;  // GELU gated MLP
+    module::RMSNorm layer_norm_;
+    module::GatedMlp dense_;  // GELU gated MLP
 
     T5Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    T5LayerFF(graph::NNGraph* graph,
+    T5LayerFF(NNGraph* graph,
               const std::string& name,
               const T5Config& config,
-              graph::DataType dtype = graph::DataType::FP32);
+              DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     std::string repr() const override;
 };

@@ -28,21 +28,21 @@ namespace nntile::model::llama
 
 //! LlamaMLP - Llama-style gated MLP using SiLU activation
 //! Architecture: down_proj(SiLU(gate_proj(x)) * up_proj(x))
-class LlamaMLP : public graph::module::GatedMlp
+class LlamaMLP : public module::GatedMlp
 {
 public:
     //! Constructor
     //! @param graph Pointer to the neural network graph
     //! @param name Module name
     //! @param config Llama configuration
-    LlamaMLP(graph::NNGraph* graph,
+    LlamaMLP(NNGraph* graph,
              const std::string& name,
              const LlamaConfig& config,
-             graph::DataType dtype = graph::DataType::FP32);
+             DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     //! Get string representation
     std::string repr() const override;

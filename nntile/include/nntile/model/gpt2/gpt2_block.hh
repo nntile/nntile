@@ -31,26 +31,26 @@ namespace nntile::model::gpt2
 {
 
 //! GPT2Block - Pre-norm: ln_1 -> attention -> residual -> ln_2 -> mlp
-class Gpt2Block : public graph::module::Module
+class Gpt2Block : public module::Module
 {
 private:
-    graph::module::LayerNorm ln_1_;
+    module::LayerNorm ln_1_;
     Gpt2Attention attention_;
-    graph::module::LayerNorm ln_2_;
+    module::LayerNorm ln_2_;
     Gpt2MLP mlp_;
 
     Gpt2Config config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    Gpt2Block(graph::NNGraph* graph,
+    Gpt2Block(NNGraph* graph,
               const std::string& name,
               const Gpt2Config& config,
-              graph::DataType dtype = graph::DataType::FP32);
+              DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr,
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* mask = nullptr,
         bool causal = false);
 
     std::string repr() const override;

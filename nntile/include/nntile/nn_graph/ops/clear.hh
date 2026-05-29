@@ -31,7 +31,7 @@ inline void clear(NNGraph::TensorNode* x)
     {
         throw std::invalid_argument("clear: input tensor must be non-null");
     }
-    graph::tensor::clear(x->data());
+    tensor_graph::clear(x->data());
 }
 
 } // namespace nntile

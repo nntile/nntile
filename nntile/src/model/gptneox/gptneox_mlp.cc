@@ -19,15 +19,15 @@
 namespace nntile::model::gptneox
 {
 
-GptneoxMlp::GptneoxMlp(graph::NNGraph* graph,
+GptneoxMlp::GptneoxMlp(NNGraph* graph,
                        const std::string& name,
                        const GptneoxConfig& config,
-                       graph::DataType dtype)
-    : graph::module::Mlp(graph, name,
+                       DataType dtype)
+    : module::Mlp(graph, name,
                          config.hidden_size,
                          config.intermediate_size,
                          config.hidden_size,
-                         graph::module::ActivationType::GELU,
+                         module::ActivationType::GELU,
                          dtype)
 {
     config.validate();
@@ -41,26 +41,26 @@ GptneoxMlp::GptneoxMlp(graph::NNGraph* graph,
     register_parameter("fc2.bias", fc2_bias_);
 }
 
-graph::NNGraph::TensorNode* GptneoxMlp::forward(
-    graph::NNGraph::TensorNode* input)
+NNGraph::TensorNode* GptneoxMlp::forward(
+    NNGraph::TensorNode* input)
 {
-    graph::NNGraph::TensorNode* w1 = fc1().weight_tensor();
-    graph::NNGraph::TensorNode* hidden =
-        graph::gemm(w1, input, 1.0, true, false, 1, 0);
+    NNGraph::TensorNode* w1 = fc1().weight_tensor();
+    NNGraph::TensorNode* hidden =
+        gemm(w1, input, 1.0, true, false, 1, 0);
     hidden->set_name(tensor_name("fc1_out"));
-    hidden = graph::add_fiber(1.0, fc1_bias_, 1.0, hidden, 0, 0);
+    hidden = add_fiber(1.0, fc1_bias_, 1.0, hidden, 0, 0);
     hidden = activation().forward(hidden);
-    graph::NNGraph::TensorNode* w2 = fc2().weight_tensor();
-    graph::NNGraph::TensorNode* out =
-        graph::gemm(w2, hidden, 1.0, true, false, 1, 0);
-    out = graph::add_fiber(1.0, fc2_bias_, 1.0, out, 0, 0);
+    NNGraph::TensorNode* w2 = fc2().weight_tensor();
+    NNGraph::TensorNode* out =
+        gemm(w2, hidden, 1.0, true, false, 1, 0);
+    out = add_fiber(1.0, fc2_bias_, 1.0, out, 0, 0);
     out->set_name(tensor_name("mlp_out"));
     return out;
 }
 
 std::string GptneoxMlp::repr() const
 {
-    return "GptneoxMlp(" + graph::module::Mlp::repr() + ")";
+    return "GptneoxMlp(" + module::Mlp::repr() + ")";
 }
 
 } // namespace nntile::model::gptneox

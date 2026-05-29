@@ -23,6 +23,8 @@
 #include <nntile/tile.hh>
 #include <nntile/tile/gemm.hh>
 
+#include <nntile/runtime.hh>
+
 namespace nntile::tile_graph
 {
 

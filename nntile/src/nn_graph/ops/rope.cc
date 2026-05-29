@@ -41,7 +41,7 @@ NNGraph::TensorNode *NNRopeOp::forward()
     NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
     TensorGraph::TensorNode *y_data =
-        graph::tensor::rope(sin->data(), cos->data(), x->data());
+        tensor_graph::rope(sin->data(), cos->data(), x->data());
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     if (x->requires_grad())
@@ -76,7 +76,7 @@ void NNRopeOp::backward() const
 
     if (is_first)
     {
-        graph::tensor::rope_backward(
+        tensor_graph::rope_backward(
             sin->data(), cos->data(), grad_out->data(), grad_x->data());
     }
     else
@@ -88,9 +88,9 @@ void NNRopeOp::backward() const
             throw std::runtime_error(
                 "NNRopeOp::backward: gradient buffer is missing");
         }
-        graph::tensor::rope_backward(
+        tensor_graph::rope_backward(
             sin->data(), cos->data(), grad_out->data(), grad_buf->data());
-        graph::tensor::add_inplace(
+        tensor_graph::add_inplace(
             1.0, grad_buf->data(), grad_accumulate, grad_x->data());
     }
 }

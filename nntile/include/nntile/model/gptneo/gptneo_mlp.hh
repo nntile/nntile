@@ -34,7 +34,7 @@ namespace nntile::model::gptneo
 
 //! GPT-Neo MLP - up_proj -> GELU (gelutanh) -> down_proj
 //! Architecture: down_proj(GELU(up_proj(x)))
-class GptneoMLP : public graph::module::Mlp
+class GptneoMLP : public module::Mlp
 {
 public:
     //! Constructor
@@ -42,14 +42,14 @@ public:
     //! @param name Module name
     //! @param config GPT-Neo configuration
     //! @param dtype Data type
-    GptneoMLP(graph::NNGraph* graph,
+    GptneoMLP(NNGraph* graph,
               const std::string& name,
               const GptneoConfig& config,
-              graph::DataType dtype = graph::DataType::FP32);
+              DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     //! Get string representation
     std::string repr() const override;

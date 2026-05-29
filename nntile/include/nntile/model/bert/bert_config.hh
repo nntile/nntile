@@ -50,34 +50,34 @@ struct BertConfig
 };
 
 //! Map HuggingFace BertConfig::hidden_act to graph ActivationType.
-inline graph::module::ActivationType activation_type_from_hidden_act(
+inline module::ActivationType activation_type_from_hidden_act(
     const std::string& hidden_act)
 {
     if(hidden_act == "gelu")
     {
-        return graph::module::ActivationType::GELU;
+        return module::ActivationType::GELU;
     }
     if(hidden_act == "gelu_pytorch_tanh" || hidden_act == "gelutanh")
     {
-        return graph::module::ActivationType::GELUTANH;
+        return module::ActivationType::GELUTANH;
     }
     if(hidden_act == "relu")
     {
-        return graph::module::ActivationType::RELU;
+        return module::ActivationType::RELU;
     }
     if(hidden_act == "gelu_new")
     {
-        return graph::module::ActivationType::GELUTANH;
+        return module::ActivationType::GELUTANH;
     }
     if(hidden_act == "silu" || hidden_act == "swish")
     {
-        return graph::module::ActivationType::SILU;
+        return module::ActivationType::SILU;
     }
     throw std::invalid_argument(
         "BertConfig: unsupported hidden_act '" + hidden_act + "'");
 }
 
-inline graph::module::ActivationType activation_type_from_config(
+inline module::ActivationType activation_type_from_config(
     const BertConfig& config)
 {
     return activation_type_from_hidden_act(config.hidden_act);

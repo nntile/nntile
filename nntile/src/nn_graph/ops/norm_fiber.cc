@@ -72,9 +72,9 @@ NNGraph::TensorNode *NNNormFiberOp::forward()
         norm_fiber_output_shape(x->shape(), axis, batch_ndim);
     NNGraph::TensorNode *base =
         graph->tensor(std::move(base_shape), x->dtype(), false);
-    graph::tensor::clear(base->data());
+    tensor_graph::clear(base->data());
     constexpr Scalar beta_fresh = 0.0; // NNGraph always outputs fresh data
-    TensorGraph::TensorNode *y_data = graph::tensor::norm_fiber(
+    TensorGraph::TensorNode *y_data = tensor_graph::norm_fiber(
         alpha, x->data(), beta_fresh, base->data(), axis, batch_ndim, redux);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};

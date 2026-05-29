@@ -16,11 +16,11 @@
 namespace nntile::model::bert
 {
 
-BertMlm::BertMlm(graph::NNGraph* graph,
+BertMlm::BertMlm(NNGraph* graph,
                  const std::string& name,
                  const BertConfig& config,
-                 graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                 DataType dtype)
+    : module::Module(graph, name)
     , model_(std::make_unique<BertModel>(graph, name + "_bert", config, dtype))
     , cls_(graph,
            name + "_cls",
@@ -35,11 +35,11 @@ BertMlm::BertMlm(graph::NNGraph* graph,
     register_module("cls", &cls_);
 }
 
-graph::NNGraph::TensorNode* BertMlm::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* token_type_ids,
-    graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* BertMlm::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* token_type_ids,
+    NNGraph::TensorNode* position_ids,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
     if(input_ids == nullptr || token_type_ids == nullptr ||
@@ -50,9 +50,9 @@ graph::NNGraph::TensorNode* BertMlm::forward(
             "must be non-null");
     }
 
-    graph::NNGraph::TensorNode* hidden = model_->forward(
+    NNGraph::TensorNode* hidden = model_->forward(
         input_ids, token_type_ids, position_ids, mask, causal);
-    graph::NNGraph::TensorNode* logits = cls_.forward(hidden);
+    NNGraph::TensorNode* logits = cls_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

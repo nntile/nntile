@@ -29,28 +29,28 @@ namespace nntile::model::gptneo
 {
 
 //! GPT-Neo decoder block: ln_1 -> attention -> residual -> ln_2 -> MLP -> residual
-class GptneoDecoder : public graph::module::Module
+class GptneoDecoder : public module::Module
 {
 private:
-    graph::module::LayerNorm input_norm_;
+    module::LayerNorm input_norm_;
     GptneoAttention attention_;
-    graph::module::LayerNorm post_attn_norm_;
+    module::LayerNorm post_attn_norm_;
     GptneoMLP mlp_;
 
     GptneoConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    GptneoDecoder(graph::NNGraph* graph,
+    GptneoDecoder(NNGraph* graph,
                   const std::string& name,
                   const GptneoConfig& config,
-                  graph::DataType dtype = graph::DataType::FP32);
+                  DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* x,
+        NNGraph::TensorNode* mask = nullptr);
 
     std::string repr() const override;
 

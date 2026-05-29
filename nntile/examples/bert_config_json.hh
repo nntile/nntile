@@ -23,7 +23,7 @@
 namespace nntile::examples
 {
 
-inline graph::model::bert::BertConfig load_bert_config_json(std::string const &path)
+inline model::bert::BertConfig load_bert_config_json(std::string const &path)
 {
     std::ifstream f(path);
     if (!f.good())
@@ -32,7 +32,7 @@ inline graph::model::bert::BertConfig load_bert_config_json(std::string const &p
     }
     nlohmann::json j = nlohmann::json::parse(f);
 
-    graph::model::bert::BertConfig cfg;
+    model::bert::BertConfig cfg;
     cfg.vocab_size = config_get_int(j, "vocab_size", 30522);
     cfg.hidden_size = config_get_int(j, "hidden_size", 768);
     cfg.num_hidden_layers = config_get_int(j, "num_hidden_layers", 12);
@@ -59,7 +59,7 @@ inline graph::model::bert::BertConfig load_bert_config_json(std::string const &p
 }
 
 inline void save_bert_config_json(
-    graph::model::bert::BertConfig const &cfg,
+    model::bert::BertConfig const &cfg,
     std::string const &path)
 {
     nlohmann::json j;

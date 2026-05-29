@@ -23,25 +23,25 @@ namespace nntile::model::bert
 {
 
 //! Maps attention heads to hidden, adds residual, applies LayerNorm.
-class BertSelfOutput : public graph::module::Module
+class BertSelfOutput : public module::Module
 {
 private:
-    graph::NNGraph::TensorNode* w_dense_ = nullptr;
-    graph::NNGraph::TensorNode* b_dense_ = nullptr;
-    graph::module::LayerNorm layer_norm_;
+    NNGraph::TensorNode* w_dense_ = nullptr;
+    NNGraph::TensorNode* b_dense_ = nullptr;
+    module::LayerNorm layer_norm_;
 
     BertConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
-    BertSelfOutput(graph::NNGraph* graph,
+    BertSelfOutput(NNGraph* graph,
                    const std::string& name,
                    const BertConfig& config,
-                   graph::DataType dtype = graph::DataType::FP32);
+                   DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* attn_heads,
-        graph::NNGraph::TensorNode* residual);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* attn_heads,
+        NNGraph::TensorNode* residual);
 
     std::string repr() const override;
 };

@@ -29,20 +29,20 @@ namespace nntile::model::gpt2
 {
 
 //! GPT2MLP - MLP with GELUTANH and HF ``c_fc`` / ``c_proj`` biases
-class Gpt2MLP : public graph::module::Mlp
+class Gpt2MLP : public module::Mlp
 {
 private:
-    graph::NNGraph::TensorNode* fc1_bias_ = nullptr;
-    graph::NNGraph::TensorNode* fc2_bias_ = nullptr;
+    NNGraph::TensorNode* fc1_bias_ = nullptr;
+    NNGraph::TensorNode* fc2_bias_ = nullptr;
 
 public:
-    Gpt2MLP(graph::NNGraph* graph,
+    Gpt2MLP(NNGraph* graph,
             const std::string& name,
             const Gpt2Config& config,
-            graph::DataType dtype = graph::DataType::FP32);
+            DataType dtype = DataType::FP32);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     std::string repr() const override;
 };

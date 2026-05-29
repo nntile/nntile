@@ -19,6 +19,8 @@
 #include <nntile/dtype.hh>
 #include <nntile/tile.hh>
 #include <nntile/tile/total_sum_accum.hh>
+
+#include <nntile/runtime.hh>
 namespace nntile::tile_graph
 {
 namespace

@@ -762,6 +762,8 @@ if(NNTILE_COMPILE_CHECK_SUBSYSTEM)
     nntile_apply_common_includes(nntile_objs_${_cc_sub})
     nntile_apply_cuda(nntile_objs_${_cc_sub})
     nntile_apply_cblas(nntile_objs_${_cc_sub})
+    target_link_libraries(
+        nntile_objs_${_cc_sub} PUBLIC nlohmann_json::nlohmann_json)
     add_custom_target(nntile_compile_check_${_cc_sub} DEPENDS nntile_objs_${_cc_sub})
     return()
 endif()

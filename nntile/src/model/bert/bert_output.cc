@@ -19,11 +19,11 @@
 namespace nntile::model::bert
 {
 
-BertOutput::BertOutput(graph::NNGraph* graph,
+BertOutput::BertOutput(NNGraph* graph,
                        const std::string& name,
                        const BertConfig& config,
-                       graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                       DataType dtype)
+    : module::Module(graph, name)
     , dense_(graph, name + "_dense",
              config.intermediate_size,
              config.hidden_size,
@@ -39,9 +39,9 @@ BertOutput::BertOutput(graph::NNGraph* graph,
     register_module("ln", &layer_norm_);
 }
 
-graph::NNGraph::TensorNode* BertOutput::forward(
-    graph::NNGraph::TensorNode* hidden,
-    graph::NNGraph::TensorNode* residual)
+NNGraph::TensorNode* BertOutput::forward(
+    NNGraph::TensorNode* hidden,
+    NNGraph::TensorNode* residual)
 {
     if(hidden == nullptr || residual == nullptr)
     {
@@ -49,7 +49,7 @@ graph::NNGraph::TensorNode* BertOutput::forward(
             "BertOutput::forward: hidden and residual must be non-null");
     }
 
-    graph::NNGraph::TensorNode* proj = graph::gemm(
+    NNGraph::TensorNode* proj = gemm(
         dense_.weight_tensor(),
         hidden,
         1.0,
@@ -57,9 +57,9 @@ graph::NNGraph::TensorNode* BertOutput::forward(
         false,
         1,
         0);
-    proj = graph::add_fiber(1.0, dense_.bias_tensor(), 1.0, proj, 0, 0);
-    graph::NNGraph::TensorNode* summed =
-        graph::add(1.0, residual, 1.0, proj);
+    proj = add_fiber(1.0, dense_.bias_tensor(), 1.0, proj, 0, 0);
+    NNGraph::TensorNode* summed =
+        add(1.0, residual, 1.0, proj);
     return layer_norm_.forward(summed);
 }
 

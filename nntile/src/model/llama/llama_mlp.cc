@@ -19,36 +19,36 @@
 namespace nntile::model::llama
 {
 
-LlamaMLP::LlamaMLP(graph::NNGraph *graph,
+LlamaMLP::LlamaMLP(NNGraph *graph,
     const std::string &name,
     const LlamaConfig &config,
-    graph::DataType dtype) :
-    graph::module::GatedMlp(graph,
+    DataType dtype) :
+    module::GatedMlp(graph,
         name,
         config.hidden_size,
         config.intermediate_size,
         config.hidden_size,
-        graph::module::ActivationType::SILU,
+        module::ActivationType::SILU,
         dtype)
 {
 }
 
-graph::NNGraph::TensorNode *LlamaMLP::forward(
-    graph::NNGraph::TensorNode *input)
+NNGraph::TensorNode *LlamaMLP::forward(
+    NNGraph::TensorNode *input)
 {
     // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for GatedMlp
     // (ndim=1)
-    graph::NNGraph::TensorNode *x = graph::transpose(input, 1);
+    NNGraph::TensorNode *x = transpose(input, 1);
     x->set_name(tensor_name("x"));
-    graph::NNGraph::TensorNode *out = graph::module::GatedMlp::forward(x);
-    graph::NNGraph::TensorNode *mlp_out = graph::transpose(out, 2);
+    NNGraph::TensorNode *out = module::GatedMlp::forward(x);
+    NNGraph::TensorNode *mlp_out = transpose(out, 2);
     mlp_out->set_name(tensor_name("mlp_out"));
     return mlp_out;
 }
 
 std::string LlamaMLP::repr() const
 {
-    return "LlamaMLP(" + graph::module::GatedMlp::repr() + ")";
+    return "LlamaMLP(" + module::GatedMlp::repr() + ")";
 }
 
 } // namespace nntile::model::llama

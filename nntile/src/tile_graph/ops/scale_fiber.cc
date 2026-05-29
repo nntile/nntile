@@ -19,6 +19,8 @@
 #include <nntile/dtype.hh>
 #include <nntile/tile.hh>
 #include <nntile/tile/scale_fiber.hh>
+
+#include <nntile/runtime.hh>
 namespace nntile::tile_graph
 {
 namespace

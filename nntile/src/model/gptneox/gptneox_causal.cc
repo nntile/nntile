@@ -20,11 +20,11 @@
 namespace nntile::model::gptneox
 {
 
-GptneoxCausal::GptneoxCausal(graph::NNGraph* graph,
+GptneoxCausal::GptneoxCausal(NNGraph* graph,
                              const std::string& name,
                              const GptneoxConfig& config,
-                             graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                             DataType dtype)
+    : module::Module(graph, name)
     , model_(std::make_unique<GptneoxModel>(graph, name + "_model", config, dtype))
     , lm_head_(graph, name + "_lm_head",
                config.hidden_size, config.vocab_size, false, dtype)
@@ -35,18 +35,18 @@ GptneoxCausal::GptneoxCausal(graph::NNGraph* graph,
     register_module("lm_head", &lm_head_);
 }
 
-graph::NNGraph::TensorNode* GptneoxCausal::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* sin,
-    graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask)
+NNGraph::TensorNode* GptneoxCausal::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* sin,
+    NNGraph::TensorNode* cos,
+    NNGraph::TensorNode* mask)
 {
-    graph::NNGraph::TensorNode* hidden =
+    NNGraph::TensorNode* hidden =
         model_->forward(input_ids, sin, cos, mask);
-    graph::NNGraph::TensorNode* hidden_t = graph::transpose(hidden, 1);
+    NNGraph::TensorNode* hidden_t = transpose(hidden, 1);
     hidden_t->set_name(tensor_name("hidden_t"));
-    graph::NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
-    graph::NNGraph::TensorNode* logits = graph::transpose(logits_sbv, 2);
+    NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
+    NNGraph::TensorNode* logits = transpose(logits_sbv, 2);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

@@ -31,23 +31,23 @@ namespace nntile::model::gptneo
 {
 
 //! GPT-Neo model - wte + wpe + add + num_hidden_layers x GptneoDecoder + norm
-class GptneoModel : public graph::module::Module
+class GptneoModel : public module::Module
 {
 private:
-    graph::module::Embedding wte_;
-    graph::module::Embedding wpe_;
+    module::Embedding wte_;
+    module::Embedding wpe_;
     std::vector<std::unique_ptr<GptneoDecoder>> layers_;
-    graph::module::LayerNorm norm_;
+    module::LayerNorm norm_;
 
     GptneoConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    GptneoModel(graph::NNGraph* graph,
+    GptneoModel(NNGraph* graph,
                 const std::string& name,
                 const GptneoConfig& config,
-                graph::DataType dtype = graph::DataType::FP32);
+                DataType dtype = DataType::FP32);
 
     //! Forward pass
     //! @param input_ids (seq, batch) INT64 token indices
@@ -55,22 +55,22 @@ public:
     //! @param mask BOOL mask for global-attention layers (even ``layer_id``)
     //! @param local_mask BOOL mask for local-attention layers (odd ``layer_id``);
     //!        when null, ``mask`` is used for all layers (legacy / tests only)
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids,
-        graph::NNGraph::TensorNode* mask = nullptr,
-        graph::NNGraph::TensorNode* local_mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* position_ids,
+        NNGraph::TensorNode* mask = nullptr,
+        NNGraph::TensorNode* local_mask = nullptr);
 
     std::string repr() const override;
 
     Index num_layers() const { return config_.num_hidden_layers; }
 
-    graph::NNGraph::TensorNode* wte_vocab_tensor() const
+    NNGraph::TensorNode* wte_vocab_tensor() const
     {
         return wte_.vocab_tensor();
     }
 
-    graph::NNGraph::TensorNode* wpe_vocab_tensor() const
+    NNGraph::TensorNode* wpe_vocab_tensor() const
     {
         return wpe_.vocab_tensor();
     }

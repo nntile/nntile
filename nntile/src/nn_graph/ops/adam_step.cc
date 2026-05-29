@@ -30,7 +30,7 @@ void NNAdamStepOp::forward()
             "NNAdamStepOp::forward: param, grad, first_moment, "
             "second_moment must be non-null");
     }
-    graph::tensor::adam_step(
+    tensor_graph::adam_step(
         num_iter, beta_1, beta_2, eps, lr, weight_decay,
         grad->data(), first_moment->data(),
         second_moment->data(), param->data());

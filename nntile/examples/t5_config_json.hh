@@ -27,7 +27,7 @@ namespace nntile::examples
 {
 
 //! Load ``T5Config`` from JSON (``t5_generate.py``, training save, HF).
-inline graph::model::t5::T5Config load_t5_config_json(std::string const &path)
+inline model::t5::T5Config load_t5_config_json(std::string const &path)
 {
     std::ifstream f(path);
     if (!f.good())
@@ -36,7 +36,7 @@ inline graph::model::t5::T5Config load_t5_config_json(std::string const &path)
     }
     nlohmann::json j = nlohmann::json::parse(f);
 
-    graph::model::t5::T5Config cfg;
+    model::t5::T5Config cfg;
     cfg.vocab_size = config_get_int(j, "vocab_size", 32100);
     cfg.d_model = config_get_int(j, "d_model", 512);
     cfg.d_kv = config_get_int(j, "d_kv", 64);
@@ -61,7 +61,7 @@ inline graph::model::t5::T5Config load_t5_config_json(std::string const &path)
 
 //! Write ``T5Config`` for training checkpoints.
 inline void save_t5_config_json(
-    graph::model::t5::T5Config const &cfg,
+    model::t5::T5Config const &cfg,
     std::string const &path)
 {
     nlohmann::json j;

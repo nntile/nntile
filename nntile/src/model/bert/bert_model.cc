@@ -20,11 +20,11 @@
 namespace nntile::model::bert
 {
 
-BertModel::BertModel(graph::NNGraph* graph,
+BertModel::BertModel(NNGraph* graph,
                      const std::string& name,
                      const BertConfig& config,
-                     graph::DataType dtype)
-    : graph::module::Module(graph, name)
+                     DataType dtype)
+    : module::Module(graph, name)
     , embeddings_(graph, name + "_embeddings", config, dtype)
     , config_(config)
     , dtype_(dtype)
@@ -41,11 +41,11 @@ BertModel::BertModel(graph::NNGraph* graph,
     }
 }
 
-graph::NNGraph::TensorNode* BertModel::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* token_type_ids,
-    graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask,
+NNGraph::TensorNode* BertModel::forward(
+    NNGraph::TensorNode* input_ids,
+    NNGraph::TensorNode* token_type_ids,
+    NNGraph::TensorNode* position_ids,
+    NNGraph::TensorNode* mask,
     bool causal)
 {
     if(input_ids == nullptr || token_type_ids == nullptr ||
@@ -56,7 +56,7 @@ graph::NNGraph::TensorNode* BertModel::forward(
             "position_ids must be non-null");
     }
 
-    graph::NNGraph::TensorNode* x = embeddings_.forward(
+    NNGraph::TensorNode* x = embeddings_.forward(
         input_ids, token_type_ids, position_ids);
 
     for(auto& layer : layers_)

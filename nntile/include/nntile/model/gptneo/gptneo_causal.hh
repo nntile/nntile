@@ -29,28 +29,28 @@ namespace nntile::model::gptneo
 {
 
 //! GptneoCausal - GptneoModel + lm_head for next-token prediction
-class GptneoCausal : public graph::module::Module
+class GptneoCausal : public module::Module
 {
 private:
     std::unique_ptr<GptneoModel> model_;
-    graph::module::Linear lm_head_;
+    module::Linear lm_head_;
 
     GptneoConfig config_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor
-    GptneoCausal(graph::NNGraph* graph,
+    GptneoCausal(NNGraph* graph,
                  const std::string& name,
                  const GptneoConfig& config,
-                 graph::DataType dtype = graph::DataType::FP32);
+                 DataType dtype = DataType::FP32);
 
     //! Forward pass
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids,
-        graph::NNGraph::TensorNode* mask = nullptr,
-        graph::NNGraph::TensorNode* local_mask = nullptr);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input_ids,
+        NNGraph::TensorNode* position_ids,
+        NNGraph::TensorNode* mask = nullptr,
+        NNGraph::TensorNode* local_mask = nullptr);
 
     std::string repr() const override;
 
