@@ -12,8 +12,8 @@
 # @version 1.1.0
 
 from . import (
-    functions, graph, inference, layer, loss, model, nntile as core,
-    optimizer, pipeline, tensor)
+    functions, graph, inference, layer, loss, model, nntile as core, optimizer,
+    pipeline, tensor)
 from .nntile import Context, TransOp, notrans, starpu, tile, trans
 
 __all__ = (

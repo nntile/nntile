@@ -1,6 +1,7 @@
 """Train gptneo via NNTile graph API (scaffold)."""
 from nntile import Context, NNGraph
 
+
 def main() -> None:
     ctx = Context()
     _ = ctx, NNGraph()
