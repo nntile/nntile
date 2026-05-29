@@ -17,6 +17,70 @@ nntile_dirty_cpp_reset_plan() {
     NNTILE_DIRTY_AFFECTED=()
 }
 
+# ---------- helper functions for layer propagation -------------------------
+add_all_layers() {
+    local op=$1
+    for p in tests_kernel tests_starpu tests_core \
+             tests_graph_tile_ops tests_graph_tensor_ops; do
+        NNTILE_DIRTY_AFFECTED["${p}_${op}"]=1
+    done
+}
+
+add_from_starpu() {
+    local op=$1
+    for p in tests_starpu tests_core tests_graph_tile_ops \
+             tests_graph_tensor_ops; do
+        NNTILE_DIRTY_AFFECTED["${p}_${op}"]=1
+    done
+}
+
+add_from_tile() {
+    local op=$1
+    for p in tests_core tests_graph_tile_ops tests_graph_tensor_ops; do
+        NNTILE_DIRTY_AFFECTED["${p}_${op}"]=1
+    done
+}
+
+add_from_tensor() {
+    local op=$1
+    NNTILE_DIRTY_AFFECTED["tests_graph_tensor_ops_${op}"]=1
+}
+
+# GPT-Neo graph model: run all block tests when shared code changes.
+add_gptneo_model_tests() {
+    for t in gptneo_config gptneo_mlp gptneo_attention gptneo_decoder \
+             gptneo_model gptneo_causal; do
+        NNTILE_DIRTY_AFFECTED["tests_graph_model_${t}"]=1
+    done
+}
+
+add_t5_model_tests() {
+    for t in t5_config t5_ff t5_attention t5_cross_attention \
+             t5_encoder_block t5_decoder_block t5_model t5_conditional; do
+        NNTILE_DIRTY_AFFECTED["tests_graph_model_${t}"]=1
+    done
+}
+
+add_bert_model_tests() {
+    NNTILE_DIRTY_AFFECTED["tests_graph_model_bert_config"]=1
+    for t in bert_intermediate bert_attention bert_layer \
+             bert_embeddings bert_model bert_mlm; do
+        NNTILE_DIRTY_AFFECTED["tests_graph_model_${t}"]=1
+        NNTILE_DIRTY_AFFECTED["tests_graph_model_${t}_data_setup"]=1
+    done
+}
+
+# RoBERTa graph tests import safetensor layout helpers from
+# nntile/tests/model/bert/generate_test_data.py only (not other BERT sources).
+add_roberta_model_tests() {
+    NNTILE_DIRTY_AFFECTED["tests_graph_model_roberta_config"]=1
+    for t in roberta_intermediate roberta_attention roberta_layer \
+             roberta_embeddings roberta_model roberta_mlm; do
+        NNTILE_DIRTY_AFFECTED["tests_graph_model_${t}"]=1
+        NNTILE_DIRTY_AFFECTED["tests_graph_model_${t}_data_setup"]=1
+    done
+}
+
 # Returns 0 when the diff is empty.
 nntile_dirty_cpp_collect() {
     local base_rev=$1
@@ -62,113 +126,45 @@ nntile_dirty_cpp_collect() {
         return 0
     fi
 
-    declare -A affected
-declare -A affected
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
 
-# ---------- helper functions for layer propagation -------------------------
-add_all_layers() {
-    local op=$1
-    for p in tests_kernel tests_starpu tests_core \
-             tests_graph_tile_ops tests_graph_tensor_ops; do
-        affected["${p}_${op}"]=1
-    done
-}
-
-add_from_starpu() {
-    local op=$1
-    for p in tests_starpu tests_core tests_graph_tile_ops \
-             tests_graph_tensor_ops; do
-        affected["${p}_${op}"]=1
-    done
-}
-
-add_from_tile() {
-    local op=$1
-    for p in tests_core tests_graph_tile_ops tests_graph_tensor_ops; do
-        affected["${p}_${op}"]=1
-    done
-}
-
-add_from_tensor() {
-    local op=$1
-    affected["tests_graph_tensor_ops_${op}"]=1
-}
-
-# GPT-Neo graph model: run all block tests when shared code changes.
-add_gptneo_model_tests() {
-    for t in gptneo_config gptneo_mlp gptneo_attention gptneo_decoder \
-             gptneo_model gptneo_causal; do
-        affected["tests_graph_model_${t}"]=1
-    done
-}
-
-add_t5_model_tests() {
-    for t in t5_config t5_ff t5_attention t5_cross_attention \
-             t5_encoder_block t5_decoder_block t5_model t5_conditional; do
-        affected["tests_graph_model_${t}"]=1
-    done
-}
-
-add_bert_model_tests() {
-    affected["tests_graph_model_bert_config"]=1
-    for t in bert_intermediate bert_attention bert_layer \
-             bert_embeddings bert_model bert_mlm; do
-        affected["tests_graph_model_${t}"]=1
-        affected["tests_graph_model_${t}_data_setup"]=1
-    done
-}
-
-# RoBERTa graph tests import safetensor layout helpers from
-# nntile/tests/model/bert/generate_test_data.py only (not other BERT sources).
-add_roberta_model_tests() {
-    affected["tests_graph_model_roberta_config"]=1
-    for t in roberta_intermediate roberta_attention roberta_layer \
-             roberta_embeddings roberta_model roberta_mlm; do
-        affected["tests_graph_model_${t}"]=1
-        affected["tests_graph_model_${t}_data_setup"]=1
-    done
-}
-
-# ---------- classify every changed file ------------------------------------
-while IFS= read -r file; do
-    [ -z "$file" ] && continue
-
-    case "$file" in
+        case "$file" in
         # ---- test files: run the specific test ----------------------------
         nntile/tests/constants.cc)
-            affected["tests_nntile_constants"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_nntile_constants"]=1 ;;
         nntile/tests/kernel/*.cc)
-            affected["tests_kernel_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_kernel_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/starpu/*.cc)
-            affected["tests_starpu_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_starpu_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/core/*.cc)
-            affected["tests_core_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_core_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/tensor/ops/*.cc)
-            affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/tensor/*.cc)
-            affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/tile/ops/*.cc)
-            affected["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/tile/*.cc)
-            affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/nn/ops/*.cc)
-            affected["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/nn/*.cc)
-            affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/module/*.cc)
-            affected["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/io/*.cc)
-            affected["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/model/llama/*.cc)
-            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/model/gpt2/*.cc)
-            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/model/gptneo/*.cc)
-            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/model/t5/*.cc)
-            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/model/roberta/*.cc)
-            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         nntile/tests/model/test_gptneo_fixture_helpers.hh)
             add_gptneo_model_tests ;;
         nntile/tests/model/test_t5_fixture_helpers.hh)
@@ -177,7 +173,7 @@ while IFS= read -r file; do
             add_bert_model_tests
             add_roberta_model_tests ;;
         nntile/tests/*.cc)
-            affected["tests_graph_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_$(basename "$file" .cc)"]=1 ;;
 
         # ---- kernel sources / headers → all layers -----------------------
         nntile/src/kernel/*/cpu.cc | nntile/src/kernel/*/cuda.cc | nntile/src/kernel/*/cuda.cu)
@@ -207,47 +203,47 @@ while IFS= read -r file; do
 
         # ---- graph-level: only the matching test --------------------------
         nntile/src/tensor/ops/*.cc)
-            affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
         include/nntile/tensor/ops/*.hh)
-            affected["tests_graph_tensor_ops_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tensor_ops_$(basename "$file" .hh)"]=1 ;;
         nntile/src/tensor/*.cc)
-            affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
         include/nntile/tensor/*.hh)
-            affected["tests_graph_tensor_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tensor_$(basename "$file" .hh)"]=1 ;;
         nntile/src/tile/ops/*.cc)
-            affected["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
         include/nntile/tile/ops/*.hh)
-            affected["tests_graph_tile_ops_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tile_ops_$(basename "$file" .hh)"]=1 ;;
         nntile/src/tile/*.cc)
-            affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
         include/nntile/tile/*.hh)
-            affected["tests_graph_tile_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_tile_$(basename "$file" .hh)"]=1 ;;
         nntile/src/nn/ops/*.cc)
-            affected["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
         include/nntile/nn/ops/*.hh)
-            affected["tests_graph_nn_ops_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_nn_ops_$(basename "$file" .hh)"]=1 ;;
         nntile/src/nn/*.cc)
-            affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
         include/nntile/nn/*.hh)
-            affected["tests_graph_nn_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_nn_$(basename "$file" .hh)"]=1 ;;
         nntile/src/module/*.cc)
-            affected["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
         include/nntile/module/*.hh)
-            affected["tests_graph_module_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_module_$(basename "$file" .hh)"]=1 ;;
         nntile/src/io/*.cc)
-            affected["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
         include/nntile/io/*.hh)
-            affected["tests_graph_io_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_io_$(basename "$file" .hh)"]=1 ;;
         nntile/src/model/llama/*.cc)
-            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         include/nntile/model/llama/*.hh)
-            affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
         nntile/src/model/gpt2/*.cc)
-            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         include/nntile/model/gpt2/*.hh)
-            affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
         nntile/src/model/gptneo/*.cc)
-            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+            NNTILE_DIRTY_AFFECTED["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         include/nntile/model/gptneo/*.hh)
             add_gptneo_model_tests ;;
         include/nntile/model/gptneo.hh)
@@ -264,17 +260,14 @@ while IFS= read -r file; do
             add_t5_model_tests ;;
         nntile/src/dataset/seq2seq_lm_mmap.cc | include/nntile/dataset/seq2seq_lm_mmap.hh)
             add_t5_model_tests ;;
-    esac
-done <<< "$all_changed"
-    if [ ${#affected[@]} -eq 0 ]; then
+        esac
+    done <<< "$all_changed"
+
+    if [ ${#NNTILE_DIRTY_AFFECTED[@]} -eq 0 ]; then
         NNTILE_DIRTY_RUN_ALL=true
         echo ":: Unknown changes (no pattern matched), full C++ test suite is dirty"
         return 0
     fi
-    local k
-    for k in "${!affected[@]}"; do
-        NNTILE_DIRTY_AFFECTED["$k"]=1
-    done
     echo ":: ${#NNTILE_DIRTY_AFFECTED[@]} dirty CTest name(s)"
     return 0
 }
