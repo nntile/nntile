@@ -14,5 +14,6 @@
 
 #pragma once
 
+#include <nntile/context.hh>
 #include <nntile/core.hh>
 #include <nntile/graph.hh>
