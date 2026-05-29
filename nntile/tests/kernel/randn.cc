@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/kernel/randn.hh"
-#include "../external/random.h" // external
+#include "../../external/random.h"
 #include "../testing.hh"
 #include <array>
 #include <vector>

@@ -17,10 +17,11 @@
 #include <nntile/graph.hh>
 #include <nntile/nn_graph/graph_ops.hh>
 
-void bind_nntile_models(pybind11::module_ &m);
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
+void bind_nntile_models(pybind11::module_ &m);
 #include <stdexcept>
 #include <string>
 #include <utility>

@@ -173,7 +173,8 @@ jobs:
       - run: |
           mapfile -t _test_flags < <(.github/scripts/cmake-build-tests-subsystem.sh "${{ matrix.subsystem }}")
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DNNTILE_PRESET=full -DBUILD_TESTS=ON "${_test_flags[@]}"
+            -DNNTILE_PRESET=full -DBUILD_TESTS=ON -DBUILD_EXAMPLES=OFF \
+            "${_test_flags[@]}"
           cmake --build build -j"$(nproc)"
           _re=$(.github/scripts/ctest-run-subsystem.sh "${{ matrix.subsystem }}")
           cd build && ctest -R "${_re}" -j"$(nproc)" --output-on-failure
