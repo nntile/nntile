@@ -177,8 +177,10 @@ jobs:
       - uses: ./.github/actions/nntile-starpu-setup
       - uses: ./.github/actions/download-nntile-catch2-deps
       - run: |
+          chmod +x .github/scripts/verify-catch2-deps-for-compile-check.sh
           chmod +x .github/scripts/cmake-build-tests-subsystem.sh
           chmod +x .github/scripts/pack-nntile-test-objs.sh
+          .github/scripts/verify-catch2-deps-for-compile-check.sh build
       - run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
             -DNNTILE_COMPILE_CHECK_TESTS_SUBSYSTEM=${{ matrix.subsystem }} \

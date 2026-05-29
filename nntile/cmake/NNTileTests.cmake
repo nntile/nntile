@@ -116,20 +116,31 @@ else()
     set(NNTILE_REGISTER_CTEST ON)
 endif()
 
-# OBJECT compile-check: Catch2 headers only (no Catch2 build/link).
+# OBJECT compile-check: Catch2 headers only (no Catch2 library build/link).
 function(nntile_apply_catch2_compile_headers target)
     if(NNTILE_FETCHCONTENT_DISCONNECTED)
-        set(_catch2_inc "${CMAKE_BINARY_DIR}/_deps/catch2-src/src")
-    else()
-        if(NOT TARGET Catch2::Catch2WithMain)
-            message(FATAL_ERROR
-                "Catch2::Catch2WithMain missing; configure external/Catch2 first")
+        set(_catch2_src "${CMAKE_BINARY_DIR}/_deps/catch2-src/src")
+        set(_catch2_gen
+            "${CMAKE_BINARY_DIR}/_deps/catch2-build/generated-includes")
+        if(NOT EXISTS "${_catch2_src}/catch2/catch_test_macros.hpp")
+            message(FATAL_ERROR "Catch2 sources missing under ${_catch2_src} "
+                "(populate build/_deps from build-test-prerequisites)")
         endif()
-        get_target_property(_catch2_inc Catch2::Catch2WithMain
-            INTERFACE_INCLUDE_DIRECTORIES)
-        if(_catch2_inc MATCHES ";")
-            list(GET _catch2_inc 0 _catch2_inc)
+        if(NOT EXISTS "${_catch2_gen}/catch2/catch_user_config.hpp")
+            message(FATAL_ERROR "Catch2 generated headers missing under ${_catch2_gen} "
+                "(build-test-prerequisites must configure Catch2 once)")
         endif()
+        target_include_directories(${target} PRIVATE "${_catch2_src}" "${_catch2_gen}")
+        return()
+    endif()
+    if(NOT TARGET Catch2::Catch2WithMain)
+        message(FATAL_ERROR
+            "Catch2::Catch2WithMain missing; configure external/Catch2 first")
+    endif()
+    get_target_property(_catch2_inc Catch2::Catch2WithMain
+        INTERFACE_INCLUDE_DIRECTORIES)
+    if(_catch2_inc MATCHES ";")
+        list(GET _catch2_inc 0 _catch2_inc)
     endif()
     if(NOT _catch2_inc OR NOT EXISTS "${_catch2_inc}/catch2/catch_test_macros.hpp")
         message(FATAL_ERROR "Catch2 headers not found (expected under ${_catch2_inc})")
