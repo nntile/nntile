@@ -179,8 +179,8 @@ StarPU uses SimGrid.
 ```bash
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
-# C++ tests (CI-style: skip Python wrapper tests, MPI, NotImplemented)
-ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
+# C++ tests (CI-style: skip NotImplemented and FixtureData; see docs/build/not-implemented-tests.md)
+ctest --test-dir build -E wrappers -LE "(NotImplemented|FixtureData)" --output-on-failure
 
 # Everything registered (C++ + pytest per file)
 ctest --test-dir build --output-on-failure

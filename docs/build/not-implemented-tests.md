@@ -27,7 +27,7 @@ Source of truth: `TESTS_NOT_IMPLEMENTED` in:
 | `tests_core_kernel_sumprod_fiber` |
 | `tests_core_kernel_total_sum_accum` |
 
-## StarPU (`tests_core_starpu_*`, 50)
+## StarPU (`tests_core_starpu_*`, 49)
 
 | CTest name |
 |------------|
@@ -85,4 +85,4 @@ Source of truth: `TESTS_NOT_IMPLEMENTED` in:
 
 None (`TESTS_NOT_IMPLEMENTED` is empty in `nntile/tests/core/CMakeLists.txt`).
 
-**Total: 57** (as of the lists above; use the script after CMake configure to verify).
+**Total: 56** (7 kernel + 49 starPU; use the script after CMake configure to verify).
