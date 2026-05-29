@@ -20,6 +20,7 @@ env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
+  NNTILE_FETCHCONTENT_CACHE_KEY: nntile-fetchcontent-${{ hashFiles('CMakeLists.txt', 'external/CMakeLists.txt') }}
   CMAKE_COMMON: >-
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
     -DUSE_CUDA=OFF
@@ -63,6 +64,10 @@ jobs:
         with:
           path: /tmp/ccache
           key: ccache-build-lib-${{ github.sha }}
+      - uses: actions/cache/save@v4
+        with:
+          path: build/_deps
+          key: ${{ env.NNTILE_FETCHCONTENT_CACHE_KEY }}
       - uses: actions/upload-artifact@v4
         with:
           name: nntile-build
@@ -86,27 +91,27 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
       - uses: ./.github/actions/nntile-model-test-python
-      - uses: actions/download-artifact@v4
+      - uses: actions/cache/restore@v4
         with:
-          name: nntile-build
-          path: build
-      - run: rm -rf build/_deps
+          path: build/_deps
+          key: ${{ env.NNTILE_FETCHCONTENT_CACHE_KEY }}
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
           key: ccache-build-tests-${{ github.sha }}
           restore-keys: ccache-build-tests-
       - run: |
-          lib="${PWD}/build/nntile/libnntile.so"
-          if [ ! -f "${lib}" ]; then
-            echo "::error::Missing ${lib} from build-lib artifact"
-            exit 1
-          fi
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF \
-            -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}" \
-            -DNNTILE_PREBUILT_LIBRARY="${lib}"
-          cmake --build build -j"$(nproc)"
+            -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}"
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntile-build
+          path: build-lib-artifact
+      - run: |
+          chmod +x .github/scripts/ci-restore-libnntile-artifact.sh
+          .github/scripts/ci-restore-libnntile-artifact.sh build-lib-artifact build
+      - run: cmake --build build -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
           .github/scripts/ccache-print-stats.sh build-tests
@@ -137,11 +142,14 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
+      - uses: actions/cache/restore@v4
+        with:
+          path: build/_deps
+          key: ${{ env.NNTILE_FETCHCONTENT_CACHE_KEY }}
       - uses: actions/download-artifact@v4
         with:
           name: nntile-build
           path: build
-      - run: rm -rf build/_deps
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
