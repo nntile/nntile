@@ -14,19 +14,47 @@ source "${script_dir}/dirty-cpp-tests-lib.sh"
 cmd=${1:?usage: ci-dirty-cpp-tests.sh plan|build|run}
 base_ref=${DIFF_BASE:-${GITHUB_BASE_REF:-graph_api}}
 
-resolve_merge_base() {
-    local remote_base="origin/${base_ref}"
-    git fetch origin "${base_ref}" --depth=500 2>/dev/null || true
-    if git rev-parse "${remote_base}" >/dev/null 2>&1; then
-        git merge-base "${remote_base}" HEAD
-    else
-        echo "${remote_base}"
+ensure_git_repo() {
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "::error::Not a git repository (cwd=$(pwd))" >&2
+        exit 1
     fi
 }
 
+# Resolve a commit SHA for the diff base (never a branch name like origin/graph_api).
+resolve_merge_base() {
+    if [ -n "${NNTILE_DIFF_BASE:-}" ]; then
+        if git rev-parse "${NNTILE_DIFF_BASE}" >/dev/null 2>&1; then
+            git rev-parse "${NNTILE_DIFF_BASE}"
+            return 0
+        fi
+        echo "::warning::NNTILE_DIFF_BASE=${NNTILE_DIFF_BASE} is not valid; refetching"
+    fi
+
+    local remote_base="origin/${base_ref}"
+    git fetch --no-tags origin \
+        "${base_ref}:refs/remotes/${remote_base}" --depth=500 2>/dev/null \
+        || git fetch --no-tags origin "${base_ref}" --depth=500 2>/dev/null \
+        || true
+
+    if git rev-parse "${remote_base}" >/dev/null 2>&1; then
+        git merge-base "${remote_base}" HEAD
+        return 0
+    fi
+
+    echo "::warning::Cannot resolve origin/${base_ref}; dirty scope = full test suite" >&2
+    return 1
+}
+
 load_plan() {
+    ensure_git_repo
     local mb
-    mb=$(resolve_merge_base)
+    if ! mb=$(resolve_merge_base); then
+        nntile_dirty_cpp_reset_plan
+        NNTILE_DIRTY_RUN_ALL=true
+        eval "$(nntile_dirty_cpp_emit_plan)"
+        return 0
+    fi
     nntile_dirty_cpp_collect "${mb}" HEAD || true
     eval "$(nntile_dirty_cpp_emit_plan)"
 }

@@ -33,8 +33,10 @@ targets are built. CTest runs fixture scripts before the test when required.
 4. **build** — `cmake --build` only dirty targets (or all tests if the full suite is dirty).
 5. **run** — `ctest -R` with the same dirty set (or full suite).
 
-On pull requests, `<base>` is `github.base_ref` (e.g. `graph_api`). On push,
-`DIFF_BASE` defaults to `graph_api`.
+On pull requests, the diff base is `github.event.pull_request.base.sha`
+(`NNTILE_DIFF_BASE` in the workflow). On push or schedule, the job fetches
+`origin/<DIFF_BASE>` (default `graph_api`) and uses `git merge-base` with
+`HEAD`.
 
 ## Local use
 
