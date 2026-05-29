@@ -35,6 +35,8 @@ option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build C++ examples under nntile/examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 option(BUILD_PYTHON_WRAPPERS "Build python/ package" ON)
+option(NNTILE_FETCHCONTENT_DISCONNECTED
+    "Reuse populated build/_deps from CI test-prerequisites job (FetchContent)" OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)

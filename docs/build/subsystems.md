@@ -51,7 +51,8 @@ PR workflow uses three separate test stages per subsystem:
 
 | Job | Purpose |
 |-----|---------|
-| `compile-check-tests-*` | Compile test sources only |
+| `build-test-prerequisites` | Build Catch2 once; cache `build/_deps` for test jobs |
+| `compile-check-tests-*` | Compile test sources only (reuse cached Catch2) |
 | `test-build-*` | `-DNNTILE_TEST_SUBSYSTEM=<name>`, link only that subsystem's test binaries |
 | `test-run-*` | Restore build tree from cache, `ctest -R` only (no compile) |
 
