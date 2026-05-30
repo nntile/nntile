@@ -124,6 +124,12 @@ inline bool axis_group_looks_like_seq(AxisDescriptor const *ad)
     return false;
 }
 
+//! Training tensors named by ``seq_len`` / ``batch_size``, not config keys.
+inline bool axis_group_is_runtime_training_io(AxisDescriptor const *ad)
+{
+    return axis_group_looks_like_seq(ad) || axis_group_looks_like_batch(ad);
+}
+
 inline void name_gpt2_layer_local_axis_groups(
     TensorGraph &tg,
     model::gpt2::Gpt2Config const &cfg)
@@ -220,18 +226,21 @@ inline void name_gpt2_global_axis_groups(
                 }
             }
         }
-        if (ad->extent == cfg.vocab_size)
+        if (ad->extent == cfg.vocab_size &&
+            !axis_group_is_runtime_training_io(ad))
         {
             ad->name = "vocab_size";
             continue;
         }
         if (ad->extent == cfg.hidden_size &&
-            !axis_group_member_name_contains(ad, "_attn_"))
+            !axis_group_member_name_contains(ad, "_attn_") &&
+            !axis_group_is_runtime_training_io(ad))
         {
             ad->name = "hidden_size";
             continue;
         }
-        if (ad->extent == cfg.max_position_embeddings)
+        if (ad->extent == cfg.max_position_embeddings &&
+            !axis_group_is_runtime_training_io(ad))
         {
             ad->name = "max_position_embeddings";
             continue;
