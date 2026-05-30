@@ -5,8 +5,20 @@ from __future__ import annotations
 import gc
 import weakref
 
-import nntile
-from nntile import ActivationType, Context, DataType, Mlp, NNGraph
+import pytest
+
+from nntile import ActivationType, DataType, Mlp, NNGraph
+
+
+def _require_nngraph_weakref(graph: NNGraph):
+    """NNGraph must support weak refs (pybind11_object / keep_alive testing)."""
+    try:
+        return weakref.ref(graph)
+    except TypeError as exc:
+        raise AssertionError(
+            'NNGraph binding does not support weak references; '
+            'cannot verify runtime() keep_alive',
+        ) from exc
 
 
 def test_runtime_view_keeps_nngraph_alive(nntile_context) -> None:
@@ -20,7 +32,7 @@ def test_runtime_view_keeps_nngraph_alive(nntile_context) -> None:
     graph.finish_phase()
     graph.lower_and_compile()
 
-    graph_ref = weakref.ref(graph)
+    graph_ref = _require_nngraph_weakref(graph)
     runtime = graph.runtime()
     del graph
     gc.collect()

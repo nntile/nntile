@@ -458,7 +458,7 @@ PYBIND11_MODULE(nntile, m)
     // -----------------------------------------------------------------------
     // NNGraph (autograd computation graph)
     // -----------------------------------------------------------------------
-    py::class_<NNGraph>(m, "NNGraph")
+    py::class_<NNGraph>(m, "NNGraph", py::dynamic_attr())
         .def(py::init<const std::string &>(), "name"_a = "")
         .def_property_readonly("name", &NNGraph::name)
         .def_property_readonly("num_tensors", &NNGraph::num_tensors)
