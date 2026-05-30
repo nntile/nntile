@@ -100,7 +100,7 @@ inline std::vector<Index> parse_tile_sizes_json(
 {
     if (v.is_number_integer())
     {
-        Index const t = static_cast<Index>(v.get<int>());
+        Index const t = v.get<Index>();
         if (t <= 0)
         {
             throw std::runtime_error(
@@ -135,7 +135,7 @@ inline std::vector<Index> parse_tile_sizes_json(
                 throw std::runtime_error(
                     std::string(context) + ": tile array must be integers");
             }
-            Index const t = static_cast<Index>(el.get<int>());
+            Index const t = el.get<Index>();
             if (t <= 0)
             {
                 throw std::runtime_error(

@@ -42,6 +42,20 @@ TEST_CASE("reject missing default or layers", "[tiling][json]")
         nlohmann::json{{"default", nlohmann::json::object()}}, 2));
 }
 
+TEST_CASE("parse tile sizes beyond int32 range", "[tiling][json]")
+{
+    Index const big = static_cast<Index>(3000000000LL);
+    std::vector<Index> scalar =
+        parse_tile_sizes_json(nlohmann::json(big), 0, "test");
+    REQUIRE(scalar.size() == 1);
+    REQUIRE(scalar[0] == big);
+
+    std::vector<Index> array = parse_tile_sizes_json(
+        nlohmann::json::array({big, big}), 0, "test");
+    REQUIRE(array.size() == 2);
+    REQUIRE(array[0] == big);
+}
+
 TEST_CASE("HF alias normalizes hidden_size", "[tiling][json]")
 {
     nlohmann::json j = {
