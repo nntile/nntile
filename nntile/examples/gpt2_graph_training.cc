@@ -47,6 +47,7 @@
 #include <iostream>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 #include "gpt2_axis_naming.hh"
 #include "gpt2_config_json.hh"
@@ -472,14 +473,16 @@ int main(int argc, char **argv)
         1e-8,
         static_cast<Scalar>(args.weight_decay));
 
+    std::optional<FlatTilingSpec> tiling_spec;
     if (!args.tiling_path.empty())
     {
-        FlatTilingSpec tiling = load_tiling_json(
+        tiling_spec = load_tiling_json(
             args.tiling_path, config.num_hidden_layers);
         name_gpt2_training_axis_groups(
             graph.tensor_graph(), config, n_seq, n_batch);
-        apply_flat_tiling_spec(
-            graph.tensor_graph(), tiling, config.num_hidden_layers);
+        apply_flat_tiling_spec(graph.tensor_graph(),
+            *tiling_spec,
+            config.num_hidden_layers);
         std::cout << "Tiling: loaded " << args.tiling_path << "\n";
     }
 
@@ -655,12 +658,10 @@ int main(int argc, char **argv)
         const std::string cfg_path = args.output_dir + "/config.json";
         const std::string w_path = args.output_dir + "/model.safetensors";
         save_gpt2_config_json(config, cfg_path);
-        if (!args.tiling_path.empty())
+        if (tiling_spec.has_value())
         {
-            FlatTilingSpec tiling = load_tiling_json(
-                args.tiling_path, config.num_hidden_layers);
             save_tiling_json(
-                tiling, args.output_dir + "/tiling.json");
+                *tiling_spec, args.output_dir + "/tiling.json");
         }
         if (graph.has_runtime())
         {
