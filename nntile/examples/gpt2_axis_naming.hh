@@ -50,45 +50,56 @@ inline std::optional<Index> parse_h_layer_index_from_tensor_name(
     return idx;
 }
 
-inline void name_gpt2_training_axis_groups(
-    TensorGraph &tg,
-    model::gpt2::Gpt2Config const &cfg,
-    Index seq_len,
-    Index batch_size)
+inline bool axis_group_member_name_contains(
+    AxisDescriptor const *ad,
+    char const *needle)
 {
-    for (AxisDescriptor *ad : tg.axis_groups())
+    for (auto const &[node_ptr, axis_idx] : ad->members)
     {
-        if (!ad->name.empty())
+        (void) axis_idx;
+        auto *node = static_cast<TensorGraph::TensorNode const *>(node_ptr);
+        if (node->name().find(needle) != std::string::npos)
         {
-            continue;
-        }
-        if (ad->extent == batch_size)
-        {
-            ad->name = "batch_size";
-            continue;
-        }
-        if (ad->extent == seq_len)
-        {
-            ad->name = "seq_len";
-            continue;
-        }
-        if (ad->extent == cfg.vocab_size)
-        {
-            ad->name = "vocab_size";
-            continue;
-        }
-        if (ad->extent == cfg.hidden_size)
-        {
-            ad->name = "hidden_size";
-            continue;
-        }
-        if (ad->extent == cfg.max_position_embeddings)
-        {
-            ad->name = "max_position_embeddings";
-            continue;
+            return true;
         }
     }
+    return false;
+}
 
+inline bool axis_group_looks_like_batch(AxisDescriptor const *ad)
+{
+    if (axis_group_member_name_contains(ad, "_attn_"))
+    {
+        return false;
+    }
+    if (axis_group_member_name_contains(ad, "input_ids") ||
+        axis_group_member_name_contains(ad, "labels") ||
+        axis_group_member_name_contains(ad, "position_ids"))
+    {
+        return true;
+    }
+    return !axis_group_member_name_contains(ad, "_h_");
+}
+
+inline bool axis_group_looks_like_seq(AxisDescriptor const *ad)
+{
+    if (axis_group_member_name_contains(ad, "attn_mask"))
+    {
+        return true;
+    }
+    if (axis_group_member_name_contains(ad, "input_ids") ||
+        axis_group_member_name_contains(ad, "labels") ||
+        axis_group_member_name_contains(ad, "position_ids"))
+    {
+        return true;
+    }
+    return !axis_group_member_name_contains(ad, "_attn_");
+}
+
+inline void name_gpt2_layer_local_axis_groups(
+    TensorGraph &tg,
+    model::gpt2::Gpt2Config const &cfg)
+{
     for (AxisDescriptor *ad : tg.axis_groups())
     {
         if (!ad->name.empty())
@@ -138,6 +149,58 @@ inline void name_gpt2_training_axis_groups(
                        ".num_attention_heads";
         }
     }
+}
+
+inline void name_gpt2_global_axis_groups(
+    TensorGraph &tg,
+    model::gpt2::Gpt2Config const &cfg,
+    Index seq_len,
+    Index batch_size)
+{
+    for (AxisDescriptor *ad : tg.axis_groups())
+    {
+        if (!ad->name.empty())
+        {
+            continue;
+        }
+        if (ad->extent == batch_size && batch_size > 0 &&
+            axis_group_looks_like_batch(ad))
+        {
+            ad->name = "batch_size";
+            continue;
+        }
+        if (ad->extent == seq_len && seq_len > 0 &&
+            axis_group_looks_like_seq(ad))
+        {
+            ad->name = "seq_len";
+            continue;
+        }
+        if (ad->extent == cfg.vocab_size)
+        {
+            ad->name = "vocab_size";
+            continue;
+        }
+        if (ad->extent == cfg.hidden_size &&
+            !axis_group_member_name_contains(ad, "_attn_"))
+        {
+            ad->name = "hidden_size";
+            continue;
+        }
+        if (ad->extent == cfg.max_position_embeddings)
+        {
+            ad->name = "max_position_embeddings";
+        }
+    }
+}
+
+inline void name_gpt2_training_axis_groups(
+    TensorGraph &tg,
+    model::gpt2::Gpt2Config const &cfg,
+    Index seq_len,
+    Index batch_size)
+{
+    name_gpt2_layer_local_axis_groups(tg, cfg);
+    name_gpt2_global_axis_groups(tg, cfg, seq_len, batch_size);
 }
 
 } // namespace nntile::examples

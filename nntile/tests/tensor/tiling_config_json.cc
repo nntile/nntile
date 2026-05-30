@@ -9,9 +9,11 @@
  * @version 1.1.0
  * */
 
+#include "gpt2_axis_naming.hh"
 #include "tiling_config_json.hh"
 
 #include <catch2/catch_test_macros.hpp>
+#include <nntile/model/gpt2/gpt2_config.hh>
 #include <nntile/tensor.hh>
 
 #include <cstdio>
@@ -67,6 +69,28 @@ TEST_CASE("apply per-layer override on named axes", "[tiling][json]")
     REQUIRE(t0->axis(0)->tile_sizes[0] == 64);
     REQUIRE(t1->axis(0)->tile_sizes.size() == 2);
     REQUIRE(t1->axis(0)->tile_sizes[0] == 40);
+}
+
+TEST_CASE(
+    "batch_size extent does not name attention head axes",
+    "[tiling][naming]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.hidden_size = 64;
+    cfg.intermediate_size = 128;
+    cfg.num_attention_heads = 4;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("naming");
+    auto *heads =
+        tg.data({4, 16, 64})->set_name("model_transformer_h_0_attn_q_weight");
+    auto *batch_in = tg.data({8, 4})->set_name("input_ids");
+
+    name_gpt2_training_axis_groups(tg, cfg, 8, 4);
+
+    REQUIRE(heads->axis(0)->name == "layer.0.num_attention_heads");
+    REQUIRE(batch_in->axis(1)->name == "batch_size");
 }
 
 TEST_CASE("round-trip save and reload", "[tiling][json]")
