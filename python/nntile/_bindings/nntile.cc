@@ -382,8 +382,11 @@ PYBIND11_MODULE(nntile, m)
         py::class_<PyRuntimeView> gr(
             m,
             "GraphRuntime",
-            "Executor view from ``NNGraph.runtime()`` after "
-            "``lower_and_compile()``.");
+            "Non-owning executor view from ``NNGraph.runtime()`` after "
+            "``lower_and_compile()``. The parent ``NNGraph`` is kept alive "
+            "while this object exists. After "
+            "``reset_incremental_tile_state()``, call ``runtime()`` again; "
+            "older views must not be used.");
         bind_runtime_methods(gr);
     }
 
@@ -527,8 +530,10 @@ PYBIND11_MODULE(nntile, m)
             "reset_autograd_state"_a = true)
         .def("lower_and_compile",
             py::overload_cast<>(&NNGraph::lower_and_compile))
-        .def("runtime",
-            [](NNGraph &g) { return PyRuntimeView(g.runtime()); })
+        .def(
+            "runtime",
+            [](NNGraph &g) { return PyRuntimeView(g.runtime()); },
+            py::keep_alive<0, 1>())
         .def("has_runtime", &NNGraph::has_runtime)
         .def("enable_auto_tensor_name_phase_suffix",
             &NNGraph::enable_auto_tensor_name_phase_suffix,
