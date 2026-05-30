@@ -46,12 +46,13 @@ def fill_arange_position_ids(
 
 
 def sdpa_causal_mask_bool_fortran_fill(n_seq: int) -> np.ndarray:
-    mask = np.zeros((n_seq, n_seq), dtype=np.uint8)
-    for i in range(n_seq):
-        for j in range(n_seq):
-            if j <= i:
-                mask[i, j] = 1
-    return mask.reshape(-1, order='F')
+    """BOOL causal mask, Fortran layout: out[kk + n_seq * qq] = (kk <= qq)."""
+    out = np.zeros(n_seq * n_seq, dtype=np.uint8)
+    for qq in range(n_seq):
+        for kk in range(n_seq):
+            if kk <= qq:
+                out[kk + n_seq * qq] = 1
+    return out
 
 
 def scheduled_lr(step: int, args: argparse.Namespace) -> float:
