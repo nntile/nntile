@@ -211,7 +211,7 @@ ENV OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 WORKDIR /workspace/nntile
 
 # Define Python path for the development
-ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
+ENV PYTHONPATH=/workspace/nntile/build/python
 
 # Open Jupyter Lab and Tensorboard ports
 EXPOSE 8888 6006

@@ -117,6 +117,36 @@ jobs:
           ctest --test-dir build -E wrappers -LE NotImplemented \
             -j"$(nproc)" --output-on-failure
 
+  build-python:
+    name: build and test python package
+    needs: build-lib
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: apt-get update && apt-get install -y ca-certificates git python3-pytest
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntile-build
+          path: build
+      - run: rm -rf build/_deps
+      - run: |
+          cmake -S . -B build ${CMAKE_COMMON} \
+            -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc \
+            -DBUILD_PYTHON_WRAPPERS=ON \
+            -DBUILD_TESTS=ON -DBUILD_EXAMPLES=OFF -DBUILD_TESTS_PYTORCH=OFF
+          cmake --build build --target nntile_py -j"$(nproc)"
+      - run: |
+          export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export PYTHONPATH="${PWD}/build/python"
+          pytest python/tests -vv
+
   build-examples:
     name: build examples
     needs: build-lib
