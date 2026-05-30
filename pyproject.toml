@@ -107,10 +107,11 @@ plugins = ["numpy.typing.mypy_plugin"]
 [tool.pytest.ini_options]
 minversion = "8.2"
 addopts = "-ra -q -m 'not slow'"
-testpaths = ["python/tests", "wrappers/python/tests"]
+testpaths = ["python/tests"]
 markers = [
     "slow: slow tests (deselect with '-m \"not slow\"')",
     "cuda: tests that requires CUDA",
+    "numpy_only: pure NumPy tests (no libnntile / LD_LIBRARY_PATH required)",
 ]
 filterwarnings = ["ignore::DeprecationWarning"]
 
@@ -119,11 +120,8 @@ packages = [
     "datasets", "fastapi", "numpy", "pydantic", "pytest", "scipy", "torch",
     "torchvision", "transformers", "uvicorn",
 ]
-sources = ["python/nntile", "wrappers/python/nntile"]
-targets = ["python/tests", "wrappers/python/tests"]
-
-[tool.pytest-dirty.dependency]
-"wrappers/python/tests/**/test_*.py" = ["wrappers/python/tests/conftest.py"]
+sources = ["python/nntile"]
+targets = ["python/tests"]
 
 [tool.ruff]
 indent-width = 4
@@ -147,5 +145,5 @@ platforms = ["Linux"]
 zip-safe = false
 
 [tool.setuptools.packages.find]
-where = ["python", "wrappers/python"]
+where = ["python"]
 include = ["nntile*"]

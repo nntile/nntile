@@ -14,6 +14,7 @@
 
 #include <cstring>
 #include <memory>
+#include <nntile/context.hh>
 #include <nntile/graph.hh>
 #include <nntile/nn/graph_ops.hh>
 
@@ -39,6 +40,15 @@ struct PyGraphRuntime
     Runtime runtime;
     explicit PyGraphRuntime(std::shared_ptr<TileGraph> g) :
         tile_graph(std::move(g)), runtime(*tile_graph)
+    {
+    }
+};
+
+//! Non-owning view of ``NNGraph::runtime()`` after ``lower_and_compile``.
+struct PyRuntimeView
+{
+    Runtime *runtime = nullptr;
+    explicit PyRuntimeView(Runtime &rt) : runtime(&rt)
     {
     }
 };
@@ -182,6 +192,74 @@ static py::array runtime_get_numpy_nn(
     return runtime_get_numpy(s.runtime, tensor);
 }
 
+static void sync_param_hint_from_runtime(
+    Runtime &runtime, NNGraph::TensorNode *t)
+{
+    std::vector<std::uint8_t> bytes;
+    switch (t->dtype())
+    {
+    case DataType::FP64:
+    {
+        auto d = runtime.get_output<double>(t);
+        bytes.resize(d.size() * sizeof(double));
+        std::memcpy(bytes.data(), d.data(), bytes.size());
+        break;
+    }
+    case DataType::INT64:
+    {
+        auto d = runtime.get_output<std::int64_t>(t);
+        bytes.resize(d.size() * sizeof(std::int64_t));
+        std::memcpy(bytes.data(), d.data(), bytes.size());
+        break;
+    }
+    default:
+    {
+        auto d = runtime.get_output<float>(t);
+        bytes.resize(d.size() * sizeof(float));
+        std::memcpy(bytes.data(), d.data(), bytes.size());
+        break;
+    }
+    }
+    t->data()->set_bind_hint(std::move(bytes));
+}
+
+static void bind_runtime_methods(py::class_<PyRuntimeView> &cls)
+{
+    cls.def("compile", [](PyRuntimeView &s) { s.runtime->compile(); })
+        .def(
+            "bind_data",
+            [](PyRuntimeView &s, NNGraph::TensorNode const *t, py::array a)
+            { runtime_bind_numpy(*s.runtime, t, a); },
+            "tensor"_a,
+            "data"_a)
+        .def(
+            "bind_data",
+            [](PyRuntimeView &s,
+                TensorGraph::TensorNode const *t,
+                py::array a) { runtime_bind_numpy(*s.runtime, t, a); },
+            "tensor"_a,
+            "data"_a)
+        .def("execute", [](PyRuntimeView &s) { s.runtime->execute(); })
+        .def("wait", [](PyRuntimeView &s) { s.runtime->wait(); })
+        .def(
+            "get_output",
+            [](PyRuntimeView &s, NNGraph::TensorNode const *t)
+            { return runtime_get_numpy(*s.runtime, t); },
+            "tensor"_a)
+        .def(
+            "get_output",
+            [](PyRuntimeView &s, TensorGraph::TensorNode const *t)
+            { return runtime_get_numpy(*s.runtime, t); },
+            "tensor"_a)
+        .def_property_readonly("is_compiled",
+            [](const PyRuntimeView &s) { return s.runtime->is_compiled(); })
+        .def(
+            "sync_param_hint_from_runtime",
+            [](PyRuntimeView &s, NNGraph::TensorNode *tensor)
+            { sync_param_hint_from_runtime(*s.runtime, tensor); },
+            "tensor"_a);
+}
+
 // ---------------------------------------------------------------------------
 // Module definition
 // ---------------------------------------------------------------------------
@@ -300,6 +378,45 @@ PYBIND11_MODULE(nntile, m)
         .def_property_readonly("is_compiled",
             [](const PyGraphRuntime &s) { return s.runtime.is_compiled(); });
 
+    {
+        py::class_<PyRuntimeView> gr(
+            m,
+            "GraphRuntime",
+            "Non-owning executor view from ``NNGraph.runtime()`` after "
+            "``lower_and_compile()``. The parent ``NNGraph`` is kept alive "
+            "while this object exists. After "
+            "``reset_incremental_tile_state()``, call ``runtime()`` again; "
+            "older views must not be used.");
+        bind_runtime_methods(gr);
+    }
+
+    m.def(
+        "sync_param_hint_from_runtime",
+        [](PyRuntimeView runtime, NNGraph::TensorNode *tensor)
+        { sync_param_hint_from_runtime(*runtime.runtime, tensor); },
+        "runtime"_a,
+        "tensor"_a);
+    m.def(
+        "sync_param_hint_from_runtime",
+        [](PyGraphRuntime &runtime, NNGraph::TensorNode *tensor)
+        { sync_param_hint_from_runtime(runtime.runtime, tensor); },
+        "runtime"_a,
+        "tensor"_a);
+    m.def(
+        "sync_param_hint_from_runtime",
+        [](NNGraph &graph, NNGraph::TensorNode *tensor)
+        {
+            if (!graph.has_runtime())
+            {
+                throw std::runtime_error(
+                    "sync_param_hint_from_runtime: call lower_and_compile() "
+                    "first");
+            }
+            sync_param_hint_from_runtime(graph.runtime(), tensor);
+        },
+        "graph"_a,
+        "tensor"_a);
+
     // -----------------------------------------------------------------------
     // NNGraph::TensorNode (autograd-aware tensor node)
     // -----------------------------------------------------------------------
@@ -341,7 +458,7 @@ PYBIND11_MODULE(nntile, m)
     // -----------------------------------------------------------------------
     // NNGraph (autograd computation graph)
     // -----------------------------------------------------------------------
-    py::class_<NNGraph>(m, "NNGraph")
+    py::class_<NNGraph>(m, "NNGraph", py::dynamic_attr())
         .def(py::init<const std::string &>(), "name"_a = "")
         .def_property_readonly("name", &NNGraph::name)
         .def_property_readonly("num_tensors", &NNGraph::num_tensors)
@@ -361,8 +478,33 @@ PYBIND11_MODULE(nntile, m)
             "tensor_data"_a,
             py::return_value_policy::reference)
         .def("tensor_names", &NNGraph::tensor_names)
-        .def("parameters", &NNGraph::parameters)
-        .def("named_parameters", &NNGraph::named_parameters)
+        .def(
+            "parameters",
+            [](const NNGraph &g)
+            {
+                py::list out;
+                for (NNGraph::TensorNode *p : g.parameters())
+                {
+                    out.append(
+                        py::cast(p, py::return_value_policy::reference));
+                }
+                return out;
+            })
+        .def(
+            "named_parameters",
+            [](const NNGraph &g)
+            {
+                py::list out;
+                for (const auto &entry : g.named_parameters())
+                {
+                    out.append(py::make_tuple(
+                        entry.first,
+                        py::cast(
+                            entry.second,
+                            py::return_value_policy::reference)));
+                }
+                return out;
+            })
         .def(
             "tensor_graph",
             [](NNGraph &g) -> TensorGraph * { return &g.tensor_graph(); },
@@ -381,6 +523,23 @@ PYBIND11_MODULE(nntile, m)
             py::return_value_policy::reference)
         .def_property_readonly("grad_enabled", &NNGraph::is_grad_enabled)
         .def("set_grad_enabled", &NNGraph::set_grad_enabled, "enabled"_a)
+        .def(
+            "finish_phase",
+            [](NNGraph &g, bool reset_autograd_state)
+            { g.finish_phase(reset_autograd_state); },
+            "reset_autograd_state"_a = true)
+        .def("lower_and_compile",
+            py::overload_cast<>(&NNGraph::lower_and_compile))
+        .def(
+            "runtime",
+            [](NNGraph &g) { return PyRuntimeView(g.runtime()); },
+            py::keep_alive<0, 1>())
+        .def("has_runtime", &NNGraph::has_runtime)
+        .def("enable_auto_tensor_name_phase_suffix",
+            &NNGraph::enable_auto_tensor_name_phase_suffix,
+            "enable"_a = true)
+        .def("reset_incremental_tile_state",
+            &NNGraph::reset_incremental_tile_state)
         .def("__repr__", &NNGraph::to_string)
         .def("to_mermaid", &NNGraph::to_mermaid);
 
@@ -524,7 +683,13 @@ PYBIND11_MODULE(nntile, m)
             &nntile::module::Module::children,
             py::return_value_policy::reference)
         .def("repr", &nntile::module::Module::repr)
-        .def("__repr__", &nntile::module::Module::to_string);
+        .def("__repr__", &nntile::module::Module::to_string)
+        .def("load",
+            &nntile::module::Module::load,
+            "path"_a,
+            "strict"_a = true)
+        .def("mark_parameters_input_recursive",
+            &nntile::module::Module::mark_parameters_input_recursive);
 
     bind_nntile_models(m);
 }

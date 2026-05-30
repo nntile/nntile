@@ -3,24 +3,65 @@
 #                2023-present Artificial Intelligence Research Institute
 #                              (AIRI), Russia. All rights reserved.
 #
-# NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
-#
 # @file python/nntile/__init__.py
-# __init__.py
+# NNTile graph-first Python package.
 #
 # @version 1.1.0
 
-"""NNTile graph-first Python package."""
+"""NNTile Python bindings for the libnntile graph API."""
 
 from .nntile import (  # type: ignore[attr-defined]
-    Context, DataType, NNGraph, Runtime, TensorGraph, TileGraph)
+    ActivationType,
+    AdamW,
+    CausalLmBatch,
+    CausalLmBatchConfig,
+    CausalLmBatchIterator,
+    Context,
+    DataType,
+    Gpt2Causal,
+    Gpt2Config,
+    GraphRuntime,
+    Linear,
+    Mlp,
+    Module,
+    NNGraph,
+    Runtime,
+    TensorGraph,
+    TensorNode,
+    TileGraph,
+    TokenMemoryMap,
+    init_random_parameter_hints,
+    make_tiny_gpt2_config,
+    sync_param_hint_from_runtime,
+)
 
 __all__ = [
+    'ActivationType',
+    'AdamW',
+    'CausalLmBatch',
+    'CausalLmBatchConfig',
+    'CausalLmBatchIterator',
     'Context',
     'DataType',
+    'Gpt2Causal',
+    'Gpt2Config',
+    'GraphRuntime',
+    'Linear',
+    'Mlp',
+    'Module',
     'NNGraph',
     'Runtime',
-    'TileGraph',
     'TensorGraph',
+    'TensorNode',
+    'TileGraph',
+    'TokenMemoryMap',
+    'init_random_parameter_hints',
+    'make_tiny_gpt2_config',
+    'nn',
+    'sync_param_hint_from_runtime',
 ]
+
+# Submodule populated by pybind11
+from . import nntile as _ext  # type: ignore[attr-defined]
+
+nn = _ext.nn

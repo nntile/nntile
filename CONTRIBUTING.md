@@ -45,11 +45,12 @@ follow these steps to contribute code.
    See Linting and Type-Checking section for more details.
 
 7. Make sure the tests pass by running the following command from
-   `wrappers/python` directory.
+   `python/` directory (after building with `BUILD_PYTHON_WRAPPERS=ON`).
 
    ```bash
-   cd wrappers/python
-   pytest
+   export PYTHONPATH="$(pwd)/build/python"
+   export LD_LIBRARY_PATH="$(pwd)/build/nntile:${LD_LIBRARY_PATH}"
+   pytest python/tests
    ```
 
    NNTile's test suite is quite large, so if you know the specific test file
