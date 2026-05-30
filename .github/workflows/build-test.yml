@@ -185,9 +185,10 @@ jobs:
             -DBUILD_TESTS=ON -DBUILD_EXAMPLES=OFF -DBUILD_TESTS_PYTORCH=OFF
           cmake --build build --target nntile_py -j"$(nproc)"
       - run: |
+          python3 -m pip install --break-system-packages 'pytest>=8.2'
           export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           export PYTHONPATH="${PWD}/build/python"
-          pytest python/tests -vv
+          python3 -m pytest python/tests -vv
 
   build-examples:
     name: build examples
