@@ -330,17 +330,17 @@ inline void name_gpt2_global_axis_groups(
                 }
             }
         }
-        if (ad->extent == cfg.vocab_size &&
-            !axis_group_is_runtime_training_io(ad))
-        {
-            ad->name = "vocab_size";
-            continue;
-        }
         auto const wpe_axis = axis_group_wpe_axis_index(ad);
         if (wpe_axis.has_value() && *wpe_axis == 0 &&
             ad->extent == cfg.max_position_embeddings)
         {
             ad->name = "max_position_embeddings";
+            continue;
+        }
+        if (ad->extent == cfg.vocab_size &&
+            !axis_group_is_runtime_training_io(ad) && !wpe_axis.has_value())
+        {
+            ad->name = "vocab_size";
             continue;
         }
         if (ad->extent == cfg.hidden_size &&

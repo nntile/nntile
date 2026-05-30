@@ -128,6 +128,28 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "wpe position axis not named vocab_size when extents match",
+    "[tiling][naming]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.vocab_size = 128;
+    cfg.max_position_embeddings = 128;
+    cfg.hidden_size = 64;
+    cfg.intermediate_size = 256;
+    cfg.num_attention_heads = 4;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("naming");
+    auto *wpe = tg.data({128, 64})->set_name("model_transformer_wpe_vocab");
+
+    name_gpt2_training_axis_groups(tg, cfg, 8, 4);
+
+    REQUIRE(wpe->axis(0)->name == "max_position_embeddings");
+    REQUIRE(wpe->axis(1)->name == "hidden_size");
+}
+
+TEST_CASE(
     "wpe axes split when hidden_size equals max_position",
     "[tiling][naming]")
 {
