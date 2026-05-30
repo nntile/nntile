@@ -113,6 +113,25 @@ TEST_CASE(
     REQUIRE(batch_in->axis(1)->name == "batch_size");
 }
 
+TEST_CASE(
+    "hidden_size not named seq_len when extents match",
+    "[tiling][naming]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.hidden_size = 64;
+    cfg.intermediate_size = 128;
+    cfg.num_attention_heads = 4;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("naming");
+    auto *hidden = tg.data({64})->set_name("model_transformer_h_0_ln_1");
+
+    name_gpt2_training_axis_groups(tg, cfg, 64, 4);
+
+    REQUIRE(hidden->axis(0)->name == "hidden_size");
+}
+
 TEST_CASE("round-trip save and reload", "[tiling][json]")
 {
     FlatTilingSpec spec;

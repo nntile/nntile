@@ -107,6 +107,10 @@ inline bool axis_group_looks_like_batch(AxisDescriptor const *ad)
 
 inline bool axis_group_looks_like_seq(AxisDescriptor const *ad)
 {
+    if (axis_group_member_name_contains(ad, "_h_"))
+    {
+        return false;
+    }
     if (axis_group_member_name_contains(ad, "attn_mask"))
     {
         return true;
@@ -117,7 +121,7 @@ inline bool axis_group_looks_like_seq(AxisDescriptor const *ad)
     {
         return true;
     }
-    return !axis_group_member_name_contains(ad, "_attn_");
+    return false;
 }
 
 inline void name_gpt2_layer_local_axis_groups(
@@ -154,6 +158,11 @@ inline void name_gpt2_layer_local_axis_groups(
             auto parsed = parse_h_layer_index_from_tensor_name(tname);
             if (parsed.has_value())
             {
+                if (layer_idx.has_value() && *layer_idx != *parsed)
+                {
+                    layer_idx = std::nullopt;
+                    break;
+                }
                 layer_idx = parsed;
             }
         }
@@ -217,12 +226,6 @@ inline void name_gpt2_global_axis_groups(
             ad->name = "batch_size";
             continue;
         }
-        if (ad->extent == seq_len && seq_len > 0 &&
-            axis_group_looks_like_seq(ad))
-        {
-            ad->name = "seq_len";
-            continue;
-        }
         if (ad->extent == cfg.vocab_size)
         {
             ad->name = "vocab_size";
@@ -232,6 +235,12 @@ inline void name_gpt2_global_axis_groups(
             !axis_group_member_name_contains(ad, "_attn_"))
         {
             ad->name = "hidden_size";
+            continue;
+        }
+        if (ad->extent == seq_len && seq_len > 0 &&
+            axis_group_looks_like_seq(ad))
+        {
+            ad->name = "seq_len";
             continue;
         }
         if (ad->extent == cfg.max_position_embeddings)
