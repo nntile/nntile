@@ -87,6 +87,7 @@ set(TESTS_TENSOR_CATCH2
 
 set(TESTS_TENSOR_ROOT_CATCH2
     "axis_descriptor"
+    "tiling_config_json"
 )
 
 # CUDA-only tests (flash_* operations require n_cuda=1)
@@ -126,7 +127,8 @@ foreach(test IN LISTS TESTS_TENSOR_ROOT_CATCH2)
         COV_GLOBAL coverage_graph coverage
     )
     target_include_directories(tests_graph_tensor_${test} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_SOURCE_DIR}/nntile/examples)
 endforeach()
 
 foreach(test IN LISTS TESTS_TENSOR_CUDA)

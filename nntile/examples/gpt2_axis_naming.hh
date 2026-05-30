@@ -1,0 +1,143 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * @file examples/gpt2_axis_naming.hh
+ * Name TensorGraph axis groups for GPT-2 training + tiling.json keys.
+ *
+ * @version 1.1.0
+ * */
+
+#pragma once
+
+#include <nntile/base_types.hh>
+#include <nntile/model/gpt2/gpt2_config.hh>
+#include <nntile/tensor/axis_descriptor.hh>
+#include <nntile/tensor/graph_decl.hh>
+
+#include <cctype>
+#include <optional>
+#include <string>
+
+namespace nntile::examples
+{
+
+inline std::optional<Index> parse_h_layer_index_from_tensor_name(
+    std::string const &tensor_name)
+{
+    std::string const needle = "_h_";
+    auto pos = tensor_name.find(needle);
+    if (pos == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    pos += needle.size();
+    if (pos >= tensor_name.size() || !std::isdigit(tensor_name[pos]))
+    {
+        return std::nullopt;
+    }
+    Index idx = 0;
+    while (pos < tensor_name.size() && std::isdigit(tensor_name[pos]))
+    {
+        idx = idx * 10 + static_cast<Index>(tensor_name[pos] - '0');
+        ++pos;
+    }
+    if (pos < tensor_name.size() && tensor_name[pos] != '_')
+    {
+        return std::nullopt;
+    }
+    return idx;
+}
+
+inline void name_gpt2_training_axis_groups(
+    TensorGraph &tg,
+    model::gpt2::Gpt2Config const &cfg,
+    Index seq_len,
+    Index batch_size)
+{
+    for (AxisDescriptor *ad : tg.axis_groups())
+    {
+        if (!ad->name.empty())
+        {
+            continue;
+        }
+        if (ad->extent == batch_size)
+        {
+            ad->name = "batch_size";
+            continue;
+        }
+        if (ad->extent == seq_len)
+        {
+            ad->name = "seq_len";
+            continue;
+        }
+        if (ad->extent == cfg.vocab_size)
+        {
+            ad->name = "vocab_size";
+            continue;
+        }
+        if (ad->extent == cfg.hidden_size)
+        {
+            ad->name = "hidden_size";
+            continue;
+        }
+        if (ad->extent == cfg.max_position_embeddings)
+        {
+            ad->name = "max_position_embeddings";
+            continue;
+        }
+    }
+
+    for (AxisDescriptor *ad : tg.axis_groups())
+    {
+        if (!ad->name.empty())
+        {
+            continue;
+        }
+        if (ad->extent != cfg.intermediate_size &&
+            ad->extent != cfg.num_attention_heads)
+        {
+            continue;
+        }
+        std::optional<Index> layer_idx;
+        bool is_mlp = false;
+        bool is_attn = false;
+        for (auto const &[node_ptr, axis_idx] : ad->members)
+        {
+            (void) axis_idx;
+            auto *node = static_cast<TensorGraph::TensorNode *>(node_ptr);
+            std::string const &tname = node->name();
+            if (tname.find("_mlp_") != std::string::npos)
+            {
+                is_mlp = true;
+            }
+            if (tname.find("_attn_") != std::string::npos)
+            {
+                is_attn = true;
+            }
+            auto parsed = parse_h_layer_index_from_tensor_name(tname);
+            if (parsed.has_value())
+            {
+                layer_idx = parsed;
+            }
+        }
+        if (!layer_idx.has_value())
+        {
+            continue;
+        }
+        if (is_mlp && ad->extent == cfg.intermediate_size)
+        {
+            ad->name = "layer." + std::to_string(*layer_idx) +
+                       ".intermediate_size";
+            continue;
+        }
+        if (is_attn && ad->extent == cfg.num_attention_heads)
+        {
+            ad->name = "layer." + std::to_string(*layer_idx) +
+                       ".num_attention_heads";
+        }
+    }
+}
+
+} // namespace nntile::examples

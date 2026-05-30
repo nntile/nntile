@@ -24,6 +24,8 @@
  * vs ``labels``. ``--tiny`` selects a built-in small config; ``--config`` loads
  * JSON ``Gpt2Config``; otherwise the tiny default applies.
  * ``--load-weights`` uses ``Module::load`` (SafeTensors).
+ * ``--tiling`` loads ``tiling.json`` (``default`` + ``layers``; axis keys match
+ * config + ``seq_len`` / ``batch_size``).
  *
  * Training loop matches ``llama_graph_training``: clear grads, forward, loss,
  * ``backward(true)``, ``optimizer->step(scheduled_lr)``, ``finish_phase()``,
@@ -46,7 +48,9 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
+#include "gpt2_axis_naming.hh"
 #include "gpt2_config_json.hh"
+#include "tiling_config_json.hh"
 #include <nntile.hh>
 #include <nntile/dataset/causal_lm_mmap.hh>
 #include <nntile/model/gpt2/gpt2_causal.hh>
@@ -82,6 +86,7 @@ constexpr int CONTEXT_LOGGER_PORT = 5001;
 struct Args
 {
     std::string config_path;
+    std::string tiling_path;
     std::string load_weights;
     std::string output_dir;
     std::string train_bin;
@@ -101,8 +106,12 @@ struct Args
 
 
 
+using nntile::examples::apply_flat_tiling_spec;
 using nntile::examples::load_gpt2_config_json;
+using nntile::examples::load_tiling_json;
+using nntile::examples::name_gpt2_training_axis_groups;
 using nntile::examples::save_gpt2_config_json;
+using nntile::examples::save_tiling_json;
 
 static Gpt2Config make_tiny_config()
 {
@@ -148,6 +157,10 @@ static Args parse_args(int argc, char **argv)
         std::string arg = argv[i];
         std::string s;
         if (take_string_opt(argc, argv, i, "--config", a.config_path))
+        {
+            continue;
+        }
+        if (take_string_opt(argc, argv, i, "--tiling", a.tiling_path))
         {
             continue;
         }
@@ -228,6 +241,7 @@ static Args parse_args(int argc, char **argv)
             std::cout
                 << "Usage: " << argv[0] << " [options]\n"
                 << "  --config <path>       GPT-2 JSON (optional if --tiny)\n"
+                << "  --tiling <path>       tiling.json (default + layers)\n"
                 << "  --tiny                use built-in tiny architecture\n"
                 << "  --load-weights <path> SafeTensors checkpoint\n"
                 << "  --output-dir <path>   write config.json + "
@@ -247,7 +261,7 @@ static Args parse_args(int argc, char **argv)
                 << "Options may use --opt=value or --opt value.\n";
             std::exit(EXIT_OK);
         }
-        if (arg == "--config" || arg == "--load-weights" ||
+        if (arg == "--config" || arg == "--tiling" || arg == "--load-weights" ||
             arg == "--output-dir" || arg == "--train-bin" || arg == "--seq" ||
             arg == "--batch" || arg == "--seed" || arg == "--max-batches" ||
             arg == "--lr" || arg == "--weight-decay" || arg == "--beta1" ||
@@ -457,6 +471,17 @@ int main(int argc, char **argv)
         1e-8,
         static_cast<Scalar>(args.weight_decay));
 
+    if (!args.tiling_path.empty())
+    {
+        FlatTilingSpec tiling = load_tiling_json(
+            args.tiling_path, config.num_hidden_layers);
+        name_gpt2_training_axis_groups(
+            graph.tensor_graph(), config, n_seq, n_batch);
+        apply_flat_tiling_spec(
+            graph.tensor_graph(), tiling, config.num_hidden_layers);
+        std::cout << "Tiling: loaded " << args.tiling_path << "\n";
+    }
+
     std::cout << "Optimizer: " << optimizer->repr() << "\n";
     if (args.warmup_steps > 0)
     {
@@ -629,6 +654,13 @@ int main(int argc, char **argv)
         const std::string cfg_path = args.output_dir + "/config.json";
         const std::string w_path = args.output_dir + "/model.safetensors";
         save_gpt2_config_json(config, cfg_path);
+        if (!args.tiling_path.empty())
+        {
+            FlatTilingSpec tiling = load_tiling_json(
+                args.tiling_path, config.num_hidden_layers);
+            save_tiling_json(
+                tiling, args.output_dir + "/tiling.json");
+        }
         if (graph.has_runtime())
         {
             for (NNGraph::TensorNode *ptensor : graph.parameters())
