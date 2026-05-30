@@ -77,7 +77,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         '--max-batches',
         type=int,
         default=0,
-        help='Max training batches per epoch (0 = all batches in train.bin)',
+        help='Cap total training batches across all epochs (0 = all)',
     )
     p.add_argument('--epochs', type=int, default=1)
     p.add_argument('--lr', type=float, default=0.001)
