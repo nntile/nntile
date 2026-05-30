@@ -93,6 +93,26 @@ TEST_CASE(
     REQUIRE(batch_in->axis(1)->name == "batch_size");
 }
 
+TEST_CASE(
+    "seq_len and batch_size named when extents match",
+    "[tiling][naming]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.hidden_size = 64;
+    cfg.intermediate_size = 128;
+    cfg.num_attention_heads = 4;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("naming");
+    auto *batch_in = tg.data({8, 8})->set_name("input_ids");
+
+    name_gpt2_training_axis_groups(tg, cfg, 8, 8);
+
+    REQUIRE(batch_in->axis(0)->name == "seq_len");
+    REQUIRE(batch_in->axis(1)->name == "batch_size");
+}
+
 TEST_CASE("round-trip save and reload", "[tiling][json]")
 {
     FlatTilingSpec spec;

@@ -66,6 +66,30 @@ inline bool axis_group_member_name_contains(
     return false;
 }
 
+//! Axis index on ``input_ids`` / ``labels`` / ``position_ids`` members, if any.
+inline std::optional<size_t> axis_group_training_io_axis_index(
+    AxisDescriptor const *ad)
+{
+    std::optional<size_t> idx;
+    for (auto const &[node_ptr, axis_idx] : ad->members)
+    {
+        auto *node = static_cast<TensorGraph::TensorNode const *>(node_ptr);
+        std::string const &tname = node->name();
+        if (tname.find("input_ids") == std::string::npos &&
+            tname.find("labels") == std::string::npos &&
+            tname.find("position_ids") == std::string::npos)
+        {
+            continue;
+        }
+        if (idx.has_value() && *idx != axis_idx)
+        {
+            return std::nullopt;
+        }
+        idx = axis_idx;
+    }
+    return idx;
+}
+
 inline bool axis_group_looks_like_batch(AxisDescriptor const *ad)
 {
     if (axis_group_member_name_contains(ad, "_attn_"))
@@ -157,11 +181,35 @@ inline void name_gpt2_global_axis_groups(
     Index seq_len,
     Index batch_size)
 {
+    bool const seq_batch_same =
+        seq_len > 0 && batch_size > 0 && seq_len == batch_size;
     for (AxisDescriptor *ad : tg.axis_groups())
     {
         if (!ad->name.empty())
         {
             continue;
+        }
+        if (seq_batch_same && ad->extent == seq_len)
+        {
+            if (axis_group_member_name_contains(ad, "attn_mask"))
+            {
+                ad->name = "seq_len";
+                continue;
+            }
+            auto io_axis = axis_group_training_io_axis_index(ad);
+            if (io_axis.has_value())
+            {
+                if (*io_axis == 0)
+                {
+                    ad->name = "seq_len";
+                    continue;
+                }
+                if (*io_axis == 1)
+                {
+                    ad->name = "batch_size";
+                    continue;
+                }
+            }
         }
         if (ad->extent == batch_size && batch_size > 0 &&
             axis_group_looks_like_batch(ad))
