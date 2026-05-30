@@ -252,7 +252,12 @@ static void bind_runtime_methods(py::class_<PyRuntimeView> &cls)
             { return runtime_get_numpy(*s.runtime, t); },
             "tensor"_a)
         .def_property_readonly("is_compiled",
-            [](const PyRuntimeView &s) { return s.runtime->is_compiled(); });
+            [](const PyRuntimeView &s) { return s.runtime->is_compiled(); })
+        .def(
+            "sync_param_hint_from_runtime",
+            [](PyRuntimeView &s, NNGraph::TensorNode *tensor)
+            { sync_param_hint_from_runtime(*s.runtime, tensor); },
+            "tensor"_a);
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +389,7 @@ PYBIND11_MODULE(nntile, m)
 
     m.def(
         "sync_param_hint_from_runtime",
-        [](PyRuntimeView &runtime, NNGraph::TensorNode *tensor)
+        [](PyRuntimeView runtime, NNGraph::TensorNode *tensor)
         { sync_param_hint_from_runtime(*runtime.runtime, tensor); },
         "runtime"_a,
         "tensor"_a);
@@ -393,6 +398,20 @@ PYBIND11_MODULE(nntile, m)
         [](PyGraphRuntime &runtime, NNGraph::TensorNode *tensor)
         { sync_param_hint_from_runtime(runtime.runtime, tensor); },
         "runtime"_a,
+        "tensor"_a);
+    m.def(
+        "sync_param_hint_from_runtime",
+        [](NNGraph &graph, NNGraph::TensorNode *tensor)
+        {
+            if (!graph.has_runtime())
+            {
+                throw std::runtime_error(
+                    "sync_param_hint_from_runtime: call lower_and_compile() "
+                    "first");
+            }
+            sync_param_hint_from_runtime(graph.runtime(), tensor);
+        },
+        "graph"_a,
         "tensor"_a);
 
     // -----------------------------------------------------------------------
@@ -456,8 +475,33 @@ PYBIND11_MODULE(nntile, m)
             "tensor_data"_a,
             py::return_value_policy::reference)
         .def("tensor_names", &NNGraph::tensor_names)
-        .def("parameters", &NNGraph::parameters)
-        .def("named_parameters", &NNGraph::named_parameters)
+        .def(
+            "parameters",
+            [](const NNGraph &g)
+            {
+                py::list out;
+                for (NNGraph::TensorNode *p : g.parameters())
+                {
+                    out.append(
+                        py::cast(p, py::return_value_policy::reference));
+                }
+                return out;
+            })
+        .def(
+            "named_parameters",
+            [](const NNGraph &g)
+            {
+                py::list out;
+                for (const auto &entry : g.named_parameters())
+                {
+                    out.append(py::make_tuple(
+                        entry.first,
+                        py::cast(
+                            entry.second,
+                            py::return_value_policy::reference)));
+                }
+                return out;
+            })
         .def(
             "tensor_graph",
             [](NNGraph &g) -> TensorGraph * { return &g.tensor_graph(); },

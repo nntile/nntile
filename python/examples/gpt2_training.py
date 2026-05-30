@@ -33,7 +33,6 @@ from nntile import (
     TokenMemoryMap,
     init_random_parameter_hints,
     make_tiny_gpt2_config,
-    sync_param_hint_from_runtime,
 )
 
 
@@ -77,8 +76,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         '--max-batches',
         type=int,
-        default=1,
-        help='Max training batches per epoch (default 1 for Python v1)',
+        default=0,
+        help='Max training batches per epoch (0 = all batches in train.bin)',
     )
     p.add_argument('--epochs', type=int, default=1)
     p.add_argument('--lr', type=float, default=0.001)
@@ -173,9 +172,11 @@ def main(argv: list[str] | None = None) -> int:
                 break
 
             if train_step > 0:
-                for p in graph.parameters():
-                    if p.grad is not None:
-                        nntile.nn.clear(p.grad)
+                graph.reset_incremental_tile_state()
+
+            for p in graph.parameters():
+                if p.grad is not None:
+                    nntile.nn.clear(p.grad)
 
             logits = model.forward(input_ids, position_ids, attn_mask)
             if logits is None:
@@ -231,6 +232,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(
                     f'Batch {train_step}  loss={loss_val}  ({us:.0f} us)',
                 )
+
+            # Persist updated weights / optimizer state for incremental phases
+            # (required before reset_incremental_tile_state on the next step).
+            for ptensor in graph.parameters():
+                runtime.sync_param_hint_from_runtime(ptensor)
+            for _sname, stensor in optimizer.named_state_tensors():
+                runtime.sync_param_hint_from_runtime(stensor)
 
             train_step += 1
 
