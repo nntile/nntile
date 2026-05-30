@@ -128,6 +128,31 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "mlp axes split when hidden_size equals intermediate_size",
+    "[tiling][naming]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.hidden_size = 128;
+    cfg.intermediate_size = 128;
+    cfg.num_attention_heads = 4;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("naming");
+    auto *fc1 = tg.data({128, 128})
+                    ->set_name("model_transformer_h_0_mlp_fc1_weight");
+    auto *fc2 = tg.data({128, 128})
+                    ->set_name("model_transformer_h_0_mlp_fc2_weight");
+
+    name_gpt2_training_axis_groups(tg, cfg, 8, 4);
+
+    REQUIRE(fc1->axis(0)->name == "hidden_size");
+    REQUIRE(fc1->axis(1)->name == "layer.0.intermediate_size");
+    REQUIRE(fc2->axis(0)->name == "layer.0.intermediate_size");
+    REQUIRE(fc2->axis(1)->name == "hidden_size");
+}
+
+TEST_CASE(
     "seq_len not named hidden_size when extents match",
     "[tiling][naming]")
 {

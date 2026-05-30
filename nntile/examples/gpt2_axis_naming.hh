@@ -130,6 +130,89 @@ inline bool axis_group_is_runtime_training_io(AxisDescriptor const *ad)
     return axis_group_looks_like_seq(ad) || axis_group_looks_like_batch(ad);
 }
 
+//! Per-layer axis role from MLP parameter layout (``Linear`` is in×out).
+inline std::optional<std::string> gpt2_mlp_layer_axis_role(
+    std::string const &tname,
+    size_t axis_idx,
+    model::gpt2::Gpt2Config const &cfg,
+    Index extent)
+{
+    if (tname.find("_mlp_") == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    bool const is_fc1 = tname.find("fc1") != std::string::npos;
+    bool const is_fc2 = tname.find("fc2") != std::string::npos;
+    if (!is_fc1 && !is_fc2)
+    {
+        return std::nullopt;
+    }
+    if (tname.find("bias") != std::string::npos)
+    {
+        if (is_fc1 && extent == cfg.intermediate_size)
+        {
+            return "intermediate_size";
+        }
+        return std::nullopt;
+    }
+    if (tname.find("weight") == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    if (is_fc1 && axis_idx == 1 && extent == cfg.intermediate_size)
+    {
+        return "intermediate_size";
+    }
+    if (is_fc2 && axis_idx == 0 && extent == cfg.intermediate_size)
+    {
+        return "intermediate_size";
+    }
+    return std::nullopt;
+}
+
+//! Per-layer axis role from attention parameter layout.
+inline std::optional<std::string> gpt2_attn_layer_axis_role(
+    std::string const &tname,
+    size_t axis_idx,
+    model::gpt2::Gpt2Config const &cfg,
+    Index extent)
+{
+    if (tname.find("_attn_") == std::string::npos ||
+        extent != cfg.num_attention_heads)
+    {
+        return std::nullopt;
+    }
+    if (tname.find("q_weight") != std::string::npos ||
+        tname.find("k_weight") != std::string::npos ||
+        tname.find("v_weight") != std::string::npos)
+    {
+        if (axis_idx == 0)
+        {
+            return "num_attention_heads";
+        }
+        return std::nullopt;
+    }
+    if (tname.find("o_weight") != std::string::npos)
+    {
+        if (axis_idx == 1)
+        {
+            return "num_attention_heads";
+        }
+        return std::nullopt;
+    }
+    if (tname.find("q_bias") != std::string::npos ||
+        tname.find("k_bias") != std::string::npos ||
+        tname.find("v_bias") != std::string::npos)
+    {
+        if (axis_idx == 1)
+        {
+            return "num_attention_heads";
+        }
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
 inline void name_gpt2_layer_local_axis_groups(
     TensorGraph &tg,
     model::gpt2::Gpt2Config const &cfg)
@@ -140,53 +223,47 @@ inline void name_gpt2_layer_local_axis_groups(
         {
             continue;
         }
-        if (ad->extent != cfg.intermediate_size &&
-            ad->extent != cfg.num_attention_heads)
-        {
-            continue;
-        }
         std::optional<Index> layer_idx;
-        bool is_mlp = false;
-        bool is_attn = false;
+        std::optional<std::string> axis_role;
         for (auto const &[node_ptr, axis_idx] : ad->members)
         {
-            (void) axis_idx;
             auto *node = static_cast<TensorGraph::TensorNode *>(node_ptr);
             std::string const &tname = node->name();
-            if (tname.find("_mlp_") != std::string::npos)
-            {
-                is_mlp = true;
-            }
-            if (tname.find("_attn_") != std::string::npos)
-            {
-                is_attn = true;
-            }
             auto parsed = parse_h_layer_index_from_tensor_name(tname);
             if (parsed.has_value())
             {
                 if (layer_idx.has_value() && *layer_idx != *parsed)
                 {
                     layer_idx = std::nullopt;
+                    axis_role = std::nullopt;
                     break;
                 }
                 layer_idx = parsed;
             }
+            std::optional<std::string> role = gpt2_mlp_layer_axis_role(
+                tname, axis_idx, cfg, ad->extent);
+            if (!role.has_value())
+            {
+                role = gpt2_attn_layer_axis_role(
+                    tname, axis_idx, cfg, ad->extent);
+            }
+            if (!role.has_value())
+            {
+                axis_role = std::nullopt;
+                break;
+            }
+            if (axis_role.has_value() && *axis_role != *role)
+            {
+                axis_role = std::nullopt;
+                break;
+            }
+            axis_role = role;
         }
-        if (!layer_idx.has_value())
+        if (!layer_idx.has_value() || !axis_role.has_value())
         {
             continue;
         }
-        if (is_mlp && ad->extent == cfg.intermediate_size)
-        {
-            ad->name = "layer." + std::to_string(*layer_idx) +
-                       ".intermediate_size";
-            continue;
-        }
-        if (is_attn && ad->extent == cfg.num_attention_heads)
-        {
-            ad->name = "layer." + std::to_string(*layer_idx) +
-                       ".num_attention_heads";
-        }
+        ad->name = "layer." + std::to_string(*layer_idx) + "." + *axis_role;
     }
 }
 
