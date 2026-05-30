@@ -128,6 +128,27 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "wpe axes split when hidden_size equals max_position",
+    "[tiling][naming]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.hidden_size = 128;
+    cfg.max_position_embeddings = 128;
+    cfg.intermediate_size = 256;
+    cfg.num_attention_heads = 4;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("naming");
+    auto *wpe = tg.data({128, 128})->set_name("model_transformer_wpe_vocab");
+
+    name_gpt2_training_axis_groups(tg, cfg, 8, 4);
+
+    REQUIRE(wpe->axis(0)->name == "max_position_embeddings");
+    REQUIRE(wpe->axis(1)->name == "hidden_size");
+}
+
+TEST_CASE(
     "mlp axes split when hidden_size equals intermediate_size",
     "[tiling][naming]")
 {

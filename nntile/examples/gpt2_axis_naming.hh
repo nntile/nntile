@@ -130,6 +130,33 @@ inline bool axis_group_is_runtime_training_io(AxisDescriptor const *ad)
     return axis_group_looks_like_seq(ad) || axis_group_looks_like_batch(ad);
 }
 
+//! Axis index on ``wpe`` embedding members, if consistent.
+inline std::optional<size_t> axis_group_wpe_axis_index(
+    AxisDescriptor const *ad)
+{
+    std::optional<size_t> idx;
+    bool saw_wpe = false;
+    for (auto const &[node_ptr, axis_idx] : ad->members)
+    {
+        auto *node = static_cast<TensorGraph::TensorNode const *>(node_ptr);
+        if (node->name().find("wpe") == std::string::npos)
+        {
+            continue;
+        }
+        saw_wpe = true;
+        if (idx.has_value() && *idx != axis_idx)
+        {
+            return std::nullopt;
+        }
+        idx = axis_idx;
+    }
+    if (!saw_wpe)
+    {
+        return std::nullopt;
+    }
+    return idx;
+}
+
 //! Per-layer axis role from MLP parameter layout (``Linear`` is in×out).
 inline std::optional<std::string> gpt2_mlp_layer_axis_role(
     std::string const &tname,
@@ -309,15 +336,23 @@ inline void name_gpt2_global_axis_groups(
             ad->name = "vocab_size";
             continue;
         }
+        auto const wpe_axis = axis_group_wpe_axis_index(ad);
+        if (wpe_axis.has_value() && *wpe_axis == 0 &&
+            ad->extent == cfg.max_position_embeddings)
+        {
+            ad->name = "max_position_embeddings";
+            continue;
+        }
         if (ad->extent == cfg.hidden_size &&
             !axis_group_member_name_contains(ad, "_attn_") &&
-            !axis_group_is_runtime_training_io(ad))
+            !axis_group_is_runtime_training_io(ad) &&
+            (!wpe_axis.has_value() || *wpe_axis == 1))
         {
             ad->name = "hidden_size";
             continue;
         }
         if (ad->extent == cfg.max_position_embeddings &&
-            !axis_group_is_runtime_training_io(ad))
+            !axis_group_is_runtime_training_io(ad) && !wpe_axis.has_value())
         {
             ad->name = "max_position_embeddings";
             continue;
