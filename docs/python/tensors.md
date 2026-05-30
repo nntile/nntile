@@ -4,7 +4,7 @@ Import from `nntile.tensor` (re-exports constructors and all functions).
 
 ## Tensor types
 
-Defined in `nntile_core.tensor` and exposed via `nntile.tensor`:
+Defined in `nntile.tensor` and exposed via `nntile.tensor`:
 
 | Class | Role |
 |-------|------|
@@ -77,7 +77,7 @@ y_np = to_numpy(x)
 
 ## GEMM transpose flags
 
-`TransOp`, `trans`, `notrans` from `nntile_core` select transpose mode for `gemm_async`.
+`TransOp`, `trans`, `notrans` from `nntile` select transpose mode for `gemm_async`.
 
 ## See also
 

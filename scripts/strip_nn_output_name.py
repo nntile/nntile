@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-NN_HH = ROOT / "include/nntile/graph/nn/ops"
-NN_CC = ROOT / "src/graph/nn/ops"
+NN_HH = ROOT / "include/nntile/nn/ops"
+NN_CC = ROOT / "nntile/src/nn_graph/ops"
 
 _GEMM_HDR_RE = (
     r"(NNGraph::TensorNode\* gemm\(\s*\n\s*NNGraph::TensorNode\* a,"

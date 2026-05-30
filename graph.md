@@ -1,9 +1,9 @@
 # NNTile Graph System
 
 This document describes the current graph implementation in NNTile. It reflects
-the code in `include/nntile/graph/` and `src/graph/`. Eager execution (kernels,
-StarPU, tile, tensor) lives in the **core** package (`include/nntile/core/`,
-`src/core/`, CMake target `nntile_core`, namespace `nntile::core`).
+the code in `include/nntile/` and `nntile/src/`. Eager execution (kernels,
+StarPU, tile, tensor) lives in the **core** package (`include/nntile/`,
+`nntile/src/`, CMake target `nntile`, namespace `nntile::core`).
 
 ## File layout
 
@@ -49,7 +49,7 @@ include/nntile/
         ├── gelu.hh
         └── sum_fiber.hh
 
-src/graph/
+nntile/src/
 ├── dtype.cc
 ├── tensor/
 │   ├── graph_data_node.cc
@@ -104,7 +104,7 @@ free memory. Input and output tensors are never invalidated.
 
 ### Tensor graph operations
 
-Defined in `include/nntile/graph/tensor/` and `graph_ops.hh`:
+Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 
 **Element-wise operations:**
 - `add(alpha, x, beta, y, output_name)` — creates z = alpha*x + beta*y
@@ -172,28 +172,28 @@ This mirrors PyTorch: outputs and temporaries appear in the forward pass, not at
 
 ### 1. Add a TensorGraph operation
 
-**Header** (`include/nntile/graph/tensor/<op>.hh`):
+**Header** (`include/nntile/tensor/<op>.hh`):
 
 - Define `TensorXxxOp : TensorGraphOpNode` with `execute()` and `clone()`.
 - Declare free functions for the builder API.
 
-**Source** (`src/graph/tensor/<op>.cc`):
+**Source** (`nntile/src/tensor_graph/<op>.cc`):
 
 - Implement the builder: validate inputs, create output via `graph->data()`,
   build op, call `graph->add_op(op)`.
 - Implement `TensorXxxOp::execute()`: dispatch on DataType and call
-  `nntile::core::tensor::*` kernel.
+  `nntile::tensor::*` kernel.
 
 Add to `graph_ops.hh` if needed.
 
 ### 2. Add an NNGraph (autograd) operation
 
-**Header** (`include/nntile/graph/nn/<op>.hh`):
+**Header** (`include/nntile/nn/<op>.hh`):
 
 - Define `NNXxxOp : NNGraph::OpNode` with constructor (inputs only), `forward(output_name)` returning `TensorNode*`, and `backward()`.
 - Declare convenience free function.
 
-**Source** (`src/graph/nn/<op>.cc`):
+**Source** (`nntile/src/nn_graph/<op>.cc`):
 
 - `forward(output_name)`: create output via `graph.tensor()`, set `outputs_`, add tensor ops via `x->data()`, return output.
 - `backward()`: use `output()->grad()`, `grad_x->data()`, etc. with tensor ops.
@@ -211,12 +211,12 @@ Using NNGraph with gradients (see `examples/graph_mlp_example.cc` and
 `examples/linear_layer_example.cc` for full examples):
 
 ```cpp
-#include <nntile/core/context.hh>
+#include <nntile/context.hh>
 #include <nntile/graph.hh>
 
-using namespace nntile::graph;
+using namespace nntile;
 
-nntile::core::Context context(
+nntile::Context context(
     1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
 NNGraph graph("demo");

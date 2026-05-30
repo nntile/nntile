@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-root=${1:-build/tests}
+root=${1:-build/nntile/tests}
 if [ ! -d "$root" ]; then
     exit 0
 fi

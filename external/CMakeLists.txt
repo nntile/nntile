@@ -13,19 +13,19 @@
 
 include(FetchContent)
 
-#add_subdirectory(googletest)
-#add_subdirectory(nvbench)
 if(BUILD_PYTHON_WRAPPERS)
     add_subdirectory(pybind11)
     FetchContent_MakeAvailable(pybind11)
 endif()
 
-FetchContent_Declare(
-    Catch2
-    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG v3.11.0
-)
-FetchContent_MakeAvailable(Catch2)
+if(BUILD_TESTS)
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG v3.11.0
+    )
+    FetchContent_MakeAvailable(Catch2)
+endif()
 
 FetchContent_Declare(
     nlohmann_json
@@ -33,12 +33,3 @@ FetchContent_Declare(
     GIT_TAG v3.11.3
 )
 FetchContent_MakeAvailable(nlohmann_json)
-
-#add_subdirectory(cudnn_frontend)
-
-#include(GoogleTest)
-
-# Append external sources and headers.
-if(BUILD_CORE)
-    target_sources(nntile_core PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/random.h")
-endif()

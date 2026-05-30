@@ -6,9 +6,9 @@ automatic differentiation. This stack is separate from the classic Python API
 
 ## What exists today
 
-- C++ headers under [`include/nntile/graph/`](../include/nntile/graph/) and sources
-  under [`src/graph/`](../src/graph/)
-- Python bindings: `nntile_graph` (see [`wrappers/python/nntile/nntile_graph.cc`](../wrappers/python/nntile/nntile_graph.cc))
+- C++ headers under [`include/nntile/`](../include/nntile/) and sources
+  under [`nntile/src/`](../nntile/src/)
+- Python bindings: `nntile` (see [`wrappers/python/nntile/nntile.cc`](../wrappers/python/nntile/nntile.cc))
 - C++ examples under [`examples/`](../examples/) (e.g. autograd and MLP demos)
 - Architecture overview: [`graph.md`](../graph.md) at the repository root
 

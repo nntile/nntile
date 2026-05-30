@@ -1,0 +1,94 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file nntile/src/model/gptneox/gptneox_decoder.cc
+ * GPT-NeoXDecoder implementation.
+ *
+ * @version 1.1.0
+ * */
+
+#include "nntile/model/gptneox/gptneox_decoder.hh"
+#include "nntile/nn/ops/add.hh"
+
+#include <stdexcept>
+
+namespace nntile::model::gptneox
+{
+
+GptneoxDecoder::GptneoxDecoder(NNGraph* graph,
+                               const std::string& name,
+                               const GptneoxConfig& config,
+                               DataType dtype)
+    : module::Module(graph, name)
+    , input_norm_(graph, name + "_input_norm",
+                  config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+    , attention_(graph, name + "_attention", config, dtype)
+    , post_attn_norm_(graph, name + "_post_attn_norm",
+                      config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+    , mlp_(graph, name + "_mlp", config, dtype)
+    , config_(config)
+    , dtype_(dtype)
+{
+    config_.validate();
+    register_module("input_norm", &input_norm_);
+    register_module("attention", &attention_);
+    register_module("post_attn_norm", &post_attn_norm_);
+    register_module("mlp", &mlp_);
+}
+
+NNGraph::TensorNode* GptneoxDecoder::forward(
+    NNGraph::TensorNode* x,
+    NNGraph::TensorNode* sin,
+    NNGraph::TensorNode* cos,
+    NNGraph::TensorNode* mask)
+{
+    if(x == nullptr)
+    {
+        throw std::invalid_argument(
+            "GptneoxDecoder::forward: input tensor must be non-null");
+    }
+
+    NNGraph::TensorNode* x_norm = input_norm_.forward(x);
+    NNGraph::TensorNode* attn_out =
+        attention_.forward(x_norm, sin, cos, mask);
+
+    if(config_.use_parallel_residual)
+    {
+        // HF: x + attn + mlp(ln2(x)); skip post_attn = x + attn intermediate.
+        NNGraph::TensorNode* ln2_in = post_attn_norm_.forward(x);
+        NNGraph::TensorNode* mlp_out = mlp_.forward(ln2_in);
+        NNGraph::TensorNode* attn_plus_mlp =
+            add(1.0, attn_out, 1.0, mlp_out);
+        attn_plus_mlp->set_name(tensor_name("attn_plus_mlp"));
+        NNGraph::TensorNode* out =
+            add(1.0, x, 1.0, attn_plus_mlp);
+        out->set_name(tensor_name("decoder_out"));
+        return out;
+    }
+
+    // Sequential: ln2(x + attn) -> mlp, like GPT-Neo decoder block.
+    NNGraph::TensorNode* post_attn =
+        add(1.0, x, 1.0, attn_out);
+    post_attn->set_name(tensor_name("post_attn"));
+
+    NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
+    NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
+    NNGraph::TensorNode* out =
+        add(1.0, post_attn, 1.0, mlp_out);
+    out->set_name(tensor_name("decoder_out"));
+    return out;
+}
+
+std::string GptneoxDecoder::repr() const
+{
+    return "GptneoxDecoder(hidden=" + std::to_string(config_.hidden_size) +
+           ", parallel_residual=" +
+           (config_.use_parallel_residual ? "true" : "false") + ")";
+}
+
+} // namespace nntile::model::gptneox

@@ -179,8 +179,8 @@ StarPU uses SimGrid.
 ```bash
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
-# C++ tests (CI-style: skip Python wrapper tests, MPI, NotImplemented)
-ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
+# C++ tests (same filter as CI: no wrappers, skip NotImplemented)
+ctest --test-dir build -E wrappers -LE NotImplemented --output-on-failure
 
 # Everything registered (C++ + pytest per file)
 ctest --test-dir build --output-on-failure
@@ -212,7 +212,7 @@ become `target_name_1`, `target_name_2`, …
 |-----------|--------------|------------|-------|
 | `tests/kernel/` | `tests_kernel_<op>` | `test_<op>` | `nntile::kernel` |
 | `tests/starpu/` | `tests_starpu_<op>` | `test_<op>` | StarPU codelets |
-| `tests/tile/` | `tests_tile_<op>` | `test_<op>` | `Tile<T>` |
+| `tests/core/` | `tests_core_<op>` | `test_<op>` | `Tile<T>` |
 | `tests/tensor/` | `tests_tensor_<op>` | `test_<op>` | `Tensor<T>` |
 | `tests/graph/` | `tests_graph_*` | various | WIP graph / autograd (needs LibTorch; see above) |
 

@@ -41,14 +41,14 @@ For CMakeLists.txt files, use `#` instead of `/*!`:
 
 ## Includes
 
-- Use quotes for local includes: `#include "nntile/core/tensor/tensor.hh"`
+- Use quotes for local includes: `#include "nntile/tensor/tensor.hh"`
 - Use angle brackets for system/standard library includes: `#include <vector>`
 - Group includes logically (system headers, then local headers)
 
 ## Namespaces
 
-- Use nested namespace syntax: `namespace nntile::core::tensor`
-- Always close namespaces with a comment: `} // namespace nntile::core::tensor`
+- Use nested namespace syntax: `namespace nntile::tensor`
+- Always close namespaces with a comment: `} // namespace nntile::tensor`
 - Use `//!` for namespace documentation comments
 
 ## Naming Conventions

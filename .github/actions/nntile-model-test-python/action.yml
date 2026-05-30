@@ -1,0 +1,30 @@
+name: NNTile model-test Python dependencies
+description: >-
+  CPU PyTorch, transformers, and safetensors in /opt/nntile-model-venv for CTest
+  fixture scripts. Sets NNTILE_MODEL_PYTHON for cmake. Use after checkout and
+  nntile-starpu-setup in the build-and-run-tests CI job.
+runs:
+  using: composite
+  steps:
+    - name: Create model-test Python venv
+      shell: bash
+      run: |
+        set -euo pipefail
+        apt-get update
+        apt-get install -y --no-install-recommends \
+          python3 python3-venv ca-certificates curl
+        python3 -m venv /opt/nntile-model-venv
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        $HOME/.local/bin/uv pip install --python /opt/nntile-model-venv/bin/python3 \
+          torch --index-url https://download.pytorch.org/whl/cpu
+        $HOME/.local/bin/uv pip install --python /opt/nntile-model-venv/bin/python3 \
+          numpy safetensors "transformers<4.53"
+        /opt/nntile-model-venv/bin/python3 -c \
+          "import torch, transformers, safetensors"
+        echo "NNTILE_MODEL_PYTHON=/opt/nntile-model-venv/bin/python3" \
+          >> "$GITHUB_ENV"
+    - name: Restore StarPU pkg-config path
+      shell: bash
+      run: |
+        echo "PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig:${PKG_CONFIG_PATH:-}" \
+          >> "$GITHUB_ENV"

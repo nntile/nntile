@@ -29,7 +29,7 @@ Data nodes are templated on the graph type. The graph owns data nodes via
 `unique_ptr`; ops hold raw pointers.
 
 ```cpp
-// include/nntile/graph/base_data_node.hh
+// include/nntile/base_data_node.hh
 
 template<typename Graph>
 class BaseDataNode
@@ -77,9 +77,9 @@ TensorGraph defines `using DataNode = BaseDataNode<TensorGraph>;`.
 DataType enum and utilities live in a standalone header:
 
 ```cpp
-// include/nntile/graph/dtype.hh
+// include/nntile/dtype.hh
 
-namespace nntile::graph
+namespace nntile
 {
 
 enum class DataType
@@ -108,7 +108,7 @@ maps DataNode to runtime tensors. `ExecutionContext` is templated on the
 DataNode type:
 
 ```cpp
-// include/nntile/graph/execution_context.hh
+// include/nntile/execution_context.hh
 
 template<typename DataNode>
 class ExecutionContext
@@ -144,7 +144,7 @@ BaseOpNode is templated on `Graph`. It is both the operation descriptor and the
 graph node. Graph is friend so it can assign `id_` when adding.
 
 ```cpp
-// include/nntile/graph/base_op_node.hh
+// include/nntile/base_op_node.hh
 
 template<typename Graph>
 class BaseOpNode
@@ -191,7 +191,7 @@ protected:
 BaseGraph is a CRTP template with all common logic. TensorGraph derives from it.
 
 ```cpp
-// include/nntile/graph/base_graph.hh
+// include/nntile/base_graph.hh
 
 template<typename Graph>
 class BaseGraph
@@ -232,7 +232,7 @@ protected:
 ```
 
 ```cpp
-// include/nntile/graph/tensor_graph.hh
+// include/nntile/tensor_graph.hh
 
 class TensorGraph : public BaseGraph<TensorGraph>
 {
@@ -263,7 +263,7 @@ protected:
 
 ## 6. Example: Add Operation
 
-### Header (`include/nntile/graph/tensor/add.hh`)
+### Header (`include/nntile/tensor/add.hh`)
 
 ```cpp
 struct TensorAddOp : BaseOpNode<TensorGraph>
@@ -305,7 +305,7 @@ TensorGraph::DataNode* add(
     const std::string& output_name);
 ```
 
-### Implementation (`src/graph/tensor/add.cc`)
+### Implementation (`nntile/src/tensor_graph/add.cc`)
 
 ```cpp
 TensorGraph::DataNode* add(
