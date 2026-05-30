@@ -34,6 +34,7 @@ def test_runtime_view_keeps_nngraph_alive(nntile_context) -> None:
 
     graph_ref = _require_nngraph_weakref(graph)
     runtime = graph.runtime()
+    del mlp
     del graph
     gc.collect()
 

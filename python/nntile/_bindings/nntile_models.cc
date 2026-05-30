@@ -136,7 +136,8 @@ void bind_nntile_models(py::module_ &m)
             "intermediate_dim"_a,
             "output_dim"_a,
             "activation"_a = module::ActivationType::GELU,
-            "dtype"_a = DataType::FP32)
+            "dtype"_a = DataType::FP32,
+            py::keep_alive<1, 2>())
         .def("forward",
             &module::Mlp::forward,
             "input"_a,
@@ -174,7 +175,8 @@ void bind_nntile_models(py::module_ &m)
             "graph"_a,
             "name"_a,
             "config"_a,
-            "dtype"_a = DataType::FP32)
+            "dtype"_a = DataType::FP32,
+            py::keep_alive<1, 2>())
         .def("forward",
             &model::gpt2::Gpt2Causal::forward,
             "input_ids"_a,
@@ -198,7 +200,9 @@ void bind_nntile_models(py::module_ &m)
             "beta_1"_a = 0.9,
             "beta_2"_a = 0.999,
             "eps"_a = 1e-8,
-            "weight_decay"_a = 0.01)
+            "weight_decay"_a = 0.01,
+            py::keep_alive<1, 2>(),
+            py::keep_alive<1, 3>())
         .def("step",
             py::overload_cast<Scalar>(&optim::AdamW::step),
             "lr"_a)
