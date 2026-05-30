@@ -111,6 +111,7 @@ testpaths = ["python/tests"]
 markers = [
     "slow: slow tests (deselect with '-m \"not slow\"')",
     "cuda: tests that requires CUDA",
+    "numpy_only: pure NumPy tests (no libnntile / LD_LIBRARY_PATH required)",
 ]
 filterwarnings = ["ignore::DeprecationWarning"]
 

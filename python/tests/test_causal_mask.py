@@ -13,6 +13,9 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
+
+pytestmark = pytest.mark.numpy_only
 
 _examples = Path(__file__).resolve().parents[1] / 'examples'
 if str(_examples) not in sys.path:

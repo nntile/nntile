@@ -15,19 +15,20 @@ import os
 
 import pytest
 
-nntile = pytest.importorskip('nntile')
-
 
 @pytest.fixture(scope='session')
 def nntile_context():
     """Initialize StarPU once per test session."""
+    nntile = pytest.importorskip('nntile')
     ctx = nntile.Context(1, 0)
     yield ctx
     ctx.shutdown()
 
 
 @pytest.fixture(autouse=True)
-def _check_libs():
+def _check_libs(request: pytest.FixtureRequest) -> None:
+    if request.node.get_closest_marker('numpy_only') is not None:
+        return
     if 'LD_LIBRARY_PATH' not in os.environ:
         pytest.skip(
             'Set LD_LIBRARY_PATH to libnntile.so and StarPU before running tests',
