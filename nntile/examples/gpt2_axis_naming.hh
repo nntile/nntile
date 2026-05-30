@@ -14,8 +14,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/model/gpt2/gpt2_config.hh>
 #include <nntile/tensor/axis_descriptor.hh>
-#include <nntile/tensor/graph_data_node.hh>
-#include <nntile/tensor/graph_decl.hh>
+#include <nntile/tensor/graph.hh>
 
 #include <cctype>
 #include <optional>

@@ -9,12 +9,12 @@
  * @version 1.1.0
  * */
 
-#include "gpt2_axis_naming.hh"
-#include "tiling_config_json.hh"
-
 #include <catch2/catch_test_macros.hpp>
 #include <nntile/model/gpt2/gpt2_config.hh>
 #include <nntile/tensor.hh>
+
+#include "gpt2_axis_naming.hh"
+#include "tiling_config_json.hh"
 
 #include <cstdio>
 #include <fstream>

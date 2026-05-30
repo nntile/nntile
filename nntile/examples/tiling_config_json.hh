@@ -16,7 +16,7 @@
 #include <nlohmann/json.hpp>
 #include <nntile/base_types.hh>
 #include <nntile/tensor/axis_descriptor.hh>
-#include <nntile/tensor/graph_decl.hh>
+#include <nntile/tensor/graph.hh>
 
 #include <fstream>
 #include <map>
