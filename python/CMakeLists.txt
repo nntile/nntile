@@ -80,9 +80,16 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
             NAME "python_tests_${ctest_suffix}"
             COMMAND "${Python3_EXECUTABLE}" -m pytest -rx "${py_test}"
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tests")
+        # Prepend libnntile and StarPU to inherited LD_LIBRARY_PATH (do not replace).
+        set(_nntile_py_ld_prepend "${CMAKE_BINARY_DIR}/nntile")
+        foreach(_starpu_lib_dir IN LISTS StarPU_LIBRARY_DIRS)
+            set(_nntile_py_ld_prepend
+                "${_nntile_py_ld_prepend}:${_starpu_lib_dir}")
+        endforeach()
         set_tests_properties("python_tests_${ctest_suffix}" PROPERTIES
-            ENVIRONMENT
-            "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR};LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/nntile"
+            ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}"
+            ENVIRONMENT_MODIFICATION
+            "LD_LIBRARY_PATH=path_list_prepend:${_nntile_py_ld_prepend}"
             LABELS "python")
     endforeach()
 endif()
