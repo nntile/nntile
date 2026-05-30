@@ -128,6 +128,26 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "vocab_size not named batch_size when extents match",
+    "[tiling][naming]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.vocab_size = 256;
+    cfg.hidden_size = 64;
+    cfg.intermediate_size = 128;
+    cfg.num_attention_heads = 4;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("naming");
+    auto *wte = tg.data({256})->set_name("model_transformer_wte_weight");
+
+    name_gpt2_training_axis_groups(tg, cfg, 8, 256);
+
+    REQUIRE(wte->axis(0)->name == "vocab_size");
+}
+
+TEST_CASE(
     "hidden_size not named seq_len when extents match",
     "[tiling][naming]")
 {

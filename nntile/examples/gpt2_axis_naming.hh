@@ -92,17 +92,17 @@ inline std::optional<size_t> axis_group_training_io_axis_index(
 
 inline bool axis_group_looks_like_batch(AxisDescriptor const *ad)
 {
-    if (axis_group_member_name_contains(ad, "_attn_"))
+    if (axis_group_member_name_contains(ad, "_attn_") ||
+        axis_group_member_name_contains(ad, "_h_") ||
+        axis_group_member_name_contains(ad, "wte") ||
+        axis_group_member_name_contains(ad, "wpe") ||
+        axis_group_member_name_contains(ad, "lm_head"))
     {
         return false;
     }
-    if (axis_group_member_name_contains(ad, "input_ids") ||
-        axis_group_member_name_contains(ad, "labels") ||
-        axis_group_member_name_contains(ad, "position_ids"))
-    {
-        return true;
-    }
-    return !axis_group_member_name_contains(ad, "_h_");
+    return axis_group_member_name_contains(ad, "input_ids") ||
+           axis_group_member_name_contains(ad, "labels") ||
+           axis_group_member_name_contains(ad, "position_ids");
 }
 
 inline bool axis_group_looks_like_seq(AxisDescriptor const *ad)
@@ -220,12 +220,6 @@ inline void name_gpt2_global_axis_groups(
                 }
             }
         }
-        if (ad->extent == batch_size && batch_size > 0 &&
-            axis_group_looks_like_batch(ad))
-        {
-            ad->name = "batch_size";
-            continue;
-        }
         if (ad->extent == cfg.vocab_size)
         {
             ad->name = "vocab_size";
@@ -237,15 +231,22 @@ inline void name_gpt2_global_axis_groups(
             ad->name = "hidden_size";
             continue;
         }
+        if (ad->extent == cfg.max_position_embeddings)
+        {
+            ad->name = "max_position_embeddings";
+            continue;
+        }
+        if (ad->extent == batch_size && batch_size > 0 &&
+            axis_group_looks_like_batch(ad))
+        {
+            ad->name = "batch_size";
+            continue;
+        }
         if (ad->extent == seq_len && seq_len > 0 &&
             axis_group_looks_like_seq(ad))
         {
             ad->name = "seq_len";
             continue;
-        }
-        if (ad->extent == cfg.max_position_embeddings)
-        {
-            ad->name = "max_position_embeddings";
         }
     }
 }
