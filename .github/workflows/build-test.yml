@@ -149,7 +149,7 @@ jobs:
             -DBUILD_DIR="${PWD}/build" \
             -DCMAKE_INSTALL_PREFIX="${PWD}/build/nntile-install-test-prefix" \
             -DCMAKE_INSTALL_LIBDIR=lib \
-            -DBUILD_SHARED_LIBS=ON
+            -DNNTILE_INSTALL_LIB_BASENAME=libnntile.so
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache

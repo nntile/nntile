@@ -167,6 +167,9 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/nntile_install_lib_basename.cmake)
+nntile_install_lib_basename(_nntile_install_lib_basename)
+
 set(_nntile_install_prefix "${PROJECT_BINARY_DIR}/nntile-install-test-prefix")
 message(STATUS "Adding install verification test tests_nntile_install")
 add_test(
@@ -175,7 +178,7 @@ add_test(
         -DBUILD_DIR=${PROJECT_BINARY_DIR}
         -DCMAKE_INSTALL_PREFIX=${_nntile_install_prefix}
         -DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}
-        -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
+        -DNNTILE_INSTALL_LIB_BASENAME=${_nntile_install_lib_basename}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/verify_install.cmake
 )
 set_tests_properties(tests_nntile_install PROPERTIES LABELS "smoke")
