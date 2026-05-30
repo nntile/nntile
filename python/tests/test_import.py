@@ -28,6 +28,7 @@ def test_all_exports():
         'TensorGraph',
         'TileGraph',
         'Mlp',
+        'nn',
     }
     missing = expected - set(nntile.__all__)
     assert not missing, f'missing from __all__: {missing}'

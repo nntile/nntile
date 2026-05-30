@@ -57,6 +57,7 @@ __all__ = [
     'TokenMemoryMap',
     'init_random_parameter_hints',
     'make_tiny_gpt2_config',
+    'nn',
     'sync_param_hint_from_runtime',
 ]
 
