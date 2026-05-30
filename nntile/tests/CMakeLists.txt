@@ -166,3 +166,16 @@ if(BUILD_COVERAGE)
         LCOV_ARGS --no-external
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
+
+set(_nntile_install_prefix "${PROJECT_BINARY_DIR}/nntile-install-test-prefix")
+message(STATUS "Adding install verification test tests_nntile_install")
+add_test(
+    NAME tests_nntile_install
+    COMMAND ${CMAKE_COMMAND}
+        -DBUILD_DIR=${PROJECT_BINARY_DIR}
+        -DCMAKE_INSTALL_PREFIX=${_nntile_install_prefix}
+        -DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}
+        -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/verify_install.cmake
+)
+set_tests_properties(tests_nntile_install PROPERTIES LABELS "smoke")
