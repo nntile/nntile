@@ -204,7 +204,21 @@ void bind_nntile_models(py::module_ &m)
             "lr"_a)
         .def("step", py::overload_cast<>(&optim::AdamW::step))
         .def("repr", &optim::AdamW::repr)
-        .def("named_state_tensors", &optim::AdamW::named_state_tensors);
+        .def(
+            "named_state_tensors",
+            [](const optim::AdamW &opt)
+            {
+                py::list out;
+                for (const auto &entry : opt.named_state_tensors())
+                {
+                    out.append(py::make_tuple(
+                        entry.first,
+                        py::cast(
+                            entry.second,
+                            py::return_value_policy::reference)));
+                }
+                return out;
+            });
 
     m.def("init_random_parameter_hints", &init_random_parameter_hints,
         "module"_a, "seed"_a = 42u);

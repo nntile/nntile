@@ -31,5 +31,6 @@ python3 python/examples/gpt2_training.py \
   --train-bin /tmp/nntile_demo/train.bin --tiny --epochs 1 --max-batches 1
 ```
 
-Multi-batch incremental training (`--max-batches` > 1) matches the C++ loop structure; additional
-bind-hint / phase wiring may be required for batch 2+ in this Python v1.
+Multi-batch training (`--max-batches` > 1) uses the same incremental loop as C++:
+`sync_param_hint_from_runtime` after each step, then `reset_incremental_tile_state` before
+the next forward pass.
