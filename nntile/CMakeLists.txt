@@ -15,6 +15,8 @@ if(NOT BUILD_NNTILE)
     return()
 endif()
 
+include(GNUInstallDirs)
+
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h"
@@ -40,15 +42,15 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-include(GNUInstallDirs)
 install(
     TARGETS nntile
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+# Trailing slash installs directory *contents* into include/nntile/.
 install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/nntile"
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/nntile/"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nntile
     FILES_MATCHING PATTERN "*.hh"
 )
