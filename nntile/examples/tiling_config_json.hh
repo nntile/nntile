@@ -34,36 +34,6 @@ struct FlatTilingSpec
     std::map<Index, std::map<std::string, std::vector<Index>>> per_layer;
 };
 
-bool is_tiling_axis_key(std::string const &key);
-
-std::string normalize_tiling_axis_key(std::string key);
-
-std::vector<Index> parse_tile_sizes_json(
-    nlohmann::json const &v,
-    Index extent,
-    char const *context);
-
-FlatTilingSpec load_tiling_json(
-    std::string const &path,
-    Index num_hidden_layers);
-
-FlatTilingSpec load_tiling_from_json(
-    nlohmann::json const &j,
-    Index num_hidden_layers);
-
-void save_tiling_json(FlatTilingSpec const &spec, std::string const &path);
-
-nlohmann::json flat_tiling_spec_to_json(FlatTilingSpec const &spec);
-
-Index resolve_layer_key(
-    std::string const &key,
-    Index num_hidden_layers);
-
-void apply_flat_tiling_spec(
-    TensorGraph &tg,
-    FlatTilingSpec const &spec,
-    Index num_hidden_layers);
-
 inline bool is_tiling_axis_key(std::string const &key)
 {
     return key == "vocab_size" || key == "hidden_size" ||
