@@ -364,10 +364,8 @@ inline std::vector<Index> tile_sizes_for_axis_extent(
 
 inline void apply_flat_tiling_spec(
     TensorGraph &tg,
-    FlatTilingSpec const &spec,
-    Index num_hidden_layers)
+    FlatTilingSpec const &spec)
 {
-    (void) num_hidden_layers;
     for (AxisDescriptor *ad : tg.axis_groups())
     {
         if (ad->name.empty())

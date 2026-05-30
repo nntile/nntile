@@ -77,7 +77,7 @@ TEST_CASE("apply per-layer override on named axes", "[tiling][json]")
     spec.defaults["intermediate_size"] = {64, 64};
     spec.per_layer[1]["intermediate_size"] = {40, 88};
 
-    apply_flat_tiling_spec(tg, spec, 2);
+    apply_flat_tiling_spec(tg, spec);
 
     REQUIRE(t0->axis(0)->tile_sizes.size() == 2);
     REQUIRE(t0->axis(0)->tile_sizes[0] == 64);

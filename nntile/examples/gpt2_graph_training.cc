@@ -480,9 +480,7 @@ int main(int argc, char **argv)
             args.tiling_path, config.num_hidden_layers);
         name_gpt2_training_axis_groups(
             graph.tensor_graph(), config, n_seq, n_batch);
-        apply_flat_tiling_spec(graph.tensor_graph(),
-            *tiling_spec,
-            config.num_hidden_layers);
+        apply_flat_tiling_spec(graph.tensor_graph(), *tiling_spec);
         std::cout << "Tiling: loaded " << args.tiling_path << "\n";
     }
 
