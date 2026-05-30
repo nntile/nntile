@@ -145,11 +145,12 @@ jobs:
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
           cmake --build build --target nntile -j"$(nproc)"
-          cmake -P nntile/tests/verify_install.cmake \
+          cmake \
             -DBUILD_DIR="${PWD}/build" \
             -DCMAKE_INSTALL_PREFIX="${PWD}/build/nntile-install-test-prefix" \
             -DCMAKE_INSTALL_LIBDIR=lib \
-            -DNNTILE_INSTALL_LIB_BASENAME=libnntile.so
+            -DNNTILE_INSTALL_LIB_BASENAME=libnntile.so \
+            -P nntile/tests/verify_install.cmake
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
