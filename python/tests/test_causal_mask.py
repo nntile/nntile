@@ -9,17 +9,16 @@
 
 from __future__ import annotations
 
-import importlib.util
+import sys
 from pathlib import Path
 
 import numpy as np
 
-_gpt2_path = Path(__file__).resolve().parents[1] / 'examples' / 'gpt2_training.py'
-_spec = importlib.util.spec_from_file_location('gpt2_training', _gpt2_path)
-_gpt2 = importlib.util.module_from_spec(_spec)
-assert _spec.loader is not None
-_spec.loader.exec_module(_gpt2)
-sdpa_causal_mask_bool_fortran_fill = _gpt2.sdpa_causal_mask_bool_fortran_fill
+_examples = Path(__file__).resolve().parents[1] / 'examples'
+if str(_examples) not in sys.path:
+    sys.path.insert(0, str(_examples))
+
+from numpy_helpers import sdpa_causal_mask_bool_fortran_fill
 
 
 def reference_mask_fortran(seq_len: int) -> np.ndarray:

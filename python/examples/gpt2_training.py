@@ -18,7 +18,16 @@ import sys
 import time
 from pathlib import Path
 
+_examples_dir = Path(__file__).resolve().parent
+if str(_examples_dir) not in sys.path:
+    sys.path.insert(0, str(_examples_dir))
+
 import numpy as np
+
+from numpy_helpers import (
+    fill_arange_position_ids,
+    sdpa_causal_mask_bool_fortran_fill,
+)
 
 import nntile
 from nntile import (
@@ -34,24 +43,6 @@ from nntile import (
     init_random_parameter_hints,
     make_tiny_gpt2_config,
 )
-
-
-def fill_arange_position_ids(
-    pos_data: np.ndarray, n_seq: int, n_batch: int,
-) -> None:
-    for b in range(n_batch):
-        for s in range(n_seq):
-            pos_data[s + n_seq * b] = s
-
-
-def sdpa_causal_mask_bool_fortran_fill(n_seq: int) -> np.ndarray:
-    """BOOL causal mask, Fortran layout: out[kk + n_seq * qq] = (kk <= qq)."""
-    out = np.zeros(n_seq * n_seq, dtype=np.uint8)
-    for qq in range(n_seq):
-        for kk in range(n_seq):
-            if kk <= qq:
-                out[kk + n_seq * qq] = 1
-    return out
 
 
 def scheduled_lr(step: int, args: argparse.Namespace) -> float:
