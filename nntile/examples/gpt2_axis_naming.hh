@@ -157,6 +157,33 @@ inline std::optional<size_t> axis_group_wpe_axis_index(
     return idx;
 }
 
+//! Axis index on ``wte`` embedding members, if consistent.
+inline std::optional<size_t> axis_group_wte_axis_index(
+    AxisDescriptor const *ad)
+{
+    std::optional<size_t> idx;
+    bool saw_wte = false;
+    for (auto const &[node_ptr, axis_idx] : ad->members)
+    {
+        auto *node = static_cast<TensorGraph::TensorNode const *>(node_ptr);
+        if (node->name().find("wte") == std::string::npos)
+        {
+            continue;
+        }
+        saw_wte = true;
+        if (idx.has_value() && *idx != axis_idx)
+        {
+            return std::nullopt;
+        }
+        idx = axis_idx;
+    }
+    if (!saw_wte)
+    {
+        return std::nullopt;
+    }
+    return idx;
+}
+
 //! Per-layer axis role from MLP parameter layout (``Linear`` is in×out).
 inline std::optional<std::string> gpt2_mlp_layer_axis_role(
     std::string const &tname,
@@ -331,6 +358,7 @@ inline void name_gpt2_global_axis_groups(
             }
         }
         auto const wpe_axis = axis_group_wpe_axis_index(ad);
+        auto const wte_axis = axis_group_wte_axis_index(ad);
         if (wpe_axis.has_value() && *wpe_axis == 0 &&
             ad->extent == cfg.max_position_embeddings)
         {
@@ -338,7 +366,8 @@ inline void name_gpt2_global_axis_groups(
             continue;
         }
         if (ad->extent == cfg.vocab_size &&
-            !axis_group_is_runtime_training_io(ad) && !wpe_axis.has_value())
+            !axis_group_is_runtime_training_io(ad) && !wpe_axis.has_value() &&
+            (!wte_axis.has_value() || *wte_axis == 0))
         {
             ad->name = "vocab_size";
             continue;
@@ -346,7 +375,8 @@ inline void name_gpt2_global_axis_groups(
         if (ad->extent == cfg.hidden_size &&
             !axis_group_member_name_contains(ad, "_attn_") &&
             !axis_group_is_runtime_training_io(ad) &&
-            (!wpe_axis.has_value() || *wpe_axis == 1))
+            (!wpe_axis.has_value() || *wpe_axis == 1) &&
+            (!wte_axis.has_value() || *wte_axis == 1))
         {
             ad->name = "hidden_size";
             continue;
