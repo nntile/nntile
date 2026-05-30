@@ -106,6 +106,7 @@ struct Args
 
 
 
+using nntile::examples::FlatTilingSpec;
 using nntile::examples::apply_flat_tiling_spec;
 using nntile::examples::load_gpt2_config_json;
 using nntile::examples::load_tiling_json;
