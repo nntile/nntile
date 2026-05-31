@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void sum_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
+void sum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != 0)
@@ -37,73 +37,73 @@ void sum_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst
     if(mpi_rank == dst_rank)
     {
         // Insert task
-        starpu::sum.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
+        starpu::sum.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src, beta, dst);
     }
 }
 
 template<typename T>
-void sum(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
+void sum(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
-    sum_async<T>(alpha, src, beta, dst);
+    sum_async<T>(starpu_worker_hint, alpha, src, beta, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void sum_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
+void sum_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst);
 
 template
-void sum_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
+void sum_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void sum_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+void sum_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void sum_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+void sum_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void sum_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
+void sum_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
 template
-void sum_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void sum_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst);
 
 template
-void sum_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+void sum_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
         const Tile<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void sum<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
+void sum<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst);
 
 template
-void sum<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
+void sum<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void sum<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+void sum<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void sum<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+void sum<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void sum<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
+void sum<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
 template
-void sum<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void sum<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst);
 
 template
-void sum<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+void sum<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
         const Tile<fp16_t> &dst);
 
 } // namespace nntile::core

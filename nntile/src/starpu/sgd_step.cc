@@ -166,7 +166,7 @@ uint32_t SGDStep<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit SGD step task
 template<typename T>
-void SGDStep<std::tuple<T>>::submit(
+void SGDStep<std::tuple<T>>::submit(int starpu_worker_hint,
     Index num_iter,
     Index num_elems,
     Scalar momentum,
@@ -189,7 +189,7 @@ void SGDStep<std::tuple<T>>::submit(
     args->dampening = dampening;
     args->nesterov = nesterov;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, grad.get(),
             STARPU_RW, velocity.get(),
             STARPU_RW, param.get(),

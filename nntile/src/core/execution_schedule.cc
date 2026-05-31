@@ -330,11 +330,6 @@ int ExecutionSchedule::worker_for_op(size_t execution_index) const
 namespace sched
 {
 
-namespace
-{
-thread_local int g_preferred_starpu_worker = -1;
-} // namespace
-
 int count_execution_workers()
 {
     if (!starpu_is_initialized())
@@ -361,30 +356,6 @@ int logical_worker_to_starpu_id(int logical_worker, bool use_cuda_workers)
         return starpu_worker_get_by_type(STARPU_CUDA_WORKER, logical_worker);
     }
     return starpu_worker_get_by_type(STARPU_CPU_WORKER, logical_worker);
-}
-
-int preferred_starpu_worker_id()
-{
-    return g_preferred_starpu_worker;
-}
-
-void set_preferred_starpu_worker_id(int starpu_worker_id)
-{
-    g_preferred_starpu_worker = starpu_worker_id;
-}
-
-ScopedPreferredWorker::ScopedPreferredWorker(
-    int logical_worker, bool use_cuda_workers)
-{
-    previous_ = g_preferred_starpu_worker;
-    int const sid =
-        logical_worker_to_starpu_id(logical_worker, use_cuda_workers);
-    g_preferred_starpu_worker = sid;
-}
-
-ScopedPreferredWorker::~ScopedPreferredWorker()
-{
-    g_preferred_starpu_worker = previous_;
 }
 
 } // namespace sched

@@ -42,8 +42,8 @@ void validate()
     tile1_src_copy_local.release();
     tile1_dst_copy_local.release();
 
-    starpu::gelu.submit<std::tuple<T>>(1, tile1_src, tile1_dst);
-    gelu<T>(tile1_src_copy, tile1_dst_copy);
+    starpu::gelu.submit<std::tuple<T>>(-1, 1, tile1_src, tile1_dst);
+    gelu<T>(-1, tile1_src_copy, tile1_dst_copy);
 
     tile1_dst_local.acquire(STARPU_R);
     tile1_dst_copy_local.acquire(STARPU_R);
@@ -68,8 +68,8 @@ void validate()
     tile2_src_copy_local.release();
     tile2_dst_copy_local.release();
 
-    starpu::gelu.submit<std::tuple<T>>(tile2_src.nelems, tile2_src, tile2_dst);
-    gelu<T>(tile2_src_copy, tile2_dst_copy);
+    starpu::gelu.submit<std::tuple<T>>(-1, tile2_src.nelems, tile2_src, tile2_dst);
+    gelu<T>(-1, tile2_src_copy, tile2_dst_copy);
 
     tile2_dst_local.acquire(STARPU_R);
     tile2_dst_copy_local.acquire(STARPU_R);

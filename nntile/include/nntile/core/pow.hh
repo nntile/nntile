@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Asynchronous tile-wise power operation
 template<typename T>
-void pow_async(Scalar alpha, Scalar exp, const Tile<T> &A);
+void pow_async(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A);
 
 // Blocking version of tile-wise power operation
 template<typename T>
-void pow(Scalar alpha, Scalar exp, const Tile<T> &A);
+void pow(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A);
 
 } // namespace nntile::core

@@ -38,7 +38,7 @@ void run(
     TileGraph::TileNode* d,
     TileGraph::TileNode* sc)
 {
-    nntile::core::copy_intersection<T>(
+    nntile::core::copy_intersection<T>(runtime.starpu_worker_hint(), 
         runtime.get_tile<T>(s), so, runtime.get_tile<T>(d), df, runtime.get_tile<nntile::int64_t>(sc));
 }
 } // namespace

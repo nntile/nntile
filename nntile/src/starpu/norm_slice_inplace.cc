@@ -138,7 +138,7 @@ uint32_t NormSliceInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void NormSliceInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
+void NormSliceInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
         Handle dst, int redux)
 //! Insert norm_slice_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -181,7 +181,7 @@ void NormSliceInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar a
     double nflops = beta == 0.0 ? src_nbytes + dst_nbytes :
         src_nbytes + 2*dst_nbytes;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, dst.get(),

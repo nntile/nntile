@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Asynchronous tile-wise fill operation
 template<typename T>
-void fill_async(Scalar val, const Tile<T> &A);
+void fill_async(int starpu_worker_hint, Scalar val, const Tile<T> &A);
 
 // Blocking version of tile-wise fill operation
 template<typename T>
-void fill(Scalar val, const Tile<T> &A);
+void fill(int starpu_worker_hint, Scalar val, const Tile<T> &A);
 
 } // namespace nntile::core

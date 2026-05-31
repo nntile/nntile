@@ -48,7 +48,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot_scalar_inverse m
         for(Index i = 0; i < nelems; ++i) { l1[i] = Y(dv[static_cast<size_t>(i)]); }
         l1.release();
     }
-    nntile::core::hypot_scalar_inverse<fp32_t>(eps, alpha, td);
+    nntile::core::hypot_scalar_inverse<fp32_t>(-1, eps, alpha, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

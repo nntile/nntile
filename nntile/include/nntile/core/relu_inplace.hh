@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Asynchronous tile-wise ReLU operation
 template<typename T>
-void relu_inplace_async(const Tile<T> &A);
+void relu_inplace_async(int starpu_worker_hint, const Tile<T> &A);
 
 // Blocking version of tile-wise ReLU operation
 template<typename T>
-void relu_inplace(const Tile<T> &A);
+void relu_inplace(int starpu_worker_hint, const Tile<T> &A);
 
 } // namespace nntile::core

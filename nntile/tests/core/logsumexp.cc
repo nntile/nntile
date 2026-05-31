@@ -43,8 +43,8 @@ void validate()
     dl.release();
     d2l.release();
 
-    starpu::logsumexp.submit<std::tuple<T>>(dst.nelems, src, dst);
-    logsumexp<T>(src, dst2);
+    starpu::logsumexp.submit<std::tuple<T>>(-1, dst.nelems, src, dst);
+    logsumexp<T>(-1, src, dst2);
 
     dl.acquire(STARPU_R);
     d2l.acquire(STARPU_R);

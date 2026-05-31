@@ -37,8 +37,8 @@ void check(Scalar alpha)
     }
     data_local.release();
     data2_local.release();
-    starpu::scale_inplace.submit<std::tuple<T>>(data.nelems, alpha, data);
-    scale_inplace<T>(alpha, data2);
+    starpu::scale_inplace.submit<std::tuple<T>>(-1, data.nelems, alpha, data);
+    scale_inplace<T>(-1, alpha, data2);
     data_local.acquire(STARPU_R);
     data2_local.acquire(STARPU_R);
     for(Index i = 0; i < data.nelems; ++i)

@@ -136,7 +136,7 @@ uint32_t ScaleSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void ScaleSlice<std::tuple<T>>::submit(
+void ScaleSlice<std::tuple<T>>::submit(int starpu_worker_hint,
     Index m,
     Index n,
     Index k,
@@ -159,7 +159,7 @@ void ScaleSlice<std::tuple<T>>::submit(
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (k+1) * n;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

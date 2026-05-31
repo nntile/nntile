@@ -20,12 +20,12 @@ namespace nntile::core
 {
 
 template<typename T>
-void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
+void randn_async(int starpu_worker_hint, const Tile<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
 template<typename T>
-void randn(const Tile<T> &dst, const std::vector<Index> &start,
+void randn(int starpu_worker_hint, const Tile<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 

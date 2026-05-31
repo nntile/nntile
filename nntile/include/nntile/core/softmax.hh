@@ -20,11 +20,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src, Scalar alpha,
+void softmax_async(int starpu_worker_hint, const Tile<T> &maxsumexp, const Tile<T> &src, Scalar alpha,
         const Tile<T> &dst, Index axis);
 
 template<typename T>
-void softmax(const Tile<T> &maxsumexp, const Tile<T> &src, Scalar alpha,
+void softmax(int starpu_worker_hint, const Tile<T> &maxsumexp, const Tile<T> &src, Scalar alpha,
         const Tile<T> &dst, Index axis);
 
 } // namespace nntile::core

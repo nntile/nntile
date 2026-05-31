@@ -138,7 +138,7 @@ uint32_t HypotInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit hypot_inplace task
 template<typename T>
-void HypotInplace<std::tuple<T>>::submit(
+void HypotInplace<std::tuple<T>>::submit(int starpu_worker_hint,
         Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
 //! Insert hypot_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -182,7 +182,7 @@ void HypotInplace<std::tuple<T>>::submit(
     args->alpha = alpha;
     args->beta = beta;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, dst.get(), 0);

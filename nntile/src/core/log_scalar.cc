@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void log_scalar_async(const std::string &name, const Tile<T> &value)
+void log_scalar_async(int starpu_worker_hint, const std::string &name, const Tile<T> &value)
 {
     // Check if value is a scalar tile
     if(value.nelems != 1)
@@ -31,61 +31,61 @@ void log_scalar_async(const std::string &name, const Tile<T> &value)
     int value_rank = value.mpi_get_rank();
     if(mpi_rank == value_rank)
     {
-        starpu::log_scalar.submit<std::tuple<T>>(name, value);
+        starpu::log_scalar.submit<std::tuple<T>>(starpu_worker_hint, name, value);
     }
 }
 
 template<typename T>
-void log_scalar(const std::string &name, const Tile<T> &value)
+void log_scalar(int starpu_worker_hint, const std::string &name, const Tile<T> &value)
 {
-    log_scalar_async<T>(name, value);
+    log_scalar_async<T>(starpu_worker_hint, name, value);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void log_scalar_async<fp32_t>(const std::string &name,
+void log_scalar_async<fp32_t>(int starpu_worker_hint, const std::string &name,
         const Tile<fp32_t> &value);
 
 template
-void log_scalar_async<fp64_t>(const std::string &name,
+void log_scalar_async<fp64_t>(int starpu_worker_hint, const std::string &name,
         const Tile<fp64_t> &value);
 
 template
-void log_scalar_async<fp32_fast_tf32_t>(const std::string &name,
+void log_scalar_async<fp32_fast_tf32_t>(int starpu_worker_hint, const std::string &name,
         const Tile<fp32_fast_tf32_t> &value);
 
 template
-void log_scalar_async<fp32_fast_fp16_t>(const std::string &name,
+void log_scalar_async<fp32_fast_fp16_t>(int starpu_worker_hint, const std::string &name,
         const Tile<fp32_fast_fp16_t> &value);
 
 template
-void log_scalar_async<fp32_fast_bf16_t>(const std::string &name,
+void log_scalar_async<fp32_fast_bf16_t>(int starpu_worker_hint, const std::string &name,
         const Tile<fp32_fast_bf16_t> &value);
 
 template
-void log_scalar_async<bf16_t>(const std::string &name,
+void log_scalar_async<bf16_t>(int starpu_worker_hint, const std::string &name,
         const Tile<bf16_t> &value);
 
 template
-void log_scalar<fp32_t>(const std::string &name, const Tile<fp32_t> &value);
+void log_scalar<fp32_t>(int starpu_worker_hint, const std::string &name, const Tile<fp32_t> &value);
 
 template
-void log_scalar<fp64_t>(const std::string &name, const Tile<fp64_t> &value);
+void log_scalar<fp64_t>(int starpu_worker_hint, const std::string &name, const Tile<fp64_t> &value);
 
 template
-void log_scalar<fp32_fast_tf32_t>(const std::string &name,
+void log_scalar<fp32_fast_tf32_t>(int starpu_worker_hint, const std::string &name,
         const Tile<fp32_fast_tf32_t> &value);
 
 template
-void log_scalar<fp32_fast_fp16_t>(const std::string &name,
+void log_scalar<fp32_fast_fp16_t>(int starpu_worker_hint, const std::string &name,
         const Tile<fp32_fast_fp16_t> &value);
 
 template
-void log_scalar<fp32_fast_bf16_t>(const std::string &name,
+void log_scalar<fp32_fast_bf16_t>(int starpu_worker_hint, const std::string &name,
         const Tile<fp32_fast_bf16_t> &value);
 
 template
-void log_scalar<bf16_t>(const std::string &name, const Tile<bf16_t> &value);
+void log_scalar<bf16_t>(int starpu_worker_hint, const std::string &name, const Tile<bf16_t> &value);
 
 } // namespace nntile::core

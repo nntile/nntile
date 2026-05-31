@@ -134,14 +134,14 @@ uint32_t Scale<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Scale<std::tuple<T>>::submit(
+void Scale<std::tuple<T>>::submit(int starpu_worker_hint,
     Index nelems, Scalar alpha, Handle src, Handle dst)
 {
     constexpr Scalar zero = 0.0;
     // if alpha is zero, function reduces to clear
     if(alpha == zero)
     {
-        clear.submit(dst);
+        clear.submit(starpu_worker_hint, dst);
         return;
     }
     // Codelet arguments
@@ -149,7 +149,7 @@ void Scale<std::tuple<T>>::submit(
     args->nelems = nelems;
     args->alpha = alpha;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void scale_inplace_async(Scalar alpha, const Tile<T> &data);
+void scale_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &data);
 
 template<typename T>
-void scale_inplace(Scalar alpha, const Tile<T> &data);
+void scale_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &data);
 
 } // namespace nntile::core

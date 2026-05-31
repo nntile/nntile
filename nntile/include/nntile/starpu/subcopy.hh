@@ -75,6 +75,7 @@ public:
 
     //! Submit subcopy task
     void submit(
+        int starpu_worker_hint,
         Index ndim,
         const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,

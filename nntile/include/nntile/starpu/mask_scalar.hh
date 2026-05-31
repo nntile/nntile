@@ -78,6 +78,7 @@ public:
 
     //! Submit mask_scalar task
     void submit(
+        int starpu_worker_hint,
         Index nrows,
         Index ncols,
         Handle mask,

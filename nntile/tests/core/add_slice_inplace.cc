@@ -33,7 +33,7 @@ void check(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
     }
     dst_local.release();
     Tile<T> dst2(dst, &dst2_data[0], dst.nelems);
-    add_slice_inplace<T>(alpha, src, beta, dst, axis);
+    add_slice_inplace<T>(-1, alpha, src, beta, dst, axis);
     Index m = 1;
     for(Index i = 0; i < axis; ++i)
     {
@@ -45,7 +45,7 @@ void check(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         n *= dst.shape[i];
     }
     Index k = dst.shape[axis];
-    starpu::add_slice_inplace.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst2);
+    starpu::add_slice_inplace.submit<std::tuple<T>>(-1, m, n, k, alpha, src, beta, dst2);
     starpu_task_wait_for_all();
     auto dst2_local = dst.acquire(STARPU_R);
     dst_local.acquire(STARPU_R);
@@ -97,11 +97,11 @@ void validate()
     check<T>(2.0, b2, 0.5, A, 2);
     check<T>(-2.0, b3, 0.0, A, 3);
     // Checking throwing exceptions
-    TEST_THROW(add_slice_inplace<T>(1.0, A, 0.0, A, 0));
-    TEST_THROW(add_slice_inplace<T>(1.0, b0, 0.0, A, -1));
-    TEST_THROW(add_slice_inplace<T>(1.0, b0, 0.0, A, 1));
-    TEST_THROW(add_slice_inplace<T>(1.0, b3, 0.0, A, 2));
-    TEST_THROW(add_slice_inplace<T>(1.0, b3, 0.0, A, 4));
+    TEST_THROW(add_slice_inplace<T>(-1, 1.0, A, 0.0, A, 0));
+    TEST_THROW(add_slice_inplace<T>(-1, 1.0, b0, 0.0, A, -1));
+    TEST_THROW(add_slice_inplace<T>(-1, 1.0, b0, 0.0, A, 1));
+    TEST_THROW(add_slice_inplace<T>(-1, 1.0, b3, 0.0, A, 2));
+    TEST_THROW(add_slice_inplace<T>(-1, 1.0, b3, 0.0, A, 4));
 }
 
 int main(int argc, char **argv)

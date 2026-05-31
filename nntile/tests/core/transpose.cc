@@ -42,8 +42,8 @@ void validate()
     dst_ref_local.release();
 
     Scalar alpha = 0.5;
-    starpu::transpose.submit<std::tuple<T>>(3, 5, alpha, src, dst);
-    transpose<T>(alpha, src, dst_ref, 1);
+    starpu::transpose.submit<std::tuple<T>>(-1, 3, 5, alpha, src, dst);
+    transpose<T>(-1, alpha, src, dst_ref, 1);
 
     dst_local.acquire(STARPU_R);
     dst_ref_local.acquire(STARPU_R);
@@ -54,7 +54,7 @@ void validate()
     dst_local.release();
     dst_ref_local.release();
 
-    TEST_THROW(transpose<T>(alpha, src, dst_ref, 0));
+    TEST_THROW(transpose<T>(-1, alpha, src, dst_ref, 0));
 }
 
 int main(int argc, char **argv)

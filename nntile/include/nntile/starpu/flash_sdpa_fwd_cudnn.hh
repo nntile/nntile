@@ -92,6 +92,7 @@ public:
 
     //! Submit flash_sdpa_fwd_cudnn task
     void submit(
+        int starpu_worker_hint,
         Index seq,
         Index head,
         Index batch,

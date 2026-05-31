@@ -88,7 +88,7 @@ static inline void flash_sdpa_bwd_cudnn_check(
 }
 
 template<typename T>
-void flash_sdpa_bwd_cudnn_async(
+void flash_sdpa_bwd_cudnn_async(int starpu_worker_hint, 
     const Tile<T> &K,
     const Tile<T> &Q,
     const Tile<T> &V,
@@ -125,7 +125,7 @@ void flash_sdpa_bwd_cudnn_async(
     starpu::VariableHandle scratch_dQ(sizeof(T) * dQ.nelems);
     starpu::VariableHandle scratch_dV(sizeof(T) * dV.nelems);
 
-    starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
+    starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(starpu_worker_hint, 
         seq, head, batch,
         K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV,
         scratch_dK, scratch_dQ, scratch_dV);
@@ -136,7 +136,7 @@ void flash_sdpa_bwd_cudnn_async(
 }
 
 template<typename T>
-void flash_sdpa_bwd_cudnn(
+void flash_sdpa_bwd_cudnn(int starpu_worker_hint, 
     const Tile<T> &K,
     const Tile<T> &Q,
     const Tile<T> &V,
@@ -148,13 +148,13 @@ void flash_sdpa_bwd_cudnn(
     const Tile<T> &dQ,
     const Tile<T> &dV)
 {
-    flash_sdpa_bwd_cudnn_async<T>(
+    flash_sdpa_bwd_cudnn_async<T>(starpu_worker_hint, 
         K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
     starpu_task_wait_for_all();
 }
 
 template
-void flash_sdpa_bwd_cudnn_async<bf16_t>(
+void flash_sdpa_bwd_cudnn_async<bf16_t>(int starpu_worker_hint, 
     const Tile<bf16_t> &K,
     const Tile<bf16_t> &Q,
     const Tile<bf16_t> &V,
@@ -167,7 +167,7 @@ void flash_sdpa_bwd_cudnn_async<bf16_t>(
     const Tile<bf16_t> &dV);
 
 template
-void flash_sdpa_bwd_cudnn_async<fp16_t>(
+void flash_sdpa_bwd_cudnn_async<fp16_t>(int starpu_worker_hint, 
     const Tile<fp16_t> &K,
     const Tile<fp16_t> &Q,
     const Tile<fp16_t> &V,
@@ -180,7 +180,7 @@ void flash_sdpa_bwd_cudnn_async<fp16_t>(
     const Tile<fp16_t> &dV);
 
 template
-void flash_sdpa_bwd_cudnn<bf16_t>(
+void flash_sdpa_bwd_cudnn<bf16_t>(int starpu_worker_hint, 
     const Tile<bf16_t> &K,
     const Tile<bf16_t> &Q,
     const Tile<bf16_t> &V,
@@ -193,7 +193,7 @@ void flash_sdpa_bwd_cudnn<bf16_t>(
     const Tile<bf16_t> &dV);
 
 template
-void flash_sdpa_bwd_cudnn<fp16_t>(
+void flash_sdpa_bwd_cudnn<fp16_t>(int starpu_worker_hint, 
     const Tile<fp16_t> &K,
     const Tile<fp16_t> &Q,
     const Tile<fp16_t> &V,

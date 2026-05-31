@@ -136,7 +136,7 @@ uint32_t Sum<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Sum<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle src,
+void Sum<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Scalar alpha, Handle src,
         Scalar beta, Handle dst, int redux)
 //! Insert sum task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -166,7 +166,7 @@ void Sum<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle src,
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * (nelems+1);
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             dst_mode, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

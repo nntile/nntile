@@ -28,7 +28,7 @@ template<typename T>
 void run_norm(
     Runtime& runtime, Scalar a, Scalar b, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::core::norm<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
+    nntile::core::norm<T>(runtime.starpu_worker_hint(), a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
 }
 } // namespace
 void norm(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNode* dst)

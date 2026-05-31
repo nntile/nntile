@@ -65,7 +65,7 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
         underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());
     randn.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::randn::submit<" << T::short_name << "> restricted to CPU\n";
-    randn.submit<std::tuple<T>>(NDIM, nelems, seed, mean, stddev, start_, shape_,
+    randn.submit<std::tuple<T>>(-1, NDIM, nelems, seed, mean, stddev, start_, shape_,
             stride, underlying_shape_, data2_handle, tmp_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();

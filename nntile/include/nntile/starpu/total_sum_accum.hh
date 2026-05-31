@@ -79,6 +79,7 @@ public:
 
     //! Submit total_sum_accum task
     void submit(
+        int starpu_worker_hint,
         Scalar alpha,
         Index n_labels,
         Index n_outputs,

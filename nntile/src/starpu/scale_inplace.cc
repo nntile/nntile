@@ -132,14 +132,14 @@ uint32_t ScaleInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void ScaleInplace<std::tuple<T>>::submit(
+void ScaleInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     Index nelems, Scalar alpha, Handle data)
 {
     constexpr Scalar zero = 0.0;
     // if alpha is zero, function reduces to clear
     if(alpha == zero)
     {
-        clear.submit(data);
+        clear.submit(starpu_worker_hint, data);
         return;
     }
     // if alpha is one, function reduces to no-op
@@ -152,7 +152,7 @@ void ScaleInplace<std::tuple<T>>::submit(
     args->nelems = nelems;
     args->alpha = alpha;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_RW, data.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             // STARPU_FLOPS, nflops,

@@ -54,9 +54,9 @@ void validate()
     embed_ref_local.release();
     embed_local.release();
 
-    starpu::embedding.submit<std::tuple<T>>(m, n, k, k_start, k_size, index,
+    starpu::embedding.submit<std::tuple<T>>(-1, m, n, k, k_start, k_size, index,
             vocab, embed_ref);
-    embedding<T>(m, n, k, k_start, k_size, index, vocab, embed);
+    embedding<T>(-1, m, n, k, k_start, k_size, index, vocab, embed);
 
     embed_ref_local.acquire(STARPU_R);
     embed_local.acquire(STARPU_R);

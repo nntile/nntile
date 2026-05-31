@@ -52,9 +52,9 @@ void check(Scalar alpha, Scalar beta)
     }
     // Check axis=0
     {
-        starpu::sumprod_slice.submit<std::tuple<T>>(1, 20, 3, alpha, src1, src2, beta,
+        starpu::sumprod_slice.submit<std::tuple<T>>(-1, 1, 20, 3, alpha, src1, src2, beta,
                 dst[0]);
-        sumprod_slice<T>(alpha, src1, src2, beta, dst2[0], 0);
+        sumprod_slice<T>(-1, alpha, src1, src2, beta, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
         for(Index i = 0; i < dst[0].nelems; ++i)
@@ -66,9 +66,9 @@ void check(Scalar alpha, Scalar beta)
     }
     // Check axis=1
     {
-        starpu::sumprod_slice.submit<std::tuple<T>>(3, 5, 4, alpha, src1, src2, beta,
+        starpu::sumprod_slice.submit<std::tuple<T>>(-1, 3, 5, 4, alpha, src1, src2, beta,
                 dst[1]);
-        sumprod_slice<T>(alpha, src1, src2, beta, dst2[1], 1);
+        sumprod_slice<T>(-1, alpha, src1, src2, beta, dst2[1], 1);
         auto dst_local = dst[1].acquire(STARPU_R);
         auto dst2_local = dst2[1].acquire(STARPU_R);
         for(Index i = 0; i < dst[1].nelems; ++i)
@@ -80,9 +80,9 @@ void check(Scalar alpha, Scalar beta)
     }
     // Check axis=2
     {
-        starpu::sumprod_slice.submit<std::tuple<T>>(12, 1, 5, alpha, src1, src2, beta,
+        starpu::sumprod_slice.submit<std::tuple<T>>(-1, 12, 1, 5, alpha, src1, src2, beta,
                 dst[2]);
-        sumprod_slice<T>(alpha, src1, src2, beta, dst2[2], 2);
+        sumprod_slice<T>(-1, alpha, src1, src2, beta, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
         for(Index i = 0; i < dst[2].nelems; ++i)
@@ -105,13 +105,13 @@ void validate()
     Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
         Tile<T>({2, 3, 4})};
     Tile<T> empty({});
-    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, empty, 0));
-    TEST_THROW(sumprod_slice<T>(1.0, empty, empty, 0.0, empty, 0));
-    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, dst[0], -1));
-    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, dst[0], 3));
-    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, src1, 0));
-    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, dst[0], 1));
-    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, dst[2], 1));
+    TEST_THROW(sumprod_slice<T>(-1, 1.0, src1, src2, 0.0, empty, 0));
+    TEST_THROW(sumprod_slice<T>(-1, 1.0, empty, empty, 0.0, empty, 0));
+    TEST_THROW(sumprod_slice<T>(-1, 1.0, src1, src2, 0.0, dst[0], -1));
+    TEST_THROW(sumprod_slice<T>(-1, 1.0, src1, src2, 0.0, dst[0], 3));
+    TEST_THROW(sumprod_slice<T>(-1, 1.0, src1, src2, 0.0, src1, 0));
+    TEST_THROW(sumprod_slice<T>(-1, 1.0, src1, src2, 0.0, dst[0], 1));
+    TEST_THROW(sumprod_slice<T>(-1, 1.0, src1, src2, 0.0, dst[2], 1));
 }
 
 int main(int argc, char **argv)

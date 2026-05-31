@@ -21,13 +21,13 @@ namespace nntile::core
 
 // Asynchronous tile-wise flash_sdpa_fwd_cudnn operation
 template<typename T>
-void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
+void flash_sdpa_fwd_cudnn_async(int starpu_worker_hint, const Tile<T> &K, const Tile<T> &Q,
         const Tile<T> &mask, const Tile<fp32_t> &logsumexp, const Tile<T> &V,
         const Tile<T> &A);
 
 // Blocking version of tile-wise flash_sdpa_fwd_cudnn operation
 template<typename T>
-void flash_sdpa_fwd_cudnn(const Tile<T> &K, const Tile<T> &Q,
+void flash_sdpa_fwd_cudnn(int starpu_worker_hint, const Tile<T> &K, const Tile<T> &Q,
         const Tile<T> &mask, const Tile<fp32_t> &logsumexp, const Tile<T> &V,
         const Tile<T> &A);
 

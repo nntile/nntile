@@ -54,9 +54,9 @@ void check(Scalar alpha, Scalar beta)
         Index m = src1.stride[ax];
         Index n = src1.matrix_shape[ax+1][1];
         Index k = src1.shape[ax];
-        starpu::sumprod_fiber.submit<std::tuple<T>>(m, n, k, alpha, src1, src2,
+        starpu::sumprod_fiber.submit<std::tuple<T>>(-1, m, n, k, alpha, src1, src2,
                 beta, dst[ax]);
-        sumprod_fiber<T>(alpha, src1, src2, beta, dst2[ax], ax);
+        sumprod_fiber<T>(-1, alpha, src1, src2, beta, dst2[ax], ax);
         auto dl = dst[ax].acquire(STARPU_R);
         auto d2l = dst2[ax].acquire(STARPU_R);
         for(Index i = 0; i < dst[ax].nelems; ++i)

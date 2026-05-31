@@ -42,12 +42,12 @@ void validate()
     }
     tile3_local.release();
     Tile<T> tile1_copy({});
-    copy<T>(tile1, tile1_copy);
+    copy<T>(-1, tile1, tile1_copy);
     auto tile1_copy_local = tile1_copy.acquire(STARPU_R);
     TEST_ASSERT(Y(tile1_copy_local[0]) == Y(-1));
     tile1_copy_local.release();
     Tile<T> tile2_copy(tile2.shape);
-    copy<T>(tile2, tile2_copy);
+    copy<T>(-1, tile2, tile2_copy);
     auto tile2_copy_local = tile2_copy.acquire(STARPU_RW);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -55,7 +55,7 @@ void validate()
         tile2_copy_local[i] = Y(-2);
     }
     tile2_copy_local.release();
-    copy<T>(tile2, tile2_copy);
+    copy<T>(-1, tile2, tile2_copy);
     {
         auto loc = tile2_copy.acquire(STARPU_R);
         for(Index i = 0; i < tile2.nelems; ++i)
@@ -65,10 +65,10 @@ void validate()
         loc.release();
     }
     Tile<T> tile3_star(tile3.shape);
-    starpu::copy.submit(tile3, tile3_star);
+    starpu::copy.submit(-1, tile3, tile3_star);
     starpu_task_wait_for_all();
     Tile<T> tile3_tilecopy(tile3.shape);
-    copy<T>(tile3, tile3_tilecopy);
+    copy<T>(-1, tile3, tile3_tilecopy);
     auto sl = tile3_star.acquire(STARPU_R);
     auto tl = tile3_tilecopy.acquire(STARPU_R);
     for(Index i = 0; i < tile3.nelems; ++i)
@@ -78,8 +78,8 @@ void validate()
     sl.release();
     tl.release();
     // Checking throwing exceptions
-    TEST_THROW(copy<T>(Tile<T>({1}), Tile<T>({2})));
-    TEST_THROW(copy<T>(Tile<T>({1}), Tile<T>({})));
+    TEST_THROW(copy<T>(-1, Tile<T>({1}), Tile<T>({2})));
+    TEST_THROW(copy<T>(-1, Tile<T>({1}), Tile<T>({})));
 }
 
 int main(int argc, char **argv)

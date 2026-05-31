@@ -247,8 +247,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     VariableHandle scratch_dV(sizeof(T) * total);
 
     flash_sdpa_bwd_cudnn.restrict_where(STARPU_CUDA);
-    flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
-        seq, head, batch,
+    flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(-1, seq, head, batch,
         K_handle, Q_handle, V_handle,
         A_handle, dA_handle,
         mask_handle, lse_handle,

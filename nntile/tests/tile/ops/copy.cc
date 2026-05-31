@@ -51,7 +51,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy matches tile", "[
         for(Index i = 0; i < nelems; ++i) { l1[i] = Y(sv[static_cast<size_t>(i)]); }
         l1.release();
     }
-    nntile::core::copy<fp32_t>(ts, td);
+    nntile::core::copy<fp32_t>(-1, ts, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

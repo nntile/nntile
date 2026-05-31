@@ -73,7 +73,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[
         l3.release();
     }
     const TransOp opN(TransOp::NoTrans);
-    nntile::core::gemm<fp32_t>(alpha, opN, ta, opN, tb, beta, tc, ndim, batch_ndim, 0);
+    nntile::core::gemm<fp32_t>(-1, alpha, opN, ta, opN, tb, beta, tc, ndim, batch_ndim, 0);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

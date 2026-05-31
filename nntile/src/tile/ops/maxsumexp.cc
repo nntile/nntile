@@ -29,7 +29,7 @@ template<typename T>
 void run_me(
     Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, int r)
 {
-    nntile::core::maxsumexp<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d), ax, r);
+    nntile::core::maxsumexp<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(s), runtime.get_tile<T>(d), ax, r);
 }
 } // namespace
 void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, int redux)

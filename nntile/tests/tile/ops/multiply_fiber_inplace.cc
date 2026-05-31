@@ -53,7 +53,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber_inplace
       for(Index i = 0; i < nf; ++i) A[i] = Y(f1[static_cast<size_t>(i)]);
       for(Index i = 0; i < n; ++i) B[i] = Y(0.2f * static_cast<float>(i + 1));
       A.release(); B.release(); }
-    nntile::core::multiply_fiber_inplace<fp32_t>(a, ts, td, axis);
+    nntile::core::multiply_fiber_inplace<fp32_t>(-1, a, ts, td, axis);
     starpu_task_wait_for_all();
     std::vector<float> tref(n);
     { auto L = td.acquire(STARPU_R);

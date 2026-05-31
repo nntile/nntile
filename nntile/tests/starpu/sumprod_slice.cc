@@ -55,7 +55,7 @@ void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
         dst2_handle(&dst2[0], sizeof(T)*m*n);
     sumprod_slice.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::sumprod_slice::submit<" << T::short_name << "> restricted to CPU\n";
-    sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha, src1_handle, src2_handle, beta,
+    sumprod_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src1_handle, src2_handle, beta,
             dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -138,7 +138,7 @@ void validate_cuda(Index m, Index n, Index k, Scalar alpha, Scalar beta)
         dst2_handle(&dst2[0], sizeof(T)*m*n);
     sumprod_slice.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::sumprod_slice::submit<" << T::short_name << "> restricted to CUDA\n";
-    sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha, src1_handle, src2_handle, beta,
+    sumprod_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src1_handle, src2_handle, beta,
             dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();

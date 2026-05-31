@@ -21,13 +21,13 @@ namespace nntile::core
 
 // Asynchronous tile-wise AdamW step operation
 template<typename T>
-void adamw_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+void adamw_step_async(int starpu_worker_hint, Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
                      const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
                      const Tile<T> &p);
 
 // Blocking version of tile-wise AdamW step operation
 template<typename T>
-void adamw_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+void adamw_step(int starpu_worker_hint, Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
                const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
                const Tile<T> &p);
 

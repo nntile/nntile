@@ -36,9 +36,9 @@ void validate()
     dst_ref_local.release();
 
     Scalar eps = 1e-5, alpha = 0.7;
-    starpu::hypot_scalar_inverse.submit<std::tuple<T>>(dst.nelems, eps, alpha,
+    starpu::hypot_scalar_inverse.submit<std::tuple<T>>(-1, dst.nelems, eps, alpha,
             dst);
-    hypot_scalar_inverse<T>(eps, alpha, dst_ref);
+    hypot_scalar_inverse<T>(-1, eps, alpha, dst_ref);
 
     dst_local.acquire(STARPU_R);
     dst_ref_local.acquire(STARPU_R);

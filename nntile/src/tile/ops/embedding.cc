@@ -29,7 +29,7 @@ template<typename T>
 void run(
     Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* ix, TileGraph::TileNode* v, TileGraph::TileNode* e)
 {
-    nntile::core::embedding<T>(a, b, c, ks, kz, runtime.get_tile<nntile::int64_t>(ix), runtime.get_tile<T>(v), runtime.get_tile<T>(e));
+    nntile::core::embedding<T>(runtime.starpu_worker_hint(), a, b, c, ks, kz, runtime.get_tile<nntile::int64_t>(ix), runtime.get_tile<T>(v), runtime.get_tile<T>(e));
 }
 } // namespace
 void embedding(

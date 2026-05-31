@@ -66,6 +66,7 @@ public:
 
     //! Submit log_scalar task
     void submit(
+        int starpu_worker_hint,
         const std::string &name,
         Handle value
     );

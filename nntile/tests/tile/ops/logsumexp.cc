@@ -57,7 +57,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile
         for(Index i = 0; i < n_src; ++i) { l1[i] = Y2(sv[static_cast<size_t>(i)]); }
         l1.release();
     }
-    nntile::core::logsumexp<fp32_t>(ts, td);
+    nntile::core::logsumexp<fp32_t>(-1, ts, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(n_dst);
     {

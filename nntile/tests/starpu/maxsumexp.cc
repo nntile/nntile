@@ -53,7 +53,7 @@ void validate_cpu(Index m, Index n, Index k)
         dst2_handle(&dst2[0], sizeof(T)*2*m*n);
     maxsumexp.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::maxsumexp::submit<" << T::short_name << "> restricted to CPU\n";
-    maxsumexp.submit<std::tuple<T>>(m, n, k, src_handle, dst2_handle);
+    maxsumexp.submit<std::tuple<T>>(-1, m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -126,7 +126,7 @@ void validate_cuda(Index m, Index n, Index k)
         dst2_handle(&dst2[0], sizeof(T)*2*m*n);
     maxsumexp.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::maxsumexp::submit<" << T::short_name << "> restricted to CUDA\n";
-    maxsumexp.submit<std::tuple<T>>(m, n, k, src_handle, dst2_handle);
+    maxsumexp.submit<std::tuple<T>>(-1, m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result

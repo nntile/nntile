@@ -78,6 +78,7 @@ public:
 
     //! Submit hypot_scalar_inverse task
     void submit(
+        int starpu_worker_hint,
         Index nelems,
         Scalar eps,
         Scalar alpha,

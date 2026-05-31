@@ -36,7 +36,7 @@ void run_fill(
     TileGraph::TileNode* x)
 {
     auto& x_t = runtime.get_tile<T>(x);
-    nntile::core::fill<T>(val, x_t);
+    nntile::core::fill<T>(runtime.starpu_worker_hint(), val, x_t);
 }
 
 } // namespace

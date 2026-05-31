@@ -67,7 +67,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_fiber matches tile
         b.release();
         c.release();
     }
-    nntile::core::add_fiber<fp32_t>(alpha, t1, beta, t2, dst, axis, batch);
+    nntile::core::add_fiber<fp32_t>(-1, alpha, t1, beta, t2, dst, axis, batch);
     starpu_task_wait_for_all();
     std::vector<float> tref(nfull);
     {

@@ -39,7 +39,7 @@ void run_relu_backward(
     auto& x_t = runtime.get_tile<T>(x);
     auto& dy_t = runtime.get_tile<T>(dy);
     auto& dx_t = runtime.get_tile<T>(dx);
-    nntile::core::relu_backward<T>(x_t, dy_t, dx_t);
+    nntile::core::relu_backward<T>(runtime.starpu_worker_hint(), x_t, dy_t, dx_t);
 }
 
 } // namespace

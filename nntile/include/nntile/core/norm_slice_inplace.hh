@@ -20,11 +20,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void norm_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void norm_slice_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, int redux=0);
 
 template<typename T>
-void norm_slice_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void norm_slice_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, int redux=0);
 
 } // namespace nntile::core

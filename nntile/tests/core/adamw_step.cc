@@ -54,9 +54,9 @@ void validate()
 
     Index num_iter = 3;
     Scalar beta1 = 0.9, beta2 = 0.95, eps = 1e-8, lr = 1e-3, wd = 1e-2;
-    starpu::adamw_step.submit<std::tuple<T>>(num_iter, p.nelems, beta1, beta2,
+    starpu::adamw_step.submit<std::tuple<T>>(-1, num_iter, p.nelems, beta1, beta2,
             eps, lr, wd, grad, m, v, p);
-    adamw_step<T>(num_iter, beta1, beta2, eps, lr, wd, grad, m_ref, v_ref,
+    adamw_step<T>(-1, num_iter, beta1, beta2, eps, lr, wd, grad, m_ref, v_ref,
             p_ref);
 
     m_local.acquire(STARPU_R);

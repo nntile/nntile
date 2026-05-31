@@ -51,7 +51,7 @@ void validate_cpu(Index nelems, Scalar alpha, Scalar beta)
     norm.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::norm::submit<" << T::short_name << "> restricted to CPU\n";
     int redux = 0;
-    norm.submit<std::tuple<T>>(nelems, alpha, src_handle, beta, dst2_handle, redux);
+    norm.submit<std::tuple<T>>(-1, nelems, alpha, src_handle, beta, dst2_handle, redux);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     src_handle.unregister();
@@ -120,7 +120,7 @@ void validate_cuda(Index nelems, Scalar alpha, Scalar beta)
     norm.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::norm::submit<" << T::short_name << "> restricted to CUDA\n";
     int redux = 0;
-    norm.submit<std::tuple<T>>(nelems, alpha, src_handle, beta, dst2_handle, redux);
+    norm.submit<std::tuple<T>>(-1, nelems, alpha, src_handle, beta, dst2_handle, redux);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     src_handle.unregister();

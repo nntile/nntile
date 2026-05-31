@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Tile<T> scaling of a broadcasted slice
 template<typename T>
-void scale_slice_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
+void scale_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
 
 // Tile<T> scaling of a broadcasted slice
 template<typename T>
-void scale_slice(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
+void scale_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
 
 } // namespace nntile::core

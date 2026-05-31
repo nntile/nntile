@@ -79,6 +79,7 @@ public:
 
     //! Submit multiply_fiber task
     void submit(
+        int starpu_worker_hint,
         Index m,
         Index n,
         Index k,

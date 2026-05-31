@@ -35,7 +35,7 @@ void run_clear(
     TileGraph::TileNode* x)
 {
     auto& x_t = runtime.get_tile<T>(x);
-    nntile::core::clear<T>(x_t);
+    nntile::core::clear<T>(runtime.starpu_worker_hint(), x_t);
 }
 
 } // namespace

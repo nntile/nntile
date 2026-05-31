@@ -28,7 +28,7 @@ template<typename T>
 void run(
     Runtime& rt, Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, Scalar b, TileGraph::TileNode* d, Index ax, int r)
 {
-    nntile::core::sumprod_slice<T>(a, rt.get_tile<T>(t1), rt.get_tile<T>(t2), b, rt.get_tile<T>(d), ax, r);
+    nntile::core::sumprod_slice<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(t1), rt.get_tile<T>(t2), b, rt.get_tile<T>(d), ax, r);
 }
 } // namespace
 void sumprod_slice(Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, Scalar b, TileGraph::TileNode* dst, Index ax, int r)

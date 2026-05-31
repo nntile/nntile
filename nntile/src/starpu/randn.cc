@@ -86,7 +86,7 @@ uint32_t Randn<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Randn<std::tuple<T>>::submit(
+void Randn<std::tuple<T>>::submit(int starpu_worker_hint,
     Index ndim,
     Index nelems,
     unsigned long long seed,
@@ -102,7 +102,7 @@ void Randn<std::tuple<T>>::submit(
 {
     double nflops = 2 * nelems;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
         STARPU_VALUE, &ndim, sizeof(ndim),
         STARPU_VALUE, &nelems, sizeof(nelems),
         STARPU_VALUE, &seed, sizeof(seed),

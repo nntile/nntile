@@ -63,7 +63,7 @@ public:
 #endif // NNTILE_USE_CUDA
 
     //! Submit clear task
-    void submit(Handle data);
+    void submit(int starpu_worker_hint, Handle data);
 };
 
 //! Clear operation object

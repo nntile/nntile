@@ -133,7 +133,7 @@ uint32_t Isfinite<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Isfinite<std::tuple<T>>::submit(Index nelems, Handle data, Handle flag)
+void Isfinite<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Handle data, Handle flag)
 //! Insert isfinite task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
@@ -144,7 +144,7 @@ void Isfinite<std::tuple<T>>::submit(Index nelems, Handle data, Handle flag)
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, data.get(),
             STARPU_RW, flag.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

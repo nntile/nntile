@@ -61,7 +61,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_inplace match
         a.release();
         b.release();
     }
-    nntile::core::multiply_inplace<fp32_t>(alpha, ts, td);
+    nntile::core::multiply_inplace<fp32_t>(-1, alpha, ts, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

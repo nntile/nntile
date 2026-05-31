@@ -59,7 +59,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber", "[graph][
       for(Index i = 0; i < n2; ++i) a2[i] = Y(0.0f);
       for(Index i = 0; i < n3; ++i) a3[i] = Y(0.0f);
       a1.release(); a2.release(); a3.release(); }
-    nntile::core::norm_fiber<fp32_t>(a, T1, b, T2, D, ax, bd, redux);
+    nntile::core::norm_fiber<fp32_t>(-1, a, T1, b, T2, D, ax, bd, redux);
     starpu_task_wait_for_all();
     std::vector<float> tref(5);
     { auto L = D.acquire(STARPU_R);

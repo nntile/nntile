@@ -26,7 +26,7 @@ namespace nntile::core
  * @param[inout] dst: Destination tile
  * */
 template<typename T>
-void copy_async(const Tile<T> &src, const Tile<T> &dst)
+void copy_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -38,7 +38,7 @@ void copy_async(const Tile<T> &src, const Tile<T> &dst)
     src.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        starpu::copy.submit(src, dst);
+        starpu::copy.submit(starpu_worker_hint, src, dst);
     }
 }
 
@@ -49,72 +49,72 @@ void copy_async(const Tile<T> &src, const Tile<T> &dst)
  * @param[inout] dst: Destination tile
  * */
 template<typename T>
-void copy(const Tile<T> &src, const Tile<T> &dst)
+void copy(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
-    copy_async<T>(src, dst);
+    copy_async<T>(starpu_worker_hint, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void copy_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void copy_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void copy_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void copy_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void copy_async<int64_t>(const Tile<int64_t> &src, const Tile<int64_t> &dst);
+void copy_async<int64_t>(int starpu_worker_hint, const Tile<int64_t> &src, const Tile<int64_t> &dst);
 
 template
-void copy_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void copy_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void copy_async<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+void copy_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 template
-void copy_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void copy_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void copy_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void copy_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void copy_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void copy_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void copy_async<bool_t>(const Tile<bool_t> &src, const Tile<bool_t> &dst);
+void copy_async<bool_t>(int starpu_worker_hint, const Tile<bool_t> &src, const Tile<bool_t> &dst);
 
 // Explicit instantiation
 template
-void copy<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void copy<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void copy<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void copy<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void copy<int64_t>(const Tile<int64_t> &src, const Tile<int64_t> &dst);
+void copy<int64_t>(int starpu_worker_hint, const Tile<int64_t> &src, const Tile<int64_t> &dst);
 
 template
-void copy<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void copy<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void copy<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+void copy<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 template
-void copy<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void copy<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void copy<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void copy<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void copy<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void copy<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void copy<bool_t>(const Tile<bool_t> &src, const Tile<bool_t> &dst);
+void copy<bool_t>(int starpu_worker_hint, const Tile<bool_t> &src, const Tile<bool_t> &dst);
 
 } // namespace nntile::core

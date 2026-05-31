@@ -44,7 +44,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_bwd_weight_inpl
       for(Index i=0;i<nx;++i) a[i]=Yf(static_cast<float>(i+1));
       for(Index i=0;i<4;++i) { b[i]=Yf(static_cast<float>(i+1)); c[i]=Yf(0.0f); }
       a.release();b.release();c.release(); }
-    nntile::core::conv2d_bwd_weight_inplace<fp32_t>(3,3,1,1,2,2,1,1,1,0,0,1.0,TX,DY,2,2,1,1,0.0,DC);
+    nntile::core::conv2d_bwd_weight_inplace<fp32_t>(-1, 3,3,1,1,2,2,1,1,1,0,0,1.0,TX,DY,2,2,1,1,0.0,DC);
     starpu_task_wait_for_all();
     std::vector<float> tr(4);
     { auto L=DC.acquire(STARPU_R);

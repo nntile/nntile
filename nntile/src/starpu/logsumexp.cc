@@ -133,7 +133,7 @@ uint32_t LogSumExp<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit logsumexp task
 template<typename T>
-void LogSumExp<std::tuple<T>>::submit(
+void LogSumExp<std::tuple<T>>::submit(int starpu_worker_hint,
         Index nelems, Handle maxsumexp, Handle logsumexp)
 //! Insert logsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -145,7 +145,7 @@ void LogSumExp<std::tuple<T>>::submit(
     args_t *args = new args_t();
     args->nelems = nelems;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, maxsumexp.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_W, logsumexp.get(),

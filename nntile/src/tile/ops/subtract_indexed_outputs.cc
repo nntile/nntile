@@ -29,7 +29,7 @@ template<typename T>
 void run(
     Runtime& runtime, Scalar vl, TileGraph::TileNode* l, TileGraph::TileNode* d, Index ig)
 {
-    nntile::core::subtract_indexed_outputs<T>(vl, runtime.get_tile<nntile::int64_t>(l), runtime.get_tile<T>(d), ig);
+    nntile::core::subtract_indexed_outputs<T>(runtime.starpu_worker_hint(), vl, runtime.get_tile<nntile::int64_t>(l), runtime.get_tile<T>(d), ig);
 }
 } // namespace
 void subtract_indexed_outputs(Scalar v, TileGraph::TileNode* labels, TileGraph::TileNode* dst, Index ignore_index)

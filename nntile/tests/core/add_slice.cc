@@ -66,9 +66,9 @@ void check(Scalar alpha, Scalar beta, Index axis)
         n *= dst.shape[i];
     }
     Index k = dst.shape[axis];
-    starpu::add_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, beta, src2,
+    starpu::add_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src1, beta, src2,
             dst);
-    add_slice<T>(alpha, src1, beta, src2, dst_ref, axis);
+    add_slice<T>(-1, alpha, src1, beta, src2, dst_ref, axis);
 
     d.acquire(STARPU_R);
     dr.acquire(STARPU_R);

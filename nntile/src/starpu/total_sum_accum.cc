@@ -150,7 +150,7 @@ uint32_t TotalSumAccum<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void TotalSumAccum<std::tuple<T>>::submit(Scalar alpha, Index n_labels,
+void TotalSumAccum<std::tuple<T>>::submit(int starpu_worker_hint, Scalar alpha, Index n_labels,
         Index n_outputs, Index ignore_index,
             Handle logsumexp, Handle src, Handle class_labels, Handle val)
 {
@@ -161,7 +161,7 @@ void TotalSumAccum<std::tuple<T>>::submit(Scalar alpha, Index n_labels,
     args->n_outputs = n_outputs;
     args->ignore_index = ignore_index;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, logsumexp.get(),
             STARPU_R, src.get(),
             STARPU_R, class_labels.get(),

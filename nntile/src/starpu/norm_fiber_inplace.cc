@@ -139,7 +139,7 @@ uint32_t NormFiberInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void NormFiberInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
+void NormFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
         Scalar beta, Handle dst, int redux)
 //! Insert norm_fiber_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -178,7 +178,7 @@ void NormFiberInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Index ba
     args->alpha = alpha;
     args->beta = beta;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, dst.get(),

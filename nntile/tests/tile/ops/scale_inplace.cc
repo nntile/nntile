@@ -49,7 +49,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_inplace matches 
         for(Index i = 0; i < nelems; ++i) { l1[i] = Y(dv[static_cast<size_t>(i)]); }
         l1.release();
     }
-    nntile::core::scale_inplace<fp32_t>(alpha, td);
+    nntile::core::scale_inplace<fp32_t>(-1, alpha, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

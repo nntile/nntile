@@ -61,7 +61,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot_inplace matches 
         a.release();
         b.release();
     }
-    nntile::core::hypot_inplace<fp32_t>(alpha, ts, beta, td);
+    nntile::core::hypot_inplace<fp32_t>(-1, alpha, ts, beta, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

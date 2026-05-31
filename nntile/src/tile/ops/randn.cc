@@ -29,7 +29,7 @@ template<typename T>
 void run_rd(
     Runtime& runtime, TileGraph::TileNode* d, const std::vector<Index>& st, const std::vector<Index>& us, unsigned long long sd, Scalar m, Scalar s)
 {
-    nntile::core::randn<T>(runtime.get_tile<T>(d), st, us, sd, m, s);
+    nntile::core::randn<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(d), st, us, sd, m, s);
 }
 } // namespace
 void randn(

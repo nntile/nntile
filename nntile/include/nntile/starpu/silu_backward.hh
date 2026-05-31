@@ -76,6 +76,7 @@ public:
 
     //! Submit silu_backward task
     void submit(
+        int starpu_worker_hint,
         Index nelems,
         Handle x,
         Handle dy,

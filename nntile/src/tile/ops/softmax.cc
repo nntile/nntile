@@ -29,7 +29,7 @@ template<typename T>
 void run_sm(
     Runtime& runtime, TileGraph::TileNode* m, TileGraph::TileNode* s, Scalar a, TileGraph::TileNode* d, Index ax)
 {
-    nntile::core::softmax<T>(runtime.get_tile<T>(m), runtime.get_tile<T>(s), a, runtime.get_tile<T>(d), ax);
+    nntile::core::softmax<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(m), runtime.get_tile<T>(s), a, runtime.get_tile<T>(d), ax);
 }
 } // namespace
 void softmax(

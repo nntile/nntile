@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void flash_sdpa_bwd_cudnn_async(
+void flash_sdpa_bwd_cudnn_async(int starpu_worker_hint, 
     const Tile<T> &K,
     const Tile<T> &Q,
     const Tile<T> &V,
@@ -34,7 +34,7 @@ void flash_sdpa_bwd_cudnn_async(
 );
 
 template<typename T>
-void flash_sdpa_bwd_cudnn(
+void flash_sdpa_bwd_cudnn(int starpu_worker_hint, 
     const Tile<T> &K,
     const Tile<T> &Q,
     const Tile<T> &V,

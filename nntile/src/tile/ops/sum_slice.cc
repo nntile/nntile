@@ -29,7 +29,7 @@ template<typename T>
 void run(
     Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Scalar a, Scalar b, Index ax, int r)
 {
-    nntile::core::sum_slice<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d), ax, r);
+    nntile::core::sum_slice<T>(runtime.starpu_worker_hint(), a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d), ax, r);
 }
 } // namespace
 void sum_slice(

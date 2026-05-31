@@ -6,29 +6,19 @@
  * @file include/nntile/starpu/task_insert.hh
  * NNTile task submission for the StarPU subsystem.
  *
- * StarPU ops must submit work through nntile_starpu_task_insert() instead of
- * starpu_task_insert() so static execution schedules can pin workers via
- * sched::preferred_starpu_worker_id() without redefining StarPU macros.
+ * StarPU ops submit through nntile_starpu_task_insert(codelet, hint, ...)
+ * instead of starpu_task_insert(). ``starpu_worker_hint`` is the logical
+ * execution hint: pass -1 for no pinning, otherwise a StarPU worker id for
+ * STARPU_EXECUTE_ON_WORKER.
  */
 
 #pragma once
 
-#include <nntile/core/execution_worker.hh>
 #include <nntile/starpu_c.hh>
 
-//! Submit a StarPU task; pin to preferred worker when execution schedule is active.
-/*!
- * When sched::preferred_starpu_worker_id() is non-negative, inserts
- * STARPU_EXECUTE_ON_WORKER before the remaining arguments (must precede the
- * trailing 0 sentinel). Otherwise forwards to starpu_task_insert unchanged.
- */
-#define nntile_starpu_task_insert(codelet, ...)                                \
-    ({                                                                         \
-        int const _nntile_pref_worker =                                        \
-            ::nntile::sched::preferred_starpu_worker_id();                     \
-        (_nntile_pref_worker < 0)                                              \
-                ? ::starpu_task_insert((codelet), ##__VA_ARGS__)               \
-                : ::starpu_task_insert((codelet),                              \
-                      STARPU_EXECUTE_ON_WORKER, _nntile_pref_worker,           \
-                      ##__VA_ARGS__);                                          \
-    })
+//! Submit a StarPU task, optionally pinned to ``starpu_worker_hint``.
+#define nntile_starpu_task_insert(codelet, starpu_worker_hint, ...)           \
+    (((starpu_worker_hint) < 0)                                                \
+            ? ::starpu_task_insert((codelet), ##__VA_ARGS__)                   \
+            : ::starpu_task_insert((codelet), STARPU_EXECUTE_ON_WORKER,        \
+                  (starpu_worker_hint), ##__VA_ARGS__))

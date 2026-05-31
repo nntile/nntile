@@ -185,6 +185,7 @@ production GPT-2 tooling
 | Schedule API | `nntile/include/nntile/core/execution_schedule.hh` |
 | Schedule impl | `nntile/src/core/execution_schedule.cc` |
 | Runtime | `nntile/include/nntile/runtime.hh`, `nntile/src/runtime.cc` |
-| StarPU task submit | `nntile/include/nntile/starpu/task_insert.hh` (`nntile_starpu_task_insert`) |
+| StarPU task submit | `nntile/include/nntile/starpu/task_insert.hh` (`nntile_starpu_task_insert(codelet, starpu_worker_hint, …)`; `-1` = no pin) |
+| Worker hint on ops | `Runtime::starpu_worker_hint()` → `core::*` / `starpu::*::submit(int starpu_worker_hint, …)` |
 | Tiling | `nntile/examples/tiling_config_json.hh`, `gpt2_axis_naming.hh` |
 | Example | `nntile/examples/gpt2_graph_training.cc` |

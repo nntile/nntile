@@ -128,7 +128,7 @@ void Accumulate<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_ar
 
 //! Submit accumulate task
 template<typename T>
-void Accumulate<std::tuple<T>>::submit(Handle src, Handle dst)
+void Accumulate<std::tuple<T>>::submit(int starpu_worker_hint, Handle src, Handle dst)
 //! Insert accumulate task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
@@ -137,7 +137,7 @@ void Accumulate<std::tuple<T>>::submit(Handle src, Handle dst)
 {
     //double nflops;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_RW | STARPU_COMMUTE, dst.get(),
             STARPU_R, src.get(),
             // STARPU_FLOPS, nflops,

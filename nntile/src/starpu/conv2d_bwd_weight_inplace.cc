@@ -131,7 +131,7 @@ uint32_t Conv2dBwdWeightInplace<std::tuple<T>>::footprint(struct starpu_task *ta
 
 //! Submit conv2d_bwd_weight_inplace task
 template<typename T>
-void Conv2dBwdWeightInplace<std::tuple<T>>::submit(
+void Conv2dBwdWeightInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     Index src1_m,
     Index src1_n,
     Index src1_channels,
@@ -179,7 +179,7 @@ void Conv2dBwdWeightInplace<std::tuple<T>>::submit(
         dst_mode = STARPU_W;
     }
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

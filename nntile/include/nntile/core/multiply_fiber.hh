@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 template<typename T>
-void multiply_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void multiply_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst, Index axis);
 
 // Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 template<typename T>
-void multiply_fiber(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void multiply_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst, Index axis);
 
 } // namespace nntile::core

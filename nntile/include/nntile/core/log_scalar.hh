@@ -21,9 +21,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void log_scalar_async(const std::string &name, const Tile<T> &value);
+void log_scalar_async(int starpu_worker_hint, const std::string &name, const Tile<T> &value);
 
 template<typename T>
-void log_scalar(const std::string &name, const Tile<T> &value);
+void log_scalar(int starpu_worker_hint, const std::string &name, const Tile<T> &value);
 
 } // namespace nntile::core

@@ -39,9 +39,9 @@ void validate()
     drl.release();
 
     Scalar alpha = 0.7, beta = 1.1;
-    starpu::hypot_inplace.submit<std::tuple<T>>(src.nelems, alpha, src, beta,
+    starpu::hypot_inplace.submit<std::tuple<T>>(-1, src.nelems, alpha, src, beta,
             dst);
-    hypot_inplace<T>(alpha, src, beta, dst_ref);
+    hypot_inplace<T>(-1, alpha, src, beta, dst_ref);
 
     dl.acquire(STARPU_R);
     drl.acquire(STARPU_R);

@@ -37,7 +37,7 @@ void run_pow(
     TileGraph::TileNode* A)
 {
     auto& t = runtime.get_tile<T>(A);
-    nntile::core::pow<T>(alpha, exp, t);
+    nntile::core::pow<T>(runtime.starpu_worker_hint(), alpha, exp, t);
 }
 
 } // namespace

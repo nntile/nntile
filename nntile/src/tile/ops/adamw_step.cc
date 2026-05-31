@@ -44,7 +44,7 @@ void run_adamw(
     TileGraph::TileNode* v,
     TileGraph::TileNode* pn)
 {
-    nntile::core::adamw_step<T>(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+    nntile::core::adamw_step<T>(runtime.starpu_worker_hint(), num_iter, beta_1, beta_2, eps, lr, weight_decay,
         runtime.get_tile<T>(g), runtime.get_tile<T>(m), runtime.get_tile<T>(v),
         runtime.get_tile<T>(pn));
 }

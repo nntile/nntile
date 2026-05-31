@@ -76,6 +76,7 @@ public:
 
     //! Submit sqrt task
     void submit(
+        int starpu_worker_hint,
         Index nelems,
         Handle src,
         Handle dst

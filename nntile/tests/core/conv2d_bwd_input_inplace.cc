@@ -49,9 +49,9 @@ void validate()
     dX_ref_local.release();
     dX_tile_local.release();
 
-    starpu::conv2d_bwd_input_inplace.submit<std::tuple<T>>(2, 2, 1, 1, 1, 1, 2,
+    starpu::conv2d_bwd_input_inplace.submit<std::tuple<T>>(-1, 2, 2, 1, 1, 1, 1, 2,
             2, 1, 1, 1, 0, 0, 1.0, dY, C, 3, 3, 0.0, dX_ref);
-    conv2d_bwd_input_inplace<T>(2, 2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 0, 0, 1.0,
+    conv2d_bwd_input_inplace<T>(-1, 2, 2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 0, 0, 1.0,
             dY, C, 3, 3, 0.0, dX_tile);
 
     dX_ref_local.acquire(STARPU_R);

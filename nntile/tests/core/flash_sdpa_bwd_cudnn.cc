@@ -118,7 +118,7 @@ void check()
         dQ_ref_local.release();
         dV_ref_local.release();
 
-        tile::flash_sdpa_bwd_cudnn<T>(K_tile, Q_tile, V_tile, A_tile, dA_tile,
+        tile::flash_sdpa_bwd_cudnn<T>(-1, K_tile, Q_tile, V_tile, A_tile, dA_tile,
                                       mask_tile, logsumexp_tile,
                                       dK_ref_tile, dQ_ref_tile, dV_ref_tile);
     }
@@ -222,8 +222,7 @@ void check()
         starpu::VariableHandle scratch_dQ(sizeof(T) * dQ_starpu.nelems);
         starpu::VariableHandle scratch_dV(sizeof(T) * dV_starpu.nelems);
 
-        starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
-            n_seq, head_size, n_batch * kv_group_size * n_head_kv, K_starpu, Q_starpu, V_starpu,
+        starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(-1, n_seq, head_size, n_batch * kv_group_size * n_head_kv, K_starpu, Q_starpu, V_starpu,
             A_starpu, dA_starpu, mask_starpu, logsumexp_starpu,
             dK_starpu, dQ_starpu, dV_starpu,
             scratch_dK, scratch_dQ, scratch_dV);
@@ -253,7 +252,7 @@ void check()
         dV_tile_local_init.release();
 
         // Call tile-level operation
-        flash_sdpa_bwd_cudnn<T>(K_tile, Q_tile, V_tile, A_tile, dA_tile, mask_tile, logsumexp_tile,
+        flash_sdpa_bwd_cudnn<T>(-1, K_tile, Q_tile, V_tile, A_tile, dA_tile, mask_tile, logsumexp_tile,
                                dK_tile, dQ_tile, dV_tile);
 
         // Compare results
@@ -369,19 +368,19 @@ void check_exceptions()
     Tile<fp32_t> logsumexp({n_seq, n_batch, kv_group_size, n_head_kv});
 
     Tile<T> K_4d({head_size, n_seq, n_batch, kv_group_size});
-    TEST_THROW(flash_sdpa_bwd_cudnn<T>(K_4d, Q, V, A, dA, mask, logsumexp, dK,
+    TEST_THROW(flash_sdpa_bwd_cudnn<T>(-1, K_4d, Q, V, A, dA, mask, logsumexp, dK,
             dQ, dV));
 
     Tile<T> mask_bad({n_seq / 2, n_seq / 2});
-    TEST_THROW(flash_sdpa_bwd_cudnn<T>(K, Q, V, A, dA, mask_bad, logsumexp, dK,
+    TEST_THROW(flash_sdpa_bwd_cudnn<T>(-1, K, Q, V, A, dA, mask_bad, logsumexp, dK,
             dQ, dV));
 
     Tile<T> dQ_bad({head_size - 1, n_seq, n_batch, kv_group_size, n_head_kv});
-    TEST_THROW(flash_sdpa_bwd_cudnn<T>(K, Q, V, A, dA, mask, logsumexp, dK,
+    TEST_THROW(flash_sdpa_bwd_cudnn<T>(-1, K, Q, V, A, dA, mask, logsumexp, dK,
             dQ_bad, dV));
 
     Tile<fp32_t> logsumexp_bad({n_seq, n_batch + 1, kv_group_size, n_head_kv});
-    TEST_THROW(flash_sdpa_bwd_cudnn<T>(K, Q, V, A, dA, mask, logsumexp_bad, dK,
+    TEST_THROW(flash_sdpa_bwd_cudnn<T>(-1, K, Q, V, A, dA, mask, logsumexp_bad, dK,
             dQ, dV));
 }
 

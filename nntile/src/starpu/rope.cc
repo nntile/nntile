@@ -139,7 +139,7 @@ uint32_t Rope<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Rope<std::tuple<T>>::submit(Index m, Index n, Handle sin, Handle cos, Handle src, Handle dst)
+void Rope<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Handle sin, Handle cos, Handle src, Handle dst)
 //! Insert rope task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
@@ -151,7 +151,7 @@ void Rope<std::tuple<T>>::submit(Index m, Index n, Handle sin, Handle cos, Handl
     args->m = m;
     args->n = n;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, sin.get(),
             STARPU_R, cos.get(),
             STARPU_R, src.get(),

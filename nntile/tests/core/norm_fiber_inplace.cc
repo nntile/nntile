@@ -57,7 +57,7 @@ void validate()
     dst_local_w.release();
 
     std::cout << "Run tile::norm_fiber_inplace<" << T::short_name << "> restricted to CPU\n";
-    norm_fiber_inplace<T>(alpha, src1, beta, dst, axis, batch_ndim, redux);
+    norm_fiber_inplace<T>(-1, alpha, src1, beta, dst, axis, batch_ndim, redux);
     auto dst_local = dst.acquire(STARPU_R);
     auto val = Y(dst_local[0]);
     auto ref = Y(std::sqrt((m*n*k)));

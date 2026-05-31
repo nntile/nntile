@@ -93,6 +93,7 @@ public:
 
     //! Submit add task
     void submit(
+        int starpu_worker_hint,
         Index src1_m,
         Index src1_n,
         Index src1_channels,

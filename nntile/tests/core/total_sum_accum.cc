@@ -57,9 +57,9 @@ void validate()
 
     Scalar alpha = 1.0;
     Index ignore_index = -1;
-    starpu::total_sum_accum.submit<std::tuple<T>>(alpha, src.shape[0],
+    starpu::total_sum_accum.submit<std::tuple<T>>(-1, alpha, src.shape[0],
             logsumexp.nelems, ignore_index, logsumexp, src, class_labels, val);
-    total_sum_accum<T>(alpha, logsumexp, src, class_labels, val_ref,
+    total_sum_accum<T>(-1, alpha, logsumexp, src, class_labels, val_ref,
             ignore_index);
 
     using ValY = typename fp32_t::repr_t;

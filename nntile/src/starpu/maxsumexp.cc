@@ -135,7 +135,7 @@ uint32_t MaxSumExp<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void MaxSumExp<std::tuple<T>>::submit(Index m, Index n, Index k, Handle src, Handle dst, int redux)
+void MaxSumExp<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Handle src, Handle dst, int redux)
 //! Insert maxsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
@@ -160,7 +160,7 @@ void MaxSumExp<std::tuple<T>>::submit(Index m, Index n, Index k, Handle src, Han
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (k+2) * n;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, dst.get(),

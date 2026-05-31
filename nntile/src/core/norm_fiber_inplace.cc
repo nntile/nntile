@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void norm_fiber_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta,
+void norm_fiber_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta,
         const Tile<T> &dst, Index axis, Index batch_ndim, int redux)
 {
     // Check dimensions
@@ -68,67 +68,67 @@ void norm_fiber_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     if(mpi_rank == dst_rank)
     {
         // Insert task
-        starpu::norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch,
+        starpu::norm_fiber_inplace.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, batch,
                 alpha, src, beta, dst, 0);  // redux ignored for now
     }
 }
 
 template<typename T>
-void norm_fiber_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void norm_fiber_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, Index batch_ndim, int redux)
 {
-    norm_fiber_inplace_async<T>(alpha, src, beta, dst, axis, batch_ndim, redux);
+    norm_fiber_inplace_async<T>(starpu_worker_hint, alpha, src, beta, dst, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void norm_fiber_inplace_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void norm_fiber_inplace_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         Scalar beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void norm_fiber_inplace_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void norm_fiber_inplace_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         Scalar beta, const Tile<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void norm_fiber_inplace_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         Scalar beta, const Tile<fp32_fast_bf16_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void norm_fiber_inplace_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         Scalar beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void norm_fiber_inplace_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 // Explicit instantiation
 template
-void norm_fiber_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
+void norm_fiber_inplace<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
+void norm_fiber_inplace<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+void norm_fiber_inplace<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
         const Tile<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+void norm_fiber_inplace<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
         const Tile<fp32_fast_bf16_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
+void norm_fiber_inplace<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
-void norm_fiber_inplace<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void norm_fiber_inplace<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 } // namespace nntile::core

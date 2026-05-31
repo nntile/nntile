@@ -159,7 +159,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
  * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * */
 template<typename T>
-void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
+void flash_sdpa_fwd_cudnn_async(int starpu_worker_hint, const Tile<T> &K, const Tile<T> &Q,
         const Tile<T> &mask, const Tile<fp32_t> &logsumexp, const Tile<T> &V,
         const Tile<T> &A)
 {
@@ -187,7 +187,7 @@ void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
     starpu::VariableHandle scratch_A(sizeof(T) * A.nelems);
 
     // Insert task
-    starpu::flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(
+    starpu::flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(starpu_worker_hint, 
         seq, head, batch, K, Q, mask, logsumexp, V, A,
         scratch_logsumexp, scratch_A);
 
@@ -204,35 +204,35 @@ void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
  * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * */
 template<typename T>
-void flash_sdpa_fwd_cudnn(const Tile<T> &K, const Tile<T> &Q,
+void flash_sdpa_fwd_cudnn(int starpu_worker_hint, const Tile<T> &K, const Tile<T> &Q,
         const Tile<T> &mask, const Tile<fp32_t> &logsumexp, const Tile<T> &V,
         const Tile<T> &A)
 {
-    flash_sdpa_fwd_cudnn_async<T>(K, Q, mask, logsumexp, V, A);
+    flash_sdpa_fwd_cudnn_async<T>(starpu_worker_hint, K, Q, mask, logsumexp, V, A);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void flash_sdpa_fwd_cudnn_async<bf16_t>(const Tile<bf16_t> &K,
+void flash_sdpa_fwd_cudnn_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &K,
         const Tile<bf16_t> &Q, const Tile<bf16_t> &mask,
         const Tile<fp32_t> &logsumexp, const Tile<bf16_t> &V,
         const Tile<bf16_t> &A);
 
 template
-void flash_sdpa_fwd_cudnn_async<fp16_t>(const Tile<fp16_t> &K,
+void flash_sdpa_fwd_cudnn_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &K,
         const Tile<fp16_t> &Q, const Tile<fp16_t> &mask,
         const Tile<fp32_t> &logsumexp, const Tile<fp16_t> &V,
         const Tile<fp16_t> &A);
 
 template
-void flash_sdpa_fwd_cudnn<bf16_t>(const Tile<bf16_t> &K,
+void flash_sdpa_fwd_cudnn<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &K,
         const Tile<bf16_t> &Q, const Tile<bf16_t> &mask,
         const Tile<fp32_t> &logsumexp, const Tile<bf16_t> &V,
         const Tile<bf16_t> &A);
 
 template
-void flash_sdpa_fwd_cudnn<fp16_t>(const Tile<fp16_t> &K,
+void flash_sdpa_fwd_cudnn<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &K,
         const Tile<fp16_t> &Q, const Tile<fp16_t> &mask,
         const Tile<fp32_t> &logsumexp, const Tile<fp16_t> &V,
         const Tile<fp16_t> &A);

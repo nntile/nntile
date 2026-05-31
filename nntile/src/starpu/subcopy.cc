@@ -96,7 +96,7 @@ uint32_t Subcopy<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Subcopy<std::tuple<T>>::submit(
+void Subcopy<std::tuple<T>>::submit(int starpu_worker_hint,
         Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
@@ -106,7 +106,7 @@ void Subcopy<std::tuple<T>>::submit(
 {
     constexpr double nflops = 0;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_VALUE, &(ndim), sizeof(ndim),
             STARPU_VALUE, &(src_start[0]), ndim*sizeof(src_start[0]),
             STARPU_VALUE, &(src_stride[0]), ndim*sizeof(src_stride[0]),

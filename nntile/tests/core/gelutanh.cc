@@ -38,8 +38,8 @@ void validate()
     s1cl.release();
     d1cl.release();
 
-    starpu::gelutanh.submit<std::tuple<T>>(1, s1, d1);
-    gelutanh<T>(s1c, d1c);
+    starpu::gelutanh.submit<std::tuple<T>>(-1, 1, s1, d1);
+    gelutanh<T>(-1, s1c, d1c);
     d1l.acquire(STARPU_R);
     d1cl.acquire(STARPU_R);
     TEST_ASSERT(Y(d1l[0]) == Y(d1cl[0]));
@@ -63,8 +63,8 @@ void validate()
     s2cl.release();
     d2cl.release();
 
-    starpu::gelutanh.submit<std::tuple<T>>(s2.nelems, s2, d2);
-    gelutanh<T>(s2c, d2c);
+    starpu::gelutanh.submit<std::tuple<T>>(-1, s2.nelems, s2, d2);
+    gelutanh<T>(-1, s2c, d2c);
     d2l.acquire(STARPU_R);
     d2cl.acquire(STARPU_R);
     for(Index i = 0; i < s2.nelems; ++i)

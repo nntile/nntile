@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void multiply_slice_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void multiply_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted slice
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -72,12 +72,12 @@ void multiply_slice_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
     if(mpi_rank == dst_rank)
     {
         // Insert corresponding task
-        starpu::multiply_slice.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
+        starpu::multiply_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src, dst);
     }
 }
 
 template<typename T>
-void multiply_slice(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+void multiply_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted slice
 /*! Blocking version of multiply_slice_async<T>.
  * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -89,66 +89,66 @@ void multiply_slice(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index 
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    multiply_slice_async<T>(alpha, src, dst, axis);
+    multiply_slice_async<T>(starpu_worker_hint, alpha, src, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void multiply_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void multiply_slice_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void multiply_slice_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void multiply_slice_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void multiply_slice_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void multiply_slice_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index axis);
 
 template
-void multiply_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void multiply_slice_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+void multiply_slice_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void multiply_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void multiply_slice<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void multiply_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void multiply_slice<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void multiply_slice<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void multiply_slice<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void multiply_slice<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void multiply_slice<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void multiply_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void multiply_slice<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index axis);
 
 template
-void multiply_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void multiply_slice<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst, Index axis);
 
 template
-void multiply_slice<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+void multiply_slice<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::core

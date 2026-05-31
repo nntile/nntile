@@ -129,13 +129,13 @@ uint32_t SiluInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void SiluInplace<std::tuple<T>>::submit(Index nelems, Handle data)
+void SiluInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Handle data)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_RW, data.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);

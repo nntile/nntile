@@ -38,7 +38,7 @@ void run(
     TileGraph::TileNode* dQ_,
     TileGraph::TileNode* dV_)
 {
-    nntile::core::flash_sdpa_bwd_cudnn<T>(runtime.get_tile<T>(K_), runtime.get_tile<T>(Q_), runtime.get_tile<T>(V_), runtime.get_tile<T>(A_), runtime.get_tile<T>(dA), runtime.get_tile<T>(m), runtime.get_tile<nntile::fp32_t>(lse), runtime.get_tile<T>(dK_), runtime.get_tile<T>(dQ_), runtime.get_tile<T>(dV_));
+    nntile::core::flash_sdpa_bwd_cudnn<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(K_), runtime.get_tile<T>(Q_), runtime.get_tile<T>(V_), runtime.get_tile<T>(A_), runtime.get_tile<T>(dA), runtime.get_tile<T>(m), runtime.get_tile<nntile::fp32_t>(lse), runtime.get_tile<T>(dK_), runtime.get_tile<T>(dQ_), runtime.get_tile<T>(dV_));
 }
 } // namespace
 void flash_sdpa_bwd_cudnn(

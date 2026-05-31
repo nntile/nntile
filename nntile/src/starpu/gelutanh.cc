@@ -133,7 +133,7 @@ uint32_t GeluTanh<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit gelutanh task
 template<typename T>
-void GeluTanh<std::tuple<T>>::submit(
+void GeluTanh<std::tuple<T>>::submit(int starpu_worker_hint,
     Index nelems,
     Handle src,
     Handle dst
@@ -148,7 +148,7 @@ void GeluTanh<std::tuple<T>>::submit(
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     //double nflops = 5 * nelems;
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

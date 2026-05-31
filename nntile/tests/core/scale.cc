@@ -39,8 +39,8 @@ void validate()
     drl.release();
 
     Scalar alpha = -1.5;
-    starpu::scale.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
-    scale<T>(alpha, src, dstr);
+    starpu::scale.submit<std::tuple<T>>(-1, src.nelems, alpha, src, dst);
+    scale<T>(-1, alpha, src, dstr);
 
     dl.acquire(STARPU_R);
     drl.acquire(STARPU_R);

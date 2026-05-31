@@ -21,11 +21,11 @@ namespace nntile::core
 
 // Asynchronous tile-wise backward approximate GeLU operation
 template<typename T>
-void gelutanh_backward_async(const Tile<T> &x, const Tile<T> &dy,
+void gelutanh_backward_async(int starpu_worker_hint, const Tile<T> &x, const Tile<T> &dy,
         const Tile<T> &dx);
 
 // Blocking version of tile-wise backward approximate GeLU operation
 template<typename T>
-void gelutanh_backward(const Tile<T> &x, const Tile<T> &dy, const Tile<T> &dx);
+void gelutanh_backward(int starpu_worker_hint, const Tile<T> &x, const Tile<T> &dy, const Tile<T> &dx);
 
 } // namespace nntile::core

@@ -39,7 +39,7 @@ void validate(std::size_t size)
     VariableHandle data_handle(&data[0], size);
     clear.codelet.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::clear::submit restricted to CPU\n";
-    clear.submit(data_handle);
+    clear.submit(-1, data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
     // Check result
@@ -54,7 +54,7 @@ void validate(std::size_t size)
     data_handle = VariableHandle(&data[0], size);
     clear.codelet.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::clear::submit restricted to CUDA\n";
-    clear.submit(data_handle);
+    clear.submit(-1, data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
     // Check result

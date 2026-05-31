@@ -58,9 +58,9 @@ void check()
     Index m = src1.stride[axis];
     Index n = src1.matrix_shape[axis+1][1] / batch;
     Index k = src1.shape[axis];
-    starpu::norm_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src1, beta,
+    starpu::norm_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src1, beta,
             src2, dst, redux);
-    norm_fiber<T>(alpha, src1, beta, src2, dst_ref, axis, batch_ndim, redux);
+    norm_fiber<T>(-1, alpha, src1, beta, src2, dst_ref, axis, batch_ndim, redux);
 
     d.acquire(STARPU_R);
     dr.acquire(STARPU_R);

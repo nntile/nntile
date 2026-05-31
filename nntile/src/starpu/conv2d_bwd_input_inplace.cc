@@ -131,7 +131,7 @@ uint32_t Conv2dBwdInputInplace<std::tuple<T>>::footprint(struct starpu_task *tas
 
 //! Submit conv2d_bwd_input_inplace task
 template<typename T>
-void Conv2dBwdInputInplace<std::tuple<T>>::submit(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
+void Conv2dBwdInputInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index src1_m, Index src1_n, Index stride_m, Index stride_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, Handle src1, Handle src2, Index dst_m,
@@ -162,7 +162,7 @@ void Conv2dBwdInputInplace<std::tuple<T>>::submit(Index src1_m, Index src1_n, In
         dst_mode = STARPU_W;
     }
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

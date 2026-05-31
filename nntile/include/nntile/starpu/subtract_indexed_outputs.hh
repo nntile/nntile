@@ -79,6 +79,7 @@ public:
 
     //! Submit subtract_indexed_outputs task
     void submit(
+        int starpu_worker_hint,
         Index n_labels,
         Index n_outputs,
         Index ignore_index,

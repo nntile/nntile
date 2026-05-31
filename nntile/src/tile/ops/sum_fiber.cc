@@ -29,7 +29,7 @@ template<typename T>
 void run(
     Runtime& rt, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index ax, Index bnd, int r)
 {
-    nntile::core::sum_fiber<T>(a, rt.get_tile<T>(s), b, rt.get_tile<T>(d), ax, bnd, r);
+    nntile::core::sum_fiber<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(s), b, rt.get_tile<T>(d), ax, bnd, r);
 }
 } // namespace
 void sum_fiber(

@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void conv2d_bwd_input_inplace_async(Index src1_m, Index src1_n, Index stride_m,
+void conv2d_bwd_input_inplace_async(int starpu_worker_hint, Index src1_m, Index src1_n, Index stride_m,
         Index stride_n, Index src1_channels, Index batch, Index src2_m,
         Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
         Index offset_m, Index offset_n, Scalar alpha, const Tile<T> &src1,
@@ -28,7 +28,7 @@ void conv2d_bwd_input_inplace_async(Index src1_m, Index src1_n, Index stride_m,
         const Tile<T> &dst);
 
 template<typename T>
-void conv2d_bwd_input_inplace(Index src1_m, Index src1_n, Index stride_m,
+void conv2d_bwd_input_inplace(int starpu_worker_hint, Index src1_m, Index src1_n, Index stride_m,
         Index stride_n, Index src1_channels, Index batch, Index src2_m,
         Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
         Index offset_m, Index offset_n, Scalar alpha, const Tile<T> &src1,

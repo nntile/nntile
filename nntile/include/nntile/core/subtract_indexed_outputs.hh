@@ -19,11 +19,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void subtract_indexed_outputs_async(Scalar val, const Tile<int64_t> &labels,
+void subtract_indexed_outputs_async(int starpu_worker_hint, Scalar val, const Tile<int64_t> &labels,
         const Tile<T> &dst, Index ignore_index);
 
 template<typename T>
-void subtract_indexed_outputs(Scalar val, const Tile<int64_t> &labels,
+void subtract_indexed_outputs(int starpu_worker_hint, Scalar val, const Tile<int64_t> &labels,
         const Tile<T> &dst, Index ignore_index);
 
 } // namespace nntile::core

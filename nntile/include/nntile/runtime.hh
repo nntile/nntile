@@ -85,6 +85,11 @@ class Runtime
 
     void execute();
 
+    //! StarPU worker for ``STARPU_EXECUTE_ON_WORKER`` during tile op execution,
+    //! or -1 for default StarPU placement. Set by ``execute()`` from the static
+    //! execution schedule when one is installed.
+    int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
+
     void wait();
 
     //! Read a logical tensor or tile buffer marked for host I/O (input or
@@ -157,6 +162,7 @@ class Runtime
     std::optional<ExecutionSchedule> execution_schedule_file_cache_;
     std::string execution_schedule_file_cache_path_;
     bool compiled_ = false;
+    int starpu_worker_hint_ = -1;
 };
 
 } // namespace nntile

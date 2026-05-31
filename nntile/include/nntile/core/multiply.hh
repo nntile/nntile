@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Asynchronous tile-wise multiply operation
 template<typename T>
-void multiply_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void multiply_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst);
 
 // Blocking version of tile-wise multiply operation
 template<typename T>
-void multiply(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void multiply(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst);
 
 } // namespace nntile::core

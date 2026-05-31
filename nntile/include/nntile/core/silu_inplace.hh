@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Asynchronous tile-wise SiLU operation
 template<typename T>
-void silu_inplace_async(const Tile<T> &A);
+void silu_inplace_async(int starpu_worker_hint, const Tile<T> &A);
 
 // Blocking version of tile-wise SiLU operation
 template<typename T>
-void silu_inplace(const Tile<T> &A);
+void silu_inplace(int starpu_worker_hint, const Tile<T> &A);
 
 } // namespace nntile::core

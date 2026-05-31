@@ -82,6 +82,7 @@ public:
 
     //! Submit sgd_step task
     void submit(
+        int starpu_worker_hint,
         Index num_iter,
         Index num_elems,
         Scalar momentum,

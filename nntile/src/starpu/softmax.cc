@@ -142,7 +142,7 @@ uint32_t Softmax<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Softmax<std::tuple<T>>::submit(Index m, Index n, Index k, Handle maxsumexp,
+void Softmax<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Handle maxsumexp,
         Handle src, Scalar alpha, Handle dst)
 //! Insert softmax task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -159,7 +159,7 @@ void Softmax<std::tuple<T>>::submit(Index m, Index n, Index k, Handle maxsumexp,
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, maxsumexp.get(),
             STARPU_R, src.get(),
             STARPU_W, dst.get(),

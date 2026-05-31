@@ -74,6 +74,7 @@ public:
 
     //! Submit scale_inplace task
     void submit(
+        int starpu_worker_hint,
         Index nelems,
         Scalar alpha,
         Handle data

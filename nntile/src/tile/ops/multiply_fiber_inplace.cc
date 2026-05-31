@@ -28,7 +28,7 @@ namespace
 template<typename T>
 void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax)
 {
-    nntile::core::multiply_fiber_inplace<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax);
+    nntile::core::multiply_fiber_inplace<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax);
 }
 } // namespace
 void multiply_fiber_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index axis)

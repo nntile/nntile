@@ -32,7 +32,7 @@ namespace nntile::core
  * @param[scratch] scratch: Temporary workspace
  * */
 template<typename T>
-void copy_intersection_async(const Tile<T> &src,
+void copy_intersection_async(int starpu_worker_hint, const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch)
 {
@@ -66,7 +66,7 @@ void copy_intersection_async(const Tile<T> &src,
         src.mpi_transfer(dst_rank, mpi_rank);
         if(mpi_rank == dst_rank)
         {
-            starpu::copy.submit(src, dst);
+            starpu::copy.submit(starpu_worker_hint, src, dst);
         }
         return;
     }
@@ -76,7 +76,7 @@ void copy_intersection_async(const Tile<T> &src,
         src.mpi_transfer(dst_rank, mpi_rank);
         if(mpi_rank == dst_rank)
         {
-            starpu::copy.submit(src, dst);
+            starpu::copy.submit(starpu_worker_hint, src, dst);
         }
         return;
     }
@@ -136,7 +136,7 @@ void copy_intersection_async(const Tile<T> &src,
                 throw std::runtime_error("copy_intersection: destination region out of bounds");
             }
         }
-        starpu::subcopy.submit<std::tuple<T>>(ndim, src_start, src.stride, dst_start,
+        starpu::subcopy.submit<std::tuple<T>>(starpu_worker_hint, ndim, src_start, src.stride, dst_start,
             dst.stride, copy_shape, src, dst, scratch, dst_tile_mode);
     }
 }
@@ -153,103 +153,103 @@ void copy_intersection_async(const Tile<T> &src,
  * @param[scratch] scratch: Temporary workspace
  * */
 template<typename T>
-void copy_intersection(const Tile<T> &src,
+void copy_intersection(int starpu_worker_hint, const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch)
 {
-    copy_intersection_async<T>(src, src_offset, dst, dst_offset, scratch);
+    copy_intersection_async<T>(starpu_worker_hint, src, src_offset, dst, dst_offset, scratch);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void copy_intersection_async<bool_t>(const Tile<bool_t> &src,
+void copy_intersection_async<bool_t>(int starpu_worker_hint, const Tile<bool_t> &src,
         const std::vector<Index> &src_offset, const Tile<bool_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection_async<fp32_t>(const Tile<fp32_t> &src,
+void copy_intersection_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection_async<fp64_t>(const Tile<fp64_t> &src,
+void copy_intersection_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection_async<int64_t>(const Tile<int64_t> &src,
+void copy_intersection_async<int64_t>(int starpu_worker_hint, const Tile<int64_t> &src,
         const std::vector<Index> &src_offset, const Tile<int64_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection_async<bf16_t>(const Tile<bf16_t> &src,
+void copy_intersection_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src,
         const std::vector<Index> &src_offset, const Tile<bf16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection_async<fp16_t>(const Tile<fp16_t> &src,
+void copy_intersection_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void copy_intersection_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_fast_tf32_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void copy_intersection_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_fast_fp16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void copy_intersection_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_fast_bf16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 // Explicit instantiation
 template
-void copy_intersection<bool_t>(const Tile<bool_t> &src,
+void copy_intersection<bool_t>(int starpu_worker_hint, const Tile<bool_t> &src,
         const std::vector<Index> &src_offset, const Tile<bool_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection<fp32_t>(const Tile<fp32_t> &src,
+void copy_intersection<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection<fp64_t>(const Tile<fp64_t> &src,
+void copy_intersection<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection<int64_t>(const Tile<int64_t> &src,
+void copy_intersection<int64_t>(int starpu_worker_hint, const Tile<int64_t> &src,
         const std::vector<Index> &src_offset, const Tile<int64_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection<bf16_t>(const Tile<bf16_t> &src,
+void copy_intersection<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src,
         const std::vector<Index> &src_offset, const Tile<bf16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection<fp16_t>(const Tile<fp16_t> &src,
+void copy_intersection<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void copy_intersection<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_fast_tf32_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void copy_intersection<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_fast_fp16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template
-void copy_intersection<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void copy_intersection<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_fast_bf16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 

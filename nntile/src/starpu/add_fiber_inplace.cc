@@ -158,7 +158,7 @@ uint32_t AddFiberInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit add_fiber_inplace task
 template<typename T>
-void AddFiberInplace<std::tuple<T>>::submit(
+void AddFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     Index m,
     Index n,
     Index k,
@@ -172,13 +172,13 @@ void AddFiberInplace<std::tuple<T>>::submit(
     // If alpha is zero, then this operation reduces to scale_inplace
     if(alpha == 0.0)
     {
-        scale_inplace.submit<std::tuple<T>>(m*n*k*batch, beta, dst);
+        scale_inplace.submit<std::tuple<T>>(starpu_worker_hint, m*n*k*batch, beta, dst);
         return;
     }
     // If beta is zero, then this operation reduces to scale_fiber
     if(beta == 0.0)
     {
-        scale_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, dst);
+        scale_fiber.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, batch, alpha, src, dst);
         return;
     }
     // Access mode for the dst handle
@@ -202,7 +202,7 @@ void AddFiberInplace<std::tuple<T>>::submit(
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (2*k+1) * n * batch;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             dst_mode, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

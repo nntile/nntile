@@ -37,7 +37,7 @@ void run_sqrt(
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
-    nntile::core::sqrt<T>(s, d);
+    nntile::core::sqrt<T>(runtime.starpu_worker_hint(), s, d);
 }
 
 } // namespace

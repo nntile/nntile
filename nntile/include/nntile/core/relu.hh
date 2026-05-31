@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void relu_async(const Tile<T> &src, const Tile<T> &dst);
+void relu_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst);
 
 template<typename T>
-void relu(const Tile<T> &src, const Tile<T> &dst);
+void relu(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::core

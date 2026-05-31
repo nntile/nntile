@@ -21,7 +21,7 @@ namespace nntile::core
 
 //! Tile-wise transpose operation
 template<typename T>
-void transpose_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void transpose_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index ndim)
 {
     // Check dimensions
@@ -47,82 +47,82 @@ void transpose_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
     src.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        starpu::transpose.submit<std::tuple<T>>(src.matrix_shape[ndim][0],
+        starpu::transpose.submit<std::tuple<T>>(starpu_worker_hint, src.matrix_shape[ndim][0],
                 src.matrix_shape[ndim][1], alpha, src, dst);
     }
 }
 
 //! Tile-wise transpose operation
 template<typename T>
-void transpose(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void transpose(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index ndim)
 {
-    transpose_async<T>(alpha, src, dst, ndim);
+    transpose_async<T>(starpu_worker_hint, alpha, src, dst, ndim);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void transpose_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void transpose_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index ndim);
 
 template
-void transpose_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void transpose_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst, Index ndim);
 
 template
-void transpose_async<fp32_fast_tf32_t>(Scalar alpha,
+void transpose_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst, Index ndim);
 
 template
-void transpose_async<fp32_fast_fp16_t>(Scalar alpha,
+void transpose_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst, Index ndim);
 
 template
-void transpose_async<fp32_fast_bf16_t>(Scalar alpha,
+void transpose_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst, Index ndim);
 
 template
-void transpose_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void transpose_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index ndim);
 
 template
-void transpose_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+void transpose_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst, Index ndim);
 
 // Explicit instantiation of template
 template
-void transpose<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void transpose<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index ndim);
 
 template
-void transpose<fp32_fast_tf32_t>(Scalar alpha,
+void transpose<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst, Index ndim);
 
 template
-void transpose<fp32_fast_fp16_t>(Scalar alpha,
+void transpose<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst, Index ndim);
 
 template
-void transpose<fp32_fast_bf16_t>(Scalar alpha,
+void transpose<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst, Index ndim);
 
 template
-void transpose<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void transpose<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index ndim);
 
 template
-void transpose<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void transpose<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst, Index ndim);
 
 template
-void transpose<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+void transpose<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst, Index ndim);
 
 } // namespace nntile::core

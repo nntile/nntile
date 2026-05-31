@@ -27,7 +27,7 @@ namespace
 template<typename T>
 void run_ls(Runtime& runtime, const std::string& n, TileGraph::TileNode* v)
 {
-    nntile::core::log_scalar<T>(n, runtime.get_tile<T>(v));
+    nntile::core::log_scalar<T>(runtime.starpu_worker_hint(), n, runtime.get_tile<T>(v));
 }
 } // namespace
 void log_scalar(const std::string& name, TileGraph::TileNode* value)

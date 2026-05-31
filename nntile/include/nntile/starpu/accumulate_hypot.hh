@@ -75,6 +75,7 @@ public:
 
     //! Submit accumulate_hypot task
     void submit(
+        int starpu_worker_hint,
         Handle src,
         Handle dst
     );

@@ -56,7 +56,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile
         a.release();
         b.release();
     }
-    nntile::core::transpose<fp32_t>(alpha, ts, td, ndim);
+    nntile::core::transpose<fp32_t>(-1, alpha, ts, td, ndim);
     starpu_task_wait_for_all();
     std::vector<float> tref(15);
     {

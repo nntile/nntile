@@ -35,7 +35,7 @@ void run(
     TileGraph::TileNode* v,
     Index ig)
 {
-    nntile::core::total_sum_accum<T>(
+    nntile::core::total_sum_accum<T>(runtime.starpu_worker_hint(), 
         a, runtime.get_tile<T>(lse), runtime.get_tile<T>(s), runtime.get_tile<nntile::int64_t>(cl), runtime.get_tile<nntile::fp32_t>(v), ig);
 }
 } // namespace

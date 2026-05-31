@@ -40,7 +40,7 @@ void run_add(Runtime &runtime,
     auto &x_t = runtime.get_tile<T>(x);
     auto &y_t = runtime.get_tile<T>(y);
     auto &z_t = runtime.get_tile<T>(z);
-    nntile::core::add<T>(alpha, x_t, beta, y_t, z_t);
+    nntile::core::add<T>(runtime.starpu_worker_hint(), alpha, x_t, beta, y_t, z_t);
 }
 
 } // namespace

@@ -28,7 +28,7 @@ namespace
 template<typename T>
 void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax)
 {
-    nntile::core::scale_slice<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax);
+    nntile::core::scale_slice<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax);
 }
 } // namespace
 void scale_slice(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index axis)

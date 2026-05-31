@@ -51,8 +51,8 @@ void check()
     }
     // Check axis=0
     {
-        starpu::softmax_inplace.submit<std::tuple<T>>(1, 20, 3, maxsumexp[0], alpha, dst);
-        softmax_inplace<T>(maxsumexp[0], alpha, dst2, 0);
+        starpu::softmax_inplace.submit<std::tuple<T>>(-1, 1, 20, 3, maxsumexp[0], alpha, dst);
+        softmax_inplace<T>(-1, maxsumexp[0], alpha, dst2, 0);
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -64,8 +64,8 @@ void check()
     }
     // Check axis=1
     {
-        starpu::softmax_inplace.submit<std::tuple<T>>(3, 5, 4, maxsumexp[1], alpha, dst);
-        softmax_inplace<T>(maxsumexp[1], alpha, dst2, 1);
+        starpu::softmax_inplace.submit<std::tuple<T>>(-1, 3, 5, 4, maxsumexp[1], alpha, dst);
+        softmax_inplace<T>(-1, maxsumexp[1], alpha, dst2, 1);
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -77,8 +77,8 @@ void check()
     }
     // Check axis=2
     {
-        starpu::softmax_inplace.submit<std::tuple<T>>(12, 1, 5, maxsumexp[2], alpha, dst);
-        softmax_inplace<T>(maxsumexp[2], alpha, dst2, 2);
+        starpu::softmax_inplace.submit<std::tuple<T>>(-1, 12, 1, 5, maxsumexp[2], alpha, dst);
+        softmax_inplace<T>(-1, maxsumexp[2], alpha, dst2, 2);
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -101,14 +101,14 @@ void validate()
     Tile<T> dst({3, 4, 5});
     Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
         Tile<T>({2, 3, 4})};
-    TEST_THROW(softmax_inplace<T>(empty, alpha, empty, 0));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[0], alpha, dst, 1));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[0], alpha, dst, 2));
-    TEST_THROW(softmax_inplace<T>(dst, alpha, dst, 0));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[2], alpha, dst, 0));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[1], alpha, dst, 2));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[0], alpha, dst, -1));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[0], alpha, dst, 3));
+    TEST_THROW(softmax_inplace<T>(-1, empty, alpha, empty, 0));
+    TEST_THROW(softmax_inplace<T>(-1, maxsumexp[0], alpha, dst, 1));
+    TEST_THROW(softmax_inplace<T>(-1, maxsumexp[0], alpha, dst, 2));
+    TEST_THROW(softmax_inplace<T>(-1, dst, alpha, dst, 0));
+    TEST_THROW(softmax_inplace<T>(-1, maxsumexp[2], alpha, dst, 0));
+    TEST_THROW(softmax_inplace<T>(-1, maxsumexp[1], alpha, dst, 2));
+    TEST_THROW(softmax_inplace<T>(-1, maxsumexp[0], alpha, dst, -1));
+    TEST_THROW(softmax_inplace<T>(-1, maxsumexp[0], alpha, dst, 3));
 }
 
 int main(int argc, char **argv)

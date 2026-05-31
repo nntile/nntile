@@ -53,7 +53,7 @@ void run_gemm(
     const auto trans_b_op = trans_b ? nntile::TransOp(nntile::TransOp::Trans)
                                     : nntile::TransOp(nntile::TransOp::NoTrans);
 
-    nntile::core::gemm<T>(
+    nntile::core::gemm<T>(runtime.starpu_worker_hint(), 
         alpha, trans_a_op, a_t, trans_b_op, b_t, beta, c_t, ndim, batch_ndim,
         0);
 }

@@ -36,7 +36,7 @@ void run_relu(Runtime& runtime,
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
-    nntile::core::relu<T>(s, d);
+    nntile::core::relu<T>(runtime.starpu_worker_hint(), s, d);
 }
 
 } // namespace

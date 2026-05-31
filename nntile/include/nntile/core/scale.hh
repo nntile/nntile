@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Tile-wise scale operation
 template<typename T>
-void scale_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
+void scale_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
 
 // Tile-wise scale operation
 template<typename T>
-void scale(Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
+void scale(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::core

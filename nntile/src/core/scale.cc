@@ -21,7 +21,7 @@ namespace nntile::core
 
 //! Tile-wise scale operation
 template<typename T>
-void scale_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
+void scale_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -42,74 +42,74 @@ void scale_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
     if(mpi_rank == dst_rank)
     {
         // Insert corresponding task
-        starpu::scale.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
+        starpu::scale.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src, dst);
     }
 }
 
 //! Tile-wise scale operation
 template<typename T>
-void scale(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
+void scale(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
-    scale_async<T>(alpha, src, dst);
+    scale_async<T>(starpu_worker_hint, alpha, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void scale_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void scale_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void scale_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void scale_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void scale_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void scale_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void scale_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void scale_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void scale_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void scale_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 template
-void scale_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void scale_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst);
 
 template
-void scale_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+void scale_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst);
 
 // Explicit instantiation of template
 template
-void scale<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void scale<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void scale<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void scale<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void scale<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void scale<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void scale<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void scale<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void scale<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void scale<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 template
-void scale<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void scale<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst);
 
 template
-void scale<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+void scale<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst);
 
 } // namespace nntile::core

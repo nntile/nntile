@@ -29,7 +29,7 @@ template<typename T>
 void run_mask(
     Runtime& runtime, TileGraph::TileNode* m, Scalar v, TileGraph::TileNode* A, Index bnd)
 {
-    nntile::core::mask_scalar<T>(runtime.get_tile<nntile::bool_t>(m), v, runtime.get_tile<T>(A), bnd);
+    nntile::core::mask_scalar<T>(runtime.starpu_worker_hint(), runtime.get_tile<nntile::bool_t>(m), v, runtime.get_tile<T>(A), bnd);
 }
 } // namespace
 void mask_scalar(TileGraph::TileNode* mask, Scalar val, TileGraph::TileNode* a, Index batch_ndim)

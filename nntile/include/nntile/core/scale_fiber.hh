@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Tile<T> scaling of a tensor with a broadcasted fiber
 template<typename T>
-void scale_fiber_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void scale_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis, Index batch_ndim);
 
 // Tile<T> scaling of a tensor with a broadcasted fiber
 template<typename T>
-void scale_fiber(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void scale_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis, Index batch_ndim);
 
 } // namespace nntile::core

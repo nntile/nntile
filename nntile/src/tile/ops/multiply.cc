@@ -40,7 +40,7 @@ void run_multiply(
     auto& x_t = runtime.get_tile<T>(x);
     auto& y_t = runtime.get_tile<T>(y);
     auto& z_t = runtime.get_tile<T>(z);
-    nntile::core::multiply<T>(alpha, x_t, y_t, z_t);
+    nntile::core::multiply<T>(runtime.starpu_worker_hint(), alpha, x_t, y_t, z_t);
 }
 
 } // namespace

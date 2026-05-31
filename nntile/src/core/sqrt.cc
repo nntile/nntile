@@ -23,7 +23,7 @@ namespace nntile::core
 /*! @param[inout] A: Tile for the element-wise sqrt operation
  * */
 template<typename T>
-void sqrt_async(const Tile<T> &src, const Tile<T> &dst)
+void sqrt_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();
@@ -31,7 +31,7 @@ void sqrt_async(const Tile<T> &src, const Tile<T> &dst)
     if(mpi_rank == dst_rank)
     {
         // Submit task without any arguments checked
-        starpu::sqrt.submit<std::tuple<T>>(src.nelems, src, dst);
+        starpu::sqrt.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, src, dst);
     }
 }
 
@@ -39,54 +39,54 @@ void sqrt_async(const Tile<T> &src, const Tile<T> &dst)
 /*! @param[inout] A: Tile for the element-wise sqrt operation
  * */
 template<typename T>
-void sqrt(const Tile<T> &src, const Tile<T> &dst)
+void sqrt(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
-    sqrt_async<T>(src, dst);
+    sqrt_async<T>(starpu_worker_hint, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void sqrt_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void sqrt_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void sqrt_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void sqrt_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void sqrt_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void sqrt_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void sqrt_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void sqrt_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void sqrt_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void sqrt_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void sqrt_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void sqrt_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst);
 
 // Explicit instantiation
 template
-void sqrt<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void sqrt<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void sqrt<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void sqrt<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void sqrt<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void sqrt<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void sqrt<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void sqrt<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void sqrt<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void sqrt<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void sqrt<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void sqrt<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst);
 
 } // namespace nntile::core

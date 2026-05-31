@@ -39,7 +39,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]
     r.wait();
     const auto gout = r.get_output<float>(d);
     nntile::core::Tile<fp32_t> Td(sh);
-    nntile::core::randn<fp32_t>(Td, st, us, seed, mean, std);
+    nntile::core::randn<fp32_t>(-1, Td, st, us, seed, mean, std);
     starpu_task_wait_for_all();
     std::vector<float> tref(60);
     { auto L=Td.acquire(STARPU_R);

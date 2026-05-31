@@ -29,7 +29,7 @@ template<typename T>
 void run(Runtime& runtime, TileGraph::TileNode* d)
 {
     auto& t = runtime.get_tile<T>(d);
-    nntile::core::relu_inplace<T>(t);
+    nntile::core::relu_inplace<T>(runtime.starpu_worker_hint(), t);
 }
 } // namespace
 void relu_inplace(TileGraph::TileNode* dst)

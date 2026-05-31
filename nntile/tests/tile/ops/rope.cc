@@ -51,7 +51,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
     { auto c=Src.acquire(STARPU_W);
       for(int i=0;i<20;++i) c[i]=Y(src[static_cast<size_t>(i)]); c.release(); }
     { auto d0=D.acquire(STARPU_W); for(int i=0;i<20;++i) d0[i]=Y(0.0f); d0.release(); }
-    nntile::core::rope<fp32_t>(Si, Co, Src, D);
+    nntile::core::rope<fp32_t>(-1, Si, Co, Src, D);
     starpu_task_wait_for_all();
     std::vector<float> tr(20);
     { auto L=D.acquire(STARPU_R);

@@ -100,7 +100,7 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     subcopy.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::subcopy::submit<" << T::short_name << "> restricted to "
         "CPU\n";
-    subcopy.submit<std::tuple<T>>(NDIM, src_start, src_stride,
+    subcopy.submit<std::tuple<T>>(-1, NDIM, src_start, src_stride,
             dst_start, dst_stride, copy_shape, src_handle, dst2_handle,
             tmp_handle, STARPU_RW);
     starpu_task_wait_for_all();

@@ -138,7 +138,7 @@ uint32_t SumProdSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void SumProdSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
+void SumProdSlice<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
         Scalar beta, Handle dst, int redux)
 //! Insert sumprod_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -181,7 +181,7 @@ void SumProdSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha
     double nflops = beta == 0.0 ? 2*src1_nbytes + dst_nbytes :
         2 * (src1_nbytes+dst_nbytes);
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

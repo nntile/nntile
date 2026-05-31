@@ -66,7 +66,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         }
         l1.release();
     }
-    nntile::core::relu<fp32_t>(ts, td);
+    nntile::core::relu<fp32_t>(-1, ts, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

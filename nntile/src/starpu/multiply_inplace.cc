@@ -139,7 +139,7 @@ uint32_t MultiplyInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit multiply_inplace operation
 template<typename T>
-void MultiplyInplace<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle src, Handle dst)
+void MultiplyInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Scalar alpha, Handle src, Handle dst)
 {
     // Codelet arguments
     args_t *args = (args_t*)std::malloc(sizeof(*args));
@@ -147,7 +147,7 @@ void MultiplyInplace<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle s
     args->alpha = alpha;
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 3 * nelems;
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_RW, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

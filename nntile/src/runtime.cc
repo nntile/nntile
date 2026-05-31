@@ -543,15 +543,15 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
     {
         if (use_static_schedule)
         {
-            sched::ScopedPreferredWorker scope(
+            starpu_worker_hint_ = sched::logical_worker_to_starpu_id(
                 execution_schedule_.worker_for_op(i),
                 execution_schedule_.use_cuda_workers);
-            execution_order_[i]->execute(*this);
         }
         else
         {
-            execution_order_[i]->execute(*this);
+            starpu_worker_hint_ = -1;
         }
+        execution_order_[i]->execute(*this);
         starpu_task_wait_for_all();
     }
 }
@@ -689,15 +689,15 @@ void Runtime::execute()
     {
         if (use_static_schedule)
         {
-            sched::ScopedPreferredWorker scope(
+            starpu_worker_hint_ = sched::logical_worker_to_starpu_id(
                 execution_schedule_.worker_for_op(i),
                 execution_schedule_.use_cuda_workers);
-            execution_order_[i]->execute(*this);
         }
         else
         {
-            execution_order_[i]->execute(*this);
+            starpu_worker_hint_ = -1;
         }
+        execution_order_[i]->execute(*this);
         // Global sync between ops (revisit when last-use invalidation
         // returns).
         starpu_task_wait_for_all();

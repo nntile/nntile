@@ -140,7 +140,7 @@ uint32_t MultiplyFiber<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void MultiplyFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
+void MultiplyFiber<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
         Handle dst)
 //! Insert multiply_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -157,7 +157,7 @@ void MultiplyFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alph
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

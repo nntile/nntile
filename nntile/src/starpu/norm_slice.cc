@@ -140,7 +140,7 @@ uint32_t NormSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void NormSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
+void NormSlice<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
         Handle src2, Handle dst, int redux)
 //! Insert norm_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -161,7 +161,7 @@ void NormSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, H
     double nflops = beta == 0.0 ? src_nbytes + dst_nbytes :
         src_nbytes + 2*dst_nbytes;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_W, dst.get(),

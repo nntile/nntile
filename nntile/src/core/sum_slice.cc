@@ -21,7 +21,7 @@ namespace nntile::core
 
 //! Tile-wise sum_slice
 template<typename T>
-void sum_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta,
+void sum_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta,
         const Tile<T> &dst, Index axis, int redux)
 {
     // Check dimensions
@@ -68,76 +68,76 @@ void sum_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     src.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        starpu::sum_slice.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst,
+        starpu::sum_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src, beta, dst,
                 0);  // redux ignored for now
     }
 }
 
 //! Tile-wise sum_slice
 template<typename T>
-void sum_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void sum_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, int redux)
 {
-    sum_slice_async<T>(alpha, src, beta, dst, axis, redux);
+    sum_slice_async<T>(starpu_worker_hint, alpha, src, beta, dst, axis, redux);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void sum_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void sum_slice_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         Scalar beta, const Tile<fp32_t> &dst, Index axis, int redux);
 
 template
-void sum_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void sum_slice_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis, int redux);
 
 template
-void sum_slice_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+void sum_slice_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
         const Tile<fp16_t> &dst, Index axis, int redux);
 
 template
-void sum_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void sum_slice_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
-void sum_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+void sum_slice_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
         const Tile<fp32_fast_fp16_t> &dst, Index axis, int redux);
 
 template
-void sum_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+void sum_slice_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
         const Tile<fp32_fast_bf16_t> &dst, Index axis, int redux);
 
 template
-void sum_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void sum_slice_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         Scalar beta, const Tile<fp64_t> &dst, Index axis, int redux);
 
 // Explicit instantiation
 template
-void sum_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
+void sum_slice<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst, Index axis, int redux);
 
 template
-void sum_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
+void sum_slice<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
-void sum_slice<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+void sum_slice<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
         const Tile<fp32_fast_fp16_t> &dst, Index axis, int redux);
 
 template
-void sum_slice<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+void sum_slice<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
         const Tile<fp32_fast_bf16_t> &dst, Index axis, int redux);
 
 template
-void sum_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
+void sum_slice<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst, Index axis, int redux);
 
 template
-void sum_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void sum_slice<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis, int redux);
 
 template
-void sum_slice<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+void sum_slice<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
         const Tile<fp16_t> &dst, Index axis, int redux);
 
 } // namespace nntile::core

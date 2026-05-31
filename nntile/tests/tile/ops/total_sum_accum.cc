@@ -55,7 +55,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     { auto b=C.acquire(STARPU_W);
       b[0]=0; b[1]=1; b[2]=2; b[3]=0; b.release(); }
     { auto z=Vref.acquire(STARPU_W); z[0]=Y(0.0f); z.release(); }
-    nntile::core::total_sum_accum<fp32_t>(a, L, S, C, Vref, ign);
+    nntile::core::total_sum_accum<fp32_t>(-1, a, L, S, C, Vref, ign);
     starpu_task_wait_for_all();
     float tref=0; { auto L2=Vref.acquire(STARPU_R); tref=static_cast<float>(L2[0]); L2.release(); }
     REQUIRE(std::abs(gout[0]-tref)<1e-3f);

@@ -144,7 +144,7 @@ uint32_t Gemm<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Gemm<std::tuple<T>>::submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
+void Gemm<std::tuple<T>>::submit(int starpu_worker_hint, const TransOp &transA, const TransOp &transB, Index m, Index n,
         Index k, Index batch, Scalar alpha, Handle A, Handle B, Scalar beta,
         Handle C, int redux)
 {
@@ -217,7 +217,7 @@ void Gemm<std::tuple<T>>::submit(const TransOp &transA, const TransOp &transB, I
     // FLOPs calculation
     double nflops = 2 * m * n * k * batch;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, A.get(),
             STARPU_R, B.get(),
             C_mode, C.get(),

@@ -37,7 +37,7 @@ void run_silu(
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
-    nntile::core::silu<T>(s, d);
+    nntile::core::silu<T>(runtime.starpu_worker_hint(), s, d);
 }
 
 } // namespace

@@ -44,8 +44,8 @@ void check()
     dst2_local.release();
     // Check starpu and tile versions
     {
-        starpu::sum.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
-        sum<T>(alpha, src, beta, dst2);
+        starpu::sum.submit<std::tuple<T>>(-1, src.nelems, alpha, src, beta, dst);
+        sum<T>(-1, alpha, src, beta, dst2);
         auto dst_local = dst.acquire(STARPU_R);
         auto dst2_local = dst2.acquire(STARPU_R);
         TEST_ASSERT(Y(dst_local[0]) == Y(dst2_local[0]));
@@ -64,7 +64,7 @@ void validate()
     Tile<T> dst({});
     Tile<T> dst_bad({1});
     Tile<T> empty({});
-    TEST_THROW(sum<T>(1.0, src, 1.0, dst_bad));
+    TEST_THROW(sum<T>(-1, 1.0, src, 1.0, dst_bad));
 }
 
 int main(int argc, char **argv)

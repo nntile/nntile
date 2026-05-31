@@ -57,7 +57,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_slice (axis=0)", "
         A.release();
         B.release();
     }
-    nntile::core::sum_slice<fp32_t>(a, ts, b, td, axis, redux);
+    nntile::core::sum_slice<fp32_t>(-1, a, ts, b, td, axis, redux);
     starpu_task_wait_for_all();
     std::vector<float> tref(nd);
     {
