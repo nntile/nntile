@@ -226,7 +226,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         runtime.bind_data(K_node, K_data);
         runtime.bind_data(Q_node, Q_data);
         runtime.bind_data(V_node, V_data);

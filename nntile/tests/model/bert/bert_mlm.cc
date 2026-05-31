@@ -176,7 +176,7 @@ void mlm_backward_compare_ref(const MlmFixtureSpec &fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         runtime.bind_data(input_ids, ids_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_ids_inputs(
@@ -285,7 +285,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         runtime.bind_data(input_ids, ids_data);
         bind_ids_inputs(
             runtime, position_ids, pos_data, token_type_ids, tt_data);

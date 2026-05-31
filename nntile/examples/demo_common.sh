@@ -15,7 +15,7 @@ demo_script_dir() {
 demo_repo_root() {
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[1]}")" && pwd)"
-    cd "${script_dir}/.." && pwd
+    cd "${script_dir}/../.." && pwd
 }
 
 demo_resolve_build_dir() {
@@ -24,7 +24,8 @@ demo_resolve_build_dir() {
         echo "${BUILD_DIR}"
         return
     fi
-    if [[ -d "${root}/build/examples" ]]; then
+    if [[ -d "${root}/build/nntile/examples" ]] ||
+        [[ -d "${root}/build/examples" ]]; then
         echo "${root}/build"
         return
     fi

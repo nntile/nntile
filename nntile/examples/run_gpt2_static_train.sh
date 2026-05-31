@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=demo_common.sh
 source "${SCRIPT_DIR}/demo_common.sh"
 
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(demo_repo_root)"
 BUILD_DIR="$(demo_resolve_build_dir "${REPO_ROOT}")"
 DATA_DIR="${DATA_DIR:-${BUILD_DIR}/examples/demo_data/gpt2_static}"
 TRAIN_BIN="${DATA_DIR}/train.bin"

@@ -155,7 +155,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     order.push_back(std::make_shared<TileAddOp>(x, y, z, 1.0, 1.0));
 
     Runtime rt(tg);
-    rt.compile();
+    rt.compile_with_round_robin_schedule();
     ExecutionSchedule good = rt.generate_round_robin_execution_schedule();
 
     ExecutionSchedule bad = good;

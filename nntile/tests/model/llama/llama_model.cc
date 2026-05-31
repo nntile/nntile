@@ -336,7 +336,7 @@ void model_forward_compare_ref(const ModelFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
 
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         runtime.bind_data(input_ids, ids_data);
         bind_rope_inputs(runtime, rope);
         bind_mask_input(runtime, mask, mask_bytes);

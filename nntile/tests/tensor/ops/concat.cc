@@ -149,7 +149,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
     Runtime runtime(tile_graph);
-    runtime.compile();
+    runtime.compile_with_round_robin_schedule();
 
     const Index na = shape_prod(a_shape);
     const Index nb = shape_prod(b_shape);
@@ -212,7 +212,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         runtime.bind_data(a_node, a_data);
         runtime.bind_data(b_node, b_data);
         runtime.execute();
@@ -237,7 +237,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         runtime.bind_data(a_node, a_data);
         runtime.bind_data(b_node, b_data);
         runtime.execute();

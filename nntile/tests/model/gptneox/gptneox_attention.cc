@@ -127,7 +127,7 @@ void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         bind_attention_runtime_inputs(runtime, input, input_data, ctx);
         runtime.execute();
         runtime.wait();
@@ -181,7 +181,7 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         bind_attention_runtime_inputs(runtime, input, input_data, ctx);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         runtime.execute();

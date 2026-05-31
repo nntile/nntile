@@ -128,7 +128,7 @@ void encoder_block_forward_compare_ref(const EncoderBlockFixtureSpec &fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         runtime.bind_data(input, input_data);
         runtime.execute();
         runtime.wait();
@@ -186,7 +186,7 @@ void encoder_block_backward_compare_ref(const EncoderBlockFixtureSpec &fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile();
+        runtime.compile_with_round_robin_schedule();
         runtime.bind_data(input, input_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         runtime.execute();

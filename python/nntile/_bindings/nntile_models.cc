@@ -184,11 +184,11 @@ void bind_nntile_models(py::module_ &m)
             model::gpt2::Gpt2Config const &cfg,
             Index seq_len,
             Index batch_size) {
-            FlatTilingSpec spec =
-                load_tiling_json(tiling_path, cfg.num_hidden_layers);
-            name_gpt2_training_axis_groups(
+            examples::FlatTilingSpec spec = examples::load_tiling_json(
+                tiling_path, cfg.num_hidden_layers);
+            examples::name_gpt2_training_axis_groups(
                 graph.tensor_graph(), cfg, seq_len, batch_size);
-            apply_flat_tiling_spec(graph.tensor_graph(), spec);
+            examples::apply_flat_tiling_spec(graph.tensor_graph(), spec);
         },
         "graph"_a,
         "tiling_path"_a,
