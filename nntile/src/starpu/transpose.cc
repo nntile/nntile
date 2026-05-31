@@ -135,7 +135,7 @@ template<typename T>
 void Transpose<std::tuple<T>>::submit(Index m, Index n, Scalar alpha, Handle src, Handle dst)
 //! Insert transpose task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -147,7 +147,7 @@ void Transpose<std::tuple<T>>::submit(Index m, Index n, Scalar alpha, Handle src
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 2 * m * n;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

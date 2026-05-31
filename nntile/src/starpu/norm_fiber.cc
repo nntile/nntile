@@ -145,7 +145,7 @@ void NormFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Index batch, Sc
         Scalar beta, Handle src2, Handle dst, int redux)
 //! Insert norm_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -158,7 +158,7 @@ void NormFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Index batch, Sc
     args->alpha = alpha;
     args->beta = beta;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_W, dst.get(),

@@ -189,7 +189,7 @@ void SGDStep<std::tuple<T>>::submit(
     args->dampening = dampening;
     args->nesterov = nesterov;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, grad.get(),
             STARPU_RW, velocity.get(),
             STARPU_RW, param.get(),

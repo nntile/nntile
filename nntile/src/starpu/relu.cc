@@ -137,7 +137,7 @@ void Relu<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     *args = args_t{nelems};
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

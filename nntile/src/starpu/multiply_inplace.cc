@@ -147,7 +147,7 @@ void MultiplyInplace<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle s
     args->alpha = alpha;
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 3 * nelems;
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_RW, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

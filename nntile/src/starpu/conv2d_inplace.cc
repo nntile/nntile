@@ -162,7 +162,7 @@ void Conv2dInplace<std::tuple<T>>::submit(Index src1_m, Index src1_n, Index src1
         dst_mode = STARPU_W;
     }
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

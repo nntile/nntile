@@ -140,7 +140,7 @@ void GeluBackward<std::tuple<T>>::submit(Index nelems, Handle x, Handle dy, Hand
     Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
     *nelems_ = nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, x.get(),
             STARPU_R, dy.get(),
             STARPU_RW, dx.get(),

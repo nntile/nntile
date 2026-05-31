@@ -142,7 +142,7 @@ void SumProdSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha
         Scalar beta, Handle dst, int redux)
 //! Insert sumprod_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -181,7 +181,7 @@ void SumProdSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha
     double nflops = beta == 0.0 ? 2*src1_nbytes + dst_nbytes :
         2 * (src1_nbytes+dst_nbytes);
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

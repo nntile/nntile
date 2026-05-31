@@ -170,7 +170,7 @@ void Add<std::tuple<T>>::submit(
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * 3 * nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

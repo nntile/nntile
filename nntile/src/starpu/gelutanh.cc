@@ -140,7 +140,7 @@ void GeluTanh<std::tuple<T>>::submit(
 )
 //! Insert gelutanh task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -148,7 +148,7 @@ void GeluTanh<std::tuple<T>>::submit(
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     //double nflops = 5 * nelems;
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

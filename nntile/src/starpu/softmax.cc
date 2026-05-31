@@ -146,7 +146,7 @@ void Softmax<std::tuple<T>>::submit(Index m, Index n, Index k, Handle maxsumexp,
         Handle src, Scalar alpha, Handle dst)
 //! Insert softmax task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -159,7 +159,7 @@ void Softmax<std::tuple<T>>::submit(Index m, Index n, Index k, Handle maxsumexp,
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, maxsumexp.get(),
             STARPU_R, src.get(),
             STARPU_W, dst.get(),

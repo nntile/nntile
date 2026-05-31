@@ -137,7 +137,7 @@ void LogSumExp<std::tuple<T>>::submit(
         Index nelems, Handle maxsumexp, Handle logsumexp)
 //! Insert logsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -145,7 +145,7 @@ void LogSumExp<std::tuple<T>>::submit(
     args_t *args = new args_t();
     args->nelems = nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, maxsumexp.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_W, logsumexp.get(),

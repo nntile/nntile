@@ -140,7 +140,7 @@ void Norm<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle src,
         Scalar beta, Handle dst, int redux)
 //! Insert norm task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -166,7 +166,7 @@ void Norm<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle src,
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * (nelems+1);
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             dst_mode, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

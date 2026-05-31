@@ -138,7 +138,7 @@ void HypotScalarInverse<std::tuple<T>>::submit(
         Index nelems, Scalar eps, Scalar alpha, Handle dst)
 //! Insert hypot_scalar_inverse task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -148,7 +148,7 @@ void HypotScalarInverse<std::tuple<T>>::submit(
     args->eps = eps;
     args->alpha = alpha;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_RW, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);

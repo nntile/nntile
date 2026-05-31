@@ -135,7 +135,7 @@ void ReluInplace<std::tuple<T>>::submit(Index nelems, Handle data)
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_RW, data.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);

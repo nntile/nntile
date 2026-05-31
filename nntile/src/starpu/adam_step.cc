@@ -198,7 +198,7 @@ void AdamStep<std::tuple<T>>::submit(
     {
         moments_mode = STARPU_RW;
     }
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, grad.get(),
             moments_mode, first_moment.get(),
             moments_mode, second_moment.get(),

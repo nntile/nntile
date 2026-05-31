@@ -191,7 +191,7 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::submit(Index seq, Index head, Index batch
     args->batch = batch;
 
     // Submit task - always include mask parameter
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, K.get(),              // Key
             STARPU_R, Q.get(),              // Query
             STARPU_R, mask.get(),           // Mask

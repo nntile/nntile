@@ -72,7 +72,7 @@ void Clear::cuda(void *buffers[], void *cl_args)
 void Clear::submit(Handle data)
 {
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_W, data.get(),
             0);
     // Check submission

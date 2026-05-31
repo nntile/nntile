@@ -171,7 +171,7 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::submit(Index seq, Index head,
     args->head = head;
     args->batch = batch;
 
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, K.get(),
             STARPU_R, Q.get(),
             STARPU_R, V.get(),

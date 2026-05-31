@@ -102,7 +102,7 @@ void Randn<std::tuple<T>>::submit(
 {
     double nflops = 2 * nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
         STARPU_VALUE, &ndim, sizeof(ndim),
         STARPU_VALUE, &nelems, sizeof(nelems),
         STARPU_VALUE, &seed, sizeof(seed),

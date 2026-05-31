@@ -137,7 +137,7 @@ void Silu<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

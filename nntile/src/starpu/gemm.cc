@@ -217,7 +217,7 @@ void Gemm<std::tuple<T>>::submit(const TransOp &transA, const TransOp &transB, I
     // FLOPs calculation
     double nflops = 2 * m * n * k * batch;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, A.get(),
             STARPU_R, B.get(),
             C_mode, C.get(),

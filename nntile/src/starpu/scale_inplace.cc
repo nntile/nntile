@@ -152,7 +152,7 @@ void ScaleInplace<std::tuple<T>>::submit(
     args->nelems = nelems;
     args->alpha = alpha;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_RW, data.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             // STARPU_FLOPS, nflops,

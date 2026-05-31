@@ -19,7 +19,7 @@
 #include <vector>
 
 // Third-party headers
-#include <nntile/starpu_c.hh>
+#include <nntile/starpu/task_insert.hh>
 
 // NNTile headers
 #include "nntile/base_types.hh"

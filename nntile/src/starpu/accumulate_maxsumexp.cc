@@ -130,13 +130,13 @@ template<typename T>
 void AccumulateMaxSumExp<std::tuple<T>>::submit(Handle src, Handle dst)
 //! Insert accumulate_maxsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
     //double nflops;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_RW | STARPU_COMMUTE, dst.get(),
             STARPU_R, src.get(),
             // STARPU_FLOPS, nflops,

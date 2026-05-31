@@ -181,7 +181,7 @@ void ScaleFiber<std::tuple<T>>::submit(
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * batch * k * m * n;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_W, dst.get(),

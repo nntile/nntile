@@ -147,7 +147,7 @@ void Multiply<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle src1, Ha
     args->alpha = alpha;
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 3 * nelems;
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_W, dst.get(),

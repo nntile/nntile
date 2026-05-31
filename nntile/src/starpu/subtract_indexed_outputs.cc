@@ -156,7 +156,7 @@ void SubtractIndexedOutputs<std::tuple<T>>::submit(
     args->value = val;
     args->ignore_index = ignore_index;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, labels.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_RW, dst.get(),

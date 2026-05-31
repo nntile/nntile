@@ -197,7 +197,7 @@ void AddFiber<std::tuple<T>>::submit(
     args->beta = beta;
     double nflops = batch * k * (2*m*n+1);
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_W, dst.get(),

@@ -106,7 +106,7 @@ void Subcopy<std::tuple<T>>::submit(
 {
     constexpr double nflops = 0;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet,
             STARPU_VALUE, &(ndim), sizeof(ndim),
             STARPU_VALUE, &(src_start[0]), ndim*sizeof(src_start[0]),
             STARPU_VALUE, &(src_stride[0]), ndim*sizeof(src_stride[0]),
