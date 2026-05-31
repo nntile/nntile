@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -128,6 +129,12 @@ class Runtime
 
     void load_execution_schedule(std::string const &path);
 
+    //! Load ``execution.json`` once (per path), then ``set_execution_schedule``.
+    //! Re-reads only when ``path`` changes. Clears cache if apply fails.
+    void apply_execution_schedule_from_file(std::string const &path);
+
+    void clear_execution_schedule_file_cache();
+
     //! ``compile()`` then round-robin schedule in memory (convenience for tests).
     void compile_with_round_robin_schedule();
 
@@ -147,6 +154,8 @@ class Runtime
     std::map<const TileNode *, std::shared_ptr<void>> tile_map_;
     std::vector<std::shared_ptr<OpNode>> execution_order_;
     ExecutionSchedule execution_schedule_;
+    std::optional<ExecutionSchedule> execution_schedule_file_cache_;
+    std::string execution_schedule_file_cache_path_;
     bool compiled_ = false;
 };
 

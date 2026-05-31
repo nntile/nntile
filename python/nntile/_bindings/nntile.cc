@@ -272,13 +272,26 @@ static void bind_runtime_methods(py::class_<PyRuntimeView> &cls)
             },
             "path"_a)
         .def(
+            "apply_execution_schedule_from_file",
+            [](PyRuntimeView &s, std::string const &path) {
+                s.runtime->apply_execution_schedule_from_file(path);
+            },
+            "path"_a)
+        .def(
+            "write_execution_schedule_json",
+            [](PyRuntimeView &s, std::string const &path) {
+                s.runtime->write_execution_schedule_json(path);
+            },
+            "path"_a)
+        .def(
             "write_round_robin_execution_json",
             [](PyRuntimeView &s, std::string const &path) {
-                write_execution_schedule_json(
-                    s.runtime->generate_round_robin_execution_schedule(),
-                    path);
+                s.runtime->write_execution_schedule_json(path);
             },
-            "path"_a);
+            "path"_a,
+            "Deprecated alias for write_execution_schedule_json; schedule "
+            "must already be set (e.g. via apply_round_robin_execution_"
+            "schedule).");
 }
 
 // ---------------------------------------------------------------------------

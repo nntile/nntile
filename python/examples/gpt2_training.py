@@ -164,6 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     ce_scale = 1.0 / float(n_seq * n_batch)
 
     bound_optimizer_state = False
+    execution_path = args.execution if args.execution else None
     train_mmap = TokenMemoryMap(args.train_bin)
     lcfg = CausalLmBatchConfig()
     lcfg.n_seq = n_seq
@@ -210,20 +211,21 @@ def main(argv: list[str] | None = None) -> int:
             graph.lower_and_compile()
             runtime = graph.runtime()
 
-            if args.execution:
+            if execution_path:
                 try:
-                    runtime.load_execution_schedule(args.execution)
+                    runtime.apply_execution_schedule_from_file(execution_path)
                     if train_step == 0:
-                        print(f'Execution: loaded {args.execution}')
+                        print(f'Execution: loaded {execution_path}')
                 except RuntimeError as ex:
                     print(
                         f'Execution: load failed ({ex}); using round-robin',
                         file=sys.stderr,
                     )
+                    execution_path = None
                     runtime.apply_round_robin_execution_schedule()
             elif args.execution_out and train_step == 0:
                 runtime.apply_round_robin_execution_schedule()
-                runtime.write_round_robin_execution_json(args.execution_out)
+                runtime.write_execution_schedule_json(args.execution_out)
                 print(f'Execution: wrote {args.execution_out}')
             else:
                 runtime.apply_round_robin_execution_schedule()

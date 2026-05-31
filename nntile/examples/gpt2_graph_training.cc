@@ -639,6 +639,7 @@ int main(int argc, char **argv)
                     std::cerr << "Execution schedule: apply failed ("
                               << ex.what()
                               << "); using round-robin.\n";
+                    cached_execution_schedule.reset();
                     runtime.set_execution_schedule(
                         runtime.generate_round_robin_execution_schedule());
                 }

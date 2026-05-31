@@ -403,6 +403,37 @@ void Runtime::load_execution_schedule(std::string const &path)
     set_execution_schedule(load_execution_schedule_json(path));
 }
 
+void Runtime::apply_execution_schedule_from_file(std::string const &path)
+{
+    if (!compiled_)
+    {
+        throw std::runtime_error(
+            "Runtime::apply_execution_schedule_from_file: call compile() "
+            "first");
+    }
+    if (!execution_schedule_file_cache_ ||
+        execution_schedule_file_cache_path_ != path)
+    {
+        execution_schedule_file_cache_ = load_execution_schedule_json(path);
+        execution_schedule_file_cache_path_ = path;
+    }
+    try
+    {
+        set_execution_schedule(*execution_schedule_file_cache_);
+    }
+    catch (...)
+    {
+        clear_execution_schedule_file_cache();
+        throw;
+    }
+}
+
+void Runtime::clear_execution_schedule_file_cache()
+{
+    execution_schedule_file_cache_.reset();
+    execution_schedule_file_cache_path_.clear();
+}
+
 void Runtime::compile_with_round_robin_schedule()
 {
     compile();
