@@ -424,20 +424,12 @@ void Runtime::write_execution_schedule_json(std::string const &path) const
     nntile::write_execution_schedule_json(execution_schedule_, path);
 }
 
-void Runtime::require_execution_schedule() const
+void Runtime::require_compiled() const
 {
     if (!compiled_)
     {
         throw std::runtime_error(
             "Runtime::execute: graph not compiled");
-    }
-    if (!has_execution_schedule())
-    {
-        throw std::runtime_error(
-            "Runtime::execute: no execution schedule. Call "
-            "generate_round_robin_execution_schedule() and "
-            "set_execution_schedule(), load_execution_schedule(path), or "
-            "compile_with_round_robin_schedule()");
     }
 }
 
@@ -499,17 +491,25 @@ void Runtime::allocate_missing_tiles()
 
 void Runtime::execute_range(size_t op_begin, size_t op_end)
 {
-    require_execution_schedule();
+    require_compiled();
     if (op_begin > op_end || op_end > execution_order_.size())
     {
         throw std::out_of_range("Runtime::execute_range: bad range");
     }
+    bool const use_static_schedule = has_execution_schedule();
     for (size_t i = op_begin; i < op_end; ++i)
     {
-        sched::ScopedPreferredWorker scope(
-            execution_schedule_.worker_for_op(i),
-            execution_schedule_.use_cuda_workers);
-        execution_order_[i]->execute(*this);
+        if (use_static_schedule)
+        {
+            sched::ScopedPreferredWorker scope(
+                execution_schedule_.worker_for_op(i),
+                execution_schedule_.use_cuda_workers);
+            execution_order_[i]->execute(*this);
+        }
+        else
+        {
+            execution_order_[i]->execute(*this);
+        }
         starpu_task_wait_for_all();
     }
 }
@@ -641,13 +641,21 @@ void Runtime::eliminate_dead_ops()
 
 void Runtime::execute()
 {
-    require_execution_schedule();
+    require_compiled();
+    bool const use_static_schedule = has_execution_schedule();
     for (size_t i = 0; i < execution_order_.size(); ++i)
     {
-        sched::ScopedPreferredWorker scope(
-            execution_schedule_.worker_for_op(i),
-            execution_schedule_.use_cuda_workers);
-        execution_order_[i]->execute(*this);
+        if (use_static_schedule)
+        {
+            sched::ScopedPreferredWorker scope(
+                execution_schedule_.worker_for_op(i),
+                execution_schedule_.use_cuda_workers);
+            execution_order_[i]->execute(*this);
+        }
+        else
+        {
+            execution_order_[i]->execute(*this);
+        }
         // Global sync between ops (revisit when last-use invalidation
         // returns).
         starpu_task_wait_for_all();

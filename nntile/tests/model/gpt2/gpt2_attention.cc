@@ -164,7 +164,7 @@ void gpt2_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile_with_round_robin_schedule();
+        runtime.compile();
         runtime.bind_data(input, input_data);
         bind_mask_input(runtime, mask, mask_bytes);
         runtime.execute();
@@ -223,7 +223,7 @@ void gpt2_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile_with_round_robin_schedule();
+        runtime.compile();
         runtime.bind_data(input, input_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_mask_input(runtime, mask, mask_bytes);

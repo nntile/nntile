@@ -128,7 +128,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     z->mark_output(true);
 
     Runtime rt(tg);
-    rt.compile_with_round_robin_schedule();
+    rt.compile();
+    rt.set_execution_schedule(rt.generate_round_robin_execution_schedule());
     char const *const tmp_path = "/tmp/nntile_runtime_execution_test.json";
     write_execution_schedule_json(rt.execution_schedule(), tmp_path);
     rt.load_execution_schedule(tmp_path);
@@ -155,7 +156,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     order.push_back(std::make_shared<TileAddOp>(x, y, z, 1.0, 1.0));
 
     Runtime rt(tg);
-    rt.compile_with_round_robin_schedule();
+    rt.compile();
     ExecutionSchedule good = rt.generate_round_robin_execution_schedule();
 
     ExecutionSchedule bad = good;

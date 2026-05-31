@@ -114,7 +114,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     runtime.bind_data(x, x_data);
     runtime.bind_data(y, y_data);
     runtime.execute();
@@ -178,7 +178,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     runtime.bind_data(x, x_data);
     runtime.bind_data(y, y_data);
     runtime.execute();

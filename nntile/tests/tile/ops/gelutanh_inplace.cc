@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelutanh_inplace match
     d->mark_output(true);
     tg::gelutanh_inplace(d);
     Runtime runtime(g);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     std::vector<float> dv(nelems);
     for(Index i = 0; i < nelems; ++i) { dv[static_cast<size_t>(i)] = static_cast<float>(i) * 0.2f - 0.3f; }
     runtime.bind_data(d, dv);

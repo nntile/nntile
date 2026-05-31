@@ -36,7 +36,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_inplace matches ti
     y->mark_output(true);
     tg::add_inplace(alpha, x, beta, y);
     Runtime runtime(g);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     std::vector<float> xv(nelems), yv(nelems);
     for(Index i = 0; i < nelems; ++i)
     {

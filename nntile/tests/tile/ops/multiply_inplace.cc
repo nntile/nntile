@@ -36,7 +36,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_inplace match
     d->mark_output(true);
     tg::multiply_inplace(alpha, s, d);
     Runtime runtime(g);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     std::vector<float> sv(nelems), dv(nelems);
     for(Index i = 0; i < nelems; ++i)
     {

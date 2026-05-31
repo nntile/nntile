@@ -84,7 +84,7 @@ TEST_CASE("AdamW step mixed tile parity", "[graph][tile]")
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
 
     Runtime rt_ref(rt_ref_tile);
-    rt_ref.compile_with_round_robin_schedule();
+    rt_ref.compile();
     rt_ref.bind_data(tt::tensor_node_named(g_ref, "grad"), grad_h);
     rt_ref.bind_data(tt::tensor_node_named(g_ref, "m"), m_h);
     rt_ref.bind_data(tt::tensor_node_named(g_ref, "v"), v_h);
@@ -96,7 +96,7 @@ TEST_CASE("AdamW step mixed tile parity", "[graph][tile]")
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile);
     Runtime rt_tile(tile_g);
-    rt_tile.compile_with_round_robin_schedule();
+    rt_tile.compile();
     rt_tile.bind_data(tt::tensor_node_named(g_tile, "grad"), grad_h);
     rt_tile.bind_data(tt::tensor_node_named(g_tile, "m"), m_h);
     rt_tile.bind_data(tt::tensor_node_named(g_tile, "v"), v_h);

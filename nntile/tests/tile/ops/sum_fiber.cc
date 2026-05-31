@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_fiber matches tile
     d->mark_output(true);
     tg::sum_fiber(alpha, s, beta, d, axis, batch_ndim, redux);
     Runtime runtime(g);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
     std::vector<float> dd(3, 0.f);

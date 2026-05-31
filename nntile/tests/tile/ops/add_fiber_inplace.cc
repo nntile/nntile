@@ -38,7 +38,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_fiber_inplace", "[
     d->mark_output(true);
     tg::add_fiber_inplace(a, s, b, d, axis, batch);
     Runtime runtime(g);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     std::vector<float> f1(nf), f2(n);
     for(Index i = 0; i < nf; ++i) { f1[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
     for(Index i = 0; i < n; ++i) { f2[static_cast<size_t>(i)] = 0.25f * static_cast<float>(i + 1); }

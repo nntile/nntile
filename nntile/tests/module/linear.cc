@@ -201,7 +201,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
     Runtime runtime(tile_graph);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
 
     std::vector<float> input_data(2 * 3);
     for (Index i = 0; i < 6; ++i)
@@ -248,7 +248,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
     Runtime runtime(tile_graph);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
 
     std::vector<float> input_data(2 * 3, 1.0f);
     runtime.bind_data(input, input_data);
@@ -300,7 +300,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
     Runtime runtime(tile_graph);
-    runtime.compile_with_round_robin_schedule(); // bind hints applied from constructor
+    runtime.compile(); // bind hints applied from constructor
     runtime.bind_data(input, input_data);
     runtime.execute();
     runtime.wait();
@@ -373,7 +373,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
     Runtime runtime(tile_graph);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     runtime.bind_data(input, input_data);
     runtime.execute();
     runtime.wait();
@@ -463,7 +463,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
     Runtime runtime(tile_graph);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     runtime.bind_data(input, input_data);
     runtime.execute();
     runtime.wait();
@@ -556,7 +556,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
     Runtime runtime(tile_graph);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     runtime.bind_data(input, input_data);
     runtime.execute();
     runtime.wait();

@@ -31,7 +31,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph log_scalar runs", "[gr
     v->mark_output(true);
     tg::log_scalar("test", v);
     Runtime r(g);
-    r.compile_with_round_robin_schedule();
+    r.compile();
     std::vector<float> x(1, 1.f);
     r.bind_data(v, x);
     r.execute();

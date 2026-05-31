@@ -65,7 +65,7 @@ TEST_CASE("add mixed tile parity", "[graph][tile]")
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
 
     Runtime rt_ref(rt_ref_tile);
-    rt_ref.compile_with_round_robin_schedule();
+    rt_ref.compile();
     rt_ref.bind_data(a, ad);
     rt_ref.bind_data(b, bd);
     rt_ref.execute();
@@ -74,7 +74,7 @@ TEST_CASE("add mixed tile parity", "[graph][tile]")
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile);
     Runtime rt_tile(tile_g);
-    rt_tile.compile_with_round_robin_schedule();
+    rt_tile.compile();
     rt_tile.bind_data(at, ad);
     rt_tile.bind_data(bt, bd);
     rt_tile.execute();

@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_fiber", "[graph]
     d->mark_output(true);
     tg::scale_fiber(a, s, d, axis, batch);
     Runtime rt(g);
-    rt.compile_with_round_robin_schedule();
+    rt.compile();
     std::vector<float> f1(nf);
     std::vector<float> f2(n, 0.f);
     for(Index i = 0; i < nf; ++i) { f1[static_cast<size_t>(i)] = 0.5f + static_cast<float>(i); }

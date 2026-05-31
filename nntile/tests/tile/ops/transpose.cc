@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile
     d->mark_output(true);
     tg::transpose(alpha, s, d, ndim);
     Runtime runtime(g);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = 0.05f * static_cast<float>(i); }
     runtime.bind_data(s, sv);

@@ -72,7 +72,7 @@ def main() -> int:
 
     tile_graph = TileGraph.from_tensor_graph(graph.tensor_graph())
     runtime = Runtime(tile_graph)
-    runtime.compile_with_round_robin_schedule()
+    runtime.compile()
 
     rng = np.random.default_rng()
     input_data = rng.normal(0.0, 1.0, size=(4 * 8,)).astype(np.float32)

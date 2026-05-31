@@ -6,8 +6,9 @@ It does **not** describe StarPU memory homes, NUMA placement, or MPI ownership.
 
 ## Workflow
 
-1. Build the graph and call `Runtime::compile()` (DCE only; no schedule yet).
-2. **Generate:** `generate_round_robin_execution_schedule()` or
+1. Build the graph and call `Runtime::compile()` (DCE only; StarPU may schedule
+   tasks at runtime if no static schedule is set).
+2. **Optional — generate:** `generate_round_robin_execution_schedule()` or
    `generate_round_robin_execution_json(...)`.
 3. **Optional:** inspect or edit `execution.json`.
 4. **Load:** `load_execution_schedule_json(path)` then `set_execution_schedule()`.

@@ -40,7 +40,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_fiber (axis=0)
     d->mark_output(true);
     tg::sumprod_fiber(a, s1, s2, b, d, axis, redux);
     Runtime runtime(g);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     std::vector<float> v1(n), v2(n), dd(3, 0.f);
     for(Index i = 0; i < n; ++i)
     {

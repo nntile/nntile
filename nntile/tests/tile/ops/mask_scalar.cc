@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph]
     a->mark_output(true);
     tg::mask_scalar(mask, val, a, batch);
     Runtime r(g);
-    r.compile_with_round_robin_schedule();
+    r.compile();
     std::array<bool, 6> mb{};
     for(Index i = 0; i < n; ++i) { mb[static_cast<size_t>(i)] = (static_cast<int>(i) % 3) != 0; }
     std::vector<float> av(n);

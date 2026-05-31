@@ -149,7 +149,7 @@ void cross_attention_forward_compare_ref(const CrossAttentionFixtureSpec &fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile_with_round_robin_schedule();
+        runtime.compile();
         runtime.bind_data(input, input_data);
         runtime.bind_data(encoder_input, enc_data);
         bind_mask_input(runtime, mask, mask_bytes);
@@ -227,7 +227,7 @@ void cross_attention_backward_compare_ref(const CrossAttentionFixtureSpec &fx)
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
-        runtime.compile_with_round_robin_schedule();
+        runtime.compile();
         runtime.bind_data(input, input_data);
         runtime.bind_data(encoder_input, enc_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);

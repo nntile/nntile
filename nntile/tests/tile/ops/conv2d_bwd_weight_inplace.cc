@@ -31,7 +31,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_bwd_weight_inpl
     X->mark_input(true); dY->mark_input(true); dC->mark_input(true); dC->mark_output(true);
     tg::conv2d_bwd_weight_inplace(3,3,1,1,2,2,1,1,1,0,0,1.0,X,dY,2,2,1,1,0.0,dC);
     Runtime r(g);
-    r.compile_with_round_robin_schedule();
+    r.compile();
     std::vector<float> xv(nx), dyd(4), dcd(4,0.f);
     for(Index i=0;i<nx;++i) xv[static_cast<size_t>(i)]=static_cast<float>(i+1);
     for(Index i=0;i<4;++i) dyd[static_cast<size_t>(i)]=static_cast<float>(i+1);

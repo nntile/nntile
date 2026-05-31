@@ -32,7 +32,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     l->mark_input(true); s->mark_input(true); c->mark_input(true); v->mark_input(true); v->mark_output(true);
     tg::total_sum_accum(a, l, s, c, v, ign);
     Runtime r(g);
-    r.compile_with_round_robin_schedule();
+    r.compile();
     std::vector<float> lse(4), src(3*2*2), v0(1,0.f);
     std::vector<std::int64_t> cl(4);
     for(Index i=0;i<4;++i) lse[static_cast<size_t>(i)]=0.1f*static_cast<float>(i+1);

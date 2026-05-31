@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_slice_inplace", "[
     t2->mark_output(true);
     tg::add_slice_inplace(a, t1, b, t2, axis);
     Runtime rt(g);
-    rt.compile_with_round_robin_schedule();
+    rt.compile();
     std::vector<float> v1(n1), v2(n2);
     for(Index i = 0; i < n1; ++i) { v1[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
     for(Index i = 0; i < n2; ++i) { v2[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i + 1); }

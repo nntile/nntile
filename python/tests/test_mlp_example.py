@@ -41,7 +41,7 @@ def test_mlp_forward_backward(nntile_context):
 
     tile_graph = TileGraph.from_tensor_graph(graph.tensor_graph())
     runtime = Runtime(tile_graph)
-    runtime.compile_with_round_robin_schedule()
+    runtime.compile()
 
     rng = np.random.default_rng(0)
     runtime.bind_data(x, rng.normal(size=8).astype(np.float32))

@@ -15,6 +15,7 @@ Single-machine graph training with StarPU (CPU or CUDA workers).
 | `tiling.json` → static tile geometry | MPI / multi-node distribution |
 | `execution.json` → **generate, save, load, run** | `home_node` / pinned tile memory |
 | Explicit `generate_round_robin_execution_schedule()` | Automatic schedule inside `compile()` |
+| Optional `execution.json` / `set_execution_schedule()` | Mandatory schedule for every `execute()` |
 | Manual tiling + inspectable worker assignment | Autotuning |
 
 **Data:** Tiles have no fixed StarPU home; the runtime may move copies. The schedule only states **which worker runs which op** and the **virtual** tile-to-worker split.
@@ -75,9 +76,9 @@ Single-machine graph training with StarPU (CPU or CUDA workers).
 | `write_execution_schedule_json(schedule, path)` | Write file |
 | `Runtime::compile()` | Lower + DCE only; **does not** set schedule |
 | `Runtime::generate_round_robin_execution_schedule()` | After `compile()`, from internal order |
-| `Runtime::set_execution_schedule(schedule)` | Required before `execute()` |
+| `Runtime::set_execution_schedule(schedule)` | Optional: static worker pinning for `execute()` |
 | `Runtime::load_execution_schedule(path)` | Load + set |
-| `Runtime::compile_with_round_robin_schedule()` | Test helper: compile + in-memory round-robin |
+| `Runtime::compile_with_round_robin_schedule()` | Convenience: compile + in-memory round-robin |
 
 ---
 

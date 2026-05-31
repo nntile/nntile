@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_slice", "[gra
     d->mark_output(true);
     tg::multiply_slice(a, s, d, axis);
     Runtime rt(g);
-    rt.compile_with_round_robin_schedule();
+    rt.compile();
     std::vector<float> sv(ns), dv(n);
     for(Index i = 0; i < ns; ++i) { sv[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i + 1); }
     for(Index i = 0; i < n; ++i) { dv[static_cast<size_t>(i)] = 0.2f * static_cast<float>(i + 1); }

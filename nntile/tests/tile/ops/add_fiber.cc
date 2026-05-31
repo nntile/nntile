@@ -41,7 +41,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_fiber matches tile
     d->mark_output(true);
     tg::add_fiber(alpha, s1, beta, s2, d, axis, batch);
     Runtime runtime(g);
-    runtime.compile_with_round_robin_schedule();
+    runtime.compile();
     std::vector<float> f1(nfib), f2(nfull), f3(nfull, 0.f);
     for(Index i = 0; i < nfib; ++i) { f1[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
     for(Index i = 0; i < nfull; ++i) { f2[static_cast<size_t>(i)] = 0.5f * static_cast<float>(i + 1); }

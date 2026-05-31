@@ -121,8 +121,9 @@ class Runtime
     //! write a file; use ``generate_round_robin_execution_json`` for that).
     ExecutionSchedule generate_round_robin_execution_schedule() const;
 
-    //! Apply schedule before ``execute()`` (from generator or
-    //! ``load_execution_schedule_json``).
+    //! Optional: pin workers during ``execute()`` (from generator or
+    //! ``load_execution_schedule_json``). Without a schedule, StarPU chooses
+    //! workers at runtime.
     void set_execution_schedule(ExecutionSchedule schedule);
 
     void load_execution_schedule(std::string const &path);
@@ -135,7 +136,7 @@ class Runtime
   private:
     void allocate_missing_tiles();
     void eliminate_dead_ops();
-    void require_execution_schedule() const;
+    void require_compiled() const;
 
     template <typename T, typename NntileT, typename CastT>
     void bind_data_impl(const TileNode *node, const T *data, size_t count);

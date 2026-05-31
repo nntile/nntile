@@ -38,7 +38,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
     embed->mark_output(true);
     tg::embedding(m, n, k, k0, ks, index, vocab, embed);
     Runtime r(g);
-    r.compile_with_round_robin_schedule();
+    r.compile();
     std::vector<std::int64_t> iv(4);
     iv[0] = 0;
     iv[1] = 2;
