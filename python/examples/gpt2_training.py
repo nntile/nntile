@@ -165,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
 
     bound_optimizer_state = False
     execution_path = args.execution if args.execution else None
+    execution_out_written = False
     train_mmap = TokenMemoryMap(args.train_bin)
     lcfg = CausalLmBatchConfig()
     lcfg.n_seq = n_seq
@@ -173,6 +174,18 @@ def main(argv: list[str] | None = None) -> int:
     lcfg.seed = args.seed
     mmap_batch = CausalLmBatch()
     train_step = 0
+
+    def apply_round_robin_maybe_write_out(runtime) -> None:
+        nonlocal execution_out_written, train_step
+        runtime.apply_round_robin_execution_schedule()
+        if (
+            args.execution_out
+            and train_step == 0
+            and not execution_out_written
+        ):
+            runtime.write_execution_schedule_json(args.execution_out)
+            execution_out_written = True
+            print(f'Execution: wrote {args.execution_out}')
 
     for epoch in range(args.epochs):
         if args.max_batches > 0 and train_step >= args.max_batches:
@@ -222,13 +235,9 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                     execution_path = None
-                    runtime.apply_round_robin_execution_schedule()
-            elif args.execution_out and train_step == 0:
-                runtime.apply_round_robin_execution_schedule()
-                runtime.write_execution_schedule_json(args.execution_out)
-                print(f'Execution: wrote {args.execution_out}')
+                    apply_round_robin_maybe_write_out(runtime)
             else:
-                runtime.apply_round_robin_execution_schedule()
+                apply_round_robin_maybe_write_out(runtime)
 
             if not bound_optimizer_state:
                 for _sname, stensor in optimizer.named_state_tensors():
