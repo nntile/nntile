@@ -232,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     execution_path = None
                     apply_round_robin_maybe_write_out(runtime)
-            else:
+            elif args.execution_out:
                 apply_round_robin_maybe_write_out(runtime)
 
             if not bound_optimizer_state:

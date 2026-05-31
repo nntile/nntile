@@ -49,8 +49,12 @@ extern "C"
                   ##__VA_ARGS__))
 
 #define starpu_task_insert(cl, ...)                                          \
-    nntile_starpu_task_insert_impl(                                          \
-        (cl), ::nntile::sched::preferred_starpu_worker_id(), ##__VA_ARGS__)
+    ({                                                                       \
+        int const _nntile_pref_worker =                                      \
+            ::nntile::sched::preferred_starpu_worker_id();                   \
+        nntile_starpu_task_insert_impl((cl), _nntile_pref_worker,            \
+            ##__VA_ARGS__);                                                  \
+    })
 #else
 #define nntile_starpu_task_insert_impl(cl, preferred_worker_id, ...)         \
     ((preferred_worker_id) < 0                                                \
@@ -61,8 +65,12 @@ extern "C"
                   ##__VA_ARGS__))
 
 #define starpu_task_insert(cl, ...)                                          \
-    nntile_starpu_task_insert_impl(                                          \
-        (cl), ::nntile::sched::preferred_starpu_worker_id(), ##__VA_ARGS__)
+    ({                                                                       \
+        int const _nntile_pref_worker =                                      \
+            ::nntile::sched::preferred_starpu_worker_id();                   \
+        nntile_starpu_task_insert_impl((cl), _nntile_pref_worker,            \
+            ##__VA_ARGS__);                                                  \
+    })
 #endif
 
 #endif // __cplusplus

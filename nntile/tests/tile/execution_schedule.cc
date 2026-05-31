@@ -186,6 +186,22 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::runtime_error);
 }
 
+TEST_CASE("load_execution_schedule_json rejects num_workers mismatch",
+    "[execution_schedule]")
+{
+    TileGraph tg("nw");
+    auto *x = tg.data({4}, "x", DataType::FP32);
+    auto *y = tg.data({4}, "y", DataType::FP32);
+    auto *z = tg.data({4}, "z", DataType::FP32);
+    std::vector<std::shared_ptr<TileGraph::OpNode>> order;
+    order.push_back(std::make_shared<TileAddOp>(x, y, z, 1.0, 1.0));
+    ExecutionSchedule sched = generate_round_robin_execution_schedule(tg, order);
+    sched.num_workers = sched.num_workers + 100;
+    char const *const tmp_path = "/tmp/nntile_execution_schedule_bad_nw.json";
+    write_execution_schedule_json(sched, tmp_path);
+    REQUIRE_THROWS_AS(load_execution_schedule_json(tmp_path), std::runtime_error);
+}
+
 TEST_CASE("affinity_batch schedule policy and tile map", "[execution_schedule]")
 {
     TileGraph tg("batch_aff");

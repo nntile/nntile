@@ -108,7 +108,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(output != nullptr);
     output->mark_output(true);
 
-    init_random_parameter_hints(mlp, 7u);
+    init_random_parameter_hints(mlp, 11u);
 
     FlatTilingSpec spec;
     spec.defaults["seq_len"] = {2, 2};

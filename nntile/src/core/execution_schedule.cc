@@ -550,6 +550,35 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path)
     {
         schedule.num_workers = runtime_workers;
     }
+    else if (schedule.num_workers != runtime_workers)
+    {
+        throw std::runtime_error(
+            "execution.json: hardware.num_workers (" +
+            std::to_string(schedule.num_workers) +
+            ") != runtime worker count (" +
+            std::to_string(runtime_workers) + ")");
+    }
+    for (ScheduledOpEntry const &e : schedule.ops)
+    {
+        if (e.worker < 0 || e.worker >= runtime_workers)
+        {
+            throw std::runtime_error(
+                "execution.json: ops[" +
+                std::to_string(e.execution_index) + "] worker " +
+                std::to_string(e.worker) + " out of range [0, " +
+                std::to_string(runtime_workers) + ")");
+        }
+    }
+    for (auto const &[tile, worker] : schedule.tile_virtual_worker)
+    {
+        if (worker < 0 || worker >= runtime_workers)
+        {
+            throw std::runtime_error(
+                "execution.json: tile '" + tile + "' virtual_worker " +
+                std::to_string(worker) + " out of range [0, " +
+                std::to_string(runtime_workers) + ")");
+        }
+    }
     return schedule;
 }
 

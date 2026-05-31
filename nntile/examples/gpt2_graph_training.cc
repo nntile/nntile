@@ -657,7 +657,7 @@ int main(int argc, char **argv)
                     apply_round_robin_schedule(runtime);
                 }
             }
-            else
+            else if (!args.execution_out_path.empty())
             {
                 apply_round_robin_schedule(runtime);
             }
