@@ -27,9 +27,8 @@
  * ``--tiling`` loads ``tiling.json`` (``default`` + ``layers``; axis keys match
  * config + ``seq_len`` / ``batch_size``).
  * ``--execution`` loads ``execution.json`` to assign workers for ``execute()``.
- * ``--execution-out`` writes a round-robin ``execution.json`` snapshot (first
- * compile step only) without pinning workers unless ``--execution`` failed and
- * round-robin fallback is active.
+ * ``--execution-out`` generates round-robin ``execution.json`` on the first
+ * compile step (same schedule applied for that run) for use with ``--execution``.
  *
  * Training loop matches ``llama_graph_training``: clear grads, forward, loss,
  * ``backward(true)``, ``optimizer->step(scheduled_lr)``, ``finish_phase()``,
@@ -570,18 +569,6 @@ int main(int argc, char **argv)
     CausalLmBatch mmap_batch;
     Index train_step = 0;
     bool execution_out_written = false;
-    auto write_round_robin_execution_out = [&](Runtime &runtime) {
-        if (args.execution_out_path.empty() || execution_out_written)
-        {
-            return;
-        }
-        write_execution_schedule_json(
-            runtime.generate_round_robin_execution_schedule(),
-            args.execution_out_path);
-        execution_out_written = true;
-        std::cout << "Execution schedule: wrote "
-                  << args.execution_out_path << "\n";
-    };
     auto apply_round_robin_schedule = [&](Runtime &runtime) {
         ExecutionSchedule sched =
             runtime.generate_round_robin_execution_schedule();
@@ -672,14 +659,11 @@ int main(int argc, char **argv)
                     use_round_robin_schedule = true;
                 }
             }
-            if (!cached_execution_schedule && use_round_robin_schedule)
+            if (!cached_execution_schedule &&
+                (use_round_robin_schedule ||
+                    !args.execution_out_path.empty()))
             {
                 apply_round_robin_schedule(runtime);
-            }
-            else if (!cached_execution_schedule &&
-                !args.execution_out_path.empty())
-            {
-                write_round_robin_execution_out(runtime);
             }
 
             if (!bound_optimizer_state)

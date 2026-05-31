@@ -176,14 +176,6 @@ def main(argv: list[str] | None = None) -> int:
     mmap_batch = CausalLmBatch()
     train_step = 0
 
-    def write_round_robin_execution_out(runtime) -> None:
-        nonlocal execution_out_written
-        if not args.execution_out or execution_out_written:
-            return
-        runtime.export_round_robin_execution_json(args.execution_out)
-        execution_out_written = True
-        print(f'Execution: wrote {args.execution_out}')
-
     def apply_round_robin_schedule(runtime) -> None:
         nonlocal execution_out_written
         runtime.apply_round_robin_execution_schedule()
@@ -241,10 +233,10 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     execution_path = None
                     use_round_robin_fallback = True
-            if not execution_path and use_round_robin_fallback:
+            if not execution_path and (
+                use_round_robin_fallback or args.execution_out
+            ):
                 apply_round_robin_schedule(runtime)
-            elif not execution_path and args.execution_out:
-                write_round_robin_execution_out(runtime)
 
             if not bound_optimizer_state:
                 for _sname, stensor in optimizer.named_state_tensors():
