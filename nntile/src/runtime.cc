@@ -351,6 +351,15 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
             std::to_string(execution_order_.size()) + ")");
     }
     int const num_workers = sched::count_execution_workers();
+    bool const cuda_workers = starpu_is_initialized() &&
+        starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0;
+    if (schedule.use_cuda_workers != cuda_workers)
+    {
+        throw std::runtime_error(
+            "Runtime::set_execution_schedule: worker_kind mismatch (json '" +
+            std::string(schedule.use_cuda_workers ? "cuda" : "cpu") +
+            "' vs runtime '" + (cuda_workers ? "cuda" : "cpu") + "')");
+    }
     for (size_t i = 0; i < schedule.ops.size(); ++i)
     {
         if (schedule.ops[i].execution_index != i)

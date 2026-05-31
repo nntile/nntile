@@ -58,21 +58,6 @@ void collect_writable_tiles(
     {
         add(o);
     }
-    for (TileGraph::TileNode *i : op.inputs())
-    {
-        if (i == nullptr)
-        {
-            continue;
-        }
-        for (TileGraph::TileNode *o : op.outputs())
-        {
-            if (o == i)
-            {
-                add(i);
-                break;
-            }
-        }
-    }
 }
 
 std::map<int, size_t> writable_bytes_by_worker(
@@ -106,7 +91,7 @@ int pick_worker_min_writable_dependency(
     size_t best_bytes = by_worker.begin()->second;
     for (auto const &[w, nbytes] : by_worker)
     {
-        if (nbytes < best_bytes || (nbytes == best_bytes && w < best_worker))
+        if (nbytes > best_bytes || (nbytes == best_bytes && w < best_worker))
         {
             best_bytes = nbytes;
             best_worker = w;
