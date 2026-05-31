@@ -168,22 +168,24 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::runtime_error);
 }
 
-TEST_CASE("load_execution_schedule_json rejects out-of-range worker",
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "set_execution_schedule rejects out-of-range worker",
     "[execution_schedule]")
 {
-    char const *const tmp_path =
-        "/tmp/nntile_execution_schedule_bad_worker.json";
-    std::ofstream out(tmp_path);
-    out << R"({
-  "version": 1,
-  "policy": "round_robin_virtual_tensor_split",
-  "hardware": {"num_workers": 2, "worker_kind": "cpu"},
-  "schedule_fingerprint": {"op_count": 1, "op_names": ["add"]},
-  "virtual_tile_workers": [],
-  "ops": [{"index": 0, "op": "add", "worker": 9}]
-})";
-    out.close();
-    REQUIRE_THROWS_AS(load_execution_schedule_json(tmp_path),
+    TileGraph tg("bad_worker");
+    auto *x = tg.data({4}, "x", DataType::FP32);
+    auto *y = tg.data({4}, "y", DataType::FP32);
+    auto *z = tg.data({4}, "z", DataType::FP32);
+
+    std::vector<std::shared_ptr<TileGraph::OpNode>> order;
+    order.push_back(std::make_shared<TileAddOp>(x, y, z, 1.0, 1.0));
+
+    Runtime rt(tg);
+    rt.compile();
+    ExecutionSchedule bad = rt.generate_round_robin_execution_schedule();
+    bad.ops[0].worker = 9;
+
+    REQUIRE_THROWS_AS(rt.set_execution_schedule(std::move(bad)),
         std::runtime_error);
 }
 

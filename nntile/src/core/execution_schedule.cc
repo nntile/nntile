@@ -545,32 +545,9 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path)
         }
         schedule.ops.push_back(std::move(e));
     }
-    int const runtime_workers = sched::count_execution_workers();
     if (schedule.num_workers <= 0)
     {
-        schedule.num_workers = runtime_workers;
-    }
-    int const worker_bound = runtime_workers;
-    for (ScheduledOpEntry const &e : schedule.ops)
-    {
-        if (e.worker < 0 || e.worker >= worker_bound)
-        {
-            throw std::runtime_error(
-                "execution.json: ops[" +
-                std::to_string(e.execution_index) + "] worker " +
-                std::to_string(e.worker) + " out of range [0, " +
-                std::to_string(worker_bound) + ")");
-        }
-    }
-    for (auto const &[tile, worker] : schedule.tile_virtual_worker)
-    {
-        if (worker < 0 || worker >= worker_bound)
-        {
-            throw std::runtime_error(
-                "execution.json: tile '" + tile + "' virtual_worker " +
-                std::to_string(worker) + " out of range [0, " +
-                std::to_string(worker_bound) + ")");
-        }
+        schedule.num_workers = sched::count_execution_workers();
     }
     return schedule;
 }

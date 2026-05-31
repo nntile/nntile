@@ -83,8 +83,10 @@ demo_summarize_loss "${LOG_TRAIN}"
 FIRST_LOSS="$(grep -E '^Batch 0  ' "${LOG_TRAIN}" | head -1 | sed -n 's/.*loss=\([^ ]*\).*/\1/p')"
 LAST_LOSS="$(grep -E '^Batch ' "${LOG_TRAIN}" | tail -1 | sed -n 's/.*loss=\([^ ]*\).*/\1/p')"
 if [[ -n "${FIRST_LOSS}" && -n "${LAST_LOSS}" ]]; then
-    python3 - <<PY
-first, last = float("${FIRST_LOSS}"), float("${LAST_LOSS}")
+    python3 - "${FIRST_LOSS}" "${LAST_LOSS}" <<'PY'
+import sys
+
+first, last = float(sys.argv[1]), float(sys.argv[2])
 if not (last < first):
     raise SystemExit(f"expected loss to decrease: first={first} last={last}")
 print(f"Loss decreased: {first} -> {last}")
