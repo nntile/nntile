@@ -29,7 +29,10 @@ LOG_FILE="${DATA_DIR}/training.log"
 BIN="$(demo_example_bin "${BUILD_DIR}" gpt2_graph_training)"
 CONFIG_JSON="${SCRIPT_DIR}/demo_configs/gpt2_tiny_config.json"
 TILING_JSON="${SCRIPT_DIR}/demo_configs/gpt2_tiny_tiling.json"
-EXECUTION_JSON="${EXECUTION_OUT:-${DATA_DIR}/execution.json}"
+EXECUTION_JSON=""
+if [[ -n "${EXECUTION_OUT:-}" ]]; then
+    EXECUTION_JSON="${EXECUTION_OUT}"
+fi
 
 SEQ_LEN="${SEQ_LEN:-8}"
 BATCH_SIZE="${BATCH_SIZE:-2}"

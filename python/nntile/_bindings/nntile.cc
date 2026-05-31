@@ -266,6 +266,15 @@ static void bind_runtime_methods(py::class_<PyRuntimeView> &cls)
                     s.runtime->generate_round_robin_execution_schedule());
             })
         .def(
+            "export_round_robin_execution_json",
+            [](PyRuntimeView &s, std::string const &path) {
+                nntile::write_execution_schedule_json(
+                    s.runtime->generate_round_robin_execution_schedule(),
+                    path);
+            },
+            "path"_a,
+            "Write round-robin execution.json without applying it to execute().")
+        .def(
             "load_execution_schedule",
             [](PyRuntimeView &s, std::string const &path) {
                 s.runtime->load_execution_schedule(path);

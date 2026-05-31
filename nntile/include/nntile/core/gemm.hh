@@ -20,8 +20,8 @@
 namespace nntile::core
 {
 
-// Check if tensors match gemm
-void gemm_check(int starpu_worker_hint, const TransOp &transA, const TileTraits &A,
+// Check if tensors match gemm (shape only; does not submit StarPU tasks).
+void gemm_check(const TransOp &transA, const TileTraits &A,
         const TransOp &transB, const TileTraits &B, const TileTraits &C,
         Index ndim, Index batch_ndim);
 

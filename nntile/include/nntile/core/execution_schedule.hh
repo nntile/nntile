@@ -89,13 +89,6 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path);
 
 std::string execution_schedule_to_json(ExecutionSchedule const &schedule);
 
-inline void save_execution_schedule_json(
-    ExecutionSchedule const &schedule,
-    std::string const &path)
-{
-    write_execution_schedule_json(schedule, path);
-}
-
 //! Generate round-robin schedule and write ``execution.json``.
 void generate_round_robin_execution_json(
     TileGraph const &graph,
