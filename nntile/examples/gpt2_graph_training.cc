@@ -541,6 +541,7 @@ int main(int argc, char **argv)
     bool bound_optimizer_state = false;
 
     std::optional<ExecutionSchedule> cached_execution_schedule;
+    bool use_round_robin_schedule = false;
     if (!args.execution_path.empty())
     {
         try
@@ -555,6 +556,7 @@ int main(int argc, char **argv)
             std::cerr << "Execution schedule: load failed ("
                       << ex.what() << "); using round-robin.\n";
             args.execution_path.clear();
+            use_round_robin_schedule = true;
         }
     }
 
@@ -654,10 +656,12 @@ int main(int argc, char **argv)
                               << ex.what()
                               << "); using round-robin.\n";
                     cached_execution_schedule.reset();
-                    apply_round_robin_schedule(runtime);
+                    use_round_robin_schedule = true;
                 }
             }
-            else if (!args.execution_out_path.empty())
+            if (!cached_execution_schedule &&
+                (use_round_robin_schedule ||
+                    !args.execution_out_path.empty()))
             {
                 apply_round_robin_schedule(runtime);
             }

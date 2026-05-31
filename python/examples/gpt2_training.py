@@ -165,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
 
     bound_optimizer_state = False
     execution_path = args.execution if args.execution else None
+    use_round_robin_fallback = False
     execution_out_written = False
     train_mmap = TokenMemoryMap(args.train_bin)
     lcfg = CausalLmBatchConfig()
@@ -231,8 +232,10 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                     execution_path = None
-                    apply_round_robin_maybe_write_out(runtime)
-            elif args.execution_out:
+                    use_round_robin_fallback = True
+            if not execution_path and (
+                use_round_robin_fallback or args.execution_out
+            ):
                 apply_round_robin_maybe_write_out(runtime)
 
             if not bound_optimizer_state:
