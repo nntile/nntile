@@ -57,7 +57,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_fiber_inplace", "[
         A.release();
         B.release();
     }
-    nntile::core::add_fiber_inplace<fp32_t>(a, ts, b, td, axis, batch);
+    nntile::core::add_fiber_inplace<fp32_t>(-1, a, ts, b, td, axis, batch);
     starpu_task_wait_for_all();
     std::vector<float> tref(n);
     {

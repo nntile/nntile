@@ -61,7 +61,7 @@ void validate_cpu(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar b
     norm_fiber_inplace.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::norm_fiber_inplace::submit<" << T::short_name << "> restricted to CPU\n";
     int redux = 0;
-    norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha, src1_handle, beta, dst2_handle, redux);
+    norm_fiber_inplace.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src1_handle, beta, dst2_handle, redux);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result

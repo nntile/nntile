@@ -46,7 +46,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax axis0", "[grap
     { auto a=M.acquire(STARPU_W), b=S.acquire(STARPU_W), c=D.acquire(STARPU_W);
       for(Index j=0;j<nms;j+=2) { a[j]=Y(mv[static_cast<size_t>(j)]); a[j+1]=Y(mv[static_cast<size_t>(j+1)]);}
       for(Index i=0;i<n;++i) { b[i]=Y(0.01f*static_cast<float>(i+1)); c[i]=Y(0);} a.release(); b.release(); c.release(); }
-    nntile::core::softmax<fp32_t>(M, S, al, D, axis);
+    nntile::core::softmax<fp32_t>(-1, M, S, al, D, axis);
     starpu_task_wait_for_all();
     std::vector<float> tr(n);
     { auto L=D.acquire(STARPU_R); for(Index i=0;i<n;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]); L.release(); }

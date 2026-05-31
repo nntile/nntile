@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void total_sum_accum_async(Scalar alpha, const Tile<T> &logsumexp,
+void total_sum_accum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &logsumexp,
         const Tile<T> &src, const Tile<int64_t> &labels,
         const Tile<fp32_t> &val, Index ignore_index)
 // TODO - add description
@@ -58,97 +58,97 @@ void total_sum_accum_async(Scalar alpha, const Tile<T> &logsumexp,
     if(mpi_rank == val_rank)
     {
         // Insert task
-        starpu::total_sum_accum.submit<std::tuple<T>>(alpha, src.shape[0],
+        starpu::total_sum_accum.submit<std::tuple<T>>(starpu_worker_hint, alpha, src.shape[0],
                 logsumexp.nelems, ignore_index, logsumexp, src, labels, val);
     }
 }
 
 //! Tile-wise max and sum of exponents along single given axis
 template<typename T>
-void total_sum_accum(Scalar alpha, const Tile<T> &logsumexp,
+void total_sum_accum(int starpu_worker_hint, Scalar alpha, const Tile<T> &logsumexp,
         const Tile<T> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index)
 {
-    total_sum_accum_async<T>(alpha, logsumexp, src, class_labels, val,
+    total_sum_accum_async<T>(starpu_worker_hint, alpha, logsumexp, src, class_labels, val,
                              ignore_index);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void total_sum_accum_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &logsumexp,
+void total_sum_accum_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &logsumexp,
         const Tile<fp32_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum_async<fp32_fast_tf32_t>(Scalar alpha,
+void total_sum_accum_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &logsumexp,
         const Tile<fp32_fast_tf32_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum_async<fp32_fast_fp16_t>(Scalar alpha,
+void total_sum_accum_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &logsumexp,
         const Tile<fp32_fast_fp16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum_async<fp32_fast_bf16_t>(Scalar alpha,
+void total_sum_accum_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &logsumexp,
         const Tile<fp32_fast_bf16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &logsumexp,
+void total_sum_accum_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &logsumexp,
         const Tile<fp64_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &logsumexp,
+void total_sum_accum_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &logsumexp,
         const Tile<bf16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &logsumexp,
+void total_sum_accum_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &logsumexp,
         const Tile<fp16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 // Explicit instantiation
 template
-void total_sum_accum<fp32_t>(Scalar alpha, const Tile<fp32_t> &logsumexp,
+void total_sum_accum<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &logsumexp,
         const Tile<fp32_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum<fp32_fast_tf32_t>(Scalar alpha,
+void total_sum_accum<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &logsumexp,
         const Tile<fp32_fast_tf32_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum<fp32_fast_fp16_t>(Scalar alpha,
+void total_sum_accum<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &logsumexp,
         const Tile<fp32_fast_fp16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum<fp32_fast_bf16_t>(Scalar alpha,
+void total_sum_accum<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &logsumexp,
         const Tile<fp32_fast_bf16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum<fp64_t>(Scalar alpha, const Tile<fp64_t> &logsumexp,
+void total_sum_accum<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &logsumexp,
         const Tile<fp64_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum<bf16_t>(Scalar alpha, const Tile<bf16_t> &logsumexp,
+void total_sum_accum<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &logsumexp,
         const Tile<bf16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 
 template
-void total_sum_accum<fp16_t>(Scalar alpha, const Tile<fp16_t> &logsumexp,
+void total_sum_accum<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &logsumexp,
         const Tile<fp16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val, Index ignore_index);
 

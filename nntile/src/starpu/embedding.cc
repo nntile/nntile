@@ -158,11 +158,11 @@ uint32_t Embedding<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Embedding<std::tuple<T>>::submit(Index m, Index n, Index k, Index k_start, Index k_size,
+void Embedding<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
         Handle index, Handle vocab, Handle embed)
 //! Insert embedding task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -175,7 +175,7 @@ void Embedding<std::tuple<T>>::submit(Index m, Index n, Index k, Index k_start, 
     args->k_size = k_size;
     double nflops = m * n * k_size;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, index.get(),
             STARPU_R, vocab.get(),
             // In case of tiling of vocab along vocab_size dimension,

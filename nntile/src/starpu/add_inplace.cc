@@ -139,7 +139,7 @@ uint32_t AddInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit add_inplace task
 template<typename T>
-void AddInplace<std::tuple<T>>::submit(
+void AddInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     Index nelems,
     Scalar alpha,
     Handle src,
@@ -150,13 +150,13 @@ void AddInplace<std::tuple<T>>::submit(
     // If alpha is zero then reduce to scale_inplace
     if(alpha == 0.0)
     {
-        scale_inplace.submit<std::tuple<T>>(nelems, beta, dst);
+        scale_inplace.submit<std::tuple<T>>(starpu_worker_hint, nelems, beta, dst);
         return;
     }
     // If beta is zero this function reduces to scale
     if(beta == 0.0)
     {
-        scale.submit<std::tuple<T>>(nelems, alpha, src, dst);
+        scale.submit<std::tuple<T>>(starpu_worker_hint, nelems, alpha, src, dst);
         return;
     }
     // Access mode for the dst handle
@@ -176,7 +176,7 @@ void AddInplace<std::tuple<T>>::submit(
     args->beta = beta;
     double nflops = 2 * nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, dst.get(),

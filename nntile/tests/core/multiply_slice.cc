@@ -32,7 +32,7 @@ void check(Scalar alpha, const Tile<T> &src, Tile<T> &dst, Index axis)
         dst2_data[i] = dst_local[i];
     }
     dst_local.release();
-    multiply_slice<T>(alpha, src, dst, axis);
+    multiply_slice<T>(-1, alpha, src, dst, axis);
     Index m = 1;
     for(Index i = 0; i < axis; ++i)
     {
@@ -44,7 +44,7 @@ void check(Scalar alpha, const Tile<T> &src, Tile<T> &dst, Index axis)
         n *= dst.shape[i];
     }
     Index k = dst.shape[axis];
-    starpu::multiply_slice.submit<std::tuple<T>>(m, n, k, alpha, src, dst2);
+    starpu::multiply_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src, dst2);
     starpu_task_wait_for_all();
     dst_local.acquire(STARPU_R);
     auto dst2_local = dst2.acquire(STARPU_R);

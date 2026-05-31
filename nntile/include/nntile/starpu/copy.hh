@@ -67,7 +67,7 @@ public:
 #endif // NNTILE_USE_CUDA
 
     //! Submit copy task
-    void submit(Handle src, Handle dst);
+    void submit(int starpu_worker_hint, Handle src, Handle dst);
 };
 
 //! Copy operation object

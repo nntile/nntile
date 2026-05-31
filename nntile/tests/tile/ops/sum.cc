@@ -56,7 +56,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[g
         l1.release();
         l2.release();
     }
-    nntile::core::sum<fp32_t>(alpha, ts, beta, td);
+    nntile::core::sum<fp32_t>(-1, alpha, ts, beta, td);
     starpu_task_wait_for_all();
     constexpr float tol = 1e-3f;
     REQUIRE(gout.size() == 1);

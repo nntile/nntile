@@ -29,7 +29,7 @@ template<typename T>
 void run(
     Runtime& rt, Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, TileGraph::TileNode* d, Index ax)
 {
-    nntile::core::multiply_fiber<T>(a, rt.get_tile<T>(t1), rt.get_tile<T>(t2), rt.get_tile<T>(d), ax);
+    nntile::core::multiply_fiber<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(t1), rt.get_tile<T>(t2), rt.get_tile<T>(d), ax);
 }
 } // namespace
 void multiply_fiber(Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, TileGraph::TileNode* d, Index axis)

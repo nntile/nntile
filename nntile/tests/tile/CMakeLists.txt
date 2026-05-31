@@ -85,6 +85,8 @@ set(TESTS_TILE_CATCH2
 set(TESTS_TILE_ROOT_CATCH2
     "append_tensor_graph_phase"
     "add_mixed_tile"
+    "execution_schedule"
+    "gpt2_block_schedule"
     "mlp"
     "tile_graph"
 )
@@ -114,7 +116,8 @@ foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
     )
     target_include_directories(tests_graph_tile_${test} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_SOURCE_DIR}/nntile/examples)
 endforeach()
 
 if(NNTILE_USE_CUDA)

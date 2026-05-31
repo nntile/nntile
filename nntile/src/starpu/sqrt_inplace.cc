@@ -131,14 +131,14 @@ uint32_t SqrtInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void SqrtInplace<std::tuple<T>>::submit(Index nelems, Handle data)
+void SqrtInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Handle data)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     //double nflops = 5 * nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_RW, data.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             //STARPU_FLOPS, nflops,

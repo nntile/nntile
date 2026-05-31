@@ -78,6 +78,7 @@ public:
 
     //! Submit pow task
     void submit(
+        int starpu_worker_hint,
         Index nelems,
         Scalar alpha,
         Scalar exp,

@@ -29,7 +29,7 @@ template<typename T>
 void run(Runtime& runtime, TileGraph::TileNode* d)
 {
     auto& t = runtime.get_tile<T>(d);
-    nntile::core::sqrt_inplace<T>(t);
+    nntile::core::sqrt_inplace<T>(runtime.starpu_worker_hint(), t);
 }
 } // namespace
 void sqrt_inplace(TileGraph::TileNode* dst)

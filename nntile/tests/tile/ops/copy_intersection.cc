@@ -51,8 +51,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     { auto a=S.acquire(STARPU_W), b=D.acquire(STARPU_W);
       for(Index i=0;i<n;++i) { a[i]=Y(sv[static_cast<size_t>(i)]); b[i]=Y(0);} a.release(); b.release(); }
     { auto L=Sc.acquire(STARPU_W); for(Index j=0;j<6;++j) L[j]=0; L.release(); }
-    nntile::core::copy_intersection<fp32_t>(
-        S, {0, 0, 0}, D, {0, 0, 0}, Sc);
+    nntile::core::copy_intersection<fp32_t>(-1, S, {0, 0, 0}, D, {0, 0, 0}, Sc);
     starpu_task_wait_for_all();
     std::vector<float> tr(n);
     { auto L=D.acquire(STARPU_R);

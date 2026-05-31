@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Clear a tile
 template<typename T>
-void clear_async(const Tile<T> &tile);
+void clear_async(int starpu_worker_hint, const Tile<T> &tile);
 
 // Clear a tile
 template<typename T>
-void clear(const Tile<T> &tile);
+void clear(int starpu_worker_hint, const Tile<T> &tile);
 
 } // namespace nntile::core

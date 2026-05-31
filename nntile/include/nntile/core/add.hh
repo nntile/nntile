@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Tile-wise add operation
 template<typename T>
-void add_async(Scalar alpha, const Tile<T> &src1, Scalar beta,
+void add_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta,
         const Tile<T> &src2, const Tile<T> &dst);
 
 // Tile-wise add operation
 template<typename T>
-void add(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+void add(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
         const Tile<T> &dst);
 
 } // namespace nntile::core

@@ -43,11 +43,10 @@ void validate()
     drl.release();
 
     Scalar val = -9.0;
-    starpu::mask_scalar.submit<std::tuple<T>>(
-            data.matrix_shape[data.ndim][0],
+    starpu::mask_scalar.submit<std::tuple<T>>(-1, data.matrix_shape[data.ndim][0],
             data.matrix_shape[data.ndim][1],
             mask, val, data);
-    mask_scalar<T>(mask, val, data_ref, 0);
+    mask_scalar<T>(-1, mask, val, data_ref, 0);
 
     dl.acquire(STARPU_R);
     drl.acquire(STARPU_R);

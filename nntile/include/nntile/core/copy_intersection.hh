@@ -20,12 +20,12 @@ namespace nntile::core
 {
 
 template<typename T>
-void copy_intersection_async(const Tile<T> &src,
+void copy_intersection_async(int starpu_worker_hint, const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template<typename T>
-void copy_intersection(const Tile<T> &src,
+void copy_intersection(int starpu_worker_hint, const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 

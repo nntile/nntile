@@ -61,7 +61,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_inplace matches ti
         a.release();
         b.release();
     }
-    nntile::core::add_inplace<fp32_t>(alpha, tx, beta, ty);
+    nntile::core::add_inplace<fp32_t>(-1, alpha, tx, beta, ty);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

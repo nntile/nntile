@@ -145,7 +145,7 @@ uint32_t SubtractIndexedOutputs<std::tuple<T>>::footprint(struct starpu_task *ta
 }
 
 template<typename T>
-void SubtractIndexedOutputs<std::tuple<T>>::submit(
+void SubtractIndexedOutputs<std::tuple<T>>::submit(int starpu_worker_hint,
         Index n_labels, Index n_outputs, Index ignore_index,
             Scalar val, Handle labels, Handle dst)
 {
@@ -156,7 +156,7 @@ void SubtractIndexedOutputs<std::tuple<T>>::submit(
     args->value = val;
     args->ignore_index = ignore_index;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, labels.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_RW, dst.get(),

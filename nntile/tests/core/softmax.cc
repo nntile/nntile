@@ -52,9 +52,9 @@ void check()
         ml.release();
     }
     {
-        starpu::softmax.submit<std::tuple<T>>(1, 20, 3, maxsumexp[0], src, alpha,
+        starpu::softmax.submit<std::tuple<T>>(-1, 1, 20, 3, maxsumexp[0], src, alpha,
                 dst);
-        softmax<T>(maxsumexp[0], src, alpha, dst2, 0);
+        softmax<T>(-1, maxsumexp[0], src, alpha, dst2, 0);
         dl.acquire(STARPU_R);
         d2l.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -65,9 +65,9 @@ void check()
         d2l.release();
     }
     {
-        starpu::softmax.submit<std::tuple<T>>(3, 5, 4, maxsumexp[1], src, alpha,
+        starpu::softmax.submit<std::tuple<T>>(-1, 3, 5, 4, maxsumexp[1], src, alpha,
                 dst);
-        softmax<T>(maxsumexp[1], src, alpha, dst2, 1);
+        softmax<T>(-1, maxsumexp[1], src, alpha, dst2, 1);
         dl.acquire(STARPU_R);
         d2l.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -78,9 +78,9 @@ void check()
         d2l.release();
     }
     {
-        starpu::softmax.submit<std::tuple<T>>(12, 1, 5, maxsumexp[2], src, alpha,
+        starpu::softmax.submit<std::tuple<T>>(-1, 12, 1, 5, maxsumexp[2], src, alpha,
                 dst);
-        softmax<T>(maxsumexp[2], src, alpha, dst2, 2);
+        softmax<T>(-1, maxsumexp[2], src, alpha, dst2, 2);
         dl.acquire(STARPU_R);
         d2l.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)

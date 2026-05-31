@@ -48,9 +48,9 @@ void validate()
     Index num_iter = 2;
     Scalar momentum = 0.85, lr = 1e-2, wd = 1e-3, dampening = 0.0;
     bool nesterov = false;
-    starpu::sgd_step.submit<std::tuple<T>>(num_iter, grad.nelems, momentum, lr,
+    starpu::sgd_step.submit<std::tuple<T>>(-1, num_iter, grad.nelems, momentum, lr,
             wd, dampening, nesterov, grad, vel, p);
-    sgd_step<T>(num_iter, momentum, lr, wd, dampening, nesterov, grad, velr,
+    sgd_step<T>(-1, num_iter, momentum, lr, wd, dampening, nesterov, grad, velr,
             pr);
 
     vl.acquire(STARPU_R);

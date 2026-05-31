@@ -49,8 +49,8 @@ void validate()
 
     Index m = sin.nelems;
     Index n = src.matrix_shape[sin.ndim][1];
-    starpu::rope.submit<std::tuple<T>>(m, n, sin, cos, src, dst);
-    rope<T>(sin, cos, src, dst_ref);
+    starpu::rope.submit<std::tuple<T>>(-1, m, n, sin, cos, src, dst);
+    rope<T>(-1, sin, cos, src, dst_ref);
 
     dstl.acquire(STARPU_R);
     drefl.acquire(STARPU_R);

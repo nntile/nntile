@@ -50,8 +50,8 @@ void validate()
     tile1_src2_copy_local.release();
     tile1_dst_copy_local.release();
 
-    starpu::hypot.submit<std::tuple<T>>(1, 1.0, tile1_src1, -1.5, tile1_src2, tile1_dst);
-    hypot<T>(1.0, tile1_src1_copy, -1.5, tile1_src2_copy, tile1_dst_copy);
+    starpu::hypot.submit<std::tuple<T>>(-1, 1, 1.0, tile1_src1, -1.5, tile1_src2, tile1_dst);
+    hypot<T>(-1, 1.0, tile1_src1_copy, -1.5, tile1_src2_copy, tile1_dst_copy);
 
     tile1_dst_local.acquire(STARPU_R);
     tile1_dst_copy_local.acquire(STARPU_R);
@@ -83,8 +83,8 @@ void validate()
     tile2_src2_copy_local.release();
     tile2_dst_copy_local.release();
 
-    starpu::hypot.submit<std::tuple<T>>(tile2_src1.nelems, 2.0, tile2_src1, 0.5, tile2_src2, tile2_dst);
-    hypot<T>(2.0, tile2_src1_copy, 0.5, tile2_src2_copy, tile2_dst_copy);
+    starpu::hypot.submit<std::tuple<T>>(-1, tile2_src1.nelems, 2.0, tile2_src1, 0.5, tile2_src2, tile2_dst);
+    hypot<T>(-1, 2.0, tile2_src1_copy, 0.5, tile2_src2_copy, tile2_dst_copy);
 
     tile2_dst_local.acquire(STARPU_R);
     tile2_dst_copy_local.acquire(STARPU_R);
@@ -122,8 +122,8 @@ void validate()
     tile3_dst_copy_local.release();
 
     // Test case: alpha=0, beta=0 -> should result in 0
-    starpu::hypot.submit<std::tuple<T>>(tile3_src1.nelems, 0.0, tile3_src1, 0.0, tile3_src2, tile3_dst);
-    hypot<T>(0.0, tile3_src1_copy, 0.0, tile3_src2_copy, tile3_dst_copy);
+    starpu::hypot.submit<std::tuple<T>>(-1, tile3_src1.nelems, 0.0, tile3_src1, 0.0, tile3_src2, tile3_dst);
+    hypot<T>(-1, 0.0, tile3_src1_copy, 0.0, tile3_src2_copy, tile3_dst_copy);
 
     tile3_dst_local.acquire(STARPU_R);
     tile3_dst_copy_local.acquire(STARPU_R);

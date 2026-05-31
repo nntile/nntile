@@ -43,7 +43,7 @@ void run_sgd(
     TileGraph::TileNode* vel,
     TileGraph::TileNode* pn)
 {
-    nntile::core::sgd_step<T>(num_iter, momentum, lr, weight_decay, dampening,
+    nntile::core::sgd_step<T>(runtime.starpu_worker_hint(), num_iter, momentum, lr, weight_decay, dampening,
         nesterov, runtime.get_tile<T>(g), runtime.get_tile<T>(vel),
         runtime.get_tile<T>(pn));
 }

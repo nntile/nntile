@@ -52,7 +52,7 @@ void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
         sum_dst2_handle(&sum_dst2[0], sizeof(T)*m*n);
     sum_slice.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::sum_slice::submit<" << T::short_name << "> restricted to CPU\n";
-    sum_slice.submit<std::tuple<T>>(m, n, k, alpha, src_handle, beta, sum_dst2_handle);
+    sum_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src_handle, beta, sum_dst2_handle);
     starpu_task_wait_for_all();
     sum_dst2_handle.unregister();
     // Check result

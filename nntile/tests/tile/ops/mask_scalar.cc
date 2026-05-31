@@ -56,7 +56,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph]
     { auto aloc = Ta.acquire(STARPU_W);
       for(Index i = 0; i < n; ++i) { aloc[i] = Y(static_cast<float>(i + 1)); }
       aloc.release(); }
-    nntile::core::mask_scalar<fp32_t>(Tm, val, Ta, batch);
+    nntile::core::mask_scalar<fp32_t>(-1, Tm, val, Ta, batch);
     starpu_task_wait_for_all();
     std::vector<float> tref(n);
     { auto L = Ta.acquire(STARPU_R);

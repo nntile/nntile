@@ -79,7 +79,7 @@ void check_tile_add_vs_tile_api(
         loc2.release();
     }
 
-    nntile::core::add<T>(alpha, src1, beta, src2, dst);
+    nntile::core::add<T>(-1, alpha, src1, beta, src2, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tile_result(nelems);

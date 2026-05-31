@@ -69,10 +69,10 @@ void Clear::cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Submit clear task
-void Clear::submit(Handle data)
+void Clear::submit(int starpu_worker_hint, Handle data)
 {
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_W, data.get(),
             0);
     // Check submission

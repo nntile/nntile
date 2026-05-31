@@ -138,7 +138,7 @@ uint32_t Add<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Add<std::tuple<T>>::submit(
+void Add<std::tuple<T>>::submit(int starpu_worker_hint,
     Index nelems,
     Scalar alpha,
     Handle src1,
@@ -152,14 +152,14 @@ void Add<std::tuple<T>>::submit(
     if(beta == zero)
     {
         // dst = alpha*src1
-        scale.submit<std::tuple<T>>(nelems, alpha, src1, dst);
+        scale.submit<std::tuple<T>>(starpu_worker_hint, nelems, alpha, src1, dst);
         return;
     }
     // If beta is non-zero and alpha is zero then reduce to scale
     if(alpha == zero)
     {
         // dst = beta*src2
-        scale.submit<std::tuple<T>>(nelems, beta, src2, dst);
+        scale.submit<std::tuple<T>>(starpu_worker_hint, nelems, beta, src2, dst);
         return;
     }
     // Codelet arguments
@@ -170,7 +170,7 @@ void Add<std::tuple<T>>::submit(
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * 3 * nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

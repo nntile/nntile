@@ -36,7 +36,7 @@ void run(
     Index ax,
     Index bd)
 {
-    nntile::core::add_fiber<T>(
+    nntile::core::add_fiber<T>(runtime.starpu_worker_hint(), 
         a, runtime.get_tile<T>(t1), b, runtime.get_tile<T>(t2), runtime.get_tile<T>(d), ax, bd);
 }
 } // namespace

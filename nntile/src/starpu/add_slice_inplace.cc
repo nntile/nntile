@@ -139,7 +139,7 @@ uint32_t AddSliceInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void AddSliceInplace<std::tuple<T>>::submit(
+void AddSliceInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     Index m,
     Index n,
     Index k,
@@ -150,26 +150,26 @@ void AddSliceInplace<std::tuple<T>>::submit(
 )
 //! Insert add_slice_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
     // If k is 1, then this operation reduces to add_inplace
     if(k == 1)
     {
-        add_inplace.submit<std::tuple<T>>(m*n, alpha, src, beta, dst);
+        add_inplace.submit<std::tuple<T>>(starpu_worker_hint, m*n, alpha, src, beta, dst);
         return;
     }
     // If alpha is zero then reduce to scale_inplace
     if(alpha == 0.0)
     {
-        scale_inplace.submit<std::tuple<T>>(m*n*k, beta, dst);
+        scale_inplace.submit<std::tuple<T>>(starpu_worker_hint, m*n*k, beta, dst);
         return;
     }
     // If beta is zero then reduce to scale_slice
     if(beta == 0.0)
     {
-        scale_slice.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
+        scale_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src, dst);
         return;
     }
     // Access mode for the dst handle
@@ -192,7 +192,7 @@ void AddSliceInplace<std::tuple<T>>::submit(
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, dst.get(),

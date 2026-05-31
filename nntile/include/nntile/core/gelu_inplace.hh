@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void gelu_inplace_async(const Tile<T> &A);
+void gelu_inplace_async(int starpu_worker_hint, const Tile<T> &A);
 
 template<typename T>
-void gelu_inplace(const Tile<T> &A);
+void gelu_inplace(int starpu_worker_hint, const Tile<T> &A);
 
 } // namespace nntile::core

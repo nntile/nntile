@@ -29,7 +29,7 @@ template<typename T>
 void run(
     Runtime& rt, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index ax)
 {
-    nntile::core::add_slice_inplace<T>(a, rt.get_tile<T>(s), b, rt.get_tile<T>(d), ax);
+    nntile::core::add_slice_inplace<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(s), b, rt.get_tile<T>(d), ax);
 }
 } // namespace
 void add_slice_inplace(Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index axis)

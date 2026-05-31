@@ -196,8 +196,7 @@ void validate_cuda(Index seq, Index head, Index batch)
 
     // Restrict to CUDA and submit
     flash_sdpa_fwd_cudnn.restrict_where(STARPU_CUDA);
-    flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(
-        seq, head, batch,
+    flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(-1, seq, head, batch,
         K_handle, Q_handle,
         mask_handle,
         logsumexp_handle, V_handle, A_handle,

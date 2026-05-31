@@ -52,7 +52,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outpu
     { auto b=D.acquire(STARPU_W);
       for(Index i=0;i<nd;++i) b[i]=Y(1.0f+0.1f*static_cast<float>(i));
       b.release(); }
-    nntile::core::subtract_indexed_outputs<fp32_t>(v, L, D, ign);
+    nntile::core::subtract_indexed_outputs<fp32_t>(-1, v, L, D, ign);
     starpu_task_wait_for_all();
     std::vector<float> tr(nd);
     { auto L2=D.acquire(STARPU_R);

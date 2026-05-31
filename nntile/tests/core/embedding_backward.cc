@@ -54,9 +54,9 @@ void validate()
     vocab_grad_ref_local.release();
     vocab_grad_local.release();
 
-    starpu::embedding_backward.submit<std::tuple<T>>(m, n, k, k_start, k_size,
+    starpu::embedding_backward.submit<std::tuple<T>>(-1, m, n, k, k_start, k_size,
             index, embed_grad, vocab_grad_ref, 0);
-    embedding_backward<T>(m, n, k, k_start, k_size, index, embed_grad,
+    embedding_backward<T>(-1, m, n, k, k_start, k_size, index, embed_grad,
             vocab_grad, 0);
 
     vocab_grad_ref_local.acquire(STARPU_R);

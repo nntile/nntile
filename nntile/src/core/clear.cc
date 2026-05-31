@@ -21,78 +21,78 @@ namespace nntile::core
 
 //! Asynchronously clear a tile
 template<typename T>
-void clear_async(const Tile<T> &tile)
+void clear_async(int starpu_worker_hint, const Tile<T> &tile)
 {
     int mpi_rank = starpu_mpi_world_rank();
     int tile_rank = tile.mpi_get_rank();
     if(mpi_rank == tile_rank)
     {
-        starpu::clear.submit(tile);
+        starpu::clear.submit(starpu_worker_hint, tile);
     }
 }
 
 //! Asynchronously clear a tile
 template<typename T>
-void clear(const Tile<T> &tile)
+void clear(int starpu_worker_hint, const Tile<T> &tile)
 {
-    clear_async<T>(tile);
+    clear_async<T>(starpu_worker_hint, tile);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void clear_async<fp32_t>(const Tile<fp32_t> &tile);
+void clear_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &tile);
 
 template
-void clear_async<bf16_t>(const Tile<bf16_t> &tile);
+void clear_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &tile);
 
 template
-void clear_async<fp16_t>(const Tile<fp16_t> &tile);
+void clear_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &tile);
 
 template
-void clear_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &tile);
+void clear_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &tile);
 
 template
-void clear_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &tile);
+void clear_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &tile);
 
 template
-void clear_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &tile);
+void clear_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &tile);
 
 template
-void clear_async<fp64_t>(const Tile<fp64_t> &tile);
+void clear_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &tile);
 
 template
-void clear_async<int64_t>(const Tile<int64_t> &tile);
+void clear_async<int64_t>(int starpu_worker_hint, const Tile<int64_t> &tile);
 
 template
-void clear_async<bool_t>(const Tile<bool_t> &tile);
+void clear_async<bool_t>(int starpu_worker_hint, const Tile<bool_t> &tile);
 
 // Explicit instantiation
 template
-void clear<fp32_t>(const Tile<fp32_t> &tile);
+void clear<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &tile);
 
 template
-void clear<bf16_t>(const Tile<bf16_t> &tile);
+void clear<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &tile);
 
 template
-void clear<fp16_t>(const Tile<fp16_t> &tile);
+void clear<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &tile);
 
 template
-void clear<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &tile);
+void clear<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &tile);
 
 template
-void clear<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &tile);
+void clear<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &tile);
 
 template
-void clear<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &tile);
+void clear<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &tile);
 
 template
-void clear<fp64_t>(const Tile<fp64_t> &tile);
+void clear<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &tile);
 
 template
-void clear<int64_t>(const Tile<int64_t> &tile);
+void clear<int64_t>(int starpu_worker_hint, const Tile<int64_t> &tile);
 
 template
-void clear<bool_t>(const Tile<bool_t> &tile);
+void clear<bool_t>(int starpu_worker_hint, const Tile<bool_t> &tile);
 
 } // namespace nntile::core

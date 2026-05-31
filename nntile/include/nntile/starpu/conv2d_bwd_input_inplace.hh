@@ -93,6 +93,7 @@ public:
 
     //! Submit conv2d_bwd_input_inplace task
     void submit(
+        int starpu_worker_hint,
         Index src1_m,
         Index src1_n,
         Index stride_m,

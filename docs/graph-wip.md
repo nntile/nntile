@@ -19,6 +19,20 @@ End-to-end training of BERT, GPT-2, Llama, T5, and similar models uses the
 [python/training.md](python/training.md). Those scripts do **not** depend on
 `nntile.graph`.
 
+## Static tiling and task scheduling (GPT-2)
+
+- **Tiling:** `tiling.json` and `--tiling` in `gpt2_graph_training` (see
+  `nntile/examples/README.md`).
+- **Schedule:** `generate_round_robin_execution_schedule()` writes
+  `execution.json` (`--execution-out`); same file loaded with `--execution`
+  before `execute()`. `compile()` does not assign workers.
+- **Schema:** [dev/execution_json_schema.md](dev/execution_json_schema.md).
+- **Roadmap:** [dev/graph_static_execution_plan.md](dev/graph_static_execution_plan.md).
+- **E2E:** `nntile/examples/run_gpt2_static_train.sh` (write then load
+  `execution.json`). **CI:** `run_gpt2_graph_training_demo.sh` on `graph_api`.
+- **Generators:** `generate_round_robin_execution_schedule`,
+  `generate_affinity_batch_execution_schedule` (same JSON schema).
+
 ## SGOC is not the Graph API
 
 The **SGOC** scheduler ([sgoc/README.md](sgoc/README.md)) is a StarPU scheduling

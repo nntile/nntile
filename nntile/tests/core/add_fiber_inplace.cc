@@ -46,9 +46,9 @@ void check(Scalar alpha, Scalar beta, Index axis)
     Index batch = src.matrix_shape[1][1];
     Index n = dst.matrix_shape[axis+1][1] / batch;
     Index k = dst.shape[axis];
-    starpu::add_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha, src,
+    starpu::add_fiber_inplace.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src,
             beta, dst);
-    add_fiber_inplace<T>(alpha, src, beta, dst2, axis, 0);
+    add_fiber_inplace<T>(-1, alpha, src, beta, dst2, axis, 0);
 
     dst_local.acquire(STARPU_R);
     dst2_local.acquire(STARPU_R);

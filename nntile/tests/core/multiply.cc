@@ -43,8 +43,8 @@ void validate()
     dst_ref_local.release();
 
     Scalar alpha = -0.5;
-    starpu::multiply.submit<std::tuple<T>>(src1.nelems, alpha, src1, src2, dst);
-    multiply<T>(alpha, src1, src2, dst_ref);
+    starpu::multiply.submit<std::tuple<T>>(-1, src1.nelems, alpha, src1, src2, dst);
+    multiply<T>(-1, alpha, src1, src2, dst_ref);
 
     dst_local.acquire(STARPU_R);
     dst_ref_local.acquire(STARPU_R);
@@ -55,7 +55,7 @@ void validate()
     dst_local.release();
     dst_ref_local.release();
 
-    TEST_THROW(multiply<T>(alpha, Tile<T>({2}), Tile<T>({3}), Tile<T>({2})));
+    TEST_THROW(multiply<T>(-1, alpha, Tile<T>({2}), Tile<T>({3}), Tile<T>({2})));
 }
 
 int main(int argc, char **argv)

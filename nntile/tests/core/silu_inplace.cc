@@ -32,8 +32,8 @@ void validate()
     al.release();
     bl.release();
 
-    starpu::silu_inplace.submit<std::tuple<T>>(1, a);
-    silu_inplace<T>(b);
+    starpu::silu_inplace.submit<std::tuple<T>>(-1, 1, a);
+    silu_inplace<T>(-1, b);
     al.acquire(STARPU_R);
     bl.acquire(STARPU_R);
     TEST_ASSERT(Y(al[0]) == Y(bl[0]));
@@ -51,8 +51,8 @@ void validate()
     xl.release();
     yl.release();
 
-    starpu::silu_inplace.submit<std::tuple<T>>(x.nelems, x);
-    silu_inplace<T>(y);
+    starpu::silu_inplace.submit<std::tuple<T>>(-1, x.nelems, x);
+    silu_inplace<T>(-1, y);
     xl.acquire(STARPU_R);
     yl.acquire(STARPU_R);
     for(Index i = 0; i < x.nelems; ++i)

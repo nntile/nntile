@@ -27,7 +27,7 @@ namespace
 template<typename T>
 void run(Runtime& runtime, Scalar e, Scalar a, TileGraph::TileNode* d)
 {
-    nntile::core::hypot_scalar_inverse<T>(e, a, runtime.get_tile<T>(d));
+    nntile::core::hypot_scalar_inverse<T>(runtime.starpu_worker_hint(), e, a, runtime.get_tile<T>(d));
 }
 } // namespace
 void hypot_scalar_inverse(Scalar eps, Scalar alpha, TileGraph::TileNode* dst)

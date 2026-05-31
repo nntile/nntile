@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void hypot_scalar_inverse_async(Scalar eps, Scalar alpha, const Tile<T> &dst);
+void hypot_scalar_inverse_async(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst);
 
 template<typename T>
-void hypot_scalar_inverse(Scalar eps, Scalar alpha, const Tile<T> &dst);
+void hypot_scalar_inverse(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst);
 
 } // namespace nntile::core

@@ -33,11 +33,11 @@ void validate()
     auto sp_local = value_sp.acquire(STARPU_W);
     sp_local[0] = Y(2.5);
     sp_local.release();
-    starpu::log_scalar.submit<std::tuple<T>>("tile_log_scalar_starpu", value_sp);
+    starpu::log_scalar.submit<std::tuple<T>>(-1, "tile_log_scalar_starpu", value_sp);
     starpu_task_wait_for_all();
-    log_scalar<T>("tile_log_scalar_tile", value);
+    log_scalar<T>(-1, "tile_log_scalar_tile", value);
 
-    TEST_THROW(log_scalar<T>("tile_log_scalar_test_bad", Tile<T>({2})));
+    TEST_THROW(log_scalar<T>(-1, "tile_log_scalar_test_bad", Tile<T>({2})));
 }
 
 int main(int argc, char **argv)

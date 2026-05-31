@@ -140,10 +140,10 @@ uint32_t RopeBackward<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void RopeBackward<std::tuple<T>>::submit(Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx)
+void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx)
 //! Insert rope_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -152,7 +152,7 @@ void RopeBackward<std::tuple<T>>::submit(Index m, Index n, Handle sin, Handle co
     args->m = m;
     args->n = n;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, sin.get(),
             STARPU_R, cos.get(),
             STARPU_R, dy.get(),

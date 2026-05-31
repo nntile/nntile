@@ -278,7 +278,7 @@ void gemm_check(const TransOp &transA, const TileTraits &A,
  * @param[in] batch_ndim: Number of last dimensions used for batching of gemms
  * */
 template<typename T>
-void gemm_async(Scalar alpha, const TransOp &transA, const Tile<T> &A,
+void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, Scalar beta, const Tile<T> &C,
         Index ndim, Index batch_ndim, int redux)
 {
@@ -307,7 +307,7 @@ void gemm_async(Scalar alpha, const TransOp &transA, const Tile<T> &A,
     B.mpi_transfer(c_rank, mpi_rank);
     if(mpi_rank == c_rank)
     {
-        starpu::gemm.submit<std::tuple<T>>(
+        starpu::gemm.submit<std::tuple<T>>(starpu_worker_hint, 
             transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0);  // redux ignored for now
     }
 }
@@ -324,103 +324,103 @@ void gemm_async(Scalar alpha, const TransOp &transA, const Tile<T> &A,
  * @param[in] batch_ndim: Number of last dimensions used for batching of gemms
  * */
 template<typename T>
-void gemm(Scalar alpha, const TransOp &transA, const Tile<T> &A,
+void gemm(int starpu_worker_hint, Scalar alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, Scalar beta, const Tile<T> &C,
         Index ndim, Index batch_ndim, int redux)
 {
-    gemm_async<T>(alpha, transA, A, transB, B, beta, C, ndim, batch_ndim,
+    gemm_async<T>(starpu_worker_hint, alpha, transA, A, transB, B, beta, C, ndim, batch_ndim,
             redux);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void gemm_async<fp32_t>(Scalar alpha, const TransOp &transA,
+void gemm_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp32_t> &A,
         const TransOp &transB, const Tile<fp32_t> &B, Scalar beta,
         const Tile<fp32_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
-void gemm_async<fp32_fast_tf32_t>(Scalar alpha, const TransOp &transA,
+void gemm_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp32_fast_tf32_t> &A,
         const TransOp &transB, const Tile<fp32_fast_tf32_t> &B, Scalar beta,
         const Tile<fp32_fast_tf32_t> &C, Index ndim, Index batch_ndim,
         int redux);
 
 template
-void gemm_async<fp32_fast_fp16_t>(Scalar alpha, const TransOp &transA,
+void gemm_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp32_fast_fp16_t> &A,
         const TransOp &transB, const Tile<fp32_fast_fp16_t> &B, Scalar beta,
         const Tile<fp32_fast_fp16_t> &C, Index ndim, Index batch_ndim,
         int redux);
 
 template
-void gemm_async<fp32_fast_bf16_t>(Scalar alpha, const TransOp &transA,
+void gemm_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp32_fast_bf16_t> &A,
         const TransOp &transB, const Tile<fp32_fast_bf16_t> &B, Scalar beta,
         const Tile<fp32_fast_bf16_t> &C, Index ndim, Index batch_ndim,
         int redux);
 
 template
-void gemm_async<fp64_t>(Scalar alpha, const TransOp &transA,
+void gemm_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp64_t> &A,
         const TransOp &transB, const Tile<fp64_t> &B, Scalar beta,
         const Tile<fp64_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
-void gemm_async<bf16_t>(Scalar alpha, const TransOp &transA,
+void gemm_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<bf16_t> &A,
         const TransOp &transB, const Tile<bf16_t> &B, Scalar beta,
         const Tile<bf16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
-void gemm_async<fp16_t>(Scalar alpha, const TransOp &transA,
+void gemm_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp16_t> &A,
         const TransOp &transB, const Tile<fp16_t> &B, Scalar beta,
         const Tile<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 // Explicit instantiation
 template
-void gemm<fp32_t>(Scalar alpha, const TransOp &transA,
+void gemm<fp32_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp32_t> &A,
         const TransOp &transB, const Tile<fp32_t> &B, Scalar beta,
         const Tile<fp32_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
-void gemm<fp32_fast_tf32_t>(Scalar alpha, const TransOp &transA,
+void gemm<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp32_fast_tf32_t> &A,
         const TransOp &transB, const Tile<fp32_fast_tf32_t> &B, Scalar beta,
         const Tile<fp32_fast_tf32_t> &C, Index ndim, Index batch_ndim,
         int redux);
 
 template
-void gemm<fp32_fast_fp16_t>(Scalar alpha, const TransOp &transA,
+void gemm<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp32_fast_fp16_t> &A,
         const TransOp &transB, const Tile<fp32_fast_fp16_t> &B, Scalar beta,
         const Tile<fp32_fast_fp16_t> &C, Index ndim, Index batch_ndim,
         int redux);
 
 template
-void gemm<fp32_fast_bf16_t>(Scalar alpha, const TransOp &transA,
+void gemm<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp32_fast_bf16_t> &A,
         const TransOp &transB, const Tile<fp32_fast_bf16_t> &B, Scalar beta,
         const Tile<fp32_fast_bf16_t> &C, Index ndim, Index batch_ndim,
         int redux);
 
 template
-void gemm<fp64_t>(Scalar alpha, const TransOp &transA,
+void gemm<fp64_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp64_t> &A,
         const TransOp &transB, const Tile<fp64_t> &B, Scalar beta,
         const Tile<fp64_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
-void gemm<bf16_t>(Scalar alpha, const TransOp &transA,
+void gemm<bf16_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<bf16_t> &A,
         const TransOp &transB, const Tile<bf16_t> &B, Scalar beta,
         const Tile<bf16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
-void gemm<fp16_t>(Scalar alpha, const TransOp &transA,
+void gemm<fp16_t>(int starpu_worker_hint, Scalar alpha, const TransOp &transA,
         const Tile<fp16_t> &A,
         const TransOp &transB, const Tile<fp16_t> &B, Scalar beta,
         const Tile<fp16_t> &C, Index ndim, Index batch_ndim, int redux);

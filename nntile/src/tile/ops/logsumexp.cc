@@ -27,7 +27,7 @@ namespace
 template<typename T>
 void run_lse(Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::core::logsumexp<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d));
+    nntile::core::logsumexp<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
 } // namespace
 void logsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst)

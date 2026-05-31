@@ -28,7 +28,7 @@ template<typename T>
 void run(
     Runtime& runtime, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d)
 {
-    nntile::core::hypot_inplace<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
+    nntile::core::hypot_inplace<T>(runtime.starpu_worker_hint(), a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
 }
 } // namespace
 void hypot_inplace(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNode* dst)

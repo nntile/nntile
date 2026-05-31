@@ -69,7 +69,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_slice (axis=0)
         B.release();
         C.release();
     }
-    nntile::core::sumprod_slice<fp32_t>(a, t1, t2, b, td, ax, redux);
+    nntile::core::sumprod_slice<fp32_t>(-1, a, t1, t2, b, td, ax, redux);
     starpu_task_wait_for_all();
     std::vector<float> tref(nd);
     {

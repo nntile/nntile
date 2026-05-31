@@ -47,8 +47,8 @@ void validate()
     dx_local.release();
     dx_ref_local.release();
 
-    starpu::rope_backward.submit<std::tuple<T>>(2, 5, sin, cos, dy, dx);
-    rope_backward<T>(sin, cos, dy, dx_ref);
+    starpu::rope_backward.submit<std::tuple<T>>(-1, 2, 5, sin, cos, dy, dx);
+    rope_backward<T>(-1, sin, cos, dy, dx_ref);
 
     dx_local.acquire(STARPU_R);
     dx_ref_local.acquire(STARPU_R);

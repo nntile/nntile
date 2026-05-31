@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void multiply_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void multiply_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -71,13 +71,13 @@ void multiply_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2
     if(mpi_rank == dst_rank)
     {
         // Insert corresponding task
-        starpu::multiply_fiber.submit<std::tuple<T>>(m, n, k, alpha, src1,
+        starpu::multiply_fiber.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src1,
                 src2, dst);
     }
 }
 
 template<typename T>
-void multiply_fiber(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void multiply_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Blocking version of multiply_fiber_async<T>.
@@ -90,66 +90,66 @@ void multiply_fiber(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    multiply_fiber_async<T>(alpha, src1, src2, dst, axis);
+    multiply_fiber_async<T>(starpu_worker_hint, alpha, src1, src2, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void multiply_fiber_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
+void multiply_fiber_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src1,
         const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void multiply_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
+void multiply_fiber_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
         const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void multiply_fiber_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
+void multiply_fiber_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
         const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void multiply_fiber_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
+void multiply_fiber_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
         const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void multiply_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
+void multiply_fiber_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 template
-void multiply_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
+void multiply_fiber_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src1,
         const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
 
 template
-void multiply_fiber_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1,
+void multiply_fiber_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src1,
         const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void multiply_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
+void multiply_fiber<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src1,
         const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void multiply_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
+void multiply_fiber<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
         const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void multiply_fiber<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
+void multiply_fiber<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
         const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void multiply_fiber<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
+void multiply_fiber<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
         const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void multiply_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
+void multiply_fiber<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 template
-void multiply_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
+void multiply_fiber<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src1,
         const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
 
 template
-void multiply_fiber<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1,
+void multiply_fiber<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src1,
         const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::core

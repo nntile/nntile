@@ -44,7 +44,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
       for(Index i=0;i<n1;++i) p[i]=Y(a[static_cast<size_t>(i)]);
       for(Index j=0;j<n2;++j) q[j]=Y(0);
       p.release(); q.release(); }
-    nntile::core::maxsumexp<fp32_t>(S, D, axis, redux);
+    nntile::core::maxsumexp<fp32_t>(-1, S, D, axis, redux);
     starpu_task_wait_for_all();
     std::vector<float> tr(n2);
     { auto L=D.acquire(STARPU_R);

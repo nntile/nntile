@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void logsumexp_async(const Tile<T> &src, const Tile<T> &dst);
+void logsumexp_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst);
 
 template<typename T>
-void logsumexp(const Tile<T> &src, const Tile<T> &dst);
+void logsumexp(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::core

@@ -46,7 +46,7 @@ void validate_cpu(Index nelems)
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     fill.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::fill::submit<" << T::short_name << "> restricted to CPU\n";
-    fill.submit<std::tuple<T>>(nelems, val, data2_handle);
+    fill.submit<std::tuple<T>>(-1, nelems, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
@@ -106,7 +106,7 @@ void validate_cuda(Index nelems)
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     fill.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::fill::submit<" << T::short_name << "> restricted to CUDA\n";
-    fill.submit<std::tuple<T>>(nelems, val, data2_handle);
+    fill.submit<std::tuple<T>>(-1, nelems, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result

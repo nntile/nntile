@@ -21,11 +21,11 @@ namespace nntile::core
 
 // Asynchronous tile-wise backward ReLU operation
 template<typename T>
-void relu_backward_async(const Tile<T> &x, const Tile<T> &dy,
+void relu_backward_async(int starpu_worker_hint, const Tile<T> &x, const Tile<T> &dy,
         const Tile<T> &dx);
 
 // Blocking version of tile-wise backward ReLU operation
 template<typename T>
-void relu_backward(const Tile<T> &x, const Tile<T> &dy, const Tile<T> &dx);
+void relu_backward(int starpu_worker_hint, const Tile<T> &x, const Tile<T> &dy, const Tile<T> &dx);
 
 } // namespace nntile::core

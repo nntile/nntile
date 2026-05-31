@@ -35,8 +35,8 @@ void validate()
     al.release();
     bl.release();
     Scalar alpha = 2.0, exp = 1.5;
-    starpu::pow.submit<std::tuple<T>>(a.nelems, alpha, exp, a);
-    pow<T>(alpha, exp, b);
+    starpu::pow.submit<std::tuple<T>>(-1, a.nelems, alpha, exp, a);
+    pow<T>(-1, alpha, exp, b);
     al.acquire(STARPU_R);
     bl.acquire(STARPU_R);
     for(Index i = 0; i < a.nelems; ++i)

@@ -15,6 +15,7 @@
 #include <cstring>
 #include <memory>
 #include <nntile/context.hh>
+#include <nntile/core/execution_schedule.hh>
 #include <nntile/graph.hh>
 #include <nntile/nn/graph_ops.hh>
 
@@ -257,7 +258,49 @@ static void bind_runtime_methods(py::class_<PyRuntimeView> &cls)
             "sync_param_hint_from_runtime",
             [](PyRuntimeView &s, NNGraph::TensorNode *tensor)
             { sync_param_hint_from_runtime(*s.runtime, tensor); },
-            "tensor"_a);
+            "tensor"_a)
+        .def(
+            "apply_round_robin_execution_schedule",
+            [](PyRuntimeView &s) {
+                s.runtime->set_execution_schedule(
+                    s.runtime->generate_round_robin_execution_schedule());
+            })
+        .def(
+            "export_round_robin_execution_json",
+            [](PyRuntimeView &s, std::string const &path) {
+                nntile::write_execution_schedule_json(
+                    s.runtime->generate_round_robin_execution_schedule(),
+                    path);
+            },
+            "path"_a,
+            "Write round-robin execution.json without applying it to execute().")
+        .def(
+            "load_execution_schedule",
+            [](PyRuntimeView &s, std::string const &path) {
+                s.runtime->load_execution_schedule(path);
+            },
+            "path"_a)
+        .def(
+            "apply_execution_schedule_from_file",
+            [](PyRuntimeView &s, std::string const &path) {
+                s.runtime->apply_execution_schedule_from_file(path);
+            },
+            "path"_a)
+        .def(
+            "write_execution_schedule_json",
+            [](PyRuntimeView &s, std::string const &path) {
+                s.runtime->write_execution_schedule_json(path);
+            },
+            "path"_a)
+        .def(
+            "write_round_robin_execution_json",
+            [](PyRuntimeView &s, std::string const &path) {
+                s.runtime->write_execution_schedule_json(path);
+            },
+            "path"_a,
+            "Deprecated alias for write_execution_schedule_json; schedule "
+            "must already be set (e.g. via apply_round_robin_execution_"
+            "schedule).");
 }
 
 // ---------------------------------------------------------------------------
@@ -350,6 +393,16 @@ PYBIND11_MODULE(nntile, m)
         "Runtime(tile_graph).")
         .def(py::init<std::shared_ptr<TileGraph>>(), "tile_graph"_a)
         .def("compile", [](PyGraphRuntime &s) { s.runtime.compile(); })
+        .def("compile_with_round_robin_schedule",
+            [](PyGraphRuntime &s) {
+                s.runtime.compile_with_round_robin_schedule();
+            })
+        .def(
+            "apply_round_robin_execution_schedule",
+            [](PyGraphRuntime &s) {
+                s.runtime.set_execution_schedule(
+                    s.runtime.generate_round_robin_execution_schedule());
+            })
         .def(
             "bind_data",
             [](PyGraphRuntime &s,

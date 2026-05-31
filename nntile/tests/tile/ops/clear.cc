@@ -47,7 +47,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph clear matches tile", "
         for(Index i = 0; i < nelems; ++i) { l1[i] = Y(static_cast<float>(i) + 1.5f); }
         l1.release();
     }
-    nntile::core::clear<fp32_t>(tx);
+    nntile::core::clear<fp32_t>(-1, tx);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

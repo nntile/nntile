@@ -46,8 +46,8 @@ void check(Scalar alpha, Index axis)
     Index batch = src.matrix_shape[1][1];
     Index n = dst.matrix_shape[axis+1][1] / batch;
     Index k = dst.shape[axis];
-    starpu::scale_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, dst);
-    scale_fiber<T>(alpha, src, dst_ref, axis, 0);
+    starpu::scale_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src, dst);
+    scale_fiber<T>(-1, alpha, src, dst_ref, axis, 0);
 
     dl.acquire(STARPU_R);
     drl.acquire(STARPU_R);

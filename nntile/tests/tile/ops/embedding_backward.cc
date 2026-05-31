@@ -52,7 +52,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     { auto c=Vg.acquire(STARPU_W);
       for(int j=0;j<15;++j) c[j]=Y(vga[static_cast<size_t>(j)]);
       c.release(); }
-    nntile::core::embedding_backward<fp32_t>(m,n,k,k0,ks,I,Eg,Vg,redux);
+    nntile::core::embedding_backward<fp32_t>(-1, m,n,k,k0,ks,I,Eg,Vg,redux);
     starpu_task_wait_for_all();
     std::vector<float> tr(15);
     { auto L=Vg.acquire(STARPU_R);

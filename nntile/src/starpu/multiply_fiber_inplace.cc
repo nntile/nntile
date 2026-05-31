@@ -140,10 +140,10 @@ uint32_t MultiplyFiberInplace<std::tuple<T>>::footprint(struct starpu_task *task
 }
 
 template<typename T>
-void MultiplyFiberInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst)
+void MultiplyFiberInplace<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst)
 //! Insert multiply_fiber_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -156,7 +156,7 @@ void MultiplyFiberInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Scal
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_RW, dst.get(),

@@ -24,7 +24,7 @@ namespace nntile::core
  * @param[out] dst: Output tile for the element-wise GeLU operation
  * */
 template<typename T>
-void gelu_async(const Tile<T> &src, const Tile<T> &dst)
+void gelu_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();
@@ -32,7 +32,7 @@ void gelu_async(const Tile<T> &src, const Tile<T> &dst)
     if(mpi_rank == dst_rank)
     {
         // Submit task without any arguments checked
-        starpu::gelu.submit<std::tuple<T>>(src.nelems, src, dst);
+        starpu::gelu.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, src, dst);
     }
 }
 
@@ -41,60 +41,60 @@ void gelu_async(const Tile<T> &src, const Tile<T> &dst)
  * @param[out] dst: Output tile for the element-wise GeLU operation
  * */
 template<typename T>
-void gelu(const Tile<T> &src, const Tile<T> &dst)
+void gelu(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
-    gelu_async<T>(src, dst);
+    gelu_async<T>(starpu_worker_hint, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void gelu_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void gelu_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void gelu_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void gelu_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
                                   const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void gelu_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void gelu_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
                                 const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void gelu_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void gelu_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
                                 const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void gelu_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void gelu_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void gelu_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void gelu_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void gelu_async<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+void gelu_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void gelu<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void gelu<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void gelu<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void gelu<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
                             const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void gelu<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void gelu<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
                             const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void gelu<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void gelu<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
                             const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void gelu<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void gelu<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void gelu<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void gelu<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void gelu<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+void gelu<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 } // namespace nntile::core

@@ -164,7 +164,7 @@ uint32_t AdamWStep<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit AdamW step task
 template<typename T>
-void AdamWStep<std::tuple<T>>::submit(
+void AdamWStep<std::tuple<T>>::submit(int starpu_worker_hint,
     Index num_iter,
     Index num_elems,
     Scalar beta_1,
@@ -198,7 +198,7 @@ void AdamWStep<std::tuple<T>>::submit(
     {
         moments_mode = STARPU_RW;
     }
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, grad.get(),
             moments_mode, first_moment.get(),
             moments_mode, second_moment.get(),

@@ -20,11 +20,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void sumprod_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+void sumprod_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         Scalar beta, const Tile<T> &dst, Index axis, int redux=0);
 
 template<typename T>
-void sumprod_fiber(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta,
+void sumprod_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta,
         const Tile<T> &dst, Index axis, int redux=0);
 
 } // namespace nntile::core

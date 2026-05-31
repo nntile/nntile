@@ -21,10 +21,10 @@ namespace nntile::core
 
 //! Tile-wise sum
 template<typename T>
-void sum_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+void sum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
 
 //! Tile-wise sum
 template<typename T>
-void sum(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+void sum(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
 
 } // namespace nntile::core

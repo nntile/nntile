@@ -48,7 +48,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[grap
     { auto d=DX.acquire(STARPU_W);
       for(int i=0;i<20;++i) d[i]=Y(0.01f);
       d.release(); }
-    nntile::core::rope_backward<fp32_t>(Si, Co, DY, DX);
+    nntile::core::rope_backward<fp32_t>(-1, Si, Co, DY, DX);
     starpu_task_wait_for_all();
     std::vector<float> tr(20);
     { auto L=DX.acquire(STARPU_R);

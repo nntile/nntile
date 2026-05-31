@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void copy_async(const Tile<T> &src, const Tile<T> &dst);
+void copy_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst);
 
 template<typename T>
-void copy(const Tile<T> &src, const Tile<T> &dst);
+void copy(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::core

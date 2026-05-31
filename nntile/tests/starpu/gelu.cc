@@ -47,7 +47,7 @@ void validate_cpu(Index nelems)
         dst2_handle(&dst2[0], sizeof(T)*nelems);
     gelu.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gelu::submit<" << T::short_name << "> restricted to CPU\n";
-    gelu.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
+    gelu.submit<std::tuple<T>>(-1, nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -115,7 +115,7 @@ void validate_cuda(Index nelems)
         dst2_handle(&dst2[0], sizeof(T)*nelems);
     gelu.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::gelu::submit<" << T::short_name << "> restricted to CUDA\n";
-    gelu.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
+    gelu.submit<std::tuple<T>>(-1, nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result

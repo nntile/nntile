@@ -31,9 +31,9 @@ void validate()
     Scalar mean = 1, stddev = 2;
     // Check some valid parameters
     starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*3);
-    starpu::randn.submit<std::tuple<T>>(3, dst.nelems, seed, mean, stddev, start,
+    starpu::randn.submit<std::tuple<T>>(-1, 3, dst.nelems, seed, mean, stddev, start,
         dst.shape, dst.stride, underlying_shape, dst, tmp_index);
-    randn(dst2, start, underlying_shape, seed, mean, stddev);
+    randn(-1, dst2, start, underlying_shape, seed, mean, stddev);
     auto dst_local = dst.acquire(STARPU_R);
     auto dst2_local = dst.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)
@@ -44,12 +44,12 @@ void validate()
     dst2_local.release();
     // Check throwing exceptions
     std::vector<Index> ind2(2);
-    TEST_THROW(randn<T>(dst, ind2, underlying_shape, seed, mean, stddev));
-    TEST_THROW(randn<T>(dst, start, ind2, seed, mean, stddev));
+    TEST_THROW(randn<T>(-1, dst, ind2, underlying_shape, seed, mean, stddev));
+    TEST_THROW(randn<T>(-1, dst, start, ind2, seed, mean, stddev));
     start[0] = -1;
-    TEST_THROW(randn<T>(dst, start, underlying_shape, seed, mean, stddev));
+    TEST_THROW(randn<T>(-1, dst, start, underlying_shape, seed, mean, stddev));
     start[0] = 3;
-    TEST_THROW(randn<T>(dst, start, underlying_shape, seed, mean, stddev));
+    TEST_THROW(randn<T>(-1, dst, start, underlying_shape, seed, mean, stddev));
 }
 
 int main(int argc, char **argv)

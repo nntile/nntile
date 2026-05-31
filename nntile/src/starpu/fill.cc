@@ -131,14 +131,14 @@ uint32_t Fill<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Fill<std::tuple<T>>::submit(Index nelems, Scalar value, Handle data)
+void Fill<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Scalar value, Handle data)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     args->value = value;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_W, data.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);

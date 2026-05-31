@@ -43,7 +43,9 @@ docs/
     data-preparation.md     Dataset scripts
 ```
 
-Internal graph design notes under `docs/dev/` are not part of this guide.
+Internal graph design notes under `docs/dev/` (including
+[dev/graph_static_execution_plan.md](dev/graph_static_execution_plan.md)) are
+not part of this guide.
 
 ## Hardware note
 

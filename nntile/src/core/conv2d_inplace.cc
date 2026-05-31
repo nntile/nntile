@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void conv2d_inplace_async(Index src1_m, Index src1_n, Index src1_channels,
+void conv2d_inplace_async(int starpu_worker_hint, Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index dilation_m,
         Index dilation_n, Index dst_channels, Index offset_m, Index offset_n,
         Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Index dst_m,
@@ -33,7 +33,7 @@ void conv2d_inplace_async(Index src1_m, Index src1_n, Index src1_channels,
     src2.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        starpu::conv2d_inplace.submit<std::tuple<T>>(src1_m, src1_n,
+        starpu::conv2d_inplace.submit<std::tuple<T>>(starpu_worker_hint, src1_m, src1_n,
                 src1_channels, batch, src2_m, src2_n, dilation_m, dilation_n,
                 dst_channels, offset_m, offset_n, alpha, src1, src2, dst_m,
                 dst_n, stride_m, stride_n, beta, dst);
@@ -41,14 +41,14 @@ void conv2d_inplace_async(Index src1_m, Index src1_n, Index src1_channels,
 }
 
 template<typename T>
-void conv2d_inplace(Index src1_m, Index src1_n, Index src1_channels,
+void conv2d_inplace(int starpu_worker_hint, Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index dilation_m,
         Index dilation_n, Index dst_channels, Index offset_m, Index offset_n,
         Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Index dst_m,
         Index dst_n, Index stride_m, Index stride_n, Scalar beta,
         const Tile<T> &dst)
 {
-    conv2d_inplace_async<T>(src1_m, src1_n, src1_channels, batch, src2_m,
+    conv2d_inplace_async<T>(starpu_worker_hint, src1_m, src1_n, src1_channels, batch, src2_m,
             src2_n, dilation_m, dilation_n, dst_channels, offset_m, offset_n,
             alpha, src1, src2, dst_m, dst_n, stride_m, stride_n, beta, dst);
     starpu_task_wait_for_all();
@@ -56,7 +56,7 @@ void conv2d_inplace(Index src1_m, Index src1_n, Index src1_channels,
 
 // Explicit instantiation
 template
-void conv2d_inplace_async<bf16_t>(Index src1_m, Index src1_n,
+void conv2d_inplace_async<bf16_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<bf16_t> &src1,
@@ -64,7 +64,7 @@ void conv2d_inplace_async<bf16_t>(Index src1_m, Index src1_n,
         Index stride_n, Scalar beta, const Tile<bf16_t> &dst);
 
 template
-void conv2d_inplace_async<fp32_t>(Index src1_m, Index src1_n,
+void conv2d_inplace_async<fp32_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<fp32_t> &src1,
@@ -72,7 +72,7 @@ void conv2d_inplace_async<fp32_t>(Index src1_m, Index src1_n,
         Index stride_n, Scalar beta, const Tile<fp32_t> &dst);
 
 template
-void conv2d_inplace_async<fp32_fast_tf32_t>(Index src1_m, Index src1_n,
+void conv2d_inplace_async<fp32_fast_tf32_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
@@ -81,7 +81,7 @@ void conv2d_inplace_async<fp32_fast_tf32_t>(Index src1_m, Index src1_n,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void conv2d_inplace_async<fp32_fast_fp16_t>(Index src1_m, Index src1_n,
+void conv2d_inplace_async<fp32_fast_fp16_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
@@ -90,7 +90,7 @@ void conv2d_inplace_async<fp32_fast_fp16_t>(Index src1_m, Index src1_n,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void conv2d_inplace_async<fp32_fast_bf16_t>(Index src1_m, Index src1_n,
+void conv2d_inplace_async<fp32_fast_bf16_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
@@ -99,7 +99,7 @@ void conv2d_inplace_async<fp32_fast_bf16_t>(Index src1_m, Index src1_n,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void conv2d_inplace_async<fp64_t>(Index src1_m, Index src1_n,
+void conv2d_inplace_async<fp64_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<fp64_t> &src1,
@@ -108,7 +108,7 @@ void conv2d_inplace_async<fp64_t>(Index src1_m, Index src1_n,
 
 // Explicit instantiation
 template
-void conv2d_inplace<bf16_t>(Index src1_m, Index src1_n, Index src1_channels,
+void conv2d_inplace<bf16_t>(int starpu_worker_hint, Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index dilation_m,
         Index dilation_n, Index dst_channels, Index offset_m, Index offset_n,
         Scalar alpha, const Tile<bf16_t> &src1, const Tile<bf16_t> &src2,
@@ -116,7 +116,7 @@ void conv2d_inplace<bf16_t>(Index src1_m, Index src1_n, Index src1_channels,
         const Tile<bf16_t> &dst);
 
 template
-void conv2d_inplace<fp32_t>(Index src1_m, Index src1_n, Index src1_channels,
+void conv2d_inplace<fp32_t>(int starpu_worker_hint, Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index dilation_m,
         Index dilation_n, Index dst_channels, Index offset_m, Index offset_n,
         Scalar alpha, const Tile<fp32_t> &src1, const Tile<fp32_t> &src2,
@@ -124,7 +124,7 @@ void conv2d_inplace<fp32_t>(Index src1_m, Index src1_n, Index src1_channels,
         const Tile<fp32_t> &dst);
 
 template
-void conv2d_inplace<fp32_fast_tf32_t>(Index src1_m, Index src1_n,
+void conv2d_inplace<fp32_fast_tf32_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
@@ -133,7 +133,7 @@ void conv2d_inplace<fp32_fast_tf32_t>(Index src1_m, Index src1_n,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void conv2d_inplace<fp32_fast_fp16_t>(Index src1_m, Index src1_n,
+void conv2d_inplace<fp32_fast_fp16_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
@@ -142,7 +142,7 @@ void conv2d_inplace<fp32_fast_fp16_t>(Index src1_m, Index src1_n,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void conv2d_inplace<fp32_fast_bf16_t>(Index src1_m, Index src1_n,
+void conv2d_inplace<fp32_fast_bf16_t>(int starpu_worker_hint, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
         Index offset_n, Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
@@ -151,7 +151,7 @@ void conv2d_inplace<fp32_fast_bf16_t>(Index src1_m, Index src1_n,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void conv2d_inplace<fp64_t>(Index src1_m, Index src1_n, Index src1_channels,
+void conv2d_inplace<fp64_t>(int starpu_worker_hint, Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index dilation_m,
         Index dilation_n, Index dst_channels, Index offset_m, Index offset_n,
         Scalar alpha, const Tile<fp64_t> &src1, const Tile<fp64_t> &src2,

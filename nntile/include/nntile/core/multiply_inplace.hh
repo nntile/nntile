@@ -20,9 +20,9 @@ namespace nntile::core
 {
 
 template<typename T>
-void multiply_inplace_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
+void multiply_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
 
 template<typename T>
-void multiply_inplace(Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
+void multiply_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::core

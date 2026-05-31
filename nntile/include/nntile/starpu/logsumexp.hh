@@ -76,6 +76,7 @@ public:
 
     //! Submit logsumexp task
     void submit(
+        int starpu_worker_hint,
         Index nelems,
         Handle maxsumexp,
         Handle logsumexp

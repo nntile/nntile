@@ -40,7 +40,9 @@ from nntile import (
     Gpt2Causal,
     NNGraph,
     TokenMemoryMap,
+    apply_gpt2_tiling_json,
     init_random_parameter_hints,
+    load_gpt2_config_json,
     make_tiny_gpt2_config,
 )
 
@@ -57,6 +59,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description='GPT-2 graph training')
     p.add_argument('--train-bin', required=True, help='uint16 train.bin path')
     p.add_argument('--config', default='', help='GPT-2 JSON config path')
+    p.add_argument('--tiling', default='', help='tiling.json path')
+    p.add_argument('--execution', default='', help='execution.json path')
+    p.add_argument('--execution-out', default='', help='write execution.json')
     p.add_argument('--load-weights', default='', help='SafeTensors weights')
     p.add_argument('--output-dir', default='', help='checkpoint directory')
     p.add_argument('--seq', type=int, default=8)
@@ -76,6 +81,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument('--beta1', type=float, default=0.9)
     p.add_argument('--beta2', type=float, default=0.999)
     p.add_argument('--warmup-steps', type=int, default=0)
+    p.add_argument('--ncpu', type=int, default=1)
+    p.add_argument('--ncuda', type=int, default=0)
     return p.parse_args(argv)
 
 
@@ -91,17 +98,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.tiny or not args.config:
         config = make_tiny_gpt2_config()
     else:
-        raise SystemExit(
-            'JSON config loading not wired in Python yet; use --tiny')
+        config = load_gpt2_config_json(args.config)
 
     print('=== GPT-2 training (setup) ===')
     print(
         f'hidden={config.hidden_size}  layers={config.num_hidden_layers}  '
         f'heads={config.num_attention_heads}  seq={n_seq}  batch={n_batch}  '
-        f'epochs={args.epochs}',
+        f'epochs={args.epochs}  ncpu={args.ncpu}  ncuda={args.ncuda}',
     )
 
-    _ctx = Context(1, 0, 0, '/tmp/nntile_ooc', 16777216, 0, 'localhost', 5001, 0)
+    _ctx = Context(
+        args.ncpu,
+        args.ncuda,
+        0,
+        '/tmp/nntile_ooc',
+        16777216,
+        0,
+        'localhost',
+        5001,
+        0,
+    )
 
     graph = NNGraph('gpt2_training')
     model = Gpt2Causal(graph, 'model', config)
@@ -125,6 +141,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         init_random_parameter_hints(model, args.seed)
 
+    if args.tiling:
+        apply_gpt2_tiling_json(graph, args.tiling, config, n_seq, n_batch)
+        print(f'Tiling: loaded {args.tiling}')
+
     optimizer = AdamW(
         graph,
         model,
@@ -140,11 +160,13 @@ def main(argv: list[str] | None = None) -> int:
     fill_arange_position_ids(pos_data, n_seq, n_batch)
     mask_data = sdpa_causal_mask_bool_fortran_fill(n_seq)
 
-    # Phase suffixes keep tensor names unique across incremental steps (C++ default).
     graph.enable_auto_tensor_name_phase_suffix(True)
     ce_scale = 1.0 / float(n_seq * n_batch)
 
     bound_optimizer_state = False
+    execution_path = args.execution if args.execution else None
+    use_round_robin_fallback = False
+    execution_out_written = False
     train_mmap = TokenMemoryMap(args.train_bin)
     lcfg = CausalLmBatchConfig()
     lcfg.n_seq = n_seq
@@ -153,6 +175,14 @@ def main(argv: list[str] | None = None) -> int:
     lcfg.seed = args.seed
     mmap_batch = CausalLmBatch()
     train_step = 0
+
+    def apply_round_robin_schedule(runtime) -> None:
+        nonlocal execution_out_written
+        runtime.apply_round_robin_execution_schedule()
+        if args.execution_out and not execution_out_written:
+            runtime.write_execution_schedule_json(args.execution_out)
+            execution_out_written = True
+            print(f'Execution: wrote {args.execution_out}')
 
     for epoch in range(args.epochs):
         if args.max_batches > 0 and train_step >= args.max_batches:
@@ -191,6 +221,23 @@ def main(argv: list[str] | None = None) -> int:
             graph.lower_and_compile()
             runtime = graph.runtime()
 
+            if execution_path:
+                try:
+                    runtime.apply_execution_schedule_from_file(execution_path)
+                    if train_step == 0:
+                        print(f'Execution: loaded {execution_path}')
+                except RuntimeError as ex:
+                    print(
+                        f'Execution: load failed ({ex}); using round-robin',
+                        file=sys.stderr,
+                    )
+                    execution_path = None
+                    use_round_robin_fallback = True
+            if not execution_path and (
+                use_round_robin_fallback or args.execution_out
+            ):
+                apply_round_robin_schedule(runtime)
+
             if not bound_optimizer_state:
                 for _sname, stensor in optimizer.named_state_tensors():
                     n = 1
@@ -224,8 +271,6 @@ def main(argv: list[str] | None = None) -> int:
                     f'Batch {train_step}  loss={loss_val}  ({us:.0f} us)',
                 )
 
-            # Persist updated weights / optimizer state for incremental phases
-            # (required before reset_incremental_tile_state on the next step).
             for ptensor in graph.parameters():
                 runtime.sync_param_hint_from_runtime(ptensor)
             for _sname, stensor in optimizer.named_state_tensors():
@@ -236,7 +281,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_dir:
         out = Path(args.output_dir)
         out.mkdir(parents=True, exist_ok=True)
-        print(f'output-dir set to {out} (save not implemented in v1)')
+        cfg_path = out / 'config.json'
+        w_path = out / 'model.safetensors'
+        import json
+
+        cfg_path.write_text(
+            json.dumps(
+                {
+                    'vocab_size': config.vocab_size,
+                    'hidden_size': config.hidden_size,
+                    'intermediate_size': config.intermediate_size,
+                    'num_hidden_layers': config.num_hidden_layers,
+                    'num_attention_heads': config.num_attention_heads,
+                    'max_position_embeddings': config.max_position_embeddings,
+                    'layer_norm_eps': config.layer_norm_eps,
+                },
+                indent=2,
+            ),
+            encoding='utf-8',
+        )
+        model.save(str(w_path))
+        print(f'Wrote {cfg_path} and {w_path}')
 
     return 0
 

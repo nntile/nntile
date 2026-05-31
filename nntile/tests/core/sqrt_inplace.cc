@@ -40,15 +40,15 @@ void validate()
     }
     tile2_local.release();
     tile2_copy_local.release();
-    starpu::sqrt_inplace.submit<std::tuple<T>>(1, tile1);
-    sqrt_inplace<T>(tile1_copy);
+    starpu::sqrt_inplace.submit<std::tuple<T>>(-1, 1, tile1);
+    sqrt_inplace<T>(-1, tile1_copy);
     tile1_local.acquire(STARPU_R);
     tile1_copy_local.acquire(STARPU_R);
     TEST_ASSERT(Y(tile1_local[0]) == Y(tile1_copy_local[0]));
     tile1_local.release();
     tile1_copy_local.release();
-    starpu::sqrt_inplace.submit<std::tuple<T>>(tile2.nelems, tile2);
-    sqrt_inplace<T>(tile2_copy);
+    starpu::sqrt_inplace.submit<std::tuple<T>>(-1, tile2.nelems, tile2);
+    sqrt_inplace<T>(-1, tile2_copy);
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)

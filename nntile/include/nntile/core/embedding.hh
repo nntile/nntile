@@ -20,12 +20,12 @@ namespace nntile::core
 {
 
 template<typename T>
-void embedding_async(Index m, Index n, Index k, Index k_start, Index k_size,
+void embedding_async(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
         const Tile<int64_t> &index, const Tile<T> &vocab,
         const Tile<T> &embed);
 
 template<typename T>
-void embedding(Index m, Index n, Index k, Index k_start, Index k_size,
+void embedding(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
         const Tile<int64_t> &index, const Tile<T> &vocab,
         const Tile<T> &embed);
 

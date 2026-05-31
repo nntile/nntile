@@ -41,8 +41,8 @@ void validate()
     dxl.release();
     dxrl.release();
 
-    starpu::relu_backward.submit<std::tuple<T>>(x.nelems, x, dy, dx);
-    relu_backward<T>(x, dy, dxr);
+    starpu::relu_backward.submit<std::tuple<T>>(-1, x.nelems, x, dy, dx);
+    relu_backward<T>(-1, x, dy, dxr);
 
     dxl.acquire(STARPU_R);
     dxrl.acquire(STARPU_R);

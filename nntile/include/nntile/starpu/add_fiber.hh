@@ -81,6 +81,7 @@ public:
 
     //! Submit add task
     void submit(
+        int starpu_worker_hint,
         Index m,
         Index n,
         Index k,

@@ -80,6 +80,7 @@ public:
 
     //! Submit add_slice_inplace task
     void submit(
+        int starpu_worker_hint,
         Index m,
         Index n,
         Index k,

@@ -31,7 +31,7 @@ void validate()
         data[i] = Y(i+1);
     }
     Tile<T> tile(traits, &data[0], traits.nelems);
-    clear(tile);
+    clear(-1, tile);
     auto tile_local = tile.acquire(STARPU_R);
     constexpr Y zero = 0;
     for(Index i = 0; i < traits.nelems; ++i)

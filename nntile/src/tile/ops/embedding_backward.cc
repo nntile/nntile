@@ -29,7 +29,7 @@ template<typename T>
 void run(
     Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* i, TileGraph::TileNode* e, TileGraph::TileNode* v, int r)
 {
-    nntile::core::embedding_backward<T>(a, b, c, ks, kz, runtime.get_tile<nntile::int64_t>(i), runtime.get_tile<T>(e), runtime.get_tile<T>(v), r);
+    nntile::core::embedding_backward<T>(runtime.starpu_worker_hint(), a, b, c, ks, kz, runtime.get_tile<nntile::int64_t>(i), runtime.get_tile<T>(e), runtime.get_tile<T>(v), r);
 }
 } // namespace
 void embedding_backward(

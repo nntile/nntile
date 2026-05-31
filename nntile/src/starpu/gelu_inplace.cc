@@ -131,7 +131,7 @@ uint32_t GeluInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit gelu_inplace task
 template<typename T>
-void GeluInplace<std::tuple<T>>::submit(
+void GeluInplace<std::tuple<T>>::submit(int starpu_worker_hint,
     Index nelems,
     Handle data
 )
@@ -140,7 +140,7 @@ void GeluInplace<std::tuple<T>>::submit(
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_RW, data.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);

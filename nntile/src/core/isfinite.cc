@@ -24,14 +24,14 @@ namespace nntile::core
  *  @param[inout] flag: indicator of NaN or Inf values
  * */
 template<typename T>
-void isfinite_async(const Tile<T> &A, const Tile<bool_t> &flag)
+void isfinite_async(int starpu_worker_hint, const Tile<T> &A, const Tile<bool_t> &flag)
 {
     int mpi_rank = starpu_mpi_world_rank();
     int a_rank = A.mpi_get_rank();
     if(mpi_rank == a_rank)
     {
         // Submit task without any arguments checked
-        starpu::isfinite.submit<std::tuple<T>>(A.nelems, A, flag);
+        starpu::isfinite.submit<std::tuple<T>>(starpu_worker_hint, A.nelems, A, flag);
     }
 }
 
@@ -40,60 +40,60 @@ void isfinite_async(const Tile<T> &A, const Tile<bool_t> &flag)
  *  @param[inout] flag: indicator of NaN or Inf values
  * */
 template<typename T>
-void isfinite(const Tile<T> &A, const Tile<bool_t> &flag)
+void isfinite(int starpu_worker_hint, const Tile<T> &A, const Tile<bool_t> &flag)
 {
-    isfinite_async<T>(A, flag);
+    isfinite_async<T>(starpu_worker_hint, A, flag);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void isfinite_async<fp32_t>(const Tile<fp32_t> &A, const Tile<bool_t> &flag);
+void isfinite_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<fp64_t>(const Tile<fp64_t> &A, const Tile<bool_t> &flag);
+void isfinite_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<bf16_t>(const Tile<bf16_t> &A, const Tile<bool_t> &flag);
+void isfinite_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<fp16_t>(const Tile<fp16_t> &A, const Tile<bool_t> &flag);
+void isfinite_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<fp32_fast_tf32_t>(
+void isfinite_async<fp32_fast_tf32_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_tf32_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<fp32_fast_fp16_t>(
+void isfinite_async<fp32_fast_fp16_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_fp16_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<fp32_fast_bf16_t>(
+void isfinite_async<fp32_fast_bf16_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_bf16_t> &A, const Tile<bool_t> &flag);
 
 // Explicit instantiation
 template
-void isfinite<fp32_t>(const Tile<fp32_t> &A, const Tile<bool_t> &flag);
+void isfinite<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<fp64_t>(const Tile<fp64_t> &A, const Tile<bool_t> &flag);
+void isfinite<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<bf16_t>(const Tile<bf16_t> &A, const Tile<bool_t> &flag);
+void isfinite<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<fp16_t>(const Tile<fp16_t> &A, const Tile<bool_t> &flag);
+void isfinite<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<fp32_fast_tf32_t>(
+void isfinite<fp32_fast_tf32_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_tf32_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<fp32_fast_fp16_t>(
+void isfinite<fp32_fast_fp16_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_fp16_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<fp32_fast_bf16_t>(
+void isfinite<fp32_fast_bf16_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_bf16_t> &A, const Tile<bool_t> &flag);
 
 } // namespace nntile::core

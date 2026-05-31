@@ -21,12 +21,12 @@ namespace nntile::core
 
 // Tile-wise transpose operation
 template<typename T>
-void transpose_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void transpose_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index ndim);
 
 // Tile-wise transpose operation
 template<typename T>
-void transpose(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void transpose(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index ndim);
 
 } // namespace nntile::core

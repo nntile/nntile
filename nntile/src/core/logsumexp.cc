@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void logsumexp_async(const Tile<T> &src, const Tile<T> &dst)
+void logsumexp_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 // TODO - add description
 {
     // Check dimensions
@@ -51,66 +51,66 @@ void logsumexp_async(const Tile<T> &src, const Tile<T> &dst)
     if(mpi_rank == dst_rank)
     {
         // Insert task
-        starpu::logsumexp.submit<std::tuple<T>>(dst.nelems, src, dst);
+        starpu::logsumexp.submit<std::tuple<T>>(starpu_worker_hint, dst.nelems, src, dst);
     }
 }
 
 //! Tile-wise logsumexp
 template<typename T>
-void logsumexp(const Tile<T> &src, const Tile<T> &dst)
+void logsumexp(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
-    logsumexp_async<T>(src, dst);
+    logsumexp_async<T>(starpu_worker_hint, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void logsumexp_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void logsumexp_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void logsumexp_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void logsumexp_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
                                        const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void logsumexp_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void logsumexp_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
                                  const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void logsumexp_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void logsumexp_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
                                  const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void logsumexp_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void logsumexp_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void logsumexp_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void logsumexp_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void logsumexp_async<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+void logsumexp_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void logsumexp<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void logsumexp<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void logsumexp<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+void logsumexp<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &src,
                                  const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void logsumexp<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+void logsumexp<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &src,
                                  const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void logsumexp<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+void logsumexp<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &src,
                                  const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void logsumexp<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void logsumexp<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void logsumexp<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void logsumexp<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void logsumexp<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+void logsumexp<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 } // namespace nntile::core

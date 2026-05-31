@@ -160,7 +160,7 @@ uint32_t FlashSdpaBwdCudnn<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void FlashSdpaBwdCudnn<std::tuple<T>>::submit(Index seq, Index head,
+void FlashSdpaBwdCudnn<std::tuple<T>>::submit(int starpu_worker_hint, Index seq, Index head,
         Index batch, Handle K, Handle Q, Handle V, Handle A, Handle dA,
         Handle mask, Handle logsumexp, Handle dK, Handle dQ, Handle dV,
         Handle scratch_dK, Handle scratch_dQ, Handle scratch_dV)
@@ -171,7 +171,7 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::submit(Index seq, Index head,
     args->head = head;
     args->batch = batch;
 
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, K.get(),
             STARPU_R, Q.get(),
             STARPU_R, V.get(),

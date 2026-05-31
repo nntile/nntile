@@ -131,17 +131,17 @@ uint32_t GeluTanhBackward<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void GeluTanhBackward<std::tuple<T>>::submit(Index nelems, Handle x, Handle dy, Handle dx)
+void GeluTanhBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Handle x, Handle dy, Handle dx)
 //! Insert gelutanh_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, x.get(),
             STARPU_R, dy.get(),
             STARPU_RW, dx.get(),

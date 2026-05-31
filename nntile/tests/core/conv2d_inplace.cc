@@ -49,9 +49,9 @@ void validate()
     Y_ref_local.release();
     Y_tile_local.release();
 
-    starpu::conv2d_inplace.submit<std::tuple<T>>(3, 3, 1, 1, 2, 2, 1, 1, 1, 0,
+    starpu::conv2d_inplace.submit<std::tuple<T>>(-1, 3, 3, 1, 1, 2, 2, 1, 1, 1, 0,
             0, 1.0, X, C, 2, 2, 1, 1, 0.0, Y_ref);
-    conv2d_inplace<T>(3, 3, 1, 1, 2, 2, 1, 1, 1, 0, 0, 1.0, X, C, 2, 2, 1, 1,
+    conv2d_inplace<T>(-1, 3, 3, 1, 1, 2, 2, 1, 1, 1, 0, 0, 1.0, X, C, 2, 2, 1, 1,
             0.0, Y_tile);
 
     Y_ref_local.acquire(STARPU_R);

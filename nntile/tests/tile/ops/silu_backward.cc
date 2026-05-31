@@ -66,7 +66,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph silu_backward matches 
         l2.release();
         l3.release();
     }
-    nntile::core::silu_backward<fp32_t>(tx, tdy, tdx);
+    nntile::core::silu_backward<fp32_t>(-1, tx, tdy, tdx);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

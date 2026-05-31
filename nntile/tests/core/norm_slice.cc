@@ -54,9 +54,9 @@ void check()
     // axis=0
     {
         Index m = 1, n = 20, k = 3;
-        starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, beta,
+        starpu::norm_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src1, beta,
                 src2[0], dst[0], 0);
-        norm_slice<T>(alpha, src1, beta, src2[0], dst2[0], 0, 0);
+        norm_slice<T>(-1, alpha, src1, beta, src2[0], dst2[0], 0, 0);
         auto dl = dst[0].acquire(STARPU_R);
         auto d2l = dst2[0].acquire(STARPU_R);
         for(Index i = 0; i < dst[0].nelems; ++i)
@@ -69,9 +69,9 @@ void check()
     // axis=1
     {
         Index m = 3, n = 5, k = 4;
-        starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, beta,
+        starpu::norm_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src1, beta,
                 src2[1], dst[1], 0);
-        norm_slice<T>(alpha, src1, beta, src2[1], dst2[1], 1, 0);
+        norm_slice<T>(-1, alpha, src1, beta, src2[1], dst2[1], 1, 0);
         auto dl = dst[1].acquire(STARPU_R);
         auto d2l = dst2[1].acquire(STARPU_R);
         for(Index i = 0; i < dst[1].nelems; ++i)
@@ -84,9 +84,9 @@ void check()
     // axis=2
     {
         Index m = 12, n = 1, k = 5;
-        starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, beta,
+        starpu::norm_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src1, beta,
                 src2[2], dst[2], 0);
-        norm_slice<T>(alpha, src1, beta, src2[2], dst2[2], 2, 0);
+        norm_slice<T>(-1, alpha, src1, beta, src2[2], dst2[2], 2, 0);
         auto dl = dst[2].acquire(STARPU_R);
         auto d2l = dst2[2].acquire(STARPU_R);
         for(Index i = 0; i < dst[2].nelems; ++i)
@@ -106,10 +106,10 @@ void validate()
     Tile<T> slice({4, 5});
     Tile<T> wrong1({2, 4, 5});
     Tile<T> wrong2({2, 3, 5});
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, wrong1, slice, 0, 0));
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, wrong2, slice, 1, 0));
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, slice, slice, -1, 0));
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, slice, slice, 3, 0));
+    TEST_THROW(norm_slice<T>(-1, 1.0, src, 1.0, wrong1, slice, 0, 0));
+    TEST_THROW(norm_slice<T>(-1, 1.0, src, 1.0, wrong2, slice, 1, 0));
+    TEST_THROW(norm_slice<T>(-1, 1.0, src, 1.0, slice, slice, -1, 0));
+    TEST_THROW(norm_slice<T>(-1, 1.0, src, 1.0, slice, slice, 3, 0));
 }
 
 int main(int argc, char **argv)

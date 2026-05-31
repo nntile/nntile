@@ -37,7 +37,7 @@ void run_gelu(
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
-    nntile::core::gelu<T>(s, d);
+    nntile::core::gelu<T>(runtime.starpu_worker_hint(), s, d);
 }
 
 } // namespace

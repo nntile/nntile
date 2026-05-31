@@ -21,11 +21,11 @@ namespace nntile::core
 
 // Tile<T> per-element multiplication of a tensor and a broadcasted slice
 template<typename T>
-void multiply_slice_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void multiply_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis);
 
 // Tile<T> per-element multiplication of a tensor and a broadcasted slice
 template<typename T>
-void multiply_slice(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
+void multiply_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
 
 } // namespace nntile::core

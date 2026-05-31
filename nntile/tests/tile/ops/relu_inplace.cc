@@ -48,7 +48,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph relu_inplace matches t
         for(Index i = 0; i < nelems; ++i) { l1[i] = Y(dv[static_cast<size_t>(i)]); }
         l1.release();
     }
-    nntile::core::relu_inplace<fp32_t>(td);
+    nntile::core::relu_inplace<fp32_t>(-1, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Tile-wise norm
 template<typename T>
-void norm_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+void norm_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
 
 // Tile-wise norm
 template<typename T>
-void norm(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+void norm(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
 
 } // namespace nntile::core

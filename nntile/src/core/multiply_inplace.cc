@@ -25,7 +25,7 @@ namespace nntile::core
  * @param[inout] dst: Input and output tile for the multiply operation
  * */
 template<typename T>
-void multiply_inplace_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
+void multiply_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -38,7 +38,7 @@ void multiply_inplace_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst
     if(mpi_rank == dst_rank)
     {
         // Submit task
-        starpu::multiply_inplace.submit<std::tuple<T>>(src.nelems, alpha, src,
+        starpu::multiply_inplace.submit<std::tuple<T>>(starpu_worker_hint, src.nelems, alpha, src,
                 dst);
     }
 }
@@ -49,63 +49,63 @@ void multiply_inplace_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst
  * @param[inout] dst: Input and output tile for the multiply operation
  * */
 template<typename T>
-void multiply_inplace(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
+void multiply_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
-    multiply_inplace_async<T>(alpha, src, dst);
+    multiply_inplace_async<T>(starpu_worker_hint, alpha, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void multiply_inplace_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void multiply_inplace_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void multiply_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void multiply_inplace_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void multiply_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void multiply_inplace_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void multiply_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void multiply_inplace_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void multiply_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void multiply_inplace_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 template
-void multiply_inplace_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void multiply_inplace_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst);
 
 template
-void multiply_inplace_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+void multiply_inplace_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void multiply_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void multiply_inplace<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void multiply_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void multiply_inplace<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void multiply_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void multiply_inplace<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void multiply_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+void multiply_inplace<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void multiply_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void multiply_inplace<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void multiply_inplace<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void multiply_inplace<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 template
-void multiply_inplace<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+void multiply_inplace<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 } // namespace nntile::core

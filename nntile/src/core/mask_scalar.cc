@@ -23,7 +23,7 @@ namespace nntile::core
 /*! @param[inout] A: Tile for the element-wise mask scalar operation
  * */
 template<typename T>
-void mask_scalar_async(const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
+void mask_scalar_async(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
         Index batch_ndim)
 {
     Index effective_batch_ndim = batch_ndim;
@@ -53,7 +53,7 @@ void mask_scalar_async(const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
         return;
     }
     // Submit task without any arguments checked
-    starpu::mask_scalar.submit<std::tuple<T>>(
+    starpu::mask_scalar.submit<std::tuple<T>>(starpu_worker_hint, 
             A.matrix_shape[A.ndim-effective_batch_ndim][0],
             A.matrix_shape[A.ndim-effective_batch_ndim][1],
             mask, val, A);
@@ -63,69 +63,69 @@ void mask_scalar_async(const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
 /*! @param[inout] A: Tile for the element-wise mask scalar operation
  * */
 template<typename T>
-void mask_scalar(const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
+void mask_scalar(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val, const Tile<T> &A,
         Index batch_ndim)
 {
-    mask_scalar_async<T>(mask, val, A, batch_ndim);
+    mask_scalar_async<T>(starpu_worker_hint, mask, val, A, batch_ndim);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void mask_scalar_async<fp32_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar_async<fp32_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_t> &A, Index batch_ndim);
 
 template
-void mask_scalar_async<fp32_fast_tf32_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_tf32_t> &A, Index batch_ndim);
 
 template
-void mask_scalar_async<fp32_fast_fp16_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_fp16_t> &A, Index batch_ndim);
 
 template
-void mask_scalar_async<fp32_fast_bf16_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_bf16_t> &A, Index batch_ndim);
 
 template
-void mask_scalar_async<fp64_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar_async<fp64_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp64_t> &A, Index batch_ndim);
 
 template
-void mask_scalar_async<bf16_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar_async<bf16_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<bf16_t> &A, Index batch_ndim);
 
 template
-void mask_scalar_async<fp16_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar_async<fp16_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp16_t> &A, Index batch_ndim);
 
 // Explicit instantiation
 template
-void mask_scalar<fp32_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar<fp32_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_t> &A, Index batch_ndim);
 
 template
-void mask_scalar<fp32_fast_tf32_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_tf32_t> &A, Index batch_ndim);
 
 template
-void mask_scalar<fp32_fast_fp16_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_fp16_t> &A, Index batch_ndim);
 
 template
-void mask_scalar<fp32_fast_bf16_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_bf16_t> &A, Index batch_ndim);
 
 template
-void mask_scalar<fp64_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar<fp64_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp64_t> &A, Index batch_ndim);
 
 template
-void mask_scalar<bf16_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar<bf16_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<bf16_t> &A, Index batch_ndim);
 
 template
-void mask_scalar<fp16_t>(const Tile<bool_t> &mask, Scalar val,
+void mask_scalar<fp16_t>(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val,
         const Tile<fp16_t> &A, Index batch_ndim);
 
 } // namespace nntile::core

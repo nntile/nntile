@@ -139,11 +139,11 @@ uint32_t Hypot<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit hypot task
 template<typename T>
-void Hypot<std::tuple<T>>::submit(
+void Hypot<std::tuple<T>>::submit(int starpu_worker_hint,
         Index nelems, Scalar alpha, Handle src1, Scalar beta, Handle src2, Handle dst)
 //! Insert hypot task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -153,7 +153,7 @@ void Hypot<std::tuple<T>>::submit(
     args->alpha = alpha;
     args->beta = beta;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_W, dst.get(),

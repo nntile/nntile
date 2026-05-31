@@ -39,7 +39,7 @@ void run_gelu_backward(
     auto& x_t = runtime.get_tile<T>(x);
     auto& dy_t = runtime.get_tile<T>(dy);
     auto& dx_t = runtime.get_tile<T>(dx);
-    nntile::core::gelu_backward<T>(x_t, dy_t, dx_t);
+    nntile::core::gelu_backward<T>(runtime.starpu_worker_hint(), x_t, dy_t, dx_t);
 }
 
 } // namespace

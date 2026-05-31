@@ -28,7 +28,7 @@ template<typename T>
 void run(
     Runtime& runtime, TileGraph::TileNode* K_, TileGraph::TileNode* Q_, TileGraph::TileNode* m, TileGraph::TileNode* l, TileGraph::TileNode* V_, TileGraph::TileNode* A_)
 {
-    nntile::core::flash_sdpa_fwd_cudnn<T>(runtime.get_tile<T>(K_), runtime.get_tile<T>(Q_), runtime.get_tile<T>(m), runtime.get_tile<nntile::fp32_t>(l), runtime.get_tile<T>(V_), runtime.get_tile<T>(A_));
+    nntile::core::flash_sdpa_fwd_cudnn<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(K_), runtime.get_tile<T>(Q_), runtime.get_tile<T>(m), runtime.get_tile<nntile::fp32_t>(l), runtime.get_tile<T>(V_), runtime.get_tile<T>(A_));
 }
 } // namespace
 void flash_sdpa_fwd_cudnn(

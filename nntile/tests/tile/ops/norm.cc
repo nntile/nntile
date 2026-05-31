@@ -56,7 +56,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm matches tile", "[
         b[0] = Y(0);
         b.release();
     }
-    nntile::core::norm<fp32_t>(alpha, ts, beta, td);
+    nntile::core::norm<fp32_t>(-1, alpha, ts, beta, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(1);
     {

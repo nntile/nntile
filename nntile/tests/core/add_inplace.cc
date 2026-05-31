@@ -39,8 +39,8 @@ void validate()
     dst_ref_local.release();
 
     Scalar alpha = -0.5, beta = 0.3;
-    starpu::add_inplace.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
-    add_inplace<T>(alpha, src, beta, dst_ref);
+    starpu::add_inplace.submit<std::tuple<T>>(-1, src.nelems, alpha, src, beta, dst);
+    add_inplace<T>(-1, alpha, src, beta, dst_ref);
 
     dst_local.acquire(STARPU_R);
     dst_ref_local.acquire(STARPU_R);
@@ -51,7 +51,7 @@ void validate()
     dst_local.release();
     dst_ref_local.release();
 
-    TEST_THROW(add_inplace<T>(alpha, Tile<T>({2}), beta, Tile<T>({3})));
+    TEST_THROW(add_inplace<T>(-1, alpha, Tile<T>({2}), beta, Tile<T>({3})));
 }
 
 int main(int argc, char **argv)

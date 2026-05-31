@@ -51,7 +51,7 @@ void validate_cpu(Index m, Index n)
         dst2_handle(&dst2[0], sizeof(T)*m*n);
     transpose.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::transpose::submit<" << T::short_name << "> restricted to CPU\n";
-    transpose.submit<std::tuple<T>>(m, n, 0.5, src_handle, dst2_handle);
+    transpose.submit<std::tuple<T>>(-1, m, n, 0.5, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -123,7 +123,7 @@ void validate_cuda(Index m, Index n)
         dst2_handle(&dst2[0], sizeof(T)*m*n);
     transpose.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::transpose::submit<" << T::short_name << "> restricted to CUDA\n";
-    transpose.submit<std::tuple<T>>(m, n, 0.5, src_handle, dst2_handle);
+    transpose.submit<std::tuple<T>>(-1, m, n, 0.5, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result

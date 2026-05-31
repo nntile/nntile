@@ -44,7 +44,7 @@ void validate()
     dst_local.release();
 
     // Run norm operation
-    norm_async<T>(1.0, src, 0.0, dst);
+    norm_async<T>(-1, 1.0, src, 0.0, dst);
     starpu_task_wait_for_all();
 
     // Check result

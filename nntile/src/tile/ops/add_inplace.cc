@@ -37,7 +37,7 @@ void run_add_inplace(
 {
     auto& x_t = runtime.get_tile<T>(x);
     auto& y_t = runtime.get_tile<T>(y);
-    nntile::core::add_inplace<T>(alpha, x_t, beta, y_t);
+    nntile::core::add_inplace<T>(runtime.starpu_worker_hint(), alpha, x_t, beta, y_t);
 }
 
 } // namespace

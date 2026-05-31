@@ -61,7 +61,7 @@ void validate_cpu(Index nrows, Index ncols)
     VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nrows);
     mask_scalar.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::mask_scalar::submit<" << T::short_name << "> restricted to CPU\n";
-    mask_scalar.submit<std::tuple<T>>(nrows, ncols, mask_handle, val, data2_handle);
+    mask_scalar.submit<std::tuple<T>>(-1, nrows, ncols, mask_handle, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     mask_handle.unregister();
@@ -145,7 +145,7 @@ void validate_cuda(Index nrows, Index ncols)
     VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nrows);
     mask_scalar.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::mask_scalar::submit<" << T::short_name << "> restricted to CUDA\n";
-    mask_scalar.submit<std::tuple<T>>(nrows, ncols, mask_handle, val, data2_handle);
+    mask_scalar.submit<std::tuple<T>>(-1, nrows, ncols, mask_handle, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     mask_handle.unregister();

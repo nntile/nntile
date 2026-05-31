@@ -71,6 +71,7 @@ public:
 #endif
 
     void submit(
+        int starpu_worker_hint,
         Index seq,
         Index head,
         Index batch,

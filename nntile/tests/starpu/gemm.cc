@@ -105,7 +105,7 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
         C2_handle(&C2[0], sizeof(T)*C.size());
     gemm.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gemm::submit<" << T::short_name << "> restricted to CPU\n";
-    gemm.submit<std::tuple<T>>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
+    gemm.submit<std::tuple<T>>(-1, transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
@@ -275,7 +275,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
         C2_handle(&C2[0], sizeof(T)*C.size());
     gemm.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::gemm::submit<" << T::short_name << "> restricted to CUDA\n";
-    gemm.submit<std::tuple<T>>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
+    gemm.submit<std::tuple<T>>(-1, transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();

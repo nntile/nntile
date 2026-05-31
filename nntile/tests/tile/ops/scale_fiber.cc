@@ -52,7 +52,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_fiber", "[graph]
       for(Index i = 0; i < nf; ++i) A[i] = Y(f1[static_cast<size_t>(i)]);
       for(Index i = 0; i < n; ++i) B[i] = Y(0);
       A.release(); B.release(); }
-    nntile::core::scale_fiber<fp32_t>(a, ts, td, axis, batch);
+    nntile::core::scale_fiber<fp32_t>(-1, a, ts, td, axis, batch);
     starpu_task_wait_for_all();
     std::vector<float> tref(n);
     { auto L = td.acquire(STARPU_R);

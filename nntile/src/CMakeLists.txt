@@ -339,6 +339,7 @@ set(LOGGER_SRC
 
 set(GRAPH_TENSOR_LAYER_SRC
     "tensor/axis_descriptor.cc"
+    "tensor/tiling_spec_json.cc"
     "tensor/tensor_graph_tiling.cc"
     "tensor/graph_data_node.cc"
     "tensor/graph_op_node.cc"
@@ -534,6 +535,7 @@ set(GRAPH_OPTIM_SRC
 )
 
 set(GRAPH_RUNTIME_SRC
+    "core/execution_schedule.cc"
     "runtime.cc"
     )
 
@@ -649,7 +651,7 @@ function(nntile_add_objs name)
     nntile_apply_common_includes(${name})
     nntile_apply_cuda(${name})
     nntile_apply_cblas(${name})
-    if(name MATCHES "nntile_objs_(optim|io)$")
+    if(name MATCHES "nntile_objs_(optim|io|tensor|runtime)$")
         target_link_libraries(${name} PUBLIC nlohmann_json::nlohmann_json)
     endif()
     target_link_libraries(nntile PRIVATE ${name})

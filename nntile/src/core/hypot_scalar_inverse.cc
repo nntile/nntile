@@ -20,80 +20,80 @@ namespace nntile::core
 {
 
 template<typename T>
-void hypot_scalar_inverse_async(Scalar eps, Scalar alpha, const Tile<T> &dst)
+void hypot_scalar_inverse_async(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst)
 {
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();
     if(mpi_rank == dst_rank)
     {
-        starpu::hypot_scalar_inverse.submit<std::tuple<T>>(dst.nelems, eps,
+        starpu::hypot_scalar_inverse.submit<std::tuple<T>>(starpu_worker_hint, dst.nelems, eps,
                 alpha, dst);
     }
 }
 
 template<typename T>
-void hypot_scalar_inverse(Scalar eps, Scalar alpha, const Tile<T> &dst)
+void hypot_scalar_inverse(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst)
 {
-    hypot_scalar_inverse_async<T>(eps, alpha, dst);
+    hypot_scalar_inverse_async<T>(starpu_worker_hint, eps, alpha, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void hypot_scalar_inverse_async<fp32_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp32_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_t> &dst);
 
 template
-void hypot_scalar_inverse_async<bf16_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<bf16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<bf16_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp32_fast_tf32_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp32_fast_fp16_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp32_fast_bf16_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp64_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp64_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp64_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp16_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse_async<fp16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp16_t> &dst);
 
 // Explicit instantiation of template
 template
-void hypot_scalar_inverse<fp32_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp32_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_t> &dst);
 
 template
-void hypot_scalar_inverse<fp32_fast_tf32_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void hypot_scalar_inverse<fp32_fast_fp16_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void hypot_scalar_inverse<fp32_fast_bf16_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void hypot_scalar_inverse<fp64_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp64_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp64_t> &dst);
 
 template
-void hypot_scalar_inverse<bf16_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<bf16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<bf16_t> &dst);
 
 template
-void hypot_scalar_inverse<fp16_t>(Scalar eps, Scalar alpha,
+void hypot_scalar_inverse<fp16_t>(int starpu_worker_hint, Scalar eps, Scalar alpha,
         const Tile<fp16_t> &dst);
 
 } // namespace nntile::core

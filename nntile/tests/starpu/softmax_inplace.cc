@@ -54,7 +54,7 @@ void validate_cpu(Index m, Index n, Index k)
         dst2_handle(&dst2[0], sizeof(T)*m*n*k);
     softmax_inplace.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::softmax_inplace::submit<" << T::short_name << "> restricted to CPU\n";
-    softmax_inplace.submit<std::tuple<T>>(m, n, k, maxsumexp_handle, alpha, dst2_handle);
+    softmax_inplace.submit<std::tuple<T>>(-1, m, n, k, maxsumexp_handle, alpha, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -129,7 +129,7 @@ void validate_cuda(Index m, Index n, Index k)
         dst2_handle(&dst2[0], sizeof(T)*m*n*k);
     softmax_inplace.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::softmax_inplace::submit<" << T::short_name << "> restricted to CUDA\n";
-    softmax_inplace.submit<std::tuple<T>>(m, n, k, maxsumexp_handle, alpha, dst2_handle);
+    softmax_inplace.submit<std::tuple<T>>(-1, m, n, k, maxsumexp_handle, alpha, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result

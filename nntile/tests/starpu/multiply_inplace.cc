@@ -47,7 +47,7 @@ void validate_cpu(Index nelems)
         dst2_handle(&dst2[0], sizeof(T)*nelems);
     multiply_inplace.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::multiply_inplace::submit<" << T::short_name << "> restricted to CPU\n";
-    multiply_inplace.submit<std::tuple<T>>(nelems, 1.0, src_handle, dst2_handle);
+    multiply_inplace.submit<std::tuple<T>>(-1, nelems, 1.0, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
     dst2_handle.unregister();
@@ -116,7 +116,7 @@ void validate_cuda(Index nelems)
         dst2_handle(&dst2[0], sizeof(T)*nelems);
     multiply_inplace.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::multiply_inplace::submit<" << T::short_name << "> restricted to CUDA\n";
-    multiply_inplace.submit<std::tuple<T>>(nelems, 1.0, src_handle, dst2_handle);
+    multiply_inplace.submit<std::tuple<T>>(-1, nelems, 1.0, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
     dst2_handle.unregister();

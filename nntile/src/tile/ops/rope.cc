@@ -31,7 +31,7 @@ template<typename T>
 void run(
     Runtime& runtime, TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::core::rope<T>(runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(s), runtime.get_tile<T>(d));
+    nntile::core::rope<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
 
 } // namespace

@@ -66,7 +66,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches
         b.release();
         c.release();
     }
-    nntile::core::multiply_fiber<fp32_t>(alpha, t1, t2, dst, axis);
+    nntile::core::multiply_fiber<fp32_t>(-1, alpha, t1, t2, dst, axis);
     starpu_task_wait_for_all();
     std::vector<float> tref(nfull);
     {

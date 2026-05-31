@@ -134,12 +134,12 @@ uint32_t ReluBackward<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void ReluBackward<std::tuple<T>>::submit(Index nelems, Handle x, Handle dy, Handle dx)
+void ReluBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Handle x, Handle dy, Handle dx)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     *args = args_t{nelems};
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, x.get(),
             STARPU_R, dy.get(),
             STARPU_RW, dx.get(),

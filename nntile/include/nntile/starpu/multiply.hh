@@ -77,6 +77,7 @@ public:
 
     //! Submit multiply task
     void submit(
+        int starpu_worker_hint,
         Index nelems,
         Scalar alpha,
         Handle src1,

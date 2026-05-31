@@ -86,6 +86,7 @@ public:
 
     //! Submit gemm task
     void submit(
+        int starpu_worker_hint,
         const TransOp &transA,
         const TransOp &transB,
         Index m,

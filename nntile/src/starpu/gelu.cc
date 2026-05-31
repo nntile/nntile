@@ -133,21 +133,21 @@ uint32_t Gelu<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit gelu task
 template<typename T>
-void Gelu<std::tuple<T>>::submit(
+void Gelu<std::tuple<T>>::submit(int starpu_worker_hint,
     Index nelems,
     Handle src,
     Handle dst
 )
 //! Insert gelu task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

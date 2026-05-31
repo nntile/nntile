@@ -83,7 +83,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
         }
         c.release();
     }
-    nntile::core::embedding<fp32_t>(m, n, k, k0, ks, I, V, E);
+    nntile::core::embedding<fp32_t>(-1, m, n, k, k0, ks, I, V, E);
     starpu_task_wait_for_all();
     std::vector<float> tr(12);
     {

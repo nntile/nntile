@@ -28,7 +28,7 @@ namespace
 template<typename T>
 void run(const TileConv2dInplaceOp& o, Runtime& runtime)
 {
-    nntile::core::conv2d_inplace<T>(o.src1_m, o.src1_n, o.src1_channels, o.batch, o.src2_m, o.src2_n, o.dilation_m, o.dilation_n, o.dst_channels, o.offset_m, o.offset_n, o.alpha, runtime.get_tile<T>(o.s1), runtime.get_tile<T>(o.s2), o.dst_m, o.dst_n, o.stride_m, o.stride_n, o.beta, runtime.get_tile<T>(o.dst));
+    nntile::core::conv2d_inplace<T>(runtime.starpu_worker_hint(), o.src1_m, o.src1_n, o.src1_channels, o.batch, o.src2_m, o.src2_n, o.dilation_m, o.dilation_n, o.dst_channels, o.offset_m, o.offset_n, o.alpha, runtime.get_tile<T>(o.s1), runtime.get_tile<T>(o.s2), o.dst_m, o.dst_n, o.stride_m, o.stride_n, o.beta, runtime.get_tile<T>(o.dst));
 }
 } // namespace
 void conv2d_inplace(

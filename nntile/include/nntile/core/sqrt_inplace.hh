@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Asynchronous tile-wise sqrt operation
 template<typename T>
-void sqrt_inplace_async(const Tile<T> &A);
+void sqrt_inplace_async(int starpu_worker_hint, const Tile<T> &A);
 
 // Blocking version of tile-wise sqrt operation
 template<typename T>
-void sqrt_inplace(const Tile<T> &A);
+void sqrt_inplace(int starpu_worker_hint, const Tile<T> &A);
 
 } // namespace nntile::core

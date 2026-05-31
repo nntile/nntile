@@ -28,7 +28,7 @@ template<typename T>
 void run(
     Runtime& runtime, TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* y, TileGraph::TileNode* x)
 {
-    nntile::core::rope_backward<T>(runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(y), runtime.get_tile<T>(x));
+    nntile::core::rope_backward<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(y), runtime.get_tile<T>(x));
 }
 } // namespace
 void rope_backward(TileGraph::TileNode* s1, TileGraph::TileNode* c, TileGraph::TileNode* y, TileGraph::TileNode* x)

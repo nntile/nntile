@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Tile-wise hypot_inplace operation
 template<typename T>
-void hypot_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+void hypot_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
 
 // Tile-wise hypot_inplace operation
 template<typename T>
-void hypot_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+void hypot_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
 
 } // namespace nntile::core

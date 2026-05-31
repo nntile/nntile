@@ -21,10 +21,10 @@ namespace nntile::core
 
 // Asynchronous tile-wise check Inf/NaN operation
 template<typename T>
-void isfinite_async(const Tile<T> &A, const Tile<bool_t> &flag);
+void isfinite_async(int starpu_worker_hint, const Tile<T> &A, const Tile<bool_t> &flag);
 
 // Blocking version of tile-wise check Inf/NaN operation
 template<typename T>
-void isfinite(const Tile<T> &A, const Tile<bool_t> &flag);
+void isfinite(int starpu_worker_hint, const Tile<T> &A, const Tile<bool_t> &flag);
 
 } // namespace nntile::core

@@ -79,10 +79,10 @@ void LogScalar<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args
 
 //! Submit log_scalar task
 template<typename T>
-void LogScalar<std::tuple<T>>::submit(const std::string &name, Handle value)
+void LogScalar<std::tuple<T>>::submit(int starpu_worker_hint, const std::string &name, Handle value)
 //! Insert log_scalar task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -95,7 +95,7 @@ void LogScalar<std::tuple<T>>::submit(const std::string &name, Handle value)
     args_t *args = new args_t();
     args->name = name;
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, value.get(),
             STARPU_CL_ARGS_NFREE, args, sizeof(*args),
             0);

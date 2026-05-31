@@ -52,7 +52,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_slice_inplace", "[
       for(Index i = 0; i < n1; ++i) A[i] = Y(v1[static_cast<size_t>(i)]);
       for(Index i = 0; i < n2; ++i) B[i] = Y(0.1f * static_cast<float>(i + 1));
       A.release(); B.release(); }
-    nntile::core::add_slice_inplace<fp32_t>(a, T1, b, T2, axis);
+    nntile::core::add_slice_inplace<fp32_t>(-1, a, T1, b, T2, axis);
     starpu_task_wait_for_all();
     std::vector<float> tref(60);
     { auto L = T2.acquire(STARPU_R);

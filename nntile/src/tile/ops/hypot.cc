@@ -28,7 +28,7 @@ template<typename T>
 void run_hy(
     Runtime& runtime, Scalar a, TileGraph::TileNode* s1, Scalar b, TileGraph::TileNode* s2, TileGraph::TileNode* d)
 {
-    nntile::core::hypot<T>(a, runtime.get_tile<T>(s1), b, runtime.get_tile<T>(s2), runtime.get_tile<T>(d));
+    nntile::core::hypot<T>(runtime.starpu_worker_hint(), a, runtime.get_tile<T>(s1), b, runtime.get_tile<T>(s2), runtime.get_tile<T>(d));
 }
 } // namespace
 void hypot(

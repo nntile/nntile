@@ -57,7 +57,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale matches tile", "
         a.release();
         b.release();
     }
-    nntile::core::scale<fp32_t>(alpha, ts, td);
+    nntile::core::scale<fp32_t>(-1, alpha, ts, td);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

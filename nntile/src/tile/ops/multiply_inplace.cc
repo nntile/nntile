@@ -27,7 +27,7 @@ namespace
 template<typename T>
 void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
-    nntile::core::multiply_inplace<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d));
+    nntile::core::multiply_inplace<T>(rt.starpu_worker_hint(), a, rt.get_tile<T>(s), rt.get_tile<T>(d));
 }
 } // namespace
 void multiply_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)

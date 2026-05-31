@@ -36,7 +36,7 @@ void run_transpose(
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
-    nntile::core::transpose<T>(alpha, s, d, ndim);
+    nntile::core::transpose<T>(runtime.starpu_worker_hint(), alpha, s, d, ndim);
 }
 
 } // namespace

@@ -52,9 +52,9 @@ void check(Scalar alpha, Scalar beta)
         Index m = src.stride[0];
         Index n = src.matrix_shape[1][1] / batch;
         Index k = src.shape[0];
-        starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, beta,
+        starpu::sum_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src, beta,
                 dst[0]);
-        sum_fiber<T>(alpha, src, beta, dst2[0], 0, 0);
+        sum_fiber<T>(-1, alpha, src, beta, dst2[0], 0, 0);
         auto dl = dst[0].acquire(STARPU_R);
         auto d2l = dst2[0].acquire(STARPU_R);
         for(Index i = 0; i < dst[0].nelems; ++i)
@@ -69,9 +69,9 @@ void check(Scalar alpha, Scalar beta)
         Index m = src.stride[1];
         Index n = src.matrix_shape[2][1] / batch;
         Index k = src.shape[1];
-        starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, beta,
+        starpu::sum_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src, beta,
                 dst[1]);
-        sum_fiber<T>(alpha, src, beta, dst2[1], 1, 0);
+        sum_fiber<T>(-1, alpha, src, beta, dst2[1], 1, 0);
         auto dl = dst[1].acquire(STARPU_R);
         auto d2l = dst2[1].acquire(STARPU_R);
         for(Index i = 0; i < dst[1].nelems; ++i)
@@ -86,9 +86,9 @@ void check(Scalar alpha, Scalar beta)
         Index m = src.stride[2];
         Index n = src.matrix_shape[3][1] / batch;
         Index k = src.shape[2];
-        starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, beta,
+        starpu::sum_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src, beta,
                 dst[2]);
-        sum_fiber<T>(alpha, src, beta, dst2[2], 2, 0);
+        sum_fiber<T>(-1, alpha, src, beta, dst2[2], 2, 0);
         auto dl = dst[2].acquire(STARPU_R);
         auto d2l = dst2[2].acquire(STARPU_R);
         for(Index i = 0; i < dst[2].nelems; ++i)

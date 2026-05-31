@@ -20,11 +20,11 @@ namespace nntile::core
 {
 
 template<typename T>
-void sum_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void sum_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, int redux=0);
 
 template<typename T>
-void sum_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void sum_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, int redux=0);
 
 } // namespace nntile::core

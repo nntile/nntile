@@ -37,7 +37,7 @@ void run_gelutanh(
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
-    nntile::core::gelutanh<T>(s, d);
+    nntile::core::gelutanh<T>(runtime.starpu_worker_hint(), s, d);
 }
 
 } // namespace

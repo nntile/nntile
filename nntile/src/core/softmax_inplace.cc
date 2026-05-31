@@ -20,7 +20,7 @@ namespace nntile::core
 {
 
 template<typename T>
-void softmax_inplace_async(const Tile<T> &maxsumexp, Scalar alpha,
+void softmax_inplace_async(int starpu_worker_hint, const Tile<T> &maxsumexp, Scalar alpha,
         const Tile<T> &dst, Index axis)
 {
     // Check dimensions
@@ -73,76 +73,76 @@ void softmax_inplace_async(const Tile<T> &maxsumexp, Scalar alpha,
     if(mpi_rank == dst_rank)
     {
         // Insert task
-        starpu::softmax_inplace.submit<std::tuple<T>>(m, n, k, maxsumexp,
+        starpu::softmax_inplace.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, maxsumexp,
                 alpha, dst);
     }
 }
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void softmax_inplace(const Tile<T> &maxsumexp, Scalar alpha, const Tile<T> &dst,
+void softmax_inplace(int starpu_worker_hint, const Tile<T> &maxsumexp, Scalar alpha, const Tile<T> &dst,
         Index axis)
 {
-    softmax_inplace_async<T>(maxsumexp, alpha, dst, axis);
+    softmax_inplace_async<T>(starpu_worker_hint, maxsumexp, alpha, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void softmax_inplace_async<fp32_t>(const Tile<fp32_t> &maxsumexp, Scalar alpha,
+void softmax_inplace_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &maxsumexp, Scalar alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void softmax_inplace_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &maxsumexp, Scalar alpha,
+void softmax_inplace_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &maxsumexp, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void softmax_inplace_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &maxsumexp, Scalar alpha,
+void softmax_inplace_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &maxsumexp, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void softmax_inplace_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &maxsumexp, Scalar alpha,
+void softmax_inplace_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &maxsumexp, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void softmax_inplace_async<fp64_t>(const Tile<fp64_t> &maxsumexp, Scalar alpha,
+void softmax_inplace_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &maxsumexp, Scalar alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 template
-void softmax_inplace_async<bf16_t>(const Tile<bf16_t> &maxsumexp, Scalar alpha,
+void softmax_inplace_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &maxsumexp, Scalar alpha,
         const Tile<bf16_t> &dst, Index axis);
 
 template
-void softmax_inplace_async<fp16_t>(const Tile<fp16_t> &maxsumexp, Scalar alpha,
+void softmax_inplace_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &maxsumexp, Scalar alpha,
         const Tile<fp16_t> &dst, Index axis);
 
 // Explicit instantiation
 template
-void softmax_inplace<fp32_t>(const Tile<fp32_t> &maxsumexp, Scalar alpha,
+void softmax_inplace<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &maxsumexp, Scalar alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void softmax_inplace<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &maxsumexp, Scalar alpha,
+void softmax_inplace<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &maxsumexp, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void softmax_inplace<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &maxsumexp, Scalar alpha,
+void softmax_inplace<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &maxsumexp, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void softmax_inplace<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &maxsumexp, Scalar alpha,
+void softmax_inplace<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &maxsumexp, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void softmax_inplace<fp64_t>(const Tile<fp64_t> &maxsumexp, Scalar alpha,
+void softmax_inplace<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &maxsumexp, Scalar alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 template
-void softmax_inplace<bf16_t>(const Tile<bf16_t> &maxsumexp, Scalar alpha,
+void softmax_inplace<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &maxsumexp, Scalar alpha,
         const Tile<bf16_t> &dst, Index axis);
 
 template
-void softmax_inplace<fp16_t>(const Tile<fp16_t> &maxsumexp, Scalar alpha,
+void softmax_inplace<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &maxsumexp, Scalar alpha,
         const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::core

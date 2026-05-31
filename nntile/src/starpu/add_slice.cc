@@ -160,7 +160,7 @@ uint32_t AddSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void AddSlice<std::tuple<T>>::submit(
+void AddSlice<std::tuple<T>>::submit(int starpu_worker_hint,
     Index m,
     Index n,
     Index k,
@@ -174,19 +174,19 @@ void AddSlice<std::tuple<T>>::submit(
     // If k is 1, then this operation reduces to add
     if(k == 1)
     {
-        add.submit<std::tuple<T>>(m*n, alpha, src1, beta, src2, dst);
+        add.submit<std::tuple<T>>(starpu_worker_hint, m*n, alpha, src1, beta, src2, dst);
         return;
     }
     // If alpha is zero then reduce to scale
     if(alpha == 0.0)
     {
-        scale.submit<std::tuple<T>>(m * k * n, beta, src2, dst);
+        scale.submit<std::tuple<T>>(starpu_worker_hint, m * k * n, beta, src2, dst);
         return;
     }
     // If beta is zero then reduce to scale_slice
     if(beta == 0.0)
     {
-        scale_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, dst);
+        scale_slice.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, alpha, src1, dst);
         return;
     }
     // Access mode for the dst handle
@@ -208,7 +208,7 @@ void AddSlice<std::tuple<T>>::submit(
     args->beta = beta;
     double nflops = m * n * (2*k+1);
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),

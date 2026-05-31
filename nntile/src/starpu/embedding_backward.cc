@@ -158,11 +158,11 @@ uint32_t EmbeddingBackward<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void EmbeddingBackward<std::tuple<T>>::submit(Index m, Index n, Index k, Index k_start, Index k_size,
+void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
         Handle index, Handle embed, Handle vocab, int redux)
 //! Insert embedding_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
+ * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
@@ -185,7 +185,7 @@ void EmbeddingBackward<std::tuple<T>>::submit(Index m, Index n, Index k, Index k
         vocab_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }
     // Submit task
-    int ret = starpu_task_insert(&codelet,
+    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, index.get(),
             STARPU_R, embed.get(),
             vocab_mode, vocab.get(),

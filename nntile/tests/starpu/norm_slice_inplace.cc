@@ -52,7 +52,7 @@ void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
         dst2_handle(&dst2[0], sizeof(T)*m*n);
     norm_slice_inplace.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::norm_slice_inplace::submit<" << T::short_name << "> restricted to CPU\n";
-    norm_slice_inplace.submit<std::tuple<T>>(m, n, k, alpha, src_handle, beta, dst2_handle);
+    norm_slice_inplace.submit<std::tuple<T>>(-1, m, n, k, alpha, src_handle, beta, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
