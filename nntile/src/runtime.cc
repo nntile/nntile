@@ -543,9 +543,10 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
     {
         if (use_static_schedule)
         {
-            starpu_worker_hint_ = sched::logical_worker_to_starpu_id(
+            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
                 execution_schedule_.worker_for_op(i),
-                execution_schedule_.use_cuda_workers);
+                execution_schedule_.use_cuda_workers,
+                execution_order_[i]->op_name());
         }
         else
         {
@@ -689,9 +690,10 @@ void Runtime::execute()
     {
         if (use_static_schedule)
         {
-            starpu_worker_hint_ = sched::logical_worker_to_starpu_id(
+            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
                 execution_schedule_.worker_for_op(i),
-                execution_schedule_.use_cuda_workers);
+                execution_schedule_.use_cuda_workers,
+                execution_order_[i]->op_name());
         }
         else
         {

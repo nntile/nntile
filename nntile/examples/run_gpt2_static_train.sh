@@ -80,10 +80,34 @@ echo ""
 echo "--- Loss summary (training) ---"
 demo_summarize_loss "${LOG_TRAIN}"
 
-FIRST_LOSS="$(grep -E '^Batch 0  ' "${LOG_TRAIN}" | head -1 | sed -n 's/.*loss=\([^ ]*\).*/\1/p')"
-LAST_LOSS="$(grep -E '^Batch ' "${LOG_TRAIN}" | tail -1 | sed -n 's/.*loss=\([^ ]*\).*/\1/p')"
-if [[ -n "${FIRST_LOSS}" && -n "${LAST_LOSS}" ]]; then
-    python3 - "${FIRST_LOSS}" "${LAST_LOSS}" <<'PY'
+if ! read -r FIRST_LOSS LAST_LOSS < <(python3 - "${LOG_TRAIN}" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+first_batch_loss = None
+last_loss = None
+batch_loss = re.compile(
+    r"^Batch\s+(\d+)\s+.*\bloss=([0-9.eE+-]+)")
+with open(path, encoding="utf-8", errors="replace") as f:
+    for line in f:
+        m = batch_loss.search(line)
+        if not m:
+            continue
+        step = int(m.group(1))
+        loss = float(m.group(2))
+        last_loss = loss
+        if step == 0 and first_batch_loss is None:
+            first_batch_loss = loss
+if first_batch_loss is None or last_loss is None:
+    sys.exit(1)
+print(f"{first_batch_loss} {last_loss}")
+PY
+); then
+    echo "error: could not parse batch-0 and final loss from ${LOG_TRAIN}" >&2
+    exit 1
+fi
+python3 - "${FIRST_LOSS}" "${LAST_LOSS}" <<'PY'
 import sys
 
 first, last = float(sys.argv[1]), float(sys.argv[2])
@@ -91,6 +115,5 @@ if not (last < first):
     raise SystemExit(f"expected loss to decrease: first={first} last={last}")
 print(f"Loss decreased: {first} -> {last}")
 PY
-fi
 
 echo "Done. execution.json: ${EXECUTION_JSON}"
