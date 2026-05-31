@@ -176,13 +176,9 @@ def main(argv: list[str] | None = None) -> int:
     train_step = 0
 
     def apply_round_robin_maybe_write_out(runtime) -> None:
-        nonlocal execution_out_written, train_step
+        nonlocal execution_out_written
         runtime.apply_round_robin_execution_schedule()
-        if (
-            args.execution_out
-            and train_step == 0
-            and not execution_out_written
-        ):
+        if args.execution_out and not execution_out_written:
             runtime.write_execution_schedule_json(args.execution_out)
             execution_out_written = True
             print(f'Execution: wrote {args.execution_out}')

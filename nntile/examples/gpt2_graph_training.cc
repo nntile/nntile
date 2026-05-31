@@ -567,21 +567,18 @@ int main(int argc, char **argv)
     CausalLmBatch mmap_batch;
     Index train_step = 0;
     bool execution_out_written = false;
-    auto apply_round_robin_schedule =
-        [&](Runtime &runtime, Index step) {
-            ExecutionSchedule sched =
-                runtime.generate_round_robin_execution_schedule();
-            if (!args.execution_out_path.empty() && step == 0 &&
-                !execution_out_written)
-            {
-                write_execution_schedule_json(
-                    sched, args.execution_out_path);
-                execution_out_written = true;
-                std::cout << "Execution schedule: wrote "
-                          << args.execution_out_path << "\n";
-            }
-            runtime.set_execution_schedule(std::move(sched));
-        };
+    auto apply_round_robin_schedule = [&](Runtime &runtime) {
+        ExecutionSchedule sched =
+            runtime.generate_round_robin_execution_schedule();
+        if (!args.execution_out_path.empty() && !execution_out_written)
+        {
+            write_execution_schedule_json(sched, args.execution_out_path);
+            execution_out_written = true;
+            std::cout << "Execution schedule: wrote "
+                      << args.execution_out_path << "\n";
+        }
+        runtime.set_execution_schedule(std::move(sched));
+    };
 
     for (std::size_t epoch = 0; epoch < args.epochs; ++epoch)
     {
@@ -657,12 +654,12 @@ int main(int argc, char **argv)
                               << ex.what()
                               << "); using round-robin.\n";
                     cached_execution_schedule.reset();
-                    apply_round_robin_schedule(runtime, train_step);
+                    apply_round_robin_schedule(runtime);
                 }
             }
             else
             {
-                apply_round_robin_schedule(runtime, train_step);
+                apply_round_robin_schedule(runtime);
             }
 
             if (!bound_optimizer_state)

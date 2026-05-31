@@ -30,12 +30,6 @@ extern "C"
 #undef starpu_task_insert
 #endif
 
-#define NNTILE_STARPU_TASK_INSERT_WORKER(cl, pref_worker, ...)               \
-    ((pref_worker) < 0                                                       \
-            ? ::starpu_task_insert((cl), ##__VA_ARGS__)                      \
-            : ::starpu_task_insert((cl),                                     \
-                  STARPU_EXECUTE_ON_WORKER, (pref_worker), ##__VA_ARGS__))
-
 #ifdef STARPU_USE_FXT
 #define nntile_starpu_task_insert_impl(cl, preferred_worker_id, ...)         \
     ((preferred_worker_id) < 0                                                \
