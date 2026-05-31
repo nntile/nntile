@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sqrt_inplace matches t
     d->mark_output(true);
     tg::sqrt_inplace(d);
     Runtime runtime(g);
-    runtime.compile();
+    runtime.compile_with_round_robin_schedule();
     std::vector<float> dv(nelems);
     for(Index i = 0; i < nelems; ++i) { dv[static_cast<size_t>(i)] = 0.5f + 0.2f * static_cast<float>(i); }
     runtime.bind_data(d, dv);

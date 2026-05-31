@@ -39,7 +39,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber_inplace", "
     d->mark_output(true);
     tg::norm_fiber_inplace(a, s, b, d, ax, bd, redux);
     Runtime rt(g);
-    rt.compile();
+    rt.compile_with_round_robin_schedule();
     std::vector<float> v1(n1), v2(n2, -1.f);
     for(Index i = 0; i < n1; ++i) { v1[static_cast<size_t>(i)] = -1.0f; }
     rt.bind_data(s, v1);

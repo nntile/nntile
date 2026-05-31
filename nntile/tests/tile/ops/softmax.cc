@@ -33,7 +33,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax axis0", "[grap
     m->mark_input(true); s->mark_input(true); d->mark_output(true);
     tg::softmax(m, s, al, d, axis);
     Runtime r(g);
-    r.compile();
+    r.compile_with_round_robin_schedule();
     std::vector<float> mv(nms), sv(n), dv(n, 0.f);
     for(Index j=0;j<nms;j+=2) { mv[static_cast<size_t>(j)]=static_cast<float>(j+1);
       mv[static_cast<size_t>(j+1)]=std::exp(static_cast<float>(j+2)/10.f); }

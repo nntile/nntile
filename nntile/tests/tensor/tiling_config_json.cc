@@ -254,6 +254,50 @@ TEST_CASE(
     REQUIRE(hidden->axis(0)->name == "hidden_size");
 }
 
+TEST_CASE("apply tiling on embedding weight axis", "[tiling][gpt2][embedding]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.vocab_size = 128;
+    cfg.hidden_size = 32;
+    cfg.intermediate_size = 64;
+    cfg.num_attention_heads = 2;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("embed");
+    auto *wte = tg.data({cfg.vocab_size, cfg.hidden_size})
+                   ->set_name("model_transformer_wte_weight");
+    name_gpt2_training_axis_groups(tg, cfg, 8, 2);
+
+    FlatTilingSpec spec;
+    spec.defaults["vocab_size"] = {64, 64};
+    spec.defaults["hidden_size"] = {16, 16};
+    REQUIRE_NOTHROW(apply_flat_tiling_spec(tg, spec));
+    REQUIRE(wte->axis(0)->is_tiled());
+    REQUIRE(wte->axis(0)->tile_sizes.size() == 2);
+}
+
+TEST_CASE("apply tiling on attention QKV axis groups", "[tiling][gpt2][sdpa]")
+{
+    model::gpt2::Gpt2Config cfg;
+    cfg.hidden_size = 32;
+    cfg.intermediate_size = 64;
+    cfg.num_attention_heads = 2;
+    cfg.num_hidden_layers = 1;
+    cfg.validate();
+
+    TensorGraph tg("sdpa");
+    auto *q = tg.data({cfg.hidden_size, 8, 2})
+                  ->set_name("model_transformer_h_0_attn_q_proj_weight");
+    name_gpt2_training_axis_groups(tg, cfg, 8, 2);
+
+    FlatTilingSpec spec;
+    spec.defaults["hidden_size"] = {16, 16};
+    spec.defaults["seq_len"] = {4, 4};
+    spec.defaults["batch_size"] = {1, 1};
+    REQUIRE_NOTHROW(apply_flat_tiling_spec(tg, spec));
+}
+
 TEST_CASE("round-trip save and reload", "[tiling][json]")
 {
     FlatTilingSpec spec;

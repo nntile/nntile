@@ -172,6 +172,35 @@ Tiling uses a separate **`tiling.json`** (axis keys match `config.json` plus `se
 
 Demo configs: `examples/demo_configs/gpt2_tiny_config.json` and `gpt2_tiny_tiling.json`.
 
+**Execution schedule** (`execution.json`): generate with round-robin, then reuse.
+
+```bash
+# 1) Generate execution.json (after compile, step 0)
+./build/examples/gpt2_graph_training \
+    --train-bin build/examples/demo_data/gpt2/train.bin \
+    --config examples/demo_configs/gpt2_tiny_config.json \
+    --tiling examples/demo_configs/gpt2_tiny_tiling.json \
+    --execution-out /tmp/gpt2_execution.json \
+    --seq 8 --batch 2 --epochs 1 --max-batches 1
+
+# 2) Train with saved schedule
+./build/examples/gpt2_graph_training \
+    --train-bin build/examples/demo_data/gpt2/train.bin \
+    --config examples/demo_configs/gpt2_tiny_config.json \
+    --tiling examples/demo_configs/gpt2_tiny_tiling.json \
+    --execution /tmp/gpt2_execution.json \
+    --seq 8 --batch 2 --epochs 4 --max-batches 32
+```
+
+C++ API: `generate_round_robin_execution_schedule`, `write_execution_schedule_json`,
+`load_execution_schedule_json`, `Runtime::set_execution_schedule`.
+
+**Multi-GPU (single server):** pass `--ncuda N` (and optionally `--ncpu M`).
+Regenerate `execution.json` when worker count changes. Full CUDA smoke is manual
+(`--ncuda 2`, inspect `ops[].worker` in JSON); CPU-only builds use `--ncuda 0`.
+
+**E2E script:** `run_gpt2_static_train.sh` runs generate-then-reload in one flow.
+
 ```bash
 ./build/examples/gpt2_graph_training \
     --train-bin build/examples/demo_data/gpt2/train.bin \

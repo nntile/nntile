@@ -68,3 +68,9 @@ pre-commit run --all-files
 
 Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 `.pre-commit-config.yaml` and `pyproject.toml`.
+
+### Graph API work (`graph_api` branch)
+
+- **Agent checklist (actionable):** [.cursor/plans/graph-static-execution.md](.cursor/plans/graph-static-execution.md)
+- **Roadmap:** [docs/dev/graph_static_execution_plan.md](docs/dev/graph_static_execution_plan.md)
+- **Per-task steps:** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)

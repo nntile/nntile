@@ -26,6 +26,9 @@
  * ``--load-weights`` uses ``Module::load`` (SafeTensors).
  * ``--tiling`` loads ``tiling.json`` (``default`` + ``layers``; axis keys match
  * config + ``seq_len`` / ``batch_size``).
+ * ``--execution`` loads ``execution.json`` to assign workers for ``execute()``.
+ * ``--execution-out`` writes that file via ``generate_round_robin_execution_json``
+ * when ``--execution`` is not set (same compile; no data-home / MPI view).
  *
  * Training loop matches ``llama_graph_training``: clear grads, forward, loss,
  * ``backward(true)``, ``optimizer->step(scheduled_lr)``, ``finish_phase()``,
@@ -53,6 +56,7 @@
 #include "gpt2_config_json.hh"
 #include "tiling_config_json.hh"
 #include <nntile.hh>
+#include <nntile/core/execution_schedule.hh>
 #include <nntile/dataset/causal_lm_mmap.hh>
 #include <nntile/model/gpt2/gpt2_causal.hh>
 #include <nntile/model/gpt2/gpt2_config.hh>
@@ -77,7 +81,7 @@ constexpr int EXIT_OK = 0;
 constexpr int EXIT_ERROR = 1;
 
 constexpr int CONTEXT_NUM_CPU = 1;
-constexpr int CONTEXT_NUM_CUDA = 0;
+constexpr int CONTEXT_NUM_CUDA_DEFAULT = 0;
 constexpr int CONTEXT_OOC = 0;
 constexpr int CONTEXT_OOC_SIZE = 16777216;
 constexpr int CONTEXT_LOGGER = 0;
@@ -88,6 +92,8 @@ struct Args
 {
     std::string config_path;
     std::string tiling_path;
+    std::string execution_path;
+    std::string execution_out_path;
     std::string load_weights;
     std::string output_dir;
     std::string train_bin;
@@ -103,6 +109,8 @@ struct Args
     float beta1 = 0.9f;
     float beta2 = 0.999f;
     int warmup_steps = 0;
+    int num_cpu = CONTEXT_NUM_CPU;
+    int num_cuda = CONTEXT_NUM_CUDA_DEFAULT;
 };
 
 
@@ -163,6 +171,15 @@ static Args parse_args(int argc, char **argv)
             continue;
         }
         if (take_string_opt(argc, argv, i, "--tiling", a.tiling_path))
+        {
+            continue;
+        }
+        if (take_string_opt(argc, argv, i, "--execution", a.execution_path))
+        {
+            continue;
+        }
+        if (take_string_opt(
+                argc, argv, i, "--execution-out", a.execution_out_path))
         {
             continue;
         }
@@ -228,6 +245,16 @@ static Args parse_args(int argc, char **argv)
             a.seed = static_cast<unsigned>(std::stoul(s));
             continue;
         }
+        if (take_string_opt(argc, argv, i, "--ncpu", s))
+        {
+            a.num_cpu = std::stoi(s);
+            continue;
+        }
+        if (take_string_opt(argc, argv, i, "--ncuda", s))
+        {
+            a.num_cuda = std::stoi(s);
+            continue;
+        }
         if (arg == "--tiny")
         {
             a.use_tiny = true;
@@ -259,6 +286,10 @@ static Args parse_args(int argc, char **argv)
                 << "  --seq <N>             sequence length (default 8)\n"
                 << "  --batch <N>           batch size (default 2)\n"
                 << "  --seed <N>            RNG seed (default 42)\n"
+                << "  --ncpu <N>            CPU StarPU workers (default 1)\n"
+                << "  --ncuda <N>           CUDA StarPU workers (default 0)\n"
+                << "  --execution <path>    load execution.json schedule\n"
+                << "  --execution-out <path> write round-robin schedule\n"
                 << "\n"
                 << "Options may use --opt=value or --opt value.\n";
             std::exit(EXIT_OK);
@@ -267,7 +298,9 @@ static Args parse_args(int argc, char **argv)
             arg == "--output-dir" || arg == "--train-bin" || arg == "--seq" ||
             arg == "--batch" || arg == "--seed" || arg == "--max-batches" ||
             arg == "--lr" || arg == "--weight-decay" || arg == "--beta1" ||
-            arg == "--beta2" || arg == "--warmup-steps" || arg == "--epochs")
+            arg == "--beta2" || arg == "--warmup-steps" || arg == "--epochs" ||
+            arg == "--ncpu" || arg == "--ncuda" || arg == "--execution" ||
+            arg == "--execution-out")
         {
             std::cerr << "gpt2_graph_training: " << arg
                       << " requires a value\n";
@@ -425,10 +458,12 @@ int main(int argc, char **argv)
               << "  layers=" << config.num_hidden_layers
               << "  heads=" << config.num_attention_heads
               << "  seq=" << n_seq << "  batch=" << n_batch
-              << "  epochs=" << args.epochs << "\n";
+              << "  epochs=" << args.epochs
+              << "  ncpu=" << args.num_cpu << "  ncuda=" << args.num_cuda
+              << "\n";
 
-    Context context(CONTEXT_NUM_CPU,
-        CONTEXT_NUM_CUDA,
+    Context context(args.num_cpu,
+        args.num_cuda,
         CONTEXT_OOC,
         "/tmp/nntile_ooc",
         CONTEXT_OOC_SIZE,
@@ -574,6 +609,40 @@ int main(int argc, char **argv)
             graph.finish_phase();
             graph.lower_and_compile();
             Runtime &runtime = graph.runtime();
+
+            if (!args.execution_path.empty())
+            {
+                try
+                {
+                    runtime.load_execution_schedule(args.execution_path);
+                    if (train_step == 0)
+                    {
+                        std::cout << "Execution schedule: loaded "
+                                  << args.execution_path << "\n";
+                    }
+                }
+                catch (std::runtime_error const &ex)
+                {
+                    std::cerr << "Execution schedule: load failed ("
+                              << ex.what()
+                              << "); using round-robin.\n";
+                    runtime.set_execution_schedule(
+                        runtime.generate_round_robin_execution_schedule());
+                }
+            }
+            else
+            {
+                ExecutionSchedule sched =
+                    runtime.generate_round_robin_execution_schedule();
+                if (!args.execution_out_path.empty() && train_step == 0)
+                {
+                    write_execution_schedule_json(
+                        sched, args.execution_out_path);
+                    std::cout << "Execution schedule: wrote "
+                              << args.execution_out_path << "\n";
+                }
+                runtime.set_execution_schedule(std::move(sched));
+            }
 
             if (!bound_optimizer_state)
             {

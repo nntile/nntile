@@ -32,7 +32,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
     s->mark_input(true); d->mark_output(true);
     tg::maxsumexp(s, d, axis, redux);
     Runtime r(g);
-    r.compile();
+    r.compile_with_round_robin_schedule();
     std::vector<float> a(n1); std::vector<float> b(n2, 0.f);
     for(Index i=0;i<n1;++i) a[static_cast<size_t>(i)] = static_cast<float>(i+1);
     r.bind_data(s, a); r.bind_data(d, b);

@@ -111,7 +111,7 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref.tensor_graph());
 
     Runtime rt_ref(rt_ref_tile);
-    rt_ref.compile();
+    rt_ref.compile_with_round_robin_schedule();
     rt_ref.bind_data(inp_ref, in_data);
     bind_same_weights(rt_ref,
         mlp_ref.fc1().weight_tensor()->data(),
@@ -157,7 +157,7 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile.tensor_graph());
     Runtime rt_tile(tile_g);
-    rt_tile.compile();
+    rt_tile.compile_with_round_robin_schedule();
     rt_tile.bind_data(inp_tile, in_data);
     bind_same_weights(rt_tile,
         mlp_tile.fc1().weight_tensor()->data(),

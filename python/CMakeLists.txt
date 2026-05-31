@@ -31,7 +31,8 @@ set_target_properties(nntile_py PROPERTIES
     SUFFIX ".so")
 target_link_libraries(nntile_py PRIVATE nntile)
 target_include_directories(nntile_py PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/nntile/_bindings")
+    "${CMAKE_CURRENT_SOURCE_DIR}/nntile/_bindings"
+    "${PROJECT_SOURCE_DIR}/nntile/examples")
 set_target_properties(nntile_py PROPERTIES
     INSTALL_RPATH "$ORIGIN/../../nntile:$ORIGIN/../../../nntile"
     BUILD_WITH_INSTALL_RPATH TRUE)

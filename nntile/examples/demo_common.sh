@@ -31,6 +31,16 @@ demo_resolve_build_dir() {
     echo "${root}/build"
 }
 
+demo_example_bin() {
+    local root="${1:?}"
+    local name="${2:?}"
+    if [[ -x "${root}/nntile/examples/${name}" ]]; then
+        echo "${root}/nntile/examples/${name}"
+        return
+    fi
+    echo "${root}/examples/${name}"
+}
+
 demo_require_executable() {
     local bin="${1:?}"
     local target="${2:?}"

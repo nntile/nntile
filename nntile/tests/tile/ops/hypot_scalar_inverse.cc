@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot_scalar_inverse m
     d->mark_output(true);
     tg::hypot_scalar_inverse(eps, alpha, d);
     Runtime runtime(g);
-    runtime.compile();
+    runtime.compile_with_round_robin_schedule();
     std::vector<float> dv(nelems);
     for(Index i = 0; i < nelems; ++i) { dv[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i) + 0.5f; }
     runtime.bind_data(d, dv);

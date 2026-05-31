@@ -260,7 +260,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tensor_rt_tile = TileGraph::from_tensor_graph(tensor_graph);
 
     Runtime tensor_rt(tensor_rt_tile);
-    tensor_rt.compile();
+    tensor_rt.compile_with_round_robin_schedule();
     tensor_rt.bind_data(tx, x_data);
     tensor_rt.bind_data(ty, y_data);
     tensor_rt.execute();
@@ -268,7 +268,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto tensor_result = tensor_rt.get_output<float>(tz);
 
     Runtime tile_rt(tile_graph);
-    tile_rt.compile();
+    tile_rt.compile_with_round_robin_schedule();
     tile_rt.bind_data(tx, x_data);
     tile_rt.bind_data(ty, y_data);
     tile_rt.execute();
@@ -300,7 +300,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tg::add_inplace(Scalar(2.0), x, Scalar(1.0), y);
 
     Runtime runtime(graph);
-    runtime.compile();
+    runtime.compile_with_round_robin_schedule();
 
     std::vector<float> x_data = {1, 2, 3, 4};
     std::vector<float> y_data = {10, 20, 30, 40};
@@ -343,7 +343,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
 
     Runtime tile_rt(tile_graph);
-    tile_rt.compile();
+    tile_rt.compile_with_round_robin_schedule();
 
     // x was initialized from the source TensorNode's bind hint;
     // we only need to bind y
@@ -374,7 +374,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tg::clear(x);
 
     Runtime runtime(graph);
-    runtime.compile();
+    runtime.compile_with_round_robin_schedule();
 
     std::vector<float> x_data = {7.0f, 8.0f, 9.0f};
     runtime.bind_data(x, x_data);
@@ -430,7 +430,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tensor_rt_tile = TileGraph::from_tensor_graph(tensor_graph);
 
     Runtime tensor_rt(tensor_rt_tile);
-    tensor_rt.compile();
+    tensor_rt.compile_with_round_robin_schedule();
     tensor_rt.bind_data(tx, x_data);
     tensor_rt.bind_data(ty, y_data);
     tensor_rt.execute();
@@ -438,7 +438,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto tensor_result = tensor_rt.get_output<float>(tz);
 
     Runtime tile_rt(tile_graph);
-    tile_rt.compile();
+    tile_rt.compile_with_round_robin_schedule();
     tile_rt.bind_data(tx, x_data);
     tile_rt.bind_data(ty, y_data);
     tile_rt.execute();

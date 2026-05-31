@@ -31,7 +31,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     index->mark_input(true); eg->mark_input(true); vg->mark_input(true); vg->mark_output(true);
     tg::embedding_backward(m,n,k,k0,ks,index,eg,vg,redux);
     Runtime r(g);
-    r.compile();
+    r.compile_with_round_robin_schedule();
     std::vector<std::int64_t> iv(4);
     iv[0]=0; iv[1]=2; iv[2]=4; iv[3]=1;
     std::vector<float> ega(12), vga(15);

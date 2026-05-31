@@ -220,6 +220,11 @@ jobs:
             -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON
           cmake --build build --target nntile_all_examples -j"$(nproc)"
       - run: |
+          chmod +x nntile/examples/run_gpt2_graph_training_demo.sh
+          export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          ./nntile/examples/run_gpt2_graph_training_demo.sh
+      - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
           .github/scripts/ccache-print-stats.sh build-examples
       - uses: actions/cache/save@v4

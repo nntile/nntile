@@ -11,8 +11,9 @@
 #   ./examples/run_gpt2_graph_training_demo.sh
 #
 # Optional environment variables:
-#   BUILD_DIR  CMake build directory (default: <repo>/build)
-#   DATA_DIR   Where to write train.bin (default: <build>/examples/demo_data/gpt2)
+#   BUILD_DIR      CMake build directory (default: <repo>/build)
+#   DATA_DIR       Where to write train.bin (default: <build>/examples/demo_data/gpt2)
+#   EXECUTION_OUT  If set, write static task schedule to this path (--execution-out)
 
 set -euo pipefail
 
@@ -25,7 +26,10 @@ BUILD_DIR="$(demo_resolve_build_dir "${REPO_ROOT}")"
 DATA_DIR="${DATA_DIR:-${BUILD_DIR}/examples/demo_data/gpt2}"
 TRAIN_BIN="${DATA_DIR}/train.bin"
 LOG_FILE="${DATA_DIR}/training.log"
-BIN="${BUILD_DIR}/examples/gpt2_graph_training"
+BIN="$(demo_example_bin "${BUILD_DIR}" gpt2_graph_training)"
+CONFIG_JSON="${SCRIPT_DIR}/demo_configs/gpt2_tiny_config.json"
+TILING_JSON="${SCRIPT_DIR}/demo_configs/gpt2_tiny_tiling.json"
+EXECUTION_JSON="${EXECUTION_OUT:-${DATA_DIR}/execution.json}"
 
 SEQ_LEN="${SEQ_LEN:-8}"
 BATCH_SIZE="${BATCH_SIZE:-2}"
@@ -51,18 +55,24 @@ python3 "${SCRIPT_DIR}/prepare_tiny_train_bin.py" \
     --seed 42
 echo ""
 
-echo "--- Training (tiny model, repeated epochs on same data) ---"
+echo "--- Training (tiny config + tiling.json) ---"
 mkdir -p "${DATA_DIR}"
-"${BIN}" \
-    --train-bin "${TRAIN_BIN}" \
-    --tiny \
-    --seq "${SEQ_LEN}" \
-    --batch "${BATCH_SIZE}" \
-    --epochs "${EPOCHS}" \
-    --max-batches "${MAX_BATCHES}" \
-    --lr "${LR}" \
-    --seed 42 \
-    2>&1 | tee "${LOG_FILE}"
+TRAIN_ARGS=(
+    --train-bin "${TRAIN_BIN}"
+    --config "${CONFIG_JSON}"
+    --tiling "${TILING_JSON}"
+    --seq "${SEQ_LEN}"
+    --batch "${BATCH_SIZE}"
+    --epochs "${EPOCHS}"
+    --max-batches "${MAX_BATCHES}"
+    --lr "${LR}"
+    --seed 42
+)
+if [[ -n "${EXECUTION_OUT:-}" ]]; then
+    TRAIN_ARGS+=(--execution-out "${EXECUTION_JSON}")
+    echo "Execution schedule output: ${EXECUTION_JSON}"
+fi
+"${BIN}" "${TRAIN_ARGS[@]}" 2>&1 | tee "${LOG_FILE}"
 
 echo ""
 echo "--- Loss summary ---"

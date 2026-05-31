@@ -29,6 +29,7 @@
 
 // NNTile headers
 #include <nntile/base_types.hh>
+#include <nntile/core/execution_schedule.hh>
 #include <nntile/dtype.hh>
 #include <nntile/nn/graph_decl.hh>
 #include <nntile/tensor/graph_data_node.hh>
@@ -106,9 +107,35 @@ class Runtime
 
     bool is_compiled() const { return compiled_; }
 
+    ExecutionSchedule const &execution_schedule() const
+    {
+        return execution_schedule_;
+    }
+
+    bool has_execution_schedule() const
+    {
+        return !execution_schedule_.ops.empty();
+    }
+
+    //! After ``compile()``: build round-robin schedule from DCE order (does not
+    //! write a file; use ``generate_round_robin_execution_json`` for that).
+    ExecutionSchedule generate_round_robin_execution_schedule() const;
+
+    //! Apply schedule before ``execute()`` (from generator or
+    //! ``load_execution_schedule_json``).
+    void set_execution_schedule(ExecutionSchedule schedule);
+
+    void load_execution_schedule(std::string const &path);
+
+    //! ``compile()`` then round-robin schedule in memory (convenience for tests).
+    void compile_with_round_robin_schedule();
+
+    void write_execution_schedule_json(std::string const &path) const;
+
   private:
     void allocate_missing_tiles();
     void eliminate_dead_ops();
+    void require_execution_schedule() const;
 
     template <typename T, typename NntileT, typename CastT>
     void bind_data_impl(const TileNode *node, const T *data, size_t count);
@@ -118,6 +145,7 @@ class Runtime
     const TileGraph &graph_;
     std::map<const TileNode *, std::shared_ptr<void>> tile_map_;
     std::vector<std::shared_ptr<OpNode>> execution_order_;
+    ExecutionSchedule execution_schedule_;
     bool compiled_ = false;
 };
 

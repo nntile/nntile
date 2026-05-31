@@ -15,6 +15,10 @@
 #include <nntile/dataset/causal_lm_mmap.hh>
 #include <nntile/model/gpt2/gpt2_causal.hh>
 #include <nntile/model/gpt2/gpt2_config.hh>
+
+#include "gpt2_axis_naming.hh"
+#include "gpt2_config_json.hh"
+#include "tiling_config_json.hh"
 #include <nntile/module/activation.hh>
 #include <nntile/module/linear.hh>
 #include <nntile/module/mlp.hh>
@@ -169,6 +173,30 @@ void bind_nntile_models(py::module_ &m)
     m.def("make_tiny_gpt2_config", &make_tiny_gpt2_config,
         "Built-in tiny GPT-2 config (matches C++ make_tiny_config).");
 
+    m.def("load_gpt2_config_json",
+        &examples::load_gpt2_config_json,
+        "path"_a,
+        "Load GPT-2 config JSON (HF or NNTile keys).");
+
+    m.def("apply_gpt2_tiling_json",
+        [](NNGraph &graph,
+            std::string const &tiling_path,
+            model::gpt2::Gpt2Config const &cfg,
+            Index seq_len,
+            Index batch_size) {
+            FlatTilingSpec spec =
+                load_tiling_json(tiling_path, cfg.num_hidden_layers);
+            name_gpt2_training_axis_groups(
+                graph.tensor_graph(), cfg, seq_len, batch_size);
+            apply_flat_tiling_spec(graph.tensor_graph(), spec);
+        },
+        "graph"_a,
+        "tiling_path"_a,
+        "config"_a,
+        "seq_len"_a,
+        "batch_size"_a,
+        "Load tiling.json and apply axis groups for GPT-2 training.");
+
     py::class_<model::gpt2::Gpt2Causal, module::Module>(m, "Gpt2Causal")
         .def(py::init<NNGraph *, const std::string &, const model::gpt2::Gpt2Config &,
                  DataType>(),
@@ -184,7 +212,8 @@ void bind_nntile_models(py::module_ &m)
             "mask"_a = nullptr,
             "causal"_a = false,
             py::return_value_policy::reference)
-        .def("load", &model::gpt2::Gpt2Causal::load, "path"_a, "strict"_a = true);
+        .def("load", &model::gpt2::Gpt2Causal::load, "path"_a, "strict"_a = true)
+        .def("save", &model::gpt2::Gpt2Causal::save, "path"_a);
 
     py::class_<optim::AdamW>(m, "AdamW")
         .def(py::init<NNGraph *,

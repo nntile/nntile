@@ -35,7 +35,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     scra->mark_input(true);
     tg::copy_intersection(s, {0,0,0}, d, {0,0,0}, scra);
     Runtime r(g);
-    r.compile();
+    r.compile_with_round_robin_schedule();
     std::vector<float> sv(n), dv(n, 0.f);
     for(Index i=0;i<n;++i) sv[static_cast<size_t>(i)]=static_cast<float>(i+1);
     std::vector<std::int64_t> scv(6, 0);

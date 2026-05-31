@@ -49,7 +49,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     append_tensor_graph_phase(tg, p2, til2, tile, st, tm);
 
     Runtime rt(tile);
-    rt.compile();
+    rt.compile_with_round_robin_schedule();
 
     std::vector<float> av = {1.f, 2.f, 3.f};
     std::vector<float> bv = {4.f, 5.f, 6.f};
@@ -81,7 +81,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         tg, p1, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
 
     Runtime rt(tile);
-    rt.compile();
+    rt.compile_with_round_robin_schedule();
     const size_t n1 = rt.execution_op_count();
     REQUIRE(n1 > 0);
 
@@ -92,7 +92,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     append_tensor_graph_phase(
         tg, p2, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
 
-    rt.compile();
+    rt.compile_with_round_robin_schedule();
     REQUIRE(rt.execution_op_count() > n1);
 
     std::vector<float> xv = {2.f, 3.f};

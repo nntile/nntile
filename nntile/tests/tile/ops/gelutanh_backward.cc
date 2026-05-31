@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelutanh_backward matc
     dx->mark_output(true);
     tg::gelutanh_backward(x, dy, dx);
     Runtime runtime(g);
-    runtime.compile();
+    runtime.compile_with_round_robin_schedule();
     std::vector<float> xv(nelems), dyv(nelems), dxv(nelems, 0.f);
     for(Index i = 0; i < nelems; ++i)
     {

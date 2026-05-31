@@ -47,7 +47,7 @@ void check_tile_add_vs_tile_api(
     z_node->mark_output(true);
 
     Runtime runtime(graph);
-    runtime.compile();
+    runtime.compile_with_round_robin_schedule();
 
     std::vector<float> x_data(nelems), y_data(nelems);
     for (Index i = 0; i < nelems; ++i)

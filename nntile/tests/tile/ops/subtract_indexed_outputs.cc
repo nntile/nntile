@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outpu
     d->mark_output(true);
     tg::subtract_indexed_outputs(v, lab, d, ign);
     Runtime r(g);
-    r.compile();
+    r.compile_with_round_robin_schedule();
     std::vector<std::int64_t> lv(4);
     lv[0]=0; lv[1]=1; lv[2]=2; lv[3]=0;
     std::vector<float> dv(nd);
