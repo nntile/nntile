@@ -201,7 +201,9 @@ jobs:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git python3
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup

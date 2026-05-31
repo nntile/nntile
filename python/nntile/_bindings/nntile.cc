@@ -371,6 +371,16 @@ PYBIND11_MODULE(nntile, m)
         "Runtime(tile_graph).")
         .def(py::init<std::shared_ptr<TileGraph>>(), "tile_graph"_a)
         .def("compile", [](PyGraphRuntime &s) { s.runtime.compile(); })
+        .def("compile_with_round_robin_schedule",
+            [](PyGraphRuntime &s) {
+                s.runtime.compile_with_round_robin_schedule();
+            })
+        .def(
+            "apply_round_robin_execution_schedule",
+            [](PyGraphRuntime &s) {
+                s.runtime.set_execution_schedule(
+                    s.runtime.generate_round_robin_execution_schedule());
+            })
         .def(
             "bind_data",
             [](PyGraphRuntime &s,
