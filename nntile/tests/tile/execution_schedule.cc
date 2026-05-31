@@ -152,9 +152,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = tg.data({4}, "x", DataType::FP32);
     auto *y = tg.data({4}, "y", DataType::FP32);
     auto *z = tg.data({4}, "z", DataType::FP32);
-
-    std::vector<std::shared_ptr<TileGraph::OpNode>> order;
-    order.push_back(std::make_shared<TileAddOp>(x, y, z, 1.0, 1.0));
+    add(1.0, x, 1.0, y, z);
 
     Runtime rt(tg);
     rt.compile();
@@ -176,13 +174,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = tg.data({4}, "x", DataType::FP32);
     auto *y = tg.data({4}, "y", DataType::FP32);
     auto *z = tg.data({4}, "z", DataType::FP32);
-
-    std::vector<std::shared_ptr<TileGraph::OpNode>> order;
-    order.push_back(std::make_shared<TileAddOp>(x, y, z, 1.0, 1.0));
+    add(1.0, x, 1.0, y, z);
 
     Runtime rt(tg);
     rt.compile();
     ExecutionSchedule bad = rt.generate_round_robin_execution_schedule();
+    REQUIRE(!bad.ops.empty());
     bad.ops[0].worker = 9;
 
     REQUIRE_THROWS_AS(rt.set_execution_schedule(std::move(bad)),
