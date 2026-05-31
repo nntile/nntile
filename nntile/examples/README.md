@@ -9,6 +9,8 @@ incremental training phases) and small Llama / GPT-2 workflows.
 - `json_config_helpers.hh` — `config_get_int` / `config_get_float` for JSON configs
   (used by GPT-2 and Llama graph examples).
 - `gpt2_config_json.hh` — `load_gpt2_config_json` / `save_gpt2_config_json` (HF + NNTile keys).
+- `tiling_config_json.hh` — `load_tiling_json` / `save_tiling_json` (`default` + `layers` in `tiling.json`).
+- `gpt2_axis_naming.hh` — name axis groups for GPT-2 graph training before applying tiling.
 - `t5_config_json.hh` — `load_t5_config_json` / `save_t5_config_json` for T5 graph examples.
 - `gptneo_config_json.hh` — load/save for examples; HF `attention_types` parsing lives in `include/nntile/model/gptneo/gptneo_config_json.hh`.
 
@@ -150,6 +152,32 @@ Example (manual training):
 ./build/examples/gpt2_graph_training \
     --train-bin build/examples/demo_data/gpt2/train.bin \
     --tiny --seq 8 --batch 2 --epochs 3 --max-batches 24 --lr 0.003
+```
+
+Tiling uses a separate **`tiling.json`** (axis keys match `config.json` plus `seq_len` / `batch_size` for `--seq` / `--batch`):
+
+```json
+{
+  "default": {
+    "batch_size": 1,
+    "seq_len": [4, 4],
+    "hidden_size": 32,
+    "intermediate_size": [64, 64]
+  },
+  "layers": {
+    "h_1": { "intermediate_size": [40, 88] }
+  }
+}
+```
+
+Demo configs: `examples/demo_configs/gpt2_tiny_config.json` and `gpt2_tiny_tiling.json`.
+
+```bash
+./build/examples/gpt2_graph_training \
+    --train-bin build/examples/demo_data/gpt2/train.bin \
+    --config examples/demo_configs/gpt2_tiny_config.json \
+    --tiling examples/demo_configs/gpt2_tiny_tiling.json \
+    --seq 8 --batch 2 --epochs 2 --max-batches 8
 ```
 
 Example (generation):
