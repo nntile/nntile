@@ -16,6 +16,7 @@
 #include "nntile/runtime.hh"
 
 #include "nntile/core/execution_schedule.hh"
+#include "nntile/core/execution_worker.hh"
 
 // TileGraph::get_tensor_descriptor is inline in graph.hh; this TU must see
 // the definition when calling it on const TileGraph&.
@@ -349,6 +350,7 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
             ") != compiled execution order (" +
             std::to_string(execution_order_.size()) + ")");
     }
+    int const num_workers = sched::count_execution_workers();
     for (size_t i = 0; i < schedule.ops.size(); ++i)
     {
         if (schedule.ops[i].execution_index != i)
@@ -364,6 +366,24 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
                 std::to_string(i) + "] op_name mismatch (json '" +
                 schedule.ops[i].op_name + "' vs graph '" +
                 execution_order_[i]->op_name() + "')");
+        }
+        int const w = schedule.ops[i].worker;
+        if (w < 0 || w >= num_workers)
+        {
+            throw std::runtime_error(
+                "Runtime::set_execution_schedule: ops[" +
+                std::to_string(i) + "] worker " + std::to_string(w) +
+                " out of range [0, " + std::to_string(num_workers) + ")");
+        }
+    }
+    for (auto const &[tile, worker] : schedule.tile_virtual_worker)
+    {
+        if (worker < 0 || worker >= num_workers)
+        {
+            throw std::runtime_error(
+                "Runtime::set_execution_schedule: tile '" + tile +
+                "' virtual_worker " + std::to_string(worker) +
+                " out of range [0, " + std::to_string(num_workers) + ")");
         }
     }
     execution_schedule_ = std::move(schedule);

@@ -540,6 +540,23 @@ int main(int argc, char **argv)
 
     bool bound_optimizer_state = false;
 
+    std::optional<ExecutionSchedule> cached_execution_schedule;
+    if (!args.execution_path.empty())
+    {
+        try
+        {
+            cached_execution_schedule =
+                load_execution_schedule_json(args.execution_path);
+            std::cout << "Execution schedule: loaded "
+                      << args.execution_path << "\n";
+        }
+        catch (std::runtime_error const &ex)
+        {
+            std::cerr << "Execution schedule: load failed ("
+                      << ex.what() << "); using round-robin.\n";
+        }
+    }
+
     TokenMemoryMap train_mmap(args.train_bin);
     CausalLmBatchConfig lcfg;
     lcfg.n_seq = n_seq;
@@ -610,25 +627,26 @@ int main(int argc, char **argv)
             graph.lower_and_compile();
             Runtime &runtime = graph.runtime();
 
-            if (!args.execution_path.empty())
+            if (cached_execution_schedule)
             {
                 try
                 {
-                    runtime.load_execution_schedule(args.execution_path);
-                    if (train_step == 0)
-                    {
-                        std::cout << "Execution schedule: loaded "
-                                  << args.execution_path << "\n";
-                    }
+                    runtime.set_execution_schedule(
+                        *cached_execution_schedule);
                 }
                 catch (std::runtime_error const &ex)
                 {
-                    std::cerr << "Execution schedule: load failed ("
+                    std::cerr << "Execution schedule: apply failed ("
                               << ex.what()
                               << "); using round-robin.\n";
                     runtime.set_execution_schedule(
                         runtime.generate_round_robin_execution_schedule());
                 }
+            }
+            else if (!args.execution_path.empty())
+            {
+                runtime.set_execution_schedule(
+                    runtime.generate_round_robin_execution_schedule());
             }
             else
             {
