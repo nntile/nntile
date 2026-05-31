@@ -52,7 +52,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "multi-writable op picks worker with smaller writable volume",
+    "multi-writable op picks worker with largest writable volume",
     "[execution_schedule]")
 {
     TileGraph tg("multi");

@@ -62,7 +62,7 @@ Single-machine graph training with StarPU (CPU or CUDA workers).
 
 1. Virtual tile `lin` → `worker = lin % num_workers`.
 2. Single writable output → op runs on that tile’s worker.
-3. Multiple writable / in-place outputs → worker with smallest writable byte total (tie → lower id).
+3. Multiple writable / in-place outputs → worker with largest writable byte total (tie → lower id).
 
 ---
 

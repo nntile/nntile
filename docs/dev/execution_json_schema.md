@@ -60,7 +60,7 @@ Round-robin rule: tile grid index `lin` → `worker = lin % num_workers`.
 ## Round-robin op assignment
 
 1. Single writable output → worker owning that output tile.
-2. Multiple writable / in-place outputs → worker with smallest total writable
+2. Multiple writable / in-place outputs → worker with largest total writable
    byte volume among candidates (tie → lower worker id).
 
 ## Example (minimal)

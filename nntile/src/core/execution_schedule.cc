@@ -77,7 +77,7 @@ std::map<int, size_t> writable_bytes_by_worker(
     return bytes;
 }
 
-int pick_worker_min_writable_dependency(
+int pick_worker_max_writable_dependency(
     std::vector<TileGraph::TileNode const *> const &writable,
     std::map<TileGraph::TileNode const *, int> const &tile_worker)
 {
@@ -91,7 +91,7 @@ int pick_worker_min_writable_dependency(
     size_t best_bytes = by_worker.begin()->second;
     for (auto const &[w, nbytes] : by_worker)
     {
-        if (nbytes < best_bytes || (nbytes == best_bytes && w < best_worker))
+        if (nbytes > best_bytes || (nbytes == best_bytes && w < best_worker))
         {
             best_bytes = nbytes;
             best_worker = w;
@@ -231,7 +231,7 @@ ExecutionSchedule build_execution_schedule(
         }
         else if (!writable.empty())
         {
-            entry.worker = pick_worker_min_writable_dependency(
+            entry.worker = pick_worker_max_writable_dependency(
                 writable, tile_worker);
         }
         else
