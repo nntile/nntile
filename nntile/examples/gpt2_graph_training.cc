@@ -641,8 +641,16 @@ int main(int argc, char **argv)
                               << ex.what()
                               << "); using round-robin.\n";
                     cached_execution_schedule.reset();
-                    runtime.set_execution_schedule(
-                        runtime.generate_round_robin_execution_schedule());
+                    ExecutionSchedule sched =
+                        runtime.generate_round_robin_execution_schedule();
+                    if (!args.execution_out_path.empty() && train_step == 0)
+                    {
+                        write_execution_schedule_json(
+                            sched, args.execution_out_path);
+                        std::cout << "Execution schedule: wrote "
+                                  << args.execution_out_path << "\n";
+                    }
+                    runtime.set_execution_schedule(std::move(sched));
                 }
             }
             else if (!args.execution_path.empty())

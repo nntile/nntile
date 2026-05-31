@@ -31,8 +31,8 @@ extern "C"
 #endif
 
 #ifdef STARPU_USE_FXT
-#define starpu_task_insert(cl, ...)                                          \
-    (::nntile::sched::preferred_starpu_worker_id() < 0                       \
+#define nntile_starpu_task_insert_impl(cl, preferred_worker_id, ...)         \
+    ((preferred_worker_id) < 0                                                \
             ? ::starpu_task_insert((cl),                                     \
                   STARPU_TASK_FILE,                                          \
                   __FILE__,                                                  \
@@ -45,16 +45,24 @@ extern "C"
                   STARPU_TASK_LINE,                                          \
                   __LINE__,                                                  \
                   STARPU_EXECUTE_ON_WORKER,                                  \
-                  ::nntile::sched::preferred_starpu_worker_id(),             \
+                  (preferred_worker_id),                                     \
                   ##__VA_ARGS__))
-#else
+
 #define starpu_task_insert(cl, ...)                                          \
-    (::nntile::sched::preferred_starpu_worker_id() < 0                       \
+    nntile_starpu_task_insert_impl(                                          \
+        (cl), ::nntile::sched::preferred_starpu_worker_id(), ##__VA_ARGS__)
+#else
+#define nntile_starpu_task_insert_impl(cl, preferred_worker_id, ...)         \
+    ((preferred_worker_id) < 0                                                \
             ? ::starpu_task_insert((cl), ##__VA_ARGS__)                      \
             : ::starpu_task_insert((cl),                                     \
                   STARPU_EXECUTE_ON_WORKER,                                  \
-                  ::nntile::sched::preferred_starpu_worker_id(),             \
+                  (preferred_worker_id),                                     \
                   ##__VA_ARGS__))
+
+#define starpu_task_insert(cl, ...)                                          \
+    nntile_starpu_task_insert_impl(                                          \
+        (cl), ::nntile::sched::preferred_starpu_worker_id(), ##__VA_ARGS__)
 #endif
 
 #endif // __cplusplus

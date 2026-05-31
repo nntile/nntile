@@ -353,6 +353,13 @@ void Runtime::set_execution_schedule(ExecutionSchedule schedule)
     int const num_workers = sched::count_execution_workers();
     bool const cuda_workers = starpu_is_initialized() &&
         starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0;
+    if (schedule.num_workers != num_workers)
+    {
+        throw std::runtime_error(
+            "Runtime::set_execution_schedule: num_workers mismatch (json '" +
+            std::to_string(schedule.num_workers) +
+            "' vs runtime '" + std::to_string(num_workers) + "')");
+    }
     if (schedule.use_cuda_workers != cuda_workers)
     {
         throw std::runtime_error(
