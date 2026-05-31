@@ -203,7 +203,8 @@ jobs:
     steps:
       - run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git python3
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-numpy
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
