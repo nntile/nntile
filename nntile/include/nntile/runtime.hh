@@ -127,6 +127,9 @@ class Runtime
     //! write a file; use ``generate_round_robin_execution_json`` for that).
     ExecutionSchedule generate_round_robin_execution_schedule() const;
 
+    //! After ``compile()``: batch-slice affinity tile split (same JSON schema).
+    ExecutionSchedule generate_affinity_batch_execution_schedule() const;
+
     //! Optional: pin workers during ``execute()`` (from generator or
     //! ``load_execution_schedule_json``). Without a schedule, StarPU chooses
     //! workers at runtime.

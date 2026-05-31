@@ -323,6 +323,18 @@ ExecutionSchedule Runtime::generate_round_robin_execution_schedule() const
         graph_, execution_order_);
 }
 
+ExecutionSchedule Runtime::generate_affinity_batch_execution_schedule() const
+{
+    if (!compiled_)
+    {
+        throw std::runtime_error(
+            "Runtime::generate_affinity_batch_execution_schedule: "
+            "call compile() first");
+    }
+    return nntile::generate_affinity_batch_execution_schedule(
+        graph_, execution_order_);
+}
+
 void Runtime::set_execution_schedule(ExecutionSchedule schedule)
 {
     if (!compiled_)

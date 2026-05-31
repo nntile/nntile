@@ -202,7 +202,9 @@ TEST_CASE("load_execution_schedule_json rejects num_workers mismatch",
     REQUIRE_THROWS_AS(load_execution_schedule_json(tmp_path), std::runtime_error);
 }
 
-TEST_CASE("affinity_batch schedule policy and tile map", "[execution_schedule]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "affinity_batch schedule policy and tile map",
+    "[execution_schedule]")
 {
     TileGraph tg("batch_aff");
     auto *t0 = tg.data({2}, "t0", DataType::FP32);
@@ -226,8 +228,14 @@ TEST_CASE("affinity_batch schedule policy and tile map", "[execution_schedule]")
         generate_round_robin_execution_schedule(tg, order);
     ExecutionSchedule ab =
         generate_affinity_batch_execution_schedule(tg, order);
+    Runtime rt(tg);
+    rt.compile();
+    ExecutionSchedule ab_rt =
+        rt.generate_affinity_batch_execution_schedule();
     REQUIRE(rr.policy == "round_robin_virtual_tensor_split");
     REQUIRE(ab.policy == "affinity_batch_virtual_tensor_split");
+    REQUIRE(ab_rt.policy == ab.policy);
+    REQUIRE(ab_rt.tile_virtual_worker == ab.tile_virtual_worker);
     REQUIRE(ab.tile_virtual_worker.at("t0") ==
             ab.tile_virtual_worker.at("t1"));
     REQUIRE(ab.tile_virtual_worker.at("t2") ==

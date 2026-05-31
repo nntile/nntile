@@ -52,7 +52,7 @@ Track C (multi-GPU)  ──┘
 | E1 | Python: full `config.json` load (not only `--tiny`) | A2 | todo |
 | E2 | Checkpoint save/load for graph training | E1 | todo |
 | E3 | Heterogeneous tiling tests: SDPA + embedding | B3 | todo |
-| F1 | Stub second generator API (e.g. `affinity_batch`) | B1 | todo |
+| F1 | Second generator API (`affinity_batch` via `Runtime::generate_affinity_batch_execution_schedule`) | B1 | done |
 
 Mark **done** in this table when merged to `graph_api`.
 

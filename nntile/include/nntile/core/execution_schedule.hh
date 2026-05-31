@@ -75,6 +75,8 @@ ExecutionSchedule generate_round_robin_execution_schedule(
     std::vector<std::shared_ptr<TileGraph::OpNode>> const &execution_order);
 
 //! Batch-axis affinity: tiles sharing a batch slice use the same worker.
+//! Prefer ``Runtime::generate_affinity_batch_execution_schedule()`` after
+//! ``compile()``; this free function matches the compiled execution order.
 ExecutionSchedule generate_affinity_batch_execution_schedule(
     TileGraph const &graph,
     std::vector<std::shared_ptr<TileGraph::OpNode>> const &execution_order);
