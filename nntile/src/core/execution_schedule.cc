@@ -545,11 +545,12 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path)
         }
         schedule.ops.push_back(std::move(e));
     }
+    int const runtime_workers = sched::count_execution_workers();
     if (schedule.num_workers <= 0)
     {
-        schedule.num_workers = sched::count_execution_workers();
+        schedule.num_workers = runtime_workers;
     }
-    int const worker_bound = schedule.num_workers;
+    int const worker_bound = runtime_workers;
     for (ScheduledOpEntry const &e : schedule.ops)
     {
         if (e.worker < 0 || e.worker >= worker_bound)

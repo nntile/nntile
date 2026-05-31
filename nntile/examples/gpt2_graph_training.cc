@@ -554,6 +554,7 @@ int main(int argc, char **argv)
         {
             std::cerr << "Execution schedule: load failed ("
                       << ex.what() << "); using round-robin.\n";
+            args.execution_path.clear();
         }
     }
 
