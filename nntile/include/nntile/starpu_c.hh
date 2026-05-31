@@ -38,8 +38,7 @@ extern "C"
                   __FILE__,                                                  \
                   STARPU_TASK_LINE,                                          \
                   __LINE__,                                                  \
-                  ##__VA_ARGS__,                                           \
-                  0)                                                         \
+                  ##__VA_ARGS__)                                             \
             : ::starpu_task_insert((cl),                                     \
                   STARPU_TASK_FILE,                                          \
                   __FILE__,                                                  \
@@ -47,17 +46,15 @@ extern "C"
                   __LINE__,                                                  \
                   STARPU_EXECUTE_ON_WORKER,                                  \
                   ::nntile::sched::preferred_starpu_worker_id(),             \
-                  ##__VA_ARGS__,                                           \
-                  0))
+                  ##__VA_ARGS__))
 #else
 #define starpu_task_insert(cl, ...)                                          \
     (::nntile::sched::preferred_starpu_worker_id() < 0                       \
-            ? ::starpu_task_insert((cl), ##__VA_ARGS__, 0)                   \
+            ? ::starpu_task_insert((cl), ##__VA_ARGS__)                      \
             : ::starpu_task_insert((cl),                                     \
                   STARPU_EXECUTE_ON_WORKER,                                  \
                   ::nntile::sched::preferred_starpu_worker_id(),             \
-                  ##__VA_ARGS__,                                           \
-                  0))
+                  ##__VA_ARGS__))
 #endif
 
 #endif // __cplusplus

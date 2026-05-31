@@ -91,7 +91,7 @@ int pick_worker_min_writable_dependency(
     size_t best_bytes = by_worker.begin()->second;
     for (auto const &[w, nbytes] : by_worker)
     {
-        if (nbytes > best_bytes || (nbytes == best_bytes && w < best_worker))
+        if (nbytes < best_bytes || (nbytes == best_bytes && w < best_worker))
         {
             best_bytes = nbytes;
             best_worker = w;
@@ -548,6 +548,28 @@ ExecutionSchedule load_execution_schedule_json(std::string const &path)
     if (schedule.num_workers <= 0)
     {
         schedule.num_workers = sched::count_execution_workers();
+    }
+    int const worker_bound = schedule.num_workers;
+    for (ScheduledOpEntry const &e : schedule.ops)
+    {
+        if (e.worker < 0 || e.worker >= worker_bound)
+        {
+            throw std::runtime_error(
+                "execution.json: ops[" +
+                std::to_string(e.execution_index) + "] worker " +
+                std::to_string(e.worker) + " out of range [0, " +
+                std::to_string(worker_bound) + ")");
+        }
+    }
+    for (auto const &[tile, worker] : schedule.tile_virtual_worker)
+    {
+        if (worker < 0 || worker >= worker_bound)
+        {
+            throw std::runtime_error(
+                "execution.json: tile '" + tile + "' virtual_worker " +
+                std::to_string(worker) + " out of range [0, " +
+                std::to_string(worker_bound) + ")");
+        }
     }
     return schedule;
 }

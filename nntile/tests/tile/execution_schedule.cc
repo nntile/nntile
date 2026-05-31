@@ -11,6 +11,7 @@
 #include "context_fixture.hh"
 
 #include <catch2/catch_test_macros.hpp>
+#include <fstream>
 #include <nntile/context.hh>
 #include <nntile/core/execution_schedule.hh>
 #include <nntile/runtime.hh>
@@ -164,6 +165,25 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     bad.fingerprint.op_names.push_back("TILE_FAKE");
 
     REQUIRE_THROWS_AS(rt.set_execution_schedule(std::move(bad)),
+        std::runtime_error);
+}
+
+TEST_CASE("load_execution_schedule_json rejects out-of-range worker",
+    "[execution_schedule]")
+{
+    char const *const tmp_path =
+        "/tmp/nntile_execution_schedule_bad_worker.json";
+    std::ofstream out(tmp_path);
+    out << R"({
+  "version": 1,
+  "policy": "round_robin_virtual_tensor_split",
+  "hardware": {"num_workers": 2, "worker_kind": "cpu"},
+  "schedule_fingerprint": {"op_count": 1, "op_names": ["add"]},
+  "virtual_tile_workers": [],
+  "ops": [{"index": 0, "op": "add", "worker": 9}]
+})";
+    out.close();
+    REQUIRE_THROWS_AS(load_execution_schedule_json(tmp_path),
         std::runtime_error);
 }
 

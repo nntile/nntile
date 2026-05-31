@@ -222,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     runtime.apply_round_robin_execution_schedule()
             elif args.execution_out and train_step == 0:
+                runtime.apply_round_robin_execution_schedule()
                 runtime.write_round_robin_execution_json(args.execution_out)
                 print(f'Execution: wrote {args.execution_out}')
             else:
