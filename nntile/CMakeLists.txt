@@ -34,7 +34,7 @@ if(HAVE_STARPU_SIMGRID)
 endif()
 add_subdirectory(src)
 
-if(BUILD_TESTS)
+if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
     add_subdirectory(tests)
 endif()
 
