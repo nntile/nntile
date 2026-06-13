@@ -35,10 +35,12 @@ namespace
 constexpr float tolerance = 1e-4f;
 constexpr int distr_rank_single = 0;
 
+//! RoPE pair axis is the last sin dim; dy uses 2x tiling on that axis.
 void tile_rope_sin_cos_src(TensorGraph::TensorNode *sin,
     TensorGraph::TensorNode *cos,
     TensorGraph::TensorNode *src)
 {
+    const Index rope_axis = sin->ndim() - 1;
     for (Index d = 0; d < sin->ndim(); ++d)
     {
         const Index extent = sin->shape()[static_cast<size_t>(d)];
@@ -54,7 +56,7 @@ void tile_rope_sin_cos_src(TensorGraph::TensorNode *sin,
         }
         sin->axis(static_cast<int>(d))->set_tiling(sin_seg);
         cos->axis(static_cast<int>(d))->set_tiling(sin_seg);
-        if (d == 0)
+        if (d == rope_axis)
         {
             std::vector<Index> src_seg;
             src_seg.reserve(sin_seg.size());
@@ -62,7 +64,8 @@ void tile_rope_sin_cos_src(TensorGraph::TensorNode *sin,
             {
                 src_seg.push_back(2 * v);
             }
-            src->axis(0)->set_tiling(std::move(src_seg));
+            src->axis(static_cast<int>(rope_axis))
+                ->set_tiling(std::move(src_seg));
         }
         else
         {
@@ -77,9 +80,9 @@ TEST_CASE("TensorGraph rope_backward structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *sin = graph.data({2, 4})->set_name("sin");
-    auto *cos = graph.data({2, 4})->set_name("cos");
-    auto *dy = graph.data({4, 4})->set_name("dy");
+    auto *sin = graph.data({2})->set_name("sin");
+    auto *cos = graph.data({2})->set_name("cos");
+    auto *dy = graph.data({4})->set_name("dy");
     auto *dx = gt::rope_backward(sin, cos, dy)->set_name("dx");
 
     REQUIRE(graph.num_data() == 4);
@@ -96,9 +99,9 @@ TEST_CASE("TensorGraph rope_backward structure", "[graph][tensor]")
 TEST_CASE("TensorGraph rope_backward rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *sin = graph.data({2, 4})->set_name("sin");
-    auto *cos = graph.data({2, 4})->set_name("cos");
-    auto *dy = graph.data({4, 4})->set_name("dy");
+    auto *sin = graph.data({2})->set_name("sin");
+    auto *cos = graph.data({2})->set_name("cos");
+    auto *dy = graph.data({4})->set_name("dy");
 
     REQUIRE_THROWS_AS(
         gt::rope_backward(nullptr, cos, dy), std::invalid_argument);
@@ -112,11 +115,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph rope_backward tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto sin_shape =
-        GENERATE(std::vector<Index>{2, 4}, std::vector<Index>{4, 3, 2});
+    const auto sin_shape = GENERATE(std::vector<Index>{2});
 
     std::vector<Index> dy_shape = {sin_shape[0] * 2};
-    dy_shape.insert(dy_shape.end(), sin_shape.begin() + 1, sin_shape.end());
 
     const Index sin_nelems = std::accumulate(
         sin_shape.begin(), sin_shape.end(), Index(1), std::multiplies<>());

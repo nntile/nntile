@@ -184,7 +184,7 @@ def _make_converter(
 
     def _attn_o(w: np.ndarray) -> np.ndarray:
         return as_float32(
-            w.reshape(n_heads, d_kv, d_model).transpose(1, 0, 2))
+            w.reshape(d_model, n_heads, d_kv).transpose(2, 1, 0))
 
     def convert(name: str) -> np.ndarray:
         if name == "model.model.embed_tokens.vocab":

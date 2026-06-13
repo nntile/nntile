@@ -79,7 +79,8 @@ void rope(TensorGraph::TensorNode *sin,
             "rope: input tensors must have the same dtype");
     }
     validate_same_shape_and_merge(src, dst, "rope");
-    for(Index d = 1; d < sin->ndim(); ++d)
+    const Index rope_axis = sin->ndim() - 1;
+    for(Index d = 0; d < rope_axis; ++d)
     {
         merge_axis(sin->mutable_axes()[d], src->mutable_axes()[d]);
         merge_axis(cos->mutable_axes()[d], src->mutable_axes()[d]);
@@ -108,6 +109,7 @@ void TensorRopeOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_dst = tile_lower::tiles_of(ctx.tile_map, dst);
 
     const Index sin_ndim = sin->ndim();
+    const Index rope_axis = sin_ndim - 1;
     std::vector<Index> src_coord;
     std::vector<Index> sincos_coord(static_cast<size_t>(sin_ndim));
 
@@ -116,14 +118,15 @@ void TensorRopeOp::lower_to_tile(const LoweringContext &ctx) const
         lay_src->grid_coord_from_linear(lin, src_coord);
         for (Index d = 0; d < sin_ndim; ++d)
         {
-            if (d == 0)
+            if (d == rope_axis)
             {
                 Index src_lo = 0;
                 Index src_hi = 0;
-                lay_src->tile_axis_global_range(src_coord, 0, src_lo, src_hi);
+                lay_src->tile_axis_global_range(
+                    src_coord, rope_axis, src_lo, src_hi);
                 (void)src_hi;
-                sincos_coord[static_cast<size_t>(0)] =
-                    lay_sin->tile_index_containing(0, src_lo / 2);
+                sincos_coord[static_cast<size_t>(rope_axis)] =
+                    src_coord[static_cast<size_t>(rope_axis)];
             }
             else
             {
@@ -136,8 +139,10 @@ void TensorRopeOp::lower_to_tile(const LoweringContext &ctx) const
         Index src_hi = 0;
         Index sin_lo = 0;
         Index sin_hi = 0;
-        lay_src->tile_axis_global_range(src_coord, 0, src_lo, src_hi);
-        lay_sin->tile_axis_global_range(sincos_coord, 0, sin_lo, sin_hi);
+        lay_src->tile_axis_global_range(
+            src_coord, rope_axis, src_lo, src_hi);
+        lay_sin->tile_axis_global_range(
+            sincos_coord, rope_axis, sin_lo, sin_hi);
         const Index sin_pair0 = src_lo / 2 - sin_lo;
         tile::rope(tiles_sin[static_cast<size_t>(j)],
             tiles_cos[static_cast<size_t>(j)],

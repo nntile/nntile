@@ -61,13 +61,14 @@ void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, 
         throw std::runtime_error("sin.ndim == 0");
     }
 
-    // 0-th dimension is the head_size, which is halved for sin and cos
-    if(src.shape[0] != 2*sin.shape[0])
+  // RoPE pairs live on the last sin axis (e.g. head_dim/2 in batch, seq, …).
+    const Index rope_axis = sin.ndim - 1;
+    if(src.shape[rope_axis] != 2 * sin.shape[rope_axis])
     {
-        throw std::runtime_error("src.shape[0] != 2*sin.shape[0]");
+        throw std::runtime_error(
+            "src.shape[rope_axis] != 2*sin.shape[rope_axis]");
     }
-
-    for(Index i = 1; i < sin.ndim; ++i)
+    for(Index i = 0; i < rope_axis; ++i)
     {
         if(src.shape[i] != sin.shape[i])
         {
@@ -76,8 +77,10 @@ void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, 
     }
 
     // Reshape inputs for simplicity: sin,cos -> (m), src,dst -> (2,m,n)
-    Index n{src.matrix_shape[1][1]};
-    Index m_pairs{src.shape[0] / 2};
+    const Index n_slow = src.matrix_shape[rope_axis][0];
+    const Index n_fast = src.matrix_shape[rope_axis + 1][1];
+    const Index n = (src.ndim > sin.ndim) ? n_fast : n_slow;
+    Index m_pairs{src.shape[rope_axis] / 2};
     Index m_sin{sin.nelems / n};
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();

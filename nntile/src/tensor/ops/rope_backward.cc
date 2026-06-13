@@ -80,7 +80,8 @@ void rope_backward(TensorGraph::TensorNode *sin,
             "rope_backward: input tensors must have the same dtype");
     }
     validate_same_shape_and_merge(dy, dx, "rope_backward");
-    for(Index d = 1; d < sin->ndim(); ++d)
+    const Index rope_axis = sin->ndim() - 1;
+    for(Index d = 0; d < rope_axis; ++d)
     {
         merge_axis(sin->mutable_axes()[d], dy->mutable_axes()[d]);
         merge_axis(cos->mutable_axes()[d], dy->mutable_axes()[d]);
@@ -109,6 +110,7 @@ void TensorRopeBackwardOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_dx = tile_lower::tiles_of(ctx.tile_map, dx);
 
     const Index sin_ndim = sin->ndim();
+    const Index rope_axis = sin_ndim - 1;
     std::vector<Index> dydx_coord;
     std::vector<Index> sincos_coord(static_cast<size_t>(sin_ndim));
 
@@ -117,14 +119,15 @@ void TensorRopeBackwardOp::lower_to_tile(const LoweringContext &ctx) const
         lay_dy->grid_coord_from_linear(lin, dydx_coord);
         for (Index d = 0; d < sin_ndim; ++d)
         {
-            if (d == 0)
+            if (d == rope_axis)
             {
                 Index dy_lo = 0;
                 Index dy_hi = 0;
-                lay_dy->tile_axis_global_range(dydx_coord, 0, dy_lo, dy_hi);
+                lay_dy->tile_axis_global_range(
+                    dydx_coord, rope_axis, dy_lo, dy_hi);
                 (void)dy_hi;
-                sincos_coord[static_cast<size_t>(0)] =
-                    lay_sin->tile_index_containing(0, dy_lo / 2);
+                sincos_coord[static_cast<size_t>(rope_axis)] =
+                    dydx_coord[static_cast<size_t>(rope_axis)];
             }
             else
             {
@@ -137,8 +140,10 @@ void TensorRopeBackwardOp::lower_to_tile(const LoweringContext &ctx) const
         Index dy_hi = 0;
         Index sin_lo = 0;
         Index sin_hi = 0;
-        lay_dy->tile_axis_global_range(dydx_coord, 0, dy_lo, dy_hi);
-        lay_sin->tile_axis_global_range(sincos_coord, 0, sin_lo, sin_hi);
+        lay_dy->tile_axis_global_range(
+            dydx_coord, rope_axis, dy_lo, dy_hi);
+        lay_sin->tile_axis_global_range(
+            sincos_coord, rope_axis, sin_lo, sin_hi);
         const Index sin_pair0 = dy_lo / 2 - sin_lo;
         tile::rope_backward(tiles_sin[static_cast<size_t>(j)],
             tiles_cos[static_cast<size_t>(j)],
