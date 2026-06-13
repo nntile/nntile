@@ -64,7 +64,7 @@ TEST_CASE("TensorGraph hypot structure", "[graph][tensor]")
 TEST_CASE("TensorGraph hypot rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src1 = graph.data({4, 5})->set_name("src1");
+    auto *src1 = graph.data({5, 4})->set_name("src1");
 
     REQUIRE_THROWS_AS(
         gt::hypot(alpha, src1, beta, src1), std::invalid_argument);

@@ -34,9 +34,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [shape, axis] =
-        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0)},
-            std::tuple{std::vector<Index>{4, 5}, Index(1)},
-            std::tuple{std::vector<Index>{2, 3, 4}, Index(1)});
+        GENERATE(std::tuple{std::vector<Index>{3, 2}, Index(0)},
+            std::tuple{std::vector<Index>{5, 4}, Index(1)},
+            std::tuple{std::vector<Index>{4, 3, 2}, Index(1)});
 
     std::vector<Index> gamma_shape = {shape[axis]};
 
@@ -57,8 +57,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [shape, axis, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
-            std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{3, 2}, Index(0), Scalar(1.0)},
+            std::tuple{std::vector<Index>{5, 4}, Index(1), Scalar(-1.0)});
 
     std::vector<Index> gamma_shape = {shape[axis]};
 
@@ -82,10 +82,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [shape, axis, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
-            std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(1.0)},
+        GENERATE(std::tuple{std::vector<Index>{3, 2}, Index(0), Scalar(1.0)},
+            std::tuple{std::vector<Index>{5, 4}, Index(1), Scalar(1.0)},
             std::tuple{std::vector<Index>{6}, Index(0), Scalar(2.0)},
-            std::tuple{std::vector<Index>{2, 2, 3}, Index(1), Scalar(-1.0)});
+            std::tuple{std::vector<Index>{3, 2, 2}, Index(1), Scalar(-1.0)});
 
     std::vector<Index> gamma_shape = {shape[axis]};
 

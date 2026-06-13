@@ -48,9 +48,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     NNGraph g("add_shape_mismatch");
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
+    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
     auto *y =
-        g.tensor({3, 2}, DataType::FP32)->set_name("y"); // different shape
+        g.tensor({2, 3}, DataType::FP32)->set_name("y"); // different shape
 
     REQUIRE_THROWS_AS(add(1.0, x, 1.0, y), std::invalid_argument);
 }
@@ -86,8 +86,8 @@ TEST_CASE_METHOD(
             std::tuple{Scalar(1.0), Scalar(0.0), Scalar(1.0)});
 
     NNGraph g("autograd_add");
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({3, 2}, DataType::FP32)->set_name("y");
 
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
@@ -172,13 +172,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
 
     NNGraph g("add");
-    auto *x = g.tensor({2, 3}, DataType::FP32, true)->set_name("x");
-    auto *y = g.tensor({2, 3}, DataType::FP32, true)->set_name("y");
+    auto *x = g.tensor({3, 2}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({3, 2}, DataType::FP32, true)->set_name("y");
     auto *z = add(add_alpha, x, add_beta, y)->set_name("z");
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
-    REQUIRE(z->shape() == (std::vector<Index>{2, 3}));
+    REQUIRE(z->shape() == (std::vector<Index>{3, 2}));
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     gt::fill(grad_fill_val, z_grad->data());

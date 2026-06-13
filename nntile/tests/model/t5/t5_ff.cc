@@ -111,13 +111,13 @@ TEST_CASE("T5LayerFF forward builds output", "[model][t5]")
     }
     NNGraph g("t5_ff");
     T5LayerFF ff(&g, "ff", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
     auto *output = ff.forward(input);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
     REQUIRE(ff.parameters_recursive().size() == 4);
 }
 
@@ -172,7 +172,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> result;
     {
         NNGraph g("ff_ref");
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+        auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                           ->set_name("input");
         T5LayerFF ff(&g, "ff", fx.config);
         ff.load(full_path);
@@ -225,7 +225,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("ff_bwd");
         auto *input =
-            g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
+            g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32, true)
                 ->set_name("input");
         T5LayerFF ff(&g, "ff", fx.config);
         ff.load(full_path);

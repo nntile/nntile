@@ -224,7 +224,7 @@ TEST_CASE("T5Model forward builds output", "[model][t5]")
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.hidden, fx.dec_seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.dec_seq, fx.hidden}));
 }
 
 TEST_CASE("T5Model load from safetensors roundtrip", "[model][t5][io]")

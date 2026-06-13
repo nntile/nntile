@@ -80,7 +80,7 @@ TEST_CASE("Embedding ConstructorValidations", "[module]")
 TEST_CASE("Embedding Callable", "[module]")
 {
     NNGraph g("embedding_callable");
-    auto *index = g.tensor({4, 5}, DataType::INT64, false)->set_name("index");
+    auto *index = g.tensor({5, 4}, DataType::INT64, false)->set_name("index");
     Embedding emb(&g, "emb", 10, 100);
     auto *output = emb(index);
     REQUIRE(output->shape() == std::vector<Index>({4, 5, 100}));
@@ -90,7 +90,7 @@ TEST_CASE("Embedding BuildForward", "[module]")
 {
     NNGraph g("embedding");
 
-    auto *index = g.tensor({4, 5}, DataType::INT64, false)->set_name("index");
+    auto *index = g.tensor({5, 4}, DataType::INT64, false)->set_name("index");
     Embedding emb(&g, "emb", 10, 100);
 
     auto *output = emb.forward(index);
@@ -104,7 +104,7 @@ TEST_CASE("Embedding BuildForwardValidatesIndexDtype", "[module]")
 {
     NNGraph g("embedding");
 
-    auto *bad_index = g.tensor({4, 5}, DataType::FP32)->set_name("bad_index");
+    auto *bad_index = g.tensor({5, 4}, DataType::FP32)->set_name("bad_index");
     Embedding emb(&g, "emb", 10, 100);
 
     REQUIRE_THROWS_AS(emb.forward(bad_index), std::invalid_argument);
@@ -124,7 +124,7 @@ TEST_CASE("Embedding BackwardCreatesGradients", "[module]")
 {
     NNGraph g("embedding");
 
-    auto *index = g.tensor({4, 5}, DataType::INT64, false)->set_name("index");
+    auto *index = g.tensor({5, 4}, DataType::INT64, false)->set_name("index");
     Embedding emb(&g, "emb", 10, 100);
 
     auto *output = emb.forward(index);
@@ -146,7 +146,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index embed_dim = 100;
 
     NNGraph g("embedding_bind");
-    auto *index = g.tensor({4, 5}, DataType::INT64, false)->set_name("index");
+    auto *index = g.tensor({5, 4}, DataType::INT64, false)->set_name("index");
     Embedding emb(&g, "emb", num_embeddings, embed_dim);
 
     auto *output = emb.forward(index);

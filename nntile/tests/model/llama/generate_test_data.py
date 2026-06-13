@@ -31,25 +31,22 @@ reference bundles). ``attention`` / ``attention_gqa`` use
 
 Attention ``q_weight`` / ``k_weight`` / ``v_weight`` / ``o_weight`` are the
 same numeric values as HuggingFace ``Linear`` weights, reshaped to the 3D/4D
-layouts expected by the graph module, then passed through :func:`fortran_order`
-so byte layout matches NNTile Fortran tiles. PyTorch runs forward and backward
+layouts expected by the graph module, then passed through :func:`as_float32`.
+So byte layout matches NNTile C-order tiles. PyTorch runs forward and backward
 with the **original** HF weights (no in-place Q/K rewrite).
 
-For ``attention`` / ``attention_gqa`` blocks, Q/K weights use the same
-RoPE head-dim interleaving as the Python layer (Q: ``rotate_tensor_in`` on the
-head_size axis; GQA ``o_weight`` uses the ``from_torch`` reshape plus
-``moveaxis(1, 2)``). ``rope_sin`` / ``rope_cos`` are
-the first half-channels of ``LlamaRotaryEmbedding`` cos/sin, reshaped to
-``(head_dim/2, seq, batch)`` and passed through :func:`fortran_order` so the
-byte layout matches the C++ graph ``bind_data`` convention. RoPE is built like
+For ``attention`` / ``attention_gqa`` blocks, Q/K/V/O weights use the same
+reshapes as ``examples/llama_generate.py``. ``rope_sin`` / ``rope_cos`` are
+the first half-channels of ``LlamaRotaryEmbedding`` cos/sin in
+``(batch, seq, head_dim/2)`` layout. RoPE is built like
 ``test_llama_attention.generate_inputs``: first argument ``v_proj.weight``,
-``position_ids`` in ``(batch, seq)`` from a NumPy RNG.Forward and backward use
+``position_ids`` in ``(batch, seq)`` from a NumPy RNG. Forward and backward use
 ``LlamaAttention`` with ``_attn_implementation="eager"`` and the same
 ``(cos, sin)`` tensors as in the Python test.
 
 Optional causal self-attention matches ``test_llama_attention``: additive
 ``attention_mask`` from the upper-triangular bool pattern; the graph tests
-load ``attn_mask`` as float32 ``(seq, seq)`` in Fortran layout (1 = keep
+load ``attn_mask`` as float32 ``(seq, seq)`` in C-order (1 = keep
 logits), converted to BOOL in C++ for ``sdpa_eager`` masking.
 
 Extra MHA/GQA safetensors (identity RoPE / causal / both) are written by
@@ -70,7 +67,7 @@ The ``mlp`` block likewise writes ``llama_mlp.json`` next to
 counts, ``sequence_length``, ``batch``, tolerances) for ``test_llama_mlp``.
 
 The ``decoder`` / ``decoder_gqa`` bundles add ``rope_cos`` / ``rope_sin`` in
-the same layout as the attention tests (first half-channels, Fortran layout),
+the same layout as the attention tests (first half-channels, C-order),
 plus ``llama_decoder.json`` / ``llama_decoder_gqa.json`` for
 ``test_llama_decoder``.
 
@@ -165,22 +162,12 @@ CAUSAL_GQA_DIMS = MODEL_GQA_DIMS
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    """Return C-contiguous array matching NNTile column-major layout.
-
-    ``safetensors`` stores C-order (row-major) flat bytes via ``tobytes()``.
-    NNTile reads those bytes linearly into Fortran-order (column-major) tiles.
-    Ravelling in F-order and reshaping in C-order makes the C-order flat
-    representation equal the column-major element sequence that NNTile expects.
-    """
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
-def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    """Same layout remap as :func:`fortran_order` for int64 position indices"""
-    a = np.asarray(arr, dtype=np.int64)
-    return a.ravel("F").reshape(a.shape)
+def as_int64(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.int64)
 
 
 def _make_config(dims: TestDims) -> LlamaConfig:
@@ -206,22 +193,14 @@ def _make_config(dims: TestDims) -> LlamaConfig:
 
 
 def _linear(linear: torch.nn.Linear) -> np.ndarray:
-    """PT Linear weight ``(out, in)`` C → NNTile ``(in, out)`` Fortran."""
-    return fortran_order(linear.weight.detach().numpy().T)
+    """PT Linear weight ``(out, in)`` → graph ``(in, out)``."""
+    return as_float32(linear.weight.detach().numpy())
 
 
 def _attention_weight_arrays(
     attn: PtAttention, dims: TestDims,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """HF ``(out,in)`` Q/K/V/O reshaped to graph ``LlamaAttention``
-    weight layouts.
-
-    No RoPE-related half-dim interleaving; values match ``q_proj`` /
-    ``k_proj`` / ``v_proj`` / ``o_proj`` as initialized by HuggingFace.
-
-    Returns ``(q_arr, k_arr, v, o, o_arr)`` — ``v`` / ``o`` are raw torch
-    arrays; ``o_arr`` is the NNTile-shaped ``o`` view used for ``o_weight``.
-    """
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """HF Q/K/V/O reshaped to graph ``LlamaAttention`` layouts."""
     q = attn.q_proj.weight.detach().numpy()
     k = attn.k_proj.weight.detach().numpy()
     v = attn.v_proj.weight.detach().numpy()
@@ -231,70 +210,39 @@ def _attention_weight_arrays(
     if dims.use_gqa:
         q_arr = q.reshape(
             dims.kv_heads, dims.kv_group_size, dims.head_size, n_emb,
-        ).transpose(1, 0, 2, 3)
-        # Match ``from_torch``: reshape to
-        # ``(n_emb, n_head_kv, kv_group, head)``
-        # then ``moveaxis(1, 2)`` → NNTile
-        # ``(n_emb, kv_group, n_head_kv, head)``.
-        o_tmp = o.reshape(
-            n_emb, dims.kv_heads, dims.kv_group_size, dims.head_size,
-        )
-        o_arr = np.moveaxis(o_tmp, 1, 2)
+        ).transpose(3, 2, 0, 1)
+        k_arr = k.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
+        v_arr = v.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
+        o_arr = o.reshape(
+            dims.kv_heads, dims.kv_group_size, dims.head_size, n_emb,
+        ).transpose(2, 0, 1, 3)
     else:
-        q_arr = q.reshape(dims.n_heads, dims.head_size, n_emb)
-        o_arr = o.reshape(n_emb, dims.n_heads, dims.head_size)
+        q_arr = q.reshape(n_emb, dims.n_heads, dims.head_size).transpose(0, 2, 1)
+        k_arr = k.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
+        v_arr = v.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
+        o_arr = o.reshape(dims.n_heads, dims.head_size, n_emb).transpose(1, 0, 2)
 
-    k_arr = k.reshape(dims.kv_heads, dims.head_size, n_emb)
-    q_arr = np.asarray(q_arr, dtype=np.float32).copy()
-    k_arr = np.asarray(k_arr, dtype=np.float32).copy()
-    return q_arr, k_arr, v, o, o_arr
+    return q_arr, k_arr, v_arr, o_arr
 
 
 def _attn(attn: PtAttention, prefix: str, dims: TestDims) -> \
     dict[str, np.ndarray]:
-    q_arr, k_arr, v, _o, o_arr = _attention_weight_arrays(attn, dims)
-
-    def rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
-        if axis == 0:
-            new_shape = (1, x.shape[0], np.prod(x.shape[1:]))
-        elif axis == x.ndim - 1:
-            new_shape = (np.prod(x.shape[:-1]), x.shape[-1], 1)
-        else:
-            new_shape = (
-                np.prod(x.shape[:axis]),
-                x.shape[axis],
-                np.prod(x.shape[axis + 1 :]),
-            )
-        x_reshaped = x.reshape(new_shape)
-        mid = x.shape[axis] // 2
-        y_reshaped = np.empty_like(x_reshaped)
-        y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
-        y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
-        return y_reshaped.reshape(x.shape)
-
-    n_emb = int(attn.q_proj.weight.shape[1])
-    # Q RoPE layout: rotate along head_size (axis 1 for 3D, axis 2 for 4D GQA),
-    # matching ``LlamaAttention_nntile.from_torch`` (rotate_tensor_in(..., 2)).
-    q_rot_axis = q_arr.ndim - 2
+    q_arr, k_arr, v_arr, o_arr = _attention_weight_arrays(attn, dims)
     return {
-        f"{prefix}.q_weight": fortran_order(
-            rotate_tensor_in(q_arr, q_rot_axis),
-        ),
-        f"{prefix}.k_weight": fortran_order(rotate_tensor_in(k_arr, 1)),
-        f"{prefix}.v_weight": fortran_order(
-            v.reshape(dims.kv_heads, dims.head_size, n_emb)
-        ),
-        f"{prefix}.o_weight": fortran_order(o_arr),
+        f"{prefix}.q_weight": as_float32(q_arr),
+        f"{prefix}.k_weight": as_float32(k_arr),
+        f"{prefix}.v_weight": as_float32(v_arr),
+        f"{prefix}.o_weight": as_float32(o_arr),
     }
 
 
 def _rms(norm, prefix: str) -> dict[str, np.ndarray]:
-    return {f"{prefix}.gamma": fortran_order(norm.weight.detach().numpy())}
+    return {f"{prefix}.gamma": as_float32(norm.weight.detach().numpy())}
 
 
 def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)
+        f"{prefix}.vocab": as_float32(embed.weight.detach().numpy())
     }
 
 
@@ -332,53 +280,45 @@ def _model_weights(
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
-    """Random hidden-state input: NNTile (H,S,B) Fortran + PT (B,S,H)."""
+    """Random hidden-state input: NNTile ``(batch, seq, hidden)`` + PT ``(B,S,H)``."""
     x = rng.standard_normal(
-        (dims.hidden, dims.seq, dims.batch)
+        (dims.batch, dims.seq, dims.hidden)
     ).astype(np.float32) * scale
-    x_nt = fortran_order(x)
-    x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
+    x_nt = as_float32(x)
+    x_pt = torch.tensor(x.copy(), requires_grad=True)
     return x_nt, x_pt
 
 
 def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
-    """Random upstream gradient matching output shape (B,S,D).
-
-    Returns ``(grad_nt, grad_pt)`` — NNTile ``(D,S,B)`` Fortran and PyTorch
-    ``(B,S,D)`` tensors.
-    """
+    """Random upstream gradient matching output shape ``(B,S,D)``."""
     g = (rng.standard_normal(pt_out.shape).astype(np.float32) * scale)
     g_pt = torch.tensor(g)
-    g_nt = fortran_order(g.transpose(2, 1, 0))
+    g_nt = as_float32(g)
     return g_nt, g_pt
 
 
 def _ids_input(rng, dims: TestDims):
-    """Random token-id input: NNTile ``(S,B)`` Fortran + PT ``(B,S)``."""
+    """Random token-id input: NNTile ``(batch, seq)`` + PT ``(B,S)``."""
     ids = rng.integers(
-        0, dims.vocab, size=(dims.seq, dims.batch)).astype(np.int64)
-    ids_nt = ids.ravel("F").reshape(ids.shape)
-    ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
+        0, dims.vocab, size=(dims.batch, dims.seq)).astype(np.int64)
+    ids_nt = as_int64(ids)
+    ids_pt = torch.tensor(ids.copy(), dtype=torch.long)
     return ids_nt, ids_pt
 
 
 def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
-    """PT output ``(B, S, D)`` → NNTile ``(D, S, B)`` Fortran."""
-    return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
+    """PT output ``(B, S, D)`` → NNTile ``(batch, seq, hidden)``."""
+    return as_float32(pt_out.detach().numpy())
 
 
 def _rope_half_from_hf(
     cos: torch.Tensor, sin: torch.Tensor, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """HF ``(B,S,D)`` cos/sin → NNTile-graph ``(half,S,B)``
-    float32 (C layout)."""
+    """HF ``(B,S,D)`` cos/sin → graph ``(batch, seq, half)`` float32."""
     half = dims.head_size // 2
     cos_half = cos[:, :, :half].to(torch.float32).detach().cpu().numpy()
     sin_half = sin[:, :, :half].to(torch.float32).detach().cpu().numpy()
-    # (B, S, half) → (half, S, B)
-    cos_np = np.transpose(cos_half, (2, 1, 0))
-    sin_np = np.transpose(sin_half, (2, 1, 0))
-    return cos_np, sin_np
+    return as_float32(cos_half), as_float32(sin_half)
 
 
 def _causal_additive_mask_torch(
@@ -394,16 +334,11 @@ def _causal_additive_mask_torch(
         to(dtype=dtype)
 
 
-def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
-    """``(k_seq, q_seq)`` mask for graph ``sdpa_eager`` (1 = keep, 0 = mask).
-
-    Stored as float32 because ``safetensors.numpy.save_file`` upgrades numpy
-    bool to F32; the C++ test converts back to BOOL for ``mask_scalar``.
-    """
+def _sdpa_causal_mask(seq: int) -> np.ndarray:
     kk = np.arange(seq, dtype=np.int64)[:, None]
     qq = np.arange(seq, dtype=np.int64)[None, :]
     allowed = (kk <= qq).astype(np.float32)
-    return fortran_order(allowed)
+    return as_float32(allowed)
 
 
 # ── Block generators ─────────────────────────────────────────────────----
@@ -454,18 +389,16 @@ def generate_attention(
         cos = torch.ones_like(cos)
         sin = torch.zeros_like(sin)
     cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
-    data["rope_cos"] = fortran_order(cos_np)
-    data["rope_sin"] = fortran_order(sin_np)
-    # NNTile (seq, batch) layout — matches ``rope_sin_cos_from_position_ids``
-    pos_nntile = pos_ids.T.astype(np.int64)
-    data["position_ids"] = fortran_order_int64(pos_nntile)
+    data["rope_cos"] = cos_np
+    data["rope_sin"] = sin_np
+    data["position_ids"] = as_int64(pos_ids)
 
     attn_mask_torch: torch.Tensor | None = None
     if use_causal_mask:
         attn_mask_torch = _causal_additive_mask_torch(
             dims.batch, dims.seq, x_pt.device, x_pt.dtype,
         )
-        data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+        data["attn_mask"] = _sdpa_causal_mask(dims.seq)
 
     out = pt(
         x_pt,
@@ -759,8 +692,8 @@ def generate_decoder(
     rotary = LlamaRotaryEmbedding(config, device=x_pt.device)
     cos, sin = rotary(x_pt, position_ids)
     cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
-    data["rope_cos"] = fortran_order(cos_np)
-    data["rope_sin"] = fortran_order(sin_np)
+    data["rope_cos"] = cos_np
+    data["rope_sin"] = sin_np
     out = pt(x_pt, position_embeddings=(cos, sin))[0]
     data["output_ref"] = _out_to_nntile(out)
 
@@ -794,9 +727,9 @@ def generate_model(
     ).unsqueeze(0).expand(inputs_embeds.shape[0], -1)
     cos, sin = pt.rotary_emb(inputs_embeds, position_ids)
     cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
-    data["rope_cos"] = fortran_order(cos_np)
-    data["rope_sin"] = fortran_order(sin_np)
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["rope_cos"] = cos_np
+    data["rope_sin"] = sin_np
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
 
     out = pt(ids_pt).last_hidden_state
     data["output_ref"] = _out_to_nntile(out)
@@ -828,9 +761,9 @@ def generate_causal(
     ).unsqueeze(0).expand(inputs_embeds.shape[0], -1)
     cos, sin = pt.model.rotary_emb(inputs_embeds, position_ids)
     cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
-    data["rope_cos"] = fortran_order(cos_np)
-    data["rope_sin"] = fortran_order(sin_np)
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["rope_cos"] = cos_np
+    data["rope_sin"] = sin_np
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
 
     out = pt(ids_pt).logits
     data["output_ref"] = _out_to_nntile(out)

@@ -362,12 +362,12 @@ TEST_CASE("LlamaModel forward builds output", "[model][llama]")
     NNGraph g("llama_model");
     LlamaModel model(&g, "model", fx.config);
     auto *input_ids =
-        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+        g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
     auto *output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("LlamaModel GQA forward builds output", "[model][llama][gqa]")
@@ -380,12 +380,12 @@ TEST_CASE("LlamaModel GQA forward builds output", "[model][llama][gqa]")
     NNGraph g("llama_model_gqa");
     LlamaModel model(&g, "model", fx.config);
     auto *input_ids =
-        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+        g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
     auto *output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("LlamaModel load from safetensors roundtrip", "[model][llama][io]")

@@ -25,7 +25,7 @@ void validate()
 {
     using Y = typename T::repr_t;
     Scalar val = -0.5;
-    Tile<T> tile1({}), tile1_copy({}), tile2({2, 3, 4}), tile2_copy({2, 3, 4});
+    Tile<T> tile1({}), tile1_copy({}), tile2({4, 3, 2}), tile2_copy({4, 3, 2});
     auto tile1_local = tile1.acquire(STARPU_W);
     tile1_local[0] = Y(-1);
     tile1_local.release();

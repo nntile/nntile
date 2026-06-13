@@ -25,9 +25,9 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_slice (axis=0)", "[graph][tile]")
 {
-    const std::vector<Index> sh = {3, 4, 5};
-    const std::vector<Index> dh = {4, 5};
-    const Index n = 60, nd = 4 * 5;
+    const std::vector<Index> sh = {5, 4, 3};
+    const std::vector<Index> dh = {4, 3};
+    const Index n = 60, nd = 12;
     const Scalar a = 1.0, b = 0.0;
     const Index ax = 0;
     const int redux = 0;

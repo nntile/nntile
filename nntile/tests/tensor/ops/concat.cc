@@ -102,8 +102,8 @@ TEST_CASE("TensorGraph concat structure", "[graph][tensor]")
 TEST_CASE("TensorGraph concat rejects invalid arguments")
 {
     TensorGraph graph("concat_bad");
-    auto *a = graph.data({2, 3}, DataType::FP32)->set_name("a");
-    auto *b = graph.data({2, 3}, DataType::FP32)->set_name("b");
+    auto *a = graph.data({3, 2}, DataType::FP32)->set_name("a");
+    auto *b = graph.data({3, 2}, DataType::FP32)->set_name("b");
 
     REQUIRE_THROWS_AS(gt::concat(nullptr, b, 0), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::concat(a, nullptr, 0), std::invalid_argument);
@@ -114,10 +114,10 @@ TEST_CASE("TensorGraph concat rejects invalid arguments")
     REQUIRE_THROWS_AS(gt::concat(a, b_bad, 1), std::invalid_argument);
 
     TensorGraph other("other");
-    auto *b_other = other.data({2, 3}, DataType::FP32)->set_name("bo");
+    auto *b_other = other.data({3, 2}, DataType::FP32)->set_name("bo");
     REQUIRE_THROWS_AS(gt::concat(a, b_other, 1), std::invalid_argument);
 
-    auto *b_fp64 = graph.data({2, 3}, DataType::FP64)->set_name("bf64");
+    auto *b_fp64 = graph.data({3, 2}, DataType::FP64)->set_name("bf64");
     REQUIRE_THROWS_AS(gt::concat(a, b_fp64, 1), std::invalid_argument);
 
     auto *b_1d = graph.data({6}, DataType::FP32)->set_name("b1d");
@@ -133,7 +133,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const ShapesAxis c = GENERATE(ShapesAxis{{5}, {3}, 0},
         ShapesAxis{{2, 4}, {2, 5}, 1},
         ShapesAxis{{3, 2}, {4, 2}, 0},
-        ShapesAxis{{2, 2, 2}, {2, 2, 3}, 2});
+        ShapesAxis{{2, 2, 2}, {3, 2, 2}, 2});
 
     const auto &a_shape = std::get<0>(c);
     const auto &b_shape = std::get<1>(c);
@@ -186,7 +186,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const std::vector<Index> a_shape = {4, 6};
-    const std::vector<Index> b_shape = {4, 5};
+    const std::vector<Index> b_shape = {5, 4};
     constexpr Index axis = 1;
 
     std::vector<float> a_data(static_cast<size_t>(shape_prod(a_shape)));

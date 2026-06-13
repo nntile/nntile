@@ -83,7 +83,7 @@ TEST_CASE("TensorGraph softmax_inplace rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
     auto *mse = graph.data({2, 4, 5})->set_name("mse");
-    auto *dst = graph.data({4, 5})->set_name("dst");
+    auto *dst = graph.data({5, 4})->set_name("dst");
 
     REQUIRE_THROWS_AS(gt::softmax_inplace(nullptr, dst, alpha_one, axis_0),
         std::invalid_argument);

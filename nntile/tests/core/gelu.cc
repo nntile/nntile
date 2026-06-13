@@ -25,7 +25,7 @@ void validate()
 {
     using Y = typename T::repr_t;
     Tile<T> tile1_src({}), tile1_dst({}), tile1_src_copy({}), tile1_dst_copy({});
-    Tile<T> tile2_src({4, 3, 2}), tile2_dst({2, 3, 4}), tile2_src_copy({2, 3, 4}), tile2_dst_copy({2, 3, 4});
+    Tile<T> tile2_src({4, 3, 2}), tile2_dst({4, 3, 2}), tile2_src_copy({4, 3, 2}), tile2_dst_copy({4, 3, 2});
 
     // Test with single element
     auto tile1_src_local = tile1_src.acquire(STARPU_W);

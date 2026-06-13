@@ -24,7 +24,7 @@ template<typename T>
 void check(Scalar alpha, Scalar beta, Index axis)
 {
     using Y = typename T::repr_t;
-    Tile<T> dst({3, 4, 5}), dst2({3, 4, 5});
+    Tile<T> dst({5, 4, 3}), dst2({5, 4, 3});
     Tile<T> src({dst.shape[axis]});
     auto src_local = src.acquire(STARPU_W);
     auto dst_local = dst.acquire(STARPU_W);

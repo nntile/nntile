@@ -25,7 +25,7 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3};
+    const std::vector<Index> sh = {3, 2};
     const Index nelems = 6;
     const Scalar alpha = 1.0, beta = 0.0;
     TileGraph g("g");

@@ -55,7 +55,7 @@ void validate()
 {
     using Y = typename T::repr_t;
     std::vector<Index> A_shape{3, 4, 5, 6}, b0_shape{4, 5, 6},
-        b1_shape{3, 5, 6}, b2_shape{3, 4, 6}, b3_shape{3, 4, 5};
+        b1_shape{6, 5, 3}, b2_shape{6, 4, 3}, b3_shape{5, 4, 3};
     TileTraits A_traits(A_shape), b0_traits(b0_shape), b1_traits(b1_shape),
               b2_traits(b2_shape), b3_traits(b3_shape);
     std::vector<T> A_data(A_traits.nelems), b0_data(b0_traits.nelems),

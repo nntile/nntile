@@ -57,7 +57,7 @@ TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
 TEST_CASE("TensorGraph multiply rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({4, 5})->set_name("x");
+    auto *x = graph.data({5, 4})->set_name("x");
 
     REQUIRE_THROWS_AS(gt::multiply(x, x, 1.0), std::invalid_argument);
 }

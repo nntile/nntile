@@ -52,7 +52,7 @@ TEST_CASE("TensorGraph embedding structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
+    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
     auto *embed = graph.data({4, 5, 100})->set_name("embed");
 
@@ -71,7 +71,7 @@ TEST_CASE("TensorGraph embedding structure", "[graph][tensor]")
 TEST_CASE("TensorGraph embedding rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
+    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
     auto *embed = graph.data({4, 5, 100})->set_name("embed");
 
@@ -86,7 +86,7 @@ TEST_CASE("TensorGraph embedding rejects null tensors", "[graph][tensor]")
 TEST_CASE("TensorGraph embedding with output_name", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
+    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
 
     auto *embed = gt::embedding(index, vocab, 2)->set_name("embed");
@@ -105,7 +105,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [index_shape, vocab_shape, axis] = GENERATE(
         std::tuple{
-            std::vector<Index>{4, 5}, std::vector<Index>{10, 100}, Index(2)},
+            std::vector<Index>{5, 4}, std::vector<Index>{10, 100}, Index(2)},
         std::tuple{
             std::vector<Index>{3}, std::vector<Index>{8, 50}, Index(1)});
 

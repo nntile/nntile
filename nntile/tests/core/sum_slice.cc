@@ -26,8 +26,8 @@ void check()
     using Y = typename T::repr_t;
     // Init data for checking
     Tile<T> src({5, 4, 3});
-    Tile<T> dst[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
-    Tile<T> dst2[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
+    Tile<T> dst[3] = {Tile<T>({3, 4}), Tile<T>({3, 5}), Tile<T>({5, 4})};
+    Tile<T> dst2[3] = {Tile<T>({3, 4}), Tile<T>({3, 5}), Tile<T>({5, 4})};
     auto src_local = src.acquire(STARPU_W);
     Scalar alpha = -1.0, beta = 0.5;
     for(Index i = 0; i < src.nelems; ++i)

@@ -25,8 +25,8 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_fiber matches tile (axis=0)", "[graph][tile]")
 {
-    const std::vector<Index> sh = {3, 4, 5};
-    const std::vector<Index> dh = {3};
+    const std::vector<Index> sh = {5, 4, 3};
+    const std::vector<Index> dh = {5};
     const Index nelems = 3 * 4 * 5;
     const Scalar alpha = 1.0, beta = 0.0;
     const Index axis = 0, batch_ndim = 0, redux = 0;

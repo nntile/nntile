@@ -63,7 +63,7 @@ TEST_CASE(
     "TensorGraph add_inplace rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({4, 5})->set_name("t");
+    auto *t = graph.data({5, 4})->set_name("t");
 
     REQUIRE_THROWS_AS(
         gt::add_inplace(alpha, t, beta, t), std::invalid_argument);

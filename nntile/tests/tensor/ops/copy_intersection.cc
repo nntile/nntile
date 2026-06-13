@@ -65,7 +65,7 @@ TEST_CASE(
     "TensorGraph copy_intersection rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({4, 5})->set_name("t");
+    auto *t = graph.data({5, 4})->set_name("t");
     std::vector<Index> offset{0, 0};
 
     REQUIRE_THROWS_AS(gt::copy_intersection(nullptr, offset, t, offset),

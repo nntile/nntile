@@ -83,14 +83,12 @@ MODEL_DIMS = ATTENTION_DIMS
 CAUSAL_DIMS = ATTENTION_DIMS
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
-def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.int64)
-    return a.ravel("F").reshape(a.shape)
+def as_int64(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.int64)
 
 
 def _make_config(dims: TestDims) -> GPTNeoConfig:
@@ -113,8 +111,8 @@ def _make_config(dims: TestDims) -> GPTNeoConfig:
 
 def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.gamma": fortran_order(ln.weight.detach().numpy()),
-        f"{prefix}.beta": fortran_order(ln.bias.detach().numpy()),
+        f"{prefix}.gamma": as_float32(ln.weight.detach().numpy()),
+        f"{prefix}.beta": as_float32(ln.bias.detach().numpy()),
     }
 
 
@@ -140,24 +138,32 @@ def _gptneo_attn_weights(
     nh = dims.n_heads
     hd = dims.head_size
     return {
-        f"{prefix}.q_weight": fortran_order(
-            inner.q_proj.weight.detach().numpy().reshape(nh, hd, H)),
-        f"{prefix}.k_weight": fortran_order(
-            inner.k_proj.weight.detach().numpy().reshape(nh, hd, H)),
-        f"{prefix}.v_weight": fortran_order(
-            inner.v_proj.weight.detach().numpy().reshape(nh, hd, H)),
-        f"{prefix}.o_weight": fortran_order(
-            inner.out_proj.weight.detach().numpy().reshape(H, nh, hd)),
-        f"{prefix}.o_bias": fortran_order(
+        f"{prefix}.q_weight": as_float32(
+            inner.q_proj.weight.detach().numpy().reshape(
+                H, nh, hd,
+            ).transpose(0, 2, 1)),
+        f"{prefix}.k_weight": as_float32(
+            inner.k_proj.weight.detach().numpy().reshape(
+                H, nh, hd,
+            ).transpose(0, 2, 1)),
+        f"{prefix}.v_weight": as_float32(
+            inner.v_proj.weight.detach().numpy().reshape(
+                H, nh, hd,
+            ).transpose(0, 2, 1)),
+        f"{prefix}.o_weight": as_float32(
+            inner.out_proj.weight.detach().numpy().reshape(
+                nh, hd, H,
+            ).transpose(1, 0, 2)),
+        f"{prefix}.o_bias": as_float32(
             inner.out_proj.bias.detach().numpy()),
     }
 
 
 def _gptneo_mlp_weights(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.fc1.weight": fortran_order(
+        f"{prefix}.fc1.weight": as_float32(
             mlp.c_fc.weight.detach().numpy().T),
-        f"{prefix}.fc2.weight": fortran_order(
+        f"{prefix}.fc2.weight": as_float32(
             mlp.c_proj.weight.detach().numpy().T),
     }
 
@@ -174,7 +180,7 @@ def _gptneo_decoder_weights(
 
 
 def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
-    return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
+    return {f"{prefix}.vocab": as_float32(embed.weight.detach().numpy())}
 
 
 def _model_weights(
@@ -190,62 +196,62 @@ def _model_weights(
 
 
 def _lm_head_to_linear_weight(lm) -> np.ndarray:
-    return fortran_order(lm.weight.detach().numpy().T)
+    return as_float32(lm.weight.detach().numpy())
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
     x = rng.standard_normal(
-        (dims.hidden, dims.seq, dims.batch),
+        (dims.batch, dims.seq, dims.hidden),
     ).astype(np.float32) * scale
-    x_nt = fortran_order(x)
-    x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
+    x_nt = as_float32(x)
+    x_pt = torch.tensor(x.copy(), requires_grad=True)
     return x_nt, x_pt
 
 
 def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
     g = rng.standard_normal(pt_out.shape).astype(np.float32) * scale
     g_pt = torch.tensor(g)
-    g_nt = fortran_order(g.transpose(2, 1, 0))
+    g_nt = as_float32(g)
     return g_nt, g_pt
 
 
 def _ids_input(rng, dims: TestDims):
     ids = rng.integers(
-        0, dims.vocab, size=(dims.seq, dims.batch),
+        0, dims.vocab, size=(dims.batch, dims.seq),
     ).astype(np.int64)
-    ids_nt = ids.ravel("F").reshape(ids.shape)
-    ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
+    ids_nt = as_int64(ids)
+    ids_pt = torch.tensor(ids.copy(), dtype=torch.long)
     return ids_nt, ids_pt
 
 
 def _position_ids(dims: TestDims) -> np.ndarray:
-    pos = np.arange(dims.seq, dtype=np.int64)[:, None]
-    pos = np.broadcast_to(pos, (dims.seq, dims.batch)).copy()
-    return fortran_order_int64(pos)
+    pos = np.arange(dims.seq, dtype=np.int64)[None, :]
+    pos = np.broadcast_to(pos, (dims.batch, dims.seq)).copy()
+    return as_int64(pos)
 
 
 def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
-    return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
+    return as_float32(pt_out.detach().numpy())
 
 
-def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
+def _sdpa_causal_mask(seq: int) -> np.ndarray:
     kk = np.arange(seq, dtype=np.int64)[:, None]
     qq = np.arange(seq, dtype=np.int64)[None, :]
     allowed = (kk <= qq).astype(np.float32)
-    return fortran_order(allowed)
+    return as_float32(allowed)
 
 
-def _sdpa_gptneo_local_mask_fortran(seq: int, window: int) -> np.ndarray:
+def _sdpa_gptneo_local_mask(seq: int, window: int) -> np.ndarray:
     kk = np.arange(seq, dtype=np.int64)[:, None]
     qq = np.arange(seq, dtype=np.int64)[None, :]
     allowed = ((kk <= qq) & (qq - kk < window)).astype(np.float32)
-    return fortran_order(allowed)
+    return as_float32(allowed)
 
 
 def _local_additive_mask_torch(
     batch: int, seq: int, window: int, device: torch.device,
 ) -> torch.Tensor:
-    allowed = _sdpa_gptneo_local_mask_fortran(seq, window)
+    allowed = _sdpa_gptneo_local_mask(seq, window)
     block = (1.0 - allowed) * torch.finfo(torch.float32).min
     mask_torch = torch.tensor(block, device=device, dtype=torch.float32)
     return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
@@ -413,7 +419,7 @@ def generate_attention(
         attn_mask = _causal_additive_mask_torch(
             dims.batch, dims.seq, x_pt.device,
         )
-        data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+        data["attn_mask"] = _sdpa_causal_mask(dims.seq)
         out = _hf_gptneo_attention_forward(
             pt, x_pt, attn_mask=attn_mask,
         )
@@ -453,7 +459,7 @@ def generate_attention_local(
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
     window = int(config.window_size)
-    data["attn_mask"] = _sdpa_gptneo_local_mask_fortran(dims.seq, window)
+    data["attn_mask"] = _sdpa_gptneo_local_mask(dims.seq, window)
     attn_mask = _local_additive_mask_torch(
         dims.batch, dims.seq, window, x_pt.device,
     )
@@ -480,7 +486,7 @@ def generate_decoder(
     attn_mask = _causal_additive_mask_torch(
         dims.batch, dims.seq, x_pt.device,
     )
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     out = _hf_gptneo_decoder_forward(pt, x_pt, attn_mask=attn_mask)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
@@ -502,7 +508,7 @@ def generate_model(
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
     data["position_ids"] = _position_ids(dims)
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     pos_pt = torch.arange(
         dims.seq, dtype=torch.long,
     ).unsqueeze(0).expand(dims.batch, dims.seq)
@@ -516,10 +522,10 @@ def generate_model(
     g_nt, g_pt = _grad_output(rng, out)
     out.backward(g_pt)
     data["grad_output"] = g_nt
-    data["grad_wte_vocab"] = fortran_order(
-        pt.wte.weight.grad.detach().numpy().T)
-    data["grad_wpe_vocab"] = fortran_order(
-        pt.wpe.weight.grad.detach().numpy().T)
+    data["grad_wte_vocab"] = as_float32(
+        pt.wte.weight.grad.detach().numpy())
+    data["grad_wpe_vocab"] = as_float32(
+        pt.wpe.weight.grad.detach().numpy())
     return data
 
 
@@ -536,7 +542,7 @@ def generate_causal(
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
     data["position_ids"] = _position_ids(dims)
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     pos_pt = torch.arange(
         dims.seq, dtype=torch.long,
     ).unsqueeze(0).expand(dims.batch, dims.seq)
@@ -551,10 +557,10 @@ def generate_causal(
     g_nt, g_pt = _grad_output(rng, logits)
     logits.backward(g_pt)
     data["grad_output"] = g_nt
-    data["grad_wte_vocab"] = fortran_order(
-        pt.transformer.wte.weight.grad.detach().numpy().T)
-    data["grad_wpe_vocab"] = fortran_order(
-        pt.transformer.wpe.weight.grad.detach().numpy().T)
+    data["grad_wte_vocab"] = as_float32(
+        pt.transformer.wte.weight.grad.detach().numpy())
+    data["grad_wpe_vocab"] = as_float32(
+        pt.transformer.wpe.weight.grad.detach().numpy())
     return data
 
 

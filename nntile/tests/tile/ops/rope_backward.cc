@@ -22,7 +22,7 @@
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2}, tsh = {4,5};
+    const std::vector<Index> sh = {2}, tsh = {5, 4};
     TileGraph g("g");
     auto* si = g.data(sh, "si", DataType::FP32);
     auto* co = g.data(sh, "co", DataType::FP32);

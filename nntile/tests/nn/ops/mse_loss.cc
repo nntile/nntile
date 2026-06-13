@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const auto [x_shape, scale] =
         GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
             std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)},
-            std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
+            std::tuple{std::vector<Index>{4, 3, 2}, Scalar(1.0 / 24.0)});
 
     NNGraph g("mse_loss_structure");
     auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
@@ -74,7 +74,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const auto [x_shape, scale] =
         GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
             std::tuple{std::vector<Index>{3, 6}, Scalar(0.5)},
-            std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
+            std::tuple{std::vector<Index>{4, 3, 2}, Scalar(1.0 / 24.0)});
 
     NNGraph g("mse_loss");
     auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");

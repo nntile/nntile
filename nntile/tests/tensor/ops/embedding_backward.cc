@@ -52,7 +52,7 @@ TEST_CASE("TensorGraph embedding_backward structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
+    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
     auto *embed = graph.data({4, 5, 100})->set_name("embed");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
 
@@ -72,7 +72,7 @@ TEST_CASE(
     "TensorGraph embedding_backward rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
+    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
     auto *embed = graph.data({4, 5, 100})->set_name("embed");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
 
@@ -89,7 +89,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [index_shape, vocab_shape, axis, redux] = GENERATE(
-        std::tuple{std::vector<Index>{4, 5},
+        std::tuple{std::vector<Index>{5, 4},
             std::vector<Index>{10, 100},
             Index(2),
             0},

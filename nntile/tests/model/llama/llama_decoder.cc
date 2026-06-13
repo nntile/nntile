@@ -284,13 +284,13 @@ TEST_CASE("LlamaDecoder forward builds output", "[model][llama]")
     }
     NNGraph g("llama_decoder");
     LlamaDecoder decoder(&g, "decoder", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
     auto *output = decoder.forward(input);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("LlamaDecoder GQA forward builds output", "[model][llama][gqa]")
@@ -303,13 +303,13 @@ TEST_CASE("LlamaDecoder GQA forward builds output", "[model][llama][gqa]")
     }
     NNGraph g("llama_decoder_gqa");
     LlamaDecoder decoder(&g, "decoder", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
     auto *output = decoder.forward(input);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("LlamaDecoder load from safetensors roundtrip", "[model][llama][io]")

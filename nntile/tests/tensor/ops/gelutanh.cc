@@ -57,7 +57,7 @@ TEST_CASE("TensorGraph gelutanh structure", "[graph][tensor]")
 TEST_CASE("TensorGraph gelutanh rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({4, 5})->set_name("src");
+    auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(gt::gelutanh(src, src), std::invalid_argument);
 }

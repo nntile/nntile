@@ -143,7 +143,7 @@ void decoder_forward_compare_ref(const DecoderFixtureSpec &fx)
     std::vector<float> result;
     {
         NNGraph g(std::string("decoder_ref_") + fx.stem);
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+        auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                           ->set_name("input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
@@ -200,7 +200,7 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec &fx)
     {
         NNGraph g(std::string("decoder_bwd_") + fx.stem);
         auto *input =
-            g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
+            g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32, true)
                 ->set_name("input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
@@ -249,9 +249,9 @@ TEST_CASE("GptneoDecoder forward builds output", "[model][gptneo]")
     }
     NNGraph g("gptneo_decoder");
     GptneoDecoder decoder(&g, "decoder", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
-    auto *position_ids = g.tensor({fx.seq, fx.batch}, DataType::INT64)
+    auto *position_ids = g.tensor({fx.batch, fx.seq}, DataType::INT64)
                              ->set_name("position_ids");
     (void)position_ids;
     NNGraph::TensorNode *mask = nullptr;
@@ -259,7 +259,7 @@ TEST_CASE("GptneoDecoder forward builds output", "[model][gptneo]")
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("GptneoDecoder load from safetensors roundtrip", "[model][gptneo][io]")

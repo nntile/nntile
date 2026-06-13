@@ -129,7 +129,7 @@ TEST_CASE("TileGraph add structure", "[graph][tile]")
 TEST_CASE("TileGraph add rejects duplicate tiles")
 {
     TileGraph graph("test");
-    auto *x = graph.data({4, 5}, "x");
+    auto *x = graph.data({5, 4}, "x");
 
     REQUIRE_THROWS_AS(tg::add(1.0, x, 1.0, x), std::invalid_argument);
 }
@@ -139,8 +139,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},
-            std::tuple{2.0, 3.0, std::vector<Index>{4, 5}},
+        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{5, 4}},
+            std::tuple{2.0, 3.0, std::vector<Index>{5, 4}},
             std::tuple{0.5, -1.0, std::vector<Index>{6}},
             std::tuple{1.0, 2.0, std::vector<Index>{3, 4}},
             std::tuple{-0.5, 1.5, std::vector<Index>{2, 2}});

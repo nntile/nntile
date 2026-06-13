@@ -43,7 +43,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [index_shape, vocab_shape, axis] = GENERATE(
         std::tuple{
-            std::vector<Index>{4, 5}, std::vector<Index>{10, 100}, Index(2)},
+            std::vector<Index>{5, 4}, std::vector<Index>{10, 100}, Index(2)},
         std::tuple{
             std::vector<Index>{3}, std::vector<Index>{8, 50}, Index(1)});
 
@@ -65,7 +65,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [index_shape, vocab_shape, axis, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{4, 5},
+        GENERATE(std::tuple{std::vector<Index>{5, 4},
                      std::vector<Index>{10, 100},
                      Index(2),
                      Scalar(1.0)},
@@ -93,7 +93,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [index_shape, vocab_shape, axis, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{4, 5},
+        GENERATE(std::tuple{std::vector<Index>{5, 4},
                      std::vector<Index>{10, 100},
                      Index(2),
                      Scalar(1.0)},
@@ -101,7 +101,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 std::vector<Index>{8, 50},
                 Index(1),
                 Scalar(1.0)},
-            std::tuple{std::vector<Index>{2, 3, 4},
+            std::tuple{std::vector<Index>{4, 3, 2},
                 std::vector<Index>{6, 20},
                 Index(3),
                 Scalar(-1.0)});
@@ -146,7 +146,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // num_embeddings for a simple PyTorch `nn.Embedding` weight layout.
     const auto [index_shape, vocab_shape, axis] = GENERATE(
         std::tuple{
-            std::vector<Index>{4, 5}, std::vector<Index>{10, 10}, Index(2)},
+            std::vector<Index>{5, 4}, std::vector<Index>{10, 10}, Index(2)},
         std::tuple{std::vector<Index>{3}, std::vector<Index>{8, 8}, Index(1)});
 
     const Index embed_dim = vocab_shape[0];
@@ -237,7 +237,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     // Square vocab required: embed.shape[axis]==vocab.shape[0]==vocab.shape[1]
     const auto [index_shape, vocab_shape, axis, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{4, 5},
+        GENERATE(std::tuple{std::vector<Index>{5, 4},
                      std::vector<Index>{10, 10},
                      Index(2),
                      Scalar(1.0)},

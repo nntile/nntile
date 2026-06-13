@@ -49,6 +49,7 @@ public:
         Index n_outputs;
         Scalar value;
         Index ignore_index;
+        Index leading_class;
     };
 
     //! Footprint function for the current operation
@@ -83,6 +84,7 @@ public:
         Index n_labels,
         Index n_outputs,
         Index ignore_index,
+        Index leading_class,
         Scalar val,
         Handle labels,
         Handle dst

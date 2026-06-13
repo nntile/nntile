@@ -173,7 +173,7 @@ void model_backward_compare_ref(const ModelFixtureSpec &fx)
     {
         NNGraph g("model_bwd");
         auto *input_ids =
-            g.tensor({fx.seq, fx.batch}, DataType::INT64, true)
+            g.tensor({fx.batch, fx.seq}, DataType::INT64, true)
                 ->set_name("input_ids");
         GptneoxRopeInputs rope;
         load_gptneox_rope_inputs(g, reader, fx.config, fx.seq, fx.batch, rope);
@@ -228,12 +228,12 @@ TEST_CASE("GptneoxModel forward builds output", "[model][gptneox]")
     NNGraph g("gptneox_model");
     GptneoxModel model(&g, "model", fx.config);
     auto *input_ids =
-        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+        g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
     auto *output = model.forward(input_ids, nullptr, nullptr, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("GptneoxModel load from safetensors roundtrip", "[model][gptneox][io]")
@@ -284,7 +284,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("model_ref");
         auto *input_ids =
-            g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+            g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
         GptneoxRopeInputs rope;
         load_gptneox_rope_inputs(g, reader, fx.config, fx.seq, fx.batch, rope);
         NNGraph::TensorNode *mask = nullptr;

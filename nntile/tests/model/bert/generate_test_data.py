@@ -16,7 +16,7 @@ For each block the script creates ``bert_<block>.safetensors`` plus a paired
 
 All forward and backward references come from HuggingFace ``modeling_bert``
 (PyTorch eager, dropout disabled). Helpers below only reshape HF parameters
-into NNTile Fortran-order layouts expected by the graph API modules; they do
+into NNTile C-order layouts expected by the graph API modules; they do
 not reimplement BERT computation.
 """
 
@@ -85,14 +85,12 @@ MLM_DIMS = ATTENTION_DIMS
 # ── Layout helpers (NumPy / PyTorch ↔ NNTile) ─────────────────────────────
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
-def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.int64)
-    return a.ravel("F").reshape(a.shape)
+def as_int64(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.int64)
 
 
 def _make_config(dims: TestDims) -> BertConfig:
@@ -113,8 +111,8 @@ def _make_config(dims: TestDims) -> BertConfig:
 
 def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.gamma": fortran_order(ln.weight.detach().numpy()),
-        f"{prefix}.beta": fortran_order(ln.bias.detach().numpy()),
+        f"{prefix}.gamma": as_float32(ln.weight.detach().numpy()),
+        f"{prefix}.beta": as_float32(ln.bias.detach().numpy()),
     }
 
 
@@ -122,15 +120,15 @@ def _linear(linear, prefix: str) -> dict[str, np.ndarray]:
     # PyTorch Linear weight is (out_features, in_features); graph Linear stores
     # (input_dim, output_dim) for gemm(..., transpose_A=true).
     d = {
-        f"{prefix}.weight": fortran_order(linear.weight.detach().numpy().T),
+        f"{prefix}.weight": as_float32(linear.weight.detach().numpy().T),
     }
     if linear.bias is not None:
-        d[f"{prefix}.bias"] = fortran_order(linear.bias.detach().numpy())
+        d[f"{prefix}.bias"] = as_float32(linear.bias.detach().numpy())
     return d
 
 
 def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
-    return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
+    return {f"{prefix}.vocab": as_float32(embed.weight.detach().numpy())}
 
 
 def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
@@ -140,18 +138,20 @@ def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
     n_heads = dims.n_heads
 
     def w(linear):
-        return linear.weight.detach().numpy().reshape(n_heads, hs, n_emb)
+        return linear.weight.detach().numpy().reshape(
+            n_heads, hs, n_emb,
+        ).transpose(2, 1, 0)
 
     def b(linear):
-        return linear.bias.detach().numpy().reshape(n_heads, hs).T
+        return linear.bias.detach().numpy().reshape(n_heads, hs).transpose(1, 0)
 
     return {
-        f"{prefix}.q_weight": fortran_order(w(self_attn.query)),
-        f"{prefix}.k_weight": fortran_order(w(self_attn.key)),
-        f"{prefix}.v_weight": fortran_order(w(self_attn.value)),
-        f"{prefix}.q_bias": fortran_order(b(self_attn.query)),
-        f"{prefix}.k_bias": fortran_order(b(self_attn.key)),
-        f"{prefix}.v_bias": fortran_order(b(self_attn.value)),
+        f"{prefix}.q_weight": as_float32(w(self_attn.query)),
+        f"{prefix}.k_weight": as_float32(w(self_attn.key)),
+        f"{prefix}.v_weight": as_float32(w(self_attn.value)),
+        f"{prefix}.q_bias": as_float32(b(self_attn.query)),
+        f"{prefix}.k_bias": as_float32(b(self_attn.key)),
+        f"{prefix}.v_bias": as_float32(b(self_attn.value)),
     }
 
 
@@ -162,15 +162,12 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     w = (
         out_module.dense.weight.detach()
         .numpy()
-        .reshape(
-            n_emb,
-            n_heads,
-            hs,
-        )
+        .reshape(n_heads, hs, n_emb)
+        .transpose(1, 0, 2)
     )
     return {
-        f"{prefix}.dense.weight": fortran_order(w),
-        f"{prefix}.dense.bias": fortran_order(
+        f"{prefix}.dense.weight": as_float32(w),
+        f"{prefix}.dense.bias": as_float32(
             out_module.dense.bias.detach().numpy(),
         ),
         **_layer_norm(out_module.LayerNorm, f"{prefix}.ln"),
@@ -200,21 +197,18 @@ def _bert_layer_weights(layer: PtLayer, prefix: str, dims: TestDims):
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
-    x = (
-        rng.standard_normal(
-            (dims.hidden, dims.seq, dims.batch),
-        ).astype(np.float32)
-        * scale
-    )
-    x_nt = fortran_order(x)
-    x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
+    x = rng.standard_normal(
+        (dims.batch, dims.seq, dims.hidden),
+    ).astype(np.float32) * scale
+    x_nt = as_float32(x)
+    x_pt = torch.tensor(x.copy(), requires_grad=True)
     return x_nt, x_pt
 
 
 def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
     g = rng.standard_normal(pt_out.shape).astype(np.float32) * scale
     g_pt = torch.tensor(g)
-    g_nt = fortran_order(g.transpose(2, 1, 0))
+    g_nt = as_float32(g)
     return g_nt, g_pt
 
 
@@ -222,22 +216,22 @@ def _ids_input(rng, dims: TestDims):
     ids = rng.integers(
         0,
         dims.vocab,
-        size=(dims.seq, dims.batch),
+        size=(dims.batch, dims.seq),
     ).astype(np.int64)
-    ids_nt = ids.ravel("F").reshape(ids.shape)
-    ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
+    ids_nt = as_int64(ids)
+    ids_pt = torch.tensor(ids.copy(), dtype=torch.long)
     return ids_nt, ids_pt
 
 
 def _token_type_ids(dims: TestDims) -> np.ndarray:
-    tt = np.zeros((dims.seq, dims.batch), dtype=np.int64)
-    return fortran_order_int64(tt)
+    tt = np.zeros((dims.batch, dims.seq), dtype=np.int64)
+    return as_int64(tt)
 
 
 def _position_ids(dims: TestDims) -> np.ndarray:
-    pos = np.arange(dims.seq, dtype=np.int64)[:, None]
-    pos = np.broadcast_to(pos, (dims.seq, dims.batch)).copy()
-    return fortran_order_int64(pos)
+    pos = np.arange(dims.seq, dtype=np.int64)[None, :]
+    pos = np.broadcast_to(pos, (dims.batch, dims.seq)).copy()
+    return as_int64(pos)
 
 
 def _bert_batch_inputs(dims: TestDims):
@@ -255,7 +249,7 @@ def _bert_batch_inputs(dims: TestDims):
 
 
 def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
-    return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
+    return as_float32(pt_out.detach().numpy())
 
 
 def _run_hidden_block(
@@ -403,8 +397,8 @@ def generate_embeddings(
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
     out.backward(g_pt)
-    data["grad_wte_vocab"] = fortran_order(
-        pt.word_embeddings.weight.grad.detach().numpy().T,
+    data["grad_wte_vocab"] = as_float32(
+        pt.word_embeddings.weight.grad.detach().numpy(),
     )
     return data
 
@@ -475,8 +469,8 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS):
     g_nt, g_pt = _grad_output(rng, out.last_hidden_state)
     data["grad_output"] = g_nt
     out.last_hidden_state.backward(g_pt)
-    data["grad_wte_vocab"] = fortran_order(
-        pt.embeddings.word_embeddings.weight.grad.detach().numpy().T,
+    data["grad_wte_vocab"] = as_float32(
+        pt.embeddings.word_embeddings.weight.grad.detach().numpy(),
     )
     return data
 
@@ -506,8 +500,8 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
     out.backward(g_pt)
-    data["grad_wte_vocab"] = fortran_order(
-        word_emb.weight.grad.detach().numpy().T,
+    data["grad_wte_vocab"] = as_float32(
+        word_emb.weight.grad.detach().numpy(),
     )
     return data
 

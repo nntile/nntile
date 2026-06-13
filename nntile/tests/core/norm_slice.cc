@@ -25,9 +25,9 @@ void check()
 {
     using Y = typename T::repr_t;
     Tile<T> src1({5, 4, 3});
-    Tile<T> src2[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
-    Tile<T> dst[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
-    Tile<T> dst2[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
+    Tile<T> src2[3] = {Tile<T>({3, 4}), Tile<T>({3, 5}), Tile<T>({5, 4})};
+    Tile<T> dst[3] = {Tile<T>({3, 4}), Tile<T>({3, 5}), Tile<T>({5, 4})};
+    Tile<T> dst2[3] = {Tile<T>({3, 4}), Tile<T>({3, 5}), Tile<T>({5, 4})};
     auto s1 = src1.acquire(STARPU_W);
     Scalar alpha = -1.0, beta = 0.5;
     for(Index i = 0; i < src1.nelems; ++i)
@@ -103,7 +103,7 @@ void validate()
 {
     check<T>();
     Tile<T> src({5, 4, 3});
-    Tile<T> slice({4, 3});
+    Tile<T> slice({3, 4});
     Tile<T> wrong1({4, 3, 2});
     Tile<T> wrong2({5, 3, 2});
     TEST_THROW(norm_slice<T>(-1, 1.0, src, 1.0, wrong1, slice, 0, 0));

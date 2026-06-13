@@ -24,7 +24,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> tile1({}), tile2({2, 2, 3}), tile3({2, 3, 4});
+    Tile<T> tile1({}), tile2({3, 2, 2}), tile3({4, 3, 2});
     // Check full copying, that is delegated to starpu_data_cpy internally
     auto tile1_local = tile1.acquire(STARPU_W);
     tile1_local[0] = Y(-1);

@@ -26,7 +26,7 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3};
+    const std::vector<Index> sh = {3, 2};
     const Index nelems = 6;
     TileGraph g("g");
     auto* s = g.data(sh, "s", DataType::FP32);
