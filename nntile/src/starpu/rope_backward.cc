@@ -96,8 +96,8 @@ void RopeBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::rope_backward::cuda<T>(stream, args->m, args->n, sin, cos, src,
-        dst);
+    kernel::rope_backward::cuda<T>(stream, args->m_pairs, args->n, args->m_sin,
+        args->sin_pair0, sin, cos, src, dst);
 #endif // STARPU_SIMGRID
 }
 

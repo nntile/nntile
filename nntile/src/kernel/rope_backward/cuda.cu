@@ -20,60 +20,69 @@ namespace nntile::kernel::rope_backward
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, const T *sin, const T *cos, const T *src,
-        T *dst)
-/*! Change provided 2-by-m-by-n src tensor and write result into dst tensor
- *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
- *  TODO: describe math here
+void cuda_kernel(Index m_pairs, Index n, Index sin_pair0, const T *sin,
+    const T *cos, const T *dy, T *dx)
+/*! Backward RoPE for C-order head layout.
  *
- * @param[in] m: Size of sin and cos tensors
- * @param[in] n: Size of the second mode of src and dst tensors
+ * @param[in] m_pairs: Number of head pairs
+ * @param[in] n: Spatial extent per pair
+ * @param[in] sin_pair0: Offset of the first sin/cos pair in sin/cos buffers
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
- * @param[in] src: Gradient over output of forward RoPE
- * @param[out] dst: Gradient over input of forward RoPE
+ * @param[in] dy: Gradient over output of forward RoPE
+ * @param[out] dx: Gradient over input of forward RoPE
  * */
 {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
-    if(i < m*n)
+    Index flat = threadIdx.x + blockIdx.x * blockDim.x;
+    if(flat < m_pairs * n)
     {
         using Y = typename T::repr_t;
-        int j = i % m;
-        Y c{cos[j]}, s{sin[j]};
-        Y a{src[2*i]}, b{src[2*i+1]};
-        dst[2*i] = static_cast<T>(c*a + s*b);
-        dst[2*i+1] = static_cast<T>(-s*a + c*b);
+        const Index j = flat % n;
+        const Index i = flat / n;
+        const Index si = sin_pair0 + i * n + j;
+        const Index l0 = 2 * i * n + j;
+        const Index l1 = l0 + n;
+        Y c{cos[si]}, s{sin[si]};
+        Y a{dy[l0]}, b{dy[l1]};
+        dx[l0] = static_cast<T>(c*a + s*b);
+        dx[l1] = static_cast<T>(c*b - s*a);
     }
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, const T *sin, const T *cos,
-        const T *src, T *dst)
+void cuda(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const T *sin, const T *cos, const T *dy, T *dx)
     noexcept
 {
-    dim3 blocks((m*n+255)/256), threads(256);
-    cuda_kernel<T><<<blocks, threads, 0, stream>>>(m, n, sin, cos, src, dst);
+    (void)m_sin;
+    dim3 blocks((m_pairs*n+255)/256), threads(256);
+    cuda_kernel<T><<<blocks, threads, 0, stream>>>(m_pairs, n, sin_pair0, sin,
+        cos, dy, dx);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, const fp32_t *sin,
-        const fp32_t *cos, const fp32_t *src, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const fp32_t *sin, const fp32_t *cos, const fp32_t *dy,
+    fp32_t *dx)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, const fp64_t *sin,
-        const fp64_t *cos, const fp64_t *src, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const fp64_t *sin, const fp64_t *cos, const fp64_t *dy,
+    fp64_t *dx)
     noexcept;
 
 template
-void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, const fp16_t *sin,
-        const fp16_t *cos, const fp16_t *src, fp16_t *dst)
+void cuda<fp16_t>(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const fp16_t *sin, const fp16_t *cos, const fp16_t *dy,
+    fp16_t *dx)
     noexcept;
 
 template
-void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, const bf16_t *sin,
-        const bf16_t *cos, const bf16_t *src, bf16_t *dst)
+void cuda<bf16_t>(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const bf16_t *sin, const bf16_t *cos, const bf16_t *dy,
+    bf16_t *dx)
     noexcept;
 
 } // namespace nntile::kernel::rope_backward

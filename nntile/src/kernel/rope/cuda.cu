@@ -20,30 +20,32 @@ namespace nntile::kernel::rope
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, const T *sin, const T *cos, const T *src,
-        T *dst)
-/*! Change provided 2-by-m-by-n src tensor and write result into dst tensor
- *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
- *  dst[2i,j] = cos[i] * src[2i,j] - sin[i] * src[2i+1,j]
- *  dst[2i+1,j] = sin[i] * src[2i,j] + cos[i] * src[2i+1,j]
+void cuda_kernel(Index m_pairs, Index n, Index sin_pair0, const T *sin,
+    const T *cos, const T *src, T *dst)
+/*! Apply RoPE to src and write into dst (C-order head layout).
  *
- * @param[in] m: Size of sin and cos tensors
- * @param[in] n: Size of the second mode of src and dst tensors
+ * @param[in] m_pairs: Number of head pairs
+ * @param[in] n: Spatial extent per pair
+ * @param[in] sin_pair0: Offset of the first sin/cos pair in sin/cos buffers
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
  * @param[in] src: Input embedding tensor
  * @param[out] dst: Output embedding tensor with applied RoPE
  * */
 {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
-    if(i < m*n)
+    Index flat = threadIdx.x + blockIdx.x * blockDim.x;
+    if(flat < m_pairs * n)
     {
         using Y = typename T::repr_t;
-        int j = i % m;
-        Y c{cos[j]}, s{sin[j]};
-        Y a{src[2*i]}, b{src[2*i+1]};
-        dst[2*i] = static_cast<T>(c*a - s*b);
-        dst[2*i+1] = static_cast<T>(s*a + c*b);
+        const Index j = flat % n;
+        const Index i = flat / n;
+        const Index si = sin_pair0 + i * n + j;
+        const Index l0 = 2 * i * n + j;
+        const Index l1 = l0 + n;
+        Y c{cos[si]}, s{sin[si]};
+        Y a{src[l0]}, b{src[l1]};
+        dst[l0] = static_cast<T>(c*a - s*b);
+        dst[l1] = static_cast<T>(s*a + c*b);
     }
 }
 
@@ -52,9 +54,10 @@ void cuda(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
     Index sin_pair0, const T *sin, const T *cos, const T *src, T *dst)
     noexcept
 {
+    (void)m_sin;
     dim3 blocks((m_pairs*n+255)/256), threads(256);
-    cuda_kernel<T><<<blocks, threads, 0, stream>>>(m_pairs, n, sin, cos, src,
-        dst);
+    cuda_kernel<T><<<blocks, threads, 0, stream>>>(m_pairs, n, sin_pair0, sin,
+        cos, src, dst);
 }
 
 // Explicit instantiation
