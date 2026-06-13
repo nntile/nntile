@@ -59,10 +59,12 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
     NNGraph *graph = x->graph();
     const auto &x_shape = x->shape();
 
-    // Class dimension is axis 0. labels shape: x.shape without axis 0.
+    const Index class_axis = x->ndim() - 1;
+
+    // Class dimension is innermost. labels shape: x.shape without class axis.
     std::vector<Index> labels_shape;
-    labels_shape.reserve(x->ndim() - 1);
-    for (Index i = 1; i < x->ndim(); ++i)
+    labels_shape.reserve(class_axis);
+    for (Index i = 0; i < class_axis; ++i)
     {
         labels_shape.push_back(x_shape[i]);
     }
@@ -77,11 +79,11 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
 
     TensorGraph &tg = graph->tensor_graph();
 
-    // maxsumexp shape: [2] + shape without axis 0
+    // maxsumexp shape: [2] + shape without class axis
     std::vector<Index> maxsumexp_shape;
     maxsumexp_shape.reserve(x->ndim());
     maxsumexp_shape.push_back(2);
-    for (Index i = 1; i < x->ndim(); ++i)
+    for (Index i = 0; i < class_axis; ++i)
     {
         maxsumexp_shape.push_back(x_shape[i]);
     }
@@ -96,7 +98,7 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
 
     // Forward: clear maxsumexp, maxsumexp, logsumexp, total_sum_accum
     tensor::clear(maxsumexp_data_);
-    tensor::maxsumexp(x->data(), maxsumexp_data_, 0, redux);
+    tensor::maxsumexp(x->data(), maxsumexp_data_, class_axis, redux);
     tensor::logsumexp(maxsumexp_data_, logsumexp_data);
     tensor::clear(val_data);
     tensor::total_sum_accum(scale,
@@ -144,17 +146,18 @@ void NNCrossEntropyOp::backward() const
             "NNCrossEntropyOp::backward: maxsumexp_data_ is null");
     }
     NNGraph::TensorNode *grad_temp = buffers_[0];
+    const Index class_axis = x->ndim() - 1;
 
     auto [grad_x, is_first] =
         graph->get_or_create_grad(x, nn_grad_slot_name(x));
 
     // Recompute maxsumexp for backward (needed for softmax)
     tensor::clear(maxsumexp_data_);
-    tensor::maxsumexp(x->data(), maxsumexp_data_, 0, redux);
+    tensor::maxsumexp(x->data(), maxsumexp_data_, class_axis, redux);
 
     // grad_temp = scale * (softmax(x) - one_hot(labels))
     tensor::softmax(
-        maxsumexp_data_, x->data(), grad_temp->data(), scale, 0);
+        maxsumexp_data_, x->data(), grad_temp->data(), scale, class_axis);
     tensor::subtract_indexed_outputs(
         scale, labels->data(), grad_temp->data(), ignore_index);
 

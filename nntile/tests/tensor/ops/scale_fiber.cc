@@ -52,11 +52,11 @@ static std::vector<Index> fiber_shape(
 {
     std::vector<Index> out;
     out.reserve(batch_ndim + 1);
-    out.push_back(dst_shape[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out.push_back(dst_shape[dst_shape.size() - batch_ndim + i]);
+        out.push_back(dst_shape[i]);
     }
+    out.push_back(dst_shape[axis]);
     return out;
 }
 

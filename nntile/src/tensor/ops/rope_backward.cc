@@ -80,6 +80,11 @@ void rope_backward(TensorGraph::TensorNode *sin,
             "rope_backward: input tensors must have the same dtype");
     }
     validate_same_shape_and_merge(dy, dx, "rope_backward");
+    for(Index d = 1; d < sin->ndim(); ++d)
+    {
+        merge_axis(sin->mutable_axes()[d], dy->mutable_axes()[d]);
+        merge_axis(cos->mutable_axes()[d], dy->mutable_axes()[d]);
+    }
 
     auto op = std::make_shared<TensorRopeBackwardOp>(sin, cos, dy, dx);
     dy->graph()->add_op(op);
@@ -112,14 +117,34 @@ void TensorRopeBackwardOp::lower_to_tile(const LoweringContext &ctx) const
         lay_dy->grid_coord_from_linear(lin, dydx_coord);
         for (Index d = 0; d < sin_ndim; ++d)
         {
-            sincos_coord[static_cast<size_t>(d)] =
-                dydx_coord[static_cast<size_t>(d)];
+            if (d == 0)
+            {
+                Index dy_lo = 0;
+                Index dy_hi = 0;
+                lay_dy->tile_axis_global_range(dydx_coord, 0, dy_lo, dy_hi);
+                (void)dy_hi;
+                sincos_coord[static_cast<size_t>(0)] =
+                    lay_sin->tile_index_containing(0, dy_lo / 2);
+            }
+            else
+            {
+                sincos_coord[static_cast<size_t>(d)] =
+                    dydx_coord[static_cast<size_t>(d)];
+            }
         }
         const Index j = lay_sin->grid_linear(sincos_coord);
+        Index dy_lo = 0;
+        Index dy_hi = 0;
+        Index sin_lo = 0;
+        Index sin_hi = 0;
+        lay_dy->tile_axis_global_range(dydx_coord, 0, dy_lo, dy_hi);
+        lay_sin->tile_axis_global_range(sincos_coord, 0, sin_lo, sin_hi);
+        const Index sin_pair0 = dy_lo / 2 - sin_lo;
         tile::rope_backward(tiles_sin[static_cast<size_t>(j)],
             tiles_cos[static_cast<size_t>(j)],
             tiles_dy[static_cast<size_t>(lin)],
-            tiles_dx[static_cast<size_t>(lin)]);
+            tiles_dx[static_cast<size_t>(lin)],
+            sin_pair0);
     }
 }
 

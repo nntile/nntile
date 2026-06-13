@@ -25,9 +25,9 @@ void check(Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
     // Init data for checking
-    Tile<T> src1({3, 4, 5}), src2({3, 4, 5});
-    Tile<T> dst[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}), Tile<T>({3, 4})};
-    Tile<T> dst2[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}), Tile<T>({3, 4})};
+    Tile<T> src1({5, 4, 3}), src2({3, 4, 5});
+    Tile<T> dst[3] = {Tile<T>({5, 4}), Tile<T>({5, 3}), Tile<T>({4, 3})};
+    Tile<T> dst2[3] = {Tile<T>({5, 4}), Tile<T>({5, 3}), Tile<T>({4, 3})};
     auto src1_local = src1.acquire(STARPU_W);
     auto src2_local = src2.acquire(STARPU_W);
     for(Index i = 0; i < src1.nelems; ++i)
@@ -101,9 +101,8 @@ void validate()
     check<T>(-1.0, 0.0);
     check<T>(2.0, 2.0);
     // Check throwing exceptions
-    Tile<T> src1({3, 4, 5}), src2({3, 4, 5});
-    Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
+    Tile<T> src1({5, 4, 3}), src2({3, 4, 5});
+    Tile<T> dst[3] = {Tile<T>({5, 4, 2}), Tile<T>({5, 3, 2}), Tile<T>({4, 3, 2})};
     Tile<T> empty({});
     TEST_THROW(sumprod_slice<T>(-1, 1.0, src1, src2, 0.0, empty, 0));
     TEST_THROW(sumprod_slice<T>(-1, 1.0, empty, empty, 0.0, empty, 0));

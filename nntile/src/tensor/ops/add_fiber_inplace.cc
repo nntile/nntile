@@ -94,12 +94,12 @@ void TensorAddFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
         const Index j = dst_coord[static_cast<size_t>(axis)];
-        fiber_coord[0] = j;
         for(Index b = 0; b < batch_ndim; ++b)
         {
-            fiber_coord[static_cast<size_t>(b + 1)] =
-                dst_coord[static_cast<size_t>(tensor->ndim() - batch_ndim + b)];
+            fiber_coord[static_cast<size_t>(b)] =
+                dst_coord[static_cast<size_t>(b)];
         }
+        fiber_coord[static_cast<size_t>(batch_ndim)] = j;
         const Index lin_f = lay_f->grid_linear(fiber_coord);
         tile::add_fiber_inplace(
             alpha,

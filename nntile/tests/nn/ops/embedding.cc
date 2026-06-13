@@ -201,20 +201,20 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(embed);
+    std::vector<float> nntile_out = runtime.get_output<float>(embed);
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, embed_shape);
+        colmajor_to_rowmajor(nntile_out, embed_shape);
 
     // PyTorch weight: (num_embeddings, embed_dim); NNTile vocab: (embed_dim,
     // num_embeddings)
     std::vector<::int64_t> index_shape_pt(
         index_shape.begin(), index_shape.end());
-    auto index_pt = torch::from_blob(index_rowmajor.data(),
+    auto index_pt = torch::from_blob(index.data(),
         index_shape_pt,
         torch::TensorOptions().dtype(torch::kInt64))
                         .clone()
                         .set_requires_grad(false);
-    auto vocab_pt = torch::from_blob(vocab_rowmajor.data(),
+    auto vocab_pt = torch::from_blob(vocab.data(),
         {static_cast<long>(embed_dim), static_cast<long>(num_embeddings)},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
@@ -302,19 +302,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_vocab_colmajor =
+    std::vector<float> nntile_grad_vocab =
         runtime.get_output<float>(vocab->grad());
     std::vector<float> nntile_grad_vocab =
-        colmajor_to_rowmajor(nntile_grad_vocab_colmajor, vocab_shape);
+        colmajor_to_rowmajor(nntile_grad_vocab, vocab_shape);
 
     std::vector<::int64_t> index_shape_pt(
         index_shape.begin(), index_shape.end());
-    auto index_pt = torch::from_blob(index_rowmajor.data(),
+    auto index_pt = torch::from_blob(index.data(),
         index_shape_pt,
         torch::TensorOptions().dtype(torch::kInt64))
                         .clone()
                         .set_requires_grad(false);
-    auto vocab_pt = torch::from_blob(vocab_rowmajor.data(),
+    auto vocab_pt = torch::from_blob(vocab.data(),
         {static_cast<long>(embed_dim), static_cast<long>(num_embeddings)},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()

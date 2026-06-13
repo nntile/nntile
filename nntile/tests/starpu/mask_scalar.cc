@@ -28,19 +28,19 @@ using namespace nntile;
 using namespace nntile::starpu;
 
 template<typename T>
-void validate_cpu(Index nrows, Index ncols)
+void validate_cpu(Index nslow, Index nfast)
 {
     using Y = typename T::repr_t;
     // Init all the data
     Scalar val = -0.5;
-    Index nelems = nrows * ncols;
+    Index nelems = nslow * nfast;
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
         data[i] = Y(i+1);
     }
-    std::unique_ptr<bool_t[]> mask(new bool_t[nrows]);
-    for(Index i = 0; i < nrows; ++i)
+    std::unique_ptr<bool_t[]> mask(new bool_t[nslow]);
+    for(Index i = 0; i < nslow; ++i)
     {
         if(i % 2 == 0)
         {
@@ -55,13 +55,13 @@ void validate_cpu(Index nrows, Index ncols)
     std::vector<T> data2(data);
     // Launch low-level kernel
     std::cout << "Run kernel::mask_scalar::cpu<" << T::short_name << ">\n";
-    kernel::mask_scalar::cpu<T>(nrows, ncols, &mask[0], val, &data[0]);
+    kernel::mask_scalar::cpu<T>(nslow, nfast, &mask[0], val, &data[0]);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
-    VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nrows);
+    VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nslow);
     mask_scalar.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::mask_scalar::submit<" << T::short_name << "> restricted to CPU\n";
-    mask_scalar.submit<std::tuple<T>>(-1, nrows, ncols, mask_handle, val, data2_handle);
+    mask_scalar.submit<std::tuple<T>>(-1, nslow, nfast, mask_handle, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     mask_handle.unregister();
@@ -75,7 +75,7 @@ void validate_cpu(Index nrows, Index ncols)
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void validate_cuda(Index nrows, Index ncols)
+void validate_cuda(Index nslow, Index nfast)
 {
     using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
@@ -90,14 +90,14 @@ void validate_cuda(Index nrows, Index ncols)
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init all the data
     Scalar val = -0.5;
-    Index nelems = nrows * ncols;
+    Index nelems = nslow * nfast;
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
         data[i] = Y(i+1);
     }
-    std::unique_ptr<bool_t[]> mask(new bool_t[nrows]);
-    for(Index i = 0; i < nrows; ++i)
+    std::unique_ptr<bool_t[]> mask(new bool_t[nslow]);
+    for(Index i = 0; i < nslow; ++i)
     {
         if(i % 2 == 0)
         {
@@ -115,16 +115,16 @@ void validate_cuda(Index nrows, Index ncols)
     bool_t *dev_mask;
     cuda_err = cudaMalloc(&dev_data, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_mask, sizeof(bool_t)*nrows);
+    cuda_err = cudaMalloc(&dev_mask, sizeof(bool_t)*nslow);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_mask, &mask[0], sizeof(bool_t)*nrows,
+    cuda_err = cudaMemcpy(dev_mask, &mask[0], sizeof(bool_t)*nslow,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run kernel::mask_scalar::cuda<" << T::short_name << ">\n";
-    kernel::mask_scalar::cuda<T>(stream, nrows, ncols, dev_mask, val,
+    kernel::mask_scalar::cuda<T>(stream, nslow, nfast, dev_mask, val,
             dev_data);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -142,10 +142,10 @@ void validate_cuda(Index nrows, Index ncols)
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
-    VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nrows);
+    VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nslow);
     mask_scalar.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::mask_scalar::submit<" << T::short_name << "> restricted to CUDA\n";
-    mask_scalar.submit<std::tuple<T>>(-1, nrows, ncols, mask_handle, val, data2_handle);
+    mask_scalar.submit<std::tuple<T>>(-1, nslow, nfast, mask_handle, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     mask_handle.unregister();

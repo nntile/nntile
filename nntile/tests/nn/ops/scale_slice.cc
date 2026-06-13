@@ -145,9 +145,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
+    std::vector<float> nntile_out = runtime.get_output<float>(out);
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
+        colmajor_to_rowmajor(nntile_out, dst_shape);
 
     std::vector<::int64_t> src_shape_pt(src_shape.begin(), src_shape.end());
     auto src_pt = torch::from_blob(src_data.data(),

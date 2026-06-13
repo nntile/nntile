@@ -24,7 +24,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> x({2, 3}), dy({2, 3}), dx({2, 3}), dxr({2, 3});
+    Tile<T> x({3, 2}), dy({2, 3}), dx({2, 3}), dxr({2, 3});
     auto xl = x.acquire(STARPU_W);
     auto dyl = dy.acquire(STARPU_W);
     auto dxl = dx.acquire(STARPU_W);

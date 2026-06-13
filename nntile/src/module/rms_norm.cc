@@ -49,7 +49,8 @@ NNGraph::TensorNode *RMSNorm::forward(NNGraph::TensorNode *x)
         throw std::invalid_argument(
             "RMSNorm::forward: input tensor must be non-null");
     }
-    return rms_norm(x, gamma_tensor_, axis_, eps_, redux_)
+    const Index axis = axis_ < 0 ? x->ndim() - 1 : axis_;
+    return rms_norm(x, gamma_tensor_, axis, eps_, redux_)
         ->set_name(tensor_name("out"));
 }
 

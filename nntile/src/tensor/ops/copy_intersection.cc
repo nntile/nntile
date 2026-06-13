@@ -241,27 +241,31 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
                 lay_s->tile_axis_global_range(
                     src_tile_index, k, s_lo, s_hi_incl);
                 (void)s_hi_incl;
-                src_corner[kz] = s_lo;
+                src_corner[kz] = src_offset[kz] + s_lo;
                 Index d_lo2 = 0;
                 Index d_hi_incl2 = 0;
                 lay_d->tile_axis_global_range(
                     dst_tile_index, k, d_lo2, d_hi_incl2);
                 (void)d_hi_incl2;
-                dst_corner[kz] = d_lo2 - g_dst[kz] + g_src[kz];
+                dst_corner[kz] = dst_offset[kz] + d_lo2;
             }
             tile::copy_intersection(tsrc[static_cast<size_t>(lin_s)],
                 src_corner, tdst[static_cast<size_t>(lin_d)], dst_corner,
                 scratch);
             if(j + 1 < src_ntiles)
             {
-                ++src_tile_index[0];
-                Index k = 0;
-                while(src_tile_index[static_cast<size_t>(k)]
+                Index k = ndim - 1;
+                ++src_tile_index[static_cast<size_t>(k)];
+                while(k >= 0 && src_tile_index[static_cast<size_t>(k)]
                     == src_tile_index_end[static_cast<size_t>(k)])
                 {
                     src_tile_index[static_cast<size_t>(k)] =
                         src_tile_index_begin[static_cast<size_t>(k)];
-                    ++k;
+                    if(k == 0)
+                    {
+                        break;
+                    }
+                    --k;
                     ++src_tile_index[static_cast<size_t>(k)];
                 }
             }
@@ -270,14 +274,18 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
         {
             break;
         }
-        ++dst_tile_index[0];
-        Index k = 0;
-        while(dst_tile_index[static_cast<size_t>(k)]
+        ++dst_tile_index[static_cast<size_t>(ndim - 1)];
+        Index k = ndim - 1;
+        while(k >= 0 && dst_tile_index[static_cast<size_t>(k)]
             == dst_tile_index_end[static_cast<size_t>(k)])
         {
             dst_tile_index[static_cast<size_t>(k)] =
                 dst_tile_index_begin[static_cast<size_t>(k)];
-            ++k;
+            if(k == 0)
+            {
+                break;
+            }
+            --k;
             ++dst_tile_index[static_cast<size_t>(k)];
         }
     }

@@ -127,8 +127,7 @@ public:
     );
 
     //! Get vocab data in NNTile format for runtime.bind_data().
-    //! Converts PyTorch [num_embeddings, embed_dim] row-major to NNTile
-    //! [embed_dim, num_embeddings] column-major.
+    //! Copies PyTorch [num_embeddings, embed_dim] row-major layout directly.
     static std::vector<float> vocab_data_from_pytorch(const torch::Tensor& w);
 #endif
 
@@ -136,7 +135,7 @@ public:
         NNGraph::TensorNode* index);
 
     //! Bind vocab (weight) data for Runtime::compile(). Data must be in NNTile
-    //! layout [embed_dim, num_embeddings] column-major.
+    //! layout [num_embeddings, embed_dim] row-major.
     //! Moves data into the graph; call std::move() to avoid copy.
     void bind_weight(std::vector<std::uint8_t> data);
 
@@ -190,16 +189,16 @@ inline std::vector<float> Embedding::vocab_data_from_pytorch(
         throw std::invalid_argument(
             "Embedding::vocab_data_from_pytorch: expected 2D tensor");
     }
-    // PyTorch weight: [num_embeddings, embed_dim]; NNTile vocab: [embed_dim, num_embeddings] col-major
+    // PyTorch weight: [num_embeddings, embed_dim]; same layout in NNTile.
     const long num_emb = w.size(0);
     const long emb_dim = w.size(1);
-    std::vector<float> result(static_cast<size_t>(emb_dim * num_emb));
+    std::vector<float> result(static_cast<size_t>(num_emb * emb_dim));
     auto acc = w.accessor<float, 2>();
     for(long j = 0; j < num_emb; ++j)
     {
         for(long i = 0; i < emb_dim; ++i)
         {
-            result[static_cast<size_t>(i + j * emb_dim)] = acc[j][i];
+            result[static_cast<size_t>(j * emb_dim + i)] = acc[j][i];
         }
     }
     return result;

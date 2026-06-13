@@ -24,6 +24,59 @@
 namespace nntile::kernel::cblas
 {
 
+namespace
+{
+
+struct CblasGemmLayout
+{
+    CBLAS_TRANSPOSE trans_first = CblasNoTrans;
+    CBLAS_TRANSPOSE trans_second = CblasNoTrans;
+    CBLAS_INT ld_first = 0;
+    CBLAS_INT ld_second = 0;
+};
+
+//! Map logical C-order GEMM operands to row-major CBLAS call B_op @ A_op.
+CblasGemmLayout c_order_gemm_layout(TransOp transA, TransOp transB)
+{
+    CblasGemmLayout layout;
+    switch(transB.value)
+    {
+        case TransOp::NoTrans:
+            layout.ld_first = 0; // set from n below
+            switch(transA.value)
+            {
+                case TransOp::NoTrans:
+                    layout.trans_first = CblasTrans;
+                    layout.trans_second = CblasNoTrans;
+                    break;
+                case TransOp::Trans:
+                default:
+                    layout.trans_first = CblasTrans;
+                    layout.trans_second = CblasTrans;
+                    break;
+            }
+            break;
+        case TransOp::Trans:
+        default:
+            switch(transA.value)
+            {
+                case TransOp::NoTrans:
+                    layout.trans_first = CblasNoTrans;
+                    layout.trans_second = CblasNoTrans;
+                    break;
+                case TransOp::Trans:
+                default:
+                    layout.trans_first = CblasNoTrans;
+                    layout.trans_second = CblasTrans;
+                    break;
+            }
+            break;
+    }
+    return layout;
+}
+
+} // namespace
+
 // GEMM operation implementation
 template<typename T>
 void gemm(
@@ -41,53 +94,45 @@ void gemm(
 ) noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // Convert values to CBLAS types
-    CBLAS_INT M=m, N=n, K=k, ldA, ldB, ldC=M;
-    // Convert transposition operation flags
-    CBLAS_TRANSPOSE transA_, transB_;
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            transA_ = CblasNoTrans;
-            ldA = M;
-            break;
-        case TransOp::Trans:
-        default:
-            transA_ = CblasTrans;
-            ldA = K;
-            break;
-    }
+    const CBLAS_INT M_out = static_cast<CBLAS_INT>(n);
+    const CBLAS_INT N_out = static_cast<CBLAS_INT>(m);
+    const CBLAS_INT K_inner = static_cast<CBLAS_INT>(k);
+    CblasGemmLayout layout = c_order_gemm_layout(transA, transB);
+    CBLAS_INT ld_first = 0;
+    CBLAS_INT ld_second = 0;
     switch(transB.value)
     {
         case TransOp::NoTrans:
-            transB_ = CblasNoTrans;
-            ldB = K;
+            ld_first = M_out;
+            ld_second = (transA.value == TransOp::NoTrans) ? N_out : K_inner;
             break;
         case TransOp::Trans:
         default:
-            transB_ = CblasTrans;
-            ldB = N;
+            ld_first = K_inner;
+            ld_second = K_inner;
             break;
     }
-    // Call corresponding CBLAS routine for every batch
-    Index A_offset = m * k, B_offset = n * k, C_offset = m * n;
+    const CBLAS_INT ldC = N_out;
+    const Index first_offset = static_cast<Index>(M_out) * K_inner;
+    const Index second_offset = static_cast<Index>(N_out) * K_inner;
+    const Index c_offset = static_cast<Index>(M_out) * N_out;
     for(Index i = 0; i < batch; ++i)
     {
         if constexpr(std::is_same_v<T, fp64_t>) // Double precision
         {
             cblas_dgemm(
-                CblasColMajor,
-                transA_,
-                transB_,
-                M,
-                N,
-                K,
-                alpha, // alpha is upcasted to double
-                reinterpret_cast<const double *>(A),
-                ldA,
+                CblasRowMajor,
+                layout.trans_first,
+                layout.trans_second,
+                M_out,
+                N_out,
+                K_inner,
+                alpha,
                 reinterpret_cast<const double *>(B),
-                ldB,
-                beta, // beta is upcasted to double
+                ld_first,
+                reinterpret_cast<const double *>(A),
+                ld_second,
+                beta,
                 reinterpret_cast<double *>(C),
                 ldC
             );
@@ -95,27 +140,25 @@ void gemm(
         else if constexpr(std::is_same_v<T, fp32_t>) // Single precision
         {
             cblas_sgemm(
-                CblasColMajor,
-                transA_,
-                transB_,
-                M,
-                N,
-                K,
+                CblasRowMajor,
+                layout.trans_first,
+                layout.trans_second,
+                M_out,
+                N_out,
+                K_inner,
                 alpha,
-                reinterpret_cast<const float *>(A),
-                ldA,
                 reinterpret_cast<const float *>(B),
-                ldB,
+                ld_first,
+                reinterpret_cast<const float *>(A),
+                ld_second,
                 beta,
                 reinterpret_cast<float *>(C),
                 ldC
             );
         }
-        // Other precisions not supported, better to report it, but we do not
-        // Loop to the next batch
-        A += A_offset;
-        B += B_offset;
-        C += C_offset;
+        B += first_offset;
+        A += second_offset;
+        C += c_offset;
     }
 #endif // STARPU_SIMGRID
 }

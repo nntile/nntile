@@ -3,6 +3,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file nntile/src/model/bert/bert_output.cc
  * BertOutput implementation.
  *
@@ -11,8 +14,6 @@
 
 #include "nntile/model/bert/bert_output.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/add_fiber.hh"
-#include "nntile/nn/ops/gemm.hh"
 
 #include <stdexcept>
 
@@ -30,7 +31,7 @@ BertOutput::BertOutput(NNGraph* graph,
              true,
              dtype)
     , layer_norm_(graph, name + "_ln",
-                  config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+                  config.hidden_size, -1, config.layer_norm_eps, 0, dtype)
     , config_(config)
     , dtype_(dtype)
 {
@@ -49,15 +50,7 @@ NNGraph::TensorNode* BertOutput::forward(
             "BertOutput::forward: hidden and residual must be non-null");
     }
 
-    NNGraph::TensorNode* proj = gemm(
-        dense_.weight_tensor(),
-        hidden,
-        1.0,
-        true,
-        false,
-        1,
-        0);
-    proj = add_fiber(1.0, dense_.bias_tensor(), 1.0, proj, 0, 0);
+    NNGraph::TensorNode* proj = dense_.forward(hidden);
     NNGraph::TensorNode* summed =
         add(1.0, residual, 1.0, proj);
     return layer_norm_.forward(summed);

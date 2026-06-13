@@ -27,9 +27,8 @@ void check()
     using Y = typename T::repr_t;
     constexpr Scalar alpha = 1.0;
     // Init data for checking
-    Tile<T> dst({3, 4, 5}), dst2({3, 4, 5});
-    Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
+    Tile<T> dst({5, 4, 3}), dst2({5, 4, 3});
+    Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
     auto dst_local = dst.acquire(STARPU_W);
     auto dst2_local = dst2.acquire(STARPU_W);
     for(Index i = 0; i < dst.nelems; ++i)
@@ -51,7 +50,7 @@ void check()
     }
     // Check axis=0
     {
-        starpu::softmax_inplace.submit<std::tuple<T>>(-1, 1, 20, 3, maxsumexp[0], alpha, dst);
+        starpu::softmax_inplace.submit<std::tuple<T>>(-1, 12, 1, 5, maxsumexp[0], alpha, dst);
         softmax_inplace<T>(-1, maxsumexp[0], alpha, dst2, 0);
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
@@ -77,7 +76,7 @@ void check()
     }
     // Check axis=2
     {
-        starpu::softmax_inplace.submit<std::tuple<T>>(-1, 12, 1, 5, maxsumexp[2], alpha, dst);
+        starpu::softmax_inplace.submit<std::tuple<T>>(-1, 1, 20, 3, maxsumexp[2], alpha, dst);
         softmax_inplace<T>(-1, maxsumexp[2], alpha, dst2, 2);
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
@@ -98,9 +97,8 @@ void validate()
     check<T>();
     // Check throwing exceptions
     Tile<T> empty({});
-    Tile<T> dst({3, 4, 5});
-    Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
+    Tile<T> dst({5, 4, 3});
+    Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
     TEST_THROW(softmax_inplace<T>(-1, empty, alpha, empty, 0));
     TEST_THROW(softmax_inplace<T>(-1, maxsumexp[0], alpha, dst, 1));
     TEST_THROW(softmax_inplace<T>(-1, maxsumexp[0], alpha, dst, 2));

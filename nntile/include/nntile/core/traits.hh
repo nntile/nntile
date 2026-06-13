@@ -57,17 +57,16 @@ public:
     Index ndim;
     //! Shape of the tile.
     std::vector<Index> shape;
-    //! Stride of the tile.
-    /*! stride[0] = 1, while stride[i+1] = stride[i] * shape[i].
+    //! Stride of the tile (C-order: last index varies fastest).
+    /*! stride[ndim-1] = 1, while stride[i] = stride[i+1] * shape[i+1].
      * */
     std::vector<Index> stride;
     //! Number of elements in the tile
     Index nelems;
-    //! Shapes of all possible reshapes into matrices
-    /*! matrix_shape[0] is a (prod(shape[0:0]), prod(shape[0:ndim]) reshape
-     * matrix_shape[1] is a (prod(shape[0:1]), prod(shape[1:ndim]) reshape
-     * and so on, matrix_shape[ndim] is a (prod(shape[0:ndim]),
-     * prod(shape[ndim:ndim]) reshape
+    //! Sizes of all possible 2D reshapes at each split axis.
+    /*! matrix_shape[k][0] = prod(shape[0:k]), matrix_shape[k][1] =
+     * prod(shape[k:ndim]).  Kernels treat the trailing part as the fast
+     * (column-major) dimension of the matrix view.
      * */
     std::vector<std::array<Index, 2>> matrix_shape;
     //! Construct a integer properties of a tile
@@ -82,7 +81,7 @@ public:
         stride(ndim),
         matrix_shape(ndim+1)
     {
-        // Compute number of rows of reshapes into matrices
+        // Leading (slow) sizes of 2D reshapes at each split.
         Index tmp = 1;
         matrix_shape[0][0] = 1;
         for(Index i = 1; i <= ndim; ++i)
@@ -92,7 +91,7 @@ public:
         }
         // Set total number of elements in a tile
         nelems = tmp;
-        // Compute number of columns of reshapes into matrices
+        // Trailing (fast) sizes of 2D reshapes at each split.
         tmp = 1;
         matrix_shape[ndim][1] = 1;
         for(Index i = ndim; i >= 1; --i)
@@ -100,10 +99,14 @@ public:
             tmp *= shape[i-1];
             matrix_shape[i-1][1] = tmp;
         }
-        // Set tile stride
-        for(Index i = 0; i < ndim; ++i)
+        // C-order strides (last index stride 1).
+        if(ndim > 0)
         {
-            stride[i] = matrix_shape[i][0];
+            stride[ndim-1] = 1;
+            for(Index i = ndim - 2; i >= 0; --i)
+            {
+                stride[i] = stride[i + 1] * shape[i + 1];
+            }
         }
     }
     //! Linear memory offset of a tile element with proper bounds check.
@@ -111,8 +114,7 @@ public:
      *
      * @param[in] index: Coordinate of an element. Shall belong to the tile,
      *      i.e. 0 <= index[i] < shape[i].
-     * @returns Offset of the element in a corresponding linear memory,
-     *      assuming Fortran-order storage of tile elements.
+     * @returns Offset of the element in corresponding C-order linear memory.
      * */
     Index index_to_linear(const std::vector<Index> &index) const
     {
@@ -126,14 +128,8 @@ public:
         {
             return 0;
         }
-        // Check tile bounds
-        if(index[0] < 0 or index[0] >= shape[0])
-        {
-            throw std::runtime_error("Index out of bounds");
-        }
-        // Get the actual memory offset
-        Index linear_offset = index[0]; // stride[0]=1
-        for(Index i = 1; i < ndim; ++i)
+        Index linear_offset = 0;
+        for(Index i = 0; i < ndim; ++i)
         {
             if(index[i] < 0 or index[i] >= shape[i])
             {
@@ -147,8 +143,7 @@ public:
     /*! This function shall be used for debugging and testing
      *
      * @param[in] linear_offset: Linear memory offset in range [0,nelems)
-     * @returns Coordinate of the corresponding element,
-     *      assuming Fortran-order storage of tile elements.
+     * @returns Coordinate of the corresponding element in C-order layout.
      * */
     std::vector<Index> linear_to_index(Index linear_offset) const
     {
@@ -162,15 +157,14 @@ public:
         {
             return std::vector<Index>();
         }
-        // Other cases
         std::vector<Index> index(ndim);
-        for(Index i = ndim-1; i >= 1; --i)
+        for(Index i = 0; i < ndim - 1; ++i)
         {
             const Index div = linear_offset / stride[i];
             linear_offset -= div * stride[i];
             index[i] = div;
         }
-        index[0] = linear_offset;
+        index[ndim - 1] = linear_offset;
         return index;
     }
     //! Check if tile contains given coordinate

@@ -46,7 +46,7 @@ void validate()
     d1l.release();
     d1cl.release();
 
-    Tile<T> s2({2, 3, 4}), d2({2, 3, 4}), s2c({2, 3, 4}), d2c({2, 3, 4});
+    Tile<T> s2({4, 3, 2}), d2({2, 3, 4}), s2c({2, 3, 4}), d2c({2, 3, 4});
     auto s2l = s2.acquire(STARPU_W);
     auto d2l = d2.acquire(STARPU_W);
     auto s2cl = s2c.acquire(STARPU_W);

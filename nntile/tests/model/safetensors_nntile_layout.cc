@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file nntile/tests/model/safetensors_nntile_layout.cc
- * Unit tests for SafeTensors C-order → NNTile Fortran layout conversion.
+ * Unit tests for SafeTensors C-order → NNTile layout conversion.
  *
  * @version 1.1.0
  * */
@@ -16,7 +16,7 @@
 using nntile::test::safetensors_nntile_layout::c_safetensors_to_nntile_fortran;
 
 TEST_CASE(
-    "c_safetensors_to_nntile_fortran permutes 2-D C-order payload",
+    "c_safetensors_to_nntile_fortran copies 2-D C-order payload",
     "[model][layout]")
 {
     const std::vector<std::int64_t> shape{2, 3};
@@ -28,15 +28,15 @@ TEST_CASE(
         out);
     REQUIRE(out.size() == 6);
     REQUIRE(out[0] == 0.f);
-    REQUIRE(out[1] == 3.f);
-    REQUIRE(out[2] == 1.f);
-    REQUIRE(out[3] == 4.f);
-    REQUIRE(out[4] == 2.f);
+    REQUIRE(out[1] == 1.f);
+    REQUIRE(out[2] == 2.f);
+    REQUIRE(out[3] == 3.f);
+    REQUIRE(out[4] == 4.f);
     REQUIRE(out[5] == 5.f);
 }
 
 TEST_CASE(
-    "c_safetensors_to_nntile_fortran permutes 3-D C-order payload",
+    "c_safetensors_to_nntile_fortran copies 3-D C-order payload",
     "[model][layout]")
 {
     const std::vector<std::int64_t> shape{2, 2, 2};
@@ -51,12 +51,8 @@ TEST_CASE(
         shape,
         out);
     REQUIRE(out.size() == 8);
-    REQUIRE(out[0] == 0.f);
-    REQUIRE(out[1] == 4.f);
-    REQUIRE(out[2] == 2.f);
-    REQUIRE(out[3] == 6.f);
-    REQUIRE(out[4] == 1.f);
-    REQUIRE(out[5] == 5.f);
-    REQUIRE(out[6] == 3.f);
-    REQUIRE(out[7] == 7.f);
+    for(std::size_t i = 0; i < raw.size(); ++i)
+    {
+        REQUIRE(out[i] == raw[i]);
+    }
 }

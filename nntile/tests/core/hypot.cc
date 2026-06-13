@@ -27,7 +27,7 @@ void validate()
 
     // Test with single element
     Tile<T> tile1_src1({}), tile1_src2({}), tile1_dst({}), tile1_src1_copy({}), tile1_src2_copy({}), tile1_dst_copy({});
-    Tile<T> tile2_src1({2, 3, 4}), tile2_src2({2, 3, 4}), tile2_dst({2, 3, 4}), tile2_src1_copy({2, 3, 4}), tile2_src2_copy({2, 3, 4}), tile2_dst_copy({2, 3, 4});
+    Tile<T> tile2_src1({4, 3, 2}), tile2_src2({2, 3, 4}), tile2_dst({2, 3, 4}), tile2_src1_copy({2, 3, 4}), tile2_src2_copy({2, 3, 4}), tile2_dst_copy({2, 3, 4});
 
     // Test with single element
     auto tile1_src1_local = tile1_src1.acquire(STARPU_W);

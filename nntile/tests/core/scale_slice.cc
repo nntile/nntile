@@ -28,12 +28,12 @@ void check(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
     Tile<T> dst2(dst, &dst2_data[0], dst.nelems);
     scale_slice<T>(-1, alpha, src, dst, axis);
     Index m = 1;
-    for(Index i = 0; i < axis; ++i)
+    for(Index i = axis+1; i < dst.ndim; ++i)
     {
         m *= dst.shape[i];
     }
     Index n = 1;
-    for(Index i = axis+1; i < dst.ndim; ++i)
+    for(Index i = 0; i < axis; ++i)
     {
         n *= dst.shape[i];
     }

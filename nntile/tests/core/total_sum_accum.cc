@@ -25,7 +25,7 @@ void validate()
 {
     using Y = typename T::repr_t;
     Tile<T> logsumexp({2, 2});
-    Tile<T> src({3, 2, 2});
+    Tile<T> src({2, 2, 3});
     Tile<nntile::int64_t> class_labels({2, 2});
     Tile<fp32_t> val({}), val_ref({});
 

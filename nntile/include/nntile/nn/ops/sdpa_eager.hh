@@ -12,7 +12,7 @@
  * Forward: attn = softmax(scale * K^T @ Q + mask), out = V @ attn
  * Backward: grad_Q, grad_K, grad_V via chain rule.
  *
- * Layout: [head_size, n_seq, batch...]. Scale = 1/sqrt(head_size).
+ * Layout: [batch..., seq, head_size]. Scale = 1/sqrt(head_size).
  *
  * @version 1.1.0
  * */
@@ -66,14 +66,14 @@ struct NNSdpaEagerOp : NNGraph::OpNode
 };
 
 //! SDPA eager: out = V @ softmax(scale * K^T @ Q + mask)
-//! @param q Query [head_size, q_seq, batch...]
-//! @param k Key [head_size, k_seq, batch...]
-//! @param v Value [head_size, k_seq, batch...]
+//! @param q Query [batch..., q_seq, head_size]
+//! @param k Key [batch..., k_seq, head_size]
+//! @param v Value [batch..., k_seq, head_size]
 //! @param output_name Name for output tensor
-//! @param mask Optional boolean mask [k_seq, q_seq] (nullptr = no mask)
-//! @param batch_ndim Number of trailing batch dimensions
+//! @param mask Optional boolean mask [q_seq, k_seq] (nullptr = no mask)
+//! @param batch_ndim Number of leading batch dimensions
 //! @param redux Reduction mode for distributed training
-//! @return Output [head_size, q_seq, batch...]
+//! @return Output [batch..., q_seq, head_size]
 NNGraph::TensorNode *sdpa_eager(NNGraph::TensorNode *q,
     NNGraph::TensorNode *k,
     NNGraph::TensorNode *v,

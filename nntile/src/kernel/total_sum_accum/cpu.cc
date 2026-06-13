@@ -50,7 +50,7 @@ void cpu(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index, cons
             // Kahan summation rule for the following:
             //      *val += logsumexp[i] - src[labels[i] + i*n_labels];
             float logsumexp_val = static_cast<Y>(logsumexp_[i]);
-            float src_val = static_cast<Y>(src_[labels[i] + i*n_labels]);
+            float src_val = static_cast<Y>(src_[labels[i] * n_outputs + i]);
             y = logsumexp_val - c;
             t = sum + y;
             c = (t-sum) - y;

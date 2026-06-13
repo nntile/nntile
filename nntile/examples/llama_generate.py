@@ -32,7 +32,7 @@ mmap, each tensor is read / converted / written one at a time, so peak memory
 is proportional to the *largest single tensor* rather than the whole model.
 
 Produces:
-  - ``weights.safetensors``  NNTile-layout weight file (column-major, NNTile
+  - ``weights.safetensors``  NNTile-layout weight file (C-order, NNTile
     parameter naming).
   - ``config.json``  Model configuration readable by the C++ example.
   - ``prompt_ids.txt``  Comma-separated token IDs for the prompt (if
@@ -57,16 +57,9 @@ from transformers import AutoConfig, AutoTokenizer
 # ── Layout helpers ────────────────────────────────────────────────────────
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    """Return C-contiguous array whose flat bytes equal NNTile column-major.
-
-    ``safetensors`` writes C-order flat bytes.  NNTile reads those same bytes
-    into Fortran-order (column-major) tiles.  Ravelling in F-order and
-    reshaping in C-order produces a C-contiguous buffer that, when read
-    linearly, gives the column-major element sequence NNTile expects.
-    """
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    """Return a C-contiguous float32 array for safetensors / bind_data."""
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
 # ── Streaming safetensors writer ──────────────────────────────────────────
@@ -129,9 +122,9 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
 
     specs: list[tuple[str, tuple[int, ...]]] = []
 
-    specs.append(("model.model.embed_tokens.vocab", (H, V)))
+    specs.append(("model.model.embed_tokens.vocab", (V, H)))
     specs.append(("model.model.norm.gamma", (H,)))
-    specs.append(("model.lm_head.weight", (H, V)))
+    specs.append(("model.lm_head.weight", (V, H)))
 
     for i in range(config.num_hidden_layers):
         p = f"model.model.layers_{i}"
@@ -139,18 +132,18 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.post_attn_norm.gamma", (H,)))
 
         if gqa:
-            specs.append((f"{p}.attention.q_weight", (gs, kv, hd, H)))
-            specs.append((f"{p}.attention.o_weight", (H, gs, kv, hd)))
+            specs.append((f"{p}.attention.q_weight", (H, hd, kv, gs)))
+            specs.append((f"{p}.attention.o_weight", (hd, kv, gs, H)))
         else:
-            specs.append((f"{p}.attention.q_weight", (nh, hd, H)))
-            specs.append((f"{p}.attention.o_weight", (H, nh, hd)))
+            specs.append((f"{p}.attention.q_weight", (H, hd, nh)))
+            specs.append((f"{p}.attention.o_weight", (hd, nh, H)))
 
-        specs.append((f"{p}.attention.k_weight", (kv, hd, H)))
-        specs.append((f"{p}.attention.v_weight", (kv, hd, H)))
+        specs.append((f"{p}.attention.k_weight", (H, hd, kv)))
+        specs.append((f"{p}.attention.v_weight", (H, hd, kv)))
 
-        specs.append((f"{p}.mlp.gate_proj.weight", (H, inter)))
-        specs.append((f"{p}.mlp.up_proj.weight", (H, inter)))
-        specs.append((f"{p}.mlp.down_proj.weight", (inter, H)))
+        specs.append((f"{p}.mlp.gate_proj.weight", (inter, H)))
+        specs.append((f"{p}.mlp.up_proj.weight", (inter, H)))
+        specs.append((f"{p}.mlp.down_proj.weight", (H, inter)))
 
     return specs
 
@@ -173,15 +166,15 @@ def _make_converter(
 
     def convert(name: str) -> np.ndarray:
         if name == "model.model.embed_tokens.vocab":
-            return fortran_order(hf_get("model.embed_tokens.weight").T)
+            return as_float32(hf_get("model.embed_tokens.weight"))
 
         if name == "model.model.norm.gamma":
-            return fortran_order(hf_get("model.norm.weight"))
+            return as_float32(hf_get("model.norm.weight"))
 
         if name == "model.lm_head.weight":
             key = ("lm_head.weight" if has_lm_head
                    else "model.embed_tokens.weight")
-            return fortran_order(hf_get(key).T)
+            return as_float32(hf_get(key))
 
         # Layer tensors: model.model.layers_{i}.<rest>
         parts = name.split(".")
@@ -190,39 +183,41 @@ def _make_converter(
         hp = f"model.layers.{layer_idx}"
 
         if rest == "input_norm.gamma":
-            return fortran_order(hf_get(f"{hp}.input_layernorm.weight"))
+            return as_float32(hf_get(f"{hp}.input_layernorm.weight"))
         if rest == "post_attn_norm.gamma":
-            return fortran_order(
+            return as_float32(
                 hf_get(f"{hp}.post_attention_layernorm.weight"))
 
         if rest == "attention.q_weight":
             q = hf_get(f"{hp}.self_attn.q_proj.weight")
             if gqa:
-                return fortran_order(
-                    q.reshape(kv, gs, hd, H).transpose(1, 0, 2, 3))
-            return fortran_order(q.reshape(nh, hd, H))
+                q = q.reshape(kv, gs, hd, H).transpose(3, 2, 0, 1)
+            else:
+                q = q.reshape(H, nh, hd).transpose(0, 2, 1)
+            return as_float32(q)
 
         if rest == "attention.k_weight":
-            return fortran_order(
-                hf_get(f"{hp}.self_attn.k_proj.weight").reshape(kv, hd, H))
+            k = hf_get(f"{hp}.self_attn.k_proj.weight").reshape(kv, hd, H)
+            return as_float32(k.transpose(2, 1, 0))
 
         if rest == "attention.v_weight":
-            return fortran_order(
-                hf_get(f"{hp}.self_attn.v_proj.weight").reshape(kv, hd, H))
+            v = hf_get(f"{hp}.self_attn.v_proj.weight").reshape(kv, hd, H)
+            return as_float32(v.transpose(2, 1, 0))
 
         if rest == "attention.o_weight":
             o = hf_get(f"{hp}.self_attn.o_proj.weight")
             if gqa:
-                return fortran_order(
-                    o.reshape(H, kv, gs, hd).transpose(0, 2, 1, 3))
-            return fortran_order(o.reshape(H, nh, hd))
+                o = o.reshape(kv, gs, hd, H).transpose(2, 0, 1, 3)
+            else:
+                o = o.reshape(nh, hd, H).transpose(1, 0, 2)
+            return as_float32(o)
 
         if rest == "mlp.gate_proj.weight":
-            return fortran_order(hf_get(f"{hp}.mlp.gate_proj.weight").T)
+            return as_float32(hf_get(f"{hp}.mlp.gate_proj.weight"))
         if rest == "mlp.up_proj.weight":
-            return fortran_order(hf_get(f"{hp}.mlp.up_proj.weight").T)
+            return as_float32(hf_get(f"{hp}.mlp.up_proj.weight"))
         if rest == "mlp.down_proj.weight":
-            return fortran_order(hf_get(f"{hp}.mlp.down_proj.weight").T)
+            return as_float32(hf_get(f"{hp}.mlp.down_proj.weight"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 

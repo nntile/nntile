@@ -118,12 +118,13 @@ void TensorScaleFiberOp::lower_to_tile(const LoweringContext &ctx) const
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        src_coord[0] = dst_coord[static_cast<size_t>(axis)];
         for (Index b = 0; b < batch_ndim; ++b)
         {
-            src_coord[static_cast<size_t>(b + 1)] =
-                dst_coord[static_cast<size_t>(dst->ndim() - batch_ndim + b)];
+            src_coord[static_cast<size_t>(b)] =
+                dst_coord[static_cast<size_t>(b)];
         }
+        src_coord[static_cast<size_t>(batch_ndim)] =
+            dst_coord[static_cast<size_t>(axis)];
         const Index lin_s = lay_s->grid_linear(src_coord);
         tile::scale_fiber(alpha,
             tiles_s[static_cast<size_t>(lin_s)],

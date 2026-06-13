@@ -50,10 +50,13 @@ void cpu(Index n_labels, Index n_outputs, Index ignore_index,
     {
         if (labels[i] == ignore_index)
         {
-            std::memset(dst_ + i*n_labels, 0, n_labels * sizeof(T));
+            for(Index c = 0; c < n_labels; ++c)
+            {
+                dst_[c * n_outputs + i] = static_cast<T>(0);
+            }
         } else {
-            dst_val = static_cast<Y>(dst_[labels[i] + i*n_labels]);
-            dst_[labels[i] + i*n_labels] = static_cast<T>(dst_val - val);
+            dst_val = static_cast<Y>(dst_[labels[i] * n_outputs + i]);
+            dst_[labels[i] * n_outputs + i] = static_cast<T>(dst_val - val);
         }
     }
 }

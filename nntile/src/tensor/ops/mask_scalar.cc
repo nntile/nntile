@@ -52,15 +52,16 @@ void mask_scalar(TensorGraph::TensorNode* mask,
     }
     for(Index i = 0; i < A_data_ndim; ++i)
     {
-        if(mask->shape()[i] != A->shape()[i])
+        const Index a_ax = batch_ndim + i;
+        if(mask->shape()[i] != A->shape()[a_ax])
         {
             throw std::invalid_argument(
                 "mask_scalar: mask.dim[" + std::to_string(i) +
-                "] must match A.dim[" + std::to_string(i) + "] (" +
+                "] must match A.dim[" + std::to_string(a_ax) + "] (" +
                 std::to_string(mask->shape()[i]) + " vs " +
-                std::to_string(A->shape()[i]) + ")");
+                std::to_string(A->shape()[a_ax]) + ")");
         }
-        merge_axis(mask->mutable_axes()[i], A->mutable_axes()[i]);
+        merge_axis(mask->mutable_axes()[i], A->mutable_axes()[a_ax]);
     }
 
     auto op = std::make_shared<TensorMaskScalarOp>(mask, val, A, batch_ndim);
@@ -91,7 +92,7 @@ void TensorMaskScalarOp::lower_to_tile(const LoweringContext& ctx) const
         for(Index j = 0; j < mask_ndim; ++j)
         {
             mask_coord[static_cast<size_t>(j)] =
-                a_coord[static_cast<size_t>(j)];
+                a_coord[static_cast<size_t>(batch_ndim + j)];
         }
         const Index lin_m = lay_m->grid_linear(mask_coord);
         tile::mask_scalar(

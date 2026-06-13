@@ -14,7 +14,6 @@
 
 #include "nntile/model/t5/t5_for_conditional_generation.hh"
 #include "nntile/nn/ops/scale.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <cmath>
 #include <stdexcept>
@@ -45,13 +44,10 @@ NNGraph::TensorNode* T5ForConditionalGeneration::forward(
     NNGraph::TensorNode* decoder_attention_mask,
     NNGraph::TensorNode* cross_attention_mask)
 {
-    // Model output: (d_model, dec_seq, batch)
     NNGraph::TensorNode* hidden = model_->forward(
         encoder_input_ids, decoder_input_ids,
         encoder_attention_mask, decoder_attention_mask, cross_attention_mask);
 
-    // HF ``T5ForConditionalGeneration`` (``tie_word_embeddings=True``):
-    // sequence_output *= d_model**-0.5 before lm_head projection.
     if(config_.tie_word_embeddings)
     {
         const Scalar inv_sqrt_d_model =
@@ -60,11 +56,7 @@ NNGraph::TensorNode* T5ForConditionalGeneration::forward(
                      ->set_name(tensor_name("hidden_scaled"));
     }
 
-    // Transpose (d_model, seq, batch) -> (seq, batch, d_model) for lm_head
-    NNGraph::TensorNode* hidden_t = transpose(hidden, 1);
-    hidden_t->set_name(tensor_name("hidden_t"));
-    NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
-    NNGraph::TensorNode* logits = transpose(logits_sbv, 2);
+    NNGraph::TensorNode* logits = lm_head_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

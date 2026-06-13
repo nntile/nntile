@@ -19,7 +19,8 @@ namespace nntile::kernel::rope
 {
 
 template<typename T>
-void cpu(Index m, Index n, const T *sin, const T *cos, const T *src, T *dst)
+void cpu(Index m_pairs, Index n, Index m_sin, Index sin_pair0, const T *sin,
+    const T *cos, const T *src, T *dst)
     noexcept
 /*! Change provided 2-by-m-by-n src tensor and write result into dst tensor
  *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
@@ -40,36 +41,38 @@ void cpu(Index m, Index n, const T *sin, const T *cos, const T *src, T *dst)
     for (Index j = 0; j < n; ++j)
     {
         // Cycle over all elements of sin and cos buffers.
-        for(Index i = 0; i < m; ++i)
+        for(Index i = 0; i < m_pairs; ++i)
         {
-            Index l = 2 * (i+j*m);
-            Y c{cos[i]}, s{sin[i]};
-            Y a{src[l]}, b{src[l+1]};
-            dst[l] = static_cast<T>(c*a - s*b);
-            dst[l+1] = static_cast<T>(s*a + c*b);
+            const Index si = sin_pair0 + i * n + j;
+            const Index l0 = 2 * i * n + j;
+            const Index l1 = l0 + n;
+            Y c{cos[si]}, s{sin[si]};
+            Y a{src[l0]}, b{src[l1]};
+            dst[l0] = static_cast<T>(c*a - s*b);
+            dst[l1] = static_cast<T>(s*a + c*b);
         }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, const fp32_t *sin, const fp32_t *cos,
-        const fp32_t *src, fp32_t *dst)
+void cpu<fp32_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
+    const fp32_t *sin, const fp32_t *cos, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, const fp64_t *sin, const fp64_t *cos,
-        const fp64_t *src, fp64_t *dst)
+void cpu<fp64_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
+    const fp64_t *sin, const fp64_t *cos, const fp64_t *src, fp64_t *dst)
     noexcept;
 
 template
-void cpu<fp16_t>(Index m, Index n, const fp16_t *sin, const fp16_t *cos,
-        const fp16_t *src, fp16_t *dst)
+void cpu<fp16_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
+    const fp16_t *sin, const fp16_t *cos, const fp16_t *src, fp16_t *dst)
     noexcept;
 
 template
-void cpu<bf16_t>(Index m, Index n, const bf16_t *sin, const bf16_t *cos,
-        const bf16_t *src, bf16_t *dst)
+void cpu<bf16_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
+    const bf16_t *sin, const bf16_t *cos, const bf16_t *src, bf16_t *dst)
     noexcept;
 
 } // namespace rope

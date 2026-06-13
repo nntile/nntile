@@ -39,7 +39,7 @@ void sdpa_causal_mask_bool_fortran_fill(
         for(Index kk = 0; kk < seq_len; ++kk)
         {
             const bool allowed = kk <= qq;
-            out[kk + seq_len * qq] =
+            out[qq * seq_len + kk] =
                 allowed ? static_cast<std::uint8_t>(1)
                         : static_cast<std::uint8_t>(0);
         }
@@ -72,7 +72,7 @@ void sdpa_gptneo_local_mask_bool_fortran_fill(
         {
             const bool allowed =
                 kk <= qq && (qq - kk) < window_size;
-            out[kk + seq_len * qq] =
+            out[qq * seq_len + kk] =
                 allowed ? static_cast<std::uint8_t>(1)
                         : static_cast<std::uint8_t>(0);
         }

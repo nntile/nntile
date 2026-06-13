@@ -272,9 +272,9 @@ template <> struct dtype_for<nntile::bool_t>
 namespace tile_layout_io
 {
 
-//! Decode a flat offset into tile-local coordinates matching
-//! nntile::core::TileTraits / tile storage (Fortran order: dim 0 stride 1).
-inline void fortran_tile_linear_to_index(Index linear_offset,
+//! Decode a flat offset into tile-local coordinates (C-order: last dim
+//! stride 1).
+inline void tile_linear_to_index(Index linear_offset,
     const std::vector<Index> &shape,
     std::vector<Index> &index)
 {
@@ -285,45 +285,59 @@ inline void fortran_tile_linear_to_index(Index linear_offset,
         return;
     }
     std::vector<Index> stride(ndim);
-    stride[0] = 1;
-    for (size_t i = 1; i < ndim; ++i)
+    stride[ndim - 1] = 1;
+    for (size_t i = ndim - 1; i > 0; --i)
     {
-        stride[i] = stride[i - 1] * shape[i - 1];
+        stride[i - 1] = stride[i] * shape[i];
     }
     Index rem = linear_offset;
-    for (size_t i = ndim - 1; i >= 1; --i)
+    for (size_t i = 0; i < ndim - 1; ++i)
     {
         const Index div = rem / stride[i];
         rem -= div * stride[i];
         index[i] = div;
     }
-    index[0] = rem;
+    index[ndim - 1] = rem;
 }
 
-//! Dense offset matching logical bind_data / get_output flat layout
-//! order (same as nntile tile/tensor Fortran linearization).
-inline Index fortran_dense_linear_index(
+//! Dense offset matching bind_data / get_output flat layout (C-order).
+inline Index dense_linear_index(
     const std::vector<Index> &shape, const std::vector<Index> &global_coord)
 {
     if (shape.size() != global_coord.size())
     {
         throw std::invalid_argument(
-            "fortran_dense_linear_index: shape/coord size mismatch");
+            "dense_linear_index: shape/coord size mismatch");
     }
     Index idx = 0;
     Index stride = 1;
-    for (size_t d = 0; d < shape.size(); ++d)
+    for (size_t d = shape.size(); d-- > 0;)
     {
         const Index g = global_coord[d];
         if (g < 0 || g >= shape[d])
         {
             throw std::out_of_range(
-                "fortran_dense_linear_index: global coord OOB");
+                "dense_linear_index: global coord OOB");
         }
         idx += g * stride;
         stride *= shape[d];
     }
     return idx;
+}
+
+[[deprecated("Use tile_linear_to_index")]]
+inline void fortran_tile_linear_to_index(Index linear_offset,
+    const std::vector<Index> &shape,
+    std::vector<Index> &index)
+{
+    tile_linear_to_index(linear_offset, shape, index);
+}
+
+[[deprecated("Use dense_linear_index")]]
+inline Index fortran_dense_linear_index(
+    const std::vector<Index> &shape, const std::vector<Index> &global_coord)
+{
+    return dense_linear_index(shape, global_coord);
 }
 
 template <typename T, typename NntileT, typename CastT>
@@ -367,10 +381,10 @@ void scatter_logical_tensor(const TensorAxisLayout &lay,
         auto tile_local = tile.acquire(STARPU_W);
         for (Index lf = 0; lf < tne; ++lf)
         {
-            fortran_tile_linear_to_index(lf, ts, local);
+            tile_linear_to_index(lf, ts, local);
             lay.global_coord(gc, local, global);
             const Index di =
-                fortran_dense_linear_index(lay.tensor_shape(), global);
+                dense_linear_index(lay.tensor_shape(), global);
             tile_local[lf] =
                 NntileT(static_cast<CastT>(host[static_cast<size_t>(di)]));
         }
@@ -408,10 +422,10 @@ void gather_logical_tensor(const TensorAxisLayout &lay,
         auto tile_local = tile.acquire(STARPU_R);
         for (Index lf = 0; lf < tne; ++lf)
         {
-            fortran_tile_linear_to_index(lf, ts, local);
+            tile_linear_to_index(lf, ts, local);
             lay.global_coord(gc, local, global);
             const Index di =
-                fortran_dense_linear_index(lay.tensor_shape(), global);
+                dense_linear_index(lay.tensor_shape(), global);
             out[static_cast<size_t>(di)] =
                 static_cast<T>(static_cast<CastT>(tile_local[lf]));
         }

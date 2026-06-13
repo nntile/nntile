@@ -62,11 +62,11 @@ static std::vector<Index> sum_fiber_output_shape(
 {
     std::vector<Index> out_shape;
     out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out_shape.push_back(x_shape[x_shape.size() - batch_ndim + i]);
+        out_shape.push_back(x_shape[i]);
     }
+    out_shape.push_back(x_shape[axis]);
     return out_shape;
 }
 

@@ -21,7 +21,7 @@ namespace nntile::core
 
 template<typename T>
 void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
-        const Tile<T> &dy, const Tile<T> &dx)
+        const Tile<T> &dy, const Tile<T> &dx, Index sin_pair0)
 {
     // Check dimensions
     if(dy.ndim != dx.ndim)
@@ -68,17 +68,19 @@ void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<
     dy.mpi_transfer(dx_rank, mpi_rank);
     if(mpi_rank == dx_rank)
     {
-        Index m{sin.nelems};
-        Index n{dy.matrix_shape[sin.ndim][1]};
-        starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, m, n, sin, cos, dy, dx);
+        Index n{dy.matrix_shape[1][1]};
+        Index m_pairs{dy.shape[0] / 2};
+        Index m_sin{sin.nelems / n};
+        starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, m_pairs,
+            n, m_sin, sin_pair0, sin, cos, dy, dx);
     }
 }
 
 template<typename T>
 void rope_backward(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &dy,
-        const Tile<T> &dx)
+        const Tile<T> &dx, Index sin_pair0)
 {
-    rope_backward_async<T>(starpu_worker_hint, sin, cos, dy, dx);
+    rope_backward_async<T>(starpu_worker_hint, sin, cos, dy, dx, sin_pair0);
     starpu_task_wait_for_all();
 }
 
@@ -86,77 +88,77 @@ void rope_backward(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &co
 template
 void rope_backward_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &sin,
         const Tile<fp32_t> &cos, const Tile<fp32_t> &dy,
-        const Tile<fp32_t> &dx);
+        const Tile<fp32_t> &dx, Index sin_pair0);
 
 template
 void rope_backward_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &sin,
         const Tile<fp64_t> &cos, const Tile<fp64_t> &dy,
-        const Tile<fp64_t> &dx);
+        const Tile<fp64_t> &dx, Index sin_pair0);
 
 template
 void rope_backward_async<fp32_fast_tf32_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_tf32_t> &sin,
         const Tile<fp32_fast_tf32_t> &cos,
         const Tile<fp32_fast_tf32_t> &dy,
-        const Tile<fp32_fast_tf32_t> &dx);
+        const Tile<fp32_fast_tf32_t> &dx, Index sin_pair0);
 
 template
 void rope_backward_async<fp32_fast_fp16_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_fp16_t> &sin,
         const Tile<fp32_fast_fp16_t> &cos,
         const Tile<fp32_fast_fp16_t> &dy,
-        const Tile<fp32_fast_fp16_t> &dx);
+        const Tile<fp32_fast_fp16_t> &dx, Index sin_pair0);
 
 template
 void rope_backward_async<fp32_fast_bf16_t>(int starpu_worker_hint, 
         const Tile<fp32_fast_bf16_t> &sin,
         const Tile<fp32_fast_bf16_t> &cos,
         const Tile<fp32_fast_bf16_t> &dy,
-        const Tile<fp32_fast_bf16_t> &dx);
+        const Tile<fp32_fast_bf16_t> &dx, Index sin_pair0);
 
 template
 void rope_backward_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &sin,
         const Tile<fp16_t> &cos, const Tile<fp16_t> &dy,
-        const Tile<fp16_t> &dx);
+        const Tile<fp16_t> &dx, Index sin_pair0);
 
 template
 void rope_backward_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &sin,
         const Tile<bf16_t> &cos, const Tile<bf16_t> &dy,
-        const Tile<bf16_t> &dx);
+        const Tile<bf16_t> &dx, Index sin_pair0);
 
 // Explicit instantiation of template
 template
 void rope_backward<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &sin, const Tile<fp32_t> &cos,
-        const Tile<fp32_t> &dy, const Tile<fp32_t> &dx);
+        const Tile<fp32_t> &dy, const Tile<fp32_t> &dx, Index sin_pair0);
 
 template
 void rope_backward<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &sin, const Tile<fp64_t> &cos,
-        const Tile<fp64_t> &dy, const Tile<fp64_t> &dx);
+        const Tile<fp64_t> &dy, const Tile<fp64_t> &dx, Index sin_pair0);
 
 template
 void rope_backward<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &sin,
         const Tile<fp32_fast_tf32_t> &cos,
         const Tile<fp32_fast_tf32_t> &dy,
-        const Tile<fp32_fast_tf32_t> &dx);
+        const Tile<fp32_fast_tf32_t> &dx, Index sin_pair0);
 
 template
 void rope_backward<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &sin,
         const Tile<fp32_fast_fp16_t> &cos,
         const Tile<fp32_fast_fp16_t> &dy,
-        const Tile<fp32_fast_fp16_t> &dx);
+        const Tile<fp32_fast_fp16_t> &dx, Index sin_pair0);
 
 template
 void rope_backward<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &sin,
         const Tile<fp32_fast_bf16_t> &cos,
         const Tile<fp32_fast_bf16_t> &dy,
-        const Tile<fp32_fast_bf16_t> &dx);
+        const Tile<fp32_fast_bf16_t> &dx, Index sin_pair0);
 
 template
 void rope_backward<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &sin, const Tile<fp16_t> &cos,
-        const Tile<fp16_t> &dy, const Tile<fp16_t> &dx);
+        const Tile<fp16_t> &dy, const Tile<fp16_t> &dx, Index sin_pair0);
 
 template
 void rope_backward<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
-        const Tile<bf16_t> &dy, const Tile<bf16_t> &dx);
+        const Tile<bf16_t> &dy, const Tile<bf16_t> &dx, Index sin_pair0);
 
 } // namespace nntile::core

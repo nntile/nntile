@@ -28,7 +28,7 @@ T5EncoderBlock::T5EncoderBlock(NNGraph* graph,
                                DataType dtype)
     : module::Module(graph, name)
     , layer_norm_0_(graph, name + "_layer_norm_0",
-                    config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
+                    config.d_model, -1, config.layer_norm_epsilon, 0, dtype)
     , self_attn_(graph, name + "_self_attn", config, false, dtype)
     , ff_(graph, name + "_ff", config, dtype)
     , config_(config)
@@ -73,10 +73,10 @@ T5DecoderBlock::T5DecoderBlock(NNGraph* graph,
                                DataType dtype)
     : module::Module(graph, name)
     , layer_norm_0_(graph, name + "_layer_norm_0",
-                    config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
+                    config.d_model, -1, config.layer_norm_epsilon, 0, dtype)
     , self_attn_(graph, name + "_self_attn", config, false, dtype)
     , layer_norm_1_(graph, name + "_layer_norm_1",
-                    config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
+                    config.d_model, -1, config.layer_norm_epsilon, 0, dtype)
     , cross_attn_(graph, name + "_cross_attn", config, true, dtype)
     , ff_(graph, name + "_ff", config, dtype)
     , config_(config)

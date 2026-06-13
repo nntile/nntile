@@ -22,16 +22,17 @@ namespace nntile
 {
 
 //! Fill a BOOL mask buffer for ``sdpa_eager`` (shape ``(seq_len, seq_len)``,
-//! Fortran / column-major layout, one byte per element: 0 = false, 1 = true).
-//! ``mask_scalar`` keeps logits where the mask is **true** and writes ``-inf``
-//! where the mask is **false**. Causal LM: allow keys at or before the query
-//! position, i.e. ``mask[kk, qq] = (kk <= qq)``.
+//! C-order layout with axes ``(query, key)``, one byte per element: 0 = false,
+//! 1 = true). ``mask_scalar`` keeps logits where the mask is **true** and
+//! writes ``-inf`` where the mask is **false**. Causal LM: allow keys at or
+//! before the query position, i.e. ``mask[qq, kk] = (kk <= qq)``.
 void sdpa_causal_mask_bool_fortran_fill(
     Index seq_len,
     std::uint8_t* out);
 
 //! GPT-Neo local (sliding-window) causal mask: allow ``kk`` when
-//! ``kk <= qq`` and ``qq - kk < window_size`` (Fortran layout, 1 = allowed).
+//! ``kk <= qq`` and ``qq - kk < window_size`` (C-order ``(query, key)``,
+//! 1 = allowed).
 void sdpa_gptneo_local_mask_bool_fortran_fill(
     Index seq_len,
     Index window_size,

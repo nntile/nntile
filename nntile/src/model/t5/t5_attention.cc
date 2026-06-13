@@ -16,7 +16,6 @@
 #include "nntile/model/t5/t5_attention.hh"
 #include "nntile/nn/ops/gemm.hh"
 #include "nntile/nn/ops/sdpa_eager.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <memory>
 #include <stdexcept>
@@ -38,19 +37,19 @@ T5Attention::T5Attention(NNGraph* graph,
 {
     Index d_model = config.d_model;
 
-    w_q_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_q_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_q_->set_name(tensor_name("q_weight"));
     register_parameter("q_weight", w_q_);
 
-    w_k_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_k_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_k_->set_name(tensor_name("k_weight"));
     register_parameter("k_weight", w_k_);
 
-    w_v_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_v_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_v_->set_name(tensor_name("v_weight"));
     register_parameter("v_weight", w_v_);
 
-    w_o_ = graph_->tensor({d_model, n_heads_, head_size_}, dtype_, true);
+    w_o_ = graph_->tensor({head_size_, n_heads_, d_model}, dtype_, true);
     w_o_->set_name(tensor_name("o_weight"));
     register_parameter("o_weight", w_o_);
 }
@@ -71,26 +70,18 @@ NNGraph::TensorNode* T5Attention::forward(
         : x;
     NNGraph::TensorNode* v_src = k_src;
 
-    NNGraph::TensorNode* q_proj =
-        gemm(w_q_, x, 1.0, false, false, 1, 0);
-    q_proj->set_name(tensor_name("q_proj"));
-    NNGraph::TensorNode* q = transpose(q_proj, 1);
+    NNGraph::TensorNode* q =
+        gemm(x, w_q_, 1.0, false, false, 1, 0);
     q->set_name(tensor_name("q"));
 
-    NNGraph::TensorNode* k_proj =
-        gemm(w_k_, k_src, 1.0, false, false, 1, 0);
-    k_proj->set_name(tensor_name("k_proj"));
-    NNGraph::TensorNode* k = transpose(k_proj, 1);
+    NNGraph::TensorNode* k =
+        gemm(k_src, w_k_, 1.0, false, false, 1, 0);
     k->set_name(tensor_name("k"));
 
-    NNGraph::TensorNode* v_proj =
-        gemm(w_v_, v_src, 1.0, false, false, 1, 0);
-    v_proj->set_name(tensor_name("v_proj"));
-    NNGraph::TensorNode* v = transpose(v_proj, 1);
+    NNGraph::TensorNode* v =
+        gemm(v_src, w_v_, 1.0, false, false, 1, 0);
     v->set_name(tensor_name("v"));
 
-    // Hugging Face T5 attention scores omit the explicit 1/sqrt(d) scale used
-    // by Llama-style SDPA (see ``T5Attention`` in ``layer/t5_attention.py``).
     constexpr Scalar t5_attn_scale = 1.0;
     NNGraph* nn_graph = x->graph();
     auto sdpa_op = std::make_shared<NNSdpaEagerOp>(
@@ -99,11 +90,8 @@ NNGraph::TensorNode* T5Attention::forward(
     nn_graph->register_op(std::move(sdpa_op));
     attn_out->set_name(tensor_name("sdpa_out"));
 
-    NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
-    attn_t->set_name(tensor_name("attn_t"));
-
     NNGraph::TensorNode* out =
-        gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
+        gemm(attn_out, w_o_, 1.0, false, false, 2, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }

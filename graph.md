@@ -128,14 +128,14 @@ Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 **Utility operations:**
 - `fill(x, value)` — fill tensor with scalar value
 
-GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
+GEMM shape rules (see `gemm_output_shape` in `tensor/ops/gemm.hh`):
 
-- Tensor layout is column-major; dimensions are listed from inner to outer.
-- A: `trans_a=false` → `[M..., K..., batch...]`
-- B: `trans_b=false` → `[K..., N..., batch...]`
-- Output: `[M..., N..., batch...]`
+- Tensor layout is C-order (row-major); dimensions are listed outer-to-inner.
+- A: `trans_a=false` → `[batch..., M..., K...]`
+- B: `trans_b=false` → `[batch..., K..., N...]`
+- Output: `[batch..., M..., N...]`
 - `ndim` is the number of contraction (K) dimensions.
-- `batch_ndim` is the number of trailing batch dimensions (must match between A
+- `batch_ndim` is the number of leading batch dimensions (must match between A
   and B).
 
 ## NNGraph
@@ -220,9 +220,9 @@ nntile::Context context(
     1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
 NNGraph graph("demo");
-auto* x = graph.tensor({2, 3}, "x", DataType::FP32, true);
-auto* w = graph.tensor({3, 4}, "w", DataType::FP32, true);
-auto* y = gemm(x, w, "y");  // y = x @ w
+auto* x = graph.tensor({2, 3}, "x", DataType::FP32, true);  // batch=2, features=3
+auto* w = graph.tensor({4, 3}, "w", DataType::FP32, true);  // out=4, in=3
+auto* y = gemm(x, w, "y");  // y = x @ w^T, shape (2, 4)
 
 x->mark_input(true);
 y->mark_output(true);

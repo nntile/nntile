@@ -47,7 +47,7 @@ TEST_CASE("Linear ConstructorCreatesParameters", "[module]")
     Linear with_bias(&g, "linear_bias", 3, 4, true);
     REQUIRE(with_bias.weight_tensor() != nullptr);
     REQUIRE(with_bias.bias_tensor() != nullptr);
-    REQUIRE(with_bias.weight_tensor()->shape() == std::vector<Index>({3, 4}));
+    REQUIRE(with_bias.weight_tensor()->shape() == std::vector<Index>({4, 3}));
     REQUIRE(with_bias.bias_tensor()->shape() == std::vector<Index>({4}));
     REQUIRE(with_bias.weight_tensor()->name() == "linear_bias_weight");
     REQUIRE(with_bias.bias_tensor()->name() == "linear_bias_bias");
@@ -63,7 +63,7 @@ TEST_CASE("Linear ConstructorWithExistingTensors", "[module]")
 {
     NNGraph g("linear");
 
-    auto *weight = g.tensor({3, 4}, DataType::FP32)->set_name("shared_weight");
+    auto *weight = g.tensor({4, 3}, DataType::FP32)->set_name("shared_weight");
     auto *bias = g.tensor({4}, DataType::FP32)->set_name("shared_bias");
 
     Linear from_weight(&g, "linear_weight", weight);
@@ -86,7 +86,7 @@ TEST_CASE("Linear ConstructorValidations", "[module]")
     REQUIRE_THROWS_AS(
         Linear(&g, "linear_bad_weight", bad_weight), std::invalid_argument);
 
-    auto *weight = g.tensor({3, 4}, DataType::FP32)->set_name("weight");
+    auto *weight = g.tensor({4, 3}, DataType::FP32)->set_name("weight");
     auto *bad_bias = g.tensor({5}, DataType::FP32)->set_name("bad_bias");
     REQUIRE_THROWS_AS(Linear(&g, "linear_bad_bias", weight, bad_bias),
         std::invalid_argument);
@@ -155,7 +155,7 @@ TEST_CASE("Linear BackwardCreatesGradients", "[module]")
     REQUIRE(input->grad() != nullptr);
 
     REQUIRE(
-        linear.weight_tensor()->grad()->shape() == std::vector<Index>({3, 4}));
+        linear.weight_tensor()->grad()->shape() == std::vector<Index>({4, 3}));
     REQUIRE(linear.bias_tensor()->grad()->shape() == std::vector<Index>({4}));
     REQUIRE(input->grad()->shape() == std::vector<Index>({2, 3}));
 
@@ -189,8 +189,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     input->mark_input(true);
     output->mark_output(true);
 
-    // Bind weight before compile; data in NNTile (column-major) layout
-    std::vector<float> weight_data(3 * 4);
+    // Bind weight before compile; weight shape [out, in] = [4, 3] row-major
+    std::vector<float> weight_data(4 * 3);
     for (Index i = 0; i < 12; ++i)
         weight_data[i] = 0.1f * static_cast<float>(i + 1);
     linear.bind_weight(weight_data);
@@ -212,12 +212,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == 8);
-    // output = input @ weight: [2,3] @ [3,4] = [2,4]. Col-major out[b,j] at
-    // b+j*2 For input all 1s: out[b,j] = sum_i weight[i,j]. weight[i,j] at
-    // i+j*3
+    // output [batch, out] = [2, 4]; out[b,j] at b*out_dim + j
     float expected = 0;
     for (Index i = 0; i < 3; ++i)
-        expected += weight_data[i]; // column 0
+        expected += weight_data[i]; // weight row 0
     REQUIRE(std::abs(out[0] - expected) < 1e-5f);
 }
 
@@ -233,8 +231,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     input->mark_input(true);
     output->mark_output(true);
 
-    std::vector<float> weight_data(3 * 4, 0.0f);
-    weight_data[0] = 1.0f; // [0,0] = 1
+    std::vector<float> weight_data(4 * 3, 0.0f);
+    weight_data[0] = 1.0f; // weight[0,0] = 1
     linear.bind_weight(weight_data);
 
     std::vector<float> bias_data(4);
@@ -257,17 +255,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == 8);
-    // output = input @ weight + bias. Col-major: out[b,j] at index b + j*2
-    // weight[0,0]=1, others 0; input all 1: gemm out[b,0]=1, out[b,j]=0 for
-    // j>0
-    // + bias: out[0,0]=1+1=2, out[0,1]=0+2=2, out[0,2]=0+3=3, out[0,3]=0+4=4
+    // output [batch, out] row-major: out[b,j] at b*out_dim + j
     REQUIRE(std::abs(out[0] - 2.0f) < 1e-5f);
-    REQUIRE(std::abs(out[2] - 2.0f) < 1e-5f);
+    REQUIRE(std::abs(out[1] - 2.0f) < 1e-5f);
     REQUIRE(std::abs(out[4] - 3.0f) < 1e-5f);
-    REQUIRE(std::abs(out[6] - 4.0f) < 1e-5f);
+    REQUIRE(std::abs(out[5] - 4.0f) < 1e-5f);
 }
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -305,18 +299,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(output);
-    std::vector<float> input_rowmajor =
-        colmajor_to_rowmajor(input_data, {batch, in_dim});
-    auto input_pt = torch::from_blob(input_rowmajor.data(),
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
+    auto input_pt = torch::from_blob(input_data.data(),
         {batch, in_dim},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone();
     auto out_pt = linear_pt->forward(input_pt);
     std::vector<float> pytorch_out(
         out_pt.data_ptr<float>(), out_pt.data_ptr<float>() + batch * out_dim);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
     for (size_t i = 0; i < nntile_out.size(); ++i)
@@ -340,9 +330,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < batch * in_dim; ++i)
         input_data[i] = 0.1f * static_cast<float>(i + 1);
 
-    std::vector<float> input_rowmajor =
-        colmajor_to_rowmajor(input_data, {batch, in_dim});
-    auto input_pt = torch::from_blob(input_rowmajor.data(),
+    auto input_pt = torch::from_blob(input_data.data(),
         {batch, in_dim},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
@@ -378,9 +366,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(output);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
     for (size_t i = 0; i < nntile_out.size(); ++i)
@@ -393,24 +379,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_weight =
         runtime.get_output<float>(linear.weight_tensor()->grad());
-    std::vector<float> nntile_grad_weight_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_weight, {in_dim, out_dim});
     auto pt_grad_w = linear_pt->weight.grad().accessor<float, 2>();
-    for (Index i = 0; i < in_dim; ++i)
-        for (Index j = 0; j < out_dim; ++j)
+    for (Index j = 0; j < out_dim; ++j)
+        for (Index i = 0; i < in_dim; ++i)
             REQUIRE(
                 std::abs(
-                    nntile_grad_weight_rowmajor[static_cast<size_t>(
-                        i * out_dim + j)] -
+                    nntile_grad_weight[static_cast<size_t>(j * in_dim + i)] -
                     pt_grad_w[static_cast<long>(j)][static_cast<long>(i)]) <
                 pytorch_tolerance);
 
     std::vector<float> nntile_grad_input =
         runtime.get_output<float>(input->grad());
-    std::vector<float> nntile_grad_input_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
     nntile::test::compare_float_vectors(
-        nntile_grad_input_rowmajor, input_pt.grad());
+        nntile_grad_input, input_pt.grad());
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -429,9 +410,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < batch * in_dim; ++i)
         input_data[i] = 0.1f * static_cast<float>(i + 1);
 
-    std::vector<float> input_rowmajor =
-        colmajor_to_rowmajor(input_data, {batch, in_dim});
-    auto input_pt = torch::from_blob(input_rowmajor.data(),
+    auto input_pt = torch::from_blob(input_data.data(),
         {batch, in_dim},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
@@ -468,9 +447,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(output);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
     for (size_t i = 0; i < nntile_out.size(); ++i)
@@ -483,15 +460,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_weight =
         runtime.get_output<float>(linear.weight_tensor()->grad());
-    std::vector<float> nntile_grad_weight_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_weight, {in_dim, out_dim});
     auto pt_grad_w = linear_pt->weight.grad().accessor<float, 2>();
-    for (Index i = 0; i < in_dim; ++i)
-        for (Index j = 0; j < out_dim; ++j)
+    for (Index j = 0; j < out_dim; ++j)
+        for (Index i = 0; i < in_dim; ++i)
             REQUIRE(
                 std::abs(
-                    nntile_grad_weight_rowmajor[static_cast<size_t>(
-                        i * out_dim + j)] -
+                    nntile_grad_weight[static_cast<size_t>(j * in_dim + i)] -
                     pt_grad_w[static_cast<long>(j)][static_cast<long>(i)]) <
                 pytorch_tolerance);
 
@@ -502,10 +476,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_input =
         runtime.get_output<float>(input->grad());
-    std::vector<float> nntile_grad_input_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
     nntile::test::compare_float_vectors(
-        nntile_grad_input_rowmajor, input_pt.grad());
+        nntile_grad_input, input_pt.grad());
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -566,7 +538,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto grad_weight =
         runtime.get_output<float>(linear.weight_tensor()->grad());
-    REQUIRE(grad_weight.size() == static_cast<size_t>(in_dim * out_dim));
+    REQUIRE(grad_weight.size() == static_cast<size_t>(out_dim * in_dim));
 
     if (linear.bias_tensor())
     {

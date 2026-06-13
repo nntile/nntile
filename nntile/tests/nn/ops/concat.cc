@@ -36,7 +36,7 @@ Index shape_prod(const std::vector<Index> &shape)
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 }
 
-std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
+std::vector<float> reference_concat_dense(const std::vector<Index> &a_shape,
     const std::vector<Index> &b_shape,
     Index axis,
     const std::vector<float> &a_data,
@@ -50,11 +50,11 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
     std::vector<Index> g;
     for (Index lin = 0; lin < nelems; ++lin)
     {
-        layout::fortran_tile_linear_to_index(lin, out_shape, g);
+        layout::tile_linear_to_index(lin, out_shape, g);
         if (g[static_cast<size_t>(axis)] < a_shape[static_cast<size_t>(axis)])
         {
             out[static_cast<size_t>(lin)] = a_data[static_cast<size_t>(
-                layout::fortran_dense_linear_index(a_shape, g))];
+                layout::dense_linear_index(a_shape, g))];
         }
         else
         {
@@ -62,7 +62,7 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
             gb[static_cast<size_t>(axis)] -=
                 a_shape[static_cast<size_t>(axis)];
             out[static_cast<size_t>(lin)] = b_data[static_cast<size_t>(
-                layout::fortran_dense_linear_index(b_shape, gb))];
+                layout::dense_linear_index(b_shape, gb))];
         }
     }
     return out;
@@ -179,7 +179,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> got = runtime.get_output<float>(out);
     std::vector<float> expect =
-        reference_concat_fortran(a_shape, b_shape, axis, a_data, b_data);
+        reference_concat_dense(a_shape, b_shape, axis, a_data, b_data);
 
     constexpr float tol = 1e-5f;
     REQUIRE(got.size() == expect.size());

@@ -163,10 +163,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_loss = runtime.get_output<float>(loss);
     REQUIRE(nntile_loss.size() == 1);
 
-    std::vector<float> nntile_grad_x_colmajor =
+    std::vector<float> nntile_grad_x =
         runtime.get_output<float>(x->grad());
     std::vector<float> nntile_grad_x_57 =
-        colmajor_to_rowmajor(nntile_grad_x_colmajor, x_shape);
+        colmajor_to_rowmajor(nntile_grad_x, x_shape);
     std::vector<float> nntile_grad_x =
         permute_rowmajor(nntile_grad_x_57, x_shape, {1, 0});
 

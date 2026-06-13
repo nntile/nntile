@@ -42,8 +42,8 @@ void check(Scalar alpha, Index axis)
     dl.release();
     d2l.release();
 
-    Index m = dst.stride[axis];
-    Index n = dst.matrix_shape[axis+1][1];
+    Index m = dst.matrix_shape[axis+1][1];
+    Index n = dst.matrix_shape[axis][0];
     Index k = dst.shape[axis];
     starpu::multiply_fiber_inplace.submit<std::tuple<T>>(-1, m, n, k, alpha, src,
             dst);

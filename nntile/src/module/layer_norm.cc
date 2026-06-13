@@ -54,7 +54,9 @@ NNGraph::TensorNode* LayerNorm::forward(
             "LayerNorm::forward: input tensor must be non-null");
     }
     return layer_norm(x, gamma_tensor_, beta_tensor_,
-                             tensor_name("out"), axis_, eps_, redux_);
+                             tensor_name("out"),
+                             axis_ < 0 ? x->ndim() - 1 : axis_,
+                             eps_, redux_);
 }
 
 std::string LayerNorm::repr() const

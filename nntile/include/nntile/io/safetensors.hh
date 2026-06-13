@@ -101,7 +101,7 @@ public:
     //! Add a tensor to be written.
     //! @param name   Tensor name (must be unique within this writer).
     //! @param dtype  NNTile DataType (FP32_FAST_* variants stored as F32).
-    //! @param shape  Tensor shape (NNTile column-major convention).
+    //! @param shape  Tensor shape (C-order, same as SafeTensors).
     //! @param data   Raw bytes in NNTile layout; size must equal
     //!               product(shape) * dtype_size(dtype).
     //! @throws std::invalid_argument if name is duplicate or data size mismatches.

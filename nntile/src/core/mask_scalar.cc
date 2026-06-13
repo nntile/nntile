@@ -38,11 +38,12 @@ void mask_scalar_async(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar 
             throw std::runtime_error("mask.ndim != A.ndim-batch_ndim");
         }
     }
-    for(Index i = 0; i < A.ndim-effective_batch_ndim; ++i)
+    for(Index i = 0; i < mask.ndim; ++i)
     {
-        if(mask.shape[i] != A.shape[i])
+        if(mask.shape[i] != A.shape[effective_batch_ndim+i])
         {
-            throw std::runtime_error("mask.shape[i] != A.shape[i]");
+            throw std::runtime_error("mask.shape[i] != "
+                    "A.shape[effective_batch_ndim+i]");
         }
     }
     int mpi_rank = starpu_mpi_world_rank();
@@ -52,11 +53,20 @@ void mask_scalar_async(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar 
     {
         return;
     }
+    Index nslow, nfast;
+    if(effective_batch_ndim == 0)
+    {
+        nslow = A.matrix_shape[A.ndim][0];
+        nfast = A.matrix_shape[A.ndim][1];
+    }
+    else
+    {
+        nslow = A.matrix_shape[effective_batch_ndim][1];
+        nfast = A.matrix_shape[effective_batch_ndim][0];
+    }
     // Submit task without any arguments checked
-    starpu::mask_scalar.submit<std::tuple<T>>(starpu_worker_hint, 
-            A.matrix_shape[A.ndim-effective_batch_ndim][0],
-            A.matrix_shape[A.ndim-effective_batch_ndim][1],
-            mask, val, A);
+    starpu::mask_scalar.submit<std::tuple<T>>(starpu_worker_hint,
+            nslow, nfast, mask, val, A);
 }
 
 //! Blocking version of tile-wise mask scalar operation

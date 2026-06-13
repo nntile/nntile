@@ -24,8 +24,11 @@ namespace nntile::tile
 struct TileRopeBackwardOp : TileGraph::OpNode
 {
     TileGraph::TileNode* sin = nullptr, * cos = nullptr, * dy = nullptr, * dx = nullptr;
+    Index sin_pair0 = 0;
     TileRopeBackwardOp() = default;
-    TileRopeBackwardOp(TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* y, TileGraph::TileNode* x) : sin(si), cos(co), dy(y), dx(x)
+    TileRopeBackwardOp(TileGraph::TileNode* si, TileGraph::TileNode* co,
+        TileGraph::TileNode* y, TileGraph::TileNode* x, Index sin_pair0_ = 0)
+        : sin(si), cos(co), dy(y), dx(x), sin_pair0(sin_pair0_)
     {
         inputs_ = {sin, cos, dy};
         outputs_ = {dx};
@@ -37,5 +40,6 @@ struct TileRopeBackwardOp : TileGraph::OpNode
         return std::make_shared<TileRopeBackwardOp>(*this);
     }
 };
-void rope_backward(TileGraph::TileNode* sin, TileGraph::TileNode* cos, TileGraph::TileNode* dy, TileGraph::TileNode* dx);
+void rope_backward(TileGraph::TileNode* sin, TileGraph::TileNode* cos,
+    TileGraph::TileNode* dy, TileGraph::TileNode* dx, Index sin_pair0 = 0);
 } // namespace nntile::tile

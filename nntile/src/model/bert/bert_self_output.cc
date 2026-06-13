@@ -26,7 +26,7 @@ BertSelfOutput::BertSelfOutput(NNGraph* graph,
                                DataType dtype)
     : module::Module(graph, name)
     , layer_norm_(graph, name + "_ln",
-                  config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+                  config.hidden_size, -1, config.layer_norm_eps, 0, dtype)
     , config_(config)
     , dtype_(dtype)
 {
@@ -36,7 +36,7 @@ BertSelfOutput::BertSelfOutput(NNGraph* graph,
     Index n_heads = config.num_attention_heads;
     Index head_size = config.head_dim();
 
-    w_dense_ = graph_->tensor({n_emb, n_heads, head_size}, dtype_, true);
+    w_dense_ = graph_->tensor({head_size, n_heads, n_emb}, dtype_, true);
     w_dense_->set_name(tensor_name("dense.weight"));
     register_parameter("dense.weight", w_dense_);
 
@@ -58,8 +58,9 @@ NNGraph::TensorNode* BertSelfOutput::forward(
     }
 
     NNGraph::TensorNode* dense_out =
-        gemm(w_dense_, attn_heads, 1.0, false, false, 2, 0);
-    dense_out = add_fiber(1.0, b_dense_, 1.0, dense_out, 0, 0);
+        gemm(attn_heads, w_dense_, 1.0, false, false, 2, 0);
+    const Index feature_axis = dense_out->ndim() - 1;
+    dense_out = add_fiber(1.0, b_dense_, 1.0, dense_out, feature_axis, 0);
     dense_out->set_name(tensor_name("dense_out"));
 
     NNGraph::TensorNode* summed =

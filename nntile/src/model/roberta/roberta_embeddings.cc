@@ -3,6 +3,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file nntile/src/model/roberta/roberta_embeddings.cc
  * RobertaEmbeddings implementation.
  *
@@ -11,7 +14,6 @@
 
 #include "nntile/model/roberta/roberta_embeddings.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -31,7 +33,7 @@ RobertaEmbeddings::RobertaEmbeddings(NNGraph* graph,
                            config.hidden_size,
                            2, 0, dtype)
     , layer_norm_(graph, name + "_ln",
-                  config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+                  config.hidden_size, -1, config.layer_norm_eps, 0, dtype)
     , config_(config)
     , dtype_(dtype)
 {
@@ -57,10 +59,8 @@ NNGraph::TensorNode* RobertaEmbeddings::forward(
     NNGraph::TensorNode* position =
         position_embeddings_.forward(position_ids);
 
-    NNGraph::TensorNode* embed =
-        add(1.0, word, 1.0, position);
     NNGraph::TensorNode* x =
-        transpose(embed, 2);
+        add(1.0, word, 1.0, position);
     return layer_norm_.forward(x);
 }
 

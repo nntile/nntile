@@ -39,11 +39,11 @@ std::vector<Index> sum_fiber_output_shape(
     Index ndim = x_shape.size();
     std::vector<Index> out_shape;
     out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out_shape.push_back(x_shape[ndim - batch_ndim + i]);
+        out_shape.push_back(x_shape[i]);
     }
+    out_shape.push_back(x_shape[axis]);
     return out_shape;
 }
 
@@ -68,12 +68,11 @@ TensorGraph::TensorNode *sum_fiber(TensorGraph::TensorNode *x,
         x->graph()->data(std::move(output_shape), x->dtype());
 
     // Merge output fiber axes with x axes
-    merge_axis(output->mutable_axes()[0], x->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        merge_axis(output->mutable_axes()[1 + i],
-            x->mutable_axes()[x->ndim() - batch_ndim + i]);
+        merge_axis(output->mutable_axes()[i], x->mutable_axes()[i]);
     }
+    merge_axis(output->mutable_axes()[batch_ndim], x->mutable_axes()[axis]);
 
     auto op = std::make_shared<TensorSumFiberOp>(
         x, output, axis, batch_ndim, redux, alpha, beta);
@@ -135,24 +134,23 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
     std::vector<Index> x_coord;
     std::vector<Index> y_coord(static_cast<size_t>(y->ndim()));
 
-    const Index fiber_prefix = x->ndim() - batch_ndim;
-
     for (Index lin_x = 0; lin_x < lay_x->grid_volume(); ++lin_x)
     {
         lay_x->grid_coord_from_linear(lin_x, x_coord);
         TileGraph::TileNode *x_tile = tiles_x[static_cast<size_t>(lin_x)];
 
-        y_coord[0] = x_coord[static_cast<size_t>(axis)];
         for (Index j = 0; j < batch_ndim; ++j)
         {
-            y_coord[static_cast<size_t>(j + 1)] =
-                x_coord[static_cast<size_t>(x->ndim() - batch_ndim + j)];
+            y_coord[static_cast<size_t>(j)] =
+                x_coord[static_cast<size_t>(j)];
         }
+        y_coord[static_cast<size_t>(batch_ndim)] =
+            x_coord[static_cast<size_t>(axis)];
         const Index lin_y = lay_y->grid_linear(y_coord);
         TileGraph::TileNode *y_tile = tiles_y[static_cast<size_t>(lin_y)];
 
         bool init_first = true;
-        for (Index j = 0; j < fiber_prefix; ++j)
+        for (Index j = batch_ndim; j < x->ndim(); ++j)
         {
             if (j != axis && x_coord[static_cast<size_t>(j)] != 0)
             {

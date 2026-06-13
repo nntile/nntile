@@ -18,7 +18,6 @@
 #include "nntile/nn/ops/add_fiber.hh"
 #include "nntile/nn/ops/gemm.hh"
 #include "nntile/nn/ops/sdpa_eager.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -38,19 +37,19 @@ GptneoAttention::GptneoAttention(NNGraph* graph,
     config_.validate();
     Index n_emb = config.hidden_size;
 
-    w_q_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_q_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_q_->set_name(tensor_name("q_weight"));
     register_parameter("q_weight", w_q_);
 
-    w_k_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_k_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_k_->set_name(tensor_name("k_weight"));
     register_parameter("k_weight", w_k_);
 
-    w_v_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_v_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_v_->set_name(tensor_name("v_weight"));
     register_parameter("v_weight", w_v_);
 
-    w_o_ = graph_->tensor({n_emb, n_heads_, head_size_}, dtype_, true);
+    w_o_ = graph_->tensor({head_size_, n_heads_, n_emb}, dtype_, true);
     w_o_->set_name(tensor_name("o_weight"));
     register_parameter("o_weight", w_o_);
 
@@ -71,34 +70,26 @@ NNGraph::TensorNode* GptneoAttention::forward(
             "GptneoAttention::forward: input tensor must be non-null");
     }
 
-    NNGraph::TensorNode* q_proj =
-        gemm(w_q_, x, 1.0, false, false, 1, 0);
-    q_proj->set_name(tensor_name("q_proj"));
-    NNGraph::TensorNode* q = transpose(q_proj, 1);
+    NNGraph::TensorNode* q =
+        gemm(x, w_q_, 1.0, false, false, 1, 0);
     q->set_name(tensor_name("q"));
 
-    NNGraph::TensorNode* k_proj =
-        gemm(w_k_, x, 1.0, false, false, 1, 0);
-    k_proj->set_name(tensor_name("k_proj"));
-    NNGraph::TensorNode* k = transpose(k_proj, 1);
+    NNGraph::TensorNode* k =
+        gemm(x, w_k_, 1.0, false, false, 1, 0);
     k->set_name(tensor_name("k"));
 
-    NNGraph::TensorNode* v_proj =
-        gemm(w_v_, x, 1.0, false, false, 1, 0);
-    v_proj->set_name(tensor_name("v_proj"));
-    NNGraph::TensorNode* v = transpose(v_proj, 1);
+    NNGraph::TensorNode* v =
+        gemm(x, w_v_, 1.0, false, false, 1, 0);
     v->set_name(tensor_name("v"));
 
     NNGraph::TensorNode* attn_out =
         sdpa_eager(q, k, v, mask, 2, 0);
     attn_out->set_name(tensor_name("sdpa_out"));
 
-    NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
-    attn_t->set_name(tensor_name("attn_t"));
-
     NNGraph::TensorNode* out =
-        gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
-    out = add_fiber(1.0, out_bias_, 1.0, out, 0, 0);
+        gemm(attn_out, w_o_, 1.0, false, false, 2, 0);
+    const Index feature_axis = out->ndim() - 1;
+    out = add_fiber(1.0, out_bias_, 1.0, out, feature_axis, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }

@@ -76,13 +76,13 @@ TensorGraph::TensorNode *embedding(
             "embedding: tensors must belong to same graph");
     if (index->dtype() != DataType::INT64)
         throw std::invalid_argument("embedding: index must have INT64 dtype");
-    // Output shape: index.shape + (vocab.shape[0],) at axis
-    // NNTile layout: vocab [embed_dim, num_embeddings]; embed.shape[axis] ==
-    // vocab.shape[0]
+    // Output shape: index.shape + embed_dim at axis
+    // C-order vocab: [num_embeddings, embed_dim]; embed.shape[axis] ==
+    // vocab.shape[1]
     std::vector<Index> embed_shape = index->shape();
     if (vocab->ndim() != 2)
         throw std::invalid_argument("embedding: vocab must be 2D");
-    embed_shape.push_back(vocab->dim(0));
+    embed_shape.push_back(vocab->dim(1));
     TensorGraph::TensorNode *embed =
         vocab->graph()->data(std::move(embed_shape), vocab->dtype());
 
@@ -122,14 +122,14 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
             "lower_to_tile EMBEDDING: missing tiling for index/vocab/embed");
     }
 
-    const Index vocab_b0 = uniform_tile_extent_along(*lay_v, 0, "EMBEDDING");
+    const Index vocab_b1 = uniform_tile_extent_along(*lay_v, 1, "EMBEDDING");
     const Index embed_axis_bs =
         uniform_tile_extent_along(*lay_e, axis, "EMBEDDING");
-    if (embed_axis_bs % vocab_b0 != 0)
+    if (embed_axis_bs % vocab_b1 != 0)
     {
         throw std::runtime_error(
             "lower_to_tile EMBEDDING: embed tile extent along axis must be "
-            "divisible by vocab tile extent along dim 0");
+            "divisible by vocab tile extent along dim 1");
     }
 
     const auto &tiles_i = tile_lower::tiles_of(ctx.tile_map, index);
@@ -144,6 +144,7 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
 
     std::vector<Index> embed_coord;
     std::vector<Index> index_coord;
+    const Index g0_vocab = lay_v->grid_shape()[0];
     const Index g1_vocab =
         lay_v->grid_shape().size() > 1 ? lay_v->grid_shape()[1] : 1;
 
@@ -168,24 +169,23 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
 
         Index axis_lo = 0, axis_hi = 0;
         lay_e->tile_axis_global_range(embed_coord, axis, axis_lo, axis_hi);
-        const Index vocab_tile0_start = axis_lo / vocab_b0;
+        const Index vocab_tile1_start = axis_lo / vocab_b1;
 
         const auto embed_ts = lay_e->tile_shape_at(embed_coord);
         const Index k_axis = embed_ts[static_cast<size_t>(axis)];
-        const Index vocab_span = (k_axis - 1) / vocab_b0 + 1;
+        const Index vocab_span = (k_axis - 1) / vocab_b1 + 1;
 
         nntile::core::TileTraits embed_traits(embed_ts);
-        const Index m = embed_traits.stride[axis];
-        const Index n =
+        const Index m =
             embed_traits.matrix_shape[static_cast<size_t>(axis) + 1][1];
+        const Index n = embed_traits.matrix_shape[static_cast<size_t>(axis)][0];
         const Index k = embed_traits.shape[axis];
 
-        const Index vocab_g0 = lay_v->grid_shape()[0];
-        for (Index tv0 = vocab_tile0_start;
-            tv0 < vocab_tile0_start + vocab_span && tv0 < vocab_g0;
-            ++tv0)
+        for (Index tv0 = 0; tv0 < g0_vocab; ++tv0)
         {
-            for (Index tv1 = 0; tv1 < g1_vocab; ++tv1)
+            for (Index tv1 = vocab_tile1_start;
+                tv1 < vocab_tile1_start + vocab_span && tv1 < g1_vocab;
+                ++tv1)
             {
                 std::vector<Index> vocab_coord = {tv0, tv1};
                 const Index lin_v = lay_v->grid_linear(vocab_coord);
@@ -194,8 +194,8 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
                 const auto vocab_ts = lay_v->tile_shape_at(vocab_coord);
                 nntile::core::TileTraits vocab_traits(vocab_ts);
 
-                const Index k_start = (tv0 - vocab_tile0_start) * vocab_b0;
-                const Index k_size = vocab_traits.shape[0];
+                const Index k_start = (tv1 - vocab_tile1_start) * vocab_b1;
+                const Index k_size = vocab_traits.shape[1];
                 tile::embedding(m,
                     n,
                     k,

@@ -22,37 +22,12 @@
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/transpose.hh"
 #include "nntile/tensor/ops/transpose.hh"
-#include "nntile/core/traits.hh"
 
 #include <stdexcept>
 #include <utility>
 
 namespace nntile::tensor
 {
-
-namespace
-{
-
-//! Tensor tile grids use Fortran-order linear indices (dim 0 varies fastest);
-//! TensorAxisLayout / tile_map use `grid_linear` (dim 0 slowest). Convert
-//! between the two for a given axis layout.
-Index fortran_tile_linear_to_layout_linear(
-    Index fort_lin, const TensorAxisLayout &lay)
-{
-    const auto &gsh = lay.grid_shape();
-    const Index nd = static_cast<Index>(gsh.size());
-    std::vector<Index> coord(static_cast<size_t>(nd), 0);
-    Index rem = fort_lin;
-    for (Index d = 0; d < nd; ++d)
-    {
-        const Index gs = gsh[static_cast<size_t>(d)];
-        coord[static_cast<size_t>(d)] = rem % gs;
-        rem /= gs;
-    }
-    return lay.grid_linear(coord);
-}
-
-} // namespace
 
 void TensorTransposeOp::lower_to_tile(const LoweringContext &ctx) const
 {
@@ -64,26 +39,24 @@ void TensorTransposeOp::lower_to_tile(const LoweringContext &ctx) const
         throw std::runtime_error(
             "lower_to_tile TRANSPOSE: missing tiling for src or dst");
     }
-    const nntile::core::TileTraits grid_src(lay_s->grid_shape());
-    const Index grid_m = grid_src.matrix_shape[static_cast<size_t>(ndim)][0];
-    const Index grid_n = grid_src.matrix_shape[static_cast<size_t>(ndim)][1];
     const auto &tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
     const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
-    for (Index j = 0; j < grid_n; ++j)
+    const Index nd = src->ndim();
+    std::vector<Index> src_coord;
+    std::vector<Index> dst_coord(static_cast<size_t>(nd));
+    for (Index lin_s = 0; lin_s < lay_s->grid_volume(); ++lin_s)
     {
-        for (Index i = 0; i < grid_m; ++i)
+        lay_s->grid_coord_from_linear(lin_s, src_coord);
+        for (Index d = 0; d < nd; ++d)
         {
-            const Index lin_src_f = i + j * grid_m;
-            const Index lin_dst_f = i * grid_n + j;
-            const Index lin_s =
-                fortran_tile_linear_to_layout_linear(lin_src_f, *lay_s);
-            const Index lin_d =
-                fortran_tile_linear_to_layout_linear(lin_dst_f, *lay_d);
-            tile::transpose(alpha,
-                tiles_s[static_cast<size_t>(lin_s)],
-                tiles_d[static_cast<size_t>(lin_d)],
-                ndim);
+            dst_coord[static_cast<size_t>(d)] =
+                src_coord[static_cast<size_t>((d + ndim) % nd)];
         }
+        const Index lin_d = lay_d->grid_linear(dst_coord);
+        tile::transpose(alpha,
+            tiles_s[static_cast<size_t>(lin_s)],
+            tiles_d[static_cast<size_t>(lin_d)],
+            ndim);
     }
 }
 
@@ -127,7 +100,7 @@ void transpose(Scalar alpha,
         throw std::invalid_argument(
             "transpose: tensors must belong to same graph");
     if (src->dtype() != dst->dtype())
-        throw std::invalid_argument("transpose: tensors must have same dtype");
+        throw std::invalid_argument("transpose: tensors must have the same dtype");
     if (ndim <= 0 || ndim >= src->ndim())
         throw std::invalid_argument(
             "transpose: ndim must be in (0, src.ndim)");

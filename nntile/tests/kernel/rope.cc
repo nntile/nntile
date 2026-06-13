@@ -24,31 +24,31 @@ using namespace nntile::kernel::rope;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m, Index n,
+void run_cuda(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
     const std::vector<T> &sin, const std::vector<T> &cos,
     const std::vector<T> &src, std::vector<T> &dst)
 {
     // Copy to device
     T *dev_sin, *dev_cos;
     T *dev_src, *dev_dst;
-    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*2*m*n);
+    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*2*m_pairs*n);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*2*m*n);
+    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*2*m_pairs*n);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_sin, sizeof(T)*m);
+    cuda_err = cudaMalloc(&dev_sin, sizeof(T)*m_sin*n);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_cos, sizeof(T)*m);
+    cuda_err = cudaMalloc(&dev_cos, sizeof(T)*m_sin*n);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*2*m*n,
+    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*2*m_pairs*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*2*m*n,
+    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*2*m_pairs*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_sin, &sin[0], sizeof(T)*m,
+    cuda_err = cudaMemcpy(dev_sin, &sin[0], sizeof(T)*m_sin*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_cos, &cos[0], sizeof(T)*m,
+    cuda_err = cudaMemcpy(dev_cos, &cos[0], sizeof(T)*m_sin*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init stream
@@ -56,11 +56,12 @@ void run_cuda(Index m, Index n,
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    cuda<T>(stream, m, n, dev_sin, dev_cos, dev_src, dev_dst);
+    cuda<T>(stream, m_pairs, n, m_sin, sin_pair0, dev_sin, dev_cos, dev_src,
+        dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
-    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*2*m*n,
+    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*2*m_pairs*n,
             cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
@@ -80,14 +81,14 @@ void run_cuda(Index m, Index n,
 
 // Templated validation
 template<typename T>
-void validate(Index m, Index n)
+void validate(Index m_pairs, Index n)
 {
     using Y = typename T::repr_t;
     const Y eps = 2 * T::epsilon;
-    Index num_data_elems{2*m*n};
+    Index const num_data_elems{2*m_pairs*n};
     // Init test input
-    std::vector<T> sin(m);
-    std::vector<T> cos(m);
+    std::vector<T> sin(m_pairs*n);
+    std::vector<T> cos(m_pairs*n);
     std::vector<T> src(num_data_elems);
     std::vector<T> dst(num_data_elems);
     for(Index i = 0; i < num_data_elems; ++i)
@@ -95,22 +96,29 @@ void validate(Index m, Index n)
         src[i] = Y(2*i+1-num_data_elems) / Y{1000};
     }
 
-    for(Index i = 0; i < m; ++i)
+    for(Index i = 0; i < m_pairs; ++i)
     {
-        sin[i] = Y(2*i+1-m) / Y(m);
-        cos[i] = Y(std::sqrt(1 - Y(sin[i]) * Y(sin[i])));
+        T const s = Y(2*i+1-m_pairs) / Y(m_pairs);
+        T const c = Y(std::sqrt(1 - Y(s) * Y(s)));
+        for(Index j = 0; j < n; ++j)
+        {
+            sin[static_cast<size_t>(i*n + j)] = s;
+            cos[static_cast<size_t>(i*n + j)] = c;
+        }
     }
 
     // Check low-level CPU kernel
     std::cout << "Run kernel::rope::cpu<" << T::short_name << ">\n";
-    cpu<T>(m, n, &sin[0], &cos[0], &src[0], &dst[0]);
+    cpu<T>(m_pairs, n, m_pairs, Index(0), &sin[0], &cos[0], &src[0], &dst[0]);
     for(Index j = 0; j < n; ++j)
     {
-        for(Index i = 0; i < m; ++i)
+        for(Index i = 0; i < m_pairs; ++i)
         {
-            Index l = 2 * (i+j*m);
-            Y c{cos[i]}, s{sin[i]};
-            Y a{src[l]}, b{src[l+1]};
+            Index const l0 = 2 * i * n + j;
+            Index const l1 = l0 + n;
+            Index const si = i * n + j;
+            Y c{cos[si]}, s{sin[si]};
+            Y a{src[l0]}, b{src[l1]};
             Y val_ref_a{c*a - s*b};
             Y val_ref_b{s*a + c*b};
 
@@ -140,8 +148,8 @@ void validate(Index m, Index n)
             }
 
             // NaN-aware comparisons
-            TEST_ASSERT(Y(dst[l]) >= val_ref_a_min and Y(dst[l]) <= val_ref_a_max);
-            TEST_ASSERT(Y(dst[l+1]) >= val_ref_b_min and Y(dst[l+1]) <= val_ref_b_max);
+            TEST_ASSERT(Y(dst[l0]) >= val_ref_a_min and Y(dst[l0]) <= val_ref_a_max);
+            TEST_ASSERT(Y(dst[l1]) >= val_ref_b_min and Y(dst[l1]) <= val_ref_b_max);
         }
     }
     std::cout << "OK: kernel::rope::cpu<" << T::short_name << ">\n";
@@ -149,14 +157,16 @@ void validate(Index m, Index n)
     // Check low-level CUDA kernel
     dst = src;
     std::cout << "Run kernel::rope::cuda<" << T::short_name << ">\n";
-    run_cuda<T>(m, n, sin, cos, src, dst);
+    run_cuda<T>(m_pairs, n, m_pairs, Index(0), sin, cos, src, dst);
     for(Index j = 0; j < n; ++j)
     {
-        for(Index i = 0; i < m; ++i)
+        for(Index i = 0; i < m_pairs; ++i)
         {
-            Index l = 2 * (i+j*m);
-            Y c{cos[i]}, s{sin[i]};
-            Y a{src[l]}, b{src[l+1]};
+            Index const l0 = 2 * i * n + j;
+            Index const l1 = l0 + n;
+            Index const si = i * n + j;
+            Y c{cos[si]}, s{sin[si]};
+            Y a{src[l0]}, b{src[l1]};
             Y val_ref_a{c*a - s*b};
             Y val_ref_b{s*a + c*b};
 
@@ -186,8 +196,8 @@ void validate(Index m, Index n)
             }
 
             // NaN-aware comparisons
-            TEST_ASSERT(Y(dst[l]) >= val_ref_a_min and Y(dst[l]) <= val_ref_a_max);
-            TEST_ASSERT(Y(dst[l+1]) >= val_ref_b_min and Y(dst[l+1]) <= val_ref_b_max);
+            TEST_ASSERT(Y(dst[l0]) >= val_ref_a_min and Y(dst[l0]) <= val_ref_a_max);
+            TEST_ASSERT(Y(dst[l1]) >= val_ref_b_min and Y(dst[l1]) <= val_ref_b_max);
         }
     }
     std::cout << "OK: kernel::rope::cuda<" << T::short_name << ">\n";

@@ -182,9 +182,9 @@ inline bool load_llama_rope_inputs(NNGraph &g,
     }
     const Index half = head_dim / 2;
     out.sin =
-        g.tensor({half, n_seq, n_batch}, DataType::FP32)->set_name("rope_sin");
+        g.tensor({n_batch, n_seq, half}, DataType::FP32)->set_name("rope_sin");
     out.cos =
-        g.tensor({half, n_seq, n_batch}, DataType::FP32)->set_name("rope_cos");
+        g.tensor({n_batch, n_seq, half}, DataType::FP32)->set_name("rope_cos");
     auto read_f = [&](const char *name, std::vector<float> &dst)
     {
         std::vector<std::uint8_t> b = reader.read_tensor(name);
@@ -315,7 +315,7 @@ void model_forward_compare_ref(const ModelFixtureSpec &fx)
         const std::string gname = std::string("model_ref_") + fx.stem;
         NNGraph g(gname);
         auto *input_ids =
-            g.tensor({n_seq, n_batch}, DataType::INT64)->set_name("input_ids");
+            g.tensor({n_batch, n_seq}, DataType::INT64)->set_name("input_ids");
         LlamaRopeInputs rope;
         REQUIRE(
             load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope));

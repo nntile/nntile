@@ -171,8 +171,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index tensor_nelems = dim_m * dim_n;
     const Index fiber_nelems = fiber_shape_vec[0];
 
-    // Same data pattern as nntile/tests/tensor_graph/add_fiber.cc (column-major for
-    // NNTile)
+    // Same data pattern as nntile/tests/tensor_graph/add_fiber.cc (C-order for NNTile)
     std::vector<float> fiber_data(fiber_nelems);
     std::vector<float> tensor_data(tensor_nelems);
     for (Index i = 0; i < fiber_nelems; ++i)
@@ -207,9 +206,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
+    std::vector<float> nntile_out = runtime.get_output<float>(out);
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, tensor_shape);
+        colmajor_to_rowmajor(nntile_out, tensor_shape);
 
     // PyTorch: output = alpha * fiber (broadcast) + beta * tensor (row-major)
     std::vector<::int64_t> tensor_shape_pt(
@@ -219,7 +218,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
                         .set_requires_grad(false);
-    auto tensor_pt = torch::from_blob(tensor_data_rowmajor.data(),
+    auto tensor_pt = torch::from_blob(tensor_data.data(),
         tensor_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                          .clone()
@@ -297,10 +296,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_fiber =
         runtime.get_output<float>(fiber->grad());
-    std::vector<float> nntile_grad_tensor_colmajor =
+    std::vector<float> nntile_grad_tensor =
         runtime.get_output<float>(tensor->grad());
     std::vector<float> nntile_grad_tensor =
-        colmajor_to_rowmajor(nntile_grad_tensor_colmajor, tensor_shape);
+        colmajor_to_rowmajor(nntile_grad_tensor, tensor_shape);
 
     std::vector<::int64_t> tensor_shape_pt(
         tensor_shape.begin(), tensor_shape.end());
@@ -309,7 +308,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
                         .set_requires_grad(true);
-    auto tensor_pt = torch::from_blob(tensor_data_rowmajor.data(),
+    auto tensor_pt = torch::from_blob(tensor_data.data(),
         tensor_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                          .clone()

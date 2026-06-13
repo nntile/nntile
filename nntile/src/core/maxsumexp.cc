@@ -65,8 +65,8 @@ void maxsumexp_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &
     }
     // Get sizes
     Index m, n, k;
-    m = src.stride[axis];
-    n = src.matrix_shape[axis+1][1];
+    m = src.matrix_shape[axis+1][1];
+    n = src.matrix_shape[axis][0];
     k = src.shape[axis];
     // Insert task
     int mpi_rank = starpu_mpi_world_rank();

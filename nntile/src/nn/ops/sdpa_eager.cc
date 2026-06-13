@@ -53,15 +53,19 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
 
     const auto &q_shape = q->shape();
     const auto &k_shape = k->shape();
-    Index q_seq = q_shape[1];
-    Index k_seq = k_shape[1];
+    const Index q_ndim = static_cast<Index>(q_shape.size());
+    const Index seq_ax = q_ndim - 2;
+    const Index head_ax = q_ndim - 1;
+    Index q_seq = q_shape[seq_ax];
+    Index k_seq = k_shape[seq_ax];
 
-    std::vector<Index> batch_shape(q_shape.begin() + 2,
-        q_shape.begin() + 2 + static_cast<ptrdiff_t>(batch_ndim));
+    std::vector<Index> batch_shape(q_shape.begin(),
+        q_shape.begin() + static_cast<ptrdiff_t>(batch_ndim));
 
-    std::vector<Index> attn_shape = {k_seq, q_seq};
-    attn_shape.insert(
-        attn_shape.end(), batch_shape.begin(), batch_shape.end());
+    std::vector<Index> attn_shape = batch_shape;
+    attn_shape.push_back(q_seq);
+    attn_shape.push_back(k_seq);
+    const Index attn_k_seq_ax = batch_ndim + 1;
 
     NNGraph::TensorNode *attn =
         graph->tensor(attn_shape, q->dtype(), out_requires_grad);
@@ -71,7 +75,7 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
         scale,
         0.0,
         true,
-        false,
+        true,
         1,
         batch_ndim);
 
@@ -81,19 +85,21 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
             mask->data(), mask_val, attn->data(), batch_ndim);
     }
 
-    std::vector<Index> attn_max_shape = {2, q_seq};
+    std::vector<Index> attn_max_shape;
+    attn_max_shape.push_back(2);
     attn_max_shape.insert(
         attn_max_shape.end(), batch_shape.begin(), batch_shape.end());
+    attn_max_shape.push_back(q_seq);
     NNGraph::TensorNode *maxsumexp_buf =
         graph->tensor(attn_max_shape, q->dtype(), false);
     clear(maxsumexp_buf);
-    tensor::maxsumexp(attn->data(), maxsumexp_buf->data(), 0, redux);
+    tensor::maxsumexp(
+        attn->data(), maxsumexp_buf->data(), attn_k_seq_ax, redux);
     tensor::softmax_inplace(
-        maxsumexp_buf->data(), attn->data(), 1.0, 0);
+        maxsumexp_buf->data(), attn->data(), 1.0, attn_k_seq_ax);
 
-    std::vector<Index> sumprod_shape = {q_seq};
-    sumprod_shape.insert(
-        sumprod_shape.end(), batch_shape.begin(), batch_shape.end());
+    std::vector<Index> sumprod_shape = batch_shape;
+    sumprod_shape.push_back(q_seq);
     NNGraph::TensorNode *sumprod_buf =
         graph->tensor(sumprod_shape, q->dtype(), false);
     NNGraph::TensorNode *grad_temp =
@@ -138,6 +144,7 @@ void NNSdpaEagerOp::backward() const
 
     Index ndim_contraction = 1;
     Index q_ndim = static_cast<Index>(q->shape().size());
+    const Index attn_k_seq_ax = batch_ndim + 1;
 
     if (v != nullptr && v->requires_grad())
     {
@@ -170,12 +177,12 @@ void NNSdpaEagerOp::backward() const
     tensor::sumprod_slice(attn->data(),
         grad_temp->data(),
         sumprod_buf->data(),
-        0,
+        attn_k_seq_ax,
         redux,
         1.0,
         0.0);
     tensor::add_slice_inplace(
-        -1.0, sumprod_buf->data(), 1.0, grad_temp->data(), 0);
+        -1.0, sumprod_buf->data(), 1.0, grad_temp->data(), attn_k_seq_ax);
     tensor::multiply_inplace(1.0, attn->data(), grad_temp->data());
 
     if (q != nullptr && q->requires_grad())
@@ -230,17 +237,20 @@ NNGraph::TensorNode *sdpa_eager(NNGraph::TensorNode *q,
     {
         throw std::invalid_argument("sdpa_eager: Q, K, V must have same ndim");
     }
-    if (q_shape[0] != k_shape[0] || q_shape[0] != v_shape[0])
+    const Index head_ax = static_cast<Index>(q_shape.size()) - 1;
+    const Index seq_ax = head_ax - 1;
+    if (q_shape[head_ax] != k_shape[head_ax] ||
+        q_shape[head_ax] != v_shape[head_ax])
     {
         throw std::invalid_argument(
             "sdpa_eager: Q, K, V head_size must match");
     }
-    if (k_shape[1] != v_shape[1])
+    if (k_shape[seq_ax] != v_shape[seq_ax])
     {
         throw std::invalid_argument(
             "sdpa_eager: K and V seq length must match");
     }
-    Index head_size = q_shape[0];
+    Index head_size = q_shape[head_ax];
     if (head_size <= 0)
     {
         throw std::invalid_argument("sdpa_eager: head_size must be positive");

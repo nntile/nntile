@@ -171,7 +171,7 @@ inline void validate_slice_shape_and_merge(TensorGraph::TensorNode *slice,
     }
 }
 
-//! Validate fiber shape and merge axes (fiber 1+batch_ndim into tensor).
+//! Validate fiber shape and merge axes (fiber batch_ndim + 1 into tensor).
 inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
     TensorGraph::TensorNode *tensor,
     Index axis,
@@ -196,26 +196,26 @@ inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
                                     std::to_string(tensor->ndim()) + " vs " +
                                     std::to_string(batch_ndim) + ")");
     }
-    if (fiber->shape()[0] != tensor->shape()[axis])
+    if (fiber->shape()[batch_ndim] != tensor->shape()[axis])
     {
         throw std::invalid_argument(
-            op_name + ": fiber dim 0 must match tensor dim " +
-            std::to_string(axis) + " (" + std::to_string(fiber->shape()[0]) +
-            " vs " + std::to_string(tensor->shape()[axis]) + ")");
+            op_name + ": fiber dim " + std::to_string(batch_ndim) +
+            " must match tensor dim " + std::to_string(axis) + " (" +
+            std::to_string(fiber->shape()[batch_ndim]) + " vs " +
+            std::to_string(tensor->shape()[axis]) + ")");
     }
-    merge_axis(fiber->mutable_axes()[0], tensor->mutable_axes()[axis]);
+    merge_axis(fiber->mutable_axes()[batch_ndim], tensor->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        Index ti = tensor->ndim() - batch_ndim + i;
-        if (fiber->shape()[1 + i] != tensor->shape()[ti])
+        if (fiber->shape()[i] != tensor->shape()[i])
         {
             throw std::invalid_argument(
-                op_name + ": fiber dim " + std::to_string(1 + i) +
-                " must match tensor dim " + std::to_string(ti) + " (" +
-                std::to_string(fiber->shape()[1 + i]) + " vs " +
-                std::to_string(tensor->shape()[ti]) + ")");
+                op_name + ": fiber dim " + std::to_string(i) +
+                " must match tensor dim " + std::to_string(i) + " (" +
+                std::to_string(fiber->shape()[i]) + " vs " +
+                std::to_string(tensor->shape()[i]) + ")");
         }
-        merge_axis(fiber->mutable_axes()[1 + i], tensor->mutable_axes()[ti]);
+        merge_axis(fiber->mutable_axes()[i], tensor->mutable_axes()[i]);
     }
 }
 
@@ -260,7 +260,8 @@ inline void validate_maxsumexp_shape_and_merge(TensorGraph::TensorNode *src,
     }
 }
 
-//! Validate logsumexp output shape and merge axes.
+//! Validate logsumexp output: dst is src with the leading dimension removed
+//! (maxsumexp ``[2, ...]`` format).
 inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
     TensorGraph::TensorNode *dst,
     const std::string &op_name)
@@ -286,10 +287,36 @@ inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
     }
 }
 
-//! Validate flash_sdpa Q/K/V shape: Q, K, V must have same ndim. Q and K share
-//! head_size (dim 0) and batch dims (dims 2, 3, 4); Q's seq (dim 1) may differ
-//! from K's (seq_q vs seq_kv). V's seq (dim 1) must match K (key-sequence).
-//! Merge axes for matching dimensions.
+//! Validate logsumexp output: dst is src with the trailing dimension removed.
+inline void validate_logsumexp_drop_last_shape_and_merge(
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
+    const std::string &op_name)
+{
+    if (src->ndim() < 1 || dst->ndim() != src->ndim() - 1)
+    {
+        throw std::invalid_argument(op_name +
+                                    ": dst ndim must equal src.ndim - 1 (" +
+                                    std::to_string(dst->ndim()) + " vs " +
+                                    std::to_string(src->ndim()) + ")");
+    }
+    for (Index i = 0; i < dst->ndim(); ++i)
+    {
+        if (dst->shape()[i] != src->shape()[i])
+        {
+            throw std::invalid_argument(
+                op_name + ": shape mismatch at dimension " +
+                std::to_string(i) +
+                " (dst: " + std::to_string(dst->shape()[i]) +
+                " vs src: " + std::to_string(src->shape()[i]) + ")");
+        }
+        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
+    }
+}
+
+//! Validate flash_sdpa Q/K/V shape (C-order): [batch..., seq, head_size].
+//! Q and K share batch dims and head_size (last axis); Q's seq (dim ndim-2)
+//! may differ from K's. V's seq must match K (key-sequence length).
 inline void validate_flash_sdpa_qkv_shape_and_merge(TensorGraph::TensorNode *Q,
     TensorGraph::TensorNode *K,
     TensorGraph::TensorNode *V,
@@ -299,39 +326,39 @@ inline void validate_flash_sdpa_qkv_shape_and_merge(TensorGraph::TensorNode *Q,
         throw std::invalid_argument(op_name + ": Q.ndim must match K.ndim");
     if (V->ndim() != K->ndim())
         throw std::invalid_argument(op_name + ": V.ndim must match K.ndim");
-    if (Q->shape()[0] != K->shape()[0])
+    const Index head_ax = K->ndim() - 1;
+    const Index seq_ax = K->ndim() - 2;
+    if (Q->shape()[head_ax] != K->shape()[head_ax])
         throw std::invalid_argument(
-            op_name + ": Q.dim[0] must match K.dim[0]");
-    for (Index i = 2; i < K->ndim(); ++i)
+            op_name + ": Q head_size must match K head_size");
+    for (Index i = 0; i < seq_ax; ++i)
     {
         if (Q->shape()[i] != K->shape()[i])
             throw std::invalid_argument(
                 op_name + ": Q.dim[" + std::to_string(i) +
                 "] must match K.dim[" + std::to_string(i) + "]");
     }
-    if (V->shape()[0] != K->shape()[0])
+    if (V->shape()[head_ax] != K->shape()[head_ax])
         throw std::invalid_argument(
-            op_name + ": V.dim[0] must match K.dim[0]");
-    if (V->shape()[1] != K->shape()[1])
+            op_name + ": V head_size must match K head_size");
+    if (V->shape()[seq_ax] != K->shape()[seq_ax])
         throw std::invalid_argument(
-            op_name + ": V.dim[1] must match K.dim[1] (key-sequence length)");
-    for (Index i = 2; i < K->ndim(); ++i)
+            op_name + ": V seq must match K seq (key-sequence length)");
+    for (Index i = 0; i < seq_ax; ++i)
     {
         if (V->shape()[i] != K->shape()[i])
             throw std::invalid_argument(
                 op_name + ": V.dim[" + std::to_string(i) +
                 "] must match K.dim[" + std::to_string(i) + "]");
     }
-    // Q shares head_size and batch dims with K (dims 0, 2, 3, 4)
-    merge_axis(Q->mutable_axes()[0], K->mutable_axes()[0]);
-    for (Index i = 2; i < K->ndim(); ++i)
+    merge_axis(Q->mutable_axes()[head_ax], K->mutable_axes()[head_ax]);
+    for (Index i = 0; i < seq_ax; ++i)
     {
         merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
     }
-    // V shares head_size, key-sequence (dim 1), and batch dims with K
-    merge_axis(V->mutable_axes()[0], K->mutable_axes()[0]);
-    merge_axis(V->mutable_axes()[1], K->mutable_axes()[1]);
-    for (Index i = 2; i < K->ndim(); ++i)
+    merge_axis(V->mutable_axes()[head_ax], K->mutable_axes()[head_ax]);
+    merge_axis(V->mutable_axes()[seq_ax], K->mutable_axes()[seq_ax]);
+    for (Index i = 0; i < seq_ax; ++i)
     {
         merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
     }
@@ -362,15 +389,15 @@ inline void validate_embedding_shape_and_merge(TensorGraph::TensorNode *embed,
         }
         merge_axis(embed->mutable_axes()[i], index->mutable_axes()[i]);
     }
-    if (embed->shape()[index->ndim()] != vocab->dim(0))
+    if (embed->shape()[index->ndim()] != vocab->dim(1))
     {
         throw std::invalid_argument(
             op_name + ": embed.dim[" + std::to_string(index->ndim()) +
-            "] must match vocab.dim[0] (" +
+            "] must match vocab.dim[1] (" +
             std::to_string(embed->shape()[index->ndim()]) + " vs " +
-            std::to_string(vocab->dim(0)) + ")");
+            std::to_string(vocab->dim(1)) + ")");
     }
-    merge_axis(embed->mutable_axes()[index->ndim()], vocab->mutable_axes()[0]);
+    merge_axis(embed->mutable_axes()[index->ndim()], vocab->mutable_axes()[1]);
 }
 
 } // namespace nntile

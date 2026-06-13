@@ -13,8 +13,6 @@
  * */
 
 #include "nntile/model/gpt2/gpt2_causal.hh"
-#include "nntile/nn/ops/gemm.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -68,14 +66,7 @@ NNGraph::TensorNode* Gpt2Causal::forward(
     NNGraph::TensorNode* hidden =
         model_->forward(input_ids, position_ids, mask, causal);
 
-    NNGraph::TensorNode* logits =
-        gemm(lm_head_.weight_tensor(),
-            hidden,
-            1.0,
-            true,
-            false,
-            1,
-            0);
+    NNGraph::TensorNode* logits = lm_head_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

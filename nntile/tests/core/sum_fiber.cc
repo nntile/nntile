@@ -24,7 +24,7 @@ template<typename T>
 void check(Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
-    Tile<T> src({3, 4, 5});
+    Tile<T> src({5, 4, 3});
     Tile<T> dst[3] = {Tile<T>({3}), Tile<T>({4}), Tile<T>({5})};
     Tile<T> dst2[3] = {Tile<T>({3}), Tile<T>({4}), Tile<T>({5})};
     auto src_local = src.acquire(STARPU_W);
@@ -49,8 +49,8 @@ void check(Scalar alpha, Scalar beta)
     // axis=0 -> fiber along first dim, dst is last dims as 1D fiber of len 5
     {
         Index batch = dst[0].matrix_shape[1][1];
-        Index m = src.stride[0];
-        Index n = src.matrix_shape[1][1] / batch;
+        Index m = src.matrix_shape[1][1];
+        Index n = src.matrix_shape[0][0] / batch;
         Index k = src.shape[0];
         starpu::sum_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src, beta,
                 dst[0]);
@@ -66,8 +66,8 @@ void check(Scalar alpha, Scalar beta)
     }
     {
         Index batch = dst[1].matrix_shape[1][1];
-        Index m = src.stride[1];
-        Index n = src.matrix_shape[2][1] / batch;
+        Index m = src.matrix_shape[2][1];
+        Index n = src.matrix_shape[1][0] / batch;
         Index k = src.shape[1];
         starpu::sum_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src, beta,
                 dst[1]);
@@ -83,8 +83,8 @@ void check(Scalar alpha, Scalar beta)
     }
     {
         Index batch = dst[2].matrix_shape[1][1];
-        Index m = src.stride[2];
-        Index n = src.matrix_shape[3][1] / batch;
+        Index m = src.matrix_shape[3][1];
+        Index n = src.matrix_shape[2][0] / batch;
         Index k = src.shape[2];
         starpu::sum_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src, beta,
                 dst[2]);

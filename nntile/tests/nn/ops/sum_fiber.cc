@@ -178,7 +178,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(y);
+    std::vector<float> nntile_out = runtime.get_output<float>(y);
     std::vector<float> x_row = colmajor_to_rowmajor(x_data, x_shape);
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
 
@@ -196,7 +196,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         y_pt.data_ptr<float>(), y_pt.data_ptr<float>() + y_nelems);
 
     std::vector<float> nntile_out = colmajor_to_rowmajor(
-        nntile_out_colmajor, std::vector<Index>{y_nelems});
+        nntile_out, std::vector<Index>{y_nelems});
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
     for (size_t i = 0; i < nntile_out.size(); ++i)
@@ -248,10 +248,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_x_colmajor =
+    std::vector<float> nntile_grad_x =
         runtime.get_output<float>(x->grad());
     std::vector<float> nntile_grad_x =
-        colmajor_to_rowmajor(nntile_grad_x_colmajor, x_shape);
+        colmajor_to_rowmajor(nntile_grad_x, x_shape);
 
     std::vector<float> x_row = colmajor_to_rowmajor(x_data, x_shape);
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());

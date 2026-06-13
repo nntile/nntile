@@ -172,9 +172,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
+    std::vector<float> nntile_out = runtime.get_output<float>(out);
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
+        colmajor_to_rowmajor(nntile_out, dst_shape);
 
     std::vector<::int64_t> dst_shape_pt(dst_shape.begin(), dst_shape.end());
     std::vector<::int64_t> src1_shape_pt(src1_shape.begin(), src1_shape.end());
@@ -183,7 +183,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
                        .set_requires_grad(false);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(),
+    auto src2_pt = torch::from_blob(src2.data(),
         dst_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
@@ -261,10 +261,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_src1 =
         runtime.get_output<float>(src1->grad());
-    std::vector<float> nntile_grad_src2_colmajor =
+    std::vector<float> nntile_grad_src2 =
         runtime.get_output<float>(src2->grad());
     std::vector<float> nntile_grad_src2 =
-        colmajor_to_rowmajor(nntile_grad_src2_colmajor, dst_shape);
+        colmajor_to_rowmajor(nntile_grad_src2, dst_shape);
 
     std::vector<::int64_t> dst_shape_pt(dst_shape.begin(), dst_shape.end());
     std::vector<::int64_t> src1_shape_pt(src1_shape.begin(), src1_shape.end());
@@ -273,7 +273,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
                        .set_requires_grad(true);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(),
+    auto src2_pt = torch::from_blob(src2.data(),
         dst_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()

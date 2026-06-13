@@ -25,7 +25,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> src({2, 3, 4, 5}), dst({3, 4, 5}), dst2({3, 4, 5});
+    Tile<T> src({5, 4, 3, 2}), dst({3, 4, 5}), dst2({3, 4, 5});
     auto sl = src.acquire(STARPU_W);
     auto dl = dst.acquire(STARPU_W);
     auto d2l = dst2.acquire(STARPU_W);

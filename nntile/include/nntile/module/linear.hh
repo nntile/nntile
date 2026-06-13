@@ -34,7 +34,8 @@ namespace nntile::module
 //! Linear module using graph API
 //! Adds linear transformation operations to logical graphs
 //!
-//! Computes: output = input @ weight + bias (bias optional)
+//! Computes: output = input @ weight^T + bias (bias optional)
+//! Weight layout: [output_dim, input_dim] (PyTorch out_features, in_features).
 //!
 //! Supports flexible construction modes:
 //! 1. Create new weight/bias tensors (specify dimensions)
@@ -88,7 +89,7 @@ public:
     //! Constructor: uses existing weight tensor, no bias
     //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
-    //! @param weight_tensor Existing weight tensor to use [input_dim, output_dim]
+    //! @param weight_tensor Existing weight tensor [output_dim, input_dim]
     Linear(
         NNGraph* graph,
         const std::string& name,
@@ -98,7 +99,7 @@ public:
     //! Constructor: uses existing weight and bias tensors
     //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
-    //! @param weight_tensor Existing weight tensor [input_dim, output_dim]
+    //! @param weight_tensor Existing weight tensor [output_dim, input_dim]
     //! @param bias_tensor Existing bias tensor [output_dim]
     Linear(
         NNGraph* graph,
@@ -122,7 +123,7 @@ public:
     );
 
     //! Get weight data in NNTile format for runtime.bind_data().
-    //! Converts PyTorch [out,in] row-major to NNTile [in,out] column-major.
+    //! Copies PyTorch [out, in] row-major layout directly.
     static std::vector<float> weight_data_from_pytorch(const torch::Tensor& w);
 
     //! Get bias data in NNTile format for runtime.bind_data().
@@ -203,13 +204,13 @@ inline std::vector<float> Linear::weight_data_from_pytorch(
     }
     const long out = w.size(0);
     const long in = w.size(1);
-    std::vector<float> result(static_cast<size_t>(in * out));
+    std::vector<float> result(static_cast<size_t>(out * in));
     auto acc = w.accessor<float, 2>();
     for(long j = 0; j < out; ++j)
     {
         for(long i = 0; i < in; ++i)
         {
-            result[static_cast<size_t>(i + j * in)] = acc[j][i];
+            result[static_cast<size_t>(j * in + i)] = acc[j][i];
         }
     }
     return result;

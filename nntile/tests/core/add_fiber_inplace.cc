@@ -42,9 +42,9 @@ void check(Scalar alpha, Scalar beta, Index axis)
     dst_local.release();
     dst2_local.release();
 
-    Index m = dst.stride[axis];
+    Index m = dst.matrix_shape[axis+1][1];
     Index batch = src.matrix_shape[1][1];
-    Index n = dst.matrix_shape[axis+1][1] / batch;
+    Index n = dst.matrix_shape[axis][0] / batch;
     Index k = dst.shape[axis];
     starpu::add_fiber_inplace.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src,
             beta, dst);

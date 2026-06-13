@@ -48,7 +48,8 @@ void RopeBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *dy = interfaces[2]->get_ptr<T>();
     T *dx = interfaces[3]->get_ptr<T>();
     // Launch kernel
-    kernel::rope_backward::cpu<T>(args->m, args->n, sin, cos, dy, dx);
+    kernel::rope_backward::cpu<T>(args->m_pairs, args->n, args->m_sin,
+        args->sin_pair0, sin, cos, dy, dx);
 #endif // STARPU_SIMGRID
 }
 
@@ -134,13 +135,18 @@ uint32_t RopeBackward<std::tuple<T>>::footprint(struct starpu_task *task)
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, and k
     uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
+    hash = starpu_hash_crc32c_be_n(&args->m_pairs, sizeof(args->m_pairs), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
+    hash = starpu_hash_crc32c_be_n(&args->m_sin, sizeof(args->m_sin), hash);
+    hash = starpu_hash_crc32c_be_n(
+        &args->sin_pair0, sizeof(args->sin_pair0), hash);
     return hash;
 }
 
 template<typename T>
-void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx)
+void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m_pairs,
+    Index n, Index m_sin, Index sin_pair0, Handle sin, Handle cos, Handle dy,
+    Handle dx)
 //! Insert rope_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
@@ -149,8 +155,10 @@ void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index 
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
-    args->m = m;
+    args->m_pairs = m_pairs;
     args->n = n;
+    args->m_sin = m_sin;
+    args->sin_pair0 = sin_pair0;
     // Submit task
     int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, sin.get(),

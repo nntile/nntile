@@ -45,8 +45,8 @@ public:
     //! Structure for operation arguments
     struct args_t
     {
-        Index nrows;
-        Index ncols;
+        Index nslow;
+        Index nfast;
         Scalar val;
     };
 
@@ -79,8 +79,8 @@ public:
     //! Submit mask_scalar task
     void submit(
         int starpu_worker_hint,
-        Index nrows,
-        Index ncols,
+        Index nslow,
+        Index nfast,
         Handle mask,
         Scalar val,
         Handle data

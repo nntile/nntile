@@ -15,7 +15,6 @@
 
 #include "nntile/model/gpt2/gpt2_model.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -34,7 +33,7 @@ Gpt2Model::Gpt2Model(NNGraph* graph,
            config.max_position_embeddings, config.hidden_size,
            2, 0, dtype)
     , ln_f_(graph, name + "_ln_f",
-            config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+            config.hidden_size, -1, config.layer_norm_eps, 0, dtype)
     , config_(config)
     , dtype_(dtype)
 {
@@ -71,10 +70,8 @@ NNGraph::TensorNode* Gpt2Model::forward(
 
     NNGraph::TensorNode* wte_out = wte_.forward(input_ids);
     NNGraph::TensorNode* wpe_out = wpe_.forward(position_ids);
-    NNGraph::TensorNode* embed =
-        add(1.0, wte_out, 1.0, wpe_out);
     NNGraph::TensorNode* x =
-        transpose(embed, 2);
+        add(1.0, wte_out, 1.0, wpe_out);
 
     for(auto& layer : layers_)
     {

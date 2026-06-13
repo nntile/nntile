@@ -14,7 +14,6 @@
  * */
 
 #include "nntile/model/t5/t5_model.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -28,11 +27,11 @@ T5Model::T5Model(NNGraph* graph,
     : module::Module(graph, name)
     , embed_tokens_(graph, name + "_embed_tokens",
                     config.vocab_size, config.d_model,
-                    2, 0, dtype)  // axis=2 for (seq,batch) -> (seq,batch,d_model)
+                    2, 0, dtype)
     , encoder_final_norm_(graph, name + "_encoder_final_norm",
-                          config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
+                          config.d_model, -1, config.layer_norm_epsilon, 0, dtype)
     , decoder_final_norm_(graph, name + "_decoder_final_norm",
-                          config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
+                          config.d_model, -1, config.layer_norm_epsilon, 0, dtype)
     , config_(config)
     , dtype_(dtype)
 {
@@ -70,19 +69,13 @@ NNGraph::TensorNode* T5Model::forward(
             "T5Model::forward: encoder_input_ids and decoder_input_ids must be non-null");
     }
 
-    // Shared embedding
-    NNGraph::TensorNode* encoder_embed =
+    NNGraph::TensorNode* encoder_x =
         embed_tokens_.forward(encoder_input_ids);
-    NNGraph::TensorNode* decoder_embed =
-        embed_tokens_.forward(decoder_input_ids);
-
-    // Transpose to (d_model, seq, batch)
-    NNGraph::TensorNode* encoder_x = transpose(encoder_embed, 2);
     encoder_x->set_name(tensor_name("encoder_x"));
-    NNGraph::TensorNode* decoder_x = transpose(decoder_embed, 2);
+    NNGraph::TensorNode* decoder_x =
+        embed_tokens_.forward(decoder_input_ids);
     decoder_x->set_name(tensor_name("decoder_x"));
 
-    // Encoder stack
     NNGraph::TensorNode* enc_hidden = encoder_x;
     for(auto& layer : encoder_layers_)
     {
@@ -91,7 +84,6 @@ NNGraph::TensorNode* T5Model::forward(
     NNGraph::TensorNode* encoder_hidden_states =
         encoder_final_norm_.forward(enc_hidden);
 
-    // Decoder stack
     NNGraph::TensorNode* dec_hidden = decoder_x;
     for(auto& layer : decoder_layers_)
     {

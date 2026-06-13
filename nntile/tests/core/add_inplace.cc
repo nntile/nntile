@@ -24,7 +24,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> src({2, 3, 4}), dst({2, 3, 4}), dst_ref({2, 3, 4});
+    Tile<T> src({4, 3, 2}), dst({2, 3, 4}), dst_ref({2, 3, 4});
     auto src_local = src.acquire(STARPU_W);
     auto dst_local = dst.acquire(STARPU_W);
     auto dst_ref_local = dst_ref.acquire(STARPU_W);

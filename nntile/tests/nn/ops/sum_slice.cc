@@ -142,7 +142,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_out = runtime.get_output<float>(y);
 
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(),
+    auto x_pt = torch::from_blob(x.data(),
         x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
@@ -203,13 +203,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_x_colmajor =
+    std::vector<float> nntile_grad_x =
         runtime.get_output<float>(x->grad());
     std::vector<float> nntile_grad_x =
-        colmajor_to_rowmajor(nntile_grad_x_colmajor, x_shape);
+        colmajor_to_rowmajor(nntile_grad_x, x_shape);
 
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(),
+    auto x_pt = torch::from_blob(x.data(),
         x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()

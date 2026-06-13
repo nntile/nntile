@@ -72,7 +72,7 @@ void gemm(
     {
         case TransOp::NoTrans:
             transB_ = CUBLAS_OP_N;
-            ldB = K;
+            ldB = N;
             break;
         case TransOp::Trans:
         default:

@@ -48,15 +48,15 @@ TEST_CASE("TensorGraph gemm structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *a = graph.data({4, 5})->set_name("a");
+    auto *a = graph.data({5, 4})->set_name("a");
     auto *b = graph.data({5, 6})->set_name("b");
     auto *c = gt::gemm(a, b, alpha_one, trans_a, trans_b, ndim, batch_ndim);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(c->shape().size() == 2);
-    REQUIRE(c->shape()[0] == 4);
-    REQUIRE(c->shape()[1] == 6);
+    REQUIRE(c->shape()[0] == 6);
+    REQUIRE(c->shape()[1] == 4);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "GEMM");
@@ -68,7 +68,7 @@ TEST_CASE("TensorGraph gemm structure", "[graph][tensor]")
 TEST_CASE("TensorGraph gemm rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *a = graph.data({4, 5})->set_name("a");
+    auto *a = graph.data({5, 4})->set_name("a");
     auto *b = graph.data({5, 6})->set_name("b");
 
     REQUIRE_THROWS_AS(
@@ -84,11 +84,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [M, K, N, alpha] =
-        GENERATE(std::tuple{Index(4), Index(6), Index(8), 1.0},
-            std::tuple{Index(2), Index(4), Index(6), 0.5});
+        GENERATE(std::tuple{Index(4), Index(5), Index(6), 1.0},
+            std::tuple{Index(2), Index(2), Index(2), 1.0});
 
     using Y = nntile::fp32_t::repr_t;
-    std::vector<Index> a_shape = {M, K};
+    std::vector<Index> a_shape = {K, M};
     std::vector<Index> b_shape = {K, N};
 
     const Index a_nelems = M * K;
@@ -96,13 +96,23 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> a_data(a_nelems);
     std::vector<float> b_data(b_nelems);
-    for (Index i = 0; i < a_nelems; ++i)
+    for (Index k = 0; k < K; ++k)
     {
-        a_data[i] = static_cast<float>(Y(i % 10)) * 0.1f;
+        for (Index m = 0; m < M; ++m)
+        {
+            const Index i = k * M + m;
+            a_data[static_cast<size_t>(i)] =
+                static_cast<float>(Y(i % 10)) * 0.1f;
+        }
     }
-    for (Index i = 0; i < b_nelems; ++i)
+    for (Index k = 0; k < K; ++k)
     {
-        b_data[i] = static_cast<float>(Y(i % 7)) * 0.1f;
+        for (Index n = 0; n < N; ++n)
+        {
+            const Index i = k * N + n;
+            b_data[static_cast<size_t>(i)] =
+                static_cast<float>(Y(i % 7)) * 0.1f;
+        }
     }
 
     // --- Untiled run ---
@@ -166,6 +176,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(tiled_result.size() == untiled_result.size());
     for (size_t i = 0; i < tiled_result.size(); ++i)
     {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+        REQUIRE(std::abs(untiled_result[i] - tiled_result[i]) < tol);
     }
 }

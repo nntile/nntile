@@ -35,6 +35,43 @@ namespace
 constexpr float tolerance = 1e-4f;
 constexpr int distr_rank_single = 0;
 
+//! RoPE head axis is 2x sin/cos; keep src dim0 tiles at 2x sin dim0 tiles.
+void tile_rope_sin_cos_src(TensorGraph::TensorNode *sin,
+    TensorGraph::TensorNode *cos,
+    TensorGraph::TensorNode *src)
+{
+    for (Index d = 0; d < sin->ndim(); ++d)
+    {
+        const Index extent = sin->shape()[static_cast<size_t>(d)];
+        const Index tile = (extent + 1) / 2;
+        std::vector<Index> sin_seg;
+        if (extent <= tile)
+        {
+            sin_seg = {extent};
+        }
+        else
+        {
+            sin_seg = {tile, extent - tile};
+        }
+        sin->axis(static_cast<int>(d))->set_tiling(sin_seg);
+        cos->axis(static_cast<int>(d))->set_tiling(sin_seg);
+        if (d == 0)
+        {
+            std::vector<Index> src_seg;
+            src_seg.reserve(sin_seg.size());
+            for (Index v : sin_seg)
+            {
+                src_seg.push_back(2 * v);
+            }
+            src->axis(0)->set_tiling(std::move(src_seg));
+        }
+        else
+        {
+            src->axis(static_cast<int>(d))->set_tiling(sin_seg);
+        }
+    }
+}
+
 } 
 
 TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
@@ -144,10 +181,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         auto *dst_node = gt::rope(sin_node, cos_node, src_node);
         dst_node->mark_output(true);
-        for (auto *ag : graph.axis_groups())
-        {
-            ag->set_tiling((ag->extent + 1) / 2);
-        }
+        tile_rope_sin_cos_src(sin_node, cos_node, src_node);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 

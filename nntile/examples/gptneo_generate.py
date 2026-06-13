@@ -51,10 +51,9 @@ from transformers import AutoConfig, AutoTokenizer
 # ── Layout helpers ────────────────────────────────────────────────────────
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    """Return C-contiguous array whose flat bytes equal NNTile column-major."""
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    """Return a C-contiguous float32 array for safetensors / bind_data."""
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
 # ── Streaming safetensors writer ──────────────────────────────────────────
@@ -108,12 +107,12 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
 
     specs: list[tuple[str, tuple[int, ...]]] = []
 
-    specs.append(("model.model.wte.vocab", (H, V)))
+    specs.append(("model.model.wte.vocab", (V, H)))
     max_pos = config.max_position_embeddings
-    specs.append(("model.model.wpe.vocab", (H, max_pos)))
+    specs.append(("model.model.wpe.vocab", (max_pos, H)))
     specs.append(("model.model.norm.gamma", (H,)))
     specs.append(("model.model.norm.beta", (H,)))
-    specs.append(("model.lm_head.weight", (H, V)))
+    specs.append(("model.lm_head.weight", (V, H)))
 
     for i in range(config.num_layers):
         p = f"model.model.layers_{i}"
@@ -122,14 +121,14 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.post_attn_norm.gamma", (H,)))
         specs.append((f"{p}.post_attn_norm.beta", (H,)))
 
-        specs.append((f"{p}.self_attn.q_weight", (nh, hd, H)))
-        specs.append((f"{p}.self_attn.k_weight", (nh, hd, H)))
-        specs.append((f"{p}.self_attn.v_weight", (nh, hd, H)))
-        specs.append((f"{p}.self_attn.o_weight", (H, nh, hd)))
+        specs.append((f"{p}.self_attn.q_weight", (H, hd, nh)))
+        specs.append((f"{p}.self_attn.k_weight", (H, hd, nh)))
+        specs.append((f"{p}.self_attn.v_weight", (H, hd, nh)))
+        specs.append((f"{p}.self_attn.o_weight", (hd, nh, H)))
         specs.append((f"{p}.self_attn.o_bias", (H,)))
 
-        specs.append((f"{p}.mlp.fc1.weight", (H, inter)))
-        specs.append((f"{p}.mlp.fc2.weight", (inter, H)))
+        specs.append((f"{p}.mlp.fc1.weight", (inter, H)))
+        specs.append((f"{p}.mlp.fc2.weight", (H, inter)))
 
     return specs
 
@@ -149,21 +148,21 @@ def _make_converter(
 
     def convert(name: str) -> np.ndarray:
         if name == "model.model.wte.vocab":
-            return fortran_order(hf_get("transformer.wte.weight").T)
+            return as_float32(hf_get("transformer.wte.weight"))
 
         if name == "model.model.wpe.vocab":
-            return fortran_order(hf_get("transformer.wpe.weight").T)
+            return as_float32(hf_get("transformer.wpe.weight"))
 
         if name == "model.model.norm.gamma":
-            return fortran_order(hf_get("transformer.ln_f.weight"))
+            return as_float32(hf_get("transformer.ln_f.weight"))
 
         if name == "model.model.norm.beta":
-            return fortran_order(hf_get("transformer.ln_f.bias"))
+            return as_float32(hf_get("transformer.ln_f.bias"))
 
         if name == "model.lm_head.weight":
             key = ("lm_head.weight" if has_lm_head
                    else "transformer.wte.weight")
-            return fortran_order(hf_get(key).T)
+            return as_float32(hf_get(key))
 
         parts = name.split(".")
         layer_idx = int(parts[2].split("_", 1)[1])
@@ -171,33 +170,33 @@ def _make_converter(
         hp = f"transformer.h.{layer_idx}"
 
         if rest == "input_norm.gamma":
-            return fortran_order(hf_get(f"{hp}.ln_1.weight"))
+            return as_float32(hf_get(f"{hp}.ln_1.weight"))
         if rest == "input_norm.beta":
-            return fortran_order(hf_get(f"{hp}.ln_1.bias"))
+            return as_float32(hf_get(f"{hp}.ln_1.bias"))
         if rest == "post_attn_norm.gamma":
-            return fortran_order(hf_get(f"{hp}.ln_2.weight"))
+            return as_float32(hf_get(f"{hp}.ln_2.weight"))
         if rest == "post_attn_norm.beta":
-            return fortran_order(hf_get(f"{hp}.ln_2.bias"))
+            return as_float32(hf_get(f"{hp}.ln_2.bias"))
 
         if rest == "self_attn.q_weight":
             w = hf_get(f"{hp}.attn.attention.q_proj.weight")
-            return fortran_order(w.reshape(nh, hd, H))
+            return as_float32(w.reshape(H, nh, hd).transpose(0, 2, 1))
         if rest == "self_attn.k_weight":
             w = hf_get(f"{hp}.attn.attention.k_proj.weight")
-            return fortran_order(w.reshape(nh, hd, H))
+            return as_float32(w.reshape(H, nh, hd).transpose(0, 2, 1))
         if rest == "self_attn.v_weight":
             w = hf_get(f"{hp}.attn.attention.v_proj.weight")
-            return fortran_order(w.reshape(nh, hd, H))
+            return as_float32(w.reshape(H, nh, hd).transpose(0, 2, 1))
         if rest == "self_attn.o_weight":
             w = hf_get(f"{hp}.attn.attention.out_proj.weight")
-            return fortran_order(w.reshape(H, nh, hd))
+            return as_float32(w.reshape(nh, hd, H).transpose(1, 0, 2))
         if rest == "self_attn.o_bias":
-            return fortran_order(hf_get(f"{hp}.attn.attention.out_proj.bias"))
+            return as_float32(hf_get(f"{hp}.attn.attention.out_proj.bias"))
 
         if rest == "mlp.fc1.weight":
-            return fortran_order(hf_get(f"{hp}.mlp.c_fc.weight").T)
+            return as_float32(hf_get(f"{hp}.mlp.c_fc.weight"))
         if rest == "mlp.fc2.weight":
-            return fortran_order(hf_get(f"{hp}.mlp.c_proj.weight").T)
+            return as_float32(hf_get(f"{hp}.mlp.c_proj.weight"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 

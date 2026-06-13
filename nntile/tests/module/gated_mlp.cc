@@ -208,9 +208,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < batch * in_dim; ++i)
         input_data[i] = 0.1f * static_cast<float>(i + 1);
 
-    std::vector<float> input_rowmajor =
-        colmajor_to_rowmajor(input_data, {batch, in_dim});
-    auto input_pt = torch::from_blob(input_rowmajor.data(),
+        auto input_pt = torch::from_blob(input.data(),
         {batch, in_dim},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
@@ -264,9 +262,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(output);
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
+        nntile_out;
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
     for (size_t i = 0; i < nntile_out.size(); ++i)
@@ -279,9 +277,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_gate = runtime.get_output<float>(
         gated_mlp.gate_proj().weight_tensor()->grad());
-    std::vector<float> nntile_grad_gate_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_gate, {in_dim, inter_dim});
-    auto pt_grad_gate = gate_proj->weight.grad().accessor<float, 2>();
+        auto pt_grad_gate = gate_proj->weight.grad().accessor<float, 2>();
     for (Index i = 0; i < in_dim; ++i)
         for (Index j = 0; j < inter_dim; ++j)
             REQUIRE(
@@ -293,9 +289,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_up =
         runtime.get_output<float>(gated_mlp.up_proj().weight_tensor()->grad());
-    std::vector<float> nntile_grad_up_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_up, {in_dim, inter_dim});
-    auto pt_grad_up = up_proj->weight.grad().accessor<float, 2>();
+        auto pt_grad_up = up_proj->weight.grad().accessor<float, 2>();
     for (Index i = 0; i < in_dim; ++i)
         for (Index j = 0; j < inter_dim; ++j)
             REQUIRE(
@@ -307,9 +301,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_down = runtime.get_output<float>(
         gated_mlp.down_proj().weight_tensor()->grad());
-    std::vector<float> nntile_grad_down_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_down, {inter_dim, out_dim});
-    auto pt_grad_down = down_proj->weight.grad().accessor<float, 2>();
+        auto pt_grad_down = down_proj->weight.grad().accessor<float, 2>();
     for (Index i = 0; i < inter_dim; ++i)
         for (Index j = 0; j < out_dim; ++j)
             REQUIRE(
@@ -343,9 +335,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_input =
         runtime.get_output<float>(input->grad());
-    std::vector<float> nntile_grad_input_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
-    nntile::test::compare_float_vectors(
+        nntile::test::compare_float_vectors(
         nntile_grad_input_rowmajor, input_pt.grad(), tol);
 }
 

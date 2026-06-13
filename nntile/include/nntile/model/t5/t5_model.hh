@@ -51,8 +51,8 @@ public:
             DataType dtype = DataType::FP32);
 
     //! Forward pass
-    //! @param encoder_input_ids (enc_seq, batch) INT64
-    //! @param decoder_input_ids (dec_seq, batch) INT64
+    //! @param encoder_input_ids (batch, enc_seq) INT64
+    //! @param decoder_input_ids (batch, dec_seq) INT64
     //! @param encoder_attention_mask Optional (enc_seq, enc_seq) or nullptr
     //! @param decoder_attention_mask Optional causal mask (dec_seq, dec_seq)
     //! @param cross_attention_mask Optional (enc_seq, dec_seq) or nullptr

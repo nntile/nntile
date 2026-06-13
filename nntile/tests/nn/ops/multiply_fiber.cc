@@ -142,16 +142,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
+    std::vector<float> nntile_out = runtime.get_output<float>(out);
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
+        colmajor_to_rowmajor(nntile_out, dst_shape);
 
     auto src1_pt = torch::from_blob(src1_data.data(),
         {static_cast<long>(fiber_nelems)},
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
                        .set_requires_grad(false);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(),
+    auto src2_pt = torch::from_blob(src2.data(),
         {dim_m, dim_n},
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
@@ -225,17 +225,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_src1 =
         runtime.get_output<float>(src1->grad());
-    std::vector<float> nntile_grad_src2_colmajor =
+    std::vector<float> nntile_grad_src2 =
         runtime.get_output<float>(src2->grad());
     std::vector<float> nntile_grad_src2 =
-        colmajor_to_rowmajor(nntile_grad_src2_colmajor, dst_shape);
+        colmajor_to_rowmajor(nntile_grad_src2, dst_shape);
 
     auto src1_pt = torch::from_blob(src1_data.data(),
         {static_cast<long>(fiber_nelems)},
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
                        .set_requires_grad(true);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(),
+    auto src2_pt = torch::from_blob(src2.data(),
         {dim_m, dim_n},
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()

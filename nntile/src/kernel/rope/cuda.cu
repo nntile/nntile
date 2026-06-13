@@ -48,33 +48,38 @@ void cuda_kernel(Index m, Index n, const T *sin, const T *cos, const T *src,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, const T *sin, const T *cos,
-        const T *src, T *dst)
+void cuda(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const T *sin, const T *cos, const T *src, T *dst)
     noexcept
 {
-    dim3 blocks((m*n+255)/256), threads(256);
-    cuda_kernel<T><<<blocks, threads, 0, stream>>>(m, n, sin, cos, src, dst);
+    dim3 blocks((m_pairs*n+255)/256), threads(256);
+    cuda_kernel<T><<<blocks, threads, 0, stream>>>(m_pairs, n, sin, cos, src,
+        dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, const fp32_t *sin,
-        const fp32_t *cos, const fp32_t *src, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const fp32_t *sin, const fp32_t *cos, const fp32_t *src,
+    fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, const fp64_t *sin,
-        const fp64_t *cos, const fp64_t *src, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const fp64_t *sin, const fp64_t *cos, const fp64_t *src,
+    fp64_t *dst)
     noexcept;
 
 template
-void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, const fp16_t *sin,
-        const fp16_t *cos, const fp16_t *src, fp16_t *dst)
+void cuda<fp16_t>(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const fp16_t *sin, const fp16_t *cos, const fp16_t *src,
+    fp16_t *dst)
     noexcept;
 
 template
-void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, const bf16_t *sin,
-        const bf16_t *cos, const bf16_t *src, bf16_t *dst)
+void cuda<bf16_t>(cudaStream_t stream, Index m_pairs, Index n, Index m_sin,
+    Index sin_pair0, const bf16_t *sin, const bf16_t *cos, const bf16_t *src,
+    bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::rope

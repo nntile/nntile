@@ -64,8 +64,8 @@ void softmax_inplace_async(int starpu_worker_hint, const Tile<T> &maxsumexp, Sca
     // Reshape inputs for simplicity: maxsumexp -> (2,m,n), dst -> (m,k,n)
     // dst is a part of (m,l,n) tensor
     Index m, n, k;
-    m = dst.stride[axis];
-    n = dst.matrix_shape[axis+1][1];
+    m = dst.matrix_shape[axis+1][1];
+    n = dst.matrix_shape[axis][0];
     k = dst.shape[axis];
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();

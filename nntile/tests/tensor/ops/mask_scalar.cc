@@ -115,7 +115,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     const Index A_data_ndim = static_cast<Index>(A_shape.size()) - batch_ndim;
     std::vector<Index> mask_shape(
-        A_shape.begin(), A_shape.begin() + A_data_ndim);
+        A_shape.begin() + batch_ndim, A_shape.end());
     const Index mask_nelems = std::accumulate(
         mask_shape.begin(), mask_shape.end(), Index(1), std::multiplies<>());
     const Index A_nelems = std::accumulate(

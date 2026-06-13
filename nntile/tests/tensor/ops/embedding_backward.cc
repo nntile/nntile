@@ -36,22 +36,13 @@ namespace
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-// embed_shape from index_shape, vocab_shape, axis
+// embed_shape: index_shape + [vocab embed_dim] at the last axis (axis ==
+// index.ndim)
 std::vector<Index> embed_output_shape(const std::vector<Index> &index_shape,
-    const std::vector<Index> &vocab_shape,
-    Index axis)
+    const std::vector<Index> &vocab_shape)
 {
-    std::vector<Index> embed_shape;
-    embed_shape.reserve(index_shape.size() + 1);
-    for (Index i = 0; i < axis; ++i)
-    {
-        embed_shape.push_back(index_shape[i]);
-    }
-    embed_shape.push_back(vocab_shape[0]);
-    for (Index i = axis; i < static_cast<Index>(index_shape.size()); ++i)
-    {
-        embed_shape.push_back(index_shape[i]);
-    }
+    std::vector<Index> embed_shape = index_shape;
+    embed_shape.push_back(vocab_shape[1]);
     return embed_shape;
 }
 
@@ -62,7 +53,7 @@ TEST_CASE("TensorGraph embedding_backward structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
-    auto *embed = graph.data({4, 5, 10})->set_name("embed");
+    auto *embed = graph.data({4, 5, 100})->set_name("embed");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
 
     gt::embedding_backward(index, embed, vocab, 2, 0);
@@ -82,7 +73,7 @@ TEST_CASE(
 {
     TensorGraph graph("test");
     auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
-    auto *embed = graph.data({4, 5, 10})->set_name("embed");
+    auto *embed = graph.data({4, 5, 100})->set_name("embed");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
 
     REQUIRE_THROWS_AS(gt::embedding_backward(nullptr, embed, vocab, 2, 0),
@@ -105,7 +96,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{
             std::vector<Index>{3}, std::vector<Index>{8, 50}, Index(1), 0});
 
-    auto embed_shape = embed_output_shape(index_shape, vocab_shape, axis);
+    auto embed_shape = embed_output_shape(index_shape, vocab_shape);
 
     const Index index_nelems = std::accumulate(
         index_shape.begin(), index_shape.end(), Index(1), std::multiplies<>());
@@ -119,7 +110,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> vocab_data(vocab_nelems, 0.0f);
     for (Index i = 0; i < index_nelems; ++i)
     {
-        index_data[i] = static_cast<std::int64_t>(i % vocab_shape[1]);
+        index_data[i] = static_cast<std::int64_t>(i % vocab_shape[0]);
     }
     for (Index i = 0; i < embed_nelems; ++i)
     {
@@ -175,10 +166,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::embedding_backward(
             index_node, embed_node, vocab_node, axis, redux);
-        auto *num_embed_axis = vocab_node->axis(1);
+        auto *embed_dim_axis = vocab_node->axis(1);
+        auto *num_embeddings_axis = vocab_node->axis(0);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == num_embed_axis)
+            if (ag == embed_dim_axis || ag == num_embeddings_axis)
             {
                 ag->set_tiling(ag->extent);
             }

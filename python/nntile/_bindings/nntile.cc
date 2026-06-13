@@ -334,7 +334,8 @@ PYBIND11_MODULE(nntile, m)
     // -----------------------------------------------------------------------
     py::class_<TensorGraph::TensorNode>(m, "TensorDataNode")
         .def_property_readonly("name", &TensorGraph::TensorNode::name)
-        .def_property_readonly("shape", &TensorGraph::TensorNode::shape)
+        .def_property_readonly("shape", &TensorGraph::TensorNode::shape,
+            "Tensor shape in C-order (outer-to-inner dimension list).")
         .def_property_readonly("dtype", &TensorGraph::TensorNode::dtype)
         .def_property_readonly("ndim", &TensorGraph::TensorNode::ndim)
         .def_property_readonly("nelems", &TensorGraph::TensorNode::nelems)
@@ -475,7 +476,8 @@ PYBIND11_MODULE(nntile, m)
     // -----------------------------------------------------------------------
     py::class_<NNGraph::TensorNode>(m, "TensorNode")
         .def_property_readonly("name", &NNGraph::TensorNode::name)
-        .def_property_readonly("shape", &NNGraph::TensorNode::shape)
+        .def_property_readonly("shape", &NNGraph::TensorNode::shape,
+            "Tensor shape in C-order (outer-to-inner dimension list).")
         .def_property_readonly("dtype", &NNGraph::TensorNode::dtype)
         .def_property_readonly("ndim", &NNGraph::TensorNode::ndim)
         .def_property_readonly(
@@ -520,9 +522,11 @@ PYBIND11_MODULE(nntile, m)
             static_cast<NNGraph::TensorNode *(
                 NNGraph::*) (std::vector<Index>, DataType, bool)>(
                 &NNGraph::tensor),
-            "shape"_a,
-            "dtype"_a = DataType::FP32,
-            "requires_grad"_a = true,
+            py::arg("shape"),
+            py::arg("dtype") = DataType::FP32,
+            py::arg("requires_grad") = true,
+            "Create a tensor node. ``shape`` is C-order (e.g. "
+            "``[batch, seq, hidden]`` for activations).",
             py::return_value_policy::reference)
         .def("get_tensor",
             static_cast<NNGraph::TensorNode *(
@@ -603,13 +607,15 @@ PYBIND11_MODULE(nntile, m)
 
     nn.def("gemm",
         &nntile::gemm,
-        "a"_a,
-        "b"_a,
-        "alpha"_a = 1.0f,
-        "trans_a"_a = false,
-        "trans_b"_a = false,
-        "ndim"_a = 1,
-        "batch_ndim"_a = 0,
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("alpha") = 1.0f,
+        py::arg("trans_a") = false,
+        py::arg("trans_b") = false,
+        py::arg("ndim") = 1,
+        py::arg("batch_ndim") = 0,
+        "Matrix multiply with C-order tensors. ``batch_ndim`` counts leading "
+        "batch axes shared by ``a``, ``b``, and the output.",
         py::return_value_policy::reference);
 
     nn.def("transpose",
@@ -627,12 +633,14 @@ PYBIND11_MODULE(nntile, m)
 
     nn.def("sdpa_eager",
         &nntile::sdpa_eager,
-        "q"_a,
-        "k"_a,
-        "v"_a,
-        "mask"_a = nullptr,
-        "batch_ndim"_a = 2,
-        "redux"_a = 0,
+        py::arg("q"),
+        py::arg("k"),
+        py::arg("v"),
+        py::arg("mask") = nullptr,
+        py::arg("batch_ndim") = 2,
+        py::arg("redux") = 0,
+        "Scaled dot-product attention. ``batch_ndim`` is the number of leading "
+        "batch dimensions (default 2 for ``[batch, seq, head, dim]``).",
         py::return_value_policy::reference);
 
     nn.def("scale_slice",

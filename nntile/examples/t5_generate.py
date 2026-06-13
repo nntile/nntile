@@ -53,10 +53,9 @@ from transformers import AutoConfig, AutoTokenizer
 # ── Layout helpers ────────────────────────────────────────────────────────
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    """Return C-contiguous array whose flat bytes equal NNTile column-major."""
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    """Return a C-contiguous float32 array for safetensors / bind_data."""
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
 # ── Streaming safetensors writer ──────────────────────────────────────────
@@ -111,20 +110,20 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
     specs: list[tuple[str, tuple[int, ...]]] = []
 
     # Shared embedding
-    specs.append(("model.model.embed_tokens.vocab", (d_model, V)))
+    specs.append(("model.model.embed_tokens.vocab", (V, d_model)))
 
     # Encoder
     for i in range(config.num_layers):
         p = f"model.model.encoder_layers_{i}"
         specs.append((f"{p}.layer_norm_0.gamma", (d_model,)))
-        specs.append((f"{p}.self_attn.q_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.self_attn.k_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.self_attn.v_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.self_attn.o_weight", (d_model, n_heads, d_kv)))
+        specs.append((f"{p}.self_attn.q_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.self_attn.k_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.self_attn.v_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.self_attn.o_weight", (d_kv, n_heads, d_model)))
         specs.append((f"{p}.ff.layer_norm.gamma", (d_model,)))
-        specs.append((f"{p}.ff.dense.gate_proj.weight", (d_model, d_ff)))
-        specs.append((f"{p}.ff.dense.up_proj.weight", (d_model, d_ff)))
-        specs.append((f"{p}.ff.dense.down_proj.weight", (d_ff, d_model)))
+        specs.append((f"{p}.ff.dense.gate_proj.weight", (d_ff, d_model)))
+        specs.append((f"{p}.ff.dense.up_proj.weight", (d_ff, d_model)))
+        specs.append((f"{p}.ff.dense.down_proj.weight", (d_model, d_ff)))
 
     specs.append(("model.model.encoder_final_norm.gamma", (d_model,)))
 
@@ -132,24 +131,24 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
     for i in range(config.num_decoder_layers):
         p = f"model.model.decoder_layers_{i}"
         specs.append((f"{p}.layer_norm_0.gamma", (d_model,)))
-        specs.append((f"{p}.self_attn.q_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.self_attn.k_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.self_attn.v_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.self_attn.o_weight", (d_model, n_heads, d_kv)))
+        specs.append((f"{p}.self_attn.q_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.self_attn.k_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.self_attn.v_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.self_attn.o_weight", (d_kv, n_heads, d_model)))
         specs.append((f"{p}.layer_norm_1.gamma", (d_model,)))
-        specs.append((f"{p}.cross_attn.q_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.cross_attn.k_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.cross_attn.v_weight", (n_heads, d_kv, d_model)))
-        specs.append((f"{p}.cross_attn.o_weight", (d_model, n_heads, d_kv)))
+        specs.append((f"{p}.cross_attn.q_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.cross_attn.k_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.cross_attn.v_weight", (d_model, d_kv, n_heads)))
+        specs.append((f"{p}.cross_attn.o_weight", (d_kv, n_heads, d_model)))
         specs.append((f"{p}.ff.layer_norm.gamma", (d_model,)))
-        specs.append((f"{p}.ff.dense.gate_proj.weight", (d_model, d_ff)))
-        specs.append((f"{p}.ff.dense.up_proj.weight", (d_model, d_ff)))
-        specs.append((f"{p}.ff.dense.down_proj.weight", (d_ff, d_model)))
+        specs.append((f"{p}.ff.dense.gate_proj.weight", (d_ff, d_model)))
+        specs.append((f"{p}.ff.dense.up_proj.weight", (d_ff, d_model)))
+        specs.append((f"{p}.ff.dense.down_proj.weight", (d_model, d_ff)))
 
     specs.append(("model.model.decoder_final_norm.gamma", (d_model,)))
 
     # LM head
-    specs.append(("model.lm_head.weight", (d_model, V)))
+    specs.append(("model.lm_head.weight", (V, d_model)))
 
     return specs
 
@@ -179,18 +178,26 @@ def _make_converter(
             )
         return hf_get(key)
 
+    def _attn_qkv(w: np.ndarray) -> np.ndarray:
+        return as_float32(
+            w.reshape(n_heads, d_kv, d_model).transpose(2, 1, 0))
+
+    def _attn_o(w: np.ndarray) -> np.ndarray:
+        return as_float32(
+            w.reshape(n_heads, d_kv, d_model).transpose(1, 0, 2))
+
     def convert(name: str) -> np.ndarray:
         if name == "model.model.embed_tokens.vocab":
-            return fortran_order(hf_get("shared.weight").T)
+            return as_float32(hf_get("shared.weight"))
 
         if name == "model.model.encoder_final_norm.gamma":
-            return fortran_order(hf_get("encoder.final_layer_norm.weight"))
+            return as_float32(hf_get("encoder.final_layer_norm.weight"))
 
         if name == "model.model.decoder_final_norm.gamma":
-            return fortran_order(hf_get("decoder.final_layer_norm.weight"))
+            return as_float32(hf_get("decoder.final_layer_norm.weight"))
 
         if name == "model.lm_head.weight":
-            return fortran_order(hf_get("lm_head.weight").T)
+            return as_float32(hf_get("lm_head.weight"))
 
         # Encoder layers
         if "encoder_layers_" in name and "decoder" not in name:
@@ -200,32 +207,31 @@ def _make_converter(
             hp = f"encoder.block.{layer_idx}"
 
             if rest == "layer_norm_0.gamma":
-                return fortran_order(
+                return as_float32(
                     hf_get(f"{hp}.layer.0.layer_norm.weight"))
             if rest == "self_attn.q_weight":
-                q = hf_get(f"{hp}.layer.0.SelfAttention.q.weight")
-                return fortran_order(
-                    q.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.q.weight"))
             if rest == "self_attn.k_weight":
-                k = hf_get(f"{hp}.layer.0.SelfAttention.k.weight")
-                return fortran_order(k.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.k.weight"))
             if rest == "self_attn.v_weight":
-                v = hf_get(f"{hp}.layer.0.SelfAttention.v.weight")
-                return fortran_order(v.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.v.weight"))
             if rest == "self_attn.o_weight":
-                o = hf_get(f"{hp}.layer.0.SelfAttention.o.weight")
-                return fortran_order(o.reshape(d_model, n_heads, d_kv))
+                return _attn_o(
+                    hf_get(f"{hp}.layer.0.SelfAttention.o.weight"))
 
             if rest == "ff.layer_norm.gamma":
-                return fortran_order(
+                return as_float32(
                     hf_get(f"{hp}.layer.1.layer_norm.weight"))
             if rest == "ff.dense.gate_proj.weight":
-                return fortran_order(_gated_ff_wi(hp, 1, 0).T)
+                return as_float32(_gated_ff_wi(hp, 1, 0))
             if rest == "ff.dense.up_proj.weight":
-                return fortran_order(_gated_ff_wi(hp, 1, 1).T)
+                return as_float32(_gated_ff_wi(hp, 1, 1))
             if rest == "ff.dense.down_proj.weight":
-                return fortran_order(
-                    hf_get(f"{hp}.layer.1.DenseReluDense.wo.weight").T)
+                return as_float32(
+                    hf_get(f"{hp}.layer.1.DenseReluDense.wo.weight"))
 
         # Decoder layers
         if "decoder_layers_" in name:
@@ -235,47 +241,47 @@ def _make_converter(
             hp = f"decoder.block.{layer_idx}"
 
             if rest == "layer_norm_0.gamma":
-                return fortran_order(
+                return as_float32(
                     hf_get(f"{hp}.layer.0.layer_norm.weight"))
             if rest == "self_attn.q_weight":
-                q = hf_get(f"{hp}.layer.0.SelfAttention.q.weight")
-                return fortran_order(q.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.q.weight"))
             if rest == "self_attn.k_weight":
-                k = hf_get(f"{hp}.layer.0.SelfAttention.k.weight")
-                return fortran_order(k.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.k.weight"))
             if rest == "self_attn.v_weight":
-                v = hf_get(f"{hp}.layer.0.SelfAttention.v.weight")
-                return fortran_order(v.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.v.weight"))
             if rest == "self_attn.o_weight":
-                o = hf_get(f"{hp}.layer.0.SelfAttention.o.weight")
-                return fortran_order(o.reshape(d_model, n_heads, d_kv))
+                return _attn_o(
+                    hf_get(f"{hp}.layer.0.SelfAttention.o.weight"))
 
             if rest == "layer_norm_1.gamma":
-                return fortran_order(
+                return as_float32(
                     hf_get(f"{hp}.layer.1.layer_norm.weight"))
             if rest == "cross_attn.q_weight":
-                q = hf_get(f"{hp}.layer.1.EncDecAttention.q.weight")
-                return fortran_order(q.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.1.EncDecAttention.q.weight"))
             if rest == "cross_attn.k_weight":
-                k = hf_get(f"{hp}.layer.1.EncDecAttention.k.weight")
-                return fortran_order(k.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.1.EncDecAttention.k.weight"))
             if rest == "cross_attn.v_weight":
-                v = hf_get(f"{hp}.layer.1.EncDecAttention.v.weight")
-                return fortran_order(v.reshape(n_heads, d_kv, d_model))
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.1.EncDecAttention.v.weight"))
             if rest == "cross_attn.o_weight":
-                o = hf_get(f"{hp}.layer.1.EncDecAttention.o.weight")
-                return fortran_order(o.reshape(d_model, n_heads, d_kv))
+                return _attn_o(
+                    hf_get(f"{hp}.layer.1.EncDecAttention.o.weight"))
 
             if rest == "ff.layer_norm.gamma":
-                return fortran_order(
+                return as_float32(
                     hf_get(f"{hp}.layer.2.layer_norm.weight"))
             if rest == "ff.dense.gate_proj.weight":
-                return fortran_order(_gated_ff_wi(hp, 2, 0).T)
+                return as_float32(_gated_ff_wi(hp, 2, 0))
             if rest == "ff.dense.up_proj.weight":
-                return fortran_order(_gated_ff_wi(hp, 2, 1).T)
+                return as_float32(_gated_ff_wi(hp, 2, 1))
             if rest == "ff.dense.down_proj.weight":
-                return fortran_order(
-                    hf_get(f"{hp}.layer.2.DenseReluDense.wo.weight").T)
+                return as_float32(
+                    hf_get(f"{hp}.layer.2.DenseReluDense.wo.weight"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 

@@ -199,9 +199,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     // --- Forward comparison ---
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(output);
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
     std::vector<float> nntile_out_rowmajor =
-        colmajor_to_rowmajor(nntile_out_colmajor, shape);
+        colmajor_to_rowmajor(nntile_out, shape);
     std::vector<float> nntile_out =
         permute_rowmajor(nntile_out_rowmajor, shape, {2, 3, 0, 1});
 

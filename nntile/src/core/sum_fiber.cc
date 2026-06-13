@@ -39,28 +39,31 @@ void sum_fiber_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, S
     {
         throw std::runtime_error("axis < 0");
     }
-    if(axis >= ndim-batch_ndim)
+    if(axis < batch_ndim)
     {
-        throw std::runtime_error("axis >= ndim-batch_ndim");
+        throw std::runtime_error("axis < batch_ndim");
+    }
+    if(axis >= ndim)
+    {
+        throw std::runtime_error("axis >= ndim");
     }
     // Check shapes
-    if(dst.shape[0] != src.shape[axis])
+    if(dst.shape[batch_ndim] != src.shape[axis])
     {
-        throw std::runtime_error("dst.shape[0] != src.shape[axis]");
+        throw std::runtime_error("dst.shape[batch_ndim] != src.shape[axis]");
     }
     for(Index i = 0; i < batch_ndim; ++i)
     {
-        if(dst.shape[i+1] != src.shape[src.ndim-batch_ndim+i])
+        if(dst.shape[i] != src.shape[i])
         {
-            throw std::runtime_error("dst.shape[i+1] != "
-                    "src.shape[src.ndim-batch_ndim+i]");
+            throw std::runtime_error("dst.shape[i] != src.shape[i]");
         }
     }
     // Get sizes
     Index m, n, k, batch;
-    batch = dst.matrix_shape[1][1];
-    m = src.stride[axis];
-    n = src.matrix_shape[axis+1][1] / batch;
+    batch = dst.matrix_shape[batch_ndim][0];
+    m = src.matrix_shape[axis+1][1];
+    n = src.matrix_shape[axis][0] / batch;
     k = src.shape[axis];
     // Insert task
     int mpi_rank = starpu_mpi_world_rank();

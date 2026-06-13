@@ -175,7 +175,7 @@ void decoder_forward_compare_ref(const DecoderFixtureSpec &fx)
     {
         const std::string gname = std::string("decoder_ref_") + fx.stem;
         NNGraph g(gname);
-        auto *input = g.tensor({hidden, n_seq, n_batch}, DataType::FP32)
+        auto *input = g.tensor({n_batch, n_seq, hidden}, DataType::FP32)
                           ->set_name("input");
         LlamaRopeInputs rope;
         REQUIRE(
@@ -235,7 +235,7 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec &fx)
     {
         const std::string gname = std::string("decoder_bwd_") + fx.stem;
         NNGraph g(gname);
-        auto *input = g.tensor({hidden, n_seq, n_batch}, DataType::FP32, true)
+        auto *input = g.tensor({n_batch, n_seq, hidden}, DataType::FP32, true)
                           ->set_name("input");
         LlamaRopeInputs rope;
         REQUIRE(

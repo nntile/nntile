@@ -226,16 +226,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(output);
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, {batch, seq_len, embed_dim});
+        nntile_out;
 
     // Index data is column-major (NNTile layout); convert for PyTorch
     // row-major
     std::vector<std::int64_t> index_rowmajor =
-        colmajor_to_rowmajor(index_data, {batch, seq_len});
+        index_data;
     std::vector<std::int64_t> index_shape_pt{batch, seq_len};
-    auto index_pt = torch::from_blob(index_rowmajor.data(),
+    auto index_pt = torch::from_blob(index.data(),
         index_shape_pt,
         torch::TensorOptions().dtype(torch::kInt64))
                         .clone();

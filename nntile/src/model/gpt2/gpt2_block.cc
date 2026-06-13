@@ -26,10 +26,10 @@ Gpt2Block::Gpt2Block(NNGraph* graph,
                     DataType dtype)
     : module::Module(graph, name)
     , ln_1_(graph, name + "_ln_1",
-            config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+            config.hidden_size, -1, config.layer_norm_eps, 0, dtype)
     , attention_(graph, name + "_attn", config, dtype)
     , ln_2_(graph, name + "_ln_2",
-            config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+            config.hidden_size, -1, config.layer_norm_eps, 0, dtype)
     , mlp_(graph, name + "_mlp", config, dtype)
     , config_(config)
     , dtype_(dtype)

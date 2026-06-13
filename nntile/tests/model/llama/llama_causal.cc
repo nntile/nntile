@@ -177,7 +177,7 @@ void causal_forward_compare_ref(const CausalFixtureSpec &fx)
         const std::string gname = std::string("causal_ref_") + fx.stem;
         NNGraph g(gname);
         auto *input_ids =
-            g.tensor({n_seq, n_batch}, DataType::INT64)->set_name("input_ids");
+            g.tensor({n_batch, n_seq}, DataType::INT64)->set_name("input_ids");
         LlamaRopeInputs rope;
         REQUIRE(
             load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope));

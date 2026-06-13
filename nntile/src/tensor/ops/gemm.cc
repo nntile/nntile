@@ -44,22 +44,50 @@ std::vector<Index> gemm_output_shape(const std::vector<Index> &a_shape,
     std::vector<Index> output_shape;
     output_shape.reserve(a_ndim + b_ndim - 2 * ndim);
 
-    Index a_batch_start = a_ndim - batch_ndim;
-    Index b_batch_start = b_ndim - batch_ndim;
+    Index a_k_begin = 0;
+    Index a_k_end = 0;
+    Index a_m_begin = 0;
+    Index a_m_end = 0;
+    Index b_k_begin = 0;
+    Index b_k_end = 0;
+    Index b_n_begin = 0;
+    Index b_n_end = 0;
 
-    Index a_m_begin = trans_a ? ndim : 0;
-    Index a_m_end = trans_a ? a_batch_start : a_batch_start - ndim;
-    Index b_n_begin = trans_b ? 0 : ndim;
-    Index b_n_end = trans_b ? b_batch_start - ndim : b_batch_start;
+    if (trans_a)
+    {
+        a_m_begin = batch_ndim;
+        a_m_end = a_ndim - ndim;
+        a_k_begin = a_ndim - ndim;
+        a_k_end = a_ndim;
+    }
+    else
+    {
+        a_k_begin = batch_ndim;
+        a_k_end = batch_ndim + ndim;
+        a_m_begin = batch_ndim + ndim;
+        a_m_end = a_ndim;
+    }
+    if (trans_b)
+    {
+        b_n_begin = batch_ndim;
+        b_n_end = b_ndim - ndim;
+        b_k_begin = b_ndim - ndim;
+        b_k_end = b_ndim;
+    }
+    else
+    {
+        b_k_begin = batch_ndim;
+        b_k_end = batch_ndim + ndim;
+        b_n_begin = batch_ndim + ndim;
+        b_n_end = b_ndim;
+    }
 
     output_shape.insert(output_shape.end(),
-        a_shape.begin() + a_m_begin,
-        a_shape.begin() + a_m_end);
+        a_shape.begin(), a_shape.begin() + batch_ndim);
     output_shape.insert(output_shape.end(),
-        b_shape.begin() + b_n_begin,
-        b_shape.begin() + b_n_end);
-    output_shape.insert(
-        output_shape.end(), a_shape.begin() + a_batch_start, a_shape.end());
+        b_shape.begin() + b_n_begin, b_shape.begin() + b_n_end);
+    output_shape.insert(output_shape.end(),
+        a_shape.begin() + a_m_begin, a_shape.begin() + a_m_end);
 
     return output_shape;
 }
@@ -95,23 +123,53 @@ void validate_gemm_shape_and_merge(TensorGraph::TensorNode *a,
             std::to_string(b_ndim) + " vs " +
             std::to_string(ndim + batch_ndim) + ")");
     }
-    Index a_batch_start = a_ndim - batch_ndim;
-    Index b_batch_start = b_ndim - batch_ndim;
-    Index a_m_begin = trans_a ? ndim : 0;
-    Index a_m_end = trans_a ? a_batch_start : a_batch_start - ndim;
-    Index a_k_begin = trans_a ? 0 : a_m_end;
-    Index b_k_begin = trans_b ? (b_batch_start - ndim) : 0;
-    Index b_n_begin = trans_b ? 0 : ndim;
-    Index b_n_end = trans_b ? b_batch_start - ndim : b_batch_start;
+    Index a_k_begin = 0;
+    Index a_k_end = 0;
+    Index a_m_begin = 0;
+    Index a_m_end = 0;
+    Index b_k_begin = 0;
+    Index b_k_end = 0;
+    Index b_n_begin = 0;
+    Index b_n_end = 0;
+
+    if (trans_a)
+    {
+        a_m_begin = batch_ndim;
+        a_m_end = a_ndim - ndim;
+        a_k_begin = a_ndim - ndim;
+        a_k_end = a_ndim;
+    }
+    else
+    {
+        a_k_begin = batch_ndim;
+        a_k_end = batch_ndim + ndim;
+        a_m_begin = batch_ndim + ndim;
+        a_m_end = a_ndim;
+    }
+    if (trans_b)
+    {
+        b_n_begin = batch_ndim;
+        b_n_end = b_ndim - ndim;
+        b_k_begin = b_ndim - ndim;
+        b_k_end = b_ndim;
+    }
+    else
+    {
+        b_k_begin = batch_ndim;
+        b_k_end = batch_ndim + ndim;
+        b_n_begin = batch_ndim + ndim;
+        b_n_end = b_ndim;
+    }
     Index num_m = a_m_end - a_m_begin;
     Index num_n = b_n_end - b_n_begin;
-    Index c_batch_start = num_m + num_n;
-    if (c_ndim != c_batch_start + batch_ndim)
+    Index c_n_begin = batch_ndim;
+    Index c_m_begin = batch_ndim + num_n;
+    if (c_ndim != batch_ndim + num_n + num_m)
     {
         throw std::invalid_argument(
-            "gemm: C ndim must equal num_m + num_n + batch_ndim (" +
+            "gemm: C ndim must equal batch_ndim + num_n + num_m (" +
             std::to_string(c_ndim) + " vs " +
-            std::to_string(c_batch_start + batch_ndim) + ")");
+            std::to_string(batch_ndim + num_n + num_m) + ")");
     }
     // A-B: contracted (K) dimensions
     for (Index i = 0; i < ndim; ++i)
@@ -130,51 +188,48 @@ void validate_gemm_shape_and_merge(TensorGraph::TensorNode *a,
     // A-C: M dimensions
     for (Index i = 0; i < num_m; ++i)
     {
-        if (a->shape()[a_m_begin + i] != c->shape()[i])
+        const Index c_ax = c_m_begin + i;
+        if (a->shape()[a_m_begin + i] != c->shape()[c_ax])
         {
             throw std::invalid_argument(
                 "gemm: M dimension " + std::to_string(i) + " must match (A: " +
                 std::to_string(a->shape()[a_m_begin + i]) +
-                " vs C: " + std::to_string(c->shape()[i]) + ")");
+                " vs C: " + std::to_string(c->shape()[c_ax]) + ")");
         }
-        merge_axis(a->mutable_axes()[a_m_begin + i], c->mutable_axes()[i]);
+        merge_axis(a->mutable_axes()[a_m_begin + i], c->mutable_axes()[c_ax]);
     }
     // B-C: N dimensions
     for (Index i = 0; i < num_n; ++i)
     {
-        if (b->shape()[b_n_begin + i] != c->shape()[num_m + i])
+        const Index c_ax = c_n_begin + i;
+        if (b->shape()[b_n_begin + i] != c->shape()[c_ax])
         {
             throw std::invalid_argument(
                 "gemm: N dimension " + std::to_string(i) + " must match (B: " +
                 std::to_string(b->shape()[b_n_begin + i]) +
-                " vs C: " + std::to_string(c->shape()[num_m + i]) + ")");
+                " vs C: " + std::to_string(c->shape()[c_ax]) + ")");
         }
-        merge_axis(
-            b->mutable_axes()[b_n_begin + i], c->mutable_axes()[num_m + i]);
+        merge_axis(b->mutable_axes()[b_n_begin + i], c->mutable_axes()[c_ax]);
     }
     // A-B-C: batch dimensions
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        if (a->shape()[a_batch_start + i] != c->shape()[c_batch_start + i])
+        if (a->shape()[i] != c->shape()[i])
         {
             throw std::invalid_argument(
                 "gemm: batch dimension " + std::to_string(i) +
-                " must match (A: " +
-                std::to_string(a->shape()[a_batch_start + i]) + " vs C: " +
-                std::to_string(c->shape()[c_batch_start + i]) + ")");
+                " must match (A: " + std::to_string(a->shape()[i]) +
+                " vs C: " + std::to_string(c->shape()[i]) + ")");
         }
-        merge_axis(a->mutable_axes()[a_batch_start + i],
-            c->mutable_axes()[c_batch_start + i]);
-        if (b->shape()[b_batch_start + i] != c->shape()[c_batch_start + i])
+        merge_axis(a->mutable_axes()[i], c->mutable_axes()[i]);
+        if (b->shape()[i] != c->shape()[i])
         {
             throw std::invalid_argument(
                 "gemm: batch dimension " + std::to_string(i) +
-                " must match (B: " +
-                std::to_string(b->shape()[b_batch_start + i]) + " vs C: " +
-                std::to_string(c->shape()[c_batch_start + i]) + ")");
+                " must match (B: " + std::to_string(b->shape()[i]) +
+                " vs C: " + std::to_string(c->shape()[i]) + ")");
         }
-        merge_axis(b->mutable_axes()[b_batch_start + i],
-            c->mutable_axes()[c_batch_start + i]);
+        merge_axis(b->mutable_axes()[i], c->mutable_axes()[i]);
     }
 }
 
@@ -277,17 +332,18 @@ struct GemmAxisRoles
     Index a_ndim = 0;
     Index b_ndim = 0;
     Index c_ndim = 0;
-    Index a_batch_start = 0;
-    Index b_batch_start = 0;
+    Index a_k_begin = 0;
+    Index a_k_end = 0;
     Index a_m_begin = 0;
     Index a_m_end = 0;
-    Index a_k_begin = 0;
     Index b_k_begin = 0;
+    Index b_k_end = 0;
     Index b_n_begin = 0;
     Index b_n_end = 0;
     Index num_m = 0;
     Index num_n = 0;
-    Index c_batch_start = 0;
+    Index c_n_begin = 0;
+    Index c_m_begin = 0;
     bool trans_a = false;
     bool trans_b = false;
     Index ndim = 1;
@@ -305,18 +361,39 @@ struct GemmAxisRoles
         a_ndim = a->ndim();
         b_ndim = b->ndim();
         c_ndim = c->ndim();
-        a_batch_start = a_ndim - batch_ndim;
-        b_batch_start = b_ndim - batch_ndim;
-        a_m_begin = trans_a ? ndim : 0;
-        a_m_end = trans_a ? a_batch_start : a_batch_start - ndim;
-        a_k_begin = trans_a ? 0 : a_m_end;
-        b_k_begin = trans_b ? (b_batch_start - ndim) : 0;
-        b_n_begin = trans_b ? 0 : ndim;
-        b_n_end = trans_b ? b_batch_start - ndim : b_batch_start;
+        if (trans_a)
+        {
+            a_m_begin = batch_ndim;
+            a_m_end = a_ndim - ndim;
+            a_k_begin = a_ndim - ndim;
+            a_k_end = a_ndim;
+        }
+        else
+        {
+            a_k_begin = batch_ndim;
+            a_k_end = batch_ndim + ndim;
+            a_m_begin = batch_ndim + ndim;
+            a_m_end = a_ndim;
+        }
+        if (trans_b)
+        {
+            b_n_begin = batch_ndim;
+            b_n_end = b_ndim - ndim;
+            b_k_begin = b_ndim - ndim;
+            b_k_end = b_ndim;
+        }
+        else
+        {
+            b_k_begin = batch_ndim;
+            b_k_end = batch_ndim + ndim;
+            b_n_begin = batch_ndim + ndim;
+            b_n_end = b_ndim;
+        }
         num_m = a_m_end - a_m_begin;
         num_n = b_n_end - b_n_begin;
-        c_batch_start = num_m + num_n;
-        if (c_ndim != c_batch_start + batch_ndim)
+        c_n_begin = batch_ndim;
+        c_m_begin = batch_ndim + num_n;
+        if (c_ndim != batch_ndim + num_n + num_m)
         {
             throw std::invalid_argument(
                 "GEMM lowering: C ndim mismatch for GEMM layout");
@@ -325,15 +402,15 @@ struct GemmAxisRoles
 
     Index a_axis_m(Index i) const { return a_m_begin + i; }
     Index a_axis_k(Index i) const { return a_k_begin + i; }
-    Index a_axis_batch(Index j) const { return a_batch_start + j; }
+    Index a_axis_batch(Index j) const { return j; }
 
     Index b_axis_k(Index i) const { return b_k_begin + i; }
     Index b_axis_n(Index i) const { return b_n_begin + i; }
-    Index b_axis_batch(Index j) const { return b_batch_start + j; }
+    Index b_axis_batch(Index j) const { return j; }
 
-    Index c_axis_m(Index i) const { return i; }
-    Index c_axis_n(Index i) const { return num_m + i; }
-    Index c_axis_batch(Index j) const { return c_batch_start + j; }
+    Index c_axis_m(Index i) const { return c_m_begin + i; }
+    Index c_axis_n(Index i) const { return c_n_begin + i; }
+    Index c_axis_batch(Index j) const { return j; }
 };
 
 void tile_bbox(const TensorAxisLayout &lay,
