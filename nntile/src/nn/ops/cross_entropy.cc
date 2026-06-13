@@ -59,12 +59,25 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
     NNGraph *graph = x->graph();
     const auto &x_shape = x->shape();
 
-    const Index class_axis = x->ndim() - 1;
+    const Index class_axis = [&]() {
+        if (x->ndim() == 3 && labels->ndim() == 2 &&
+            labels->shape()[0] == x_shape[0] &&
+            labels->shape()[1] == x_shape[2])
+        {
+            // Linear GEMM layout: [batch, vocab, seq]
+            return Index(1);
+        }
+        return x->ndim() - 1;
+    }();
 
-    // Class dimension is innermost. labels shape: x.shape without class axis.
+    // Class dimension is innermost (or vocab axis for Linear logits).
     std::vector<Index> labels_shape;
     labels_shape.reserve(class_axis);
     for (Index i = 0; i < class_axis; ++i)
+    {
+        labels_shape.push_back(x_shape[i]);
+    }
+    for (Index i = class_axis + 1; i < x->ndim(); ++i)
     {
         labels_shape.push_back(x_shape[i]);
     }
@@ -83,9 +96,12 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
     std::vector<Index> maxsumexp_shape;
     maxsumexp_shape.reserve(x->ndim());
     maxsumexp_shape.push_back(2);
-    for (Index i = 0; i < class_axis; ++i)
+    for (Index i = 0; i < x->ndim(); ++i)
     {
-        maxsumexp_shape.push_back(x_shape[i]);
+        if (i != class_axis)
+        {
+            maxsumexp_shape.push_back(x_shape[i]);
+        }
     }
     maxsumexp_data_ = tg.data(maxsumexp_shape, x->dtype());
 

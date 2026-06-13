@@ -262,6 +262,10 @@ inline void validate_maxsumexp_shape_and_merge(TensorGraph::TensorNode *src,
 
 //! Validate logsumexp output: dst is src with the leading dimension removed
 //! (maxsumexp ``[2, ...]`` format).
+//!
+//! Supports both legacy leading-class logits ``[class, ...]`` (offset 1) and
+//! C-order trailing-class logits ``[..., class]`` (offset 0) when the first
+//! spatial dimension already matches between src and dst.
 inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
     TensorGraph::TensorNode *dst,
     const std::string &op_name)
@@ -273,17 +277,35 @@ inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
                                     std::to_string(dst->ndim()) + " vs " +
                                     std::to_string(src->ndim()) + ")");
     }
+    Index offset = 1;
+    if (src->shape()[0] == 2)
+    {
+        bool matches_leading_pair = true;
+        for (Index i = 0; i < dst->ndim(); ++i)
+        {
+            if (dst->shape()[i] != src->shape()[i + 1])
+            {
+                matches_leading_pair = false;
+                break;
+            }
+        }
+        offset = matches_leading_pair ? 1 : 0;
+    }
+    else if (src->shape()[0] == dst->shape()[0])
+    {
+        offset = 0;
+    }
     for (Index i = 0; i < dst->ndim(); ++i)
     {
-        if (dst->shape()[i] != src->shape()[i + 1])
+        if (dst->shape()[i] != src->shape()[i + offset])
         {
             throw std::invalid_argument(
                 op_name + ": shape mismatch at dimension " +
                 std::to_string(i) +
                 " (dst: " + std::to_string(dst->shape()[i]) +
-                " vs src: " + std::to_string(src->shape()[i + 1]) + ")");
+                " vs src: " + std::to_string(src->shape()[i + offset]) + ")");
         }
-        merge_axis(src->mutable_axes()[i + 1], dst->mutable_axes()[i]);
+        merge_axis(src->mutable_axes()[i + offset], dst->mutable_axes()[i]);
     }
 }
 

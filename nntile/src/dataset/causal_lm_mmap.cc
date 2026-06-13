@@ -222,8 +222,8 @@ bool CausalLmBatchIterator::next(CausalLmBatch& batch)
                 }
             }
             const std::size_t idx =
-                static_cast<std::size_t>(s) +
-                static_cast<std::size_t>(n_seq) * static_cast<std::size_t>(b);
+                static_cast<std::size_t>(b) * static_cast<std::size_t>(n_seq) +
+                static_cast<std::size_t>(s);
             batch.input_ids[idx] = static_cast<std::int64_t>(ti);
             batch.target_ids[idx] = static_cast<std::int64_t>(tt);
         }
