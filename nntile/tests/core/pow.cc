@@ -24,7 +24,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> a({4, 3, 2}), b({2, 3, 4});
+    Tile<T> a({4, 3, 2}), b({4, 3, 2});
     auto al = a.acquire(STARPU_W);
     auto bl = b.acquire(STARPU_W);
     for(Index i = 0; i < a.nelems; ++i)

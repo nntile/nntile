@@ -13,7 +13,7 @@
 
 Uses **Hugging Face Transformers** (``modeling_t5``) for forward and backward
 references. Weight tensors are converted to the NNTile graph layout (same
-naming and Fortran-order bytes as ``examples/t5_generate.py``). Mask tensors
+naming and C-order bytes as ``examples/t5_generate.py``). Mask tensors
 stored for C++ use the ``sdpa_eager`` layout expected by graph tests.
 
 PyTorch runs with ``_attn_implementation="eager"`` and ``cache_position`` on
@@ -98,15 +98,12 @@ MODEL_DIMS = CROSS_DIMS
 CONDITIONAL_DIMS = CROSS_DIMS
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    """C-contiguous flat bytes matching NNTile Fortran tile linearization."""
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
-def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.int64)
-    return a.ravel("F").reshape(a.shape)
+def as_int64(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.int64)
 
 
 def _make_config(dims: TestDims) -> T5Config:
@@ -127,29 +124,29 @@ def _make_config(dims: TestDims) -> T5Config:
 
 
 def _linear_weight(linear: torch.nn.Linear) -> np.ndarray:
-    return fortran_order(linear.weight.detach().numpy().T)
+    return as_float32(linear.weight.detach().numpy())
 
 
 def _rms_gamma(
     layer_norm: torch.nn.Module, prefix: str,
 ) -> dict[str, np.ndarray]:
     w = layer_norm.weight.detach().numpy()
-    return {f"{prefix}.gamma": fortran_order(w)}
+    return {f"{prefix}.gamma": as_float32(w)}
 
 
 def _t5_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
     nh, hs, dm = dims.n_heads, dims.head_size, dims.d_model
-    q = attn.q.weight.detach().numpy().reshape(nh, hs, dm)
-    k = attn.k.weight.detach().numpy().reshape(nh, hs, dm)
-    v = attn.v.weight.detach().numpy().reshape(nh, hs, dm)
-    o = attn.o.weight.detach().numpy().reshape(dm, nh, hs)
+    q = attn.q.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
+    k = attn.k.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
+    v = attn.v.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
+    o = attn.o.weight.detach().numpy().reshape(dm, nh, hs).transpose(2, 1, 0)
     return {
-        f"{prefix}.q_weight": fortran_order(q),
-        f"{prefix}.k_weight": fortran_order(k),
-        f"{prefix}.v_weight": fortran_order(v),
-        f"{prefix}.o_weight": fortran_order(o),
+        f"{prefix}.q_weight": as_float32(q),
+        f"{prefix}.k_weight": as_float32(k),
+        f"{prefix}.v_weight": as_float32(v),
+        f"{prefix}.o_weight": as_float32(o),
     }
 
 
@@ -200,8 +197,8 @@ def _decoder_block_weights(
 def _embed_weights(
     embed: torch.nn.Embedding, prefix: str,
 ) -> dict[str, np.ndarray]:
-    w = embed.weight.detach().numpy().T
-    return {f"{prefix}.vocab": fortran_order(w)}
+    w = embed.weight.detach().numpy()
+    return {f"{prefix}.vocab": as_float32(w)}
 
 
 def _model_weights(model: PtModel, prefix: str, dims: TestDims) -> dict:
@@ -230,8 +227,8 @@ def _conditional_weights(
     model: PtConditional, prefix: str, dims: TestDims,
 ) -> dict:
     d = _model_weights(model, f"{prefix}.model", dims)
-    d[f"{prefix}.lm_head.weight"] = fortran_order(
-        model.lm_head.weight.detach().numpy().T,
+    d[f"{prefix}.lm_head.weight"] = as_float32(
+        model.lm_head.weight.detach().numpy(),
     )
     return d
 
@@ -243,17 +240,17 @@ def _hidden_input(
     rng, dims: TestDims, *, seq: int | None = None, scale: float = 0.1,
 ):
     s = dims.seq if seq is None else seq
-    x = rng.standard_normal((dims.d_model, s, dims.batch))
+    x = rng.standard_normal((dims.batch, s, dims.d_model))
     x = x.astype(np.float32) * scale
-    x_nt = fortran_order(x)
-    x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
+    x_nt = as_float32(x)
+    x_pt = torch.tensor(x.copy(), requires_grad=True)
     return x_nt, x_pt
 
 
 def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
     g = rng.standard_normal(pt_out.shape).astype(np.float32) * scale
     g_pt = torch.tensor(g)
-    g_nt = fortran_order(g.transpose(2, 1, 0))
+    g_nt = as_float32(g)
     return g_nt, g_pt
 
 
@@ -261,14 +258,14 @@ def _ids_input(rng, dims: TestDims, *, seq: int | None = None):
     s = dims.encoder_seq if seq == "enc" else (
         dims.decoder_seq if seq == "dec" else dims.seq
     )
-    ids = rng.integers(0, dims.vocab, size=(s, dims.batch)).astype(np.int64)
-    ids_nt = fortran_order_int64(ids)
-    ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
+    ids = rng.integers(0, dims.vocab, size=(dims.batch, s)).astype(np.int64)
+    ids_nt = as_int64(ids)
+    ids_pt = torch.tensor(ids.copy(), dtype=torch.long)
     return ids_nt, ids_pt
 
 
 def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
-    return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
+    return as_float32(pt_out.detach().numpy())
 
 
 def _cache_position(hidden_states: torch.Tensor) -> torch.Tensor:
@@ -295,15 +292,15 @@ def _hf_causal_attention_mask_4d(
     return mask.masked_fill(upper.unsqueeze(0).unsqueeze(0), min_val)
 
 
-def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
+def _sdpa_causal_mask(seq: int) -> np.ndarray:
     kk = np.arange(seq, dtype=np.int64)[:, None]
     qq = np.arange(seq, dtype=np.int64)[None, :]
-    return fortran_order((kk <= qq).astype(np.float32))
+    return as_float32((kk <= qq).astype(np.float32))
 
 
-def _cross_attn_mask_fortran(enc_seq: int, dec_seq: int) -> np.ndarray:
+def _cross_attn_mask(enc_seq: int, dec_seq: int) -> np.ndarray:
     """``(k_seq, q_seq)`` = ``(enc_seq, dec_seq)`` for graph ``sdpa_eager``."""
-    return fortran_order(np.ones((enc_seq, dec_seq), dtype=np.float32))
+    return as_float32(np.ones((enc_seq, dec_seq), dtype=np.float32))
 
 
 def _run_fwd_bwd(
@@ -429,7 +426,7 @@ def generate_attention(
     cp = _cache_position(x_pt)
     mask_4d = None
     if causal:
-        data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+        data["attn_mask"] = _sdpa_causal_mask(dims.seq)
         mask_4d = _hf_causal_attention_mask_4d(
             dims.batch, dims.seq, device=x_pt.device, dtype=x_pt.dtype,
         )
@@ -457,7 +454,7 @@ def generate_cross_attention(
     enc_pt = enc_pt.detach()
     data["input"] = x_nt
     data["encoder_input"] = enc_nt
-    data["cross_attn_mask"] = _cross_attn_mask_fortran(
+    data["cross_attn_mask"] = _cross_attn_mask(
         dims.encoder_seq, dims.decoder_seq,
     )
     cp = _cache_position(x_pt)
@@ -509,8 +506,8 @@ def generate_decoder_block(
     enc_nt, enc_pt = _hidden_input(rng, dims, seq=dims.encoder_seq)
     data["input"] = x_nt
     data["encoder_hidden_states"] = enc_nt
-    data["decoder_attn_mask"] = _sdpa_causal_mask_fortran(dims.decoder_seq)
-    data["cross_attn_mask"] = _cross_attn_mask_fortran(
+    data["decoder_attn_mask"] = _sdpa_causal_mask(dims.decoder_seq)
+    data["cross_attn_mask"] = _cross_attn_mask(
         dims.encoder_seq, dims.decoder_seq,
     )
     cp = _cache_position(x_pt)
@@ -547,10 +544,10 @@ def generate_model(
     dec_nt, dec_ids = _ids_input(rng, dims, seq="dec")
     data["encoder_input_ids"] = enc_nt
     data["decoder_input_ids"] = dec_nt
-    data["decoder_attention_mask"] = _sdpa_causal_mask_fortran(
+    data["decoder_attention_mask"] = _sdpa_causal_mask(
         dims.decoder_seq,
     )
-    data["cross_attention_mask"] = _cross_attn_mask_fortran(
+    data["cross_attention_mask"] = _cross_attn_mask(
         dims.encoder_seq, dims.decoder_seq,
     )
     pt.shared.weight.requires_grad_(True)
@@ -562,8 +559,8 @@ def generate_model(
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
     out.backward(g_pt)
-    data["grad_embed_tokens_vocab"] = fortran_order(
-        pt.shared.weight.grad.detach().numpy().T,
+    data["grad_embed_tokens_vocab"] = as_float32(
+        pt.shared.weight.grad.detach().numpy(),
     )
     return data
 
@@ -585,10 +582,10 @@ def generate_conditional(
     dec_nt, dec_ids = _ids_input(rng, dims, seq="dec")
     data["encoder_input_ids"] = enc_nt
     data["decoder_input_ids"] = dec_nt
-    data["decoder_attention_mask"] = _sdpa_causal_mask_fortran(
+    data["decoder_attention_mask"] = _sdpa_causal_mask(
         dims.decoder_seq,
     )
-    data["cross_attention_mask"] = _cross_attn_mask_fortran(
+    data["cross_attention_mask"] = _cross_attn_mask(
         dims.encoder_seq, dims.decoder_seq,
     )
     vocab = pt.shared.weight.detach().clone().requires_grad_(True)
@@ -611,8 +608,8 @@ def generate_conditional(
         g_nt, g_pt = _grad_output(rng, logits)
         data["grad_output"] = g_nt
         logits.backward(g_pt)
-        data["grad_embed_tokens_vocab"] = fortran_order(
-            vocab.grad.detach().numpy().T,
+        data["grad_embed_tokens_vocab"] = as_float32(
+            vocab.grad.detach().numpy(),
         )
     finally:
         embed_hook.remove()

@@ -40,7 +40,7 @@ void validate()
     al.release();
     bl.release();
 
-    Tile<T> x({3, 2}), y({2, 3});
+    Tile<T> x({3, 2}), y({3, 2});
     auto xl = x.acquire(STARPU_W);
     auto yl = y.acquire(STARPU_W);
     for(Index i = 0; i < x.nelems; ++i)

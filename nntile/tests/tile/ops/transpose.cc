@@ -25,8 +25,8 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sshape = {3, 5};
-    const std::vector<Index> dshape = {5, 3};
+    const std::vector<Index> sshape = {5, 3};
+    const std::vector<Index> dshape = {3, 5};
     const Index nelems = 3 * 5;
     const Scalar alpha = 0.5;
     const Index ndim = 1;

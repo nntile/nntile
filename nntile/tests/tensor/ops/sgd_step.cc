@@ -61,9 +61,9 @@ TEST_CASE("TensorGraph sgd_step structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sgd_step rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *grad = graph.data({4, 5})->set_name("grad");
-    auto *velocity = graph.data({4, 5})->set_name("velocity");
-    auto *p = graph.data({4, 5})->set_name("p");
+    auto *grad = graph.data({5, 4})->set_name("grad");
+    auto *velocity = graph.data({5, 4})->set_name("velocity");
+    auto *p = graph.data({5, 4})->set_name("p");
 
     REQUIRE_THROWS_AS(
         gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false, nullptr, velocity, p),

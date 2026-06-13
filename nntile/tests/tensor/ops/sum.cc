@@ -66,7 +66,7 @@ TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sum rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({4, 5})->set_name("t");
+    auto *t = graph.data({5, 4})->set_name("t");
 
     REQUIRE_THROWS_AS(
         gt::sum(t, t, alpha_one, beta_zero), std::invalid_argument);

@@ -148,7 +148,7 @@ void gpt2_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
     std::vector<float> result;
     {
         NNGraph g(std::string("attn_ref_") + fx.stem);
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+        auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                           ->set_name("input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
@@ -200,7 +200,7 @@ void gpt2_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
     std::vector<float> grad_input_result;
     {
         NNGraph g(std::string("attn_bwd_") + fx.stem);
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
+        auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32, true)
                           ->set_name("input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
@@ -255,13 +255,13 @@ TEST_CASE("Gpt2Attention forward builds output", "[model][gpt2]")
     }
     NNGraph g("gpt2_attn");
     Gpt2Attention attn(&g, "attn", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
     auto *output = attn.forward(input, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
     REQUIRE(attn.parameters_recursive().size() == 8);
 }
 

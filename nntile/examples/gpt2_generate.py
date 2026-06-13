@@ -93,11 +93,10 @@ def _conv1d_to_nntile_linear_weight(conv_weight: np.ndarray) -> np.ndarray:
     """Map HF GPT-2 Conv1D weight to graph ``Linear`` storage.
 
     HuggingFace ``Conv1D`` stores ``weight`` with shape
-    ``(in_features, out_features)`` (e.g. ``c_fc``: ``(hidden, n_inner)``).
-    Graph ``Linear`` uses PyTorch ``[out_features, in_features]`` layout in
-    C-order. Do **not** transpose here.
+    ``(in_features, out_features)``. Graph ``Linear`` uses PyTorch
+    ``[out_features, in_features]`` layout in C-order.
     """
-    return as_float32(conv_weight)
+    return as_float32(conv_weight.T)
 
 
 def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:

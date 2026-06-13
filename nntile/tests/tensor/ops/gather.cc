@@ -41,7 +41,7 @@ TEST_CASE("TensorGraph gather structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({4, 5})->set_name("src");
+    auto *src = graph.data({5, 4})->set_name("src");
     auto *dst = gt::gather(src)->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);

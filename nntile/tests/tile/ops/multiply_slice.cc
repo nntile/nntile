@@ -25,7 +25,7 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_slice", "[graph][tile]")
 {
-    const std::vector<Index> shs = {3, 5}, shd = {3, 4, 5};
+    const std::vector<Index> shs = {5, 3}, shd = {5, 4, 3};
     const Index ns = 15, n = 60;
     const Scalar a = 0.5;
     const Index axis = 1;

@@ -25,7 +25,7 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_slice", "[graph][tile]")
 {
-    const std::vector<Index> t1s = {3, 5}, t2s = {3, 4, 5};
+    const std::vector<Index> t1s = {4, 3}, t2s = {5, 4, 3};
     const Index n1 = 15, n2 = 60;
     const Scalar a = 0.75;
     const Index axis = 1;

@@ -111,7 +111,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{
             std::vector<Index>{3, 6}, Index(1), Scalar(1.0), Scalar(-1.0)},
         std::tuple{
-            std::vector<Index>{2, 3, 4}, Index(2), Scalar(1.0), Scalar(1.0)});
+            std::vector<Index>{4, 3, 2}, Index(2), Scalar(1.0), Scalar(1.0)});
 
     std::vector<Index> y_shape = {x_shape[axis]};
 

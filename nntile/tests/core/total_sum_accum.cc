@@ -25,7 +25,7 @@ void validate()
 {
     using Y = typename T::repr_t;
     Tile<T> logsumexp({2, 2});
-    Tile<T> src({2, 2, 3});
+    Tile<T> src({3, 2, 2});
     Tile<nntile::int64_t> class_labels({2, 2});
     Tile<fp32_t> val({}), val_ref({});
 
@@ -58,7 +58,7 @@ void validate()
     Scalar alpha = 1.0;
     Index ignore_index = -1;
     starpu::total_sum_accum.submit<std::tuple<T>>(-1, alpha, src.shape[0],
-            logsumexp.nelems, ignore_index, logsumexp, src, class_labels, val);
+            logsumexp.nelems, ignore_index, 1, logsumexp, src, class_labels, val);
     total_sum_accum<T>(-1, alpha, logsumexp, src, class_labels, val_ref,
             ignore_index);
 

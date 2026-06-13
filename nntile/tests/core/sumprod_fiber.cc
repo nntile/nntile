@@ -24,7 +24,7 @@ template<typename T>
 void check(Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
-    Tile<T> src1({5, 4, 3}), src2({3, 4, 5});
+    Tile<T> src1({5, 4, 3}), src2({5, 4, 3});
     Tile<T> dst[3] = {Tile<T>({3}), Tile<T>({4}), Tile<T>({5})};
     Tile<T> dst2[3] = {Tile<T>({3}), Tile<T>({4}), Tile<T>({5})};
     auto a = src1.acquire(STARPU_W);

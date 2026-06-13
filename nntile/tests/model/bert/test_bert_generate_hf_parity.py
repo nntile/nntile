@@ -24,7 +24,7 @@ from transformers.models.bert.modeling_bert import (
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate_test_data import (  # noqa: E402
     ATTENTION_DIMS, INTERMEDIATE_DIMS, _bert_attention_weights, _hidden_input,
-    _make_config, _out_to_nntile, fortran_order, generate_attention,
+    _make_config, _out_to_nntile, as_float32, generate_attention,
     generate_intermediate)
 
 
@@ -53,8 +53,9 @@ def test_attention_weights_match_hf_layout() -> None:
             ATTENTION_DIMS.head_size,
             ATTENTION_DIMS.hidden,
         )
+        .transpose(2, 1, 0)
     )
-    assert np.array_equal(weights["attn.self.q_weight"], fortran_order(w_q))
+    assert np.array_equal(weights["attn.self.q_weight"], as_float32(w_q))
 
 
 def test_intermediate_matches_hf() -> None:

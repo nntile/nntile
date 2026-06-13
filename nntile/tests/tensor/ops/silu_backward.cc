@@ -57,8 +57,8 @@ TEST_CASE(
     "TensorGraph silu_backward rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({4, 5})->set_name("x");
-    auto *dy = graph.data({4, 5})->set_name("dy");
+    auto *x = graph.data({5, 4})->set_name("x");
+    auto *dy = graph.data({5, 4})->set_name("dy");
 
     REQUIRE_THROWS_AS(gt::silu_backward(x, x), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::silu_backward(x, dy, x), std::invalid_argument);

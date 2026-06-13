@@ -123,7 +123,7 @@ TEST_CASE("Linear BuildForwardValidatesInputDim", "[module]")
 {
     NNGraph g("linear");
 
-    auto *input = g.tensor({2, 5}, DataType::FP32)->set_name("input");
+    auto *input = g.tensor({5, 2}, DataType::FP32)->set_name("input");
     Linear linear(&g, "linear", 3, 4, false);
 
     REQUIRE_THROWS_AS(linear.forward(input), std::invalid_argument);

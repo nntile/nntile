@@ -57,7 +57,7 @@ TEST_CASE("TensorGraph silu structure", "[graph][tensor]")
 TEST_CASE("TensorGraph silu rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({4, 5})->set_name("src");
+    auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(gt::silu(src, src), std::invalid_argument);
 }

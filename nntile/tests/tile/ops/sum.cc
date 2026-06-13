@@ -25,7 +25,7 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3, 4};
+    const std::vector<Index> sh = {4, 3, 2};
     const Index nelems = 2 * 3 * 4;
     TileGraph g("g");
     auto* s = g.data(sh, "s", DataType::FP32);

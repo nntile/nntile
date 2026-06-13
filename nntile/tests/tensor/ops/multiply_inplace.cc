@@ -62,7 +62,7 @@ TEST_CASE("TensorGraph multiply_inplace rejects duplicate tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({4, 5})->set_name("src");
+    auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::multiply_inplace(alpha, src, src), std::invalid_argument);

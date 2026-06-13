@@ -25,10 +25,10 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches tile", "[graph][tile]")
 {
-    const std::vector<Index> full = {3, 4, 5};
-    const std::vector<Index> fib = {5};
+    const std::vector<Index> full = {5, 4, 3};
+    const std::vector<Index> fib = {3};
     const Index nfull = 3 * 4 * 5;
-    const Index nfib = 5;
+    const Index nfib = 3;
     const Index axis = 2;
     const Scalar alpha = 1.0;
     TileGraph g("g");

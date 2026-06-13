@@ -122,11 +122,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [shape, act_type, grad_fill_val] = GENERATE(
         std::tuple{
-            std::vector<Index>{2, 3}, ActivationType::RELU, Scalar(1.0)},
+            std::vector<Index>{3, 2}, ActivationType::RELU, Scalar(1.0)},
         std::tuple{
             std::vector<Index>{4, 6}, ActivationType::GELU, Scalar(1.0)},
         std::tuple{
-            std::vector<Index>{2, 3, 4}, ActivationType::SILU, Scalar(1.0)},
+            std::vector<Index>{4, 3, 2}, ActivationType::SILU, Scalar(1.0)},
         std::tuple{
             std::vector<Index>{3, 5}, ActivationType::GELUTANH, Scalar(1.0)},
         std::tuple{

@@ -87,7 +87,7 @@ TEST_CASE("TensorGraph softmax rejects null", "[graph][tensor]")
     TensorGraph graph("test");
     // maxsumexp shape for axis 0, src [4,5]: [2, 5]
     auto *mse = graph.data({2, 5})->set_name("mse");
-    auto *src = graph.data({4, 5})->set_name("src");
+    auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::softmax(nullptr, src, alpha_one, axis_0), std::invalid_argument);

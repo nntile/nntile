@@ -25,9 +25,9 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_fiber_inplace", "[graph][tile]")
 {
-    const std::vector<Index> full = {3, 4, 5};
-    const std::vector<Index> fib = {5};
-    const Index n = 3 * 4 * 5, nf = 5;
+    const std::vector<Index> full = {5, 4, 3};
+    const std::vector<Index> fib = {3};
+    const Index n = 3 * 4 * 5, nf = 3;
     const Scalar a = 1.0, b = 0.5;
     const Index axis = 2, batch = 0;
     TileGraph g("g");

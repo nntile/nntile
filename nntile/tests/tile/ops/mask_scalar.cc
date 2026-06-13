@@ -25,7 +25,7 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3};
+    const std::vector<Index> sh = {3, 2};
     const Index n = 6;
     const Scalar val = -9.0;
     const Index batch = 0;

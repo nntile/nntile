@@ -64,10 +64,10 @@ TEST_CASE("TensorGraph adam_step structure", "[graph][tensor]")
 TEST_CASE("TensorGraph adam_step rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *grad = graph.data({4, 5})->set_name("grad");
-    auto *first_moment = graph.data({4, 5})->set_name("first_moment");
-    auto *second_moment = graph.data({4, 5})->set_name("second_moment");
-    auto *p = graph.data({4, 5})->set_name("p");
+    auto *grad = graph.data({5, 4})->set_name("grad");
+    auto *first_moment = graph.data({5, 4})->set_name("first_moment");
+    auto *second_moment = graph.data({5, 4})->set_name("second_moment");
+    auto *p = graph.data({5, 4})->set_name("p");
 
     REQUIRE_THROWS_AS(gt::adam_step(1,
                           0.9,

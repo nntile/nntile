@@ -24,7 +24,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> sin({2}), cos({2}), src({4, 5}), dst({4, 5}), dst_ref({4, 5});
+    Tile<T> sin({2}), cos({2}), src({5, 4}), dst({5, 4}), dst_ref({5, 4});
     auto sl = sin.acquire(STARPU_W);
     auto cl = cos.acquire(STARPU_W);
     auto srcl = src.acquire(STARPU_W);

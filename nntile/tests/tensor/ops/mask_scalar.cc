@@ -65,8 +65,8 @@ TEST_CASE("TensorGraph mask_scalar rejects null tensors", "[graph][tensor]")
 {
     constexpr Index batch_ndim = 0;
     TensorGraph graph("test");
-    auto *mask = graph.data({4, 5}, DataType::BOOL)->set_name("mask");
-    auto *A = graph.data({4, 5})->set_name("A");
+    auto *mask = graph.data({5, 4}, DataType::BOOL)->set_name("mask");
+    auto *A = graph.data({5, 4})->set_name("A");
 
     REQUIRE_THROWS_AS(
         gt::mask_scalar(nullptr, val, A, batch_ndim), std::invalid_argument);
@@ -78,8 +78,8 @@ TEST_CASE("TensorGraph mask_scalar rejects non-BOOL mask", "[graph][tensor]")
 {
     constexpr Index batch_ndim = 0;
     TensorGraph graph("test");
-    auto *mask = graph.data({4, 5})->set_name("mask"); // FP32 by default
-    auto *A = graph.data({4, 5})->set_name("A");
+    auto *mask = graph.data({5, 4})->set_name("mask"); // FP32 by default
+    auto *A = graph.data({5, 4})->set_name("A");
 
     REQUIRE_THROWS_AS(
         gt::mask_scalar(mask, val, A, batch_ndim), std::invalid_argument);
@@ -98,7 +98,7 @@ TEST_CASE(
     // mask 1D when A_data is 2D
     TensorGraph graph2("test2");
     auto *mask2 = graph2.data({4}, DataType::BOOL)->set_name("mask");
-    auto *A2 = graph2.data({4, 5})->set_name("A");
+    auto *A2 = graph2.data({5, 4})->set_name("A");
     REQUIRE_THROWS_AS(
         gt::mask_scalar(mask2, val, A2, 0), std::invalid_argument);
 }

@@ -120,7 +120,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("emb_ref");
         auto *input_ids =
-            g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+            g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
         NNGraph::TensorNode *token_type_ids = nullptr;
         std::vector<std::int64_t> tt_data;
         REQUIRE(load_token_type_ids(

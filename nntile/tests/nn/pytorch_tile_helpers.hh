@@ -87,7 +87,7 @@ inline void nn_pytorch_tile_vocab_10x10(NNGraph::TensorNode* vocab)
 inline void nn_pytorch_tile_index_4x5(NNGraph::TensorNode* index)
 {
     index->data()->axis(0)->set_tiling(std::vector<Index>{2, 2});
-    index->data()->axis(1)->set_tiling(std::vector<Index>{2, 3});
+    index->data()->axis(1)->set_tiling(std::vector<Index>{3, 2});
 }
 
 //! Index vector length 3.

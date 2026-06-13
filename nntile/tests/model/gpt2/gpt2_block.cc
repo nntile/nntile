@@ -141,7 +141,7 @@ void block_forward_compare_ref(const BlockFixtureSpec &fx)
     std::vector<float> result;
     {
         NNGraph g(std::string("block_ref_") + fx.stem);
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+        auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                           ->set_name("input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
@@ -198,7 +198,7 @@ void block_backward_compare_ref(const BlockFixtureSpec &fx)
     {
         NNGraph g(std::string("block_bwd_") + fx.stem);
         auto *input =
-            g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
+            g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32, true)
                 ->set_name("input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
@@ -247,9 +247,9 @@ TEST_CASE("Gpt2Block forward builds output", "[model][gpt2]")
     }
     NNGraph g("gpt2_block");
     Gpt2Block block(&g, "block", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
-    auto *position_ids = g.tensor({fx.seq, fx.batch}, DataType::INT64)
+    auto *position_ids = g.tensor({fx.batch, fx.seq}, DataType::INT64)
                              ->set_name("position_ids");
     (void)position_ids;
     NNGraph::TensorNode *mask = nullptr;
@@ -257,7 +257,7 @@ TEST_CASE("Gpt2Block forward builds output", "[model][gpt2]")
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("Gpt2Block load from safetensors roundtrip", "[model][gpt2][io]")

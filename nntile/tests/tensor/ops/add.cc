@@ -56,8 +56,8 @@ TEST_CASE("TensorGraph add structure", "[graph][tensor]")
 TEST_CASE("TensorGraph add rejects duplicate tensors")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({4, 5})->set_name("x");
-    auto *y = graph.data({4, 5})->set_name("y");
+    auto *x = graph.data({5, 4})->set_name("x");
+    auto *y = graph.data({5, 4})->set_name("y");
 
     REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, x), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, y, x), std::invalid_argument);

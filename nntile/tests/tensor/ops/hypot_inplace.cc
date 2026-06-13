@@ -65,7 +65,7 @@ TEST_CASE(
     "TensorGraph hypot_inplace rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({4, 5})->set_name("t");
+    auto *t = graph.data({5, 4})->set_name("t");
 
     REQUIRE_THROWS_AS(
         gt::hypot_inplace(alpha_one, t, beta_one, t), std::invalid_argument);
