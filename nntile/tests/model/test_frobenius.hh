@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "../nn/pytorch_helper.hh"
+#include "../test_frobenius.hh"
 
 using nntile::test::relative_frobenius_error;
 using nntile::test::require_relative_frobenius_error;

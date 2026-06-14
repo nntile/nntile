@@ -15,58 +15,14 @@
 
 #pragma once
 
+#include "test_frobenius.hh"
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
-
-namespace nntile::test
-{
-
-//! Floor for relative scales (tiny activations / gradients).
-constexpr float relative_tolerance_floor = 1e-7f;
-
-//! \f$\|a-b\|_F / \max(\|a\|_F,\|b\|_F,\epsilon)\f$ (symmetric relative error).
-//!
-//! Using only \f$\|b\|_F\f$ blows up when the reference norm is tiny. ``b`` is
-//! the nominal reference for documentation; the scale is symmetric in ``a`` and ``b``.
-inline float relative_frobenius_error(
-    const std::vector<float>& a,
-    const std::vector<float>& b,
-    float epsilon = relative_tolerance_floor)
-{
-    double sq_diff = 0.0;
-    double sq_a = 0.0;
-    double sq_b = 0.0;
-    for(size_t i = 0; i < a.size(); ++i)
-    {
-        const double ai = static_cast<double>(a[i]);
-        const double bi = static_cast<double>(b[i]);
-        const double d = ai - bi;
-        sq_diff += d * d;
-        sq_a += ai * ai;
-        sq_b += bi * bi;
-    }
-    const double na = std::sqrt(sq_a);
-    const double nb = std::sqrt(sq_b);
-    const double diff = std::sqrt(sq_diff);
-    const double scale = std::max(
-        na, std::max(nb, static_cast<double>(epsilon)));
-    return static_cast<float>(diff / scale);
-}
-
-//! \f$\|a-b\|_F / \max(\|a\|_F,\|b\|_F,\epsilon)\f$ must be below ``tol``.
-inline void require_relative_frobenius_error(const std::vector<float>& a,
-    const std::vector<float>& b,
-    float tol,
-    float epsilon = relative_tolerance_floor)
-{
-    REQUIRE(relative_frobenius_error(a, b, epsilon) < tol);
-}
-
-} // namespace nntile::test
 
 #ifdef NNTILE_HAVE_TORCH
 

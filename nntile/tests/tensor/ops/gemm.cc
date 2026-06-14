@@ -15,6 +15,7 @@
 #include "nntile/tensor/ops/gemm.hh"
 
 #include "context_fixture.hh"
+#include "gemm_core_reference.hh"
 #include "gemm_test_shapes.hh"
 #include "nntile/constants.hh"
 #include "nntile/tensor.hh"
@@ -23,6 +24,7 @@
 #include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/gemm.hh"
 #include "nntile/tensor.hh"
+#include "test_frobenius.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
@@ -40,7 +42,9 @@ constexpr bool trans_a = false;
 constexpr bool trans_b = false;
 constexpr Index ndim = 1;
 constexpr Index batch_ndim = 0;
-constexpr float tiling_tolerance = 1e-4f;
+
+using nntile::test::gemm_relative_tolerance;
+using nntile::test::require_relative_frobenius_error;
 
 std::vector<float> run_gemm_graph(const std::vector<Index> &a_shape,
     const std::vector<Index> &b_shape,
@@ -87,14 +91,9 @@ std::vector<float> run_gemm_graph(const std::vector<Index> &a_shape,
 }
 
 void require_tiled_matches_untiled(const std::vector<float> &untiled,
-    const std::vector<float> &tiled,
-    float tol = tiling_tolerance)
+    const std::vector<float> &tiled)
 {
-    REQUIRE(tiled.size() == untiled.size());
-    for (size_t i = 0; i < tiled.size(); ++i)
-    {
-        REQUIRE(std::abs(untiled[i] - tiled[i]) < tol);
-    }
+    require_relative_frobenius_error(tiled, untiled, gemm_relative_tolerance);
 }
 
 } // namespace
@@ -204,4 +203,76 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         true);
 
     require_tiled_matches_untiled(untiled, tiled);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph gemm matches core",
+    "[graph][tensor]")
+{
+    const auto [trans_a_flag, trans_b_flag, ndim_flag, batch_ndim_flag, alpha] =
+        GENERATE(
+            std::tuple{false, false, Index(1), Index(0), Scalar(1.0)},
+            std::tuple{false, true, Index(1), Index(0), Scalar(1.0)},
+            std::tuple{true, false, Index(1), Index(0), Scalar(1.0)},
+            std::tuple{true, true, Index(1), Index(0), Scalar(1.0)},
+            std::tuple{false, false, Index(2), Index(0), Scalar(0.5)},
+            std::tuple{false, true, Index(2), Index(0), Scalar(0.5)},
+            std::tuple{true, false, Index(2), Index(0), Scalar(0.5)},
+            std::tuple{true, true, Index(2), Index(0), Scalar(0.5)},
+            std::tuple{false, false, Index(1), Index(1), Scalar(1.0)},
+            std::tuple{false, true, Index(1), Index(1), Scalar(1.0)},
+            std::tuple{true, false, Index(1), Index(1), Scalar(1.0)},
+            std::tuple{true, true, Index(1), Index(1), Scalar(1.0)},
+            std::tuple{false, false, Index(1), Index(2), Scalar(1.0)},
+            std::tuple{false, true, Index(1), Index(2), Scalar(1.0)},
+            std::tuple{true, false, Index(1), Index(2), Scalar(1.0)},
+            std::tuple{true, true, Index(1), Index(2), Scalar(1.0)});
+
+    const auto [a_shape, b_shape] = nntile::test::gemm_test_shapes(
+        trans_a_flag, trans_b_flag, ndim_flag, batch_ndim_flag);
+    const Index a_nelems = std::accumulate(a_shape.begin(),
+        a_shape.end(),
+        Index{1},
+        std::multiplies<Index>{});
+    const Index b_nelems = std::accumulate(b_shape.begin(),
+        b_shape.end(),
+        Index{1},
+        std::multiplies<Index>{});
+
+    using Y = nntile::fp32_t::repr_t;
+    std::vector<float> a_data(static_cast<size_t>(a_nelems));
+    std::vector<float> b_data(static_cast<size_t>(b_nelems));
+    for (Index i = 0; i < a_nelems; ++i)
+    {
+        a_data[static_cast<size_t>(i)] =
+            static_cast<float>(Y(i % 10)) * 0.1f;
+    }
+    for (Index i = 0; i < b_nelems; ++i)
+    {
+        b_data[static_cast<size_t>(i)] =
+            static_cast<float>(Y(i % 7)) * 0.15f;
+    }
+
+    const std::vector<float> core_out = nntile::test::core_gemm_reference_fp32(
+        a_shape,
+        b_shape,
+        a_data,
+        b_data,
+        alpha,
+        trans_a_flag,
+        trans_b_flag,
+        ndim_flag,
+        batch_ndim_flag);
+    const std::vector<float> tensor_out = run_gemm_graph(a_shape,
+        b_shape,
+        a_data,
+        b_data,
+        alpha,
+        trans_a_flag,
+        trans_b_flag,
+        ndim_flag,
+        batch_ndim_flag,
+        false);
+
+    require_relative_frobenius_error(tensor_out, core_out, gemm_relative_tolerance);
 }
