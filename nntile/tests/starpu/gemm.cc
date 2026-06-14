@@ -284,7 +284,8 @@ int main(int argc, char **argv)
     validate_cpu_many<fp64_t>();
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-    if(starpu_worker_get_count_by_type(STARPU_CUDA_WORKER) > 0)
+    int n_dev = 0;
+    if(cudaGetDeviceCount(&n_dev) == cudaSuccess && n_dev > 0)
     {
         validate_cuda_many<fp32_t>();
         validate_cuda_many<fp64_t>();
