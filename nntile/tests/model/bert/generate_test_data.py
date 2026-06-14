@@ -117,10 +117,10 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
 
 
 def _linear(linear, prefix: str) -> dict[str, np.ndarray]:
-    # PyTorch Linear weight is (out_features, in_features); graph Linear stores
-    # (input_dim, output_dim) for gemm(..., transpose_A=true).
+    # PyTorch Linear weight is (out_features, in_features); graph Linear
+    # stores the same C-order layout (output_dim, input_dim).
     d = {
-        f"{prefix}.weight": as_float32(linear.weight.detach().numpy().T),
+        f"{prefix}.weight": as_float32(linear.weight.detach().numpy()),
     }
     if linear.bias is not None:
         d[f"{prefix}.bias"] = as_float32(linear.bias.detach().numpy())

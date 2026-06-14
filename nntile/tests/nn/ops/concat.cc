@@ -99,7 +99,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     NNGraph g("nn_concat_nograd");
-    auto *a = g.tensor({3, 2}, DataType::FP32)->set_name("a");
+    auto *a = g.tensor({2, 3}, DataType::FP32)->set_name("a");
     auto *b = g.tensor({2, 4}, DataType::FP32)->set_name("b");
     NNGraph::TensorNode *out = nullptr;
     {
@@ -266,7 +266,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     NNGraph g("nn_concat_bwd");
-    auto *a = g.tensor({3, 2}, DataType::FP32)->set_name("a");
+    auto *a = g.tensor({2, 3}, DataType::FP32)->set_name("a");
     auto *b = g.tensor({2, 4}, DataType::FP32)->set_name("b");
     auto *out = concat(a, b, 1);
 

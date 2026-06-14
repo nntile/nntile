@@ -254,6 +254,86 @@ static inline void gemm_check_opB_C(const TransOp &transB, const TileTraits &B,
     }
 }
 
+//! M/N axis counts for C-order GEMM layout (matches tensor GemmAxisRoles).
+static inline void gemm_axis_counts(const TileTraits &A, const TileTraits &B,
+        bool trans_a, bool trans_b, Index ndim, Index batch_ndim,
+        Index &num_m, Index &num_n)
+{
+    Index a_m_begin = 0;
+    Index a_m_end = 0;
+    Index b_n_begin = 0;
+    Index b_n_end = 0;
+    if(trans_a)
+    {
+        a_m_begin = batch_ndim;
+        a_m_end = A.ndim - ndim;
+    }
+    else
+    {
+        a_m_begin = batch_ndim + ndim;
+        a_m_end = A.ndim;
+    }
+    if(trans_b)
+    {
+        b_n_begin = batch_ndim;
+        b_n_end = B.ndim - ndim;
+    }
+    else
+    {
+        b_n_begin = batch_ndim + ndim;
+        b_n_end = B.ndim;
+    }
+    num_m = a_m_end - a_m_begin;
+    num_n = b_n_end - b_n_begin;
+}
+
+//! BLAS (m, n, batch) for C-order tiles; folds B-only N axes into batch.
+static inline void gemm_runtime_dims(const TileTraits &A,
+        const TileTraits &B, const TileTraits &C, bool trans_a, bool trans_b,
+        Index ndim, Index batch_ndim, Index &m, Index &n, Index &batch)
+{
+    Index num_m = 0;
+    Index num_n = 0;
+    gemm_axis_counts(A, B, trans_a, trans_b, ndim, batch_ndim, num_m,
+        num_n);
+    const Index split_m = C.ndim - num_m;
+    batch = 1;
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        batch *= C.shape[i];
+    }
+    if(batch_ndim == 0 && B.ndim > A.ndim)
+    {
+        for(Index i = batch_ndim; i < split_m; ++i)
+        {
+            batch *= C.shape[i];
+        }
+        n = 1;
+    }
+    else
+    {
+        n = 1;
+        for(Index i = batch_ndim; i < split_m; ++i)
+        {
+            n *= C.shape[i];
+        }
+    }
+    m = C.matrix_shape[split_m][1];
+}
+
+//! True when a rank-deficient operand is broadcast across batch GEMMs.
+static inline bool gemm_broadcast_a(Index batch_ndim, Index a_ndim,
+        Index b_ndim)
+{
+    return batch_ndim == 0 && b_ndim > a_ndim;
+}
+
+static inline bool gemm_broadcast_b(Index batch_ndim, Index a_ndim,
+        Index b_ndim)
+{
+    return batch_ndim == 0 && a_ndim > b_ndim;
+}
+
 //! Check if tensors match gemm
 void gemm_check(const TransOp &transA, const TileTraits &A,
         const TransOp &transB, const TileTraits &B, const TileTraits &C,
@@ -289,15 +369,13 @@ void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, con
 {
     // Check inputs (throw exception in case of an error)
     gemm_check(transA, A, transB, B, C, ndim, batch_ndim);
-    // Reference tensors as matrices (C-order: [batch..., K..., M/N layout])
-    const Index split = batch_ndim + ndim;
-    Index batch = 1;
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        batch *= C.shape[i];
-    }
-    const Index m = C.matrix_shape[split][1];
-    const Index n = C.matrix_shape[split][0] / batch;
+    Index m = 0;
+    Index n = 0;
+    Index batch = 0;
+    gemm_runtime_dims(A, B, C, transA.value != TransOp::NoTrans,
+        transB.value != TransOp::NoTrans, ndim, batch_ndim, m, n, batch);
+    const bool broadcast_a = gemm_broadcast_a(batch_ndim, A.ndim, B.ndim);
+    const bool broadcast_b = gemm_broadcast_b(batch_ndim, A.ndim, B.ndim);
     Index k = 1;
     switch(transA.value)
     {
@@ -324,7 +402,8 @@ void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, con
     if(mpi_rank == c_rank)
     {
         starpu::gemm.submit<std::tuple<T>>(starpu_worker_hint, 
-            transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0);  // redux ignored for now
+            transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0,
+            broadcast_a, broadcast_b);
     }
 }
 

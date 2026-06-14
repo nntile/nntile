@@ -95,7 +95,9 @@ void gemm(
     const T *A,
     const T *B,
     Scalar beta,
-    T *C
+    T *C,
+    bool broadcast_a,
+    bool broadcast_b
 ) noexcept
 {
     // C-order layout matches kernel::cblas::gemm (row-major B_op @ A_op).
@@ -110,18 +112,17 @@ void gemm(
     {
         case TransOp::NoTrans:
             ld_first = M_out;
-            ld_second = N_out;
             break;
         case TransOp::Trans:
         default:
             ld_first = K_inner;
-            ld_second = N_out;
             break;
     }
+    ld_second = (transA.value == TransOp::NoTrans) ? N_out : K_inner;
     const int ldC = N_out;
-    const long long int strideA =
+    const long long int strideA = broadcast_a ? 0LL :
         static_cast<long long int>(N_out) * K_inner;
-    const long long int strideB =
+    const long long int strideB = broadcast_b ? 0LL :
         static_cast<long long int>(M_out) * K_inner;
     const long long int strideC =
         static_cast<long long int>(M_out) * N_out;

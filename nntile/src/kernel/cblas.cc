@@ -90,7 +90,9 @@ void gemm(
     const T *A,
     const T *B,
     Scalar beta,
-    T *C
+    T *C,
+    bool broadcast_a,
+    bool broadcast_b
 ) noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -104,14 +106,13 @@ void gemm(
     {
         case TransOp::NoTrans:
             ld_first = M_out;
-            ld_second = N_out;
             break;
         case TransOp::Trans:
         default:
             ld_first = K_inner;
-            ld_second = N_out;
             break;
     }
+    ld_second = (transA.value == TransOp::NoTrans) ? N_out : K_inner;
     const CBLAS_INT ldC = N_out;
     const Index first_offset = static_cast<Index>(M_out) * K_inner;
     const Index second_offset = static_cast<Index>(N_out) * K_inner;
@@ -156,8 +157,14 @@ void gemm(
                 ldC
             );
         }
-        B += first_offset;
-        A += second_offset;
+        if(!broadcast_b)
+        {
+            B += first_offset;
+        }
+        if(!broadcast_a)
+        {
+            A += second_offset;
+        }
         C += c_offset;
     }
 #endif // STARPU_SIMGRID
@@ -166,11 +173,13 @@ void gemm(
 // Explicit instantiation
 template void gemm<fp64_t>(
     TransOp transA, TransOp transB, Index m, Index n, Index k, Index batch,
-    Scalar alpha, const fp64_t *A, const fp64_t *B, Scalar beta, fp64_t *C) noexcept;
+    Scalar alpha, const fp64_t *A, const fp64_t *B, Scalar beta, fp64_t *C,
+    bool broadcast_a, bool broadcast_b) noexcept;
 
 template void gemm<fp32_t>(
     TransOp transA, TransOp transB, Index m, Index n, Index k, Index batch,
-    Scalar alpha, const fp32_t *A, const fp32_t *B, Scalar beta, fp32_t *C) noexcept;
+    Scalar alpha, const fp32_t *A, const fp32_t *B, Scalar beta, fp32_t *C,
+    bool broadcast_a, bool broadcast_b) noexcept;
 
 } // namespace nntile:kernel::cblas
 #endif // NNTILE_USE_CBLAS

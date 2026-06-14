@@ -78,7 +78,9 @@ void gemm(
     const T *A,
     const T *B,
     Scalar beta,
-    T *C
+    T *C,
+    bool broadcast_a = false,
+    bool broadcast_b = false
 ) noexcept;
 
 //! Helper to check if CBLAS supports the given type

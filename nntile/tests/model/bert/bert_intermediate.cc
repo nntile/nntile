@@ -147,7 +147,7 @@ TEST_CASE("BertIntermediate forward builds output", "[model][bert]")
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
             std::vector<Index>(
-                {fx.config.intermediate_size, fx.seq, fx.batch}));
+                {fx.batch, fx.seq, fx.config.intermediate_size}));
     REQUIRE(mlp.parameters_recursive().size() == 2);
 }
 

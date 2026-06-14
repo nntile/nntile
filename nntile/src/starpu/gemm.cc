@@ -74,7 +74,9 @@ void Gemm<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             A,
             B,
             args->beta,
-            C
+            C,
+            args->broadcast_a,
+            args->broadcast_b
         );
     }
 #endif // STARPU_SIMGRID
@@ -115,7 +117,9 @@ void Gemm<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         A,
         B,
         args->beta,
-        C
+        C,
+        args->broadcast_a,
+        args->broadcast_b
     );
 #endif // STARPU_SIMGRID
 }
@@ -146,7 +150,7 @@ uint32_t Gemm<std::tuple<T>>::footprint(struct starpu_task *task)
 template<typename T>
 void Gemm<std::tuple<T>>::submit(int starpu_worker_hint, const TransOp &transA, const TransOp &transB, Index m, Index n,
         Index k, Index batch, Scalar alpha, Handle A, Handle B, Scalar beta,
-        Handle C, int redux)
+        Handle C, int redux, bool broadcast_a, bool broadcast_b)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -214,6 +218,8 @@ void Gemm<std::tuple<T>>::submit(int starpu_worker_hint, const TransOp &transA, 
     args->batch = batch;
     args->alpha = alpha;
     args->beta = beta;
+    args->broadcast_a = broadcast_a;
+    args->broadcast_b = broadcast_b;
     // FLOPs calculation
     double nflops = 2 * m * n * k * batch;
     // Submit task

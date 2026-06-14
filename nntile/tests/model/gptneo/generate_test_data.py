@@ -162,9 +162,9 @@ def _gptneo_attn_weights(
 def _gptneo_mlp_weights(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
         f"{prefix}.fc1.weight": as_float32(
-            mlp.c_fc.weight.detach().numpy().T),
+            mlp.c_fc.weight.detach().numpy()),
         f"{prefix}.fc2.weight": as_float32(
-            mlp.c_proj.weight.detach().numpy().T),
+            mlp.c_proj.weight.detach().numpy()),
     }
 
 
