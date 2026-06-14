@@ -20,7 +20,7 @@ namespace nntile::kernel::rope
 {
 
 template<typename T>
-void cpu(Index ncols, Index nrows, const T *sin, const T *cos, const T *src,
+void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *src,
     T *dst) noexcept;
 
 } // namespace nntile::kernel::rope

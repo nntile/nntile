@@ -104,7 +104,7 @@ void validate(Index ncols, Index nrows)
 
     // Check low-level CPU kernel
     std::cout << "Run kernel::rope::cpu<" << T::short_name << ">\n";
-    cpu<T>(ncols, nrows, &sin[0], &cos[0], &src[0], &dst[0]);
+    cpu<T>(nrows, ncols, &sin[0], &cos[0], &src[0], &dst[0]);
     for(Index j = 0; j < nrows; ++j)
     {
         for(Index i = 0; i < ncols; ++i)
@@ -151,7 +151,7 @@ void validate(Index ncols, Index nrows)
     // Check low-level CUDA kernel
     dst = src;
     std::cout << "Run kernel::rope::cuda<" << T::short_name << ">\n";
-    run_cuda<T>(ncols, nrows, sin, cos, src, dst);
+    run_cuda<T>(nrows, ncols, sin, cos, src, dst);
     for(Index j = 0; j < nrows; ++j)
     {
         for(Index i = 0; i < ncols; ++i)

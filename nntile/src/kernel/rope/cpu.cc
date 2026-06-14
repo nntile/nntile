@@ -19,12 +19,15 @@ namespace nntile::kernel::rope
 {
 
 template<typename T>
-void cpu(Index ncols, Index nrows, const T *sin, const T *cos, const T *src,
+void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *src,
     T *dst) noexcept
 /*! Apply RoPE on the Fortran-order (2, m, n) view of flat tile data.
  *
- * @param[in] ncols: sin/cos tile extent (historical m)
- * @param[in] nrows: spatial tile extent (historical n)
+ * C-order callers pass (nrows, ncols); the Fortran loop uses m = ncols and
+ * n = nrows on the unchanged flat buffer.
+ *
+ * @param[in] nrows: spatial tile extent (Fortran n)
+ * @param[in] ncols: sin/cos tile extent (Fortran m)
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
  * @param[in] src: Input embedding tensor
@@ -49,19 +52,19 @@ void cpu(Index ncols, Index nrows, const T *sin, const T *cos, const T *src,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index ncols, Index nrows, const fp32_t *sin,
+void cpu<fp32_t>(Index nrows, Index ncols, const fp32_t *sin,
     const fp32_t *cos, const fp32_t *src, fp32_t *dst) noexcept;
 
 template
-void cpu<fp64_t>(Index ncols, Index nrows, const fp64_t *sin,
+void cpu<fp64_t>(Index nrows, Index ncols, const fp64_t *sin,
     const fp64_t *cos, const fp64_t *src, fp64_t *dst) noexcept;
 
 template
-void cpu<fp16_t>(Index ncols, Index nrows, const fp16_t *sin,
+void cpu<fp16_t>(Index nrows, Index ncols, const fp16_t *sin,
     const fp16_t *cos, const fp16_t *src, fp16_t *dst) noexcept;
 
 template
-void cpu<bf16_t>(Index ncols, Index nrows, const bf16_t *sin,
+void cpu<bf16_t>(Index nrows, Index ncols, const bf16_t *sin,
     const bf16_t *cos, const bf16_t *src, bf16_t *dst) noexcept;
 
 } // namespace nntile::kernel::rope

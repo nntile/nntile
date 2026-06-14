@@ -98,7 +98,7 @@ void validate(Index ncols, Index nrows)
     }
 
     std::cout << "Run kernel::rope_backward::cpu<" << T::short_name << ">\n";
-    cpu<T>(ncols, nrows, &sin[0], &cos[0], &dy[0], &dx[0]);
+    cpu<T>(nrows, ncols, &sin[0], &cos[0], &dy[0], &dx[0]);
     for(Index j = 0; j < nrows; ++j)
     {
         for(Index i = 0; i < ncols; ++i)
@@ -142,7 +142,7 @@ void validate(Index ncols, Index nrows)
 #ifdef NNTILE_USE_CUDA
     dx = dx_copy;
     std::cout << "Run kernel::rope_backward::cuda<" << T::short_name << ">\n";
-    run_cuda<T>(ncols, nrows, sin, cos, dy, dx);
+    run_cuda<T>(nrows, ncols, sin, cos, dy, dx);
     for(Index j = 0; j < nrows; ++j)
     {
         for(Index i = 0; i < ncols; ++i)
