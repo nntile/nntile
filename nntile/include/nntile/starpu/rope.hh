@@ -79,8 +79,8 @@ public:
     //! Submit rope task
     void submit(
         int starpu_worker_hint,
-        Index ncols,
         Index nrows,
+        Index ncols,
         Index sin_pair0,
         Handle sin,
         Handle cos,

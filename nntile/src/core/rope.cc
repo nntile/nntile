@@ -76,9 +76,9 @@ void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, 
         }
     }
 
-    // Fortran kernel view: sin/cos (ncols), src/dst (2, ncols, nrows).
-    const Index ncols = sin.nelems;
+    // C-order tile sizes; swap when passing into (nrows, ncols) task args.
     const Index nrows = src.matrix_shape[sin.ndim][1];
+    const Index ncols = sin.nelems;
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();
     sin.mpi_transfer(dst_rank, mpi_rank);
