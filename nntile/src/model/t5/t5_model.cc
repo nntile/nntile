@@ -14,6 +14,7 @@
  * */
 
 #include "nntile/model/t5/t5_model.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -71,9 +72,11 @@ NNGraph::TensorNode* T5Model::forward(
 
     NNGraph::TensorNode* encoder_x =
         embed_tokens_.forward(encoder_input_ids);
+    encoder_x = transpose(encoder_x, 2);
     encoder_x->set_name(tensor_name("encoder_x"));
     NNGraph::TensorNode* decoder_x =
         embed_tokens_.forward(decoder_input_ids);
+    decoder_x = transpose(decoder_x, 2);
     decoder_x->set_name(tensor_name("decoder_x"));
 
     NNGraph::TensorNode* enc_hidden = encoder_x;

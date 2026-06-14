@@ -15,8 +15,6 @@
 
 #include "nntile/model/bert/bert_self_output.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/add_fiber.hh"
-#include "nntile/nn/ops/gemm.hh"
 
 #include <stdexcept>
 
@@ -51,19 +49,15 @@ BertSelfOutput::BertSelfOutput(NNGraph* graph,
 }
 
 NNGraph::TensorNode* BertSelfOutput::forward(
-    NNGraph::TensorNode* attn_heads,
+    NNGraph::TensorNode* dense_out,
     NNGraph::TensorNode* residual)
 {
-    if(attn_heads == nullptr || residual == nullptr)
+    if(dense_out == nullptr || residual == nullptr)
     {
         throw std::invalid_argument(
-            "BertSelfOutput::forward: attn_heads and residual must be non-null");
+            "BertSelfOutput::forward: dense_out and residual must be non-null");
     }
 
-    NNGraph::TensorNode* dense_out =
-        gemm(w_dense_, attn_heads, 1.0, false, false, 2, 0);
-    const Index feature_axis = dense_out->ndim() - 1;
-    dense_out = add_fiber(1.0, b_dense_, 1.0, dense_out, feature_axis, 0);
     dense_out->set_name(tensor_name("dense_out"));
 
     NNGraph::TensorNode* summed =

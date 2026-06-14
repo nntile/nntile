@@ -67,7 +67,9 @@ BertSelfAttention::BertSelfAttention(NNGraph* graph,
 NNGraph::TensorNode* BertSelfAttention::forward(
     NNGraph::TensorNode* x,
     NNGraph::TensorNode* mask,
-    bool causal)
+    bool causal,
+    NNGraph::TensorNode* w_dense,
+    NNGraph::TensorNode* b_dense)
 {
     throw_if_causal_flag_set(causal, "BertSelfAttention");
 
@@ -103,8 +105,18 @@ NNGraph::TensorNode* BertSelfAttention::forward(
     attn_out->set_name(tensor_name("sdpa_out"));
 
     NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
-    attn_t->set_name(tensor_name("attn_heads"));
-    return attn_t;
+    attn_t->set_name(tensor_name("attn_t"));
+
+    if(w_dense == nullptr || b_dense == nullptr)
+    {
+        return attn_t;
+    }
+
+    NNGraph::TensorNode* out =
+        gemm(w_dense, attn_t, 1.0, false, false, 2, 0);
+    out = add_fiber(1.0, b_dense, 1.0, out, out->ndim() - 1, 0);
+    out->set_name(tensor_name("dense_out"));
+    return out;
 }
 
 std::string BertSelfAttention::repr() const
