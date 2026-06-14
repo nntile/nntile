@@ -27,6 +27,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
 #include <nntile/nn/graph_decl.hh>
+#include <nntile/nn/shape_layout.hh>
 #include <nntile/tensor/graph.hh>
 #include <stdexcept>
 
@@ -42,6 +43,7 @@ class NNGraph::TensorNode
   private:
     NNGraph *graph_ = nullptr;
     TensorGraph::TensorNode *data_ = nullptr;
+    std::vector<Index> c_shape_;
     TensorNode *grad_ = nullptr;
     bool requires_grad_ = true;
     OpNode *producer_ = nullptr;
@@ -51,8 +53,8 @@ class NNGraph::TensorNode
         TensorGraph::TensorNode *data,
         bool requires_grad = true);
 
-    // Shape/dtype/name delegate to underlying data node
-    const std::vector<Index> &shape() const { return data_->shape(); }
+    //! Virtual C-order shape (physical storage on data_ stays Fortran).
+    const std::vector<Index> &shape() const { return c_shape_; }
     Index ndim() const { return static_cast<Index>(data_->shape().size()); }
     DataType dtype() const { return data_->dtype(); }
     const std::string &name() const { return data_->name(); }

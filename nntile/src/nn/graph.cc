@@ -18,6 +18,7 @@
 #include "nntile/module/module.hh"
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/graph_op_node.hh"
+#include "nntile/nn/shape_layout.hh"
 #include "nntile/tile/append_tensor_graph_phase.hh"
 
 #include <algorithm>
@@ -243,9 +244,11 @@ void NNGraph::reset_phase_seal_cursor()
 NNGraph::TensorNode *NNGraph::tensor(
     std::vector<Index> shape, DataType dtype, bool requires_grad)
 {
+    std::vector<Index> f_shape = nn::c_shape_to_fortran(shape);
     TensorGraph::TensorNode *data =
-        tensor_graph_.data(std::move(shape), dtype);
+        tensor_graph_.data(std::move(f_shape), dtype);
     auto node = std::make_unique<TensorNode>(this, data, requires_grad);
+    node->c_shape_ = std::move(shape);
     TensorNode *node_ptr = node.get();
 
     tensors_.push_back(std::move(node));
@@ -442,7 +445,7 @@ std::pair<NNGraph::TensorNode *, bool> NNGraph::get_or_create_grad(
     }
 
     TensorGraph::TensorNode *grad_data =
-        tensor_graph_.data(tensor->shape(), tensor->dtype());
+        tensor_graph_.data(tensor->data()->shape(), tensor->dtype());
     grad_data->set_name(grad_name);
     // Grad axes must match the tensor's axes (same tiling, same dimension
     // groups)
