@@ -14,6 +14,7 @@
  * */
 
 #include "nntile/model/gptneox/gptneox_model.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -59,6 +60,7 @@ NNGraph::TensorNode* GptneoxModel::forward(
     }
 
     NNGraph::TensorNode* x = embed_tokens_.forward(input_ids);
+    x = transpose(x, 2);
     x->set_name(tensor_name("embed_out"));
 
     for(auto& layer : layers_)

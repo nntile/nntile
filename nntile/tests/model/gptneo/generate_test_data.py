@@ -235,17 +235,21 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
-    kk = np.arange(seq, dtype=np.int64)[:, None]
-    qq = np.arange(seq, dtype=np.int64)[None, :]
-    allowed = (kk <= qq).astype(np.float32)
-    return as_float32(allowed)
+    allowed = np.zeros((seq, seq), dtype=np.float32)
+    for k in range(seq):
+        for q in range(seq):
+            if k <= q:
+                allowed[k, q] = 1.0
+    return as_float32(allowed.T)
 
 
 def _sdpa_gptneo_local_mask(seq: int, window: int) -> np.ndarray:
-    kk = np.arange(seq, dtype=np.int64)[:, None]
-    qq = np.arange(seq, dtype=np.int64)[None, :]
-    allowed = ((kk <= qq) & (qq - kk < window)).astype(np.float32)
-    return as_float32(allowed)
+    allowed = np.zeros((seq, seq), dtype=np.float32)
+    for k in range(seq):
+        for q in range(seq):
+            if k <= q and (q - k) < window:
+                allowed[k, q] = 1.0
+    return as_float32(allowed.T)
 
 
 def _local_additive_mask_torch(

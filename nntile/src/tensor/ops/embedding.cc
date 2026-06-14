@@ -76,9 +76,7 @@ TensorGraph::TensorNode *embedding(
             "embedding: tensors must belong to same graph");
     if (index->dtype() != DataType::INT64)
         throw std::invalid_argument("embedding: index must have INT64 dtype");
-    // Output shape: index.shape + (vocab.shape[0],) at axis
-    // NNTile layout: vocab [embed_dim, num_embeddings]; embed.shape[axis] ==
-    // vocab.shape[0]
+    // Physical Fortran shape: index.shape + embed_dim (vocab axis 0).
     std::vector<Index> embed_shape = index->shape();
     if (vocab->ndim() != 2)
         throw std::invalid_argument("embedding: vocab must be 2D");

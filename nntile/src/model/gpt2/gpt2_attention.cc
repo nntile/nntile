@@ -115,7 +115,7 @@ NNGraph::TensorNode* Gpt2Attention::forward(
 
     NNGraph::TensorNode* out =
         gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
-    out = add_fiber(1.0, o_bias_, 1.0, out, 2, 0);
+    out = add_fiber(1.0, o_bias_, 1.0, out, out->ndim() - 1, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }

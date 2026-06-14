@@ -20,7 +20,6 @@
 #include "nntile/nn/ops/rope.hh"
 #include "nntile/nn/ops/scale_slice.hh"
 #include "nntile/nn/ops/sdpa_eager.hh"
-#include "nntile/nn/ops/transpose.hh"
 #include "nntile/tensor/ops/copy_intersection.hh"
 
 #include <cmath>
@@ -98,22 +97,16 @@ NNGraph::TensorNode *LlamaAttention::forward(
     Index n_batch = x_shape[0];
     Index n_seq = x_shape[1];
 
-    NNGraph::TensorNode *q_proj =
-        gemm(w_q_, x, 1.0, false, false, 1, 0);
-    q_proj->set_name(tensor_name("q_proj"));
-    NNGraph::TensorNode *q = transpose(q_proj, 1);
+    NNGraph::TensorNode *q =
+        gemm(x, w_q_, 1.0, false, false, 1, 0);
     q->set_name(tensor_name("q"));
 
-    NNGraph::TensorNode *k_proj =
-        gemm(w_k_, x, 1.0, false, false, 1, 0);
-    k_proj->set_name(tensor_name("k_proj"));
-    NNGraph::TensorNode *k = transpose(k_proj, 1);
+    NNGraph::TensorNode *k =
+        gemm(x, w_k_, 1.0, false, false, 1, 0);
     k->set_name(tensor_name("k"));
 
-    NNGraph::TensorNode *v_proj =
-        gemm(w_v_, x, 1.0, false, false, 1, 0);
-    v_proj->set_name(tensor_name("v_proj"));
-    NNGraph::TensorNode *v = transpose(v_proj, 1);
+    NNGraph::TensorNode *v =
+        gemm(x, w_v_, 1.0, false, false, 1, 0);
     v->set_name(tensor_name("v"));
 
     NNGraph::TensorNode *q_rope = q;
@@ -133,10 +126,10 @@ NNGraph::TensorNode *LlamaAttention::forward(
         if (cache_len > 0)
         {
             NNGraph::TensorNode *k_cache_slice = graph_->tensor(
-                {n_head_kv_, n_batch, cache_len, head_size_}, dtype_, false);
+                {n_batch, cache_len, head_size_, n_head_kv_}, dtype_, false);
             k_cache_slice->set_name(tensor_name("k_cache_slice"));
             NNGraph::TensorNode *v_cache_slice = graph_->tensor(
-                {n_head_kv_, n_batch, cache_len, head_size_}, dtype_, false);
+                {n_batch, cache_len, head_size_, n_head_kv_}, dtype_, false);
             v_cache_slice->set_name(tensor_name("v_cache_slice"));
             tensor::copy_intersection(k_cache->data(),
                 {0, 0, 0, 0},
@@ -146,27 +139,27 @@ NNGraph::TensorNode *LlamaAttention::forward(
                 {0, 0, 0, 0},
                 v_cache_slice->data(),
                 {0, 0, 0, 0});
-            k_for_sdpa = concat(k_cache_slice, k_rope, 2);
+            k_for_sdpa = concat(k_cache_slice, k_rope, 1);
             k_for_sdpa->set_name(tensor_name("k_full"));
-            v_for_sdpa = concat(v_cache_slice, v, 2);
+            v_for_sdpa = concat(v_cache_slice, v, 1);
             v_for_sdpa->set_name(tensor_name("v_full"));
         }
         tensor::copy_intersection(k_rope->data(),
             {0, 0, 0, 0},
             k_cache->data(),
-            {0, 0, cache_len, 0});
+            {0, cache_len, 0, 0});
         tensor::copy_intersection(
-            v->data(), {0, 0, 0, 0}, v_cache->data(), {0, 0, cache_len, 0});
+            v->data(), {0, 0, 0, 0}, v_cache->data(), {0, cache_len, 0, 0});
     }
 
     NNGraph::TensorNode *k_rep = k_for_sdpa;
     NNGraph::TensorNode *v_rep = v_for_sdpa;
     if (use_gqa_)
     {
-        k_rep = scale_slice(1.0, k_for_sdpa, 1, kv_group_size_);
+        k_rep = scale_slice(1.0, k_for_sdpa, 3, kv_group_size_);
         k_rep->set_name(tensor_name("k_rep"));
 
-        v_rep = scale_slice(1.0, v_for_sdpa, 1, kv_group_size_);
+        v_rep = scale_slice(1.0, v_for_sdpa, 3, kv_group_size_);
         v_rep->set_name(tensor_name("v_rep"));
     }
 
@@ -176,12 +169,8 @@ NNGraph::TensorNode *LlamaAttention::forward(
     attn_out->set_name(tensor_name("sdpa_out"));
 
     Index out_ndim = use_gqa_ ? 3 : 2;
-    NNGraph::TensorNode *attn_t = use_gqa_
-        ? transpose(attn_out, 3)
-        : transpose(attn_out, 3);
-    attn_t->set_name(tensor_name("attn_t"));
     NNGraph::TensorNode *out =
-        gemm(w_o_, attn_t, 1.0, false, false, out_ndim, 0);
+        gemm(attn_out, w_o_, 1.0, false, false, out_ndim, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }

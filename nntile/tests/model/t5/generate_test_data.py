@@ -293,14 +293,17 @@ def _hf_causal_attention_mask_4d(
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
-    kk = np.arange(seq, dtype=np.int64)[:, None]
-    qq = np.arange(seq, dtype=np.int64)[None, :]
-    return as_float32((kk <= qq).astype(np.float32))
+    allowed = np.zeros((seq, seq), dtype=np.float32)
+    for k in range(seq):
+        for q in range(seq):
+            if k <= q:
+                allowed[k, q] = 1.0
+    return as_float32(allowed.T)
 
 
 def _cross_attn_mask(enc_seq: int, dec_seq: int) -> np.ndarray:
-    """``(k_seq, q_seq)`` = ``(enc_seq, dec_seq)`` for graph ``sdpa_eager``."""
-    return as_float32(np.ones((enc_seq, dec_seq), dtype=np.float32))
+    """``(q_seq, k_seq)`` = ``(dec_seq, enc_seq)`` for graph ``sdpa_eager``."""
+    return as_float32(np.ones((dec_seq, enc_seq), dtype=np.float32))
 
 
 def _run_fwd_bwd(

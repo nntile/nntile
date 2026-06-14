@@ -15,6 +15,7 @@
 
 #include "nntile/model/gpt2/gpt2_model.hh"
 #include "nntile/nn/ops/add.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -72,6 +73,8 @@ NNGraph::TensorNode* Gpt2Model::forward(
     NNGraph::TensorNode* wpe_out = wpe_.forward(position_ids);
     NNGraph::TensorNode* x =
         add(1.0, wte_out, 1.0, wpe_out);
+    // Embedding C-order [hidden, batch, seq] -> [batch, seq, hidden].
+    x = transpose(x, 2);
 
     for(auto& layer : layers_)
     {

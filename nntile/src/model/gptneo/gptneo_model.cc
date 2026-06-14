@@ -15,6 +15,7 @@
 
 #include "nntile/model/gptneo/gptneo_model.hh"
 #include "nntile/nn/ops/add.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -73,6 +74,7 @@ NNGraph::TensorNode* GptneoModel::forward(
     NNGraph::TensorNode* pos_embed = wpe_.forward(position_ids);
     NNGraph::TensorNode* x =
         add(1.0, token_embed, 1.0, pos_embed);
+    x = transpose(x, 2);
     x->set_name(tensor_name("embed_out"));
 
     for(Index i = 0; i < config_.num_hidden_layers; ++i)

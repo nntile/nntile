@@ -122,7 +122,7 @@ TEST_CASE("RobertaMlm forward builds logits", "[model][roberta]")
     auto *output = model.forward(input_ids, position_ids, nullptr);
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.seq, fx.config.vocab_size}));
 }
 
 TEST_CASE("RobertaMlm load from safetensors roundtrip", "[model][roberta][io]")

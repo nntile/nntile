@@ -17,7 +17,6 @@
 #include "nntile/nn/ops/gemm.hh"
 #include "nntile/nn/ops/rope.hh"
 #include "nntile/nn/ops/sdpa_eager.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -66,22 +65,16 @@ NNGraph::TensorNode* GptneoxAttention::forward(
             "GptneoxAttention::forward: input tensor must be non-null");
     }
 
-    NNGraph::TensorNode* q_proj =
-        gemm(w_q_, x, 1.0, false, false, 1, 0);
-    q_proj->set_name(tensor_name("q_proj"));
-    NNGraph::TensorNode* q = transpose(q_proj, 1);
+    NNGraph::TensorNode* q =
+        gemm(x, w_q_, 1.0, false, false, 1, 0);
     q->set_name(tensor_name("q"));
 
-    NNGraph::TensorNode* k_proj =
-        gemm(w_k_, x, 1.0, false, false, 1, 0);
-    k_proj->set_name(tensor_name("k_proj"));
-    NNGraph::TensorNode* k = transpose(k_proj, 1);
+    NNGraph::TensorNode* k =
+        gemm(x, w_k_, 1.0, false, false, 1, 0);
     k->set_name(tensor_name("k"));
 
-    NNGraph::TensorNode* v_proj =
-        gemm(w_v_, x, 1.0, false, false, 1, 0);
-    v_proj->set_name(tensor_name("v_proj"));
-    NNGraph::TensorNode* v = transpose(v_proj, 1);
+    NNGraph::TensorNode* v =
+        gemm(x, w_v_, 1.0, false, false, 1, 0);
     v->set_name(tensor_name("v"));
 
     NNGraph::TensorNode* q_rope = q;
@@ -98,11 +91,8 @@ NNGraph::TensorNode* GptneoxAttention::forward(
         sdpa_eager(q_rope, k_rope, v, mask, 2, 0);
     attn_out->set_name(tensor_name("sdpa_out"));
 
-    NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
-    attn_t->set_name(tensor_name("attn_t"));
-
     NNGraph::TensorNode* out =
-        gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
+        gemm(attn_out, w_o_, 1.0, false, false, 2, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }

@@ -229,7 +229,7 @@ TEST_CASE("LlamaCausal forward builds output", "[model][llama]")
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.seq, fx.config.vocab_size}));
 }
 
 TEST_CASE("LlamaCausal GQA forward builds output", "[model][llama][gqa]")
@@ -247,7 +247,7 @@ TEST_CASE("LlamaCausal GQA forward builds output", "[model][llama][gqa]")
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.seq, fx.config.vocab_size}));
 }
 
 TEST_CASE("LlamaCausal load from safetensors roundtrip", "[model][llama][io]")

@@ -62,7 +62,8 @@ NNGraph::TensorNode* BertSelfOutput::forward(
 
     NNGraph::TensorNode* dense_out =
         gemm(w_dense_, attn_heads, 1.0, false, false, 2, 0);
-    dense_out = add_fiber(1.0, b_dense_, 1.0, dense_out, 2, 0);
+    const Index feature_axis = dense_out->ndim() - 1;
+    dense_out = add_fiber(1.0, b_dense_, 1.0, dense_out, feature_axis, 0);
     dense_out->set_name(tensor_name("dense_out"));
 
     NNGraph::TensorNode* summed =

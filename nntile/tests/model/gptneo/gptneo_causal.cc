@@ -229,7 +229,7 @@ TEST_CASE("GptneoCausal forward builds output", "[model][gptneo]")
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.seq, fx.config.vocab_size}));
 }
 
 TEST_CASE("GptneoCausal load from safetensors roundtrip", "[model][gptneo][io]")
