@@ -93,11 +93,11 @@ NNGraph::TensorNode* GptneoAttention::forward(
         sdpa_eager(q, k, v, mask, 2, 0);
     attn_out->set_name(tensor_name("sdpa_out"));
 
-    NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
+    NNGraph::TensorNode* attn_t = transpose(attn_out, 1);
     attn_t->set_name(tensor_name("attn_t"));
 
     NNGraph::TensorNode* out =
-        gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
+        gemm(w_o_, attn_t, 1.0, false, true, 2, 0);
     const Index feature_axis = out->ndim() - 1;
     out = add_fiber(1.0, out_bias_, 1.0, out, feature_axis, 0);
     out->set_name(tensor_name("out_proj"));

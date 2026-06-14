@@ -98,11 +98,11 @@ NNGraph::TensorNode* GptneoxAttention::forward(
         sdpa_eager(q_rope, k_rope, v, mask, 2, 0);
     attn_out->set_name(tensor_name("sdpa_out"));
 
-    NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
+    NNGraph::TensorNode* attn_t = transpose(attn_out, 1);
     attn_t->set_name(tensor_name("attn_t"));
 
     NNGraph::TensorNode* out =
-        gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
+        gemm(w_o_, attn_t, 1.0, false, true, 2, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }
