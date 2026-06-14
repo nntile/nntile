@@ -45,8 +45,9 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
 {
     using Y = typename T::repr_t;
     const Index mk = m * k;
-    Index dst_offset = 0;
+    const Index mn = m * n;
     constexpr Y zero{0.0}, one{1.0};
+    Index spatial = 0;
     // Cycle over row of output buffer
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -90,37 +91,39 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
             // Save result, do nothing if all elements are masked out
             if(not std::isinf(max))
             {
-                Y sum_old = static_cast<Y>(maxsumexp[dst_offset+1]);
+                const Index max_idx = spatial;
+                const Index sum_idx = mn + spatial;
+                Y sum_old = static_cast<Y>(maxsumexp[sum_idx]);
                 // If old sum is zero then just overwrite it with current sum
                 if(sum_old == zero)
                 {
-                    maxsumexp[dst_offset] = static_cast<T>(max);
-                    maxsumexp[dst_offset+1] = static_cast<T>(sum);
+                    maxsumexp[max_idx] = static_cast<T>(max);
+                    maxsumexp[sum_idx] = static_cast<T>(sum);
                 }
                 // Update non-zero initial sum
                 else
                 {
-                    Y max_old = static_cast<Y>(maxsumexp[dst_offset]);
+                    Y max_old = static_cast<Y>(maxsumexp[max_idx]);
                     if(max_old < max)
                     {
-                        maxsumexp[dst_offset] = static_cast<T>(max);
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum_old*std::exp(max_old-max)
+                        maxsumexp[max_idx] = static_cast<T>(max);
+                        maxsumexp[sum_idx] = static_cast<T>(sum_old*std::exp(max_old-max)
                             + sum);
                         y = sum_old*std::exp(max_old-max) - c;
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum + y);
+                        maxsumexp[sum_idx] = static_cast<T>(sum + y);
                     }
                     else
                     {
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum*std::exp(max-max_old)
+                        maxsumexp[sum_idx] = static_cast<T>(sum*std::exp(max-max_old)
                             + sum_old);
                         Y tmp = std::exp(max-max_old);
                         y = sum_old - c*tmp;
                         sum *= tmp;
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum + y);
+                        maxsumexp[sum_idx] = static_cast<T>(sum + y);
                     }
                 }
             }
-            dst_offset += 2;
+            ++spatial;
         }
     }
 }

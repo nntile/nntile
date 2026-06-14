@@ -72,10 +72,10 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        const ref_t src_max = static_cast<Y>(data.src_init[2*i]);
-        const ref_t src_sumexp = static_cast<Y>(data.src_init[2*i+1]);
-        const ref_t dst_max = static_cast<Y>(data.dst_ref[2*i]);
-        const ref_t dst_sumexp = static_cast<Y>(data.dst_ref[2*i+1]);
+        const ref_t src_max = static_cast<Y>(data.src_init[i]);
+        const ref_t src_sumexp = static_cast<Y>(data.src_init[data.nelems + i]);
+        const ref_t dst_max = static_cast<Y>(data.dst_ref[i]);
+        const ref_t dst_sumexp = static_cast<Y>(data.dst_ref[data.nelems + i]);
 
         // Do nothing if sum of exponents of source is zero
         if(src_sumexp != 0.0)
@@ -83,22 +83,22 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
             // Overwrite if old value of sum is zero
             if(dst_sumexp == 0.0)
             {
-                data.dst_ref[2*i] = data.src_init[2*i];
-                data.dst_ref[2*i+1] = data.src_init[2*i+1];
+                data.dst_ref[i] = data.src_init[i];
+                data.dst_ref[data.nelems + i] = data.src_init[data.nelems + i];
             }
             // Otherwise update based on maximum
             else if(dst_max < src_max)
             {
                 const ref_t diff = dst_max - src_max;
                 ref_t new_sumexp = src_sumexp + dst_sumexp * std::exp(diff);
-                data.dst_ref[2*i+1] = static_cast<Y>(new_sumexp);
-                data.dst_ref[2*i] = data.src_init[2*i];
+                data.dst_ref[data.nelems + i] = static_cast<Y>(new_sumexp);
+                data.dst_ref[i] = data.src_init[i];
             }
             else
             {
                 const ref_t diff = src_max - dst_max;
                 ref_t new_sumexp = dst_sumexp + src_sumexp * std::exp(diff);
-                data.dst_ref[2*i+1] = static_cast<Y>(new_sumexp);
+                data.dst_ref[data.nelems + i] = static_cast<Y>(new_sumexp);
             }
         }
     }
@@ -130,15 +130,15 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
             {
                 // Set src values - mix of positive and negative values
                 const Y src_max = -2.0 + i * 0.5;
-                data.src_init[2*i] = src_max;
+                data.src_init[i] = src_max;
                 const Y src_sumexp = 0.1 + i * 0.1;
-                data.src_init[2*i+1] = src_sumexp;
+                data.src_init[nelems + i] = src_sumexp;
 
                 // Set initial dst values
                 const Y dst_max = -1.0 + i * 0.3;
-                data.dst_init[2*i] = dst_max;
+                data.dst_init[i] = dst_max;
                 const Y dst_sumexp = 0.05 + i * 0.05;
-                data.dst_init[2*i+1] = dst_sumexp;
+                data.dst_init[nelems + i] = dst_sumexp;
             }
             break;
         // Specific random initialization
@@ -148,10 +148,10 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
             std::uniform_real_distribution<Y> dist_sumexp(0.01, 2.0);
             for(Index i = 0; i < nelems; ++i)
             {
-                data.src_init[2*i] = dist_max(gen);
-                data.src_init[2*i+1] = dist_sumexp(gen);
-                data.dst_init[2*i] = dist_max(gen);
-                data.dst_init[2*i+1] = dist_sumexp(gen);
+                data.src_init[i] = dist_max(gen);
+                data.src_init[nelems + i] = dist_sumexp(gen);
+                data.dst_init[i] = dist_max(gen);
+                data.dst_init[nelems + i] = dist_sumexp(gen);
             }
             break;
     }
@@ -209,12 +209,12 @@ void verify_results(
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        Y dst_max_ref = static_cast<Y>(data.dst_ref[2*i]);
-        Y dst_sumexp_ref = static_cast<Y>(data.dst_ref[2*i+1]);
+        Y dst_max_ref = static_cast<Y>(data.dst_ref[i]);
+        Y dst_sumexp_ref = static_cast<Y>(data.dst_ref[data.nelems + i]);
 
-        REQUIRE(static_cast<Y>(dst[2*i]) == dst_max_ref);
+        REQUIRE(static_cast<Y>(dst[i]) == dst_max_ref);
         REQUIRE_THAT(
-            static_cast<Y>(dst[2*i+1]),
+            static_cast<Y>(dst[data.nelems + i]),
             WithinRel(dst_sumexp_ref, data.eps_check)
         );
     }

@@ -27,8 +27,8 @@ void cuda_kernel(Index nelems, const T * __restrict__ maxsumexp,
     using Y = typename T::repr_t;
     if(i < nelems)
     {
-        Y maxsumexp_even = Y{maxsumexp[2*i]};
-        Y maxsumexp_odd = Y{maxsumexp[2*i+1]};
+        Y maxsumexp_even = Y{maxsumexp[i]};
+        Y maxsumexp_odd = Y{maxsumexp[nelems + i]};
         logsumexp[i] = maxsumexp_even + ::log(maxsumexp_odd);
     }
 }

@@ -71,7 +71,8 @@ void reference_maxsumexp(TestData<T>& data)
     }
 
     const Index mk = data.m * data.k;
-    const Index dst_size = 2 * data.m * data.n;
+    const Index mn = data.m * data.n;
+    const Index dst_size = 2 * mn;
 
     // Initialize reference output with initial maxsumexp values
     for(Index i = 0; i < dst_size; ++i)
@@ -79,7 +80,7 @@ void reference_maxsumexp(TestData<T>& data)
         data.maxsumexp_ref[i] = data.maxsumexp_init[i];
     }
 
-    Index dst_offset = 0;
+    Index spatial = 0;
     // Cycle over n (last mode)
     for(Index i2 = 0; i2 < data.n; ++i2)
     {
@@ -120,29 +121,31 @@ void reference_maxsumexp(TestData<T>& data)
             // Update result if we have finite values
             if(has_finite_values)
             {
-                ref_t sum_old = static_cast<Y>(data.maxsumexp_ref[dst_offset+1]);
+                const Index max_idx = spatial;
+                const Index sum_idx = mn + spatial;
+                ref_t sum_old = static_cast<Y>(data.maxsumexp_ref[sum_idx]);
                 // If old sum is zero then just overwrite it with current sum
                 if(sum_old == 0.0)
                 {
-                    data.maxsumexp_ref[dst_offset] = static_cast<Y>(max_val);
-                    data.maxsumexp_ref[dst_offset+1] = static_cast<Y>(sum_exp);
+                    data.maxsumexp_ref[max_idx] = static_cast<Y>(max_val);
+                    data.maxsumexp_ref[sum_idx] = static_cast<Y>(sum_exp);
                 }
                 // Update non-zero initial sum
                 else
                 {
-                    ref_t max_old = static_cast<Y>(data.maxsumexp_ref[dst_offset]);
+                    ref_t max_old = static_cast<Y>(data.maxsumexp_ref[max_idx]);
                     if(max_old < max_val)
                     {
-                        data.maxsumexp_ref[dst_offset] = static_cast<Y>(max_val);
-                        data.maxsumexp_ref[dst_offset+1] = static_cast<Y>(sum_old * std::exp(max_old - max_val) + sum_exp);
+                        data.maxsumexp_ref[max_idx] = static_cast<Y>(max_val);
+                        data.maxsumexp_ref[sum_idx] = static_cast<Y>(sum_old * std::exp(max_old - max_val) + sum_exp);
                     }
                     else
                     {
-                        data.maxsumexp_ref[dst_offset+1] = static_cast<Y>(sum_exp * std::exp(max_val - max_old) + sum_old);
+                        data.maxsumexp_ref[sum_idx] = static_cast<Y>(sum_exp * std::exp(max_val - max_old) + sum_old);
                     }
                 }
             }
-            dst_offset += 2;
+            ++spatial;
         }
     }
 }

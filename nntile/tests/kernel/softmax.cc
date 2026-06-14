@@ -55,7 +55,7 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> maxsumexp; // Size: 2*m*n (interleaved max and sumexp)
+    std::vector<T> maxsumexp; // Size: 2*m*n (C-order [2, m, n])
     std::vector<T> src;       // Size: m*n*k
     std::vector<T> dst_init;  // Size: m*n*k
     std::vector<T> dst_ref;   // Size: m*n*k
@@ -67,6 +67,7 @@ void reference_softmax(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     const ref_t alpha = data.alpha;
+    const Index mn = data.m * data.n;
     Index src_dst_offset = 0;
 
     // Outer loop by the last mode
@@ -75,15 +76,15 @@ void reference_softmax(TestData<T>& data)
         // Middle loop by the middle mode
         for(Index i1 = 0; i1 < data.k; ++i1)
         {
-            Index maxsumexp_offset = 2 * data.m * i2;
             // Inner loop by the first mode
             for(Index i0 = 0; i0 < data.m; ++i0)
             {
+                const Index spatial = i0 + data.m * i2;
                 // Value-to-update
                 ref_t val = static_cast<Y>(data.src[src_dst_offset]);
                 // Max and sum of exponents
-                const ref_t max = static_cast<Y>(data.maxsumexp[maxsumexp_offset]);
-                const ref_t sum = static_cast<Y>(data.maxsumexp[maxsumexp_offset+1]);
+                const ref_t max = static_cast<Y>(data.maxsumexp[spatial]);
+                const ref_t sum = static_cast<Y>(data.maxsumexp[mn + spatial]);
                 // Update value
                 ref_t result = 0.0;
                 if(not std::isinf(val))
@@ -93,7 +94,6 @@ void reference_softmax(TestData<T>& data)
                 data.dst_ref[src_dst_offset] = static_cast<T>(static_cast<Y>(result));
                 // Update pointers
                 ++src_dst_offset;
-                maxsumexp_offset += 2;
             }
         }
     }
@@ -124,10 +124,10 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, DataGen strateg
     {
         // Non-random input generation
         case DataGen::PRESET:
-            for(Index i = 0; i < 2 * m * n; i += 2)
+            for(Index i = 0; i < m * n; ++i)
             {
                 data.maxsumexp[i] = Y(1.0);     // max value
-                data.maxsumexp[i+1] = Y(10.0);  // sum of exponents
+                data.maxsumexp[m * n + i] = Y(10.0);  // sum of exponents
             }
             for(Index i = 0; i < m * n * k; ++i)
             {
@@ -146,10 +146,10 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, DataGen strateg
             std::uniform_real_distribution<Y> dist_max(-1.0, 1.0);
             std::uniform_real_distribution<Y> dist_sum(5.0, 15.0);
             std::uniform_real_distribution<Y> dist_src(-2.0, 2.0);
-            for(Index i = 0; i < 2 * m * n; i += 2)
+            for(Index i = 0; i < m * n; ++i)
             {
                 data.maxsumexp[i] = dist_max(gen);     // max value
-                data.maxsumexp[i+1] = dist_sum(gen);   // sum of exponents
+                data.maxsumexp[m * n + i] = dist_sum(gen);   // sum of exponents
             }
             for(Index i = 0; i < m * n * k; ++i)
             {
