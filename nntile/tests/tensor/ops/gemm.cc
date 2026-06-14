@@ -179,3 +179,248 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(std::abs(untiled_result[i] - tiled_result[i]) < tol);
     }
 }
+
+namespace
+{
+
+std::vector<float> ref_gemm_false_true_ndim1(const std::vector<float> &a,
+    const std::vector<Index> &a_shape,
+    const std::vector<float> &b,
+    const std::vector<Index> &b_shape)
+{
+    const Index a0 = a_shape[0];
+    const Index a1 = a_shape[1];
+    const Index a2 = a_shape[2];
+    const Index b0 = b_shape[0];
+    const Index b1 = b_shape[1];
+    const Index b2 = b_shape[2];
+    std::vector<float> out(static_cast<size_t>(b0 * b1 * a1 * a2), 0.f);
+    for (Index bi = 0; bi < b0; ++bi)
+    {
+        for (Index bj = 0; bj < b1; ++bj)
+        {
+            for (Index ai = 0; ai < a1; ++ai)
+            {
+                for (Index aj = 0; aj < a2; ++aj)
+                {
+                    float sum = 0.f;
+                    for (Index k = 0; k < a0; ++k)
+                    {
+                        const float av = a[static_cast<size_t>(
+                            (k * a1 + ai) * a2 + aj)];
+                        const float bv = b[static_cast<size_t>(
+                            (bi * b1 + bj) * b2 + k)];
+                        sum += av * bv;
+                    }
+                    out[static_cast<size_t>(
+                        ((bi * b1 + bj) * a1 + ai) * a2 + aj)] = sum;
+                }
+            }
+        }
+    }
+    return out;
+}
+
+std::vector<float> ref_gemm_true_true_ndim1(const std::vector<float> &a,
+    const std::vector<Index> &a_shape,
+    const std::vector<float> &b,
+    const std::vector<Index> &b_shape)
+{
+    const Index a0 = a_shape[0];
+    const Index a1 = a_shape[1];
+    const Index b0 = b_shape[0];
+    const Index b1 = b_shape[1];
+    std::vector<float> out(static_cast<size_t>(b0 * a0), 0.f);
+    for (Index bi = 0; bi < b0; ++bi)
+    {
+        for (Index ao = 0; ao < a0; ++ao)
+        {
+            float sum = 0.f;
+            for (Index k = 0; k < a1; ++k)
+            {
+                sum += a[static_cast<size_t>(ao * a1 + k)] *
+                       b[static_cast<size_t>(bi * b1 + k)];
+            }
+            out[static_cast<size_t>(bi * a0 + ao)] = sum;
+        }
+    }
+    return out;
+}
+
+std::vector<float> ref_gemm_false_true_ndim2(const std::vector<float> &a,
+    const std::vector<Index> &a_shape,
+    const std::vector<float> &b,
+    const std::vector<Index> &b_shape)
+{
+    const Index a0 = a_shape[0];
+    const Index a1 = a_shape[1];
+    const Index a2 = a_shape[2];
+    const Index b0 = b_shape[0];
+    const Index b1 = b_shape[1];
+    const Index b2 = b_shape[2];
+    const Index b3 = b_shape[3];
+    std::vector<float> out(static_cast<size_t>(b0 * b1 * a2), 0.f);
+    for (Index bi = 0; bi < b0; ++bi)
+    {
+        for (Index bj = 0; bj < b1; ++bj)
+        {
+            for (Index ao = 0; ao < a2; ++ao)
+            {
+                float sum = 0.f;
+                for (Index ak = 0; ak < a0; ++ak)
+                {
+                    for (Index al = 0; al < a1; ++al)
+                    {
+                        const float av = a[static_cast<size_t>(
+                            (ak * a1 + al) * a2 + ao)];
+                        const float bv = b[static_cast<size_t>(
+                            (((bi * b1 + bj) * b2 + ak) * b3 + al))];
+                        sum += av * bv;
+                    }
+                }
+                out[static_cast<size_t>((bi * b1 + bj) * a2 + ao)] = sum;
+            }
+        }
+    }
+    return out;
+}
+
+float frob_rel(const std::vector<float> &x, const std::vector<float> &y)
+{
+    double sq_diff = 0.0;
+    double sq_x = 0.0;
+    double sq_y = 0.0;
+    for (size_t i = 0; i < x.size(); ++i)
+    {
+        const double d = static_cast<double>(x[i]) - static_cast<double>(y[i]);
+        sq_diff += d * d;
+        sq_x += static_cast<double>(x[i]) * static_cast<double>(x[i]);
+        sq_y += static_cast<double>(y[i]) * static_cast<double>(y[i]);
+    }
+    const double scale =
+        std::max(std::sqrt(sq_x), std::max(std::sqrt(sq_y), 1e-7));
+    return static_cast<float>(std::sqrt(sq_diff) / scale);
+}
+
+} // namespace
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph gemm linear pattern matches reference",
+    "[graph][tensor]")
+{
+    constexpr Index batch = 2;
+    constexpr Index in_dim = 3;
+    constexpr Index out_dim = 4;
+
+    std::vector<Index> w_shape = {out_dim, in_dim};
+    std::vector<Index> x_shape = {batch, in_dim};
+    std::vector<float> w_data(out_dim * in_dim);
+    std::vector<float> x_data(batch * in_dim);
+    for (size_t i = 0; i < w_data.size(); ++i)
+        w_data[i] = 0.1f * static_cast<float>(i + 1);
+    for (size_t i = 0; i < x_data.size(); ++i)
+        x_data[i] = 0.15f * static_cast<float>(i + 2);
+
+    const std::vector<float> ref =
+        ref_gemm_true_true_ndim1(w_data, w_shape, x_data, x_shape);
+
+    TensorGraph graph("gemm_linear");
+    auto *w = graph.data(w_shape, DataType::FP32)->set_name("w");
+    auto *x = graph.data(x_shape, DataType::FP32)->set_name("x");
+    auto *y = gt::gemm(w, x, alpha_one, true, true, ndim, batch_ndim);
+    w->mark_input(true);
+    x->mark_input(true);
+    y->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(w, w_data);
+    runtime.bind_data(x, x_data);
+    runtime.execute();
+    runtime.wait();
+
+    REQUIRE(frob_rel(runtime.get_output<float>(y), ref) < 1e-6f);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph gemm attention Q pattern matches reference",
+    "[graph][tensor]")
+{
+    constexpr Index batch = 2;
+    constexpr Index seq = 8;
+    constexpr Index hidden = 64;
+    constexpr Index head_size = 16;
+    constexpr Index n_heads = 4;
+
+    std::vector<Index> w_shape = {hidden, head_size, n_heads};
+    std::vector<Index> x_shape = {batch, seq, hidden};
+    std::vector<float> w_data(hidden * head_size * n_heads);
+    std::vector<float> x_data(batch * seq * hidden);
+    for (size_t i = 0; i < w_data.size(); ++i)
+        w_data[i] = 0.1f * static_cast<float>(i + 1);
+    for (size_t i = 0; i < x_data.size(); ++i)
+        x_data[i] = 0.15f * static_cast<float>(i + 2);
+
+    const std::vector<float> ref =
+        ref_gemm_false_true_ndim1(w_data, w_shape, x_data, x_shape);
+
+    TensorGraph graph("gemm_attn_q");
+    auto *w = graph.data(w_shape, DataType::FP32)->set_name("w");
+    auto *x = graph.data(x_shape, DataType::FP32)->set_name("x");
+    auto *y = gt::gemm(w, x, alpha_one, false, true, ndim, batch_ndim);
+    w->mark_input(true);
+    x->mark_input(true);
+    y->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(w, w_data);
+    runtime.bind_data(x, x_data);
+    runtime.execute();
+    runtime.wait();
+
+    REQUIRE(frob_rel(runtime.get_output<float>(y), ref) < 1e-6f);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph gemm attention output pattern matches reference",
+    "[graph][tensor]")
+{
+    constexpr Index batch = 2;
+    constexpr Index seq = 8;
+    constexpr Index hidden = 64;
+    constexpr Index head_size = 16;
+    constexpr Index n_heads = 4;
+
+    std::vector<Index> w_shape = {head_size, n_heads, hidden};
+    std::vector<Index> attn_shape = {batch, seq, head_size, n_heads};
+    std::vector<float> w_data(head_size * n_heads * hidden);
+    std::vector<float> attn_data(batch * seq * head_size * n_heads);
+    for (size_t i = 0; i < w_data.size(); ++i)
+        w_data[i] = 0.1f * static_cast<float>(i + 1);
+    for (size_t i = 0; i < attn_data.size(); ++i)
+        attn_data[i] = 0.15f * static_cast<float>(i + 2);
+
+    const std::vector<float> ref =
+        ref_gemm_false_true_ndim2(w_data, w_shape, attn_data, attn_shape);
+
+    TensorGraph graph("gemm_attn_out");
+    auto *w = graph.data(w_shape, DataType::FP32)->set_name("w");
+    auto *attn = graph.data(attn_shape, DataType::FP32)->set_name("attn");
+    auto *y = gt::gemm(w, attn, alpha_one, false, true, 2, batch_ndim);
+    w->mark_input(true);
+    attn->mark_input(true);
+    y->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(w, w_data);
+    runtime.bind_data(attn, attn_data);
+    runtime.execute();
+    runtime.wait();
+
+    REQUIRE(frob_rel(runtime.get_output<float>(y), ref) < 1e-6f);
+}

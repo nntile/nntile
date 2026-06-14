@@ -157,7 +157,7 @@ void NNSdpaEagerOp::backward() const
             1.0,
             beta,
             false,
-            true,
+            false,
             q_ndim - batch_ndim - ndim_contraction,
             batch_ndim);
     }
@@ -169,7 +169,7 @@ void NNSdpaEagerOp::backward() const
         1.0,
         0.0,
         true,
-        false,
+        true,
         q_ndim - batch_ndim - ndim_contraction,
         batch_ndim);
 
@@ -212,7 +212,7 @@ void NNSdpaEagerOp::backward() const
             scale,
             beta,
             false,
-            true,
+            false,
             q_ndim - batch_ndim - ndim_contraction,
             batch_ndim);
     }

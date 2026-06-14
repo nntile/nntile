@@ -866,4 +866,221 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     require_relative_frobenius_error(nntile_grad_b, b_pt.grad());
 }
 
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph gemm linear pattern matches PyTorch",
+    "[graph][nn_graph][pytorch]")
+{
+    constexpr Index batch = 2;
+    constexpr Index in_dim = 3;
+    constexpr Index out_dim = 4;
+
+    std::vector<float> weight_data(out_dim * in_dim);
+    std::vector<float> input_data(batch * in_dim);
+    for (Index i = 0; i < out_dim * in_dim; ++i)
+        weight_data[i] = 0.1f * static_cast<float>(i + 1);
+    for (Index i = 0; i < batch * in_dim; ++i)
+        input_data[i] = 0.15f * static_cast<float>(i + 2);
+
+    NNGraph g("gemm_linear");
+    auto *weight =
+        g.tensor({out_dim, in_dim}, DataType::FP32, true)->set_name("weight");
+    auto *input =
+        g.tensor({batch, in_dim}, DataType::FP32, true)->set_name("input");
+    auto *output = gemm(weight, input, 1.0, true, true, ndim_one, batch_ndim_none);
+
+    weight->mark_input(true);
+    input->mark_input(true);
+    output->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(weight, weight_data);
+    runtime.bind_data(input, input_data);
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
+
+    auto weight_pt = torch::from_blob(weight_data.data(),
+        {out_dim, in_dim},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                         .clone()
+                         .set_requires_grad(true);
+    auto input_pt = torch::from_blob(input_data.data(),
+        {batch, in_dim},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                        .clone()
+                        .set_requires_grad(true);
+    auto out_pt = input_pt.matmul(weight_pt.transpose(0, 1));
+
+    require_relative_frobenius_error(nntile_out, out_pt);
+
+    auto grad_output = torch::ones({batch, out_dim},
+        torch::TensorOptions().dtype(torch::kFloat32));
+    out_pt.backward(grad_output);
+
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
+    gt::fill(Scalar(1.0), grad_output_tensor->data());
+    output->backward();
+
+    weight->grad()->mark_output(true);
+    input->grad()->mark_output(true);
+
+    runtime.execute();
+    runtime.wait();
+
+    require_relative_frobenius_error(
+        runtime.get_output<float>(weight->grad()), weight_pt.grad());
+    require_relative_frobenius_error(
+        runtime.get_output<float>(input->grad()), input_pt.grad());
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph gemm attention Q pattern matches PyTorch",
+    "[graph][nn_graph][pytorch]")
+{
+    constexpr Index batch = 2;
+    constexpr Index seq = 8;
+    constexpr Index hidden = 64;
+    constexpr Index head_size = 16;
+    constexpr Index n_heads = 4;
+
+    const Index w_nelems = hidden * head_size * n_heads;
+    const Index x_nelems = batch * seq * hidden;
+    std::vector<float> w_data(w_nelems);
+    std::vector<float> x_data(x_nelems);
+    for (Index i = 0; i < w_nelems; ++i)
+        w_data[i] = 0.1f * static_cast<float>(i + 1);
+    for (Index i = 0; i < x_nelems; ++i)
+        x_data[i] = 0.15f * static_cast<float>(i + 2);
+
+    NNGraph g("gemm_attn_q");
+    auto *w = g.tensor({hidden, head_size, n_heads}, DataType::FP32, true)
+                  ->set_name("w");
+    auto *x = g.tensor({batch, seq, hidden}, DataType::FP32, true)->set_name("x");
+    auto *c = gemm(w, x, 1.0, false, true, ndim_one, batch_ndim_none);
+
+    w->mark_input(true);
+    x->mark_input(true);
+    c->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(w, w_data);
+    runtime.bind_data(x, x_data);
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> nntile_out = runtime.get_output<float>(c);
+
+    auto w_pt = torch::from_blob(w_data.data(),
+        {hidden, head_size, n_heads},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(true);
+    auto x_pt = torch::from_blob(x_data.data(),
+        {batch, seq, hidden},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(true);
+    auto out_pt = torch::einsum("hij,bsj->bshi", w_pt, x_pt);
+
+    require_relative_frobenius_error(nntile_out, out_pt, 1e-6f);
+
+    auto [grad_c, _] = g.get_or_create_grad(c, "grad_c");
+    gt::fill(Scalar(1.0), grad_c->data());
+    c->backward();
+
+    w->grad()->mark_output(true);
+    x->grad()->mark_output(true);
+
+    runtime.execute();
+    runtime.wait();
+
+    auto grad_output = torch::ones({batch, seq, head_size, n_heads},
+        torch::TensorOptions().dtype(torch::kFloat32));
+    out_pt.backward(grad_output);
+
+    require_relative_frobenius_error(
+        runtime.get_output<float>(w->grad()), w_pt.grad(), 1e-6f);
+    require_relative_frobenius_error(
+        runtime.get_output<float>(x->grad()), x_pt.grad(), 1e-6f);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph gemm attention output pattern matches PyTorch",
+    "[graph][nn_graph][pytorch]")
+{
+    constexpr Index batch = 2;
+    constexpr Index seq = 8;
+    constexpr Index hidden = 64;
+    constexpr Index head_size = 16;
+    constexpr Index n_heads = 4;
+
+    const Index w_nelems = head_size * n_heads * hidden;
+    const Index attn_nelems = batch * seq * head_size * n_heads;
+    std::vector<float> w_data(w_nelems);
+    std::vector<float> attn_data(attn_nelems);
+    for (Index i = 0; i < w_nelems; ++i)
+        w_data[i] = 0.1f * static_cast<float>(i + 1);
+    for (Index i = 0; i < attn_nelems; ++i)
+        attn_data[i] = 0.15f * static_cast<float>(i + 2);
+
+    NNGraph g("gemm_attn_out");
+    auto *w = g.tensor({head_size, n_heads, hidden}, DataType::FP32, true)
+                  ->set_name("w");
+    auto *attn = g.tensor({batch, seq, head_size, n_heads}, DataType::FP32, true)
+                   ->set_name("attn");
+    auto *c = gemm(w, attn, 1.0, false, true, ndim_two, batch_ndim_none);
+
+    w->mark_input(true);
+    attn->mark_input(true);
+    c->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(w, w_data);
+    runtime.bind_data(attn, attn_data);
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> nntile_out = runtime.get_output<float>(c);
+
+    auto w_pt = torch::from_blob(w_data.data(),
+        {head_size, n_heads, hidden},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(true);
+    auto attn_pt = torch::from_blob(attn_data.data(),
+        {batch, seq, head_size, n_heads},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                       .clone()
+                       .set_requires_grad(true);
+    auto out_pt = torch::einsum("ijk,bsjk->bsi", w_pt, attn_pt);
+
+    require_relative_frobenius_error(nntile_out, out_pt, 1e-6f);
+
+    auto [grad_c, _] = g.get_or_create_grad(c, "grad_c");
+    gt::fill(Scalar(1.0), grad_c->data());
+    c->backward();
+
+    w->grad()->mark_output(true);
+    attn->grad()->mark_output(true);
+
+    runtime.execute();
+    runtime.wait();
+
+    auto grad_output = torch::ones({batch, seq, hidden},
+        torch::TensorOptions().dtype(torch::kFloat32));
+    out_pt.backward(grad_output);
+
+    require_relative_frobenius_error(
+        runtime.get_output<float>(w->grad()), w_pt.grad(), 1e-6f);
+    require_relative_frobenius_error(
+        runtime.get_output<float>(attn->grad()), attn_pt.grad(), 1e-6f);
+}
+
 #endif // NNTILE_HAVE_TORCH
