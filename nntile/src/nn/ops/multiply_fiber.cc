@@ -16,6 +16,7 @@
 #include "nntile/nn/ops/multiply_fiber.hh"
 
 #include "nntile/nn/nn_grad_slot_name.hh"
+#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/add_inplace.hh"
 #include "nntile/tensor/ops/multiply.hh"
 #include "nntile/tensor/ops/multiply_fiber.hh"
@@ -43,8 +44,9 @@ NNGraph::TensorNode *NNMultiplyFiberOp::forward()
     }
     NNGraph *graph = src1->graph();
     bool out_requires_grad = any_input_requires_grad({src1, src2});
+    const Index f_axis = nn::c_axis_to_fortran(axis, src2->ndim());
     TensorGraph::TensorNode *output_data =
-        tensor::multiply_fiber(alpha, src1->data(), src2->data(), axis);
+        tensor::multiply_fiber(alpha, src1->data(), src2->data(), f_axis);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
@@ -69,11 +71,12 @@ void NNMultiplyFiberOp::backward() const
         auto [grad_src1, is_first] =
             graph->get_or_create_grad(src1, nn_grad_slot_name(src1));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
+        const Index f_axis = nn::c_axis_to_fortran(axis, src2->ndim());
         TensorGraph::TensorNode *grad_src1_buf =
             tensor::multiply(grad_out->data(), src2->data(), 1.0);
         tensor::sum_fiber(grad_src1_buf,
             grad_src1->data(),
-            axis,
+            f_axis,
             batch_ndim_fiber,
             sum_fiber_redux,
             alpha,
@@ -84,8 +87,9 @@ void NNMultiplyFiberOp::backward() const
         auto [grad_src2, is_first] =
             graph->get_or_create_grad(src2, nn_grad_slot_name(src2));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
+        const Index f_axis = nn::c_axis_to_fortran(axis, src2->ndim());
         TensorGraph::TensorNode *grad_src2_buf = tensor::multiply_fiber(
-            alpha, src1->data(), grad_out->data(), axis);
+            alpha, src1->data(), grad_out->data(), f_axis);
         tensor::add_inplace(
             1.0, grad_src2_buf, grad_beta, grad_src2->data());
     }

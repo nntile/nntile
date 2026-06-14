@@ -46,9 +46,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Index(0)},
         std::tuple{Scalar(0.5), Index(1)});
 
-    std::vector<Index> x_shape = (axis == 0)
-                                     ? std::vector<Index>{dim_4, dim_2, dim_3}
-                                     : std::vector<Index>{dim_2, dim_4, dim_3};
+    std::vector<Index> x_shape = {dim_3, dim_2, dim_4};
     std::vector<Index> out_shape;
     for (Index i = 0; i < static_cast<Index>(x_shape.size()); ++i)
         if (i != axis)
@@ -75,9 +73,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(2.0), Index(0), Scalar(0.5)},
             std::tuple{Scalar(0.5), Index(1), Scalar(2.0)});
 
-    std::vector<Index> x_shape = (axis == 0)
-                                     ? std::vector<Index>{dim_4, dim_2}
-                                     : std::vector<Index>{dim_2, dim_4};
+    std::vector<Index> x_shape = {dim_2, dim_4};
 
     NNGraph g("sum_slice_backward");
     auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
@@ -93,7 +89,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
@@ -111,13 +106,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
-    const std::vector<Index> x_shape = {dim_m, dim_n};
+    const std::vector<Index> x_shape = {dim_n, dim_m};
     const Index x_nelems = dim_m * dim_n;
 
     std::vector<float> x_data(x_nelems);
     for (Index i = 0; i < x_nelems; ++i)
         x_data[i] = 0.1f * static_cast<float>(i + 1);
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, x_shape);
 
     NNGraph g("sum_slice_pytorch");
     auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
@@ -125,9 +119,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len7(y);
-    else
         nn_pytorch_tile_heterogeneous_1d_len6(y);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(y);
 
     x->mark_input(true);
     y->mark_output(true);
@@ -142,7 +136,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_out = runtime.get_output<float>(y);
 
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
@@ -170,13 +164,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
-    const std::vector<Index> x_shape = {dim_m, dim_n};
+    const std::vector<Index> x_shape = {dim_n, dim_m};
     const Index x_nelems = dim_m * dim_n;
 
     std::vector<float> x_data(x_nelems);
     for (Index i = 0; i < x_nelems; ++i)
         x_data[i] = 0.1f * static_cast<float>(i);
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, x_shape);
 
     NNGraph g("sum_slice_bwd_pytorch");
     auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
@@ -184,9 +177,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len7(y);
-    else
         nn_pytorch_tile_heterogeneous_1d_len6(y);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(y);
 
     x->mark_input(true);
 
@@ -203,13 +196,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_x_colmajor =
-        runtime.get_output<float>(x->grad());
-    std::vector<float> nntile_grad_x =
-        colmajor_to_rowmajor(nntile_grad_x_colmajor, x_shape);
+    std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
 
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()

@@ -14,6 +14,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
+#include "nntile/nn/shape_layout.hh"
 #include "nntile/runtime.hh"
 
 #include <catch2/catch_test_macros.hpp>
@@ -77,15 +78,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Index d0 = 3;
     constexpr Index d1a = 2;
     constexpr Index d1b = 4;
-    constexpr Index axis = 1;
+    constexpr Index axis = 0;
 
     NNGraph g("nn_concat_struct");
-    auto *a = g.tensor({d0, d1a}, DataType::FP32)->set_name("a");
-    auto *b = g.tensor({d0, d1b}, DataType::FP32)->set_name("b");
+    auto *a = g.tensor({d1a, d0}, DataType::FP32)->set_name("a");
+    auto *b = g.tensor({d1b, d0}, DataType::FP32)->set_name("b");
     auto *out = concat(a, b, axis);
 
-    REQUIRE(out->shape()[0] == d0);
-    REQUIRE(out->shape()[1] == d1a + d1b);
+    REQUIRE(out->shape()[0] == d1a + d1b);
+    REQUIRE(out->shape()[1] == d0);
     REQUIRE(g.tensor_graph().num_data() == 3);
     REQUIRE(g.tensor_graph().num_ops() == 1);
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "CONCAT");
@@ -99,12 +100,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     NNGraph g("nn_concat_nograd");
-    auto *a = g.tensor({2, 3}, DataType::FP32)->set_name("a");
-    auto *b = g.tensor({2, 4}, DataType::FP32)->set_name("b");
+    auto *a = g.tensor({3, 2}, DataType::FP32)->set_name("a");
+    auto *b = g.tensor({4, 2}, DataType::FP32)->set_name("b");
     NNGraph::TensorNode *out = nullptr;
     {
         auto guard = g.no_grad();
-        out = concat(a, b, 1);
+        out = concat(a, b, 0);
     }
     REQUIRE(out != nullptr);
     REQUIRE_FALSE(out->has_producer());
@@ -116,18 +117,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     NNGraph g("nn_concat_bad");
-    auto *a = g.tensor({2, 3}, DataType::FP32)->set_name("a");
-    auto *b = g.tensor({2, 3}, DataType::FP32)->set_name("b");
+    auto *a = g.tensor({3, 2}, DataType::FP32)->set_name("a");
+    auto *b = g.tensor({3, 3}, DataType::FP32)->set_name("b");
 
-    REQUIRE_THROWS_AS(concat(nullptr, b, 1), std::invalid_argument);
-    REQUIRE_THROWS_AS(concat(a, nullptr, 1), std::invalid_argument);
+    REQUIRE_THROWS_AS(concat(nullptr, b, 0), std::invalid_argument);
+    REQUIRE_THROWS_AS(concat(a, nullptr, 0), std::invalid_argument);
 
-    auto *b_bad = g.tensor({3, 3}, DataType::FP32)->set_name("b2");
-    REQUIRE_THROWS_AS(concat(a, b_bad, 1), std::invalid_argument);
+    auto *b_bad = g.tensor({3, 4}, DataType::FP32)->set_name("b2");
+    REQUIRE_THROWS_AS(concat(a, b_bad, 0), std::invalid_argument);
 
     NNGraph other("other");
-    auto *bo = other.tensor({2, 3}, DataType::FP32)->set_name("bo");
-    REQUIRE_THROWS_AS(concat(a, bo, 1), std::invalid_argument);
+    auto *bo = other.tensor({3, 3}, DataType::FP32)->set_name("bo");
+    REQUIRE_THROWS_AS(concat(a, bo, 0), std::invalid_argument);
 
     auto *bf = g.tensor({2, 3}, DataType::FP64)->set_name("bf64");
     REQUIRE_THROWS_AS(concat(a, bf, 1), std::invalid_argument);
@@ -140,8 +141,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     using ShapesAxis =
         std::tuple<std::vector<Index>, std::vector<Index>, Index>;
     const ShapesAxis c = GENERATE(ShapesAxis{{5}, {3}, 0},
-        ShapesAxis{{2, 4}, {2, 5}, 1},
-        ShapesAxis{{3, 2}, {4, 2}, 0});
+        ShapesAxis{{4, 2}, {5, 2}, 0},
+        ShapesAxis{{2, 3}, {2, 4}, 1});
 
     const auto &a_shape = std::get<0>(c);
     const auto &b_shape = std::get<1>(c);
@@ -178,8 +179,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> got = runtime.get_output<float>(out);
-    std::vector<float> expect =
-        reference_concat_fortran(a_shape, b_shape, axis, a_data, b_data);
+    const Index ndim = static_cast<Index>(a_shape.size());
+    std::vector<float> expect = reference_concat_fortran(
+        nn::c_shape_to_fortran(a_shape),
+        nn::c_shape_to_fortran(b_shape),
+        nn::c_axis_to_fortran(axis, ndim),
+        a_data,
+        b_data);
 
     constexpr float tol = 1e-5f;
     REQUIRE(got.size() == expect.size());
@@ -193,9 +199,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph concat tiled matches untiled",
     "[graph][nn_graph]")
 {
-    const std::vector<Index> a_shape = {4, 6};
-    const std::vector<Index> b_shape = {4, 5};
-    constexpr Index axis = 1;
+    const std::vector<Index> a_shape = {6, 4};
+    const std::vector<Index> b_shape = {5, 4};
+    constexpr Index axis = 0;
 
     std::vector<float> a_data(static_cast<size_t>(shape_prod(a_shape)));
     std::vector<float> b_data(static_cast<size_t>(shape_prod(b_shape)));
@@ -266,9 +272,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     NNGraph g("nn_concat_bwd");
-    auto *a = g.tensor({2, 3}, DataType::FP32)->set_name("a");
-    auto *b = g.tensor({2, 4}, DataType::FP32)->set_name("b");
-    auto *out = concat(a, b, 1);
+    auto *a = g.tensor({3, 2}, DataType::FP32)->set_name("a");
+    auto *b = g.tensor({4, 2}, DataType::FP32)->set_name("b");
+    auto *out = concat(a, b, 0);
 
     REQUIRE(out->has_producer());
     auto [gout, _] = g.get_or_create_grad(out, "out_grad");

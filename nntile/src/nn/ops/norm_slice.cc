@@ -15,6 +15,7 @@
 
 #include "nntile/nn/ops/norm_slice.hh"
 
+#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/norm_slice.hh"
 
@@ -74,8 +75,9 @@ NNGraph::TensorNode *NNNormSliceOp::forward()
         graph->tensor(std::move(base_shape), x->dtype(), false);
     tensor::clear(base->data());
     constexpr Scalar beta_fresh = 0.0; // NNGraph always outputs fresh data
+    const Index f_axis = nn::c_axis_to_fortran(axis, ndim);
     TensorGraph::TensorNode *y_data = tensor::norm_slice(
-        alpha, x->data(), beta_fresh, base->data(), axis, redux);
+        alpha, x->data(), beta_fresh, base->data(), f_axis, redux);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     return y;
