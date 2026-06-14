@@ -156,10 +156,6 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-if(BUILD_NNTILE)
-    add_subdirectory(nntile)
-endif()
-
 set(NNTILE_HAVE_TORCH OFF)
 if(BUILD_TESTS_PYTORCH AND BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID)
     find_package(Torch QUIET)
@@ -169,6 +165,10 @@ if(BUILD_TESTS_PYTORCH AND BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMG
     else()
         message(WARNING "BUILD_TESTS_PYTORCH=ON but LibTorch not found.")
     endif()
+endif()
+
+if(BUILD_NNTILE)
+    add_subdirectory(nntile)
 endif()
 
 if(BUILD_PYTHON_WRAPPERS AND BUILD_NNTILE)

@@ -165,7 +165,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
     const std::vector<Index> tensor_shape = {dim_n, dim_m};
-    const std::vector<Index> f_tensor_shape = {dim_m, dim_n};
     std::vector<Index> fiber_shape_vec =
         (axis == 0) ? std::vector<Index>{dim_n} : std::vector<Index>{dim_m};
 
@@ -180,8 +179,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         fiber_data[i] = static_cast<float>(i + 1);
     for (Index i = 0; i < tensor_nelems; ++i)
         tensor_data[i] = static_cast<float>(-i - 1);
-    std::vector<float> tensor_data_rowmajor =
-        colmajor_to_rowmajor(tensor_data, f_tensor_shape);
 
     NNGraph g("add_fiber_pytorch");
     auto *fiber =
@@ -208,9 +205,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, f_tensor_shape);
+    std::vector<float> nntile_out = runtime.get_output<float>(out);
 
     // PyTorch: output = alpha * fiber (broadcast) + beta * tensor (row-major)
     std::vector<::int64_t> tensor_shape_pt(
@@ -220,7 +215,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
                         .set_requires_grad(false);
-    auto tensor_pt = torch::from_blob(tensor_data_rowmajor.data(),
+    auto tensor_pt = torch::from_blob(tensor_data.data(),
         tensor_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                          .clone()
@@ -250,7 +245,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
     const std::vector<Index> tensor_shape = {dim_n, dim_m};
-    const std::vector<Index> f_tensor_shape = {dim_m, dim_n};
     std::vector<Index> fiber_shape_vec =
         (axis == 0) ? std::vector<Index>{dim_n} : std::vector<Index>{dim_m};
 
@@ -263,8 +257,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         fiber_data[i] = 0.1f * static_cast<float>(i);
     for (Index i = 0; i < tensor_nelems; ++i)
         tensor_data[i] = 0.15f * static_cast<float>(i + 5);
-    std::vector<float> tensor_data_rowmajor =
-        colmajor_to_rowmajor(tensor_data, f_tensor_shape);
 
     NNGraph g("add_fiber_bwd_pytorch");
     auto *fiber =
@@ -299,10 +291,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_fiber =
         runtime.get_output<float>(fiber->grad());
-    std::vector<float> nntile_grad_tensor_colmajor =
-        runtime.get_output<float>(tensor->grad());
     std::vector<float> nntile_grad_tensor =
-        colmajor_to_rowmajor(nntile_grad_tensor_colmajor, f_tensor_shape);
+        runtime.get_output<float>(tensor->grad());
 
     std::vector<::int64_t> tensor_shape_pt(
         tensor_shape.begin(), tensor_shape.end());
@@ -311,7 +301,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
                         .set_requires_grad(true);
-    auto tensor_pt = torch::from_blob(tensor_data_rowmajor.data(),
+    auto tensor_pt = torch::from_blob(tensor_data.data(),
         tensor_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                          .clone()
