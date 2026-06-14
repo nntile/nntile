@@ -20,7 +20,7 @@ namespace nntile::kernel::rope
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nrows, Index ncols, const T *sin, const T *cos,
+void cuda_kernel(Index ncols, Index nrows, const T *sin, const T *cos,
     const T *src, T *dst)
 {
     const Index m = ncols;
@@ -40,34 +40,34 @@ void cuda_kernel(Index nrows, Index ncols, const T *sin, const T *cos,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nrows, Index ncols, const T *sin,
+void cuda(cudaStream_t stream, Index ncols, Index nrows, const T *sin,
     const T *cos, const T *src, T *dst) noexcept
 {
     const Index m = ncols;
     const Index n = nrows;
     dim3 blocks((m * n + 255) / 256), threads(256);
-    cuda_kernel<T><<<blocks, threads, 0, stream>>>(nrows, ncols, sin, cos,
+    cuda_kernel<T><<<blocks, threads, 0, stream>>>(ncols, nrows, sin, cos,
         src, dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nrows, Index ncols,
+void cuda<fp32_t>(cudaStream_t stream, Index ncols, Index nrows,
     const fp32_t *sin, const fp32_t *cos, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nrows, Index ncols,
+void cuda<fp64_t>(cudaStream_t stream, Index ncols, Index nrows,
     const fp64_t *sin, const fp64_t *cos, const fp64_t *src, fp64_t *dst)
     noexcept;
 
 template
-void cuda<fp16_t>(cudaStream_t stream, Index nrows, Index ncols,
+void cuda<fp16_t>(cudaStream_t stream, Index ncols, Index nrows,
     const fp16_t *sin, const fp16_t *cos, const fp16_t *src, fp16_t *dst)
     noexcept;
 
 template
-void cuda<bf16_t>(cudaStream_t stream, Index nrows, Index ncols,
+void cuda<bf16_t>(cudaStream_t stream, Index ncols, Index nrows,
     const bf16_t *sin, const bf16_t *cos, const bf16_t *src, bf16_t *dst)
     noexcept;
 

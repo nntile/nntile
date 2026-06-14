@@ -71,8 +71,8 @@ void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<
     {
         const Index ncols = sin.nelems;
         const Index nrows = dy.matrix_shape[sin.ndim][1];
-        starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, nrows,
-            ncols, sin_pair0, sin, cos, dy, dx);
+        starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, ncols,
+            nrows, sin_pair0, sin, cos, dy, dx);
     }
 }
 

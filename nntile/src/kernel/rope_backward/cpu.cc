@@ -19,7 +19,7 @@ namespace nntile::kernel::rope_backward
 {
 
 template<typename T>
-void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *dy,
+void cpu(Index ncols, Index nrows, const T *sin, const T *cos, const T *dy,
     T *dx) noexcept
 {
     using Y = typename T::repr_t;
@@ -40,19 +40,19 @@ void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *dy,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nrows, Index ncols, const fp32_t *sin,
+void cpu<fp32_t>(Index ncols, Index nrows, const fp32_t *sin,
     const fp32_t *cos, const fp32_t *dy, fp32_t *dx) noexcept;
 
 template
-void cpu<fp64_t>(Index nrows, Index ncols, const fp64_t *sin,
+void cpu<fp64_t>(Index ncols, Index nrows, const fp64_t *sin,
     const fp64_t *cos, const fp64_t *dy, fp64_t *dx) noexcept;
 
 template
-void cpu<fp16_t>(Index nrows, Index ncols, const fp16_t *sin,
+void cpu<fp16_t>(Index ncols, Index nrows, const fp16_t *sin,
     const fp16_t *cos, const fp16_t *dy, fp16_t *dx) noexcept;
 
 template
-void cpu<bf16_t>(Index nrows, Index ncols, const bf16_t *sin,
+void cpu<bf16_t>(Index ncols, Index nrows, const bf16_t *sin,
     const bf16_t *cos, const bf16_t *dy, bf16_t *dx) noexcept;
 
 } // namespace nntile::kernel::rope_backward

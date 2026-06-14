@@ -21,7 +21,7 @@ namespace nntile::kernel::rope_backward
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nrows, Index ncols, const T *sin,
+void cuda(cudaStream_t stream, Index ncols, Index nrows, const T *sin,
     const T *cos, const T *dy, T *dx) noexcept;
 
 } // namespace nntile::kernel::rope_backward

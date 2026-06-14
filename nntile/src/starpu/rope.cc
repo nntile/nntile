@@ -48,7 +48,7 @@ void Rope<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[2]->get_ptr<T>();
     T *dst = interfaces[3]->get_ptr<T>();
     // Launch kernel
-    kernel::rope::cpu<T>(args->nrows, args->ncols, sin, cos, src, dst);
+    kernel::rope::cpu<T>(args->ncols, args->nrows, sin, cos, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -95,7 +95,7 @@ void Rope<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::rope::cuda<T>(stream, args->nrows, args->ncols, sin, cos, src,
+    kernel::rope::cuda<T>(stream, args->ncols, args->nrows, sin, cos, src,
         dst);
 #endif // STARPU_SIMGRID
 }
@@ -134,16 +134,16 @@ uint32_t Rope<std::tuple<T>>::footprint(struct starpu_task *task)
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, and k
     uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->nrows, sizeof(args->nrows), hash);
     hash = starpu_hash_crc32c_be_n(&args->ncols, sizeof(args->ncols), hash);
+    hash = starpu_hash_crc32c_be_n(&args->nrows, sizeof(args->nrows), hash);
     hash = starpu_hash_crc32c_be_n(
         &args->sin_pair0, sizeof(args->sin_pair0), hash);
     return hash;
 }
 
 template<typename T>
-void Rope<std::tuple<T>>::submit(int starpu_worker_hint, Index nrows,
-    Index ncols, Index sin_pair0, Handle sin, Handle cos, Handle src,
+void Rope<std::tuple<T>>::submit(int starpu_worker_hint, Index ncols,
+    Index nrows, Index sin_pair0, Handle sin, Handle cos, Handle src,
     Handle dst)
 //! Insert rope task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -153,8 +153,8 @@ void Rope<std::tuple<T>>::submit(int starpu_worker_hint, Index nrows,
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
-    args->nrows = nrows;
     args->ncols = ncols;
+    args->nrows = nrows;
     args->sin_pair0 = sin_pair0;
     // Submit task
     int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
