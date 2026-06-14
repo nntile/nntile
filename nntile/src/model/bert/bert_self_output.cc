@@ -14,6 +14,7 @@
 #include "nntile/nn/ops/add.hh"
 #include "nntile/nn/ops/add_fiber.hh"
 #include "nntile/nn/ops/gemm.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -57,8 +58,11 @@ NNGraph::TensorNode* BertSelfOutput::forward(
             "BertSelfOutput::forward: attn_heads and residual must be non-null");
     }
 
+    NNGraph::TensorNode* attn_t = transpose(attn_heads, 3);
+    attn_t->set_name(tensor_name("attn_t"));
+
     NNGraph::TensorNode* dense_out =
-        gemm(attn_heads, w_dense_, 1.0, false, false, 2, 0);
+        gemm(w_dense_, attn_t, 1.0, false, false, 2, 0);
     const Index feature_axis = dense_out->ndim() - 1;
     dense_out = add_fiber(1.0, b_dense_, 1.0, dense_out, feature_axis, 0);
     dense_out->set_name(tensor_name("dense_out"));

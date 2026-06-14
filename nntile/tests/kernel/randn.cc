@@ -227,13 +227,13 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
     // Check if the result is the same as the reference one
     for(Index i = 0; i < nelems; ++i)
     {
-        // Get index of the current element within output array
-        Index offset = i;
+        // Decompose linear index in C-order (last dimension fastest).
+        Index rem = i;
         std::array<Index, NDIM> index;
-        for(Index j = 0; j < NDIM; ++j)
+        for(Index j = NDIM - 1; j >= 0; --j)
         {
-            index[j] = offset % shape[j];
-            offset /= shape[j];
+            index[j] = rem % shape[j];
+            rem /= shape[j];
         }
         // Cast it into index within underlying array
         std::array<Index, NDIM> underlying_index;
@@ -242,20 +242,24 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
             underlying_index[j] = index[j] + start[j];
         }
         // Convert underlying index to C-order memory offset
-        Index underlying_offset = underlying_index[0];
-        for(Index j = 1; j < NDIM; ++j)
+        Index underlying_stride = 1;
+        Index underlying_offset = 0;
+        for(Index j = NDIM - 1; j >= 0; --j)
         {
-            underlying_offset = underlying_index[j]
-                + underlying_offset * underlying_shape[j - 1];
+            underlying_offset += underlying_index[j] * underlying_stride;
+            if(j > 0)
+            {
+                underlying_stride *= underlying_shape[j];
+            }
         }
         // Convert index to memory offset
-        offset = 0;
+        Index out_offset = 0;
         for(Index j = 0; j < NDIM; ++j)
         {
-            offset += stride[j] * index[j];
+            out_offset += stride[j] * index[j];
         }
         // Compare results
-        TEST_ASSERT(Y(data[offset]) == Y(underlying_array[underlying_offset]));
+        TEST_ASSERT(Y(data[out_offset]) == Y(underlying_array[underlying_offset]));
     }
     std::cout << "OK: kernel::randn::cpu<" << T::short_name << ">\n";
 }

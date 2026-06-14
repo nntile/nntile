@@ -16,6 +16,7 @@
 #include "nntile/model/t5/t5_attention.hh"
 #include "nntile/nn/ops/gemm.hh"
 #include "nntile/nn/ops/sdpa_eager.hh"
+#include "nntile/nn/ops/transpose.hh"
 
 #include <memory>
 #include <stdexcept>
@@ -70,16 +71,22 @@ NNGraph::TensorNode* T5Attention::forward(
         : x;
     NNGraph::TensorNode* v_src = k_src;
 
-    NNGraph::TensorNode* q =
-        gemm(x, w_q_, 1.0, false, false, 1, 0);
+    NNGraph::TensorNode* q_proj =
+        gemm(w_q_, x, 1.0, false, true, 1, 0);
+    q_proj->set_name(tensor_name("q_proj"));
+    NNGraph::TensorNode* q = transpose(q_proj, 3);
     q->set_name(tensor_name("q"));
 
-    NNGraph::TensorNode* k =
-        gemm(k_src, w_k_, 1.0, false, false, 1, 0);
+    NNGraph::TensorNode* k_proj =
+        gemm(w_k_, k_src, 1.0, false, true, 1, 0);
+    k_proj->set_name(tensor_name("k_proj"));
+    NNGraph::TensorNode* k = transpose(k_proj, 3);
     k->set_name(tensor_name("k"));
 
-    NNGraph::TensorNode* v =
-        gemm(v_src, w_v_, 1.0, false, false, 1, 0);
+    NNGraph::TensorNode* v_proj =
+        gemm(w_v_, v_src, 1.0, false, true, 1, 0);
+    v_proj->set_name(tensor_name("v_proj"));
+    NNGraph::TensorNode* v = transpose(v_proj, 3);
     v->set_name(tensor_name("v"));
 
     constexpr Scalar t5_attn_scale = 1.0;
@@ -90,8 +97,11 @@ NNGraph::TensorNode* T5Attention::forward(
     nn_graph->register_op(std::move(sdpa_op));
     attn_out->set_name(tensor_name("sdpa_out"));
 
+    NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
+    attn_t->set_name(tensor_name("attn_t"));
+
     NNGraph::TensorNode* out =
-        gemm(attn_out, w_o_, 1.0, false, false, 2, 0);
+        gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }

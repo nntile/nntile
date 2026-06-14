@@ -139,18 +139,20 @@ void NNGemmOp::backward() const
                     ndim,
                     batch_ndim);
             }
-            else
-            {
-                tensor::gemm(grad_out->data(),
-                    a->data(),
-                    grad_b->data(),
-                    alpha,
-                    beta,
-                    true,
-                    trans_a,
-                    ndim,
-                    batch_ndim);
-            }
+        else
+        {
+            const Index grad_b_ndim =
+                a->ndim() - batch_ndim - ndim;
+            tensor::gemm(a->data(),
+                grad_out->data(),
+                grad_b->data(),
+                alpha,
+                beta,
+                true,
+                true,
+                grad_b_ndim,
+                batch_ndim);
+        }
         }
     }
 }
