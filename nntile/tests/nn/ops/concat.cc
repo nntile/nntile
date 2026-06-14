@@ -116,8 +116,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     NNGraph g("nn_concat_bad");
-    auto *a = g.tensor({3, 2}, DataType::FP32)->set_name("a");
-    auto *b = g.tensor({3, 2}, DataType::FP32)->set_name("b");
+    auto *a = g.tensor({2, 3}, DataType::FP32)->set_name("a");
+    auto *b = g.tensor({2, 3}, DataType::FP32)->set_name("b");
 
     REQUIRE_THROWS_AS(concat(nullptr, b, 1), std::invalid_argument);
     REQUIRE_THROWS_AS(concat(a, nullptr, 1), std::invalid_argument);
@@ -126,7 +126,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE_THROWS_AS(concat(a, b_bad, 1), std::invalid_argument);
 
     NNGraph other("other");
-    auto *bo = other.tensor({3, 2}, DataType::FP32)->set_name("bo");
+    auto *bo = other.tensor({2, 3}, DataType::FP32)->set_name("bo");
     REQUIRE_THROWS_AS(concat(a, bo, 1), std::invalid_argument);
 
     auto *bf = g.tensor({3, 2}, DataType::FP64)->set_name("bf64");
@@ -194,7 +194,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const std::vector<Index> a_shape = {4, 6};
-    const std::vector<Index> b_shape = {5, 4};
+    const std::vector<Index> b_shape = {4, 5};
     constexpr Index axis = 1;
 
     std::vector<float> a_data(static_cast<size_t>(shape_prod(a_shape)));

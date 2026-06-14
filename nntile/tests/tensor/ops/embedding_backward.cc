@@ -53,7 +53,7 @@ TEST_CASE("TensorGraph embedding_backward structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *embed = graph.data({4, 5, 100})->set_name("embed");
+    auto *embed = graph.data({5, 4, 100})->set_name("embed");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
 
     gt::embedding_backward(index, embed, vocab, 2, 0);
@@ -73,7 +73,7 @@ TEST_CASE(
 {
     TensorGraph graph("test");
     auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *embed = graph.data({4, 5, 100})->set_name("embed");
+    auto *embed = graph.data({5, 4, 100})->set_name("embed");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
 
     REQUIRE_THROWS_AS(gt::embedding_backward(nullptr, embed, vocab, 2, 0),

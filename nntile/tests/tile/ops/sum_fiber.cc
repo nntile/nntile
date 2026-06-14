@@ -40,7 +40,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_fiber matches tile
     runtime.compile();
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
-    std::vector<float> dd(3, 0.f);
+    std::vector<float> dd(5, 0.f);
     runtime.bind_data(s, sv);
     runtime.bind_data(d, dd);
     runtime.execute();
@@ -52,18 +52,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_fiber matches tile
         auto a = ts.acquire(STARPU_W);
         auto b = td.acquire(STARPU_W);
         for(Index i = 0; i < nelems; ++i) { a[i] = Y(sv[static_cast<size_t>(i)]); }
-        for(Index j = 0; j < 3; ++j) { b[j] = Y(0); }
+        for(Index j = 0; j < 5; ++j) { b[j] = Y(0); }
         a.release();
         b.release();
     }
     nntile::core::sum_fiber<fp32_t>(-1, alpha, ts, beta, td, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
-    std::vector<float> tref(3);
+    std::vector<float> tref(5);
     {
         auto l2 = td.acquire(STARPU_R);
-        for(Index j = 0; j < 3; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(l2[j]); }
+        for(Index j = 0; j < 5; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(l2[j]); }
         l2.release();
     }
     constexpr float tol = 1e-2f;
-    for(size_t j = 0; j < 3; ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < tol); }
+    for(size_t j = 0; j < 5; ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < tol); }
 }

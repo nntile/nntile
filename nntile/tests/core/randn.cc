@@ -26,7 +26,7 @@ void validate()
     using Y = typename T::repr_t;
     // Only CPU implementation is check, as there is no other backend yet
     Tile<T> dst({5, 4, 3}), dst2(dst.shape);
-    std::vector<Index> start{1, 1, 1}, underlying_shape{5, 6, 7};
+    std::vector<Index> start{1, 1, 1}, underlying_shape{7, 6, 5};
     unsigned long long seed = -1;
     Scalar mean = 1, stddev = 2;
     // Check some valid parameters

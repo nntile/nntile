@@ -25,8 +25,8 @@ void check(Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
     Tile<T> src({5, 4, 3});
-    Tile<T> dst[3] = {Tile<T>({3}), Tile<T>({4}), Tile<T>({5})};
-    Tile<T> dst2[3] = {Tile<T>({3}), Tile<T>({4}), Tile<T>({5})};
+    Tile<T> dst[3] = {Tile<T>({5}), Tile<T>({4}), Tile<T>({3})};
+    Tile<T> dst2[3] = {Tile<T>({5}), Tile<T>({4}), Tile<T>({3})};
     auto src_local = src.acquire(STARPU_W);
     for(Index i = 0; i < src.nelems; ++i)
     {

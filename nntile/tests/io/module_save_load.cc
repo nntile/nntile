@@ -101,7 +101,7 @@ TEST_CASE("Linear save and load round-trip", "[io][module]")
         REQUIRE(reader.has_tensor("linear.bias"));
 
         const auto& w_info = reader.tensor_info("linear.weight");
-        REQUIRE(w_info.shape == std::vector<std::int64_t>({in_dim, out_dim}));
+        REQUIRE(w_info.shape == std::vector<std::int64_t>({out_dim, in_dim}));
         REQUIRE(w_info.dtype == DataType::FP32);
 
         const auto& b_info = reader.tensor_info("linear.bias");
@@ -166,7 +166,7 @@ TEST_CASE("Module load strict mode throws on missing tensor", "[io][module]")
     {
         SafeTensorsWriter writer;
         std::vector<std::uint8_t> data(3 * 4 * sizeof(float), 0);
-        writer.add_tensor("linear.weight", DataType::FP32, {3, 4}, data);
+        writer.add_tensor("linear.weight", DataType::FP32, {4, 3}, data);
         writer.write(path);
     }
 
@@ -196,7 +196,7 @@ TEST_CASE("Module load rejects dtype mismatch", "[io][module]")
     {
         SafeTensorsWriter writer;
         std::vector<std::uint8_t> data(3 * 4 * sizeof(double), 0);
-        writer.add_tensor("linear.weight", DataType::FP64, {3, 4}, data);
+        writer.add_tensor("linear.weight", DataType::FP64, {4, 3}, data);
         writer.write(path);
     }
 
@@ -279,11 +279,11 @@ TEST_CASE("GatedMlp save and load round-trip", "[io][module][gated_mlp]")
         REQUIRE(reader.has_tensor("gmlp.down_proj.weight"));
 
         REQUIRE(reader.tensor_info("gmlp.gate_proj.weight").shape ==
-                std::vector<std::int64_t>({in_dim, inter_dim}));
+                std::vector<std::int64_t>({inter_dim, in_dim}));
         REQUIRE(reader.tensor_info("gmlp.up_proj.weight").shape ==
-                std::vector<std::int64_t>({in_dim, inter_dim}));
+                std::vector<std::int64_t>({inter_dim, in_dim}));
         REQUIRE(reader.tensor_info("gmlp.down_proj.weight").shape ==
-                std::vector<std::int64_t>({inter_dim, out_dim}));
+                std::vector<std::int64_t>({out_dim, inter_dim}));
     }
 
     // Load into a new GatedMlp
@@ -382,7 +382,7 @@ TEST_CASE("Embedding save and load round-trip", "[io][module][embedding]")
     NNGraph g1("save_graph");
     Embedding emb1(&g1, "embed", num_emb, emb_dim);
 
-    // NNTile stores vocab as (embed_dim, num_embeddings) column-major
+    // NNTile stores vocab as (num_embeddings, embed_dim)
     std::vector<float> vocab(emb_dim * num_emb);
     for(std::size_t i = 0; i < vocab.size(); ++i)
         vocab[i] = 0.001f * static_cast<float>(i);
@@ -394,7 +394,7 @@ TEST_CASE("Embedding save and load round-trip", "[io][module][embedding]")
         REQUIRE(reader.size() == 1);
         REQUIRE(reader.has_tensor("embed.vocab"));
         REQUIRE(reader.tensor_info("embed.vocab").shape ==
-                std::vector<std::int64_t>({emb_dim, num_emb}));
+                std::vector<std::int64_t>({num_emb, emb_dim}));
     }
 
     NNGraph g2("load_graph");

@@ -64,29 +64,40 @@ void validate_full(std::array<Index, NDIM> shape)
     // Set default values for tests
     Scalar mean = 0, stddev = 1;
     unsigned long long seed = CORE_rnd64_jump(1000, -1);
-    // Init strides
     std::array<Index, NDIM> stride, start;
-    std::array<nntile::int64_t, NDIM> tmp_index;
-    stride[0] = 1;
-    start[0] = 0;
-    for(Index i = 1; i < NDIM; ++i)
+    std::vector<nntile::int64_t> tmp_index(NDIM);
+    for(Index i = 0; i < NDIM; ++i)
     {
-        stride[i] = stride[i-1] * shape[i-1];
         start[i] = 0;
+        tmp_index[static_cast<size_t>(i)] = 0;
     }
-    Index nelems = stride[NDIM-1] * shape[NDIM-1];
-    // Init reference array
-    std::vector<T> data_ref(nelems);
-    unsigned long long seed2 = seed;
-    for(Index i = 0; i < nelems; ++i)
+    // C-order strides (last index stride 1).
+    Index nelems = 1;
+    for(Index i = 0; i < NDIM; ++i)
     {
-        chameleon_randn(seed2, mean, stddev, data_ref[i]);
+        nelems *= shape[i];
+    }
+    if(NDIM > 0)
+    {
+        stride[NDIM - 1] = 1;
+        for(Index i = NDIM - 2; i >= 0; --i)
+        {
+            stride[i] = stride[i + 1] * shape[i + 1];
+        }
+    }
+    // Reference via second kernel call (same C-order traversal).
+    std::vector<T> data_ref(nelems);
+    cpu<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
+        &shape[0], &data_ref[0], &stride[0], tmp_index.data());
+    for(Index i = 0; i < NDIM; ++i)
+    {
+        tmp_index[static_cast<size_t>(i)] = 0;
     }
     // Run kernel
     std::vector<T> data(nelems);
     std::cout << "Run kernel::randn::cpu<" << T::short_name << ">\n";
     cpu<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
-            &shape[0], &data[0], &stride[0], &tmp_index[0]);
+            &shape[0], &data[0], &stride[0], tmp_index.data());
     // Check if the result is the same as the reference one
     for(Index i = 0; i < nelems; ++i)
     {
@@ -94,11 +105,11 @@ void validate_full(std::array<Index, NDIM> shape)
     }
     std::cout << "OK: kernel::randn::cpu<" << T::short_name << ">\n";
     // Run kernel with a different seed that shall generate different result
-    seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
+    unsigned long long seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
     // Launch kernel
     std::cout << "Run kernel::randn::cpu<" << T::short_name << ">\n";
     cpu<T>(NDIM, nelems, seed2, mean, stddev, &start[0], &shape[0],
-            &shape[0], &data[0], &stride[0], &tmp_index[0]);
+            &shape[0], &data[0], &stride[0], tmp_index.data());
     // Check if result is different for the first element
     TEST_ASSERT(Y(data[0]) != Y(data_ref[0]));
     std::cout << "OK: kernel::randn::cpu<" << T::short_name << ">\n";
@@ -107,7 +118,7 @@ void validate_full(std::array<Index, NDIM> shape)
     // Launch kernel
     std::cout << "Run kernel::randn::cpu<" << T::short_name << ">\n";
     cpu(NDIM, nelems, seed, mean2, stddev, &start[0], &shape[0],
-            &shape[0], &data[0], &stride[0], &tmp_index[0]);
+            &shape[0], &data[0], &stride[0], tmp_index.data());
     // Check if result is different for the first element
     TEST_ASSERT(Y(data[0]) != Y(data_ref[0]));
     std::cout << "OK: kernel::randn::cpu<" << T::short_name << ">\n";
@@ -116,7 +127,7 @@ void validate_full(std::array<Index, NDIM> shape)
     // Launch kernel
     std::cout << "Run kernel::randn::cpu<" << T::short_name << ">\n";
     cpu<T>(NDIM, nelems, seed, mean, stddev2, &start[0], &shape[0],
-            &shape[0], &data[0], &stride[0], &tmp_index[0]);
+            &shape[0], &data[0], &stride[0], tmp_index.data());
     // Check if result is different for the first element
     TEST_ASSERT(Y(data[0]) != Y(data_ref[0]))
     std::cout << "OK: kernel::randn::cpu<" << T::short_name << ">\n";
@@ -230,12 +241,12 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
         {
             underlying_index[j] = index[j] + start[j];
         }
-        // Convert underlying index to underlying memory offset
-        Index underlying_offset = underlying_index[NDIM-1];
-        for(Index j = NDIM-2; j >= 0; --j)
+        // Convert underlying index to C-order memory offset
+        Index underlying_offset = underlying_index[0];
+        for(Index j = 1; j < NDIM; ++j)
         {
             underlying_offset = underlying_index[j]
-                + underlying_offset*underlying_shape[j];
+                + underlying_offset * underlying_shape[j - 1];
         }
         // Convert index to memory offset
         offset = 0;
@@ -260,7 +271,7 @@ void validate_many()
     validate_part<T, 1>({1}, {0}, {1});
     validate_part<T, 2>({3, 2}, {0, 0}, {1, 1});
     validate_part<T, 2>({3, 2}, {0, 0}, {1, 1});
-    validate_part<T, 2>({3, 2}, {1, 2}, {1, 1});
+    validate_part<T, 2>({3, 2}, {1, 1}, {1, 1});
     validate_part<T, 4>({3, 4, 5, 6}, {0, 0, 0, 0}, {2, 4, 2, 3});
     validate_part<T, 4>({3, 4, 5, 6}, {1, 2, 1, 3}, {2, 2, 3, 3});
     validate_part<T, 2>({1000, 1000}, {450, 450}, {450, 450});

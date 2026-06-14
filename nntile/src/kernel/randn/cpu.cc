@@ -79,11 +79,11 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
     using Y = typename T::repr_t;
     Y mean{mean_}, stddev{stddev_};
     auto tmp_index = reinterpret_cast<std::int64_t *>(tmp_index_);
-    // Jump to the first element to generate
-    Index shift = start[ndim-1];
-    for(Index i = ndim-2; i >= 0; --i)
+    // Jump to the first element to generate (C-order linear offset).
+    Index shift = start[0];
+    for(Index i = 1; i < ndim; ++i)
     {
-        shift = start[i] + shift*underlying_shape[i];
+        shift = start[i] + shift * underlying_shape[i - 1];
     }
     seed = CORE_rnd64_jump(shift, seed);
     // View tile as a matrix of shape (shape[0], prod(shape[1:ndim]))

@@ -72,7 +72,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *q = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("q");
     auto *k = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("k");
     auto *v = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("v");
-    auto *mask = g.tensor({8, 8}, DataType::BOOL)->set_name("mask");
+    auto *mask = g.tensor({2, 2}, DataType::BOOL)->set_name("mask");
 
     auto *output = sdpa_eager(q, k, v, mask, 2, 0)->set_name("out");
 

@@ -45,7 +45,7 @@ TEST_CASE("Embedding ConstructorCreatesParameters", "[module]")
 
     Embedding emb(&g, "emb", 10, 100);
     REQUIRE(emb.vocab_tensor() != nullptr);
-    REQUIRE(emb.vocab_tensor()->shape() == std::vector<Index>({100, 10}));
+    REQUIRE(emb.vocab_tensor()->shape() == std::vector<Index>({10, 100}));
     REQUIRE(emb.vocab_tensor()->name() == "emb_vocab");
     REQUIRE(emb.parameters().size() == 1);
     REQUIRE(emb.num_embeddings() == 10);
@@ -57,7 +57,7 @@ TEST_CASE("Embedding ConstructorWithExistingTensor", "[module]")
     NNGraph g("embedding");
 
     // NNTile layout: vocab [embed_dim, num_embeddings]
-    auto *vocab = g.tensor({50, 8}, DataType::FP32)->set_name("shared_vocab");
+    auto *vocab = g.tensor({8, 50}, DataType::FP32)->set_name("shared_vocab");
 
     Embedding emb(&g, "emb", vocab);
     REQUIRE(emb.vocab_tensor() == vocab);
@@ -83,7 +83,7 @@ TEST_CASE("Embedding Callable", "[module]")
     auto *index = g.tensor({5, 4}, DataType::INT64, false)->set_name("index");
     Embedding emb(&g, "emb", 10, 100);
     auto *output = emb(index);
-    REQUIRE(output->shape() == std::vector<Index>({4, 5, 100}));
+    REQUIRE(output->shape() == std::vector<Index>({5, 4, 100}));
 }
 
 TEST_CASE("Embedding BuildForward", "[module]")
@@ -94,7 +94,7 @@ TEST_CASE("Embedding BuildForward", "[module]")
     Embedding emb(&g, "emb", 10, 100);
 
     auto *output = emb.forward(index);
-    REQUIRE(output->shape() == std::vector<Index>({4, 5, 100}));
+    REQUIRE(output->shape() == std::vector<Index>({5, 4, 100}));
     REQUIRE(output->name() == "emb_output");
     REQUIRE(g.num_ops() >= 1);
     REQUIRE(output->has_producer());
@@ -133,7 +133,7 @@ TEST_CASE("Embedding BackwardCreatesGradients", "[module]")
 
     REQUIRE(emb.vocab_tensor()->grad() != nullptr);
     REQUIRE(
-        emb.vocab_tensor()->grad()->shape() == std::vector<Index>({100, 10}));
+        emb.vocab_tensor()->grad()->shape() == std::vector<Index>({10, 100}));
 }
 
 #ifdef NNTILE_HAVE_TORCH

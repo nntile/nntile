@@ -36,7 +36,7 @@ void validate()
     Index batch_ndim = 0;
     int axis = 0;
     // tiles
-    Tile<T> src1({k, n, m, batch});
+    Tile<T> src1({batch, k, n, m});
     Tile<T> dst({batch});
 
     // fill tiles

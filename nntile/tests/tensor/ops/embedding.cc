@@ -54,7 +54,7 @@ TEST_CASE("TensorGraph embedding structure", "[graph][tensor]")
 
     auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
-    auto *embed = graph.data({4, 5, 100})->set_name("embed");
+    auto *embed = graph.data({5, 4, 100})->set_name("embed");
 
     gt::embedding(index, vocab, embed, 2);
 
@@ -73,7 +73,7 @@ TEST_CASE("TensorGraph embedding rejects null tensors", "[graph][tensor]")
     TensorGraph graph("test");
     auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
     auto *vocab = graph.data({10, 100})->set_name("vocab");
-    auto *embed = graph.data({4, 5, 100})->set_name("embed");
+    auto *embed = graph.data({5, 4, 100})->set_name("embed");
 
     REQUIRE_THROWS_AS(
         gt::embedding(nullptr, vocab, embed, 2), std::invalid_argument);
@@ -94,7 +94,7 @@ TEST_CASE("TensorGraph embedding with output_name", "[graph][tensor]")
     REQUIRE(embed != nullptr);
     // C-order vocab: [num_embeddings, embed_dim]; embed.shape[axis] ==
     // vocab.shape[1]
-    REQUIRE(embed->shape() == std::vector<Index>{4, 5, 100});
+    REQUIRE(embed->shape() == std::vector<Index>{5, 4, 100});
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
 }

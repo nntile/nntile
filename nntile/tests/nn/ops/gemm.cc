@@ -341,7 +341,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         NNGraph g("gemm_transposed_a_transposed_b");
         auto *a = g.tensor({2, 4}, DataType::FP32, true)->set_name("a");
-        auto *b = g.tensor({4, 3}, DataType::FP32, true)->set_name("b");
+        auto *b = g.tensor({3, 4}, DataType::FP32, true)->set_name("b");
         auto *c = gemm(
             a, b, gemm_alpha_one, trans_a, trans_b, ndim_one, batch_ndim_none);
 
@@ -355,7 +355,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(a->has_grad());
         REQUIRE(b->has_grad());
         REQUIRE(a->grad()->shape() == (std::vector<Index>{2, 4}));
-        REQUIRE(b->grad()->shape() == (std::vector<Index>{4, 3}));
+        REQUIRE(b->grad()->shape() == (std::vector<Index>{3, 4}));
     }
 }
 

@@ -26,8 +26,8 @@ void check(Scalar alpha, Scalar beta)
     using Y = typename T::repr_t;
     // Init data for checking
     Tile<T> src1({5, 4, 3}), src2({5, 4, 3});
-    Tile<T> dst[3] = {Tile<T>({5, 4}), Tile<T>({3, 5}), Tile<T>({3, 4})};
-    Tile<T> dst2[3] = {Tile<T>({5, 4}), Tile<T>({3, 5}), Tile<T>({3, 4})};
+    Tile<T> dst[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
+    Tile<T> dst2[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
     auto src1_local = src1.acquire(STARPU_W);
     auto src2_local = src2.acquire(STARPU_W);
     for(Index i = 0; i < src1.nelems; ++i)
@@ -52,7 +52,7 @@ void check(Scalar alpha, Scalar beta)
     }
     // Check axis=0
     {
-        starpu::sumprod_slice.submit<std::tuple<T>>(-1, 1, 20, 3, alpha, src1, src2, beta,
+        starpu::sumprod_slice.submit<std::tuple<T>>(-1, 12, 1, 5, alpha, src1, src2, beta,
                 dst[0]);
         sumprod_slice<T>(-1, alpha, src1, src2, beta, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
@@ -80,7 +80,7 @@ void check(Scalar alpha, Scalar beta)
     }
     // Check axis=2
     {
-        starpu::sumprod_slice.submit<std::tuple<T>>(-1, 12, 1, 5, alpha, src1, src2, beta,
+        starpu::sumprod_slice.submit<std::tuple<T>>(-1, 1, 20, 3, alpha, src1, src2, beta,
                 dst[2]);
         sumprod_slice<T>(-1, alpha, src1, src2, beta, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);

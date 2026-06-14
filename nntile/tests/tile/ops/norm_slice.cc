@@ -56,9 +56,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_slice (axis=0)", 
       A.release(); B.release(); C.release(); }
     nntile::core::norm_slice<fp32_t>(-1, a, T1, b, T2, D, ax, redux);
     starpu_task_wait_for_all();
-    std::vector<float> tref(20);
+    std::vector<float> tref(n3);
     { auto L = D.acquire(STARPU_R);
-      for(Index j = 0; j < 20; ++j) tref[static_cast<size_t>(j)] = static_cast<float>(L[j]);
+      for(Index j = 0; j < n3; ++j) tref[static_cast<size_t>(j)] = static_cast<float>(L[j]);
       L.release(); }
     for(size_t j = 0; j < tref.size(); ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e+2f); }
 }

@@ -50,6 +50,13 @@ inline void nn_pytorch_tile_heterogeneous_1d_len4(NNGraph::TensorNode* t)
     t->data()->axis(0)->set_tiling(std::vector<Index>{2, 2});
 }
 
+//! Logits (batch, nclasses) = (7, 5) for cross_entropy (C-order).
+inline void nn_pytorch_tile_logits_7x5(NNGraph::TensorNode* x)
+{
+    x->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{5});
+}
+
 //! Logits (nclasses, batch) = (5, 7) for cross_entropy.
 //! Class axis (0) is a single tile: `subtract_indexed_outputs` / its kernel use
 //! global class ids as row indices with `n_labels = dst.shape[0]` per tile

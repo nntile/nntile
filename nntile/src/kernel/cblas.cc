@@ -104,12 +104,12 @@ void gemm(
     {
         case TransOp::NoTrans:
             ld_first = M_out;
-            ld_second = (transA.value == TransOp::NoTrans) ? N_out : K_inner;
+            ld_second = N_out;
             break;
         case TransOp::Trans:
         default:
             ld_first = K_inner;
-            ld_second = K_inner;
+            ld_second = N_out;
             break;
     }
     const CBLAS_INT ldC = N_out;

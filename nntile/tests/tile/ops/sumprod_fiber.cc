@@ -41,7 +41,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_fiber (axis=0)
     tg::sumprod_fiber(a, s1, s2, b, d, axis, redux);
     Runtime runtime(g);
     runtime.compile();
-    std::vector<float> v1(n), v2(n), dd(3, 0.f);
+    std::vector<float> v1(n), v2(n), dd(5, 0.f);
     for(Index i = 0; i < n; ++i)
     {
         v1[static_cast<size_t>(i)] = static_cast<float>(i + 1);
@@ -64,18 +64,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_fiber (axis=0)
             A[i] = Y(v1[static_cast<size_t>(i)]);
             B[i] = Y(v2[static_cast<size_t>(i)]);
         }
-        for(Index j = 0; j < 3; ++j) { C[j] = Y(0); }
+        for(Index j = 0; j < 5; ++j) { C[j] = Y(0); }
         A.release();
         B.release();
         C.release();
     }
     nntile::core::sumprod_fiber<fp32_t>(-1, a, t1, t2, b, td, axis, redux);
     starpu_task_wait_for_all();
-    std::vector<float> tref(3);
+    std::vector<float> tref(5);
     {
         auto L = td.acquire(STARPU_R);
-        for(Index j = 0; j < 3; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(L[j]); }
+        for(Index j = 0; j < 5; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(L[j]); }
         L.release();
     }
-    for(size_t j = 0; j < 3; ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e+2f); }
+    for(size_t j = 0; j < 5; ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e+2f); }
 }

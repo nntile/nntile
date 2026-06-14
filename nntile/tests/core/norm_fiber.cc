@@ -28,7 +28,7 @@ void check()
     int redux = 0;
     Index batch_ndim = 0;
     int axis = 0;
-    Tile<T> src1({1, 20, 3, 5});
+    Tile<T> src1({5, 1, 20, 3});
     Tile<T> src2({5});
     Tile<T> dst({5});
     Tile<T> dst_ref({5});
