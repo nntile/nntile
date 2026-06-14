@@ -76,12 +76,9 @@ void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, 
         }
     }
 
-    // Reshape inputs for simplicity: sin,cos -> (m), src,dst -> (2,m,n)
-    const Index n_slow = src.matrix_shape[rope_axis][0];
-    const Index n_fast = src.matrix_shape[rope_axis + 1][1];
-    const Index n = (src.ndim > sin.ndim) ? n_fast : n_slow;
-    Index m_pairs{src.shape[rope_axis] / 2};
-    Index m_sin{sin.nelems / n};
+    // Fortran kernel view: sin/cos (ncols), src/dst (2, ncols, nrows).
+    const Index ncols = sin.nelems;
+    const Index nrows = src.matrix_shape[sin.ndim][1];
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();
     sin.mpi_transfer(dst_rank, mpi_rank);
@@ -89,7 +86,7 @@ void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, 
     src.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        starpu::rope.submit<std::tuple<T>>(starpu_worker_hint, m_pairs, n, m_sin,
+        starpu::rope.submit<std::tuple<T>>(starpu_worker_hint, nrows, ncols,
             sin_pair0, sin, cos, src, dst);
     }
 }

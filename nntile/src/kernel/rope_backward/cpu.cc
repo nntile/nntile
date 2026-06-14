@@ -19,62 +19,40 @@ namespace nntile::kernel::rope_backward
 {
 
 template<typename T>
-void cpu(Index m_pairs, Index n, Index m_sin, Index sin_pair0, const T *sin,
-    const T *cos, const T *dy, T *dx)
-    noexcept
-/*! Change provided 2-by-m-by-n src tensor and write result into dst tensor
- *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
- *  TODO: describe math here
- *
- * Although this is backward procedure, which usually implies += update of the
- * output, we specifically use = for the output.
- *
- * @param[in] m: Size of sin and cos tensors
- * @param[in] n: Size of the second mode of src and dst tensors
- * @param[in] sin: Input sine tensor
- * @param[in] cos: Input cosine tensor
- * @param[in] dy: Gradient over output of forward RoPE
- * @param[out] dx: Gradient over input of forward RoPE
- * */
+void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *dy,
+    T *dx) noexcept
 {
     using Y = typename T::repr_t;
-    // Use these angles for pairwise rotation of the same elements across all
-    // batches
-    for (Index j = 0; j < n; ++j)
+    const Index m = ncols;
+    const Index n = nrows;
+    for(Index j = 0; j < n; ++j)
     {
-        // Cycle over all elements of sin and cos buffers.
-        for(Index i = 0; i < m_pairs; ++i)
+        for(Index i = 0; i < m; ++i)
         {
-            const Index si = sin_pair0 + i * n + j;
-            const Index l0 = 2 * i * n + j;
-            const Index l1 = l0 + n;
-            Y c{cos[si]}, s{sin[si]};
-            Y a{dy[l0]}, b{dy[l1]};
-            dx[l0] = static_cast<T>(c*a + s*b);
-            dx[l1] = static_cast<T>(c*b - s*a);
+            const Index l = 2 * (i + j * m);
+            Y c{cos[i]}, s{sin[i]};
+            Y a{dy[l]}, b{dy[l + 1]};
+            dx[l] = static_cast<T>(c * a + s * b);
+            dx[l + 1] = static_cast<T>(c * b - s * a);
         }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const fp32_t *sin, const fp32_t *cos, const fp32_t *dy, fp32_t *dx)
-    noexcept;
+void cpu<fp32_t>(Index nrows, Index ncols, const fp32_t *sin,
+    const fp32_t *cos, const fp32_t *dy, fp32_t *dx) noexcept;
 
 template
-void cpu<fp64_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const fp64_t *sin, const fp64_t *cos, const fp64_t *dy, fp64_t *dx)
-    noexcept;
+void cpu<fp64_t>(Index nrows, Index ncols, const fp64_t *sin,
+    const fp64_t *cos, const fp64_t *dy, fp64_t *dx) noexcept;
 
 template
-void cpu<fp16_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const fp16_t *sin, const fp16_t *cos, const fp16_t *dy, fp16_t *dx)
-    noexcept;
+void cpu<fp16_t>(Index nrows, Index ncols, const fp16_t *sin,
+    const fp16_t *cos, const fp16_t *dy, fp16_t *dx) noexcept;
 
 template
-void cpu<bf16_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const bf16_t *sin, const bf16_t *cos, const bf16_t *dy, bf16_t *dx)
-    noexcept;
+void cpu<bf16_t>(Index nrows, Index ncols, const bf16_t *sin,
+    const bf16_t *cos, const bf16_t *dy, bf16_t *dx) noexcept;
 
-} // namespace rope_backward
+} // namespace nntile::kernel::rope_backward

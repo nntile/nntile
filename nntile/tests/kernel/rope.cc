@@ -24,31 +24,30 @@ using namespace nntile::kernel::rope;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const std::vector<T> &sin, const std::vector<T> &cos,
-    const std::vector<T> &src, std::vector<T> &dst)
+void run_cuda(Index nrows, Index ncols, const std::vector<T> &sin,
+    const std::vector<T> &cos, const std::vector<T> &src, std::vector<T> &dst)
 {
     // Copy to device
     T *dev_sin, *dev_cos;
     T *dev_src, *dev_dst;
-    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*2*m_pairs*n);
+    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*2*ncols*nrows);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*2*m_pairs*n);
+    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*2*ncols*nrows);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_sin, sizeof(T)*m_sin*n);
+    cuda_err = cudaMalloc(&dev_sin, sizeof(T)*ncols);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_cos, sizeof(T)*m_sin*n);
+    cuda_err = cudaMalloc(&dev_cos, sizeof(T)*ncols);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*2*m_pairs*n,
+    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*2*ncols*nrows,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*2*m_pairs*n,
+    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*2*ncols*nrows,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_sin, &sin[0], sizeof(T)*m_sin*n,
+    cuda_err = cudaMemcpy(dev_sin, &sin[0], sizeof(T)*ncols,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_cos, &cos[0], sizeof(T)*m_sin*n,
+    cuda_err = cudaMemcpy(dev_cos, &cos[0], sizeof(T)*ncols,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init stream
@@ -56,12 +55,11 @@ void run_cuda(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    cuda<T>(stream, m_pairs, n, m_sin, sin_pair0, dev_sin, dev_cos, dev_src,
-        dev_dst);
+    cuda<T>(stream, nrows, ncols, dev_sin, dev_cos, dev_src, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
-    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*2*m_pairs*n,
+    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*2*ncols*nrows,
             cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
@@ -81,14 +79,14 @@ void run_cuda(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
 
 // Templated validation
 template<typename T>
-void validate(Index m_pairs, Index n)
+void validate(Index ncols, Index nrows)
 {
     using Y = typename T::repr_t;
     const Y eps = 2 * T::epsilon;
-    Index const num_data_elems{2*m_pairs*n};
+    Index const num_data_elems{2*ncols*nrows};
     // Init test input
-    std::vector<T> sin(m_pairs*n);
-    std::vector<T> cos(m_pairs*n);
+    std::vector<T> sin(ncols);
+    std::vector<T> cos(ncols);
     std::vector<T> src(num_data_elems);
     std::vector<T> dst(num_data_elems);
     for(Index i = 0; i < num_data_elems; ++i)
@@ -96,28 +94,24 @@ void validate(Index m_pairs, Index n)
         src[i] = Y(2*i+1-num_data_elems) / Y{1000};
     }
 
-    for(Index i = 0; i < m_pairs; ++i)
+    for(Index i = 0; i < ncols; ++i)
     {
-        T const s = Y(2*i+1-m_pairs) / Y(m_pairs);
+        T const s = Y(2*i+1-ncols) / Y(ncols);
         T const c = Y(std::sqrt(1 - Y(s) * Y(s)));
-        for(Index j = 0; j < n; ++j)
-        {
-            sin[static_cast<size_t>(i*n + j)] = s;
-            cos[static_cast<size_t>(i*n + j)] = c;
-        }
+        sin[static_cast<size_t>(i)] = s;
+        cos[static_cast<size_t>(i)] = c;
     }
 
     // Check low-level CPU kernel
     std::cout << "Run kernel::rope::cpu<" << T::short_name << ">\n";
-    cpu<T>(m_pairs, n, m_pairs, Index(0), &sin[0], &cos[0], &src[0], &dst[0]);
-    for(Index j = 0; j < n; ++j)
+    cpu<T>(nrows, ncols, &sin[0], &cos[0], &src[0], &dst[0]);
+    for(Index j = 0; j < nrows; ++j)
     {
-        for(Index i = 0; i < m_pairs; ++i)
+        for(Index i = 0; i < ncols; ++i)
         {
-            Index const l0 = 2 * i * n + j;
-            Index const l1 = l0 + n;
-            Index const si = i * n + j;
-            Y c{cos[si]}, s{sin[si]};
+            Index const l0 = 2 * (i + j * ncols);
+            Index const l1 = l0 + 1;
+            Y c{cos[i]}, s{sin[i]};
             Y a{src[l0]}, b{src[l1]};
             Y val_ref_a{c*a - s*b};
             Y val_ref_b{s*a + c*b};
@@ -157,15 +151,14 @@ void validate(Index m_pairs, Index n)
     // Check low-level CUDA kernel
     dst = src;
     std::cout << "Run kernel::rope::cuda<" << T::short_name << ">\n";
-    run_cuda<T>(m_pairs, n, m_pairs, Index(0), sin, cos, src, dst);
-    for(Index j = 0; j < n; ++j)
+    run_cuda<T>(nrows, ncols, sin, cos, src, dst);
+    for(Index j = 0; j < nrows; ++j)
     {
-        for(Index i = 0; i < m_pairs; ++i)
+        for(Index i = 0; i < ncols; ++i)
         {
-            Index const l0 = 2 * i * n + j;
-            Index const l1 = l0 + n;
-            Index const si = i * n + j;
-            Y c{cos[si]}, s{sin[si]};
+            Index const l0 = 2 * (i + j * ncols);
+            Index const l1 = l0 + 1;
+            Y c{cos[i]}, s{sin[i]};
             Y a{src[l0]}, b{src[l1]};
             Y val_ref_a{c*a - s*b};
             Y val_ref_b{s*a + c*b};

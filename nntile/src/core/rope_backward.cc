@@ -69,13 +69,10 @@ void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<
     dy.mpi_transfer(dx_rank, mpi_rank);
     if(mpi_rank == dx_rank)
     {
-        const Index n_slow = dy.matrix_shape[rope_axis][0];
-        const Index n_fast = dy.matrix_shape[rope_axis + 1][1];
-        const Index n = (dy.ndim > sin.ndim) ? n_fast : n_slow;
-        Index m_pairs{dy.shape[rope_axis] / 2};
-        Index m_sin{sin.nelems / n};
-        starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, m_pairs,
-            n, m_sin, sin_pair0, sin, cos, dy, dx);
+        const Index ncols = sin.nelems;
+        const Index nrows = dy.matrix_shape[sin.ndim][1];
+        starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, nrows,
+            ncols, sin_pair0, sin, cos, dy, dx);
     }
 }
 

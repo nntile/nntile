@@ -47,11 +47,10 @@ void validate()
     dx_local.release();
     dx_ref_local.release();
 
-    Index m_pairs = 2;
-    Index n = 5;
-    Index m_sin = sin.nelems / n;
+    Index ncols = sin.nelems;
+    Index nrows = dy.matrix_shape[sin.ndim][1];
     Index sin_pair0 = 0;
-    starpu::rope_backward.submit<std::tuple<T>>(-1, m_pairs, n, m_sin, sin_pair0,
+    starpu::rope_backward.submit<std::tuple<T>>(-1, nrows, ncols, sin_pair0,
         sin, cos, dy, dx);
     rope_backward<T>(-1, sin, cos, dy, dx_ref, sin_pair0);
 

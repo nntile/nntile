@@ -45,9 +45,8 @@ public:
     //! Structure for operation arguments
     struct args_t
     {
-        Index m_pairs;
-        Index n;
-        Index m_sin;
+        Index nrows;
+        Index ncols;
         Index sin_pair0;
     };
 
@@ -80,9 +79,8 @@ public:
     //! Submit rope task
     void submit(
         int starpu_worker_hint,
-        Index m_pairs,
-        Index n,
-        Index m_sin,
+        Index nrows,
+        Index ncols,
         Index sin_pair0,
         Handle sin,
         Handle cos,

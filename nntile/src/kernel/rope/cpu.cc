@@ -19,16 +19,15 @@ namespace nntile::kernel::rope
 {
 
 template<typename T>
-void cpu(Index m_pairs, Index n, Index m_sin, Index sin_pair0, const T *sin,
-    const T *cos, const T *src, T *dst)
-    noexcept
-/*! Change provided 2-by-m-by-n src tensor and write result into dst tensor
- *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
- *  dst[2i,j] = cos[i] * src[2i,j] - sin[i] * src[2i+1,j]
- *  dst[2i+1,j] = sin[i] * src[2i,j] + cos[i] * src[2i+1,j]
+void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *src,
+    T *dst) noexcept
+/*! Apply RoPE on a Fortran-order (2, m, n) view of flat C-order tile data.
  *
- * @param[in] m: Size of sin and cos tensors
- * @param[in] n: Size of the second mode of src and dst tensors
+ * nrows/ncols are swapped vs the logical slow/pair axes: the loop uses
+ * m = ncols (pair count) and n = nrows (slow extent).
+ *
+ * @param[in] nrows: Slow-axis tile extent (Fortran matrix rows)
+ * @param[in] ncols: Pair count along the RoPE axis (Fortran matrix cols)
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
  * @param[in] src: Input embedding tensor
@@ -36,43 +35,36 @@ void cpu(Index m_pairs, Index n, Index m_sin, Index sin_pair0, const T *sin,
  * */
 {
     using Y = typename T::repr_t;
-    // Use these angles for pairwise rotation of the same elements across all
-    // batches
-    for (Index j = 0; j < n; ++j)
+    const Index m = ncols;
+    const Index n = nrows;
+    for(Index j = 0; j < n; ++j)
     {
-        // Cycle over all elements of sin and cos buffers.
-        for(Index i = 0; i < m_pairs; ++i)
+        for(Index i = 0; i < m; ++i)
         {
-            const Index si = sin_pair0 + i * n + j;
-            const Index l0 = 2 * i * n + j;
-            const Index l1 = l0 + n;
-            Y c{cos[si]}, s{sin[si]};
-            Y a{src[l0]}, b{src[l1]};
-            dst[l0] = static_cast<T>(c*a - s*b);
-            dst[l1] = static_cast<T>(s*a + c*b);
+            const Index l = 2 * (i + j * m);
+            Y c{cos[i]}, s{sin[i]};
+            Y a{src[l]}, b{src[l + 1]};
+            dst[l] = static_cast<T>(c * a - s * b);
+            dst[l + 1] = static_cast<T>(s * a + c * b);
         }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const fp32_t *sin, const fp32_t *cos, const fp32_t *src, fp32_t *dst)
-    noexcept;
+void cpu<fp32_t>(Index nrows, Index ncols, const fp32_t *sin,
+    const fp32_t *cos, const fp32_t *src, fp32_t *dst) noexcept;
 
 template
-void cpu<fp64_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const fp64_t *sin, const fp64_t *cos, const fp64_t *src, fp64_t *dst)
-    noexcept;
+void cpu<fp64_t>(Index nrows, Index ncols, const fp64_t *sin,
+    const fp64_t *cos, const fp64_t *src, fp64_t *dst) noexcept;
 
 template
-void cpu<fp16_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const fp16_t *sin, const fp16_t *cos, const fp16_t *src, fp16_t *dst)
-    noexcept;
+void cpu<fp16_t>(Index nrows, Index ncols, const fp16_t *sin,
+    const fp16_t *cos, const fp16_t *src, fp16_t *dst) noexcept;
 
 template
-void cpu<bf16_t>(Index m_pairs, Index n, Index m_sin, Index sin_pair0,
-    const bf16_t *sin, const bf16_t *cos, const bf16_t *src, bf16_t *dst)
-    noexcept;
+void cpu<bf16_t>(Index nrows, Index ncols, const bf16_t *sin,
+    const bf16_t *cos, const bf16_t *src, bf16_t *dst) noexcept;
 
-} // namespace rope
+} // namespace nntile::kernel::rope

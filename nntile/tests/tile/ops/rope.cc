@@ -23,7 +23,7 @@ using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]")
 {
     const std::vector<Index> sh = {2}, tsh = {4, 5};
-    const Index n2=2, n=20;
+    const Index n=20;
     TileGraph g("g");
     auto* si = g.data(sh, "si", DataType::FP32);
     auto* co = g.data(sh, "co", DataType::FP32);
@@ -57,5 +57,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
     { auto L=D.acquire(STARPU_R);
       for(int i=0;i<20;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
-    for(int i=0;i<20;++i) REQUIRE(std::abs(gout[static_cast<size_t>(i)]-tr[static_cast<size_t>(i)])<1e+2f);
+    for(int i=0;i<20;++i) REQUIRE(std::abs(gout[static_cast<size_t>(i)]-tr[static_cast<size_t>(i)])<1e-4f);
 }
