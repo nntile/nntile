@@ -283,14 +283,13 @@ inline void module_tile_all_untiled_axis_groups_heterogeneous(TensorGraph& tg)
     }
 }
 
-//! Embedding weight layout [embed_dim, num_embeddings]: axis 1 must stay one tile; axis 0
-//! must use a uniform basetile extent (see `lower_to_tile EMBEDDING` and
-//! `kernel::embedding`). Uses two equal row tiles when embed_dim is even and >= 2;
-//! otherwise a single full row tile.
+//! Embedding weight layout [num_embeddings, embed_dim]: physical axis 1 must
+//! stay one tile; physical axis 0 must use a uniform basetile extent (see
+//! `lower_to_tile EMBEDDING` and `kernel::embedding`).
 inline void module_apply_embedding_vocab_tiling(NNGraph::TensorNode* vocab)
 {
-    const Index ed = vocab->shape()[0];
-    const Index ne = vocab->shape()[1];
+    const Index ne = vocab->shape()[0];
+    const Index ed = vocab->shape()[1];
     vocab->data()->axis(1)->set_tiling(std::vector<Index>{ne});
     if(ed >= 2 && (ed % 2) == 0)
     {

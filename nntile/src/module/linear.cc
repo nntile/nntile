@@ -32,7 +32,8 @@ namespace
 constexpr Scalar GEMM_ALPHA = 1.0;
 constexpr Index GEMM_NDIM_MATRIX = 1;
 constexpr Index NO_BATCH_DIM = 0;
-constexpr bool NO_TRANSPOSE = false;
+constexpr bool TRANSPOSE_A = true;
+constexpr bool NO_TRANSPOSE_B = false;
 constexpr Scalar ADD_FIBER_ALPHA = 1.0;
 constexpr Scalar ADD_FIBER_BETA = 1.0;
 
@@ -49,8 +50,8 @@ Linear::Linear(NNGraph *graph,
     output_dim_(output_dim),
     dtype_(dtype)
 {
-    // Create weight tensor during construction
-    weight_tensor_ = graph_->tensor({input_dim_, output_dim_}, dtype_, true);
+    // Create weight tensor during construction [out, in]
+    weight_tensor_ = graph_->tensor({output_dim_, input_dim_}, dtype_, true);
     weight_tensor_->set_name(tensor_name("weight"));
     register_parameter("weight", weight_tensor_);
 }
@@ -67,8 +68,8 @@ Linear::Linear(NNGraph *graph,
     output_dim_(output_dim),
     dtype_(dtype)
 {
-    // Create weight tensor
-    weight_tensor_ = graph_->tensor({input_dim_, output_dim_}, dtype_, true);
+    // Create weight tensor [out, in]
+    weight_tensor_ = graph_->tensor({output_dim_, input_dim_}, dtype_, true);
     weight_tensor_->set_name(tensor_name("weight"));
     register_parameter("weight", weight_tensor_);
 
@@ -105,11 +106,10 @@ Linear::Linear(NNGraph *graph,
             std::to_string(weight_tensor->ndim()));
     }
 
-    // Extract dimensions from weight tensor shape
-    // Weight shape is [input_dim, output_dim]
+    // Extract dimensions from weight tensor shape [out, in]
     const auto &w_shape = weight_tensor->shape();
-    input_dim_ = w_shape[0];
-    output_dim_ = w_shape[1];
+    output_dim_ = w_shape[0];
+    input_dim_ = w_shape[1];
 
     register_parameter("weight", weight_tensor_);
 }
@@ -140,11 +140,10 @@ Linear::Linear(NNGraph *graph,
             std::to_string(weight_tensor->ndim()));
     }
 
-    // Extract dimensions from weight tensor shape
-    // Weight shape is [input_dim, output_dim]
+    // Extract dimensions from weight tensor shape [out, in]
     const auto &w_shape = weight_tensor->shape();
-    input_dim_ = w_shape[0];
-    output_dim_ = w_shape[1];
+    output_dim_ = w_shape[0];
+    input_dim_ = w_shape[1];
 
     // Validate bias tensor shape
     if (bias_tensor->ndim() != 1)
@@ -201,11 +200,11 @@ NNGraph::TensorNode *Linear::forward(NNGraph::TensorNode *input)
     const std::string gemm_name = bias_tensor_ != nullptr
                                       ? tensor_name("gemm_output")
                                       : tensor_name("output");
-    NNGraph::TensorNode *gemm_out = gemm(input,
-        weight_tensor_,
+    NNGraph::TensorNode *gemm_out = gemm(weight_tensor_,
+        input,
         GEMM_ALPHA,
-        NO_TRANSPOSE,
-        NO_TRANSPOSE,
+        TRANSPOSE_A,
+        NO_TRANSPOSE_B,
         GEMM_NDIM_MATRIX,
         NO_BATCH_DIM);
     gemm_out->set_name(gemm_name);

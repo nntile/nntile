@@ -88,7 +88,7 @@ public:
     //! Constructor: uses existing weight tensor, no bias
     //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
-    //! @param weight_tensor Existing weight tensor to use [input_dim, output_dim]
+    //! @param weight_tensor Existing weight tensor to use [output_dim, input_dim]
     Linear(
         NNGraph* graph,
         const std::string& name,
@@ -122,7 +122,8 @@ public:
     );
 
     //! Get weight data in NNTile format for runtime.bind_data().
-    //! Converts PyTorch [out,in] row-major to NNTile [in,out] column-major.
+    //! Converts PyTorch [out, in] row-major to physical Fortran buffer for
+    //! C-order weight shape [out, in].
     static std::vector<float> weight_data_from_pytorch(const torch::Tensor& w);
 
     //! Get bias data in NNTile format for runtime.bind_data().
@@ -203,7 +204,7 @@ inline std::vector<float> Linear::weight_data_from_pytorch(
     }
     const long out = w.size(0);
     const long in = w.size(1);
-    std::vector<float> result(static_cast<size_t>(in * out));
+    std::vector<float> result(static_cast<size_t>(out * in));
     auto acc = w.accessor<float, 2>();
     for(long j = 0; j < out; ++j)
     {

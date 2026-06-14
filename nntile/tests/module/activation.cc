@@ -30,6 +30,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #include "context_fixture.hh"
+#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/graph.hh"
 #include "pytorch_helper.hh"
 #include "pytorch_tile_helpers.hh"
@@ -113,6 +114,7 @@ torch::Tensor apply_activation_pt(torch::Tensor x, ActivationType t)
 
 } // anonymous namespace
 
+using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::pytorch_tolerance;
 
@@ -168,12 +170,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out = runtime.get_output<float>(output);
-    std::vector<float> nntile_grad_input =
-        runtime.get_output<float>(input->grad());
-
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto input_pt = torch::from_blob(input_data.data(),
+    std::vector<float> input_rowmajor =
+        colmajor_to_rowmajor(input_data, nn::c_shape_to_fortran(shape));
+    auto input_pt = torch::from_blob(input_rowmajor.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
@@ -184,12 +184,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 
-    REQUIRE(nntile_out.size() == static_cast<size_t>(nelems));
-    for (size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - out_pt.data_ptr<float>()[i]) <
-                pytorch_tolerance);
+    compare_float_vectors(
+        colmajor_to_rowmajor(runtime.get_output<float>(output),
+            nn::c_shape_to_fortran(shape)),
+        out_pt);
 
-    compare_float_vectors(nntile_grad_input, input_pt.grad());
+    compare_float_vectors(
+        colmajor_to_rowmajor(runtime.get_output<float>(input->grad()),
+            nn::c_shape_to_fortran(shape)),
+        input_pt.grad());
 }
 
 #endif // NNTILE_HAVE_TORCH
