@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto shape =
-        GENERATE(std::vector<Index>{2, 3}, std::vector<Index>{4, 5});
+        GENERATE(std::vector<Index>{3, 2}, std::vector<Index>{5, 4});
 
     NNGraph g("gelu_structure");
     auto *x = g.tensor(shape, DataType::FP32)->set_name("x");
@@ -51,8 +51,8 @@ TEST_CASE_METHOD(
     nntile::test::ContextFixture, "NNGraph gelu backward", "[graph][nn_graph]")
 {
     const auto [shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{2, 3}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{4, 5}, Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{3, 2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{5, 4}, Scalar(-1.0)});
 
     NNGraph g("gelu_backward");
     auto *x = g.tensor(shape, DataType::FP32)->set_name("x");
@@ -71,10 +71,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{2, 3}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{4, 5}, Scalar(1.0)},
+        GENERATE(std::tuple{std::vector<Index>{3, 2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{5, 4}, Scalar(1.0)},
             std::tuple{std::vector<Index>{6}, Scalar(2.0)},
-            std::tuple{std::vector<Index>{2, 2, 3}, Scalar(-1.0)});
+            std::tuple{std::vector<Index>{3, 2, 2}, Scalar(-1.0)});
 
     NNGraph g("gelu");
     auto *x = g.tensor(shape, DataType::FP32, true)->set_name("x");
@@ -101,7 +101,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph gelu forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
-    const std::vector<Index> shape = {6, 7};
+    const std::vector<Index> shape = {7, 6};
     Index nelems = 6 * 7;
 
     std::vector<float> x_data(nelems);
@@ -140,7 +140,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph][pytorch]")
 {
     const auto grad_fill_val = GENERATE(Scalar(1.0), Scalar(-1.0));
-    const std::vector<Index> shape = {6, 7};
+    const std::vector<Index> shape = {7, 6};
     Index nelems = 6 * 7;
 
     std::vector<float> x_data(nelems);

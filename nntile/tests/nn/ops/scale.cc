@@ -43,12 +43,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(Scalar(1.0), Scalar(2.5), Scalar(0.5), Scalar(-1.0));
 
     NNGraph g("scale_structure");
-    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("x");
+    auto *x = g.tensor({dim_3, dim_2}, DataType::FP32)->set_name("x");
     auto *y = scale(alpha, x)->set_name("y");
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
-    REQUIRE(y->shape() == (std::vector<Index>{dim_2, dim_3}));
+    REQUIRE(y->shape() == (std::vector<Index>{dim_3, dim_2}));
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "SCALE");
 }
@@ -64,7 +64,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(-1.0), Scalar(2.0)});
 
     NNGraph g("scale_backward");
-    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("x");
+    auto *x = g.tensor({dim_3, dim_2}, DataType::FP32)->set_name("x");
     auto *y = scale(alpha, x)->set_name("y");
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
@@ -95,7 +95,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         x_data[i] = 0.1f * static_cast<float>(i + 1);
 
     NNGraph g("scale_pytorch");
-    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
+    auto *x = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("x");
     auto *y = scale(alpha, x)->set_name("y");
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
@@ -113,7 +113,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_out = runtime.get_output<float>(y);
 
     auto x_pt = torch::from_blob(x_data.data(),
-        {dim0, dim1},
+        {dim1, dim0},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
@@ -140,7 +140,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         x_data[i] = 0.1f * static_cast<float>(i);
 
     NNGraph g("scale_bwd_pytorch");
-    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
+    auto *x = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("x");
     auto *y = scale(alpha, x)->set_name("y");
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
@@ -163,12 +163,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
 
     auto x_pt = torch::from_blob(x_data.data(),
-        {dim0, dim1},
+        {dim1, dim0},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
     auto y_pt = alpha * x_pt;
-    auto grad_output = torch::full({dim0, dim1},
+    auto grad_output = torch::full({dim1, dim0},
         static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     y_pt.backward(grad_output);
