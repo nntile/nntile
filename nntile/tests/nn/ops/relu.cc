@@ -99,7 +99,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph relu forward matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
-    const std::vector<Index> shape = {7, 6};
+    const std::vector<Index> shape = {6, 7};
     Index nelems = 6 * 7;
 
     std::vector<float> x_data(nelems);
@@ -138,7 +138,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph][pytorch]")
 {
     const auto grad_fill_val = GENERATE(Scalar(1.0), Scalar(-1.0));
-    const std::vector<Index> shape = {7, 6};
+    const std::vector<Index> shape = {6, 7};
     Index nelems = 6 * 7;
 
     std::vector<float> x_data(nelems);

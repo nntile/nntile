@@ -114,9 +114,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
-    const std::vector<Index> dst_shape = {dim_n, dim_m};
+    const std::vector<Index> dst_shape = {dim_m, dim_n};
     std::vector<Index> src_shape = slice_shape(dst_shape, axis);
-    Index axis_size = (axis == 0) ? dim_n : dim_m;
+    Index axis_size = (axis == 0) ? dim_m : dim_n;
     Index src_nelems = 1;
     for (Index d : src_shape)
         src_nelems *= d;
@@ -132,9 +132,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(out);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len6(src);
-    else
         nn_pytorch_tile_heterogeneous_1d_len7(src);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(src);
 
     src->mark_input(true);
     out->mark_output(true);
@@ -179,9 +179,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
-    const std::vector<Index> dst_shape = {dim_n, dim_m};
+    const std::vector<Index> dst_shape = {dim_m, dim_n};
     std::vector<Index> src_shape = slice_shape(dst_shape, axis);
-    Index axis_size = (axis == 0) ? dim_n : dim_m;
+    Index axis_size = (axis == 0) ? dim_m : dim_n;
     Index src_nelems = 1;
     for (Index d : src_shape)
         src_nelems *= d;
@@ -196,9 +196,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(out);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len6(src);
-    else
         nn_pytorch_tile_heterogeneous_1d_len7(src);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(src);
 
     src->mark_input(true);
 

@@ -104,18 +104,18 @@ inline void nn_pytorch_tile_vocab_8x8(NNGraph::TensorNode* vocab)
     vocab->data()->axis(1)->set_tiling(std::vector<Index>{8});
 }
 
-//! Softmax along axis 0 on (6, 7): heterogeneous on axis 1 only; axis 0 unsplit.
+//! Softmax along C axis 0 on virtual (6, 7); physical [7, 6].
 inline void nn_pytorch_tile_softmax_axis0_6x7(NNGraph::TensorNode* x)
 {
-    x->data()->axis(0)->set_tiling(std::vector<Index>{6});
-    x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(0)->set_tiling(std::vector<Index>{7});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{2, 4});
 }
 
-//! Softmax along axis 1 on (6, 7): heterogeneous on axis 0 only; axis 1 unsplit.
+//! Softmax along C axis 1 on virtual (6, 7); physical [7, 6].
 inline void nn_pytorch_tile_softmax_axis1_6x7(NNGraph::TensorNode* x)
 {
-    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
-    x->data()->axis(1)->set_tiling(std::vector<Index>{7});
+    x->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{6});
 }
 
 

@@ -145,10 +145,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph][pytorch]")
 {
     const auto [x_shape, axis, alpha] =
-        GENERATE(std::tuple{std::vector<Index>{7, 6}, Index(1), Scalar(1.0)},
-            std::tuple{std::vector<Index>{7, 6}, Index(0), Scalar(2.0)},
-            std::tuple{std::vector<Index>{7, 6}, Index(1), Scalar(0.5)},
-            std::tuple{std::vector<Index>{7, 6}, Index(0), Scalar(1.0)});
+        GENERATE(std::tuple{std::vector<Index>{6, 7}, Index(1), Scalar(1.0)},
+            std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(2.0)},
+            std::tuple{std::vector<Index>{6, 7}, Index(1), Scalar(0.5)},
+            std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(1.0)});
 
     const Index x_nelems = x_shape[0] * x_shape[1];
     const Index y_nelems = x_shape[axis];
@@ -164,9 +164,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len7(y);
-    else
         nn_pytorch_tile_heterogeneous_1d_len6(y);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(y);
 
     x->mark_input(true);
     y->mark_output(true);
@@ -203,11 +203,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [x_shape, axis, alpha, grad_fill_val] = GENERATE(
         std::tuple{
-            std::vector<Index>{7, 6}, Index(1), Scalar(1.0), Scalar(1.0)},
+            std::vector<Index>{6, 7}, Index(1), Scalar(1.0), Scalar(1.0)},
         std::tuple{
-            std::vector<Index>{7, 6}, Index(0), Scalar(1.0), Scalar(-1.0)},
+            std::vector<Index>{6, 7}, Index(0), Scalar(1.0), Scalar(-1.0)},
         std::tuple{
-            std::vector<Index>{7, 6}, Index(0), Scalar(2.0), Scalar(1.0)});
+            std::vector<Index>{6, 7}, Index(0), Scalar(2.0), Scalar(1.0)});
 
     const Index x_nelems = x_shape[0] * x_shape[1];
     const Index y_nelems = x_shape[axis];
@@ -223,9 +223,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len7(y);
-    else
         nn_pytorch_tile_heterogeneous_1d_len6(y);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(y);
 
     x->mark_input(true);
 

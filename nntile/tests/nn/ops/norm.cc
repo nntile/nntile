@@ -62,11 +62,11 @@ TEST_CASE_METHOD(
     const auto alpha = GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5));
 
     NNGraph g("norm_forward");
-    auto *x = g.tensor({7, 6}, DataType::FP32, false)->set_name("x");
+    auto *x = g.tensor({6, 7}, DataType::FP32, false)->set_name("x");
     auto *y = norm(x, alpha)->set_name("y");
 
-    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
-    x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{2, 3, 1});
 
     x->mark_input(true);
     y->mark_output(true);

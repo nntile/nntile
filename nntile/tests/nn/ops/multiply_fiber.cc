@@ -104,10 +104,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
     std::vector<Index> fiber_shape =
-        (axis == 0) ? std::vector<Index>{dim_n} : std::vector<Index>{dim_m};
+        (axis == 0) ? std::vector<Index>{dim_m} : std::vector<Index>{dim_n};
     const Index fiber_nelems = static_cast<Index>(fiber_shape[0]);
     constexpr Index nelems = dim_m * dim_n;
-    const std::vector<Index> dst_shape = {dim_n, dim_m};
+    const std::vector<Index> dst_shape = {dim_m, dim_n};
 
     std::vector<float> src1_data(fiber_nelems);
     std::vector<float> src2_data(nelems);
@@ -123,9 +123,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(src2);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len7(src1);
-    else
         nn_pytorch_tile_heterogeneous_1d_len6(src1);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(src1);
 
     src1->mark_input(true);
     src2->mark_input(true);
@@ -176,10 +176,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
     std::vector<Index> fiber_shape =
-        (axis == 0) ? std::vector<Index>{dim_n} : std::vector<Index>{dim_m};
+        (axis == 0) ? std::vector<Index>{dim_m} : std::vector<Index>{dim_n};
     const Index fiber_nelems = static_cast<Index>(fiber_shape[0]);
     constexpr Index nelems = dim_m * dim_n;
-    const std::vector<Index> dst_shape = {dim_n, dim_m};
+    const std::vector<Index> dst_shape = {dim_m, dim_n};
 
     std::vector<float> src1_data(fiber_nelems);
     std::vector<float> src2_data(nelems);
@@ -195,9 +195,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(src2);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len7(src1);
-    else
         nn_pytorch_tile_heterogeneous_1d_len6(src1);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(src1);
 
     src1->mark_input(true);
     src2->mark_input(true);

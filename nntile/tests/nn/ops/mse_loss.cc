@@ -103,7 +103,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph][pytorch]")
 {
     const auto scale = GENERATE(Scalar(1.0), Scalar(0.5), Scalar(1.0 / 42.0));
-    const std::vector<Index> x_shape = {7, 6};
+    const std::vector<Index> x_shape = {6, 7};
     constexpr Index x_nelems = 6 * 7;
 
     std::vector<float> x_data(x_nelems);

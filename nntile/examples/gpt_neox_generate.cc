@@ -354,15 +354,15 @@ int main(int argc, char** argv)
 
         NNGraph graph("gptneox_step");
 
-        auto* input_ids = graph.tensor({seq_len, n_batch}, DataType::INT64, false)
+        auto* input_ids = graph.tensor({n_batch, seq_len}, DataType::INT64, false)
                               ->set_name("input_ids");
         input_ids->mark_input(true);
 
         auto* rope_sin =
-            graph.tensor({rope_half, seq_len, n_batch}, DataType::FP32, false)
+            graph.tensor({n_batch, seq_len, rope_half}, DataType::FP32, false)
                 ->set_name("rope_sin");
         auto* rope_cos =
-            graph.tensor({rope_half, seq_len, n_batch}, DataType::FP32, false)
+            graph.tensor({n_batch, seq_len, rope_half}, DataType::FP32, false)
                 ->set_name("rope_cos");
         auto* attn_mask =
             graph.tensor({seq_len, seq_len}, DataType::BOOL, false)

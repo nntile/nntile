@@ -105,7 +105,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph][pytorch]")
 {
     const auto shape =
-        GENERATE(std::vector<Index>{7, 6}, std::vector<Index>{4, 3, 2});
+        GENERATE(std::vector<Index>{6, 7}, std::vector<Index>{4, 3, 2});
 
     Index nelems = 1;
     for (auto s : shape)
@@ -119,7 +119,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = g.tensor(shape, DataType::FP32, true)->set_name("x");
     auto *y = gelutanh(x)->set_name("y");
 
-    if (shape.size() == 2 && shape[0] == 7 && shape[1] == 6)
+    if (shape.size() == 2 && shape[0] == 6 && shape[1] == 7)
         nn_pytorch_tile_heterogeneous_rank2_6x7(x);
     else
         nn_pytorch_tile_heterogeneous_rank3_2x3x4(x);
@@ -156,7 +156,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph][pytorch]")
 {
     const auto [shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{7, 6}, Scalar(1.0)},
+        GENERATE(std::tuple{std::vector<Index>{6, 7}, Scalar(1.0)},
             std::tuple{std::vector<Index>{4, 3, 2}, Scalar(-1.0)});
 
     Index nelems = 1;
@@ -171,7 +171,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = g.tensor(shape, DataType::FP32, true)->set_name("x");
     auto *y = gelutanh(x)->set_name("y");
 
-    if (shape.size() == 2 && shape[0] == 7 && shape[1] == 6)
+    if (shape.size() == 2 && shape[0] == 6 && shape[1] == 7)
         nn_pytorch_tile_heterogeneous_rank2_6x7(x);
     else
         nn_pytorch_tile_heterogeneous_rank3_2x3x4(x);

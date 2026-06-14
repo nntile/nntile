@@ -106,8 +106,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph][pytorch]")
 {
     const auto [shape, axis] =
-        GENERATE(std::tuple{std::vector<Index>{7, 6}, Index(0)},
-            std::tuple{std::vector<Index>{7, 6}, Index(1)});
+        GENERATE(std::tuple{std::vector<Index>{6, 7}, Index(0)},
+            std::tuple{std::vector<Index>{6, 7}, Index(1)});
 
     Index nelems = 1;
     for (auto s : shape)
@@ -157,9 +157,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph][pytorch]")
 {
     const auto [shape, axis, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{7, 6}, Index(0), Scalar(1.0)},
-            std::tuple{std::vector<Index>{7, 6}, Index(1), Scalar(1.0)},
-            std::tuple{std::vector<Index>{7, 6}, Index(0), Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(1.0)},
+            std::tuple{std::vector<Index>{6, 7}, Index(1), Scalar(1.0)},
+            std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(-1.0)});
 
     Index nelems = 1;
     for (auto s : shape)

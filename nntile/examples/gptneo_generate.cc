@@ -333,7 +333,7 @@ int main(int argc, char** argv)
         NNGraph graph("gptneo_step");
 
         auto *input_ids =
-            graph.tensor({seq_len, 1}, DataType::INT64, false)
+            graph.tensor({1, seq_len}, DataType::INT64, false)
                 ->set_name("input_ids");
         input_ids->mark_input(true);
 
@@ -345,7 +345,7 @@ int main(int argc, char** argv)
                 static_cast<std::int64_t>(i);
         }
         auto *position_ids =
-            graph.tensor({seq_len, 1}, DataType::INT64, false)
+            graph.tensor({1, seq_len}, DataType::INT64, false)
                 ->set_name("position_ids");
         position_ids->mark_input(true);
 

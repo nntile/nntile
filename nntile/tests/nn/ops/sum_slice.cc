@@ -106,7 +106,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
-    const std::vector<Index> x_shape = {dim_n, dim_m};
+    const std::vector<Index> x_shape = {dim_m, dim_n};
     const Index x_nelems = dim_m * dim_n;
 
     std::vector<float> x_data(x_nelems);
@@ -119,9 +119,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len6(y);
-    else
         nn_pytorch_tile_heterogeneous_1d_len7(y);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(y);
 
     x->mark_input(true);
     y->mark_output(true);
@@ -164,7 +164,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
-    const std::vector<Index> x_shape = {dim_n, dim_m};
+    const std::vector<Index> x_shape = {dim_m, dim_n};
     const Index x_nelems = dim_m * dim_n;
 
     std::vector<float> x_data(x_nelems);
@@ -177,9 +177,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len6(y);
-    else
         nn_pytorch_tile_heterogeneous_1d_len7(y);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(y);
 
     x->mark_input(true);
 

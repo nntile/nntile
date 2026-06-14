@@ -65,16 +65,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(0.5), Index(1)});
 
     NNGraph g("norm_slice_forward");
-    const std::vector<Index> x_shape = {7, 6};
+    const std::vector<Index> x_shape = {6, 7};
     auto *x = g.tensor(x_shape, DataType::FP32, false)->set_name("x");
     auto *y = norm_slice(x, axis, redux_none, alpha)->set_name("y");
 
-    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
-    x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{2, 3, 1});
     if (axis == 0)
-        y->data()->axis(0)->set_tiling(std::vector<Index>{2, 4});
-    else
         y->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
+    else
+        y->data()->axis(0)->set_tiling(std::vector<Index>{2, 4});
 
     x->mark_input(true);
     y->mark_output(true);

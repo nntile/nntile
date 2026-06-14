@@ -324,12 +324,12 @@ int main(int argc, char** argv)
         NNGraph graph("t5_step");
 
         auto *encoder_ids =
-            graph.tensor({enc_seq, 1}, DataType::INT64, false)
+            graph.tensor({1, enc_seq}, DataType::INT64, false)
                 ->set_name("encoder_input_ids");
         encoder_ids->mark_input(true);
 
         auto *decoder_ids =
-            graph.tensor({dec_seq, 1}, DataType::INT64, false)
+            graph.tensor({1, dec_seq}, DataType::INT64, false)
                 ->set_name("decoder_input_ids");
         decoder_ids->mark_input(true);
 

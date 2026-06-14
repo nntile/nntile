@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -27,21 +28,6 @@
 using namespace nntile;
 using namespace nntile;
 namespace gt = nntile::tensor;
-
-#ifdef NNTILE_HAVE_TORCH
-namespace
-{
-
-//! Heterogeneous splits on both axes (sums 6 and 7); call after tensor::add
-//! merges x/y so one leaf's axes define the shared layout.
-void add_heterogeneous_tiling_6x7(NNGraph::TensorNode *x_leaf)
-{
-    x_leaf->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
-    x_leaf->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
-}
-
-} // namespace
-#endif
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph add rejects shape mismatch",
@@ -66,13 +52,13 @@ TEST_CASE_METHOD(
     constexpr Index dim1 = 3;
 
     NNGraph g("add_structure");
-    auto *x = g.tensor({dim1, dim0}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({dim1, dim0}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({dim0, dim1}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({dim0, dim1}, DataType::FP32)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
-    REQUIRE(z->shape() == (std::vector<Index>{dim1, dim0}));
+    REQUIRE(z->shape() == (std::vector<Index>{dim0, dim1}));
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "ADD");
 }
@@ -191,6 +177,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph add forward matches PyTorch",
@@ -213,11 +200,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     NNGraph g("add_pytorch");
-    auto *x = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("x");
-    auto *y = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("y");
+    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
-    add_heterogeneous_tiling_6x7(x);
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
     x->mark_input(true);
     y->mark_input(true);
@@ -234,12 +221,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_out = runtime.get_output<float>(z);
 
     auto x_pt = torch::from_blob(x_data.data(),
-        {dim1, dim0},
+        {dim0, dim1},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
     auto y_pt = torch::from_blob(y_data.data(),
-        {dim1, dim0},
+        {dim0, dim1},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
@@ -270,11 +257,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     NNGraph g("add_bwd_pytorch");
-    auto *x = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("x");
-    auto *y = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("y");
+    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
-    add_heterogeneous_tiling_6x7(x);
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
     x->mark_input(true);
     y->mark_input(true);
@@ -298,18 +285,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_grad_y = runtime.get_output<float>(y->grad());
 
     auto x_pt = torch::from_blob(x_data.data(),
-        {dim1, dim0},
+        {dim0, dim1},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
     auto y_pt = torch::from_blob(y_data.data(),
-        {dim1, dim0},
+        {dim0, dim1},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
 
     auto z_pt = x_pt.mul(alpha).add(y_pt, beta);
-    auto grad_output = torch::full({dim1, dim0},
+    auto grad_output = torch::full({dim0, dim1},
         static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     z_pt.backward(grad_output);
