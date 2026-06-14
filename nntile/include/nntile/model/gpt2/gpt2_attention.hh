@@ -10,7 +10,7 @@
  * GPT2Attention - self-attention with optional mask (no RoPE).
  *
  * GPT-2 uses combined c_attn (Q,K,V) and c_proj. We use separate Q/K/V/O
- * projections like LLaMA for consistency. Layout: (hidden_size, seq, batch).
+ * projections like LLaMA for consistency. Layout: (batch, seq, hidden_size).
  *
  * @version 1.1.0
  * */

@@ -38,19 +38,19 @@ T5Attention::T5Attention(NNGraph* graph,
 {
     Index d_model = config.d_model;
 
-    w_q_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_q_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_q_->set_name(tensor_name("q_weight"));
     register_parameter("q_weight", w_q_);
 
-    w_k_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_k_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_k_->set_name(tensor_name("k_weight"));
     register_parameter("k_weight", w_k_);
 
-    w_v_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_v_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_v_->set_name(tensor_name("v_weight"));
     register_parameter("v_weight", w_v_);
 
-    w_o_ = graph_->tensor({d_model, n_heads_, head_size_}, dtype_, true);
+    w_o_ = graph_->tensor({head_size_, n_heads_, d_model}, dtype_, true);
     w_o_->set_name(tensor_name("o_weight"));
     register_parameter("o_weight", w_o_);
 }
@@ -89,8 +89,6 @@ NNGraph::TensorNode* T5Attention::forward(
     NNGraph::TensorNode* v = transpose(v_proj, 1);
     v->set_name(tensor_name("v"));
 
-    // Hugging Face T5 attention scores omit the explicit 1/sqrt(d) scale used
-    // by Llama-style SDPA (see ``T5Attention`` in ``layer/t5_attention.py``).
     constexpr Scalar t5_attn_scale = 1.0;
     NNGraph* nn_graph = x->graph();
     auto sdpa_op = std::make_shared<NNSdpaEagerOp>(

@@ -50,8 +50,8 @@ public:
                 DataType dtype = DataType::FP32);
 
     //! Forward pass
-    //! @param input_ids (seq, batch) INT64 token indices
-    //! @param position_ids (seq, batch) INT64 position indices (required)
+    //! @param input_ids (batch, seq) INT64 token indices
+    //! @param position_ids (batch, seq) INT64 position indices (required)
     //! @param mask BOOL mask for global-attention layers (even ``layer_id``)
     //! @param local_mask BOOL mask for local-attention layers (odd ``layer_id``);
     //!        when null, ``mask`` is used for all layers (legacy / tests only)

@@ -67,9 +67,9 @@ inline bool load_gptneox_rope_inputs(
     {
         return false;
     }
-    out.sin = g.tensor({half, n_seq, n_batch}, nntile::DataType::FP32)
+    out.sin = g.tensor({n_batch, n_seq, half}, nntile::DataType::FP32)
                   ->set_name("rope_sin");
-    out.cos = g.tensor({half, n_seq, n_batch}, nntile::DataType::FP32)
+    out.cos = g.tensor({n_batch, n_seq, half}, nntile::DataType::FP32)
                   ->set_name("rope_cos");
     safetensors_nntile_layout::read_tensor_nntile_fortran(
         reader, "rope_sin", out.sin_data);

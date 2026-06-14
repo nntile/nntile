@@ -73,14 +73,12 @@ MODEL_DIMS = ATTENTION_DIMS
 CAUSAL_DIMS = ATTENTION_DIMS
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
-def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.int64)
-    return a.ravel("F").reshape(a.shape)
+def as_int64(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.int64)
 
 
 def _make_config(dims: TestDims) -> GPT2Config:
@@ -100,19 +98,19 @@ def _make_config(dims: TestDims) -> GPT2Config:
 
 
 def _lm_head_to_linear_weight(conv) -> np.ndarray:
-    """``lm_head`` Conv1D ``(vocab, hidden)`` → Linear ``(hidden, vocab)``."""
-    return fortran_order(conv.weight.detach().numpy().T)
+    """``lm_head`` Conv1D ``(vocab, hidden)`` → Linear ``(vocab, hidden)``."""
+    return as_float32(conv.weight.detach().numpy().T)
 
 
 def _conv1d_to_linear_weight(conv) -> np.ndarray:
-    """HF Conv1D ``(in, out)`` → graph Linear (same shape)."""
-    return fortran_order(conv.weight.detach().numpy())
+    """HF Conv1D ``(in, out)`` → graph Linear ``(out, in)``."""
+    return as_float32(conv.weight.detach().numpy().T)
 
 
 def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.gamma": fortran_order(ln.weight.detach().numpy()),
-        f"{prefix}.beta": fortran_order(ln.bias.detach().numpy()),
+        f"{prefix}.gamma": as_float32(ln.weight.detach().numpy()),
+        f"{prefix}.beta": as_float32(ln.bias.detach().numpy()),
     }
 
 
@@ -128,25 +126,25 @@ def _gpt2_attn_weights(
     n_emb = dims.hidden
     hs = dims.head_size
     n_heads = dims.n_heads
-    q_arr = w[:, 0:n_emb].T.reshape(n_heads, hs, n_emb)
-    k_arr = w[:, n_emb:2 * n_emb].T.reshape(n_heads, hs, n_emb)
-    v_arr = w[:, 2 * n_emb:3 * n_emb].T.reshape(n_heads, hs, n_emb)
-    o_arr = attn.c_proj.weight.detach().numpy().T.reshape(
-        n_emb, n_heads, hs,
-    )
+    q_arr = w[:, :n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
+    k_arr = w[:, n_emb:2 * n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
+    v_arr = w[:, 2 * n_emb:3 * n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
+    o_arr = attn.c_proj.weight.detach().numpy().reshape(
+        n_heads, hs, n_emb,
+    ).transpose(1, 0, 2)
     bias = attn.c_attn.bias.detach().numpy()
-    b_q = bias[0:n_emb].reshape(n_heads, hs).T
-    b_k = bias[n_emb:2 * n_emb].reshape(n_heads, hs).T
-    b_v = bias[2 * n_emb:3 * n_emb].reshape(n_heads, hs).T
+    b_q = bias[:n_emb].reshape(n_heads, hs).transpose(1, 0)
+    b_k = bias[n_emb:2 * n_emb].reshape(n_heads, hs).transpose(1, 0)
+    b_v = bias[2 * n_emb:3 * n_emb].reshape(n_heads, hs).transpose(1, 0)
     return {
-        f"{prefix}.q_weight": fortran_order(q_arr),
-        f"{prefix}.k_weight": fortran_order(k_arr),
-        f"{prefix}.v_weight": fortran_order(v_arr),
-        f"{prefix}.o_weight": fortran_order(o_arr),
-        f"{prefix}.q_bias": fortran_order(b_q),
-        f"{prefix}.k_bias": fortran_order(b_k),
-        f"{prefix}.v_bias": fortran_order(b_v),
-        f"{prefix}.o_bias": fortran_order(
+        f"{prefix}.q_weight": as_float32(q_arr),
+        f"{prefix}.k_weight": as_float32(k_arr),
+        f"{prefix}.v_weight": as_float32(v_arr),
+        f"{prefix}.o_weight": as_float32(o_arr),
+        f"{prefix}.q_bias": as_float32(b_q),
+        f"{prefix}.k_bias": as_float32(b_k),
+        f"{prefix}.v_bias": as_float32(b_v),
+        f"{prefix}.o_bias": as_float32(
             attn.c_proj.bias.detach().numpy()),
     }
 
@@ -154,9 +152,9 @@ def _gpt2_attn_weights(
 def _gpt2_mlp(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
         f"{prefix}.fc1.weight": _conv1d_to_linear_weight(mlp.c_fc),
-        f"{prefix}.fc1.bias": fortran_order(mlp.c_fc.bias.detach().numpy()),
+        f"{prefix}.fc1.bias": as_float32(mlp.c_fc.bias.detach().numpy()),
         f"{prefix}.fc2.weight": _conv1d_to_linear_weight(mlp.c_proj),
-        f"{prefix}.fc2.bias": fortran_order(mlp.c_proj.bias.detach().numpy()),
+        f"{prefix}.fc2.bias": as_float32(mlp.c_proj.bias.detach().numpy()),
     }
 
 
@@ -172,7 +170,7 @@ def _gpt2_block(
 
 
 def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
-    return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
+    return {f"{prefix}.vocab": as_float32(embed.weight.detach().numpy())}
 
 
 def _model_weights(
@@ -189,44 +187,44 @@ def _model_weights(
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
     x = rng.standard_normal(
-        (dims.hidden, dims.seq, dims.batch),
+        (dims.batch, dims.seq, dims.hidden),
     ).astype(np.float32) * scale
-    x_nt = fortran_order(x)
-    x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
+    x_nt = as_float32(x)
+    x_pt = torch.tensor(x.copy(), requires_grad=True)
     return x_nt, x_pt
 
 
 def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
     g = rng.standard_normal(pt_out.shape).astype(np.float32) * scale
     g_pt = torch.tensor(g)
-    g_nt = fortran_order(g.transpose(2, 1, 0))
+    g_nt = as_float32(g)
     return g_nt, g_pt
 
 
 def _ids_input(rng, dims: TestDims):
     ids = rng.integers(
-        0, dims.vocab, size=(dims.seq, dims.batch),
+        0, dims.vocab, size=(dims.batch, dims.seq),
     ).astype(np.int64)
-    ids_nt = ids.ravel("F").reshape(ids.shape)
-    ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
+    ids_nt = as_int64(ids)
+    ids_pt = torch.tensor(ids.copy(), dtype=torch.long)
     return ids_nt, ids_pt
 
 
 def _position_ids(dims: TestDims) -> np.ndarray:
-    pos = np.arange(dims.seq, dtype=np.int64)[:, None]
-    pos = np.broadcast_to(pos, (dims.seq, dims.batch)).copy()
-    return fortran_order_int64(pos)
+    pos = np.arange(dims.seq, dtype=np.int64)[None, :]
+    pos = np.broadcast_to(pos, (dims.batch, dims.seq)).copy()
+    return as_int64(pos)
 
 
 def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
-    return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
+    return as_float32(pt_out.detach().numpy())
 
 
-def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
+def _sdpa_causal_mask(seq: int) -> np.ndarray:
     kk = np.arange(seq, dtype=np.int64)[:, None]
     qq = np.arange(seq, dtype=np.int64)[None, :]
     allowed = (kk <= qq).astype(np.float32)
-    return fortran_order(allowed)
+    return as_float32(allowed)
 
 
 def _causal_additive_mask_torch(
@@ -367,7 +365,7 @@ def generate_attention(
         attn_mask = _causal_additive_mask_torch(
             dims.batch, dims.seq, x_pt.device,
         )
-        data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+        data["attn_mask"] = _sdpa_causal_mask(dims.seq)
         out = _gpt2_attn_forward_hf(
             pt, x_pt, attention_mask=attn_mask, bidirectional=False,
         )
@@ -395,7 +393,7 @@ def generate_block(
     attn_mask = _causal_additive_mask_torch(
         dims.batch, dims.seq, x_pt.device,
     )
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     out = pt(x_pt, attention_mask=attn_mask)[0]
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
@@ -417,7 +415,7 @@ def generate_model(
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
     data["position_ids"] = _position_ids(dims)
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     attn_mask = _causal_additive_mask_torch(
         dims.batch, dims.seq, ids_pt.device,
     )
@@ -429,8 +427,8 @@ def generate_model(
     g_nt, g_pt = _grad_output(rng, out)
     out.backward(g_pt)
     data["grad_output"] = g_nt
-    data["grad_wte_vocab"] = fortran_order(
-        pt.wte.weight.grad.detach().numpy().T)
+    data["grad_wte_vocab"] = as_float32(
+        pt.wte.weight.grad.detach().numpy())
     return data
 
 
@@ -447,7 +445,7 @@ def generate_causal(
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
     data["position_ids"] = _position_ids(dims)
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     attn_mask = _causal_additive_mask_torch(
         dims.batch, dims.seq, ids_pt.device,
     )
@@ -456,8 +454,8 @@ def generate_causal(
     g_nt, g_pt = _grad_output(rng, out)
     out.backward(g_pt)
     data["grad_output"] = g_nt
-    data["grad_wte_vocab"] = fortran_order(
-        pt.transformer.wte.weight.grad.detach().numpy().T)
+    data["grad_wte_vocab"] = as_float32(
+        pt.transformer.wte.weight.grad.detach().numpy())
     return data
 
 

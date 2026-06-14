@@ -51,7 +51,7 @@ public:
                DataType dtype = DataType::FP32);
 
     //! Forward pass
-    //! @param input_ids (seq, batch) INT64 token indices; output is (hidden_size, seq, batch)
+    //! @param input_ids (batch, seq) INT64 token indices; output is (batch, seq, hidden_size)
     //! @param sin RoPE sin per layer (optional)
     //! @param cos RoPE cos per layer (optional)
     //! @param mask Attention mask (optional)

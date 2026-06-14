@@ -28,12 +28,12 @@ namespace nntile::model::llama
 //! values.
 void rope_inv_freq_default(LlamaConfig const& config, float* out);
 
-//! Fill ``sin`` and ``cos`` for ``rope`` in layout ``(head_dim/2,
-//! n_seq, n_batch)`` (Fortran / column-major: index ``h`` varies fastest).
+//! Fill ``sin`` and ``cos`` for ``rope`` in layout ``(n_batch, n_seq,
+//! head_dim/2)`` (C-order).
 //!
 //! ``position_ids`` matches NNTile ``input_ids``: logical shape
-//! ``(n_seq, n_batch)`` Fortran; element ``(s, b)`` at
-//! ``position_ids[s + n_seq * b]``.
+//! ``(n_batch, n_seq)``; element ``(b, s)`` at
+//! ``position_ids[b * n_seq + s]``.
 void rope_sin_cos_from_position_ids(
     LlamaConfig const& config,
     std::int64_t const* position_ids,

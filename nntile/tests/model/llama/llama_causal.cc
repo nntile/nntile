@@ -177,7 +177,7 @@ void causal_forward_compare_ref(const CausalFixtureSpec &fx)
         const std::string gname = std::string("causal_ref_") + fx.stem;
         NNGraph g(gname);
         auto *input_ids =
-            g.tensor({n_seq, n_batch}, DataType::INT64)->set_name("input_ids");
+            g.tensor({n_batch, n_seq}, DataType::INT64)->set_name("input_ids");
         LlamaRopeInputs rope;
         REQUIRE(
             load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope));
@@ -224,7 +224,7 @@ TEST_CASE("LlamaCausal forward builds output", "[model][llama]")
     NNGraph g("llama_causal");
     LlamaCausal model(&g, "model", fx.config);
     auto *input_ids =
-        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+        g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
     auto *output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);
@@ -242,7 +242,7 @@ TEST_CASE("LlamaCausal GQA forward builds output", "[model][llama][gqa]")
     NNGraph g("llama_causal_gqa");
     LlamaCausal model(&g, "model", fx.config);
     auto *input_ids =
-        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+        g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
     auto *output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);

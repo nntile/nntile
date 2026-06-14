@@ -14,8 +14,6 @@
 
 #include "nntile/model/llama/llama_causal.hh"
 
-#include "nntile/nn/ops/transpose.hh"
-
 #include <stdexcept>
 
 namespace nntile::model::llama
@@ -48,16 +46,9 @@ NNGraph::TensorNode *LlamaCausal::forward(
     NNGraph::TensorNode *mask,
     KVCache *kv_cache)
 {
-    // Model output: (hidden, seq, batch)
     NNGraph::TensorNode *hidden =
         model_->forward(input_ids, sin, cos, mask, kv_cache);
-    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for lm_head
-    // (ndim=1)
-    NNGraph::TensorNode *hidden_t = transpose(hidden, 1);
-    hidden_t->set_name(tensor_name("hidden_t"));
-    NNGraph::TensorNode *logits_sbv = lm_head_.forward(hidden_t);
-    // Transpose to (vocab, seq, batch) for output (ndim=2)
-    NNGraph::TensorNode *logits = transpose(logits_sbv, 2);
+    NNGraph::TensorNode *logits = lm_head_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

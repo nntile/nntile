@@ -123,10 +123,10 @@ void cross_attention_forward_compare_ref(const CrossAttentionFixtureSpec &fx)
     std::vector<float> result;
     {
         NNGraph g("cross_attn_ref");
-        auto *input = g.tensor({fx.hidden, fx.dec_seq, fx.batch}, DataType::FP32)
+        auto *input = g.tensor({fx.batch, fx.dec_seq, fx.hidden}, DataType::FP32)
                           ->set_name("input");
         auto *encoder_input =
-            g.tensor({fx.hidden, fx.enc_seq, fx.batch}, DataType::FP32)
+            g.tensor({fx.batch, fx.enc_seq, fx.hidden}, DataType::FP32)
                 ->set_name("encoder_input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
@@ -192,12 +192,12 @@ void cross_attention_backward_compare_ref(const CrossAttentionFixtureSpec &fx)
     {
         NNGraph g("cross_attn_bwd");
         auto *input =
-            g.tensor({fx.hidden, fx.dec_seq, fx.batch}, DataType::FP32, true)
+            g.tensor({fx.batch, fx.dec_seq, fx.hidden}, DataType::FP32, true)
                 ->set_name("input");
         // Encoder states are fixed keys/values; only decoder ``input`` grads
         // are compared to the Hugging Face reference.
         auto *encoder_input =
-            g.tensor({fx.hidden, fx.enc_seq, fx.batch}, DataType::FP32, false)
+            g.tensor({fx.batch, fx.enc_seq, fx.hidden}, DataType::FP32, false)
                 ->set_name("encoder_input");
         NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
@@ -259,16 +259,16 @@ TEST_CASE("T5Attention cross forward builds output", "[model][t5]")
     }
     NNGraph g("t5_cross_attn");
     T5Attention attn(&g, "cross_attn", fx.config, true);
-    auto *input = g.tensor({fx.hidden, fx.dec_seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.dec_seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
     auto *encoder_input =
-        g.tensor({fx.hidden, fx.enc_seq, fx.batch}, DataType::FP32)
+        g.tensor({fx.batch, fx.enc_seq, fx.hidden}, DataType::FP32)
             ->set_name("encoder_input");
     auto *output = attn.forward(input, encoder_input, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.hidden, fx.dec_seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.dec_seq, fx.hidden}));
     REQUIRE(attn.parameters_recursive().size() == 4);
 }
 

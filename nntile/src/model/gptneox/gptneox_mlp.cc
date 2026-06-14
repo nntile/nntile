@@ -14,7 +14,6 @@
 
 #include "nntile/model/gptneox/gptneox_mlp.hh"
 #include "nntile/nn/ops/add_fiber.hh"
-#include "nntile/nn/ops/gemm.hh"
 
 namespace nntile::model::gptneox
 {
@@ -44,16 +43,14 @@ GptneoxMlp::GptneoxMlp(NNGraph* graph,
 NNGraph::TensorNode* GptneoxMlp::forward(
     NNGraph::TensorNode* input)
 {
-    NNGraph::TensorNode* w1 = fc1().weight_tensor();
-    NNGraph::TensorNode* hidden =
-        gemm(w1, input, 1.0, true, false, 1, 0);
+    NNGraph::TensorNode* hidden = fc1().forward(input);
     hidden->set_name(tensor_name("fc1_out"));
-    hidden = add_fiber(1.0, fc1_bias_, 1.0, hidden, 0, 0);
+    const Index hidden_feature_axis = hidden->ndim() - 1;
+    hidden = add_fiber(1.0, fc1_bias_, 1.0, hidden, hidden_feature_axis, 0);
     hidden = activation().forward(hidden);
-    NNGraph::TensorNode* w2 = fc2().weight_tensor();
-    NNGraph::TensorNode* out =
-        gemm(w2, hidden, 1.0, true, false, 1, 0);
-    out = add_fiber(1.0, fc2_bias_, 1.0, out, 0, 0);
+    NNGraph::TensorNode* out = fc2().forward(hidden);
+    const Index out_feature_axis = out->ndim() - 1;
+    out = add_fiber(1.0, fc2_bias_, 1.0, out, out_feature_axis, 0);
     out->set_name(tensor_name("mlp_out"));
     return out;
 }

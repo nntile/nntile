@@ -59,9 +59,9 @@ inline bool load_llama_rope_inputs(nntile::NNGraph &g,
         return false;
     }
     const Index half = head_dim / 2;
-    out.sin = g.tensor({half, n_seq, n_batch}, nntile::DataType::FP32)
+    out.sin = g.tensor({n_batch, n_seq, half}, nntile::DataType::FP32)
                   ->set_name("rope_sin");
-    out.cos = g.tensor({half, n_seq, n_batch}, nntile::DataType::FP32)
+    out.cos = g.tensor({n_batch, n_seq, half}, nntile::DataType::FP32)
                   ->set_name("rope_cos");
     auto read_f = [&](const char *name, std::vector<float> &dst)
     {

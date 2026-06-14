@@ -38,19 +38,19 @@ GptneoAttention::GptneoAttention(NNGraph* graph,
     config_.validate();
     Index n_emb = config.hidden_size;
 
-    w_q_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_q_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_q_->set_name(tensor_name("q_weight"));
     register_parameter("q_weight", w_q_);
 
-    w_k_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_k_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_k_->set_name(tensor_name("k_weight"));
     register_parameter("k_weight", w_k_);
 
-    w_v_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_v_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_v_->set_name(tensor_name("v_weight"));
     register_parameter("v_weight", w_v_);
 
-    w_o_ = graph_->tensor({n_emb, n_heads_, head_size_}, dtype_, true);
+    w_o_ = graph_->tensor({head_size_, n_heads_, n_emb}, dtype_, true);
     w_o_->set_name(tensor_name("o_weight"));
     register_parameter("o_weight", w_o_);
 
@@ -98,7 +98,8 @@ NNGraph::TensorNode* GptneoAttention::forward(
 
     NNGraph::TensorNode* out =
         gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
-    out = add_fiber(1.0, out_bias_, 1.0, out, 0, 0);
+    const Index feature_axis = out->ndim() - 1;
+    out = add_fiber(1.0, out_bias_, 1.0, out, feature_axis, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }

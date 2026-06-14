@@ -94,7 +94,7 @@ void llama_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
     {
         const std::string gname = std::string("attn_ref_") + fx.stem;
         NNGraph g(gname);
-        auto *input = g.tensor({hidden, n_seq, n_batch}, DataType::FP32)
+        auto *input = g.tensor({n_batch, n_seq, hidden}, DataType::FP32)
                           ->set_name("input");
         LlamaRopeInputs rope;
         load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope);
@@ -158,7 +158,7 @@ void llama_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
     {
         const std::string gname = std::string("attn_bwd_") + fx.stem;
         NNGraph g(gname);
-        auto *input = g.tensor({hidden, n_seq, n_batch}, DataType::FP32, true)
+        auto *input = g.tensor({n_batch, n_seq, hidden}, DataType::FP32, true)
                           ->set_name("input");
         LlamaRopeInputs rope;
         load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope);
@@ -211,13 +211,13 @@ TEST_CASE("LlamaAttention forward builds output", "[model][llama]")
     }
     NNGraph g("llama_attn");
     LlamaAttention attn(&g, "attn", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
     auto *output = attn.forward(input);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("LlamaAttention GQA forward builds output", "[model][llama][gqa]")
@@ -229,13 +229,13 @@ TEST_CASE("LlamaAttention GQA forward builds output", "[model][llama][gqa]")
     }
     NNGraph g("llama_attn_gqa");
     LlamaAttention attn(&g, "attn", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
     auto *output = attn.forward(input);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE(

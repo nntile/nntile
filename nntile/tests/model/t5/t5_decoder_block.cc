@@ -123,10 +123,10 @@ void decoder_block_forward_compare_ref(const DecoderBlockFixtureSpec &fx)
     std::vector<float> result;
     {
         NNGraph g("decoder_ref");
-        auto *input = g.tensor({fx.hidden, fx.dec_seq, fx.batch}, DataType::FP32)
+        auto *input = g.tensor({fx.batch, fx.dec_seq, fx.hidden}, DataType::FP32)
                           ->set_name("input");
         auto *encoder_hidden =
-            g.tensor({fx.hidden, fx.enc_seq, fx.batch}, DataType::FP32)
+            g.tensor({fx.batch, fx.enc_seq, fx.hidden}, DataType::FP32)
                 ->set_name("encoder_hidden_states");
         NNGraph::TensorNode *decoder_mask = nullptr;
         std::vector<std::uint8_t> decoder_mask_bytes;
@@ -210,10 +210,10 @@ void decoder_block_backward_compare_ref(const DecoderBlockFixtureSpec &fx)
     {
         NNGraph g("decoder_bwd");
         auto *input =
-            g.tensor({fx.hidden, fx.dec_seq, fx.batch}, DataType::FP32, true)
+            g.tensor({fx.batch, fx.dec_seq, fx.hidden}, DataType::FP32, true)
                 ->set_name("input");
         auto *encoder_hidden =
-            g.tensor({fx.hidden, fx.enc_seq, fx.batch}, DataType::FP32, true)
+            g.tensor({fx.batch, fx.enc_seq, fx.hidden}, DataType::FP32, true)
                 ->set_name("encoder_hidden_states");
         NNGraph::TensorNode *decoder_mask = nullptr;
         std::vector<std::uint8_t> decoder_mask_bytes;
@@ -284,16 +284,16 @@ TEST_CASE("T5DecoderBlock forward builds output", "[model][t5]")
     }
     NNGraph g("t5_decoder_block");
     T5DecoderBlock decoder(&g, "decoder", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.dec_seq, fx.batch}, DataType::FP32)
+    auto *input = g.tensor({fx.batch, fx.dec_seq, fx.hidden}, DataType::FP32)
                       ->set_name("input");
     auto *encoder_hidden =
-        g.tensor({fx.hidden, fx.enc_seq, fx.batch}, DataType::FP32)
+        g.tensor({fx.batch, fx.enc_seq, fx.hidden}, DataType::FP32)
             ->set_name("encoder_hidden_states");
     auto *output = decoder.forward(input, encoder_hidden, nullptr, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.hidden, fx.dec_seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.dec_seq, fx.hidden}));
 }
 
 TEST_CASE("T5DecoderBlock load from safetensors roundtrip", "[model][t5][io]")

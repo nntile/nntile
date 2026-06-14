@@ -130,13 +130,65 @@ Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 
 GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
-- Tensor layout is column-major; dimensions are listed from inner to outer.
-- A: `trans_a=false` → `[M..., K..., batch...]`
+- Virtual C-order labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
+  uses Fortran storage via `c_shape_to_fortran`.
+- A: `trans_a=false` → `[M..., K..., batch...]` (trailing batch)
 - B: `trans_b=false` → `[K..., N..., batch...]`
 - Output: `[M..., N..., batch...]`
 - `ndim` is the number of contraction (K) dimensions.
-- `batch_ndim` is the number of trailing batch dimensions (must match between A
-  and B).
+- `batch_ndim` is the number of **trailing** batch dimensions (must match between
+  A and B).
+
+Note: `Linear` uses `trans_a=true` on weight `[out, in]`; attention Q/K/V use
+`trans_a=false` on weight `[hidden, head_size, n_heads]` with a following
+`transpose` to SDPA layout.
+
+### Virtual C-order shape labels
+
+NNGraph uses **virtual C-order** shape labels on `TensorNode::shape()` while
+physical tile storage remains Fortran (column-major). Helpers in
+`include/nntile/nn/shape_layout.hh` convert between the two:
+
+- `nn::c_shape_to_fortran(c_shape)` — user/C label → physical Fortran shape
+- `nn::fortran_shape_to_c(f_shape)` — physical Fortran → virtual C label
+- `nn::c_axis_to_fortran(c_axis, ndim)` — C axis (0 = outermost) → Fortran axis
+
+Reduction and layout ops (`add_fiber`, `transpose`, `layer_norm`, `softmax`,
+etc.) take **C-order axis indices** at the NNGraph API and translate internally.
+
+#### Model tensor conventions
+
+Graph model families (GPT-2, BERT, GPT-Neo, GPT-NeoX, Llama, RoBERTa, T5) use
+these virtual C-order layouts:
+
+| Role | Shape | Notes |
+|------|-------|-------|
+| Activations | `[batch, seq, hidden]` | Embedding output and block I/O |
+| Linear weights | `[out, in]` | Q/K/V/O projections, MLP, LM head |
+| Logits | `[batch, seq, vocab]` | Causal / MLM heads |
+| `input_ids` | `[batch, seq]` | Token indices |
+| `position_ids` | `[batch, seq]` | Position indices |
+| Attention mask | `[seq, seq]` or `[batch, seq, seq]` | Bool or float mask |
+
+Safetensors metadata records C-order shapes (e.g. linear weights `{out, in}`);
+payload bytes are unchanged from PyTorch via the test `fortran_order()` helper
+(ravel in F-order, reshape in C-order so flat bytes match row-major PyTorch).
+
+#### Example: GPT-2 attention
+
+With activations `x` shaped `[batch, seq, hidden]` and Q weight
+`[hidden, head_size, n_heads]`:
+
+- `gemm(w_q, x, alpha, false, false, ndim=1, batch_ndim=0)` — Q projection
+- `transpose(q_proj, 1)` — head layout for SDPA
+- `add_fiber(..., transpose(q_bias, 1), ..., axis=3, batch_ndim=1)` — per-head bias
+- `sdpa_eager(q, k, v, mask, batch_ndim=2, redux=0)`
+- `transpose(attn_out, 3)` — layout for output projection
+- `gemm(w_o, attn_t, ..., false, false, ndim=2, batch_ndim=0)` — output projection
+- `add_fiber(o_bias, ..., axis=2, batch_ndim=0)` — output bias on hidden axis
+
+BERT/RoBERTa embeddings: sum word/position/token-type, then
+`transpose(embed, 2)` → `[batch, seq, hidden]` before `layer_norm(..., axis=2)`.
 
 ## NNGraph
 
@@ -220,9 +272,9 @@ nntile::Context context(
     1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
 NNGraph graph("demo");
-auto* x = graph.tensor({2, 3}, "x", DataType::FP32, true);
-auto* w = graph.tensor({3, 4}, "w", DataType::FP32, true);
-auto* y = gemm(x, w, "y");  // y = x @ w
+auto* x = graph.tensor({2, 3}, "x", DataType::FP32, true);  // batch=2, features=3
+auto* w = graph.tensor({4, 3}, "w", DataType::FP32, true);  // out=4, in=3
+auto* y = gemm(x, w, "y");  // y = x @ w^T, shape (2, 4)
 
 x->mark_input(true);
 y->mark_output(true);

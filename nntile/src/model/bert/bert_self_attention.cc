@@ -4,6 +4,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file nntile/src/model/bert/bert_self_attention.cc
  * BertSelfAttention implementation.
  *
@@ -36,15 +39,15 @@ BertSelfAttention::BertSelfAttention(NNGraph* graph,
 
     Index n_emb = config.hidden_size;
 
-    w_q_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_q_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_q_->set_name(tensor_name("q_weight"));
     register_parameter("q_weight", w_q_);
 
-    w_k_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_k_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_k_->set_name(tensor_name("k_weight"));
     register_parameter("k_weight", w_k_);
 
-    w_v_ = graph_->tensor({n_heads_, head_size_, n_emb}, dtype_, true);
+    w_v_ = graph_->tensor({n_emb, head_size_, n_heads_}, dtype_, true);
     w_v_->set_name(tensor_name("v_weight"));
     register_parameter("v_weight", w_v_);
 
@@ -78,21 +81,21 @@ NNGraph::TensorNode* BertSelfAttention::forward(
         gemm(w_q_, x, 1.0, false, false, 1, 0);
     q_proj->set_name(tensor_name("q_proj"));
     NNGraph::TensorNode* q = transpose(q_proj, 1);
-    q = add_fiber(1.0, q_bias_, 1.0, q, 0, 1);
+    q = add_fiber(1.0, transpose(q_bias_, 1), 1.0, q, 3, 1);
     q->set_name(tensor_name("q"));
 
     NNGraph::TensorNode* k_proj =
         gemm(w_k_, x, 1.0, false, false, 1, 0);
     k_proj->set_name(tensor_name("k_proj"));
     NNGraph::TensorNode* k = transpose(k_proj, 1);
-    k = add_fiber(1.0, k_bias_, 1.0, k, 0, 1);
+    k = add_fiber(1.0, transpose(k_bias_, 1), 1.0, k, 3, 1);
     k->set_name(tensor_name("k"));
 
     NNGraph::TensorNode* v_proj =
         gemm(w_v_, x, 1.0, false, false, 1, 0);
     v_proj->set_name(tensor_name("v_proj"));
     NNGraph::TensorNode* v = transpose(v_proj, 1);
-    v = add_fiber(1.0, v_bias_, 1.0, v, 0, 1);
+    v = add_fiber(1.0, transpose(v_bias_, 1), 1.0, v, 3, 1);
     v->set_name(tensor_name("v"));
 
     NNGraph::TensorNode* attn_out =

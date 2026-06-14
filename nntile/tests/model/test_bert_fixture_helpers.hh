@@ -42,13 +42,13 @@ inline bool load_position_ids(nntile::NNGraph &g,
         return false;
     }
     const auto &info = reader.tensor_info("position_ids");
-    if (info.shape.size() != 2 || info.shape[0] != n_seq ||
-        info.shape[1] != n_batch)
+    if (info.shape.size() != 2 || info.shape[0] != n_batch ||
+        info.shape[1] != n_seq)
     {
         throw std::runtime_error(
             "BERT test fixture: position_ids shape mismatch");
     }
-    out_pos = g.tensor({n_seq, n_batch}, nntile::DataType::INT64, false)
+    out_pos = g.tensor({n_batch, n_seq}, nntile::DataType::INT64, false)
                   ->set_name("position_ids");
     auto raw = reader.read_tensor("position_ids");
     pos_data.resize(raw.size() / sizeof(std::int64_t));
@@ -70,13 +70,13 @@ inline bool load_token_type_ids(nntile::NNGraph &g,
         return false;
     }
     const auto &info = reader.tensor_info("token_type_ids");
-    if (info.shape.size() != 2 || info.shape[0] != n_seq ||
-        info.shape[1] != n_batch)
+    if (info.shape.size() != 2 || info.shape[0] != n_batch ||
+        info.shape[1] != n_seq)
     {
         throw std::runtime_error(
             "BERT test fixture: token_type_ids shape mismatch");
     }
-    out_tt = g.tensor({n_seq, n_batch}, nntile::DataType::INT64, false)
+    out_tt = g.tensor({n_batch, n_seq}, nntile::DataType::INT64, false)
                  ->set_name("token_type_ids");
     auto raw = reader.read_tensor("token_type_ids");
     tt_data.resize(raw.size() / sizeof(std::int64_t));

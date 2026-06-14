@@ -13,7 +13,6 @@
  * */
 
 #include "nntile/model/gptneo/gptneo_causal.hh"
-#include "nntile/nn/ops/gemm.hh"
 
 #include <stdexcept>
 
@@ -66,14 +65,7 @@ NNGraph::TensorNode* GptneoCausal::forward(
     NNGraph::TensorNode* hidden =
         model_->forward(input_ids, position_ids, mask, local_mask);
 
-    NNGraph::TensorNode* logits =
-        gemm(lm_head_.weight_tensor(),
-            hidden,
-            1.0,
-            true,
-            false,
-            1,
-            0);
+    NNGraph::TensorNode* logits = lm_head_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

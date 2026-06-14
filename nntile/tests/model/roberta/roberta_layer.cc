@@ -122,7 +122,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> result;
     {
         NNGraph g("roberta_layer_ref");
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+        auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                           ->set_name("input");
         BertLayer layer(&g, "layer", fx.config);
         layer.load(full_path);
