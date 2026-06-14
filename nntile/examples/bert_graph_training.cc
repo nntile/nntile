@@ -47,7 +47,7 @@ static void fill_arange_position_ids(
     {
         for (Index s = 0; s < n_seq; ++s)
         {
-            pos[s + n_seq * b] = static_cast<std::int64_t>(s);
+            pos[b * n_seq + s] = static_cast<std::int64_t>(s);
         }
     }
 }
@@ -151,15 +151,15 @@ int main(int argc, char **argv)
     graph.enable_auto_tensor_name_phase_suffix(true);
     BertMlm model(&graph, "model", config);
 
-    auto *input_ids = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+    auto *input_ids = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                           ->set_name("input_ids");
     auto *token_type_ids =
-        graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("token_type_ids");
     auto *position_ids =
-        graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("position_ids");
-    auto *labels = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+    auto *labels = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                        ->set_name("labels");
     input_ids->mark_input(true);
     token_type_ids->mark_input(true);
@@ -293,16 +293,16 @@ int main(int argc, char **argv)
     model_loaded.mark_parameters_input_recursive();
 
     auto *input_ids2 =
-        graph_loaded.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph_loaded.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("input_ids");
     auto *token_type_ids2 =
-        graph_loaded.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph_loaded.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("token_type_ids");
     auto *position_ids2 =
-        graph_loaded.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph_loaded.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("position_ids");
     auto *labels2 =
-        graph_loaded.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph_loaded.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("labels");
     input_ids2->mark_input(true);
     token_type_ids2->mark_input(true);

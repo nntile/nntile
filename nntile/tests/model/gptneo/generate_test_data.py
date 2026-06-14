@@ -42,7 +42,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-from safetensors.numpy import save_file
+from safetensors.numpy import load_file, save_file
 from transformers import GPTNeoConfig
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoAttention as PtAttention, GPTNeoBlock as PtBlock,
@@ -129,31 +129,42 @@ def _hf_gptneo_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
     return mlp(x_pt)
 
 
+def _linear_attn_qkv_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> np.ndarray:
+    """HF ``Linear`` ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``.
+
+    ``nn.Linear`` is ``(out, in)`` unlike GPT-2 ``Conv1D`` ``(in, out)``; reshape
+    the output (head) axis, then transpose to C-order ``(H, hd, nh)``.
+    """
+    w = linear.weight.detach().numpy()
+    return as_float32(w.reshape(nh, hd, H).transpose(2, 1, 0))
+
+
+def _linear_attn_o_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> np.ndarray:
+    """HF ``Linear`` ``(out, in)`` → graph ``o_weight`` ``(hd, nh, H)``.
+
+    Preserve legacy ``fortran_order(W.reshape(H, nh, hd))`` flat layout while
+    using C-order shape labels (reversed from graph_api Fortran specs).
+    """
+    w = linear.weight.detach().numpy()
+    legacy = np.asarray(w.reshape(H, nh, hd), dtype=np.float32).ravel("F").reshape(
+        H, nh, hd,
+    )
+    return as_float32(legacy.ravel().reshape(hd, nh, H))
+
+
 def _gptneo_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF q/k/v/out_proj to NNTile layouts (see ``gptneo_generate.py``)."""
+    """Map HF q/k/v/out_proj to NNTile C-order attention layouts."""
     inner = attn.attention
     H = dims.hidden
     nh = dims.n_heads
     hd = dims.head_size
     return {
-        f"{prefix}.q_weight": as_float32(
-            inner.q_proj.weight.detach().numpy().reshape(
-                H, nh, hd,
-            ).transpose(0, 2, 1)),
-        f"{prefix}.k_weight": as_float32(
-            inner.k_proj.weight.detach().numpy().reshape(
-                H, nh, hd,
-            ).transpose(0, 2, 1)),
-        f"{prefix}.v_weight": as_float32(
-            inner.v_proj.weight.detach().numpy().reshape(
-                H, nh, hd,
-            ).transpose(0, 2, 1)),
-        f"{prefix}.o_weight": as_float32(
-            inner.out_proj.weight.detach().numpy().reshape(
-                nh, hd, H,
-            ).transpose(1, 0, 2)),
+        f"{prefix}.q_weight": _linear_attn_qkv_weight(inner.q_proj, H, nh, hd),
+        f"{prefix}.k_weight": _linear_attn_qkv_weight(inner.k_proj, H, nh, hd),
+        f"{prefix}.v_weight": _linear_attn_qkv_weight(inner.v_proj, H, nh, hd),
+        f"{prefix}.o_weight": _linear_attn_o_weight(inner.out_proj, H, nh, hd),
         f"{prefix}.o_bias": as_float32(
             inner.out_proj.bias.detach().numpy()),
     }

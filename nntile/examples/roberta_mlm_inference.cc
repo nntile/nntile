@@ -33,10 +33,10 @@ int main()
     NNGraph graph("roberta_mlm_inference");
     RobertaMlm model(&graph, "model", config);
 
-    auto *input_ids = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+    auto *input_ids = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                           ->set_name("input_ids");
     auto *position_ids =
-        graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("position_ids");
     input_ids->mark_input(true);
     position_ids->mark_input(true);

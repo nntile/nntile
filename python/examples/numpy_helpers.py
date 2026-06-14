@@ -18,14 +18,14 @@ def fill_arange_position_ids(
 ) -> None:
     for b in range(n_batch):
         for s in range(n_seq):
-            pos_data[s + n_seq * b] = s
+            pos_data[b * n_seq + s] = s
 
 
-def sdpa_causal_mask_bool_fortran_fill(n_seq: int) -> np.ndarray:
-    """BOOL causal mask, Fortran layout: out[kk + n_seq * qq] = (kk <= qq)."""
+def sdpa_causal_mask_bool_c_fill(n_seq: int) -> np.ndarray:
+    """BOOL causal mask, C layout ``[seq, seq]``: out[qq * n_seq + kk] = (kk <= qq)."""
     out = np.zeros(n_seq * n_seq, dtype=np.uint8)
     for qq in range(n_seq):
         for kk in range(n_seq):
             if kk <= qq:
-                out[kk + n_seq * qq] = 1
+                out[qq * n_seq + kk] = 1
     return out

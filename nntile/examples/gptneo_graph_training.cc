@@ -296,7 +296,7 @@ static void fill_arange_position_ids(
     {
         for (Index s = 0; s < n_seq; ++s)
         {
-            pos[s + n_seq * b] = static_cast<std::int64_t>(s);
+            pos[b * n_seq + s] = static_cast<std::int64_t>(s);
         }
     }
 }
@@ -427,10 +427,10 @@ int main(int argc, char **argv)
     NNGraph graph("gptneo_graph_training");
     GptneoCausal model(&graph, "model", config);
 
-    auto *input_ids = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+    auto *input_ids = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                           ->set_name("input_ids");
     auto *position_ids =
-        graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("position_ids");
     auto *attn_mask = graph.tensor({n_seq, n_seq}, DataType::BOOL, false)
                           ->set_name("attn_mask");
@@ -441,7 +441,7 @@ int main(int argc, char **argv)
     attn_mask->mark_input(true);
     attn_mask_local->mark_input(true);
 
-    auto *labels = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+    auto *labels = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                        ->set_name("labels");
     labels->mark_input(true);
 

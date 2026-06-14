@@ -138,12 +138,13 @@ def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
     n_heads = dims.n_heads
 
     def w(linear):
-        return linear.weight.detach().numpy().reshape(
-            n_heads, hs, n_emb,
-        ).transpose(2, 1, 0)
+        weight = linear.weight.detach().numpy()
+        return as_float32(weight.reshape(n_heads, hs, n_emb).transpose(2, 1, 0))
 
     def b(linear):
-        return linear.bias.detach().numpy().reshape(n_heads, hs).transpose(1, 0)
+        return as_float32(
+            linear.bias.detach().numpy().reshape(n_heads, hs).transpose(1, 0),
+        )
 
     return {
         f"{prefix}.q_weight": as_float32(w(self_attn.query)),
@@ -159,11 +160,11 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     n_emb = dims.hidden
     n_heads = dims.n_heads
     hs = dims.head_size
-    w = (
-        out_module.dense.weight.detach()
-        .numpy()
-        .reshape(n_heads, hs, n_emb)
-        .transpose(1, 0, 2)
+    w = as_float32(
+        np.asarray(
+            out_module.dense.weight.detach().numpy().reshape(n_emb, n_heads, hs),
+            dtype=np.float32,
+        ).ravel("F").reshape(n_emb, n_heads, hs).ravel().reshape(hs, n_heads, n_emb),
     )
     return {
         f"{prefix}.dense.weight": as_float32(w),
