@@ -94,27 +94,27 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [tensor_shape, fiber_len, axis, alpha, beta, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4},
+        GENERATE(std::tuple{std::vector<Index>{4, 2},
                      Index(4),
-                     Index(1),
+                     Index(0),
                      Scalar(1.0),
                      Scalar(1.0),
                      Scalar(1.0)},
-            std::tuple{std::vector<Index>{2, 4},
+            std::tuple{std::vector<Index>{4, 2},
                 Index(2),
-                Index(0),
+                Index(1),
                 Scalar(1.0),
                 Scalar(1.0),
                 Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 5},
+            std::tuple{std::vector<Index>{5, 3},
                 Index(5),
-                Index(1),
+                Index(0),
                 Scalar(0.5),
                 Scalar(2.0),
                 Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 5},
+            std::tuple{std::vector<Index>{5, 3},
                 Index(3),
-                Index(0),
+                Index(1),
                 Scalar(2.0),
                 Scalar(0.0),
                 Scalar(-1.0)});
@@ -164,9 +164,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Index batch_ndim_none = 0;
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
-    const std::vector<Index> tensor_shape = {dim_m, dim_n};
+    const std::vector<Index> tensor_shape = {dim_n, dim_m};
+    const std::vector<Index> f_tensor_shape = {dim_m, dim_n};
     std::vector<Index> fiber_shape_vec =
-        (axis == 0) ? std::vector<Index>{dim_m} : std::vector<Index>{dim_n};
+        (axis == 0) ? std::vector<Index>{dim_n} : std::vector<Index>{dim_m};
 
     const Index tensor_nelems = dim_m * dim_n;
     const Index fiber_nelems = fiber_shape_vec[0];
@@ -180,7 +181,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < tensor_nelems; ++i)
         tensor_data[i] = static_cast<float>(-i - 1);
     std::vector<float> tensor_data_rowmajor =
-        colmajor_to_rowmajor(tensor_data, tensor_shape);
+        colmajor_to_rowmajor(tensor_data, f_tensor_shape);
 
     NNGraph g("add_fiber_pytorch");
     auto *fiber =
@@ -191,9 +192,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(tensor);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len6(fiber);
-    else
         nn_pytorch_tile_heterogeneous_1d_len7(fiber);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(fiber);
 
     fiber->mark_input(true);
     tensor->mark_input(true);
@@ -209,7 +210,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, tensor_shape);
+        colmajor_to_rowmajor(nntile_out_colmajor, f_tensor_shape);
 
     // PyTorch: output = alpha * fiber (broadcast) + beta * tensor (row-major)
     std::vector<::int64_t> tensor_shape_pt(
@@ -248,9 +249,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Index batch_ndim_none = 0;
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
-    const std::vector<Index> tensor_shape = {dim_m, dim_n};
+    const std::vector<Index> tensor_shape = {dim_n, dim_m};
+    const std::vector<Index> f_tensor_shape = {dim_m, dim_n};
     std::vector<Index> fiber_shape_vec =
-        (axis == 0) ? std::vector<Index>{dim_m} : std::vector<Index>{dim_n};
+        (axis == 0) ? std::vector<Index>{dim_n} : std::vector<Index>{dim_m};
 
     const Index tensor_nelems = dim_m * dim_n;
     const Index fiber_nelems = fiber_shape_vec[0];
@@ -262,7 +264,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < tensor_nelems; ++i)
         tensor_data[i] = 0.15f * static_cast<float>(i + 5);
     std::vector<float> tensor_data_rowmajor =
-        colmajor_to_rowmajor(tensor_data, tensor_shape);
+        colmajor_to_rowmajor(tensor_data, f_tensor_shape);
 
     NNGraph g("add_fiber_bwd_pytorch");
     auto *fiber =
@@ -273,9 +275,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(tensor);
     if (axis == 0)
-        nn_pytorch_tile_heterogeneous_1d_len6(fiber);
-    else
         nn_pytorch_tile_heterogeneous_1d_len7(fiber);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(fiber);
 
     fiber->mark_input(true);
     tensor->mark_input(true);
@@ -300,7 +302,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_grad_tensor_colmajor =
         runtime.get_output<float>(tensor->grad());
     std::vector<float> nntile_grad_tensor =
-        colmajor_to_rowmajor(nntile_grad_tensor_colmajor, tensor_shape);
+        colmajor_to_rowmajor(nntile_grad_tensor_colmajor, f_tensor_shape);
 
     std::vector<::int64_t> tensor_shape_pt(
         tensor_shape.begin(), tensor_shape.end());
