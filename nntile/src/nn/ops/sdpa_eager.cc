@@ -53,15 +53,16 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
 
     const auto &q_shape = q->shape();
     const auto &k_shape = k->shape();
-    Index q_seq = q_shape[1];
-    Index k_seq = k_shape[1];
+    const Index q_ndim = static_cast<Index>(q_shape.size());
+    Index q_seq = q_shape[q_ndim - 2];
+    Index k_seq = k_shape[q_ndim - 2];
 
-    std::vector<Index> batch_shape(q_shape.begin() + 2,
-        q_shape.begin() + 2 + static_cast<ptrdiff_t>(batch_ndim));
+    std::vector<Index> batch_shape(q_shape.begin(),
+        q_shape.begin() + static_cast<ptrdiff_t>(batch_ndim));
 
-    std::vector<Index> attn_shape = {k_seq, q_seq};
-    attn_shape.insert(
-        attn_shape.end(), batch_shape.begin(), batch_shape.end());
+    std::vector<Index> attn_shape = batch_shape;
+    attn_shape.push_back(q_seq);
+    attn_shape.push_back(k_seq);
 
     NNGraph::TensorNode *attn =
         graph->tensor(attn_shape, q->dtype(), out_requires_grad);
@@ -81,9 +82,9 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
             mask->data(), mask_val, attn->data(), batch_ndim);
     }
 
-    std::vector<Index> attn_max_shape = {2, q_seq};
-    attn_max_shape.insert(
-        attn_max_shape.end(), batch_shape.begin(), batch_shape.end());
+    std::vector<Index> attn_max_shape = batch_shape;
+    attn_max_shape.push_back(q_seq);
+    attn_max_shape.push_back(2);
     NNGraph::TensorNode *maxsumexp_buf =
         graph->tensor(attn_max_shape, q->dtype(), false);
     clear(maxsumexp_buf);
@@ -91,9 +92,8 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
     tensor::softmax_inplace(
         maxsumexp_buf->data(), attn->data(), 1.0, 0);
 
-    std::vector<Index> sumprod_shape = {q_seq};
-    sumprod_shape.insert(
-        sumprod_shape.end(), batch_shape.begin(), batch_shape.end());
+    std::vector<Index> sumprod_shape = batch_shape;
+    sumprod_shape.push_back(q_seq);
     NNGraph::TensorNode *sumprod_buf =
         graph->tensor(sumprod_shape, q->dtype(), false);
     NNGraph::TensorNode *grad_temp =
@@ -230,17 +230,19 @@ NNGraph::TensorNode *sdpa_eager(NNGraph::TensorNode *q,
     {
         throw std::invalid_argument("sdpa_eager: Q, K, V must have same ndim");
     }
-    if (q_shape[0] != k_shape[0] || q_shape[0] != v_shape[0])
+    const Index q_ndim = static_cast<Index>(q_shape.size());
+    if (q_shape[q_ndim - 1] != k_shape[q_ndim - 1] ||
+        q_shape[q_ndim - 1] != v_shape[q_ndim - 1])
     {
         throw std::invalid_argument(
             "sdpa_eager: Q, K, V head_size must match");
     }
-    if (k_shape[1] != v_shape[1])
+    if (k_shape[q_ndim - 2] != v_shape[q_ndim - 2])
     {
         throw std::invalid_argument(
             "sdpa_eager: K and V seq length must match");
     }
-    Index head_size = q_shape[0];
+    Index head_size = q_shape[q_ndim - 1];
     if (head_size <= 0)
     {
         throw std::invalid_argument("sdpa_eager: head_size must be positive");

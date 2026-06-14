@@ -17,6 +17,7 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/nn_grad_slot_name.hh"
+#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/gemm.hh"
 
 #include <stdexcept>

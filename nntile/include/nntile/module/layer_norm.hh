@@ -42,7 +42,7 @@ public:
     LayerNorm(NNGraph* graph,
               const std::string& name,
               Index normalized_shape,
-              Index axis = 0,
+              Index axis = -1,
               float eps = 1e-5f,
               int redux = 0,
               DataType dtype = DataType::FP32);

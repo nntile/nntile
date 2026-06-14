@@ -69,7 +69,14 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
     {
         labels_shape.push_back(x_shape[i]);
     }
-    if (labels->shape() != labels_shape)
+    const std::vector<Index> f_x_shape = nn::c_shape_to_fortran(x_shape);
+    std::vector<Index> f_labels_shape;
+    f_labels_shape.reserve(x->ndim() - 1);
+    for (Index i = 1; i < x->ndim(); ++i)
+    {
+        f_labels_shape.push_back(f_x_shape[i]);
+    }
+    if (labels->shape() != nn::fortran_shape_to_c(f_labels_shape))
     {
         throw std::invalid_argument(
             "NNCrossEntropyOp::forward: labels shape must match x shape "
@@ -80,14 +87,17 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
 
     TensorGraph &tg = graph->tensor_graph();
 
-    // maxsumexp shape: shape without class axis, plus leading [2]
-    std::vector<Index> maxsumexp_shape = labels_shape;
-    maxsumexp_shape.insert(maxsumexp_shape.begin(), 2);
+    std::vector<Index> maxsumexp_shape;
+    maxsumexp_shape.push_back(2);
+    for (Index i = 1; i < x->ndim(); ++i)
+    {
+        maxsumexp_shape.push_back(f_x_shape[i]);
+    }
     maxsumexp_data_ = tg.data(maxsumexp_shape, x->dtype());
 
-    // logsumexp shape: shape without axis
+    // logsumexp shape: F labels shape
     TensorGraph::TensorNode *logsumexp_data =
-        tg.data(labels_shape, x->dtype());
+        tg.data(f_labels_shape, x->dtype());
 
     // val: scalar
     TensorGraph::TensorNode *val_data = tg.data({}, x->dtype());
