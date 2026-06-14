@@ -48,9 +48,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     NNGraph g("add_shape_mismatch");
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
+    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
     auto *y =
-        g.tensor({3, 2}, DataType::FP32)->set_name("y"); // different shape
+        g.tensor({2, 3}, DataType::FP32)->set_name("y"); // different shape
 
     REQUIRE_THROWS_AS(add(1.0, x, 1.0, y), std::invalid_argument);
 }
@@ -66,13 +66,13 @@ TEST_CASE_METHOD(
     constexpr Index dim1 = 3;
 
     NNGraph g("add_structure");
-    auto *x = g.tensor({dim0, dim1}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({dim0, dim1}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({dim1, dim0}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({dim1, dim0}, DataType::FP32)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
-    REQUIRE(z->shape() == (std::vector<Index>{dim0, dim1}));
+    REQUIRE(z->shape() == (std::vector<Index>{dim1, dim0}));
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "ADD");
 }
@@ -86,8 +86,8 @@ TEST_CASE_METHOD(
             std::tuple{Scalar(1.0), Scalar(0.0), Scalar(1.0)});
 
     NNGraph g("autograd_add");
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({3, 2}, DataType::FP32)->set_name("y");
 
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
@@ -172,13 +172,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
 
     NNGraph g("add");
-    auto *x = g.tensor({2, 3}, DataType::FP32, true)->set_name("x");
-    auto *y = g.tensor({2, 3}, DataType::FP32, true)->set_name("y");
+    auto *x = g.tensor({3, 2}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({3, 2}, DataType::FP32, true)->set_name("y");
     auto *z = add(add_alpha, x, add_beta, y)->set_name("z");
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
-    REQUIRE(z->shape() == (std::vector<Index>{2, 3}));
+    REQUIRE(z->shape() == (std::vector<Index>{3, 2}));
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     gt::fill(grad_fill_val, z_grad->data());
@@ -213,8 +213,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     NNGraph g("add_pytorch");
-    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
-    auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
+    auto *x = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
     add_heterogeneous_tiling_6x7(x);
@@ -234,12 +234,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_out = runtime.get_output<float>(z);
 
     auto x_pt = torch::from_blob(x_data.data(),
-        {dim0, dim1},
+        {dim1, dim0},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
     auto y_pt = torch::from_blob(y_data.data(),
-        {dim0, dim1},
+        {dim1, dim0},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
@@ -270,8 +270,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     NNGraph g("add_bwd_pytorch");
-    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
-    auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
+    auto *x = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({dim1, dim0}, DataType::FP32, true)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
     add_heterogeneous_tiling_6x7(x);
@@ -298,18 +298,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_grad_y = runtime.get_output<float>(y->grad());
 
     auto x_pt = torch::from_blob(x_data.data(),
-        {dim0, dim1},
+        {dim1, dim0},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
     auto y_pt = torch::from_blob(y_data.data(),
-        {dim0, dim1},
+        {dim1, dim0},
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
 
     auto z_pt = x_pt.mul(alpha).add(y_pt, beta);
-    auto grad_output = torch::full({dim0, dim1},
+    auto grad_output = torch::full({dim1, dim0},
         static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     z_pt.backward(grad_output);
