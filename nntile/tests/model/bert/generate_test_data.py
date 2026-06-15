@@ -109,13 +109,13 @@ def _linear_attn_qkv_weight(
 ) -> np.ndarray:
     """PT Linear ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``."""
     w = linear.weight.detach().numpy().reshape(nh, hs, n_emb)
-    return _to_c_order(w)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _linear_attn_o_weight(
     linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
 ) -> np.ndarray:
-    """PT Linear ``(out, in)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    """PT Linear ``(out, in)`` → graph ``dense.weight`` ``(hd, nh, H)``."""
     w = linear.weight.detach().numpy().reshape(n_emb, nh, hs)
     return _to_c_order(w)
 
