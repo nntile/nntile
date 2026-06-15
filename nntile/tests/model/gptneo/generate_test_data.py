@@ -16,7 +16,10 @@ For each block the script creates ``gptneo_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neo``) for module weights and
 forward/backward references plus NumPy layout helpers for NNTile safetensors —
-no custom GPT-Neo reimplementation.
+no custom GPT-Neo reimplementation. Safetensor arrays use **virtual C-order**
+shape labels; legacy Fortran-labelled buffers are converted via shape reversal
+(``_to_c_order``) so flat bytes stay binary-compatible with pre-migration
+fixtures.
 
 Attention references call HF ``q_proj`` / ``k_proj`` / ``v_proj`` /
 ``out_proj`` and ``scaled_dot_product_attention`` so they match graph
@@ -42,7 +45,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-from safetensors.numpy import load_file, save_file
+from safetensors.numpy import save_file
 from transformers import GPTNeoConfig
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoAttention as PtAttention, GPTNeoBlock as PtBlock,
@@ -91,6 +94,25 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
+def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
+    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer).
+
+    If ``arr`` has shape ``(d0, d1, ...)`` in the old Fortran convention, the
+    returned array has shape ``(..., d1, d0)`` in C-order with identical
+    underlying bytes.
+    """
+    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
+        fortran_labeled.shape,
+    )
+    c_shape = fortran_labeled.shape[::-1]
+    return as_float32(legacy.ravel().reshape(c_shape))
+
+
+def _linear(linear: torch.nn.Linear) -> np.ndarray:
+    """PT Linear ``(out, in)`` → graph weight ``[out, in]``."""
+    return as_float32(linear.weight.detach().numpy())
+
+
 def _make_config(dims: TestDims) -> GPTNeoConfig:
     return GPTNeoConfig(
         vocab_size=dims.vocab,
@@ -130,26 +152,15 @@ def _hf_gptneo_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
 
 
 def _linear_attn_qkv_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> np.ndarray:
-    """HF ``Linear`` ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``.
-
-    ``nn.Linear`` is ``(out, in)`` unlike GPT-2 ``Conv1D`` ``(in, out)``; reshape
-    the output (head) axis, then transpose to C-order ``(H, hd, nh)``.
-    """
-    w = linear.weight.detach().numpy()
-    return as_float32(w.reshape(nh, hd, H).transpose(2, 1, 0))
+    """HF ``Linear`` ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``."""
+    w = linear.weight.detach().numpy().reshape(nh, hd, H)
+    return _to_c_order(w)
 
 
 def _linear_attn_o_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> np.ndarray:
-    """HF ``Linear`` ``(out, in)`` → graph ``o_weight`` ``(hd, nh, H)``.
-
-    Preserve legacy ``fortran_order(W.reshape(H, nh, hd))`` flat layout while
-    using C-order shape labels (reversed from graph_api Fortran specs).
-    """
-    w = linear.weight.detach().numpy()
-    legacy = np.asarray(w.reshape(H, nh, hd), dtype=np.float32).ravel("F").reshape(
-        H, nh, hd,
-    )
-    return as_float32(legacy.ravel().reshape(hd, nh, H))
+    """HF ``Linear`` ``(out, in)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    w = linear.weight.detach().numpy().reshape(H, nh, hd)
+    return _to_c_order(w)
 
 
 def _gptneo_attn_weights(
@@ -172,10 +183,8 @@ def _gptneo_attn_weights(
 
 def _gptneo_mlp_weights(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.fc1.weight": as_float32(
-            mlp.c_fc.weight.detach().numpy()),
-        f"{prefix}.fc2.weight": as_float32(
-            mlp.c_proj.weight.detach().numpy()),
+        f"{prefix}.fc1.weight": _linear(mlp.c_fc),
+        f"{prefix}.fc2.weight": _linear(mlp.c_proj),
     }
 
 
@@ -207,7 +216,7 @@ def _model_weights(
 
 
 def _lm_head_to_linear_weight(lm) -> np.ndarray:
-    return as_float32(lm.weight.detach().numpy())
+    return _linear(lm)
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
@@ -246,6 +255,11 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
+    """Causal mask for ``sdpa_eager`` (1 = keep), shape ``(seq, seq)``.
+
+    Logical ``mask[k, q] = (k <= q)``; store ``mask.T`` in C-order so flat
+    bytes match the legacy Fortran-labelled ``(seq, seq)`` bind layout.
+    """
     allowed = np.zeros((seq, seq), dtype=np.float32)
     for k in range(seq):
         for q in range(seq):
@@ -255,6 +269,7 @@ def _sdpa_causal_mask(seq: int) -> np.ndarray:
 
 
 def _sdpa_gptneo_local_mask(seq: int, window: int) -> np.ndarray:
+    """Local attention mask (1 = keep), shape ``(seq, seq)`` in C-order."""
     allowed = np.zeros((seq, seq), dtype=np.float32)
     for k in range(seq):
         for q in range(seq):
