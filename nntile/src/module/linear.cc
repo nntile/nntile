@@ -32,7 +32,7 @@ namespace
 constexpr Scalar GEMM_ALPHA = 1.0;
 constexpr Index GEMM_NDIM_MATRIX = 1;
 constexpr Index NO_BATCH_DIM = 0;
-constexpr bool TRANSPOSE_W = true;
+constexpr bool TRANSPOSE_A = true;
 constexpr bool NO_TRANSPOSE_B = false;
 constexpr Scalar ADD_FIBER_ALPHA = 1.0;
 constexpr Scalar ADD_FIBER_BETA = 1.0;
@@ -203,7 +203,7 @@ NNGraph::TensorNode *Linear::forward(NNGraph::TensorNode *input)
     NNGraph::TensorNode *gemm_out = gemm(input,
         weight_tensor_,
         GEMM_ALPHA,
-        TRANSPOSE_W,
+        TRANSPOSE_A,
         NO_TRANSPOSE_B,
         GEMM_NDIM_MATRIX,
         NO_BATCH_DIM);

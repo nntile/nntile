@@ -24,51 +24,48 @@
 namespace nntile
 {
 
-//! GEMM op: PyTorch-style ``y = x @ w.T`` on virtual C-order shapes.
+//! Generic GEMM on virtual C-order shapes.
 //!
-//! ``x`` is the activation (``[..., k]`` trailing contraction axes),
-//! ``w`` is the weight (``[m..., k]`` or ``[k, m...]`` depending on layout;
-//! use ``trans_w`` when the contraction axis is leading in ``w``).
-//! Lowers to ``tensor::gemm(w, x, trans_w, trans_b, ndim, batch_ndim)``.
+//! ``trans_a`` / ``trans_b`` transpose the first ``ndim`` axes of operands
+//! ``a`` / ``b``.  Lowers to ``tensor::gemm(b, a, trans_a, trans_b, ndim,
+//! batch_ndim)`` (operands swapped relative to the NN API).
 struct NNGemmOp : NNGraph::OpNode
 {
     Scalar alpha;
-    bool trans_w;
+    bool trans_a;
     bool trans_b;
     Index ndim;
     Index batch_ndim;
-    NNGraph::TensorNode *x = nullptr;
-    NNGraph::TensorNode *w = nullptr;
+    NNGraph::TensorNode *a = nullptr;
+    NNGraph::TensorNode *b = nullptr;
 
-    NNGemmOp(NNGraph::TensorNode *x_,
-        NNGraph::TensorNode *w_,
+    NNGemmOp(NNGraph::TensorNode *a_,
+        NNGraph::TensorNode *b_,
         Scalar alpha_,
-        bool trans_w_,
+        bool trans_a_,
         bool trans_b_,
         Index ndim_,
         Index batch_ndim_) :
         alpha(alpha_),
-        trans_w(trans_w_),
+        trans_a(trans_a_),
         trans_b(trans_b_),
         ndim(ndim_),
         batch_ndim(batch_ndim_),
-        x(x_),
-        w(w_)
+        a(a_),
+        b(b_)
     {
-        inputs_ = {x, w};
+        inputs_ = {a, b};
     }
 
     NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-//! ``gemm(x, w)`` with virtual C-order shapes: ``y = alpha * x @ op(w).T``
-//! (PyTorch ``linear`` semantics when ``w`` is ``[out, in]`` and
-//! ``trans_w=true``).
-NNGraph::TensorNode *gemm(NNGraph::TensorNode *x,
-    NNGraph::TensorNode *w,
+//! Generic GEMM: ``y = alpha * op(a) @ op(b)`` on virtual C-order shapes.
+NNGraph::TensorNode *gemm(NNGraph::TensorNode *a,
+    NNGraph::TensorNode *b,
     Scalar alpha,
-    bool trans_w,
+    bool trans_a,
     bool trans_b,
     Index ndim,
     Index batch_ndim);

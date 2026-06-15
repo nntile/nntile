@@ -31,7 +31,7 @@ namespace
 {
 
 constexpr Scalar gemm_alpha_one = 1.0;
-constexpr bool trans_w_default = false;
+constexpr bool trans_a_default = false;
 constexpr bool trans_b_default = false;
 constexpr Index ndim_one = 1;
 constexpr Index ndim_two = 2;
@@ -53,7 +53,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *c = gemm(x,
         w,
         gemm_alpha_one,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_one,
         batch_ndim_none);
@@ -78,7 +78,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *c = gemm(x,
             w,
             gemm_alpha_one,
-            trans_w_default,
+            trans_a_default,
             trans_b_default,
             ndim_two,
             batch_ndim_none);
@@ -96,7 +96,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *c = gemm(x,
             w,
             gemm_alpha_one,
-            trans_w_default,
+            trans_a_default,
             trans_b_default,
             ndim_one,
             batch_ndim_one);
@@ -114,7 +114,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *c = gemm(x,
             w,
             gemm_alpha_one,
-            trans_w_default,
+            trans_a_default,
             trans_b_default,
             ndim_two,
             batch_ndim_none);
@@ -140,7 +140,7 @@ TEST_CASE_METHOD(
     auto *c = gemm(x,
         w,
         gemm_alpha_one,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_one,
         batch_ndim_none);
@@ -168,7 +168,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *c = gemm(x,
             w,
             gemm_alpha_one,
-            trans_w_default,
+            trans_a_default,
             trans_b_default,
             ndim_two,
             batch_ndim_none);
@@ -189,7 +189,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *c = gemm(x,
             w,
             gemm_alpha_one,
-            trans_w_default,
+            trans_a_default,
             trans_b_default,
             ndim_one,
             batch_ndim_one);
@@ -210,7 +210,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *c = gemm(x,
             w,
             gemm_alpha_one,
-            trans_w_default,
+            trans_a_default,
             trans_b_default,
             ndim_two,
             batch_ndim_none);
@@ -239,7 +239,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *c = gemm(x,
         w,
         gemm_alpha,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_one,
         batch_ndim_none);
@@ -294,7 +294,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
     auto *w = g.tensor(w_shape, DataType::FP32, true)->set_name("w");
     auto *c =
-        gemm(x, w, alpha, trans_w_default, trans_b_default, ndim, batch_ndim);
+        gemm(x, w, alpha, trans_a_default, trans_b_default, ndim, batch_ndim);
 
     REQUIRE(c != nullptr);
     REQUIRE(c->shape() == expected_c_shape);
@@ -310,21 +310,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph gemm backward transposed W",
+    "NNGraph gemm backward transposed A",
     "[graph][nn_graph]")
 {
     constexpr Scalar grad_fill_val = 1.0;
 
-    SECTION("trans_b=false uses grad_C transpose for grad_W")
+    SECTION("trans_b=false uses grad_C transpose for grad_A")
     {
-        constexpr bool trans_w = true;
+        constexpr bool trans_a = true;
         constexpr bool trans_b = false;
 
-        NNGraph g("gemm_transposed_w");
+        NNGraph g("gemm_transposed_a");
         auto *x = g.tensor({3, 2}, DataType::FP32, true)->set_name("x");
         auto *w = g.tensor({4, 2}, DataType::FP32, true)->set_name("w");
         auto *c = gemm(
-            x, w, gemm_alpha_one, trans_w, trans_b, ndim_one, batch_ndim_none);
+            x, w, gemm_alpha_one, trans_a, trans_b, ndim_one, batch_ndim_none);
 
         REQUIRE(c != nullptr);
         REQUIRE(c->shape() == (std::vector<Index>{3, 4}));
@@ -339,16 +339,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(w->grad()->shape() == (std::vector<Index>{4, 2}));
     }
 
-    SECTION("trans_b=true uses grad_C transpose for grad_W")
+    SECTION("trans_b=true uses grad_C transpose for grad_A")
     {
-        constexpr bool trans_w = true;
+        constexpr bool trans_a = true;
         constexpr bool trans_b = true;
 
-        NNGraph g("gemm_transposed_w_transposed_b");
+        NNGraph g("gemm_transposed_a_transposed_b");
         auto *x = g.tensor({2, 3}, DataType::FP32, true)->set_name("x");
         auto *w = g.tensor({4, 2}, DataType::FP32, true)->set_name("w");
         auto *c = gemm(
-            x, w, gemm_alpha_one, trans_w, trans_b, ndim_one, batch_ndim_none);
+            x, w, gemm_alpha_one, trans_a, trans_b, ndim_one, batch_ndim_none);
 
         REQUIRE(c != nullptr);
         REQUIRE(c->shape() == (std::vector<Index>{3, 4}));
@@ -457,7 +457,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *c = gemm(x,
         w,
         gemm_alpha,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_one,
         batch_ndim_none);
@@ -522,7 +522,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *c = gemm(x,
         w,
         gemm_alpha,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_one,
         batch_ndim_none);
@@ -608,7 +608,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *c = gemm(x,
         w,
         gemm_alpha,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_two,
         batch_ndim_none);
@@ -671,7 +671,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *c = gemm(x,
         w,
         gemm_alpha,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_one,
         batch_ndim_one);
@@ -744,7 +744,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *c = gemm(x,
         w,
         gemm_alpha,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_two,
         batch_ndim_none);
@@ -826,7 +826,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *c = gemm(x,
         w,
         gemm_alpha,
-        trans_w_default,
+        trans_a_default,
         trans_b_default,
         ndim_one,
         batch_ndim_one);

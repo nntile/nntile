@@ -70,7 +70,7 @@ TEST_CASE_METHOD(
     nntile::test::ContextFixture, "NNGraph OpNullInputs", "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
-    const bool trans_w = GENERATE(false);
+    const bool trans_a = GENERATE(false);
     const bool trans_b = GENERATE(false);
     const Index ndim = GENERATE(Index(1));
     const Index batch_ndim = GENERATE(Index(0));
@@ -81,10 +81,10 @@ TEST_CASE_METHOD(
     auto *y = g.tensor({2, 2}, DataType::FP32)->set_name("y");
 
     REQUIRE_THROWS_AS(
-        gemm(nullptr, y, gemm_alpha, trans_w, trans_b, ndim, batch_ndim),
+        gemm(nullptr, y, gemm_alpha, trans_a, trans_b, ndim, batch_ndim),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        gemm(x, nullptr, gemm_alpha, trans_w, trans_b, ndim, batch_ndim),
+        gemm(x, nullptr, gemm_alpha, trans_a, trans_b, ndim, batch_ndim),
         std::invalid_argument);
     REQUIRE_THROWS_AS(gelu(static_cast<NNGraph::TensorNode *>(nullptr)),
         std::invalid_argument);
@@ -144,7 +144,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
-    const bool trans_w = GENERATE(false);
+    const bool trans_a = GENERATE(false);
     const bool trans_b = GENERATE(false);
     const Index ndim = GENERATE(Index(1));
     const Index batch_ndim = GENERATE(Index(0));
@@ -154,7 +154,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = nng.tensor({4, 3}, DataType::FP32)->set_name("input");
     auto *w = nng.tensor({3, 2}, DataType::FP32)->set_name("weights");
 
-    auto *y = gemm(x, w, gemm_alpha, trans_w, trans_b, ndim, batch_ndim);
+    auto *y = gemm(x, w, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
     // Test that NNGraph to_mermaid delegates to tensor graph
     auto nn_mermaid = nng.to_mermaid();
@@ -170,7 +170,7 @@ TEST_CASE_METHOD(
     nntile::test::ContextFixture, "NNGraph MarkInputOutput", "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
-    const bool trans_w = GENERATE(false);
+    const bool trans_a = GENERATE(false);
     const bool trans_b = GENERATE(false);
     const Index ndim = GENERATE(Index(1));
     const Index batch_ndim = GENERATE(Index(0));
@@ -179,7 +179,7 @@ TEST_CASE_METHOD(
 
     auto *x = g.tensor({4, 3}, DataType::FP32)->set_name("x");
     auto *w = g.tensor({3, 2}, DataType::FP32)->set_name("w");
-    auto *y = gemm(x, w, gemm_alpha, trans_w, trans_b, ndim, batch_ndim);
+    auto *y = gemm(x, w, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
     x->mark_input(true);
     y->mark_output(true);

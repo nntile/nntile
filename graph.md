@@ -116,9 +116,9 @@ Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 - `sum_fiber(x, y, axis, batch_ndim, alpha, beta)` — sum along fibers
 
 **Matrix operations:**
-- `gemm(x, w, output_name, alpha, trans_w, trans_b, ndim, batch_ndim)` —
-  creates a new output tensor (`y = alpha * x @ op(w).T`).
-- `gemm(x, w, c, alpha, beta, trans_w, trans_b, ndim, batch_ndim)` — in-place
+- `gemm(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim)` —
+  creates a new output tensor.
+- `gemm(a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim)` — in-place
   accumulation into `c`.
 
 **Activation operations:**
@@ -132,19 +132,18 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
 - Virtual C-order labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
   uses Fortran storage via `c_shape_to_fortran`.
-- NN API: `gemm(x, w)` computes `y = alpha * x @ op(w).T` on virtual C-order
-  shapes. Lowers to `tensor::gemm(w, x, trans_w, trans_b, ...)`.
-- `x` (activation): trailing contraction axes `K...`, then optional batch.
-- `w` (weight): `trans_w=false` → `[K..., M..., batch...]`; `trans_w=true` →
-  `[M..., K..., batch...]` (PyTorch linear: `w` is `[out, in]`).
-- Output: `[N..., M..., batch...]` where `N...` are non-contracting axes of `x`.
+- NN API: `gemm(a, b, trans_a, trans_b, ...)` on virtual C-order shapes.
+  Lowers to `tensor::gemm(b, a, trans_a, trans_b, ...)` (operands swapped).
+- `trans_a` / `trans_b` transpose the first ``ndim`` axes of ``a`` / ``b``.
 - `ndim` is the number of contraction (K) dimensions.
 - `batch_ndim` is the number of **trailing** batch dimensions (must match between
-  `x` and `w`).
+  `a` and `b`).
 
-Note: `Linear` uses `trans_w=true` on weight `[out, in]`; attention Q/K/V use
-`trans_w=false` on weight `[hidden, head_size, n_heads]` with a following
-`transpose` to SDPA layout.
+Example usages (not special cases in the op itself):
+
+- `Linear` calls `gemm(input, weight, trans_a=true, ...)` with weight `[out, in]`.
+- Attention Q/K/V call `gemm(x, w, trans_a=false, ...)` with weight
+  `[hidden, head_size, n_heads]` and a following `transpose` to SDPA layout.
 
 ### Virtual C-order shape labels
 
@@ -276,9 +275,9 @@ nntile::Context context(
     1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
 NNGraph graph("demo");
-auto* x = graph.tensor({2, 3}, "x", DataType::FP32, true);  // batch=2, features=3
-auto* w = graph.tensor({4, 3}, "w", DataType::FP32, true);  // out=4, in=3
-auto* y = gemm(x, w, "y");  // y = x @ w^T, shape (2, 4)
+auto* a = graph.tensor({2, 3}, "a", DataType::FP32, true);
+auto* b = graph.tensor({4, 3}, "b", DataType::FP32, true);  // out=4, in=3
+auto* y = gemm(a, b, "y");  // shape (2, 4) with trans_a=true in Linear
 
 x->mark_input(true);
 y->mark_output(true);
