@@ -80,21 +80,21 @@ NNGraph::TensorNode* BertSelfAttention::forward(
     }
 
     NNGraph::TensorNode* q_proj =
-        gemm(w_q_, x, 1.0, false, false, 1, 0);
+        gemm(x, w_q_, 1.0, false, false, 1, 0);
     q_proj->set_name(tensor_name("q_proj"));
     NNGraph::TensorNode* q = transpose(q_proj, 1);
     q = add_fiber(1.0, q_bias_, 1.0, q, 3, 1);
     q->set_name(tensor_name("q"));
 
     NNGraph::TensorNode* k_proj =
-        gemm(w_k_, x, 1.0, false, false, 1, 0);
+        gemm(x, w_k_, 1.0, false, false, 1, 0);
     k_proj->set_name(tensor_name("k_proj"));
     NNGraph::TensorNode* k = transpose(k_proj, 1);
     k = add_fiber(1.0, k_bias_, 1.0, k, 3, 1);
     k->set_name(tensor_name("k"));
 
     NNGraph::TensorNode* v_proj =
-        gemm(w_v_, x, 1.0, false, false, 1, 0);
+        gemm(x, w_v_, 1.0, false, false, 1, 0);
     v_proj->set_name(tensor_name("v_proj"));
     NNGraph::TensorNode* v = transpose(v_proj, 1);
     v = add_fiber(1.0, v_bias_, 1.0, v, 3, 1);
@@ -113,7 +113,7 @@ NNGraph::TensorNode* BertSelfAttention::forward(
     }
 
     NNGraph::TensorNode* out =
-        gemm(w_dense, attn_t, 1.0, false, false, 2, 0);
+        gemm(attn_t, w_dense, 1.0, false, false, 2, 0);
     out = add_fiber(1.0, b_dense, 1.0, out, out->ndim() - 1, 0);
     out->set_name(tensor_name("dense_out"));
     return out;

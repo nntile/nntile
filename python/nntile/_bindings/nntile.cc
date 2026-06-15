@@ -603,10 +603,10 @@ PYBIND11_MODULE(nntile, m)
 
     nn.def("gemm",
         &nntile::gemm,
-        "a"_a,
-        "b"_a,
+        "x"_a,
+        "w"_a,
         "alpha"_a = 1.0f,
-        "trans_a"_a = false,
+        "trans_w"_a = false,
         "trans_b"_a = false,
         "ndim"_a = 1,
         "batch_ndim"_a = 0,

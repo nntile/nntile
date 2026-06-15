@@ -116,9 +116,9 @@ Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 - `sum_fiber(x, y, axis, batch_ndim, alpha, beta)` — sum along fibers
 
 **Matrix operations:**
-- `gemm(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim)` —
-  creates a new output tensor.
-- `gemm(a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim)` — in-place
+- `gemm(x, w, output_name, alpha, trans_w, trans_b, ndim, batch_ndim)` —
+  creates a new output tensor (`y = alpha * x @ op(w).T`).
+- `gemm(x, w, c, alpha, beta, trans_w, trans_b, ndim, batch_ndim)` — in-place
   accumulation into `c`.
 
 **Activation operations:**
@@ -132,15 +132,18 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
 - Virtual C-order labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
   uses Fortran storage via `c_shape_to_fortran`.
-- A: `trans_a=false` → `[M..., K..., batch...]` (trailing batch)
-- B: `trans_b=false` → `[K..., N..., batch...]`
-- Output: `[M..., N..., batch...]`
+- NN API: `gemm(x, w)` computes `y = alpha * x @ op(w).T` on virtual C-order
+  shapes. Lowers to `tensor::gemm(w, x, trans_w, trans_b, ...)`.
+- `x` (activation): trailing contraction axes `K...`, then optional batch.
+- `w` (weight): `trans_w=false` → `[K..., M..., batch...]`; `trans_w=true` →
+  `[M..., K..., batch...]` (PyTorch linear: `w` is `[out, in]`).
+- Output: `[N..., M..., batch...]` where `N...` are non-contracting axes of `x`.
 - `ndim` is the number of contraction (K) dimensions.
 - `batch_ndim` is the number of **trailing** batch dimensions (must match between
-  A and B).
+  `x` and `w`).
 
-Note: `Linear` uses `trans_a=true` on weight `[out, in]`; attention Q/K/V use
-`trans_a=false` on weight `[hidden, head_size, n_heads]` with a following
+Note: `Linear` uses `trans_w=true` on weight `[out, in]`; attention Q/K/V use
+`trans_w=false` on weight `[hidden, head_size, n_heads]` with a following
 `transpose` to SDPA layout.
 
 ### Virtual C-order shape labels
@@ -179,13 +182,13 @@ payload bytes are unchanged from PyTorch via the test `fortran_order()` helper
 With activations `x` shaped `[batch, seq, hidden]` and Q weight
 `[hidden, head_size, n_heads]`:
 
-- `gemm(w_q, x, alpha, false, false, ndim=1, batch_ndim=0)` — Q projection
+- `gemm(x, w_q, alpha, false, false, ndim=1, batch_ndim=0)` — Q projection
 - `transpose(q_proj, 1)` — head layout for SDPA
 - `add_fiber(..., q_bias, ..., axis=3, batch_ndim=1)` — per-head bias
   (`q_bias` virtual C-order `[n_heads, head_size]`)
 - `sdpa_eager(q, k, v, mask, batch_ndim=2, redux=0)`
 - `transpose(attn_out, 3)` — layout for output projection
-- `gemm(w_o, attn_t, ..., false, false, ndim=2, batch_ndim=0)` — output projection
+- `gemm(attn_t, w_o, ..., false, false, ndim=2, batch_ndim=0)` — output projection
 - `add_fiber(o_bias, ..., axis=2, batch_ndim=0)` — output bias on hidden axis
 
 BERT/RoBERTa embeddings: sum word/position/token-type, then
