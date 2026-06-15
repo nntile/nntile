@@ -102,7 +102,7 @@ def _conv1d_attn_qkv_weight(
 
 def _conv1d_attn_o_weight(conv, H: int, nh: int, hd: int) -> np.ndarray:
     """HF Conv1D ``c_proj`` ``(in, out)`` → graph ``o_weight`` ``(hd, nh, H)``."""
-    w = conv.weight.detach().numpy().reshape(H, nh, hd)
+    w = conv.weight.detach().numpy().T.reshape(H, nh, hd)
     return _to_c_order(w)
 
 
