@@ -17,7 +17,6 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/nn_grad_slot_name.hh"
-#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/add_inplace.hh"
 #include "nntile/tensor/ops/transpose.hh"
 

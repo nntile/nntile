@@ -15,7 +15,6 @@
 
 #include "nntile/nn/ops/norm_fiber.hh"
 
-#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/norm_fiber.hh"
 
@@ -75,9 +74,8 @@ NNGraph::TensorNode *NNNormFiberOp::forward()
         graph->tensor(std::move(base_shape), x->dtype(), false);
     tensor::clear(base->data());
     constexpr Scalar beta_fresh = 0.0; // NNGraph always outputs fresh data
-    const Index storage_axis = nn::graph_axis_to_storage(axis, ndim);
     TensorGraph::TensorNode *y_data = tensor::norm_fiber(
-        alpha, x->data(), beta_fresh, base->data(), storage_axis, batch_ndim, redux);
+        alpha, x->data(), beta_fresh, base->data(), axis, batch_ndim, redux);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     return y;
