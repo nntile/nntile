@@ -23,8 +23,7 @@ if str(_examples_dir) not in sys.path:
     sys.path.insert(0, str(_examples_dir))
 
 import numpy as np
-from numpy_helpers import (
-    fill_arange_position_ids, sdpa_causal_mask_bool_fortran_fill)
+from numpy_helpers import fill_arange_position_ids, sdpa_causal_mask_bool_fill
 
 import nntile
 from nntile import (
@@ -144,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
 
     pos_data = np.zeros(n_seq * n_batch, dtype=np.int64)
     fill_arange_position_ids(pos_data, n_seq, n_batch)
-    mask_data = sdpa_causal_mask_bool_fortran_fill(n_seq)
+    mask_data = sdpa_causal_mask_bool_fill(n_seq)
 
     graph.enable_auto_tensor_name_phase_suffix(True)
     ce_scale = 1.0 / float(n_seq * n_batch)

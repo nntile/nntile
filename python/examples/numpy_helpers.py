@@ -21,22 +21,12 @@ def fill_arange_position_ids(
             pos_data[b * n_seq + s] = s
 
 
-def sdpa_causal_mask_bool_fortran_fill(n_seq: int) -> np.ndarray:
-    """BOOL causal mask flat buffer (Fortran / physical layout).
+def sdpa_causal_mask_bool_fill(n_seq: int) -> np.ndarray:
+    """BOOL causal mask for ``[seq, seq]`` NNGraph bind (C-order).
 
-    Matches ``nntile::sdpa_causal_mask_bool_fortran_fill``:
-    ``out[kk + n_seq * qq] = (kk <= qq)`` for ``[seq, seq]`` NNGraph bind.
+    Logical ``mask[key, query] = (key <= query)``; flat bytes match the legacy
+    Fortran-labelled layout via shape reversal (``mask.T`` in row-major).
     """
-    out = np.zeros(n_seq * n_seq, dtype=np.uint8)
-    for qq in range(n_seq):
-        for kk in range(n_seq):
-            if kk <= qq:
-                out[kk + n_seq * qq] = 1
-    return out
-
-
-def sdpa_causal_mask_bool_c_fill(n_seq: int) -> np.ndarray:
-    """BOOL causal mask, logical C ``[seq, seq]`` layout."""
     out = np.zeros(n_seq * n_seq, dtype=np.uint8)
     for qq in range(n_seq):
         for kk in range(n_seq):
