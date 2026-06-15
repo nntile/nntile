@@ -103,7 +103,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1;
 using nntile::test::nn_pytorch_tile_mask_nn;
@@ -150,9 +149,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<uint8_t> mask_data(n_seq * n_seq);
     if (use_mask)
     {
-        for (Index i = 0; i < n_seq; ++i)
-            for (Index j = 0; j < n_seq; ++j)
-                mask_data[i + j * n_seq] = (i <= j) ? 1 : 0;
+        for (Index key = 0; key < n_seq; ++key)
+            for (Index query = 0; query < n_seq; ++query)
+                mask_data[key + query * n_seq] = (key <= query) ? 1 : 0;
     }
 
     NNGraph g("sdpa_pytorch");
@@ -221,9 +220,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::einsum("abcd,abed->abce", {k_pt, q_pt}) * scale;
     if (use_mask)
     {
-        std::vector<uint8_t> mask_row =
-            colmajor_to_rowmajor(mask_data, mask_shape);
-        auto mask_pt = torch::from_blob(mask_row.data(),
+        std::vector<uint8_t> mask_pt_buf(n_seq * n_seq);
+        for (Index key = 0; key < n_seq; ++key)
+            for (Index query = 0; query < n_seq; ++query)
+                mask_pt_buf[key * n_seq + query] = (key <= query) ? 1 : 0;
+        auto mask_pt = torch::from_blob(mask_pt_buf.data(),
             {n_seq, n_seq},
             torch::TensorOptions().dtype(torch::kBool))
                            .clone();

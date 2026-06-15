@@ -118,7 +118,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;

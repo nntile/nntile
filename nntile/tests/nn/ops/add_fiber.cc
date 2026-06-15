@@ -145,7 +145,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::broadcast_fiber;
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
@@ -171,8 +170,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index tensor_nelems = dim_m * dim_n;
     const Index fiber_nelems = fiber_shape_vec[0];
 
-    // Same data pattern as nntile/tests/tensor_graph/add_fiber.cc (column-major for
-    // NNTile)
+    // Same data pattern as nntile/tests/tensor_graph/add_fiber.cc.
     std::vector<float> fiber_data(fiber_nelems);
     std::vector<float> tensor_data(tensor_nelems);
     for (Index i = 0; i < fiber_nelems; ++i)
@@ -207,7 +205,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_out = runtime.get_output<float>(out);
 
-    // PyTorch: output = alpha * fiber (broadcast) + beta * tensor (row-major)
+    // PyTorch: output = alpha * fiber (broadcast) + beta * tensor
     std::vector<::int64_t> tensor_shape_pt(
         tensor_shape.begin(), tensor_shape.end());
     auto fiber_pt = torch::from_blob(fiber_data.data(),

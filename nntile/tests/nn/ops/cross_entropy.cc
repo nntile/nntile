@@ -97,7 +97,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
 using nntile::test::nn_pytorch_tile_logits_5x7;
@@ -158,9 +157,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_loss = runtime.get_output<float>(loss);
     REQUIRE(nntile_loss.size() == 1);
 
-    std::vector<float> nntile_grad_x_colmajor =
-        runtime.get_output<float>(x->grad());
-    std::vector<float> nntile_grad_x = nntile_grad_x_colmajor;
+    std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
 
     std::vector<::int64_t> shape_pt{batch_size, nclasses};
     auto x_pt = torch::from_blob(x_data.data(),

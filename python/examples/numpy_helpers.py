@@ -24,8 +24,8 @@ def fill_arange_position_ids(
 def sdpa_causal_mask_bool_fill(n_seq: int) -> np.ndarray:
     """BOOL causal mask for ``[seq, seq]`` NNGraph bind (C-order).
 
-    Logical ``mask[key, query] = (key <= query)``; flat bytes match the legacy
-    Fortran-labelled layout via shape reversal (``mask.T`` in row-major).
+    Logical ``mask[key, query] = (key <= query)``; stored as ``mask.T`` for
+    bind layout compatible with legacy shape labels.
     """
     out = np.zeros(n_seq * n_seq, dtype=np.uint8)
     for qq in range(n_seq):

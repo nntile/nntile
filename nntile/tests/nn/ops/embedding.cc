@@ -22,7 +22,6 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
-#include "nntile/nn/shape_layout.hh"
 
 using namespace nntile;
 using namespace nntile;
@@ -134,10 +133,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::compare_float_vectors;
-using nntile::test::fortran_buffer_to_c_rowmajor;
 using nntile::test::nn_pytorch_tile_vocab_10x10;
 using nntile::test::nn_pytorch_tile_vocab_8x8;
-using nntile::test::pytorch_tolerance;
 
 static std::vector<std::int64_t> embedding_pytorch_output_shape(
     const std::vector<Index> &index_shape, Index embed_dim)
@@ -169,10 +166,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < embed_dim * num_embeddings; ++i)
         vocab_data[i] = 0.1f * static_cast<float>(i + 1);
 
-    std::vector<Index> embed_shape =
-        embed_output_shape(index_shape, vocab_shape, axis);
-    const Index embed_nelems = index_nelems * embed_dim;
-
     NNGraph g("embedding_pytorch");
     auto *index =
         g.tensor(index_shape, DataType::INT64, false)->set_name("index");
@@ -196,11 +189,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_out = runtime.get_output<float>(embed);
 
-    std::vector<std::int64_t> index_rowmajor =
-        fortran_buffer_to_c_rowmajor(index_data, index_shape);
     std::vector<::int64_t> index_shape_pt(
         index_shape.begin(), index_shape.end());
-    auto index_pt = torch::from_blob(index_rowmajor.data(),
+    auto index_pt = torch::from_blob(index_data.data(),
         index_shape_pt,
         torch::TensorOptions().dtype(torch::kInt64))
                         .clone()
@@ -211,8 +202,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                         .clone()
                         .set_requires_grad(false);
     auto out_pt = torch::embedding(vocab_pt, index_pt).contiguous();
-    compare_float_vectors(
-        fortran_buffer_to_c_rowmajor(nntile_out, embed_shape), out_pt);
+    compare_float_vectors(nntile_out, out_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -242,9 +232,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
     for (Index i = 0; i < num_embeddings * embed_dim; ++i)
         vocab_data[i] = 0.1f * static_cast<float>(i + 1);
-
-    std::vector<Index> embed_shape =
-        embed_output_shape(index_shape, vocab_shape, axis);
 
     NNGraph g("embedding_bwd_pytorch");
     auto *index =
