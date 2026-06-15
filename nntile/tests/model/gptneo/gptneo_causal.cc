@@ -159,7 +159,7 @@ void causal_backward_compare_ref(const CausalFixtureSpec &fx)
     {
         NNGraph g("causal_bwd");
         auto *input_ids =
-            g.tensor({fx.seq, fx.batch}, DataType::INT64, true)
+            g.tensor({fx.batch, fx.seq}, DataType::INT64, true)
                 ->set_name("input_ids");
         NNGraph::TensorNode *position_ids = nullptr;
         std::vector<std::int64_t> pos_data;
@@ -222,14 +222,14 @@ TEST_CASE("GptneoCausal forward builds output", "[model][gptneo]")
     NNGraph g("gptneo_causal");
     GptneoCausal model(&g, "model", fx.config);
     auto *input_ids =
-        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
-    auto *position_ids = g.tensor({fx.seq, fx.batch}, DataType::INT64)
+        g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
+    auto *position_ids = g.tensor({fx.batch, fx.seq}, DataType::INT64)
                              ->set_name("position_ids");
     auto *output = model.forward(input_ids, position_ids, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.seq, fx.config.vocab_size}));
 }
 
 TEST_CASE("GptneoCausal load from safetensors roundtrip", "[model][gptneo][io]")
@@ -280,7 +280,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("causal_ref");
         auto *input_ids =
-            g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+            g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
         NNGraph::TensorNode *position_ids = nullptr;
         std::vector<std::int64_t> pos_data;
         REQUIRE(load_position_ids(

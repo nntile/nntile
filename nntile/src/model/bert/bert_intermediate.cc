@@ -3,6 +3,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file nntile/src/model/bert/bert_intermediate.cc
  * BertIntermediate implementation.
  *
@@ -11,8 +14,6 @@
 
 #include "nntile/model/bert/bert_intermediate.hh"
 #include "nntile/model/bert/bert_config.hh"
-#include "nntile/nn/ops/add_fiber.hh"
-#include "nntile/nn/ops/gemm.hh"
 
 namespace nntile::model::bert
 {
@@ -40,15 +41,7 @@ BertIntermediate::BertIntermediate(NNGraph* graph,
 NNGraph::TensorNode* BertIntermediate::forward(
     NNGraph::TensorNode* x)
 {
-    NNGraph::TensorNode* hidden = gemm(
-        dense_.weight_tensor(),
-        x,
-        1.0,
-        true,
-        false,
-        1,
-        0);
-    hidden = add_fiber(1.0, dense_.bias_tensor(), 1.0, hidden, 0, 0);
+    NNGraph::TensorNode* hidden = dense_.forward(x);
     return activation_.forward(hidden);
 }
 

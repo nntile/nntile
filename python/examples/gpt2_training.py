@@ -23,28 +23,13 @@ if str(_examples_dir) not in sys.path:
     sys.path.insert(0, str(_examples_dir))
 
 import numpy as np
-
-from numpy_helpers import (
-    fill_arange_position_ids,
-    sdpa_causal_mask_bool_fortran_fill,
-)
+from numpy_helpers import fill_arange_position_ids, sdpa_causal_mask_bool_fill
 
 import nntile
 from nntile import (
-    AdamW,
-    CausalLmBatch,
-    CausalLmBatchConfig,
-    CausalLmBatchIterator,
-    Context,
-    DataType,
-    Gpt2Causal,
-    NNGraph,
-    TokenMemoryMap,
-    apply_gpt2_tiling_json,
-    init_random_parameter_hints,
-    load_gpt2_config_json,
-    make_tiny_gpt2_config,
-)
+    AdamW, CausalLmBatch, CausalLmBatchConfig, CausalLmBatchIterator, Context,
+    DataType, Gpt2Causal, NNGraph, TokenMemoryMap, apply_gpt2_tiling_json,
+    init_random_parameter_hints, load_gpt2_config_json, make_tiny_gpt2_config)
 
 
 def scheduled_lr(step: int, args: argparse.Namespace) -> float:
@@ -122,9 +107,9 @@ def main(argv: list[str] | None = None) -> int:
     graph = NNGraph('gpt2_training')
     model = Gpt2Causal(graph, 'model', config)
 
-    input_ids = graph.tensor([n_seq, n_batch], DataType.INT64, False)
+    input_ids = graph.tensor([n_batch, n_seq], DataType.INT64, False)
     input_ids.set_name('input_ids')
-    position_ids = graph.tensor([n_seq, n_batch], DataType.INT64, False)
+    position_ids = graph.tensor([n_batch, n_seq], DataType.INT64, False)
     position_ids.set_name('position_ids')
     attn_mask = graph.tensor([n_seq, n_seq], DataType.BOOL, False)
     attn_mask.set_name('attn_mask')
@@ -132,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     position_ids.mark_input(True)
     attn_mask.mark_input(True)
 
-    labels = graph.tensor([n_seq, n_batch], DataType.INT64, False)
+    labels = graph.tensor([n_batch, n_seq], DataType.INT64, False)
     labels.set_name('labels')
     labels.mark_input(True)
 
@@ -158,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
 
     pos_data = np.zeros(n_seq * n_batch, dtype=np.int64)
     fill_arange_position_ids(pos_data, n_seq, n_batch)
-    mask_data = sdpa_causal_mask_bool_fortran_fill(n_seq)
+    mask_data = sdpa_causal_mask_bool_fill(n_seq)
 
     graph.enable_auto_tensor_name_phase_suffix(True)
     ce_scale = 1.0 / float(n_seq * n_batch)

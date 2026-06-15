@@ -53,11 +53,11 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
     std::vector<Index> g;
     for (Index lin = 0; lin < nelems; ++lin)
     {
-        layout::fortran_tile_linear_to_index(lin, out_shape, g);
+        layout::storage_tile_linear_to_index(lin, out_shape, g);
         if (g[static_cast<size_t>(axis)] < a_shape[static_cast<size_t>(axis)])
         {
             out[static_cast<size_t>(lin)] = a_data[static_cast<size_t>(
-                layout::fortran_dense_linear_index(a_shape, g))];
+                layout::storage_dense_linear_index(a_shape, g))];
         }
         else
         {
@@ -65,7 +65,7 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
             gb[static_cast<size_t>(axis)] -=
                 a_shape[static_cast<size_t>(axis)];
             out[static_cast<size_t>(lin)] = b_data[static_cast<size_t>(
-                layout::fortran_dense_linear_index(b_shape, gb))];
+                layout::storage_dense_linear_index(b_shape, gb))];
         }
     }
     return out;

@@ -333,7 +333,7 @@ int main(int argc, char** argv)
         NNGraph graph("gptneo_step");
 
         auto *input_ids =
-            graph.tensor({seq_len, 1}, DataType::INT64, false)
+            graph.tensor({1, seq_len}, DataType::INT64, false)
                 ->set_name("input_ids");
         input_ids->mark_input(true);
 
@@ -345,7 +345,7 @@ int main(int argc, char** argv)
                 static_cast<std::int64_t>(i);
         }
         auto *position_ids =
-            graph.tensor({seq_len, 1}, DataType::INT64, false)
+            graph.tensor({1, seq_len}, DataType::INT64, false)
                 ->set_name("position_ids");
         position_ids->mark_input(true);
 
@@ -368,9 +368,9 @@ int main(int argc, char** argv)
         const std::size_t mask_n =
             static_cast<std::size_t>(seq_len * seq_len);
         std::vector<std::uint8_t> mask_data(mask_n);
-        sdpa_causal_mask_bool_fortran_fill(seq_len, mask_data.data());
+        sdpa_causal_mask_bool_fill(seq_len, mask_data.data());
         std::vector<std::uint8_t> mask_local_data(mask_n);
-        sdpa_gptneo_local_mask_bool_fortran_fill(
+        sdpa_gptneo_local_mask_bool_fill(
             seq_len, config.window_size, mask_local_data.data());
 
         TileGraph tile_graph =

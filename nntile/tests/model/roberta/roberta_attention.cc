@@ -134,7 +134,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> result;
     {
         NNGraph g("roberta_attn_ref");
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+        auto *input = g.tensor({fx.batch, fx.seq, fx.hidden}, DataType::FP32)
                           ->set_name("input");
         BertAttention attn(&g, "attn", fx.config);
         attn.load(full_path);

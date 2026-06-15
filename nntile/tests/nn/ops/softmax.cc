@@ -97,7 +97,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_softmax_axis0_6x7;
 using nntile::test::nn_pytorch_tile_softmax_axis1_6x7;
@@ -117,8 +116,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> x_data(nelems);
     for (Index i = 0; i < nelems; ++i)
         x_data[i] = 0.1f * static_cast<float>(i - nelems / 2);
-
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
 
     NNGraph g("softmax_pytorch");
     auto *x = g.tensor(shape, DataType::FP32, true)->set_name("x");
@@ -143,12 +140,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(y);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, shape);
+    std::vector<float> nntile_out = runtime.get_output<float>(y);
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
@@ -173,8 +168,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> x_data(nelems);
     for (Index i = 0; i < nelems; ++i)
         x_data[i] = 0.15f * static_cast<float>(i - nelems / 3);
-
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
 
     NNGraph g("softmax_bwd_pytorch");
     auto *x = g.tensor(shape, DataType::FP32, true)->set_name("x");
@@ -204,13 +197,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_x_colmajor =
-        runtime.get_output<float>(x->grad());
-    std::vector<float> nntile_grad_x =
-        colmajor_to_rowmajor(nntile_grad_x_colmajor, shape);
+    std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()

@@ -130,13 +130,68 @@ Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 
 GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
-- Tensor layout is column-major; dimensions are listed from inner to outer.
-- A: `trans_a=false` → `[M..., K..., batch...]`
-- B: `trans_b=false` → `[K..., N..., batch...]`
-- Output: `[M..., N..., batch...]`
+- Graph labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
+  uses tile storage shapes via `graph_shape_to_storage`.
+- NN API: `gemm(a, b, trans_a, trans_b, ...)` on graph shapes.
+  Lowers to `tensor::gemm(b, a, trans_b, trans_a, ...)` (operands and
+  transpose flags swapped for graph labels).
+- `trans_a` / `trans_b` transpose the first ``ndim`` axes of ``a`` / ``b``.
 - `ndim` is the number of contraction (K) dimensions.
-- `batch_ndim` is the number of trailing batch dimensions (must match between A
-  and B).
+- `batch_ndim` is the number of **trailing** batch dimensions (must match between
+  `a` and `b`).
+
+Example usages (not special cases in the op itself):
+
+- `Linear` calls `gemm(input, weight, trans_b=true, ...)` with weight `[out, in]`.
+- Attention Q/K/V call `gemm(x, w, trans_a=false, ...)` with weight
+  `[hidden, head_size, n_heads]` and a following `transpose` to SDPA layout.
+
+### Graph shape labels
+
+NNGraph uses **graph** shape labels on `TensorNode::shape()` while
+tile/tensor storage uses reversed axis labels. Helpers in
+`include/nntile/nn/shape_layout.hh` convert between the two:
+
+- `nn::graph_shape_to_storage(graph_shape)` — graph label → tile storage shape
+- `nn::storage_shape_to_graph(storage_shape)` — tile storage → graph label
+- `nn::graph_axis_to_storage(graph_axis, ndim)` — graph axis (0 = outermost) → storage axis
+
+Reduction and layout ops (`add_fiber`, `transpose`, `layer_norm`, `softmax`,
+etc.) take **graph axis indices** at the NNGraph API and translate internally.
+
+#### Model tensor conventions
+
+Graph model families (GPT-2, BERT, GPT-Neo, GPT-NeoX, Llama, RoBERTa, T5) use
+these graph layouts:
+
+| Role | Shape | Notes |
+|------|-------|-------|
+| Activations | `[batch, seq, hidden]` | Embedding output and block I/O |
+| Linear weights | `[out, in]` | Q/K/V/O projections, MLP, LM head |
+| Logits | `[batch, seq, vocab]` | Causal / MLM heads |
+| `input_ids` | `[batch, seq]` | Token indices |
+| `position_ids` | `[batch, seq]` | Position indices |
+| Attention mask | `[seq, seq]` or `[batch, seq, seq]` | Bool or float mask |
+
+Safetensors metadata records graph shapes (e.g. linear weights `{out, in}`);
+payload bytes use explicit transposes in test generators (`as_bind_float32()`).
+
+#### Example: GPT-2 attention
+
+With activations `x` shaped `[batch, seq, hidden]` and Q weight
+`[hidden, head_size, n_heads]`:
+
+- `gemm(x, w_q, alpha, false, false, ndim=1, batch_ndim=0)` — Q projection
+- `transpose(q_proj, 1)` — head layout for SDPA
+- `add_fiber(..., q_bias, ..., axis=3, batch_ndim=1)` — per-head bias
+  (`q_bias` graph shape `[n_heads, head_size]`)
+- `sdpa_eager(q, k, v, mask, batch_ndim=2, redux=0)`
+- `transpose(attn_out, 3)` — layout for output projection
+- `gemm(attn_t, w_o, ..., false, false, ndim=2, batch_ndim=0)` — output projection
+- `add_fiber(o_bias, ..., axis=2, batch_ndim=0)` — output bias on hidden axis
+
+BERT/RoBERTa embeddings: sum word/position/token-type, then
+`transpose(embed, 2)` → `[batch, seq, hidden]` before `layer_norm(..., axis=2)`.
 
 ## NNGraph
 
@@ -220,9 +275,9 @@ nntile::Context context(
     1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
 NNGraph graph("demo");
-auto* x = graph.tensor({2, 3}, "x", DataType::FP32, true);
-auto* w = graph.tensor({3, 4}, "w", DataType::FP32, true);
-auto* y = gemm(x, w, "y");  // y = x @ w
+auto* a = graph.tensor({2, 3}, "a", DataType::FP32, true);
+auto* b = graph.tensor({4, 3}, "b", DataType::FP32, true);  // out=4, in=3
+auto* y = gemm(a, b, "y");  // shape (2, 4) with trans_b=true in Linear
 
 x->mark_input(true);
 y->mark_output(true);

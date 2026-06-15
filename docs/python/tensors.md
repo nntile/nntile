@@ -52,7 +52,7 @@ t = Tensor_fp32(traits)  # optional mpi_distr=[0, 0, ...]
 
 | Method / function | Description |
 |-----------------|-------------|
-| `t.from_array(numpy_array)` | Copy host buffer into tensor (Fortran order) |
+| `t.from_array(numpy_array)` | Copy host buffer into tensor |
 | `t.to_array(numpy_array)` | Copy tensor to preallocated host buffer (blocking) |
 | `to_numpy(t)` | Allocate NumPy array and fill (blocking) |
 | `to_numpy_async(t)` | Async gather + poll until ready |

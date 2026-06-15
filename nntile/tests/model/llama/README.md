@@ -6,7 +6,7 @@ RMSNorm is a shared module in `nntile::module` (see `include/nntile/module/rms_n
 
 ## Layout
 
-All tensors use **(hidden_size, seq, batch)** in Fortran (column-major) order. The embedding takes input_ids (seq, batch) and produces (hidden, seq, batch) after transpose. LlamaCausal outputs logits (vocab_size, seq, batch).
+All tensors use **(batch, seq, hidden_size)** in graph. The embedding takes input_ids **(batch, seq)** and produces **(batch, seq, hidden_size)**. LlamaCausal outputs logits **(batch, seq, vocab_size)**.
 
 ## Test Coverage
 

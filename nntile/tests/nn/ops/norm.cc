@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const auto alpha = GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5));
 
     NNGraph g("norm_structure");
-    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("x");
+    auto *x = g.tensor({dim_3, dim_2}, DataType::FP32)->set_name("x");
     auto *y = norm(x, alpha)->set_name("y");
 
     REQUIRE(y != nullptr);
@@ -65,8 +65,8 @@ TEST_CASE_METHOD(
     auto *x = g.tensor({6, 7}, DataType::FP32, false)->set_name("x");
     auto *y = norm(x, alpha)->set_name("y");
 
-    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
-    x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{2, 3, 1});
 
     x->mark_input(true);
     y->mark_output(true);
@@ -97,7 +97,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(0.5), Scalar(0.5)});
 
     NNGraph g("norm_backward_throws");
-    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32, true)->set_name("x");
+    auto *x = g.tensor({dim_3, dim_2}, DataType::FP32, true)->set_name("x");
     auto *y = norm(x, alpha)->set_name("y");
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");

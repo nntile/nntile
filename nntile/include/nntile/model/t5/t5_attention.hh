@@ -9,7 +9,7 @@
  * @file include/nntile/model/t5/t5_attention.hh
  * T5Attention - self-attention or cross-attention (no RoPE, no relative bias).
  *
- * Input layout: (d_model, seq, batch) in Fortran order.
+ * Input layout: (batch, seq, d_model) in graph.
  * T5 uses scaled dot-product attention with 1/sqrt(d_k).
  *
  * @version 1.1.0
@@ -55,8 +55,8 @@ public:
                 DataType dtype = DataType::FP32);
 
     //! Forward pass
-    //! @param x Input (d_model, seq, batch) - query source
-    //! @param encoder_output For cross-attention: (d_model, enc_seq, batch). For self-attn: nullptr
+    //! @param x Input (batch, seq, d_model) - query source
+    //! @param encoder_output For cross-attention: (batch, enc_seq, d_model). For self-attn: nullptr
     //! @param mask Optional attention mask (k_seq, q_seq)
     NNGraph::TensorNode* forward(
         NNGraph::TensorNode* x,

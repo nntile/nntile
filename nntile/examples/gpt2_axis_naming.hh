@@ -258,9 +258,13 @@ inline std::optional<std::string> gpt2_attn_layer_axis_role(
         tname.find("k_bias") != std::string::npos ||
         tname.find("v_bias") != std::string::npos)
     {
-        if (axis_idx == 1)
+        if (axis_idx == 0)
         {
             return "num_attention_heads";
+        }
+        if (axis_idx == 1)
+        {
+            return "head_size";
         }
         return std::nullopt;
     }

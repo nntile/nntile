@@ -26,10 +26,10 @@ GptneoDecoder::GptneoDecoder(NNGraph* graph,
                              DataType dtype)
     : module::Module(graph, name)
     , input_norm_(graph, name + "_input_norm",
-                  config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+                  config.hidden_size, 2, config.layer_norm_eps, 0, dtype)
     , attention_(graph, name + "_self_attn", config, dtype)
     , post_attn_norm_(graph, name + "_post_attn_norm",
-                     config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+                     config.hidden_size, 2, config.layer_norm_eps, 0, dtype)
     , mlp_(graph, name + "_mlp", config, dtype)
     , config_(config)
     , dtype_(dtype)

@@ -3,6 +3,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file nntile/src/model/bert/bert_mlm_head.cc
  * BertMlmHead implementation.
  *
@@ -11,8 +14,6 @@
 
 #include "nntile/model/bert/bert_mlm_head.hh"
 #include "nntile/model/bert/bert_config.hh"
-#include "nntile/nn/ops/add_fiber.hh"
-#include "nntile/nn/ops/gemm.hh"
 
 namespace nntile::model::bert
 {
@@ -47,7 +48,7 @@ BertMlmHead::BertMlmHead(NNGraph* graph,
     , transform_act_(graph, name + "_transform_act",
                      activation_type_from_config(config))
     , transform_ln_(graph, name + "_transform_ln",
-                    config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+                    config.hidden_size, 2, config.layer_norm_eps, 0, dtype)
     , decoder_(graph,
                name + "_decoder",
                require_tied_word_vocab(tied_word_vocab),
@@ -65,28 +66,11 @@ BertMlmHead::BertMlmHead(NNGraph* graph,
 NNGraph::TensorNode* BertMlmHead::forward(
     NNGraph::TensorNode* hidden)
 {
-    NNGraph::TensorNode* t = gemm(
-        transform_dense_.weight_tensor(),
-        hidden,
-        1.0,
-        true,
-        false,
-        1,
-        0);
-    t = add_fiber(
-        1.0, transform_dense_.bias_tensor(), 1.0, t, 0, 0);
+    NNGraph::TensorNode* t = transform_dense_.forward(hidden);
     t = transform_act_.forward(t);
     t = transform_ln_.forward(t);
 
-    NNGraph::TensorNode* logits = gemm(
-        decoder_.weight_tensor(),
-        t,
-        1.0,
-        true,
-        false,
-        1,
-        0);
-    logits = add_fiber(1.0, decoder_.bias_tensor(), 1.0, logits, 0, 0);
+    NNGraph::TensorNode* logits = decoder_.forward(t);
     return logits;
 }
 

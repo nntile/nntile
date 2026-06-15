@@ -20,33 +20,33 @@
 namespace nntile
 {
 
-void sdpa_causal_mask_bool_fortran_fill(
+void sdpa_causal_mask_bool_fill(
     Index seq_len,
     std::uint8_t* out)
 {
     if(out == nullptr)
     {
         throw std::invalid_argument(
-            "sdpa_causal_mask_bool_fortran_fill: out is null");
+            "sdpa_causal_mask_bool_fill: out is null");
     }
     if(seq_len <= 0)
     {
         throw std::invalid_argument(
-            "sdpa_causal_mask_bool_fortran_fill: seq_len must be positive");
+            "sdpa_causal_mask_bool_fill: seq_len must be positive");
     }
-    for(Index qq = 0; qq < seq_len; ++qq)
+    for(Index query = 0; query < seq_len; ++query)
     {
-        for(Index kk = 0; kk < seq_len; ++kk)
+        for(Index key = 0; key < seq_len; ++key)
         {
-            const bool allowed = kk <= qq;
-            out[kk + seq_len * qq] =
+            const bool allowed = key <= query;
+            out[query * seq_len + key] =
                 allowed ? static_cast<std::uint8_t>(1)
                         : static_cast<std::uint8_t>(0);
         }
     }
 }
 
-void sdpa_gptneo_local_mask_bool_fortran_fill(
+void sdpa_gptneo_local_mask_bool_fill(
     Index seq_len,
     Index window_size,
     std::uint8_t* out)
@@ -54,25 +54,25 @@ void sdpa_gptneo_local_mask_bool_fortran_fill(
     if(out == nullptr)
     {
         throw std::invalid_argument(
-            "sdpa_gptneo_local_mask_bool_fortran_fill: out is null");
+            "sdpa_gptneo_local_mask_bool_fill: out is null");
     }
     if(seq_len <= 0)
     {
         throw std::invalid_argument(
-            "sdpa_gptneo_local_mask_bool_fortran_fill: seq_len must be positive");
+            "sdpa_gptneo_local_mask_bool_fill: seq_len must be positive");
     }
     if(window_size <= 0)
     {
         throw std::invalid_argument(
-            "sdpa_gptneo_local_mask_bool_fortran_fill: window_size must be positive");
+            "sdpa_gptneo_local_mask_bool_fill: window_size must be positive");
     }
-    for(Index qq = 0; qq < seq_len; ++qq)
+    for(Index query = 0; query < seq_len; ++query)
     {
-        for(Index kk = 0; kk < seq_len; ++kk)
+        for(Index key = 0; key < seq_len; ++key)
         {
             const bool allowed =
-                kk <= qq && (qq - kk) < window_size;
-            out[kk + seq_len * qq] =
+                key <= query && (query - key) < window_size;
+            out[query * seq_len + key] =
                 allowed ? static_cast<std::uint8_t>(1)
                         : static_cast<std::uint8_t>(0);
         }

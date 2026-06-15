@@ -14,7 +14,6 @@
 
 #include "nntile/model/t5/t5_ff.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -27,7 +26,8 @@ T5LayerFF::T5LayerFF(NNGraph* graph,
                      DataType dtype)
     : module::Module(graph, name)
     , layer_norm_(graph, name + "_layer_norm",
-                  config.d_model, 0, config.layer_norm_epsilon, 0, dtype)
+                  config.d_model, 2, config.layer_norm_epsilon, 0,
+                  dtype) // axis=2 for (batch, seq, d_model)
     , dense_(graph, name + "_dense",
              config.d_model,
              config.d_ff,
@@ -50,17 +50,14 @@ NNGraph::TensorNode* T5LayerFF::forward(
             "T5LayerFF::forward: input tensor must be non-null");
     }
 
-    // layer_norm
+    // layer_norm on (batch, seq, d_model)
     NNGraph::TensorNode* x_norm = layer_norm_.forward(input);
 
-    // Transpose (d_model, seq, batch) -> (seq, batch, d_model) for GatedMlp
-    NNGraph::TensorNode* x_t = transpose(x_norm, 1);
-    x_t->set_name(tensor_name("x_t"));
-    NNGraph::TensorNode* ff_out = dense_.forward(x_t);
-    NNGraph::TensorNode* ff_out_t = transpose(ff_out, 2);
-    ff_out_t->set_name(tensor_name("ff_out_t"));
+    // GatedMlp on (batch, seq, d_model) layout
+    NNGraph::TensorNode* ff_out = dense_.forward(x_norm);
+    ff_out->set_name(tensor_name("ff_out"));
 
-    return add(1.0, input, 1.0, ff_out_t);
+    return add(1.0, input, 1.0, ff_out);
 }
 
 std::string T5LayerFF::repr() const

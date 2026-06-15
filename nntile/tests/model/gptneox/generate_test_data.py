@@ -15,18 +15,16 @@ For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
-backward references plus NumPy layout wrangling for NNTile safetensors — no
-custom attention reimplementation. Weights are split from HF
-``query_key_value`` / ``dense`` into graph
-``q/k/v/o`` layouts; Q/K get RoPE head-dim interleaving via
-``rotate_tensor_in`` (axis 1, ``rotary_pct``), matching
-``GPTNeoXAttention.from_torch`` and Llama fixtures. Attention
+backward references plus NumPy layout helpers for NNTile safetensors — no
+custom attention reimplementation. Safetensor arrays use graph shape
+labels matching the graph API. Weights are split from HF ``query_key_value`` /
+``dense`` into graph ``q/k/v/o`` layouts matching ``gpt_neox_generate.py``. Attention
 references call ``GPTNeoXAttention`` with ``_attn_implementation="eager"``,
 ``GPTNeoXRotaryEmbedding`` cos/sin, and additive ``attention_mask``: causal
 upper-triangular when ``use_causal_mask=True``, **zeros** when False (no mask).
 ``use_rope=False`` uses identity cos/sin in PyTorch and still writes
 ``rope_cos`` / ``rope_sin`` for the C++ graph (Llama-style). Graph tests load
-``attn_mask`` as float32 Fortran ``(seq, seq)`` (1 = keep) for ``sdpa_eager``.
+``attn_mask`` as float32 ``(seq, seq)`` (1 = keep) for ``sdpa_eager``.
 """
 
 from __future__ import annotations
@@ -83,9 +81,23 @@ MODEL_DIMS = ATTENTION_DIMS
 CAUSAL_DIMS = ATTENTION_DIMS
 
 
-def fortran_order(arr: np.ndarray) -> np.ndarray:
-    a = np.asarray(arr, dtype=np.float32)
-    return a.ravel("F").reshape(a.shape)
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.float32)
+
+
+def as_int64(arr: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(arr, dtype=np.int64)
+
+
+def _gptneox_attn_qkv_weight(qkv_slice: np.ndarray) -> np.ndarray:
+    """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` graph layout."""
+    return as_float32(np.asarray(qkv_slice, dtype=np.float32).transpose(2, 1, 0))
+
+
+def _gptneox_attn_o_weight(o: np.ndarray, nh: int, hd: int, H: int) -> np.ndarray:
+    """HF ``dense`` ``(H, H)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    w = o.reshape(H, nh, hd)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _make_config(dims: TestDims) -> GPTNeoXConfig:
@@ -109,20 +121,15 @@ def _make_config(dims: TestDims) -> GPTNeoXConfig:
 
 def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.gamma": fortran_order(ln.weight.detach().numpy()),
-        f"{prefix}.beta": fortran_order(ln.bias.detach().numpy()),
+        f"{prefix}.gamma": as_float32(ln.weight.detach().numpy()),
+        f"{prefix}.beta": as_float32(ln.bias.detach().numpy()),
     }
 
 
 def _rotate_tensor_in_for_rope(
     x: np.ndarray, axis: int, rotary_pct: float,
 ) -> np.ndarray:
-    """Interleave RoPE pairs on ``axis`` (first ``rotary_pct`` of that axis).
-
-    Same layout as ``nntile.layer.GPTNeoXAttention.rotate_tensor_in`` and
-    ``kernel::rope`` — HF forward still uses unrotated weights; only the
-    safetensors Q/K layouts written for the C++ graph are transformed.
-    """
+    """Interleave RoPE pairs on ``axis`` (first ``rotary_pct`` of that axis)."""
     k_elements = int(x.shape[axis] * rotary_pct)
     if axis == 0:
         new_shape = (1, k_elements, int(np.prod(x.shape[1:])))
@@ -168,35 +175,32 @@ def _gptneox_attn_weights(
     H = dims.hidden
     nh = dims.n_heads
     hd = dims.head_size
-    qkv_w = attn.query_key_value.weight.detach().numpy()
-    qkv = qkv_w.reshape(nh, 3 * hd, H)
+    qkv = attn.query_key_value.weight.detach().numpy().reshape(nh, 3 * hd, H)
     q = _rotate_tensor_in_for_rope(
         np.asarray(qkv[:, :hd, :], dtype=np.float32), 1, dims.rotary_pct,
     )
     k = _rotate_tensor_in_for_rope(
-        np.asarray(qkv[:, hd : 2 * hd, :], dtype=np.float32),
-        1,
-        dims.rotary_pct,
+        np.asarray(qkv[:, hd:2 * hd, :], dtype=np.float32), 1, dims.rotary_pct,
     )
-    v = qkv[:, 2 * hd : 3 * hd, :]
-    o = attn.dense.weight.detach().numpy().reshape(H, nh, hd)
+    v = qkv[:, 2 * hd:3 * hd, :]
+    o = attn.dense.weight.detach().numpy()
     return {
-        f"{prefix}.q_weight": fortran_order(q),
-        f"{prefix}.k_weight": fortran_order(k),
-        f"{prefix}.v_weight": fortran_order(v),
-        f"{prefix}.o_weight": fortran_order(o),
+        f"{prefix}.q_weight": _gptneox_attn_qkv_weight(q),
+        f"{prefix}.k_weight": _gptneox_attn_qkv_weight(k),
+        f"{prefix}.v_weight": _gptneox_attn_qkv_weight(v),
+        f"{prefix}.o_weight": _gptneox_attn_o_weight(o, nh, hd, H),
     }
 
 
 def _gptneox_mlp_weights(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.fc1.weight": fortran_order(
-            mlp.dense_h_to_4h.weight.detach().numpy().T),
-        f"{prefix}.fc1.bias": fortran_order(
+        f"{prefix}.fc1.weight": as_float32(
+            mlp.dense_h_to_4h.weight.detach().numpy()),
+        f"{prefix}.fc1.bias": as_float32(
             mlp.dense_h_to_4h.bias.detach().numpy()),
-        f"{prefix}.fc2.weight": fortran_order(
-            mlp.dense_4h_to_h.weight.detach().numpy().T),
-        f"{prefix}.fc2.bias": fortran_order(
+        f"{prefix}.fc2.weight": as_float32(
+            mlp.dense_4h_to_h.weight.detach().numpy()),
+        f"{prefix}.fc2.bias": as_float32(
             mlp.dense_4h_to_h.bias.detach().numpy()),
     }
 
@@ -215,7 +219,7 @@ def _gptneox_decoder_weights(
 
 
 def _embed(embed, prefix: str) -> dict[str, np.ndarray]:
-    return {f"{prefix}.vocab": fortran_order(embed.weight.detach().numpy().T)}
+    return {f"{prefix}.vocab": as_float32(embed.weight.detach().numpy())}
 
 
 def _model_weights(
@@ -230,31 +234,31 @@ def _model_weights(
 
 
 def _lm_head_to_linear_weight(lm) -> np.ndarray:
-    return fortran_order(lm.weight.detach().numpy().T)
+    return as_float32(lm.weight.detach().numpy())
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
     x = rng.standard_normal(
-        (dims.hidden, dims.seq, dims.batch),
+        (dims.batch, dims.seq, dims.hidden),
     ).astype(np.float32) * scale
-    x_nt = fortran_order(x)
-    x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
+    x_nt = as_float32(x)
+    x_pt = torch.tensor(x.copy(), requires_grad=True)
     return x_nt, x_pt
 
 
 def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
     g = rng.standard_normal(pt_out.shape).astype(np.float32) * scale
     g_pt = torch.tensor(g)
-    g_nt = fortran_order(g.transpose(2, 1, 0))
+    g_nt = as_float32(g)
     return g_nt, g_pt
 
 
 def _ids_input(rng, dims: TestDims):
     ids = rng.integers(
-        0, dims.vocab, size=(dims.seq, dims.batch),
+        0, dims.vocab, size=(dims.batch, dims.seq),
     ).astype(np.int64)
-    ids_nt = ids.ravel("F").reshape(ids.shape)
-    ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
+    ids_nt = as_int64(ids)
+    ids_pt = torch.tensor(ids.copy(), dtype=torch.long)
     return ids_nt, ids_pt
 
 
@@ -262,46 +266,35 @@ def _attention_position_ids(
     dims: TestDims,
     device: torch.device,
 ) -> tuple[np.ndarray, torch.Tensor]:
-    """``0 .. seq-1`` per batch row — matches C++ training/inference defaults.
-
-    Returns ``position_ids`` in NNTile ``(seq, batch)`` Fortran layout and
-    PyTorch ``(batch, seq)`` for HF-style helpers.
-    """
+    """``0 .. seq-1`` per batch row — matches C++ training/inference defaults."""
     pos_pt = torch.arange(
         dims.seq, device=device, dtype=torch.long,
     ).unsqueeze(0).expand(dims.batch, dims.seq)
-    pos_nntile = np.asfortranarray(
-        pos_pt.detach().cpu().numpy().T.astype(np.int64),
-    )
+    pos_nntile = as_int64(pos_pt.detach().cpu().numpy())
     return pos_nntile, pos_pt
 
 
 def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
-    return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
+    return as_float32(pt_out.detach().numpy())
 
 
-def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
-    """Causal mask for ``sdpa_eager`` (1 = keep).
-
-    Flat layout ``mask[key + query * seq]`` matches ``test_sdpa_eager`` and
-    ``load_attn_mask_bool``. Stored as 1-D ``(seq * seq,)`` so safetensors does
-    not permute a 2-D C/F layout.
-    """
-    flat = np.zeros(seq * seq, dtype=np.float32)
-    for qq in range(seq):
-        for kk in range(seq):
-            flat[kk + qq * seq] = float(kk <= qq)
-    return flat
+def _sdpa_causal_mask(seq: int) -> np.ndarray:
+    """Causal mask for ``sdpa_eager`` (1 = keep), shape ``(seq, seq)``."""
+    allowed = np.zeros((seq, seq), dtype=np.float32)
+    for k in range(seq):
+        for q in range(seq):
+            if k <= q:
+                allowed[k, q] = 1.0
+    return as_float32(allowed.T)
 
 
 def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device,
 ) -> torch.Tensor:
-    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
-    mask_torch = torch.tensor(
-        np.array(1 - mask, dtype=np.float32),
-    ).T * torch.finfo(torch.float32).min
-    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
+    upper = torch.triu(
+        torch.ones(seq, seq, device=device), diagonal=1,
+    )
+    mask_torch = upper * torch.finfo(torch.float32).min
     return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
 
 
@@ -323,13 +316,11 @@ def _gptneox_rope_dim(dims: TestDims) -> int:
 def _rope_half_from_hf(
     cos: torch.Tensor, sin: torch.Tensor, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """HF ``(B,S,D)`` cos/sin → NNTile-graph ``(half,S,B)`` float32."""
+    """HF ``(B,S,D)`` cos/sin → graph ``(batch, seq, half)`` float32."""
     half = _gptneox_rope_dim(dims) // 2
     cos_half = cos[:, :, :half].to(torch.float32).detach().cpu().numpy()
     sin_half = sin[:, :, :half].to(torch.float32).detach().cpu().numpy()
-    cos_np = np.transpose(cos_half, (2, 1, 0))
-    sin_np = np.transpose(sin_half, (2, 1, 0))
-    return cos_np, sin_np
+    return as_float32(cos_half), as_float32(sin_half)
 
 
 def _zero_additive_attention_mask_torch(
@@ -513,12 +504,9 @@ def _write_rope_and_position(
     cos_np: np.ndarray,
     sin_np: np.ndarray,
 ) -> None:
-    """Store RoPE inputs in SafeTensors C-order; C++ maps to NNTile Fortran."""
-    data["position_ids"] = np.ascontiguousarray(
-        pos_nntile, dtype=np.int64,
-    )
-    data["rope_cos"] = np.ascontiguousarray(cos_np, dtype=np.float32)
-    data["rope_sin"] = np.ascontiguousarray(sin_np, dtype=np.float32)
+    data["position_ids"] = as_int64(pos_nntile)
+    data["rope_cos"] = as_float32(cos_np)
+    data["rope_sin"] = as_float32(sin_np)
 
 
 def generate_mlp(
@@ -578,7 +566,7 @@ def generate_attention(
     _write_rope_and_position(data, pos_nntile, cos_np, sin_np)
 
     if use_causal_mask:
-        data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+        data["attn_mask"] = _sdpa_causal_mask(dims.seq)
 
     out = _hf_gptneox_attention(
         pt,
@@ -616,7 +604,7 @@ def generate_decoder(
     cos, sin = rotary(x_pt, pos_ids_pt)
     cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
     _write_rope_and_position(data, pos_nntile, cos_np, sin_np)
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     residual = x_pt
     x_norm = pt.input_layernorm(x_pt)
     data["input_norm_out"] = _out_to_nntile(x_norm)
@@ -659,7 +647,7 @@ def generate_model(
     data = _model_weights(pt, "model", dims)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     pos_nntile, pos_ids_pt = _attention_position_ids(dims, ids_pt.device)
     hidden = pt.embed_in(ids_pt)
     cos, sin = pt.rotary_emb(hidden, pos_ids_pt)
@@ -670,8 +658,8 @@ def generate_model(
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
     out.backward(g_pt)
-    data["grad_embed_tokens_vocab"] = fortran_order(
-        pt.embed_in.weight.grad.detach().numpy().T)
+    data["grad_embed_tokens_vocab"] = as_float32(
+        pt.embed_in.weight.grad.detach().numpy())
     return data
 
 
@@ -687,7 +675,7 @@ def generate_causal(
     data["model.lm_head.weight"] = _lm_head_to_linear_weight(pt.embed_out)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
-    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+    data["attn_mask"] = _sdpa_causal_mask(dims.seq)
     pos_nntile, pos_ids_pt = _attention_position_ids(dims, ids_pt.device)
     embed = pt.gpt_neox.embed_in(ids_pt)
     cos, sin = pt.gpt_neox.rotary_emb(embed, pos_ids_pt)
@@ -701,8 +689,8 @@ def generate_causal(
     g_nt, g_pt = _grad_output(rng, logits)
     logits.backward(g_pt)
     data["grad_output"] = g_nt
-    data["grad_embed_tokens_vocab"] = fortran_order(
-        pt.gpt_neox.embed_in.weight.grad.detach().numpy().T)
+    data["grad_embed_tokens_vocab"] = as_float32(
+        pt.gpt_neox.embed_in.weight.grad.detach().numpy())
     return data
 
 

@@ -29,11 +29,22 @@ Mlp::Mlp(NNGraph* graph,
          Index intermediate_dim,
          Index output_dim,
          ActivationType activation,
-         DataType dtype)
+         DataType dtype,
+         bool with_bias)
     : Module(graph, name)
-    , fc1_(graph, name + "_fc1", input_dim, intermediate_dim, dtype)
+    , fc1_(graph,
+           name + "_fc1",
+           input_dim,
+           intermediate_dim,
+           with_bias,
+           dtype)
     , activation_(graph, name + "_activation", activation)
-    , fc2_(graph, name + "_fc2", intermediate_dim, output_dim, dtype)
+    , fc2_(graph,
+           name + "_fc2",
+           intermediate_dim,
+           output_dim,
+           with_bias,
+           dtype)
     , input_dim_(input_dim)
     , intermediate_dim_(intermediate_dim)
     , output_dim_(output_dim)
@@ -51,8 +62,16 @@ Mlp::Mlp(NNGraph* graph,
          Index input_dim,
          Index intermediate_dim,
          ActivationType activation,
-         DataType dtype)
-    : Mlp(graph, name, input_dim, intermediate_dim, input_dim, activation, dtype)
+         DataType dtype,
+         bool with_bias)
+    : Mlp(graph,
+          name,
+          input_dim,
+          intermediate_dim,
+          input_dim,
+          activation,
+          dtype,
+          with_bias)
 {
 }
 

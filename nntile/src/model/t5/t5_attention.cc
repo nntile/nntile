@@ -38,19 +38,19 @@ T5Attention::T5Attention(NNGraph* graph,
 {
     Index d_model = config.d_model;
 
-    w_q_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_q_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_q_->set_name(tensor_name("q_weight"));
     register_parameter("q_weight", w_q_);
 
-    w_k_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_k_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_k_->set_name(tensor_name("k_weight"));
     register_parameter("k_weight", w_k_);
 
-    w_v_ = graph_->tensor({n_heads_, head_size_, d_model}, dtype_, true);
+    w_v_ = graph_->tensor({d_model, head_size_, n_heads_}, dtype_, true);
     w_v_->set_name(tensor_name("v_weight"));
     register_parameter("v_weight", w_v_);
 
-    w_o_ = graph_->tensor({d_model, n_heads_, head_size_}, dtype_, true);
+    w_o_ = graph_->tensor({head_size_, n_heads_, d_model}, dtype_, true);
     w_o_->set_name(tensor_name("o_weight"));
     register_parameter("o_weight", w_o_);
 }
@@ -71,20 +71,24 @@ NNGraph::TensorNode* T5Attention::forward(
         : x;
     NNGraph::TensorNode* v_src = k_src;
 
+    // Q = gemm(x, w_q); x: (batch, seq, d_model)
     NNGraph::TensorNode* q_proj =
-        gemm(w_q_, x, 1.0, false, false, 1, 0);
+        gemm(x, w_q_, 1.0, false, false, 1, 0);
     q_proj->set_name(tensor_name("q_proj"));
+    // transpose ndim=1 -> (n_heads, batch, seq, head_size)
     NNGraph::TensorNode* q = transpose(q_proj, 1);
     q->set_name(tensor_name("q"));
 
+    // K = gemm(k_src, w_k), then transpose
     NNGraph::TensorNode* k_proj =
-        gemm(w_k_, k_src, 1.0, false, false, 1, 0);
+        gemm(k_src, w_k_, 1.0, false, false, 1, 0);
     k_proj->set_name(tensor_name("k_proj"));
     NNGraph::TensorNode* k = transpose(k_proj, 1);
     k->set_name(tensor_name("k"));
 
+    // V = gemm(v_src, w_v), then transpose
     NNGraph::TensorNode* v_proj =
-        gemm(w_v_, v_src, 1.0, false, false, 1, 0);
+        gemm(v_src, w_v_, 1.0, false, false, 1, 0);
     v_proj->set_name(tensor_name("v_proj"));
     NNGraph::TensorNode* v = transpose(v_proj, 1);
     v->set_name(tensor_name("v"));
@@ -99,11 +103,13 @@ NNGraph::TensorNode* T5Attention::forward(
     nn_graph->register_op(std::move(sdpa_op));
     attn_out->set_name(tensor_name("sdpa_out"));
 
+    // attn_out -> attn_t for output projection
     NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
     attn_t->set_name(tensor_name("attn_t"));
 
+    // gemm(attn_t, w_o): (batch, seq, d_model)
     NNGraph::TensorNode* out =
-        gemm(w_o_, attn_t, 1.0, false, false, 2, 0);
+        gemm(attn_t, w_o_, 1.0, false, false, 2, 0);
     out->set_name(tensor_name("out_proj"));
     return out;
 }

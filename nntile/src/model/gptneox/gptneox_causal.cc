@@ -13,7 +13,6 @@
  * */
 
 #include "nntile/model/gptneox/gptneox_causal.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -43,10 +42,7 @@ NNGraph::TensorNode* GptneoxCausal::forward(
 {
     NNGraph::TensorNode* hidden =
         model_->forward(input_ids, sin, cos, mask);
-    NNGraph::TensorNode* hidden_t = transpose(hidden, 1);
-    hidden_t->set_name(tensor_name("hidden_t"));
-    NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
-    NNGraph::TensorNode* logits = transpose(logits_sbv, 2);
+    NNGraph::TensorNode* logits = lm_head_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;
 }

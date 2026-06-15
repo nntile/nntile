@@ -31,10 +31,6 @@ namespace nntile::model::gpt2
 //! GPT2MLP - MLP with GELUTANH and HF ``c_fc`` / ``c_proj`` biases
 class Gpt2MLP : public module::Mlp
 {
-private:
-    NNGraph::TensorNode* fc1_bias_ = nullptr;
-    NNGraph::TensorNode* fc2_bias_ = nullptr;
-
 public:
     Gpt2MLP(NNGraph* graph,
             const std::string& name,

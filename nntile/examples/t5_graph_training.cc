@@ -439,10 +439,10 @@ int main(int argc, char **argv)
     T5ForConditionalGeneration model(&graph, "model", config);
 
     auto *encoder_input_ids =
-        graph.tensor({n_enc, n_batch}, DataType::INT64, false)
+        graph.tensor({n_batch, n_enc}, DataType::INT64, false)
             ->set_name("encoder_input_ids");
     auto *decoder_input_ids =
-        graph.tensor({n_dec, n_batch}, DataType::INT64, false)
+        graph.tensor({n_batch, n_dec}, DataType::INT64, false)
             ->set_name("decoder_input_ids");
     auto *decoder_attn_mask =
         graph.tensor({n_dec, n_dec}, DataType::BOOL, false)
@@ -451,7 +451,7 @@ int main(int argc, char **argv)
     decoder_input_ids->mark_input(true);
     decoder_attn_mask->mark_input(true);
 
-    auto *labels = graph.tensor({n_dec, n_batch}, DataType::INT64, false)
+    auto *labels = graph.tensor({n_batch, n_dec}, DataType::INT64, false)
                        ->set_name("labels");
     labels->mark_input(true);
 
@@ -483,7 +483,7 @@ int main(int argc, char **argv)
     const std::size_t dec_mask_n =
         static_cast<std::size_t>(n_dec * n_dec);
     std::vector<std::uint8_t> dec_mask_data(dec_mask_n);
-    sdpa_causal_mask_bool_fortran_fill(n_dec, dec_mask_data.data());
+    sdpa_causal_mask_bool_fill(n_dec, dec_mask_data.data());
 
     graph.enable_auto_tensor_name_phase_suffix(true);
 

@@ -8,7 +8,7 @@ Same convention as GPT-2 and Llama: types `Gptneo*` (e.g. `GptneoModel`), direct
 
 ## Layout
 
-Tensors use **(hidden_size, seq, batch)** in Fortran (column-major) order unless noted. Embeddings take `input_ids` and `position_ids` with shape `(seq, batch)`. `GptneoCausal` outputs logits `(vocab_size, seq, batch)`.
+Tensors use **(batch, seq, hidden_size)** in graph unless noted. Embeddings take `input_ids` and `position_ids` with shape `(batch, seq)`. `GptneoCausal` outputs logits `(batch, seq, vocab_size)`.
 
 ## Test Coverage
 
@@ -27,8 +27,8 @@ Shared building blocks used by GPT-Neo (not covered only inside model tests):
 ### Attention masks
 
 - **`[nomask]`** — `mask=nullptr` (full bidirectional SDPA in the graph).
-- **`[causal]`** — BOOL causal mask (`sdpa_causal_mask_bool_fortran_fill`).
-- **`[local]`** — BOOL sliding-window mask for layer_id=1 (`sdpa_gptneo_local_mask_bool_fortran_fill`).
+- **`[causal]`** — BOOL causal mask (`sdpa_causal_mask_bool_fill`).
+- **`[local]`** — BOOL sliding-window mask for layer_id=1 (`sdpa_gptneo_local_mask_bool_fill`).
 
 Production models alternate global (even layers) and local (odd layers) attention; training and generation pass both `attn_mask` and `attn_mask_local`.
 

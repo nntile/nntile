@@ -17,6 +17,7 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/nn_grad_slot_name.hh"
+#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/add_inplace.hh"
 #include "nntile/tensor/ops/transpose.hh"
 
@@ -76,11 +77,7 @@ void NNTransposeOp::backward() const
     {
         auto [grad_src, is_first] =
             graph->get_or_create_grad(src, nn_grad_slot_name(src));
-        Index inv_ndim = src->ndim() - ndim;
-        if (inv_ndim <= 0)
-        {
-            inv_ndim += src->ndim();
-        }
+        const Index inv_ndim = src->ndim() - ndim;
         if (is_first)
         {
             tensor::transpose(

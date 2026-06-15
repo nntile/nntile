@@ -24,8 +24,24 @@ from transformers.models.bert.modeling_bert import (
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate_test_data import (  # noqa: E402
     ATTENTION_DIMS, INTERMEDIATE_DIMS, _bert_attention_weights, _hidden_input,
-    _make_config, _out_to_nntile, fortran_order, generate_attention,
+    _make_config, _out_to_nntile, as_float32, generate_attention,
     generate_intermediate)
+
+
+def _hf_attn_qkv_weight(
+    linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
+) -> np.ndarray:
+    """Explicit HF PT Linear → graph Q/K/V layout (graph ``(H, hd, nh)``)."""
+    w = linear.weight.detach().numpy().reshape(nh, hs, n_emb)
+    return as_float32(w.transpose(2, 1, 0))
+
+
+def _hf_attn_o_weight(
+    linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
+) -> np.ndarray:
+    """Explicit HF PT Linear → graph output-dense layout (graph ``(hd, nh, H)``)."""
+    w = linear.weight.detach().numpy().reshape(n_emb, nh, hs)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def test_attention_fixture_matches_hf_forward() -> None:
@@ -45,16 +61,22 @@ def test_attention_weights_match_hf_layout() -> None:
     config = _make_config(ATTENTION_DIMS)
     pt = BertAttention(config).eval()
     weights = _bert_attention_weights(pt, "attn", ATTENTION_DIMS)
-    w_q = (
-        pt.self.query.weight.detach()
-        .numpy()
-        .reshape(
-            ATTENTION_DIMS.n_heads,
-            ATTENTION_DIMS.head_size,
-            ATTENTION_DIMS.hidden,
-        )
+    H = ATTENTION_DIMS.hidden
+    nh = ATTENTION_DIMS.n_heads
+    hs = ATTENTION_DIMS.head_size
+
+    for key, linear in (
+        ("q_weight", pt.self.query),
+        ("k_weight", pt.self.key),
+        ("v_weight", pt.self.value),
+    ):
+        expected = _hf_attn_qkv_weight(linear, H, nh, hs)
+        assert np.array_equal(weights[f"attn.self.{key}"], expected)
+
+    expected_o = _hf_attn_o_weight(pt.output.dense, H, nh, hs)
+    assert np.array_equal(
+        weights["attn.output.dense.weight"], expected_o,
     )
-    assert np.array_equal(weights["attn.self.q_weight"], fortran_order(w_q))
 
 
 def test_intermediate_matches_hf() -> None:

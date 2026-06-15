@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -28,29 +29,14 @@ using namespace nntile;
 using namespace nntile;
 namespace gt = nntile::tensor;
 
-#ifdef NNTILE_HAVE_TORCH
-namespace
-{
-
-//! Heterogeneous splits on both axes (sums 6 and 7); call after tensor::add
-//! merges x/y so one leaf's axes define the shared layout.
-void add_heterogeneous_tiling_6x7(NNGraph::TensorNode *x_leaf)
-{
-    x_leaf->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
-    x_leaf->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
-}
-
-} // namespace
-#endif
-
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph add rejects shape mismatch",
     "[graph][nn_graph]")
 {
     NNGraph g("add_shape_mismatch");
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
+    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
     auto *y =
-        g.tensor({3, 2}, DataType::FP32)->set_name("y"); // different shape
+        g.tensor({2, 3}, DataType::FP32)->set_name("y"); // different shape
 
     REQUIRE_THROWS_AS(add(1.0, x, 1.0, y), std::invalid_argument);
 }
@@ -86,8 +72,8 @@ TEST_CASE_METHOD(
             std::tuple{Scalar(1.0), Scalar(0.0), Scalar(1.0)});
 
     NNGraph g("autograd_add");
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({3, 2}, DataType::FP32)->set_name("y");
 
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
@@ -172,13 +158,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
 
     NNGraph g("add");
-    auto *x = g.tensor({2, 3}, DataType::FP32, true)->set_name("x");
-    auto *y = g.tensor({2, 3}, DataType::FP32, true)->set_name("y");
+    auto *x = g.tensor({3, 2}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({3, 2}, DataType::FP32, true)->set_name("y");
     auto *z = add(add_alpha, x, add_beta, y)->set_name("z");
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
-    REQUIRE(z->shape() == (std::vector<Index>{2, 3}));
+    REQUIRE(z->shape() == (std::vector<Index>{3, 2}));
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     gt::fill(grad_fill_val, z_grad->data());
@@ -191,6 +177,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph add forward matches PyTorch",
@@ -217,7 +204,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
-    add_heterogeneous_tiling_6x7(x);
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
     x->mark_input(true);
     y->mark_input(true);
@@ -274,7 +261,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
-    add_heterogeneous_tiling_6x7(x);
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
     x->mark_input(true);
     y->mark_input(true);

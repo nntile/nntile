@@ -36,10 +36,9 @@ Embedding::Embedding(NNGraph *graph,
     redux_(0),
     dtype_(dtype)
 {
-    // Create vocab tensor: [embed_dim, num_embeddings] (NNTile layout,
-    // transpose of PyTorch)
+    // Create vocab tensor: [num_embeddings, embed_dim] (PyTorch layout)
     vocab_tensor_ =
-        graph_->tensor({embed_dim_, num_embeddings_}, dtype_, true);
+        graph_->tensor({num_embeddings_, embed_dim_}, dtype_, true);
     vocab_tensor_->set_name(tensor_name("vocab"));
     register_parameter("vocab", vocab_tensor_);
 }
@@ -60,7 +59,7 @@ Embedding::Embedding(NNGraph *graph,
     dtype_(dtype)
 {
     vocab_tensor_ =
-        graph_->tensor({embed_dim_, num_embeddings_}, dtype_, true);
+        graph_->tensor({num_embeddings_, embed_dim_}, dtype_, true);
     vocab_tensor_->set_name(tensor_name("vocab"));
     register_parameter("vocab", vocab_tensor_);
 }
@@ -91,8 +90,8 @@ Embedding::Embedding(NNGraph *graph,
     }
 
     const auto &v_shape = vocab_tensor->shape();
-    embed_dim_ = v_shape[0];
-    num_embeddings_ = v_shape[1];
+    num_embeddings_ = v_shape[0];
+    embed_dim_ = v_shape[1];
 
     register_parameter("vocab", vocab_tensor_);
 }
@@ -125,8 +124,8 @@ Embedding::Embedding(NNGraph *graph,
     }
 
     const auto &v_shape = vocab_tensor->shape();
-    embed_dim_ = v_shape[0];
-    num_embeddings_ = v_shape[1];
+    num_embeddings_ = v_shape[0];
+    embed_dim_ = v_shape[1];
 
     register_parameter("vocab", vocab_tensor_);
 }
@@ -152,7 +151,7 @@ NNGraph::TensorNode *Embedding::forward(NNGraph::TensorNode *index)
 
     index_tensor_ = index;
 
-    // Use index.ndim() as axis when axis_ < 0 (default "append" behavior)
+    // ``axis_ < 0``: append embed_dim on the trailing graph axis.
     Index use_axis = (axis_ < 0) ? index->ndim() : axis_;
 
     output_tensor_ = embedding(index, vocab_tensor_, use_axis, redux_);

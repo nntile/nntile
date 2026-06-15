@@ -151,7 +151,7 @@ void model_backward_compare_ref(const ModelFixtureSpec &fx)
     {
         NNGraph g("model_bwd");
         auto *input_ids =
-            g.tensor({fx.seq, fx.batch}, DataType::INT64, true)
+            g.tensor({fx.batch, fx.seq}, DataType::INT64, true)
                 ->set_name("input_ids");
         NNGraph::TensorNode *position_ids = nullptr;
         std::vector<std::int64_t> pos_data;
@@ -208,14 +208,14 @@ TEST_CASE("Gpt2Model forward builds output", "[model][gpt2]")
     NNGraph g("gpt2_model");
     Gpt2Model model(&g, "model", fx.config);
     auto *input_ids =
-        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
-    auto *position_ids = g.tensor({fx.seq, fx.batch}, DataType::INT64)
+        g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
+    auto *position_ids = g.tensor({fx.batch, fx.seq}, DataType::INT64)
                              ->set_name("position_ids");
     auto *output = model.forward(input_ids, position_ids, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(
-        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+        output->shape() == std::vector<Index>({fx.batch, fx.seq, fx.hidden}));
 }
 
 TEST_CASE("Gpt2Model load from safetensors roundtrip", "[model][gpt2][io]")
@@ -266,7 +266,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("model_ref");
         auto *input_ids =
-            g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+            g.tensor({fx.batch, fx.seq}, DataType::INT64)->set_name("input_ids");
         NNGraph::TensorNode *position_ids = nullptr;
         std::vector<std::int64_t> pos_data;
         REQUIRE(load_position_ids(

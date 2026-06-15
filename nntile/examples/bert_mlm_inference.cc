@@ -33,13 +33,13 @@ int main()
     NNGraph graph("bert_mlm_inference");
     BertMlm model(&graph, "model", config);
 
-    auto *input_ids = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+    auto *input_ids = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                           ->set_name("input_ids");
     auto *token_type_ids =
-        graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("token_type_ids");
     auto *position_ids =
-        graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+        graph.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("position_ids");
     input_ids->mark_input(true);
     token_type_ids->mark_input(true);

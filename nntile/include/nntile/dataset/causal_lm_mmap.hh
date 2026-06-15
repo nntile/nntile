@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/dataset/causal_lm_mmap.hh
- * Memory-mapped uint16 token stream and causal LM batch iterator (Fortran
+ * Memory-mapped uint16 token stream and causal LM batch iterator (storage
  * ``(seq, batch)`` layout for ``Runtime::bind_data``).
  *
  * Token files match ``wrappers/python/examples/llama_training.py`` (raw
@@ -33,7 +33,7 @@ namespace nntile::dataset
 {
 
 //! One minibatch: ``input_ids`` and ``target_ids``, shape ``(n_seq, n_batch)``
-//! Fortran, index ``(s, b)`` at ``s + n_seq * b``.
+//! storage, index ``(s, b)`` at ``s + n_seq * b``.
 struct CausalLmBatch
 {
     std::vector<std::int64_t> input_ids;

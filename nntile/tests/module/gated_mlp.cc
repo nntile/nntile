@@ -29,10 +29,10 @@
 // Include other NNTile headers
 #include "nntile/graph.hh"
 #include "nntile/module/gated_mlp.hh"
+#include "nntile/tensor/graph.hh"
 
 #ifdef NNTILE_HAVE_TORCH
 #include "context_fixture.hh"
-#include "nntile/tensor/graph.hh"
 #include "pytorch_helper.hh"
 #include "pytorch_tile_helpers.hh"
 #endif
@@ -124,7 +124,6 @@ TEST_CASE("GatedMlp OutputDimEqualsInputDim", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::pytorch_tolerance;
 
@@ -208,9 +207,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < batch * in_dim; ++i)
         input_data[i] = 0.1f * static_cast<float>(i + 1);
 
-    std::vector<float> input_rowmajor =
-        colmajor_to_rowmajor(input_data, {batch, in_dim});
-    auto input_pt = torch::from_blob(input_rowmajor.data(),
+    auto input_pt = torch::from_blob(input_data.data(),
         {batch, in_dim},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
@@ -219,8 +216,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto up_pt = up_proj->forward(input_pt);
     auto hidden_pt = apply_activation_pt(gate_pt, activation) * up_pt;
     auto out_pt = down_proj->forward(hidden_pt);
-    std::vector<float> pytorch_out(
-        out_pt.data_ptr<float>(), out_pt.data_ptr<float>() + batch * out_dim);
 
     NNGraph g("gated_mlp_pytorch");
     auto *input =
@@ -264,60 +259,27 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(output);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for (size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < tol);
+    compare_float_vectors(runtime.get_output<float>(output), out_pt, tol);
 
     auto grad_output = torch::full({batch, out_dim},
         grad_fill_val,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 
-    std::vector<float> nntile_grad_gate = runtime.get_output<float>(
-        gated_mlp.gate_proj().weight_tensor()->grad());
-    std::vector<float> nntile_grad_gate_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_gate, {in_dim, inter_dim});
-    auto pt_grad_gate = gate_proj->weight.grad().accessor<float, 2>();
-    for (Index i = 0; i < in_dim; ++i)
-        for (Index j = 0; j < inter_dim; ++j)
-            REQUIRE(
-                std::abs(
-                    nntile_grad_gate_rowmajor[static_cast<size_t>(
-                        i * inter_dim + j)] -
-                    pt_grad_gate[static_cast<long>(j)][static_cast<long>(i)]) <
-                tol);
-
-    std::vector<float> nntile_grad_up =
-        runtime.get_output<float>(gated_mlp.up_proj().weight_tensor()->grad());
-    std::vector<float> nntile_grad_up_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_up, {in_dim, inter_dim});
-    auto pt_grad_up = up_proj->weight.grad().accessor<float, 2>();
-    for (Index i = 0; i < in_dim; ++i)
-        for (Index j = 0; j < inter_dim; ++j)
-            REQUIRE(
-                std::abs(
-                    nntile_grad_up_rowmajor[static_cast<size_t>(
-                        i * inter_dim + j)] -
-                    pt_grad_up[static_cast<long>(j)][static_cast<long>(i)]) <
-                tol);
-
-    std::vector<float> nntile_grad_down = runtime.get_output<float>(
-        gated_mlp.down_proj().weight_tensor()->grad());
-    std::vector<float> nntile_grad_down_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_down, {inter_dim, out_dim});
-    auto pt_grad_down = down_proj->weight.grad().accessor<float, 2>();
-    for (Index i = 0; i < inter_dim; ++i)
-        for (Index j = 0; j < out_dim; ++j)
-            REQUIRE(
-                std::abs(
-                    nntile_grad_down_rowmajor[static_cast<size_t>(
-                        i * out_dim + j)] -
-                    pt_grad_down[static_cast<long>(j)][static_cast<long>(i)]) <
-                tol);
+    compare_float_vectors(
+        runtime.get_output<float>(
+            gated_mlp.gate_proj().weight_tensor()->grad()),
+        gate_proj->weight.grad(),
+        tol);
+    compare_float_vectors(
+        runtime.get_output<float>(gated_mlp.up_proj().weight_tensor()->grad()),
+        up_proj->weight.grad(),
+        tol);
+    compare_float_vectors(
+        runtime.get_output<float>(
+            gated_mlp.down_proj().weight_tensor()->grad()),
+        down_proj->weight.grad(),
+        tol);
 
     if (gated_mlp.gate_proj().bias_tensor())
     {
@@ -341,12 +303,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             nntile_grad_b, down_proj->bias.grad(), tol);
     }
 
-    std::vector<float> nntile_grad_input =
-        runtime.get_output<float>(input->grad());
-    std::vector<float> nntile_grad_input_rowmajor =
-        colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
-    nntile::test::compare_float_vectors(
-        nntile_grad_input_rowmajor, input_pt.grad(), tol);
+    compare_float_vectors(
+        runtime.get_output<float>(input->grad()), input_pt.grad(), tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -421,15 +379,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto grad_gate = runtime.get_output<float>(
         gated_mlp.gate_proj().weight_tensor()->grad());
-    REQUIRE(grad_gate.size() == static_cast<size_t>(in_dim * inter_dim));
+    REQUIRE(grad_gate.size() == static_cast<size_t>(inter_dim * in_dim));
 
     auto grad_up =
         runtime.get_output<float>(gated_mlp.up_proj().weight_tensor()->grad());
-    REQUIRE(grad_up.size() == static_cast<size_t>(in_dim * inter_dim));
+    REQUIRE(grad_up.size() == static_cast<size_t>(inter_dim * in_dim));
 
     auto grad_down = runtime.get_output<float>(
         gated_mlp.down_proj().weight_tensor()->grad());
-    REQUIRE(grad_down.size() == static_cast<size_t>(inter_dim * out_dim));
+    REQUIRE(grad_down.size() == static_cast<size_t>(out_dim * inter_dim));
 
     if (gated_mlp.gate_proj().bias_tensor())
     {

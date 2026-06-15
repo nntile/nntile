@@ -64,8 +64,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(1.0), Scalar(0.0), Index(1)});
 
     std::vector<Index> dst_shape =
-        (axis == 0) ? std::vector<Index>{dim_4, dim_2, dim_3}
-                    : std::vector<Index>{dim_2, dim_4, dim_3};
+        (axis == 0) ? std::vector<Index>{dim_3, dim_4, dim_2}
+                    : std::vector<Index>{dim_3, dim_2, dim_4};
     std::vector<Index> src1_shape = slice_shape(dst_shape, axis);
 
     NNGraph g("add_slice_structure");
@@ -113,7 +113,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
@@ -146,8 +145,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         src1_data[i] = static_cast<float>(i + 1);
     for (Index i = 0; i < dst_nelems; ++i)
         src2_data[i] = static_cast<float>(-i - 1);
-    std::vector<float> src2_rowmajor =
-        colmajor_to_rowmajor(src2_data, dst_shape);
 
     NNGraph g("add_slice_pytorch");
     auto *src1 = g.tensor(src1_shape, DataType::FP32, true)->set_name("src1");
@@ -172,9 +169,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
+    std::vector<float> nntile_out = runtime.get_output<float>(out);
 
     std::vector<::int64_t> dst_shape_pt(dst_shape.begin(), dst_shape.end());
     std::vector<::int64_t> src1_shape_pt(src1_shape.begin(), src1_shape.end());
@@ -183,7 +178,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
                        .set_requires_grad(false);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(),
+    auto src2_pt = torch::from_blob(src2_data.data(),
         dst_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
@@ -227,8 +222,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         src1_data[i] = 0.1f * static_cast<float>(i);
     for (Index i = 0; i < dst_nelems; ++i)
         src2_data[i] = 0.15f * static_cast<float>(i + 5);
-    std::vector<float> src2_rowmajor =
-        colmajor_to_rowmajor(src2_data, dst_shape);
 
     NNGraph g("add_slice_bwd_pytorch");
     auto *src1 = g.tensor(src1_shape, DataType::FP32, true)->set_name("src1");
@@ -261,10 +254,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_src1 =
         runtime.get_output<float>(src1->grad());
-    std::vector<float> nntile_grad_src2_colmajor =
-        runtime.get_output<float>(src2->grad());
     std::vector<float> nntile_grad_src2 =
-        colmajor_to_rowmajor(nntile_grad_src2_colmajor, dst_shape);
+        runtime.get_output<float>(src2->grad());
 
     std::vector<::int64_t> dst_shape_pt(dst_shape.begin(), dst_shape.end());
     std::vector<::int64_t> src1_shape_pt(src1_shape.begin(), src1_shape.end());
@@ -273,7 +264,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()
                        .set_requires_grad(true);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(),
+    auto src2_pt = torch::from_blob(src2_data.data(),
         dst_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                        .clone()

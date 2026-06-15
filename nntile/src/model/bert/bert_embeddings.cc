@@ -3,15 +3,19 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file nntile/src/model/bert/bert_embeddings.cc
  * BertEmbeddings implementation.
  *
  * @version 1.1.0
  * */
 
+#include <nntile/common.hh>
+
 #include "nntile/model/bert/bert_embeddings.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -24,18 +28,15 @@ BertEmbeddings::BertEmbeddings(NNGraph* graph,
                                DataType dtype)
     : module::Module(graph, name)
     , word_embeddings_(graph, name + "_word",
-                       config.vocab_size, config.hidden_size,
-                       2, 0, dtype)
+                       config.vocab_size, config.hidden_size, dtype)
     , position_embeddings_(graph, name + "_position",
                            config.max_position_embeddings,
-                           config.hidden_size,
-                           2, 0, dtype)
+                           config.hidden_size, dtype)
     , token_type_embeddings_(graph, name + "_token_type",
                             config.type_vocab_size,
-                            config.hidden_size,
-                            2, 0, dtype)
+                            config.hidden_size, dtype)
     , layer_norm_(graph, name + "_ln",
-                  config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
+                  config.hidden_size, 2, config.layer_norm_eps, 0, dtype)
     , config_(config)
     , dtype_(dtype)
 {
@@ -70,9 +71,8 @@ NNGraph::TensorNode* BertEmbeddings::forward(
         add(1.0, word, 1.0, token_type);
     NNGraph::TensorNode* embed =
         add(1.0, wt, 1.0, position);
-    NNGraph::TensorNode* x =
-        transpose(embed, 2);
-    return layer_norm_.forward(x);
+    // embed: (batch, seq, hidden) for layer norm on axis 2
+    return layer_norm_.forward(embed);
 }
 
 std::string BertEmbeddings::repr() const

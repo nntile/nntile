@@ -298,7 +298,7 @@ static void fill_arange_position_ids(
     {
         for (Index s = 0; s < n_seq; ++s)
         {
-            pos[s + n_seq * b] = static_cast<std::int64_t>(s);
+            pos[b * n_seq + s] = static_cast<std::int64_t>(s);
         }
     }
 }
@@ -430,13 +430,13 @@ int main(int argc, char **argv)
     NNGraph graph("gptneox_graph_training");
     GptneoxCausal model(&graph, "model", config);
 
-    auto *input_ids = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+    auto *input_ids = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                           ->set_name("input_ids");
     auto *rope_sin =
-        graph.tensor({rope_half, n_seq, n_batch}, DataType::FP32, false)
+        graph.tensor({n_batch, n_seq, rope_half}, DataType::FP32, false)
             ->set_name("rope_sin");
     auto *rope_cos =
-        graph.tensor({rope_half, n_seq, n_batch}, DataType::FP32, false)
+        graph.tensor({n_batch, n_seq, rope_half}, DataType::FP32, false)
             ->set_name("rope_cos");
     auto *attn_mask = graph.tensor({n_seq, n_seq}, DataType::BOOL, false)
                           ->set_name("attn_mask");
@@ -445,7 +445,7 @@ int main(int argc, char **argv)
     rope_cos->mark_input(true);
     attn_mask->mark_input(true);
 
-    auto *labels = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+    auto *labels = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                        ->set_name("labels");
     labels->mark_input(true);
 
@@ -491,7 +491,7 @@ int main(int argc, char **argv)
 
     const std::size_t mask_n = static_cast<std::size_t>(n_seq * n_seq);
     std::vector<std::uint8_t> mask_data(mask_n);
-    sdpa_causal_mask_bool_fortran_fill(n_seq, mask_data.data());
+    sdpa_causal_mask_bool_fill(n_seq, mask_data.data());
 
     graph.enable_auto_tensor_name_phase_suffix(true);
 

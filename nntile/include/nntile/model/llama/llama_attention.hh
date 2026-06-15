@@ -9,11 +9,9 @@
  * @file include/nntile/model/llama/llama_attention.hh
  * LlamaAttention - self-attention with RoPE and sdpa_eager.
  *
- * Input layout: (hidden_size, seq, batch) in Fortran order.
+ * Input layout: (batch, seq, hidden_size) in graph.
  * Mimics wrappers/python/nntile/model/llama_attention.py::forward_async():
- * - No transpose on input before Q/K/V
  * - Q/K/V via gemm with 3D/4D weight matrices (not Linear)
- * - Transpose applied to Q, K, V outputs (not to input)
  *
  * @version 1.1.0
  * */
@@ -37,10 +35,10 @@ class LlamaAttention : public module::Module
 {
 private:
     // Weight tensors: 3D/4D as in Python (not 2D Linear)
-    NNGraph::TensorNode* w_q_ = nullptr;  // (kv_group_size, n_head_kv, head_size, n_emb) or (n_heads, head_size, n_emb)
-    NNGraph::TensorNode* w_k_ = nullptr;  // (n_head_kv, head_size, n_emb)
-    NNGraph::TensorNode* w_v_ = nullptr;  // (n_head_kv, head_size, n_emb)
-    NNGraph::TensorNode* w_o_ = nullptr;   // (n_emb, kv_group_size, n_head_kv, head_size) or (n_emb, n_heads, head_size)
+    NNGraph::TensorNode* w_q_ = nullptr;  // (n_emb, head_size, n_head_kv, kv_group_size) or (n_emb, head_size, n_heads)
+    NNGraph::TensorNode* w_k_ = nullptr;  // (n_emb, head_size, n_head_kv)
+    NNGraph::TensorNode* w_v_ = nullptr;  // (n_emb, head_size, n_head_kv)
+    NNGraph::TensorNode* w_o_ = nullptr;   // (head_size, n_head_kv, kv_group_size, n_emb) or (head_size, n_heads, n_emb)
 
     LlamaConfig config_;
     DataType dtype_;
@@ -63,18 +61,20 @@ public:
                    DataType dtype = DataType::FP32);
 
     //! Forward pass
-    //! @param x Input tensor (hidden_size, seq, batch)
-    //! @param sin RoPE sin tensor (head_size/2, seq, batch), may be nullptr to
+    //! @param x Input tensor (batch, seq, hidden_size)
+    //! @param sin RoPE sin tensor (batch, seq, head_size/2), may be nullptr to
     //! skip RoPE. Buffers can be filled with ``rope_sin_cos_from_position_ids``
-    //! (see ``llama_rope.hh``) from ``(seq, batch)`` position ids like HF.
-    //! @param cos RoPE cos tensor (head_size/2, seq, batch), may be nullptr to
+    //! (see ``llama_rope.hh``) from ``(batch, seq)`` position ids like HF.
+    //! @param cos RoPE cos tensor (batch, seq, head_size/2), may be nullptr to
     //! skip RoPE
     //! @param mask Optional BOOL attention mask (k_seq, q_seq), may be
-    //! nullptr. Build with ``nntile::sdpa_causal_mask_bool_fortran_fill``
+    //! nullptr. Build with ``nntile::sdpa_causal_mask_bool_fill``
     //! for causal
     //! LM.
-    //! @param k_cache Optional KV cache for K (head_size, max_seq, batch, n_head_kv)
-    //! @param v_cache Optional KV cache for V (head_size, max_seq, batch, n_head_kv)
+    //! @param k_cache Optional KV cache for K
+    //!     (n_head_kv, batch, max_seq, head_size) graph shape
+    //! @param v_cache Optional KV cache for V
+    //!     (n_head_kv, batch, max_seq, head_size) graph shape
     //! @param cache_len Current valid length in cache (0 = prefill, >0 = decode)
     NNGraph::TensorNode* forward(
         NNGraph::TensorNode* x,

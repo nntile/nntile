@@ -29,9 +29,10 @@ void set_rope_heterogeneous_tiling(NNGraph::TensorNode *sin,
     NNGraph::TensorNode *cos,
     NNGraph::TensorNode *src)
 {
-    for (Index d = 0; d < sin->ndim(); ++d)
+    for (Index p_axis = 0; p_axis < sin->ndim(); ++p_axis)
     {
-        const Index Ls = sin->shape()[static_cast<size_t>(d)];
+        const Index c_axis = sin->ndim() - 1 - p_axis;
+        const Index Ls = sin->shape()[static_cast<size_t>(c_axis)];
         std::vector<Index> sin_seg;
         if (Ls >= 4)
         {
@@ -49,31 +50,49 @@ void set_rope_heterogeneous_tiling(NNGraph::TensorNode *sin,
         {
             sin_seg = {Ls};
         }
-        sin->data()->axis(d)->set_tiling(sin_seg);
-        cos->data()->axis(d)->set_tiling(sin_seg);
-        if (d == 0)
+        sin->data()->axis(p_axis)->set_tiling(sin_seg);
+        cos->data()->axis(p_axis)->set_tiling(sin_seg);
+        if (p_axis == 0)
         {
+            const Index Ls = sin->shape().back();
+            std::vector<Index> sin_seg;
+            if (Ls >= 4)
+            {
+                sin_seg = {1, Ls - 1};
+            }
+            else if (Ls == 3)
+            {
+                sin_seg = {1, 2};
+            }
+            else if (Ls == 2)
+            {
+                sin_seg = {1, 1};
+            }
+            else
+            {
+                sin_seg = {Ls};
+            }
             std::vector<Index> src_seg;
             src_seg.reserve(sin_seg.size());
             for (Index v : sin_seg)
             {
                 src_seg.push_back(2 * v);
             }
-            src->data()->axis(0)->set_tiling(std::move(src_seg));
+            src->data()->axis(p_axis)->set_tiling(std::move(src_seg));
         }
         else
         {
-            src->data()->axis(d)->set_tiling(sin_seg);
+            src->data()->axis(p_axis)->set_tiling(sin_seg);
         }
     }
 }
 } // namespace
 
-// RoPE requires src.shape[0] == 2*sin.shape[0]
+// RoPE requires src last dim == 2*sin last dim (graph paired axis).
 static std::vector<Index> make_src_shape(const std::vector<Index> &sin_shape)
 {
-    std::vector<Index> src_shape = {sin_shape[0] * 2};
-    src_shape.insert(src_shape.end(), sin_shape.begin() + 1, sin_shape.end());
+    std::vector<Index> src_shape = sin_shape;
+    src_shape.back() = sin_shape.back() * 2;
     return src_shape;
 }
 
@@ -82,7 +101,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto sin_shape =
-        GENERATE(std::vector<Index>{2, 4}, std::vector<Index>{4, 3, 2});
+        GENERATE(std::vector<Index>{4, 2}, std::vector<Index>{2, 3, 4});
     const auto src_shape = make_src_shape(sin_shape);
 
     NNGraph g("rope_structure");
@@ -101,8 +120,8 @@ TEST_CASE_METHOD(
     nntile::test::ContextFixture, "NNGraph rope backward", "[graph][nn_graph]")
 {
     const auto [sin_shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{4, 3}, Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{3, 4}, Scalar(-1.0)});
     const auto src_shape = make_src_shape(sin_shape);
 
     NNGraph g("rope_backward");
@@ -124,9 +143,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [sin_shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{4, 3}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{2, 2, 3}, Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{3, 4}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{3, 2, 2}, Scalar(-1.0)});
     const auto src_shape = make_src_shape(sin_shape);
 
     NNGraph g("rope");
@@ -205,7 +224,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto sin_shape =
-        GENERATE(std::vector<Index>{2, 4}, std::vector<Index>{4, 3, 2});
+        GENERATE(std::vector<Index>{4, 2}, std::vector<Index>{2, 3, 4});
     const auto src_shape = make_src_shape(sin_shape);
 
     Index sin_nelems = 1;
@@ -269,8 +288,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [sin_shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{4, 3}, Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{3, 4}, Scalar(-1.0)});
     const auto src_shape = make_src_shape(sin_shape);
 
     Index sin_nelems = 1;

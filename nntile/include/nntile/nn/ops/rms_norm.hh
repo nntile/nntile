@@ -40,7 +40,7 @@ struct NNRmsNormOp : NNGraph::OpNode
     NNRmsNormOp() = default;
     NNRmsNormOp(NNGraph::TensorNode *x_,
         NNGraph::TensorNode *gamma_,
-        Index axis_ = 0,
+        Index axis_ = -1,
         Scalar eps_ = 1e-6,
         int redux_ = 0) :
         axis(axis_), eps(eps_), redux(redux_), x(x_), gamma(gamma_)
@@ -54,7 +54,7 @@ struct NNRmsNormOp : NNGraph::OpNode
 
 NNGraph::TensorNode *rms_norm(NNGraph::TensorNode *x,
     NNGraph::TensorNode *gamma,
-    Index axis = 0,
+    Index axis = -1,
     Scalar eps = 1e-6,
     int redux = 0);
 

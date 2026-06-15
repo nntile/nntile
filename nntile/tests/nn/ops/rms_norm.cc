@@ -34,9 +34,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [shape, axis] =
-        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0)},
+        GENERATE(std::tuple{std::vector<Index>{3, 2}, Index(1)},
             std::tuple{std::vector<Index>{4, 5}, Index(1)},
-            std::tuple{std::vector<Index>{2, 3, 4}, Index(1)});
+            std::tuple{std::vector<Index>{4, 3, 2}, Index(1)});
 
     std::vector<Index> gamma_shape = {shape[axis]};
 
@@ -111,7 +111,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
@@ -139,8 +138,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         x_data[i] = 0.1f * static_cast<float>(i - nelems / 2);
     for (Index i = 0; i < gamma_nelems; ++i)
         gamma_data[i] = 1.0f + 0.01f * static_cast<float>(i);
-
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
 
     constexpr Scalar eps = 1e-6;
 
@@ -173,12 +170,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(y);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, shape);
+    std::vector<float> nntile_out = runtime.get_output<float>(y);
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
@@ -217,8 +212,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < gamma_nelems; ++i)
         gamma_data[i] = 1.0f + 0.02f * static_cast<float>(i);
 
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
-
     constexpr Scalar eps = 1e-6;
 
     NNGraph g("rms_norm_bwd_pytorch");
@@ -256,15 +249,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_x_colmajor =
-        runtime.get_output<float>(x->grad());
     std::vector<float> nntile_grad_x =
-        colmajor_to_rowmajor(nntile_grad_x_colmajor, shape);
+        runtime.get_output<float>(x->grad());
     std::vector<float> nntile_grad_gamma =
         runtime.get_output<float>(gamma->grad());
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()

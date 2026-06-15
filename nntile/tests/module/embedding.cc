@@ -39,13 +39,25 @@ using namespace nntile;
 using namespace nntile;
 using namespace nntile::module;
 
+static std::vector<Index> embed_output_shape(
+    const std::vector<Index> &index_shape,
+    Index embed_dim,
+    Index c_axis = -1)
+{
+    const Index index_ndim = static_cast<Index>(index_shape.size());
+    const Index axis = (c_axis < 0) ? index_ndim : c_axis;
+    std::vector<Index> shape(index_shape.begin(), index_shape.end());
+    shape.insert(shape.begin() + axis, embed_dim);
+    return shape;
+}
+
 TEST_CASE("Embedding ConstructorCreatesParameters", "[module]")
 {
     NNGraph g("embedding");
 
     Embedding emb(&g, "emb", 10, 100);
     REQUIRE(emb.vocab_tensor() != nullptr);
-    REQUIRE(emb.vocab_tensor()->shape() == std::vector<Index>({100, 10}));
+    REQUIRE(emb.vocab_tensor()->shape() == std::vector<Index>({10, 100}));
     REQUIRE(emb.vocab_tensor()->name() == "emb_vocab");
     REQUIRE(emb.parameters().size() == 1);
     REQUIRE(emb.num_embeddings() == 10);
@@ -56,8 +68,8 @@ TEST_CASE("Embedding ConstructorWithExistingTensor", "[module]")
 {
     NNGraph g("embedding");
 
-    // NNTile layout: vocab [embed_dim, num_embeddings]
-    auto *vocab = g.tensor({50, 8}, DataType::FP32)->set_name("shared_vocab");
+    // graph vocab [num_embeddings, embed_dim]
+    auto *vocab = g.tensor({8, 50}, DataType::FP32)->set_name("shared_vocab");
 
     Embedding emb(&g, "emb", vocab);
     REQUIRE(emb.vocab_tensor() == vocab);
@@ -83,7 +95,7 @@ TEST_CASE("Embedding Callable", "[module]")
     auto *index = g.tensor({4, 5}, DataType::INT64, false)->set_name("index");
     Embedding emb(&g, "emb", 10, 100);
     auto *output = emb(index);
-    REQUIRE(output->shape() == std::vector<Index>({4, 5, 100}));
+    REQUIRE(output->shape() == embed_output_shape({4, 5}, 100));
 }
 
 TEST_CASE("Embedding BuildForward", "[module]")
@@ -94,7 +106,7 @@ TEST_CASE("Embedding BuildForward", "[module]")
     Embedding emb(&g, "emb", 10, 100);
 
     auto *output = emb.forward(index);
-    REQUIRE(output->shape() == std::vector<Index>({4, 5, 100}));
+    REQUIRE(output->shape() == embed_output_shape({4, 5}, 100));
     REQUIRE(output->name() == "emb_output");
     REQUIRE(g.num_ops() >= 1);
     REQUIRE(output->has_producer());
@@ -133,10 +145,12 @@ TEST_CASE("Embedding BackwardCreatesGradients", "[module]")
 
     REQUIRE(emb.vocab_tensor()->grad() != nullptr);
     REQUIRE(
-        emb.vocab_tensor()->grad()->shape() == std::vector<Index>({100, 10}));
+        emb.vocab_tensor()->grad()->shape() == std::vector<Index>({10, 100}));
 }
 
 #ifdef NNTILE_HAVE_TORCH
+
+using nntile::test::compare_float_vectors;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "Embedding bind_weight applies data on compile",
@@ -153,10 +167,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     index->mark_input(true);
     output->mark_output(true);
 
-    // Bind vocab before compile; data in NNTile (column-major) layout
-    // vocab shape [embed_dim, num_embeddings]
-    std::vector<float> vocab_data(embed_dim * num_embeddings);
-    for (Index i = 0; i < embed_dim * num_embeddings; ++i)
+    // Bind vocab before compile; data in [num_embeddings, embed_dim] layout
+    // vocab shape [num_embeddings, embed_dim]
+    std::vector<float> vocab_data(num_embeddings * embed_dim);
+    for (Index i = 0; i < num_embeddings * embed_dim; ++i)
         vocab_data[i] = 0.1f * static_cast<float>(i + 1);
     emb.bind_weight(vocab_data);
 
@@ -178,16 +192,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == 4 * 5 * embed_dim);
-    // output[0,0,:] = vocab[:, index[0,0]]. index[0,0]=0, so first column of
-    // vocab In col-major vocab, column 0 is vocab[0:embed_dim] Output layout
-    // [batch, seq_len, embed_dim]: stride for embed_dim is 4*5=20
-    const Index stride = 4 * 5;
-    for (Index i = 0; i < embed_dim; ++i)
-        REQUIRE(std::abs(out[i * stride] - vocab_data[i]) < 1e-5f);
+    std::vector<std::int64_t> index_shape_pt{4, 5};
+    auto index_pt = torch::from_blob(index_data.data(),
+        index_shape_pt,
+        torch::TensorOptions().dtype(torch::kInt64))
+                        .clone();
+    auto vocab_pt = torch::from_blob(vocab_data.data(),
+        {static_cast<long>(num_embeddings), static_cast<long>(embed_dim)},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                        .clone();
+    auto out_pt = torch::embedding(vocab_pt, index_pt).contiguous();
+    compare_float_vectors(out, out_pt);
 }
-
-using nntile::test::colmajor_to_rowmajor;
-using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "Embedding from PyTorch binds weight in constructor",
@@ -226,26 +242,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(output);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, {batch, seq_len, embed_dim});
-
-    // Index data is column-major (NNTile layout); convert for PyTorch
-    // row-major
-    std::vector<std::int64_t> index_rowmajor =
-        colmajor_to_rowmajor(index_data, {batch, seq_len});
     std::vector<std::int64_t> index_shape_pt{batch, seq_len};
-    auto index_pt = torch::from_blob(index_rowmajor.data(),
+    auto index_pt = torch::from_blob(index_data.data(),
         index_shape_pt,
         torch::TensorOptions().dtype(torch::kInt64))
                         .clone();
     auto out_pt = emb_pt->forward(index_pt);
-    std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
-        out_pt.data_ptr<float>() + batch * seq_len * embed_dim);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for (size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(runtime.get_output<float>(output), out_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -295,7 +298,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto grad_vocab = runtime.get_output<float>(emb.vocab_tensor()->grad());
     REQUIRE(
-        grad_vocab.size() == static_cast<size_t>(embed_dim * num_embeddings));
+        grad_vocab.size() == static_cast<size_t>(num_embeddings * embed_dim));
 }
 
 #endif // NNTILE_HAVE_TORCH

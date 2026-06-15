@@ -41,7 +41,7 @@ struct NNLayerNormOp : NNGraph::OpNode
     NNLayerNormOp(NNGraph::TensorNode* x_,
                   NNGraph::TensorNode* gamma_,
                   NNGraph::TensorNode* beta_,
-                  Index axis_ = 0,
+                  Index axis_ = -1,
                   Scalar eps_ = 1e-5,
                   int redux_ = 0)
         : axis(axis_), eps(eps_), redux(redux_)
@@ -59,7 +59,7 @@ NNGraph::TensorNode* layer_norm(
     NNGraph::TensorNode* gamma,
     NNGraph::TensorNode* beta,
     const std::string& output_name,
-    Index axis = 0,
+    Index axis = -1,
     Scalar eps = 1e-5,
     int redux = 0);
 

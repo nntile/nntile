@@ -63,8 +63,8 @@ def _load_bert_generate_test_data():
 
 bert_data = _load_bert_generate_test_data()
 
-fortran_order = bert_data.fortran_order
-fortran_order_int64 = bert_data.fortran_order_int64
+as_float32 = bert_data.as_float32
+as_int64 = bert_data.as_int64
 _linear = bert_data._linear
 _layer_norm = bert_data._layer_norm
 _embed = bert_data._embed
@@ -145,10 +145,10 @@ def _ids_input(rng, dims: TestDims):
     ids = rng.integers(
         low,
         dims.vocab,
-        size=(dims.seq, dims.batch),
+        size=(dims.batch, dims.seq),
     ).astype(np.int64)
-    ids_nt = ids.ravel("F").reshape(ids.shape)
-    ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
+    ids_nt = as_int64(ids)
+    ids_pt = torch.tensor(ids.copy(), dtype=torch.long)
     return ids_nt, ids_pt
 
 
@@ -158,7 +158,7 @@ def _position_ids_from_input_ids(
 ) -> tuple[np.ndarray, torch.Tensor]:
     """HF RoBERTa position ids (``create_position_ids_from_input_ids``)."""
     pos_pt = create_position_ids_from_input_ids(ids_pt, padding_idx)
-    pos_nt = fortran_order_int64(pos_pt.detach().cpu().numpy().T)
+    pos_nt = as_int64(pos_pt.detach().cpu().numpy())
     return pos_nt, pos_pt
 
 
@@ -295,8 +295,8 @@ def generate_embeddings(
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
     out.backward(g_pt)
-    data["grad_wte_vocab"] = fortran_order(
-        pt.word_embeddings.weight.grad.detach().numpy().T
+    data["grad_wte_vocab"] = as_float32(
+        pt.word_embeddings.weight.grad.detach().numpy()
     )
     return data
 
@@ -337,8 +337,8 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS):
     g_nt, g_pt = _grad_output(rng, out.last_hidden_state)
     data["grad_output"] = g_nt
     out.last_hidden_state.backward(g_pt)
-    data["grad_wte_vocab"] = fortran_order(
-        pt.embeddings.word_embeddings.weight.grad.detach().numpy().T
+    data["grad_wte_vocab"] = as_float32(
+        pt.embeddings.word_embeddings.weight.grad.detach().numpy()
     )
     return data
 
@@ -348,7 +348,7 @@ def _roberta_mlm_head_weights(head, prefix: str):
     d.update(_linear(head.dense, f"{prefix}.transform_dense"))
     d.update(_layer_norm(head.layer_norm, f"{prefix}.transform_ln"))
     d.update(_linear(head.decoder, f"{prefix}.decoder"))
-    d[f"{prefix}.head_bias"] = fortran_order(head.bias.detach().numpy())
+    d[f"{prefix}.head_bias"] = as_float32(head.bias.detach().numpy())
     return d
 
 
@@ -370,8 +370,8 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
     out.backward(g_pt)
-    data["grad_wte_vocab"] = fortran_order(
-        pt.roberta.embeddings.word_embeddings.weight.grad.detach().numpy().T
+    data["grad_wte_vocab"] = as_float32(
+        pt.roberta.embeddings.word_embeddings.weight.grad.detach().numpy()
     )
     return data
 

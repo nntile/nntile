@@ -41,9 +41,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Index(0)},
         std::tuple{Scalar(0.5), Index(1)});
 
-    std::vector<Index> x_shape = (axis == 0)
-                                     ? std::vector<Index>{dim_4, dim_2}
-                                     : std::vector<Index>{dim_2, dim_4};
+    std::vector<Index> x_shape = {dim_2, dim_4};
     std::vector<Index> out_shape = {x_shape[axis]};
 
     NNGraph g("norm_fiber_structure");
@@ -70,8 +68,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *y =
         norm_fiber(x, axis, batch_ndim_none, redux_none, alpha)->set_name("y");
 
-    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
-    x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{2, 3, 1});
     if (axis == 0)
         y->data()->axis(0)->set_tiling(std::vector<Index>{2, 4});
     else
@@ -107,9 +105,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(2.0), Index(0), Scalar(-1.0)},
             std::tuple{Scalar(0.5), Index(1), Scalar(0.5)});
 
-    std::vector<Index> x_shape = (axis == 0)
-                                     ? std::vector<Index>{dim_4, dim_2}
-                                     : std::vector<Index>{dim_2, dim_4};
+    std::vector<Index> x_shape = {dim_2, dim_4};
     NNGraph g("norm_fiber_backward_throws");
     auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
     auto *y =
