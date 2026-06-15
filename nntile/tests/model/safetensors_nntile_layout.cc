@@ -13,16 +13,17 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using nntile::test::safetensors_nntile_layout::c_safetensors_to_nntile_fortran;
+using nntile::test::safetensors_nntile_layout::
+    copy_safetensors_to_nntile_layout;
 
 TEST_CASE(
-    "c_safetensors_to_nntile_fortran copies 2-D C-order payload",
+    "copy_safetensors_to_nntile_layout copies 2-D C-order payload",
     "[model][layout]")
 {
     const std::vector<std::int64_t> shape{2, 3};
     const std::vector<float> raw{0.f, 1.f, 2.f, 3.f, 4.f, 5.f};
     std::vector<float> out;
-    c_safetensors_to_nntile_fortran(
+    copy_safetensors_to_nntile_layout(
         reinterpret_cast<const std::uint8_t *>(raw.data()),
         shape,
         out);
@@ -36,7 +37,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "c_safetensors_to_nntile_fortran copies 3-D C-order payload",
+    "copy_safetensors_to_nntile_layout copies 3-D C-order payload",
     "[model][layout]")
 {
     const std::vector<std::int64_t> shape{2, 2, 2};
@@ -46,7 +47,7 @@ TEST_CASE(
         raw[i] = static_cast<float>(i);
     }
     std::vector<float> out;
-    c_safetensors_to_nntile_fortran(
+    copy_safetensors_to_nntile_layout(
         reinterpret_cast<const std::uint8_t *>(raw.data()),
         shape,
         out);
