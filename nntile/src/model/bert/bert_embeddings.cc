@@ -71,6 +71,7 @@ NNGraph::TensorNode* BertEmbeddings::forward(
         add(1.0, word, 1.0, token_type);
     NNGraph::TensorNode* embed =
         add(1.0, wt, 1.0, position);
+    // embed: (batch, seq, hidden) for layer norm on axis 2
     return layer_norm_.forward(embed);
 }
 

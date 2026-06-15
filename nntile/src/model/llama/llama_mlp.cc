@@ -34,6 +34,7 @@ LlamaMLP::LlamaMLP(NNGraph *graph,
 NNGraph::TensorNode *LlamaMLP::forward(
     NNGraph::TensorNode *input)
 {
+    // GatedMlp on (batch, seq, hidden) layout
     return module::GatedMlp::forward(input);
 }
 

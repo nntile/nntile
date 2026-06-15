@@ -59,6 +59,7 @@ NNGraph::TensorNode* RobertaEmbeddings::forward(
 
     NNGraph::TensorNode* embed =
         add(1.0, word, 1.0, position);
+    // embed: (batch, seq, hidden) for layer norm on axis 2
     return layer_norm_.forward(embed);
 }
 

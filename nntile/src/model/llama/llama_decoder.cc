@@ -33,7 +33,7 @@ LlamaDecoder::LlamaDecoder(NNGraph *graph,
         -1,
         config.rms_norm_eps,
         0,
-        dtype)
+        dtype) // axis=-1 for (batch, seq, hidden)
     ,
     attention_(graph, name + "_self_attn", config, dtype),
     post_attn_norm_(graph,
@@ -42,7 +42,7 @@ LlamaDecoder::LlamaDecoder(NNGraph *graph,
         -1,
         config.rms_norm_eps,
         0,
-        dtype)
+        dtype) // axis=-1
     ,
     mlp_(graph, name + "_mlp", config, dtype),
     config_(config),

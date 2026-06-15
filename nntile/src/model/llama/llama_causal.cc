@@ -46,8 +46,10 @@ NNGraph::TensorNode *LlamaCausal::forward(
     NNGraph::TensorNode *mask,
     KVCache *kv_cache)
 {
+    // Model output: (batch, seq, hidden)
     NNGraph::TensorNode *hidden =
         model_->forward(input_ids, sin, cos, mask, kv_cache);
+    // lm_head: (batch, seq, hidden) -> (batch, seq, vocab)
     NNGraph::TensorNode *logits = lm_head_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;

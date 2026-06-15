@@ -69,6 +69,7 @@ NNGraph::TensorNode* GptneoModel::forward(
 
     NNGraph::TensorNode* token_embed = wte_.forward(input_ids);
     NNGraph::TensorNode* pos_embed = wpe_.forward(position_ids);
+    // Embeddings: (batch, seq) -> (batch, seq, hidden); sum token+position
     NNGraph::TensorNode* x =
         add(1.0, token_embed, 1.0, pos_embed);
     x->set_name(tensor_name("embed_out"));

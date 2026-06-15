@@ -68,6 +68,7 @@ NNGraph::TensorNode* Gpt2Model::forward(
 
     NNGraph::TensorNode* wte_out = wte_.forward(input_ids);
     NNGraph::TensorNode* wpe_out = wpe_.forward(position_ids);
+    // Embeddings: (batch, seq) -> (batch, seq, hidden); sum token+position
     NNGraph::TensorNode* x =
         add(1.0, wte_out, 1.0, wpe_out);
 

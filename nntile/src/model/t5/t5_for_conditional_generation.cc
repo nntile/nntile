@@ -44,10 +44,13 @@ NNGraph::TensorNode* T5ForConditionalGeneration::forward(
     NNGraph::TensorNode* decoder_attention_mask,
     NNGraph::TensorNode* cross_attention_mask)
 {
+    // Model output: (batch, dec_seq, d_model)
     NNGraph::TensorNode* hidden = model_->forward(
         encoder_input_ids, decoder_input_ids,
         encoder_attention_mask, decoder_attention_mask, cross_attention_mask);
 
+    // HF ``T5ForConditionalGeneration`` (``tie_word_embeddings=True``):
+    // sequence_output *= d_model**-0.5 before lm_head projection.
     if(config_.tie_word_embeddings)
     {
         const Scalar inv_sqrt_d_model =
@@ -56,6 +59,7 @@ NNGraph::TensorNode* T5ForConditionalGeneration::forward(
                      ->set_name(tensor_name("hidden_scaled"));
     }
 
+    // lm_head: (batch, dec_seq, d_model) -> (batch, dec_seq, vocab)
     NNGraph::TensorNode* logits = lm_head_.forward(hidden);
     logits->set_name(tensor_name("logits"));
     return logits;

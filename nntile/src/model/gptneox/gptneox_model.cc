@@ -57,6 +57,7 @@ NNGraph::TensorNode* GptneoxModel::forward(
             "GptneoxModel::forward: input_ids must be non-null");
     }
 
+    // Embedding: (batch, seq) -> (batch, seq, hidden)
     NNGraph::TensorNode* x = embed_tokens_.forward(input_ids);
     x->set_name(tensor_name("embed_out"));
 

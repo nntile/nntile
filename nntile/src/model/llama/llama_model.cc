@@ -39,7 +39,7 @@ LlamaModel::LlamaModel(NNGraph *graph,
         2,
         config.rms_norm_eps,
         0,
-        dtype)
+        dtype) // axis=2 for (batch, seq, hidden)
     ,
     config_(config),
     dtype_(dtype)
@@ -72,6 +72,7 @@ NNGraph::TensorNode *LlamaModel::forward(
     const auto *kv_caches = kv_cache ? kv_cache->get_cache() : nullptr;
     Index cache_len = kv_cache ? kv_cache->len() : 0;
 
+    // Embedding: (batch, seq) -> (batch, seq, hidden)
     NNGraph::TensorNode *x = embed_tokens_.forward(input_ids);
     x->set_name(tensor_name("embed_out"));
 

@@ -26,7 +26,8 @@ T5LayerFF::T5LayerFF(NNGraph* graph,
                      DataType dtype)
     : module::Module(graph, name)
     , layer_norm_(graph, name + "_layer_norm",
-                  config.d_model, 2, config.layer_norm_epsilon, 0, dtype)
+                  config.d_model, 2, config.layer_norm_epsilon, 0,
+                  dtype) // axis=2 for (batch, seq, d_model)
     , dense_(graph, name + "_dense",
              config.d_model,
              config.d_ff,
@@ -49,7 +50,10 @@ NNGraph::TensorNode* T5LayerFF::forward(
             "T5LayerFF::forward: input tensor must be non-null");
     }
 
+    // layer_norm on (batch, seq, d_model)
     NNGraph::TensorNode* x_norm = layer_norm_.forward(input);
+
+    // GatedMlp on (batch, seq, d_model) layout
     NNGraph::TensorNode* ff_out = dense_.forward(x_norm);
     ff_out->set_name(tensor_name("ff_out"));
 
