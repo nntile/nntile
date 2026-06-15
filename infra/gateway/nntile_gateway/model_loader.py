@@ -30,14 +30,17 @@ class ModelLoader(Protocol):
 
 
 def _build_padding_mask(seq_len: int, actual_len: int):
-    """Boolean (seq_len, seq_len) F-order array suitable for the BERT
-    self-attention mask. mask[k, q] = True iff the key position k is a
-    real (non-pad) token; all queries see the same column mask."""
+    """Boolean ``(seq_len, seq_len)`` mask for BERT ``sdpa_eager``.
+
+    Logical ``mask[key, query]`` is True when key position is non-pad.
+    Stored with graph flat index ``query * seq_len + key`` (same as
+    ``sdpa_causal_mask_bool_fill``).
+    """
     import numpy as np
 
     keep = np.zeros(seq_len, dtype=bool)
     keep[:actual_len] = True
-    mask = np.broadcast_to(keep[:, None], (seq_len, seq_len)).copy()
+    mask = np.broadcast_to(keep[None, :], (seq_len, seq_len)).copy()
     return np.ascontiguousarray(mask)
 
 
