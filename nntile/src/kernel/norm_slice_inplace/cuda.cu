@@ -200,7 +200,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  *      accumulates norms along middle axis.
  * */
 {
-    // Both source and destination are Fortran-contiguous
+    // Both source and destination are tile-storage contiguous
     // Separate case for m==1
     if(m == 1)
     {

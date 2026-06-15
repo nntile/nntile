@@ -16,7 +16,7 @@ For each block the script creates ``gptneo_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neo``) for module weights and
 forward/backward references plus NumPy layout helpers for NNTile safetensors —
-no custom GPT-Neo reimplementation. Safetensor arrays use virtual C-order shape
+no custom GPT-Neo reimplementation. Safetensor arrays use virtual graph shape
 labels matching the graph API.
 
 Attention references call HF ``q_proj`` / ``k_proj`` / ``v_proj`` /
@@ -150,7 +150,7 @@ def _linear_attn_o_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> 
 def _gptneo_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF q/k/v/out_proj to NNTile C-order attention layouts."""
+    """Map HF q/k/v/out_proj to NNTile graph attention layouts."""
     inner = attn.attention
     H = dims.hidden
     nh = dims.n_heads
@@ -241,8 +241,8 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
     """Causal mask for ``sdpa_eager`` (1 = keep), shape ``(seq, seq)``.
 
-    Logical ``mask[k, q] = (k <= q)``; store ``mask.T`` in C-order so flat
-    bytes match the legacy Fortran-labelled ``(seq, seq)`` bind layout.
+    Logical ``mask[k, q] = (k <= q)``; store ``mask.T`` in graph so flat
+    bytes match the legacy storage-labelled ``(seq, seq)`` bind layout.
     """
     allowed = np.zeros((seq, seq), dtype=np.float32)
     for k in range(seq):
@@ -253,7 +253,7 @@ def _sdpa_causal_mask(seq: int) -> np.ndarray:
 
 
 def _sdpa_gptneo_local_mask(seq: int, window: int) -> np.ndarray:
-    """Local attention mask (1 = keep), shape ``(seq, seq)`` in C-order."""
+    """Local attention mask (1 = keep), shape ``(seq, seq)`` in graph."""
     allowed = np.zeros((seq, seq), dtype=np.float32)
     for k in range(seq):
         for q in range(seq):

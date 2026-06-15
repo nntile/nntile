@@ -41,9 +41,9 @@ NNGraph::TensorNode *NNSumSliceOp::forward()
     }
     NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
-    const Index f_axis = nn::c_axis_to_fortran(axis, x->ndim());
+    const Index storage_axis = nn::graph_axis_to_storage(axis, x->ndim());
     TensorGraph::TensorNode *y_data =
-        tensor::sum_slice(x->data(), f_axis, redux, alpha, beta_fresh);
+        tensor::sum_slice(x->data(), storage_axis, redux, alpha, beta_fresh);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     return y;
@@ -67,9 +67,9 @@ void NNSumSliceOp::backward() const
         auto [grad_x, is_first] =
             graph->get_or_create_grad(x, nn_grad_slot_name(x));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        const Index f_axis = nn::c_axis_to_fortran(axis, x->ndim());
+        const Index storage_axis = nn::graph_axis_to_storage(axis, x->ndim());
         tensor::add_slice_inplace(
-            alpha, grad_out->data(), grad_beta, grad_x->data(), f_axis);
+            alpha, grad_out->data(), grad_beta, grad_x->data(), storage_axis);
     }
 }
 

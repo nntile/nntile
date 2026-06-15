@@ -15,7 +15,7 @@ For each block the script creates ``bert_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 All forward and backward references come from HuggingFace ``modeling_bert``
-(PyTorch eager, dropout disabled). Safetensor arrays use virtual C-order shape
+(PyTorch eager, dropout disabled). Safetensor arrays use virtual graph shape
 labels matching the graph API. Helpers below reshape HF ``nn.Linear`` weights
 into those layouts; they do not reimplement BERT computation.
 """
@@ -134,7 +134,7 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
 
 def _linear(linear, prefix: str) -> dict[str, np.ndarray]:
     # PyTorch Linear weight is (out_features, in_features); graph Linear
-    # stores the same C-order layout (output_dim, input_dim).
+    # stores the same graph layout (output_dim, input_dim).
     d = {
         f"{prefix}.weight": as_float32(linear.weight.detach().numpy()),
     }

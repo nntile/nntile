@@ -31,7 +31,7 @@ from generate_test_data import (  # noqa: E402
 def _hf_attn_qkv_weight(
     linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
 ) -> np.ndarray:
-    """Explicit HF PT Linear → graph Q/K/V layout (C-order ``(H, hd, nh)``)."""
+    """Explicit HF PT Linear → graph Q/K/V layout (graph ``(H, hd, nh)``)."""
     w = linear.weight.detach().numpy().reshape(nh, hs, n_emb)
     return as_float32(w.transpose(2, 1, 0))
 
@@ -39,7 +39,7 @@ def _hf_attn_qkv_weight(
 def _hf_attn_o_weight(
     linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
 ) -> np.ndarray:
-    """Explicit HF PT Linear → graph output-dense layout (C-order ``(hd, nh, H)``)."""
+    """Explicit HF PT Linear → graph output-dense layout (graph ``(hd, nh, H)``)."""
     w = linear.weight.detach().numpy().reshape(n_emb, nh, hs)
     return as_float32(w.transpose(2, 1, 0))
 

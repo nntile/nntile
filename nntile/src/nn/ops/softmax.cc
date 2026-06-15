@@ -47,14 +47,14 @@ NNGraph::TensorNode *NNSoftmaxOp::forward()
     }
     NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
-    const Index f_axis = nn::c_axis_to_fortran(axis, x->ndim());
+    const Index storage_axis = nn::graph_axis_to_storage(axis, x->ndim());
 
     TensorGraph::TensorNode *y_data = tensor::copy(x->data());
 
     TensorGraph::TensorNode *maxsumexp_buf =
-        tensor::maxsumexp(y_data, f_axis, redux);
+        tensor::maxsumexp(y_data, storage_axis, redux);
 
-    tensor::softmax_inplace(maxsumexp_buf, y_data, 1.0, f_axis);
+    tensor::softmax_inplace(maxsumexp_buf, y_data, 1.0, storage_axis);
 
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
@@ -104,12 +104,12 @@ void NNSoftmaxOp::backward() const
 
     auto [grad_x, is_first] =
         graph->get_or_create_grad(x, nn_grad_slot_name(x));
-    const Index f_axis = nn::c_axis_to_fortran(axis, x->ndim());
+    const Index storage_axis = nn::graph_axis_to_storage(axis, x->ndim());
 
     tensor::sumprod_slice(out->data(),
         grad_out->data(),
         sumprod_buf->data(),
-        f_axis,
+        storage_axis,
         redux,
         1.0,
         0.0);
@@ -118,7 +118,7 @@ void NNSoftmaxOp::backward() const
         1.0,
         grad_out->data(),
         grad_temp->data(),
-        f_axis);
+        storage_axis);
     tensor::multiply_inplace(1.0, out->data(), grad_temp->data());
     tensor::add_inplace(1.0,
         grad_temp->data(),

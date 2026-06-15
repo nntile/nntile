@@ -59,7 +59,7 @@ NNGraph::TensorNode *NNLayerNormOp::forward(const std::string &output_name)
     NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x, gamma, beta});
 
-    const Index f_axis = nn::c_axis_to_fortran(axis, x->ndim());
+    const Index storage_axis = nn::graph_axis_to_storage(axis, x->ndim());
     const Index l = x->shape()[axis];
     const Scalar inv_l = 1.0 / static_cast<Scalar>(l);
     const Scalar inv_sqrt_l = 1.0 / std::sqrt(static_cast<Scalar>(l));
@@ -78,26 +78,26 @@ NNGraph::TensorNode *NNLayerNormOp::forward(const std::string &output_name)
     NNGraph::TensorNode *mean =
         graph->tensor(reduced_shape, x->dtype(), false);
     tensor::sum_slice(
-        x->data(), mean->data(), f_axis, redux, inv_l, 0.0);
+        x->data(), mean->data(), storage_axis, redux, inv_l, 0.0);
 
     TensorGraph::TensorNode *tmp_y_data = tensor::add_slice(
-        -1.0, mean->data(), 1.0, x->data(), f_axis);
+        -1.0, mean->data(), 1.0, x->data(), storage_axis);
     NNGraph::TensorNode *tmp_y = graph->tensor(tmp_y_data, false);
 
     NNGraph::TensorNode *inv_stddev =
         graph->tensor(reduced_shape, x->dtype(), false);
     tensor::norm_slice_inplace(
-        inv_sqrt_l, tmp_y->data(), 0.0, inv_stddev->data(), f_axis, redux);
+        inv_sqrt_l, tmp_y->data(), 0.0, inv_stddev->data(), storage_axis, redux);
     tensor::hypot_scalar_inverse(eps_sqrt, 1.0, inv_stddev->data());
 
     tensor::multiply_slice(
-        1.0, inv_stddev->data(), tmp_y->data(), f_axis);
+        1.0, inv_stddev->data(), tmp_y->data(), storage_axis);
 
     TensorGraph::TensorNode *y_data =
-        tensor::multiply_fiber(1.0, gamma->data(), tmp_y->data(), f_axis);
+        tensor::multiply_fiber(1.0, gamma->data(), tmp_y->data(), storage_axis);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     tensor::add_fiber_inplace(
-        1.0, beta->data(), 1.0, y->data(), f_axis, batch_ndim);
+        1.0, beta->data(), 1.0, y->data(), storage_axis, batch_ndim);
     y->set_name(output_name);
 
     NNGraph::TensorNode *tmp_y_grad =
@@ -134,7 +134,7 @@ void NNLayerNormOp::backward() const
     NNGraph::TensorNode *mean_buf = buffers_[2];
     NNGraph::TensorNode *tmp_y_grad = buffers_[3];
 
-    const Index f_axis = nn::c_axis_to_fortran(axis, x->ndim());
+    const Index storage_axis = nn::graph_axis_to_storage(axis, x->ndim());
     const Scalar inv_l = 1.0 / static_cast<Scalar>(x->shape()[axis]);
 
     if (beta != nullptr && beta->requires_grad())
@@ -144,7 +144,7 @@ void NNLayerNormOp::backward() const
         Scalar beta_acc = is_first ? grad_overwrite : grad_accumulate;
         tensor::sum_fiber(grad_out->data(),
             grad_beta->data(),
-            f_axis,
+            storage_axis,
             batch_ndim,
             redux,
             1.0,
@@ -159,7 +159,7 @@ void NNLayerNormOp::backward() const
         tensor::sumprod_fiber(grad_out->data(),
             tmp_y_value->data(),
             grad_gamma->data(),
-            f_axis,
+            storage_axis,
             redux,
             1.0,
             gamma_acc);
@@ -175,7 +175,7 @@ void NNLayerNormOp::backward() const
         }
 
         TensorGraph::TensorNode *grad_temp_data = tensor::multiply_fiber(
-            1.0, gamma->data(), grad_out->data(), f_axis);
+            1.0, gamma->data(), grad_out->data(), storage_axis);
         NNGraph::TensorNode *grad_temp = graph->tensor(grad_temp_data, false);
 
         // x_hat buffer must stay intact for gamma grad; mutate scratch only
@@ -183,20 +183,20 @@ void NNLayerNormOp::backward() const
         tensor::sumprod_slice(grad_temp->data(),
             tmp_y_grad->data(),
             mean_buf->data(),
-            f_axis,
+            storage_axis,
             redux,
             -inv_l,
             0.0);
         tensor::multiply_slice(
-            1.0, mean_buf->data(), tmp_y_grad->data(), f_axis);
+            1.0, mean_buf->data(), tmp_y_grad->data(), storage_axis);
         tensor::add_inplace(
             1.0, grad_temp->data(), 1.0, tmp_y_grad->data());
         tensor::sum_slice(
-            grad_temp->data(), mean_buf->data(), f_axis, redux, inv_l, 0.0);
+            grad_temp->data(), mean_buf->data(), storage_axis, redux, inv_l, 0.0);
         tensor::add_slice_inplace(
-            -1.0, mean_buf->data(), 1.0, tmp_y_grad->data(), f_axis);
+            -1.0, mean_buf->data(), 1.0, tmp_y_grad->data(), storage_axis);
         tensor::multiply_slice(
-            1.0, inv_stddev->data(), tmp_y_grad->data(), f_axis);
+            1.0, inv_stddev->data(), tmp_y_grad->data(), storage_axis);
         tensor::add_inplace(
             1.0, tmp_y_grad->data(), grad_accumulate, grad_x->data());
     }

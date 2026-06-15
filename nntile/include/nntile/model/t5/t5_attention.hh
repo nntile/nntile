@@ -9,7 +9,7 @@
  * @file include/nntile/model/t5/t5_attention.hh
  * T5Attention - self-attention or cross-attention (no RoPE, no relative bias).
  *
- * Input layout: (batch, seq, d_model) in C-order.
+ * Input layout: (batch, seq, d_model) in graph.
  * T5 uses scaled dot-product attention with 1/sqrt(d_k).
  *
  * @version 1.1.0

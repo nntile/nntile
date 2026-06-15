@@ -41,7 +41,7 @@ NNGraph::TensorNode *NNGemmOp::forward()
     }
     NNGraph *graph = a->graph();
     bool out_requires_grad = any_input_requires_grad({a, b});
-    // C-order NN API: swap operands and transpose flags at tensor lowering.
+    // graph NN API: swap operands and transpose flags at tensor lowering.
     TensorGraph::TensorNode *c_data = tensor::gemm(
         b->data(), a->data(), alpha, trans_b, trans_a, ndim, batch_ndim);
     NNGraph::TensorNode *c = graph->tensor(c_data, out_requires_grad);

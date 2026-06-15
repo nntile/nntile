@@ -37,7 +37,7 @@ Index shape_prod(const std::vector<Index> &shape)
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 }
 
-std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
+std::vector<float> reference_concat_storage(const std::vector<Index> &a_shape,
     const std::vector<Index> &b_shape,
     Index axis,
     const std::vector<float> &a_data,
@@ -51,11 +51,11 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
     std::vector<Index> g;
     for (Index lin = 0; lin < nelems; ++lin)
     {
-        layout::fortran_tile_linear_to_index(lin, out_shape, g);
+        layout::storage_tile_linear_to_index(lin, out_shape, g);
         if (g[static_cast<size_t>(axis)] < a_shape[static_cast<size_t>(axis)])
         {
             out[static_cast<size_t>(lin)] = a_data[static_cast<size_t>(
-                layout::fortran_dense_linear_index(a_shape, g))];
+                layout::storage_dense_linear_index(a_shape, g))];
         }
         else
         {
@@ -63,7 +63,7 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
             gb[static_cast<size_t>(axis)] -=
                 a_shape[static_cast<size_t>(axis)];
             out[static_cast<size_t>(lin)] = b_data[static_cast<size_t>(
-                layout::fortran_dense_linear_index(b_shape, gb))];
+                layout::storage_dense_linear_index(b_shape, gb))];
         }
     }
     return out;
@@ -135,7 +135,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph concat forward matches Fortran reference (untiled)",
+    "NNGraph concat forward matches storage-layout reference (untiled)",
     "[graph][nn_graph]")
 {
     using ShapesAxis =
@@ -180,10 +180,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> got = runtime.get_output<float>(out);
     const Index ndim = static_cast<Index>(a_shape.size());
-    std::vector<float> expect = reference_concat_fortran(
-        nn::c_shape_to_fortran(a_shape),
-        nn::c_shape_to_fortran(b_shape),
-        nn::c_axis_to_fortran(axis, ndim),
+    std::vector<float> expect = reference_concat_storage(
+        nn::graph_shape_to_storage(a_shape),
+        nn::graph_shape_to_storage(b_shape),
+        nn::graph_axis_to_storage(axis, ndim),
         a_data,
         b_data);
 

@@ -24,7 +24,7 @@ if str(_examples) not in sys.path:
 from numpy_helpers import sdpa_causal_mask_bool_fill
 
 
-def reference_mask_c_order(seq_len: int) -> np.ndarray:
+def reference_mask(seq_len: int) -> np.ndarray:
     allowed = np.zeros((seq_len, seq_len), dtype=np.uint8)
     for key in range(seq_len):
         for query in range(seq_len):
@@ -36,7 +36,7 @@ def reference_mask_c_order(seq_len: int) -> np.ndarray:
 def test_sdpa_causal_mask_matches_cpp_layout():
     for n_seq in (1, 4, 8):
         got = sdpa_causal_mask_bool_fill(n_seq)
-        ref = reference_mask_c_order(n_seq)
+        ref = reference_mask(n_seq)
         assert got.shape == (n_seq * n_seq,)
         np.testing.assert_array_equal(got, ref)
         for query in range(n_seq):

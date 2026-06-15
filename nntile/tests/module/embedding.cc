@@ -68,7 +68,7 @@ TEST_CASE("Embedding ConstructorWithExistingTensor", "[module]")
 {
     NNGraph g("embedding");
 
-    // C-order vocab [num_embeddings, embed_dim]
+    // graph vocab [num_embeddings, embed_dim]
     auto *vocab = g.tensor({8, 50}, DataType::FP32)->set_name("shared_vocab");
 
     Embedding emb(&g, "emb", vocab);

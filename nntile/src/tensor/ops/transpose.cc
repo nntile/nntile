@@ -33,10 +33,10 @@ namespace nntile::tensor
 namespace
 {
 
-//! Tensor tile grids use Fortran-order linear indices (dim 0 varies fastest);
+//! Tensor tile grids use tile-storage linear indices (dim 0 varies fastest);
 //! TensorAxisLayout / tile_map use `grid_linear` (dim 0 slowest). Convert
 //! between the two for a given axis layout.
-Index fortran_tile_linear_to_layout_linear(
+Index storage_tile_linear_to_layout_linear(
     Index fort_lin, const TensorAxisLayout &lay)
 {
     const auto &gsh = lay.grid_shape();
@@ -76,9 +76,9 @@ void TensorTransposeOp::lower_to_tile(const LoweringContext &ctx) const
             const Index lin_src_f = i + j * grid_m;
             const Index lin_dst_f = i * grid_n + j;
             const Index lin_s =
-                fortran_tile_linear_to_layout_linear(lin_src_f, *lay_s);
+                storage_tile_linear_to_layout_linear(lin_src_f, *lay_s);
             const Index lin_d =
-                fortran_tile_linear_to_layout_linear(lin_dst_f, *lay_d);
+                storage_tile_linear_to_layout_linear(lin_dst_f, *lay_d);
             tile::transpose(alpha,
                 tiles_s[static_cast<size_t>(lin_s)],
                 tiles_d[static_cast<size_t>(lin_d)],

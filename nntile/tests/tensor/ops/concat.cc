@@ -38,8 +38,8 @@ Index shape_prod(const std::vector<Index> &shape)
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 }
 
-//! Reference concat in Fortran flat layout (same as bind_data / get_output).
-std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
+//! Reference concat in tile storage flat layout (same as bind_data / get_output).
+std::vector<float> reference_concat_storage(const std::vector<Index> &a_shape,
     const std::vector<Index> &b_shape,
     Index axis,
     const std::vector<float> &a_data,
@@ -53,11 +53,11 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
     std::vector<Index> g;
     for (Index lin = 0; lin < nelems; ++lin)
     {
-        layout::fortran_tile_linear_to_index(lin, out_shape, g);
+        layout::storage_tile_linear_to_index(lin, out_shape, g);
         if (g[static_cast<size_t>(axis)] < a_shape[static_cast<size_t>(axis)])
         {
             out[static_cast<size_t>(lin)] = a_data[static_cast<size_t>(
-                layout::fortran_dense_linear_index(a_shape, g))];
+                layout::storage_dense_linear_index(a_shape, g))];
         }
         else
         {
@@ -65,7 +65,7 @@ std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
             gb[static_cast<size_t>(axis)] -=
                 a_shape[static_cast<size_t>(axis)];
             out[static_cast<size_t>(lin)] = b_data[static_cast<size_t>(
-                layout::fortran_dense_linear_index(b_shape, gb))];
+                layout::storage_dense_linear_index(b_shape, gb))];
         }
     }
     return out;
@@ -125,7 +125,7 @@ TEST_CASE("TensorGraph concat rejects invalid arguments")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph concat matches Fortran reference (untiled)",
+    "TensorGraph concat matches storage-layout reference (untiled)",
     "[graph][tensor]")
 {
     using ShapesAxis =
@@ -171,7 +171,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> got = runtime.get_output<float>(out_node);
     std::vector<float> expect =
-        reference_concat_fortran(a_shape, b_shape, axis, a_data, b_data);
+        reference_concat_storage(a_shape, b_shape, axis, a_data, b_data);
 
     constexpr float tol = 1e-5f;
     REQUIRE(got.size() == expect.size());

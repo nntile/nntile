@@ -12,7 +12,7 @@
 """Generate reference test data for NNTile T5 graph C++ tests.
 
 Uses **Hugging Face Transformers** (``modeling_t5``) for forward and backward
-references. Safetensor arrays use virtual C-order shape labels matching the
+references. Safetensor arrays use virtual graph shape labels matching the
 graph API. Weight tensors are converted to the NNTile graph layout (same
 naming as ``examples/t5_generate.py``). Mask tensors stored for C++ use the
 ``sdpa_eager`` layout expected by graph tests.

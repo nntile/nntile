@@ -16,7 +16,7 @@ For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
 backward references plus NumPy layout helpers for NNTile safetensors — no
-custom attention reimplementation. Safetensor arrays use virtual C-order shape
+custom attention reimplementation. Safetensor arrays use virtual graph shape
 labels matching the graph API. Weights are split from HF ``query_key_value`` /
 ``dense`` into graph ``q/k/v/o`` layouts matching ``gpt_neox_generate.py``. Attention
 references call ``GPTNeoXAttention`` with ``_attn_implementation="eager"``,
@@ -90,7 +90,7 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
 
 
 def _gptneox_attn_qkv_weight(qkv_slice: np.ndarray) -> np.ndarray:
-    """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` C-order layout."""
+    """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` graph layout."""
     return as_float32(np.asarray(qkv_slice, dtype=np.float32).transpose(2, 1, 0))
 
 
@@ -171,7 +171,7 @@ def _rotate_tensor_in_for_rope(
 def _gptneox_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF ``query_key_value`` + ``dense`` to NNTile C-order layouts."""
+    """Map HF ``query_key_value`` + ``dense`` to NNTile graph layouts."""
     H = dims.hidden
     nh = dims.n_heads
     hd = dims.head_size

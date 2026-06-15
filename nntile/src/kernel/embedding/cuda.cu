@@ -69,7 +69,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  * @param[inout] embed: Output tensor to be filled with embeddings
  * */
 {
-    // Both source and destination are Fortran-contiguous
+    // Both source and destination are tile-storage contiguous
     dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
             std::min(int(k_size), 16));
     dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,

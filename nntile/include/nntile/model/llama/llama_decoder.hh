@@ -48,7 +48,7 @@ public:
                  DataType dtype = DataType::FP32);
 
     //! Forward pass
-    //! @param x Input (batch, seq, hidden_size) in C-order
+    //! @param x Input (batch, seq, hidden_size) in graph
     //! @param sin RoPE sin (optional)
     //! @param cos RoPE cos (optional)
     //! @param mask Attention mask (optional)

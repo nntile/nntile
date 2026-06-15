@@ -80,7 +80,7 @@ TensorGraph::TensorNode *embedding(
         throw std::invalid_argument("embedding: vocab must be 2D");
     if (axis < 0 || axis > index->ndim())
         throw std::invalid_argument("embedding: axis out of range");
-    // Physical Fortran shape: insert vocab.dim(0) at ``axis``.
+    // Physical storage shape: insert vocab.dim(0) at ``axis``.
     const auto &idx_shape = index->shape();
     std::vector<Index> embed_shape;
     embed_shape.reserve(static_cast<size_t>(index->ndim() + 1));

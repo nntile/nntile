@@ -40,7 +40,7 @@ NNGraph::TensorNode::TensorNode(
         throw std::invalid_argument(
             "NNGraph::TensorNode: data tensor is nullptr");
     }
-    c_shape_ = nn::fortran_shape_to_c(data->shape());
+    c_shape_ = nn::storage_shape_to_graph(data->shape());
 }
 
 void NNGraph::TensorNode::set_bind_hint(std::vector<std::uint8_t> data)

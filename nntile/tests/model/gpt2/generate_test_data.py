@@ -17,7 +17,7 @@ For each block the script creates ``gpt2_<block>.safetensors`` plus a paired
 Uses HuggingFace ``modeling_gpt2`` for all forward/backward references
 (``GPT2MLP``, ``GPT2Attention``, ``GPT2Block``, ``GPT2Model``,
 ``GPT2LMHeadModel``) plus NumPy layout helpers. Safetensor arrays use
-virtual C-order shape labels matching the graph API. Reference forwards call
+virtual graph shape labels matching the graph API. Reference forwards call
 HF modules (or ``eager_attention_forward`` from the same file for
 bidirectional attention without a causal mask).
 """
@@ -112,7 +112,7 @@ def _make_config(dims: TestDims) -> GPT2Config:
 
 
 def _lm_head_to_linear_weight(conv) -> np.ndarray:
-    """HF ``lm_head`` weight is already ``(vocab, hidden)`` (C-order Linear)."""
+    """HF ``lm_head`` weight is already ``(vocab, hidden)`` (graph Linear)."""
     return as_float32(conv.weight.detach().numpy())
 
 
@@ -237,8 +237,8 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
     """Causal mask for ``sdpa_eager`` (1 = keep), shape ``(seq, seq)``.
 
-    Logical ``mask[k, q] = (k <= q)``; store ``mask.T`` in C-order so flat
-    bytes match Fortran ``mask[k + q * seq]`` expected at runtime bind.
+    Logical ``mask[k, q] = (k <= q)``; store ``mask.T`` in graph so flat
+    bytes match storage ``mask[k + q * seq]`` expected at runtime bind.
     """
     allowed = np.zeros((seq, seq), dtype=np.float32)
     for k in range(seq):

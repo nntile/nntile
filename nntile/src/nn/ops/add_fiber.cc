@@ -43,10 +43,10 @@ NNGraph::TensorNode *NNAddFiberOp::forward()
     }
     NNGraph *graph = fiber->graph();
     bool out_requires_grad = any_input_requires_grad({fiber, tensor});
-    const Index f_axis =
-        nn::c_axis_to_fortran(axis, tensor->ndim());
+    const Index storage_axis =
+        nn::graph_axis_to_storage(axis, tensor->ndim());
     TensorGraph::TensorNode *output_data = tensor::add_fiber(
-        alpha, fiber->data(), beta, tensor->data(), f_axis, batch_ndim);
+        alpha, fiber->data(), beta, tensor->data(), storage_axis, batch_ndim);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
@@ -70,11 +70,11 @@ void NNAddFiberOp::backward() const
     {
         auto [grad_fiber, is_first] =
             graph->get_or_create_grad(fiber, nn_grad_slot_name(fiber));
-        const Index f_axis =
-            nn::c_axis_to_fortran(axis, tensor->ndim());
+        const Index storage_axis =
+            nn::graph_axis_to_storage(axis, tensor->ndim());
         tensor::sum_fiber(grad_out->data(),
             grad_fiber->data(),
-            f_axis,
+            storage_axis,
             batch_ndim,
             sum_fiber_redux,
             alpha,

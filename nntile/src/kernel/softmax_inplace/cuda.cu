@@ -152,7 +152,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
  * */
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
-    // Both source and destination are Fortran-contiguous
+    // Both source and destination are tile-storage contiguous
     // Custom case m==1
     if(m == 1)
     {

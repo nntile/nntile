@@ -106,7 +106,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph cross_entropy matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
-    // C-order: x [batch, nclasses], labels [batch]
+    // graph: x [batch, nclasses], labels [batch]
     // PyTorch expects [N, C] = [batch, nclasses], target [N]
     const Index batch_size = 7;
     const Index nclasses = 5;

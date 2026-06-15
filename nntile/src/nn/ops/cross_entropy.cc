@@ -59,24 +59,24 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
 
     NNGraph *graph = x->graph();
     const auto &x_shape = x->shape();
-    const Index c_class_axis = x->ndim() - 1;
-    const Index f_class_axis = nn::c_axis_to_fortran(c_class_axis, x->ndim());
+    const Index graph_class_axis = x->ndim() - 1;
+    const Index storage_class_axis = nn::graph_axis_to_storage(graph_class_axis, x->ndim());
 
     // Class dimension is last C axis. labels shape: x.shape without last dim.
     std::vector<Index> labels_shape;
     labels_shape.reserve(x->ndim() - 1);
-    for (Index i = 0; i < c_class_axis; ++i)
+    for (Index i = 0; i < graph_class_axis; ++i)
     {
         labels_shape.push_back(x_shape[i]);
     }
-    const std::vector<Index> f_x_shape = nn::c_shape_to_fortran(x_shape);
-    std::vector<Index> f_labels_shape;
-    f_labels_shape.reserve(x->ndim() - 1);
+    const std::vector<Index> storage_x_shape = nn::graph_shape_to_storage(x_shape);
+    std::vector<Index> storage_labels_shape;
+    storage_labels_shape.reserve(x->ndim() - 1);
     for (Index i = 1; i < x->ndim(); ++i)
     {
-        f_labels_shape.push_back(f_x_shape[i]);
+        storage_labels_shape.push_back(storage_x_shape[i]);
     }
-    if (labels->shape() != nn::fortran_shape_to_c(f_labels_shape))
+    if (labels->shape() != nn::storage_shape_to_graph(storage_labels_shape))
     {
         throw std::invalid_argument(
             "NNCrossEntropyOp::forward: labels shape must match x shape "
@@ -91,20 +91,20 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
     maxsumexp_shape.push_back(2);
     for (Index i = 1; i < x->ndim(); ++i)
     {
-        maxsumexp_shape.push_back(f_x_shape[i]);
+        maxsumexp_shape.push_back(storage_x_shape[i]);
     }
     maxsumexp_data_ = tg.data(maxsumexp_shape, x->dtype());
 
     // logsumexp shape: F labels shape
     TensorGraph::TensorNode *logsumexp_data =
-        tg.data(f_labels_shape, x->dtype());
+        tg.data(storage_labels_shape, x->dtype());
 
     // val: scalar
     TensorGraph::TensorNode *val_data = tg.data({}, x->dtype());
 
     // Forward: clear maxsumexp, maxsumexp, logsumexp, total_sum_accum
     tensor::clear(maxsumexp_data_);
-    tensor::maxsumexp(x->data(), maxsumexp_data_, f_class_axis, redux);
+    tensor::maxsumexp(x->data(), maxsumexp_data_, storage_class_axis, redux);
     tensor::logsumexp(maxsumexp_data_, logsumexp_data);
     tensor::clear(val_data);
     tensor::total_sum_accum(scale,
@@ -153,19 +153,19 @@ void NNCrossEntropyOp::backward() const
     }
     NNGraph::TensorNode *grad_temp = buffers_[0];
 
-    const Index c_class_axis = x->ndim() - 1;
-    const Index f_class_axis = nn::c_axis_to_fortran(c_class_axis, x->ndim());
+    const Index graph_class_axis = x->ndim() - 1;
+    const Index storage_class_axis = nn::graph_axis_to_storage(graph_class_axis, x->ndim());
 
     auto [grad_x, is_first] =
         graph->get_or_create_grad(x, nn_grad_slot_name(x));
 
     // Recompute maxsumexp for backward (needed for softmax)
     tensor::clear(maxsumexp_data_);
-    tensor::maxsumexp(x->data(), maxsumexp_data_, f_class_axis, redux);
+    tensor::maxsumexp(x->data(), maxsumexp_data_, storage_class_axis, redux);
 
     // grad_temp = scale * (softmax(x) - one_hot(labels))
     tensor::softmax(
-        maxsumexp_data_, x->data(), grad_temp->data(), scale, f_class_axis);
+        maxsumexp_data_, x->data(), grad_temp->data(), scale, storage_class_axis);
     tensor::subtract_indexed_outputs(
         scale, labels->data(), grad_temp->data(), ignore_index);
 

@@ -112,7 +112,7 @@ public:
      * @param[in] index: Coordinate of an element. Shall belong to the tile,
      *      i.e. 0 <= index[i] < shape[i].
      * @returns Offset of the element in a corresponding linear memory,
-     *      assuming Fortran-order storage of tile elements.
+     *      assuming tile storage layout of tile elements.
      * */
     Index index_to_linear(const std::vector<Index> &index) const
     {
@@ -148,7 +148,7 @@ public:
      *
      * @param[in] linear_offset: Linear memory offset in range [0,nelems)
      * @returns Coordinate of the corresponding element,
-     *      assuming Fortran-order storage of tile elements.
+     *      assuming tile storage layout of tile elements.
      * */
     std::vector<Index> linear_to_index(Index linear_offset) const
     {

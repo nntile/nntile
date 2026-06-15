@@ -38,7 +38,7 @@ def _build_padding_mask(seq_len: int, actual_len: int):
     keep = np.zeros(seq_len, dtype=bool)
     keep[:actual_len] = True
     mask = np.broadcast_to(keep[:, None], (seq_len, seq_len)).copy()
-    return np.asfortranarray(mask)
+    return np.ascontiguousarray(mask)
 
 
 def _apply_padding_mask(model, seq_len: int, actual_len: int) -> None:

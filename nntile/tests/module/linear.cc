@@ -190,7 +190,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     input->mark_input(true);
     output->mark_output(true);
 
-    // Bind weight before compile; data in [out, in] row-major layout
+    // Bind weight before compile; data in [out, in] contiguous layout
     std::vector<float> weight_data(4 * 3);
     for (Index i = 0; i < 12; ++i)
         weight_data[i] = 0.1f * static_cast<float>(i + 1);

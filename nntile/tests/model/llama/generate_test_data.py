@@ -32,7 +32,7 @@ reference bundles). ``attention`` / ``attention_gqa`` use
 Attention ``q_weight`` / ``k_weight`` / ``v_weight`` / ``o_weight`` are the
 same numeric values as HuggingFace ``Linear`` weights, reshaped to the 3D/4D
 layouts expected by the graph module, then passed through :func:`as_float32`.
-So byte layout matches NNTile C-order tiles. PyTorch runs forward and backward
+So byte layout matches NNTile graph tiles. PyTorch runs forward and backward
 with the **original** HF weights (no in-place Q/K rewrite).
 
 For ``attention`` / ``attention_gqa`` blocks, Q/K/V/O weights use the same
@@ -46,7 +46,7 @@ the first half-channels of ``LlamaRotaryEmbedding`` cos/sin in
 
 Optional causal self-attention matches ``test_llama_attention``: additive
 ``attention_mask`` from the upper-triangular bool pattern; the graph tests
-load ``attn_mask`` as float32 ``(seq, seq)`` in C-order (1 = keep
+load ``attn_mask`` as float32 ``(seq, seq)`` in graph (1 = keep
 logits), converted to BOOL in C++ for ``sdpa_eager`` masking.
 
 Extra MHA/GQA safetensors (identity RoPE / causal / both) are written by
@@ -67,7 +67,7 @@ The ``mlp`` block likewise writes ``llama_mlp.json`` next to
 counts, ``sequence_length``, ``batch``, tolerances) for ``test_llama_mlp``.
 
 The ``decoder`` / ``decoder_gqa`` bundles add ``rope_cos`` / ``rope_sin`` in
-the same layout as the attention tests (first half-channels, C-order),
+the same layout as the attention tests (first half-channels, graph),
 plus ``llama_decoder.json`` / ``llama_decoder_gqa.json`` for
 ``test_llama_decoder``.
 
@@ -198,7 +198,7 @@ def _linear(linear: torch.nn.Linear) -> np.ndarray:
 
 
 def _reverse_axes(arr: np.ndarray) -> np.ndarray:
-    """Map PT head layout to graph virtual C-order by reversing axis labels."""
+    """Map PT head layout to graph virtual graph by reversing axis labels."""
     axes = tuple(range(arr.ndim - 1, -1, -1))
     return as_float32(np.asarray(arr, dtype=np.float32).transpose(axes))
 
@@ -225,7 +225,7 @@ def _rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
 def _attention_weight_arrays(
     attn: PtAttention, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """HF Q/K/V/O reshaped to graph ``LlamaAttention`` C-order layouts."""
+    """HF Q/K/V/O reshaped to graph ``LlamaAttention`` graph layouts."""
     q = attn.q_proj.weight.detach().numpy()
     k = attn.k_proj.weight.detach().numpy()
     v = attn.v_proj.weight.detach().numpy()

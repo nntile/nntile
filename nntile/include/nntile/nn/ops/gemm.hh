@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/nn/ops/gemm.hh
- * NNGraph GEMM autograd operation (virtual C-order API).
+ * NNGraph GEMM autograd operation (virtual graph API).
  *
  * @version 1.1.0
  * */
@@ -24,11 +24,11 @@
 namespace nntile
 {
 
-//! Generic GEMM on virtual C-order shapes.
+//! Generic GEMM on virtual graph shapes.
 //!
 //! ``trans_a`` / ``trans_b`` transpose the first ``ndim`` axes of operands
 //! ``a`` / ``b``.  Lowers to ``tensor::gemm(b, a, trans_b, trans_a, ndim,
-//! batch_ndim)`` (operands and transpose flags swapped for C-order labels).
+//! batch_ndim)`` (operands and transpose flags swapped for graph labels).
 struct NNGemmOp : NNGraph::OpNode
 {
     Scalar alpha;
@@ -61,7 +61,7 @@ struct NNGemmOp : NNGraph::OpNode
     void backward() const override;
 };
 
-//! Generic GEMM: ``y = alpha * op(a) @ op(b)`` on virtual C-order shapes.
+//! Generic GEMM: ``y = alpha * op(a) @ op(b)`` on virtual graph shapes.
 NNGraph::TensorNode *gemm(NNGraph::TensorNode *a,
     NNGraph::TensorNode *b,
     Scalar alpha,

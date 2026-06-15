@@ -238,7 +238,7 @@ int main(int argc, char **argv)
     {
         if (j > 0)
             std::cout << ", ";
-        // Column-major: element [b, j] at offset b + j * batch_size
+        // Graph bind layout: element [b, j] at offset b + j * batch_size
         std::cout << out_data[static_cast<std::size_t>(0 + j * batch_size)];
     }
     std::cout << "]\n";

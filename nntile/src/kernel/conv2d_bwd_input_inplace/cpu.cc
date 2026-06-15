@@ -8,7 +8,7 @@
  *
  * @file src/kernel/conv2d_bwd_input_inplace/cpu.cc
  * Backward 2D-Convolution of two tensors in WHCN format to get grad of input
- * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
+ * WHCN tile labels match NCHW PyTorch when axis labels are reversed
  *
  * @version 1.1.0
  * */

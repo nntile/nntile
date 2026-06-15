@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file nntile/tests/model/test_safetensors_nntile_layout.hh
- * Map SafeTensors payload (C-order) to NNTile bind_data layout.
+ * Map SafeTensors payload (graph) to NNTile bind_data layout.
  *
  * @version 1.1.0
  * */
@@ -32,7 +32,7 @@ inline Index shape_volume(const std::vector<std::int64_t> &shape)
     return vol;
 }
 
-//! SafeTensors and NNTile both store tensors in C-order; copy bytes directly.
+//! SafeTensors and NNTile both store tensors in graph; copy bytes directly.
 template <typename T>
 inline void copy_safetensors_to_nntile_layout(
     const std::uint8_t *raw,

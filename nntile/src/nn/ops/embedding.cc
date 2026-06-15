@@ -41,9 +41,9 @@ Index normalize_embedding_c_axis(Index axis, Index index_ndim)
     return c_axis;
 }
 
-Index embedding_fortran_axis(Index c_axis, Index index_ndim)
+Index embedding_storage_axis(Index c_axis, Index index_ndim)
 {
-    return nn::c_axis_to_fortran(c_axis, index_ndim + 1);
+    return nn::graph_axis_to_storage(c_axis, index_ndim + 1);
 }
 
 } // anonymous namespace
@@ -58,9 +58,9 @@ NNGraph::TensorNode *NNEmbeddingOp::forward()
     NNGraph *graph = vocab->graph();
     bool out_requires_grad = any_input_requires_grad({vocab});
 
-    const Index f_axis = embedding_fortran_axis(axis, index->ndim());
+    const Index storage_axis = embedding_storage_axis(axis, index->ndim());
     TensorGraph::TensorNode *embed_data =
-        tensor::embedding(index->data(), vocab->data(), f_axis);
+        tensor::embedding(index->data(), vocab->data(), storage_axis);
     NNGraph::TensorNode *embed = graph->tensor(embed_data, out_requires_grad);
     outputs_ = {embed};
     return embed;
@@ -90,9 +90,9 @@ void NNEmbeddingOp::backward() const
     {
         tensor::clear(grad_vocab->data());
     }
-    const Index f_axis = embedding_fortran_axis(axis, index->ndim());
+    const Index storage_axis = embedding_storage_axis(axis, index->ndim());
     tensor::embedding_backward(
-        index->data(), grad_out->data(), grad_vocab->data(), f_axis, redux);
+        index->data(), grad_out->data(), grad_vocab->data(), storage_axis, redux);
 }
 
 NNGraph::TensorNode *embedding(NNGraph::TensorNode *index,

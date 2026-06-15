@@ -8,7 +8,7 @@ Same convention as GPT-2 and Llama: types `Gptneo*` (e.g. `GptneoModel`), direct
 
 ## Layout
 
-Tensors use **(batch, seq, hidden_size)** in C-order unless noted. Embeddings take `input_ids` and `position_ids` with shape `(batch, seq)`. `GptneoCausal` outputs logits `(batch, seq, vocab_size)`.
+Tensors use **(batch, seq, hidden_size)** in graph unless noted. Embeddings take `input_ids` and `position_ids` with shape `(batch, seq)`. `GptneoCausal` outputs logits `(batch, seq, vocab_size)`.
 
 ## Test Coverage
 

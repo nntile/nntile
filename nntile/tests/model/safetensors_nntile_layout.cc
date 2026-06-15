@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file nntile/tests/model/safetensors_nntile_layout.cc
- * Unit tests for SafeTensors C-order → NNTile layout conversion.
+ * Unit tests for SafeTensors graph → NNTile layout conversion.
  *
  * @version 1.1.0
  * */
@@ -17,7 +17,7 @@ using nntile::test::safetensors_nntile_layout::
     copy_safetensors_to_nntile_layout;
 
 TEST_CASE(
-    "copy_safetensors_to_nntile_layout copies 2-D C-order payload",
+    "copy_safetensors_to_nntile_layout copies 2-D graph payload",
     "[model][layout]")
 {
     const std::vector<std::int64_t> shape{2, 3};
@@ -37,7 +37,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "copy_safetensors_to_nntile_layout copies 3-D C-order payload",
+    "copy_safetensors_to_nntile_layout copies 3-D graph payload",
     "[model][layout]")
 {
     const std::vector<std::int64_t> shape{2, 2, 2};

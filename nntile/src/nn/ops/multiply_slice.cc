@@ -47,10 +47,10 @@ NNGraph::TensorNode *NNMultiplySliceOp::forward()
     TensorGraph::TensorNode *slice_data = slice->data();
     TensorGraph::TensorNode *tensor_data = tensor->data();
     bool out_requires_grad = any_input_requires_grad({slice, tensor});
-    const Index f_axis = nn::c_axis_to_fortran(axis, tensor->ndim());
+    const Index storage_axis = nn::graph_axis_to_storage(axis, tensor->ndim());
 
     TensorGraph::TensorNode *dst = tensor::copy(tensor_data);
-    tensor::multiply_slice(alpha, slice_data, dst, f_axis);
+    tensor::multiply_slice(alpha, slice_data, dst, storage_axis);
 
     NNGraph::TensorNode *output = graph->tensor(dst, out_requires_grad);
     outputs_ = {output};
@@ -75,20 +75,20 @@ void NNMultiplySliceOp::backward() const
         auto [grad_slice, is_first] =
             graph->get_or_create_grad(slice, nn_grad_slot_name(slice));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        const Index f_axis = nn::c_axis_to_fortran(axis, tensor->ndim());
+        const Index storage_axis = nn::graph_axis_to_storage(axis, tensor->ndim());
         TensorGraph::TensorNode *buf =
             tensor::multiply(grad_out->data(), tensor->data(), 1.0);
         tensor::sum_slice(
-            buf, grad_slice->data(), f_axis, sum_slice_redux, alpha, grad_beta);
+            buf, grad_slice->data(), storage_axis, sum_slice_redux, alpha, grad_beta);
     }
     if (tensor != nullptr && tensor->requires_grad())
     {
         auto [grad_tensor, is_first] =
             graph->get_or_create_grad(tensor, nn_grad_slot_name(tensor));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        const Index f_axis = nn::c_axis_to_fortran(axis, tensor->ndim());
+        const Index storage_axis = nn::graph_axis_to_storage(axis, tensor->ndim());
         TensorGraph::TensorNode *buf = tensor::copy(grad_out->data());
-        tensor::multiply_slice(alpha, slice->data(), buf, f_axis);
+        tensor::multiply_slice(alpha, slice->data(), buf, storage_axis);
         tensor::add_inplace(1.0, buf, grad_beta, grad_tensor->data());
     }
 }

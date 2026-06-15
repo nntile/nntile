@@ -30,7 +30,7 @@ Index gptneox_rope_dim(GptneoxConfig const& config);
 void rope_inv_freq_gptneox(GptneoxConfig const& config, float* out);
 
 //! Fill ``sin`` and ``cos`` for ``rope`` in layout
-//! ``(n_batch, n_seq, rope_dim/2)`` (C-order).
+//! ``(n_batch, n_seq, rope_dim/2)`` (graph).
 void rope_sin_cos_from_position_ids(
     GptneoxConfig const& config,
     std::int64_t const* position_ids,

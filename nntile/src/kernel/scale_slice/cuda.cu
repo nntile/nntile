@@ -108,7 +108,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * @param[out] dst_: Output contiguous m-by-k-by-n array
  * */
 {
-    // Both source and destination are Fortran-contiguous
+    // Both source and destination are tile-storage contiguous
     // Optimized version for large m and small n and k
     if(m > 1024 or n > 4 or k > 4)
     {

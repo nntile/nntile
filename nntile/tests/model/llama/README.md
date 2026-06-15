@@ -6,7 +6,7 @@ RMSNorm is a shared module in `nntile::module` (see `include/nntile/module/rms_n
 
 ## Layout
 
-All tensors use **(batch, seq, hidden_size)** in C-order. The embedding takes input_ids **(batch, seq)** and produces **(batch, seq, hidden_size)**. LlamaCausal outputs logits **(batch, seq, vocab_size)**.
+All tensors use **(batch, seq, hidden_size)** in graph. The embedding takes input_ids **(batch, seq)** and produces **(batch, seq, hidden_size)**. LlamaCausal outputs logits **(batch, seq, vocab_size)**.
 
 ## Test Coverage
 

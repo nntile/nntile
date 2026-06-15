@@ -9,7 +9,7 @@
  * @file include/nntile/model/gptneo/gptneo_attention.hh
  * GPT-Neo attention - self-attention with causal mask, output projection bias.
  *
- * Input layout: (batch, seq, hidden_size) in C-order.
+ * Input layout: (batch, seq, hidden_size) in graph.
  * Uses standard multi-head attention: Q/K/V projections, SDPA, output projection.
  *
  * @version 1.1.0

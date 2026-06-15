@@ -80,7 +80,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    // Both source and destination are Fortran-contiguous
+    // Both source and destination are tile-storage contiguous
     dim3 threads(std::min(int(k), 1024), std::min(int(m), 1),
             std::min(int(n), 1));
     dim3 blocks((k+threads.x-1)/threads.x, (m+threads.y-1)/threads.y,

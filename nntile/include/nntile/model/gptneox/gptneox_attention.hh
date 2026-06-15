@@ -9,7 +9,7 @@
  * @file include/nntile/model/gptneox/gptneox_attention.hh
  * GPT-NeoX attention - self-attention with RoPE and SDPA.
  *
- * Input layout: (batch, seq, hidden_size) in C-order.
+ * Input layout: (batch, seq, hidden_size) in graph.
  * GPT-NeoX uses full attention heads (no GQA).
  *
  * @version 1.1.0

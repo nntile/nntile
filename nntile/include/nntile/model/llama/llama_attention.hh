@@ -9,7 +9,7 @@
  * @file include/nntile/model/llama/llama_attention.hh
  * LlamaAttention - self-attention with RoPE and sdpa_eager.
  *
- * Input layout: (batch, seq, hidden_size) in C-order.
+ * Input layout: (batch, seq, hidden_size) in graph.
  * Mimics wrappers/python/nntile/model/llama_attention.py::forward_async():
  * - Q/K/V via gemm with 3D/4D weight matrices (not Linear)
  *
@@ -72,9 +72,9 @@ public:
     //! for causal
     //! LM.
     //! @param k_cache Optional KV cache for K
-    //!     (n_head_kv, batch, max_seq, head_size) virtual C-order
+    //!     (n_head_kv, batch, max_seq, head_size) virtual graph
     //! @param v_cache Optional KV cache for V
-    //!     (n_head_kv, batch, max_seq, head_size) virtual C-order
+    //!     (n_head_kv, batch, max_seq, head_size) virtual graph
     //! @param cache_len Current valid length in cache (0 = prefill, >0 = decode)
     NNGraph::TensorNode* forward(
         NNGraph::TensorNode* x,

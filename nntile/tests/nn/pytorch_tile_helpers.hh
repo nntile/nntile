@@ -50,7 +50,7 @@ inline void nn_pytorch_tile_heterogeneous_1d_len4(NNGraph::TensorNode* t)
     t->data()->axis(0)->set_tiling(std::vector<Index>{2, 2});
 }
 
-//! Logits (batch, nclasses) = (7, 5) C-order virtual; physical layout [5, 7].
+//! Logits (batch, nclasses) = (7, 5) graph virtual; physical layout [5, 7].
 //! Class axis (physical 0) is a single tile: `subtract_indexed_outputs` / its kernel use
 //! global class ids as row indices with `n_labels = dst.shape[0]` per tile
 //! (see `src/tensor/subtract_indexed_outputs.cc` / `dst.shape[0] == basetile_shape[0]`).
@@ -60,7 +60,7 @@ inline void nn_pytorch_tile_logits_5x7(NNGraph::TensorNode* x)
     x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
 }
 
-//! GEMM A (7,6) * B (6,7) C-order virtual; physical A [6,7], B [7,6].
+//! GEMM A (7,6) * B (6,7) graph virtual; physical A [6,7], B [7,6].
 inline void nn_pytorch_tile_gemm_operands_6_7_6(
     NNGraph::TensorNode* a, NNGraph::TensorNode* b)
 {

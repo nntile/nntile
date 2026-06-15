@@ -130,11 +130,11 @@ Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 
 GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
-- Virtual C-order labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
-  uses Fortran storage via `c_shape_to_fortran`.
-- NN API: `gemm(a, b, trans_a, trans_b, ...)` on virtual C-order shapes.
+- Virtual graph labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
+  uses tile storage shapes via `graph_shape_to_storage`.
+- NN API: `gemm(a, b, trans_a, trans_b, ...)` on virtual graph shapes.
   Lowers to `tensor::gemm(b, a, trans_b, trans_a, ...)` (operands and
-  transpose flags swapped for C-order labels).
+  transpose flags swapped for graph labels).
 - `trans_a` / `trans_b` transpose the first ``ndim`` axes of ``a`` / ``b``.
 - `ndim` is the number of contraction (K) dimensions.
 - `batch_ndim` is the number of **trailing** batch dimensions (must match between
@@ -146,23 +146,23 @@ Example usages (not special cases in the op itself):
 - Attention Q/K/V call `gemm(x, w, trans_a=false, ...)` with weight
   `[hidden, head_size, n_heads]` and a following `transpose` to SDPA layout.
 
-### Virtual C-order shape labels
+### Virtual graph shape labels
 
-NNGraph uses **virtual C-order** shape labels on `TensorNode::shape()` while
-physical tile storage remains Fortran (column-major). Helpers in
+NNGraph uses **virtual graph** shape labels on `TensorNode::shape()` while
+tile/tensor storage uses reversed axis labels. Helpers in
 `include/nntile/nn/shape_layout.hh` convert between the two:
 
-- `nn::c_shape_to_fortran(c_shape)` — user/C label → physical Fortran shape
-- `nn::fortran_shape_to_c(f_shape)` — physical Fortran → virtual C label
-- `nn::c_axis_to_fortran(c_axis, ndim)` — C axis (0 = outermost) → Fortran axis
+- `nn::graph_shape_to_storage(graph_shape)` — graph label → tile storage shape
+- `nn::storage_shape_to_graph(storage_shape)` — tile storage → graph label
+- `nn::graph_axis_to_storage(graph_axis, ndim)` — graph axis (0 = outermost) → storage axis
 
 Reduction and layout ops (`add_fiber`, `transpose`, `layer_norm`, `softmax`,
-etc.) take **C-order axis indices** at the NNGraph API and translate internally.
+etc.) take **graph axis indices** at the NNGraph API and translate internally.
 
 #### Model tensor conventions
 
 Graph model families (GPT-2, BERT, GPT-Neo, GPT-NeoX, Llama, RoBERTa, T5) use
-these virtual C-order layouts:
+these virtual graph layouts:
 
 | Role | Shape | Notes |
 |------|-------|-------|
@@ -173,9 +173,9 @@ these virtual C-order layouts:
 | `position_ids` | `[batch, seq]` | Position indices |
 | Attention mask | `[seq, seq]` or `[batch, seq, seq]` | Bool or float mask |
 
-Safetensors metadata records C-order shapes (e.g. linear weights `{out, in}`);
-payload bytes are unchanged from PyTorch via the test `fortran_order()` helper
-(ravel in F-order, reshape in C-order so flat bytes match row-major PyTorch).
+Safetensors metadata records graph shapes (e.g. linear weights `{out, in}`);
+payload bytes are unchanged from PyTorch via the test `as_bind_float32()` helper
+(ravel in F-order, reshape in graph so flat bytes match contiguous PyTorch).
 
 #### Example: GPT-2 attention
 
@@ -185,7 +185,7 @@ With activations `x` shaped `[batch, seq, hidden]` and Q weight
 - `gemm(x, w_q, alpha, false, false, ndim=1, batch_ndim=0)` — Q projection
 - `transpose(q_proj, 1)` — head layout for SDPA
 - `add_fiber(..., q_bias, ..., axis=3, batch_ndim=1)` — per-head bias
-  (`q_bias` virtual C-order `[n_heads, head_size]`)
+  (`q_bias` virtual graph `[n_heads, head_size]`)
 - `sdpa_eager(q, k, v, mask, batch_ndim=2, redux=0)`
 - `transpose(attn_out, 3)` — layout for output projection
 - `gemm(attn_t, w_o, ..., false, false, ndim=2, batch_ndim=0)` — output projection

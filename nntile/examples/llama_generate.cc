@@ -309,7 +309,7 @@ static std::string read_file_trimmed(const std::string &path)
 static std::int64_t argmax_last_position(
     const std::vector<float> &logits, Index vocab_size, Index seq_len)
 {
-    // logits layout: (vocab, seq, batch=1) column-major
+    // logits layout: (vocab, seq, batch=1) with graph shape labels
     // position s occupies offsets [s*vocab, (s+1)*vocab)
     auto offset = static_cast<std::size_t>((seq_len - 1) * vocab_size);
     auto begin = logits.begin() + static_cast<std::ptrdiff_t>(offset);

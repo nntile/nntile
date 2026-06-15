@@ -75,7 +75,7 @@ public:
     //! @param name Layer name (used to generate unique tensor names)
     //! @param num_embeddings Size of the vocabulary
     //! @param embed_dim Size of each embedding vector
-    //! @param axis C-order axis where ``embed_dim`` is inserted (default: append)
+    //! @param axis graph axis where ``embed_dim`` is inserted (default: append)
     //! @param redux Reduction mode for backward (0=no reduction, 1=reduce)
     //! @param dtype Data type for tensors
     Embedding(
@@ -102,7 +102,7 @@ public:
     //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param vocab_tensor Existing vocab tensor [num_embeddings, embed_dim]
-    //! @param axis C-order axis where ``embed_dim`` is inserted
+    //! @param axis graph axis where ``embed_dim`` is inserted
     //! @param redux Reduction mode for backward
     Embedding(
         NNGraph* graph,
@@ -127,8 +127,8 @@ public:
     );
 
     //! Get vocab data in NNTile format for runtime.bind_data().
-    //! Converts PyTorch [num_embeddings, embed_dim] row-major to physical
-    //! Fortran buffer for C-order vocab shape [num_embeddings, embed_dim].
+    //! Converts PyTorch [num_embeddings, embed_dim] contiguous to physical
+    //! storage buffer for graph vocab shape [num_embeddings, embed_dim].
     static std::vector<float> vocab_data_from_pytorch(const torch::Tensor& w);
 #endif
 
@@ -136,7 +136,7 @@ public:
         NNGraph::TensorNode* index);
 
     //! Bind vocab (weight) data for Runtime::compile(). Data must be in
-    //! [num_embeddings, embed_dim] row-major layout.
+    //! [num_embeddings, embed_dim] contiguous layout.
     //! Moves data into the graph; call std::move() to avoid copy.
     void bind_weight(std::vector<std::uint8_t> data);
 

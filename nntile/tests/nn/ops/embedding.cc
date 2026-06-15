@@ -26,7 +26,7 @@
 using namespace nntile;
 using namespace nntile;
 
-// Virtual C-order: insert embed_dim at ``c_axis`` (default append).
+// Virtual graph: insert embed_dim at ``c_axis`` (default append).
 static std::vector<Index> embed_output_shape(
     const std::vector<Index> &index_shape,
     const std::vector<Index> &vocab_shape,

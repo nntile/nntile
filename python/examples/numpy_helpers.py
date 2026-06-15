@@ -22,7 +22,7 @@ def fill_arange_position_ids(
 
 
 def sdpa_causal_mask_bool_fill(n_seq: int) -> np.ndarray:
-    """BOOL causal mask for ``[seq, seq]`` NNGraph bind (C-order).
+    """BOOL causal mask for ``[seq, seq]`` NNGraph bind (graph).
 
     Logical ``mask[key, query] = (key <= query)``; stored as ``mask.T`` for
     bind layout compatible with legacy shape labels.

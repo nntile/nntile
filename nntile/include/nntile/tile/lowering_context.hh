@@ -25,7 +25,7 @@
 namespace nntile
 {
 
-//! Maps each tensor data node to tile nodes in row-major grid order.
+//! Maps each tensor data node to tile nodes in slowest-varying-first grid order.
 using TensorNodeToTileMap =
     std::map<const TensorGraph::TensorNode*, std::vector<TileGraph::TileNode*>>;
 

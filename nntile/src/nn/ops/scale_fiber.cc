@@ -42,11 +42,11 @@ NNGraph::TensorNode *NNScaleFiberOp::forward()
     NNGraph *graph = src->graph();
     bool out_requires_grad = any_input_requires_grad({src});
     const Index ndim = static_cast<Index>(dst_shape.size());
-    const Index f_axis = nn::c_axis_to_fortran(axis, ndim);
-    const std::vector<Index> f_dst_shape =
-        nn::c_shape_to_fortran(dst_shape);
+    const Index storage_axis = nn::graph_axis_to_storage(axis, ndim);
+    const std::vector<Index> storage_dst_shape =
+        nn::graph_shape_to_storage(dst_shape);
     TensorGraph::TensorNode *output_data = tensor::scale_fiber(
-        alpha, src->data(), f_dst_shape, f_axis, batch_ndim);
+        alpha, src->data(), storage_dst_shape, storage_axis, batch_ndim);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
@@ -72,10 +72,10 @@ void NNScaleFiberOp::backward() const
             graph->get_or_create_grad(src, nn_grad_slot_name(src));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
         const Index ndim = static_cast<Index>(dst_shape.size());
-        const Index f_axis = nn::c_axis_to_fortran(axis, ndim);
+        const Index storage_axis = nn::graph_axis_to_storage(axis, ndim);
         tensor::sum_fiber(grad_out->data(),
             grad_src->data(),
-            f_axis,
+            storage_axis,
             batch_ndim,
             sum_fiber_redux,
             alpha,

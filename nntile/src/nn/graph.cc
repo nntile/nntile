@@ -244,9 +244,9 @@ void NNGraph::reset_phase_seal_cursor()
 NNGraph::TensorNode *NNGraph::tensor(
     std::vector<Index> shape, DataType dtype, bool requires_grad)
 {
-    std::vector<Index> f_shape = nn::c_shape_to_fortran(shape);
+    std::vector<Index> storage_shape = nn::graph_shape_to_storage(shape);
     TensorGraph::TensorNode *data =
-        tensor_graph_.data(std::move(f_shape), dtype);
+        tensor_graph_.data(std::move(storage_shape), dtype);
     auto node = std::make_unique<TensorNode>(this, data, requires_grad);
     node->c_shape_ = std::move(shape);
     TensorNode *node_ptr = node.get();

@@ -39,9 +39,9 @@ NNGraph::TensorNode *NNConcatOp::forward()
     }
     NNGraph *graph = a->graph();
     const bool out_requires_grad = any_input_requires_grad({a, b});
-    const Index f_axis = nn::c_axis_to_fortran(axis, a->ndim());
+    const Index storage_axis = nn::graph_axis_to_storage(axis, a->ndim());
     TensorGraph::TensorNode *out_data =
-        tensor::concat(a->data(), b->data(), f_axis);
+        tensor::concat(a->data(), b->data(), storage_axis);
     NNGraph::TensorNode *out = graph->tensor(out_data, out_requires_grad);
     outputs_ = {out};
     return out;

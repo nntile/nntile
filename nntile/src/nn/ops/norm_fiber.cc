@@ -75,9 +75,9 @@ NNGraph::TensorNode *NNNormFiberOp::forward()
         graph->tensor(std::move(base_shape), x->dtype(), false);
     tensor::clear(base->data());
     constexpr Scalar beta_fresh = 0.0; // NNGraph always outputs fresh data
-    const Index f_axis = nn::c_axis_to_fortran(axis, ndim);
+    const Index storage_axis = nn::graph_axis_to_storage(axis, ndim);
     TensorGraph::TensorNode *y_data = tensor::norm_fiber(
-        alpha, x->data(), beta_fresh, base->data(), f_axis, batch_ndim, redux);
+        alpha, x->data(), beta_fresh, base->data(), storage_axis, batch_ndim, redux);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     return y;

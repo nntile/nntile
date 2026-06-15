@@ -29,7 +29,7 @@ namespace nntile::model::llama
 void rope_inv_freq_default(LlamaConfig const& config, float* out);
 
 //! Fill ``sin`` and ``cos`` for ``rope`` in layout ``(n_batch, n_seq,
-//! head_dim/2)`` (C-order).
+//! head_dim/2)`` (graph).
 //!
 //! ``position_ids`` matches NNTile ``input_ids``: logical shape
 //! ``(n_batch, n_seq)``; element ``(b, s)`` at

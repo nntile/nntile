@@ -122,8 +122,8 @@ public:
     );
 
     //! Get weight data in NNTile format for runtime.bind_data().
-    //! Converts PyTorch [out, in] row-major to physical Fortran buffer for
-    //! C-order weight shape [out, in].
+    //! Converts PyTorch [out, in] contiguous to physical storage buffer for
+    //! graph weight shape [out, in].
     static std::vector<float> weight_data_from_pytorch(const torch::Tensor& w);
 
     //! Get bias data in NNTile format for runtime.bind_data().

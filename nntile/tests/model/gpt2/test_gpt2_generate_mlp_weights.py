@@ -11,7 +11,7 @@
 
 """Guard MLP weight conversion in ``generate_test_data.py``.
 
-Graph ``Linear`` / ``Mlp`` expect C-order ``[out, in]`` weights. HuggingFace
+Graph ``Linear`` / ``Mlp`` expect graph ``[out, in]`` weights. HuggingFace
 GPT-2 ``Conv1D`` stores ``(in, out)``; transpose to match graph layout.
 """
 

@@ -88,7 +88,7 @@ void set_rope_heterogeneous_tiling(NNGraph::TensorNode *sin,
 }
 } // namespace
 
-// RoPE requires src last dim == 2*sin last dim (C-order paired axis).
+// RoPE requires src last dim == 2*sin last dim (graph paired axis).
 static std::vector<Index> make_src_shape(const std::vector<Index> &sin_shape)
 {
     std::vector<Index> src_shape = sin_shape;

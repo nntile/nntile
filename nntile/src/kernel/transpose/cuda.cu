@@ -95,7 +95,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Scalar alpha, const T *src,
  * @param[out] dst: Destination of the add operation
  * */
 {
-    // Both source and destination are Fortran-contiguous
+    // Both source and destination are tile-storage contiguous
     dim3 threads(256);
     if(m < n)
     {
