@@ -73,6 +73,7 @@ inline void require_relative_frobenius_error(const std::vector<float>& a,
 #include <torch/torch.h>
 
 #include <nntile/common.hh>
+#include <nntile/nn/shape_layout.hh>
 
 namespace nntile::test
 {
@@ -226,6 +227,27 @@ inline std::vector<T> permute_rowmajor(const std::vector<T>& data,
         result[out_idx] = data[in_idx];
     }
     return result;
+}
+
+//! Physical Fortran dense buffer -> virtual C-order row-major (PyTorch layout).
+template<typename T>
+inline std::vector<T> fortran_buffer_to_c_rowmajor(
+    const std::vector<T>& data,
+    const std::vector<Index>& c_shape)
+{
+    const std::vector<Index> f_shape = nntile::nn::c_shape_to_fortran(c_shape);
+    const std::vector<T> f_as_rowmajor = colmajor_to_rowmajor(data, f_shape);
+    const Index ndim = static_cast<Index>(c_shape.size());
+    if(ndim == 0)
+    {
+        return f_as_rowmajor;
+    }
+    std::vector<Index> perm(static_cast<size_t>(ndim));
+    for(Index i = 0; i < ndim; ++i)
+    {
+        perm[static_cast<size_t>(i)] = ndim - 1 - i;
+    }
+    return permute_rowmajor(f_as_rowmajor, f_shape, perm);
 }
 
 } // namespace nntile::test

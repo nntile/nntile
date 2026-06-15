@@ -16,7 +16,6 @@
 #include "nntile/model/llama/llama_model.hh"
 
 #include "nntile/io/safetensors.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -32,8 +31,6 @@ LlamaModel::LlamaModel(NNGraph *graph,
         name + "_embed_tokens",
         config.vocab_size,
         config.hidden_size,
-        2,
-        0,
         dtype)
     ,
     norm_(graph,
@@ -76,7 +73,6 @@ NNGraph::TensorNode *LlamaModel::forward(
     Index cache_len = kv_cache ? kv_cache->len() : 0;
 
     NNGraph::TensorNode *x = embed_tokens_.forward(input_ids);
-    x = transpose(x, 2);
     x->set_name(tensor_name("embed_out"));
 
     for (size_t i = 0; i < layers_.size(); ++i)

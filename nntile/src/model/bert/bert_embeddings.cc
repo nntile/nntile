@@ -16,7 +16,6 @@
 
 #include "nntile/model/bert/bert_embeddings.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -29,16 +28,13 @@ BertEmbeddings::BertEmbeddings(NNGraph* graph,
                                DataType dtype)
     : module::Module(graph, name)
     , word_embeddings_(graph, name + "_word",
-                       config.vocab_size, config.hidden_size,
-                       2, 0, dtype)
+                       config.vocab_size, config.hidden_size, dtype)
     , position_embeddings_(graph, name + "_position",
                            config.max_position_embeddings,
-                           config.hidden_size,
-                           2, 0, dtype)
+                           config.hidden_size, dtype)
     , token_type_embeddings_(graph, name + "_token_type",
                             config.type_vocab_size,
-                            config.hidden_size,
-                            2, 0, dtype)
+                            config.hidden_size, dtype)
     , layer_norm_(graph, name + "_ln",
                   config.hidden_size, 2, config.layer_norm_eps, 0, dtype)
     , config_(config)
@@ -75,10 +71,7 @@ NNGraph::TensorNode* BertEmbeddings::forward(
         add(1.0, word, 1.0, token_type);
     NNGraph::TensorNode* embed =
         add(1.0, wt, 1.0, position);
-    // See Gpt2Model: embedding virtual shape is [hidden, batch, seq] until the
-    // embedding op emits [batch, seq, hidden] directly.
-    NNGraph::TensorNode* x = transpose(embed, 2);
-    return layer_norm_.forward(x);
+    return layer_norm_.forward(embed);
 }
 
 std::string BertEmbeddings::repr() const

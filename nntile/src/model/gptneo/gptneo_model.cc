@@ -15,7 +15,6 @@
 
 #include "nntile/model/gptneo/gptneo_model.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -28,11 +27,9 @@ GptneoModel::GptneoModel(NNGraph* graph,
                          DataType dtype)
     : module::Module(graph, name)
     , wte_(graph, name + "_wte",
-           config.vocab_size, config.hidden_size,
-           2, 0, dtype)
+           config.vocab_size, config.hidden_size, dtype)
     , wpe_(graph, name + "_wpe",
-           config.max_position_embeddings, config.hidden_size,
-           2, 0, dtype)
+           config.max_position_embeddings, config.hidden_size, dtype)
     , norm_(graph, name + "_norm",
             config.hidden_size, 2, config.layer_norm_eps, 0, dtype)
     , config_(config)
@@ -74,7 +71,6 @@ NNGraph::TensorNode* GptneoModel::forward(
     NNGraph::TensorNode* pos_embed = wpe_.forward(position_ids);
     NNGraph::TensorNode* x =
         add(1.0, token_embed, 1.0, pos_embed);
-    x = transpose(x, 2);
     x->set_name(tensor_name("embed_out"));
 
     for(Index i = 0; i < config_.num_hidden_layers; ++i)

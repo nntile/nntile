@@ -76,11 +76,23 @@ TensorGraph::TensorNode *embedding(
             "embedding: tensors must belong to same graph");
     if (index->dtype() != DataType::INT64)
         throw std::invalid_argument("embedding: index must have INT64 dtype");
-    // Physical Fortran shape: index.shape + embed_dim (vocab axis 0).
-    std::vector<Index> embed_shape = index->shape();
     if (vocab->ndim() != 2)
         throw std::invalid_argument("embedding: vocab must be 2D");
+    if (axis < 0 || axis > index->ndim())
+        throw std::invalid_argument("embedding: axis out of range");
+    // Physical Fortran shape: insert vocab.dim(0) at ``axis``.
+    const auto &idx_shape = index->shape();
+    std::vector<Index> embed_shape;
+    embed_shape.reserve(static_cast<size_t>(index->ndim() + 1));
+    for (Index i = 0; i < axis; ++i)
+    {
+        embed_shape.push_back(idx_shape[static_cast<size_t>(i)]);
+    }
     embed_shape.push_back(vocab->dim(0));
+    for (Index i = axis; i < index->ndim(); ++i)
+    {
+        embed_shape.push_back(idx_shape[static_cast<size_t>(i)]);
+    }
     TensorGraph::TensorNode *embed =
         vocab->graph()->data(std::move(embed_shape), vocab->dtype());
 
@@ -103,7 +115,7 @@ void embedding(TensorGraph::TensorNode *index,
     if (vocab->dtype() != embed->dtype())
         throw std::invalid_argument(
             "embedding: vocab and embed must have same dtype");
-    validate_embedding_shape_and_merge(embed, index, vocab, "embedding");
+    validate_embedding_shape_and_merge(embed, index, vocab, axis, "embedding");
 
     auto op = std::make_shared<TensorEmbeddingOp>(index, vocab, embed, axis);
     embed->graph()->add_op(op);

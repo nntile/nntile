@@ -14,7 +14,6 @@
  * */
 
 #include "nntile/model/gptneox/gptneox_model.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -27,8 +26,7 @@ GptneoxModel::GptneoxModel(NNGraph* graph,
                            DataType dtype)
     : module::Module(graph, name)
     , embed_tokens_(graph, name + "_embed_tokens",
-                    config.vocab_size, config.hidden_size,
-                    2, 0, dtype)
+                    config.vocab_size, config.hidden_size, dtype)
     , norm_(graph, name + "_norm",
             config.hidden_size, 2, config.layer_norm_eps, 0, dtype)
     , config_(config)
@@ -60,7 +58,6 @@ NNGraph::TensorNode* GptneoxModel::forward(
     }
 
     NNGraph::TensorNode* x = embed_tokens_.forward(input_ids);
-    x = transpose(x, 2);
     x->set_name(tensor_name("embed_out"));
 
     for(auto& layer : layers_)

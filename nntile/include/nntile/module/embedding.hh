@@ -75,7 +75,7 @@ public:
     //! @param name Layer name (used to generate unique tensor names)
     //! @param num_embeddings Size of the vocabulary
     //! @param embed_dim Size of each embedding vector
-    //! @param axis Axis along which embedding dimension is inserted (default: append)
+    //! @param axis C-order axis where ``embed_dim`` is inserted (default: append)
     //! @param redux Reduction mode for backward (0=no reduction, 1=reduce)
     //! @param dtype Data type for tensors
     Embedding(
@@ -102,7 +102,7 @@ public:
     //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param vocab_tensor Existing vocab tensor [num_embeddings, embed_dim]
-    //! @param axis Axis along which embedding dimension is inserted
+    //! @param axis C-order axis where ``embed_dim`` is inserted
     //! @param redux Reduction mode for backward
     Embedding(
         NNGraph* graph,

@@ -42,11 +42,14 @@ using namespace nntile::module;
 
 static std::vector<Index> embed_output_shape(
     const std::vector<Index> &index_shape,
-    Index embed_dim)
+    Index embed_dim,
+    Index c_axis = -1)
 {
-    std::vector<Index> f_shape = nn::c_shape_to_fortran(index_shape);
-    f_shape.push_back(embed_dim);
-    return nn::fortran_shape_to_c(f_shape);
+    const Index index_ndim = static_cast<Index>(index_shape.size());
+    const Index axis = (c_axis < 0) ? index_ndim : c_axis;
+    std::vector<Index> shape(index_shape.begin(), index_shape.end());
+    shape.insert(shape.begin() + axis, embed_dim);
+    return shape;
 }
 
 TEST_CASE("Embedding ConstructorCreatesParameters", "[module]")
@@ -148,8 +151,8 @@ TEST_CASE("Embedding BackwardCreatesGradients", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
+using nntile::test::fortran_buffer_to_c_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -194,10 +197,20 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(out.size() == 4 * 5 * embed_dim);
     const std::vector<Index> out_shape =
         embed_output_shape({4, 5}, embed_dim);
-    std::vector<float> out_rowmajor =
-        colmajor_to_rowmajor(out, nn::c_shape_to_fortran(out_shape));
-    for (Index i = 0; i < embed_dim; ++i)
-        REQUIRE(std::abs(out_rowmajor[i] - vocab_data[i]) < 1e-5f);
+    std::vector<std::int64_t> index_shape_pt{4, 5};
+    std::vector<std::int64_t> index_rowmajor =
+        fortran_buffer_to_c_rowmajor(index_data, {4, 5});
+    auto index_pt = torch::from_blob(index_rowmajor.data(),
+        index_shape_pt,
+        torch::TensorOptions().dtype(torch::kInt64))
+                        .clone();
+    auto vocab_pt = torch::from_blob(vocab_data.data(),
+        {static_cast<long>(num_embeddings), static_cast<long>(embed_dim)},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                        .clone();
+    auto out_pt = torch::embedding(vocab_pt, index_pt).contiguous();
+    compare_float_vectors(
+        fortran_buffer_to_c_rowmajor(out, out_shape), out_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -237,12 +250,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    const std::vector<Index> f_index_shape =
-        nn::c_shape_to_fortran({batch, seq_len});
-    const std::vector<Index> f_output_shape = nn::c_shape_to_fortran(
-        embed_output_shape({batch, seq_len}, embed_dim));
+    const std::vector<Index> out_shape = embed_output_shape(
+        {batch, seq_len}, embed_dim);
     std::vector<std::int64_t> index_rowmajor =
-        colmajor_to_rowmajor(index_data, f_index_shape);
+        fortran_buffer_to_c_rowmajor(index_data, {batch, seq_len});
     std::vector<std::int64_t> index_shape_pt{batch, seq_len};
     auto index_pt = torch::from_blob(index_rowmajor.data(),
         index_shape_pt,
@@ -250,7 +261,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                         .clone();
     auto out_pt = emb_pt->forward(index_pt);
     compare_float_vectors(
-        colmajor_to_rowmajor(runtime.get_output<float>(output), f_output_shape),
+        fortran_buffer_to_c_rowmajor(runtime.get_output<float>(output), out_shape),
         out_pt);
 }
 

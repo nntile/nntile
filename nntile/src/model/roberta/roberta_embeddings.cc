@@ -14,7 +14,6 @@
 
 #include "nntile/model/roberta/roberta_embeddings.hh"
 #include "nntile/nn/ops/add.hh"
-#include "nntile/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -27,12 +26,10 @@ RobertaEmbeddings::RobertaEmbeddings(NNGraph* graph,
                                      DataType dtype)
     : module::Module(graph, name)
     , word_embeddings_(graph, name + "_word",
-                       config.vocab_size, config.hidden_size,
-                       2, 0, dtype)
+                       config.vocab_size, config.hidden_size, dtype)
     , position_embeddings_(graph, name + "_position",
                            config.max_position_embeddings,
-                           config.hidden_size,
-                           2, 0, dtype)
+                           config.hidden_size, dtype)
     , layer_norm_(graph, name + "_ln",
                   config.hidden_size, 2, config.layer_norm_eps, 0, dtype)
     , config_(config)
@@ -62,8 +59,7 @@ NNGraph::TensorNode* RobertaEmbeddings::forward(
 
     NNGraph::TensorNode* embed =
         add(1.0, word, 1.0, position);
-    NNGraph::TensorNode* x = transpose(embed, 2);
-    return layer_norm_.forward(x);
+    return layer_norm_.forward(embed);
 }
 
 std::string RobertaEmbeddings::repr() const

@@ -17,6 +17,7 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/nn_grad_slot_name.hh"
+#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/embedding.hh"
 #include "nntile/tensor/ops/embedding_backward.hh"
@@ -25,6 +26,27 @@
 
 namespace nntile
 {
+
+namespace
+{
+
+Index normalize_embedding_c_axis(Index axis, Index index_ndim)
+{
+    Index c_axis = (axis < 0) ? index_ndim : axis;
+    if (c_axis < 0 || c_axis > index_ndim)
+    {
+        throw std::invalid_argument(
+            "embedding: axis out of range for index ndim");
+    }
+    return c_axis;
+}
+
+Index embedding_fortran_axis(Index c_axis, Index index_ndim)
+{
+    return nn::c_axis_to_fortran(c_axis, index_ndim + 1);
+}
+
+} // anonymous namespace
 
 NNGraph::TensorNode *NNEmbeddingOp::forward()
 {
@@ -36,8 +58,9 @@ NNGraph::TensorNode *NNEmbeddingOp::forward()
     NNGraph *graph = vocab->graph();
     bool out_requires_grad = any_input_requires_grad({vocab});
 
+    const Index f_axis = embedding_fortran_axis(axis, index->ndim());
     TensorGraph::TensorNode *embed_data =
-        tensor::embedding(index->data(), vocab->data(), axis);
+        tensor::embedding(index->data(), vocab->data(), f_axis);
     NNGraph::TensorNode *embed = graph->tensor(embed_data, out_requires_grad);
     outputs_ = {embed};
     return embed;
@@ -67,8 +90,9 @@ void NNEmbeddingOp::backward() const
     {
         tensor::clear(grad_vocab->data());
     }
+    const Index f_axis = embedding_fortran_axis(axis, index->ndim());
     tensor::embedding_backward(
-        index->data(), grad_out->data(), grad_vocab->data(), axis, redux);
+        index->data(), grad_out->data(), grad_vocab->data(), f_axis, redux);
 }
 
 NNGraph::TensorNode *embedding(NNGraph::TensorNode *index,
@@ -86,7 +110,8 @@ NNGraph::TensorNode *embedding(NNGraph::TensorNode *index,
         throw std::invalid_argument("embedding: index must have INT64 dtype");
     }
     NNGraph *graph = vocab->graph();
-    auto op = std::make_shared<NNEmbeddingOp>(index, vocab, axis, redux);
+    const Index c_axis = normalize_embedding_c_axis(axis, index->ndim());
+    auto op = std::make_shared<NNEmbeddingOp>(index, vocab, c_axis, redux);
     NNGraph::TensorNode *embed = op->forward();
     graph->register_op(std::move(op));
     return embed;

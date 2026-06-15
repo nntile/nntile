@@ -27,8 +27,8 @@
 namespace nntile
 {
 
-//! Embedding op: embed = vocab[index]. PyTorch-style: outputs created in
-//! forward(). index is INT64 (typically no grad); only vocab gets grad.
+//! Embedding op: embed = vocab[index]. ``axis`` is a virtual C-order axis where
+//! the embedding dimension is inserted (default ``-1`` = append).
 struct NNEmbeddingOp : NNGraph::OpNode
 {
     Index axis;
@@ -39,7 +39,7 @@ struct NNEmbeddingOp : NNGraph::OpNode
     NNEmbeddingOp() = default;
     NNEmbeddingOp(NNGraph::TensorNode *index_,
         NNGraph::TensorNode *vocab_,
-        Index axis_ = 0,
+        Index axis_ = -1,
         int redux_ = 0) :
         axis(axis_), redux(redux_), index(index_), vocab(vocab_)
     {
@@ -52,7 +52,7 @@ struct NNEmbeddingOp : NNGraph::OpNode
 
 NNGraph::TensorNode *embedding(NNGraph::TensorNode *index,
     NNGraph::TensorNode *vocab,
-    Index axis = 0,
+    Index axis = -1,
     int redux = 0);
 
 } // namespace nntile

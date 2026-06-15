@@ -151,7 +151,7 @@ NNGraph::TensorNode *Embedding::forward(NNGraph::TensorNode *index)
 
     index_tensor_ = index;
 
-    // Use index.ndim() as axis when axis_ < 0 (default "append" behavior)
+    // ``axis_ < 0``: append embed_dim on the trailing C-order axis.
     Index use_axis = (axis_ < 0) ? index->ndim() : axis_;
 
     output_tensor_ = embedding(index, vocab_tensor_, use_axis, redux_);

@@ -341,6 +341,7 @@ inline void validate_flash_sdpa_qkv_shape_and_merge(TensorGraph::TensorNode *Q,
 inline void validate_embedding_shape_and_merge(TensorGraph::TensorNode *embed,
     TensorGraph::TensorNode *index,
     TensorGraph::TensorNode *vocab,
+    Index axis,
     const std::string &op_name)
 {
     if (embed->ndim() != index->ndim() + 1)
@@ -350,7 +351,12 @@ inline void validate_embedding_shape_and_merge(TensorGraph::TensorNode *embed,
             std::to_string(embed->ndim()) + " vs " +
             std::to_string(index->ndim()) + ")");
     }
-    for (Index i = 0; i < index->ndim(); ++i)
+    if (axis < 0 || axis > index->ndim())
+    {
+        throw std::invalid_argument(
+            op_name + ": axis out of range for index ndim");
+    }
+    for (Index i = 0; i < axis; ++i)
     {
         if (embed->shape()[i] != index->shape()[i])
         {
@@ -362,15 +368,27 @@ inline void validate_embedding_shape_and_merge(TensorGraph::TensorNode *embed,
         }
         merge_axis(embed->mutable_axes()[i], index->mutable_axes()[i]);
     }
-    if (embed->shape()[index->ndim()] != vocab->dim(0))
+    if (embed->shape()[axis] != vocab->dim(0))
     {
         throw std::invalid_argument(
-            op_name + ": embed.dim[" + std::to_string(index->ndim()) +
+            op_name + ": embed.dim[" + std::to_string(axis) +
             "] must match vocab.dim[0] (" +
-            std::to_string(embed->shape()[index->ndim()]) + " vs " +
+            std::to_string(embed->shape()[axis]) + " vs " +
             std::to_string(vocab->dim(0)) + ")");
     }
-    merge_axis(embed->mutable_axes()[index->ndim()], vocab->mutable_axes()[0]);
+    merge_axis(embed->mutable_axes()[axis], vocab->mutable_axes()[0]);
+    for (Index i = axis; i < index->ndim(); ++i)
+    {
+        if (embed->shape()[i + 1] != index->shape()[i])
+        {
+            throw std::invalid_argument(
+                op_name + ": embed.dim[" + std::to_string(i + 1) +
+                "] must match index.dim[" + std::to_string(i) + "] (" +
+                std::to_string(embed->shape()[i + 1]) + " vs " +
+                std::to_string(index->shape()[i]) + ")");
+        }
+        merge_axis(embed->mutable_axes()[i + 1], index->mutable_axes()[i]);
+    }
 }
 
 } // namespace nntile
