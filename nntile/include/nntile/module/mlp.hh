@@ -81,8 +81,8 @@ public:
         Index intermediate_dim,
         Index output_dim,
         ActivationType activation = ActivationType::GELU,
-        bool with_bias = false,
-        DataType dtype = DataType::FP32);
+        DataType dtype = DataType::FP32,
+        bool with_bias = false);
 
     //! Constructor: creates MLP where output_dim == input_dim (common in transformers)
     //! @param graph Pointer to the neural network graph this module belongs to
@@ -96,8 +96,8 @@ public:
         Index input_dim,
         Index intermediate_dim,
         ActivationType activation = ActivationType::GELU,
-        bool with_bias = false,
-        DataType dtype = DataType::FP32);
+        DataType dtype = DataType::FP32,
+        bool with_bias = false);
 
 #ifdef NNTILE_HAVE_TORCH
     //! Constructor: creates MLP from PyTorch Linear layers (fc1, fc2) with

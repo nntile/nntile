@@ -27,8 +27,8 @@ Gpt2MLP::Gpt2MLP(NNGraph* graph,
                   config.intermediate_size,
                   config.hidden_size,
                   module::ActivationType::GELUTANH,
-                  true,
-                  dtype)
+                  dtype,
+                  true)
 {
     config.validate();
 }

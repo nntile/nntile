@@ -27,8 +27,8 @@ GptneoxMlp::GptneoxMlp(NNGraph* graph,
                   config.intermediate_size,
                   config.hidden_size,
                   module::ActivationType::GELU,
-                  true,
-                  dtype)
+                  dtype,
+                  true)
 {
     config.validate();
 }
