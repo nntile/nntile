@@ -33,6 +33,17 @@ Gpt2MLP::Gpt2MLP(NNGraph* graph,
     config.validate();
 }
 
+NNGraph::TensorNode* Gpt2MLP::forward(
+    NNGraph::TensorNode* input)
+{
+    NNGraph::TensorNode* hidden = fc1().forward(input);
+    hidden->set_name(tensor_name("fc1_out"));
+    hidden = activation().forward(hidden);
+    NNGraph::TensorNode* out = fc2().forward(hidden);
+    out->set_name(tensor_name("output"));
+    return out;
+}
+
 std::string Gpt2MLP::repr() const
 {
     return "Gpt2MLP(" + module::Mlp::repr() + ")";

@@ -35,6 +35,9 @@ public:
                const GptneoxConfig& config,
                DataType dtype = DataType::FP32);
 
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
+
     std::string repr() const override;
 };
 

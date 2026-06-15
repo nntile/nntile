@@ -33,6 +33,17 @@ GptneoxMlp::GptneoxMlp(NNGraph* graph,
     config.validate();
 }
 
+NNGraph::TensorNode* GptneoxMlp::forward(
+    NNGraph::TensorNode* input)
+{
+    NNGraph::TensorNode* hidden = fc1().forward(input);
+    hidden->set_name(tensor_name("fc1_out"));
+    hidden = activation().forward(hidden);
+    NNGraph::TensorNode* out = fc2().forward(hidden);
+    out->set_name(tensor_name("mlp_out"));
+    return out;
+}
+
 std::string GptneoxMlp::repr() const
 {
     return "GptneoxMlp(" + module::Mlp::repr() + ")";
