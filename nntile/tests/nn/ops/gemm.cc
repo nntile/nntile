@@ -310,17 +310,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph gemm backward transposed A",
+    "NNGraph gemm backward transposed B",
     "[graph][nn_graph]")
 {
     constexpr Scalar grad_fill_val = 1.0;
 
-    SECTION("trans_b=false uses grad_C transpose for grad_A")
+    SECTION("trans_b=true, trans_a=false (linear-style)")
     {
-        constexpr bool trans_a = true;
-        constexpr bool trans_b = false;
+        constexpr bool trans_a = false;
+        constexpr bool trans_b = true;
 
-        NNGraph g("gemm_transposed_a");
+        NNGraph g("gemm_transposed_b");
         auto *x = g.tensor({3, 2}, DataType::FP32, true)->set_name("x");
         auto *w = g.tensor({4, 2}, DataType::FP32, true)->set_name("w");
         auto *c = gemm(
@@ -339,7 +339,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(w->grad()->shape() == (std::vector<Index>{4, 2}));
     }
 
-    SECTION("trans_b=true uses grad_C transpose for grad_A")
+    SECTION("trans_b=true, trans_a=true")
     {
         constexpr bool trans_a = true;
         constexpr bool trans_b = true;

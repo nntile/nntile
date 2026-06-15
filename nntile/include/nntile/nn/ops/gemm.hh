@@ -27,8 +27,8 @@ namespace nntile
 //! Generic GEMM on virtual C-order shapes.
 //!
 //! ``trans_a`` / ``trans_b`` transpose the first ``ndim`` axes of operands
-//! ``a`` / ``b``.  Lowers to ``tensor::gemm(b, a, trans_a, trans_b, ndim,
-//! batch_ndim)`` (operands swapped relative to the NN API).
+//! ``a`` / ``b``.  Lowers to ``tensor::gemm(b, a, trans_b, trans_a, ndim,
+//! batch_ndim)`` (operands and transpose flags swapped for C-order labels).
 struct NNGemmOp : NNGraph::OpNode
 {
     Scalar alpha;

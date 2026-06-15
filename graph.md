@@ -133,7 +133,8 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 - Virtual C-order labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
   uses Fortran storage via `c_shape_to_fortran`.
 - NN API: `gemm(a, b, trans_a, trans_b, ...)` on virtual C-order shapes.
-  Lowers to `tensor::gemm(b, a, trans_a, trans_b, ...)` (operands swapped).
+  Lowers to `tensor::gemm(b, a, trans_b, trans_a, ...)` (operands and
+  transpose flags swapped for C-order labels).
 - `trans_a` / `trans_b` transpose the first ``ndim`` axes of ``a`` / ``b``.
 - `ndim` is the number of contraction (K) dimensions.
 - `batch_ndim` is the number of **trailing** batch dimensions (must match between
@@ -141,7 +142,7 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
 Example usages (not special cases in the op itself):
 
-- `Linear` calls `gemm(input, weight, trans_a=true, ...)` with weight `[out, in]`.
+- `Linear` calls `gemm(input, weight, trans_b=true, ...)` with weight `[out, in]`.
 - Attention Q/K/V call `gemm(x, w, trans_a=false, ...)` with weight
   `[hidden, head_size, n_heads]` and a following `transpose` to SDPA layout.
 
@@ -277,7 +278,7 @@ nntile::Context context(
 NNGraph graph("demo");
 auto* a = graph.tensor({2, 3}, "a", DataType::FP32, true);
 auto* b = graph.tensor({4, 3}, "b", DataType::FP32, true);  // out=4, in=3
-auto* y = gemm(a, b, "y");  // shape (2, 4) with trans_a=true in Linear
+auto* y = gemm(a, b, "y");  // shape (2, 4) with trans_b=true in Linear
 
 x->mark_input(true);
 y->mark_output(true);
