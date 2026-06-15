@@ -40,13 +40,8 @@ def _hf_attn_o_weight(
     linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
 ) -> np.ndarray:
     """Explicit HF PT Linear → graph output-dense layout (C-order ``(hd, nh, H)``)."""
-    w = np.asarray(
-        linear.weight.detach().numpy().reshape(n_emb, nh, hs),
-        dtype=np.float32,
-    )
-    return as_float32(
-        w.ravel("F").reshape(n_emb, nh, hs).ravel().reshape(hs, nh, n_emb),
-    )
+    w = linear.weight.detach().numpy().reshape(n_emb, nh, hs)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def test_attention_fixture_matches_hf_forward() -> None:

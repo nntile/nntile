@@ -15,11 +15,9 @@ For each block the script creates ``bert_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 All forward and backward references come from HuggingFace ``modeling_bert``
-(PyTorch eager, dropout disabled). Safetensor arrays use **virtual C-order**
-shape labels; legacy Fortran-labelled buffers are converted via shape reversal
-(``_to_c_order``) so flat bytes stay binary-compatible with pre-migration
-fixtures. Helpers below only reshape HF parameters into NNTile layouts expected
-by the graph API modules; they do not reimplement BERT computation.
+(PyTorch eager, dropout disabled). Safetensor arrays use virtual C-order shape
+labels matching the graph API. Helpers below reshape HF ``nn.Linear`` weights
+into those layouts; they do not reimplement BERT computation.
 """
 
 from __future__ import annotations
@@ -95,15 +93,6 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
-def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
-    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer)."""
-    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
-        fortran_labeled.shape,
-    )
-    c_shape = fortran_labeled.shape[::-1]
-    return as_float32(legacy.ravel().reshape(c_shape))
-
-
 def _linear_attn_qkv_weight(
     linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
 ) -> np.ndarray:
@@ -117,7 +106,7 @@ def _linear_attn_o_weight(
 ) -> np.ndarray:
     """PT Linear ``(out, in)`` → graph ``dense.weight`` ``(hd, nh, H)``."""
     w = linear.weight.detach().numpy().reshape(n_emb, nh, hs)
-    return _to_c_order(w)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _make_config(dims: TestDims) -> BertConfig:
