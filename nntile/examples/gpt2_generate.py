@@ -130,9 +130,9 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.attn.k_weight", (n_head, head_size, H)))
         specs.append((f"{p}.attn.v_weight", (n_head, head_size, H)))
         specs.append((f"{p}.attn.o_weight", (H, n_head, head_size)))
-        specs.append((f"{p}.attn.q_bias", (head_size, n_head)))
-        specs.append((f"{p}.attn.k_bias", (head_size, n_head)))
-        specs.append((f"{p}.attn.v_bias", (head_size, n_head)))
+        specs.append((f"{p}.attn.q_bias", (n_head, head_size)))
+        specs.append((f"{p}.attn.k_bias", (n_head, head_size)))
+        specs.append((f"{p}.attn.v_bias", (n_head, head_size)))
         specs.append((f"{p}.attn.o_bias", (H,)))
 
         # MLP Linear weights: [input_dim, output_dim] (matches HF Conv1D)
@@ -212,15 +212,15 @@ def _make_converter(
             return fortran_order(o)
         if rest == "attn.q_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            b_q = c_bias[:H].reshape(n_head, head_size).T
+            b_q = c_bias[:H].reshape(n_head, head_size)
             return fortran_order(b_q)
         if rest == "attn.k_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            b_k = c_bias[H:2 * H].reshape(n_head, head_size).T
+            b_k = c_bias[H:2 * H].reshape(n_head, head_size)
             return fortran_order(b_k)
         if rest == "attn.v_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            b_v = c_bias[2 * H:3 * H].reshape(n_head, head_size).T
+            b_v = c_bias[2 * H:3 * H].reshape(n_head, head_size)
             return fortran_order(b_v)
         if rest == "attn.o_bias":
             return fortran_order(hf_get(f"{hp}.attn.c_proj.bias"))

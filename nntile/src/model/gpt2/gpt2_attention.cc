@@ -55,15 +55,15 @@ Gpt2Attention::Gpt2Attention(NNGraph* graph,
     w_o_->set_name(tensor_name("o_weight"));
     register_parameter("o_weight", w_o_);
 
-    q_bias_ = graph_->tensor({head_size_, n_heads_}, dtype_, true);
+    q_bias_ = graph_->tensor({n_heads_, head_size_}, dtype_, true);
     q_bias_->set_name(tensor_name("q_bias"));
     register_parameter("q_bias", q_bias_);
 
-    k_bias_ = graph_->tensor({head_size_, n_heads_}, dtype_, true);
+    k_bias_ = graph_->tensor({n_heads_, head_size_}, dtype_, true);
     k_bias_->set_name(tensor_name("k_bias"));
     register_parameter("k_bias", k_bias_);
 
-    v_bias_ = graph_->tensor({head_size_, n_heads_}, dtype_, true);
+    v_bias_ = graph_->tensor({n_heads_, head_size_}, dtype_, true);
     v_bias_->set_name(tensor_name("v_bias"));
     register_parameter("v_bias", v_bias_);
 
@@ -89,21 +89,21 @@ NNGraph::TensorNode* Gpt2Attention::forward(
         gemm(w_q_, x, 1.0, false, false, 1, 0);
     q_proj->set_name(tensor_name("q_proj"));
     NNGraph::TensorNode* q = transpose(q_proj, 1);
-    q = add_fiber(1.0, transpose(q_bias_, 1), 1.0, q, 3, 1);
+    q = add_fiber(1.0, q_bias_, 1.0, q, 3, 1);
     q->set_name(tensor_name("q"));
 
     NNGraph::TensorNode* k_proj =
         gemm(w_k_, x, 1.0, false, false, 1, 0);
     k_proj->set_name(tensor_name("k_proj"));
     NNGraph::TensorNode* k = transpose(k_proj, 1);
-    k = add_fiber(1.0, transpose(k_bias_, 1), 1.0, k, 3, 1);
+    k = add_fiber(1.0, k_bias_, 1.0, k, 3, 1);
     k->set_name(tensor_name("k"));
 
     NNGraph::TensorNode* v_proj =
         gemm(w_v_, x, 1.0, false, false, 1, 0);
     v_proj->set_name(tensor_name("v_proj"));
     NNGraph::TensorNode* v = transpose(v_proj, 1);
-    v = add_fiber(1.0, transpose(v_bias_, 1), 1.0, v, 3, 1);
+    v = add_fiber(1.0, v_bias_, 1.0, v, 3, 1);
     v->set_name(tensor_name("v"));
 
     NNGraph::TensorNode* attn_out =

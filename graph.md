@@ -181,7 +181,8 @@ With activations `x` shaped `[batch, seq, hidden]` and Q weight
 
 - `gemm(w_q, x, alpha, false, false, ndim=1, batch_ndim=0)` — Q projection
 - `transpose(q_proj, 1)` — head layout for SDPA
-- `add_fiber(..., transpose(q_bias, 1), ..., axis=3, batch_ndim=1)` — per-head bias
+- `add_fiber(..., q_bias, ..., axis=3, batch_ndim=1)` — per-head bias
+  (`q_bias` virtual C-order `[n_heads, head_size]`)
 - `sdpa_eager(q, k, v, mask, batch_ndim=2, redux=0)`
 - `transpose(attn_out, 3)` — layout for output projection
 - `gemm(w_o, attn_t, ..., false, false, ndim=2, batch_ndim=0)` — output projection

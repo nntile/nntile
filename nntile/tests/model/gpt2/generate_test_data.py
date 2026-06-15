@@ -133,9 +133,9 @@ def _gpt2_attn_weights(
         n_heads, hs, n_emb,
     ).transpose(1, 0, 2)
     bias = attn.c_attn.bias.detach().numpy()
-    b_q = bias[:n_emb].reshape(n_heads, hs).transpose(1, 0)
-    b_k = bias[n_emb:2 * n_emb].reshape(n_heads, hs).transpose(1, 0)
-    b_v = bias[2 * n_emb:3 * n_emb].reshape(n_heads, hs).transpose(1, 0)
+    b_q = bias[:n_emb].reshape(n_heads, hs)
+    b_k = bias[n_emb:2 * n_emb].reshape(n_heads, hs)
+    b_v = bias[2 * n_emb:3 * n_emb].reshape(n_heads, hs)
     return {
         f"{prefix}.q_weight": as_float32(q_arr),
         f"{prefix}.k_weight": as_float32(k_arr),
