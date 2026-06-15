@@ -130,9 +130,9 @@ Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 
 GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
-- Virtual graph labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
+- Graph labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
   uses tile storage shapes via `graph_shape_to_storage`.
-- NN API: `gemm(a, b, trans_a, trans_b, ...)` on virtual graph shapes.
+- NN API: `gemm(a, b, trans_a, trans_b, ...)` on graph shapes.
   Lowers to `tensor::gemm(b, a, trans_b, trans_a, ...)` (operands and
   transpose flags swapped for graph labels).
 - `trans_a` / `trans_b` transpose the first ``ndim`` axes of ``a`` / ``b``.
@@ -146,9 +146,9 @@ Example usages (not special cases in the op itself):
 - Attention Q/K/V call `gemm(x, w, trans_a=false, ...)` with weight
   `[hidden, head_size, n_heads]` and a following `transpose` to SDPA layout.
 
-### Virtual graph shape labels
+### Graph shape labels
 
-NNGraph uses **virtual graph** shape labels on `TensorNode::shape()` while
+NNGraph uses **graph** shape labels on `TensorNode::shape()` while
 tile/tensor storage uses reversed axis labels. Helpers in
 `include/nntile/nn/shape_layout.hh` convert between the two:
 
@@ -162,7 +162,7 @@ etc.) take **graph axis indices** at the NNGraph API and translate internally.
 #### Model tensor conventions
 
 Graph model families (GPT-2, BERT, GPT-Neo, GPT-NeoX, Llama, RoBERTa, T5) use
-these virtual graph layouts:
+these graph layouts:
 
 | Role | Shape | Notes |
 |------|-------|-------|
@@ -174,8 +174,7 @@ these virtual graph layouts:
 | Attention mask | `[seq, seq]` or `[batch, seq, seq]` | Bool or float mask |
 
 Safetensors metadata records graph shapes (e.g. linear weights `{out, in}`);
-payload bytes are unchanged from PyTorch via the test `as_bind_float32()` helper
-(ravel in F-order, reshape in graph so flat bytes match contiguous PyTorch).
+payload bytes use explicit transposes in test generators (`as_bind_float32()`).
 
 #### Example: GPT-2 attention
 
@@ -185,7 +184,7 @@ With activations `x` shaped `[batch, seq, hidden]` and Q weight
 - `gemm(x, w_q, alpha, false, false, ndim=1, batch_ndim=0)` — Q projection
 - `transpose(q_proj, 1)` — head layout for SDPA
 - `add_fiber(..., q_bias, ..., axis=3, batch_ndim=1)` — per-head bias
-  (`q_bias` virtual graph `[n_heads, head_size]`)
+  (`q_bias` graph shape `[n_heads, head_size]`)
 - `sdpa_eager(q, k, v, mask, batch_ndim=2, redux=0)`
 - `transpose(attn_out, 3)` — layout for output projection
 - `gemm(attn_t, w_o, ..., false, false, ndim=2, batch_ndim=0)` — output projection

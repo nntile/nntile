@@ -16,7 +16,7 @@ For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
 backward references plus NumPy layout helpers for NNTile safetensors — no
-custom attention reimplementation. Safetensor arrays use virtual graph shape
+custom attention reimplementation. Safetensor arrays use graph shape
 labels matching the graph API. Weights are split from HF ``query_key_value`` /
 ``dense`` into graph ``q/k/v/o`` layouts matching ``gpt_neox_generate.py``. Attention
 references call ``GPTNeoXAttention`` with ``_attn_implementation="eager"``,

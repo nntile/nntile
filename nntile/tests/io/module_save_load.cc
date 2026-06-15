@@ -382,7 +382,7 @@ TEST_CASE("Embedding save and load round-trip", "[io][module][embedding]")
     NNGraph g1("save_graph");
     Embedding emb1(&g1, "embed", num_emb, emb_dim);
 
-    // Virtual graph vocab: [num_embeddings, embed_dim]
+    // Graph vocab: [num_embeddings, embed_dim]
     std::vector<float> vocab(emb_dim * num_emb);
     for(std::size_t i = 0; i < vocab.size(); ++i)
         vocab[i] = 0.001f * static_cast<float>(i);

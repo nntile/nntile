@@ -88,7 +88,7 @@ def _rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
 
 
 def _reverse_axes(arr: np.ndarray) -> np.ndarray:
-    """Map head layout to graph virtual labels by reversing axes."""
+    """Map head layout to graph labels by reversing axes."""
     axes = tuple(range(arr.ndim - 1, -1, -1))
     return as_bind_float32(np.asarray(arr, dtype=np.float32).transpose(axes))
 

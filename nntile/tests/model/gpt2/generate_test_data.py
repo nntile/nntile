@@ -17,7 +17,7 @@ For each block the script creates ``gpt2_<block>.safetensors`` plus a paired
 Uses HuggingFace ``modeling_gpt2`` for all forward/backward references
 (``GPT2MLP``, ``GPT2Attention``, ``GPT2Block``, ``GPT2Model``,
 ``GPT2LMHeadModel``) plus NumPy layout helpers. Safetensor arrays use
-virtual graph shape labels matching the graph API. Reference forwards call
+graph shape labels matching the graph API. Reference forwards call
 HF modules (or ``eager_attention_forward`` from the same file for
 bidirectional attention without a causal mask).
 """

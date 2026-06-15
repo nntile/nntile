@@ -15,7 +15,7 @@ For each block the script creates ``bert_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 All forward and backward references come from HuggingFace ``modeling_bert``
-(PyTorch eager, dropout disabled). Safetensor arrays use virtual graph shape
+(PyTorch eager, dropout disabled). Safetensor arrays use graph shape
 labels matching the graph API. Helpers below reshape HF ``nn.Linear`` weights
 into those layouts; they do not reimplement BERT computation.
 """

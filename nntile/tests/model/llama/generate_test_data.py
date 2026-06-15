@@ -198,7 +198,7 @@ def _linear(linear: torch.nn.Linear) -> np.ndarray:
 
 
 def _reverse_axes(arr: np.ndarray) -> np.ndarray:
-    """Map PT head layout to graph virtual graph by reversing axis labels."""
+    """Map PT head layout to graph layout by reversing axis labels."""
     axes = tuple(range(arr.ndim - 1, -1, -1))
     return as_float32(np.asarray(arr, dtype=np.float32).transpose(axes))
 

@@ -27,7 +27,7 @@
 namespace nntile
 {
 
-//! Embedding op: embed = vocab[index]. ``axis`` is a virtual graph axis where
+//! Embedding op: embed = vocab[index]. ``axis`` is a graph axis where
 //! the embedding dimension is inserted (default ``-1`` = append).
 struct NNEmbeddingOp : NNGraph::OpNode
 {

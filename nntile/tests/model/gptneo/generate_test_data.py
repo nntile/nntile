@@ -16,7 +16,7 @@ For each block the script creates ``gptneo_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neo``) for module weights and
 forward/backward references plus NumPy layout helpers for NNTile safetensors —
-no custom GPT-Neo reimplementation. Safetensor arrays use virtual graph shape
+no custom GPT-Neo reimplementation. Safetensor arrays use graph shape
 labels matching the graph API.
 
 Attention references call HF ``q_proj`` / ``k_proj`` / ``v_proj`` /

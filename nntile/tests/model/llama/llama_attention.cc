@@ -20,7 +20,7 @@
  * ``[norope]`` — no-RoPE bundles only (with or without causal mask);
  * ``[norope_nomask]`` — no-RoPE and no causal mask (subset of ``[nomask]``).
  *
- * NNTile tensor **bind** payloads use graph virtual shape labels everywhere,
+ * NNTile tensor **bind** payloads use graph shape labels everywhere,
  * including safetensor bytes from ``generate_test_data.py`` (see
  * ``graph_bind.as_bind_float32`` in the examples).
  *

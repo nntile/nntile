@@ -153,7 +153,7 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaFwdGraph &prepared_graph
 //! Execute prepared cuDNN graph for flash attention
 /*!
  * Executes a previously prepared cuDNN graph with provided data pointers.
- * The mask tensor is virtually reshaped from [seq, seq] to [1, 1, seq, seq] for cuDNN.
+ * The mask tensor is reshaped from [seq, seq] to [1, 1, seq, seq] for cuDNN.
  *
  * @param[in] handle: cuDNN handle (with stream already set)
  * @param[in] prepared_graph: Previously prepared graph structure

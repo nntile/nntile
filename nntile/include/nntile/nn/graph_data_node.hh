@@ -53,7 +53,7 @@ class NNGraph::TensorNode
         TensorGraph::TensorNode *data,
         bool requires_grad = true);
 
-    //! Virtual graph shape (physical storage on data_ stays storage).
+    //! Graph shape (tile storage on data_ uses reversed labels).
     const std::vector<Index> &shape() const { return c_shape_; }
     Index ndim() const { return static_cast<Index>(data_->shape().size()); }
     DataType dtype() const { return data_->dtype(); }

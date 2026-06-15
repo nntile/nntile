@@ -37,7 +37,7 @@ namespace nntile
 class KVCache
 {
 public:
-    //! Per-layer cache virtual graph shape:
+    //! Per-layer cache graph shape:
     //! ``(n_head_kv, batch, max_seq, head_size)``. Physical storage is storage
     //! ``(head_size, max_seq, batch, n_head_kv)`` (matches Llama attention).
     struct Config
@@ -82,8 +82,8 @@ public:
 
     //! Append raw K,V data to cache (for custom flows without graph).
     //! k_data, v_data: physical layout ``(head_size, seq_len, batch, n_head_kv)``
-    //! (storage flat order).  Graph tensors from ``create_tensors`` use virtual
-    //! graph ``(n_head_kv, batch, max_seq, head_size)``.
+    //! (storage flat order).  Graph tensors from ``create_tensors`` use graph
+    //! shape ``(n_head_kv, batch, max_seq, head_size)``.
     void append(const float* k_data,
                 const float* v_data,
                 Index seq_len);
