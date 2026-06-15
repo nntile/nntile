@@ -16,11 +16,9 @@ For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
 backward references plus NumPy layout helpers for NNTile safetensors — no
-custom attention reimplementation. Safetensor arrays use **virtual C-order**
-shape labels; legacy Fortran-labelled buffers are converted via shape reversal
-(``_to_c_order``) so flat bytes stay binary-compatible with pre-migration
-fixtures. Weights are split from HF ``query_key_value`` / ``dense`` into graph
-``q/k/v/o`` layouts matching ``gpt_neox_generate.py``. Attention
+custom attention reimplementation. Safetensor arrays use virtual C-order shape
+labels matching the graph API. Weights are split from HF ``query_key_value`` /
+``dense`` into graph ``q/k/v/o`` layouts matching ``gpt_neox_generate.py``. Attention
 references call ``GPTNeoXAttention`` with ``_attn_implementation="eager"``,
 ``GPTNeoXRotaryEmbedding`` cos/sin, and additive ``attention_mask``: causal
 upper-triangular when ``use_causal_mask=True``, **zeros** when False (no mask).
@@ -91,13 +89,15 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
-def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
-    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer)."""
-    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
-        fortran_labeled.shape,
-    )
-    c_shape = fortran_labeled.shape[::-1]
-    return as_float32(legacy.ravel().reshape(c_shape))
+def _gptneox_attn_qkv_weight(qkv_slice: np.ndarray) -> np.ndarray:
+    """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` C-order layout."""
+    return as_float32(np.asarray(qkv_slice, dtype=np.float32).transpose(2, 1, 0))
+
+
+def _gptneox_attn_o_weight(o: np.ndarray, nh: int, hd: int, H: int) -> np.ndarray:
+    """HF ``dense`` ``(H, H)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    w = o.reshape(H, nh, hd)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _make_config(dims: TestDims) -> GPTNeoXConfig:
@@ -166,17 +166,6 @@ def _rotate_tensor_in_for_rope(
         slice_obj[axis] = slice(0, k_elements)
         result[tuple(slice_obj)] = y_reshaped.reshape(x_selected.shape)
     return result
-
-
-def _gptneox_attn_qkv_weight(qkv_slice: np.ndarray) -> np.ndarray:
-    """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` C-order layout."""
-    return _to_c_order(np.asarray(qkv_slice, dtype=np.float32))
-
-
-def _gptneox_attn_o_weight(o: np.ndarray, nh: int, hd: int, H: int) -> np.ndarray:
-    """HF ``dense`` ``(H, H)`` → graph ``o_weight`` ``(hd, nh, H)``."""
-    w = o.reshape(H, nh, hd)
-    return _to_c_order(w)
 
 
 def _gptneox_attn_weights(
@@ -302,11 +291,10 @@ def _sdpa_causal_mask(seq: int) -> np.ndarray:
 def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device,
 ) -> torch.Tensor:
-    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
-    mask_torch = torch.tensor(
-        np.array(1 - mask, dtype=np.float32),
-    ).T * torch.finfo(torch.float32).min
-    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
+    upper = torch.triu(
+        torch.ones(seq, seq, device=device), diagonal=1,
+    )
+    mask_torch = upper * torch.finfo(torch.float32).min
     return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
 
 

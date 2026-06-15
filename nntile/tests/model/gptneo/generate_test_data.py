@@ -16,10 +16,8 @@ For each block the script creates ``gptneo_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neo``) for module weights and
 forward/backward references plus NumPy layout helpers for NNTile safetensors —
-no custom GPT-Neo reimplementation. Safetensor arrays use **virtual C-order**
-shape labels; legacy Fortran-labelled buffers are converted via shape reversal
-(``_to_c_order``) so flat bytes stay binary-compatible with pre-migration
-fixtures.
+no custom GPT-Neo reimplementation. Safetensor arrays use virtual C-order shape
+labels matching the graph API.
 
 Attention references call HF ``q_proj`` / ``k_proj`` / ``v_proj`` /
 ``out_proj`` and ``scaled_dot_product_attention`` so they match graph
@@ -94,20 +92,6 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
-def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
-    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer).
-
-    If ``arr`` has shape ``(d0, d1, ...)`` in the old Fortran convention, the
-    returned array has shape ``(..., d1, d0)`` in C-order with identical
-    underlying bytes.
-    """
-    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
-        fortran_labeled.shape,
-    )
-    c_shape = fortran_labeled.shape[::-1]
-    return as_float32(legacy.ravel().reshape(c_shape))
-
-
 def _linear(linear: torch.nn.Linear) -> np.ndarray:
     """PT Linear ``(out, in)`` → graph weight ``[out, in]``."""
     return as_float32(linear.weight.detach().numpy())
@@ -154,13 +138,13 @@ def _hf_gptneo_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
 def _linear_attn_qkv_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> np.ndarray:
     """HF ``Linear`` ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``."""
     w = linear.weight.detach().numpy().reshape(nh, hd, H)
-    return _to_c_order(w)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _linear_attn_o_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> np.ndarray:
     """HF ``Linear`` ``(out, in)`` → graph ``o_weight`` ``(hd, nh, H)``."""
     w = linear.weight.detach().numpy().reshape(H, nh, hd)
-    return _to_c_order(w)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _gptneo_attn_weights(
@@ -290,11 +274,10 @@ def _local_additive_mask_torch(
 def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device,
 ) -> torch.Tensor:
-    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
-    mask_torch = torch.tensor(
-        np.array(1 - mask, dtype=np.float32),
-    ).T * torch.finfo(torch.float32).min
-    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
+    upper = torch.triu(
+        torch.ones(seq, seq, device=device), diagonal=1,
+    )
+    mask_torch = upper * torch.finfo(torch.float32).min
     return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
 
 

@@ -12,11 +12,9 @@
 """Generate reference test data for NNTile T5 graph C++ tests.
 
 Uses **Hugging Face Transformers** (``modeling_t5``) for forward and backward
-references. Safetensor arrays use **virtual C-order** shape labels; legacy
-Fortran-labelled buffers are converted via shape reversal (``_to_c_order``) so
-flat bytes stay binary-compatible with pre-migration fixtures. Weight tensors
-are converted to the NNTile graph layout (same naming and bytes as
-``examples/t5_generate.py``). Mask tensors stored for C++ use the
+references. Safetensor arrays use virtual C-order shape labels matching the
+graph API. Weight tensors are converted to the NNTile graph layout (same
+naming as ``examples/t5_generate.py``). Mask tensors stored for C++ use the
 ``sdpa_eager`` layout expected by graph tests.
 
 PyTorch runs with ``_attn_implementation="eager"`` and ``cache_position`` on
@@ -109,21 +107,12 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
-def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
-    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer)."""
-    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
-        fortran_labeled.shape,
-    )
-    c_shape = fortran_labeled.shape[::-1]
-    return as_float32(legacy.ravel().reshape(c_shape))
-
-
 def _linear_attn_qkv_weight(
     linear: torch.nn.Linear, dm: int, nh: int, hs: int,
 ) -> np.ndarray:
     """PT Linear ``(out, in)`` → graph ``q/k/v_weight`` ``(d_model, hd, nh)``."""
     w = linear.weight.detach().numpy().reshape(nh, hs, dm)
-    return _to_c_order(w)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _linear_attn_o_weight(
@@ -131,7 +120,7 @@ def _linear_attn_o_weight(
 ) -> np.ndarray:
     """PT Linear ``(out, in)`` → graph ``o_weight`` ``(hd, nh, d_model)``."""
     w = linear.weight.detach().numpy().reshape(dm, nh, hs)
-    return _to_c_order(w)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _make_config(dims: TestDims) -> T5Config:

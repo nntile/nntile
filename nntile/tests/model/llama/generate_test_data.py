@@ -197,13 +197,10 @@ def _linear(linear: torch.nn.Linear) -> np.ndarray:
     return as_float32(linear.weight.detach().numpy())
 
 
-def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
-    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer)."""
-    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
-        fortran_labeled.shape,
-    )
-    c_shape = fortran_labeled.shape[::-1]
-    return as_float32(legacy.ravel().reshape(c_shape))
+def _reverse_axes(arr: np.ndarray) -> np.ndarray:
+    """Map PT head layout to graph virtual C-order by reversing axis labels."""
+    axes = tuple(range(arr.ndim - 1, -1, -1))
+    return as_float32(np.asarray(arr, dtype=np.float32).transpose(axes))
 
 
 def _rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
@@ -252,10 +249,10 @@ def _attention_weight_arrays(
     q_arr = _rotate_tensor_in(np.asarray(q_arr, dtype=np.float32), q_arr.ndim - 2)
     k_arr = _rotate_tensor_in(np.asarray(k_arr, dtype=np.float32), 1)
 
-    q_c = _to_c_order(q_arr)
-    k_c = _to_c_order(k_arr)
-    v_c = _to_c_order(v_arr)
-    o_c = _to_c_order(o_arr)
+    q_c = _reverse_axes(q_arr)
+    k_c = _reverse_axes(k_arr)
+    v_c = _reverse_axes(v_arr)
+    o_c = _reverse_axes(o_arr)
     return q_c, k_c, v_c, o_c
 
 
@@ -359,13 +356,11 @@ def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device, dtype: torch.dtype,
 ) -> torch.Tensor:
     """HF additive mask (4D), same construction as ``test_llama_attention``."""
-    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
-    mask_torch = torch.tensor(
-        np.array(1 - mask, dtype=np.float32),
-    ).T * torch.finfo(torch.float32).min
-    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
-    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1). \
-        to(dtype=dtype)
+    upper = torch.triu(
+        torch.ones(seq, seq, device=device), diagonal=1,
+    )
+    mask_torch = upper * torch.finfo(torch.float32).min
+    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1).to(dtype=dtype)
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:

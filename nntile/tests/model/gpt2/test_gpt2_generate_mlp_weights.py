@@ -11,10 +11,8 @@
 
 """Guard MLP weight conversion used by examples/gpt2_generate.py.
 
-Graph ``Linear`` / ``Mlp`` expect ``[input_dim, output_dim]`` Fortran-order
-bytes. HuggingFace GPT-2 ``Conv1D`` weights already use ``(in, out)`` (e.g.
-``c_fc.weight`` is ``(hidden_size, n_inner)``). Transposing would break parity
-with ``nntile/tests/model/gpt2/generate_test_data.py`` and C++ Gpt2MLP tests.
+Graph ``Linear`` / ``Mlp`` expect C-order ``[out, in]`` weights. HuggingFace
+GPT-2 ``Conv1D`` stores ``(in, out)``; transpose to match graph layout.
 """
 
 from __future__ import annotations
@@ -97,10 +95,8 @@ def test_mlp_forward_parity_with_hf() -> None:
 
     flat1 = _conv1d_to_nntile_linear_weight(mlp.c_fc.weight.detach().numpy())
     flat2 = _conv1d_to_nntile_linear_weight(mlp.c_proj.weight.detach().numpy())
-    w1 = np.frombuffer(flat1.tobytes(), dtype=np.float32).reshape(
-        hidden, config.n_inner, order="F")
-    w2 = np.frombuffer(flat2.tobytes(), dtype=np.float32).reshape(
-        config.n_inner, hidden, order="F")
+    w1 = flat1.reshape(hidden, config.n_inner)
+    w2 = flat2.reshape(config.n_inner, hidden)
 
     y_nt = _simulate_gpt2_mlp_graph(x_hsb, w1, w2)
     rel = float(
