@@ -19,6 +19,7 @@
 #include <nntile/io/safetensors.hh>
 #include <nntile/model/gptneox/gptneox_config.hh>
 #include <nntile/model/gptneox/gptneox_rope.hh>
+#include <nntile/nn/ops/sdpa_causal_mask.hh>
 #include <stdexcept>
 #include <vector>
 
@@ -184,15 +185,7 @@ inline void fill_sdpa_causal_mask_bytes(
     Index n_seq, std::vector<std::uint8_t> &mask_bytes)
 {
     mask_bytes.assign(static_cast<size_t>(n_seq * n_seq), 0);
-    for(Index query = 0; query < n_seq; ++query)
-    {
-        for(Index key = 0; key < n_seq; ++key)
-        {
-            mask_bytes[static_cast<size_t>(key + query * n_seq)] =
-                (key <= query) ? static_cast<std::uint8_t>(1)
-                               : static_cast<std::uint8_t>(0);
-        }
-    }
+    sdpa_causal_mask_bool_fill(n_seq, mask_bytes.data());
 }
 
 } // namespace nntile::test::gptneox_fixture

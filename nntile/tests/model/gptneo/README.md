@@ -27,8 +27,8 @@ Shared building blocks used by GPT-Neo (not covered only inside model tests):
 ### Attention masks
 
 - **`[nomask]`** — `mask=nullptr` (full bidirectional SDPA in the graph).
-- **`[causal]`** — BOOL causal mask (`sdpa_causal_mask_bool_fortran_fill`).
-- **`[local]`** — BOOL sliding-window mask for layer_id=1 (`sdpa_gptneo_local_mask_bool_fortran_fill`).
+- **`[causal]`** — BOOL causal mask (`sdpa_causal_mask_bool_fill`).
+- **`[local]`** — BOOL sliding-window mask for layer_id=1 (`sdpa_gptneo_local_mask_bool_fill`).
 
 Production models alternate global (even layers) and local (odd layers) attention; training and generation pass both `attn_mask` and `attn_mask_local`.
 

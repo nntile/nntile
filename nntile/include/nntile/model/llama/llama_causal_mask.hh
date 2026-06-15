@@ -16,6 +16,6 @@
 namespace nntile::model::llama
 {
 
-using nntile::sdpa_causal_mask_bool_fortran_fill;
+using nntile::sdpa_causal_mask_bool_fill;
 
 } // namespace nntile::model::llama

@@ -348,7 +348,7 @@ int main(int argc, char** argv)
         const std::size_t dec_mask_n =
             static_cast<std::size_t>(dec_seq * dec_seq);
         std::vector<std::uint8_t> dec_mask_data(dec_mask_n);
-        sdpa_causal_mask_bool_fortran_fill(dec_seq, dec_mask_data.data());
+        sdpa_causal_mask_bool_fill(dec_seq, dec_mask_data.data());
 
         graph.finish_phase();
         graph.lower_and_compile();

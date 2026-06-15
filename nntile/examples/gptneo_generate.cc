@@ -368,9 +368,9 @@ int main(int argc, char** argv)
         const std::size_t mask_n =
             static_cast<std::size_t>(seq_len * seq_len);
         std::vector<std::uint8_t> mask_data(mask_n);
-        sdpa_causal_mask_bool_fortran_fill(seq_len, mask_data.data());
+        sdpa_causal_mask_bool_fill(seq_len, mask_data.data());
         std::vector<std::uint8_t> mask_local_data(mask_n);
-        sdpa_gptneo_local_mask_bool_fortran_fill(
+        sdpa_gptneo_local_mask_bool_fill(
             seq_len, config.window_size, mask_local_data.data());
 
         TileGraph tile_graph =

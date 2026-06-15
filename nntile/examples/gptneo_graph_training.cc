@@ -476,9 +476,9 @@ int main(int argc, char **argv)
 
     const std::size_t mask_n = static_cast<std::size_t>(n_seq * n_seq);
     std::vector<std::uint8_t> mask_data(mask_n);
-    sdpa_causal_mask_bool_fortran_fill(n_seq, mask_data.data());
+    sdpa_causal_mask_bool_fill(n_seq, mask_data.data());
     std::vector<std::uint8_t> mask_local_data(mask_n);
-    sdpa_gptneo_local_mask_bool_fortran_fill(
+    sdpa_gptneo_local_mask_bool_fill(
         n_seq, config.window_size, mask_local_data.data());
 
     graph.enable_auto_tensor_name_phase_suffix(true);
