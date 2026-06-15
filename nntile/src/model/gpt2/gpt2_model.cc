@@ -73,7 +73,9 @@ NNGraph::TensorNode* Gpt2Model::forward(
     NNGraph::TensorNode* wpe_out = wpe_.forward(position_ids);
     NNGraph::TensorNode* x =
         add(1.0, wte_out, 1.0, wpe_out);
-    // Embedding C-order [hidden, batch, seq] -> [batch, seq, hidden].
+    // Embedding still appends embed_dim in physical Fortran order, so virtual
+    // shape is [hidden, batch, seq]. Transpose to [batch, seq, hidden] for
+    // blocks; removing this needs an embedding output-layout change (follow-up).
     x = transpose(x, 2);
 
     for(auto& layer : layers_)

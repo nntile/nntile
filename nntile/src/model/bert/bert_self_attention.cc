@@ -1,4 +1,3 @@
-#include <nntile/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -12,6 +11,8 @@
  *
  * @version 1.1.0
  * */
+
+#include <nntile/common.hh>
 
 #include "nntile/model/bert/bert_self_attention.hh"
 #include "nntile/model/bert/bert_common.hh"
@@ -67,9 +68,7 @@ BertSelfAttention::BertSelfAttention(NNGraph* graph,
 NNGraph::TensorNode* BertSelfAttention::forward(
     NNGraph::TensorNode* x,
     NNGraph::TensorNode* mask,
-    bool causal,
-    NNGraph::TensorNode* w_dense,
-    NNGraph::TensorNode* b_dense)
+    bool causal)
 {
     throw_if_causal_flag_set(causal, "BertSelfAttention");
 
@@ -105,18 +104,8 @@ NNGraph::TensorNode* BertSelfAttention::forward(
     attn_out->set_name(tensor_name("sdpa_out"));
 
     NNGraph::TensorNode* attn_t = transpose(attn_out, 3);
-    attn_t->set_name(tensor_name("attn_t"));
-
-    if(w_dense == nullptr || b_dense == nullptr)
-    {
-        return attn_t;
-    }
-
-    NNGraph::TensorNode* out =
-        gemm(attn_t, w_dense, 1.0, false, false, 2, 0);
-    out = add_fiber(1.0, b_dense, 1.0, out, out->ndim() - 1, 0);
-    out->set_name(tensor_name("dense_out"));
-    return out;
+    attn_t->set_name(tensor_name("attn_heads"));
+    return attn_t;
 }
 
 std::string BertSelfAttention::repr() const

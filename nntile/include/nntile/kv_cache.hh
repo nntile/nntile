@@ -82,7 +82,8 @@ public:
 
     //! Append raw K,V data to cache (for custom flows without graph).
     //! k_data, v_data: physical layout ``(head_size, seq_len, batch, n_head_kv)``
-    //! (Fortran flat order), matching the internal cache buffers.
+    //! (Fortran flat order).  Graph tensors from ``create_tensors`` use virtual
+    //! C-order ``(n_head_kv, batch, max_seq, head_size)``.
     void append(const float* k_data,
                 const float* v_data,
                 Index seq_len);

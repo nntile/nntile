@@ -71,8 +71,10 @@ public:
     //! nullptr. Build with ``nntile::sdpa_causal_mask_bool_fill``
     //! for causal
     //! LM.
-    //! @param k_cache Optional KV cache for K (batch, max_seq, n_head_kv, head_size)
-    //! @param v_cache Optional KV cache for V (batch, max_seq, n_head_kv, head_size)
+    //! @param k_cache Optional KV cache for K
+    //!     (n_head_kv, batch, max_seq, head_size) virtual C-order
+    //! @param v_cache Optional KV cache for V
+    //!     (n_head_kv, batch, max_seq, head_size) virtual C-order
     //! @param cache_len Current valid length in cache (0 = prefill, >0 = decode)
     NNGraph::TensorNode* forward(
         NNGraph::TensorNode* x,

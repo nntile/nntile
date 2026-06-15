@@ -45,9 +45,7 @@ public:
     NNGraph::TensorNode* forward(
         NNGraph::TensorNode* x,
         NNGraph::TensorNode* mask = nullptr,
-        bool causal = false,
-        NNGraph::TensorNode* w_dense = nullptr,
-        NNGraph::TensorNode* b_dense = nullptr);
+        bool causal = false);
 
     std::string repr() const override;
 };

@@ -40,11 +40,8 @@ public:
                    DataType dtype = DataType::FP32);
 
     NNGraph::TensorNode* forward(
-        NNGraph::TensorNode* dense_out,
+        NNGraph::TensorNode* attn_heads,
         NNGraph::TensorNode* residual);
-
-    NNGraph::TensorNode* w_dense() const { return w_dense_; }
-    NNGraph::TensorNode* b_dense() const { return b_dense_; }
 
     std::string repr() const override;
 };

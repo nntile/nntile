@@ -34,10 +34,9 @@ NNGraph::TensorNode* BertAttention::forward(
     NNGraph::TensorNode* mask,
     bool causal)
 {
-    NNGraph::TensorNode* dense =
-        self_attn_.forward(x, mask, causal,
-            self_out_.w_dense(), self_out_.b_dense());
-    return self_out_.forward(dense, x);
+    NNGraph::TensorNode* heads =
+        self_attn_.forward(x, mask, causal);
+    return self_out_.forward(heads, x);
 }
 
 std::string BertAttention::repr() const

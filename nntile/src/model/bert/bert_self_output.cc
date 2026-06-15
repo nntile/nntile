@@ -1,4 +1,3 @@
-#include <nntile/common.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -13,8 +12,12 @@
  * @version 1.1.0
  * */
 
+#include <nntile/common.hh>
+
 #include "nntile/model/bert/bert_self_output.hh"
 #include "nntile/nn/ops/add.hh"
+#include "nntile/nn/ops/add_fiber.hh"
+#include "nntile/nn/ops/gemm.hh"
 
 #include <stdexcept>
 
@@ -49,15 +52,19 @@ BertSelfOutput::BertSelfOutput(NNGraph* graph,
 }
 
 NNGraph::TensorNode* BertSelfOutput::forward(
-    NNGraph::TensorNode* dense_out,
+    NNGraph::TensorNode* attn_heads,
     NNGraph::TensorNode* residual)
 {
-    if(dense_out == nullptr || residual == nullptr)
+    if(attn_heads == nullptr || residual == nullptr)
     {
         throw std::invalid_argument(
-            "BertSelfOutput::forward: dense_out and residual must be non-null");
+            "BertSelfOutput::forward: attn_heads and residual must be non-null");
     }
 
+    NNGraph::TensorNode* dense_out =
+        gemm(attn_heads, w_dense_, 1.0, false, false, 2, 0);
+    dense_out = add_fiber(
+        1.0, b_dense_, 1.0, dense_out, dense_out->ndim() - 1, 0);
     dense_out->set_name(tensor_name("dense_out"));
 
     NNGraph::TensorNode* summed =
