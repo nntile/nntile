@@ -52,7 +52,7 @@ void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_ind
  * @param[in] val: Value that is subtracted from the matrix elements
  * @param[in] labels_: Index array of size n_outputs
  * @param[inout] dst_: Matrix of size n_labels by n_outputs continuously stored
- *      in tile storage layout
+ *      in Fortran order
  * */
 {
     dim3 blocks((n_outputs+255)/256), threads(256);

@@ -69,7 +69,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  *      shape (k_size, vocab_size) but vocab_size is not passed as a parameter.
  * */
 {
-    // Both source and destination are tile-storage contiguous
+    // Both source and destination are Fortran-contiguous
     dim3 threads(256, 1, 1);
     dim3 blocks((k_size+255)/256, m, n);
     using I = typename CUDAComputeType<int64_t>::value;

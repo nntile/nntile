@@ -24,7 +24,7 @@ namespace nntile::core
 template<typename T>
 class TileLocalData;
 
-//! Many-dimensional tensor, stored contiguously in tile storage layout
+//! Many-dimensional tensor, stored contiguously in a Fortran order
 /*! Underlying StarPU data is variable, as we need only address and size of a
  * contiguous memory.
  * */

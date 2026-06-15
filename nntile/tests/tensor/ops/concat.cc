@@ -38,8 +38,8 @@ Index shape_prod(const std::vector<Index> &shape)
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 }
 
-//! Reference concat in tile storage flat layout (same as bind_data / get_output).
-std::vector<float> reference_concat_storage(const std::vector<Index> &a_shape,
+//! Reference concat in Fortran flat layout (same as bind_data / get_output).
+std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
     const std::vector<Index> &b_shape,
     Index axis,
     const std::vector<float> &a_data,
@@ -125,7 +125,7 @@ TEST_CASE("TensorGraph concat rejects invalid arguments")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph concat matches storage-layout reference (untiled)",
+    "TensorGraph concat matches Fortran reference (untiled)",
     "[graph][tensor]")
 {
     using ShapesAxis =
@@ -171,7 +171,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> got = runtime.get_output<float>(out_node);
     std::vector<float> expect =
-        reference_concat_storage(a_shape, b_shape, axis, a_data, b_data);
+        reference_concat_fortran(a_shape, b_shape, axis, a_data, b_data);
 
     constexpr float tol = 1e-5f;
     REQUIRE(got.size() == expect.size());

@@ -101,7 +101,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph graph("gpt2_mlp_schedule");
     Gpt2MLP mlp(&graph, "mlp", cfg);
-    auto *input = graph.tensor({n_batch, n_seq, cfg.hidden_size}, DataType::FP32)
+    auto *input = graph.tensor({cfg.hidden_size, n_seq, n_batch}, DataType::FP32)
                       ->set_name("input");
     input->mark_input(true);
     auto *output = mlp.forward(input);

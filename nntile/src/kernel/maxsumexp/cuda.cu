@@ -277,7 +277,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
           T *maxsumexp)
     noexcept
 {
-    // Both source and destination are tile-storage contiguous
+    // Both source and destination are Fortran-contiguous
     // Custom case m==1
     if(m == 1)
     {

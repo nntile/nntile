@@ -30,7 +30,7 @@ namespace nntile::tensor
 void TensorConcatOp::lower_to_tile(const LoweringContext &ctx) const
 {
     // Same decomposition as tensor-level concat: zero dst, then copy each
-    // operand into its slice of the output (reuse tensor lowering of CLEAR
+    // operand into its slice of the output (reuse virtual lowering of CLEAR
     // and COPY_INTERSECTION).
     TensorClearOp clear_op(output);
     clear_op.lower_to_tile(ctx);

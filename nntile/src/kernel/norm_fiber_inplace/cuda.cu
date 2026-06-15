@@ -104,7 +104,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  *      sums over slices along the first and the last axes.
  * */
 {
-    // Both source and destination are tile-storage contiguous
+    // Both source and destination are Fortran-contiguous
     dim3 threads(1, std::min(int(m), 32), std::min(int(n), 32));
     dim3 blocks((k*batch+threads.x-1)/threads.x, 1, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, alpha,

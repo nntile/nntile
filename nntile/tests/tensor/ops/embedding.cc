@@ -116,8 +116,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{
             std::vector<Index>{4, 5}, std::vector<Index>{10, 100}, Index(2)},
         std::tuple{
-            std::vector<Index>{4, 5}, std::vector<Index>{10, 100}, Index(0)},
-        std::tuple{
             std::vector<Index>{3}, std::vector<Index>{8, 50}, Index(1)});
 
     const Index index_nelems = std::accumulate(

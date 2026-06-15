@@ -136,7 +136,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    // Both source and destination are tile-storage contiguous
+    // Both source and destination are Fortran-contiguous
     // Custom version of code for special m==1 case
     if(m == 1)
     {

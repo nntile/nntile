@@ -35,7 +35,7 @@ void cpu(Index n_labels, Index n_outputs, Index ignore_index,
  * @param[in] val_: Value that is subtracted from the matrix elements
  * @param[in] labels_: Index array of size n_outputs
  * @param[inout] dst_: Matrix of size n_labels by n_outputs continuously stored
- *      in tile storage layout
+ *      in Fortran order
  * */
 {
     // using Y = typename CPUComputeType<T>::value;

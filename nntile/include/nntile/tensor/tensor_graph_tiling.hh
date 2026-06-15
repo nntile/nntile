@@ -39,7 +39,7 @@ public:
     const std::vector<Index>& tensor_shape() const { return shape_; }
     const std::vector<Index>& grid_shape() const { return grid_shape_; }
 
-    //! Slowest-varying-first linear index of a grid coordinate (dim 0 slowest).
+    //! Row-major linear index of a grid coordinate (dim 0 slowest).
     Index grid_linear(const std::vector<Index>& grid_coord) const;
 
     void grid_coord_from_linear(Index linear, std::vector<Index>& grid_coord) const;

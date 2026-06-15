@@ -34,7 +34,7 @@ void cpu(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index, cons
  * @param[in] n_outputs: Number of elements to sum up.
  * @param[in] logsumexp_: Array with logsumexp values of size n_outputs.
  * @param[in] src_: Matrix of size n_labels times n_outputs stored continuously
- *      in tile storage layout
+ *      in Fortran order
  * @param[in] labels_: Array of size n_outputs with correct labels
  * @param[inout] val: Scalar that accumulates the total sum
  * */

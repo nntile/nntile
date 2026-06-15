@@ -205,7 +205,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  *      products of src1 and src2.
  * */
 {
-    // Both source and destination are tile-storage contiguous
+    // Both source and destination are Fortran-contiguous
     // Separate case for m==1
     if(m == 1)
     {
