@@ -16,8 +16,10 @@ For each block the script creates ``gpt2_<block>.safetensors`` plus a paired
 
 Uses HuggingFace ``modeling_gpt2`` for all forward/backward references
 (``GPT2MLP``, ``GPT2Attention``, ``GPT2Block``, ``GPT2Model``,
-``GPT2LMHeadModel``) plus NumPy layout helpers. Weight tensors are reshaped to
-the graph module layout; reference forwards call HF modules (or
+``GPT2LMHeadModel``) plus NumPy layout helpers. Safetensor arrays use
+**virtual C-order** shape labels; legacy Fortran-labelled buffers are converted
+via shape reversal (``_to_c_order``) so flat bytes stay binary-compatible with
+pre-migration fixtures. Reference forwards call HF modules (or
 ``eager_attention_forward`` from the same file for bidirectional attention
 without a causal mask).
 """
@@ -81,6 +83,29 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
+def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
+    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer)."""
+    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
+        fortran_labeled.shape,
+    )
+    c_shape = fortran_labeled.shape[::-1]
+    return as_float32(legacy.ravel().reshape(c_shape))
+
+
+def _conv1d_attn_qkv_weight(
+    w_slice: np.ndarray, H: int, nh: int, hd: int,
+) -> np.ndarray:
+    """HF Conv1D Q/K/V slice ``(in, out)`` → graph ``(H, hd, nh)``."""
+    w = np.asarray(w_slice, dtype=np.float32).T.reshape(nh, hd, H)
+    return _to_c_order(w)
+
+
+def _conv1d_attn_o_weight(conv, H: int, nh: int, hd: int) -> np.ndarray:
+    """HF Conv1D ``c_proj`` ``(in, out)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    w = conv.weight.detach().numpy().reshape(H, nh, hd)
+    return _to_c_order(w)
+
+
 def _make_config(dims: TestDims) -> GPT2Config:
     return GPT2Config(
         n_embd=dims.hidden,
@@ -126,21 +151,21 @@ def _gpt2_attn_weights(
     n_emb = dims.hidden
     hs = dims.head_size
     n_heads = dims.n_heads
-    q_arr = w[:, :n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
-    k_arr = w[:, n_emb:2 * n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
-    v_arr = w[:, 2 * n_emb:3 * n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
-    o_arr = attn.c_proj.weight.detach().numpy().reshape(
-        n_heads, hs, n_emb,
-    ).transpose(1, 0, 2)
+    q_arr = _conv1d_attn_qkv_weight(w[:, :n_emb], n_emb, n_heads, hs)
+    k_arr = _conv1d_attn_qkv_weight(w[:, n_emb:2 * n_emb], n_emb, n_heads, hs)
+    v_arr = _conv1d_attn_qkv_weight(
+        w[:, 2 * n_emb:3 * n_emb], n_emb, n_heads, hs,
+    )
+    o_arr = _conv1d_attn_o_weight(attn.c_proj, n_emb, n_heads, hs)
     bias = attn.c_attn.bias.detach().numpy()
     b_q = bias[:n_emb].reshape(n_heads, hs)
     b_k = bias[n_emb:2 * n_emb].reshape(n_heads, hs)
     b_v = bias[2 * n_emb:3 * n_emb].reshape(n_heads, hs)
     return {
-        f"{prefix}.q_weight": as_float32(q_arr),
-        f"{prefix}.k_weight": as_float32(k_arr),
-        f"{prefix}.v_weight": as_float32(v_arr),
-        f"{prefix}.o_weight": as_float32(o_arr),
+        f"{prefix}.q_weight": q_arr,
+        f"{prefix}.k_weight": k_arr,
+        f"{prefix}.v_weight": v_arr,
+        f"{prefix}.o_weight": o_arr,
         f"{prefix}.q_bias": as_float32(b_q),
         f"{prefix}.k_bias": as_float32(b_k),
         f"{prefix}.v_bias": as_float32(b_v),

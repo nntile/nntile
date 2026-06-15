@@ -15,9 +15,11 @@ For each block the script creates ``bert_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 All forward and backward references come from HuggingFace ``modeling_bert``
-(PyTorch eager, dropout disabled). Helpers below only reshape HF parameters
-into NNTile C-order layouts expected by the graph API modules; they do
-not reimplement BERT computation.
+(PyTorch eager, dropout disabled). Safetensor arrays use **virtual C-order**
+shape labels; legacy Fortran-labelled buffers are converted via shape reversal
+(``_to_c_order``) so flat bytes stay binary-compatible with pre-migration
+fixtures. Helpers below only reshape HF parameters into NNTile layouts expected
+by the graph API modules; they do not reimplement BERT computation.
 """
 
 from __future__ import annotations
@@ -93,6 +95,31 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
+def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
+    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer)."""
+    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
+        fortran_labeled.shape,
+    )
+    c_shape = fortran_labeled.shape[::-1]
+    return as_float32(legacy.ravel().reshape(c_shape))
+
+
+def _linear_attn_qkv_weight(
+    linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
+) -> np.ndarray:
+    """PT Linear ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``."""
+    w = linear.weight.detach().numpy().reshape(nh, hs, n_emb)
+    return _to_c_order(w)
+
+
+def _linear_attn_o_weight(
+    linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
+) -> np.ndarray:
+    """PT Linear ``(out, in)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    w = linear.weight.detach().numpy().reshape(n_emb, nh, hs)
+    return _to_c_order(w)
+
+
 def _make_config(dims: TestDims) -> BertConfig:
     return BertConfig(
         hidden_size=dims.hidden,
@@ -138,16 +165,15 @@ def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
     n_heads = dims.n_heads
 
     def w(linear):
-        weight = linear.weight.detach().numpy()
-        return as_float32(weight.reshape(n_heads, hs, n_emb).transpose(2, 1, 0))
+        return _linear_attn_qkv_weight(linear, n_emb, n_heads, hs)
 
     def b(linear):
         return as_float32(linear.bias.detach().numpy().reshape(n_heads, hs))
 
     return {
-        f"{prefix}.q_weight": as_float32(w(self_attn.query)),
-        f"{prefix}.k_weight": as_float32(w(self_attn.key)),
-        f"{prefix}.v_weight": as_float32(w(self_attn.value)),
+        f"{prefix}.q_weight": w(self_attn.query),
+        f"{prefix}.k_weight": w(self_attn.key),
+        f"{prefix}.v_weight": w(self_attn.value),
         f"{prefix}.q_bias": as_float32(b(self_attn.query)),
         f"{prefix}.k_bias": as_float32(b(self_attn.key)),
         f"{prefix}.v_bias": as_float32(b(self_attn.value)),
@@ -158,14 +184,9 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     n_emb = dims.hidden
     n_heads = dims.n_heads
     hs = dims.head_size
-    w = as_float32(
-        np.asarray(
-            out_module.dense.weight.detach().numpy().reshape(n_emb, n_heads, hs),
-            dtype=np.float32,
-        ).ravel("F").reshape(n_emb, n_heads, hs).ravel().reshape(hs, n_heads, n_emb),
-    )
+    w = _linear_attn_o_weight(out_module.dense, n_emb, n_heads, hs)
     return {
-        f"{prefix}.dense.weight": as_float32(w),
+        f"{prefix}.dense.weight": w,
         f"{prefix}.dense.bias": as_float32(
             out_module.dense.bias.detach().numpy(),
         ),

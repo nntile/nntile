@@ -15,9 +15,11 @@ For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
-backward references plus NumPy layout wrangling for NNTile safetensors — no
-custom attention reimplementation. Weights are split from HF
-``query_key_value`` / ``dense`` into graph
+backward references plus NumPy layout helpers for NNTile safetensors — no
+custom attention reimplementation. Safetensor arrays use **virtual C-order**
+shape labels; legacy Fortran-labelled buffers are converted via shape reversal
+(``_to_c_order``) so flat bytes stay binary-compatible with pre-migration
+fixtures. Weights are split from HF ``query_key_value`` / ``dense`` into graph
 ``q/k/v/o`` layouts matching ``gpt_neox_generate.py``. Attention
 references call ``GPTNeoXAttention`` with ``_attn_implementation="eager"``,
 ``GPTNeoXRotaryEmbedding`` cos/sin, and additive ``attention_mask``: causal
@@ -38,7 +40,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-from safetensors.numpy import load_file, save_file
+from safetensors.numpy import save_file
 from transformers import GPTNeoXConfig
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXAttention as PtAttention, GPTNeoXForCausalLM as PtCausalLM,
@@ -87,6 +89,15 @@ def as_float32(arr: np.ndarray) -> np.ndarray:
 
 def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
+
+
+def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
+    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer)."""
+    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
+        fortran_labeled.shape,
+    )
+    c_shape = fortran_labeled.shape[::-1]
+    return as_float32(legacy.ravel().reshape(c_shape))
 
 
 def _make_config(dims: TestDims) -> GPTNeoXConfig:
@@ -159,15 +170,13 @@ def _rotate_tensor_in_for_rope(
 
 def _gptneox_attn_qkv_weight(qkv_slice: np.ndarray) -> np.ndarray:
     """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` C-order layout."""
-    return as_float32(qkv_slice.transpose(2, 1, 0))
+    return _to_c_order(np.asarray(qkv_slice, dtype=np.float32))
 
 
 def _gptneox_attn_o_weight(o: np.ndarray, nh: int, hd: int, H: int) -> np.ndarray:
     """HF ``dense`` ``(H, H)`` → graph ``o_weight`` ``(hd, nh, H)``."""
-    legacy = np.asarray(o.reshape(H, nh, hd), dtype=np.float32).ravel("F").reshape(
-        H, nh, hd,
-    )
-    return as_float32(legacy.ravel().reshape(hd, nh, H))
+    w = o.reshape(H, nh, hd)
+    return _to_c_order(w)
 
 
 def _gptneox_attn_weights(

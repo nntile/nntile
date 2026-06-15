@@ -12,9 +12,12 @@
 """Generate reference test data for NNTile T5 graph C++ tests.
 
 Uses **Hugging Face Transformers** (``modeling_t5``) for forward and backward
-references. Weight tensors are converted to the NNTile graph layout (same
-naming and C-order bytes as ``examples/t5_generate.py``). Mask tensors
-stored for C++ use the ``sdpa_eager`` layout expected by graph tests.
+references. Safetensor arrays use **virtual C-order** shape labels; legacy
+Fortran-labelled buffers are converted via shape reversal (``_to_c_order``) so
+flat bytes stay binary-compatible with pre-migration fixtures. Weight tensors
+are converted to the NNTile graph layout (same naming and bytes as
+``examples/t5_generate.py``). Mask tensors stored for C++ use the
+``sdpa_eager`` layout expected by graph tests.
 
 PyTorch runs with ``_attn_implementation="eager"`` and ``cache_position`` on
 attention modules, matching
@@ -106,6 +109,31 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
+def _to_c_order(fortran_labeled: np.ndarray) -> np.ndarray:
+    """Fortran virtual labels → C-order safetensors layout (preserve flat buffer)."""
+    legacy = np.asarray(fortran_labeled, dtype=np.float32).ravel("F").reshape(
+        fortran_labeled.shape,
+    )
+    c_shape = fortran_labeled.shape[::-1]
+    return as_float32(legacy.ravel().reshape(c_shape))
+
+
+def _linear_attn_qkv_weight(
+    linear: torch.nn.Linear, dm: int, nh: int, hs: int,
+) -> np.ndarray:
+    """PT Linear ``(out, in)`` → graph ``q/k/v_weight`` ``(d_model, hd, nh)``."""
+    w = linear.weight.detach().numpy().reshape(nh, hs, dm)
+    return _to_c_order(w)
+
+
+def _linear_attn_o_weight(
+    linear: torch.nn.Linear, dm: int, nh: int, hs: int,
+) -> np.ndarray:
+    """PT Linear ``(out, in)`` → graph ``o_weight`` ``(hd, nh, d_model)``."""
+    w = linear.weight.detach().numpy().reshape(dm, nh, hs)
+    return _to_c_order(w)
+
+
 def _make_config(dims: TestDims) -> T5Config:
     return T5Config(
         vocab_size=dims.vocab,
@@ -138,15 +166,11 @@ def _t5_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
     nh, hs, dm = dims.n_heads, dims.head_size, dims.d_model
-    q = attn.q.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
-    k = attn.k.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
-    v = attn.v.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
-    o = attn.o.weight.detach().numpy().reshape(dm, nh, hs).transpose(2, 1, 0)
     return {
-        f"{prefix}.q_weight": as_float32(q),
-        f"{prefix}.k_weight": as_float32(k),
-        f"{prefix}.v_weight": as_float32(v),
-        f"{prefix}.o_weight": as_float32(o),
+        f"{prefix}.q_weight": _linear_attn_qkv_weight(attn.q, dm, nh, hs),
+        f"{prefix}.k_weight": _linear_attn_qkv_weight(attn.k, dm, nh, hs),
+        f"{prefix}.v_weight": _linear_attn_qkv_weight(attn.v, dm, nh, hs),
+        f"{prefix}.o_weight": _linear_attn_o_weight(attn.o, dm, nh, hs),
     }
 
 
