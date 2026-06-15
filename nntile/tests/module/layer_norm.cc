@@ -24,7 +24,6 @@
 
 #include "nntile/graph.hh"
 #include "nntile/module/layer_norm.hh"
-#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/graph.hh"
 
 #ifdef NNTILE_HAVE_TORCH
@@ -85,10 +84,8 @@ TEST_CASE("LayerNorm Repr", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::module_tile_all_untiled_axis_groups_heterogeneous;
-using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LayerNorm forward matches PyTorch",

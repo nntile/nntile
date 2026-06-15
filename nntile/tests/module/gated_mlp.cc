@@ -33,7 +33,6 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #include "context_fixture.hh"
-#include "nntile/nn/shape_layout.hh"
 #include "pytorch_helper.hh"
 #include "pytorch_tile_helpers.hh"
 #endif
@@ -125,7 +124,6 @@ TEST_CASE("GatedMlp OutputDimEqualsInputDim", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::pytorch_tolerance;
 
