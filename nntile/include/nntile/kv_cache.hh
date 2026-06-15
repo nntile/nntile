@@ -37,8 +37,9 @@ namespace nntile
 class KVCache
 {
 public:
-    //! Per-layer cache shape: (head_size, max_seq, batch, n_head_kv)
-    //! Layout matches Llama/GPT attention: head_size, seq, batch, heads
+    //! Per-layer cache virtual C-order shape:
+    //! ``(n_head_kv, batch, max_seq, head_size)``. Physical storage is Fortran
+    //! ``(head_size, max_seq, batch, n_head_kv)`` (matches Llama attention).
     struct Config
     {
         Index num_layers = 0;
@@ -80,7 +81,8 @@ public:
     void advance(Index seq_len) { cache_len_ += seq_len; }
 
     //! Append raw K,V data to cache (for custom flows without graph).
-    //! k_data, v_data: shape (head_size, seq_len, batch, n_head_kv), row-major.
+    //! k_data, v_data: physical layout ``(head_size, seq_len, batch, n_head_kv)``
+    //! (Fortran flat order), matching the internal cache buffers.
     void append(const float* k_data,
                 const float* v_data,
                 Index seq_len);

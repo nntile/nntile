@@ -117,7 +117,7 @@ KVCache::create_tensors(NNGraph *graph, const std::string &prefix)
     tensors_.reserve(config_.num_layers);
 
     std::vector<Index> shape = {
-        config_.head_size, config_.max_seq, config_.batch, config_.n_head_kv};
+        config_.n_head_kv, config_.batch, config_.max_seq, config_.head_size};
 
     for (Index i = 0; i < config_.num_layers; ++i)
     {
@@ -350,7 +350,7 @@ const std::vector<float> &KVCache::v_buffer(Index layer) const
 std::vector<Index> KVCache::cache_shape() const
 {
     return {
-        config_.head_size, config_.max_seq, config_.batch, config_.n_head_kv};
+        config_.n_head_kv, config_.batch, config_.max_seq, config_.head_size};
 }
 
 void KVCache::append(const float *k_data, const float *v_data, Index seq_len)
