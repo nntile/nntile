@@ -13,7 +13,6 @@
  * */
 
 #include "nntile/model/gpt2/gpt2_mlp.hh"
-#include "nntile/nn/ops/add_fiber.hh"
 
 namespace nntile::model::gpt2
 {
@@ -22,37 +21,16 @@ Gpt2MLP::Gpt2MLP(NNGraph* graph,
                  const std::string& name,
                  const Gpt2Config& config,
                  DataType dtype)
-    : module::Mlp(graph, name,
-                         config.hidden_size,
-                         config.intermediate_size,
-                         config.hidden_size,
-                         module::ActivationType::GELUTANH,
-                         dtype)
+    : module::Mlp(graph,
+                  name,
+                  config.hidden_size,
+                  config.intermediate_size,
+                  config.hidden_size,
+                  module::ActivationType::GELUTANH,
+                  true,
+                  dtype)
 {
     config.validate();
-
-    fc1_bias_ = graph_->tensor({config.intermediate_size}, dtype, true);
-    fc1_bias_->set_name(tensor_name("fc1.bias"));
-    register_parameter("fc1.bias", fc1_bias_);
-
-    fc2_bias_ = graph_->tensor({config.hidden_size}, dtype, true);
-    fc2_bias_->set_name(tensor_name("fc2.bias"));
-    register_parameter("fc2.bias", fc2_bias_);
-}
-
-NNGraph::TensorNode* Gpt2MLP::forward(
-    NNGraph::TensorNode* input)
-{
-    NNGraph::TensorNode* hidden = fc1().forward(input);
-    hidden->set_name(tensor_name("fc1_out"));
-    const Index hidden_feature_axis = hidden->ndim() - 1;
-    hidden = add_fiber(1.0, fc1_bias_, 1.0, hidden, hidden_feature_axis, 0);
-    hidden = activation().forward(hidden);
-    NNGraph::TensorNode* out = fc2().forward(hidden);
-    const Index out_feature_axis = out->ndim() - 1;
-    out = add_fiber(1.0, fc2_bias_, 1.0, out, out_feature_axis, 0);
-    out->set_name(tensor_name("output"));
-    return out;
 }
 
 std::string Gpt2MLP::repr() const

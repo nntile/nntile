@@ -81,6 +81,7 @@ public:
         Index intermediate_dim,
         Index output_dim,
         ActivationType activation = ActivationType::GELU,
+        bool with_bias = false,
         DataType dtype = DataType::FP32);
 
     //! Constructor: creates MLP where output_dim == input_dim (common in transformers)
@@ -95,6 +96,7 @@ public:
         Index input_dim,
         Index intermediate_dim,
         ActivationType activation = ActivationType::GELU,
+        bool with_bias = false,
         DataType dtype = DataType::FP32);
 
 #ifdef NNTILE_HAVE_TORCH

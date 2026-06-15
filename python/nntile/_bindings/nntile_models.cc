@@ -133,6 +133,7 @@ void bind_nntile_models(py::module_ &m)
                  Index,
                  Index,
                  module::ActivationType,
+                 bool,
                  DataType>(),
             "graph"_a,
             "name"_a,
@@ -140,6 +141,7 @@ void bind_nntile_models(py::module_ &m)
             "intermediate_dim"_a,
             "output_dim"_a,
             "activation"_a = module::ActivationType::GELU,
+            "with_bias"_a = false,
             "dtype"_a = DataType::FP32,
             py::keep_alive<1, 2>())
         .def("forward",

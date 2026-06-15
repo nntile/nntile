@@ -29,18 +29,11 @@ namespace nntile::model::gptneox
 //! GPT-NeoXMLP - MLP with GELU and HF ``dense_*`` biases (like ``Gpt2MLP``).
 class GptneoxMlp : public module::Mlp
 {
-private:
-    NNGraph::TensorNode* fc1_bias_ = nullptr;
-    NNGraph::TensorNode* fc2_bias_ = nullptr;
-
 public:
     GptneoxMlp(NNGraph* graph,
                const std::string& name,
                const GptneoxConfig& config,
                DataType dtype = DataType::FP32);
-
-    NNGraph::TensorNode* forward(
-        NNGraph::TensorNode* input);
 
     std::string repr() const override;
 };
