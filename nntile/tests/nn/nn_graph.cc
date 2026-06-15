@@ -151,10 +151,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph nng("test_nn");
 
-    auto *x = nng.tensor({2, 3}, DataType::FP32)->set_name("input");
-    auto *w = nng.tensor({3, 4}, DataType::FP32)->set_name("weights");
+    auto *a = nng.tensor({3, 2}, DataType::FP32)->set_name("input");
+    auto *b = nng.tensor({4, 3}, DataType::FP32)->set_name("weights");
 
-    auto *y = gemm(x, w, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
+    auto *y = gemm(a, b, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
     // Test that NNGraph to_mermaid delegates to tensor graph
     auto nn_mermaid = nng.to_mermaid();
@@ -177,16 +177,16 @@ TEST_CASE_METHOD(
 
     NNGraph g("test");
 
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
-    auto *w = g.tensor({3, 4}, DataType::FP32)->set_name("w");
-    auto *y = gemm(x, w, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
+    auto *a = g.tensor({3, 2}, DataType::FP32)->set_name("x");
+    auto *b = g.tensor({4, 3}, DataType::FP32)->set_name("w");
+    auto *y = gemm(a, b, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
-    x->mark_input(true);
+    a->mark_input(true);
     y->mark_output(true);
 
-    REQUIRE(x->is_input());
+    REQUIRE(a->is_input());
     REQUIRE(y->is_output());
-    REQUIRE(x->data()->is_input());
+    REQUIRE(a->data()->is_input());
     REQUIRE(y->data()->is_output());
 }
 

@@ -23,28 +23,14 @@ if str(_examples_dir) not in sys.path:
     sys.path.insert(0, str(_examples_dir))
 
 import numpy as np
-
 from numpy_helpers import (
-    fill_arange_position_ids,
-    sdpa_causal_mask_bool_c_fill,
-)
+    fill_arange_position_ids, sdpa_causal_mask_bool_fortran_fill)
 
 import nntile
 from nntile import (
-    AdamW,
-    CausalLmBatch,
-    CausalLmBatchConfig,
-    CausalLmBatchIterator,
-    Context,
-    DataType,
-    Gpt2Causal,
-    NNGraph,
-    TokenMemoryMap,
-    apply_gpt2_tiling_json,
-    init_random_parameter_hints,
-    load_gpt2_config_json,
-    make_tiny_gpt2_config,
-)
+    AdamW, CausalLmBatch, CausalLmBatchConfig, CausalLmBatchIterator, Context,
+    DataType, Gpt2Causal, NNGraph, TokenMemoryMap, apply_gpt2_tiling_json,
+    init_random_parameter_hints, load_gpt2_config_json, make_tiny_gpt2_config)
 
 
 def scheduled_lr(step: int, args: argparse.Namespace) -> float:
@@ -158,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
 
     pos_data = np.zeros(n_seq * n_batch, dtype=np.int64)
     fill_arange_position_ids(pos_data, n_seq, n_batch)
-    mask_data = sdpa_causal_mask_bool_c_fill(n_seq)
+    mask_data = sdpa_causal_mask_bool_fortran_fill(n_seq)
 
     graph.enable_auto_tensor_name_phase_suffix(True)
     ce_scale = 1.0 / float(n_seq * n_batch)
