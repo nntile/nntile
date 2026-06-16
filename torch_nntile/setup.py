@@ -17,7 +17,6 @@ REPO_ROOT = ROOT.parent
 CSRC = [
     "csrc/nntile_allocator.cpp",
     "csrc/nntile_kernels.cpp",
-    "csrc/nntile_cpu_fallback.cpp",
     "csrc/nntile_guard.cpp",
     "csrc/nntile_module.cpp",
     "csrc/nntile_context.cpp",

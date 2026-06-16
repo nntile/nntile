@@ -61,11 +61,15 @@ b = torch.tensor([3.0, 4.0], device="nntile")
 z = a + b  # TensorGraph add when libnntile is linked
 ```
 
-## macOS
+## macOS / PyTorch 2.12
 
-PyTorch wheels on macOS do not export `at::native::cpu_fallback` from
-`libtorch_cpu.dylib`. The extension implements its own CPU fallback so
-`import torch_nntile` works without that symbol. Rebuild after upgrading PyTorch:
+PyTorch 2.12 exports `at::native::cpu_fallback` with four arguments
+(`OperatorHandle`, `Stack*`, `bool error_on_views`, `c10::DispatchKey`).
+Calling it with fewer arguments can leave an unresolved reference to a
+three-argument symbol at load time on macOS. The extension calls the
+four-argument overload explicitly.
+
+After upgrading PyTorch, rebuild:
 
 ```bash
 CXX=clang++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
