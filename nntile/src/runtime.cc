@@ -496,7 +496,7 @@ void Runtime::allocate_missing_tiles()
             continue;
         }
         DataType dtype = node->dtype();
-        std::vector<Index> shape = node->shape();
+        std::vector<Index> shape = node->storage_shape();
 
         switch (dtype)
         {
