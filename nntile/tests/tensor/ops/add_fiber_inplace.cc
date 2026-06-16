@@ -53,11 +53,11 @@ static std::vector<Index> fiber_shape(
 {
     std::vector<Index> out;
     out.reserve(batch_ndim + 1);
+    out.push_back(tensor_shape[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out.push_back(tensor_shape[i]);
+        out.push_back(tensor_shape[tensor_shape.size() - batch_ndim + i]);
     }
-    out.push_back(tensor_shape[axis]);
     return out;
 }
 
@@ -98,8 +98,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [tensor_shape, axis, batch_ndim, alpha, beta] = GENERATE(
-        std::tuple{std::vector<Index>{4, 2}, Index(1), Index(0), 1.0, 1.0},
-        std::tuple{std::vector<Index>{4, 2}, Index(0), Index(0), 1.0, 1.0});
+        std::tuple{std::vector<Index>{4, 2}, Index(0), Index(0), 1.0, 1.0},
+        std::tuple{std::vector<Index>{4, 2}, Index(1), Index(0), 1.0, 1.0});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

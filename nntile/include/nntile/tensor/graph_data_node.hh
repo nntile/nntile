@@ -203,26 +203,31 @@ inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
                                     std::to_string(tensor->ndim()) + " vs " +
                                     std::to_string(batch_ndim) + ")");
     }
-    if (fiber->shape()[0] != tensor->shape()[axis])
+    const std::vector<Index> f_shape = fiber->storage_shape();
+    const std::vector<Index> t_shape = tensor->storage_shape();
+    const Index nd = tensor->ndim();
+    if (f_shape[0] != t_shape[axis])
     {
         throw std::invalid_argument(
             op_name + ": fiber dim 0 must match tensor dim " +
-            std::to_string(axis) + " (" + std::to_string(fiber->shape()[0]) +
-            " vs " + std::to_string(tensor->shape()[axis]) + ")");
+            std::to_string(axis) + " (" + std::to_string(f_shape[0]) +
+            " vs " + std::to_string(t_shape[axis]) + ")");
     }
-    merge_axis(fiber->mutable_axes()[0], tensor->mutable_axes()[axis]);
+    merge_axis(fiber->mutable_axes()[0],
+        tensor->mutable_axes()[tensor::storage_axis_to_graph(axis, nd)]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        Index ti = tensor->ndim() - batch_ndim + i;
-        if (fiber->shape()[1 + i] != tensor->shape()[ti])
+        Index ti = nd - batch_ndim + i;
+        if (f_shape[1 + i] != t_shape[ti])
         {
             throw std::invalid_argument(
                 op_name + ": fiber dim " + std::to_string(1 + i) +
                 " must match tensor dim " + std::to_string(ti) + " (" +
-                std::to_string(fiber->shape()[1 + i]) + " vs " +
-                std::to_string(tensor->shape()[ti]) + ")");
+                std::to_string(f_shape[1 + i]) + " vs " +
+                std::to_string(t_shape[ti]) + ")");
         }
-        merge_axis(fiber->mutable_axes()[1 + i], tensor->mutable_axes()[ti]);
+        merge_axis(fiber->mutable_axes()[1 + i],
+            tensor->mutable_axes()[tensor::storage_axis_to_graph(ti, nd)]);
     }
 }
 

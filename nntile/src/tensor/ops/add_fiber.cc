@@ -16,6 +16,7 @@
 #include "nntile/tensor/ops/add_fiber.hh"
 
 #include "nntile/base_types.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -52,8 +53,10 @@ TensorGraph::TensorNode *add_fiber(Scalar alpha,
             "add_fiber: input tensors must have the same dtype");
     }
 
+    const Index s_axis = graph_axis_to_storage(axis, tensor->ndim());
+
     validate_fiber_shape_and_merge(
-        fiber, tensor, axis, batch_ndim, "add_fiber");
+        fiber, tensor, s_axis, batch_ndim, "add_fiber");
 
     // Output shape matches tensor (fiber is broadcast)
     std::vector<Index> output_shape = tensor->shape();
@@ -62,7 +65,7 @@ TensorGraph::TensorNode *add_fiber(Scalar alpha,
     output->set_axes(tensor->axes());
 
     auto op = std::make_shared<TensorAddFiberOp>(
-        fiber, tensor, output, alpha, beta, axis, batch_ndim);
+        fiber, tensor, output, alpha, beta, s_axis, batch_ndim);
     fiber->graph()->add_op(op);
 
     return output;
@@ -96,12 +99,14 @@ void add_fiber(Scalar alpha,
         throw std::invalid_argument(
             "add_fiber: fiber, tensor, and output must be distinct tensors");
     }
+    const Index s_axis = graph_axis_to_storage(axis, tensor->ndim());
+
     validate_fiber_shape_and_merge(
-        fiber, tensor, axis, batch_ndim, "add_fiber");
+        fiber, tensor, s_axis, batch_ndim, "add_fiber");
     validate_same_shape_and_merge(tensor, output, "add_fiber");
 
     auto op = std::make_shared<TensorAddFiberOp>(
-        fiber, tensor, output, alpha, beta, axis, batch_ndim);
+        fiber, tensor, output, alpha, beta, s_axis, batch_ndim);
     fiber->graph()->add_op(op);
 }
 
