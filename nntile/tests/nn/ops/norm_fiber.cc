@@ -68,10 +68,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *y =
         norm_fiber(x, axis, batch_ndim_none, redux_none, alpha)->set_name("y");
 
-    x->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
-    x->data()->axis(1)->set_tiling(std::vector<Index>{2, 3, 1});
+    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
     if (axis == 0)
-        y->data()->axis(0)->set_tiling(std::vector<Index>{2, 4});
+        y->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
     else
         y->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
 

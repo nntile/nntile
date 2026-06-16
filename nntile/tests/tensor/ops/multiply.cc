@@ -37,15 +37,15 @@ TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim0, dim1})->set_name("x");
-    auto *y = graph.data({dim0, dim1})->set_name("y");
+    auto *x = graph.data({dim1, dim0})->set_name("x");
+    auto *y = graph.data({dim1, dim0})->set_name("y");
 
     auto *z = gt::multiply(x, y, alpha);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(z->shape()[0] == dim0);
-    REQUIRE(z->shape()[1] == dim1);
+    REQUIRE(z->shape()[0] == dim1);
+    REQUIRE(z->shape()[1] == dim0);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "MULTIPLY");
@@ -57,7 +57,7 @@ TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
 TEST_CASE("TensorGraph multiply rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({4, 5})->set_name("x");
+    auto *x = graph.data({5, 4})->set_name("x");
 
     REQUIRE_THROWS_AS(gt::multiply(x, x, 1.0), std::invalid_argument);
 }
@@ -67,8 +67,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, shape] =
-        GENERATE(std::tuple{1.0, std::vector<Index>{4, 6}},
-            std::tuple{2.5, std::vector<Index>{2, 4}},
+        GENERATE(std::tuple{1.0, std::vector<Index>{6, 4}},
+            std::tuple{2.5, std::vector<Index>{4, 2}},
             std::tuple{0.5, std::vector<Index>{6}});
 
     using T = nntile::fp32_t;

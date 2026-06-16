@@ -128,17 +128,21 @@ Defined in `include/nntile/tensor/` and `graph_ops.hh`:
 **Utility operations:**
 - `fill(x, value)` — fill tensor with scalar value
 
-GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
+GEMM shape rules (see `gemm_output_shape` in `tensor/ops/gemm.hh`):
 
-- Graph labels on `NNGraph::TensorNode::shape()`; physical tensor GEMM
-  uses tile storage shapes via `graph_shape_to_storage`.
-- NN API: `gemm(a, b, trans_a, trans_b, ...)` on graph shapes.
-  Lowers to `tensor::gemm(b, a, trans_b, trans_a, ...)` (operands and
-  transpose flags swapped for graph labels).
-- `trans_a` / `trans_b` transpose the first ``ndim`` axes of ``a`` / ``b``.
+- `TensorGraph::TensorNode::shape()` uses **graph** (C-order) labels; tile
+  kernels use **storage** shapes (`storage_shape()` / `graph_shape_to_storage`).
+- **NNGraph** `gemm(a, b, trans_a, trans_b, ndim, batch_ndim)` forwards to
+  `tensor::gemm(a, b, trans_a, trans_b, ndim, batch_ndim)` on graph shapes
+  (no operand swap at the NN/tensor builder boundary).
+- **Tile lowering** (`TensorGemmOp::lower_to_tile`) maps graph-axis GEMM to
+  Fortran-order tile `tile::gemm` by swapping operands and transpose flags
+  (`tile::gemm(b, a, trans_b, trans_a, …)`).
+- `trans_a` / `trans_b` transpose the contracted ``ndim`` axes of ``a`` / ``b``
+  (see `gemm_output_shape` for the exact index ranges).
 - `ndim` is the number of contraction (K) dimensions.
-- `batch_ndim` is the number of **trailing** batch dimensions (must match between
-  `a` and `b`).
+- `batch_ndim` is the number of **leading** batch dimensions shared as the
+  shape prefix `[0, batch_ndim)` in both `a` and `b`.
 
 Example usages (not special cases in the op itself):
 
@@ -148,16 +152,27 @@ Example usages (not special cases in the op itself):
 
 ### Graph shape labels
 
-NNGraph uses **graph** shape labels on `TensorNode::shape()` while
-tile/tensor storage uses reversed axis labels. Helpers in
-`include/nntile/nn/shape_layout.hh` convert between the two:
+`TensorGraph` and `NNGraph` expose **graph** shapes on `TensorNode::shape()`
+(outermost / slowest dimension first, C-order). Tile storage and kernels use
+reversed axis labels. Helpers in `include/nntile/tensor/shape_layout.hh`
+(and re-exported from `include/nntile/nn/shape_layout.hh`) convert between the
+two:
 
-- `nn::graph_shape_to_storage(graph_shape)` — graph label → tile storage shape
-- `nn::storage_shape_to_graph(storage_shape)` — tile storage → graph label
-- `nn::graph_axis_to_storage(graph_axis, ndim)` — graph axis (0 = outermost) → storage axis
+- `tensor::graph_shape_to_storage(graph_shape)` — graph label → tile storage shape
+- `tensor::storage_shape_to_graph(storage_shape)` — tile storage → graph label
+- `tensor::graph_axis_to_storage(graph_axis, ndim)` — graph axis (0 = outermost)
+  → storage axis (0 = innermost)
+- `tensor::storage_axis_to_graph(storage_axis, ndim)` — storage axis → graph axis
 
-Reduction and layout ops (`add_fiber`, `transpose`, `layer_norm`, `softmax`,
-etc.) take **graph axis indices** at the NNGraph API and translate internally.
+Most reduction and layout ops take **graph axis indices** at the public
+TensorGraph / NNGraph API and translate to storage axes internally before
+lowering.
+
+**Exception — NNGraph `transpose`:** graph model code was written with
+**storage-order** transpose axes (historical `graph_api` convention). The NN
+layer maps model `ndim` to tensor `src->ndim() - ndim` so unchanged model
+sources keep working. TensorGraph `tensor::transpose` always takes a **graph**
+axis count.
 
 #### Model tensor conventions
 
@@ -182,16 +197,20 @@ With activations `x` shaped `[batch, seq, hidden]` and Q weight
 `[hidden, head_size, n_heads]`:
 
 - `gemm(x, w_q, alpha, false, false, ndim=1, batch_ndim=0)` — Q projection
-- `transpose(q_proj, 1)` — head layout for SDPA
+  → `[batch, seq, head_size, n_heads]`
+- `transpose(q_proj, 1)` — model/storage-order axis; NN maps to graph cyclic
+  shift → `[n_heads, batch, seq, head_size]` for SDPA
 - `add_fiber(..., q_bias, ..., axis=3, batch_ndim=1)` — per-head bias
-  (`q_bias` graph shape `[n_heads, head_size]`)
+  (`q_bias` graph shape `[n_heads, head_size]`; `axis` is a **graph** axis)
 - `sdpa_eager(q, k, v, mask, batch_ndim=2, redux=0)`
-- `transpose(attn_out, 3)` — layout for output projection
+- `transpose(attn_out, 3)` — model/storage-order axis; maps to graph shift
+  before output projection
 - `gemm(attn_t, w_o, ..., false, false, ndim=2, batch_ndim=0)` — output projection
 - `add_fiber(o_bias, ..., axis=2, batch_ndim=0)` — output bias on hidden axis
 
 BERT/RoBERTa embeddings: sum word/position/token-type, then
-`transpose(embed, 2)` → `[batch, seq, hidden]` before `layer_norm(..., axis=2)`.
+`transpose(embed, 2)` (storage-order axis) → `[batch, seq, hidden]` before
+`layer_norm(..., axis=2)` (graph axis).
 
 ## NNGraph
 

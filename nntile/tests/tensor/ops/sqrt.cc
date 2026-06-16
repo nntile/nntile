@@ -36,14 +36,14 @@ TEST_CASE("TensorGraph sqrt structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *src = graph.data({dim1, dim0})->set_name("src");
 
     auto *dst = gt::sqrt(src)->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape()[0] == dim0);
-    REQUIRE(dst->shape()[1] == dim1);
+    REQUIRE(dst->shape()[0] == dim1);
+    REQUIRE(dst->shape()[1] == dim0);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SQRT");
@@ -55,7 +55,7 @@ TEST_CASE("TensorGraph sqrt structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sqrt rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({4, 5})->set_name("src");
+    auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(gt::sqrt(src, src), std::invalid_argument);
 }
@@ -64,9 +64,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph sqrt tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto shape = GENERATE(std::vector<Index>{4, 6},
+    const auto shape = GENERATE(std::vector<Index>{6, 4},
         std::vector<Index>{6},
-        std::vector<Index>{2, 4});
+        std::vector<Index>{4, 2});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

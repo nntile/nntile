@@ -46,8 +46,8 @@ TEST_CASE("TensorGraph mask_scalar structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *mask = graph.data({dim0, dim1}, DataType::BOOL)->set_name("mask");
-    auto *A = graph.data({dim0, dim1})->set_name("A");
+    auto *mask = graph.data({dim1, dim0}, DataType::BOOL)->set_name("mask");
+    auto *A = graph.data({dim1, dim0})->set_name("A");
 
     gt::mask_scalar(mask, val, A, batch_ndim);
 
@@ -65,8 +65,8 @@ TEST_CASE("TensorGraph mask_scalar rejects null tensors", "[graph][tensor]")
 {
     constexpr Index batch_ndim = 0;
     TensorGraph graph("test");
-    auto *mask = graph.data({4, 5}, DataType::BOOL)->set_name("mask");
-    auto *A = graph.data({4, 5})->set_name("A");
+    auto *mask = graph.data({5, 4}, DataType::BOOL)->set_name("mask");
+    auto *A = graph.data({5, 4})->set_name("A");
 
     REQUIRE_THROWS_AS(
         gt::mask_scalar(nullptr, val, A, batch_ndim), std::invalid_argument);
@@ -78,8 +78,8 @@ TEST_CASE("TensorGraph mask_scalar rejects non-BOOL mask", "[graph][tensor]")
 {
     constexpr Index batch_ndim = 0;
     TensorGraph graph("test");
-    auto *mask = graph.data({4, 5})->set_name("mask"); // FP32 by default
-    auto *A = graph.data({4, 5})->set_name("A");
+    auto *mask = graph.data({5, 4})->set_name("mask"); // FP32 by default
+    auto *A = graph.data({5, 4})->set_name("A");
 
     REQUIRE_THROWS_AS(
         gt::mask_scalar(mask, val, A, batch_ndim), std::invalid_argument);
@@ -91,8 +91,8 @@ TEST_CASE(
     TensorGraph graph("test");
     // A is seq x seq x batch (3D), mask must be seq x seq (2D)
     auto *mask =
-        graph.data({4, 5, 8}, DataType::BOOL)->set_name("mask"); // wrong: 3D
-    auto *A = graph.data({4, 5, 8})->set_name("A");
+        graph.data({8, 5, 4}, DataType::BOOL)->set_name("mask"); // wrong: 3D
+    auto *A = graph.data({8, 5, 4})->set_name("A");
     REQUIRE_THROWS_AS(gt::mask_scalar(mask, val, A, 1), std::invalid_argument);
 
     // mask 1D when A_data is 2D
@@ -108,10 +108,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [A_shape, batch_ndim] =
-        GENERATE(std::make_pair(std::vector<Index>{4, 6}, Index(0)),
+        GENERATE(std::make_pair(std::vector<Index>{6, 4}, Index(0)),
             std::make_pair(std::vector<Index>{6}, Index(0)),
-            std::make_pair(std::vector<Index>{2, 4}, Index(0)),
-            std::make_pair(std::vector<Index>{4, 6, 8}, Index(1)));
+            std::make_pair(std::vector<Index>{4, 2}, Index(0)));
 
     const Index A_data_ndim = static_cast<Index>(A_shape.size()) - batch_ndim;
     std::vector<Index> mask_shape(

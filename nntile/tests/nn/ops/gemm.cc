@@ -404,12 +404,16 @@ void nn_pytorch_tile_gemm_4d_operands(NNGraph::TensorNode *a,
     Index n1,
     Index n2)
 {
-    a->data()->axis(0)->set_tiling(nn_gemm_het_axis(m1));
-    a->data()->axis(1)->set_tiling(nn_gemm_het_axis(m2));
-    a->data()->axis(2)->set_tiling(nn_gemm_het_axis(k1));
-    a->data()->axis(3)->set_tiling(nn_gemm_het_axis(k2));
-    b->data()->axis(2)->set_tiling(nn_gemm_het_axis(n1));
-    b->data()->axis(3)->set_tiling(nn_gemm_het_axis(n2));
+    // w: [K2, K1, M2, M1]
+    a->data()->axis(0)->set_tiling(nn_gemm_het_axis(k2));
+    a->data()->axis(1)->set_tiling(nn_gemm_het_axis(k1));
+    a->data()->axis(2)->set_tiling(nn_gemm_het_axis(m2));
+    a->data()->axis(3)->set_tiling(nn_gemm_het_axis(m1));
+    // x: [N2, N1, K2, K1]
+    b->data()->axis(0)->set_tiling(nn_gemm_het_axis(n2));
+    b->data()->axis(1)->set_tiling(nn_gemm_het_axis(n1));
+    b->data()->axis(2)->set_tiling(nn_gemm_het_axis(k2));
+    b->data()->axis(3)->set_tiling(nn_gemm_het_axis(k1));
 }
 
 void nn_pytorch_tile_gemm_batched_operands(NNGraph::TensorNode *a,
@@ -419,11 +423,14 @@ void nn_pytorch_tile_gemm_batched_operands(NNGraph::TensorNode *a,
     Index N,
     Index B)
 {
-    a->data()->axis(0)->set_tiling(nn_gemm_het_axis(M));
+    // w: [B, K, M]
+    a->data()->axis(0)->set_tiling(nn_gemm_het_axis(B));
     a->data()->axis(1)->set_tiling(nn_gemm_het_axis(K));
-    a->data()->axis(2)->set_tiling(nn_gemm_het_axis(B));
+    a->data()->axis(2)->set_tiling(nn_gemm_het_axis(M));
+    // x: [B, N, K]
+    b->data()->axis(0)->set_tiling(nn_gemm_het_axis(B));
     b->data()->axis(1)->set_tiling(nn_gemm_het_axis(N));
-    b->data()->axis(2)->set_tiling(nn_gemm_het_axis(B));
+    b->data()->axis(2)->set_tiling(nn_gemm_het_axis(K));
 }
 
 } // namespace

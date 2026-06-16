@@ -42,11 +42,11 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-// maxsumexp output shape: [2] + src.shape without axis
+// C-order maxsumexp output: non-axis dims, then trailing 2.
 static std::vector<Index> maxsumexp_dst_shape(
     const std::vector<Index> &src_shape, Index axis)
 {
-    std::vector<Index> dst = {2};
+    std::vector<Index> dst;
     for (Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
     {
         if (i != axis)
@@ -54,6 +54,7 @@ static std::vector<Index> maxsumexp_dst_shape(
             dst.push_back(src_shape[i]);
         }
     }
+    dst.push_back(2);
     return dst;
 }
 
@@ -62,14 +63,13 @@ TEST_CASE("TensorGraph logsumexp structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *src =
-        graph.data({2, 4, 5})->set_name("src"); // maxsumexp output shape
+        graph.data({5, 2})->set_name("src"); // maxsumexp output shape
     auto *dst = gt::logsumexp(src)->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape().size() == 2);
-    REQUIRE(dst->shape()[0] == 4);
-    REQUIRE(dst->shape()[1] == 5);
+    REQUIRE(dst->shape().size() == 1);
+    REQUIRE(dst->shape()[0] == 5);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "LOGSUMEXP");
@@ -90,8 +90,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [shape, axis] =
-        GENERATE(std::tuple{std::vector<Index>{4, 6}, Index(0)},
-            std::tuple{std::vector<Index>{3, 4}, Index(0)});
+        GENERATE(std::tuple{std::vector<Index>{6, 4}, Index(1)},
+            std::tuple{std::vector<Index>{4, 3}, Index(1)});
 
     const Index src_nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
@@ -139,10 +139,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *logsumexp_node =
             gt::logsumexp(maxsumexp_node)->set_name("logsumexp");
         logsumexp_node->mark_output(true);
-        auto *maxsumexp_dim0 = maxsumexp_node->axis(0);
+        auto *pair_axis = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == maxsumexp_dim0)
+            if (ag == pair_axis)
             {
                 ag->set_tiling(ag->extent);
             }

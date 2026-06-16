@@ -66,14 +66,14 @@ TEST_CASE("TensorGraph add_fiber structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
+    auto *tensor = graph.data({dim_4, dim_2})->set_name("tensor");
 
     auto *out = gt::add_fiber(
-        alpha_one, fiber, beta_one, tensor, axis_1, batch_ndim_none);
+        alpha_one, fiber, beta_one, tensor, axis_0, batch_ndim_none);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(out->shape() == (std::vector<Index>{dim_2, dim_4}));
+    REQUIRE(out->shape() == (std::vector<Index>{dim_4, dim_2}));
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "ADD_FIBER");
@@ -86,14 +86,14 @@ TEST_CASE("TensorGraph add_fiber rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
     auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
+    auto *tensor = graph.data({dim_4, dim_2})->set_name("tensor");
 
     REQUIRE_THROWS_AS(gt::add_fiber(alpha_one,
                           fiber,
                           beta_one,
                           tensor,
                           tensor,
-                          axis_1,
+                          axis_0,
                           batch_ndim_none),
         std::invalid_argument);
 }
@@ -103,8 +103,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [tensor_shape, axis, batch_ndim, alpha, beta] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Index(1), Index(0), 1.0, 1.0},
-        std::tuple{std::vector<Index>{2, 4}, Index(0), Index(0), 1.0, 1.0});
+        std::tuple{std::vector<Index>{4, 2}, Index(0), Index(0), 1.0, 1.0},
+        std::tuple{std::vector<Index>{4, 2}, Index(1), Index(0), 1.0, 1.0});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

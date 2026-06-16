@@ -43,14 +43,14 @@ TEST_CASE("TensorGraph scale structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *src = graph.data({dim1, dim0})->set_name("src");
 
     auto *dst = gt::scale(alpha, src)->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape()[0] == dim0);
-    REQUIRE(dst->shape()[1] == dim1);
+    REQUIRE(dst->shape()[0] == dim1);
+    REQUIRE(dst->shape()[1] == dim0);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SCALE");
@@ -62,7 +62,7 @@ TEST_CASE("TensorGraph scale structure", "[graph][tensor]")
 TEST_CASE("TensorGraph scale rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({4, 5})->set_name("src");
+    auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(gt::scale(alpha, src, src), std::invalid_argument);
 }
@@ -72,9 +72,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, shape] =
-        GENERATE(std::tuple{2.5, std::vector<Index>{4, 6}},
+        GENERATE(std::tuple{2.5, std::vector<Index>{6, 4}},
             std::tuple{-1.0, std::vector<Index>{6}},
-            std::tuple{0.5, std::vector<Index>{2, 4}});
+            std::tuple{0.5, std::vector<Index>{4, 2}});
 
     using T = nntile::fp32_t;
     using Y = typename T::repr_t;

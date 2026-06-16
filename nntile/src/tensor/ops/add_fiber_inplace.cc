@@ -18,6 +18,7 @@
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/ops/add_fiber_inplace.hh"
 
@@ -59,11 +60,12 @@ void add_fiber_inplace(
         throw std::invalid_argument(
             "add_fiber_inplace: fiber and tensor must be distinct tensors");
     }
-    validate_fiber_shape_and_merge(fiber, tensor, axis, batch_ndim,
+    const Index s_axis = graph_axis_to_storage(axis, tensor->ndim());
+    validate_fiber_shape_and_merge(fiber, tensor, s_axis, batch_ndim,
                                    "add_fiber_inplace");
 
     auto op = std::make_shared<TensorAddFiberInplaceOp>(
-        fiber, tensor, alpha, beta, axis, batch_ndim);
+        fiber, tensor, alpha, beta, s_axis, batch_ndim);
     tensor->graph()->add_op(op);
 }
 
@@ -98,7 +100,8 @@ void TensorAddFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
         for(Index b = 0; b < batch_ndim; ++b)
         {
             fiber_coord[static_cast<size_t>(b + 1)] =
-                dst_coord[static_cast<size_t>(tensor->ndim() - batch_ndim + b)];
+                dst_coord[static_cast<size_t>(
+                    tensor->ndim() - batch_ndim + b)];
         }
         const Index lin_f = lay_f->grid_linear(fiber_coord);
         tile::add_fiber_inplace(

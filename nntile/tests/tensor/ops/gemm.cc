@@ -48,15 +48,15 @@ TEST_CASE("TensorGraph gemm structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *a = graph.data({4, 5})->set_name("a");
-    auto *b = graph.data({5, 6})->set_name("b");
+    auto *a = graph.data({6, 5})->set_name("a");
+    auto *b = graph.data({5, 4})->set_name("b");
     auto *c = gt::gemm(a, b, alpha_one, trans_a, trans_b, ndim, batch_ndim);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(c->shape().size() == 2);
-    REQUIRE(c->shape()[0] == 4);
-    REQUIRE(c->shape()[1] == 6);
+    REQUIRE(c->shape()[0] == 6);
+    REQUIRE(c->shape()[1] == 4);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "GEMM");
@@ -68,8 +68,8 @@ TEST_CASE("TensorGraph gemm structure", "[graph][tensor]")
 TEST_CASE("TensorGraph gemm rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *a = graph.data({4, 5})->set_name("a");
-    auto *b = graph.data({5, 6})->set_name("b");
+    auto *a = graph.data({6, 5})->set_name("a");
+    auto *b = graph.data({5, 4})->set_name("b");
 
     REQUIRE_THROWS_AS(
         gt::gemm(nullptr, b, alpha_one, trans_a, trans_b, ndim, batch_ndim),
@@ -88,11 +88,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Index(2), Index(4), Index(6), 0.5});
 
     using Y = nntile::fp32_t::repr_t;
-    std::vector<Index> a_shape = {M, K};
-    std::vector<Index> b_shape = {K, N};
+    std::vector<Index> a_shape = {N, K};
+    std::vector<Index> b_shape = {K, M};
 
-    const Index a_nelems = M * K;
-    const Index b_nelems = K * N;
+    const Index a_nelems = N * K;
+    const Index b_nelems = K * M;
 
     std::vector<float> a_data(a_nelems);
     std::vector<float> b_data(b_nelems);

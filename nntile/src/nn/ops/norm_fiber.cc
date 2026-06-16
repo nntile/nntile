@@ -15,7 +15,7 @@
 
 #include "nntile/nn/ops/norm_fiber.hh"
 
-#include "nntile/nn/shape_layout.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/norm_fiber.hh"
 
@@ -31,17 +31,19 @@ namespace
 {
 
 std::vector<Index> norm_fiber_output_shape(
-    const std::vector<Index> &x_shape, Index axis, Index batch_ndim)
+    const std::vector<Index> &x_shape, Index graph_axis, Index batch_ndim)
 {
-    Index ndim = static_cast<Index>(x_shape.size());
-    std::vector<Index> out_shape;
-    out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
+    const std::vector<Index> xs = tensor::graph_shape_to_storage(x_shape);
+    const Index nd = static_cast<Index>(xs.size());
+    const Index s_axis = tensor::graph_axis_to_storage(graph_axis, nd);
+    std::vector<Index> out_s;
+    out_s.reserve(batch_ndim + 1);
+    out_s.push_back(xs[s_axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out_shape.push_back(x_shape[ndim - batch_ndim + i]);
+        out_s.push_back(xs[nd - batch_ndim + i]);
     }
-    return out_shape;
+    return tensor::storage_shape_to_graph(out_s);
 }
 
 } // anonymous namespace
@@ -75,9 +77,8 @@ NNGraph::TensorNode *NNNormFiberOp::forward()
         graph->tensor(std::move(base_shape), x->dtype(), false);
     tensor::clear(base->data());
     constexpr Scalar beta_fresh = 0.0; // NNGraph always outputs fresh data
-    const Index storage_axis = nn::graph_axis_to_storage(axis, ndim);
     TensorGraph::TensorNode *y_data = tensor::norm_fiber(
-        alpha, x->data(), beta_fresh, base->data(), storage_axis, batch_ndim, redux);
+        alpha, x->data(), beta_fresh, base->data(), axis, batch_ndim, redux);
     NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     return y;

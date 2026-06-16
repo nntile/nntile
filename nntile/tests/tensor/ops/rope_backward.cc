@@ -37,12 +37,19 @@ constexpr int distr_rank_single = 0;
 
 } 
 
+static std::vector<Index> make_src_shape(const std::vector<Index> &sin_shape)
+{
+    std::vector<Index> src_shape = sin_shape;
+    src_shape.back() = sin_shape.back() * 2;
+    return src_shape;
+}
+
 TEST_CASE("TensorGraph rope_backward structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *sin = graph.data({2, 4})->set_name("sin");
-    auto *cos = graph.data({2, 4})->set_name("cos");
+    auto *sin = graph.data({4, 2})->set_name("sin");
+    auto *cos = graph.data({4, 2})->set_name("cos");
     auto *dy = graph.data({4, 4})->set_name("dy");
     auto *dx = gt::rope_backward(sin, cos, dy)->set_name("dx");
 
@@ -60,8 +67,8 @@ TEST_CASE("TensorGraph rope_backward structure", "[graph][tensor]")
 TEST_CASE("TensorGraph rope_backward rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *sin = graph.data({2, 4})->set_name("sin");
-    auto *cos = graph.data({2, 4})->set_name("cos");
+    auto *sin = graph.data({4, 2})->set_name("sin");
+    auto *cos = graph.data({4, 2})->set_name("cos");
     auto *dy = graph.data({4, 4})->set_name("dy");
 
     REQUIRE_THROWS_AS(
@@ -77,10 +84,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto sin_shape =
-        GENERATE(std::vector<Index>{2, 4}, std::vector<Index>{4, 3, 2});
+        GENERATE(std::vector<Index>{4, 2}, std::vector<Index>{2, 3, 4});
 
-    std::vector<Index> dy_shape = {sin_shape[0] * 2};
-    dy_shape.insert(dy_shape.end(), sin_shape.begin() + 1, sin_shape.end());
+    const std::vector<Index> dy_shape = make_src_shape(sin_shape);
 
     const Index sin_nelems = std::accumulate(
         sin_shape.begin(), sin_shape.end(), Index(1), std::multiplies<>());

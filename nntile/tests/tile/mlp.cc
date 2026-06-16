@@ -154,10 +154,7 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     mlp_tile.fc2().weight_tensor()->grad()->mark_output(true);
     inp_tile->grad()->mark_output(true);
 
-    const Index batch_storage_axis =
-        nn::graph_axis_to_storage(0, inp_tile->ndim());
-    inp_tile->data()->axis(batch_storage_axis)->set_tiling(
-        std::vector<Index>{2, 2});
+    inp_tile->data()->axis(0)->set_tiling(std::vector<Index>{2, 2});
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile.tensor_graph());
     Runtime rt_tile(tile_g);

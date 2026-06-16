@@ -19,6 +19,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -120,11 +121,12 @@ void norm_fiber_inplace(
         throw std::invalid_argument(
             "norm_fiber_inplace: src and dst must be distinct tensors");
     }
-    validate_fiber_shape_and_merge(dst, src, axis, batch_ndim,
-                                   "norm_fiber_inplace");
+    const Index s_axis = graph_axis_to_storage(axis, src->ndim());
+    validate_fiber_shape_and_merge(dst, src, s_axis, batch_ndim,
+        "norm_fiber_inplace");
 
     auto op = std::make_shared<TensorNormFiberInplaceOp>(
-        alpha, beta, src, dst, axis, batch_ndim, redux);
+        alpha, beta, src, dst, s_axis, batch_ndim, redux);
     src->graph()->add_op(op);
 }
 

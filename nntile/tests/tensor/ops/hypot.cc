@@ -44,15 +44,15 @@ TEST_CASE("TensorGraph hypot structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src1 = graph.data({dim0, dim1})->set_name("src1");
-    auto *src2 = graph.data({dim0, dim1})->set_name("src2");
+    auto *src1 = graph.data({dim1, dim0})->set_name("src1");
+    auto *src2 = graph.data({dim1, dim0})->set_name("src2");
 
     auto *dst = gt::hypot(alpha, src1, beta, src2)->set_name("dst");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape()[0] == dim0);
-    REQUIRE(dst->shape()[1] == dim1);
+    REQUIRE(dst->shape()[0] == dim1);
+    REQUIRE(dst->shape()[1] == dim0);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "HYPOT");
@@ -64,7 +64,7 @@ TEST_CASE("TensorGraph hypot structure", "[graph][tensor]")
 TEST_CASE("TensorGraph hypot rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src1 = graph.data({4, 5})->set_name("src1");
+    auto *src1 = graph.data({5, 4})->set_name("src1");
 
     REQUIRE_THROWS_AS(
         gt::hypot(alpha, src1, beta, src1), std::invalid_argument);
@@ -75,8 +75,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{4, 6}},
-            std::tuple{2.0, 3.0, std::vector<Index>{4, 6}},
+        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{6, 4}},
+            std::tuple{2.0, 3.0, std::vector<Index>{6, 4}},
             std::tuple{0.5, -1.0, std::vector<Index>{6}});
 
     using T = nntile::fp32_t;

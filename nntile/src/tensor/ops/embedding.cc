@@ -15,14 +15,15 @@
 
 #include "nntile/tensor/ops/embedding.hh"
 
+#include "nntile/core/traits.hh"
 #include "nntile/tensor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/clear.hh"
 #include "nntile/tile/ops/embedding.hh"
 #include "nntile/tensor/ops/embedding.hh"
-#include "nntile/core/traits.hh"
 
 #include <stdexcept>
 #include <vector>
@@ -34,7 +35,7 @@ namespace
 {
 
 //! All tiles along `dim` must have the same extent (matches tensor basetile
-//! assumptions).
+//! assumptions). ``dim`` is a storage axis index.
 Index uniform_tile_extent_along(
     const nntile::TensorAxisLayout &lay, Index dim, const char *op)
 {
@@ -80,7 +81,7 @@ TensorGraph::TensorNode *embedding(
         throw std::invalid_argument("embedding: vocab must be 2D");
     if (axis < 0 || axis > index->ndim())
         throw std::invalid_argument("embedding: axis out of range");
-    // Physical storage shape: insert vocab.dim(0) at ``axis``.
+    // Graph shape: insert vocab.dim(1) (embed dim) at ``axis``.
     const auto &idx_shape = index->shape();
     std::vector<Index> embed_shape;
     embed_shape.reserve(static_cast<size_t>(index->ndim() + 1));
@@ -88,7 +89,7 @@ TensorGraph::TensorNode *embedding(
     {
         embed_shape.push_back(idx_shape[static_cast<size_t>(i)]);
     }
-    embed_shape.push_back(vocab->dim(0));
+    embed_shape.push_back(vocab->dim(1));
     for (Index i = axis; i < index->ndim(); ++i)
     {
         embed_shape.push_back(idx_shape[static_cast<size_t>(i)]);
@@ -132,14 +133,21 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
             "lower_to_tile EMBEDDING: missing tiling for index/vocab/embed");
     }
 
-    const Index vocab_b0 = uniform_tile_extent_along(*lay_v, 0, "EMBEDDING");
+    const Index emb_nd = embed->ndim();
+    const Index idx_nd = index->ndim();
+    const Index s_axis = graph_axis_to_storage(axis, emb_nd);
+    // Vocab graph [vocab, embed]; storage embed axis is dim 0.
+    const Index vocab_embed_s = 0;
+
+    const Index vocab_b0 =
+        uniform_tile_extent_along(*lay_v, vocab_embed_s, "EMBEDDING");
     const Index embed_axis_bs =
-        uniform_tile_extent_along(*lay_e, axis, "EMBEDDING");
+        uniform_tile_extent_along(*lay_e, s_axis, "EMBEDDING");
     if (embed_axis_bs % vocab_b0 != 0)
     {
         throw std::runtime_error(
             "lower_to_tile EMBEDDING: embed tile extent along axis must be "
-            "divisible by vocab tile extent along dim 0");
+            "divisible by vocab tile extent along embed dim");
     }
 
     const auto &tiles_i = tile_lower::tiles_of(ctx.tile_map, index);
@@ -153,7 +161,7 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
     }
 
     std::vector<Index> embed_coord;
-    std::vector<Index> index_coord;
+    std::vector<Index> index_coord(static_cast<size_t>(idx_nd));
     const Index g1_vocab =
         lay_v->grid_shape().size() > 1 ? lay_v->grid_shape()[1] : 1;
 
@@ -162,33 +170,29 @@ void TensorEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
         lay_e->grid_coord_from_linear(lin_e, embed_coord);
         tile::clear(tiles_e[static_cast<size_t>(lin_e)]);
 
-        index_coord.resize(static_cast<size_t>(index->ndim()));
-        for (Index j = 0; j < axis; ++j)
+        for (Index i = 0; i < idx_nd; ++i)
         {
-            index_coord[static_cast<size_t>(j)] =
-                embed_coord[static_cast<size_t>(j)];
-        }
-        for (Index j = axis; j < index->ndim(); ++j)
-        {
-            index_coord[static_cast<size_t>(j)] =
-                embed_coord[static_cast<size_t>(j + 1)];
+            const Index g_e = (i < axis) ? i : (i + 1);
+            const Index s_e = graph_axis_to_storage(g_e, emb_nd);
+            const Index s_i = graph_axis_to_storage(i, idx_nd);
+            index_coord[static_cast<size_t>(s_i)] = embed_coord[s_e];
         }
         const Index lin_i = lay_i->grid_linear(index_coord);
         TileGraph::TileNode *index_tile = tiles_i[static_cast<size_t>(lin_i)];
 
         Index axis_lo = 0, axis_hi = 0;
-        lay_e->tile_axis_global_range(embed_coord, axis, axis_lo, axis_hi);
+        lay_e->tile_axis_global_range(embed_coord, s_axis, axis_lo, axis_hi);
         const Index vocab_tile0_start = axis_lo / vocab_b0;
 
         const auto embed_ts = lay_e->tile_shape_at(embed_coord);
-        const Index k_axis = embed_ts[static_cast<size_t>(axis)];
+        const Index k_axis = embed_ts[static_cast<size_t>(s_axis)];
         const Index vocab_span = (k_axis - 1) / vocab_b0 + 1;
 
         nntile::core::TileTraits embed_traits(embed_ts);
-        const Index m = embed_traits.stride[axis];
+        const Index m = embed_traits.stride[s_axis];
         const Index n =
-            embed_traits.matrix_shape[static_cast<size_t>(axis) + 1][1];
-        const Index k = embed_traits.shape[axis];
+            embed_traits.matrix_shape[static_cast<size_t>(s_axis) + 1][1];
+        const Index k = embed_traits.shape[s_axis];
 
         const Index vocab_g0 = lay_v->grid_shape()[0];
         for (Index tv0 = vocab_tile0_start;

@@ -18,6 +18,7 @@
 #include "nntile/tensor.hh"
 #include "nntile/tile.hh"
 #include "nntile/runtime.hh"
+#include "nntile/tensor/shape_layout.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
@@ -38,8 +39,8 @@ Index shape_prod(const std::vector<Index> &shape)
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 }
 
-//! Reference concat in Fortran flat layout (same as bind_data / get_output).
-std::vector<float> reference_concat_fortran(const std::vector<Index> &a_shape,
+//! Reference concat in storage flat layout (same as bind_data / get_output).
+std::vector<float> reference_concat_storage(const std::vector<Index> &a_shape,
     const std::vector<Index> &b_shape,
     Index axis,
     const std::vector<float> &a_data,
@@ -78,15 +79,15 @@ TEST_CASE("TensorGraph concat structure", "[graph][tensor]")
     constexpr Index d0 = 3;
     constexpr Index d1a = 2;
     constexpr Index d1b = 4;
-    constexpr Index axis = 1;
+    constexpr Index axis = 0;
 
     TensorGraph graph("concat_struct");
-    auto *a = graph.data({d0, d1a}, DataType::FP32)->set_name("a");
-    auto *b = graph.data({d0, d1b}, DataType::FP32)->set_name("b");
+    auto *a = graph.data({d1a, d0}, DataType::FP32)->set_name("a");
+    auto *b = graph.data({d1b, d0}, DataType::FP32)->set_name("b");
     auto *out = gt::concat(a, b, axis);
 
-    REQUIRE(out->shape()[0] == d0);
-    REQUIRE(out->shape()[1] == d1a + d1b);
+    REQUIRE(out->shape()[0] == d1a + d1b);
+    REQUIRE(out->shape()[1] == d0);
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
 
@@ -102,22 +103,22 @@ TEST_CASE("TensorGraph concat structure", "[graph][tensor]")
 TEST_CASE("TensorGraph concat rejects invalid arguments")
 {
     TensorGraph graph("concat_bad");
-    auto *a = graph.data({2, 3}, DataType::FP32)->set_name("a");
-    auto *b = graph.data({2, 3}, DataType::FP32)->set_name("b");
+    auto *a = graph.data({3, 2}, DataType::FP32)->set_name("a");
+    auto *b = graph.data({3, 2}, DataType::FP32)->set_name("b");
 
     REQUIRE_THROWS_AS(gt::concat(nullptr, b, 0), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::concat(a, nullptr, 0), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::concat(a, b, -1), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::concat(a, b, 2), std::invalid_argument);
 
-    auto *b_bad = graph.data({3, 3}, DataType::FP32)->set_name("b2");
-    REQUIRE_THROWS_AS(gt::concat(a, b_bad, 1), std::invalid_argument);
+    auto *b_bad = graph.data({3, 4}, DataType::FP32)->set_name("b2");
+    REQUIRE_THROWS_AS(gt::concat(a, b_bad, 0), std::invalid_argument);
 
     TensorGraph other("other");
-    auto *b_other = other.data({2, 3}, DataType::FP32)->set_name("bo");
-    REQUIRE_THROWS_AS(gt::concat(a, b_other, 1), std::invalid_argument);
+    auto *b_other = other.data({3, 3}, DataType::FP32)->set_name("bo");
+    REQUIRE_THROWS_AS(gt::concat(a, b_other, 0), std::invalid_argument);
 
-    auto *b_fp64 = graph.data({2, 3}, DataType::FP64)->set_name("bf64");
+    auto *b_fp64 = graph.data({3, 2}, DataType::FP64)->set_name("bf64");
     REQUIRE_THROWS_AS(gt::concat(a, b_fp64, 1), std::invalid_argument);
 
     auto *b_1d = graph.data({6}, DataType::FP32)->set_name("b1d");
@@ -125,15 +126,14 @@ TEST_CASE("TensorGraph concat rejects invalid arguments")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph concat matches Fortran reference (untiled)",
+    "TensorGraph concat matches storage reference (untiled)",
     "[graph][tensor]")
 {
     using ShapesAxis =
         std::tuple<std::vector<Index>, std::vector<Index>, Index>;
     const ShapesAxis c = GENERATE(ShapesAxis{{5}, {3}, 0},
-        ShapesAxis{{2, 4}, {2, 5}, 1},
-        ShapesAxis{{3, 2}, {4, 2}, 0},
-        ShapesAxis{{2, 2, 2}, {2, 2, 3}, 2});
+        ShapesAxis{{4, 2}, {5, 2}, 0},
+        ShapesAxis{{2, 3}, {2, 4}, 1});
 
     const auto &a_shape = std::get<0>(c);
     const auto &b_shape = std::get<1>(c);
@@ -170,8 +170,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> got = runtime.get_output<float>(out_node);
-    std::vector<float> expect =
-        reference_concat_fortran(a_shape, b_shape, axis, a_data, b_data);
+    const Index ndim = static_cast<Index>(a_shape.size());
+    std::vector<float> expect = reference_concat_storage(
+        gt::graph_shape_to_storage(a_shape),
+        gt::graph_shape_to_storage(b_shape),
+        gt::graph_axis_to_storage(axis, ndim),
+        a_data,
+        b_data);
 
     constexpr float tol = 1e-5f;
     REQUIRE(got.size() == expect.size());
@@ -185,9 +190,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph concat tiled matches untiled",
     "[graph][tensor]")
 {
-    const std::vector<Index> a_shape = {4, 6};
-    const std::vector<Index> b_shape = {4, 5};
-    constexpr Index axis = 1;
+    const std::vector<Index> a_shape = {6, 4};
+    const std::vector<Index> b_shape = {5, 4};
+    constexpr Index axis = 0;
 
     std::vector<float> a_data(static_cast<size_t>(shape_prod(a_shape)));
     std::vector<float> b_data(static_cast<size_t>(shape_prod(b_shape)));

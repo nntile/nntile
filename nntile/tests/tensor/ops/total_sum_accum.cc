@@ -45,7 +45,7 @@ TEST_CASE("TensorGraph total_sum_accum structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *logsumexp = graph.data({4})->set_name("logsumexp");
-    auto *src = graph.data({3, 4})->set_name("src");
+    auto *src = graph.data({4, 3})->set_name("src");
     auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
     auto *val = graph.data({}, DataType::FP32)->set_name("val");
 
@@ -65,7 +65,7 @@ TEST_CASE("TensorGraph total_sum_accum rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
     auto *logsumexp = graph.data({4})->set_name("logsumexp");
-    auto *src = graph.data({3, 4})->set_name("src");
+    auto *src = graph.data({4, 3})->set_name("src");
     auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
     auto *val = graph.data({}, DataType::FP32)->set_name("val");
 
@@ -91,7 +91,7 @@ TEST_CASE(
 {
     TensorGraph graph("test");
     auto *logsumexp = graph.data({4})->set_name("logsumexp");
-    auto *src = graph.data({3, 4})->set_name("src");
+    auto *src = graph.data({4, 3})->set_name("src");
     auto *labels = graph.data({4})->set_name("labels"); // FP32 default
     auto *val = graph.data({}, DataType::FP32)->set_name("val");
 
@@ -107,11 +107,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [labels_shape, n_class] =
         GENERATE(std::tuple{std::vector<Index>{4}, Index(6)},
-            std::tuple{std::vector<Index>{2, 4}, Index(4)});
+            std::tuple{std::vector<Index>{4, 2}, Index(4)});
 
-    std::vector<Index> src_shape = {n_class};
-    src_shape.insert(
-        src_shape.end(), labels_shape.begin(), labels_shape.end());
+    std::vector<Index> src_shape = labels_shape;
+    src_shape.push_back(n_class);
 
     const Index labels_nelems = std::accumulate(labels_shape.begin(),
         labels_shape.end(),
@@ -197,7 +196,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             labels_node,
             val_node,
             ignore_index);
-        auto *nclass_axis = src_node->axis(0);
+        auto *nclass_axis = src_node->axis(
+            static_cast<Index>(src_node->ndim()) - 1);
         for (auto *ag : graph.axis_groups())
         {
             if (ag == nclass_axis)

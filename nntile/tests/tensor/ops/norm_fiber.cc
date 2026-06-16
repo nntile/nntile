@@ -73,11 +73,11 @@ TEST_CASE("TensorGraph norm_fiber structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim_4, dim_5})->set_name("x");
+    auto *x = graph.data({dim_5, dim_4})->set_name("x");
     auto *y = graph.data({dim_4})->set_name("y");
 
     auto *out = gt::norm_fiber(
-        alpha_one, x, beta_zero, y, axis_0, batch_ndim_none, redux_none)
+        alpha_one, x, beta_zero, y, axis_1, batch_ndim_none, redux_none)
                     ->set_name("out");
 
     REQUIRE(graph.num_data() == 3);
@@ -96,7 +96,7 @@ TEST_CASE(
     "TensorGraph norm_fiber rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({dim_4, dim_5})->set_name("x");
+    auto *x = graph.data({dim_5, dim_4})->set_name("x");
     auto *y = graph.data({dim_4})->set_name("y");
 
     REQUIRE_THROWS_AS(gt::norm_fiber(alpha_one,
@@ -104,7 +104,7 @@ TEST_CASE(
                           beta_zero,
                           y,
                           y,
-                          axis_0,
+                          axis_1,
                           batch_ndim_none,
                           redux_none),
         std::invalid_argument);
@@ -115,13 +115,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [x_shape, axis, batch_ndim, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
-                     axis_0,
+        GENERATE(std::tuple{std::vector<Index>{dim_5, dim_4},
+                     axis_1,
                      batch_ndim_none,
                      redux_none,
                      alpha_one,
                      beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
+            std::tuple{std::vector<Index>{dim_4, dim_3, dim_2},
                 axis_1,
                 batch_ndim_none,
                 redux_none,

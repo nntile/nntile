@@ -17,6 +17,7 @@
 
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
@@ -104,6 +105,7 @@ void TensorRopeBackwardOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_dx = tile_lower::tiles_of(ctx.tile_map, dx);
 
     const Index sin_ndim = sin->ndim();
+    const Index dy_ndim = dy->ndim();
     std::vector<Index> dydx_coord;
     std::vector<Index> sincos_coord(static_cast<size_t>(sin_ndim));
 
@@ -112,8 +114,10 @@ void TensorRopeBackwardOp::lower_to_tile(const LoweringContext &ctx) const
         lay_dy->grid_coord_from_linear(lin, dydx_coord);
         for (Index d = 0; d < sin_ndim; ++d)
         {
+            const Index g = storage_axis_to_graph(d, sin_ndim);
+            const Index dy_s = graph_axis_to_storage(g, dy_ndim);
             sincos_coord[static_cast<size_t>(d)] =
-                dydx_coord[static_cast<size_t>(d)];
+                dydx_coord[static_cast<size_t>(dy_s)];
         }
         const Index j = lay_sin->grid_linear(sincos_coord);
         tile::rope_backward(tiles_sin[static_cast<size_t>(j)],
