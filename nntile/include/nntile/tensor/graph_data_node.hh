@@ -180,15 +180,9 @@ inline void validate_slice_shape_and_merge(TensorGraph::TensorNode *slice,
 
 //! Validate fiber shape and merge axes (fiber 1+batch_ndim into tensor).
 //!
-//! ``axis`` is a **storage** axis index on ``tensor`` (0 = innermost), not a
-//! graph axis. TensorGraph fiber builders that take graph axes must call
-//! ``graph_axis_to_storage`` before invoking this helper.
-//!
-//! Size checks compare ``fiber->storage_shape()`` to ``tensor->storage_shape()``.
-//! ``fiber`` storage layout is ``[fiber_dim, batch_0, …, batch_{batch_ndim-1}]``
-//! aligned with the tensor's trailing ``batch_ndim`` storage dimensions.
-//! ``merge_axis`` updates graph ``AxisDescriptor`` groups using storage indices
-//! mapped back to graph axes via ``storage_axis_to_graph``.
+//! ``axis`` is a **graph** axis on ``tensor`` (0 = outermost). Fiber graph shape
+//! is ``[batch_0, …, batch_{batch_ndim-1}, fiber_dim]`` (C-order: batch slower,
+//! fiber faster); leading batch prefix matches tensor graph axes ``[0, batch_ndim)``.
 inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
     TensorGraph::TensorNode *tensor,
     Index axis,
@@ -213,35 +207,27 @@ inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
                                     std::to_string(tensor->ndim()) + " vs " +
                                     std::to_string(batch_ndim) + ")");
     }
-    const std::vector<Index> f_shape = fiber->storage_shape();
-    const std::vector<Index> t_shape = tensor->storage_shape();
-    const Index nd = tensor->ndim();
-    if (f_shape[0] != t_shape[axis])
+    const Index fiber_ax = batch_ndim;
+    if (fiber->shape()[static_cast<size_t>(fiber_ax)] != tensor->shape()[axis])
     {
         throw std::invalid_argument(
-            op_name + ": fiber dim 0 must match tensor dim " +
-            std::to_string(axis) + " (" + std::to_string(f_shape[0]) +
-            " vs " + std::to_string(t_shape[axis]) + ")");
+            op_name + ": fiber dim " + std::to_string(fiber_ax) +
+            " must match tensor dim " + std::to_string(axis) + " (" +
+            std::to_string(fiber->shape()[static_cast<size_t>(fiber_ax)]) +
+            " vs " + std::to_string(tensor->shape()[axis]) + ")");
     }
-    const Index fiber_nd = fiber->ndim();
-    merge_axis(
-        fiber->mutable_axes()[tensor::storage_axis_to_graph(0, fiber_nd)],
-        tensor->mutable_axes()[tensor::storage_axis_to_graph(axis, nd)]);
+    merge_axis(fiber->mutable_axes()[fiber_ax], tensor->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        Index ti = nd - batch_ndim + i;
-        if (f_shape[1 + i] != t_shape[ti])
+        if (fiber->shape()[static_cast<size_t>(i)] != tensor->shape()[i])
         {
             throw std::invalid_argument(
-                op_name + ": fiber dim " + std::to_string(1 + i) +
-                " must match tensor dim " + std::to_string(ti) + " (" +
-                std::to_string(f_shape[1 + i]) + " vs " +
-                std::to_string(t_shape[ti]) + ")");
+                op_name + ": fiber dim " + std::to_string(i) +
+                " must match tensor dim " + std::to_string(i) + " (" +
+                std::to_string(fiber->shape()[static_cast<size_t>(i)]) + " vs " +
+                std::to_string(tensor->shape()[i]) + ")");
         }
-        merge_axis(
-            fiber->mutable_axes()[tensor::storage_axis_to_graph(
-                1 + i, fiber_nd)],
-            tensor->mutable_axes()[tensor::storage_axis_to_graph(ti, nd)]);
+        merge_axis(fiber->mutable_axes()[i], tensor->mutable_axes()[i]);
     }
 }
 

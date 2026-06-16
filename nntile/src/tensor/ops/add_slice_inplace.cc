@@ -83,7 +83,7 @@ void TensorAddSliceInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 
     const Index nd = dst->ndim();
     const Index s_nd = src->ndim();
-    const Index s_axis = graph_axis_to_storage(axis, nd);
+    const Index lay_ax = layout_axis(axis, nd);
 
     std::vector<Index> s_coord;
     std::vector<Index> d_coord(static_cast<size_t>(nd));
@@ -91,13 +91,12 @@ void TensorAddSliceInplaceOp::lower_to_tile(const LoweringContext& ctx) const
     for(Index lin_s = 0; lin_s < lay_s->grid_volume(); ++lin_s)
     {
         lay_s->grid_coord_from_linear(lin_s, s_coord);
-        for(Index s = 0; s < nd; ++s)
+        for(Index g = 0; g < nd; ++g)
         {
-            if(s == s_axis)
+            if(g == axis)
             {
                 continue;
             }
-            const Index g = storage_axis_to_graph(s, nd);
             Index g1 = 0;
             for(Index g2 = 0; g2 < nd; ++g2)
             {
@@ -111,23 +110,22 @@ void TensorAddSliceInplaceOp::lower_to_tile(const LoweringContext& ctx) const
                 }
                 ++g1;
             }
-            d_coord[static_cast<size_t>(s)] =
-                s_coord[static_cast<size_t>(
-                    graph_axis_to_storage(g1, s_nd))];
+            d_coord[static_cast<size_t>(layout_axis(g, nd))] =
+                s_coord[static_cast<size_t>(layout_axis(g1, s_nd))];
         }
 
         const Index nseg_along_axis =
-            lay_d->grid_shape()[static_cast<size_t>(s_axis)];
+            lay_d->grid_shape()[static_cast<size_t>(lay_ax)];
         for(Index jj = 0; jj < nseg_along_axis; ++jj)
         {
-            d_coord[static_cast<size_t>(s_axis)] = jj;
+            d_coord[static_cast<size_t>(lay_ax)] = jj;
             const Index lin_d = lay_d->grid_linear(d_coord);
             tile::add_slice_inplace(
                 alpha,
                 tiles_s[static_cast<size_t>(lin_s)],
                 beta,
                 tiles_d[static_cast<size_t>(lin_d)],
-                s_axis);
+                axis);
         }
     }
 }

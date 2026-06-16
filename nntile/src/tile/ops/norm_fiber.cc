@@ -21,6 +21,7 @@
 #include <nntile/core/norm_fiber.hh>
 
 #include <nntile/runtime.hh>
+#include <nntile/tile/shape_layout.hh>
 namespace nntile::tile
 {
 namespace
@@ -45,28 +46,30 @@ void norm_fiber(
 }
 void TileNormFiberOp::execute(Runtime& runtime) const
 {
+    const Index s_axis =
+        tensor::graph_axis_to_storage(axis, s1->ndim());
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, alpha, s1, beta, s2, dst, axis, batch_ndim, redux);
+            run<nntile::fp32_t>(runtime, alpha, s1, beta, s2, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, alpha, s1, beta, s2, dst, axis, batch_ndim, redux);
+            run<nntile::fp32_fast_tf32_t>(runtime, alpha, s1, beta, s2, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, alpha, s1, beta, s2, dst, axis, batch_ndim, redux);
+            run<nntile::fp32_fast_fp16_t>(runtime, alpha, s1, beta, s2, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, alpha, s1, beta, s2, dst, axis, batch_ndim, redux);
+            run<nntile::fp32_fast_bf16_t>(runtime, alpha, s1, beta, s2, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, alpha, s1, beta, s2, dst, axis, batch_ndim, redux);
+            run<nntile::fp64_t>(runtime, alpha, s1, beta, s2, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP16:
             throw std::runtime_error("FP16 not supported for tile norm_fiber in this build");
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, alpha, s1, beta, s2, dst, axis, batch_ndim, redux);
+            run<nntile::bf16_t>(runtime, alpha, s1, beta, s2, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::INT64:
         case DataType::BOOL:

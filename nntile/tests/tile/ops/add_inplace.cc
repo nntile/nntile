@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/add_inplace.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,14 +24,16 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_inplace matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3};
+    const std::vector<Index> stor_sh = {2, 3};
+    const std::vector<Index> graph_sh = graph_shape(stor_sh);
     const Index nelems = 6;
     const Scalar alpha = 2.0, beta = 1.0;
     TileGraph g("g");
-    auto* x = g.data(sh, "x", DataType::FP32);
-    auto* y = g.data(sh, "y", DataType::FP32);
+    auto* x = g.data(graph_sh, "x", DataType::FP32);
+    auto* y = g.data(graph_sh, "y", DataType::FP32);
     x->mark_input(true);
     y->mark_input(true);
     y->mark_output(true);
@@ -48,7 +51,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_inplace matches ti
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(y);
-    nntile::core::Tile<fp32_t> tx(sh), ty(sh);
+    nntile::core::Tile<fp32_t> tx(stor_sh), ty(stor_sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto a = tx.acquire(STARPU_W);

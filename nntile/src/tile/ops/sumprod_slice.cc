@@ -20,6 +20,7 @@
 #include <nntile/core/sumprod_slice.hh>
 
 #include <nntile/runtime.hh>
+#include <nntile/tile/shape_layout.hh>
 namespace nntile::tile
 {
 namespace
@@ -43,29 +44,31 @@ void sumprod_slice(Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, S
 }
 void TileSumprodSliceOp::execute(Runtime& runtime) const
 {
+    const Index s_axis =
+        tensor::graph_axis_to_storage(axis, s1->ndim());
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, alpha, s1, s2, beta, dst, axis, redux);
+            run<nntile::fp32_t>(runtime, alpha, s1, s2, beta, dst, s_axis, redux);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, alpha, s1, s2, beta, dst, axis, redux);
+            run<nntile::fp32_fast_tf32_t>(runtime, alpha, s1, s2, beta, dst, s_axis, redux);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, alpha, s1, s2, beta, dst, axis, redux);
+            run<nntile::fp32_fast_fp16_t>(runtime, alpha, s1, s2, beta, dst, s_axis, redux);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, alpha, s1, s2, beta, dst, axis, redux);
+            run<nntile::fp32_fast_bf16_t>(runtime, alpha, s1, s2, beta, dst, s_axis, redux);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, alpha, s1, s2, beta, dst, axis, redux);
+            run<nntile::fp64_t>(runtime, alpha, s1, s2, beta, dst, s_axis, redux);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, alpha, s1, s2, beta, dst, axis, redux);
+            run<nntile::fp16_t>(runtime, alpha, s1, s2, beta, dst, s_axis, redux);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, alpha, s1, s2, beta, dst, axis, redux);
+            run<nntile::bf16_t>(runtime, alpha, s1, s2, beta, dst, s_axis, redux);
             break;
         case DataType::INT64:
         case DataType::BOOL:

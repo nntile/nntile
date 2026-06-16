@@ -16,6 +16,7 @@
 #include <cmath>
 #include <numeric>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/gelutanh.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,13 +25,15 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelutanh matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3};
+    const std::vector<Index> stor_sh = {2, 3};
+    const std::vector<Index> graph_sh = graph_shape(stor_sh);
     const Index nelems = 6;
     TileGraph g("g");
-    auto* s = g.data(sh, "s", DataType::FP32);
-    auto* d = g.data(sh, "d", DataType::FP32);
+    auto* s = g.data(graph_sh, "s", DataType::FP32);
+    auto* d = g.data(graph_sh, "d", DataType::FP32);
     s->mark_input(true);
     d->mark_output(true);
     tg::gelutanh(s, d);
@@ -44,7 +47,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelutanh matches tile"
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> ts(sh), td(sh);
+    nntile::core::Tile<fp32_t> ts(stor_sh), td(stor_sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto l1 = ts.acquire(STARPU_W);

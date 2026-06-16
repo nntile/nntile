@@ -53,10 +53,8 @@ TensorGraph::TensorNode *add_fiber(Scalar alpha,
             "add_fiber: input tensors must have the same dtype");
     }
 
-    const Index s_axis = graph_axis_to_storage(axis, tensor->ndim());
-
     validate_fiber_shape_and_merge(
-        fiber, tensor, s_axis, batch_ndim, "add_fiber");
+        fiber, tensor, axis, batch_ndim, "add_fiber");
 
     // Output shape matches tensor (fiber is broadcast)
     std::vector<Index> output_shape = tensor->shape();
@@ -65,7 +63,7 @@ TensorGraph::TensorNode *add_fiber(Scalar alpha,
     output->set_axes(tensor->axes());
 
     auto op = std::make_shared<TensorAddFiberOp>(
-        fiber, tensor, output, alpha, beta, s_axis, batch_ndim);
+        fiber, tensor, output, alpha, beta, axis, batch_ndim);
     fiber->graph()->add_op(op);
 
     return output;
@@ -99,14 +97,13 @@ void add_fiber(Scalar alpha,
         throw std::invalid_argument(
             "add_fiber: fiber, tensor, and output must be distinct tensors");
     }
-    const Index s_axis = graph_axis_to_storage(axis, tensor->ndim());
 
     validate_fiber_shape_and_merge(
-        fiber, tensor, s_axis, batch_ndim, "add_fiber");
+        fiber, tensor, axis, batch_ndim, "add_fiber");
     validate_same_shape_and_merge(tensor, output, "add_fiber");
 
     auto op = std::make_shared<TensorAddFiberOp>(
-        fiber, tensor, output, alpha, beta, s_axis, batch_ndim);
+        fiber, tensor, output, alpha, beta, axis, batch_ndim);
     fiber->graph()->add_op(op);
 }
 
@@ -128,20 +125,17 @@ void TensorAddFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_t = tile_lower::tiles_of(ctx.tile_map, tensor);
     const auto &tiles_o = tile_lower::tiles_of(ctx.tile_map, output);
 
+    const Index out_nd = output->ndim();
+    const Index fiber_nd = fiber->ndim();
+
     std::vector<Index> dst_coord;
-    std::vector<Index> fiber_coord(static_cast<size_t>(fiber->ndim()));
+    std::vector<Index> fiber_coord(static_cast<size_t>(fiber_nd));
 
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        const Index j = dst_coord[static_cast<size_t>(axis)];
-        fiber_coord[0] = j;
-        for (Index b = 0; b < batch_ndim; ++b)
-        {
-            fiber_coord[static_cast<size_t>(b + 1)] =
-                dst_coord[static_cast<size_t>(
-                    output->ndim() - batch_ndim + b)];
-        }
+        fiber_layout_coord_from_tensor(
+            dst_coord, axis, batch_ndim, fiber_nd, out_nd, fiber_coord);
         const Index lin_f = lay_f->grid_linear(fiber_coord);
         tile::add_fiber(alpha,
             tiles_f[static_cast<size_t>(lin_f)],

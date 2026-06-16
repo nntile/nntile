@@ -48,37 +48,25 @@ void TensorNormSliceInplaceOp::lower_to_tile(const LoweringContext& ctx) const
     std::vector<Index> s_coord(static_cast<size_t>(src->ndim()));
     const Index src_nd = src->ndim();
     const Index dst_nd = dst->ndim();
-    const Index s_axis = graph_axis_to_storage(axis, src_nd);
+    const Index lay_ax = layout_axis(axis, src_nd);
     for(Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        for(Index sd = 0; sd < dst_nd; ++sd)
+        for(Index g_src = 0; g_src < src_nd; ++g_src)
         {
-            const Index g_dst = storage_axis_to_graph(sd, dst_nd);
-            Index g_src = 0;
-            Index k = 0;
-            for(Index g2 = 0; g2 < src_nd; ++g2)
+            if(g_src == axis)
             {
-                if(g2 == axis)
-                {
-                    continue;
-                }
-                if(k == g_dst)
-                {
-                    g_src = g2;
-                    break;
-                }
-                ++k;
+                continue;
             }
-            s_coord[static_cast<size_t>(
-                graph_axis_to_storage(g_src, src_nd))] =
-                dst_coord[static_cast<size_t>(sd)];
+            const Index g_dst = (g_src < axis) ? g_src : (g_src - 1);
+            s_coord[static_cast<size_t>(layout_axis(g_src, src_nd))] =
+                dst_coord[static_cast<size_t>(layout_axis(g_dst, dst_nd))];
         }
         const Index nseg_along_axis =
-            lay_s->grid_shape()[static_cast<size_t>(s_axis)];
+            lay_s->grid_shape()[static_cast<size_t>(lay_ax)];
         for(Index jj = 0; jj < nseg_along_axis; ++jj)
         {
-            s_coord[static_cast<size_t>(s_axis)] = jj;
+            s_coord[static_cast<size_t>(lay_ax)] = jj;
             const Index lin_s = lay_s->grid_linear(s_coord);
             if(jj == 0)
             {
@@ -87,7 +75,7 @@ void TensorNormSliceInplaceOp::lower_to_tile(const LoweringContext& ctx) const
                     tiles_s[static_cast<size_t>(lin_s)],
                     beta,
                     tiles_d[static_cast<size_t>(lin_d)],
-                    s_axis,
+                    axis,
                     redux);
             }
             else
@@ -97,7 +85,7 @@ void TensorNormSliceInplaceOp::lower_to_tile(const LoweringContext& ctx) const
                     tiles_s[static_cast<size_t>(lin_s)],
                     one,
                     tiles_d[static_cast<size_t>(lin_d)],
-                    s_axis,
+                    axis,
                     redux);
             }
         }

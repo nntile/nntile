@@ -26,6 +26,7 @@
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
+#include <nntile/tensor/shape_layout.hh>
 
 namespace nntile
 {
@@ -48,7 +49,13 @@ class TileGraph::TileNode
     NodeId id() const { return id_; }
     const std::string &name() const { return name_; }
     DataType dtype() const { return dtype_; }
+    //! Graph-order shape (0 = outermost / slowest).
     const std::vector<Index> &shape() const { return shape_; }
+    //! Storage-order shape for core tile memory and kernels.
+    std::vector<Index> storage_shape() const
+    {
+        return tensor::graph_shape_to_storage(shape_);
+    }
     Index ndim() const { return static_cast<Index>(shape_.size()); }
     Index dim(int idx) const;
     Index nelems() const;

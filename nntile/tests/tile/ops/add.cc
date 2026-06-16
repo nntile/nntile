@@ -15,6 +15,7 @@
 #include "nntile/tile/ops/add.hh"
 
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 #include "nntile/core/add.hh"
@@ -27,6 +28,7 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 
 //! Run add via TileGraph (compile + execute) and via tile API, compare
 template <typename T>

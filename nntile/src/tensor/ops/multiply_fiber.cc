@@ -60,9 +60,7 @@ TensorGraph::TensorNode *multiply_fiber(Scalar alpha,
         throw std::invalid_argument("multiply_fiber: axis out of range");
     }
 
-    const Index s_axis = graph_axis_to_storage(axis, src2->ndim());
-
-    validate_fiber_shape_and_merge(src1, src2, s_axis, 0, "multiply_fiber");
+    validate_fiber_shape_and_merge(src1, src2, axis, 0, "multiply_fiber");
 
     std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode *dst =
@@ -70,7 +68,7 @@ TensorGraph::TensorNode *multiply_fiber(Scalar alpha,
     dst->set_axes(src2->axes());
 
     auto op = std::make_shared<TensorMultiplyFiberOp>(
-        alpha, src1, src2, dst, s_axis);
+        alpha, src1, src2, dst, axis);
     src1->graph()->add_op(op);
 
     return dst;
@@ -111,13 +109,11 @@ void multiply_fiber(Scalar alpha,
             "multiply_fiber: src1, src2, and dst must be distinct tensors");
     }
 
-    const Index s_axis = graph_axis_to_storage(axis, src2->ndim());
-
-    validate_fiber_shape_and_merge(src1, src2, s_axis, 0, "multiply_fiber");
+    validate_fiber_shape_and_merge(src1, src2, axis, 0, "multiply_fiber");
     validate_same_shape_and_merge(src2, dst, "multiply_fiber");
 
     auto op = std::make_shared<TensorMultiplyFiberOp>(
-        alpha, src1, src2, dst, s_axis);
+        alpha, src1, src2, dst, axis);
     src1->graph()->add_op(op);
 }
 
@@ -139,12 +135,15 @@ void TensorMultiplyFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_s2 = tile_lower::tiles_of(ctx.tile_map, src2);
     const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
+    const Index dst_nd = dst->ndim();
+    const Index lay_ax = layout_axis(axis, dst_nd);
+
     std::vector<Index> dst_coord;
 
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        const Index j = dst_coord[static_cast<size_t>(axis)];
+        const Index j = dst_coord[static_cast<size_t>(lay_ax)];
         tile::multiply_fiber(alpha,
             tiles_s1[static_cast<size_t>(j)],
             tiles_s2[static_cast<size_t>(lin_d)],

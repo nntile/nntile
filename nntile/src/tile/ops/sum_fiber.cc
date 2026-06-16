@@ -21,6 +21,7 @@
 #include <nntile/core/sum_fiber.hh>
 
 #include <nntile/runtime.hh>
+#include <nntile/tile/shape_layout.hh>
 namespace nntile::tile
 {
 namespace
@@ -44,29 +45,31 @@ void sum_fiber(
 }
 void TileSumFiberOp::execute(Runtime& runtime) const
 {
+    const Index s_axis =
+        tensor::graph_axis_to_storage(axis, src->ndim());
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, alpha, src, beta, dst, axis, batch_ndim, redux);
+            run<nntile::fp32_t>(runtime, alpha, src, beta, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, alpha, src, beta, dst, axis, batch_ndim, redux);
+            run<nntile::fp32_fast_tf32_t>(runtime, alpha, src, beta, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, alpha, src, beta, dst, axis, batch_ndim, redux);
+            run<nntile::fp32_fast_fp16_t>(runtime, alpha, src, beta, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, alpha, src, beta, dst, axis, batch_ndim, redux);
+            run<nntile::fp32_fast_bf16_t>(runtime, alpha, src, beta, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, alpha, src, beta, dst, axis, batch_ndim, redux);
+            run<nntile::fp64_t>(runtime, alpha, src, beta, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, alpha, src, beta, dst, axis, batch_ndim, redux);
+            run<nntile::fp16_t>(runtime, alpha, src, beta, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, alpha, src, beta, dst, axis, batch_ndim, redux);
+            run<nntile::bf16_t>(runtime, alpha, src, beta, dst, s_axis, batch_ndim, redux);
             break;
         case DataType::INT64:
         case DataType::BOOL:

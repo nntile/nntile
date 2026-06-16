@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/hypot.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,15 +24,17 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3};
+    const std::vector<Index> stor_sh = {2, 3};
+    const std::vector<Index> graph_sh = graph_shape(stor_sh);
     const Index nelems = 6;
     const Scalar alpha = 1.0, beta = 1.0;
     TileGraph g("g");
-    auto* s1 = g.data(sh, "s1", DataType::FP32);
-    auto* s2 = g.data(sh, "s2", DataType::FP32);
-    auto* d = g.data(sh, "d", DataType::FP32);
+    auto* s1 = g.data(graph_sh, "s1", DataType::FP32);
+    auto* s2 = g.data(graph_sh, "s2", DataType::FP32);
+    auto* d = g.data(graph_sh, "d", DataType::FP32);
     s1->mark_input(true);
     s2->mark_input(true);
     d->mark_output(true);
@@ -51,7 +54,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot matches tile", "
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> t1(sh), t2(sh), td(sh);
+    nntile::core::Tile<fp32_t> t1(stor_sh), t2(stor_sh), td(stor_sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto a = t1.acquire(STARPU_W);

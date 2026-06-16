@@ -135,9 +135,10 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/ops/gemm.hh`):
 - **NNGraph** `gemm(a, b, trans_a, trans_b, ndim, batch_ndim)` forwards to
   `tensor::gemm(a, b, trans_a, trans_b, ndim, batch_ndim)` on graph shapes
   (no operand swap at the NN/tensor builder boundary).
-- **Tile lowering** (`TensorGemmOp::lower_to_tile`) maps graph-axis GEMM to
-  Fortran-order tile `tile::gemm` by swapping operands and transpose flags
-  (`tile::gemm(b, a, trans_b, trans_a, …)`).
+- **Tile lowering** (`TensorGemmOp::lower_to_tile`) calls
+  `tile::gemm(a, b, c, trans_a, trans_b, …)` with graph operand order (no swap).
+- **Tile execute** (`TileGemmOp::execute`) maps graph-axis GEMM to Fortran
+  `core::gemm` by swapping operands and transpose flags at the kernel boundary.
 - `trans_a` / `trans_b` transpose the contracted ``ndim`` axes of ``a`` / ``b``
   (see `gemm_output_shape` for the exact index ranges).
 - `ndim` is the number of contraction (K) dimensions.
@@ -165,8 +166,16 @@ two:
 - `tensor::storage_axis_to_graph(storage_axis, ndim)` — storage axis → graph axis
 
 Most reduction and layout ops take **graph axis indices** at the public
-TensorGraph / NNGraph API and translate to storage axes internally before
-lowering.
+TensorGraph / NNGraph API. `TensorGraph` op nodes store graph axes only;
+`lower_to_tile` uses graph axes for tiling logic and calls
+`layout_axis(graph_axis, ndim)` only when indexing `TensorAxisLayout` grid
+coordinates (storage-indexed internally). Tile execute converts to storage
+for `core::*`.
+
+**Fiber tensors** (`batch_ndim > 0`): graph shape is
+`[batch_0, …, batch_{batch_ndim-1}, fiber_dim]` (C-order: batch slower,
+fiber faster). The fiber extent matches `tensor.shape[axis]`; leading batch
+axes match `tensor.shape[0:batch_ndim)`.
 
 **Exception — NNGraph `transpose`:** graph model code was written with
 **storage-order** transpose axes (historical `graph_api` convention). The NN
@@ -211,6 +220,48 @@ With activations `x` shaped `[batch, seq, hidden]` and Q weight
 BERT/RoBERTa embeddings: sum word/position/token-type, then
 `transpose(embed, 2)` (storage-order axis) → `[batch, seq, hidden]` before
 `layer_norm(..., axis=2)` (graph axis).
+
+## TileGraph
+
+`TileGraph` is the tiled execution graph produced by lowering `TensorGraph`.
+It mirrors TensorGraph's C-order shape labels at the public API while
+`core::Tile` allocation and kernels remain Fortran-ordered.
+
+- `TileGraph::TileNode::shape()` — **graph** (C-order) labels, matching the
+  parent `TensorGraph::TensorNode::shape()` for the logical tensor.
+- `TileGraph::TileNode::storage_shape()` — Fortran storage shape passed to
+  `core::Tile` (via `tensor::graph_shape_to_storage`).
+- `TensorDescriptor.tile_shape` in `from_tensor_graph` / append phases uses
+  graph-order labels; `grid_shape` / `tile_coord` stay storage-indexed
+  (`TensorAxisLayout` is unchanged).
+
+Shape conversion helpers are re-exported from `include/nntile/tile/shape_layout.hh`
+(same functions as `tensor::shape_layout.hh`).
+
+### Tile op axis conventions
+
+Axis-aware tile ops (`*_fiber*`, `*_slice*`, `softmax`, `maxsumexp`, `transpose`)
+take **graph axis** indices (or graph leading-axis counts for `transpose`) at
+the tile API. `execute()` converts with `graph_axis_to_storage(axis, ndim)`
+before calling `core::*`, where `ndim` is the rank of the tensor the axis
+refers to (the full tensor for reductions, not the reduced output). For
+`transpose`, `ndim` is the number of leading **graph** axes in the cyclic
+shift; execute maps it to storage via `src->ndim() - ndim`.
+
+`TensorGraph` lowering passes graph axes to tile ops for slice/softmax-family ops.
+Fiber and reduction ops also store graph axes; tile calls receive graph axes
+directly.
+
+Layout-parameter ops (`embedding`, `conv2d_*`, `copy_intersection`, `rope`,
+`flash_sdpa`, `mask_scalar`) keep storage-indexed geometry from tensor lowering;
+`mask_scalar` takes `batch_ndim` (leading graph batch rank), not an axis index.
+No tile-layer shape relabeling beyond execute-time kernel conventions.
+
+### TileGraph GEMM
+
+- Tensor lowering: `tile::gemm(ta, tb, tc, trans_a, trans_b, ndim, batch_ndim)`
+  (graph operand order).
+- Tile execute: calls `core::gemm` with operand/transpose swap for Fortran kernels.
 
 ## NNGraph
 
@@ -281,12 +332,13 @@ Update `src/CMakeLists.txt` and `include/CMakeLists.txt` if adding new files.
 
 ## Minimal example
 
-Using NNGraph with gradients (see `examples/graph_mlp_example.cc` and
-`examples/linear_layer_example.cc` for full examples):
+Using NNGraph with gradients (see `nntile/examples/graph_mlp_example.cc` and
+`nntile/examples/linear_layer_example.cc` for full examples):
 
 ```cpp
 #include <nntile/context.hh>
 #include <nntile/graph.hh>
+#include <nntile/runtime.hh>
 
 using namespace nntile;
 
@@ -294,18 +346,20 @@ nntile::Context context(
     1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
 NNGraph graph("demo");
-auto* a = graph.tensor({2, 3}, "a", DataType::FP32, true);
-auto* b = graph.tensor({4, 3}, "b", DataType::FP32, true);  // out=4, in=3
-auto* y = gemm(a, b, "y");  // shape (2, 4) with trans_b=true in Linear
+auto* x = graph.tensor({2, 3}, "x", DataType::FP32, true);
+auto* w = graph.tensor({4, 3}, "w", DataType::FP32, true);  // out=4, in=3
+auto* y = gemm(x, w, "y");  // shape (2, 4) with trans_b=true in Linear
 
 x->mark_input(true);
 y->mark_output(true);
 y->backward();  // build backward pass
-CompiledGraph compiled(graph.tensor_graph());
-compiled.compile();
-compiled.bind_data("x", input_data);
-compiled.bind_data("w", weight_data);
-compiled.execute();
-compiled.wait();
-auto out = compiled.get_output<float>("y");
+
+TileGraph tile_graph = TileGraph::from_tensor_graph(graph.tensor_graph());
+Runtime runtime(tile_graph);
+runtime.compile();
+runtime.bind_data(x->data(), x_data);
+runtime.bind_data(w->data(), w_data);
+runtime.execute();
+runtime.wait();
+auto out = runtime.get_output<float>(y->data());
 ```

@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/add_slice.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,20 +24,28 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_slice", "[graph][tile]")
 {
-    const std::vector<Index> t1s = {4, 5}, t2s = {3, 4, 5}, ds = {3, 4, 5};
+    const std::vector<Index> stor_t1s = {4, 5};
+    const std::vector<Index> graph_t1s = graph_shape(stor_t1s);
+    const std::vector<Index> stor_t2s = {3, 4, 5};
+    const std::vector<Index> graph_t2s = graph_shape(stor_t2s);
+    const std::vector<Index> stor_ds = {3, 4, 5};
+    const std::vector<Index> graph_ds = graph_shape(stor_ds);
     const Index n1 = 20, n2 = 60;
     const Scalar a = 0.5, b = 0.5;
-    const Index axis = 0;
+    const Index stor_axis = 0;
+    const Index g_axis =
+        graph_axis(stor_axis, static_cast<Index>(stor_t2s.size()));
     TileGraph g("g");
-    auto* t1 = g.data(t1s, "t1", DataType::FP32);
-    auto* t2 = g.data(t2s, "t2", DataType::FP32);
-    auto* d = g.data(ds, "d", DataType::FP32);
+    auto* t1 = g.data(graph_t1s, "t1", DataType::FP32);
+    auto* t2 = g.data(graph_t2s, "t2", DataType::FP32);
+    auto* d = g.data(graph_ds, "d", DataType::FP32);
     t1->mark_input(true);
     t2->mark_input(true);
     d->mark_output(true);
-    tg::add_slice(a, t1, b, t2, d, axis);
+    tg::add_slice(a, t1, b, t2, d, g_axis);
     Runtime rt(g);
     rt.compile();
     std::vector<float> v1(n1), v2(n2);
@@ -49,13 +58,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_slice", "[graph][t
     rt.execute();
     rt.wait();
     const std::vector<float> gout = rt.get_output<float>(d);
-    nntile::core::Tile<fp32_t> T1(t1s), T2(t2s), D(ds);
+    nntile::core::Tile<fp32_t> T1(stor_t1s), T2(stor_t2s), D(stor_ds);
     using Y = typename nntile::fp32_t::repr_t;
     { auto A = T1.acquire(STARPU_W), B = T2.acquire(STARPU_W), C = D.acquire(STARPU_W);
       for(Index i = 0; i < n1; ++i) A[i] = Y(v1[static_cast<size_t>(i)]);
       for(Index i = 0; i < n2; ++i) { B[i] = Y(v2[static_cast<size_t>(i)]); C[i] = Y(0); }
       A.release(); B.release(); C.release(); }
-    nntile::core::add_slice<fp32_t>(-1, a, T1, b, T2, D, axis);
+    nntile::core::add_slice<fp32_t>(-1, a, T1, b, T2, D, stor_axis);
     starpu_task_wait_for_all();
     std::vector<float> tref(60);
     { auto L = D.acquire(STARPU_R);

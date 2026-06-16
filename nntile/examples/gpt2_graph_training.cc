@@ -56,7 +56,7 @@
 #include "gpt2_config_json.hh"
 #include "tiling_config_json.hh"
 #include <nntile.hh>
-#include <nntile/core/execution_schedule.hh>
+#include <nntile/runtime.hh>
 #include <nntile/dataset/causal_lm_mmap.hh>
 #include <nntile/model/gpt2/gpt2_causal.hh>
 #include <nntile/model/gpt2/gpt2_config.hh>
