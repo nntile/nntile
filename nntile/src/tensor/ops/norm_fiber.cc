@@ -117,7 +117,7 @@ void norm_fiber(Scalar alpha,
 void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
     const Index g_axis =
-        storage_axis_to_graph(axis, dst->ndim());
+        storage_axis_to_graph(axis, src1->ndim());
 
     // Match nntile::tensor::norm_fiber_async (src/tensor/norm_fiber.cc).
     const TensorAxisLayout *lay1 = ctx.tiling.find(src1);

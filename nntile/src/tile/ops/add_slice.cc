@@ -46,7 +46,7 @@ void add_slice(Scalar a, TileGraph::TileNode* t1, Scalar b, TileGraph::TileNode*
 void TileAddSliceOp::execute(Runtime& runtime) const
 {
     const Index s_axis =
-        tensor::graph_axis_to_storage(axis, t2->ndim());
+        tensor::graph_axis_to_storage(axis, s2->ndim());
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)
     {

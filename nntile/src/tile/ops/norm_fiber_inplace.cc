@@ -44,7 +44,7 @@ void norm_fiber_inplace(Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::T
 void TileNormFiberInplaceOp::execute(Runtime& runtime) const
 {
     const Index s_axis =
-        tensor::graph_axis_to_storage(axis, dst->ndim());
+        tensor::graph_axis_to_storage(axis, src->ndim());
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)
     {

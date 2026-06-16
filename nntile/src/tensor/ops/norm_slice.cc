@@ -170,7 +170,7 @@ void TensorNormSliceOp::lower_to_tile(const LoweringContext &ctx) const
                     beta,
                     tiles_s2[static_cast<size_t>(lin_d)],
                     tiles_d[static_cast<size_t>(lin_d)],
-                    s_axis,
+                    axis,
                     redux);
             }
             else
@@ -179,7 +179,7 @@ void TensorNormSliceOp::lower_to_tile(const LoweringContext &ctx) const
                     tiles_s1[static_cast<size_t>(lin_s1)],
                     one,
                     tiles_d[static_cast<size_t>(lin_d)],
-                    s_axis,
+                    axis,
                     redux);
             }
         }

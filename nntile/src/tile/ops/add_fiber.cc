@@ -37,7 +37,7 @@ void run(
     Index ax,
     Index bd)
 {
-    nntile::core::add_fiber<T>(runtime.starpu_worker_hint(), 
+    nntile::core::add_fiber<T>(runtime.starpu_worker_hint(),
         a, runtime.get_tile<T>(t1), b, runtime.get_tile<T>(t2), runtime.get_tile<T>(d), ax, bd);
 }
 } // namespace
@@ -56,7 +56,7 @@ void add_fiber(
 void TileAddFiberOp::execute(Runtime& runtime) const
 {
     const Index s_axis =
-        tensor::graph_axis_to_storage(axis, dst->ndim());
+        tensor::graph_axis_to_storage(axis, s2->ndim());
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)
     {

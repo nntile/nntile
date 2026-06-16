@@ -48,7 +48,7 @@ void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, i
 void TileMaxsumexpOp::execute(Runtime& runtime) const
 {
     const Index s_axis =
-        tensor::graph_axis_to_storage(axis, dst->ndim());
+        tensor::graph_axis_to_storage(axis, src->ndim());
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)
     {

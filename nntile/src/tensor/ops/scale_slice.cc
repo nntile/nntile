@@ -153,7 +153,7 @@ void TensorScaleSliceOp::lower_to_tile(const LoweringContext &ctx) const
             tile::scale_slice(alpha,
                 tiles_s[static_cast<size_t>(lin_s)],
                 tiles_d[static_cast<size_t>(lin_d)],
-                s_axis);
+                axis);
         }
     }
 }

@@ -32,7 +32,7 @@ namespace nntile::tensor
 void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
 {
     const Index g_axis =
-        storage_axis_to_graph(axis, dst->ndim());
+        storage_axis_to_graph(axis, src1->ndim());
 
     // Match nntile::tensor::sumprod_fiber_async (src/tensor/sumprod_fiber.cc).
     const TensorAxisLayout* lay1 = ctx.tiling.find(src1);

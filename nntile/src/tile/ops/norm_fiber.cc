@@ -47,7 +47,7 @@ void norm_fiber(
 void TileNormFiberOp::execute(Runtime& runtime) const
 {
     const Index s_axis =
-        tensor::graph_axis_to_storage(axis, dst->ndim());
+        tensor::graph_axis_to_storage(axis, s1->ndim());
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)
     {

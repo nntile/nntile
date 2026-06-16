@@ -72,7 +72,7 @@ void add_fiber_inplace(
 void TensorAddFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
     const Index g_axis =
-        storage_axis_to_graph(axis, dst->ndim());
+        storage_axis_to_graph(axis, tensor->ndim());
 
     // Match nntile::tensor::add_fiber_inplace_async (src/tensor/add_fiber_inplace.cc).
     if(alpha == 0.0)

@@ -138,7 +138,7 @@ void TensorSumprodSliceOp::lower_to_tile(const LoweringContext& ctx) const
             tiles_s2[static_cast<size_t>(lin_s0)],
             beta,
             dst_tile,
-            s_axis,
+            axis,
             redux);
 
         for(Index jj = 1; jj < nseg_along_axis; ++jj)
@@ -151,7 +151,7 @@ void TensorSumprodSliceOp::lower_to_tile(const LoweringContext& ctx) const
                 tiles_s2[static_cast<size_t>(lin_s)],
                 Scalar(1.0),
                 dst_tile,
-                s_axis,
+                axis,
                 redux);
         }
     }

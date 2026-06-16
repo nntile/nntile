@@ -33,7 +33,7 @@ namespace nntile::tensor
 void TensorNormFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
     const Index g_axis =
-        storage_axis_to_graph(axis, dst->ndim());
+        storage_axis_to_graph(axis, src->ndim());
 
     // Match nntile::tensor::norm_fiber_inplace_async (src/tensor/norm_fiber_inplace.cc).
     const TensorAxisLayout* lay1 = ctx.tiling.find(src);
