@@ -22,6 +22,15 @@ bool is_registered()
     return true;
 }
 
+bool has_libnntile()
+{
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    return true;
+#else
+    return false;
+#endif
+}
+
 int64_t buffer_nbytes(const at::Tensor &tensor)
 {
     TORCH_CHECK(
@@ -47,6 +56,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("nntile_device", &torch_nntile::nntile_device, "Return nntile device");
     m.def("is_registered", &torch_nntile::is_registered, "Backend loaded");
+    m.def(
+        "has_libnntile",
+        &torch_nntile::has_libnntile,
+        "Whether libnntile TensorGraph add is linked");
     m.def("buffer_nbytes", &torch_nntile::buffer_nbytes, "Storage nbytes");
     m.def(
         "buffer_equal_cpu",
