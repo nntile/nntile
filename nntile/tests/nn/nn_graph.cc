@@ -44,7 +44,7 @@ TEST_CASE_METHOD(
 {
     NNGraph g("test");
 
-    auto *x = g.tensor({3, 2}, DataType::FP32, false)->set_name("x");
+    auto *x = g.tensor({2, 3}, DataType::FP32, false)->set_name("x");
 
     REQUIRE(x->name() == "x");
     REQUIRE_FALSE(x->requires_grad());
@@ -151,8 +151,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph nng("test_nn");
 
-    auto *x = nng.tensor({3, 2}, DataType::FP32)->set_name("input");
-    auto *w = nng.tensor({3, 4}, DataType::FP32)->set_name("weights");
+    auto *x = nng.tensor({4, 3}, DataType::FP32)->set_name("input");
+    auto *w = nng.tensor({3, 2}, DataType::FP32)->set_name("weights");
 
     auto *y = gemm(x, w, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
@@ -177,8 +177,8 @@ TEST_CASE_METHOD(
 
     NNGraph g("test");
 
-    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
-    auto *w = g.tensor({3, 4}, DataType::FP32)->set_name("w");
+    auto *x = g.tensor({4, 3}, DataType::FP32)->set_name("x");
+    auto *w = g.tensor({3, 2}, DataType::FP32)->set_name("w");
     auto *y = gemm(x, w, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
     x->mark_input(true);
@@ -202,8 +202,8 @@ TEST_CASE_METHOD(
 
     NNGraph g("autograd_add");
 
-    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({3, 2}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
 
     auto *z = add(alpha, x, beta, y)->set_name("z");
 

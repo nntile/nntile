@@ -132,7 +132,6 @@ TEST_CASE("Mlp ActivationTypes", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::pytorch_tolerance;
 
@@ -238,15 +237,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (Index i = 0; i < batch * in_dim; ++i)
         input_data[i] = 0.1f * static_cast<float>(i + 1);
 
-        auto input_pt = torch::from_blob(input.data(),
+    auto input_pt = torch::from_blob(input_data.data(),
         {batch, in_dim},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
                         .set_requires_grad(true);
     auto hidden_pt = apply_activation_pt(fc1->forward(input_pt), activation);
     auto out_pt = fc2->forward(hidden_pt);
-    std::vector<float> pytorch_out(
-        out_pt.data_ptr<float>(), out_pt.data_ptr<float>() + batch * out_dim);
 
     NNGraph g("mlp_pytorch");
     auto *input =
@@ -284,42 +281,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out = runtime.get_output<float>(output);
-    std::vector<float> nntile_out =
-        nntile_out;
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for (size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < tol);
+    compare_float_vectors(runtime.get_output<float>(output), out_pt, tol);
 
     auto grad_output = torch::full({batch, out_dim},
         grad_fill_val,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 
-    std::vector<float> nntile_grad_w1 =
-        runtime.get_output<float>(mlp.fc1().weight_tensor()->grad());
-        auto pt_grad_w1 = fc1->weight.grad().accessor<float, 2>();
-    for (Index i = 0; i < in_dim; ++i)
-        for (Index j = 0; j < inter_dim; ++j)
-            REQUIRE(
-                std::abs(
-                    nntile_grad_w1_rowmajor[static_cast<size_t>(
-                        i * inter_dim + j)] -
-                    pt_grad_w1[static_cast<long>(j)][static_cast<long>(i)]) <
-                tol);
-
-    std::vector<float> nntile_grad_w2 =
-        runtime.get_output<float>(mlp.fc2().weight_tensor()->grad());
-        auto pt_grad_w2 = fc2->weight.grad().accessor<float, 2>();
-    for (Index i = 0; i < inter_dim; ++i)
-        for (Index j = 0; j < out_dim; ++j)
-            REQUIRE(
-                std::abs(
-                    nntile_grad_w2_rowmajor[static_cast<size_t>(
-                        i * out_dim + j)] -
-                    pt_grad_w2[static_cast<long>(j)][static_cast<long>(i)]) <
-                tol);
+    compare_float_vectors(
+        runtime.get_output<float>(mlp.fc1().weight_tensor()->grad()),
+        fc1->weight.grad(),
+        tol);
+    compare_float_vectors(
+        runtime.get_output<float>(mlp.fc2().weight_tensor()->grad()),
+        fc2->weight.grad(),
+        tol);
 
     if (mlp.fc1().bias_tensor())
     {
@@ -336,10 +312,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             nntile_grad_b2, fc2->bias.grad(), tol);
     }
 
-    std::vector<float> nntile_grad_input =
-        runtime.get_output<float>(input->grad());
-        nntile::test::compare_float_vectors(
-        nntile_grad_input_rowmajor, input_pt.grad(), tol);
+    compare_float_vectors(
+        runtime.get_output<float>(input->grad()), input_pt.grad(), tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -406,11 +380,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto grad_w1 =
         runtime.get_output<float>(mlp.fc1().weight_tensor()->grad());
-    REQUIRE(grad_w1.size() == static_cast<size_t>(in_dim * inter_dim));
+    REQUIRE(grad_w1.size() == static_cast<size_t>(inter_dim * in_dim));
 
     auto grad_w2 =
         runtime.get_output<float>(mlp.fc2().weight_tensor()->grad());
-    REQUIRE(grad_w2.size() == static_cast<size_t>(inter_dim * out_dim));
+    REQUIRE(grad_w2.size() == static_cast<size_t>(out_dim * inter_dim));
 
     if (mlp.fc1().bias_tensor())
     {

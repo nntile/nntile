@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -27,21 +28,6 @@
 using namespace nntile;
 using namespace nntile;
 namespace gt = nntile::tensor;
-
-#ifdef NNTILE_HAVE_TORCH
-namespace
-{
-
-//! Heterogeneous splits on both axes (sums 6 and 7); call after tensor::add
-//! merges x/y so one leaf's axes define the shared layout.
-void add_heterogeneous_tiling_6x7(NNGraph::TensorNode *x_leaf)
-{
-    x_leaf->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
-    x_leaf->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
-}
-
-} // namespace
-#endif
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph add rejects shape mismatch",
@@ -191,6 +177,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph add forward matches PyTorch",
@@ -217,7 +204,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
-    add_heterogeneous_tiling_6x7(x);
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
     x->mark_input(true);
     y->mark_input(true);
@@ -274,7 +261,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
     auto *z = add(alpha, x, beta, y)->set_name("z");
 
-    add_heterogeneous_tiling_6x7(x);
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
     x->mark_input(true);
     y->mark_input(true);

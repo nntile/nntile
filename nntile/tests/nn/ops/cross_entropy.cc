@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [x_shape, labels_shape] =
         GENERATE(std::tuple{std::vector<Index>{7, 5}, std::vector<Index>{7}},
-            std::tuple{std::vector<Index>{4, 3, 2}, std::vector<Index>{4, 3}});
+            std::tuple{std::vector<Index>{2, 3, 4}, std::vector<Index>{2, 3}});
 
     NNGraph g("cross_entropy_structure");
     auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
@@ -97,24 +97,23 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
 using nntile::test::nn_pytorch_tile_logits_5x7;
-using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph cross_entropy matches PyTorch",
     "[graph][nn_graph][pytorch]")
 {
-    // C-order: x [batch, nclasses], labels [batch]; class axis is last.
+    // graph: x [batch, nclasses], labels [batch]
+    // PyTorch expects [N, C] = [batch, nclasses], target [N]
     const Index batch_size = 7;
     const Index nclasses = 5;
     std::vector<Index> x_shape{batch_size, nclasses};
     std::vector<Index> labels_shape{batch_size};
 
-    Index x_nelems = batch_size * nclasses;
+    Index x_nelems = nclasses * batch_size;
     std::vector<float> x_data(x_nelems);
     for (Index i = 0; i < x_nelems; ++i)
     {
@@ -133,7 +132,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         g.tensor(labels_shape, DataType::INT64, false)->set_name("labels");
     auto *loss = cross_entropy(x, labels)->set_name("loss");
 
-    nn_pytorch_tile_logits_7x5(x);
+    nn_pytorch_tile_logits_5x7(x);
     nn_pytorch_tile_heterogeneous_1d_len7(labels);
 
     x->mark_input(true);
@@ -158,8 +157,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_loss = runtime.get_output<float>(loss);
     REQUIRE(nntile_loss.size() == 1);
 
-    std::vector<float> nntile_grad_x =
-        runtime.get_output<float>(x->grad());
+    std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
 
     std::vector<::int64_t> shape_pt{batch_size, nclasses};
     auto x_pt = torch::from_blob(x_data.data(),

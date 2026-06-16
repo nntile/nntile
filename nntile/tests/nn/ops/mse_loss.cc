@@ -32,8 +32,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [x_shape, scale] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)},
+        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{5, 3}, Scalar(0.5)},
             std::tuple{std::vector<Index>{4, 3, 2}, Scalar(1.0 / 24.0)});
 
     NNGraph g("mse_loss_structure");
@@ -52,8 +52,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [x_shape, scale] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)});
+        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{5, 3}, Scalar(0.5)});
 
     NNGraph g("mse_loss_backward");
     auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
@@ -72,8 +72,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [x_shape, scale] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 6}, Scalar(0.5)},
+        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{6, 3}, Scalar(0.5)},
             std::tuple{std::vector<Index>{4, 3, 2}, Scalar(1.0 / 24.0)});
 
     NNGraph g("mse_loss");
@@ -95,7 +95,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 using nntile::test::require_relative_frobenius_error;
 
@@ -135,15 +134,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_loss = runtime.get_output<float>(loss);
-    std::vector<float> nntile_grad_x =
-        runtime.get_output<float>(x->grad());
-    std::vector<float> nntile_grad_x =
-        colmajor_to_rowmajor(nntile_grad_x, x_shape);
+    std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
 
-    std::vector<float> x_row = colmajor_to_rowmajor(x_data, x_shape);
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
 
-    auto x_pt = torch::from_blob(x_row.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()

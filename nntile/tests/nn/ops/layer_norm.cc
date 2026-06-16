@@ -34,8 +34,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [shape, axis] =
-        GENERATE(std::tuple{std::vector<Index>{3, 2}, Index(0)},
-            std::tuple{std::vector<Index>{5, 4}, Index(1)},
+        GENERATE(std::tuple{std::vector<Index>{3, 2}, Index(1)},
+            std::tuple{std::vector<Index>{4, 5}, Index(1)},
             std::tuple{std::vector<Index>{4, 3, 2}, Index(1)});
 
     std::vector<Index> param_shape = {shape[axis]};
@@ -58,8 +58,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [shape, axis, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{3, 2}, Index(0), Scalar(1.0)},
-            std::tuple{std::vector<Index>{5, 4}, Index(1), Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
+            std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(-1.0)});
 
     std::vector<Index> param_shape = {shape[axis]};
 
@@ -86,10 +86,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [shape, axis, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{3, 2}, Index(0), Scalar(1.0)},
-            std::tuple{std::vector<Index>{5, 4}, Index(1), Scalar(1.0)},
+        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
+            std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(1.0)},
             std::tuple{std::vector<Index>{6}, Index(0), Scalar(2.0)},
-            std::tuple{std::vector<Index>{3, 2, 2}, Index(1), Scalar(-1.0)});
+            std::tuple{std::vector<Index>{2, 2, 3}, Index(1), Scalar(-1.0)});
 
     std::vector<Index> param_shape = {shape[axis]};
 
@@ -118,7 +118,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
@@ -132,7 +131,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [shape, axis] =
         GENERATE(std::tuple{std::vector<Index>{6, 7}, Index(1)},
-            std::tuple{std::vector<Index>{4, 3, 2}, Index(2)},
+            std::tuple{std::vector<Index>{2, 3, 4}, Index(2)},
             std::tuple{std::vector<Index>{6}, Index(0)});
 
     Index nelems = 1;
@@ -154,8 +153,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         gamma_data[i] = 1.0f + 0.01f * static_cast<float>(i);
         beta_data[i] = 0.02f * static_cast<float>(i);
     }
-
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
 
     constexpr Scalar eps = 1e-5;
 
@@ -195,11 +192,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_out = runtime.get_output<float>(y);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out, shape);
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
@@ -253,8 +248,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         beta_data[i] = 0.01f * static_cast<float>(i);
     }
 
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
-
     constexpr Scalar eps = 1e-5;
 
     NNGraph g("layer_norm_bwd_pytorch");
@@ -301,15 +294,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_x =
         runtime.get_output<float>(x->grad());
-    std::vector<float> nntile_grad_x =
-        colmajor_to_rowmajor(nntile_grad_x, shape);
     std::vector<float> nntile_grad_gamma =
         runtime.get_output<float>(gamma->grad());
     std::vector<float> nntile_grad_beta =
         runtime.get_output<float>(beta->grad());
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x.data(),
+    auto x_pt = torch::from_blob(x_data.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()

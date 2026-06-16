@@ -54,8 +54,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Index(0)},
         std::tuple{Scalar(0.5), Index(1)});
 
-    std::vector<Index> slice_sh = slice_shape({dim_2, dim_4}, axis);
-    std::vector<Index> tensor_shape = {dim_2, dim_4};
+    std::vector<Index> slice_sh = slice_shape({dim_4, dim_2}, axis);
+    const std::vector<Index> tensor_shape = {dim_4, dim_2};
 
     NNGraph g("multiply_slice_structure");
     auto *slice_node = g.tensor(slice_sh, DataType::FP32)->set_name("slice");
@@ -67,7 +67,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     REQUIRE(out != nullptr);
     REQUIRE(out->has_producer());
-    REQUIRE(out->shape() == (std::vector<Index>{dim_2, dim_4}));
+    REQUIRE(out->shape() == (std::vector<Index>{dim_4, dim_2}));
     REQUIRE(g.num_ops() == 1);
     auto has_multiply_slice = [&g]()
     {
@@ -89,8 +89,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(2.0), Index(0), Scalar(0.5)},
             std::tuple{Scalar(0.5), Index(1), Scalar(2.0)});
 
-    std::vector<Index> slice_sh = slice_shape({dim_2, dim_4}, axis);
-    std::vector<Index> tensor_shape = {dim_2, dim_4};
+    std::vector<Index> slice_sh = slice_shape({dim_4, dim_2}, axis);
+    const std::vector<Index> tensor_shape = {dim_4, dim_2};
 
     NNGraph g("multiply_slice_backward");
     auto *slice_node = g.tensor(slice_sh, DataType::FP32)->set_name("slice");
@@ -110,7 +110,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
@@ -164,17 +163,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_out = runtime.get_output<float>(out);
-    std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out, dst_sh);
 
     std::vector<::int64_t> slice_shape_pt(slice_sh.begin(), slice_sh.end());
+    std::vector<::int64_t> dst_shape_pt(dst_sh.begin(), dst_sh.end());
     auto slice_pt = torch::from_blob(slice_data.data(),
         slice_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
                         .set_requires_grad(false);
     auto out_pt = (alpha * slice_pt.unsqueeze(static_cast<std::int64_t>(axis))
-                               .expand({dim_m, dim_n}))
+                               .expand(dst_shape_pt))
                       .contiguous();
 
     std::vector<float> pytorch_out(
@@ -240,15 +238,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.get_output<float>(slice_node->grad());
 
     std::vector<::int64_t> slice_shape_pt(slice_sh.begin(), slice_sh.end());
+    std::vector<::int64_t> dst_shape_pt(dst_sh.begin(), dst_sh.end());
     auto slice_pt = torch::from_blob(slice_data.data(),
         slice_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone()
                         .set_requires_grad(true);
     auto out_pt = alpha * slice_pt.unsqueeze(static_cast<std::int64_t>(axis))
-                              .expand({dim_m, dim_n});
+                              .expand(dst_shape_pt);
 
-    auto grad_output = torch::full({dim_m, dim_n},
+    auto grad_output = torch::full(dst_shape_pt,
         static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);

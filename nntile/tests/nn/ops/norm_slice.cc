@@ -40,9 +40,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Index(0)},
         std::tuple{Scalar(0.5), Index(1)});
 
-    std::vector<Index> x_shape = (axis == 0)
-                                     ? std::vector<Index>{dim_4, dim_2}
-                                     : std::vector<Index>{dim_2, dim_4};
+    std::vector<Index> x_shape = {dim_2, dim_4};
     std::vector<Index> out_shape;
     for (Index i = 0; i < static_cast<Index>(x_shape.size()); ++i)
         if (i != axis)
@@ -76,7 +74,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     if (axis == 0)
         y->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
     else
-        y->data()->axis(0)->set_tiling(std::vector<Index>{2, 4});
+        y->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
 
     x->mark_input(true);
     y->mark_output(true);
@@ -113,9 +111,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(2.0), Index(0), Scalar(-1.0)},
             std::tuple{Scalar(0.5), Index(1), Scalar(0.5)});
 
-    std::vector<Index> x_shape = (axis == 0)
-                                     ? std::vector<Index>{dim_4, dim_2}
-                                     : std::vector<Index>{dim_2, dim_4};
+    std::vector<Index> x_shape = {dim_2, dim_4};
     NNGraph g("norm_slice_backward_throws");
     auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
     auto *y = norm_slice(x, axis, redux_none, alpha)->set_name("y");

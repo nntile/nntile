@@ -123,7 +123,7 @@ TEST_CASE("Linear BuildForwardValidatesInputDim", "[module]")
 {
     NNGraph g("linear");
 
-    auto *input = g.tensor({5, 2}, DataType::FP32)->set_name("input");
+    auto *input = g.tensor({2, 5}, DataType::FP32)->set_name("input");
     Linear linear(&g, "linear", 3, 4, false);
 
     REQUIRE_THROWS_AS(linear.forward(input), std::invalid_argument);
@@ -189,7 +189,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     input->mark_input(true);
     output->mark_output(true);
 
-    // Bind weight before compile; weight shape [out, in] = [4, 3] row-major
+    // Bind weight before compile; data in [out, in] contiguous layout
     std::vector<float> weight_data(4 * 3);
     for (Index i = 0; i < 12; ++i)
         weight_data[i] = 0.1f * static_cast<float>(i + 1);
@@ -212,10 +212,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == 8);
-    // output [batch, out] = [2, 4]; out[b,j] at b*out_dim + j
+    // output = input @ weight.T: weight [4,3], input all 1s -> out[b,0]=sum_i w[0,i]
     float expected = 0;
     for (Index i = 0; i < 3; ++i)
-        expected += weight_data[i]; // weight row 0
+        expected += weight_data[i];
     REQUIRE(std::abs(out[0] - expected) < 1e-5f);
 }
 
@@ -255,13 +255,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == 8);
-    // output [batch, out] row-major: out[b,j] at b*out_dim + j
+    // output = input @ weight.T + bias; weight[0,0]=1, input all 1
     REQUIRE(std::abs(out[0] - 2.0f) < 1e-5f);
     REQUIRE(std::abs(out[1] - 2.0f) < 1e-5f);
-    REQUIRE(std::abs(out[4] - 3.0f) < 1e-5f);
-    REQUIRE(std::abs(out[5] - 4.0f) < 1e-5f);
+    REQUIRE(std::abs(out[2] - 3.0f) < 1e-5f);
+    REQUIRE(std::abs(out[3] - 4.0f) < 1e-5f);
 }
 
+using nntile::test::compare_float_vectors;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -299,18 +300,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out = runtime.get_output<float>(output);
     auto input_pt = torch::from_blob(input_data.data(),
         {batch, in_dim},
         torch::TensorOptions().dtype(torch::kFloat32))
                         .clone();
     auto out_pt = linear_pt->forward(input_pt);
-    std::vector<float> pytorch_out(
-        out_pt.data_ptr<float>(), out_pt.data_ptr<float>() + batch * out_dim);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for (size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(runtime.get_output<float>(output), out_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -336,8 +331,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                         .clone()
                         .set_requires_grad(true);
     auto out_pt = linear_pt->forward(input_pt);
-    std::vector<float> pytorch_out(
-        out_pt.data_ptr<float>(), out_pt.data_ptr<float>() + batch * out_dim);
 
     NNGraph g("linear_pytorch");
     auto *input =
@@ -366,32 +359,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out = runtime.get_output<float>(output);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for (size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(runtime.get_output<float>(output), out_pt);
 
     auto grad_output = torch::full({batch, out_dim},
         grad_fill_val,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 
-    std::vector<float> nntile_grad_weight =
-        runtime.get_output<float>(linear.weight_tensor()->grad());
-    auto pt_grad_w = linear_pt->weight.grad().accessor<float, 2>();
-    for (Index j = 0; j < out_dim; ++j)
-        for (Index i = 0; i < in_dim; ++i)
-            REQUIRE(
-                std::abs(
-                    nntile_grad_weight[static_cast<size_t>(j * in_dim + i)] -
-                    pt_grad_w[static_cast<long>(j)][static_cast<long>(i)]) <
-                pytorch_tolerance);
+    compare_float_vectors(
+        runtime.get_output<float>(linear.weight_tensor()->grad()),
+        linear_pt->weight.grad());
 
-    std::vector<float> nntile_grad_input =
-        runtime.get_output<float>(input->grad());
-    nntile::test::compare_float_vectors(
-        nntile_grad_input, input_pt.grad());
+    compare_float_vectors(
+        runtime.get_output<float>(input->grad()), input_pt.grad());
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -416,8 +396,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                         .clone()
                         .set_requires_grad(true);
     auto out_pt = linear_pt->forward(input_pt);
-    std::vector<float> pytorch_out(
-        out_pt.data_ptr<float>(), out_pt.data_ptr<float>() + batch * out_dim);
 
     NNGraph g("linear_bias_pytorch");
     auto *input =
@@ -447,37 +425,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out = runtime.get_output<float>(output);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for (size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(runtime.get_output<float>(output), out_pt);
 
     auto grad_output = torch::full({batch, out_dim},
         grad_fill_val,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 
-    std::vector<float> nntile_grad_weight =
-        runtime.get_output<float>(linear.weight_tensor()->grad());
-    auto pt_grad_w = linear_pt->weight.grad().accessor<float, 2>();
-    for (Index j = 0; j < out_dim; ++j)
-        for (Index i = 0; i < in_dim; ++i)
-            REQUIRE(
-                std::abs(
-                    nntile_grad_weight[static_cast<size_t>(j * in_dim + i)] -
-                    pt_grad_w[static_cast<long>(j)][static_cast<long>(i)]) <
-                pytorch_tolerance);
-
-    std::vector<float> nntile_grad_bias =
-        runtime.get_output<float>(linear.bias_tensor()->grad());
-    nntile::test::compare_float_vectors(
-        nntile_grad_bias, linear_pt->bias.grad());
-
-    std::vector<float> nntile_grad_input =
-        runtime.get_output<float>(input->grad());
-    nntile::test::compare_float_vectors(
-        nntile_grad_input, input_pt.grad());
+    compare_float_vectors(
+        runtime.get_output<float>(linear.weight_tensor()->grad()),
+        linear_pt->weight.grad());
+    compare_float_vectors(
+        runtime.get_output<float>(linear.bias_tensor()->grad()),
+        linear_pt->bias.grad());
+    compare_float_vectors(
+        runtime.get_output<float>(input->grad()), input_pt.grad());
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

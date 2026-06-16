@@ -37,13 +37,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     NNGraph g("sdpa");
 
-    auto *q = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("q");
-    auto *k = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("k");
-    auto *v = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("v");
+    auto *q = g.tensor({4, 2, 8, 64}, DataType::FP32)->set_name("q");
+    auto *k = g.tensor({4, 2, 8, 64}, DataType::FP32)->set_name("k");
+    auto *v = g.tensor({4, 2, 8, 64}, DataType::FP32)->set_name("v");
 
     auto *output = sdpa_eager(q, k, v, nullptr, 2, 0)->set_name("out");
 
-    REQUIRE(output->shape() == std::vector<Index>({64, 8, 2, 4}));
+    REQUIRE(output->shape() == std::vector<Index>({4, 2, 8, 64}));
     REQUIRE(output->name() == "out");
 
     size_t gemm_count = 0;
@@ -69,14 +69,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     NNGraph g("sdpa");
 
-    auto *q = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("q");
-    auto *k = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("k");
-    auto *v = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("v");
-    auto *mask = g.tensor({2, 2}, DataType::BOOL)->set_name("mask");
+    auto *q = g.tensor({4, 2, 8, 64}, DataType::FP32)->set_name("q");
+    auto *k = g.tensor({4, 2, 8, 64}, DataType::FP32)->set_name("k");
+    auto *v = g.tensor({4, 2, 8, 64}, DataType::FP32)->set_name("v");
+    auto *mask = g.tensor({8, 8}, DataType::BOOL)->set_name("mask");
 
     auto *output = sdpa_eager(q, k, v, mask, 2, 0)->set_name("out");
 
-    REQUIRE(output->shape() == std::vector<Index>({64, 8, 2, 4}));
+    REQUIRE(output->shape() == std::vector<Index>({4, 2, 8, 64}));
 
     size_t mask_count = 0;
     for (const auto &op : g.ops())
@@ -93,9 +93,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     NNGraph g("sdpa");
 
-    auto *q = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("q");
-    auto *k = g.tensor({32, 8, 2, 4}, DataType::FP32)->set_name("k");
-    auto *v = g.tensor({64, 8, 2, 4}, DataType::FP32)->set_name("v");
+    auto *q = g.tensor({4, 2, 8, 64}, DataType::FP32)->set_name("q");
+    auto *k = g.tensor({4, 2, 8, 32}, DataType::FP32)->set_name("k");
+    auto *v = g.tensor({4, 2, 8, 64}, DataType::FP32)->set_name("v");
 
     REQUIRE_THROWS_AS(
         sdpa_eager(q, k, v, nullptr, 2, 0), std::invalid_argument);
@@ -103,11 +103,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1;
 using nntile::test::nn_pytorch_tile_mask_nn;
-using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -124,7 +122,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{16, 8, 2, 4, true, Scalar(1.0)},
             std::tuple{32, 4, 3, 2, true, Scalar(1.0)});
 
-    const std::vector<Index> shape = {head_size, n_seq, batch0, batch1};
+    const std::vector<Index> shape = {batch0, batch1, n_seq, head_size};
     const std::vector<Index> mask_shape = {n_seq, n_seq};
     Index nelems = 1;
     for (auto s : shape)
@@ -133,13 +131,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> q_data(nelems);
     std::vector<float> k_data(nelems);
     std::vector<float> v_data(nelems);
-    for (Index i3 = 0; i3 < shape[3]; ++i3)
-        for (Index i2 = 0; i2 < shape[2]; ++i2)
-            for (Index i1 = 0; i1 < shape[1]; ++i1)
-                for (Index i0 = 0; i0 < shape[0]; ++i0)
+    for (Index ih = 0; ih < shape[3]; ++ih)
+        for (Index is = 0; is < shape[2]; ++is)
+            for (Index ib1 = 0; ib1 < shape[1]; ++ib1)
+                for (Index ib0 = 0; ib0 < shape[0]; ++ib0)
                 {
-                    Index idx = i0 + i1 * shape[0] + i2 * shape[0] * shape[1] +
-                                i3 * shape[0] * shape[1] * shape[2];
+                    Index idx = ib0 + ib1 * shape[0] +
+                                is * shape[0] * shape[1] +
+                                ih * shape[0] * shape[1] * shape[2];
                     q_data[idx] = 0.01f * static_cast<float>((idx % 100) - 50);
                     k_data[idx] =
                         0.01f * static_cast<float>(((idx * 7) % 100) - 50);
@@ -150,9 +149,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<uint8_t> mask_data(n_seq * n_seq);
     if (use_mask)
     {
-        for (Index i = 0; i < n_seq; ++i)
-            for (Index j = 0; j < n_seq; ++j)
-                mask_data[i + j * n_seq] = (i <= j) ? 1 : 0;
+        for (Index key = 0; key < n_seq; ++key)
+            for (Index query = 0; query < n_seq; ++query)
+                mask_data[key + query * n_seq] = (key <= query) ? 1 : 0;
     }
 
     NNGraph g("sdpa_pytorch");
@@ -199,70 +198,59 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     // --- Forward comparison ---
-    std::vector<float> nntile_out = runtime.get_output<float>(output);
-    std::vector<float> nntile_out_rowmajor =
-        colmajor_to_rowmajor(nntile_out, shape);
-    std::vector<float> nntile_out =
-        permute_rowmajor(nntile_out_rowmajor, shape, {2, 3, 0, 1});
-
-    std::vector<float> q_row = colmajor_to_rowmajor(q_data, shape);
-    std::vector<float> k_row = colmajor_to_rowmajor(k_data, shape);
-    std::vector<float> v_row = colmajor_to_rowmajor(v_data, shape);
-
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
+    std::vector<float> nntile_out =
+        runtime.get_output<float>(output);
+
     auto q_pt = torch::from_blob(
-        q_row.data(), shape_pt, torch::TensorOptions().dtype(torch::kFloat32))
+        q_data.data(), shape_pt, torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
     auto k_pt = torch::from_blob(
-        k_row.data(), shape_pt, torch::TensorOptions().dtype(torch::kFloat32))
+        k_data.data(), shape_pt, torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
     auto v_pt = torch::from_blob(
-        v_row.data(), shape_pt, torch::TensorOptions().dtype(torch::kFloat32))
+        v_data.data(), shape_pt, torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
 
     float scale = 1.0f / std::sqrt(static_cast<float>(head_size));
-    auto scores = torch::einsum("hsbn,htbn->stbn", {k_pt, q_pt}) * scale;
+    auto scores =
+        torch::einsum("abcd,abed->abce", {k_pt, q_pt}) * scale;
     if (use_mask)
     {
-        std::vector<uint8_t> mask_row =
-            colmajor_to_rowmajor(mask_data, mask_shape);
-        auto mask_pt = torch::from_blob(mask_row.data(),
+        std::vector<uint8_t> mask_pt_buf(n_seq * n_seq);
+        for (Index key = 0; key < n_seq; ++key)
+            for (Index query = 0; query < n_seq; ++query)
+                mask_pt_buf[key * n_seq + query] = (key <= query) ? 1 : 0;
+        auto mask_pt = torch::from_blob(mask_pt_buf.data(),
             {n_seq, n_seq},
             torch::TensorOptions().dtype(torch::kBool))
                            .clone();
-        mask_pt = mask_pt.unsqueeze(-1).unsqueeze(-1).expand(
-            {n_seq, n_seq, batch0, batch1});
+        mask_pt = mask_pt.unsqueeze(0).unsqueeze(0).expand(
+            {batch0, batch1, n_seq, n_seq});
         scores = torch::where(mask_pt,
             scores,
             torch::full_like(scores, -std::numeric_limits<float>::infinity()));
     }
-    auto attn = torch::softmax(scores, 0);
-    auto out_pt = torch::einsum("hsbn,stbn->htbn", {v_pt, attn});
-    out_pt = out_pt.permute({2, 3, 0, 1}).contiguous();
+    auto attn = torch::softmax(scores, -2);
+    auto out_pt = torch::einsum("abcd,abce->abed", {v_pt, attn});
 
-    std::vector<float> pytorch_out(
-        out_pt.data_ptr<float>(), out_pt.data_ptr<float>() + nelems);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
     compare_float_vectors(nntile_out, out_pt);
 
     // --- Backward comparison ---
     auto grad_output_pt = torch::full(shape_pt,
         static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
-    // Undo permute to match [h,s,b0,b1] layout before backward
-    out_pt = out_pt.permute({2, 3, 0, 1}).contiguous();
     out_pt.backward(grad_output_pt);
 
     std::vector<float> nntile_grad_q =
-        colmajor_to_rowmajor(runtime.get_output<float>(q->grad()), shape);
+        runtime.get_output<float>(q->grad());
     std::vector<float> nntile_grad_k =
-        colmajor_to_rowmajor(runtime.get_output<float>(k->grad()), shape);
+        runtime.get_output<float>(k->grad());
     std::vector<float> nntile_grad_v =
-        colmajor_to_rowmajor(runtime.get_output<float>(v->grad()), shape);
+        runtime.get_output<float>(v->grad());
 
     compare_float_vectors(nntile_grad_q, q_pt.grad());
     compare_float_vectors(nntile_grad_k, k_pt.grad());
