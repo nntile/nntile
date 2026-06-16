@@ -17,6 +17,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -76,10 +77,11 @@ void scale_fiber(Scalar alpha,
         throw std::invalid_argument(
             "scale_fiber: input tensors must have the same dtype");
     }
-    validate_fiber_shape_and_merge(src, dst, axis, batch_ndim, "scale_fiber");
+    const Index s_axis = graph_axis_to_storage(axis, dst->ndim());
+    validate_fiber_shape_and_merge(src, dst, s_axis, batch_ndim, "scale_fiber");
 
     auto op = std::make_shared<TensorScaleFiberOp>(
-        alpha, src, dst, axis, batch_ndim);
+        alpha, src, dst, s_axis, batch_ndim);
     src->graph()->add_op(op);
 }
 

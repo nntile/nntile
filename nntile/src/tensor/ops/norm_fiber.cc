@@ -17,6 +17,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -59,11 +60,14 @@ TensorGraph::TensorNode *norm_fiber(Scalar alpha,
     TensorGraph::TensorNode *dst =
         src1->graph()->data(std::move(output_shape), src1->dtype());
 
-    validate_fiber_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
+    const Index s_axis = graph_axis_to_storage(axis, src1->ndim());
+
+    validate_fiber_shape_and_merge(
+        dst, src1, s_axis, batch_ndim, "norm_fiber");
     validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
-        alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
+        alpha, beta, src1, src2, dst, s_axis, batch_ndim, redux);
     src1->graph()->add_op(op);
 
     return dst;
@@ -99,11 +103,14 @@ void norm_fiber(Scalar alpha,
             "norm_fiber: src1, src2, and dst must be distinct tensors");
     }
 
-    validate_fiber_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
+    const Index s_axis = graph_axis_to_storage(axis, src1->ndim());
+
+    validate_fiber_shape_and_merge(
+        dst, src1, s_axis, batch_ndim, "norm_fiber");
     validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
-        alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
+        alpha, beta, src1, src2, dst, s_axis, batch_ndim, redux);
     src1->graph()->add_op(op);
 }
 

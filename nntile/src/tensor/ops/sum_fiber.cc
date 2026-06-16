@@ -16,6 +16,7 @@
 #include "nntile/tensor/ops/sum_fiber.hh"
 
 #include "nntile/base_types.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -34,17 +35,19 @@ namespace
 {
 
 std::vector<Index> sum_fiber_output_shape(
-    const std::vector<Index> &x_shape, Index axis, Index batch_ndim)
+    const std::vector<Index> &x_shape, Index graph_axis, Index batch_ndim)
 {
-    Index ndim = x_shape.size();
-    std::vector<Index> out_shape;
-    out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
+    const std::vector<Index> xs = graph_shape_to_storage(x_shape);
+    const Index nd = static_cast<Index>(xs.size());
+    const Index s_axis = graph_axis_to_storage(graph_axis, nd);
+    std::vector<Index> out_s;
+    out_s.reserve(batch_ndim + 1);
+    out_s.push_back(xs[s_axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out_shape.push_back(x_shape[ndim - batch_ndim + i]);
+        out_s.push_back(xs[nd - batch_ndim + i]);
     }
-    return out_shape;
+    return storage_shape_to_graph(out_s);
 }
 
 } // namespace
@@ -71,12 +74,14 @@ TensorGraph::TensorNode *sum_fiber(TensorGraph::TensorNode *x,
     merge_axis(output->mutable_axes()[0], x->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        merge_axis(output->mutable_axes()[1 + i],
-            x->mutable_axes()[x->ndim() - batch_ndim + i]);
+        const Index g_batch = storage_axis_to_graph(
+            x->ndim() - batch_ndim + i, x->ndim());
+        merge_axis(output->mutable_axes()[1 + i], x->mutable_axes()[g_batch]);
     }
 
+    const Index s_axis = graph_axis_to_storage(axis, x->ndim());
     auto op = std::make_shared<TensorSumFiberOp>(
-        x, output, axis, batch_ndim, redux, alpha, beta);
+        x, output, s_axis, batch_ndim, redux, alpha, beta);
     x->graph()->add_op(op);
 
     return output;
@@ -110,10 +115,11 @@ void sum_fiber(TensorGraph::TensorNode *x,
         throw std::invalid_argument(
             "sum_fiber: x and y must be distinct tensors");
     }
-    validate_fiber_shape_and_merge(y, x, axis, batch_ndim, "sum_fiber");
+    const Index s_axis = graph_axis_to_storage(axis, x->ndim());
+    validate_fiber_shape_and_merge(y, x, s_axis, batch_ndim, "sum_fiber");
 
     auto op = std::make_shared<TensorSumFiberOp>(
-        x, y, axis, batch_ndim, redux, alpha, beta);
+        x, y, s_axis, batch_ndim, redux, alpha, beta);
 
     x->graph()->add_op(op);
 }

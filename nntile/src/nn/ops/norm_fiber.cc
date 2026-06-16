@@ -15,6 +15,7 @@
 
 #include "nntile/nn/ops/norm_fiber.hh"
 
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/norm_fiber.hh"
 
@@ -30,17 +31,19 @@ namespace
 {
 
 std::vector<Index> norm_fiber_output_shape(
-    const std::vector<Index> &x_shape, Index axis, Index batch_ndim)
+    const std::vector<Index> &x_shape, Index graph_axis, Index batch_ndim)
 {
-    Index ndim = static_cast<Index>(x_shape.size());
-    std::vector<Index> out_shape;
-    out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
+    const std::vector<Index> xs = tensor::graph_shape_to_storage(x_shape);
+    const Index nd = static_cast<Index>(xs.size());
+    const Index s_axis = tensor::graph_axis_to_storage(graph_axis, nd);
+    std::vector<Index> out_s;
+    out_s.reserve(batch_ndim + 1);
+    out_s.push_back(xs[s_axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out_shape.push_back(x_shape[ndim - batch_ndim + i]);
+        out_s.push_back(xs[nd - batch_ndim + i]);
     }
-    return out_shape;
+    return tensor::storage_shape_to_graph(out_s);
 }
 
 } // anonymous namespace

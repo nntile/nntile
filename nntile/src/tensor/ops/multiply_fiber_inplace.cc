@@ -19,6 +19,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -78,11 +79,12 @@ void multiply_fiber_inplace(
         throw std::invalid_argument(
             "multiply_fiber_inplace: input tensors must have the same dtype");
     }
-    validate_fiber_shape_and_merge(src, dst, axis, 0,
-                                  "multiply_fiber_inplace");
+    const Index s_axis = graph_axis_to_storage(axis, dst->ndim());
+    validate_fiber_shape_and_merge(src, dst, s_axis, 0,
+        "multiply_fiber_inplace");
 
     auto op = std::make_shared<TensorMultiplyFiberInplaceOp>(
-        alpha, src, dst, axis);
+        alpha, src, dst, s_axis);
     src->graph()->add_op(op);
 }
 

@@ -18,6 +18,7 @@
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -121,11 +122,12 @@ void sumprod_fiber(
     }
 
     validate_same_shape_and_merge(src1, src2, "sumprod_fiber");
+    const Index s_axis = graph_axis_to_storage(axis, src1->ndim());
     // Merge dst (reduced fiber) axis with src1 axis
     merge_axis(dst->mutable_axes()[0], src1->mutable_axes()[axis]);
 
     auto op = std::make_shared<TensorSumprodFiberOp>(
-        src1, src2, dst, axis, redux, alpha, beta);
+        src1, src2, dst, s_axis, redux, alpha, beta);
     src1->graph()->add_op(op);
 }
 
