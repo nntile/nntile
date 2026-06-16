@@ -135,9 +135,10 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/ops/gemm.hh`):
 - **NNGraph** `gemm(a, b, trans_a, trans_b, ndim, batch_ndim)` forwards to
   `tensor::gemm(a, b, trans_a, trans_b, ndim, batch_ndim)` on graph shapes
   (no operand swap at the NN/tensor builder boundary).
-- **Tile lowering** (`TensorGemmOp::lower_to_tile`) maps graph-axis GEMM to
-  Fortran-order tile `tile::gemm` by swapping operands and transpose flags
-  (`tile::gemm(b, a, trans_b, trans_a, …)`).
+- **Tile lowering** (`TensorGemmOp::lower_to_tile`) calls
+  `tile::gemm(a, b, c, trans_a, trans_b, …)` with graph operand order (no swap).
+- **Tile execute** (`TileGemmOp::execute`) maps graph-axis GEMM to Fortran
+  `core::gemm` by swapping operands and transpose flags at the kernel boundary.
 - `trans_a` / `trans_b` transpose the contracted ``ndim`` axes of ``a`` / ``b``
   (see `gemm_output_shape` for the exact index ranges).
 - `ndim` is the number of contraction (K) dimensions.
@@ -211,6 +212,45 @@ With activations `x` shaped `[batch, seq, hidden]` and Q weight
 BERT/RoBERTa embeddings: sum word/position/token-type, then
 `transpose(embed, 2)` (storage-order axis) → `[batch, seq, hidden]` before
 `layer_norm(..., axis=2)` (graph axis).
+
+## TileGraph
+
+`TileGraph` is the tiled execution graph produced by lowering `TensorGraph`.
+It mirrors TensorGraph's C-order shape labels at the public API while
+`core::Tile` allocation and kernels remain Fortran-ordered.
+
+- `TileGraph::TileNode::shape()` — **graph** (C-order) labels, matching the
+  parent `TensorGraph::TensorNode::shape()` for the logical tensor.
+- `TileGraph::TileNode::storage_shape()` — Fortran storage shape passed to
+  `core::Tile` (via `tensor::graph_shape_to_storage`).
+- `TensorDescriptor.tile_shape` in `from_tensor_graph` / append phases uses
+  graph-order labels; `grid_shape` / `tile_coord` stay storage-indexed
+  (`TensorAxisLayout` is unchanged).
+
+Shape conversion helpers are re-exported from `include/nntile/tile/shape_layout.hh`
+(same functions as `tensor::shape_layout.hh`).
+
+### Tile op axis conventions
+
+Axis-aware tile ops (`*_fiber*`, `*_slice*`, `softmax`, `maxsumexp`, `transpose`,
+`mask_scalar`) take **graph axis** indices at the tile API. `execute()` converts
+with `graph_axis_to_storage(axis, ndim)` before calling `core::*`, where `ndim`
+is the rank of the tensor the axis refers to (the full tensor for reductions,
+not the reduced output).
+
+`TensorGraph` lowering passes graph axes to tile ops for slice/softmax-family ops.
+Ops that store a storage axis internally (e.g. fiber ops after validation) convert
+with `storage_axis_to_graph` at the tile boundary.
+
+Layout-parameter ops (`embedding`, `conv2d_*`, `copy_intersection`, `rope`,
+`flash_sdpa`) keep storage-indexed geometry from tensor lowering; no tile-layer
+shape relabeling.
+
+### TileGraph GEMM
+
+- Tensor lowering: `tile::gemm(ta, tb, tc, trans_a, trans_b, ndim, batch_ndim)`
+  (graph operand order).
+- Tile execute: calls `core::gemm` with operand/transpose swap for Fortran kernels.
 
 ## NNGraph
 

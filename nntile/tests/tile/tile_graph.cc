@@ -160,10 +160,10 @@ TEST_CASE("TileGraph from_tensor_graph structure")
     REQUIRE(ty->is_input());
     REQUIRE(tz->is_output());
 
-    // Tile payloads use storage-order shapes; graph tensor is {2, 3}.
-    REQUIRE(tx->shape() == std::vector<Index>{3, 2});
-    REQUIRE(ty->shape() == std::vector<Index>{3, 2});
-    REQUIRE(tz->shape() == std::vector<Index>{3, 2});
+    // Tile payloads use graph-order shapes (match tensor {2, 3}).
+    REQUIRE(tx->shape() == std::vector<Index>{2, 3});
+    REQUIRE(ty->shape() == std::vector<Index>{2, 3});
+    REQUIRE(tz->shape() == std::vector<Index>{2, 3});
 
     REQUIRE(tile_graph.ops()[0]->op_name() == "TILE_ADD");
 
@@ -172,7 +172,7 @@ TEST_CASE("TileGraph from_tensor_graph structure")
     REQUIRE(xd != nullptr);
     REQUIRE(xd->tensor_name == "x");
     REQUIRE(xd->tensor_shape == std::vector<Index>{2, 3});
-    REQUIRE(xd->tile_shape == std::vector<Index>{3, 2});
+    REQUIRE(xd->tile_shape == std::vector<Index>{2, 3});
     REQUIRE(xd->grid_shape == std::vector<Index>{1, 1});
     REQUIRE(xd->dtype == DataType::FP32);
     REQUIRE(xd->tiles.size() == 1);

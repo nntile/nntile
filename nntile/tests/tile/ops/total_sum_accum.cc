@@ -14,20 +14,28 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/total_sum_accum.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 #include "nntile/core/total_sum_accum.hh"
 #include "nntile/core/tile.hh"
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[graph][tile]")
 {
-    const std::vector<Index> leh = {2,2}, srh = {3,2,2}, clh = {2,2}, vh = std::vector<Index>{};
+    const std::vector<Index> stor_leh = {2, 2};
+    const std::vector<Index> graph_leh = graph_shape(stor_leh);
+    const std::vector<Index> stor_srh = {3, 2, 2};
+    const std::vector<Index> graph_srh = graph_shape(stor_srh);
+    const std::vector<Index> stor_clh = {2, 2};
+    const std::vector<Index> graph_clh = graph_shape(stor_clh);
+    const std::vector<Index> vh = std::vector<Index>{};
     const Scalar a = 1.0; const Index ign = -1;
     TileGraph g("g");
-    auto* l = g.data(leh, "lse", DataType::FP32);
-    auto* s = g.data(srh, "src", DataType::FP32);
-    auto* c = g.data(clh, "cl", DataType::INT64);
+    auto* l = g.data(graph_leh, "lse", DataType::FP32);
+    auto* s = g.data(graph_srh, "src", DataType::FP32);
+    auto* c = g.data(graph_clh, "cl", DataType::INT64);
     auto* v = g.data(vh, "val", DataType::FP32);
     l->mark_input(true); s->mark_input(true); c->mark_input(true); v->mark_input(true); v->mark_output(true);
     tg::total_sum_accum(a, l, s, c, v, ign);
@@ -45,8 +53,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     r.execute();
     r.wait();
     const auto gout = r.get_output<float>(v);
-    nntile::core::Tile<fp32_t> L(leh), S(srh), Vref(vh);
-    nntile::core::Tile<nntile::int64_t> C(clh);
+    nntile::core::Tile<fp32_t> L(stor_leh), S(stor_srh), Vref(vh);
+    nntile::core::Tile<nntile::int64_t> C(stor_clh);
     using Y = typename fp32_t::repr_t;
     { auto a1=L.acquire(STARPU_W),a2=S.acquire(STARPU_W);
       for(Index i=0;i<4;++i) a1[i]=Y(lse[static_cast<size_t>(i)]);

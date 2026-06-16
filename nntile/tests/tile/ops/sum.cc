@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/sum.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,12 +24,14 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3, 4};
+    const std::vector<Index> stor_sh = {2, 3, 4};
+    const std::vector<Index> graph_sh = graph_shape(stor_sh);
     const Index nelems = 2 * 3 * 4;
     TileGraph g("g");
-    auto* s = g.data(sh, "s", DataType::FP32);
+    auto* s = g.data(graph_sh, "s", DataType::FP32);
     auto* d = g.data(std::vector<Index>{}, "d", DataType::FP32);
     s->mark_input(true);
     d->mark_output(true);
@@ -45,7 +48,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[g
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> ts(sh);
+    nntile::core::Tile<fp32_t> ts(stor_sh);
     nntile::core::Tile<fp32_t> td(std::vector<Index>{});
     using Y = typename nntile::fp32_t::repr_t;
     {

@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/norm_fiber.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,23 +24,29 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber", "[graph][tile]")
 {
-    const std::vector<Index> s1h = {5, 3, 20, 1};
-    const std::vector<Index> s2h = {5};
-    const std::vector<Index> dh = {5};
+    const std::vector<Index> stor_s1h = {5, 3, 20, 1};
+    const std::vector<Index> graph_s1h = graph_shape(stor_s1h);
+    const std::vector<Index> stor_s2h = {5};
+    const std::vector<Index> graph_s2h = graph_shape(stor_s2h);
+    const std::vector<Index> stor_dh = {5};
+    const std::vector<Index> graph_dh = graph_shape(stor_dh);
     const Scalar a = 1.0, b = 0.0;
-    const Index ax = 0, bd = 0;
+    const Index stor_axis = 0, bd = 0;
+    const Index g_axis =
+        graph_axis(stor_axis, static_cast<Index>(stor_s1h.size()));
     const int redux = 0;
     const Index n1 = 5 * 3 * 20, n2 = 5, n3 = 5;
     TileGraph g("g");
-    auto* t1 = g.data(s1h, "s1", DataType::FP32);
-    auto* t2 = g.data(s2h, "s2", DataType::FP32);
-    auto* d = g.data(dh, "d", DataType::FP32);
+    auto* t1 = g.data(graph_s1h, "s1", DataType::FP32);
+    auto* t2 = g.data(graph_s2h, "s2", DataType::FP32);
+    auto* d = g.data(graph_dh, "d", DataType::FP32);
     t1->mark_input(true);
     t2->mark_input(true);
     d->mark_output(true);
-    tg::norm_fiber(a, t1, b, t2, d, ax, bd, redux);
+    tg::norm_fiber(a, t1, b, t2, d, g_axis, bd, redux);
     Runtime rt(g);
     rt.compile();
     std::vector<float> v1(n1), v2(n2);
@@ -52,14 +59,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber", "[graph][
     rt.execute();
     rt.wait();
     const std::vector<float> gout = rt.get_output<float>(d);
-    nntile::core::Tile<fp32_t> T1(s1h), T2(s2h), D(dh);
+    nntile::core::Tile<fp32_t> T1(stor_s1h), T2(stor_s2h), D(stor_dh);
     using Y = typename nntile::fp32_t::repr_t;
     { auto a1 = T1.acquire(STARPU_W), a2 = T2.acquire(STARPU_W), a3 = D.acquire(STARPU_W);
       for(Index i = 0; i < n1; ++i) a1[i] = Y(-1.0f);
       for(Index i = 0; i < n2; ++i) a2[i] = Y(0.0f);
       for(Index i = 0; i < n3; ++i) a3[i] = Y(0.0f);
       a1.release(); a2.release(); a3.release(); }
-    nntile::core::norm_fiber<fp32_t>(-1, a, T1, b, T2, D, ax, bd, redux);
+    nntile::core::norm_fiber<fp32_t>(-1, a, T1, b, T2, D, stor_axis, bd, redux);
     starpu_task_wait_for_all();
     std::vector<float> tref(5);
     { auto L = D.acquire(STARPU_R);

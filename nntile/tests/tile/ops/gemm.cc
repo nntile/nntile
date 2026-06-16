@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/gemm.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,14 +25,16 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 2};
+    const std::vector<Index> stor_sh = {2, 2};
+    const std::vector<Index> graph_sh = graph_shape(stor_sh);
     const Index nelems = 4;
     TileGraph g("g");
-    auto* a = g.data(sh, "a", DataType::FP32);
-    auto* b = g.data(sh, "b", DataType::FP32);
-    auto* c = g.data(sh, "c", DataType::FP32);
+    auto* a = g.data(graph_sh, "a", DataType::FP32);
+    auto* b = g.data(graph_sh, "b", DataType::FP32);
+    auto* c = g.data(graph_sh, "c", DataType::FP32);
     a->mark_input(true);
     b->mark_input(true);
     c->mark_input(true);
@@ -56,7 +59,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(c);
-    nntile::core::Tile<fp32_t> ta(sh), tb(sh), tc(sh);
+    nntile::core::Tile<fp32_t> ta(stor_sh), tb(stor_sh), tc(stor_sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto l1 = ta.acquire(STARPU_W);

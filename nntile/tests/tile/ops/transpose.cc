@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/transpose.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,16 +24,19 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sshape = {3, 5};
-    const std::vector<Index> dshape = {5, 3};
+    const std::vector<Index> stor_sshape = {3, 5};
+    const std::vector<Index> graph_sshape = graph_shape(stor_sshape);
+    const std::vector<Index> stor_dshape = {5, 3};
+    const std::vector<Index> graph_dshape = graph_shape(stor_dshape);
     const Index nelems = 3 * 5;
     const Scalar alpha = 0.5;
     const Index ndim = 1;
     TileGraph g("g");
-    auto* s = g.data(sshape, "s", DataType::FP32);
-    auto* d = g.data(dshape, "d", DataType::FP32);
+    auto* s = g.data(graph_sshape, "s", DataType::FP32);
+    auto* d = g.data(graph_dshape, "d", DataType::FP32);
     s->mark_input(true);
     d->mark_output(true);
     tg::transpose(alpha, s, d, ndim);
@@ -46,7 +50,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> ts(sshape), td(dshape);
+    nntile::core::Tile<fp32_t> ts(stor_sshape), td(stor_dshape);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto a = ts.acquire(STARPU_W);

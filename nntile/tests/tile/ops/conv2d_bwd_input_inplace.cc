@@ -14,12 +14,14 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/conv2d_bwd_input_inplace.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 #include "nntile/core/conv2d_bwd_input_inplace.hh"
 #include "nntile/core/tile.hh"
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_bwd_input_inplace", "[graph][tile]")
 {
     const std::vector<Index> dYh={2,2,1,1}, Ch={2,2,1,1}, dXh={3,3,1,1};
