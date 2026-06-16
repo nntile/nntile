@@ -9,11 +9,12 @@
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
 #include <ATen/TensorUtils.h>
-#include <ATen/native/CPUFallback.h>
 #include <ATen/native/Resize.h>
 #include <c10/core/DeviceGuard.h>
 #include <c10/core/ScalarType.h>
 #include <torch/library.h>
+
+#include "nntile_cpu_fallback.h"
 
 #include <cstring>
 #include <optional>
@@ -289,11 +290,6 @@ at::Tensor &set_source_storage_storage_offset(
     result.unsafeGetTensorImpl()->set_storage_keep_dtype(std::move(src));
     result.unsafeGetTensorImpl()->set_sizes_and_strides(size, stride);
     return result;
-}
-
-void cpu_fallback(const c10::OperatorHandle &op, torch::jit::Stack *stack)
-{
-    at::native::cpu_fallback(op, stack);
 }
 
 } // namespace torch_nntile

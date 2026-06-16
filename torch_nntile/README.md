@@ -61,6 +61,16 @@ b = torch.tensor([3.0, 4.0], device="nntile")
 z = a + b  # TensorGraph add when libnntile is linked
 ```
 
+## macOS
+
+PyTorch wheels on macOS do not export `at::native::cpu_fallback` from
+`libtorch_cpu.dylib`. The extension implements its own CPU fallback so
+`import torch_nntile` works without that symbol. Rebuild after upgrading PyTorch:
+
+```bash
+CXX=clang++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
+```
+
 ## Tests
 
 ```bash
