@@ -213,7 +213,9 @@ inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
             std::to_string(axis) + " (" + std::to_string(f_shape[0]) +
             " vs " + std::to_string(t_shape[axis]) + ")");
     }
-    merge_axis(fiber->mutable_axes()[0],
+    const Index fiber_nd = fiber->ndim();
+    merge_axis(
+        fiber->mutable_axes()[tensor::storage_axis_to_graph(0, fiber_nd)],
         tensor->mutable_axes()[tensor::storage_axis_to_graph(axis, nd)]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
@@ -226,7 +228,9 @@ inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
                 std::to_string(f_shape[1 + i]) + " vs " +
                 std::to_string(t_shape[ti]) + ")");
         }
-        merge_axis(fiber->mutable_axes()[1 + i],
+        merge_axis(
+            fiber->mutable_axes()[tensor::storage_axis_to_graph(
+                1 + i, fiber_nd)],
             tensor->mutable_axes()[tensor::storage_axis_to_graph(ti, nd)]);
     }
 }
