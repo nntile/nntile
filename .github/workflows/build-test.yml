@@ -234,3 +234,24 @@ jobs:
         with:
           path: /tmp/ccache
           key: ccache-build-examples-${{ github.sha }}
+
+  torch-nntile-device-stub:
+    name: torch nntile device stub
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-pip g++
+        working-directory: /
+      - uses: actions/checkout@v6
+      - run: |
+          pip install --break-system-packages torch pytest
+          CXX=g++ pip install --break-system-packages \
+            -e ./torch_nntile --no-build-isolation
+          pytest -vv torch_nntile/tests

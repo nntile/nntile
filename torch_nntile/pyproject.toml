@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61", "torch>=2.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torch_nntile"
+version = "0.1.0"
+description = "PyTorch PrivateUse1 device stub for nntile (host std::vector buffer)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["torch_nntile*"]
