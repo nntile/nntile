@@ -66,22 +66,8 @@ static inline void gemm_check_batch(const TileTraits &A,
     }
 }
 
-//! Check if shapes of matricized tensors A and B match gemm
+//! Check if shapes of matricized tensors A and B match gemm (NoTrans, NoTrans)
 static inline void gemm_check_A_B(const TileTraits &A, const TileTraits &B,
-        Index ndim, Index batch_ndim)
-{
-    for(Index i = 0; i < ndim; ++i)
-    {
-        if(A.shape[batch_ndim+i] != B.shape[batch_ndim+i])
-        {
-            throw std::runtime_error("A.shape[batch_ndim:batch_ndim+ndim] != "
-                    "B.shape[batch_ndim:batch_ndim+ndim]");
-        }
-    }
-}
-
-//! Check if shapes of matricized tensors A^T and B match gemm
-static inline void gemm_check_AT_B(const TileTraits &A, const TileTraits &B,
         Index ndim, Index batch_ndim)
 {
     for(Index i = 0; i < ndim; ++i)
@@ -94,15 +80,29 @@ static inline void gemm_check_AT_B(const TileTraits &A, const TileTraits &B,
     }
 }
 
+//! Check if shapes of matricized tensors A^T and B match gemm
+static inline void gemm_check_AT_B(const TileTraits &A, const TileTraits &B,
+        Index ndim, Index batch_ndim)
+{
+    for(Index i = 0; i < ndim; ++i)
+    {
+        if(A.shape[batch_ndim+i] != B.shape[batch_ndim+i])
+        {
+            throw std::runtime_error("A.shape[batch_ndim:batch_ndim+ndim] != "
+                    "B.shape[batch_ndim:batch_ndim+ndim]");
+        }
+    }
+}
+
 //! Check if shapes of tensors A and B^T match gemm
 static inline void gemm_check_A_BT(const TileTraits &A, const TileTraits &B,
         Index ndim, Index batch_ndim)
 {
     for(Index i = 0; i < ndim; ++i)
     {
-        if(A.shape[batch_ndim+i] != B.shape[B.ndim-ndim+i])
+        if(A.shape[A.ndim-ndim+i] != B.shape[B.ndim-ndim+i])
         {
-            throw std::runtime_error("A.shape[batch_ndim:batch_ndim+ndim] != "
+            throw std::runtime_error("A.shape[A.ndim-ndim:A.ndim] != "
                     "B.shape[B.ndim-ndim:B.ndim]");
         }
     }
@@ -114,9 +114,9 @@ static inline void gemm_check_AT_BT(const TileTraits &A, const TileTraits &B,
 {
     for(Index i = 0; i < ndim; ++i)
     {
-        if(A.shape[A.ndim-ndim+i] != B.shape[B.ndim-ndim+i])
+        if(A.shape[batch_ndim+i] != B.shape[B.ndim-ndim+i])
         {
-            throw std::runtime_error("A.shape[A.ndim-ndim:A.ndim] != "
+            throw std::runtime_error("A.shape[batch_ndim:batch_ndim+ndim] != "
                     "B.shape[B.ndim-ndim:B.ndim]");
         }
     }
@@ -165,13 +165,12 @@ static inline void gemm_check_A_C(const TileTraits &A, const TileTraits &C,
         Index ndim, Index batch_ndim)
 {
     const Index num_m = A.ndim - batch_ndim - ndim;
-    const Index c_m_begin = C.ndim - num_m;
     for(Index i = 0; i < num_m; ++i)
     {
-        if(A.shape[batch_ndim+ndim+i] != C.shape[c_m_begin+i])
+        if(A.shape[batch_ndim+i] != C.shape[batch_ndim+i])
         {
-            throw std::runtime_error("A.shape[batch_ndim+ndim:"
-                    "A.ndim] != C.shape[C.ndim-num_m:C.ndim]");
+            throw std::runtime_error("A.shape[batch_ndim:A.ndim-ndim] != "
+                    "C.shape[batch_ndim:batch_ndim+num_m]");
         }
     }
 }
@@ -181,13 +180,12 @@ static inline void gemm_check_AT_C(const TileTraits &A, const TileTraits &C,
         Index ndim, Index batch_ndim)
 {
     const Index num_m = A.ndim - batch_ndim - ndim;
-    const Index c_m_begin = C.ndim - num_m;
     for(Index i = 0; i < num_m; ++i)
     {
-        if(A.shape[batch_ndim+i] != C.shape[c_m_begin+i])
+        if(A.shape[batch_ndim+ndim+i] != C.shape[batch_ndim+i])
         {
-            throw std::runtime_error("A.shape[batch_ndim:A.ndim-ndim] != "
-                    "C.shape[C.ndim-num_m:C.ndim]");
+            throw std::runtime_error("A.shape[batch_ndim+ndim:"
+                    "A.ndim] != C.shape[batch_ndim:batch_ndim+num_m]");
         }
     }
 }
@@ -212,13 +210,14 @@ static inline void gemm_check_opA_C(const TransOp &transA, const TileTraits &A,
 static inline void gemm_check_B_C(const TileTraits &B, const TileTraits &C,
         Index ndim, Index batch_ndim)
 {
+    const Index num_m = C.ndim - batch_ndim - (B.ndim - batch_ndim - ndim);
     const Index num_n = B.ndim - batch_ndim - ndim;
     for(Index i = 0; i < num_n; ++i)
     {
-        if(B.shape[batch_ndim+ndim+i] != C.shape[batch_ndim+i])
+        if(B.shape[batch_ndim+ndim+i] != C.shape[batch_ndim+num_m+i])
         {
             throw std::runtime_error("B.shape[batch_ndim+ndim:B.ndim] != "
-                    "C.shape[batch_ndim:batch_ndim+num_n]");
+                    "C.shape[batch_ndim+num_m:C.ndim]");
         }
     }
 }
@@ -227,13 +226,14 @@ static inline void gemm_check_B_C(const TileTraits &B, const TileTraits &C,
 static inline void gemm_check_BT_C(const TileTraits &B, const TileTraits &C,
         Index ndim, Index batch_ndim)
 {
+    const Index num_m = C.ndim - batch_ndim - (B.ndim - batch_ndim - ndim);
     const Index num_n = B.ndim - batch_ndim - ndim;
     for(Index i = 0; i < num_n; ++i)
     {
-        if(B.shape[batch_ndim+i] != C.shape[batch_ndim+i])
+        if(B.shape[batch_ndim+i] != C.shape[batch_ndim+num_m+i])
         {
             throw std::runtime_error("B.shape[batch_ndim:B.ndim-ndim] != "
-                    "C.shape[batch_ndim:batch_ndim+num_n]");
+                    "C.shape[batch_ndim+num_m:C.ndim]");
         }
     }
 }
@@ -265,13 +265,13 @@ static inline void gemm_axis_counts(const TileTraits &A, const TileTraits &B,
     Index b_n_end = 0;
     if(trans_a)
     {
-        a_m_begin = batch_ndim;
-        a_m_end = A.ndim - ndim;
+        a_m_begin = batch_ndim + ndim;
+        a_m_end = A.ndim;
     }
     else
     {
-        a_m_begin = batch_ndim + ndim;
-        a_m_end = A.ndim;
+        a_m_begin = batch_ndim;
+        a_m_end = A.ndim - ndim;
     }
     if(trans_b)
     {
@@ -296,7 +296,7 @@ static inline void gemm_runtime_dims(const TileTraits &A,
     Index num_n = 0;
     gemm_axis_counts(A, B, trans_a, trans_b, ndim, batch_ndim, num_m,
         num_n);
-    const Index split_m = C.ndim - num_m;
+    const Index split_m = batch_ndim + num_m;
     batch = 1;
     for(Index i = 0; i < batch_ndim; ++i)
     {
@@ -313,12 +313,16 @@ static inline void gemm_runtime_dims(const TileTraits &A,
     else
     {
         n = 1;
-        for(Index i = batch_ndim; i < split_m; ++i)
+        for(Index i = split_m; i < C.ndim; ++i)
         {
             n *= C.shape[i];
         }
     }
-    m = C.matrix_shape[split_m][1];
+    m = 1;
+    for(Index i = batch_ndim; i < split_m; ++i)
+    {
+        m *= C.shape[i];
+    }
 }
 
 //! True when a rank-deficient operand is broadcast across batch GEMMs.
@@ -382,7 +386,7 @@ void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, con
         case TransOp::NoTrans:
             for(Index i = 0; i < ndim; ++i)
             {
-                k *= A.shape[batch_ndim+i];
+                k *= A.shape[A.ndim-ndim+i];
             }
             break;
         // This parameter was already checked in gemm_check_opA_opB
@@ -390,7 +394,7 @@ void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, con
         default:
             for(Index i = 0; i < ndim; ++i)
             {
-                k *= A.shape[A.ndim-ndim+i];
+                k *= A.shape[batch_ndim+i];
             }
             break;
     }
@@ -401,7 +405,7 @@ void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, con
     B.mpi_transfer(c_rank, mpi_rank);
     if(mpi_rank == c_rank)
     {
-        starpu::gemm.submit<std::tuple<T>>(starpu_worker_hint, 
+        starpu::gemm.submit<std::tuple<T>>(starpu_worker_hint,
             transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0,
             broadcast_a, broadcast_b);
     }

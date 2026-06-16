@@ -25,22 +25,22 @@ using namespace nntile::kernel::mask_scalar;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index nrows, Index ncols, const bool_t *mask, Scalar val,
+void run_cuda(Index nslow, Index nfast, const bool_t *mask, Scalar val,
         std::vector<T> &data)
 {
     // Alloc on device
     T *dev_data;
     bool_t *dev_mask;
-    Index nelems = nrows * ncols;
+    Index nelems = nslow * nfast;
     cudaError_t cuda_err = cudaMalloc(&dev_data, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_mask, sizeof(bool_t)*nrows);
+    cuda_err = cudaMalloc(&dev_mask, sizeof(bool_t)*nslow);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy to device
     cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_mask, mask, sizeof(bool_t)*nrows,
+    cuda_err = cudaMemcpy(dev_mask, mask, sizeof(bool_t)*nslow,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init stream
@@ -48,7 +48,7 @@ void run_cuda(Index nrows, Index ncols, const bool_t *mask, Scalar val,
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level kernel
-    cuda<T>(stream, nrows, ncols, dev_mask, val, dev_data);
+    cuda<T>(stream, nslow, nfast, dev_mask, val, dev_data);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
@@ -66,31 +66,31 @@ void run_cuda(Index nrows, Index ncols, const bool_t *mask, Scalar val,
 
 // Templated validation
 template<typename T>
-void validate(Index nrows, Index ncols)
+void validate(Index nslow, Index nfast)
 {
     using Y = typename T::repr_t;
     Scalar val = -1.0;
     // Init test input
-    Index nelems = nrows * ncols;
+    Index nelems = nslow * nfast;
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
         data[i] = Y(2*i+1-nelems) / Y{1000};
     }
-    std::unique_ptr<bool_t[]> mask(new bool_t[nrows]);
-    for(Index i = 0; i < nrows; ++i)
+    std::unique_ptr<bool_t[]> mask(new bool_t[nslow]);
+    for(Index i = 0; i < nslow; ++i)
     {
         mask[i] = bool_t(false);
     }
     // Check low-level kernel
     std::cout << "Run kernel::mask_scalar::cpu<" << T::short_name << ">\n";
-    cpu<T>(nrows, ncols, &(mask[0]), val, &data[0]);
+    cpu<T>(nslow, nfast, &(mask[0]), val, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         TEST_ASSERT(Y(data[i]) == val);
     }
     std::cout << "OK: kernel::mask_scalar::cpu<" << T::short_name << ">\n";
-    for(Index i = 0; i < nrows; ++i)
+    for(Index i = 0; i < nslow; ++i)
     {
         if(i % 2 == 0)
         {
@@ -99,18 +99,18 @@ void validate(Index nrows, Index ncols)
     }
     Scalar val_old = val;
     val = 10000.0;
-    cpu<T>(nrows, ncols, &(mask[0]), val, &data[0]);
-    for(Index i = 0; i < nrows; ++i)
+    cpu<T>(nslow, nfast, &(mask[0]), val, &data[0]);
+    for(Index i = 0; i < nslow; ++i)
     {
-        for(Index j = 0; j < ncols; ++j)
+        for(Index j = 0; j < nfast; ++j)
         {
             if(i % 2 != 0)
             {
-                TEST_ASSERT(Y(data[j*nrows+i]) == val);
+                TEST_ASSERT(Y(data[j*nslow+i]) == val);
             }
             else
             {
-                TEST_ASSERT(Y(data[j*nrows+i]) == val_old);
+                TEST_ASSERT(Y(data[j*nslow+i]) == val_old);
             }
         }
     }
@@ -118,18 +118,18 @@ void validate(Index nrows, Index ncols)
     // Check low-level CUDA kernel
     std::cout << "Run kernel::mask_scalar::cuda<" << T::short_name << ">\n";
     val = -val;
-    run_cuda<T>(nrows, ncols, &mask[0], val, data);
-    for(Index i = 0; i < nrows; ++i)
+    run_cuda<T>(nslow, nfast, &mask[0], val, data);
+    for(Index i = 0; i < nslow; ++i)
     {
-        for(Index j = 0; j < ncols; ++j)
+        for(Index j = 0; j < nfast; ++j)
         {
             if(i % 2 != 0)
             {
-                TEST_ASSERT(Y(data[j*nrows+i]) == val);
+                TEST_ASSERT(Y(data[j*nslow+i]) == val);
             }
             else
             {
-                TEST_ASSERT(Y(data[j*nrows+i]) == val_old);
+                TEST_ASSERT(Y(data[j*nslow+i]) == val_old);
             }
         }
     }

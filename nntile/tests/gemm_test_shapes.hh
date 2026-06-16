@@ -84,13 +84,13 @@ inline std::pair<std::vector<Index>, std::vector<Index>> gemm_test_shapes(
     std::vector<Index> b_shape = batch_shape;
     if (trans_a)
     {
-        a_shape.insert(a_shape.end(), m_shape.begin(), m_shape.end());
         a_shape.insert(a_shape.end(), k_shape.begin(), k_shape.end());
+        a_shape.insert(a_shape.end(), m_shape.begin(), m_shape.end());
     }
     else
     {
-        a_shape.insert(a_shape.end(), k_shape.begin(), k_shape.end());
         a_shape.insert(a_shape.end(), m_shape.begin(), m_shape.end());
+        a_shape.insert(a_shape.end(), k_shape.begin(), k_shape.end());
     }
     if (trans_b)
     {

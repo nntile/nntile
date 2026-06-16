@@ -103,14 +103,14 @@ TEST_CASE("TensorGraph gemm structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *a = graph.data({5, 4})->set_name("a");
-    auto *b = graph.data({5, 6})->set_name("b");
+    auto *b = graph.data({4, 6})->set_name("b");
     auto *c = gt::gemm(a, b, alpha_one, trans_a, trans_b, ndim, batch_ndim);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(c->shape().size() == 2);
-    REQUIRE(c->shape()[0] == 6);
-    REQUIRE(c->shape()[1] == 4);
+    REQUIRE(c->shape()[0] == 5);
+    REQUIRE(c->shape()[1] == 6);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "GEMM");
