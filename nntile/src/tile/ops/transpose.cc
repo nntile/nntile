@@ -23,6 +23,7 @@
 #include <nntile/core/transpose.hh>
 
 #include <nntile/runtime.hh>
+#include <nntile/tile/shape_layout.hh>
 
 namespace nntile::tile
 {
@@ -65,29 +66,30 @@ void transpose(Scalar alpha, TileGraph::TileNode* src, TileGraph::TileNode* dst,
 
 void TileTransposeOp::execute(Runtime& runtime) const
 {
+    const Index storage_ndim = src->ndim() - ndim;
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)
     {
         case DataType::FP32:
-            run_transpose<nntile::fp32_t>(runtime, alpha, ndim, src, dst);
+            run_transpose<nntile::fp32_t>(runtime, alpha, storage_ndim, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_transpose<nntile::fp32_fast_tf32_t>(runtime, alpha, ndim, src, dst);
+            run_transpose<nntile::fp32_fast_tf32_t>(runtime, alpha, storage_ndim, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_transpose<nntile::fp32_fast_fp16_t>(runtime, alpha, ndim, src, dst);
+            run_transpose<nntile::fp32_fast_fp16_t>(runtime, alpha, storage_ndim, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_transpose<nntile::fp32_fast_bf16_t>(runtime, alpha, ndim, src, dst);
+            run_transpose<nntile::fp32_fast_bf16_t>(runtime, alpha, storage_ndim, src, dst);
             break;
         case DataType::FP64:
-            run_transpose<nntile::fp64_t>(runtime, alpha, ndim, src, dst);
+            run_transpose<nntile::fp64_t>(runtime, alpha, storage_ndim, src, dst);
             break;
         case DataType::FP16:
-            run_transpose<nntile::fp16_t>(runtime, alpha, ndim, src, dst);
+            run_transpose<nntile::fp16_t>(runtime, alpha, storage_ndim, src, dst);
             break;
         case DataType::BF16:
-            run_transpose<nntile::bf16_t>(runtime, alpha, ndim, src, dst);
+            run_transpose<nntile::bf16_t>(runtime, alpha, storage_ndim, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

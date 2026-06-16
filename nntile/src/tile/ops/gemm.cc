@@ -31,6 +31,8 @@ namespace nntile::tile
 namespace
 {
 
+//! Graph-order GEMM (C = alpha * op(A) @ op(B) + beta * C); core uses
+//! Fortran layout via operand/transpose swap at execute.
 template<typename T>
 void run_gemm(
     Runtime& runtime,
@@ -53,8 +55,8 @@ void run_gemm(
     const auto trans_b_op = trans_b ? nntile::TransOp(nntile::TransOp::Trans)
                                     : nntile::TransOp(nntile::TransOp::NoTrans);
 
-    nntile::core::gemm<T>(runtime.starpu_worker_hint(), 
-        alpha, trans_a_op, a_t, trans_b_op, b_t, beta, c_t, ndim, batch_ndim,
+    nntile::core::gemm<T>(runtime.starpu_worker_hint(),
+        alpha, trans_b_op, b_t, trans_a_op, a_t, beta, c_t, ndim, batch_ndim,
         0);
 }
 
