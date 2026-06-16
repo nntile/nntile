@@ -93,6 +93,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax axis0", "[grap
     }
     for(size_t i = 0; i < tr.size(); ++i)
     {
-        REQUIRE(std::abs(gout[i] - tr[i]) < 1e+2f);
+        REQUIRE(std::abs(gout[i] - tr[i]) < 1e-6f);
     }
 }

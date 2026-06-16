@@ -77,19 +77,15 @@ void scale_fiber(Scalar alpha,
         throw std::invalid_argument(
             "scale_fiber: input tensors must have the same dtype");
     }
-    const Index s_axis = graph_axis_to_storage(axis, dst->ndim());
-    validate_fiber_shape_and_merge(src, dst, s_axis, batch_ndim, "scale_fiber");
+    validate_fiber_shape_and_merge(src, dst, axis, batch_ndim, "scale_fiber");
 
     auto op = std::make_shared<TensorScaleFiberOp>(
-        alpha, src, dst, s_axis, batch_ndim);
+        alpha, src, dst, axis, batch_ndim);
     src->graph()->add_op(op);
 }
 
 void TensorScaleFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    const Index g_axis =
-        storage_axis_to_graph(axis, dst->ndim());
-
     // Match nntile::tensor::scale_fiber_async (src/tensor/scale_fiber.cc).
     const TensorAxisLayout *lay_d = ctx.tiling.find(dst);
     if (lay_d == nullptr)
@@ -117,23 +113,26 @@ void TensorScaleFiberOp::lower_to_tile(const LoweringContext &ctx) const
             "lower_to_tile SCALE_FIBER: missing tiling for src");
     }
 
+    const Index dst_nd = dst->ndim();
+    const Index lay_ax = layout_axis(axis, dst_nd);
+
     std::vector<Index> dst_coord;
     std::vector<Index> src_coord(static_cast<size_t>(src->ndim()));
 
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        src_coord[0] = dst_coord[static_cast<size_t>(axis)];
+        src_coord[0] = dst_coord[static_cast<size_t>(lay_ax)];
         for (Index b = 0; b < batch_ndim; ++b)
         {
             src_coord[static_cast<size_t>(b + 1)] =
-                dst_coord[static_cast<size_t>(dst->ndim() - batch_ndim + b)];
+                dst_coord[static_cast<size_t>(layout_axis(b, dst_nd))];
         }
         const Index lin_s = lay_s->grid_linear(src_coord);
         tile::scale_fiber(alpha,
             tiles_s[static_cast<size_t>(lin_s)],
             tiles_d[static_cast<size_t>(lin_d)],
-            g_axis,
+            axis,
             batch_ndim);
     }
 }

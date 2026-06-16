@@ -32,23 +32,23 @@ namespace nntile::tensor
 namespace
 {
 
-void maxsumexp_to_src_storage_coord(const std::vector<Index> &m_storage,
+//! Map maxsumexp grid coord to dst grid coord (omit pair axis).
+void maxsumexp_to_dst_grid_coord(const std::vector<Index> &m_coord,
     Index axis,
-    Index src_ndim,
-    std::vector<Index> &src_storage)
+    Index dst_ndim,
+    std::vector<Index> &dst_coord)
 {
-    src_storage.resize(static_cast<size_t>(src_ndim));
-    for (Index s = 0; s < src_ndim; ++s)
+    dst_coord.resize(static_cast<size_t>(dst_ndim));
+    for (Index g = 0; g < dst_ndim; ++g)
     {
-        const Index g = storage_axis_to_graph(s, src_ndim);
         if (g == axis)
         {
             continue;
         }
         const Index m_g = (g < axis) ? g : (g - 1);
-        const Index dst_ndim = static_cast<Index>(m_storage.size());
-        const Index m_s = graph_axis_to_storage(m_g, dst_ndim);
-        src_storage[static_cast<size_t>(s)] = m_storage[static_cast<size_t>(m_s)];
+        const Index m_ndim = static_cast<Index>(m_coord.size());
+        dst_coord[static_cast<size_t>(layout_axis(g, dst_ndim))] =
+            m_coord[static_cast<size_t>(layout_axis(m_g, m_ndim))];
     }
 }
 
@@ -100,7 +100,7 @@ void TensorSoftmaxInplaceOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
     const Index nd = dst->ndim();
-    const Index s_axis = graph_axis_to_storage(axis, nd);
+    const Index lay_ax = layout_axis(axis, nd);
 
     std::vector<Index> m_coord;
     std::vector<Index> dst_coord(static_cast<size_t>(nd));
@@ -110,13 +110,13 @@ void TensorSoftmaxInplaceOp::lower_to_tile(const LoweringContext& ctx) const
         lay_m->grid_coord_from_linear(lin_m, m_coord);
         TileGraph::TileNode* m_tile = tiles_m[static_cast<size_t>(lin_m)];
 
-        maxsumexp_to_src_storage_coord(m_coord, axis, nd, dst_coord);
+        maxsumexp_to_dst_grid_coord(m_coord, axis, nd, dst_coord);
 
         const Index nseg_along_axis =
-            lay_d->grid_shape()[static_cast<size_t>(s_axis)];
+            lay_d->grid_shape()[static_cast<size_t>(lay_ax)];
         for(Index j = 0; j < nseg_along_axis; ++j)
         {
-            dst_coord[static_cast<size_t>(s_axis)] = j;
+            dst_coord[static_cast<size_t>(lay_ax)] = j;
             const Index lin_d = lay_d->grid_linear(dst_coord);
             TileGraph::TileNode* d_tile =
                 tiles_d[static_cast<size_t>(lin_d)];

@@ -31,9 +31,6 @@ namespace nntile::tensor
 
 void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    const Index g_axis =
-        storage_axis_to_graph(axis, src1->ndim());
-
     // Match nntile::tensor::sumprod_fiber_async (src/tensor/sumprod_fiber.cc).
     const TensorAxisLayout* lay1 = ctx.tiling.find(src1);
     if(lay1 == nullptr)
@@ -45,15 +42,18 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& t2 = tile_lower::tiles_of(ctx.tile_map, src2);
     const auto& td = tile_lower::tiles_of(ctx.tile_map, dst);
     constexpr Scalar one = 1.0;
+    const Index src_nd = src1->ndim();
+    const Index lay_ax = layout_axis(axis, src_nd);
     std::vector<Index> c1;
     for(Index lin1 = 0; lin1 < lay1->grid_volume(); ++lin1)
     {
         lay1->grid_coord_from_linear(lin1, c1);
-        const Index j_dst = c1[static_cast<size_t>(axis)];
+        const Index j_dst = c1[static_cast<size_t>(lay_ax)];
         bool init_first = true;
-        for(Index j = 0; j < src1->ndim(); ++j)
+        for(Index g = 0; g < src_nd; ++g)
         {
-            if(j != axis && c1[static_cast<size_t>(j)] != 0)
+            if(g != axis
+                && c1[static_cast<size_t>(layout_axis(g, src_nd))] != 0)
             {
                 init_first = false;
                 break;
@@ -67,7 +67,7 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
                 t2[static_cast<size_t>(lin1)],
                 beta,
                 td[static_cast<size_t>(j_dst)],
-                g_axis,
+                axis,
                 redux);
         }
         else
@@ -78,7 +78,7 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
                 t2[static_cast<size_t>(lin1)],
                 one,
                 td[static_cast<size_t>(j_dst)],
-                g_axis,
+                axis,
                 redux);
         }
     }
@@ -125,12 +125,10 @@ void sumprod_fiber(
     }
 
     validate_same_shape_and_merge(src1, src2, "sumprod_fiber");
-    const Index s_axis = graph_axis_to_storage(axis, src1->ndim());
-    // Merge dst (reduced fiber) axis with src1 axis
     merge_axis(dst->mutable_axes()[0], src1->mutable_axes()[axis]);
 
     auto op = std::make_shared<TensorSumprodFiberOp>(
-        src1, src2, dst, s_axis, redux, alpha, beta);
+        src1, src2, dst, axis, redux, alpha, beta);
     src1->graph()->add_op(op);
 }
 

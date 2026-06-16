@@ -60,14 +60,12 @@ TensorGraph::TensorNode *norm_fiber(Scalar alpha,
     TensorGraph::TensorNode *dst =
         src1->graph()->data(std::move(output_shape), src1->dtype());
 
-    const Index s_axis = graph_axis_to_storage(axis, src1->ndim());
-
     validate_fiber_shape_and_merge(
-        dst, src1, s_axis, batch_ndim, "norm_fiber");
+        dst, src1, axis, batch_ndim, "norm_fiber");
     validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
-        alpha, beta, src1, src2, dst, s_axis, batch_ndim, redux);
+        alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
     src1->graph()->add_op(op);
 
     return dst;
@@ -103,22 +101,17 @@ void norm_fiber(Scalar alpha,
             "norm_fiber: src1, src2, and dst must be distinct tensors");
     }
 
-    const Index s_axis = graph_axis_to_storage(axis, src1->ndim());
-
     validate_fiber_shape_and_merge(
-        dst, src1, s_axis, batch_ndim, "norm_fiber");
+        dst, src1, axis, batch_ndim, "norm_fiber");
     validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
-        alpha, beta, src1, src2, dst, s_axis, batch_ndim, redux);
+        alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
     src1->graph()->add_op(op);
 }
 
 void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    const Index g_axis =
-        storage_axis_to_graph(axis, src1->ndim());
-
     // Match nntile::tensor::norm_fiber_async (src/tensor/norm_fiber.cc).
     const TensorAxisLayout *lay1 = ctx.tiling.find(src1);
     if (lay1 == nullptr)
@@ -142,6 +135,9 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
     constexpr Scalar one = 1.0;
+    const Index src_nd = src1->ndim();
+    const Index lay_ax = layout_axis(axis, src_nd);
+
     std::vector<Index> s1_coord;
     std::vector<Index> dst_coord(static_cast<size_t>(dst->ndim()));
 
@@ -149,20 +145,21 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
     {
         lay1->grid_coord_from_linear(lin1, s1_coord);
         bool init_first = true;
-        for (Index j = 0; j < src1->ndim() - batch_ndim; ++j)
+        for (Index g = batch_ndim; g < src_nd; ++g)
         {
-            if (j != axis && s1_coord[static_cast<size_t>(j)] != 0)
+            if (g != axis
+                && s1_coord[static_cast<size_t>(layout_axis(g, src_nd))] != 0)
             {
                 init_first = false;
                 break;
             }
         }
 
-        dst_coord[0] = s1_coord[static_cast<size_t>(axis)];
+        dst_coord[0] = s1_coord[static_cast<size_t>(lay_ax)];
         for (Index b = 0; b < batch_ndim; ++b)
         {
             dst_coord[static_cast<size_t>(b + 1)] =
-                s1_coord[static_cast<size_t>(src1->ndim() - batch_ndim + b)];
+                s1_coord[static_cast<size_t>(layout_axis(b, src_nd))];
         }
         const Index lin_d = lay_d->grid_linear(dst_coord);
 
@@ -173,7 +170,7 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
                 beta,
                 tiles_s2[static_cast<size_t>(lin_d)],
                 tiles_d[static_cast<size_t>(lin_d)],
-                g_axis,
+                axis,
                 batch_ndim,
                 redux);
         }
@@ -183,7 +180,7 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
                 tiles_s1[static_cast<size_t>(lin1)],
                 one,
                 tiles_d[static_cast<size_t>(lin_d)],
-                g_axis,
+                axis,
                 batch_ndim,
                 redux);
         }

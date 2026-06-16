@@ -65,5 +65,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber_inplace", "
     { auto L = D.acquire(STARPU_R);
       for(Index j = 0; j < 5; ++j) tref[static_cast<size_t>(j)] = static_cast<float>(L[j]);
       L.release(); }
-    for(int j = 0; j < 5; ++j) { REQUIRE(std::abs(gout[static_cast<size_t>(j)] - tref[static_cast<size_t>(j)]) < 1e+2f); }
+    for(int j = 0; j < 5; ++j) { REQUIRE(std::abs(gout[static_cast<size_t>(j)] - tref[static_cast<size_t>(j)]) < 1e-6f); }
 }

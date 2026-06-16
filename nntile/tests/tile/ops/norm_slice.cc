@@ -89,6 +89,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_slice (axis=0)", 
     }
     for(size_t j = 0; j < tref.size(); ++j)
     {
-        REQUIRE(std::abs(gout[j] - tref[j]) < 1e+2f);
+        REQUIRE(std::abs(gout[j] - tref[j]) < 1e-6f);
     }
 }

@@ -57,4 +57,10 @@ inline std::vector<Index> storage_shape_to_graph(
     return reverse_shape(storage_shape);
 }
 
+//! TensorAxisLayout grid_coord / grid_shape index for a graph axis.
+inline Index layout_axis(Index graph_axis, Index ndim)
+{
+    return graph_axis_to_storage(graph_axis, ndim);
+}
+
 } // namespace nntile::tensor

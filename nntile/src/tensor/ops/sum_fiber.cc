@@ -37,17 +37,14 @@ namespace
 std::vector<Index> sum_fiber_output_shape(
     const std::vector<Index> &x_shape, Index graph_axis, Index batch_ndim)
 {
-    const std::vector<Index> xs = graph_shape_to_storage(x_shape);
-    const Index nd = static_cast<Index>(xs.size());
-    const Index s_axis = graph_axis_to_storage(graph_axis, nd);
-    std::vector<Index> out_s;
-    out_s.reserve(batch_ndim + 1);
-    out_s.push_back(xs[s_axis]);
+    std::vector<Index> out;
+    out.reserve(batch_ndim + 1);
+    out.push_back(x_shape[graph_axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out_s.push_back(xs[nd - batch_ndim + i]);
+        out.push_back(x_shape[i]);
     }
-    return storage_shape_to_graph(out_s);
+    return out;
 }
 
 } // namespace
@@ -74,14 +71,11 @@ TensorGraph::TensorNode *sum_fiber(TensorGraph::TensorNode *x,
     merge_axis(output->mutable_axes()[0], x->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        const Index g_batch = storage_axis_to_graph(
-            x->ndim() - batch_ndim + i, x->ndim());
-        merge_axis(output->mutable_axes()[1 + i], x->mutable_axes()[g_batch]);
+        merge_axis(output->mutable_axes()[1 + i], x->mutable_axes()[i]);
     }
 
-    const Index s_axis = graph_axis_to_storage(axis, x->ndim());
     auto op = std::make_shared<TensorSumFiberOp>(
-        x, output, s_axis, batch_ndim, redux, alpha, beta);
+        x, output, axis, batch_ndim, redux, alpha, beta);
     x->graph()->add_op(op);
 
     return output;
@@ -115,20 +109,16 @@ void sum_fiber(TensorGraph::TensorNode *x,
         throw std::invalid_argument(
             "sum_fiber: x and y must be distinct tensors");
     }
-    const Index s_axis = graph_axis_to_storage(axis, x->ndim());
-    validate_fiber_shape_and_merge(y, x, s_axis, batch_ndim, "sum_fiber");
+    validate_fiber_shape_and_merge(y, x, axis, batch_ndim, "sum_fiber");
 
     auto op = std::make_shared<TensorSumFiberOp>(
-        x, y, s_axis, batch_ndim, redux, alpha, beta);
+        x, y, axis, batch_ndim, redux, alpha, beta);
 
     x->graph()->add_op(op);
 }
 
 void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    const Index g_axis =
-        storage_axis_to_graph(axis, x->ndim());
-
     // Match nntile::tensor::sum_fiber_async (src/tensor/sum_fiber.cc).
     const TensorAxisLayout *lay_x = ctx.tiling.find(x);
     const TensorAxisLayout *lay_y = ctx.tiling.find(y);
@@ -141,29 +131,31 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_x = tile_lower::tiles_of(ctx.tile_map, x);
     const auto &tiles_y = tile_lower::tiles_of(ctx.tile_map, y);
 
+    const Index x_nd = x->ndim();
+    const Index lay_ax = layout_axis(axis, x_nd);
+
     std::vector<Index> x_coord;
     std::vector<Index> y_coord(static_cast<size_t>(y->ndim()));
-
-    const Index fiber_prefix = x->ndim() - batch_ndim;
 
     for (Index lin_x = 0; lin_x < lay_x->grid_volume(); ++lin_x)
     {
         lay_x->grid_coord_from_linear(lin_x, x_coord);
         TileGraph::TileNode *x_tile = tiles_x[static_cast<size_t>(lin_x)];
 
-        y_coord[0] = x_coord[static_cast<size_t>(axis)];
-        for (Index j = 0; j < batch_ndim; ++j)
+        y_coord[0] = x_coord[static_cast<size_t>(lay_ax)];
+        for (Index b = 0; b < batch_ndim; ++b)
         {
-            y_coord[static_cast<size_t>(j + 1)] =
-                x_coord[static_cast<size_t>(x->ndim() - batch_ndim + j)];
+            y_coord[static_cast<size_t>(b + 1)] =
+                x_coord[static_cast<size_t>(layout_axis(b, x_nd))];
         }
         const Index lin_y = lay_y->grid_linear(y_coord);
         TileGraph::TileNode *y_tile = tiles_y[static_cast<size_t>(lin_y)];
 
         bool init_first = true;
-        for (Index j = 0; j < fiber_prefix; ++j)
+        for (Index g = batch_ndim; g < x_nd; ++g)
         {
-            if (j != axis && x_coord[static_cast<size_t>(j)] != 0)
+            if (g != axis
+                && x_coord[static_cast<size_t>(layout_axis(g, x_nd))] != 0)
             {
                 init_first = false;
                 break;
@@ -173,12 +165,12 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
         if (init_first)
         {
             tile::sum_fiber(
-                alpha, x_tile, beta, y_tile, g_axis, batch_ndim, redux);
+                alpha, x_tile, beta, y_tile, axis, batch_ndim, redux);
         }
         else
         {
             tile::sum_fiber(
-                alpha, x_tile, Scalar(1.0), y_tile, g_axis, batch_ndim, redux);
+                alpha, x_tile, Scalar(1.0), y_tile, axis, batch_ndim, redux);
         }
     }
 }

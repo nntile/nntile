@@ -166,8 +166,11 @@ two:
 - `tensor::storage_axis_to_graph(storage_axis, ndim)` — storage axis → graph axis
 
 Most reduction and layout ops take **graph axis indices** at the public
-TensorGraph / NNGraph API and translate to storage axes internally before
-lowering.
+TensorGraph / NNGraph API. `TensorGraph` op nodes store graph axes only;
+`lower_to_tile` uses graph axes for tiling logic and calls
+`layout_axis(graph_axis, ndim)` only when indexing `TensorAxisLayout` grid
+coordinates (storage-indexed internally). Tile execute converts to storage
+for `core::*`.
 
 **Exception — NNGraph `transpose`:** graph model code was written with
 **storage-order** transpose axes (historical `graph_api` convention). The NN
@@ -239,8 +242,8 @@ is the rank of the tensor the axis refers to (the full tensor for reductions,
 not the reduced output).
 
 `TensorGraph` lowering passes graph axes to tile ops for slice/softmax-family ops.
-Ops that store a storage axis internally (e.g. fiber ops after validation) convert
-with `storage_axis_to_graph` at the tile boundary.
+Fiber and reduction ops also store graph axes; tile calls receive graph axes
+directly.
 
 Layout-parameter ops (`embedding`, `conv2d_*`, `copy_intersection`, `rope`,
 `flash_sdpa`) keep storage-indexed geometry from tensor lowering; no tile-layer
