@@ -31,6 +31,9 @@ namespace nntile::tensor
 
 void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, dst->ndim());
+
     // Match nntile::tensor::sumprod_fiber_async (src/tensor/sumprod_fiber.cc).
     const TensorAxisLayout* lay1 = ctx.tiling.find(src1);
     if(lay1 == nullptr)
@@ -64,7 +67,7 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
                 t2[static_cast<size_t>(lin1)],
                 beta,
                 td[static_cast<size_t>(j_dst)],
-                axis,
+                g_axis,
                 redux);
         }
         else
@@ -75,7 +78,7 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
                 t2[static_cast<size_t>(lin1)],
                 one,
                 td[static_cast<size_t>(j_dst)],
-                axis,
+                g_axis,
                 redux);
         }
     }

@@ -126,6 +126,9 @@ void sum_fiber(TensorGraph::TensorNode *x,
 
 void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, x->ndim());
+
     // Match nntile::tensor::sum_fiber_async (src/tensor/sum_fiber.cc).
     const TensorAxisLayout *lay_x = ctx.tiling.find(x);
     const TensorAxisLayout *lay_y = ctx.tiling.find(y);
@@ -170,12 +173,12 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
         if (init_first)
         {
             tile::sum_fiber(
-                alpha, x_tile, beta, y_tile, axis, batch_ndim, redux);
+                alpha, x_tile, beta, y_tile, g_axis, batch_ndim, redux);
         }
         else
         {
             tile::sum_fiber(
-                alpha, x_tile, Scalar(1.0), y_tile, axis, batch_ndim, redux);
+                alpha, x_tile, Scalar(1.0), y_tile, g_axis, batch_ndim, redux);
         }
     }
 }

@@ -32,6 +32,9 @@ namespace nntile::tensor
 
 void TensorNormFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, dst->ndim());
+
     // Match nntile::tensor::norm_fiber_inplace_async (src/tensor/norm_fiber_inplace.cc).
     const TensorAxisLayout* lay1 = ctx.tiling.find(src);
     const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
@@ -74,7 +77,7 @@ void TensorNormFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
                 tiles_s[static_cast<size_t>(lin1)],
                 beta,
                 tiles_d[static_cast<size_t>(lin_d)],
-                axis,
+                g_axis,
                 batch_ndim,
                 redux);
         }
@@ -85,7 +88,7 @@ void TensorNormFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
                 tiles_s[static_cast<size_t>(lin1)],
                 one,
                 tiles_d[static_cast<size_t>(lin_d)],
-                axis,
+                g_axis,
                 batch_ndim,
                 redux);
         }

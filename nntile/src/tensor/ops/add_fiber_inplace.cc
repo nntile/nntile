@@ -71,6 +71,9 @@ void add_fiber_inplace(
 
 void TensorAddFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, dst->ndim());
+
     // Match nntile::tensor::add_fiber_inplace_async (src/tensor/add_fiber_inplace.cc).
     if(alpha == 0.0)
     {
@@ -109,7 +112,7 @@ void TensorAddFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
             tiles_f[static_cast<size_t>(lin_f)],
             beta,
             tiles_t[static_cast<size_t>(lin_d)],
-            axis,
+            g_axis,
             batch_ndim);
     }
 }

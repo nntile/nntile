@@ -112,6 +112,9 @@ void add_fiber(Scalar alpha,
 
 void TensorAddFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, output->ndim());
+
     // Match nntile::tensor::add_fiber_async (src/tensor/add_fiber.cc).
     const TensorAxisLayout *lay_d = ctx.tiling.find(output);
     const TensorAxisLayout *lay_f = ctx.tiling.find(fiber);
@@ -148,7 +151,7 @@ void TensorAddFiberOp::lower_to_tile(const LoweringContext &ctx) const
             beta,
             tiles_t[static_cast<size_t>(lin_d)],
             tiles_o[static_cast<size_t>(lin_d)],
-            axis,
+            g_axis,
             batch_ndim);
     }
 }

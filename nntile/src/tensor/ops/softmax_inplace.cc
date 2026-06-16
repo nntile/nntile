@@ -120,7 +120,7 @@ void TensorSoftmaxInplaceOp::lower_to_tile(const LoweringContext& ctx) const
             const Index lin_d = lay_d->grid_linear(dst_coord);
             TileGraph::TileNode* d_tile =
                 tiles_d[static_cast<size_t>(lin_d)];
-            tile::softmax_inplace(m_tile, alpha, d_tile, s_axis);
+            tile::softmax_inplace(m_tile, alpha, d_tile, axis);
         }
     }
 }

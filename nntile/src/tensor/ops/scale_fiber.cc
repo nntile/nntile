@@ -87,6 +87,9 @@ void scale_fiber(Scalar alpha,
 
 void TensorScaleFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, dst->ndim());
+
     // Match nntile::tensor::scale_fiber_async (src/tensor/scale_fiber.cc).
     const TensorAxisLayout *lay_d = ctx.tiling.find(dst);
     if (lay_d == nullptr)
@@ -130,7 +133,7 @@ void TensorScaleFiberOp::lower_to_tile(const LoweringContext &ctx) const
         tile::scale_fiber(alpha,
             tiles_s[static_cast<size_t>(lin_s)],
             tiles_d[static_cast<size_t>(lin_d)],
-            axis,
+            g_axis,
             batch_ndim);
     }
 }

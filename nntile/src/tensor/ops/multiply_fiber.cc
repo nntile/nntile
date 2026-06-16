@@ -123,6 +123,9 @@ void multiply_fiber(Scalar alpha,
 
 void TensorMultiplyFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, dst->ndim());
+
     // Match nntile::tensor::multiply_fiber_async
     // (src/tensor/multiply_fiber.cc).
     const TensorAxisLayout *lay_d = ctx.tiling.find(dst);
@@ -149,7 +152,7 @@ void TensorMultiplyFiberOp::lower_to_tile(const LoweringContext &ctx) const
             tiles_s1[static_cast<size_t>(j)],
             tiles_s2[static_cast<size_t>(lin_d)],
             tiles_d[static_cast<size_t>(lin_d)],
-            axis);
+            g_axis);
     }
 }
 

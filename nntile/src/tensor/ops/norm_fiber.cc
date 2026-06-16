@@ -116,6 +116,9 @@ void norm_fiber(Scalar alpha,
 
 void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, dst->ndim());
+
     // Match nntile::tensor::norm_fiber_async (src/tensor/norm_fiber.cc).
     const TensorAxisLayout *lay1 = ctx.tiling.find(src1);
     if (lay1 == nullptr)
@@ -170,7 +173,7 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
                 beta,
                 tiles_s2[static_cast<size_t>(lin_d)],
                 tiles_d[static_cast<size_t>(lin_d)],
-                axis,
+                g_axis,
                 batch_ndim,
                 redux);
         }
@@ -180,7 +183,7 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
                 tiles_s1[static_cast<size_t>(lin1)],
                 one,
                 tiles_d[static_cast<size_t>(lin_d)],
-                axis,
+                g_axis,
                 batch_ndim,
                 redux);
         }

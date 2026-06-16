@@ -32,6 +32,9 @@ namespace nntile::tensor
 
 void TensorMultiplyFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
+    const Index g_axis =
+        storage_axis_to_graph(axis, dst->ndim());
+
     // Match nntile::tensor::multiply_fiber_inplace_async
     // (src/tensor/multiply_fiber_inplace.cc).
     const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
@@ -49,7 +52,7 @@ void TensorMultiplyFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) con
         const Index j = dst_coord[static_cast<size_t>(axis)];
         tile::multiply_fiber_inplace(
             alpha, ts[static_cast<size_t>(j)], td[static_cast<size_t>(lin_d)],
-            axis);
+            g_axis);
     }
 }
 

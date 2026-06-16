@@ -87,7 +87,7 @@ void TensorTransposeOp::lower_to_tile(const LoweringContext &ctx) const
             tile::transpose(alpha,
                 tiles_s[static_cast<size_t>(lin_s)],
                 tiles_d[static_cast<size_t>(lin_d)],
-                storage_ndim);
+                ndim);
         }
     }
 }
