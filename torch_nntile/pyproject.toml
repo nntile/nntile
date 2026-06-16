@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torch_nntile"
-version = "0.1.0"
-description = "PyTorch PrivateUse1 device stub for nntile (host std::vector buffer)"
+version = "0.2.0"
+description = "PyTorch PrivateUse1 device for nntile (TensorGraph add via libnntile)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
