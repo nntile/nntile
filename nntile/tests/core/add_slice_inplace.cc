@@ -35,12 +35,12 @@ void check(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
     Tile<T> dst2(dst, &dst2_data[0], dst.nelems);
     add_slice_inplace<T>(-1, alpha, src, beta, dst, axis);
     Index m = 1;
-    for(Index i = 0; i < axis; ++i)
+    for(Index i = axis+1; i < dst.ndim; ++i)
     {
         m *= dst.shape[i];
     }
     Index n = 1;
-    for(Index i = axis+1; i < dst.ndim; ++i)
+    for(Index i = 0; i < axis; ++i)
     {
         n *= dst.shape[i];
     }
@@ -59,8 +59,8 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    std::vector<Index> A_shape{3, 4, 5, 6}, b0_shape{4, 5, 6},
-        b1_shape{3, 5, 6}, b2_shape{3, 4, 6}, b3_shape{3, 4, 5};
+    std::vector<Index> A_shape{6, 5, 4, 3}, b0_shape{6, 5, 4},
+        b1_shape{6, 5, 3}, b2_shape{6, 4, 3}, b3_shape{5, 4, 3};
     TileTraits A_traits(A_shape), b0_traits(b0_shape), b1_traits(b1_shape),
               b2_traits(b2_shape), b3_traits(b3_shape);
     std::vector<T> A_data(A_traits.nelems), b0_data(b0_traits.nelems),
@@ -92,10 +92,10 @@ void validate()
         b2(b2_traits, &b2_data[0], b2_traits.nelems),
         b3(b3_traits, &b3_data[0], b3_traits.nelems);
     // Compare results of tile::add_slice_inplace and starpu::add_slice_inplace::submit
-    check<T>(-1.0, b0, 1.0, A, 0);
-    check<T>(1.0, b1, -1.0, A, 1);
-    check<T>(2.0, b2, 0.5, A, 2);
-    check<T>(-2.0, b3, 0.0, A, 3);
+    check<T>(-1.0, b3, 1.0, A, 0);
+    check<T>(1.0, b2, -1.0, A, 1);
+    check<T>(2.0, b1, 0.5, A, 2);
+    check<T>(-2.0, b0, 0.0, A, 3);
     // Checking throwing exceptions
     TEST_THROW(add_slice_inplace<T>(-1, 1.0, A, 0.0, A, 0));
     TEST_THROW(add_slice_inplace<T>(-1, 1.0, b0, 0.0, A, -1));

@@ -16,7 +16,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/shape_layout.hh"
+#include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tile.hh"
 #include "nntile/tensor/ops/scale_fiber.hh"
 #include "nntile/tensor.hh"
@@ -46,10 +46,18 @@ constexpr Index dim_5 = 5;
 
 } // anonymous namespace
 
+//! Fiber shape: {dst_shape[axis]} for batch_ndim=0
 static std::vector<Index> fiber_shape(
     const std::vector<Index> &dst_shape, Index axis, Index batch_ndim)
 {
-    return nntile::tensor::graph_fiber_shape(dst_shape, axis, batch_ndim);
+    std::vector<Index> out;
+    out.reserve(batch_ndim + 1);
+    for (Index i = 0; i < batch_ndim; ++i)
+    {
+        out.push_back(dst_shape[i]);
+    }
+    out.push_back(dst_shape[axis]);
+    return out;
 }
 
 TEST_CASE("TensorGraph scale_fiber structure", "[graph][tensor]")
@@ -59,12 +67,12 @@ TEST_CASE("TensorGraph scale_fiber structure", "[graph][tensor]")
     auto *src = graph.data({dim_4})->set_name("src");
 
     auto *dst =
-        gt::scale_fiber(alpha, src, {dim_4, dim_2}, axis_0, batch_ndim_none)
+        gt::scale_fiber(alpha, src, {dim_2, dim_4}, axis_1, batch_ndim_none)
             ->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape() == (std::vector<Index>{dim_4, dim_2}));
+    REQUIRE(dst->shape() == (std::vector<Index>{dim_2, dim_4}));
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SCALE_FIBER");
@@ -80,7 +88,7 @@ TEST_CASE(
     auto *src = graph.data({dim_4})->set_name("src");
 
     REQUIRE_THROWS_AS(
-        gt::scale_fiber(alpha, src, src, axis_0, batch_ndim_none),
+        gt::scale_fiber(alpha, src, src, axis_1, batch_ndim_none),
         std::invalid_argument);
 }
 
@@ -89,8 +97,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [dst_shape, axis, batch_ndim, alpha_val] =
-        GENERATE(std::tuple{std::vector<Index>{4, 2}, Index(1), Index(0), 2.5},
-            std::tuple{std::vector<Index>{4, 2}, Index(0), Index(0), 1.0});
+        GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), Index(0), 2.5},
+            std::tuple{std::vector<Index>{2, 4}, Index(0), Index(0), 1.0});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

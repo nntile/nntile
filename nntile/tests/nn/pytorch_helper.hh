@@ -8,12 +8,14 @@
  *
  * @file nntile/tests/nn_graph/pytorch_helper.hh
  * Shared helpers for NNGraph PyTorch comparison tests: relative Frobenius error
- * (vector–vector and vector–tensor), element-wise relative checks.
+ * (vector–vector and vector–tensor), element-wise relative checks, layout utils.
  *
  * @version 1.1.0
  * */
 
 #pragma once
+
+#include "test_frobenius.hh"
 
 #include <algorithm>
 #include <cmath>
@@ -21,52 +23,6 @@
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
-
-namespace nntile::test
-{
-
-//! Floor for relative scales (tiny activations / gradients).
-constexpr float relative_tolerance_floor = 1e-7f;
-
-//! \f$\|a-b\|_F / \max(\|a\|_F,\|b\|_F,\epsilon)\f$ (symmetric relative error).
-//!
-//! Using only \f$\|b\|_F\f$ blows up when the reference norm is tiny. ``b`` is
-//! the nominal reference for documentation; the scale is symmetric in ``a`` and ``b``.
-inline float relative_frobenius_error(
-    const std::vector<float>& a,
-    const std::vector<float>& b,
-    float epsilon = relative_tolerance_floor)
-{
-    double sq_diff = 0.0;
-    double sq_a = 0.0;
-    double sq_b = 0.0;
-    for(size_t i = 0; i < a.size(); ++i)
-    {
-        const double ai = static_cast<double>(a[i]);
-        const double bi = static_cast<double>(b[i]);
-        const double d = ai - bi;
-        sq_diff += d * d;
-        sq_a += ai * ai;
-        sq_b += bi * bi;
-    }
-    const double na = std::sqrt(sq_a);
-    const double nb = std::sqrt(sq_b);
-    const double diff = std::sqrt(sq_diff);
-    const double scale = std::max(
-        na, std::max(nb, static_cast<double>(epsilon)));
-    return static_cast<float>(diff / scale);
-}
-
-//! \f$\|a-b\|_F / \max(\|a\|_F,\|b\|_F,\epsilon)\f$ must be below ``tol``.
-inline void require_relative_frobenius_error(const std::vector<float>& a,
-    const std::vector<float>& b,
-    float tol,
-    float epsilon = relative_tolerance_floor)
-{
-    REQUIRE(relative_frobenius_error(a, b, epsilon) < tol);
-}
-
-} // namespace nntile::test
 
 #ifdef NNTILE_HAVE_TORCH
 
@@ -163,6 +119,69 @@ inline torch::Tensor broadcast_fiber(const torch::Tensor& fiber,
     std::vector<::int64_t> dims(tensor_shape.size(), 1);
     dims[axis] = -1;
     return fiber.view(dims).expand(tensor_shape);
+}
+
+//! Convert column-major (Fortran) to row-major for comparison with PyTorch
+template<typename T>
+inline std::vector<T> colmajor_to_rowmajor(const std::vector<T>& data,
+                                          const std::vector<Index>& shape)
+{
+    std::vector<T> result(data.size());
+    const Index ndim = static_cast<Index>(shape.size());
+    std::vector<Index> row_strides(ndim);
+    row_strides[ndim - 1] = 1;
+    for(Index i = ndim - 2; i >= 0; --i)
+        row_strides[i] = row_strides[i + 1] * shape[i + 1];
+    for(Index col_idx = 0; col_idx < static_cast<Index>(data.size()); ++col_idx)
+    {
+        Index idx = col_idx;
+        Index row_idx = 0;
+        for(Index d = 0; d < ndim; ++d)
+        {
+            Index coord = idx % shape[d];
+            row_idx += coord * row_strides[d];
+            idx /= shape[d];
+        }
+        result[row_idx] = data[col_idx];
+    }
+    return result;
+}
+
+//! Permute data from row-major layout. perm[i] = source dim for output dim i.
+//! E.g. perm {2,0,1} on shape [M,N,B] yields [B,M,N] layout.
+template<typename T>
+inline std::vector<T> permute_rowmajor(const std::vector<T>& data,
+                                      const std::vector<Index>& shape,
+                                      const std::vector<Index>& perm)
+{
+    const Index ndim = static_cast<Index>(shape.size());
+    std::vector<Index> out_shape(ndim);
+    for(Index i = 0; i < ndim; ++i)
+        out_shape[i] = shape[perm[i]];
+    std::vector<Index> in_strides(ndim);
+    in_strides[ndim - 1] = 1;
+    for(Index i = ndim - 2; i >= 0; --i)
+        in_strides[i] = in_strides[i + 1] * shape[i + 1];
+    std::vector<Index> out_strides(ndim);
+    out_strides[ndim - 1] = 1;
+    for(Index i = ndim - 2; i >= 0; --i)
+        out_strides[i] = out_strides[i + 1] * out_shape[i + 1];
+    std::vector<T> result(data.size());
+    std::vector<Index> coord(ndim);
+    for(Index out_idx = 0; out_idx < static_cast<Index>(data.size()); ++out_idx)
+    {
+        Index idx = out_idx;
+        for(Index d = ndim - 1; d >= 0; --d)
+        {
+            coord[d] = idx % out_shape[d];
+            idx /= out_shape[d];
+        }
+        Index in_idx = 0;
+        for(Index d = 0; d < ndim; ++d)
+            in_idx += coord[d] * in_strides[perm[d]];
+        result[out_idx] = data[in_idx];
+    }
+    return result;
 }
 
 } // namespace nntile::test

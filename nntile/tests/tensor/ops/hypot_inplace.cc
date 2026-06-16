@@ -46,8 +46,8 @@ TEST_CASE("TensorGraph hypot_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim1, dim0})->set_name("src");
-    auto *dst = graph.data({dim1, dim0})->set_name("dst");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *dst = graph.data({dim0, dim1})->set_name("dst");
 
     gt::hypot_inplace(alpha_one, src, beta_one, dst);
 
@@ -76,8 +76,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{6, 4}},
-            std::tuple{2.0, 3.0, std::vector<Index>{6, 4}},
+        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{4, 6}},
+            std::tuple{2.0, 3.0, std::vector<Index>{4, 6}},
             std::tuple{0.5, -1.0, std::vector<Index>{6}});
 
     using T = nntile::fp32_t;

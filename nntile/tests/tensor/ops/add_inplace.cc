@@ -44,8 +44,8 @@ TEST_CASE("TensorGraph add_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim1, dim0})->set_name("x");
-    auto *y = graph.data({dim1, dim0})->set_name("y");
+    auto *x = graph.data({dim0, dim1})->set_name("x");
+    auto *y = graph.data({dim0, dim1})->set_name("y");
 
     gt::add_inplace(alpha, x, beta, y);
 
@@ -74,8 +74,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{6, 4}},
-            std::tuple{2.0, 3.0, std::vector<Index>{6, 4}},
+        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{4, 6}},
+            std::tuple{2.0, 3.0, std::vector<Index>{4, 6}},
             std::tuple{0.5, -1.0, std::vector<Index>{6}},
             std::tuple{1.0, 2.0, std::vector<Index>{4, 4}});
 

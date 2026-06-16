@@ -119,18 +119,18 @@ TEST_CASE("T5ForConditionalGeneration forward builds output", "[model][t5]")
     NNGraph g("t5_conditional");
     T5ForConditionalGeneration conditional(&g, "conditional", fx.config);
     auto *encoder_input_ids =
-        g.tensor({fx.batch, fx.enc_seq}, DataType::INT64)
+        g.tensor({fx.enc_seq, fx.batch}, DataType::INT64)
             ->set_name("encoder_input_ids");
     auto *decoder_input_ids =
-        g.tensor({fx.batch, fx.dec_seq}, DataType::INT64)
+        g.tensor({fx.dec_seq, fx.batch}, DataType::INT64)
             ->set_name("decoder_input_ids");
     auto *output = conditional.forward(
         encoder_input_ids, decoder_input_ids, nullptr, nullptr, nullptr);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({fx.batch,
+    REQUIRE(output->shape() == std::vector<Index>({fx.config.vocab_size,
         fx.dec_seq,
-        fx.config.vocab_size}));
+        fx.batch}));
 }
 
 TEST_CASE("T5ForConditionalGeneration load from safetensors roundtrip",
@@ -195,10 +195,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("conditional_ref");
         auto *encoder_input_ids =
-            g.tensor({fx.batch, fx.enc_seq}, DataType::INT64)
+            g.tensor({fx.enc_seq, fx.batch}, DataType::INT64)
                 ->set_name("encoder_input_ids");
         auto *decoder_input_ids =
-            g.tensor({fx.batch, fx.dec_seq}, DataType::INT64)
+            g.tensor({fx.dec_seq, fx.batch}, DataType::INT64)
                 ->set_name("decoder_input_ids");
         NNGraph::TensorNode *decoder_mask = nullptr;
         std::vector<std::uint8_t> decoder_mask_bytes;

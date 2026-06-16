@@ -114,6 +114,7 @@ torch::Tensor apply_activation_pt(torch::Tensor x, ActivationType t)
 } // anonymous namespace
 
 using nntile::test::compare_float_vectors;
+using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "Activation forward and backward match PyTorch",
@@ -121,11 +122,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [shape, act_type, grad_fill_val] = GENERATE(
         std::tuple{
-            std::vector<Index>{2, 3}, ActivationType::RELU, Scalar(1.0)},
+            std::vector<Index>{3, 2}, ActivationType::RELU, Scalar(1.0)},
         std::tuple{
             std::vector<Index>{4, 6}, ActivationType::GELU, Scalar(1.0)},
         std::tuple{
-            std::vector<Index>{2, 3, 4}, ActivationType::SILU, Scalar(1.0)},
+            std::vector<Index>{4, 3, 2}, ActivationType::SILU, Scalar(1.0)},
         std::tuple{
             std::vector<Index>{3, 5}, ActivationType::GELUTANH, Scalar(1.0)},
         std::tuple{
@@ -167,6 +168,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
+    std::vector<float> nntile_grad_input =
+        runtime.get_output<float>(input->grad());
+
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
     auto input_pt = torch::from_blob(input_data.data(),
         shape_pt,
@@ -179,11 +184,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 
-    compare_float_vectors(runtime.get_output<float>(output), out_pt);
+    REQUIRE(nntile_out.size() == static_cast<size_t>(nelems));
+    for (size_t i = 0; i < nntile_out.size(); ++i)
+        REQUIRE(std::abs(nntile_out[i] - out_pt.data_ptr<float>()[i]) <
+                pytorch_tolerance);
 
-    compare_float_vectors(
-        runtime.get_output<float>(input->grad()),
-        input_pt.grad());
+    compare_float_vectors(nntile_grad_input, input_pt.grad());
 }
 
 #endif // NNTILE_HAVE_TORCH

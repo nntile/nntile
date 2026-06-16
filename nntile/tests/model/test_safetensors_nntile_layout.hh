@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file nntile/tests/model/test_safetensors_nntile_layout.hh
- * Map SafeTensors payload (graph) to NNTile bind_data layout.
+ * Map SafeTensors payload (C-order) to NNTile bind_data layout.
  *
  * @version 1.1.0
  * */
@@ -32,9 +32,9 @@ inline Index shape_volume(const std::vector<std::int64_t> &shape)
     return vol;
 }
 
-//! SafeTensors and NNTile both store tensors in graph; copy bytes directly.
+//! SafeTensors and NNTile both store tensors in C-order; copy bytes directly.
 template <typename T>
-inline void copy_safetensors_to_nntile_layout(
+inline void c_safetensors_to_nntile_fortran(
     const std::uint8_t *raw,
     const std::vector<std::int64_t> &shape,
     std::vector<T> &out)
@@ -42,12 +42,12 @@ inline void copy_safetensors_to_nntile_layout(
     if(raw == nullptr)
     {
         throw std::invalid_argument(
-            "copy_safetensors_to_nntile_layout: null raw buffer");
+            "c_safetensors_to_nntile_fortran: null raw buffer");
     }
     if(shape.empty())
     {
         throw std::invalid_argument(
-            "copy_safetensors_to_nntile_layout: empty shape");
+            "c_safetensors_to_nntile_fortran: empty shape");
     }
     const Index vol = shape_volume(shape);
     const auto expected_bytes =
@@ -57,7 +57,7 @@ inline void copy_safetensors_to_nntile_layout(
 }
 
 template <typename T>
-inline void read_tensor_nntile_layout(
+inline void read_tensor_nntile_fortran(
     const nntile::io::SafeTensorsReader &reader,
     const char *name,
     std::vector<T> &out)
@@ -69,10 +69,10 @@ inline void read_tensor_nntile_layout(
     if(raw.size() != expected)
     {
         throw std::runtime_error(
-            std::string("read_tensor_nntile_layout: byte size mismatch for ")
+            std::string("read_tensor_nntile_fortran: byte size mismatch for ")
             + name);
     }
-    copy_safetensors_to_nntile_layout<T>(raw.data(), info.shape, out);
+    c_safetensors_to_nntile_fortran<T>(raw.data(), info.shape, out);
 }
 
 } // namespace nntile::test::safetensors_nntile_layout

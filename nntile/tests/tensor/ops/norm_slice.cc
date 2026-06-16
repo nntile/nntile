@@ -74,12 +74,12 @@ TEST_CASE("TensorGraph norm_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim_5, dim_4})->set_name("src");
+    auto *src = graph.data({dim_4, dim_5})->set_name("src");
     auto *dst =
         graph.data({dim_4})->set_name("dst"); // axis=1: norm over dim_5
 
     auto *out =
-        gt::norm_slice(alpha_one, src, beta_zero, dst, axis_0, redux_none)
+        gt::norm_slice(alpha_one, src, beta_zero, dst, axis_1, redux_none)
             ->set_name("out");
 
     REQUIRE(graph.num_data() == 3);
@@ -98,12 +98,12 @@ TEST_CASE(
     "TensorGraph norm_slice rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({dim_5, dim_4})->set_name("src");
+    auto *src = graph.data({dim_4, dim_5})->set_name("src");
     auto *dst = graph.data({dim_4})->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::norm_slice(
-            alpha_one, src, beta_zero, dst, dst, axis_0, redux_none),
+            alpha_one, src, beta_zero, dst, dst, axis_1, redux_none),
         std::invalid_argument);
 }
 
@@ -112,12 +112,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_5, dim_4},
-                     axis_1,
+        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
+                     axis_0,
                      redux_none,
                      alpha_one,
                      beta_zero},
-            std::tuple{std::vector<Index>{dim_4, dim_3, dim_2},
+            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
                 axis_1,
                 redux_none,
                 alpha_one,

@@ -29,9 +29,10 @@ void set_rope_heterogeneous_tiling(NNGraph::TensorNode *sin,
     NNGraph::TensorNode *cos,
     NNGraph::TensorNode *src)
 {
-    for (Index g_axis = 0; g_axis < sin->ndim(); ++g_axis)
+    const Index rope_axis = sin->ndim() - 1;
+    for (Index d = 0; d < sin->ndim(); ++d)
     {
-        const Index Ls = sin->shape()[static_cast<size_t>(g_axis)];
+        const Index Ls = sin->shape()[static_cast<size_t>(d)];
         std::vector<Index> sin_seg;
         if (Ls >= 4)
         {
@@ -49,9 +50,9 @@ void set_rope_heterogeneous_tiling(NNGraph::TensorNode *sin,
         {
             sin_seg = {Ls};
         }
-        sin->data()->axis(g_axis)->set_tiling(sin_seg);
-        cos->data()->axis(g_axis)->set_tiling(sin_seg);
-        if (g_axis == sin->ndim() - 1)
+        sin->data()->axis(d)->set_tiling(sin_seg);
+        cos->data()->axis(d)->set_tiling(sin_seg);
+        if (d == rope_axis)
         {
             std::vector<Index> src_seg;
             src_seg.reserve(sin_seg.size());
@@ -59,30 +60,59 @@ void set_rope_heterogeneous_tiling(NNGraph::TensorNode *sin,
             {
                 src_seg.push_back(2 * v);
             }
-            src->data()->axis(g_axis)->set_tiling(std::move(src_seg));
+            src->data()->axis(rope_axis)->set_tiling(std::move(src_seg));
         }
         else
         {
-            src->data()->axis(g_axis)->set_tiling(sin_seg);
+            src->data()->axis(d)->set_tiling(sin_seg);
         }
     }
 }
 } // namespace
 
-// RoPE requires src last dim == 2*sin last dim (graph paired axis).
+// RoPE pairs live on the last sin axis; src doubles that extent.
 static std::vector<Index> make_src_shape(const std::vector<Index> &sin_shape)
 {
     std::vector<Index> src_shape = sin_shape;
-    src_shape.back() = sin_shape.back() * 2;
+    src_shape.back() *= 2;
     return src_shape;
+}
+
+static Index rope_n_for_graph(
+    const std::vector<Index> &src_shape,
+    const std::vector<Index> &sin_shape)
+{
+    if (src_shape.size() > sin_shape.size())
+    {
+        Index n = 1;
+        for (Index d = static_cast<Index>(sin_shape.size());
+            d < static_cast<Index>(src_shape.size()); ++d)
+        {
+            n *= src_shape[static_cast<size_t>(d)];
+        }
+        return n;
+    }
+    Index n = 1;
+    const Index rope_axis = static_cast<Index>(sin_shape.size()) - 1;
+    for (Index d = 0; d < rope_axis; ++d)
+    {
+        n *= src_shape[static_cast<size_t>(d)];
+    }
+    return n;
+}
+
+static Index rope_m_pairs(const std::vector<Index> &src_shape,
+    const std::vector<Index> &sin_shape)
+{
+    const Index rope_axis = static_cast<Index>(sin_shape.size()) - 1;
+    return src_shape[static_cast<size_t>(rope_axis)] / 2;
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph rope structure",
     "[graph][nn_graph]")
 {
-    const auto sin_shape =
-        GENERATE(std::vector<Index>{4, 2}, std::vector<Index>{2, 3, 4});
+    const auto sin_shape = GENERATE(std::vector<Index>{2});
     const auto src_shape = make_src_shape(sin_shape);
 
     NNGraph g("rope_structure");
@@ -101,8 +131,8 @@ TEST_CASE_METHOD(
     nntile::test::ContextFixture, "NNGraph rope backward", "[graph][nn_graph]")
 {
     const auto [sin_shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 4}, Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{2}, Scalar(-1.0)});
     const auto src_shape = make_src_shape(sin_shape);
 
     NNGraph g("rope_backward");
@@ -124,9 +154,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [sin_shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 4}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 2, 2}, Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{2}, Scalar(-1.0)});
     const auto src_shape = make_src_shape(sin_shape);
 
     NNGraph g("rope");
@@ -147,26 +177,25 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(x->grad()->shape() == x->shape());
 }
 
-// Mirror NNTile kernel exactly: m=sin.nelems, n=matrix_shape[ndim][1],
-// l=2*(i+j*m). For single-tile graph: n=1 always (product of dims from
-// sin.ndim onward in src).
 static void rope_forward_ref(const float *sin_data,
     const float *cos_data,
     const float *src_data,
     float *dst_data,
-    Index m,
+    Index m_pairs,
     Index n)
 {
     for (Index j = 0; j < n; ++j)
-        for (Index i = 0; i < m; ++i)
+        for (Index i = 0; i < m_pairs; ++i)
         {
-            Index l = 2 * (i + j * m);
-            float c = cos_data[i];
-            float s = sin_data[i];
-            float a = src_data[l];
-            float b = src_data[l + 1];
-            dst_data[l] = c * a - s * b;
-            dst_data[l + 1] = s * a + c * b;
+            const Index si = i * n + j;
+            const Index l0 = 2 * i * n + j;
+            const Index l1 = l0 + n;
+            float c = cos_data[si];
+            float s = sin_data[si];
+            float a = src_data[l0];
+            float b = src_data[l1];
+            dst_data[l0] = c * a - s * b;
+            dst_data[l1] = s * a + c * b;
         }
 }
 
@@ -174,44 +203,36 @@ static void rope_backward_ref(const float *sin_data,
     const float *cos_data,
     const float *dy_data,
     float *dx_data,
-    Index m,
+    Index m_pairs,
     Index n)
 {
     for (Index j = 0; j < n; ++j)
-        for (Index i = 0; i < m; ++i)
+        for (Index i = 0; i < m_pairs; ++i)
         {
-            Index l = 2 * (i + j * m);
-            float c = cos_data[i];
-            float s = sin_data[i];
-            float a = dy_data[l];
-            float b = dy_data[l + 1];
-            dx_data[l] = c * a + s * b;
-            dx_data[l + 1] = c * b - s * a;
+            const Index si = i * n + j;
+            const Index l0 = 2 * i * n + j;
+            const Index l1 = l0 + n;
+            float c = cos_data[si];
+            float s = sin_data[si];
+            float a = dy_data[l0];
+            float b = dy_data[l1];
+            dx_data[l0] = c * a + s * b;
+            dx_data[l1] = c * b - s * a;
         }
-}
-
-// For graph runtime with tile_shape=shape: n = matrix_shape[sin.ndim][1]
-static Index rope_n_for_graph(
-    const std::vector<Index> &src_shape, Index sin_ndim)
-{
-    Index n = 1;
-    for (Index d = sin_ndim; d < static_cast<Index>(src_shape.size()); ++d)
-        n *= src_shape[d];
-    return n;
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph rope forward matches reference",
     "[graph][nn_graph]")
 {
-    const auto sin_shape =
-        GENERATE(std::vector<Index>{4, 2}, std::vector<Index>{2, 3, 4});
+    const auto sin_shape = GENERATE(std::vector<Index>{2});
     const auto src_shape = make_src_shape(sin_shape);
 
     Index sin_nelems = 1;
     for (auto s : sin_shape)
         sin_nelems *= s;
-    const Index src_nelems = 2 * sin_nelems;
+    const Index src_nelems = std::accumulate(
+        src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
 
     std::vector<float> sin_data(sin_nelems);
     std::vector<float> cos_data(sin_nelems);
@@ -248,15 +269,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_out = runtime.get_output<float>(y);
 
-    Index m = sin_nelems;
-    Index n =
-        rope_n_for_graph(src_shape, static_cast<Index>(sin_shape.size()));
     std::vector<float> ref_out(src_nelems);
+    const Index m_pairs = rope_m_pairs(src_shape, sin_shape);
+    const Index n = rope_n_for_graph(src_shape, sin_shape);
     rope_forward_ref(sin_data.data(),
         cos_data.data(),
         src_data.data(),
         ref_out.data(),
-        m,
+        m_pairs,
         n);
 
     REQUIRE(nntile_out.size() == ref_out.size());
@@ -269,14 +289,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [sin_shape, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{4, 2}, Scalar(1.0)},
-            std::tuple{std::vector<Index>{3, 4}, Scalar(-1.0)});
+        GENERATE(std::tuple{std::vector<Index>{2}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{2}, Scalar(-1.0)});
     const auto src_shape = make_src_shape(sin_shape);
 
     Index sin_nelems = 1;
     for (auto s : sin_shape)
         sin_nelems *= s;
-    const Index src_nelems = 2 * sin_nelems;
+    const Index src_nelems = std::accumulate(
+        src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
 
     std::vector<float> sin_data(sin_nelems);
     std::vector<float> cos_data(sin_nelems);
@@ -318,9 +339,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
 
-    Index m = sin_nelems;
-    Index n =
-        rope_n_for_graph(src_shape, static_cast<Index>(sin_shape.size()));
+    const Index m_pairs = rope_m_pairs(src_shape, sin_shape);
+    const Index n = rope_n_for_graph(src_shape, sin_shape);
     std::vector<float> grad_y_data(
         src_nelems, static_cast<float>(grad_fill_val));
     std::vector<float> ref_grad_x(src_nelems);
@@ -328,7 +348,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         cos_data.data(),
         grad_y_data.data(),
         ref_grad_x.data(),
-        m,
+        m_pairs,
         n);
 
     REQUIRE(nntile_grad_x.size() == ref_grad_x.size());

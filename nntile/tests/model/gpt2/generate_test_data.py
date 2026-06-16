@@ -16,10 +16,10 @@ For each block the script creates ``gpt2_<block>.safetensors`` plus a paired
 
 Uses HuggingFace ``modeling_gpt2`` for all forward/backward references
 (``GPT2MLP``, ``GPT2Attention``, ``GPT2Block``, ``GPT2Model``,
-``GPT2LMHeadModel``) plus NumPy layout helpers. Safetensor arrays use
-graph shape labels matching the graph API. Reference forwards call
-HF modules (or ``eager_attention_forward`` from the same file for
-bidirectional attention without a causal mask).
+``GPT2LMHeadModel``) plus NumPy layout helpers. Weight tensors are reshaped to
+the graph module layout; reference forwards call HF modules (or
+``eager_attention_forward`` from the same file for bidirectional attention
+without a causal mask).
 """
 
 from __future__ import annotations
@@ -81,20 +81,6 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
-def _conv1d_attn_qkv_weight(
-    w_slice: np.ndarray, H: int, nh: int, hd: int,
-) -> np.ndarray:
-    """HF Conv1D Q/K/V slice ``(in, out)`` → graph ``(H, hd, nh)``."""
-    w = np.asarray(w_slice, dtype=np.float32).T.reshape(nh, hd, H)
-    return as_float32(w.transpose(2, 1, 0))
-
-
-def _conv1d_attn_o_weight(conv, H: int, nh: int, hd: int) -> np.ndarray:
-    """HF Conv1D ``c_proj`` ``(in, out)`` → graph ``o_weight`` ``(hd, nh, H)``."""
-    w = conv.weight.detach().numpy().T.reshape(H, nh, hd)
-    return as_float32(w.transpose(2, 1, 0))
-
-
 def _make_config(dims: TestDims) -> GPT2Config:
     return GPT2Config(
         n_embd=dims.hidden,
@@ -112,8 +98,8 @@ def _make_config(dims: TestDims) -> GPT2Config:
 
 
 def _lm_head_to_linear_weight(conv) -> np.ndarray:
-    """HF ``lm_head`` weight is already ``(vocab, hidden)`` (graph Linear)."""
-    return as_float32(conv.weight.detach().numpy())
+    """``lm_head`` Conv1D ``(vocab, hidden)`` → Linear ``(vocab, hidden)``."""
+    return as_float32(conv.weight.detach().numpy().T)
 
 
 def _conv1d_to_linear_weight(conv) -> np.ndarray:
@@ -140,21 +126,21 @@ def _gpt2_attn_weights(
     n_emb = dims.hidden
     hs = dims.head_size
     n_heads = dims.n_heads
-    q_arr = _conv1d_attn_qkv_weight(w[:, :n_emb], n_emb, n_heads, hs)
-    k_arr = _conv1d_attn_qkv_weight(w[:, n_emb:2 * n_emb], n_emb, n_heads, hs)
-    v_arr = _conv1d_attn_qkv_weight(
-        w[:, 2 * n_emb:3 * n_emb], n_emb, n_heads, hs,
-    )
-    o_arr = _conv1d_attn_o_weight(attn.c_proj, n_emb, n_heads, hs)
+    q_arr = w[:, :n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
+    k_arr = w[:, n_emb:2 * n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
+    v_arr = w[:, 2 * n_emb:3 * n_emb].reshape(n_emb, n_heads, hs).transpose(0, 2, 1)
+    o_arr = attn.c_proj.weight.detach().numpy().reshape(
+        n_heads, hs, n_emb,
+    ).transpose(1, 0, 2)
     bias = attn.c_attn.bias.detach().numpy()
-    b_q = bias[:n_emb].reshape(n_heads, hs)
-    b_k = bias[n_emb:2 * n_emb].reshape(n_heads, hs)
-    b_v = bias[2 * n_emb:3 * n_emb].reshape(n_heads, hs)
+    b_q = bias[:n_emb].reshape(n_heads, hs).transpose(1, 0)
+    b_k = bias[n_emb:2 * n_emb].reshape(n_heads, hs).transpose(1, 0)
+    b_v = bias[2 * n_emb:3 * n_emb].reshape(n_heads, hs).transpose(1, 0)
     return {
-        f"{prefix}.q_weight": q_arr,
-        f"{prefix}.k_weight": k_arr,
-        f"{prefix}.v_weight": v_arr,
-        f"{prefix}.o_weight": o_arr,
+        f"{prefix}.q_weight": as_float32(q_arr),
+        f"{prefix}.k_weight": as_float32(k_arr),
+        f"{prefix}.v_weight": as_float32(v_arr),
+        f"{prefix}.o_weight": as_float32(o_arr),
         f"{prefix}.q_bias": as_float32(b_q),
         f"{prefix}.k_bias": as_float32(b_k),
         f"{prefix}.v_bias": as_float32(b_v),
@@ -235,26 +221,20 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
-    """Causal mask for ``sdpa_eager`` (1 = keep), shape ``(seq, seq)``.
-
-    Logical ``mask[k, q] = (k <= q)``; store ``mask.T`` in graph so flat
-    bytes match storage ``mask[k + q * seq]`` expected at runtime bind.
-    """
-    allowed = np.zeros((seq, seq), dtype=np.float32)
-    for k in range(seq):
-        for q in range(seq):
-            if k <= q:
-                allowed[k, q] = 1.0
-    return as_float32(allowed.T)
+    kk = np.arange(seq, dtype=np.int64)[:, None]
+    qq = np.arange(seq, dtype=np.int64)[None, :]
+    allowed = (kk <= qq).astype(np.float32)
+    return as_float32(allowed)
 
 
 def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device,
 ) -> torch.Tensor:
-    upper = torch.triu(
-        torch.ones(seq, seq, device=device), diagonal=1,
-    )
-    mask_torch = upper * torch.finfo(torch.float32).min
+    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
+    mask_torch = torch.tensor(
+        np.array(1 - mask, dtype=np.float32),
+    ).T * torch.finfo(torch.float32).min
+    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
     return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
 
 

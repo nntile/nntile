@@ -58,7 +58,7 @@ void validate()
     Scalar alpha = 1.0;
     Index ignore_index = -1;
     starpu::total_sum_accum.submit<std::tuple<T>>(-1, alpha, src.shape[0],
-            logsumexp.nelems, ignore_index, logsumexp, src, class_labels, val);
+            logsumexp.nelems, ignore_index, 1, logsumexp, src, class_labels, val);
     total_sum_accum<T>(-1, alpha, logsumexp, src, class_labels, val_ref,
             ignore_index);
 

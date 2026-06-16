@@ -152,7 +152,7 @@ TEST_CASE("Module RecursiveParametersAndModules", "[module]")
     auto *parent_param =
         g.tensor({2, 2}, DataType::FP32)->set_name("parent_param");
     auto *child_param =
-        g.tensor({3, 4}, DataType::FP32)->set_name("child_param");
+        g.tensor({4, 3}, DataType::FP32)->set_name("child_param");
     parent.register_parameter("p", parent_param);
     child.register_parameter("w", child_param);
 

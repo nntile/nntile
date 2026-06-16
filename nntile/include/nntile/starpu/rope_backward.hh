@@ -45,8 +45,9 @@ public:
     //! Structure for operation arguments
     struct args_t
     {
-        Index m;
-        Index n;
+        Index nrows;
+        Index ncols;
+        Index sin_pair0;
     };
 
     //! Footprint function for the current operation
@@ -78,8 +79,9 @@ public:
     //! Submit rope_backward task
     void submit(
         int starpu_worker_hint,
-        Index m,
-        Index n,
+        Index nrows,
+        Index ncols,
+        Index sin_pair0,
         Handle sin,
         Handle cos,
         Handle dy,

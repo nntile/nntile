@@ -120,14 +120,14 @@ inline bool load_attn_mask_bool(nntile::NNGraph &g,
         return false;
     }
     const auto &info = reader.tensor_info(tensor_name);
-    if (info.shape.size() != 2 || info.shape[0] != n_q_seq ||
-        info.shape[1] != n_k_seq)
+    if (info.shape.size() != 2 || info.shape[0] != n_k_seq ||
+        info.shape[1] != n_q_seq)
     {
         throw std::runtime_error(
             "T5 test fixture: attention mask shape mismatch");
     }
     const auto n_el = static_cast<size_t>(n_k_seq * n_q_seq);
-    out_mask = g.tensor({n_q_seq, n_k_seq}, nntile::DataType::BOOL, false)
+    out_mask = g.tensor({n_k_seq, n_q_seq}, nntile::DataType::BOOL, false)
                    ->set_name(tensor_name);
     auto raw = reader.read_tensor(tensor_name);
     if (info.dtype == nntile::DataType::BOOL)

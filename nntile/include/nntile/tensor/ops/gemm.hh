@@ -36,7 +36,7 @@ namespace nntile::tensor
 //! @param trans_a Swap first ndim dimensions in A
 //! @param trans_b Swap first ndim dimensions in B
 //! @param ndim Number of contraction dimensions (default: 1)
-//! @param batch_ndim Leading batch rank shared by A and B (shape[0:batch_ndim))
+//! @param batch_ndim Number of leading batch dimensions (default: 0)
 //! @return Output shape for the gemm result
 std::vector<Index> gemm_output_shape(const std::vector<Index> &a_shape,
     const std::vector<Index> &b_shape,
@@ -99,7 +99,7 @@ struct TensorGemmOp : TensorGraph::OpNode
 //! @param trans_a Transpose A (default: false)
 //! @param trans_b Transpose B (default: false)
 //! @param ndim Number of contraction dimensions (default: 1)
-//! @param batch_ndim Leading batch rank shared by A and B (shape[0:batch_ndim))
+//! @param batch_ndim Number of leading batch dimensions (default: 0)
 //! @return Pointer to the output tensor
 TensorGraph::TensorNode *gemm(TensorGraph::TensorNode *a,
     TensorGraph::TensorNode *b,
@@ -118,7 +118,7 @@ TensorGraph::TensorNode *gemm(TensorGraph::TensorNode *a,
 //! @param trans_a Transpose A (default: false)
 //! @param trans_b Transpose B (default: false)
 //! @param ndim Number of contraction dimensions (default: 1)
-//! @param batch_ndim Leading batch rank shared by A and B (shape[0:batch_ndim))
+//! @param batch_ndim Number of leading batch dimensions (default: 0)
 void gemm(TensorGraph::TensorNode *a,
     TensorGraph::TensorNode *b,
     TensorGraph::TensorNode *c,

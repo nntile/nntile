@@ -32,7 +32,7 @@ reference bundles). ``attention`` / ``attention_gqa`` use
 Attention ``q_weight`` / ``k_weight`` / ``v_weight`` / ``o_weight`` are the
 same numeric values as HuggingFace ``Linear`` weights, reshaped to the 3D/4D
 layouts expected by the graph module, then passed through :func:`as_float32`.
-So byte layout matches NNTile graph tiles. PyTorch runs forward and backward
+So byte layout matches NNTile C-order tiles. PyTorch runs forward and backward
 with the **original** HF weights (no in-place Q/K rewrite).
 
 For ``attention`` / ``attention_gqa`` blocks, Q/K/V/O weights use the same
@@ -46,7 +46,7 @@ the first half-channels of ``LlamaRotaryEmbedding`` cos/sin in
 
 Optional causal self-attention matches ``test_llama_attention``: additive
 ``attention_mask`` from the upper-triangular bool pattern; the graph tests
-load ``attn_mask`` as float32 ``(seq, seq)`` in graph (1 = keep
+load ``attn_mask`` as float32 ``(seq, seq)`` in C-order (1 = keep
 logits), converted to BOOL in C++ for ``sdpa_eager`` masking.
 
 Extra MHA/GQA safetensors (identity RoPE / causal / both) are written by
@@ -67,7 +67,7 @@ The ``mlp`` block likewise writes ``llama_mlp.json`` next to
 counts, ``sequence_length``, ``batch``, tolerances) for ``test_llama_mlp``.
 
 The ``decoder`` / ``decoder_gqa`` bundles add ``rope_cos`` / ``rope_sin`` in
-the same layout as the attention tests (first half-channels, graph),
+the same layout as the attention tests (first half-channels, C-order),
 plus ``llama_decoder.json`` / ``llama_decoder_gqa.json`` for
 ``test_llama_decoder``.
 
@@ -91,7 +91,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from safetensors.numpy import load_file, save_file
+from safetensors.numpy import save_file
 from transformers import LlamaConfig
 from transformers.models.llama.modeling_llama import (
     LlamaAttention as PtAttention, LlamaDecoderLayer as PtDecoderLayer,
@@ -197,73 +197,42 @@ def _linear(linear: torch.nn.Linear) -> np.ndarray:
     return as_float32(linear.weight.detach().numpy())
 
 
-def _reverse_axes(arr: np.ndarray) -> np.ndarray:
-    """Map PT head layout to graph layout by reversing axis labels."""
-    axes = tuple(range(arr.ndim - 1, -1, -1))
-    return as_float32(np.asarray(arr, dtype=np.float32).transpose(axes))
-
-
-def _rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
-    if axis == 0:
-        new_shape = (1, x.shape[0], int(np.prod(x.shape[1:])))
-    elif axis == x.ndim - 1:
-        new_shape = (int(np.prod(x.shape[:-1])), x.shape[-1], 1)
-    else:
-        new_shape = (
-            int(np.prod(x.shape[:axis])),
-            x.shape[axis],
-            int(np.prod(x.shape[axis + 1:])),
-        )
-    x_reshaped = x.reshape(new_shape)
-    mid = x.shape[axis] // 2
-    y_reshaped = np.empty_like(x_reshaped)
-    y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
-    y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
-    return y_reshaped.reshape(x.shape)
-
-
 def _attention_weight_arrays(
     attn: PtAttention, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """HF Q/K/V/O reshaped to graph ``LlamaAttention`` graph layouts."""
+    """HF Q/K/V/O reshaped to graph ``LlamaAttention`` layouts."""
     q = attn.q_proj.weight.detach().numpy()
     k = attn.k_proj.weight.detach().numpy()
     v = attn.v_proj.weight.detach().numpy()
     o = attn.o_proj.weight.detach().numpy()
     n_emb = q.shape[1]
-    hd = dims.head_size
-    kv = dims.kv_heads
-    nh = dims.n_heads
-    gs = dims.kv_group_size
 
     if dims.use_gqa:
-        q_arr = q.reshape(kv, gs, hd, n_emb).transpose(1, 0, 2, 3)
-        o_arr = np.moveaxis(o.reshape(n_emb, kv, gs, hd), 1, 2)
+        q_arr = q.reshape(
+            dims.kv_heads, dims.kv_group_size, dims.head_size, n_emb,
+        ).transpose(3, 2, 0, 1)
+        k_arr = k.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
+        v_arr = v.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
+        o_arr = o.reshape(
+            dims.kv_heads, dims.kv_group_size, dims.head_size, n_emb,
+        ).transpose(2, 0, 1, 3)
     else:
-        q_arr = q.reshape(nh, hd, n_emb)
-        o_arr = o.reshape(n_emb, nh, hd)
+        q_arr = q.reshape(n_emb, dims.n_heads, dims.head_size).transpose(0, 2, 1)
+        k_arr = k.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
+        v_arr = v.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
+        o_arr = o.reshape(dims.n_heads, dims.head_size, n_emb).transpose(1, 0, 2)
 
-    k_arr = k.reshape(kv, hd, n_emb)
-    v_arr = v.reshape(kv, hd, n_emb)
-
-    q_arr = _rotate_tensor_in(np.asarray(q_arr, dtype=np.float32), q_arr.ndim - 2)
-    k_arr = _rotate_tensor_in(np.asarray(k_arr, dtype=np.float32), 1)
-
-    q_c = _reverse_axes(q_arr)
-    k_c = _reverse_axes(k_arr)
-    v_c = _reverse_axes(v_arr)
-    o_c = _reverse_axes(o_arr)
-    return q_c, k_c, v_c, o_c
+    return q_arr, k_arr, v_arr, o_arr
 
 
 def _attn(attn: PtAttention, prefix: str, dims: TestDims) -> \
     dict[str, np.ndarray]:
     q_arr, k_arr, v_arr, o_arr = _attention_weight_arrays(attn, dims)
     return {
-        f"{prefix}.q_weight": q_arr,
-        f"{prefix}.k_weight": k_arr,
-        f"{prefix}.v_weight": v_arr,
-        f"{prefix}.o_weight": o_arr,
+        f"{prefix}.q_weight": as_float32(q_arr),
+        f"{prefix}.k_weight": as_float32(k_arr),
+        f"{prefix}.v_weight": as_float32(v_arr),
+        f"{prefix}.o_weight": as_float32(o_arr),
     }
 
 
@@ -356,20 +325,20 @@ def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device, dtype: torch.dtype,
 ) -> torch.Tensor:
     """HF additive mask (4D), same construction as ``test_llama_attention``."""
-    upper = torch.triu(
-        torch.ones(seq, seq, device=device), diagonal=1,
-    )
-    mask_torch = upper * torch.finfo(torch.float32).min
-    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1).to(dtype=dtype)
+    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
+    mask_torch = torch.tensor(
+        np.array(1 - mask, dtype=np.float32),
+    ).T * torch.finfo(torch.float32).min
+    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
+    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1). \
+        to(dtype=dtype)
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
-    allowed = np.zeros((seq, seq), dtype=np.float32)
-    for k in range(seq):
-        for q in range(seq):
-            if k <= q:
-                allowed[k, q] = 1.0
-    return as_float32(allowed.T)
+    kk = np.arange(seq, dtype=np.int64)[:, None]
+    qq = np.arange(seq, dtype=np.int64)[None, :]
+    allowed = (kk <= qq).astype(np.float32)
+    return as_float32(allowed)
 
 
 # ── Block generators ─────────────────────────────────────────────────----

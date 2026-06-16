@@ -14,23 +14,20 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/randn.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 #include "nntile/core/randn.hh"
 #include "nntile/core/tile.hh"
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]")
 {
-    const std::vector<Index> stor_sh = {3,4,5};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
+    const std::vector<Index> sh = {3,4,5};
     const std::vector<Index> st = {1,1,1}, us = {5,6,7};
     const unsigned long long seed = static_cast<unsigned long long>(-1);
     const Scalar mean = 1.0, std = 2.0;
     TileGraph g("g");
-    auto* d = g.data(graph_sh, "d", DataType::FP32);
+    auto* d = g.data(sh, "d", DataType::FP32);
     d->mark_input(true);
     d->mark_output(true);
     tg::randn(d, st, us, seed, mean, std);
@@ -41,7 +38,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]
     r.execute();
     r.wait();
     const auto gout = r.get_output<float>(d);
-    nntile::core::Tile<fp32_t> Td(stor_sh);
+    nntile::core::Tile<fp32_t> Td(sh);
     nntile::core::randn<fp32_t>(-1, Td, st, us, seed, mean, std);
     starpu_task_wait_for_all();
     std::vector<float> tref(60);

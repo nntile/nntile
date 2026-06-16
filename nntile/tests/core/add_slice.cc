@@ -56,12 +56,12 @@ void check(Scalar alpha, Scalar beta, Index axis)
     dr.release();
 
     Index m = 1;
-    for(Index i = 0; i < axis; ++i)
+    for(Index i = axis+1; i < dst.ndim; ++i)
     {
         m *= dst.shape[i];
     }
     Index n = 1;
-    for(Index i = axis+1; i < dst.ndim; ++i)
+    for(Index i = 0; i < axis; ++i)
     {
         n *= dst.shape[i];
     }

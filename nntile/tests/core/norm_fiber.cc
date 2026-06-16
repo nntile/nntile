@@ -28,7 +28,7 @@ void check()
     int redux = 0;
     Index batch_ndim = 0;
     int axis = 0;
-    Tile<T> src1({5, 3, 20, 1});
+    Tile<T> src1({5, 1, 20, 3});
     Tile<T> src2({5});
     Tile<T> dst({5});
     Tile<T> dst_ref({5});
@@ -55,8 +55,8 @@ void check()
     dr.release();
 
     Index batch = dst.matrix_shape[1][1];
-    Index m = src1.stride[axis];
-    Index n = src1.matrix_shape[axis+1][1] / batch;
+    Index m = src1.matrix_shape[axis+1][1];
+    Index n = src1.matrix_shape[axis][0] / batch;
     Index k = src1.shape[axis];
     starpu::norm_fiber.submit<std::tuple<T>>(-1, m, n, k, batch, alpha, src1, beta,
             src2, dst, redux);

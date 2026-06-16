@@ -24,8 +24,8 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<bool_t> mask({2, 3});
-    Tile<T> data({2, 3}), data_ref({2, 3});
+    Tile<bool_t> mask({3, 2});
+    Tile<T> data({3, 2}), data_ref({3, 2});
     auto ml = mask.acquire(STARPU_W);
     auto dl = data.acquire(STARPU_W);
     auto drl = data_ref.acquire(STARPU_W);

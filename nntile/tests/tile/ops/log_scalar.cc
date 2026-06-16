@@ -15,7 +15,6 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/log_scalar.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,7 +22,6 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph log_scalar runs", "[graph][tile]")
 {

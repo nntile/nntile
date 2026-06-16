@@ -45,11 +45,8 @@ NNGraph::TensorNode *NNTransposeOp::forward()
     }
     NNGraph *graph = src->graph();
     bool out_requires_grad = any_input_requires_grad({src});
-    // Model code passes storage-order transpose axes; TensorGraph uses graph
-    // axes (C-order outermost first).
-    const Index tensor_ndim = src->ndim() - ndim;
     TensorGraph::TensorNode *output_data =
-        tensor::transpose(1.0, src->data(), tensor_ndim);
+        tensor::transpose(1.0, src->data(), ndim);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
@@ -79,10 +76,15 @@ void NNTransposeOp::backward() const
     {
         auto [grad_src, is_first] =
             graph->get_or_create_grad(src, nn_grad_slot_name(src));
+        Index inv_ndim = src->ndim() - ndim;
+        if (inv_ndim <= 0)
+        {
+            inv_ndim += src->ndim();
+        }
         if (is_first)
         {
             tensor::transpose(
-                1.0, grad_out->data(), grad_src->data(), ndim);
+                1.0, grad_out->data(), grad_src->data(), inv_ndim);
         }
         else
         {
@@ -94,7 +96,7 @@ void NNTransposeOp::backward() const
                     "NNTransposeOp::backward: gradient buffer is missing");
             }
             tensor::transpose(
-                1.0, grad_out->data(), grad_buf->data(), ndim);
+                1.0, grad_out->data(), grad_buf->data(), inv_ndim);
             tensor::add_inplace(
                 1.0, grad_buf->data(), grad_accumulate, grad_src->data());
         }

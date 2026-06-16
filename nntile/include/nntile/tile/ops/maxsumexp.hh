@@ -24,7 +24,6 @@ namespace nntile::tile
 //! MaxSumExp operation: dst = maxsumexp(src, axis)
 struct TileMaxsumexpOp : TileGraph::OpNode
 {
-//! axis: graph axis index (0 = outermost); execute converts for core kernels.
     Index axis = 0;
     int redux = 0;
     TileGraph::TileNode* src = nullptr;
@@ -42,6 +41,5 @@ struct TileMaxsumexpOp : TileGraph::OpNode
         return std::make_shared<TileMaxsumexpOp>(*this);
     }
 };
-//! @param axis graph axis index on src (0 = outermost); converted at execute.
 void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, int redux = 0);
 } // namespace nntile::tile

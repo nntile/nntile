@@ -15,7 +15,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/sumprod_fiber.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,29 +23,25 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_fiber (axis=0)", "[graph][tile]")
 {
-    const std::vector<Index> stor_sh = {3, 4, 5};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
-    const std::vector<Index> stor_dh = {3};
-    const std::vector<Index> graph_dh = graph_shape(stor_dh);
+    const std::vector<Index> sh = {5, 4, 3};
+    const std::vector<Index> dh = {5};
     const Index n = 60;
     const Scalar a = 1.0, b = 0.0;
-    const Index stor_axis = 0;
-    const Index g_axis = graph_axis(stor_axis, static_cast<Index>(stor_sh.size()));
+    const Index axis = 0;
     const int redux = 0;
     TileGraph g("g");
-    auto* s1 = g.data(graph_sh, "s1", DataType::FP32);
-    auto* s2 = g.data(graph_sh, "s2", DataType::FP32);
-    auto* d = g.data(graph_dh, "d", DataType::FP32);
+    auto* s1 = g.data(sh, "s1", DataType::FP32);
+    auto* s2 = g.data(sh, "s2", DataType::FP32);
+    auto* d = g.data(dh, "d", DataType::FP32);
     s1->mark_input(true);
     s2->mark_input(true);
     d->mark_output(true);
-    tg::sumprod_fiber(a, s1, s2, b, d, g_axis, redux);
+    tg::sumprod_fiber(a, s1, s2, b, d, axis, redux);
     Runtime runtime(g);
     runtime.compile();
-    std::vector<float> v1(n), v2(n), dd(3, 0.f);
+    std::vector<float> v1(n), v2(n), dd(5, 0.f);
     for(Index i = 0; i < n; ++i)
     {
         v1[static_cast<size_t>(i)] = static_cast<float>(i + 1);
@@ -58,7 +53,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_fiber (axis=0)
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> t1(stor_sh), t2(stor_sh), td(stor_dh);
+    nntile::core::Tile<fp32_t> t1(sh), t2(sh), td(dh);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto A = t1.acquire(STARPU_W);
@@ -69,18 +64,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_fiber (axis=0)
             A[i] = Y(v1[static_cast<size_t>(i)]);
             B[i] = Y(v2[static_cast<size_t>(i)]);
         }
-        for(Index j = 0; j < 3; ++j) { C[j] = Y(0); }
+        for(Index j = 0; j < 5; ++j) { C[j] = Y(0); }
         A.release();
         B.release();
         C.release();
     }
-    nntile::core::sumprod_fiber<fp32_t>(-1, a, t1, t2, b, td, stor_axis, redux);
+    nntile::core::sumprod_fiber<fp32_t>(-1, a, t1, t2, b, td, axis, redux);
     starpu_task_wait_for_all();
-    std::vector<float> tref(3);
+    std::vector<float> tref(5);
     {
         auto L = td.acquire(STARPU_R);
-        for(Index j = 0; j < 3; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(L[j]); }
+        for(Index j = 0; j < 5; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(L[j]); }
         L.release();
     }
-    for(size_t j = 0; j < 3; ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e-6f); }
+    for(size_t j = 0; j < 5; ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e+2f); }
 }

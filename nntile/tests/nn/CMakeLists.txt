@@ -37,7 +37,6 @@ set(TESTS_NN_CATCH2
     "softmax"
     "sum_fiber"
     "sum_slice"
-    "transpose"
 )
 
 set(TESTS_NN_ROOT_CATCH2

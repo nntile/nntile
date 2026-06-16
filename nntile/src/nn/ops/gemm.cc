@@ -65,6 +65,8 @@ void NNGemmOp::backward() const
         auto [grad_a, is_first] =
             graph->get_or_create_grad(a, nn_grad_slot_name(a));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
+        Index const spatial_ndim =
+            b->ndim() - batch_ndim - ndim;
         if (!trans_a)
         {
             tensor::gemm(grad_out->data(),
@@ -74,20 +76,35 @@ void NNGemmOp::backward() const
                 beta,
                 false,
                 !trans_b,
-                b->ndim() - batch_ndim - ndim,
+                spatial_ndim,
                 batch_ndim);
         }
         else
         {
-            tensor::gemm(b->data(),
-                grad_out->data(),
-                grad_a->data(),
-                alpha,
-                beta,
-                trans_b,
-                true,
-                b->ndim() - batch_ndim - ndim,
-                batch_ndim);
+            if (trans_b)
+            {
+                tensor::gemm(b->data(),
+                    grad_out->data(),
+                    grad_a->data(),
+                    alpha,
+                    beta,
+                    false,
+                    false,
+                    spatial_ndim,
+                    batch_ndim);
+            }
+            else
+            {
+                tensor::gemm(b->data(),
+                    grad_out->data(),
+                    grad_a->data(),
+                    alpha,
+                    beta,
+                    true,
+                    false,
+                    spatial_ndim,
+                    batch_ndim);
+            }
         }
     }
     if (b != nullptr && b->requires_grad())
@@ -97,27 +114,45 @@ void NNGemmOp::backward() const
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if (!trans_b)
         {
-            tensor::gemm(a->data(),
-                grad_out->data(),
-                grad_b->data(),
-                alpha,
-                beta,
-                !trans_a,
-                false,
-                a->ndim() - batch_ndim - ndim,
-                batch_ndim);
-        }
-        else
-        {
+            const bool grad_b_trans_b = trans_a ? false : true;
             tensor::gemm(grad_out->data(),
                 a->data(),
                 grad_b->data(),
                 alpha,
                 beta,
                 true,
-                trans_a,
-                a->ndim() - batch_ndim - ndim,
+                grad_b_trans_b,
+                ndim,
                 batch_ndim);
+        }
+        else
+        {
+            if (trans_a)
+            {
+                tensor::gemm(a->data(),
+                    grad_out->data(),
+                    grad_b->data(),
+                    alpha,
+                    beta,
+                    false,
+                    true,
+                    ndim,
+                    batch_ndim);
+            }
+            else
+            {
+                const Index grad_b_ndim =
+                    a->ndim() - batch_ndim - ndim;
+                tensor::gemm(a->data(),
+                    grad_out->data(),
+                    grad_b->data(),
+                    alpha,
+                    beta,
+                    true,
+                    true,
+                    grad_b_ndim,
+                    batch_ndim);
+            }
         }
     }
 }

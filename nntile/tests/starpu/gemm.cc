@@ -25,30 +25,6 @@ using namespace nntile;
 using namespace nntile::starpu;
 
 #ifdef NNTILE_USE_CBLAS
-// Overloaded call to CBLAS GEMM
-static inline
-void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const fp32_t *A,
-        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, float beta, fp32_t *C,
-        CBLAS_INT ldC)
-    noexcept
-{
-    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha,
-            (const float *)A, ldA, (const float *)B, ldB, beta, (float *)C, ldC);
-}
-
-// Overloaded call to CBLAS GEMM
-static inline
-void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const fp64_t *A,
-        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, double beta, fp64_t *C,
-        CBLAS_INT ldC)
-    noexcept
-{
-    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha,
-            (const double *)A, ldA, (const double *)B, ldB, beta, (double *)C, ldC);
-}
-
 template<typename T>
 void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
         Index batch, Scalar alpha, Scalar beta)
@@ -70,35 +46,10 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     }
     // Create copy of C
     std::vector<T> C2(C);
-    // Launch low-level kernel
-    CBLAS_TRANSPOSE transA_, transB_;
-    Index ldA, ldB;
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            transA_ = CblasNoTrans;
-            ldA = m;
-            break;
-        case TransOp::Trans:
-            transA_ = CblasTrans;
-            ldA = k;
-    }
-    switch(transB.value)
-    {
-        case TransOp::NoTrans:
-            transB_ = CblasNoTrans;
-            ldB = k;
-            break;
-        case TransOp::Trans:
-            transB_ = CblasTrans;
-            ldB = n;
-    }
-    std::cout << "Run cblas_gemm<" << T::short_name << ">\n";
-    for(Index b = 0; b < batch; ++b)
-    {
-        cblas_gemm(transA_, transB_, m, n, k, alpha, &A[b*m*k], ldA, &B[b*n*k],
-                ldB, beta, &C[b*m*n], m);
-    }
+    // Launch low-level kernel (C-order row-major mapping)
+    std::cout << "Run kernel::cblas::gemm<" << T::short_name << ">\n";
+    kernel::cblas::gemm<T>(
+        transA, transB, m, n, k, batch, alpha, &A[0], &B[0], beta, &C[0]);
     // Check by actually submitting a task
     VariableHandle A_handle(&A[0], sizeof(T)*A.size()),
         B_handle(&B[0], sizeof(T)*B.size()),
@@ -290,6 +241,11 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
 template<typename T>
 void validate_cuda_many()
 {
+    int n_dev = 0;
+    if(cudaGetDeviceCount(&n_dev) != cudaSuccess || n_dev == 0)
+    {
+        return;
+    }
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     TransOp trans[2] = {opN, opT};
     Scalar alpha[3] = {0, 1, -3};
@@ -317,7 +273,7 @@ void validate_cuda_many()
 int main(int argc, char **argv)
 {
     // Initialize StarPU (it will automatically shutdown itself on exit)
-    int ncpus=1, ncuda=1, ooc=0, verbose=0;
+    int ncpus=1, ncuda=0, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
     auto context = Context(ncpus, ncuda, ooc, ooc_path, ooc_size, verbose);
@@ -328,8 +284,12 @@ int main(int argc, char **argv)
     validate_cpu_many<fp64_t>();
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-    validate_cuda_many<fp32_t>();
-    validate_cuda_many<fp64_t>();
+    int n_dev = 0;
+    if(cudaGetDeviceCount(&n_dev) == cudaSuccess && n_dev > 0)
+    {
+        validate_cuda_many<fp32_t>();
+        validate_cuda_many<fp64_t>();
+    }
 #endif // NNTILE_USE_CUDA
 
     return 0;

@@ -27,11 +27,7 @@
 namespace nntile
 {
 
-//! Transpose op: cyclic shift of dimensions.
-//!
-//! ``ndim`` uses **storage-order** axis semantics (matching graph model code):
-//! NN ``forward`` calls ``tensor::transpose(..., src->ndim() - ndim)``; backward
-//! uses ``tensor::transpose(..., ndim)`` as the inverse.
+//! Transpose op: cyclic shift of dimensions. PyTorch-style.
 struct NNTransposeOp : NNGraph::OpNode
 {
     Index ndim;
@@ -47,7 +43,7 @@ struct NNTransposeOp : NNGraph::OpNode
     void backward() const override;
 };
 
-//! Transpose: cyclic shift by ``ndim`` storage-order axes (see ``NNTransposeOp``).
+//! Transpose: cyclic shift by ndim dimensions
 NNGraph::TensorNode *transpose(NNGraph::TensorNode *src, Index ndim);
 
 } // namespace nntile

@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file nntile/tests/model/safetensors_nntile_layout.cc
- * Unit tests for SafeTensors graph → NNTile layout conversion.
+ * Unit tests for SafeTensors C-order → NNTile layout conversion.
  *
  * @version 1.1.0
  * */
@@ -13,17 +13,16 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using nntile::test::safetensors_nntile_layout::
-    copy_safetensors_to_nntile_layout;
+using nntile::test::safetensors_nntile_layout::c_safetensors_to_nntile_fortran;
 
 TEST_CASE(
-    "copy_safetensors_to_nntile_layout copies 2-D graph payload",
+    "c_safetensors_to_nntile_fortran copies 2-D C-order payload",
     "[model][layout]")
 {
     const std::vector<std::int64_t> shape{2, 3};
     const std::vector<float> raw{0.f, 1.f, 2.f, 3.f, 4.f, 5.f};
     std::vector<float> out;
-    copy_safetensors_to_nntile_layout(
+    c_safetensors_to_nntile_fortran(
         reinterpret_cast<const std::uint8_t *>(raw.data()),
         shape,
         out);
@@ -37,7 +36,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "copy_safetensors_to_nntile_layout copies 3-D graph payload",
+    "c_safetensors_to_nntile_fortran copies 3-D C-order payload",
     "[model][layout]")
 {
     const std::vector<std::int64_t> shape{2, 2, 2};
@@ -47,7 +46,7 @@ TEST_CASE(
         raw[i] = static_cast<float>(i);
     }
     std::vector<float> out;
-    copy_safetensors_to_nntile_layout(
+    c_safetensors_to_nntile_fortran(
         reinterpret_cast<const std::uint8_t *>(raw.data()),
         shape,
         out);

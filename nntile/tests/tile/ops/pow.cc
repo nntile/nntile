@@ -13,7 +13,6 @@
  * */
 
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "mixed_tile_common.hh"
 
 #include <catch2/catch_test_macros.hpp>

@@ -60,14 +60,14 @@ TEST_CASE("TensorGraph multiply_fiber structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_4, dim_2})->set_name("tensor");
+    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
 
     auto *out =
-        gt::multiply_fiber(alpha_one, fiber, tensor, axis_0)->set_name("out");
+        gt::multiply_fiber(alpha_one, fiber, tensor, axis_1)->set_name("out");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(out->shape() == (std::vector<Index>{dim_4, dim_2}));
+    REQUIRE(out->shape() == (std::vector<Index>{dim_2, dim_4}));
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "MULTIPLY_FIBER");
@@ -81,10 +81,10 @@ TEST_CASE(
 {
     TensorGraph graph("test");
     auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_4, dim_2})->set_name("tensor");
+    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
 
     REQUIRE_THROWS_AS(
-        gt::multiply_fiber(alpha_one, fiber, tensor, tensor, axis_0),
+        gt::multiply_fiber(alpha_one, fiber, tensor, tensor, axis_1),
         std::invalid_argument);
 }
 
@@ -93,8 +93,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [tensor_shape, axis, alpha] =
-        GENERATE(std::tuple{std::vector<Index>{4, 2}, Index(1), 1.0},
-            std::tuple{std::vector<Index>{4, 2}, Index(0), 1.0});
+        GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
+            std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

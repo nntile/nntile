@@ -61,9 +61,9 @@ TEST_CASE("TensorGraph conv2d_bwd_input_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *dy = graph.data({2, 2, 3, 3})->set_name("dy");
+    auto *dy = graph.data({3, 3, 2, 2})->set_name("dy");
     auto *kernel = graph.data({2, 2, 2, 2})->set_name("kernel");
-    auto *dx = graph.data({2, 2, 4, 4})->set_name("dx");
+    auto *dx = graph.data({4, 4, 2, 2})->set_name("dx");
 
     gt::conv2d_bwd_input_inplace(
         1.0, dy, kernel, 0.0, dx, {0, 0}, {1, 1}, {1, 1});
@@ -82,9 +82,9 @@ TEST_CASE("TensorGraph conv2d_bwd_input_inplace rejects null tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *dy = graph.data({2, 2, 3, 3})->set_name("dy");
+    auto *dy = graph.data({3, 3, 2, 2})->set_name("dy");
     auto *kernel = graph.data({2, 2, 2, 2})->set_name("kernel");
-    auto *dx = graph.data({2, 2, 4, 4})->set_name("dx");
+    auto *dx = graph.data({4, 4, 2, 2})->set_name("dx");
 
     REQUIRE_THROWS_AS(
         gt::conv2d_bwd_input_inplace(
@@ -94,3 +94,4 @@ TEST_CASE("TensorGraph conv2d_bwd_input_inplace rejects null tensors",
                           1.0, dy, nullptr, 0.0, dx, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
 }
+

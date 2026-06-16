@@ -16,8 +16,7 @@ For each block the script creates ``gptneo_<block>.safetensors`` plus a paired
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neo``) for module weights and
 forward/backward references plus NumPy layout helpers for NNTile safetensors —
-no custom GPT-Neo reimplementation. Safetensor arrays use graph shape
-labels matching the graph API.
+no custom GPT-Neo reimplementation.
 
 Attention references call HF ``q_proj`` / ``k_proj`` / ``v_proj`` /
 ``out_proj`` and ``scaled_dot_product_attention`` so they match graph
@@ -92,11 +91,6 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
-def _linear(linear: torch.nn.Linear) -> np.ndarray:
-    """PT Linear ``(out, in)`` → graph weight ``[out, in]``."""
-    return as_float32(linear.weight.detach().numpy())
-
-
 def _make_config(dims: TestDims) -> GPTNeoConfig:
     return GPTNeoConfig(
         vocab_size=dims.vocab,
@@ -135,31 +129,31 @@ def _hf_gptneo_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
     return mlp(x_pt)
 
 
-def _linear_attn_qkv_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> np.ndarray:
-    """HF ``Linear`` ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``."""
-    w = linear.weight.detach().numpy().reshape(nh, hd, H)
-    return as_float32(w.transpose(2, 1, 0))
-
-
-def _linear_attn_o_weight(linear: torch.nn.Linear, H: int, nh: int, hd: int) -> np.ndarray:
-    """HF ``Linear`` ``(out, in)`` → graph ``o_weight`` ``(hd, nh, H)``."""
-    w = linear.weight.detach().numpy().reshape(H, nh, hd)
-    return as_float32(w.transpose(2, 1, 0))
-
-
 def _gptneo_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF q/k/v/out_proj to NNTile graph attention layouts."""
+    """Map HF q/k/v/out_proj to NNTile layouts (see ``gptneo_generate.py``)."""
     inner = attn.attention
     H = dims.hidden
     nh = dims.n_heads
     hd = dims.head_size
     return {
-        f"{prefix}.q_weight": _linear_attn_qkv_weight(inner.q_proj, H, nh, hd),
-        f"{prefix}.k_weight": _linear_attn_qkv_weight(inner.k_proj, H, nh, hd),
-        f"{prefix}.v_weight": _linear_attn_qkv_weight(inner.v_proj, H, nh, hd),
-        f"{prefix}.o_weight": _linear_attn_o_weight(inner.out_proj, H, nh, hd),
+        f"{prefix}.q_weight": as_float32(
+            inner.q_proj.weight.detach().numpy().reshape(
+                H, nh, hd,
+            ).transpose(0, 2, 1)),
+        f"{prefix}.k_weight": as_float32(
+            inner.k_proj.weight.detach().numpy().reshape(
+                H, nh, hd,
+            ).transpose(0, 2, 1)),
+        f"{prefix}.v_weight": as_float32(
+            inner.v_proj.weight.detach().numpy().reshape(
+                H, nh, hd,
+            ).transpose(0, 2, 1)),
+        f"{prefix}.o_weight": as_float32(
+            inner.out_proj.weight.detach().numpy().reshape(
+                nh, hd, H,
+            ).transpose(1, 0, 2)),
         f"{prefix}.o_bias": as_float32(
             inner.out_proj.bias.detach().numpy()),
     }
@@ -167,8 +161,10 @@ def _gptneo_attn_weights(
 
 def _gptneo_mlp_weights(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
-        f"{prefix}.fc1.weight": _linear(mlp.c_fc),
-        f"{prefix}.fc2.weight": _linear(mlp.c_proj),
+        f"{prefix}.fc1.weight": as_float32(
+            mlp.c_fc.weight.detach().numpy()),
+        f"{prefix}.fc2.weight": as_float32(
+            mlp.c_proj.weight.detach().numpy()),
     }
 
 
@@ -200,7 +196,7 @@ def _model_weights(
 
 
 def _lm_head_to_linear_weight(lm) -> np.ndarray:
-    return _linear(lm)
+    return as_float32(lm.weight.detach().numpy())
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
@@ -239,27 +235,17 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
-    """Causal mask for ``sdpa_eager`` (1 = keep), shape ``(seq, seq)``.
-
-    Logical ``mask[k, q] = (k <= q)``; store ``mask.T`` in graph so flat
-    bytes match the legacy storage-labelled ``(seq, seq)`` bind layout.
-    """
-    allowed = np.zeros((seq, seq), dtype=np.float32)
-    for k in range(seq):
-        for q in range(seq):
-            if k <= q:
-                allowed[k, q] = 1.0
-    return as_float32(allowed.T)
+    kk = np.arange(seq, dtype=np.int64)[:, None]
+    qq = np.arange(seq, dtype=np.int64)[None, :]
+    allowed = (kk <= qq).astype(np.float32)
+    return as_float32(allowed)
 
 
 def _sdpa_gptneo_local_mask(seq: int, window: int) -> np.ndarray:
-    """Local attention mask (1 = keep), shape ``(seq, seq)`` in graph."""
-    allowed = np.zeros((seq, seq), dtype=np.float32)
-    for k in range(seq):
-        for q in range(seq):
-            if k <= q and (q - k) < window:
-                allowed[k, q] = 1.0
-    return as_float32(allowed.T)
+    kk = np.arange(seq, dtype=np.int64)[:, None]
+    qq = np.arange(seq, dtype=np.int64)[None, :]
+    allowed = ((kk <= qq) & (qq - kk < window)).astype(np.float32)
+    return as_float32(allowed)
 
 
 def _local_additive_mask_torch(
@@ -274,10 +260,11 @@ def _local_additive_mask_torch(
 def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device,
 ) -> torch.Tensor:
-    upper = torch.triu(
-        torch.ones(seq, seq, device=device), diagonal=1,
-    )
-    mask_torch = upper * torch.finfo(torch.float32).min
+    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
+    mask_torch = torch.tensor(
+        np.array(1 - mask, dtype=np.float32),
+    ).T * torch.finfo(torch.float32).min
+    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
     return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
 
 

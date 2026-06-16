@@ -15,7 +15,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/multiply_fiber.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,26 +23,22 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches tile", "[graph][tile]")
 {
-    const std::vector<Index> stor_full = {3, 4, 5};
-    const std::vector<Index> graph_full = graph_shape(stor_full);
-    const std::vector<Index> stor_fib = {5};
-    const std::vector<Index> graph_fib = graph_shape(stor_fib);
+    const std::vector<Index> full = {5, 4, 3};
+    const std::vector<Index> fib = {3};
     const Index nfull = 3 * 4 * 5;
-    const Index nfib = 5;
-    const Index stor_axis = 2;
-    const Index g_axis = graph_axis(stor_axis, static_cast<Index>(stor_full.size()));
+    const Index nfib = 3;
+    const Index axis = 2;
     const Scalar alpha = 1.0;
     TileGraph g("g");
-    auto* s1 = g.data(graph_fib, "s1", DataType::FP32);
-    auto* s2 = g.data(graph_full, "s2", DataType::FP32);
-    auto* d = g.data(graph_full, "d", DataType::FP32);
+    auto* s1 = g.data(fib, "s1", DataType::FP32);
+    auto* s2 = g.data(full, "s2", DataType::FP32);
+    auto* d = g.data(full, "d", DataType::FP32);
     s1->mark_input(true);
     s2->mark_input(true);
     d->mark_output(true);
-    tg::multiply_fiber(alpha, s1, s2, d, g_axis);
+    tg::multiply_fiber(alpha, s1, s2, d, axis);
     Runtime runtime(g);
     runtime.compile();
     std::vector<float> f1(nfib), f2(nfull), f3(nfull, 0.f);
@@ -55,7 +50,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> t1(stor_fib), t2(stor_full), dst(stor_full);
+    nntile::core::Tile<fp32_t> t1(fib), t2(full), dst(full);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto a = t1.acquire(STARPU_W);
@@ -71,7 +66,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches
         b.release();
         c.release();
     }
-    nntile::core::multiply_fiber<fp32_t>(-1, alpha, t1, t2, dst, stor_axis);
+    nntile::core::multiply_fiber<fp32_t>(-1, alpha, t1, t2, dst, axis);
     starpu_task_wait_for_all();
     std::vector<float> tref(nfull);
     {

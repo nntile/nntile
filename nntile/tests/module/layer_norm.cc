@@ -41,7 +41,7 @@ TEST_CASE("LayerNorm ConstructorCreatesParameters", "[module]")
 {
     NNGraph g("layer_norm");
 
-    LayerNorm ln(&g, "ln", 64, 1, 1e-5f);
+    LayerNorm ln(&g, "ln", 64, 0, 1e-5f);
     REQUIRE(ln.gamma_tensor() != nullptr);
     REQUIRE(ln.beta_tensor() != nullptr);
     REQUIRE(ln.gamma_tensor()->shape() == std::vector<Index>({64}));
@@ -54,21 +54,21 @@ TEST_CASE("LayerNorm ConstructorCreatesParameters", "[module]")
 TEST_CASE("LayerNorm Callable", "[module]")
 {
     NNGraph g("layer_norm_callable");
-    auto *input = g.tensor({64, 4}, DataType::FP32)->set_name("input");
-    LayerNorm ln(&g, "ln", 4, 1, 1e-5f);
+    auto *input = g.tensor({4, 64}, DataType::FP32)->set_name("input");
+    LayerNorm ln(&g, "ln", 64, 1, 1e-5f);
     auto *output = ln.forward(input);
-    REQUIRE(output->shape() == std::vector<Index>({64, 4}));
+    REQUIRE(output->shape() == std::vector<Index>({4, 64}));
 }
 
 TEST_CASE("LayerNorm BuildForward", "[module]")
 {
     NNGraph g("layer_norm");
 
-    auto *input = g.tensor({4, 3, 2}, DataType::FP32)->set_name("input");
-    LayerNorm ln(&g, "ln", 2, 2, 1e-5f);
+    auto *input = g.tensor({2, 3, 4}, DataType::FP32)->set_name("input");
+    LayerNorm ln(&g, "ln", 4, 2, 1e-5f);
 
     auto *output = ln.forward(input);
-    REQUIRE(output->shape() == std::vector<Index>({4, 3, 2}));
+    REQUIRE(output->shape() == std::vector<Index>({2, 3, 4}));
     REQUIRE(output->name() == "ln_out");
     REQUIRE(g.num_ops() >= 1);
 }
@@ -84,8 +84,10 @@ TEST_CASE("LayerNorm Repr", "[module]")
 
 #ifdef NNTILE_HAVE_TORCH
 
+using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
 using nntile::test::module_tile_all_untiled_axis_groups_heterogeneous;
+using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LayerNorm forward matches PyTorch",
@@ -107,6 +109,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         x_data[i] = 0.1f * static_cast<float>(i + 1);
     }
+    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
 
     torch::manual_seed(7);
     auto ln_pt = torch::nn::LayerNorm(
@@ -124,7 +127,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x_data.data(),
+    auto x_pt = torch::from_blob(x.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
@@ -153,7 +156,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    compare_float_vectors(runtime.get_output<float>(output), y_pt);
+    std::vector<float> nntile_out = runtime.get_output<float>(output);
+    std::vector<float> nntile_out =
+        colmajor_to_rowmajor(nntile_out, shape);
+    compare_float_vectors(nntile_out, y_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -176,6 +182,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         x_data[i] = 0.12f * static_cast<float>(i - nelems / 4);
     }
+    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
 
     torch::manual_seed(11);
     auto ln_pt = torch::nn::LayerNorm(
@@ -193,7 +200,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x_data.data(),
+    auto x_pt = torch::from_blob(x.data(),
         shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
@@ -233,7 +240,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    compare_float_vectors(runtime.get_output<float>(input->grad()), x_pt.grad());
+    std::vector<float> nntile_grad_x =
+        runtime.get_output<float>(input->grad());
+    std::vector<float> nntile_grad_x =
+        colmajor_to_rowmajor(nntile_grad_x, shape);
+    compare_float_vectors(nntile_grad_x, x_pt.grad());
     compare_float_vectors(
         runtime.get_output<float>(ln.gamma_tensor()->grad()),
         ln_pt->weight.grad());

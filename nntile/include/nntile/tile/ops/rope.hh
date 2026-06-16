@@ -24,8 +24,11 @@ namespace nntile::tile
 struct TileRopeOp : TileGraph::OpNode
 {
     TileGraph::TileNode* sin = nullptr, * cos = nullptr, * src = nullptr, * dst = nullptr;
+    Index sin_pair0 = 0;
     TileRopeOp() = default;
-    TileRopeOp(TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* s, TileGraph::TileNode* d) : sin(si), cos(co), src(s), dst(d)
+    TileRopeOp(TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* s,
+        TileGraph::TileNode* d, Index sin_pair0_ = 0)
+        : sin(si), cos(co), src(s), dst(d), sin_pair0(sin_pair0_)
     {
         inputs_ = {sin, cos, src};
         outputs_ = {dst};
@@ -37,5 +40,6 @@ struct TileRopeOp : TileGraph::OpNode
         return std::make_shared<TileRopeOp>(*this);
     }
 };
-void rope(TileGraph::TileNode* sin, TileGraph::TileNode* cos, TileGraph::TileNode* src, TileGraph::TileNode* dst);
+void rope(TileGraph::TileNode* sin, TileGraph::TileNode* cos, TileGraph::TileNode* src,
+    TileGraph::TileNode* dst, Index sin_pair0 = 0);
 } // namespace nntile::tile

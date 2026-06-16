@@ -25,11 +25,9 @@ void check()
 {
     using Y = typename T::repr_t;
     // Init data for checking
-    Tile<T> src({3, 4, 5});
-    Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
-    Tile<T> dst2[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
+    Tile<T> src({5, 4, 3});
+    Tile<T> dst[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
+    Tile<T> dst2[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
     auto src_local = src.acquire(STARPU_W);
     for(Index i = 0; i < src.nelems; ++i)
     {
@@ -51,7 +49,7 @@ void check()
     }
     // Check axis=0
     {
-        starpu::maxsumexp.submit<std::tuple<T>>(-1, 1, 20, 3, src, dst[0]);
+        starpu::maxsumexp.submit<std::tuple<T>>(-1, 12, 1, 5, src, dst[0]);
         maxsumexp<T>(-1, src, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
@@ -77,7 +75,7 @@ void check()
     }
     // Check axis=2
     {
-        starpu::maxsumexp.submit<std::tuple<T>>(-1, 12, 1, 5, src, dst[2]);
+        starpu::maxsumexp.submit<std::tuple<T>>(-1, 1, 20, 3, src, dst[2]);
         maxsumexp<T>(-1, src, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
@@ -96,9 +94,8 @@ void validate()
     // Check normal execution
     check<T>();
     // Check throwing exceptions
-    Tile<T> src({3, 4, 5});
-    Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
+    Tile<T> src({5, 4, 3});
+    Tile<T> dst[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
     Tile<T> empty({});
     TEST_THROW(maxsumexp<T>(-1, src, empty, 0));
     TEST_THROW(maxsumexp<T>(-1, empty, empty, 0));

@@ -12,10 +12,9 @@
 """Generate reference test data for NNTile T5 graph C++ tests.
 
 Uses **Hugging Face Transformers** (``modeling_t5``) for forward and backward
-references. Safetensor arrays use graph shape labels matching the
-graph API. Weight tensors are converted to the NNTile graph layout (same
-naming as ``examples/t5_generate.py``). Mask tensors stored for C++ use the
-``sdpa_eager`` layout expected by graph tests.
+references. Weight tensors are converted to the NNTile graph layout (same
+naming and C-order bytes as ``examples/t5_generate.py``). Mask tensors
+stored for C++ use the ``sdpa_eager`` layout expected by graph tests.
 
 PyTorch runs with ``_attn_implementation="eager"`` and ``cache_position`` on
 attention modules, matching
@@ -107,22 +106,6 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
-def _linear_attn_qkv_weight(
-    linear: torch.nn.Linear, dm: int, nh: int, hs: int,
-) -> np.ndarray:
-    """PT Linear ``(out, in)`` → graph ``q/k/v_weight`` ``(d_model, hd, nh)``."""
-    w = linear.weight.detach().numpy().reshape(nh, hs, dm)
-    return as_float32(w.transpose(2, 1, 0))
-
-
-def _linear_attn_o_weight(
-    linear: torch.nn.Linear, dm: int, nh: int, hs: int,
-) -> np.ndarray:
-    """PT Linear ``(out, in)`` → graph ``o_weight`` ``(hd, nh, d_model)``."""
-    w = linear.weight.detach().numpy().reshape(dm, nh, hs)
-    return as_float32(w.transpose(2, 1, 0))
-
-
 def _make_config(dims: TestDims) -> T5Config:
     return T5Config(
         vocab_size=dims.vocab,
@@ -155,11 +138,15 @@ def _t5_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
     nh, hs, dm = dims.n_heads, dims.head_size, dims.d_model
+    q = attn.q.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
+    k = attn.k.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
+    v = attn.v.weight.detach().numpy().reshape(nh, hs, dm).transpose(2, 1, 0)
+    o = attn.o.weight.detach().numpy().reshape(dm, nh, hs).transpose(2, 1, 0)
     return {
-        f"{prefix}.q_weight": _linear_attn_qkv_weight(attn.q, dm, nh, hs),
-        f"{prefix}.k_weight": _linear_attn_qkv_weight(attn.k, dm, nh, hs),
-        f"{prefix}.v_weight": _linear_attn_qkv_weight(attn.v, dm, nh, hs),
-        f"{prefix}.o_weight": _linear_attn_o_weight(attn.o, dm, nh, hs),
+        f"{prefix}.q_weight": as_float32(q),
+        f"{prefix}.k_weight": as_float32(k),
+        f"{prefix}.v_weight": as_float32(v),
+        f"{prefix}.o_weight": as_float32(o),
     }
 
 
@@ -306,17 +293,14 @@ def _hf_causal_attention_mask_4d(
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
-    allowed = np.zeros((seq, seq), dtype=np.float32)
-    for k in range(seq):
-        for q in range(seq):
-            if k <= q:
-                allowed[k, q] = 1.0
-    return as_float32(allowed.T)
+    kk = np.arange(seq, dtype=np.int64)[:, None]
+    qq = np.arange(seq, dtype=np.int64)[None, :]
+    return as_float32((kk <= qq).astype(np.float32))
 
 
 def _cross_attn_mask(enc_seq: int, dec_seq: int) -> np.ndarray:
-    """``(q_seq, k_seq)`` = ``(dec_seq, enc_seq)`` for graph ``sdpa_eager``."""
-    return as_float32(np.ones((dec_seq, enc_seq), dtype=np.float32))
+    """``(k_seq, q_seq)`` = ``(enc_seq, dec_seq)`` for graph ``sdpa_eager``."""
+    return as_float32(np.ones((enc_seq, dec_seq), dtype=np.float32))
 
 
 def _run_fwd_bwd(

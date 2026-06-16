@@ -15,7 +15,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/scale_slice.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,24 +23,18 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_slice", "[graph][tile]")
 {
-    const std::vector<Index> stor_t1s = {3, 5};
-    const std::vector<Index> graph_t1s = graph_shape(stor_t1s);
-    const std::vector<Index> stor_t2s = {3, 4, 5};
-    const std::vector<Index> graph_t2s = graph_shape(stor_t2s);
+    const std::vector<Index> t1s = {5, 3}, t2s = {5, 4, 3};
     const Index n1 = 15, n2 = 60;
     const Scalar a = 0.75;
-    const Index stor_axis = 1;
-    const Index g_axis =
-        graph_axis(stor_axis, static_cast<Index>(stor_t2s.size()));
+    const Index axis = 1;
     TileGraph g("g");
-    auto* t1 = g.data(graph_t1s, "t1", DataType::FP32);
-    auto* t2 = g.data(graph_t2s, "t2", DataType::FP32);
+    auto* t1 = g.data(t1s, "t1", DataType::FP32);
+    auto* t2 = g.data(t2s, "t2", DataType::FP32);
     t1->mark_input(true);
     t2->mark_output(true);
-    tg::scale_slice(a, t1, t2, g_axis);
+    tg::scale_slice(a, t1, t2, axis);
     Runtime rt(g);
     rt.compile();
     std::vector<float> v1(n1), v2(n2, 0.f);
@@ -51,13 +44,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_slice", "[graph]
     rt.execute();
     rt.wait();
     const std::vector<float> gout = rt.get_output<float>(t2);
-    nntile::core::Tile<fp32_t> T1(stor_t1s), T2(stor_t2s);
+    nntile::core::Tile<fp32_t> T1(t1s), T2(t2s);
     using Y = typename nntile::fp32_t::repr_t;
     { auto A = T1.acquire(STARPU_W), B = T2.acquire(STARPU_W);
       for(Index i = 0; i < n1; ++i) A[i] = Y(v1[static_cast<size_t>(i)]);
       for(Index i = 0; i < n2; ++i) B[i] = Y(0);
       A.release(); B.release(); }
-    nntile::core::scale_slice<fp32_t>(-1, a, T1, T2, stor_axis);
+    nntile::core::scale_slice<fp32_t>(-1, a, T1, T2, axis);
     starpu_task_wait_for_all();
     std::vector<float> tref(60);
     { auto L = T2.acquire(STARPU_R);

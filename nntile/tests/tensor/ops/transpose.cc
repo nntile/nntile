@@ -44,7 +44,7 @@ TEST_CASE("TensorGraph transpose structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim1, dim0})->set_name("src");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
 
     auto *dst = gt::transpose(alpha, src, ndim);
 
@@ -52,8 +52,8 @@ TEST_CASE("TensorGraph transpose structure", "[graph][tensor]")
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape()[0] == dim0);
-    REQUIRE(dst->shape()[1] == dim1);
+    REQUIRE(dst->shape()[0] == dim1);
+    REQUIRE(dst->shape()[1] == dim0);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "TRANSPOSE");
@@ -67,7 +67,7 @@ TEST_CASE("TensorGraph transpose rejects duplicate tensors", "[graph][tensor]")
     constexpr Index dim0 = 4;
     constexpr Index dim1 = 5;
     TensorGraph graph("test");
-    auto *src = graph.data({dim1, dim0})->set_name("src");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::transpose(alpha, src, src, Index(1)), std::invalid_argument);
@@ -78,8 +78,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [shape, ndim_val] =
-        GENERATE(std::tuple{std::vector<Index>{6, 4}, Index(1)},
-            std::tuple{std::vector<Index>{6, 4, 2}, Index(1)});
+        GENERATE(std::tuple{std::vector<Index>{4, 6}, Index(1)},
+            std::tuple{std::vector<Index>{2, 4, 6}, Index(1)});
 
     using Y = nntile::fp32_t::repr_t;
     const Index nelems = std::accumulate(

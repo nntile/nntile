@@ -213,7 +213,7 @@ TEST_CASE("Gpt2Causal forward builds output", "[model][gpt2]")
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.batch, fx.seq, fx.config.vocab_size}));
+            std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
 }
 
 TEST_CASE("Gpt2Causal load from safetensors roundtrip", "[model][gpt2][io]")

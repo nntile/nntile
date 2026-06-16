@@ -138,10 +138,10 @@ void model_backward_compare_ref(const ModelFixtureSpec &fx)
     {
         NNGraph g("model_bwd");
         auto *encoder_input_ids =
-            g.tensor({fx.batch, fx.enc_seq}, DataType::INT64, true)
+            g.tensor({fx.enc_seq, fx.batch}, DataType::INT64, true)
                 ->set_name("encoder_input_ids");
         auto *decoder_input_ids =
-            g.tensor({fx.batch, fx.dec_seq}, DataType::INT64, true)
+            g.tensor({fx.dec_seq, fx.batch}, DataType::INT64, true)
                 ->set_name("decoder_input_ids");
         NNGraph::TensorNode *decoder_mask = nullptr;
         std::vector<std::uint8_t> decoder_mask_bytes;
@@ -214,10 +214,10 @@ TEST_CASE("T5Model forward builds output", "[model][t5]")
     NNGraph g("t5_model");
     T5Model model(&g, "model", fx.config);
     auto *encoder_input_ids =
-        g.tensor({fx.batch, fx.enc_seq}, DataType::INT64)
+        g.tensor({fx.enc_seq, fx.batch}, DataType::INT64)
             ->set_name("encoder_input_ids");
     auto *decoder_input_ids =
-        g.tensor({fx.batch, fx.dec_seq}, DataType::INT64)
+        g.tensor({fx.dec_seq, fx.batch}, DataType::INT64)
             ->set_name("decoder_input_ids");
     auto *output = model.forward(
         encoder_input_ids, decoder_input_ids, nullptr, nullptr, nullptr);
@@ -285,10 +285,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("model_ref");
         auto *encoder_input_ids =
-            g.tensor({fx.batch, fx.enc_seq}, DataType::INT64)
+            g.tensor({fx.enc_seq, fx.batch}, DataType::INT64)
                 ->set_name("encoder_input_ids");
         auto *decoder_input_ids =
-            g.tensor({fx.batch, fx.dec_seq}, DataType::INT64)
+            g.tensor({fx.dec_seq, fx.batch}, DataType::INT64)
                 ->set_name("decoder_input_ids");
         NNGraph::TensorNode *decoder_mask = nullptr;
         std::vector<std::uint8_t> decoder_mask_bytes;

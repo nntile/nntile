@@ -41,9 +41,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph sum_fiber structure",
     "[graph][nn_graph]")
 {
-    const auto [x_shape, axis, alpha] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_2}, Index(1), Scalar(1.0)},
-            std::tuple{std::vector<Index>{dim_4, dim_2}, Index(0), Scalar(2.0)});
+    const auto [x_shape, axis, alpha] = GENERATE(
+        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(1), Scalar(1.0)},
+        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(0), Scalar(2.0)});
 
     std::vector<Index> y_shape = {x_shape[axis]};
 
@@ -73,11 +73,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][nn_graph]")
 {
     const auto [x_shape, axis, alpha, grad_fill_val] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_2},
+        GENERATE(std::tuple{std::vector<Index>{dim_2, dim_4},
                      Index(1),
                      Scalar(1.0),
                      Scalar(1.0)},
-            std::tuple{std::vector<Index>{dim_4, dim_2},
+            std::tuple{std::vector<Index>{dim_2, dim_4},
                 Index(0),
                 Scalar(1.0),
                 Scalar(-1.0)});
@@ -103,13 +103,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [x_shape, axis, alpha, grad_fill_val] = GENERATE(
         std::tuple{
-            std::vector<Index>{4, 2}, Index(1), Scalar(1.0), Scalar(1.0)},
+            std::vector<Index>{2, 4}, Index(1), Scalar(1.0), Scalar(1.0)},
         std::tuple{
-            std::vector<Index>{4, 2}, Index(0), Scalar(1.0), Scalar(1.0)},
+            std::vector<Index>{2, 4}, Index(0), Scalar(1.0), Scalar(1.0)},
         std::tuple{
-            std::vector<Index>{6, 3}, Index(0), Scalar(2.0), Scalar(1.0)},
+            std::vector<Index>{3, 6}, Index(0), Scalar(2.0), Scalar(1.0)},
         std::tuple{
-            std::vector<Index>{6, 3}, Index(1), Scalar(1.0), Scalar(-1.0)},
+            std::vector<Index>{3, 6}, Index(1), Scalar(1.0), Scalar(-1.0)},
         std::tuple{
             std::vector<Index>{4, 3, 2}, Index(2), Scalar(1.0), Scalar(1.0)});
 
@@ -134,7 +134,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::compare_float_vectors;
+using nntile::test::colmajor_to_rowmajor;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
 using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
@@ -179,18 +179,24 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_out = runtime.get_output<float>(y);
+    std::vector<float> x_row = colmajor_to_rowmajor(x_data, x_shape);
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
 
-    auto x_pt = torch::from_blob(x_data.data(),
+    auto x_pt = torch::from_blob(x_row.data(),
         x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
+    // NNTile: axis 0 = inner (fastest varying); PyTorch: dim -1 = fastest
+    // So NNTile axis i <-> PyTorch dim (ndim - 1 - i)
     const auto ndim = static_cast<::int64_t>(x_shape.size());
-    const auto dim_pt = ndim - 1 - static_cast<::int64_t>(axis);
+    const auto dim_pt = ndim - 1 - axis;
     auto y_pt = (alpha * x_pt.sum(dim_pt, /*keepdim=*/false)).contiguous();
     std::vector<float> pytorch_out(
         y_pt.data_ptr<float>(), y_pt.data_ptr<float>() + y_nelems);
+
+    std::vector<float> nntile_out = colmajor_to_rowmajor(
+        nntile_out, std::vector<Index>{y_nelems});
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
     for (size_t i = 0; i < nntile_out.size(); ++i)
@@ -242,24 +248,35 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
+    std::vector<float> nntile_grad_x =
+        runtime.get_output<float>(x->grad());
+    std::vector<float> nntile_grad_x =
+        colmajor_to_rowmajor(nntile_grad_x, x_shape);
 
+    std::vector<float> x_row = colmajor_to_rowmajor(x_data, x_shape);
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
 
-    auto x_pt = torch::from_blob(x_data.data(),
+    auto x_pt = torch::from_blob(x_row.data(),
         x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
     const auto ndim = static_cast<::int64_t>(x_shape.size());
-    const auto dim_pt = ndim - 1 - static_cast<::int64_t>(axis);
+    const auto dim_pt = ndim - 1 - axis;
     auto y_pt = alpha * x_pt.sum(dim_pt, /*keepdim=*/false);
     auto grad_output = torch::full({static_cast<::int64_t>(y_nelems)},
         static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     y_pt.backward(grad_output);
 
-    compare_float_vectors(nntile_grad_x, x_pt.grad());
+    auto grad_x_pt = x_pt.grad().contiguous();
+    std::vector<float> pytorch_grad_x(
+        grad_x_pt.data_ptr<float>(), grad_x_pt.data_ptr<float>() + x_nelems);
+
+    REQUIRE(nntile_grad_x.size() == pytorch_grad_x.size());
+    for (size_t i = 0; i < nntile_grad_x.size(); ++i)
+        REQUIRE(std::abs(nntile_grad_x[i] - pytorch_grad_x[i]) <
+                pytorch_tolerance);
 }
 
 #endif // NNTILE_HAVE_TORCH

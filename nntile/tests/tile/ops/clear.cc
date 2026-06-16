@@ -15,7 +15,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/clear.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,14 +23,12 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph clear matches tile", "[graph][tile]")
 {
-    const std::vector<Index> stor_sh = {2, 3};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
+    const std::vector<Index> sh = {3, 2};
     const Index nelems = 6;
     TileGraph g("g");
-    auto* x = g.data(graph_sh, "x", DataType::FP32);
+    auto* x = g.data(sh, "x", DataType::FP32);
     x->mark_input(true);
     x->mark_output(true);
     tg::clear(x);
@@ -43,7 +40,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph clear matches tile", "
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(x);
-    nntile::core::Tile<fp32_t> tx(stor_sh);
+    nntile::core::Tile<fp32_t> tx(sh);
     {
         using Y = typename nntile::fp32_t::repr_t;
         auto l1 = tx.acquire(STARPU_W);

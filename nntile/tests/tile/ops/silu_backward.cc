@@ -15,7 +15,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/silu_backward.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,16 +23,14 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph silu_backward matches tile", "[graph][tile]")
 {
-    const std::vector<Index> stor_sh = {2, 3};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
+    const std::vector<Index> sh = {3, 2};
     const Index nelems = 6;
     TileGraph g("g");
-    auto* x = g.data(graph_sh, "x", DataType::FP32);
-    auto* dy = g.data(graph_sh, "dy", DataType::FP32);
-    auto* dx = g.data(graph_sh, "dx", DataType::FP32);
+    auto* x = g.data(sh, "x", DataType::FP32);
+    auto* dy = g.data(sh, "dy", DataType::FP32);
+    auto* dx = g.data(sh, "dx", DataType::FP32);
     x->mark_input(true);
     dy->mark_input(true);
     dx->mark_input(true);
@@ -53,7 +50,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph silu_backward matches 
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(dx);
-    nntile::core::Tile<fp32_t> tx(stor_sh), tdy(stor_sh), tdx(stor_sh);
+    nntile::core::Tile<fp32_t> tx(sh), tdy(sh), tdx(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto l1 = tx.acquire(STARPU_W);

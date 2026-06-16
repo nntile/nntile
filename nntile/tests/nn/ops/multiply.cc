@@ -43,13 +43,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5), Scalar(-1.0));
 
     NNGraph g("multiply_structure");
-    auto *x = g.tensor({dim_3, dim_2}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({dim_3, dim_2}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("y");
     auto *z = multiply(x, y, alpha);
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
-    REQUIRE(z->shape() == (std::vector<Index>{dim_3, dim_2}));
+    REQUIRE(z->shape() == (std::vector<Index>{dim_2, dim_3}));
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "MULTIPLY");
 }
@@ -65,8 +65,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(-1.0), Scalar(2.0)});
 
     NNGraph g("multiply_backward");
-    auto *x = g.tensor({dim_3, dim_2}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({dim_3, dim_2}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("y");
     auto *z = multiply(x, y, alpha);
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");

@@ -31,8 +31,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(0.5), Scalar(-1.0)});
 
     NNGraph g("no_grad_add");
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({3, 2}, DataType::FP32)->set_name("y");
 
     NNGraph::TensorNode *z = nullptr;
     {
@@ -55,8 +55,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             std::tuple{Scalar(0.5), Scalar(2.0)});
 
     NNGraph g("grad_add");
-    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
-    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
+    auto *x = g.tensor({3, 2}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({3, 2}, DataType::FP32)->set_name("y");
 
     auto *z = add(add_alpha, x, add_beta, y)->set_name("z");
 

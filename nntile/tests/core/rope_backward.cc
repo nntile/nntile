@@ -47,8 +47,12 @@ void validate()
     dx_local.release();
     dx_ref_local.release();
 
-    starpu::rope_backward.submit<std::tuple<T>>(-1, 2, 5, sin, cos, dy, dx);
-    rope_backward<T>(-1, sin, cos, dy, dx_ref);
+    Index nrows = dy.matrix_shape[sin.ndim][1];
+    Index ncols = sin.nelems;
+    Index sin_pair0 = 0;
+    starpu::rope_backward.submit<std::tuple<T>>(-1, nrows, ncols, sin_pair0,
+        sin, cos, dy, dx);
+    rope_backward<T>(-1, sin, cos, dy, dx_ref, sin_pair0);
 
     dx_local.acquire(STARPU_R);
     dx_ref_local.acquire(STARPU_R);

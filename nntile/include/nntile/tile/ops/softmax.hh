@@ -25,7 +25,6 @@ namespace nntile::tile
 struct TileSoftmaxOp : TileGraph::OpNode
 {
     Scalar alpha = 0.0;
-//! axis: graph axis index (0 = outermost); execute converts for core kernels.
     Index axis = 0;
     TileGraph::TileNode* maxsumexp = nullptr;
     TileGraph::TileNode* src = nullptr;
@@ -45,7 +44,6 @@ struct TileSoftmaxOp : TileGraph::OpNode
         return std::make_shared<TileSoftmaxOp>(*this);
     }
 };
-//! @param axis graph axis index (0 = outermost); converted at execute.
 void softmax(
     TileGraph::TileNode* maxsumexp_n,
     TileGraph::TileNode* src,

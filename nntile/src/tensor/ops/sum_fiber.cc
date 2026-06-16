@@ -16,7 +16,6 @@
 #include "nntile/tensor/ops/sum_fiber.hh"
 
 #include "nntile/base_types.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -35,9 +34,17 @@ namespace
 {
 
 std::vector<Index> sum_fiber_output_shape(
-    const std::vector<Index> &x_shape, Index graph_axis, Index batch_ndim)
+    const std::vector<Index> &x_shape, Index axis, Index batch_ndim)
 {
-    return graph_fiber_shape(x_shape, graph_axis, batch_ndim);
+    Index ndim = x_shape.size();
+    std::vector<Index> out_shape;
+    out_shape.reserve(batch_ndim + 1);
+    for (Index i = 0; i < batch_ndim; ++i)
+    {
+        out_shape.push_back(x_shape[i]);
+    }
+    out_shape.push_back(x_shape[axis]);
+    return out_shape;
 }
 
 } // namespace
@@ -124,27 +131,28 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_x = tile_lower::tiles_of(ctx.tile_map, x);
     const auto &tiles_y = tile_lower::tiles_of(ctx.tile_map, y);
 
-    const Index x_nd = x->ndim();
-    const Index y_nd = y->ndim();
-
     std::vector<Index> x_coord;
-    std::vector<Index> y_coord(static_cast<size_t>(y_nd));
+    std::vector<Index> y_coord(static_cast<size_t>(y->ndim()));
 
     for (Index lin_x = 0; lin_x < lay_x->grid_volume(); ++lin_x)
     {
         lay_x->grid_coord_from_linear(lin_x, x_coord);
         TileGraph::TileNode *x_tile = tiles_x[static_cast<size_t>(lin_x)];
 
-        fiber_layout_coord_from_tensor(
-            x_coord, axis, batch_ndim, y_nd, x_nd, y_coord);
+        for (Index j = 0; j < batch_ndim; ++j)
+        {
+            y_coord[static_cast<size_t>(j)] =
+                x_coord[static_cast<size_t>(j)];
+        }
+        y_coord[static_cast<size_t>(batch_ndim)] =
+            x_coord[static_cast<size_t>(axis)];
         const Index lin_y = lay_y->grid_linear(y_coord);
         TileGraph::TileNode *y_tile = tiles_y[static_cast<size_t>(lin_y)];
 
         bool init_first = true;
-        for (Index g = batch_ndim; g < x_nd; ++g)
+        for (Index j = batch_ndim; j < x->ndim(); ++j)
         {
-            if (g != axis
-                && x_coord[static_cast<size_t>(layout_axis(g, x_nd))] != 0)
+            if (j != axis && x_coord[static_cast<size_t>(j)] != 0)
             {
                 init_first = false;
                 break;

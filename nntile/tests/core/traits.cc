@@ -32,33 +32,18 @@ void validate_traits(const TileTraits &traits)
     {
         throw std::runtime_error("Inconsistent ndim and matrix_shape.size()");
     }
-    if(traits.ndim > 0)
+    Index tmp = 1;
+    for(Index i = traits.ndim - 1; i >= 0; --i)
     {
-        if(traits.stride[traits.ndim - 1] != 1)
+        if(traits.stride[i] != tmp)
         {
             throw std::runtime_error("Inconsistent stride");
         }
-        Index tmp = 1;
-        for(Index i = traits.ndim - 2; i >= 0; --i)
-        {
-            tmp *= traits.shape[i + 1];
-            if(traits.stride[i] != tmp)
-            {
-                throw std::runtime_error("Inconsistent stride");
-            }
-        }
+        tmp *= traits.shape[i];
     }
-    if(traits.nelems != 1)
+    if(tmp != traits.nelems)
     {
-        Index prod = 1;
-        for(Index i = 0; i < traits.ndim; ++i)
-        {
-            prod *= traits.shape[i];
-        }
-        if(prod != traits.nelems)
-        {
-            throw std::runtime_error("Inconsistent nelems");
-        }
+        throw std::runtime_error("Inconsistent nelems");
     }
     tmp = 1;
     if(traits.matrix_shape[0][0] != 1)

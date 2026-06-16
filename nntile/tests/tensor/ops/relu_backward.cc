@@ -36,15 +36,15 @@ TEST_CASE("TensorGraph relu_backward structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim1, dim0})->set_name("x");
-    auto *dy = graph.data({dim1, dim0})->set_name("dy");
+    auto *x = graph.data({dim0, dim1})->set_name("x");
+    auto *dy = graph.data({dim0, dim1})->set_name("dy");
 
     auto *dx = gt::relu_backward(x, dy)->set_name("dx");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dx->shape()[0] == dim1);
-    REQUIRE(dx->shape()[1] == dim0);
+    REQUIRE(dx->shape()[0] == dim0);
+    REQUIRE(dx->shape()[1] == dim1);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "RELU_BACKWARD");
@@ -69,9 +69,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph relu_backward tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto shape = GENERATE(std::vector<Index>{6, 4},
+    const auto shape = GENERATE(std::vector<Index>{4, 6},
         std::vector<Index>{6},
-        std::vector<Index>{4, 2});
+        std::vector<Index>{2, 4});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

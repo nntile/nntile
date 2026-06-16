@@ -33,7 +33,7 @@ TEST_CASE("RMSNorm ConstructorCreatesParameters", "[module]")
 {
     NNGraph g("rms_norm");
 
-    RMSNorm rn(&g, "rn", 64, 1, 1e-6f);
+    RMSNorm rn(&g, "rn", 64, 0, 1e-6f);
     REQUIRE(rn.gamma_tensor() != nullptr);
     REQUIRE(rn.gamma_tensor()->shape() == std::vector<Index>({64}));
     REQUIRE(rn.gamma_tensor()->name() == "rn_gamma");
@@ -44,17 +44,17 @@ TEST_CASE("RMSNorm Callable", "[module]")
 {
     NNGraph g("rms_norm_callable");
     auto* input = g.tensor({64, 4}, DataType::FP32)->set_name("input");
-    RMSNorm rn(&g, "rn", 4, 1, 1e-6f);
+    RMSNorm rn(&g, "rn", 64, 1, 1e-6f);
     auto* output = rn.forward(input);
-    REQUIRE(output->shape() == std::vector<Index>({64, 4}));
+    REQUIRE(output->shape() == std::vector<Index>({4, 64}));
 }
 
 TEST_CASE("RMSNorm BuildForward", "[module]")
 {
     NNGraph g("rms_norm");
 
-    auto* input = g.tensor({4, 3, 2}, DataType::FP32)->set_name("input");
-    RMSNorm rn(&g, "rn", 2, 2, 1e-6f);
+    auto* input = g.tensor({2, 3, 4}, DataType::FP32)->set_name("input");
+    RMSNorm rn(&g, "rn", 4, 2, 1e-6f);
 
     auto* output = rn.forward(input);
     REQUIRE(output->shape() == std::vector<Index>({4, 3, 2}));

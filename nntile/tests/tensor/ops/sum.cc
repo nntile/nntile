@@ -47,7 +47,7 @@ TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim1, dim0})->set_name("src");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
     auto *dst = graph.data({})->set_name("dst");
 
     gt::sum(src, dst, alpha_one, beta_zero);
@@ -77,7 +77,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, beta, src_shape] =
-        GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{6, 4}},
+        GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{4, 6}},
             std::tuple{1.0, 1.0, std::vector<Index>{6}});
 
     using T = nntile::fp32_t;

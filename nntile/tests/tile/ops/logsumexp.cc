@@ -16,7 +16,6 @@
 #include <cmath>
 #include <numeric>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/logsumexp.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -25,17 +24,14 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile", "[graph][tile]")
 {
-    const std::vector<Index> stor_sh_src = {2, 2, 3};
-    const std::vector<Index> graph_sh_src = graph_shape(stor_sh_src);
-    const std::vector<Index> stor_sh_dst = {2, 3};
-    const std::vector<Index> graph_sh_dst = graph_shape(stor_sh_dst);
+    const std::vector<Index> sh_src = {2, 3, 2};
+    const std::vector<Index> sh_dst = {3, 2};
     const Index n_src = 12, n_dst = 6;
     TileGraph g("g");
-    auto* s = g.data(graph_sh_src, "s", DataType::FP32);
-    auto* d = g.data(graph_sh_dst, "d", DataType::FP32);
+    auto* s = g.data(sh_src, "s", DataType::FP32);
+    auto* d = g.data(sh_dst, "d", DataType::FP32);
     s->mark_input(true);
     d->mark_output(true);
     tg::logsumexp(s, d);
@@ -54,7 +50,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> ts(stor_sh_src), td(stor_sh_dst);
+    nntile::core::Tile<fp32_t> ts(sh_src), td(sh_dst);
     {
         using Y2 = typename nntile::fp32_t::repr_t;
         auto l1 = ts.acquire(STARPU_W);
