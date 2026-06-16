@@ -16,7 +16,6 @@
 #include "nntile/tensor/ops/add_fiber.hh"
 
 #include "nntile/base_types.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -124,21 +123,19 @@ void TensorAddFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_t = tile_lower::tiles_of(ctx.tile_map, tensor);
     const auto &tiles_o = tile_lower::tiles_of(ctx.tile_map, output);
 
-    const Index nd = output->ndim();
-    const Index s_axis = graph_axis_to_storage(axis, nd);
-
     std::vector<Index> dst_coord;
     std::vector<Index> fiber_coord(static_cast<size_t>(fiber->ndim()));
 
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        fiber_coord[0] = dst_coord[static_cast<size_t>(s_axis)];
+        const Index j = dst_coord[static_cast<size_t>(axis)];
+        fiber_coord[0] = j;
         for (Index b = 0; b < batch_ndim; ++b)
         {
-            fiber_coord[static_cast<size_t>(1 + b)] =
+            fiber_coord[static_cast<size_t>(b + 1)] =
                 dst_coord[static_cast<size_t>(
-                    graph_axis_to_storage(b, nd))];
+                    output->ndim() - batch_ndim + b)];
         }
         const Index lin_f = lay_f->grid_linear(fiber_coord);
         tile::add_fiber(alpha,
@@ -146,7 +143,7 @@ void TensorAddFiberOp::lower_to_tile(const LoweringContext &ctx) const
             beta,
             tiles_t[static_cast<size_t>(lin_d)],
             tiles_o[static_cast<size_t>(lin_d)],
-            s_axis,
+            axis,
             batch_ndim);
     }
 }

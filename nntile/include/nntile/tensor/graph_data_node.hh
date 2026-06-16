@@ -213,15 +213,16 @@ inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
     merge_axis(fiber->mutable_axes()[0], tensor->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        if (fiber->shape()[1 + i] != tensor->shape()[i])
+        Index ti = tensor->ndim() - batch_ndim + i;
+        if (fiber->shape()[1 + i] != tensor->shape()[ti])
         {
             throw std::invalid_argument(
                 op_name + ": fiber dim " + std::to_string(1 + i) +
-                " must match tensor dim " + std::to_string(i) + " (" +
+                " must match tensor dim " + std::to_string(ti) + " (" +
                 std::to_string(fiber->shape()[1 + i]) + " vs " +
-                std::to_string(tensor->shape()[i]) + ")");
+                std::to_string(tensor->shape()[ti]) + ")");
         }
-        merge_axis(fiber->mutable_axes()[1 + i], tensor->mutable_axes()[i]);
+        merge_axis(fiber->mutable_axes()[1 + i], tensor->mutable_axes()[ti]);
     }
 }
 

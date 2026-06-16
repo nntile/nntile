@@ -17,7 +17,6 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -136,29 +135,24 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
     std::vector<Index> s1_coord;
     std::vector<Index> dst_coord(static_cast<size_t>(dst->ndim()));
 
-    const Index nd = src1->ndim();
-    const Index s_axis = graph_axis_to_storage(axis, nd);
-    const Index fiber_prefix = nd - batch_ndim;
-
     for (Index lin1 = 0; lin1 < lay1->grid_volume(); ++lin1)
     {
         lay1->grid_coord_from_linear(lin1, s1_coord);
         bool init_first = true;
-        for (Index j = 0; j < fiber_prefix; ++j)
+        for (Index j = 0; j < src1->ndim() - batch_ndim; ++j)
         {
-            if (j != s_axis && s1_coord[static_cast<size_t>(j)] != 0)
+            if (j != axis && s1_coord[static_cast<size_t>(j)] != 0)
             {
                 init_first = false;
                 break;
             }
         }
 
-        dst_coord[0] = s1_coord[static_cast<size_t>(s_axis)];
+        dst_coord[0] = s1_coord[static_cast<size_t>(axis)];
         for (Index b = 0; b < batch_ndim; ++b)
         {
-            dst_coord[static_cast<size_t>(1 + b)] =
-                s1_coord[static_cast<size_t>(
-                    graph_axis_to_storage(b, nd))];
+            dst_coord[static_cast<size_t>(b + 1)] =
+                s1_coord[static_cast<size_t>(src1->ndim() - batch_ndim + b)];
         }
         const Index lin_d = lay_d->grid_linear(dst_coord);
 
@@ -169,7 +163,7 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
                 beta,
                 tiles_s2[static_cast<size_t>(lin_d)],
                 tiles_d[static_cast<size_t>(lin_d)],
-                s_axis,
+                axis,
                 batch_ndim,
                 redux);
         }
@@ -179,7 +173,7 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
                 tiles_s1[static_cast<size_t>(lin1)],
                 one,
                 tiles_d[static_cast<size_t>(lin_d)],
-                s_axis,
+                axis,
                 batch_ndim,
                 redux);
         }

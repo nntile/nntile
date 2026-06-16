@@ -18,7 +18,6 @@
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -42,17 +41,15 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& t2 = tile_lower::tiles_of(ctx.tile_map, src2);
     const auto& td = tile_lower::tiles_of(ctx.tile_map, dst);
     constexpr Scalar one = 1.0;
-    const Index nd = src1->ndim();
-    const Index s_axis = graph_axis_to_storage(axis, nd);
     std::vector<Index> c1;
     for(Index lin1 = 0; lin1 < lay1->grid_volume(); ++lin1)
     {
         lay1->grid_coord_from_linear(lin1, c1);
-        const Index j_dst = c1[static_cast<size_t>(s_axis)];
+        const Index j_dst = c1[static_cast<size_t>(axis)];
         bool init_first = true;
-        for(Index j = 0; j < nd; ++j)
+        for(Index j = 0; j < src1->ndim(); ++j)
         {
-            if(j != s_axis && c1[static_cast<size_t>(j)] != 0)
+            if(j != axis && c1[static_cast<size_t>(j)] != 0)
             {
                 init_first = false;
                 break;
@@ -66,7 +63,7 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
                 t2[static_cast<size_t>(lin1)],
                 beta,
                 td[static_cast<size_t>(j_dst)],
-                s_axis,
+                axis,
                 redux);
         }
         else
@@ -77,7 +74,7 @@ void TensorSumprodFiberOp::lower_to_tile(const LoweringContext& ctx) const
                 t2[static_cast<size_t>(lin1)],
                 one,
                 td[static_cast<size_t>(j_dst)],
-                s_axis,
+                axis,
                 redux);
         }
     }
