@@ -63,4 +63,38 @@ inline Index layout_axis(Index graph_axis, Index ndim)
     return graph_axis_to_storage(graph_axis, ndim);
 }
 
+//! Graph-order fiber shape: leading batch axes, then fiber axis (C-order).
+inline std::vector<Index> graph_fiber_shape(
+    const std::vector<Index> &tensor_shape,
+    Index graph_axis,
+    Index batch_ndim)
+{
+    std::vector<Index> out;
+    out.reserve(static_cast<size_t>(batch_ndim + 1));
+    for (Index i = 0; i < batch_ndim; ++i)
+    {
+        out.push_back(tensor_shape[static_cast<size_t>(i)]);
+    }
+    out.push_back(tensor_shape[static_cast<size_t>(graph_axis)]);
+    return out;
+}
+
+//! Map tensor grid coord to fiber grid coord (graph-axis semantics).
+inline void fiber_layout_coord_from_tensor(
+    const std::vector<Index> &tensor_coord,
+    Index graph_axis,
+    Index batch_ndim,
+    Index fiber_ndim,
+    Index tensor_ndim,
+    std::vector<Index> &fiber_coord)
+{
+    fiber_coord[static_cast<size_t>(layout_axis(batch_ndim, fiber_ndim))] =
+        tensor_coord[static_cast<size_t>(layout_axis(graph_axis, tensor_ndim))];
+    for (Index b = 0; b < batch_ndim; ++b)
+    {
+        fiber_coord[static_cast<size_t>(layout_axis(b, fiber_ndim))] =
+            tensor_coord[static_cast<size_t>(layout_axis(b, tensor_ndim))];
+    }
+}
+
 } // namespace nntile::tensor

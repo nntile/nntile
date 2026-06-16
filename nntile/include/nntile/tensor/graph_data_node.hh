@@ -181,8 +181,8 @@ inline void validate_slice_shape_and_merge(TensorGraph::TensorNode *slice,
 //! Validate fiber shape and merge axes (fiber 1+batch_ndim into tensor).
 //!
 //! ``axis`` is a **graph** axis on ``tensor`` (0 = outermost). Fiber graph shape
-//! is ``[fiber_dim, batch_0, …, batch_{batch_ndim-1}]`` with leading batch
-//! prefix aligned to tensor graph axes ``[0, batch_ndim)``.
+//! is ``[batch_0, …, batch_{batch_ndim-1}, fiber_dim]`` (C-order: batch slower,
+//! fiber faster); leading batch prefix matches tensor graph axes ``[0, batch_ndim)``.
 inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
     TensorGraph::TensorNode *tensor,
     Index axis,
@@ -207,25 +207,27 @@ inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
                                     std::to_string(tensor->ndim()) + " vs " +
                                     std::to_string(batch_ndim) + ")");
     }
-    if (fiber->shape()[0] != tensor->shape()[axis])
+    const Index fiber_ax = batch_ndim;
+    if (fiber->shape()[static_cast<size_t>(fiber_ax)] != tensor->shape()[axis])
     {
         throw std::invalid_argument(
-            op_name + ": fiber dim 0 must match tensor dim " +
-            std::to_string(axis) + " (" + std::to_string(fiber->shape()[0]) +
+            op_name + ": fiber dim " + std::to_string(fiber_ax) +
+            " must match tensor dim " + std::to_string(axis) + " (" +
+            std::to_string(fiber->shape()[static_cast<size_t>(fiber_ax)]) +
             " vs " + std::to_string(tensor->shape()[axis]) + ")");
     }
-    merge_axis(fiber->mutable_axes()[0], tensor->mutable_axes()[axis]);
+    merge_axis(fiber->mutable_axes()[fiber_ax], tensor->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        if (fiber->shape()[1 + i] != tensor->shape()[i])
+        if (fiber->shape()[static_cast<size_t>(i)] != tensor->shape()[i])
         {
             throw std::invalid_argument(
-                op_name + ": fiber dim " + std::to_string(1 + i) +
+                op_name + ": fiber dim " + std::to_string(i) +
                 " must match tensor dim " + std::to_string(i) + " (" +
-                std::to_string(fiber->shape()[1 + i]) + " vs " +
+                std::to_string(fiber->shape()[static_cast<size_t>(i)]) + " vs " +
                 std::to_string(tensor->shape()[i]) + ")");
         }
-        merge_axis(fiber->mutable_axes()[1 + i], tensor->mutable_axes()[i]);
+        merge_axis(fiber->mutable_axes()[i], tensor->mutable_axes()[i]);
     }
 }
 

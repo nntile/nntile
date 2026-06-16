@@ -136,10 +136,10 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
 
     constexpr Scalar one = 1.0;
     const Index src_nd = src1->ndim();
-    const Index lay_ax = layout_axis(axis, src_nd);
+    const Index dst_nd = dst->ndim();
 
     std::vector<Index> s1_coord;
-    std::vector<Index> dst_coord(static_cast<size_t>(dst->ndim()));
+    std::vector<Index> dst_coord(static_cast<size_t>(dst_nd));
 
     for (Index lin1 = 0; lin1 < lay1->grid_volume(); ++lin1)
     {
@@ -155,12 +155,8 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
             }
         }
 
-        dst_coord[0] = s1_coord[static_cast<size_t>(lay_ax)];
-        for (Index b = 0; b < batch_ndim; ++b)
-        {
-            dst_coord[static_cast<size_t>(b + 1)] =
-                s1_coord[static_cast<size_t>(layout_axis(b, src_nd))];
-        }
+        fiber_layout_coord_from_tensor(
+            s1_coord, axis, batch_ndim, dst_nd, src_nd, dst_coord);
         const Index lin_d = lay_d->grid_linear(dst_coord);
 
         if (init_first)

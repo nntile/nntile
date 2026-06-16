@@ -87,20 +87,16 @@ void TensorAddFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& tiles_t = tile_lower::tiles_of(ctx.tile_map, tensor);
 
     const Index ten_nd = tensor->ndim();
-    const Index lay_ax = layout_axis(axis, ten_nd);
+    const Index fiber_nd = fiber->ndim();
 
     std::vector<Index> dst_coord;
-    std::vector<Index> fiber_coord(static_cast<size_t>(fiber->ndim()));
+    std::vector<Index> fiber_coord(static_cast<size_t>(fiber_nd));
 
     for(Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        fiber_coord[0] = dst_coord[static_cast<size_t>(lay_ax)];
-        for(Index b = 0; b < batch_ndim; ++b)
-        {
-            fiber_coord[static_cast<size_t>(b + 1)] =
-                dst_coord[static_cast<size_t>(layout_axis(b, ten_nd))];
-        }
+        fiber_layout_coord_from_tensor(
+            dst_coord, axis, batch_ndim, fiber_nd, ten_nd, fiber_coord);
         const Index lin_f = lay_f->grid_linear(fiber_coord);
         tile::add_fiber_inplace(
             alpha,

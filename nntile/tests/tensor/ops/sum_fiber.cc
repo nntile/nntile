@@ -16,7 +16,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/axis_descriptor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tile.hh"
 #include "nntile/tensor/ops/sum_fiber.hh"
 #include "nntile/tensor.hh"
@@ -55,19 +55,10 @@ constexpr Index dim_6 = 6;
 
 } // anonymous namespace
 
-//! Compute output shape for sum_fiber: y has shape {x_shape[axis]} for
-//! batch_ndim=0
 static std::vector<Index> sum_fiber_output_shape(
     const std::vector<Index> &x_shape, Index axis, Index batch_ndim)
 {
-    std::vector<Index> out_shape;
-    out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
-    for (Index i = 0; i < batch_ndim; ++i)
-    {
-        out_shape.push_back(x_shape[x_shape.size() - batch_ndim + i]);
-    }
-    return out_shape;
+    return nntile::tensor::graph_fiber_shape(x_shape, axis, batch_ndim);
 }
 
 TEST_CASE("TensorGraph sum_fiber structure", "[graph][tensor]")

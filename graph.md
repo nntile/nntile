@@ -172,6 +172,11 @@ TensorGraph / NNGraph API. `TensorGraph` op nodes store graph axes only;
 coordinates (storage-indexed internally). Tile execute converts to storage
 for `core::*`.
 
+**Fiber tensors** (`batch_ndim > 0`): graph shape is
+`[batch_0, …, batch_{batch_ndim-1}, fiber_dim]` (C-order: batch slower,
+fiber faster). The fiber extent matches `tensor.shape[axis]`; leading batch
+axes match `tensor.shape[0:batch_ndim)`.
+
 **Exception — NNGraph `transpose`:** graph model code was written with
 **storage-order** transpose axes (historical `graph_api` convention). The NN
 layer maps model `ndim` to tensor `src->ndim() - ndim` so unchanged model

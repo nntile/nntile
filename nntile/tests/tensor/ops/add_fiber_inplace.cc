@@ -16,7 +16,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/axis_descriptor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tile.hh"
 #include "nntile/tensor/ops/add_fiber_inplace.hh"
 #include "nntile/tensor.hh"
@@ -47,18 +47,10 @@ constexpr Index dim_5 = 5;
 
 } // anonymous namespace
 
-//! Fiber shape: {tensor_shape[axis]} for batch_ndim=0
 static std::vector<Index> fiber_shape(
     const std::vector<Index> &tensor_shape, Index axis, Index batch_ndim)
 {
-    std::vector<Index> out;
-    out.reserve(batch_ndim + 1);
-    out.push_back(tensor_shape[axis]);
-    for (Index i = 0; i < batch_ndim; ++i)
-    {
-        out.push_back(tensor_shape[tensor_shape.size() - batch_ndim + i]);
-    }
-    return out;
+    return nntile::tensor::graph_fiber_shape(tensor_shape, axis, batch_ndim);
 }
 
 TEST_CASE("TensorGraph add_fiber_inplace structure", "[graph][tensor]")
