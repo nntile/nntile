@@ -60,5 +60,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     { auto L=Vg.acquire(STARPU_R);
       for(int j=0;j<15;++j) tr[static_cast<size_t>(j)]=static_cast<float>(L[j]);
       L.release(); }
-    for(int j=0;j<15;++j) REQUIRE(std::abs(gout[static_cast<size_t>(j)]-tr[static_cast<size_t>(j)])<1e+2f);
+    for(int j=0;j<15;++j) REQUIRE(std::abs(gout[static_cast<size_t>(j)]-tr[static_cast<size_t>(j)])<1e-6f);
 }

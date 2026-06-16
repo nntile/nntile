@@ -144,10 +144,10 @@ production GPT-2 tooling
 **Generate `execution.json` (first run):**
 
 ```bash
-./build/examples/gpt2_graph_training \
-  --train-bin build/examples/demo_data/gpt2/train.bin \
-  --config examples/demo_configs/gpt2_tiny_config.json \
-  --tiling examples/demo_configs/gpt2_tiny_tiling.json \
+./build/nntile/examples/gpt2_graph_training \
+  --train-bin build/nntile/examples/demo_data/gpt2/train.bin \
+  --config nntile/examples/demo_configs/gpt2_tiny_config.json \
+  --tiling nntile/examples/demo_configs/gpt2_tiny_tiling.json \
   --execution-out /tmp/gpt2_execution.json \
   --seq 8 --batch 2 --epochs 1 --max-batches 1
 ```
@@ -155,10 +155,10 @@ production GPT-2 tooling
 **Train using saved schedule:**
 
 ```bash
-./build/examples/gpt2_graph_training \
-  --train-bin build/examples/demo_data/gpt2/train.bin \
-  --config examples/demo_configs/gpt2_tiny_config.json \
-  --tiling examples/demo_configs/gpt2_tiny_tiling.json \
+./build/nntile/examples/gpt2_graph_training \
+  --train-bin build/nntile/examples/demo_data/gpt2/train.bin \
+  --config nntile/examples/demo_configs/gpt2_tiny_config.json \
+  --tiling nntile/examples/demo_configs/gpt2_tiny_tiling.json \
   --execution /tmp/gpt2_execution.json \
   --seq 8 --batch 2 --epochs 4 --max-batches 32
 ```

@@ -100,6 +100,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
     }
     for(int i = 0; i < 20; ++i)
     {
-        REQUIRE(std::abs(gout[static_cast<size_t>(i)] - tr[static_cast<size_t>(i)]) < 1e+2f);
+        REQUIRE(std::abs(gout[static_cast<size_t>(i)] - tr[static_cast<size_t>(i)]) < 1e-6f);
     }
 }

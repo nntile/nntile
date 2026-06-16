@@ -24,8 +24,10 @@ git grep -E '#include[[:space:]]*[<"]nntile/(core|graph)/' -- \
     ':(exclude)external' \
     ':(exclude)build' \
     ':(exclude).git' \
+    ':(exclude)nntile/' \
     ':(exclude)scripts/' \
     ':(exclude)wrappers/python' \
+    ':(exclude)*.md' \
     >>"$bad" 2>/dev/null || true
 
 legacy='#include[[:space:]]*[<"]nntile/(kernel|starpu|tile|tensor)/'
@@ -36,6 +38,12 @@ git grep -E "$legacy" -- \
     ':(exclude)nntile/' \
     ':(exclude)scripts/' \
     >>"$bad" 2>/dev/null || true
+
+# Documentation may show legacy include examples.
+if [ -s "$bad" ]; then
+    grep -v '\.md:' "$bad" >"${bad}.filtered" || true
+    mv "${bad}.filtered" "$bad"
+fi
 
 if [ -s "$bad" ]; then
     echo "::error::Forbidden include paths (use flat nntile/... layout):"

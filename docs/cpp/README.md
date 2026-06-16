@@ -4,9 +4,9 @@ NNTile is split into two CMake packages:
 
 | Package | Libraries | Umbrella headers |
 |---------|-----------|------------------|
-| **core** | `nntile` | [`include/nntile/core.hh`](../../include/nntile/core.hh) |
-| **graph** | `nntile` (links core) | [`include/nntile/graph.hh`](../../include/nntile/graph.hh) |
-| **full** | both | [`include/nntile.hh`](../../include/nntile.hh) |
+| **core** | `nntile` | [`nntile/include/nntile/core.hh`](../../nntile/include/nntile/core.hh) |
+| **graph** | `nntile` (links core) | [`nntile/include/nntile/graph.hh`](../../nntile/include/nntile/graph.hh) |
+| **full** | both | [`nntile/include/nntile.hh`](../../nntile/include/nntile.hh) |
 
 Core code lives under `nntile/src/` and `include/nntile/` with namespace
 `nntile::{kernel,starpu,tile,tensor,...}`. Graph code lives under

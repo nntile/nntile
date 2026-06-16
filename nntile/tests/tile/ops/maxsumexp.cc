@@ -81,6 +81,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
     }
     for(size_t j = 0; j < tr.size(); ++j)
     {
-        REQUIRE(std::abs(gout[j] - tr[j]) < 1e+2f);
+        REQUIRE(std::abs(gout[j] - tr[j]) < 1e-6f);
     }
 }
