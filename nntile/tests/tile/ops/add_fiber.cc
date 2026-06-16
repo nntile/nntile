@@ -153,6 +153,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
     for(size_t i = 0; i < tref.size(); ++i)
     {
-        REQUIRE(std::abs(gout[i] - tref[i]) < 1e-3f);
+        REQUIRE(std::abs(gout[i] - tref[i]) < 1e-6f);
     }
 }
