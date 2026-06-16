@@ -79,17 +79,17 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
     using Y = typename T::repr_t;
     Y mean{mean_}, stddev{stddev_};
     auto tmp_index = reinterpret_cast<std::int64_t *>(tmp_index_);
-    // Jump to the first element to generate
-    Index shift = start[ndim-1];
-    for(Index i = ndim-2; i >= 0; --i)
+    // Jump to the first element to generate (C-order linear offset).
+    Index shift = start[0];
+    for(Index i = 1; i < ndim; ++i)
     {
-        shift = start[i] + shift*underlying_shape[i];
+        shift = start[i] + shift * underlying_shape[i - 1];
     }
     seed = CORE_rnd64_jump(shift, seed);
     // View tile as a matrix of shape (shape[0], prod(shape[1:ndim]))
-    Index nrows = shape[0], ncols = nelems / nrows;
+    Index nslow = shape[0], nfast = nelems / nslow;
     // Generate the first column
-    for(Index i = 0; i < nrows; ++i)
+    for(Index i = 0; i < nslow; ++i)
     {
         *data = static_cast<T>(chameleon_randn(seed, mean, stddev));
         data += stride[0];
@@ -100,7 +100,7 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
         tmp_index[i] = 0;
     }
     // Generate all other columns
-    for(Index j = 1; j < ncols; ++j)
+    for(Index j = 1; j < nfast; ++j)
     {
         // Get index of the first element of the current column as well as a
         // shift to it from the last generated element. Init the index by
@@ -108,11 +108,11 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
         ++tmp_index[1];
         Index k = 1;
         // Init shift
-        Index shift = underlying_shape[0] - nrows;
+        Index shift = underlying_shape[0] - nslow;
         // Init stride for the current dimension
         Index underlying_stride = underlying_shape[0];
         // Update pointer to the current buffer element
-        data += stride[1] - stride[0]*nrows;
+        data += stride[1] - stride[0]*nslow;
         // Check if currently stored index is out-of-bounds
         while(tmp_index[k] == shape[k])
         {
@@ -132,7 +132,7 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
         // the shift are ready. At first jump random generator shift times.
         seed = CORE_rnd64_jump(shift, seed);
         // Generate the current column
-        for(Index i = 0; i < nrows; ++i)
+        for(Index i = 0; i < nslow; ++i)
         {
             *data = static_cast<T>(chameleon_randn(seed, mean, stddev));
             data += stride[0];

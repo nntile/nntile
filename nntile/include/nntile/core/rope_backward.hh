@@ -21,10 +21,10 @@ namespace nntile::core
 
 template<typename T>
 void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
-        const Tile<T> &dy, const Tile<T> &dx);
+        const Tile<T> &dy, const Tile<T> &dx, Index sin_pair0 = 0);
 
 template<typename T>
 void rope_backward(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
-        const Tile<T> &dy, const Tile<T> &dx);
+        const Tile<T> &dy, const Tile<T> &dx, Index sin_pair0 = 0);
 
 } // namespace nntile::core

@@ -66,7 +66,9 @@ void gemm(
     const T *A,
     const T *B,
     Scalar beta,
-    T *C
+    T *C,
+    bool broadcast_a = false,
+    bool broadcast_b = false
 ) noexcept;
 
 } // namespace nntile:kernel::cublas

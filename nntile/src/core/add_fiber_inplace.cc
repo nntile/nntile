@@ -43,21 +43,24 @@ void add_fiber_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T>
     {
         throw std::runtime_error("axis < 0");
     }
-    if(axis >= dst.ndim-batch_ndim)
+    if(axis < batch_ndim)
     {
-        throw std::runtime_error("axis >= dst.ndim-batch_ndim");
+        throw std::runtime_error("axis < batch_ndim");
+    }
+    if(axis >= dst.ndim)
+    {
+        throw std::runtime_error("axis >= dst.ndim");
     }
     // Check shapes of tiles
-    if(src.shape[0] != dst.shape[axis])
+    if(src.shape[batch_ndim] != dst.shape[axis])
     {
-        throw std::runtime_error("src.shape[0] != dst.shape[axis]");
+        throw std::runtime_error("src.shape[batch_ndim] != dst.shape[axis]");
     }
     for(Index i = 0; i < batch_ndim; ++i)
     {
-        if(src.shape[i+1] != dst.shape[dst.ndim-batch_ndim+i])
+        if(src.shape[i] != dst.shape[i])
         {
-            throw std::runtime_error("src.shape[i+1] != "
-                    "dst.shape[dst.ndim-batch_ndim+i]");
+            throw std::runtime_error("src.shape[i] != dst.shape[i]");
         }
     }
     // Do nothing if alpha is zero
@@ -67,9 +70,9 @@ void add_fiber_inplace_async(int starpu_worker_hint, Scalar alpha, const Tile<T>
     }
     // Reshape inputs for simplicity: src -> (k,batch), dst -> (m,k,n,batch)
     Index m, n, k, batch;
-    batch = src.matrix_shape[1][1];
-    m = dst.stride[axis];
-    n = dst.matrix_shape[axis+1][1] / batch;
+    batch = src.matrix_shape[batch_ndim][0];
+    m = dst.matrix_shape[axis+1][1];
+    n = dst.matrix_shape[axis][0] / batch;
     k = dst.shape[axis];
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();

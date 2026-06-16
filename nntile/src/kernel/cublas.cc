@@ -24,6 +24,56 @@
 namespace nntile::kernel::cublas
 {
 
+namespace
+{
+
+struct CublasGemmLayout
+{
+    cublasOperation_t trans_first = CUBLAS_OP_N;
+    cublasOperation_t trans_second = CUBLAS_OP_N;
+};
+
+//! Map logical C-order GEMM operands to cuBLAS (row-major B_op @ A_op).
+CublasGemmLayout c_order_gemm_layout(TransOp transA, TransOp transB)
+{
+    CublasGemmLayout layout;
+    switch(transB.value)
+    {
+        case TransOp::NoTrans:
+            switch(transA.value)
+            {
+                case TransOp::NoTrans:
+                    layout.trans_first = CUBLAS_OP_T;
+                    layout.trans_second = CUBLAS_OP_N;
+                    break;
+                case TransOp::Trans:
+                default:
+                    layout.trans_first = CUBLAS_OP_T;
+                    layout.trans_second = CUBLAS_OP_T;
+                    break;
+            }
+            break;
+        case TransOp::Trans:
+        default:
+            switch(transA.value)
+            {
+                case TransOp::NoTrans:
+                    layout.trans_first = CUBLAS_OP_N;
+                    layout.trans_second = CUBLAS_OP_N;
+                    break;
+                case TransOp::Trans:
+                default:
+                    layout.trans_first = CUBLAS_OP_N;
+                    layout.trans_second = CUBLAS_OP_T;
+                    break;
+            }
+            break;
+    }
+    return layout;
+}
+
+} // namespace
+
 //! Helper type to get type of scalars for cublasGemmEx
 /*! Currently, it coincides with our representation type, but it will be wrong
  *  once we add fp16 support
@@ -45,41 +95,38 @@ void gemm(
     const T *A,
     const T *B,
     Scalar beta,
-    T *C
+    T *C,
+    bool broadcast_a,
+    bool broadcast_b
 ) noexcept
 {
-    // Convert values to CUBLAS types
-    int M=m, N=n, K=k, ldA, ldB, ldC=M;
-    int BATCH=batch;
-    long long int strideA=m*k, strideB=n*k, strideC=m*n;
-    scalar_t<T> alpha_=alpha, beta_=beta;
-
-    // Convert transposition operation flags
-    cublasOperation_t transA_, transB_;
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            transA_ = CUBLAS_OP_N;
-            ldA = M;
-            break;
-        case TransOp::Trans:
-        default:
-            transA_ = CUBLAS_OP_T;
-            ldA = K;
-            break;
-    }
+    // C-order layout matches kernel::cblas::gemm (row-major B_op @ A_op).
+    const int M_out = n;
+    const int N_out = m;
+    const int K_inner = k;
+    const int BATCH = batch;
+    CublasGemmLayout layout = c_order_gemm_layout(transA, transB);
+    int ld_first = 0;
+    int ld_second = 0;
     switch(transB.value)
     {
         case TransOp::NoTrans:
-            transB_ = CUBLAS_OP_N;
-            ldB = K;
+            ld_first = M_out;
             break;
         case TransOp::Trans:
         default:
-            transB_ = CUBLAS_OP_T;
-            ldB = N;
+            ld_first = K_inner;
             break;
     }
+    ld_second = (transA.value == TransOp::NoTrans) ? N_out : K_inner;
+    const int ldC = N_out;
+    const long long int strideA = broadcast_a ? 0LL :
+        static_cast<long long int>(N_out) * K_inner;
+    const long long int strideB = broadcast_b ? 0LL :
+        static_cast<long long int>(M_out) * K_inner;
+    const long long int strideC =
+        static_cast<long long int>(M_out) * N_out;
+    scalar_t<T> alpha_=alpha, beta_=beta;
 
     // Find out cublasGemmEx specific parameters
     cudaDataType_t typeA, typeB, typeC;
@@ -138,19 +185,19 @@ void gemm(
     // Call corresponding CUBLAS routine
     cublasGemmStridedBatchedEx(
         handle,
-        transA_,
-        transB_,
-        M,
-        N,
-        K,
+        layout.trans_second,
+        layout.trans_first,
+        N_out,
+        M_out,
+        K_inner,
         &alpha_,
         reinterpret_cast<const void *>(A),
         typeA,
-        ldA,
+        ld_second,
         strideA,
         reinterpret_cast<const void *>(B),
         typeB,
-        ldB,
+        ld_first,
         strideB,
         &beta_,
         reinterpret_cast<void *>(C),
