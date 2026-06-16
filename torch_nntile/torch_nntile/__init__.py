@@ -57,4 +57,53 @@ _register_backend()
 
 device = torch.device("nntile")
 
-__all__ = ["device", "_C"]
+
+def init_context(
+    ncpu: int = -1,
+    ncuda: int = -1,
+    ooc_enabled: int = 0,
+    ooc_path: str = "/tmp/nntile_ooc",
+    ooc_size: int = 16 * 1024 * 1024,
+    logger: int = 0,
+    verbose: int = 0,
+) -> None:
+    """Configure StarPU workers before the first libnntile-backed op."""
+    _C.init_context(
+        ncpu,
+        ncuda,
+        ooc_enabled,
+        ooc_path,
+        ooc_size,
+        logger,
+        verbose,
+    )
+
+
+def is_context_initialized() -> bool:
+    return _C.is_context_initialized()
+
+
+def restrict_cpu() -> None:
+    """Pin StarPU codelets to CPU workers (libnntile)."""
+    _C.restrict_cpu()
+
+
+def restrict_cuda() -> None:
+    """Pin StarPU codelets to CUDA workers (libnntile)."""
+    _C.restrict_cuda()
+
+
+def restore_where() -> None:
+    """Restore default StarPU codelet worker placement."""
+    _C.restore_where()
+
+
+__all__ = [
+    "device",
+    "_C",
+    "init_context",
+    "is_context_initialized",
+    "restrict_cpu",
+    "restrict_cuda",
+    "restore_where",
+]

@@ -9,6 +9,8 @@
 #include <c10/core/Device.h>
 #include <c10/core/DeviceType.h>
 
+#include "nntile_context.h"
+
 namespace torch_nntile
 {
 
@@ -65,4 +67,31 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "buffer_equal_cpu",
         &torch_nntile::buffer_equal_cpu,
         "Compare nntile tensor to CPU tensor");
+    m.def(
+        "init_context",
+        &torch_nntile::init_context,
+        "Configure StarPU workers before the first nntile op",
+        py::arg("ncpu") = -1,
+        py::arg("ncuda") = -1,
+        py::arg("ooc_enabled") = 0,
+        py::arg("ooc_path") = "/tmp/nntile_ooc",
+        py::arg("ooc_size") = 16 * 1024 * 1024,
+        py::arg("logger") = 0,
+        py::arg("verbose") = 0);
+    m.def(
+        "is_context_initialized",
+        &torch_nntile::is_context_initialized,
+        "Whether the libnntile context has been created");
+    m.def(
+        "restrict_cpu",
+        &torch_nntile::restrict_cpu,
+        "Run StarPU codelets on CPU workers only");
+    m.def(
+        "restrict_cuda",
+        &torch_nntile::restrict_cuda,
+        "Run StarPU codelets on CUDA workers only");
+    m.def(
+        "restore_where",
+        &torch_nntile::restore_where,
+        "Restore default StarPU codelet worker placement");
 }

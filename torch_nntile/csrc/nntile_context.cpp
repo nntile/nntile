@@ -6,12 +6,14 @@
 
 #include "nntile_context.h"
 
+#include <mutex>
+#include <stdexcept>
+
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 #include <nntile/context.hh>
 
 #include <memory>
-#include <mutex>
 
 namespace torch_nntile
 {
@@ -19,31 +21,105 @@ namespace torch_nntile
 namespace
 {
 
+struct ContextConfig
+{
+    int ncpu = 1;
+    int ncuda = 0;
+    int ooc_enabled = 0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    std::size_t ooc_size = 16 * 1024 * 1024;
+    int logger = 0;
+    int verbose = 0;
+};
+
 std::mutex g_context_mutex;
 std::unique_ptr<nntile::Context> g_context;
+ContextConfig g_context_config;
+bool g_context_config_locked = false;
 
-} // namespace
-
-void ensure_nntile_context()
+void create_context_locked()
 {
-    std::lock_guard<std::mutex> lock(g_context_mutex);
     if (g_context != nullptr)
     {
         return;
     }
-    constexpr int ncpu = 1;
-    constexpr int ncuda = 0;
-    constexpr int ooc_enabled = 0;
-    constexpr char const *ooc_path = "/tmp/nntile_ooc";
-    constexpr std::size_t ooc_size = 16 * 1024 * 1024;
-    constexpr int logger = 0;
+    g_context_config_locked = true;
     g_context = std::make_unique<nntile::Context>(
-        ncpu,
-        ncuda,
-        ooc_enabled,
-        ooc_path,
-        ooc_size,
-        logger);
+        g_context_config.ncpu,
+        g_context_config.ncuda,
+        g_context_config.ooc_enabled,
+        g_context_config.ooc_path,
+        g_context_config.ooc_size,
+        g_context_config.logger,
+        "localhost",
+        5001,
+        g_context_config.verbose);
+}
+
+} // namespace
+
+void init_context(
+    int ncpu,
+    int ncuda,
+    int ooc_enabled,
+    const char *ooc_path,
+    std::size_t ooc_size,
+    int logger,
+    int verbose)
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    if (g_context != nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile.init_context() must be called before "
+            "any nntile operation");
+    }
+    if (g_context_config_locked)
+    {
+        throw std::runtime_error(
+            "torch_nntile context configuration is already locked");
+    }
+    g_context_config.ncpu = ncpu;
+    g_context_config.ncuda = ncuda;
+    g_context_config.ooc_enabled = ooc_enabled;
+    g_context_config.ooc_path = ooc_path;
+    g_context_config.ooc_size = ooc_size;
+    g_context_config.logger = logger;
+    g_context_config.verbose = verbose;
+    g_context_config_locked = true;
+}
+
+bool is_context_initialized()
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    return g_context != nullptr;
+}
+
+void ensure_nntile_context()
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    create_context_locked();
+}
+
+void restrict_cpu()
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    create_context_locked();
+    g_context->restrict_cpu();
+}
+
+void restrict_cuda()
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    create_context_locked();
+    g_context->restrict_cuda();
+}
+
+void restore_where()
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    create_context_locked();
+    g_context->restore_where();
 }
 
 } // namespace torch_nntile
@@ -53,8 +129,52 @@ void ensure_nntile_context()
 namespace torch_nntile
 {
 
+namespace
+{
+
+[[noreturn]] void require_libnntile()
+{
+    throw std::runtime_error(
+        "torch_nntile context APIs require libnntile "
+        "(rebuild with NNTILE_BUILD_DIR set)");
+}
+
+} // namespace
+
+void init_context(
+    int /*ncpu*/,
+    int /*ncuda*/,
+    int /*ooc_enabled*/,
+    const char * /*ooc_path*/,
+    std::size_t /*ooc_size*/,
+    int /*logger*/,
+    int /*verbose*/)
+{
+    require_libnntile();
+}
+
+bool is_context_initialized()
+{
+    return false;
+}
+
 void ensure_nntile_context()
 {
+}
+
+void restrict_cpu()
+{
+    require_libnntile();
+}
+
+void restrict_cuda()
+{
+    require_libnntile();
+}
+
+void restore_where()
+{
+    require_libnntile();
 }
 
 } // namespace torch_nntile

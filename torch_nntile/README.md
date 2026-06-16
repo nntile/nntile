@@ -61,6 +61,24 @@ b = torch.tensor([3.0, 4.0], device="nntile")
 z = a + b  # TensorGraph add when libnntile is linked
 ```
 
+### StarPU worker placement (libnntile)
+
+Pin codelets to CPU or CUDA workers, matching `nntile.Context` in the main
+package:
+
+```python
+import torch_nntile
+
+torch_nntile.init_context(ncpu=1, ncuda=1, verbose=0)
+torch_nntile.restrict_cuda()   # CUDA-only kernels
+# ... run nntile-backed ops ...
+torch_nntile.restore_where()   # default placement again
+```
+
+`init_context()` must be called before the first libnntile-backed operation
+(e.g. `a + b` on `device="nntile"`). `restrict_cpu()` / `restrict_cuda()` /
+`restore_where()` auto-create the context with defaults if needed.
+
 ## macOS / PyTorch 2.12
 
 PyTorch 2.12 exports `at::native::cpu_fallback` with four arguments
