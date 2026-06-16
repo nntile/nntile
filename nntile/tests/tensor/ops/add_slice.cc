@@ -72,13 +72,13 @@ TEST_CASE("TensorGraph add_slice structure", "[graph][tensor]")
 
     auto *src1 = graph.data({dim_2})->set_name(
         "src1"); // slice for axis=1: {2,4} without dim 1 = {2}
-    auto *src2 = graph.data({dim_2, dim_4})->set_name("src2");
+    auto *src2 = graph.data({dim_4, dim_2})->set_name("src2");
 
-    auto *out = gt::add_slice(alpha_one, src1, beta_one, src2, axis_1);
+    auto *out = gt::add_slice(alpha_one, src1, beta_one, src2, axis_0);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(out->shape() == (std::vector<Index>{dim_2, dim_4}));
+    REQUIRE(out->shape() == (std::vector<Index>{dim_4, dim_2}));
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "ADD_SLICE");
@@ -91,10 +91,10 @@ TEST_CASE("TensorGraph add_slice rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
     auto *src1 = graph.data({dim_2})->set_name("src1");
-    auto *src2 = graph.data({dim_2, dim_4})->set_name("src2");
+    auto *src2 = graph.data({dim_4, dim_2})->set_name("src2");
 
     REQUIRE_THROWS_AS(
-        gt::add_slice(alpha_one, src1, beta_one, src2, src2, axis_1),
+        gt::add_slice(alpha_one, src1, beta_one, src2, src2, axis_0),
         std::invalid_argument);
 }
 
@@ -103,8 +103,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [dst_shape, axis, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0, 1.0},
-            std::tuple{std::vector<Index>{2, 4, 6}, Index(1), 2.0, 0.5});
+        GENERATE(std::tuple{std::vector<Index>{4, 2}, Index(1), 1.0, 1.0},
+            std::tuple{std::vector<Index>{6, 4, 2}, Index(1), 2.0, 0.5});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

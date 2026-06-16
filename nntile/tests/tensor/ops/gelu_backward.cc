@@ -36,9 +36,9 @@ TEST_CASE("TensorGraph gelu_backward structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim0, dim1})->set_name("x");
-    auto *dy = graph.data({dim0, dim1})->set_name("dy");
-    auto *dx = graph.data({dim0, dim1})->set_name("dx");
+    auto *x = graph.data({dim1, dim0})->set_name("x");
+    auto *dy = graph.data({dim1, dim0})->set_name("dy");
+    auto *dx = graph.data({dim1, dim0})->set_name("dx");
 
     gt::gelu_backward(x, dy, dx);
 
@@ -56,8 +56,8 @@ TEST_CASE(
     "TensorGraph gelu_backward rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({4, 5})->set_name("x");
-    auto *dy = graph.data({4, 5})->set_name("dy");
+    auto *x = graph.data({5, 4})->set_name("x");
+    auto *dy = graph.data({5, 4})->set_name("dy");
 
     REQUIRE_THROWS_AS(gt::gelu_backward(x, x, dy), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::gelu_backward(x, dy, x), std::invalid_argument);
@@ -68,9 +68,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph gelu_backward tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto shape = GENERATE(std::vector<Index>{4, 6},
+    const auto shape = GENERATE(std::vector<Index>{6, 4},
         std::vector<Index>{6},
-        std::vector<Index>{2, 4});
+        std::vector<Index>{4, 2});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

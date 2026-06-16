@@ -60,9 +60,9 @@ TEST_CASE("TensorGraph multiply_fiber_inplace structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
+    auto *tensor = graph.data({dim_4, dim_2})->set_name("tensor");
 
-    gt::multiply_fiber_inplace(alpha_one, fiber, tensor, axis_1);
+    gt::multiply_fiber_inplace(alpha_one, fiber, tensor, axis_0);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -90,12 +90,12 @@ TEST_CASE("TensorGraph multiply_fiber_inplace rejects mismatched shapes",
 {
     TensorGraph graph("test");
     auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
+    auto *tensor = graph.data({dim_4, dim_2})->set_name("tensor");
 
     // Fiber length must match tensor dim along axis
     auto *wrong_fiber = graph.data({dim_5})->set_name("wrong_fiber");
     REQUIRE_THROWS_AS(
-        gt::multiply_fiber_inplace(alpha_one, wrong_fiber, tensor, axis_1),
+        gt::multiply_fiber_inplace(alpha_one, wrong_fiber, tensor, axis_0),
         std::invalid_argument);
 }
 
@@ -104,8 +104,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [tensor_shape, axis, alpha] =
-        GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
-            std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
+        GENERATE(std::tuple{std::vector<Index>{4, 2}, Index(1), 1.0},
+            std::tuple{std::vector<Index>{4, 2}, Index(0), 1.0});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

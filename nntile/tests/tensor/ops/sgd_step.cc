@@ -43,9 +43,9 @@ TEST_CASE("TensorGraph sgd_step structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *grad = graph.data({dim_4, dim_5})->set_name("grad");
-    auto *velocity = graph.data({dim_4, dim_5})->set_name("velocity");
-    auto *p = graph.data({dim_4, dim_5})->set_name("p");
+    auto *grad = graph.data({dim_5, dim_4})->set_name("grad");
+    auto *velocity = graph.data({dim_5, dim_4})->set_name("velocity");
+    auto *p = graph.data({dim_5, dim_4})->set_name("p");
 
     gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false, grad, velocity, p);
 
@@ -61,9 +61,9 @@ TEST_CASE("TensorGraph sgd_step structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sgd_step rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *grad = graph.data({4, 5})->set_name("grad");
-    auto *velocity = graph.data({4, 5})->set_name("velocity");
-    auto *p = graph.data({4, 5})->set_name("p");
+    auto *grad = graph.data({5, 4})->set_name("grad");
+    auto *velocity = graph.data({5, 4})->set_name("velocity");
+    auto *p = graph.data({5, 4})->set_name("p");
 
     REQUIRE_THROWS_AS(
         gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false, nullptr, velocity, p),
@@ -83,7 +83,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         lr,
         weight_decay,
         dampening,
-        nesterov] = GENERATE(std::tuple{std::vector<Index>{4, 6},
+        nesterov] = GENERATE(std::tuple{std::vector<Index>{6, 4},
                                  Index(1),
                                  0.9,
                                  0.001,
@@ -91,7 +91,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                                  0.0,
                                  false},
         std::tuple{
-            std::vector<Index>{2, 4}, Index(1), 0.9, 0.001, 0.01, 0.0, false});
+            std::vector<Index>{4, 2}, Index(1), 0.9, 0.001, 0.01, 0.0, false});
 
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

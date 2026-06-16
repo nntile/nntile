@@ -18,6 +18,7 @@
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -91,29 +92,45 @@ void TensorSumprodSliceOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& tiles_s2 = tile_lower::tiles_of(ctx.tile_map, src2);
     const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
+    const Index src_nd = src1->ndim();
+    const Index dst_nd = dst->ndim();
+    const Index s_axis = graph_axis_to_storage(axis, src_nd);
+
     std::vector<Index> dst_coord;
-    std::vector<Index> s1_coord(static_cast<size_t>(src1->ndim()));
+    std::vector<Index> s1_coord(static_cast<size_t>(src_nd));
 
     for(Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
         TileGraph::TileNode* dst_tile = tiles_d[static_cast<size_t>(lin_d)];
 
-        for(Index j = 0; j < axis; ++j)
+        for(Index sd = 0; sd < dst_nd; ++sd)
         {
-            s1_coord[static_cast<size_t>(j)] =
-                dst_coord[static_cast<size_t>(j)];
-        }
-        for(Index j = axis + 1; j < src1->ndim(); ++j)
-        {
-            s1_coord[static_cast<size_t>(j)] =
-                dst_coord[static_cast<size_t>(j - 1)];
+            const Index g_dst = storage_axis_to_graph(sd, dst_nd);
+            Index g_src = 0;
+            Index k = 0;
+            for(Index g2 = 0; g2 < src_nd; ++g2)
+            {
+                if(g2 == axis)
+                {
+                    continue;
+                }
+                if(k == g_dst)
+                {
+                    g_src = g2;
+                    break;
+                }
+                ++k;
+            }
+            s1_coord[static_cast<size_t>(
+                graph_axis_to_storage(g_src, src_nd))] =
+                dst_coord[static_cast<size_t>(sd)];
         }
 
         const Index nseg_along_axis =
-            lay_s1->grid_shape()[static_cast<size_t>(axis)];
+            lay_s1->grid_shape()[static_cast<size_t>(s_axis)];
 
-        s1_coord[static_cast<size_t>(axis)] = 0;
+        s1_coord[static_cast<size_t>(s_axis)] = 0;
         Index lin_s0 = lay_s1->grid_linear(s1_coord);
         tile::sumprod_slice(
             alpha,
@@ -121,12 +138,12 @@ void TensorSumprodSliceOp::lower_to_tile(const LoweringContext& ctx) const
             tiles_s2[static_cast<size_t>(lin_s0)],
             beta,
             dst_tile,
-            axis,
+            s_axis,
             redux);
 
         for(Index jj = 1; jj < nseg_along_axis; ++jj)
         {
-            s1_coord[static_cast<size_t>(axis)] = jj;
+            s1_coord[static_cast<size_t>(s_axis)] = jj;
             const Index lin_s = lay_s1->grid_linear(s1_coord);
             tile::sumprod_slice(
                 alpha,
@@ -134,7 +151,7 @@ void TensorSumprodSliceOp::lower_to_tile(const LoweringContext& ctx) const
                 tiles_s2[static_cast<size_t>(lin_s)],
                 Scalar(1.0),
                 dst_tile,
-                axis,
+                s_axis,
                 redux);
         }
     }

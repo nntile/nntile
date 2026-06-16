@@ -17,6 +17,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -134,17 +135,20 @@ void TensorMultiplyFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_s2 = tile_lower::tiles_of(ctx.tile_map, src2);
     const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
+    const Index nd = dst->ndim();
+    const Index s_axis = graph_axis_to_storage(axis, nd);
+
     std::vector<Index> dst_coord;
 
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        const Index j = dst_coord[static_cast<size_t>(axis)];
+        const Index j = dst_coord[static_cast<size_t>(s_axis)];
         tile::multiply_fiber(alpha,
             tiles_s1[static_cast<size_t>(j)],
             tiles_s2[static_cast<size_t>(lin_d)],
             tiles_d[static_cast<size_t>(lin_d)],
-            axis);
+            s_axis);
     }
 }
 

@@ -60,11 +60,11 @@ static std::vector<Index> fiber_shape(
 {
     std::vector<Index> out;
     out.reserve(batch_ndim + 1);
-    out.push_back(tensor_shape[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out.push_back(tensor_shape[tensor_shape.size() - batch_ndim + i]);
+        out.push_back(tensor_shape[i]);
     }
+    out.push_back(tensor_shape[axis]);
     return out;
 }
 
@@ -72,12 +72,12 @@ TEST_CASE("TensorGraph norm_fiber_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim_2, dim_4})->set_name("src");
+    auto *src = graph.data({dim_4, dim_2})->set_name("src");
     auto *dst =
         graph.data({dim_4})->set_name("dst"); // axis=1: norm over dim_2
 
     gt::norm_fiber_inplace(
-        alpha_one, src, beta_one, dst, axis_1, batch_ndim_none, redux_none);
+        alpha_one, src, beta_one, dst, axis_0, batch_ndim_none, redux_none);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -93,13 +93,13 @@ TEST_CASE("TensorGraph norm_fiber_inplace rejects duplicate tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({dim_2, dim_4})->set_name("src");
+    auto *src = graph.data({dim_4, dim_2})->set_name("src");
 
     REQUIRE_THROWS_AS(gt::norm_fiber_inplace(alpha_one,
                           src,
                           beta_one,
                           src,
-                          axis_1,
+                          axis_0,
                           batch_ndim_none,
                           redux_none),
         std::invalid_argument);
@@ -110,13 +110,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [tensor_shape, axis, batch_ndim, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
-                     axis_0,
+        GENERATE(std::tuple{std::vector<Index>{dim_5, dim_4},
+                     axis_1,
                      batch_ndim_none,
                      redux_none,
                      alpha_one,
                      beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
+            std::tuple{std::vector<Index>{dim_4, dim_3, dim_2},
                 axis_1,
                 batch_ndim_none,
                 redux_none,

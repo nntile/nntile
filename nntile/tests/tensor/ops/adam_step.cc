@@ -43,11 +43,11 @@ TEST_CASE("TensorGraph adam_step structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *grad = graph.data({dim_4, dim_5})->set_name("grad");
-    auto *first_moment = graph.data({dim_4, dim_5})->set_name("first_moment");
+    auto *grad = graph.data({dim_5, dim_4})->set_name("grad");
+    auto *first_moment = graph.data({dim_5, dim_4})->set_name("first_moment");
     auto *second_moment =
-        graph.data({dim_4, dim_5})->set_name("second_moment");
-    auto *p = graph.data({dim_4, dim_5})->set_name("p");
+        graph.data({dim_5, dim_4})->set_name("second_moment");
+    auto *p = graph.data({dim_5, dim_4})->set_name("p");
 
     gt::adam_step(
         1, 0.9, 0.999, 1e-8, 0.001, 0.0, grad, first_moment, second_moment, p);
@@ -64,10 +64,10 @@ TEST_CASE("TensorGraph adam_step structure", "[graph][tensor]")
 TEST_CASE("TensorGraph adam_step rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *grad = graph.data({4, 5})->set_name("grad");
-    auto *first_moment = graph.data({4, 5})->set_name("first_moment");
-    auto *second_moment = graph.data({4, 5})->set_name("second_moment");
-    auto *p = graph.data({4, 5})->set_name("p");
+    auto *grad = graph.data({5, 4})->set_name("grad");
+    auto *first_moment = graph.data({5, 4})->set_name("first_moment");
+    auto *second_moment = graph.data({5, 4})->set_name("second_moment");
+    auto *p = graph.data({5, 4})->set_name("p");
 
     REQUIRE_THROWS_AS(gt::adam_step(1,
                           0.9,
@@ -91,14 +91,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [shape, num_iter, beta_1, beta_2, eps, lr, weight_decay] =
-        GENERATE(std::tuple{std::vector<Index>{4, 6},
+        GENERATE(std::tuple{std::vector<Index>{6, 4},
                      Index(1),
                      0.9,
                      0.999,
                      1e-8,
                      0.001,
                      0.0},
-            std::tuple{std::vector<Index>{2, 4},
+            std::tuple{std::vector<Index>{4, 2},
                 Index(2),
                 0.95,
                 0.99,

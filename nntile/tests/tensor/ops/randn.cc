@@ -43,7 +43,7 @@ TEST_CASE("TensorGraph randn structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *dst = graph.data({4, 5})->set_name("dst");
+    auto *dst = graph.data({5, 4})->set_name("dst");
     gt::randn(dst, {0, 0}, {4, 5}, seed, mean, stddev);
 
     REQUIRE(graph.num_data() == 1);
@@ -68,11 +68,10 @@ TEST_CASE("TensorGraph randn rejects mismatched start/underlying_shape",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *dst = graph.data({4, 5})->set_name("dst");
+    auto *dst = graph.data({5, 4})->set_name("dst");
 
     REQUIRE_THROWS_AS(gt::randn(dst, {0}, {4, 5}, seed, mean, stddev),
         std::invalid_argument);
     REQUIRE_THROWS_AS(gt::randn(dst, {0, 0}, {4}, seed, mean, stddev),
         std::invalid_argument);
 }
-

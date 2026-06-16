@@ -43,8 +43,8 @@ TEST_CASE("TensorGraph multiply_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
-    auto *dst = graph.data({dim0, dim1})->set_name("dst");
+    auto *src = graph.data({dim1, dim0})->set_name("src");
+    auto *dst = graph.data({dim1, dim0})->set_name("dst");
 
     gt::multiply_inplace(alpha, src, dst);
 
@@ -62,7 +62,7 @@ TEST_CASE("TensorGraph multiply_inplace rejects duplicate tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({4, 5})->set_name("src");
+    auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::multiply_inplace(alpha, src, src), std::invalid_argument);
@@ -73,8 +73,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, shape] =
-        GENERATE(std::tuple{1.0, std::vector<Index>{4, 6}},
-            std::tuple{2.5, std::vector<Index>{2, 4}},
+        GENERATE(std::tuple{1.0, std::vector<Index>{6, 4}},
+            std::tuple{2.5, std::vector<Index>{4, 2}},
             std::tuple{0.5, std::vector<Index>{6}});
 
     using T = nntile::fp32_t;

@@ -74,10 +74,10 @@ TEST_CASE("TensorGraph sum_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim_4, dim_5})->set_name("src");
-    auto *dst = graph.data({dim_4})->set_name("dst"); // axis=1: sum over dim_5
+    auto *src = graph.data({dim_5, dim_4})->set_name("src");
+    auto *dst = graph.data({dim_4})->set_name("dst"); // axis=0: sum over dim_5
 
-    gt::sum_slice(src, dst, axis_1, redux_none, alpha_one, beta_zero);
+    gt::sum_slice(src, dst, axis_0, redux_none, alpha_one, beta_zero);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -94,10 +94,10 @@ TEST_CASE("TensorGraph sum_slice structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sum_slice rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({dim_4, dim_5})->set_name("src");
+    auto *src = graph.data({dim_5, dim_4})->set_name("src");
 
     REQUIRE_THROWS_AS(
-        gt::sum_slice(src, src, axis_1, redux_none, alpha_one, beta_zero),
+        gt::sum_slice(src, src, axis_0, redux_none, alpha_one, beta_zero),
         std::invalid_argument);
 }
 
@@ -106,12 +106,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
-                     axis_0,
+        GENERATE(std::tuple{std::vector<Index>{dim_5, dim_4},
+                     axis_1,
                      redux_none,
                      alpha_one,
                      beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
+            std::tuple{std::vector<Index>{dim_4, dim_3, dim_2},
                 axis_1,
                 redux_none,
                 alpha_one,

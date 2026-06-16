@@ -78,7 +78,7 @@ void subtract_indexed_outputs(Scalar val,
     if(labels->dtype() != DataType::INT64)
         throw std::invalid_argument(
             "subtract_indexed_outputs: labels must have INT64 dtype");
-    // labels.dim[i] == dst.dim[i+1]: labels index the batch dims of dst
+    // C-order: labels.dim[i] == dst.dim[i]; class axis is dst last dim.
     if(labels->ndim() + 1 != dst->ndim())
     {
         throw std::invalid_argument(
@@ -86,17 +86,17 @@ void subtract_indexed_outputs(Scalar val,
     }
     for(Index i = 0; i < labels->ndim(); ++i)
     {
-        if(labels->shape()[i] != dst->shape()[i + 1])
+        if(labels->shape()[i] != dst->shape()[i])
         {
             throw std::invalid_argument(
                 "subtract_indexed_outputs: labels.dim[" +
                 std::to_string(i) + "] must match dst.dim[" +
-                std::to_string(i + 1) + "] (" +
+                std::to_string(i) + "] (" +
                 std::to_string(labels->shape()[i]) + " vs " +
-                std::to_string(dst->shape()[i + 1]) + ")");
+                std::to_string(dst->shape()[i]) + ")");
         }
         merge_axis(labels->mutable_axes()[i],
-                   dst->mutable_axes()[i + 1]);
+                   dst->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorSubtractIndexedOutputsOp>(

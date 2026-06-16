@@ -16,6 +16,7 @@
 #include "nntile/tensor/ops/sum_fiber.hh"
 
 #include "nntile/base_types.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -36,13 +37,12 @@ namespace
 std::vector<Index> sum_fiber_output_shape(
     const std::vector<Index> &x_shape, Index axis, Index batch_ndim)
 {
-    Index ndim = x_shape.size();
     std::vector<Index> out_shape;
     out_shape.reserve(batch_ndim + 1);
     out_shape.push_back(x_shape[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        out_shape.push_back(x_shape[ndim - batch_ndim + i]);
+        out_shape.push_back(x_shape[i]);
     }
     return out_shape;
 }
@@ -71,8 +71,7 @@ TensorGraph::TensorNode *sum_fiber(TensorGraph::TensorNode *x,
     merge_axis(output->mutable_axes()[0], x->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        merge_axis(output->mutable_axes()[1 + i],
-            x->mutable_axes()[x->ndim() - batch_ndim + i]);
+        merge_axis(output->mutable_axes()[1 + i], x->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorSumFiberOp>(
@@ -135,18 +134,20 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
     std::vector<Index> x_coord;
     std::vector<Index> y_coord(static_cast<size_t>(y->ndim()));
 
-    const Index fiber_prefix = x->ndim() - batch_ndim;
+    const Index x_nd = x->ndim();
+    const Index s_axis = graph_axis_to_storage(axis, x_nd);
+    const Index fiber_prefix = x_nd - batch_ndim;
 
     for (Index lin_x = 0; lin_x < lay_x->grid_volume(); ++lin_x)
     {
         lay_x->grid_coord_from_linear(lin_x, x_coord);
         TileGraph::TileNode *x_tile = tiles_x[static_cast<size_t>(lin_x)];
 
-        y_coord[0] = x_coord[static_cast<size_t>(axis)];
-        for (Index j = 0; j < batch_ndim; ++j)
+        y_coord[0] = x_coord[static_cast<size_t>(s_axis)];
+        for (Index b = 0; b < batch_ndim; ++b)
         {
-            y_coord[static_cast<size_t>(j + 1)] =
-                x_coord[static_cast<size_t>(x->ndim() - batch_ndim + j)];
+            y_coord[static_cast<size_t>(1 + b)] =
+                x_coord[static_cast<size_t>(graph_axis_to_storage(b, x_nd))];
         }
         const Index lin_y = lay_y->grid_linear(y_coord);
         TileGraph::TileNode *y_tile = tiles_y[static_cast<size_t>(lin_y)];
@@ -154,7 +155,7 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
         bool init_first = true;
         for (Index j = 0; j < fiber_prefix; ++j)
         {
-            if (j != axis && x_coord[static_cast<size_t>(j)] != 0)
+            if (j != s_axis && x_coord[static_cast<size_t>(j)] != 0)
             {
                 init_first = false;
                 break;
@@ -164,12 +165,12 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
         if (init_first)
         {
             tile::sum_fiber(
-                alpha, x_tile, beta, y_tile, axis, batch_ndim, redux);
+                alpha, x_tile, beta, y_tile, s_axis, batch_ndim, redux);
         }
         else
         {
             tile::sum_fiber(
-                alpha, x_tile, Scalar(1.0), y_tile, axis, batch_ndim, redux);
+                alpha, x_tile, Scalar(1.0), y_tile, s_axis, batch_ndim, redux);
         }
     }
 }

@@ -43,7 +43,7 @@ TEST_CASE("TensorGraph fill structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *src = graph.data({dim1, dim0})->set_name("src");
 
     gt::fill(fill_val, src);
 
@@ -62,9 +62,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [val, shape] =
-        GENERATE(std::tuple{1.0, std::vector<Index>{4, 6}},
+        GENERATE(std::tuple{1.0, std::vector<Index>{6, 4}},
             std::tuple{-2.5, std::vector<Index>{6}},
-            std::tuple{3.14, std::vector<Index>{2, 4}});
+            std::tuple{3.14, std::vector<Index>{4, 2}});
 
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());

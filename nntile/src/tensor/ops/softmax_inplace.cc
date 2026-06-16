@@ -20,6 +20,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/softmax_inplace.hh"
@@ -28,7 +29,30 @@
 namespace nntile::tensor
 {
 
+namespace
+{
 
+void maxsumexp_to_src_storage_coord(const std::vector<Index> &m_storage,
+    Index axis,
+    Index src_ndim,
+    std::vector<Index> &src_storage)
+{
+    src_storage.resize(static_cast<size_t>(src_ndim));
+    for (Index s = 0; s < src_ndim; ++s)
+    {
+        const Index g = storage_axis_to_graph(s, src_ndim);
+        if (g == axis)
+        {
+            continue;
+        }
+        const Index m_g = (g < axis) ? g : (g - 1);
+        const Index dst_ndim = static_cast<Index>(m_storage.size());
+        const Index m_s = graph_axis_to_storage(m_g, dst_ndim);
+        src_storage[static_cast<size_t>(s)] = m_storage[static_cast<size_t>(m_s)];
+    }
+}
+
+} // namespace
 
 void softmax_inplace(
     TensorGraph::TensorNode* maxsumexp,
@@ -75,34 +99,28 @@ void TensorSoftmaxInplaceOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& tiles_m = tile_lower::tiles_of(ctx.tile_map, maxsumexp);
     const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
+    const Index nd = dst->ndim();
+    const Index s_axis = graph_axis_to_storage(axis, nd);
+
     std::vector<Index> m_coord;
-    std::vector<Index> dst_coord(static_cast<size_t>(dst->ndim()));
+    std::vector<Index> dst_coord(static_cast<size_t>(nd));
 
     for(Index lin_m = 0; lin_m < lay_m->grid_volume(); ++lin_m)
     {
         lay_m->grid_coord_from_linear(lin_m, m_coord);
         TileGraph::TileNode* m_tile = tiles_m[static_cast<size_t>(lin_m)];
 
-        for(Index j = 0; j < axis; ++j)
-        {
-            dst_coord[static_cast<size_t>(j)] =
-                m_coord[static_cast<size_t>(j + 1)];
-        }
-        for(Index j = axis + 1; j < dst->ndim(); ++j)
-        {
-            dst_coord[static_cast<size_t>(j)] =
-                m_coord[static_cast<size_t>(j)];
-        }
+        maxsumexp_to_src_storage_coord(m_coord, axis, nd, dst_coord);
 
         const Index nseg_along_axis =
-            lay_d->grid_shape()[static_cast<size_t>(axis)];
+            lay_d->grid_shape()[static_cast<size_t>(s_axis)];
         for(Index j = 0; j < nseg_along_axis; ++j)
         {
-            dst_coord[static_cast<size_t>(axis)] = j;
+            dst_coord[static_cast<size_t>(s_axis)] = j;
             const Index lin_d = lay_d->grid_linear(dst_coord);
             TileGraph::TileNode* d_tile =
                 tiles_d[static_cast<size_t>(lin_d)];
-            tile::softmax_inplace(m_tile, alpha, d_tile, axis);
+            tile::softmax_inplace(m_tile, alpha, d_tile, s_axis);
         }
     }
 }

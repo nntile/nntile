@@ -36,7 +36,7 @@ TEST_CASE("TensorGraph gelu_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *dst = graph.data({dim0, dim1})->set_name("dst");
+    auto *dst = graph.data({dim1, dim0})->set_name("dst");
 
     gt::gelu_inplace(dst);
 
@@ -54,9 +54,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph gelu_inplace tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto shape = GENERATE(std::vector<Index>{4, 6},
+    const auto shape = GENERATE(std::vector<Index>{6, 4},
         std::vector<Index>{6},
-        std::vector<Index>{2, 4});
+        std::vector<Index>{4, 2});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;
