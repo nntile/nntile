@@ -179,6 +179,16 @@ inline void validate_slice_shape_and_merge(TensorGraph::TensorNode *slice,
 }
 
 //! Validate fiber shape and merge axes (fiber 1+batch_ndim into tensor).
+//!
+//! ``axis`` is a **storage** axis index on ``tensor`` (0 = innermost), not a
+//! graph axis. TensorGraph fiber builders that take graph axes must call
+//! ``graph_axis_to_storage`` before invoking this helper.
+//!
+//! Size checks compare ``fiber->storage_shape()`` to ``tensor->storage_shape()``.
+//! ``fiber`` storage layout is ``[fiber_dim, batch_0, …, batch_{batch_ndim-1}]``
+//! aligned with the tensor's trailing ``batch_ndim`` storage dimensions.
+//! ``merge_axis`` updates graph ``AxisDescriptor`` groups using storage indices
+//! mapped back to graph axes via ``storage_axis_to_graph``.
 inline void validate_fiber_shape_and_merge(TensorGraph::TensorNode *fiber,
     TensorGraph::TensorNode *tensor,
     Index axis,
