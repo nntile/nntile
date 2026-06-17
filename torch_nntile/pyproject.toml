@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61", "torch>=2.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torch_nntile"
+version = "0.7.1"
+description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnntile)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.2",
+]
+
+[tool.pytest.ini_options]
+addopts = "-m 'not slow'"
+pythonpath = ["."]
+markers = [
+    "slow: slow tests (deselect with '-m \"not slow\"')",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["torch_nntile*"]

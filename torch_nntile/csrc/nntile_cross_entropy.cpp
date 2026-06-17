@@ -1,0 +1,115 @@
+/*! @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *
+ * @file torch_nntile/csrc/nntile_cross_entropy.cpp
+ */
+
+#include "nntile_executor.h"
+
+#include <ATen/Functions.h>
+#include <ATen/TensorUtils.h>
+
+namespace torch_nntile
+{
+
+namespace
+{
+
+bool is_nntile_device(c10::Device device)
+{
+    return device.type() == c10::DeviceType::PrivateUse1;
+}
+
+void check_cross_entropy_inputs(
+    const at::Tensor &logits,
+    const at::Tensor &target)
+{
+    TORCH_CHECK(
+        is_nntile_device(logits.device()),
+        "nntile cross_entropy: logits must be on device nntile");
+    TORCH_CHECK(
+        target.scalar_type() == at::ScalarType::Long,
+        "nntile cross_entropy: target must be int64");
+    TORCH_CHECK(
+        target.is_cpu() || is_nntile_device(target.device()),
+        "nntile cross_entropy: target must be CPU or nntile");
+    TORCH_CHECK(logits.dim() >= 2, "nntile cross_entropy: logits must be >= 2D");
+    TORCH_CHECK(
+        target.dim() + 1 == logits.dim(),
+        "nntile cross_entropy: target shape must match logits without class dim");
+    TORCH_CHECK(
+        logits.scalar_type() == at::ScalarType::Float,
+        "nntile cross_entropy supports float32 logits only");
+    TORCH_CHECK(
+        logits.is_contiguous() && target.is_contiguous(),
+        "nntile cross_entropy requires contiguous tensors");
+    for (int64_t i = 0; i < target.dim(); ++i)
+    {
+        TORCH_CHECK(
+            target.size(i) == logits.size(i),
+            "nntile cross_entropy: batch shape mismatch");
+    }
+}
+
+bool reduction_is_mean(int64_t reduction)
+{
+    // Matches torch.nn._reduction: mean=1, sum=2, none=0
+    return reduction == 1;
+}
+
+} // namespace
+
+at::Tensor cross_entropy_forward(
+    const at::Tensor &logits,
+    const at::Tensor &target,
+    int64_t reduction,
+    int64_t ignore_index)
+{
+    check_cross_entropy_inputs(logits, target);
+    TORCH_CHECK(
+        reduction == 1 || reduction == 2,
+        "nntile cross_entropy supports reduction mean (1) or sum (2) only");
+
+    at::Tensor loss = at::empty(
+        {},
+        at::TensorOptions().dtype(at::kFloat).device(at::kCPU));
+    const float value = tensor_cross_entropy_forward_fp32(
+        logits.data_ptr<float>(),
+        logits.sizes(),
+        target.data_ptr<std::int64_t>(),
+        target.sizes(),
+        ignore_index,
+        reduction_is_mean(reduction));
+    *loss.data_ptr<float>() = value;
+    return loss;
+}
+
+at::Tensor cross_entropy_backward(
+    const at::Tensor &logits,
+    const at::Tensor &target,
+    const at::Tensor &grad_output,
+    int64_t reduction,
+    int64_t ignore_index)
+{
+    check_cross_entropy_inputs(logits, target);
+    TORCH_CHECK(
+        reduction == 1 || reduction == 2,
+        "nntile cross_entropy supports reduction mean (1) or sum (2) only");
+    TORCH_CHECK(
+        grad_output.numel() == 1,
+        "nntile cross_entropy_backward expects scalar grad_output");
+    at::Tensor grad_logits = at::empty_like(logits);
+    const float grad_scale = grad_output.item<float>();
+    tensor_cross_entropy_backward_fp32(
+        logits.data_ptr<float>(),
+        logits.sizes(),
+        target.data_ptr<std::int64_t>(),
+        target.sizes(),
+        grad_scale,
+        grad_logits.data_ptr<float>(),
+        ignore_index,
+        reduction_is_mean(reduction));
+    return grad_logits;
+}
+
+} // namespace torch_nntile
