@@ -30,6 +30,9 @@ constexpr float relative_tolerance_floor = 1e-7f;
 //! Default relative Frobenius tolerance (matches Fortran-order graph tests).
 constexpr float gemm_relative_tolerance = 1e-6f;
 
+//! Default max per-element relative tolerance for fp32 parity checks.
+constexpr float element_relative_tolerance = 1e-6f;
+
 //! \f$\|a-b\|_F / \max(\|a\|_F,\|b\|_F,\epsilon)\f$ (symmetric relative error).
 inline float relative_frobenius_error(
     const std::vector<float> &a,
@@ -54,6 +57,33 @@ inline float relative_frobenius_error(
     const double scale = std::max(
         na, std::max(nb, static_cast<double>(epsilon)));
     return static_cast<float>(diff / scale);
+}
+
+//! \f$\max_i |a_i-b_i| / \max(|a_i|,|b_i|,\epsilon)\f$.
+inline float max_element_relative_error(
+    const std::vector<float> &a,
+    const std::vector<float> &b,
+    float epsilon = relative_tolerance_floor)
+{
+    REQUIRE(a.size() == b.size());
+    float max_err = 0.f;
+    for(size_t i = 0; i < a.size(); ++i)
+    {
+        const float diff = std::fabs(a[i] - b[i]);
+        const float scale = std::max(
+            std::fabs(a[i]),
+            std::max(std::fabs(b[i]), epsilon));
+        max_err = std::max(max_err, diff / scale);
+    }
+    return max_err;
+}
+
+inline void require_relative_element_error(const std::vector<float> &a,
+    const std::vector<float> &b,
+    float tol = element_relative_tolerance,
+    float epsilon = relative_tolerance_floor)
+{
+    REQUIRE(max_element_relative_error(a, b, epsilon) < tol);
 }
 
 inline void require_relative_frobenius_error(const std::vector<float> &a,

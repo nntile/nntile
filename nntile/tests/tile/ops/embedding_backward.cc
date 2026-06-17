@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/embedding_backward.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -58,5 +59,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     { auto L=Vg.acquire(STARPU_R);
       for(int j=0;j<15;++j) tr[static_cast<size_t>(j)]=static_cast<float>(L[j]);
       L.release(); }
-    for(int j=0;j<15;++j) REQUIRE(std::abs(gout[static_cast<size_t>(j)]-tr[static_cast<size_t>(j)])<1e-6f);
+    nntile::test::require_relative_element_error(gout, tr);
 }

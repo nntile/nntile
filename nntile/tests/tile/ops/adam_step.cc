@@ -13,6 +13,7 @@
  * */
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "mixed_tile_common.hh"
 
 #include <catch2/catch_test_macros.hpp>
@@ -108,6 +109,5 @@ TEST_CASE("Adam step mixed tile parity", "[graph][tile]")
     const std::vector<float> p_tile =
         rt_tile.get_output<float>(tt::tensor_node_named(g_tile, "p"));
 
-    REQUIRE(tt::max_rel_err(p_ref, p_tile) < 1e-3f);
-    REQUIRE(tt::frob_rel_err(p_ref, p_tile) < 1e-3f);
+    nntile::test::require_relative_element_error(p_ref, p_tile);
 }

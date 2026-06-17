@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/total_sum_accum.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -58,5 +59,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     nntile::core::total_sum_accum<fp32_t>(-1, a, L, S, C, Vref, ign);
     starpu_task_wait_for_all();
     float tref=0; { auto L2=Vref.acquire(STARPU_R); tref=static_cast<float>(L2[0]); L2.release(); }
-    REQUIRE(std::abs(gout[0]-tref)<1e-3f);
+    nntile::test::require_relative_element_error(gout, std::vector<float>{tref});
 }

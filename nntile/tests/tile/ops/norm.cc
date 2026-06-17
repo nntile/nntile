@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/norm.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -64,7 +65,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm matches tile", "[
         tref[0] = static_cast<float>(l2[0]);
         l2.release();
     }
-    constexpr float tol = 1e-3f;
-    REQUIRE(gout.size() == 1u);
-    REQUIRE(std::abs(gout[0] - tref[0]) < tol);
+    nntile::test::require_relative_element_error(gout, tref);
 }

@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/rope.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -57,5 +58,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
     { auto L=D.acquire(STARPU_R);
       for(int i=0;i<20;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
-    for(int i=0;i<20;++i) REQUIRE(std::abs(gout[static_cast<size_t>(i)]-tr[static_cast<size_t>(i)])<1e-6f);
+    nntile::test::require_relative_element_error(gout, tr);
 }

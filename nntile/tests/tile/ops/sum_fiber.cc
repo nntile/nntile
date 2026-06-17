@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/sum_fiber.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -64,6 +65,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_fiber matches tile
         for(Index j = 0; j < 5; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(l2[j]); }
         l2.release();
     }
-    constexpr float tol = 1e-2f;
-    for(size_t j = 0; j < 5; ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < tol); }
+    nntile::test::require_relative_element_error(gout, tref);
 }

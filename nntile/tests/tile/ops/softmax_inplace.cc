@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/softmax_inplace.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -49,5 +50,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax_inplace axis0"
     starpu_task_wait_for_all();
     std::vector<float> tr(n);
     { auto L=D.acquire(STARPU_R); for(Index i=0;i<n;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]); L.release(); }
-    for(size_t i=0;i<tr.size();++i) REQUIRE(std::abs(gout[i]-tr[i])<1e-6f);
+    nntile::test::require_relative_element_error(gout, tr);
 }

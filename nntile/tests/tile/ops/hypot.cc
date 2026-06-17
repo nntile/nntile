@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/hypot.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -75,7 +76,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot matches tile", "
         for(Index i = 0; i < nelems; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
         l2.release();
     }
-    constexpr float tol = 1e-4f;
-    REQUIRE(gout.size() == tref.size());
-    for(size_t i = 0; i < tref.size(); ++i) { REQUIRE(std::abs(gout[i] - tref[i]) < tol); }
+    nntile::test::require_relative_element_error(gout, tref);
 }

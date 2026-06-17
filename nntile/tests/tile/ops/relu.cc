@@ -15,6 +15,7 @@
 #include "nntile/tile/ops/relu.hh"
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "mixed_tile_common.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -77,12 +78,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         }
         l2.release();
     }
-    constexpr float tol = 1e-4f;
-    REQUIRE(gout.size() == tref.size());
-    for (size_t i = 0; i < tref.size(); ++i)
-    {
-        REQUIRE(std::abs(gout[i] - tref[i]) < tol);
-    }
+    nntile::test::require_relative_element_error(gout, tref);
 }
 
 TEST_CASE("ReLU mixed tile parity (TensorGraph ref vs TileGraph tile)",
@@ -133,6 +129,5 @@ TEST_CASE("ReLU mixed tile parity (TensorGraph ref vs TileGraph tile)",
     const std::vector<float> y_out_tile =
         rt_tile.get_output<float>(y_tile_node);
 
-    REQUIRE(tt::max_rel_err(y_out_ref, y_out_tile) < 1e-3f);
-    REQUIRE(tt::frob_rel_err(y_out_ref, y_out_tile) < 1e-3f);
+    nntile::test::require_relative_element_error(y_out_ref, y_out_tile);
 }

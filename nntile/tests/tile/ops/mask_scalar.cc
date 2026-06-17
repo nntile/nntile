@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/mask_scalar.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -62,5 +63,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph]
     { auto L = Ta.acquire(STARPU_R);
       for(Index i = 0; i < n; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(L[i]); }
       L.release(); }
-    for(size_t i = 0; i < tref.size(); ++i) { REQUIRE(std::abs(gout[i] - tref[i]) < 1e-4f); }
+    nntile::test::require_relative_element_error(gout, tref);
 }

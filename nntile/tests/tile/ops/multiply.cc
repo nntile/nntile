@@ -13,6 +13,7 @@
  * */
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "mixed_tile_common.hh"
 
 #include <catch2/catch_test_macros.hpp>
@@ -79,6 +80,5 @@ TEST_CASE("multiply mixed tile parity", "[graph][tile]")
     rt_tile.wait();
     const std::vector<float> y_tile = rt_tile.get_output<float>(zt);
 
-    REQUIRE(tt::max_rel_err(y_ref, y_tile) < 5e-4f);
-    REQUIRE(tt::frob_rel_err(y_ref, y_tile) < 5e-4f);
+    nntile::test::require_relative_element_error(y_ref, y_tile);
 }

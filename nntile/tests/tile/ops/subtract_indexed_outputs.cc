@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/subtract_indexed_outputs.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -58,5 +59,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outpu
     { auto L2=D.acquire(STARPU_R);
       for(Index i=0;i<nd;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L2[i]);
       L2.release(); }
-    for(size_t i=0;i<nd;++i) REQUIRE(std::abs(gout[i]-tr[i])<1e-4f);
+    nntile::test::require_relative_element_error(gout, tr);
 }

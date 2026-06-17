@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/add_inplace.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -69,6 +70,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_inplace matches ti
         for(Index i = 0; i < nelems; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
         l2.release();
     }
-    constexpr float tol = 1e-3f;
-    for(size_t i = 0; i < tref.size(); ++i) { REQUIRE(std::abs(gout[i] - tref[i]) < tol); }
+    nntile::test::require_relative_element_error(gout, tref);
 }

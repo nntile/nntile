@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/conv2d_bwd_input_inplace.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -50,5 +51,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_bwd_input_inpla
     { auto L=DX.acquire(STARPU_R);
       for(Index i=0;i<9;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
-    for(Index i=0;i<9;++i) REQUIRE(std::abs(gout[static_cast<size_t>(i)]-tr[static_cast<size_t>(i)])<1e-6f);
+    nntile::test::require_relative_element_error(gout, tr);
 }

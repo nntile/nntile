@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/maxsumexp.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -50,5 +51,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
     { auto L=D.acquire(STARPU_R);
       for(Index j=0;j<n2;++j) tr[static_cast<size_t>(j)]=static_cast<float>(L[j]);
       L.release(); }
-    for(size_t j=0;j<tr.size();++j) REQUIRE(std::abs(gout[j]-tr[j])<1e-6f);
+    nntile::test::require_relative_element_error(gout, tr);
 }

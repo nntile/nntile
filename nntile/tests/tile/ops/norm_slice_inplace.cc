@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/norm_slice_inplace.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -59,5 +60,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_slice_inplace (ax
     { auto L = T2.acquire(STARPU_R);
       for(Index j = 0; j < n2; ++j) tref[static_cast<size_t>(j)] = static_cast<float>(L[j]);
       L.release(); }
-    for(size_t j = 0; j < tref.size(); ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e-6f); }
+    nntile::test::require_relative_element_error(gout, tref);
 }

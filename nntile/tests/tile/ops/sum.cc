@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/sum.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -58,11 +59,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[g
     }
     nntile::core::sum<fp32_t>(-1, alpha, ts, beta, td);
     starpu_task_wait_for_all();
-    constexpr float tol = 1e-3f;
-    REQUIRE(gout.size() == 1);
+    std::vector<float> tref(1);
     {
         auto l2 = td.acquire(STARPU_R);
-        REQUIRE(std::abs(gout[0] - static_cast<float>(l2[0])) < tol);
+        tref[0] = static_cast<float>(l2[0]);
         l2.release();
     }
+    nntile::test::require_relative_element_error(gout, tref);
 }

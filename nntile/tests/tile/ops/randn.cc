@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/randn.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"

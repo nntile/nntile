@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/embedding.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -94,12 +95,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
         }
         L.release();
     }
-    for(int t = 0; t < 12; ++t)
-    {
-        REQUIRE(
-            std::abs(
-                gout[static_cast<size_t>(t)]
-                - tr[static_cast<size_t>(t)])
-            < 1e-3f);
-    }
+    nntile::test::require_relative_element_error(gout, tr);
 }

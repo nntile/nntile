@@ -15,6 +15,7 @@
 #include "nntile/tile/ops/add.hh"
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 #include "nntile/core/add.hh"
@@ -92,12 +93,7 @@ void check_tile_add_vs_tile_api(
         loc.release();
     }
 
-    constexpr float tol = 1e-5f;
-    REQUIRE(graph_result.size() == tile_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tile_result[i]) < tol);
-    }
+    nntile::test::require_relative_element_error(graph_result, tile_result);
 }
 
 TEST_CASE("TileGraph add structure", "[graph][tile]")
