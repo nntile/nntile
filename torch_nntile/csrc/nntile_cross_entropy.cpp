@@ -5,6 +5,7 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -73,14 +74,16 @@ at::Tensor cross_entropy_forward(
     at::Tensor loss = at::empty(
         {},
         at::TensorOptions().dtype(at::kFloat).device(at::kCPU));
-    const float value = tensor_cross_entropy_forward_fp32(
+    pin_graph_op_inputs({logits, target});
+    pin_graph_op_output(loss, true);
+    tensor_cross_entropy_forward_fp32(
         logits.data_ptr<float>(),
         logits.sizes(),
         target.data_ptr<std::int64_t>(),
         target.sizes(),
         ignore_index,
-        reduction_is_mean(reduction));
-    *loss.data_ptr<float>() = value;
+        reduction_is_mean(reduction),
+        loss.data_ptr<float>());
     return loss;
 }
 
@@ -100,6 +103,8 @@ at::Tensor cross_entropy_backward(
         "nntile cross_entropy_backward expects scalar grad_output");
     at::Tensor grad_logits = at::empty_like(logits);
     const float grad_scale = grad_output.item<float>();
+    pin_graph_op_inputs({logits, target});
+    pin_graph_op_output(grad_logits, true);
     tensor_cross_entropy_backward_fp32(
         logits.data_ptr<float>(),
         logits.sizes(),

@@ -35,6 +35,35 @@ torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
 When `cpu_fallback=False`, unsupported ATen ops raise instead of running on CPU.
 Use this to verify that a model forward uses only nntile kernels.
 
+### Runtime mode: eager vs graph
+
+```python
+# Default: each op records a TensorGraph slice and runs it immediately.
+torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
+
+# Deferred: ops append to one shared TensorGraph until sync.
+torch_nntile.init_context(
+    ncpu=1, ncuda=0, cpu_fallback=False, runtime_mode="graph"
+)
+y = model(x)  # recorded, not executed yet
+torch_nntile.execute()  # explicit flush
+# or: y.cpu() / tensor.to("cpu") / scalar .item() on nntile tensors
+```
+
+In graph mode, forward and backward can stay in one pending graph (StarPU
+resolves dependencies). The graph runs when host-visible data is needed:
+``tensor.cpu()``, ``tensor.to("cpu")``, ``tensor.item()`` on nntile tensors,
+or an explicit ``torch_nntile.execute()``. Copies **to** ``device="nntile"``
+do not flush the graph.
+
+```python
+y = model(x)              # recorded only
+z = y.cpu()               # execute() then copy nntile -> host
+# torch_nntile.execute()  # optional explicit flush
+```
+
+Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
+
 ## Phase 3 (DeepReLU example)
 
 Bias-free MLP matching `nntile/examples/deep_relu_forward.cc`:
@@ -72,6 +101,7 @@ ATen kernels on PrivateUse1. Optimizer steps use fused `tensor::sgd_step` via
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
+python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 --runtime-mode graph
 ```
 
 Integration test (downloads MNIST, 3 epochs, compares losses and weights):

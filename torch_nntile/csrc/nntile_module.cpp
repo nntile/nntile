@@ -9,8 +9,14 @@
 #include <c10/core/Device.h>
 #include <c10/core/DeviceType.h>
 
+#include <algorithm>
+#include <cctype>
+#include <stdexcept>
+#include <string>
+
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
+#include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
 
 namespace torch_nntile
@@ -49,9 +55,53 @@ bool buffer_equal_cpu(const at::Tensor &nntile_tensor, const at::Tensor &cpu_ten
         nntile_tensor.device().type() == c10::DeviceType::PrivateUse1,
         "buffer_equal_cpu expects nntile tensor as first argument");
     TORCH_CHECK(cpu_tensor.is_cpu(), "buffer_equal_cpu expects CPU tensor");
+    // Host read: .cpu() runs execute() in graph mode before copying off-device.
     at::Tensor lhs = nntile_tensor.contiguous().cpu();
     at::Tensor rhs = cpu_tensor.contiguous();
     return lhs.equal(rhs);
+}
+
+RuntimeMode parse_runtime_mode(const std::string &mode)
+{
+    std::string lowered = mode;
+    std::transform(
+        lowered.begin(),
+        lowered.end(),
+        lowered.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (lowered == "eager")
+    {
+        return RuntimeMode::Eager;
+    }
+    if (lowered == "graph")
+    {
+        return RuntimeMode::Graph;
+    }
+    throw std::runtime_error(
+        "torch_nntile.init_context runtime_mode must be 'eager' or 'graph'");
+}
+
+void init_context_py(
+    int ncpu,
+    int ncuda,
+    int ooc_enabled,
+    const std::string &ooc_path,
+    std::size_t ooc_size,
+    int logger,
+    int verbose,
+    bool cpu_fallback,
+    const std::string &runtime_mode)
+{
+    init_context(
+        ncpu,
+        ncuda,
+        ooc_enabled,
+        ooc_path.c_str(),
+        ooc_size,
+        logger,
+        verbose,
+        cpu_fallback,
+        parse_runtime_mode(runtime_mode));
 }
 
 } // namespace torch_nntile
@@ -71,7 +121,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "Compare nntile tensor to CPU tensor");
     m.def(
         "init_context",
-        &torch_nntile::init_context,
+        &torch_nntile::init_context_py,
         "Configure StarPU workers before the first nntile op",
         py::arg("ncpu") = -1,
         py::arg("ncuda") = -1,
@@ -80,7 +130,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("ooc_size") = 16 * 1024 * 1024,
         py::arg("logger") = 0,
         py::arg("verbose") = 0,
-        py::arg("cpu_fallback") = true);
+        py::arg("cpu_fallback") = true,
+        py::arg("runtime_mode") = "eager");
     m.def(
         "is_cpu_fallback_enabled",
         &torch_nntile::is_cpu_fallback_enabled,
@@ -101,6 +152,18 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "restore_where",
         &torch_nntile::restore_where,
         "Restore default StarPU codelet worker placement");
+    m.def(
+        "execute",
+        &torch_nntile::execute_pending_graph,
+        "Compile and run the pending TensorGraph (graph mode)");
+    m.def(
+        "has_pending_graph",
+        &torch_nntile::has_pending_graph,
+        "Whether a deferred TensorGraph is waiting for execute()");
+    m.def(
+        "is_graph_mode",
+        &torch_nntile::is_graph_mode,
+        "Whether runtime_mode is graph");
     m.def(
         "cross_entropy_forward",
         &torch_nntile::cross_entropy_forward,

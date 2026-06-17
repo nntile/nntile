@@ -6,6 +6,7 @@
 
 #include "nntile_allocator.h"
 #include "nntile_context.h"
+#include "nntile_graph_recorder.h"
 
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
@@ -222,6 +223,11 @@ at::Tensor copy_from(
     bool /*non_blocking*/)
 {
     check_copy_devices(self, dst);
+    if (is_nntile_device(self.device()) && dst.is_cpu())
+    {
+        require_no_pending_graph(
+            "copy nntile tensor to CPU (call torch_nntile.execute() first)");
+    }
     at::Tensor mutable_dst = dst;
     memcpy_tensors(self, mutable_dst);
     return dst;
@@ -242,6 +248,9 @@ at::Scalar local_scalar_dense(const at::Tensor &self)
         is_nntile_device(self.device()),
         "_local_scalar_dense: expected nntile");
     TORCH_CHECK(self.numel() > 0, "Cannot convert empty tensor to scalar");
+    require_no_pending_graph(
+        "read a scalar from an nntile tensor "
+        "(call torch_nntile.execute() first)");
     return tensor_to_scalar(self);
 }
 

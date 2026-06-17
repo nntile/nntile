@@ -102,6 +102,12 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--depth", type=int, default=5)
+    parser.add_argument(
+        "--runtime-mode",
+        choices=("eager", "graph"),
+        default="eager",
+        help="torch_nntile runtime mode (default: eager)",
+    )
     parser.add_argument("--output-dir", default="deep_relu_mnist_runs")
     args = parser.parse_args()
 
@@ -111,7 +117,15 @@ def main() -> None:
             "Set NNTILE_BUILD_DIR and reinstall."
         )
 
-    torch_nntile.init_context(ncpu=1, ncuda=0, verbose=0, cpu_fallback=False)
+    torch_nntile.init_context(
+        ncpu=1,
+        ncuda=0,
+        verbose=0,
+        cpu_fallback=False,
+        runtime_mode=args.runtime_mode,
+    )
+
+    print(f"Runtime mode: {args.runtime_mode}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

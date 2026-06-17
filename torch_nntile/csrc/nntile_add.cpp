@@ -5,6 +5,7 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -66,6 +67,8 @@ void run_add_kernel(
 {
     const float self_scale = 1.0f;
     const float other_scale = alpha.to<float>();
+    pin_graph_op_inputs({self, other});
+    pin_graph_op_output(out, true);
     tensor_add_fp32(
         self_scale,
         self.data_ptr<float>(),

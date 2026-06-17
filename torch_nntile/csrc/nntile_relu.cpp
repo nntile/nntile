@@ -5,6 +5,7 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -47,6 +48,8 @@ void check_relu_input(
 
 void run_relu(const at::Tensor &self, at::Tensor &out)
 {
+    pin_graph_op_inputs({self});
+    pin_graph_op_output(out, true);
     tensor_relu_fp32(
         self.data_ptr<float>(),
         out.data_ptr<float>(),
