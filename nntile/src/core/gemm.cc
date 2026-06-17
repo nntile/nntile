@@ -287,7 +287,7 @@ static inline void gemm_axis_counts(const TileTraits &A, const TileTraits &B,
     num_n = b_n_end - b_n_begin;
 }
 
-//! BLAS (m, n, batch) for C-order tiles; folds B-only N axes into batch.
+//! BLAS (m, n, batch) for C-order tiles.
 static inline void gemm_runtime_dims(const TileTraits &A,
         const TileTraits &B, const TileTraits &C, bool trans_a, bool trans_b,
         Index ndim, Index batch_ndim, Index &m, Index &n, Index &batch)
@@ -302,26 +302,15 @@ static inline void gemm_runtime_dims(const TileTraits &A,
     {
         batch *= C.shape[i];
     }
-    if(batch_ndim == 0 && B.ndim > A.ndim)
-    {
-        for(Index i = batch_ndim; i < split_m; ++i)
-        {
-            batch *= C.shape[i];
-        }
-        n = 1;
-    }
-    else
-    {
-        n = 1;
-        for(Index i = split_m; i < C.ndim; ++i)
-        {
-            n *= C.shape[i];
-        }
-    }
     m = 1;
     for(Index i = batch_ndim; i < split_m; ++i)
     {
         m *= C.shape[i];
+    }
+    n = 1;
+    for(Index i = split_m; i < C.ndim; ++i)
+    {
+        n *= C.shape[i];
     }
 }
 
