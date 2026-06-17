@@ -61,22 +61,30 @@ void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, 
         throw std::runtime_error("sin.ndim == 0");
     }
 
-  // RoPE pairs live on the last sin axis (e.g. head_dim/2 in batch, seq, …).
-    const Index rope_axis = sin.ndim - 1;
-    if(src.shape[rope_axis] != 2 * sin.shape[rope_axis])
+    const Index half_axis = sin.ndim - 1;
+    const Index axis_shift = src.ndim - sin.ndim;
+    if(axis_shift < 0)
+    {
+        throw std::runtime_error("src.ndim < sin.ndim");
+    }
+    if(src.shape[half_axis + axis_shift] != 2 * sin.shape[half_axis])
     {
         throw std::runtime_error(
-            "src.shape[rope_axis] != 2*sin.shape[rope_axis]");
+            "src head axis != 2*sin half axis");
     }
-    for(Index i = 0; i < rope_axis; ++i)
+    for(Index i = 0; i < half_axis; ++i)
     {
-        if(src.shape[i] != sin.shape[i])
+        if(src.shape[i + axis_shift] != sin.shape[i])
         {
-            throw std::runtime_error("src.shape[i] != sin.shape[i]");
+            throw std::runtime_error("src/sin batch axis mismatch");
         }
     }
 
-    const Index nrows = src.matrix_shape[sin.ndim][1];
+    Index nrows = 1;
+    for(Index i = 0; i < axis_shift; ++i)
+    {
+        nrows *= src.shape[i];
+    }
     const Index ncols = sin.nelems;
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();

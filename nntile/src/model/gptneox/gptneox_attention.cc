@@ -69,26 +69,13 @@ NNGraph::TensorNode* GptneoxAttention::forward(
     NNGraph::TensorNode* q_proj =
         gemm(x, w_q_, 1.0, false, false, 1, 0);
     q_proj->set_name(tensor_name("q_proj"));
+    NNGraph::TensorNode* q = transpose(q_proj, 1);
+    q->set_name(tensor_name("q"));
 
     NNGraph::TensorNode* k_proj =
         gemm(x, w_k_, 1.0, false, false, 1, 0);
     k_proj->set_name(tensor_name("k_proj"));
-
-    // RoPE before head-layout transpose; sin/cos are (batch, seq, half).
-    NNGraph::TensorNode* q_for_transpose = q_proj;
-    NNGraph::TensorNode* k_for_transpose = k_proj;
-    if(sin != nullptr && cos != nullptr)
-    {
-        q_for_transpose = rope(sin, cos, q_proj);
-        q_for_transpose->set_name(tensor_name("q_rope"));
-        k_for_transpose = rope(sin, cos, k_proj);
-        k_for_transpose->set_name(tensor_name("k_rope"));
-    }
-
-    NNGraph::TensorNode* q = transpose(q_for_transpose, 1);
-    q->set_name(tensor_name("q"));
-
-    NNGraph::TensorNode* k = transpose(k_for_transpose, 1);
+    NNGraph::TensorNode* k = transpose(k_proj, 1);
     k->set_name(tensor_name("k"));
 
     NNGraph::TensorNode* v_proj =
@@ -99,6 +86,13 @@ NNGraph::TensorNode* GptneoxAttention::forward(
 
     NNGraph::TensorNode* q_rope = q;
     NNGraph::TensorNode* k_rope = k;
+    if(sin != nullptr && cos != nullptr)
+    {
+        q_rope = rope(sin, cos, q);
+        q_rope->set_name(tensor_name("q_rope"));
+        k_rope = rope(sin, cos, k);
+        k_rope->set_name(tensor_name("k_rope"));
+    }
 
     NNGraph::TensorNode* attn_out =
         sdpa_eager(q_rope, k_rope, v, mask, 2, 0);

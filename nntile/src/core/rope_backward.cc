@@ -48,17 +48,22 @@ void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<
     {
         throw std::runtime_error("sin.ndim == 0");
     }
-    const Index rope_axis = sin.ndim - 1;
-    if(dy.shape[rope_axis] != 2 * sin.shape[rope_axis])
+    const Index half_axis = sin.ndim - 1;
+    const Index axis_shift = dy.ndim - sin.ndim;
+    if(axis_shift < 0)
+    {
+        throw std::runtime_error("dy.ndim < sin.ndim");
+    }
+    if(dy.shape[half_axis + axis_shift] != 2 * sin.shape[half_axis])
     {
         throw std::runtime_error(
-            "dy.shape[rope_axis] != 2*sin.shape[rope_axis]");
+            "dy head axis != 2*sin half axis");
     }
-    for(Index i = 0; i < rope_axis; ++i)
+    for(Index i = 0; i < half_axis; ++i)
     {
-        if(dy.shape[i] != sin.shape[i])
+        if(dy.shape[i + axis_shift] != sin.shape[i])
         {
-            throw std::runtime_error("dy.shape[i] != sin.shape[i]");
+            throw std::runtime_error("dy/sin batch axis mismatch");
         }
     }
 
@@ -69,7 +74,11 @@ void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<
     dy.mpi_transfer(dx_rank, mpi_rank);
     if(mpi_rank == dx_rank)
     {
-        const Index nrows = dy.matrix_shape[sin.ndim][1];
+        Index nrows = 1;
+        for(Index i = 0; i < axis_shift; ++i)
+        {
+            nrows *= dy.shape[i];
+        }
         const Index ncols = sin.nelems;
         starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, nrows,
             ncols, sin_pair0, sin, cos, dy, dx);
