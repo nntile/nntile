@@ -16,6 +16,7 @@
 #include "nntile/tensor/ops/sum_fiber.hh"
 
 #include "nntile/base_types.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -34,17 +35,9 @@ namespace
 {
 
 std::vector<Index> sum_fiber_output_shape(
-    const std::vector<Index> &x_shape, Index axis, Index batch_ndim)
+    const std::vector<Index> &x_shape, Index graph_axis, Index batch_ndim)
 {
-    Index ndim = x_shape.size();
-    std::vector<Index> out_shape;
-    out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
-    for (Index i = 0; i < batch_ndim; ++i)
-    {
-        out_shape.push_back(x_shape[ndim - batch_ndim + i]);
-    }
-    return out_shape;
+    return graph_fiber_shape(x_shape, graph_axis, batch_ndim);
 }
 
 } // namespace
@@ -68,12 +61,11 @@ TensorGraph::TensorNode *sum_fiber(TensorGraph::TensorNode *x,
         x->graph()->data(std::move(output_shape), x->dtype());
 
     // Merge output fiber axes with x axes
-    merge_axis(output->mutable_axes()[0], x->mutable_axes()[axis]);
     for (Index i = 0; i < batch_ndim; ++i)
     {
-        merge_axis(output->mutable_axes()[1 + i],
-            x->mutable_axes()[x->ndim() - batch_ndim + i]);
+        merge_axis(output->mutable_axes()[i], x->mutable_axes()[i]);
     }
+    merge_axis(output->mutable_axes()[batch_ndim], x->mutable_axes()[axis]);
 
     auto op = std::make_shared<TensorSumFiberOp>(
         x, output, axis, batch_ndim, redux, alpha, beta);
@@ -132,29 +124,27 @@ void TensorSumFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_x = tile_lower::tiles_of(ctx.tile_map, x);
     const auto &tiles_y = tile_lower::tiles_of(ctx.tile_map, y);
 
-    std::vector<Index> x_coord;
-    std::vector<Index> y_coord(static_cast<size_t>(y->ndim()));
+    const Index x_nd = x->ndim();
+    const Index y_nd = y->ndim();
 
-    const Index fiber_prefix = x->ndim() - batch_ndim;
+    std::vector<Index> x_coord;
+    std::vector<Index> y_coord(static_cast<size_t>(y_nd));
 
     for (Index lin_x = 0; lin_x < lay_x->grid_volume(); ++lin_x)
     {
         lay_x->grid_coord_from_linear(lin_x, x_coord);
         TileGraph::TileNode *x_tile = tiles_x[static_cast<size_t>(lin_x)];
 
-        y_coord[0] = x_coord[static_cast<size_t>(axis)];
-        for (Index j = 0; j < batch_ndim; ++j)
-        {
-            y_coord[static_cast<size_t>(j + 1)] =
-                x_coord[static_cast<size_t>(x->ndim() - batch_ndim + j)];
-        }
+        fiber_layout_coord_from_tensor(
+            x_coord, axis, batch_ndim, y_nd, x_nd, y_coord);
         const Index lin_y = lay_y->grid_linear(y_coord);
         TileGraph::TileNode *y_tile = tiles_y[static_cast<size_t>(lin_y)];
 
         bool init_first = true;
-        for (Index j = 0; j < fiber_prefix; ++j)
+        for (Index g = batch_ndim; g < x_nd; ++g)
         {
-            if (j != axis && x_coord[static_cast<size_t>(j)] != 0)
+            if (g != axis
+                && x_coord[static_cast<size_t>(layout_axis(g, x_nd))] != 0)
             {
                 init_first = false;
                 break;

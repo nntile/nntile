@@ -17,7 +17,6 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/nn_grad_slot_name.hh"
-#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/gemm.hh"
 
 #include <stdexcept>
@@ -41,9 +40,8 @@ NNGraph::TensorNode *NNGemmOp::forward()
     }
     NNGraph *graph = a->graph();
     bool out_requires_grad = any_input_requires_grad({a, b});
-    // graph NN API: swap operands and transpose flags at tensor lowering.
     TensorGraph::TensorNode *c_data = tensor::gemm(
-        b->data(), a->data(), alpha, trans_b, trans_a, ndim, batch_ndim);
+        a->data(), b->data(), alpha, trans_a, trans_b, ndim, batch_ndim);
     NNGraph::TensorNode *c = graph->tensor(c_data, out_requires_grad);
     outputs_ = {c};
     return c;
@@ -62,8 +60,6 @@ void NNGemmOp::backward() const
     {
         return;
     }
-    // Forward: tensor::gemm(b, a, trans_b, trans_a, ...).  Gradients use
-    // tensor-level formulas with (A=b, B=a, trans_A=trans_b, trans_B=trans_a).
     if (a != nullptr && a->requires_grad())
     {
         auto [grad_a, is_first] =
@@ -71,25 +67,25 @@ void NNGemmOp::backward() const
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if (!trans_a)
         {
-            tensor::gemm(b->data(),
-                grad_out->data(),
-                grad_a->data(),
-                alpha,
-                beta,
-                !trans_b,
-                false,
-                b->ndim() - batch_ndim - ndim,
-                batch_ndim);
-        }
-        else
-        {
             tensor::gemm(grad_out->data(),
                 b->data(),
                 grad_a->data(),
                 alpha,
                 beta,
-                true,
+                false,
+                !trans_b,
+                b->ndim() - batch_ndim - ndim,
+                batch_ndim);
+        }
+        else
+        {
+            tensor::gemm(b->data(),
+                grad_out->data(),
+                grad_a->data(),
+                alpha,
+                beta,
                 trans_b,
+                true,
                 b->ndim() - batch_ndim - ndim,
                 batch_ndim);
         }
@@ -101,25 +97,25 @@ void NNGemmOp::backward() const
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if (!trans_b)
         {
-            tensor::gemm(grad_out->data(),
-                a->data(),
-                grad_b->data(),
-                alpha,
-                beta,
-                false,
-                !trans_a,
-                a->ndim() - batch_ndim - ndim,
-                batch_ndim);
-        }
-        else
-        {
             tensor::gemm(a->data(),
                 grad_out->data(),
                 grad_b->data(),
                 alpha,
                 beta,
-                trans_a,
+                !trans_a,
+                false,
+                a->ndim() - batch_ndim - ndim,
+                batch_ndim);
+        }
+        else
+        {
+            tensor::gemm(grad_out->data(),
+                a->data(),
+                grad_b->data(),
+                alpha,
+                beta,
                 true,
+                trans_a,
                 a->ndim() - batch_ndim - ndim,
                 batch_ndim);
         }

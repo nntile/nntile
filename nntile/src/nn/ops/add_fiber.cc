@@ -16,7 +16,6 @@
 #include "nntile/nn/ops/add_fiber.hh"
 
 #include "nntile/nn/nn_grad_slot_name.hh"
-#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/add_fiber.hh"
 #include "nntile/tensor/ops/add_fiber_inplace.hh"
 #include "nntile/tensor/ops/add_inplace.hh"
@@ -43,10 +42,8 @@ NNGraph::TensorNode *NNAddFiberOp::forward()
     }
     NNGraph *graph = fiber->graph();
     bool out_requires_grad = any_input_requires_grad({fiber, tensor});
-    const Index storage_axis =
-        nn::graph_axis_to_storage(axis, tensor->ndim());
     TensorGraph::TensorNode *output_data = tensor::add_fiber(
-        alpha, fiber->data(), beta, tensor->data(), storage_axis, batch_ndim);
+        alpha, fiber->data(), beta, tensor->data(), axis, batch_ndim);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
@@ -70,11 +67,9 @@ void NNAddFiberOp::backward() const
     {
         auto [grad_fiber, is_first] =
             graph->get_or_create_grad(fiber, nn_grad_slot_name(fiber));
-        const Index storage_axis =
-            nn::graph_axis_to_storage(axis, tensor->ndim());
         tensor::sum_fiber(grad_out->data(),
             grad_fiber->data(),
-            storage_axis,
+            axis,
             batch_ndim,
             sum_fiber_redux,
             alpha,

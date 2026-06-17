@@ -29,10 +29,9 @@ void set_rope_heterogeneous_tiling(NNGraph::TensorNode *sin,
     NNGraph::TensorNode *cos,
     NNGraph::TensorNode *src)
 {
-    for (Index p_axis = 0; p_axis < sin->ndim(); ++p_axis)
+    for (Index g_axis = 0; g_axis < sin->ndim(); ++g_axis)
     {
-        const Index c_axis = sin->ndim() - 1 - p_axis;
-        const Index Ls = sin->shape()[static_cast<size_t>(c_axis)];
+        const Index Ls = sin->shape()[static_cast<size_t>(g_axis)];
         std::vector<Index> sin_seg;
         if (Ls >= 4)
         {
@@ -50,39 +49,21 @@ void set_rope_heterogeneous_tiling(NNGraph::TensorNode *sin,
         {
             sin_seg = {Ls};
         }
-        sin->data()->axis(p_axis)->set_tiling(sin_seg);
-        cos->data()->axis(p_axis)->set_tiling(sin_seg);
-        if (p_axis == 0)
+        sin->data()->axis(g_axis)->set_tiling(sin_seg);
+        cos->data()->axis(g_axis)->set_tiling(sin_seg);
+        if (g_axis == sin->ndim() - 1)
         {
-            const Index Ls = sin->shape().back();
-            std::vector<Index> sin_seg;
-            if (Ls >= 4)
-            {
-                sin_seg = {1, Ls - 1};
-            }
-            else if (Ls == 3)
-            {
-                sin_seg = {1, 2};
-            }
-            else if (Ls == 2)
-            {
-                sin_seg = {1, 1};
-            }
-            else
-            {
-                sin_seg = {Ls};
-            }
             std::vector<Index> src_seg;
             src_seg.reserve(sin_seg.size());
             for (Index v : sin_seg)
             {
                 src_seg.push_back(2 * v);
             }
-            src->data()->axis(p_axis)->set_tiling(std::move(src_seg));
+            src->data()->axis(g_axis)->set_tiling(std::move(src_seg));
         }
         else
         {
-            src->data()->axis(p_axis)->set_tiling(sin_seg);
+            src->data()->axis(g_axis)->set_tiling(sin_seg);
         }
     }
 }

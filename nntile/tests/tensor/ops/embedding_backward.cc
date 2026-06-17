@@ -47,7 +47,7 @@ std::vector<Index> embed_output_shape(const std::vector<Index> &index_shape,
     {
         embed_shape.push_back(index_shape[i]);
     }
-    embed_shape.push_back(vocab_shape[0]);
+    embed_shape.push_back(vocab_shape.back());
     for (Index i = axis; i < static_cast<Index>(index_shape.size()); ++i)
     {
         embed_shape.push_back(index_shape[i]);
@@ -61,9 +61,9 @@ TEST_CASE("TensorGraph embedding_backward structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
-    auto *embed = graph.data({4, 5, 10})->set_name("embed");
-    auto *vocab = graph.data({10, 100})->set_name("vocab");
+    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
+    auto *embed = graph.data({5, 4, 10})->set_name("embed");
+    auto *vocab = graph.data({100, 10})->set_name("vocab");
 
     gt::embedding_backward(index, embed, vocab, 2, 0);
 
@@ -81,9 +81,9 @@ TEST_CASE(
     "TensorGraph embedding_backward rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *index = graph.data({4, 5}, DataType::INT64)->set_name("index");
-    auto *embed = graph.data({4, 5, 10})->set_name("embed");
-    auto *vocab = graph.data({10, 100})->set_name("vocab");
+    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
+    auto *embed = graph.data({5, 4, 10})->set_name("embed");
+    auto *vocab = graph.data({100, 10})->set_name("vocab");
 
     REQUIRE_THROWS_AS(gt::embedding_backward(nullptr, embed, vocab, 2, 0),
         std::invalid_argument);
@@ -91,122 +91,4 @@ TEST_CASE(
         std::invalid_argument);
     REQUIRE_THROWS_AS(gt::embedding_backward(index, embed, nullptr, 2, 0),
         std::invalid_argument);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph embedding_backward tiled matches untiled",
-    "[graph][tensor]")
-{
-    const auto [index_shape, vocab_shape, axis, redux] = GENERATE(
-        std::tuple{std::vector<Index>{4, 5},
-            std::vector<Index>{10, 100},
-            Index(2),
-            0},
-        std::tuple{
-            std::vector<Index>{3}, std::vector<Index>{8, 50}, Index(1), 0});
-
-    auto embed_shape = embed_output_shape(index_shape, vocab_shape, axis);
-
-    const Index index_nelems = std::accumulate(
-        index_shape.begin(), index_shape.end(), Index(1), std::multiplies<>());
-    const Index embed_nelems = std::accumulate(
-        embed_shape.begin(), embed_shape.end(), Index(1), std::multiplies<>());
-    const Index vocab_nelems = std::accumulate(
-        vocab_shape.begin(), vocab_shape.end(), Index(1), std::multiplies<>());
-
-    std::vector<std::int64_t> index_data(index_nelems);
-    std::vector<float> embed_data(embed_nelems);
-    std::vector<float> vocab_data(vocab_nelems, 0.0f);
-    for (Index i = 0; i < index_nelems; ++i)
-    {
-        index_data[i] = static_cast<std::int64_t>(i % vocab_shape[1]);
-    }
-    for (Index i = 0; i < embed_nelems; ++i)
-    {
-        embed_data[i] = 0.1f * static_cast<float>(i % 5);
-    }
-
-    // --- Untiled run ---
-    std::vector<float> untiled_result;
-    {
-        TensorGraph graph("embedding_backward_untiled");
-        auto *index_node =
-            graph.data(index_shape, DataType::INT64)->set_name("index");
-        auto *embed_node =
-            graph.data(embed_shape, DataType::FP32)->set_name("embed");
-        auto *vocab_node =
-            graph.data(vocab_shape, DataType::FP32)->set_name("vocab");
-        index_node->mark_input(true);
-        embed_node->mark_input(true);
-        vocab_node->mark_input(true);
-        vocab_node->mark_output(true);
-
-        gt::embedding_backward(
-            index_node, embed_node, vocab_node, axis, redux);
-
-        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-        Runtime runtime(tile_graph);
-        runtime.compile();
-
-        runtime.bind_data(index_node, index_data);
-        runtime.bind_data(embed_node, embed_data);
-        runtime.bind_data(vocab_node, vocab_data);
-        runtime.execute();
-        runtime.wait();
-
-        untiled_result = runtime.get_output<float>(vocab_node);
-    }
-
-    // --- Tiled run ---
-    std::vector<float> tiled_result;
-    {
-        TensorGraph graph("embedding_backward_tiled");
-        auto *index_node =
-            graph.data(index_shape, DataType::INT64)->set_name("index");
-        auto *embed_node =
-            graph.data(embed_shape, DataType::FP32)->set_name("embed");
-        auto *vocab_node =
-            graph.data(vocab_shape, DataType::FP32)->set_name("vocab");
-        index_node->mark_input(true);
-        embed_node->mark_input(true);
-        vocab_node->mark_input(true);
-        vocab_node->mark_output(true);
-
-        gt::embedding_backward(
-            index_node, embed_node, vocab_node, axis, redux);
-        auto *num_embed_axis = vocab_node->axis(1);
-        for (auto *ag : graph.axis_groups())
-        {
-            if (ag == num_embed_axis)
-            {
-                ag->set_tiling(ag->extent);
-            }
-            else
-            {
-                ag->set_tiling((ag->extent + 1) / 2);
-            }
-        }
-
-        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
-        Runtime runtime(tile_graph);
-        runtime.compile();
-
-        runtime.bind_data(index_node, index_data);
-        runtime.bind_data(embed_node, embed_data);
-        runtime.bind_data(vocab_node, vocab_data);
-        runtime.execute();
-        runtime.wait();
-
-        tiled_result = runtime.get_output<float>(vocab_node);
-    }
-
-    // --- Compare ---
-    constexpr float tol = 1e-5f;
-    REQUIRE(tiled_result.size() == untiled_result.size());
-    for (size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
 }

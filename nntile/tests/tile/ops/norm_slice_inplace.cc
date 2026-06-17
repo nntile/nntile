@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/norm_slice_inplace.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,20 +24,26 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_slice_inplace (axis=0)", "[graph][tile]")
 {
-    const std::vector<Index> t1h = {3, 4, 5}, t2h = {4, 5};
+    const std::vector<Index> stor_t1h = {3, 4, 5};
+    const std::vector<Index> graph_t1h = graph_shape(stor_t1h);
+    const std::vector<Index> stor_t2h = {4, 5};
+    const std::vector<Index> graph_t2h = graph_shape(stor_t2h);
     const Index n1 = 60, n2 = 20;
     const Scalar a = 1.0, b = 0.0;
-    const Index ax = 0;
+    const Index stor_axis = 0;
+    const Index g_axis =
+        graph_axis(stor_axis, static_cast<Index>(stor_t1h.size()));
     const int redux = 0;
     TileGraph g("g");
-    auto* t1 = g.data(t1h, "t1", DataType::FP32);
-    auto* t2 = g.data(t2h, "t2", DataType::FP32);
+    auto* t1 = g.data(graph_t1h, "t1", DataType::FP32);
+    auto* t2 = g.data(graph_t2h, "t2", DataType::FP32);
     t1->mark_input(true);
     t2->mark_input(true);
     t2->mark_output(true);
-    tg::norm_slice_inplace(a, t1, b, t2, ax, redux);
+    tg::norm_slice_inplace(a, t1, b, t2, g_axis, redux);
     Runtime rt(g);
     rt.compile();
     std::vector<float> u1(n1), u2(n2, 0.f);
@@ -47,17 +54,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_slice_inplace (ax
     rt.execute();
     rt.wait();
     const std::vector<float> gout = rt.get_output<float>(t2);
-    nntile::core::Tile<fp32_t> T1(t1h), T2(t2h);
+    nntile::core::Tile<fp32_t> T1(stor_t1h), T2(stor_t2h);
     using Y = typename nntile::fp32_t::repr_t;
     { auto A = T1.acquire(STARPU_W), B = T2.acquire(STARPU_W);
       for(Index i = 0; i < n1; ++i) A[i] = Y(u1[static_cast<size_t>(i)]);
       for(Index j = 0; j < n2; ++j) B[j] = Y(0);
       A.release(); B.release(); }
-    nntile::core::norm_slice_inplace<fp32_t>(-1, a, T1, b, T2, ax, redux);
+    nntile::core::norm_slice_inplace<fp32_t>(-1, a, T1, b, T2, stor_axis, redux);
     starpu_task_wait_for_all();
     std::vector<float> tref(20);
     { auto L = T2.acquire(STARPU_R);
       for(Index j = 0; j < 20; ++j) tref[static_cast<size_t>(j)] = static_cast<float>(L[j]);
       L.release(); }
-    for(size_t j = 0; j < tref.size(); ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e+2f); }
+    for(size_t j = 0; j < tref.size(); ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e-6f); }
 }

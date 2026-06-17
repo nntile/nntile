@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/mask_scalar.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -23,15 +24,17 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph][tile]")
 {
-    const std::vector<Index> sh = {2, 3};
+    const std::vector<Index> stor_sh = {2, 3};
+    const std::vector<Index> graph_sh = graph_shape(stor_sh);
     const Index n = 6;
     const Scalar val = -9.0;
     const Index batch = 0;
     TileGraph g("g");
-    auto* mask = g.data(sh, "mask", DataType::BOOL);
-    auto* a = g.data(sh, "a", DataType::FP32);
+    auto* mask = g.data(graph_sh, "mask", DataType::BOOL);
+    auto* a = g.data(graph_sh, "a", DataType::FP32);
     mask->mark_input(true);
     a->mark_input(true);
     a->mark_output(true);
@@ -47,8 +50,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph]
     r.execute();
     r.wait();
     const std::vector<float> gout = r.get_output<float>(a);
-    nntile::core::Tile<bool_t> Tm(sh);
-    nntile::core::Tile<fp32_t> Ta(sh);
+    nntile::core::Tile<bool_t> Tm(stor_sh);
+    nntile::core::Tile<fp32_t> Ta(stor_sh);
     using Y = typename fp32_t::repr_t;
     { auto mloc = Tm.acquire(STARPU_W);
       for(Index i = 0; i < n; ++i) { mloc[i] = nntile::bool_t(mb[static_cast<size_t>(i)]); }

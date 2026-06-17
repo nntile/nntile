@@ -160,6 +160,7 @@ TEST_CASE("TileGraph from_tensor_graph structure")
     REQUIRE(ty->is_input());
     REQUIRE(tz->is_output());
 
+    // Tile payloads use graph-order shapes (match tensor {2, 3}).
     REQUIRE(tx->shape() == std::vector<Index>{2, 3});
     REQUIRE(ty->shape() == std::vector<Index>{2, 3});
     REQUIRE(tz->shape() == std::vector<Index>{2, 3});

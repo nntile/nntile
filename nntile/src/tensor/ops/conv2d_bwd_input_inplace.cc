@@ -21,6 +21,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/tensor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/clear.hh"
@@ -34,6 +35,12 @@ namespace nntile::tensor
 
 namespace
 {
+
+constexpr Index g_WHCN = 4;
+const Index s_W = graph_axis_to_storage(0, g_WHCN);
+const Index s_H = graph_axis_to_storage(1, g_WHCN);
+const Index s_C = graph_axis_to_storage(2, g_WHCN);
+const Index s_N = graph_axis_to_storage(3, g_WHCN);
 
 Index uniform_extent(const nntile::TensorAxisLayout& lay, Index dim,
     const char* op)
@@ -66,13 +73,13 @@ Index uniform_extent(const nntile::TensorAxisLayout& lay, Index dim,
 void assert_full_in_channels(
     const nntile::TensorAxisLayout& lay, const char* op)
 {
-    if(lay.grid_shape().size() < 4 || lay.grid_shape()[2] != 1)
+    if(lay.grid_shape().size() < g_WHCN || lay.grid_shape()[s_C] != 1)
     {
         throw std::runtime_error(std::string("lower_to_tile ") + op +
             ": channel axis must be a single tile (full C)");
     }
-    const Index ext = uniform_extent(lay, 2, op);
-    if(ext != lay.tensor_shape()[2])
+    const Index ext = uniform_extent(lay, s_C, op);
+    if(ext != lay.tensor_shape()[s_C])
     {
         throw std::runtime_error(std::string("lower_to_tile ") + op +
             ": channel tile must cover full channel extent");
@@ -127,10 +134,10 @@ void TensorConv2dBwdInputInplaceOp::lower_to_tile(
     assert_full_in_channels(*lay_dy, op);
     assert_full_in_channels(*lay_dx, op);
 
-    const Index dy_bs0 = uniform_extent(*lay_dy, 0, op);
-    const Index dy_bs1 = uniform_extent(*lay_dy, 1, op);
-    const Index dy_bs3 = uniform_extent(*lay_dy, 3, op);
-    const Index dx_bs3 = uniform_extent(*lay_dx, 3, op);
+    const Index dy_bs0 = uniform_extent(*lay_dy, s_W, op);
+    const Index dy_bs1 = uniform_extent(*lay_dy, s_H, op);
+    const Index dy_bs3 = uniform_extent(*lay_dy, s_N, op);
+    const Index dx_bs3 = uniform_extent(*lay_dx, s_N, op);
     if(dy_bs3 != dx_bs3)
     {
         throw std::runtime_error(std::string("lower_to_tile ") + op +
@@ -144,11 +151,11 @@ void TensorConv2dBwdInputInplaceOp::lower_to_tile(
     const Index Kx = kernel->shape()[0];
     const Index Ky = kernel->shape()[1];
 
-    std::vector<Index> dx_coord(4);
-    std::vector<Index> dy_coord(4);
+    std::vector<Index> dx_coord(g_WHCN);
+    std::vector<Index> dy_coord(g_WHCN);
 
-    const Index gdy0 = lay_dy->grid_shape()[0];
-    const Index gdy1 = lay_dy->grid_shape()[1];
+    const Index gdy0 = lay_dy->grid_shape()[s_W];
+    const Index gdy1 = lay_dy->grid_shape()[s_H];
 
     for(Index lin_dx = 0; lin_dx < lay_dx->grid_volume(); ++lin_dx)
     {
@@ -158,8 +165,8 @@ void TensorConv2dBwdInputInplaceOp::lower_to_tile(
 
         Index dx_lo_m = 0, dx_hi_m = 0;
         Index dx_lo_n = 0, dx_hi_n = 0;
-        lay_dx->tile_axis_global_range(dx_coord, 0, dx_lo_m, dx_hi_m);
-        lay_dx->tile_axis_global_range(dx_coord, 1, dx_lo_n, dx_hi_n);
+        lay_dx->tile_axis_global_range(dx_coord, s_W, dx_lo_m, dx_hi_m);
+        lay_dx->tile_axis_global_range(dx_coord, s_H, dx_lo_n, dx_hi_n);
         const Index dX_start_m = dx_lo_m;
         const Index dX_end_m = dx_hi_m + 1;
         const Index dX_start_n = dx_lo_n;
@@ -195,8 +202,8 @@ void TensorConv2dBwdInputInplaceOp::lower_to_tile(
             continue;
         }
 
-        dy_coord[2] = dx_coord[2];
-        dy_coord[3] = dx_coord[3];
+        dy_coord[s_C] = dx_coord[s_C];
+        dy_coord[s_N] = dx_coord[s_N];
         const Index start_m = std::max(dY_start_tile_m, Index(0));
         const Index end_m = std::min(dY_end_tile_m, gdy0);
         const Index start_n = std::max(dY_start_tile_n, Index(0));
@@ -205,10 +212,10 @@ void TensorConv2dBwdInputInplaceOp::lower_to_tile(
         Scalar dx_tile_beta = beta;
         for(Index dY_i = start_m; dY_i < end_m; ++dY_i)
         {
-            dy_coord[0] = dY_i;
+            dy_coord[s_W] = dY_i;
             for(Index dY_j = start_n; dY_j < end_n; ++dY_j)
             {
-                dy_coord[1] = dY_j;
+                dy_coord[s_H] = dY_j;
                 const Index lin_dy = lay_dy->grid_linear(dy_coord);
                 const auto dy_ts = lay_dy->tile_shape_at(dy_coord);
                 const Index offset_m =
@@ -216,24 +223,24 @@ void TensorConv2dBwdInputInplaceOp::lower_to_tile(
                 const Index offset_n =
                     dX_start_n + padding[1] - stride[1] * dY_j * dy_bs1;
                 tile::conv2d_bwd_input_inplace(
-                    dy_ts[0],
-                    dy_ts[1],
+                    dy_ts[s_W],
+                    dy_ts[s_H],
                     stride[0],
                     stride[1],
-                    dy_ts[2],
-                    dy_ts[3],
+                    dy_ts[s_C],
+                    dy_ts[s_N],
                     Kx,
                     Ky,
                     dilation[0],
                     dilation[1],
-                    dx_ts[2],
+                    dx_ts[s_C],
                     offset_m,
                     offset_n,
                     alpha,
                     tiles_dy[static_cast<size_t>(lin_dy)],
                     tiles_k[0],
-                    dx_ts[0],
-                    dx_ts[1],
+                    dx_ts[s_W],
+                    dx_ts[s_H],
                     dx_tile_beta,
                     dx_tile);
                 dx_tile_beta = 1.0;

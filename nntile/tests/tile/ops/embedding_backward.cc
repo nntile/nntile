@@ -14,12 +14,14 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
+#include "tile_graph_shape_helpers.hh"
 #include "nntile/tile/ops/embedding_backward.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 #include "nntile/core/embedding_backward.hh"
 #include "nntile/core/tile.hh"
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
+using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "[graph][tile]")
 {
     const Index m=2,n=2,k=3,k0=0,ks=3; const int redux=0;
@@ -58,5 +60,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     { auto L=Vg.acquire(STARPU_R);
       for(int j=0;j<15;++j) tr[static_cast<size_t>(j)]=static_cast<float>(L[j]);
       L.release(); }
-    for(int j=0;j<15;++j) REQUIRE(std::abs(gout[static_cast<size_t>(j)]-tr[static_cast<size_t>(j)])<1e+2f);
+    for(int j=0;j<15;++j) REQUIRE(std::abs(gout[static_cast<size_t>(j)]-tr[static_cast<size_t>(j)])<1e-6f);
 }

@@ -16,7 +16,6 @@
 #include "nntile/nn/ops/scale_slice.hh"
 
 #include "nntile/nn/nn_grad_slot_name.hh"
-#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/ops/scale_slice.hh"
 #include "nntile/tensor/ops/sum_slice.hh"
 
@@ -41,10 +40,8 @@ NNGraph::TensorNode *NNScaleSliceOp::forward()
     }
     NNGraph *graph = src->graph();
     bool out_requires_grad = any_input_requires_grad({src});
-    const Index out_ndim = src->ndim() + 1;
-    const Index storage_axis = nn::graph_axis_to_storage(axis, out_ndim);
     TensorGraph::TensorNode *output_data =
-        tensor::scale_slice(alpha, src->data(), storage_axis, axis_size);
+        tensor::scale_slice(alpha, src->data(), axis, axis_size);
     NNGraph::TensorNode *output =
         graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
@@ -69,11 +66,9 @@ void NNScaleSliceOp::backward() const
         auto [grad_src, is_first] =
             graph->get_or_create_grad(src, nn_grad_slot_name(src));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        const Index storage_axis =
-            nn::graph_axis_to_storage(axis, grad_out->ndim());
         tensor::sum_slice(grad_out->data(),
             grad_src->data(),
-            storage_axis,
+            axis,
             sum_slice_redux,
             alpha,
             grad_beta);

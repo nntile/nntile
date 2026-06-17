@@ -17,6 +17,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -112,18 +113,17 @@ void TensorScaleFiberOp::lower_to_tile(const LoweringContext &ctx) const
             "lower_to_tile SCALE_FIBER: missing tiling for src");
     }
 
+    const Index dst_nd = dst->ndim();
+    const Index src_nd = src->ndim();
+
     std::vector<Index> dst_coord;
-    std::vector<Index> src_coord(static_cast<size_t>(src->ndim()));
+    std::vector<Index> src_coord(static_cast<size_t>(src_nd));
 
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        src_coord[0] = dst_coord[static_cast<size_t>(axis)];
-        for (Index b = 0; b < batch_ndim; ++b)
-        {
-            src_coord[static_cast<size_t>(b + 1)] =
-                dst_coord[static_cast<size_t>(dst->ndim() - batch_ndim + b)];
-        }
+        fiber_layout_coord_from_tensor(
+            dst_coord, axis, batch_ndim, src_nd, dst_nd, src_coord);
         const Index lin_s = lay_s->grid_linear(src_coord);
         tile::scale_fiber(alpha,
             tiles_s[static_cast<size_t>(lin_s)],

@@ -17,6 +17,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/tensor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
@@ -65,8 +66,12 @@ void TensorTransposeOp::lower_to_tile(const LoweringContext &ctx) const
             "lower_to_tile TRANSPOSE: missing tiling for src or dst");
     }
     const nntile::core::TileTraits grid_src(lay_s->grid_shape());
-    const Index grid_m = grid_src.matrix_shape[static_cast<size_t>(ndim)][0];
-    const Index grid_n = grid_src.matrix_shape[static_cast<size_t>(ndim)][1];
+    const Index n = src->ndim();
+    const Index storage_ndim = n - ndim;
+    const Index grid_m =
+        grid_src.matrix_shape[static_cast<size_t>(storage_ndim)][0];
+    const Index grid_n =
+        grid_src.matrix_shape[static_cast<size_t>(storage_ndim)][1];
     const auto &tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
     const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
     for (Index j = 0; j < grid_n; ++j)
@@ -99,8 +104,11 @@ TensorGraph::TensorNode *transpose(
     std::vector<Index> src_shape = src->shape();
     Index n = src->ndim();
     std::vector<Index> output_shape(n);
+    // Cyclic perm on the first ``ndim`` graph axes vs the remainder.
     for (Index i = 0; i < n; ++i)
+    {
         output_shape[i] = src_shape[(i + ndim) % n];
+    }
     TensorGraph::TensorNode *output =
         src->graph()->data(std::move(output_shape), src->dtype());
     for (Index i = 0; i < n; ++i)

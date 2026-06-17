@@ -16,7 +16,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/axis_descriptor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tile.hh"
 #include "nntile/tensor/ops/norm_fiber.hh"
 #include "nntile/tensor.hh"
@@ -55,29 +55,21 @@ constexpr Index dim_6 = 6;
 
 } // anonymous namespace
 
-//! Output shape for norm_fiber: {x_shape[axis]} for batch_ndim=0
 static std::vector<Index> norm_fiber_output_shape(
     const std::vector<Index> &x_shape, Index axis, Index batch_ndim)
 {
-    std::vector<Index> out_shape;
-    out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
-    for (Index i = 0; i < batch_ndim; ++i)
-    {
-        out_shape.push_back(x_shape[x_shape.size() - batch_ndim + i]);
-    }
-    return out_shape;
+    return nntile::tensor::graph_fiber_shape(x_shape, axis, batch_ndim);
 }
 
 TEST_CASE("TensorGraph norm_fiber structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim_4, dim_5})->set_name("x");
+    auto *x = graph.data({dim_5, dim_4})->set_name("x");
     auto *y = graph.data({dim_4})->set_name("y");
 
     auto *out = gt::norm_fiber(
-        alpha_one, x, beta_zero, y, axis_0, batch_ndim_none, redux_none)
+        alpha_one, x, beta_zero, y, axis_1, batch_ndim_none, redux_none)
                     ->set_name("out");
 
     REQUIRE(graph.num_data() == 3);
@@ -96,7 +88,7 @@ TEST_CASE(
     "TensorGraph norm_fiber rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({dim_4, dim_5})->set_name("x");
+    auto *x = graph.data({dim_5, dim_4})->set_name("x");
     auto *y = graph.data({dim_4})->set_name("y");
 
     REQUIRE_THROWS_AS(gt::norm_fiber(alpha_one,
@@ -104,7 +96,7 @@ TEST_CASE(
                           beta_zero,
                           y,
                           y,
-                          axis_0,
+                          axis_1,
                           batch_ndim_none,
                           redux_none),
         std::invalid_argument);
@@ -115,13 +107,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [x_shape, axis, batch_ndim, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
-                     axis_0,
+        GENERATE(std::tuple{std::vector<Index>{dim_5, dim_4},
+                     axis_1,
                      batch_ndim_none,
                      redux_none,
                      alpha_one,
                      beta_zero},
-            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
+            std::tuple{std::vector<Index>{dim_4, dim_3, dim_2},
                 axis_1,
                 batch_ndim_none,
                 redux_none,

@@ -17,6 +17,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -126,25 +127,29 @@ void TensorNormSliceOp::lower_to_tile(const LoweringContext &ctx) const
     std::vector<Index> dst_coord;
     std::vector<Index> s1_coord(static_cast<size_t>(src1->ndim()));
 
+    const Index src_nd = src1->ndim();
+    const Index dst_nd = dst->ndim();
+    const Index lay_ax = layout_axis(axis, src_nd);
+
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        for (Index j = 0, k = 0; j < src1->ndim(); ++j)
+        for (Index g_src = 0; g_src < src_nd; ++g_src)
         {
-            if (j == axis)
+            if (g_src == axis)
             {
                 continue;
             }
-            s1_coord[static_cast<size_t>(j)] =
-                dst_coord[static_cast<size_t>(k)];
-            ++k;
+            const Index g_dst = (g_src < axis) ? g_src : (g_src - 1);
+            s1_coord[static_cast<size_t>(layout_axis(g_src, src_nd))] =
+                dst_coord[static_cast<size_t>(layout_axis(g_dst, dst_nd))];
         }
 
         const Index nseg_along_axis =
-            lay_s1->grid_shape()[static_cast<size_t>(axis)];
+            lay_s1->grid_shape()[static_cast<size_t>(lay_ax)];
         for (Index jj = 0; jj < nseg_along_axis; ++jj)
         {
-            s1_coord[static_cast<size_t>(axis)] = jj;
+            s1_coord[static_cast<size_t>(lay_ax)] = jj;
             const Index lin_s1 = lay_s1->grid_linear(s1_coord);
             if (jj == 0)
             {

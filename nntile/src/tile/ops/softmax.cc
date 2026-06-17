@@ -21,6 +21,7 @@
 #include <nntile/core/softmax.hh>
 
 #include <nntile/runtime.hh>
+#include <nntile/tile/shape_layout.hh>
 namespace nntile::tile
 {
 namespace
@@ -52,29 +53,31 @@ void softmax(
 }
 void TileSoftmaxOp::execute(Runtime& runtime) const
 {
+    const Index s_axis =
+        tensor::graph_axis_to_storage(axis, dst->ndim());
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)
     {
         case DataType::FP32:
-            run_sm<nntile::fp32_t>(runtime, maxsumexp, src, alpha, dst, axis);
+            run_sm<nntile::fp32_t>(runtime, maxsumexp, src, alpha, dst, s_axis);
             break;
         case DataType::FP32_FAST_TF32:
-            run_sm<nntile::fp32_fast_tf32_t>(runtime, maxsumexp, src, alpha, dst, axis);
+            run_sm<nntile::fp32_fast_tf32_t>(runtime, maxsumexp, src, alpha, dst, s_axis);
             break;
         case DataType::FP32_FAST_FP16:
-            run_sm<nntile::fp32_fast_fp16_t>(runtime, maxsumexp, src, alpha, dst, axis);
+            run_sm<nntile::fp32_fast_fp16_t>(runtime, maxsumexp, src, alpha, dst, s_axis);
             break;
         case DataType::FP32_FAST_BF16:
-            run_sm<nntile::fp32_fast_bf16_t>(runtime, maxsumexp, src, alpha, dst, axis);
+            run_sm<nntile::fp32_fast_bf16_t>(runtime, maxsumexp, src, alpha, dst, s_axis);
             break;
         case DataType::FP64:
-            run_sm<nntile::fp64_t>(runtime, maxsumexp, src, alpha, dst, axis);
+            run_sm<nntile::fp64_t>(runtime, maxsumexp, src, alpha, dst, s_axis);
             break;
         case DataType::FP16:
-            run_sm<nntile::fp16_t>(runtime, maxsumexp, src, alpha, dst, axis);
+            run_sm<nntile::fp16_t>(runtime, maxsumexp, src, alpha, dst, s_axis);
             break;
         case DataType::BF16:
-            run_sm<nntile::bf16_t>(runtime, maxsumexp, src, alpha, dst, axis);
+            run_sm<nntile::bf16_t>(runtime, maxsumexp, src, alpha, dst, s_axis);
             break;
         case DataType::INT64:
         case DataType::BOOL:

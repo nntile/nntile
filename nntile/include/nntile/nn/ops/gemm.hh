@@ -27,8 +27,8 @@ namespace nntile
 //! Generic GEMM on graph shapes.
 //!
 //! ``trans_a`` / ``trans_b`` transpose the first ``ndim`` axes of operands
-//! ``a`` / ``b``.  Lowers to ``tensor::gemm(b, a, trans_b, trans_a, ndim,
-//! batch_ndim)`` (operands and transpose flags swapped for graph labels).
+//! ``a`` / ``b``.  Lowers to ``tensor::gemm(a, b, trans_a, trans_b, ndim,
+//! batch_ndim)`` on graph shapes (no operand swap).
 struct NNGemmOp : NNGraph::OpNode
 {
     Scalar alpha;

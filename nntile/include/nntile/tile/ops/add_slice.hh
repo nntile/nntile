@@ -25,6 +25,7 @@ namespace nntile::tile
 struct TileAddSliceOp : TileGraph::OpNode
 {
     Scalar alpha = 0, beta = 0;
+//! axis: graph axis index (0 = outermost); execute converts for core kernels.
     Index axis = 0;
     TileGraph::TileNode *s1 = nullptr, *s2 = nullptr, *dst = nullptr;
     TileAddSliceOp() = default;
@@ -40,6 +41,6 @@ struct TileAddSliceOp : TileGraph::OpNode
         return std::make_shared<TileAddSliceOp>(*this);
     }
 };
-//! Add slice: dst = alpha * src1 + beta * src2 (uses existing output)
+//! @param axis graph axis index (0 = outermost); converted at execute.
 void add_slice(Scalar a, TileGraph::TileNode* t1, Scalar b, TileGraph::TileNode* t2, TileGraph::TileNode* dst, Index axis);
 } // namespace nntile::tile

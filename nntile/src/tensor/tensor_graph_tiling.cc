@@ -19,63 +19,69 @@
 
 #include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tensor/graph.hh"
+#include "nntile/tensor/shape_layout.hh"
 
 namespace nntile
 {
 
 TensorAxisLayout::TensorAxisLayout(const TensorGraph::TensorNode* node)
 {
-    shape_ = node->shape();
-    const Index ndim = static_cast<Index>(shape_.size());
+    const Index ndim = node->ndim();
+    const auto& graph_shape = node->shape();
     const auto& axes = node->axes();
     if(static_cast<size_t>(ndim) != axes.size())
     {
         throw std::runtime_error(
             "TensorAxisLayout: axes/shape mismatch for '" + node->name() + "'");
     }
+    shape_.resize(static_cast<size_t>(ndim));
     segments_.resize(static_cast<size_t>(ndim));
     axis_origin_.resize(static_cast<size_t>(ndim));
     grid_shape_.assign(static_cast<size_t>(ndim), 1);
     grid_volume_ = 1;
 
-    for(Index d = 0; d < ndim; ++d)
+    for(Index s = 0; s < ndim; ++s)
     {
-        const AxisDescriptor* ax = axes[static_cast<size_t>(d)].get();
+        const Index g = tensor::storage_axis_to_graph(s, ndim);
+        shape_[static_cast<size_t>(s)] =
+            graph_shape[static_cast<size_t>(g)];
+        const AxisDescriptor* ax = axes[static_cast<size_t>(g)].get();
         if(!ax->is_tiled())
         {
-            segments_[static_cast<size_t>(d)] = {shape_[static_cast<size_t>(d)]};
+            segments_[static_cast<size_t>(s)] = {
+                shape_[static_cast<size_t>(s)]};
         }
         else
         {
-            segments_[static_cast<size_t>(d)] = ax->tile_sizes;
+            segments_[static_cast<size_t>(s)] = ax->tile_sizes;
         }
-        const auto& seg = segments_[static_cast<size_t>(d)];
+        const auto& seg = segments_[static_cast<size_t>(s)];
         Index sum = 0;
-        for(Index s : seg)
+        for(Index v : seg)
         {
-            if(s <= 0)
+            if(v <= 0)
             {
                 throw std::invalid_argument(
                     "TensorAxisLayout: non-positive segment on axis " +
-                    std::to_string(d) + " for '" + node->name() + "'");
+                    std::to_string(s) + " for '" + node->name() + "'");
             }
-            sum += s;
+            sum += v;
         }
-        if(sum != shape_[static_cast<size_t>(d)])
+        if(sum != shape_[static_cast<size_t>(s)])
         {
             throw std::invalid_argument(
                 "TensorAxisLayout: segment sum != extent on axis " +
-                std::to_string(d) + " for '" + node->name() + "'");
+                std::to_string(s) + " for '" + node->name() + "'");
         }
-        grid_shape_[static_cast<size_t>(d)] = static_cast<Index>(seg.size());
-        grid_volume_ *= grid_shape_[static_cast<size_t>(d)];
+        grid_shape_[static_cast<size_t>(s)] = static_cast<Index>(seg.size());
+        grid_volume_ *= grid_shape_[static_cast<size_t>(s)];
 
         std::vector<Index> origin(seg.size() + 1, 0);
         for(size_t k = 0; k < seg.size(); ++k)
         {
             origin[k + 1] = origin[k] + seg[k];
         }
-        axis_origin_[static_cast<size_t>(d)] = std::move(origin);
+        axis_origin_[static_cast<size_t>(s)] = std::move(origin);
     }
 }
 

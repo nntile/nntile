@@ -36,7 +36,7 @@ TEST_CASE("TensorGraph clear structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *src = graph.data({dim1, dim0})->set_name("src");
 
     gt::clear(src);
 
@@ -54,9 +54,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph clear tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto shape = GENERATE(std::vector<Index>{4, 6},
+    const auto shape = GENERATE(std::vector<Index>{6, 4},
         std::vector<Index>{6},
-        std::vector<Index>{2, 4});
+        std::vector<Index>{4, 2});
 
     using T = nntile::fp32_t;
     using Y = typename T::repr_t;

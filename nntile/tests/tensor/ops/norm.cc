@@ -47,7 +47,7 @@ TEST_CASE("TensorGraph norm structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim0, dim1})->set_name("x");
+    auto *x = graph.data({dim1, dim0})->set_name("x");
     auto *y = graph.data({})->set_name("y");
 
     gt::norm(x, y, alpha_one, beta_zero);
@@ -66,7 +66,7 @@ TEST_CASE("TensorGraph norm structure", "[graph][tensor]")
 TEST_CASE("TensorGraph norm rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({4, 5})->set_name("t");
+    auto *t = graph.data({5, 4})->set_name("t");
 
     REQUIRE_THROWS_AS(
         gt::norm(t, t, alpha_one, beta_zero), std::invalid_argument);
@@ -77,7 +77,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, beta, x_shape] =
-        GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{4, 6}},
+        GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{6, 4}},
             std::tuple{1.0, 1.0, std::vector<Index>{6}});
 
     using T = nntile::fp32_t;

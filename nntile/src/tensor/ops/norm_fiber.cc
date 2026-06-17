@@ -17,6 +17,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -59,7 +60,8 @@ TensorGraph::TensorNode *norm_fiber(Scalar alpha,
     TensorGraph::TensorNode *dst =
         src1->graph()->data(std::move(output_shape), src1->dtype());
 
-    validate_fiber_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
+    validate_fiber_shape_and_merge(
+        dst, src1, axis, batch_ndim, "norm_fiber");
     validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
@@ -99,7 +101,8 @@ void norm_fiber(Scalar alpha,
             "norm_fiber: src1, src2, and dst must be distinct tensors");
     }
 
-    validate_fiber_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
+    validate_fiber_shape_and_merge(
+        dst, src1, axis, batch_ndim, "norm_fiber");
     validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
@@ -132,28 +135,28 @@ void TensorNormFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
     constexpr Scalar one = 1.0;
+    const Index src_nd = src1->ndim();
+    const Index dst_nd = dst->ndim();
+
     std::vector<Index> s1_coord;
-    std::vector<Index> dst_coord(static_cast<size_t>(dst->ndim()));
+    std::vector<Index> dst_coord(static_cast<size_t>(dst_nd));
 
     for (Index lin1 = 0; lin1 < lay1->grid_volume(); ++lin1)
     {
         lay1->grid_coord_from_linear(lin1, s1_coord);
         bool init_first = true;
-        for (Index j = 0; j < src1->ndim() - batch_ndim; ++j)
+        for (Index g = batch_ndim; g < src_nd; ++g)
         {
-            if (j != axis && s1_coord[static_cast<size_t>(j)] != 0)
+            if (g != axis
+                && s1_coord[static_cast<size_t>(layout_axis(g, src_nd))] != 0)
             {
                 init_first = false;
                 break;
             }
         }
 
-        dst_coord[0] = s1_coord[static_cast<size_t>(axis)];
-        for (Index b = 0; b < batch_ndim; ++b)
-        {
-            dst_coord[static_cast<size_t>(b + 1)] =
-                s1_coord[static_cast<size_t>(src1->ndim() - batch_ndim + b)];
-        }
+        fiber_layout_coord_from_tensor(
+            s1_coord, axis, batch_ndim, dst_nd, src_nd, dst_coord);
         const Index lin_d = lay_d->grid_linear(dst_coord);
 
         if (init_first)

@@ -23,6 +23,7 @@
 
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
+#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/copy.hh"
@@ -181,10 +182,11 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
     for(Index j = 0; j < ndim; ++j)
     {
         const size_t jz = static_cast<size_t>(j);
+        const Index g = storage_axis_to_graph(j, ndim);
         dst_tile_index_begin[jz] =
-            lay_d->tile_index_containing(j, g_dst[jz]);
+            lay_d->tile_index_containing(j, g_dst[g]);
         dst_tile_index_end[jz] = lay_d->tile_index_containing(
-                                    j, g_dst[jz] + cshape[jz] - 1)
+                                    j, g_dst[g] + cshape[g] - 1)
             + 1;
         dst_ntiles *= dst_tile_index_end[jz] - dst_tile_index_begin[jz];
     }
@@ -200,30 +202,31 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
         for(Index j = 0; j < ndim; ++j)
         {
             const size_t jz = static_cast<size_t>(j);
+            const Index g = storage_axis_to_graph(j, ndim);
             Index d_lo = 0;
             Index d_hi = 0;
             lay_d->tile_axis_global_range(dst_tile_index, j, d_lo, d_hi);
             if(dst_tile_index[jz] == dst_tile_index_begin[jz])
             {
                 src_tile_index_begin[jz] =
-                    lay_s->tile_index_containing(j, g_src[jz]);
+                    lay_s->tile_index_containing(j, g_src[g]);
             }
             else
             {
                 src_tile_index_begin[jz] = lay_s->tile_index_containing(
-                    j, d_lo - g_dst[jz] + g_src[jz]);
+                    j, d_lo - g_dst[g] + g_src[g]);
             }
             if(dst_tile_index[jz] + 1 == dst_tile_index_end[jz])
             {
                 src_tile_index_end[jz] =
                     lay_s->tile_index_containing(
-                        j, g_src[jz] + cshape[jz] - 1)
+                        j, g_src[g] + cshape[g] - 1)
                     + 1;
             }
             else
             {
                 src_tile_index_end[jz] = lay_s->tile_index_containing(
-                    j, d_hi - g_dst[jz] + g_src[jz])
+                    j, d_hi - g_dst[g] + g_src[g])
                     + 1;
             }
             src_ntiles *= src_tile_index_end[jz] - src_tile_index_begin[jz];
@@ -236,6 +239,7 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
             for(Index k = 0; k < ndim; ++k)
             {
                 const size_t kz = static_cast<size_t>(k);
+                const Index gk = storage_axis_to_graph(k, ndim);
                 Index s_lo = 0;
                 Index s_hi_incl = 0;
                 lay_s->tile_axis_global_range(
@@ -247,7 +251,7 @@ void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
                 lay_d->tile_axis_global_range(
                     dst_tile_index, k, d_lo2, d_hi_incl2);
                 (void)d_hi_incl2;
-                dst_corner[kz] = d_lo2 - g_dst[kz] + g_src[kz];
+                dst_corner[kz] = d_lo2 - g_dst[gk] + g_src[gk];
             }
             tile::copy_intersection(tsrc[static_cast<size_t>(lin_s)],
                 src_corner, tdst[static_cast<size_t>(lin_d)], dst_corner,

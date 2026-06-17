@@ -21,6 +21,7 @@
 #include <nntile/core/multiply_fiber_inplace.hh>
 
 #include <nntile/runtime.hh>
+#include <nntile/tile/shape_layout.hh>
 namespace nntile::tile
 {
 namespace
@@ -41,29 +42,31 @@ void multiply_fiber_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNod
 }
 void TileMultiplyFiberInplaceOp::execute(Runtime& runtime) const
 {
+    const Index s_axis =
+        tensor::graph_axis_to_storage(axis, dst->ndim());
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, alpha, src, dst, axis);
+            run<nntile::fp32_t>(runtime, alpha, src, dst, s_axis);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, alpha, src, dst, axis);
+            run<nntile::fp32_fast_tf32_t>(runtime, alpha, src, dst, s_axis);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, alpha, src, dst, axis);
+            run<nntile::fp32_fast_fp16_t>(runtime, alpha, src, dst, s_axis);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, alpha, src, dst, axis);
+            run<nntile::fp32_fast_bf16_t>(runtime, alpha, src, dst, s_axis);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, alpha, src, dst, axis);
+            run<nntile::fp64_t>(runtime, alpha, src, dst, s_axis);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, alpha, src, dst, axis);
+            run<nntile::fp16_t>(runtime, alpha, src, dst, s_axis);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, alpha, src, dst, axis);
+            run<nntile::bf16_t>(runtime, alpha, src, dst, s_axis);
             break;
         case DataType::INT64:
         case DataType::BOOL:

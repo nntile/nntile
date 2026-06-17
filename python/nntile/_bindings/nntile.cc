@@ -15,7 +15,7 @@
 #include <cstring>
 #include <memory>
 #include <nntile/context.hh>
-#include <nntile/core/execution_schedule.hh>
+#include <nntile/runtime.hh>
 #include <nntile/graph.hh>
 #include <nntile/nn/graph_ops.hh>
 

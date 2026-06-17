@@ -66,13 +66,13 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
 
     NNGraph::TensorNode *attn =
         graph->tensor(attn_shape, q->dtype(), out_requires_grad);
-    tensor::gemm(k->data(),
-        q->data(),
+    tensor::gemm(q->data(),
+        k->data(),
         attn->data(),
         scale,
         0.0,
-        true,
         false,
+        true,
         1,
         batch_ndim);
 
@@ -88,9 +88,10 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
     NNGraph::TensorNode *maxsumexp_buf =
         graph->tensor(attn_max_shape, q->dtype(), false);
     clear(maxsumexp_buf);
-    tensor::maxsumexp(attn->data(), maxsumexp_buf->data(), 0, redux);
+    const Index attn_axis = q_ndim - 1;
+    tensor::maxsumexp(attn->data(), maxsumexp_buf->data(), attn_axis, redux);
     tensor::softmax_inplace(
-        maxsumexp_buf->data(), attn->data(), 1.0, 0);
+        maxsumexp_buf->data(), attn->data(), 1.0, attn_axis);
 
     std::vector<Index> sumprod_shape = batch_shape;
     sumprod_shape.push_back(q_seq);
@@ -103,8 +104,8 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
     std::vector<Index> y_shape = q_shape;
     NNGraph::TensorNode *out =
         graph->tensor(y_shape, q->dtype(), out_requires_grad);
-    tensor::gemm(v->data(),
-        attn->data(),
+    tensor::gemm(attn->data(),
+        v->data(),
         out->data(),
         1.0,
         0.0,
@@ -144,38 +145,39 @@ void NNSdpaEagerOp::backward() const
         auto [grad_v, is_first] =
             graph->get_or_create_grad(v, nn_grad_slot_name(v));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor::gemm(grad_out->data(),
-            attn->data(),
+        tensor::gemm(attn->data(),
+            grad_out->data(),
             grad_v->data(),
             1.0,
             beta,
-            false,
             true,
-            q_ndim - batch_ndim - ndim_contraction,
+            false,
+            ndim_contraction,
             batch_ndim);
     }
 
-    // d_attn = V^T @ grad_out, stored in grad_temp buffer
-    tensor::gemm(v->data(),
-        grad_out->data(),
+    // d_attn = grad_out @ V^T, stored in grad_temp buffer
+    tensor::gemm(grad_out->data(),
+        v->data(),
         grad_temp->data(),
         1.0,
         0.0,
-        true,
         false,
-        q_ndim - batch_ndim - ndim_contraction,
+        true,
+        ndim_contraction,
         batch_ndim);
 
     // grad_temp = (grad_temp - sumprod(attn, grad_temp)) * attn
+    const Index attn_axis = q_ndim - 1;
     tensor::sumprod_slice(attn->data(),
         grad_temp->data(),
         sumprod_buf->data(),
-        0,
+        attn_axis,
         redux,
         1.0,
         0.0);
     tensor::add_slice_inplace(
-        -1.0, sumprod_buf->data(), 1.0, grad_temp->data(), 0);
+        -1.0, sumprod_buf->data(), 1.0, grad_temp->data(), attn_axis);
     tensor::multiply_inplace(1.0, attn->data(), grad_temp->data());
 
     if (q != nullptr && q->requires_grad())
@@ -183,14 +185,14 @@ void NNSdpaEagerOp::backward() const
         auto [grad_q, is_first] =
             graph->get_or_create_grad(q, nn_grad_slot_name(q));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor::gemm(k->data(),
-            grad_temp->data(),
+        tensor::gemm(grad_temp->data(),
+            k->data(),
             grad_q->data(),
             scale,
             beta,
             false,
             false,
-            q_ndim - batch_ndim - ndim_contraction,
+            ndim_contraction,
             batch_ndim);
     }
 
@@ -199,14 +201,14 @@ void NNSdpaEagerOp::backward() const
         auto [grad_k, is_first] =
             graph->get_or_create_grad(k, nn_grad_slot_name(k));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        tensor::gemm(q->data(),
-            grad_temp->data(),
+        tensor::gemm(grad_temp->data(),
+            q->data(),
             grad_k->data(),
             scale,
             beta,
-            false,
             true,
-            q_ndim - batch_ndim - ndim_contraction,
+            false,
+            ndim_contraction,
             batch_ndim);
     }
 }

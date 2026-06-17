@@ -25,6 +25,7 @@ namespace nntile::tile
 struct TileMaskScalarOp : TileGraph::OpNode
 {
     Scalar val = 0.0;
+//! batch_ndim: leading graph batch rank (not an axis index).
     Index batch_ndim = 0;
     TileGraph::TileNode* mask = nullptr;
     TileGraph::TileNode* a = nullptr;
@@ -42,7 +43,7 @@ struct TileMaskScalarOp : TileGraph::OpNode
         return std::make_shared<TileMaskScalarOp>(*this);
     }
 };
-//! Mask scalar: A[mask] = val
+//! @param batch_ndim leading graph batch dimensions (not an axis index).
 void mask_scalar(
     TileGraph::TileNode* mask, Scalar val, TileGraph::TileNode* a, Index batch_ndim = 0);
 } // namespace nntile::tile

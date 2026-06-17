@@ -14,8 +14,6 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/graph_op_node.hh"
-#include "nntile/nn/shape_layout.hh"
-
 #include <deque>
 #include <set>
 #include <unordered_set>
@@ -40,7 +38,6 @@ NNGraph::TensorNode::TensorNode(
         throw std::invalid_argument(
             "NNGraph::TensorNode: data tensor is nullptr");
     }
-    c_shape_ = nn::storage_shape_to_graph(data->shape());
 }
 
 void NNGraph::TensorNode::set_bind_hint(std::vector<std::uint8_t> data)

@@ -25,6 +25,7 @@ namespace nntile::tile
 struct TileTransposeOp : TileGraph::OpNode
 {
     Scalar alpha = 0.0;
+//! ndim: number of leading graph axes in the cyclic transpose; converted at execute.
     Index ndim = 0;
     TileGraph::TileNode* src = nullptr;
     TileGraph::TileNode* dst = nullptr;
@@ -48,7 +49,7 @@ struct TileTransposeOp : TileGraph::OpNode
     }
 };
 
-//! Transpose: dst = alpha * transpose(src) (uses existing output)
+//! Cyclic transpose of leading graph axes; execute maps ndim to storage layout.
 void transpose(Scalar alpha, TileGraph::TileNode* src, TileGraph::TileNode* dst, Index ndim);
 
 } // namespace nntile::tile
