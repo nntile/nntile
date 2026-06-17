@@ -16,6 +16,8 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
+import torch_nntile
+
 
 class DeepReLU(nn.Module):
     """Bias-free deep ReLU network."""
@@ -49,7 +51,15 @@ class DeepReLU(nn.Module):
         self.output_dim = output_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+        if x.device.type == "nntile":
+            torch_nntile.set_axis_group_name(
+                x,
+                {0: "batch", 1: "features"},
+            )
+        out = self.net(x)
+        if out.device.type == "nntile":
+            torch_nntile.set_axis_group_name(out, {1: "classes"})
+        return out
 
     @classmethod
     def tiny(cls) -> DeepReLU:

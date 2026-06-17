@@ -129,6 +129,25 @@ def restore_where() -> None:
     _C.restore_where()
 
 
+def set_axis_group_name(tensor: torch.Tensor, names: dict[int, str]) -> None:
+    """Name TensorGraph axis groups for selected dimensions of a tensor.
+
+  Only the listed dimensions are named; others stay unnamed. Names propagate
+  to merged axis groups when ops combine tensors. Call before
+  :func:`execute` in graph mode.
+  """
+    _C.set_axis_group_name(tensor, names)
+
+
+def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ...]) -> None:
+    """Set tiling for a named axis group before :func:`execute`.
+
+  ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
+  sizes (``list``/``tuple``) that sum to the axis extent.
+  """
+    _C.set_axis_group_tiling(name, tile_sizes)
+
+
 __all__ = [
     "device",
     "_C",
@@ -141,4 +160,6 @@ __all__ = [
     "restrict_cpu",
     "restrict_cuda",
     "restore_where",
+    "set_axis_group_name",
+    "set_axis_group_tiling",
 ]

@@ -13,10 +13,18 @@ Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 ``device="nntile"``; call ``torch_nntile.execute()`` in graph mode before
 reading it on the host.
 
-Example::
+Axis-group tiling (optional) uses names assigned inside :class:`DeepReLU`:
+
+- ``batch`` — input/logits batch dimension
+- ``features`` — flattened image dimension (784)
+- ``classes`` — output logits dimension (10)
+
+Example with batch tiling in graph mode::
 
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
-    python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
+    python torch_nntile/examples/train_deep_relu_mnist.py \\
+        --runtime-mode graph \\
+        --axis-tiling batch=15000,15000,15000,15000,15000
 """
 
 from __future__ import annotations
@@ -57,6 +65,40 @@ def load_mnist_full_batch(
     return images, labels
 
 
+def parse_axis_tiling_arg(spec: str) -> tuple[str, list[int]]:
+    """Parse ``name=size`` or ``name=size,size,...``."""
+    if "=" not in spec:
+        raise argparse.ArgumentTypeError(
+            f"axis tiling must be NAME=SIZES, got {spec!r}"
+        )
+    name, sizes_text = spec.split("=", 1)
+    name = name.strip()
+    if not name:
+        raise argparse.ArgumentTypeError("axis group name must be non-empty")
+    sizes: list[int] = []
+    for part in sizes_text.split(","):
+        part = part.strip()
+        if not part:
+            raise argparse.ArgumentTypeError(
+                f"invalid tile size list in {spec!r}"
+            )
+        value = int(part)
+        if value <= 0:
+            raise argparse.ArgumentTypeError("tile sizes must be positive")
+        sizes.append(value)
+    return name, sizes
+
+
+def build_axis_group_tiling(
+    specs: list[str],
+) -> dict[str, list[int]]:
+    tiling: dict[str, list[int]] = {}
+    for spec in specs:
+        name, sizes = parse_axis_tiling_arg(spec)
+        tiling[name] = sizes
+    return tiling
+
+
 def build_models(
     seed: int,
     hidden_dim: int,
@@ -80,6 +122,7 @@ def train_on_device(
     device: str,
     epochs: int,
     learning_rate: float,
+    axis_group_tiling: dict[str, list[int]] | None = None,
 ) -> list[float]:
     if device == "nntile":
         x = images.to("nntile")
@@ -89,7 +132,13 @@ def train_on_device(
 
     losses: list[float] = []
     for epoch in range(epochs):
-        loss = train_full_batch_step(model, x, y, learning_rate)
+        loss = train_full_batch_step(
+            model,
+            x,
+            y,
+            learning_rate,
+            axis_group_tiling=axis_group_tiling if device == "nntile" else None,
+        )
         losses.append(loss)
         print(f"[{device}] epoch {epoch + 1}/{epochs}  loss={loss:.6f}")
     return losses
@@ -109,6 +158,16 @@ def main() -> None:
         default="eager",
         help="torch_nntile runtime mode (default: eager)",
     )
+    parser.add_argument(
+        "--axis-tiling",
+        action="append",
+        default=[],
+        metavar="NAME=SIZES",
+        help=(
+            "Axis-group tiling for nntile, e.g. batch=15000,15000,15000,15000,15000 "
+            "or features=392,392. Repeat for multiple groups."
+        ),
+    )
     parser.add_argument("--output-dir", default="deep_relu_mnist_runs")
     args = parser.parse_args()
 
@@ -118,15 +177,23 @@ def main() -> None:
             "Set NNTILE_BUILD_DIR and reinstall."
         )
 
+    axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
+    runtime_mode = args.runtime_mode
+    if axis_group_tiling and runtime_mode != "graph":
+        print("Axis tiling requested; switching runtime mode to graph.")
+        runtime_mode = "graph"
+
     torch_nntile.init_context(
         ncpu=1,
         ncuda=0,
         verbose=0,
         cpu_fallback=False,
-        runtime_mode=args.runtime_mode,
+        runtime_mode=runtime_mode,
     )
 
-    print(f"Runtime mode: {args.runtime_mode}")
+    print(f"Runtime mode: {runtime_mode}")
+    if axis_group_tiling:
+        print(f"Axis-group tiling: {axis_group_tiling}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -164,6 +231,7 @@ def main() -> None:
         device="nntile",
         epochs=args.epochs,
         learning_rate=args.lr,
+        axis_group_tiling=axis_group_tiling or None,
     )
 
     cpu_path = output_dir / "deep_relu_mnist_cpu.pt"
