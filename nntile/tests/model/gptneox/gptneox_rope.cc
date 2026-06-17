@@ -104,7 +104,7 @@ inline bool try_load_attention_fixture_spec(
 } // namespace
 
 using nntile::test::require_relative_frobenius_error;
-using nntile::test::safetensors_nntile_layout::read_tensor_nntile_layout;
+using nntile::test::safetensors_nntile_layout::read_tensor_from_safetensors;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "Gptneox RoPE sin/cos from position_ids matches attention fixture",
@@ -126,7 +126,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index n_seq = fx.seq;
     const Index n_batch = fx.batch;
     std::vector<std::int64_t> pos;
-    read_tensor_nntile_layout(reader, "position_ids", pos);
+    read_tensor_from_safetensors(reader, "position_ids", pos);
     REQUIRE(
         pos.size()
         == static_cast<std::size_t>(n_seq * n_batch));
@@ -146,8 +146,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> sin_ref;
     std::vector<float> cos_ref;
-    read_tensor_nntile_layout(reader, "rope_sin", sin_ref);
-    read_tensor_nntile_layout(reader, "rope_cos", cos_ref);
+    read_tensor_from_safetensors(reader, "rope_sin", sin_ref);
+    read_tensor_from_safetensors(reader, "rope_cos", cos_ref);
 
     constexpr float k_tol = 1e-6f;
     require_relative_frobenius_error(sin_comp, sin_ref, k_tol);

@@ -45,6 +45,7 @@ void TotalSumAccum<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     Index ignore_index = args->ignore_index;
+    Index leading_class = args->leading_class;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *logsumexp = interfaces[0]->get_ptr<T>();
@@ -52,8 +53,8 @@ void TotalSumAccum<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const int64_t* labels = interfaces[2]->get_ptr<int64_t>();
     float *val = interfaces[3]->get_ptr<float>();
     // Launch kernel
-    kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs, ignore_index, logsumexp, src,
-            labels, val);
+    kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs, ignore_index,
+        leading_class, logsumexp, src, labels, val);
 #endif // STARPU_SIMGRID
 }
 
@@ -95,6 +96,7 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     Index ignore_index = args->ignore_index;
+    Index leading_class = args->leading_class;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *logsumexp = interfaces[0]->get_ptr<T>();
@@ -105,7 +107,7 @@ void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs,
-        ignore_index, logsumexp, src, labels, val);
+        ignore_index, leading_class, logsumexp, src, labels, val);
 #endif // STARPU_SIMGRID
 }
 
@@ -151,7 +153,7 @@ uint32_t TotalSumAccum<std::tuple<T>>::footprint(struct starpu_task *task)
 
 template<typename T>
 void TotalSumAccum<std::tuple<T>>::submit(int starpu_worker_hint, Scalar alpha, Index n_labels,
-        Index n_outputs, Index ignore_index,
+        Index n_outputs, Index ignore_index, Index leading_class,
             Handle logsumexp, Handle src, Handle class_labels, Handle val)
 {
     // Codelet arguments
@@ -160,6 +162,7 @@ void TotalSumAccum<std::tuple<T>>::submit(int starpu_worker_hint, Scalar alpha, 
     args->n_labels = n_labels;
     args->n_outputs = n_outputs;
     args->ignore_index = ignore_index;
+    args->leading_class = leading_class;
     // Submit task
     int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, logsumexp.get(),

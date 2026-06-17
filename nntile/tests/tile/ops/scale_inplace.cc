@@ -16,7 +16,7 @@
 #include <cmath>
 #include <numeric>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/scale_inplace.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -25,15 +25,13 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_inplace matches tile", "[graph][tile]")
 {
-    const std::vector<Index> stor_sh = {2, 3};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
+    const std::vector<Index> sh = {3, 2};
     const Index nelems = 6;
     const Scalar alpha = 1.5;
     TileGraph g("g");
-    auto* d = g.data(graph_sh, "d", DataType::FP32);
+    auto* d = g.data(sh, "d", DataType::FP32);
     d->mark_input(true);
     d->mark_output(true);
     tg::scale_inplace(alpha, d);
@@ -45,7 +43,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_inplace matches 
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> td(stor_sh);
+    nntile::core::Tile<fp32_t> td(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto l1 = td.acquire(STARPU_W);
@@ -60,7 +58,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_inplace matches 
         for(Index i = 0; i < nelems; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
         l2.release();
     }
-    constexpr float tol = 1e-4f;
-    REQUIRE(gout.size() == tref.size());
-    for(size_t i = 0; i < tref.size(); ++i) { REQUIRE(std::abs(gout[i] - tref[i]) < tol); }
+    nntile::test::require_relative_element_error(gout, tref);
 }

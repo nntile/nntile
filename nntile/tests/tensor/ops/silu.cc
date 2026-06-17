@@ -36,7 +36,7 @@ TEST_CASE("TensorGraph silu structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim1, dim0})->set_name("src");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
 
     auto *dst = gt::silu(src);
 
@@ -44,8 +44,8 @@ TEST_CASE("TensorGraph silu structure", "[graph][tensor]")
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape()[0] == dim1);
-    REQUIRE(dst->shape()[1] == dim0);
+    REQUIRE(dst->shape()[0] == dim0);
+    REQUIRE(dst->shape()[1] == dim1);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SILU");
@@ -66,9 +66,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph silu tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto shape = GENERATE(std::vector<Index>{6, 4},
+    const auto shape = GENERATE(std::vector<Index>{4, 6},
         std::vector<Index>{6},
-        std::vector<Index>{4, 2});
+        std::vector<Index>{2, 4});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

@@ -16,14 +16,13 @@
 #ifdef NNTILE_USE_CUDA
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE("TileGraph flash_sdpa_bwd_cudnn structure", "[graph][tile][cuda]")
 {
     nntile::test::CudaContextFixture fx;

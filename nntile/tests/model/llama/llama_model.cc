@@ -29,7 +29,6 @@
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/llama/llama_config.hh"
 #include "test_frobenius.hh"
-
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>

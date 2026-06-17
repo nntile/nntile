@@ -24,7 +24,7 @@ template<typename T>
 void check(Scalar alpha, Index axis)
 {
     using Y = typename T::repr_t;
-    Tile<T> dst({3, 4, 5}), dst2({3, 4, 5});
+    Tile<T> dst({5, 4, 3}), dst2({5, 4, 3});
     Tile<T> src({dst.shape[axis]});
     auto sl = src.acquire(STARPU_W);
     auto dl = dst.acquire(STARPU_W);
@@ -42,8 +42,8 @@ void check(Scalar alpha, Index axis)
     dl.release();
     d2l.release();
 
-    Index m = dst.stride[axis];
-    Index n = dst.matrix_shape[axis+1][1];
+    Index m = dst.matrix_shape[axis+1][1];
+    Index n = dst.matrix_shape[axis][0];
     Index k = dst.shape[axis];
     starpu::multiply_fiber_inplace.submit<std::tuple<T>>(-1, m, n, k, alpha, src,
             dst);

@@ -46,7 +46,7 @@ void validate()
     Scalar val = 0.5;
     Index ignore_index = -1;
     starpu::subtract_indexed_outputs.submit<std::tuple<T>>(-1, dst.shape[0],
-            labels.nelems, ignore_index, val, labels, dst);
+            labels.nelems, ignore_index, 1, val, labels, dst);
     subtract_indexed_outputs<T>(-1, val, labels, dst_ref, ignore_index);
 
     dl.acquire(STARPU_R);

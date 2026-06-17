@@ -24,7 +24,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> tile1({}), tile2({2, 2, 3}), tile3({2, 3, 4});
+    Tile<T> tile1({}), tile2({3, 2, 2}), tile3({4, 3, 2});
     // Check full copying, that is delegated to starpu_data_cpy internally
     auto tile1_local = tile1.acquire(STARPU_W);
     tile1_local[0] = Y(-1);
@@ -56,7 +56,7 @@ void validate()
         tile2_copy_local[i] = Y(-2);
     }
     tile2_copy_local.release();
-    copy_intersection<T>(-1, tile2, {1, 2, 3}, tile2_copy, {1, 2, 3}, scratch);
+    copy_intersection<T>(-1, tile2, {3, 2, 1}, tile2_copy, {3, 2, 1}, scratch);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -65,7 +65,7 @@ void validate()
     tile2_copy_local.release();
     // Check complex copying on CPU, no CUDA implementation as of now
     starpu::subcopy.submit<std::tuple<T>>(-1, 3,
-        std::vector<Index>{0, 0, 2},
+        std::vector<Index>{2, 0, 0},
         tile3.stride,
         std::vector<Index>{0, 1, 0},
         tile2.stride,
@@ -75,7 +75,7 @@ void validate()
         scratch,
         STARPU_RW
     );
-    copy_intersection<T>(-1, tile3, {0, 1, 0}, tile2_copy, {0, 0, 2}, scratch);
+    copy_intersection<T>(-1, tile3, {0, 1, 0}, tile2_copy, {2, 0, 0}, scratch);
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)

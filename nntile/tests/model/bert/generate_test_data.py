@@ -15,9 +15,9 @@ For each block the script creates ``bert_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 All forward and backward references come from HuggingFace ``modeling_bert``
-(PyTorch eager, dropout disabled). Safetensor arrays use graph shape
-labels matching the graph API. Helpers below reshape HF ``nn.Linear`` weights
-into those layouts; they do not reimplement BERT computation.
+(PyTorch eager, dropout disabled). Helpers below only reshape HF parameters
+into NNTile C-order layouts expected by the graph API modules; they do
+not reimplement BERT computation.
 """
 
 from __future__ import annotations
@@ -104,7 +104,7 @@ def _linear_attn_qkv_weight(
 def _linear_attn_o_weight(
     linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
 ) -> np.ndarray:
-    """PT Linear ``(out, in)`` → graph ``dense.weight`` ``(hd, nh, H)``."""
+    """PT Linear ``(out, in)`` → graph ``dense/o_weight`` ``(hd, nh, H)``."""
     w = linear.weight.detach().numpy().reshape(n_emb, nh, hs)
     return as_float32(w.transpose(2, 1, 0))
 
@@ -134,7 +134,7 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
 
 def _linear(linear, prefix: str) -> dict[str, np.ndarray]:
     # PyTorch Linear weight is (out_features, in_features); graph Linear
-    # stores the same graph layout (output_dim, input_dim).
+    # stores the same C-order layout (output_dim, input_dim).
     d = {
         f"{prefix}.weight": as_float32(linear.weight.detach().numpy()),
     }
@@ -160,9 +160,9 @@ def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
         return as_float32(linear.bias.detach().numpy().reshape(n_heads, hs))
 
     return {
-        f"{prefix}.q_weight": w(self_attn.query),
-        f"{prefix}.k_weight": w(self_attn.key),
-        f"{prefix}.v_weight": w(self_attn.value),
+        f"{prefix}.q_weight": as_float32(w(self_attn.query)),
+        f"{prefix}.k_weight": as_float32(w(self_attn.key)),
+        f"{prefix}.v_weight": as_float32(w(self_attn.value)),
         f"{prefix}.q_bias": as_float32(b(self_attn.query)),
         f"{prefix}.k_bias": as_float32(b(self_attn.key)),
         f"{prefix}.v_bias": as_float32(b(self_attn.value)),
@@ -175,7 +175,7 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     hs = dims.head_size
     w = _linear_attn_o_weight(out_module.dense, n_emb, n_heads, hs)
     return {
-        f"{prefix}.dense.weight": w,
+        f"{prefix}.dense.weight": as_float32(w),
         f"{prefix}.dense.bias": as_float32(
             out_module.dense.bias.detach().numpy(),
         ),

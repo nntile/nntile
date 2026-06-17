@@ -15,7 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/fill.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,15 +24,13 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph fill matches tile", "[graph][tile]")
 {
-    const std::vector<Index> stor_sh = {2, 3};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
+    const std::vector<Index> sh = {3, 2};
     const Index nelems = 6;
     const Scalar v = 3.25;
     TileGraph g("g");
-    auto* x = g.data(graph_sh, "x", DataType::FP32);
+    auto* x = g.data(sh, "x", DataType::FP32);
     x->mark_input(true);
     x->mark_output(true);
     tg::fill(v, x);
@@ -43,7 +41,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph fill matches tile", "[
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(x);
-    nntile::core::Tile<fp32_t> tx(stor_sh);
+    nntile::core::Tile<fp32_t> tx(sh);
     nntile::core::fill<fp32_t>(-1, v, tx);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
@@ -52,6 +50,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph fill matches tile", "[
         for(Index i = 0; i < nelems; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
         l2.release();
     }
-    constexpr float tol = 1e-4f;
-    for(size_t i = 0; i < tref.size(); ++i) { REQUIRE(std::abs(gout[i] - tref[i]) < tol); }
+    nntile::test::require_relative_element_error(gout, tref);
 }

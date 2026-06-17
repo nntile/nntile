@@ -47,7 +47,7 @@ TEST_CASE("TensorGraph hypot_scalar_inverse structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *dst = graph.data({dim1, dim0})->set_name("dst");
+    auto *dst = graph.data({dim0, dim1})->set_name("dst");
 
     gt::hypot_scalar_inverse(eps_default, alpha_one, dst);
 
@@ -65,9 +65,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph hypot_scalar_inverse tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto shape = GENERATE(std::vector<Index>{6, 4},
+    const auto shape = GENERATE(std::vector<Index>{4, 6},
         std::vector<Index>{6},
-        std::vector<Index>{4, 2});
+        std::vector<Index>{2, 4});
 
     constexpr Scalar eps = 1e-6;
     constexpr Scalar alpha = 1.0;

@@ -22,14 +22,10 @@ def fill_arange_position_ids(
 
 
 def sdpa_causal_mask_bool_fill(n_seq: int) -> np.ndarray:
-    """BOOL causal mask for ``[seq, seq]`` NNGraph bind (graph).
-
-    Logical ``mask[key, query] = (key <= query)``; stored as ``mask.T`` for
-    bind layout compatible with legacy shape labels.
-    """
-    out = np.zeros(n_seq * n_seq, dtype=np.uint8)
+    """BOOL causal mask, C-order layout (query, key): out[qq, kk] = (kk <= qq)."""
+    out = np.zeros((n_seq, n_seq), dtype=np.uint8)
     for qq in range(n_seq):
         for kk in range(n_seq):
             if kk <= qq:
-                out[qq * n_seq + kk] = 1
-    return out
+                out[qq, kk] = 1
+    return out.ravel()

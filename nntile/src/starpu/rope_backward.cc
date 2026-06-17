@@ -43,12 +43,12 @@ void RopeBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *sin = interfaces[0]->get_ptr<T>();
-    const T *cos = interfaces[1]->get_ptr<T>();
+    const T *sin = interfaces[0]->get_ptr<T>() + args->sin_pair0;
+    const T *cos = interfaces[1]->get_ptr<T>() + args->sin_pair0;
     const T *dy = interfaces[2]->get_ptr<T>();
     T *dx = interfaces[3]->get_ptr<T>();
     // Launch kernel
-    kernel::rope_backward::cpu<T>(args->m, args->n, sin, cos, dy, dx);
+    kernel::rope_backward::cpu<T>(args->nrows, args->ncols, sin, cos, dy, dx);
 #endif // STARPU_SIMGRID
 }
 
@@ -88,15 +88,15 @@ void RopeBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t*>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *sin = interfaces[0]->get_ptr<T>();
-    const T *cos = interfaces[1]->get_ptr<T>();
-    const T *src = interfaces[2]->get_ptr<T>();
-    T *dst = interfaces[3]->get_ptr<T>();
+    const T *sin = interfaces[0]->get_ptr<T>() + args->sin_pair0;
+    const T *cos = interfaces[1]->get_ptr<T>() + args->sin_pair0;
+    const T *dy = interfaces[2]->get_ptr<T>();
+    T *dx = interfaces[3]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::rope_backward::cuda<T>(stream, args->m, args->n, sin, cos, src,
-        dst);
+    kernel::rope_backward::cuda<T>(stream, args->nrows, args->ncols, sin, cos,
+        dy, dx);
 #endif // STARPU_SIMGRID
 }
 
@@ -134,13 +134,16 @@ uint32_t RopeBackward<std::tuple<T>>::footprint(struct starpu_task *task)
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, and k
     uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
-    hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
+    hash = starpu_hash_crc32c_be_n(&args->nrows, sizeof(args->nrows), hash);
+    hash = starpu_hash_crc32c_be_n(&args->ncols, sizeof(args->ncols), hash);
+    hash = starpu_hash_crc32c_be_n(
+        &args->sin_pair0, sizeof(args->sin_pair0), hash);
     return hash;
 }
 
 template<typename T>
-void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx)
+void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index nrows,
+    Index ncols, Index sin_pair0, Handle sin, Handle cos, Handle dy, Handle dx)
 //! Insert rope_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
@@ -149,8 +152,9 @@ void RopeBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index 
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
-    args->m = m;
-    args->n = n;
+    args->nrows = nrows;
+    args->ncols = ncols;
+    args->sin_pair0 = sin_pair0;
     // Submit task
     int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, sin.get(),

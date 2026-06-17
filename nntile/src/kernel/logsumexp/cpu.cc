@@ -28,8 +28,8 @@ void cpu(Index nelems, const T *maxsumexp_, T *logsumexp_)
     Y maxsumexp_val_odd{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
-        maxsumexp_val_even = static_cast<Y>(maxsumexp_[2*i]);
-        maxsumexp_val_odd = static_cast<Y>(maxsumexp_[2*i+1]);
+        maxsumexp_val_even = static_cast<Y>(maxsumexp_[i * 2]);
+        maxsumexp_val_odd = static_cast<Y>(maxsumexp_[i * 2 + 1]);
         logsumexp_[i] = static_cast<T>(maxsumexp_val_even + std::log(maxsumexp_val_odd));
     }
 }

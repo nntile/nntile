@@ -14,25 +14,22 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/copy_intersection.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 #include "nntile/core/copy_intersection.hh"
 #include "nntile/core/tile.hh"
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[graph][tile]")
 {
-    const std::vector<Index> stor_sh = {2,2,3};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
-    const std::vector<Index> stor_sc = {6};
-    const std::vector<Index> graph_sc = graph_shape(stor_sc);
+    const std::vector<Index> sh = {2,2,3};
+    const std::vector<Index> sc = {6};
     const Index n = 12;
     TileGraph g("g");
-    auto* s = g.data(graph_sh, "s", DataType::FP32);
-    auto* d = g.data(graph_sh, "d", DataType::FP32);
-    auto* scra = g.data(graph_sc, "scratch", DataType::INT64);
+    auto* s = g.data(sh, "s", DataType::FP32);
+    auto* d = g.data(sh, "d", DataType::FP32);
+    auto* scra = g.data(sc, "scratch", DataType::INT64);
     s->mark_input(true);
     d->mark_input(true);
     d->mark_output(true);
@@ -49,8 +46,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     r.execute();
     r.wait();
     const auto gout = r.get_output<float>(d);
-    nntile::core::Tile<fp32_t> S(stor_sh), D(stor_sh);
-    nntile::core::Tile<nntile::int64_t> Sc(stor_sc);
+    nntile::core::Tile<fp32_t> S(sh), D(sh);
+    nntile::core::Tile<nntile::int64_t> Sc(sc);
     using Y = typename fp32_t::repr_t;
     { auto a=S.acquire(STARPU_W), b=D.acquire(STARPU_W);
       for(Index i=0;i<n;++i) { a[i]=Y(sv[static_cast<size_t>(i)]); b[i]=Y(0);} a.release(); b.release(); }
@@ -61,5 +58,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     { auto L=D.acquire(STARPU_R);
       for(Index i=0;i<n;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
-    for(size_t i=0;i<tr.size();++i) REQUIRE(std::abs(gout[i]-tr[i])<1e-4f);
+    nntile::test::require_relative_element_error(gout, tr);
 }

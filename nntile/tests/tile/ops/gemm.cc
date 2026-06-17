@@ -13,225 +13,141 @@
  * */
 
 #include <catch2/catch_test_macros.hpp>
-#include <cmath>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
+
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
-#include "nntile/tile/ops/gemm.hh"
-#include "nntile/tile.hh"
-#include "nntile/tile.hh"
+#include "gemm_core_reference.hh"
+#include "gemm_test_shapes.hh"
+#include "nntile/constants.hh"
 #include "nntile/core/gemm.hh"
 #include "nntile/core/tile.hh"
-#include "nntile/constants.hh"
-using namespace nntile;
+#include "nntile/tile.hh"
+#include "nntile/tile/ops/gemm.hh"
+#include "test_frobenius.hh"
+
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
-TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[graph][tile]")
+
+namespace
 {
-    const std::vector<Index> stor_sh = {2, 2};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
-    const Index nelems = 4;
-    TileGraph g("g");
-    auto* a = g.data(graph_sh, "a", DataType::FP32);
-    auto* b = g.data(graph_sh, "b", DataType::FP32);
-    auto* c = g.data(graph_sh, "c", DataType::FP32);
+
+std::vector<float> run_tile_graph_gemm(const std::vector<Index> &a_shape,
+    const std::vector<Index> &b_shape,
+    const std::vector<Index> &c_shape,
+    const std::vector<float> &a_data,
+    const std::vector<float> &b_data,
+    Scalar alpha,
+    bool trans_a_flag,
+    bool trans_b_flag,
+    Index ndim_flag,
+    Index batch_ndim_flag)
+{
+    TileGraph graph("tile_gemm");
+    auto *a = graph.data(a_shape, "a", DataType::FP32);
+    auto *b = graph.data(b_shape, "b", DataType::FP32);
+    auto *c = graph.data(c_shape, "c", DataType::FP32);
     a->mark_input(true);
     b->mark_input(true);
     c->mark_input(true);
     c->mark_output(true);
-    const Scalar alpha = 1.0, beta = 0.0;
-    const bool trans_a = false, trans_b = false;
-    const Index ndim = 1;
-    const Index batch_ndim = 0;
-    tg::gemm(a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim);
-    Runtime runtime(g);
+
+    tg::gemm(a,
+        b,
+        c,
+        alpha,
+        Scalar(0),
+        trans_a_flag,
+        trans_b_flag,
+        ndim_flag,
+        batch_ndim_flag);
+
+    Runtime runtime(graph);
     runtime.compile();
-    std::vector<float> av(nelems), bv(nelems);
-    for(Index i = 0; i < nelems; ++i)
-    {
-        av[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i + 1);
-        bv[static_cast<size_t>(i)] = 0.2f * static_cast<float>(i + 1);
-    }
-    std::vector<float> cv(nelems, 0.f);
-    runtime.bind_data(a, av);
-    runtime.bind_data(b, bv);
-    runtime.bind_data(c, cv);
+
+    const Index c_nelems = std::accumulate(c_shape.begin(),
+        c_shape.end(),
+        Index{1},
+        std::multiplies<Index>{});
+    std::vector<float> c_init(static_cast<size_t>(c_nelems), 0.f);
+
+    runtime.bind_data(a, a_data);
+    runtime.bind_data(b, b_data);
+    runtime.bind_data(c, c_init);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>(c);
-    nntile::core::Tile<fp32_t> ta(stor_sh), tb(stor_sh), tc(stor_sh);
-    using Y = typename nntile::fp32_t::repr_t;
-    {
-        auto l1 = ta.acquire(STARPU_W);
-        auto l2 = tb.acquire(STARPU_W);
-        auto l3 = tc.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
-        {
-            l1[i] = Y(av[static_cast<size_t>(i)]);
-            l2[i] = Y(bv[static_cast<size_t>(i)]);
-            l3[i] = Y(0);
-        }
-        l1.release();
-        l2.release();
-        l3.release();
-    }
-    const TransOp opN(TransOp::NoTrans);
-    // Tile execute swaps operands/transposes for Fortran storage.
-    nntile::core::gemm<fp32_t>(
-        -1, alpha, opN, tb, opN, ta, beta, tc, ndim, batch_ndim, 0);
-    starpu_task_wait_for_all();
-    std::vector<float> tref(nelems);
-    {
-        auto l2 = tc.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
-        l2.release();
-    }
-    constexpr float tol = 1e-3f;
-    for(size_t i = 0; i < tref.size(); ++i) { REQUIRE(std::abs(gout[i] - tref[i]) < tol); }
+    return runtime.get_output<float>(c);
 }
 
+} // namespace
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TileGraph gemm asymmetric shapes and batch_ndim",
+    "TileGraph gemm matches core",
     "[graph][tile]")
 {
-  // Graph GEMM (ndim=1): A {N,K}, B {K,M}, C {N,M}.
-    const std::vector<Index> graph_a = {5, 4};
-    const std::vector<Index> stor_a = storage_shape(graph_a);
-    const std::vector<Index> graph_b = {4, 3};
-    const std::vector<Index> stor_b = storage_shape(graph_b);
-    const std::vector<Index> graph_c = {5, 3};
-    const std::vector<Index> stor_c = storage_shape(graph_c);
-    const Index na = 20, nb = 12, nc = 15;
-    const Scalar alpha = 1.0, beta = 0.0;
-    const bool trans_a = false, trans_b = false;
-    const Index ndim = 1, batch_ndim = 0;
+    const auto [trans_a_flag, trans_b_flag, ndim_flag, batch_ndim_flag, alpha] =
+        GENERATE(
+            std::tuple{false, false, Index(1), Index(0), Scalar(1.0)},
+            std::tuple{false, true, Index(1), Index(0), Scalar(1.0)},
+            std::tuple{true, false, Index(1), Index(0), Scalar(1.0)},
+            std::tuple{true, true, Index(1), Index(0), Scalar(1.0)},
+            std::tuple{false, false, Index(2), Index(0), Scalar(0.5)},
+            std::tuple{false, true, Index(2), Index(0), Scalar(0.5)},
+            std::tuple{true, false, Index(2), Index(0), Scalar(0.5)},
+            std::tuple{true, true, Index(2), Index(0), Scalar(0.5)},
+            std::tuple{false, false, Index(1), Index(1), Scalar(1.0)},
+            std::tuple{false, true, Index(1), Index(1), Scalar(1.0)},
+            std::tuple{true, false, Index(1), Index(1), Scalar(1.0)},
+            std::tuple{true, true, Index(1), Index(1), Scalar(1.0)});
 
-    TileGraph g("g");
-    auto* a = g.data(graph_a, "a", DataType::FP32);
-    auto* b = g.data(graph_b, "b", DataType::FP32);
-    auto* c = g.data(graph_c, "c", DataType::FP32);
-    a->mark_input(true);
-    b->mark_input(true);
-    c->mark_input(true);
-    c->mark_output(true);
-    tg::gemm(a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim);
-    Runtime runtime(g);
-    runtime.compile();
+    const auto [a_shape, b_shape] = nntile::test::gemm_test_shapes(
+        trans_a_flag, trans_b_flag, ndim_flag, batch_ndim_flag);
+    const std::vector<Index> c_shape = nntile::tensor::gemm_output_shape(
+        a_shape, b_shape, trans_a_flag, trans_b_flag, ndim_flag, batch_ndim_flag);
 
-    std::vector<float> av(na), bv(nb), cv(nc, 0.f);
-    for(Index i = 0; i < na; ++i)
-    {
-        av[static_cast<size_t>(i)] = 0.03f * static_cast<float>(i + 1);
-    }
-    for(Index i = 0; i < nb; ++i)
-    {
-        bv[static_cast<size_t>(i)] = 0.02f * static_cast<float>(i + 1);
-    }
-    runtime.bind_data(a, av);
-    runtime.bind_data(b, bv);
-    runtime.bind_data(c, cv);
-    runtime.execute();
-    runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>(c);
+    const Index a_nelems = std::accumulate(a_shape.begin(),
+        a_shape.end(),
+        Index{1},
+        std::multiplies<Index>{});
+    const Index b_nelems = std::accumulate(b_shape.begin(),
+        b_shape.end(),
+        Index{1},
+        std::multiplies<Index>{});
 
-    nntile::core::Tile<fp32_t> ta(stor_a), tb(stor_b), tc(stor_c);
-    using Y = typename nntile::fp32_t::repr_t;
+    using Y = nntile::fp32_t::repr_t;
+    std::vector<float> a_data(static_cast<size_t>(a_nelems));
+    std::vector<float> b_data(static_cast<size_t>(b_nelems));
+    for (Index i = 0; i < a_nelems; ++i)
     {
-        auto la = ta.acquire(STARPU_W);
-        auto lb = tb.acquire(STARPU_W);
-        auto lc = tc.acquire(STARPU_W);
-        for(Index i = 0; i < na; ++i) { la[i] = Y(av[static_cast<size_t>(i)]); }
-        for(Index i = 0; i < nb; ++i) { lb[i] = Y(bv[static_cast<size_t>(i)]); }
-        for(Index i = 0; i < nc; ++i) { lc[i] = Y(0); }
-        la.release();
-        lb.release();
-        lc.release();
+        a_data[static_cast<size_t>(i)] =
+            static_cast<float>(Y(i % 10)) * 0.1f;
     }
-    const TransOp opN(TransOp::NoTrans);
-    nntile::core::gemm<fp32_t>(
-        -1, alpha, opN, tb, opN, ta, beta, tc, ndim, batch_ndim, 0);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tref(nc);
+    for (Index i = 0; i < b_nelems; ++i)
     {
-        auto lc = tc.acquire(STARPU_R);
-        for(Index i = 0; i < nc; ++i)
-        {
-            tref[static_cast<size_t>(i)] = static_cast<float>(lc[i]);
-        }
-        lc.release();
-    }
-    constexpr float tol = 1e-3f;
-    for(size_t i = 0; i < tref.size(); ++i)
-    {
-        REQUIRE(std::abs(gout[i] - tref[i]) < tol);
+        b_data[static_cast<size_t>(i)] =
+            static_cast<float>(Y(i % 7)) * 0.15f;
     }
 
-    // Batched graph GEMM (batch_ndim=1): {B,N,K} @ {B,K,M} -> {B,N,M}.
-    const std::vector<Index> graph_ba = {2, 5, 4};
-    const std::vector<Index> stor_ba = storage_shape(graph_ba);
-    const std::vector<Index> graph_bb = {2, 4, 3};
-    const std::vector<Index> stor_bb = storage_shape(graph_bb);
-    const std::vector<Index> graph_bc = {2, 5, 3};
-    const std::vector<Index> stor_bc = storage_shape(graph_bc);
-    const Index nba = 40, nbb = 24, nbc = 30;
-    const Index batch_nd = 1;
+    const std::vector<float> core_out = nntile::test::core_gemm_reference_fp32(
+        a_shape,
+        b_shape,
+        a_data,
+        b_data,
+        alpha,
+        trans_a_flag,
+        trans_b_flag,
+        ndim_flag,
+        batch_ndim_flag);
+    const std::vector<float> tile_out = run_tile_graph_gemm(a_shape,
+        b_shape,
+        c_shape,
+        a_data,
+        b_data,
+        alpha,
+        trans_a_flag,
+        trans_b_flag,
+        ndim_flag,
+        batch_ndim_flag);
 
-    TileGraph g2("g2");
-    auto* ba = g2.data(graph_ba, "a", DataType::FP32);
-    auto* bb = g2.data(graph_bb, "b", DataType::FP32);
-    auto* bc = g2.data(graph_bc, "c", DataType::FP32);
-    ba->mark_input(true);
-    bb->mark_input(true);
-    bc->mark_input(true);
-    bc->mark_output(true);
-    tg::gemm(ba, bb, bc, alpha, beta, trans_a, trans_b, ndim, batch_nd);
-    Runtime runtime2(g2);
-    runtime2.compile();
-
-    std::vector<float> bav(nba), bbv(nbb), bcv(nbc, 0.f);
-    for(Index i = 0; i < nba; ++i)
-    {
-        bav[static_cast<size_t>(i)] = 0.01f * static_cast<float>(i + 1);
-    }
-    for(Index i = 0; i < nbb; ++i)
-    {
-        bbv[static_cast<size_t>(i)] = 0.015f * static_cast<float>(i + 1);
-    }
-    runtime2.bind_data(ba, bav);
-    runtime2.bind_data(bb, bbv);
-    runtime2.bind_data(bc, bcv);
-    runtime2.execute();
-    runtime2.wait();
-    const std::vector<float> gout2 = runtime2.get_output<float>(bc);
-
-    nntile::core::Tile<fp32_t> tba(stor_ba), tbb(stor_bb), tbc(stor_bc);
-    {
-        auto la = tba.acquire(STARPU_W);
-        auto lb = tbb.acquire(STARPU_W);
-        auto lc = tbc.acquire(STARPU_W);
-        for(Index i = 0; i < nba; ++i) { la[i] = Y(bav[static_cast<size_t>(i)]); }
-        for(Index i = 0; i < nbb; ++i) { lb[i] = Y(bbv[static_cast<size_t>(i)]); }
-        for(Index i = 0; i < nbc; ++i) { lc[i] = Y(0); }
-        la.release();
-        lb.release();
-        lc.release();
-    }
-    nntile::core::gemm<fp32_t>(
-        -1, alpha, opN, tbb, opN, tba, beta, tbc, ndim, batch_nd, 0);
-    starpu_task_wait_for_all();
-
-    std::vector<float> tref2(nbc);
-    {
-        auto lc = tbc.acquire(STARPU_R);
-        for(Index i = 0; i < nbc; ++i)
-        {
-            tref2[static_cast<size_t>(i)] = static_cast<float>(lc[i]);
-        }
-        lc.release();
-    }
-    for(size_t i = 0; i < tref2.size(); ++i)
-    {
-        REQUIRE(std::abs(gout2[i] - tref2[i]) < tol);
-    }
+    nntile::test::require_relative_frobenius_error(tile_out, core_out);
 }

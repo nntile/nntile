@@ -25,11 +25,9 @@ void check()
 {
     using Y = typename T::repr_t;
     // Init data for checking
-    Tile<T> src({3, 4, 5});
-    Tile<T> dst[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}),
-        Tile<T>({3, 4})};
-    Tile<T> dst2[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}),
-        Tile<T>({3, 4})};
+    Tile<T> src({5, 4, 3});
+    Tile<T> dst[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
+    Tile<T> dst2[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
     auto src_local = src.acquire(STARPU_W);
     Scalar alpha = -1.0, beta = 0.5;
     for(Index i = 0; i < src.nelems; ++i)
@@ -52,7 +50,7 @@ void check()
     }
     // Check axis=0
     {
-        starpu::sum_slice.submit<std::tuple<T>>(-1, 1, 20, 3, alpha, src, beta, dst[0]);
+        starpu::sum_slice.submit<std::tuple<T>>(-1, 12, 1, 5, alpha, src, beta, dst[0]);
         sum_slice<T>(-1, alpha, src, beta, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
@@ -78,7 +76,7 @@ void check()
     }
     // Check axis=2
     {
-        starpu::sum_slice.submit<std::tuple<T>>(-1, 12, 1, 5, alpha, src, beta, dst[2]);
+        starpu::sum_slice.submit<std::tuple<T>>(-1, 1, 20, 3, alpha, src, beta, dst[2]);
         sum_slice<T>(-1, alpha, src, beta, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
@@ -97,9 +95,8 @@ void validate()
     // Check normal execution
     check<T>();
     // Check throwing exceptions
-    Tile<T> src({3, 4, 5});
-    Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
+    Tile<T> src({5, 4, 3});
+    Tile<T> dst[3] = {Tile<T>({5, 4, 2}), Tile<T>({5, 3, 2}), Tile<T>({4, 3, 2})};
     Tile<T> empty({});
     TEST_THROW(sum_slice<T>(-1, 1.0, src, 1.0, empty, 0));
     TEST_THROW(sum_slice<T>(-1, 1.0, empty, 1.0, empty, 0));

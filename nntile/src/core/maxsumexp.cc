@@ -44,29 +44,29 @@ void maxsumexp_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &
     {
         throw std::runtime_error("axis >= ndim");
     }
-    // Check shapes of src and dst
-    if(dst.shape[0] != 2)
+    // Check shapes of src and dst (C-order trailing pair dim).
+    if(dst.shape[dst.ndim-1] != 2)
     {
-        throw std::runtime_error("dst.shape[0] != 2");
+        throw std::runtime_error("dst last dim must be 2");
     }
     for(Index i = 0; i < axis; ++i)
-    {
-        if(src.shape[i] != dst.shape[i+1])
-        {
-            throw std::runtime_error("src.shape[i] != dst.shape[i+1]");
-        }
-    }
-    for(Index i = axis+1; i < src.ndim; ++i)
     {
         if(src.shape[i] != dst.shape[i])
         {
             throw std::runtime_error("src.shape[i] != dst.shape[i]");
         }
     }
+    for(Index i = axis+1; i < src.ndim; ++i)
+    {
+        if(src.shape[i] != dst.shape[i-1])
+        {
+            throw std::runtime_error("src.shape[i] != dst.shape[i-1]");
+        }
+    }
     // Get sizes
     Index m, n, k;
-    m = src.stride[axis];
-    n = src.matrix_shape[axis+1][1];
+    m = src.matrix_shape[axis+1][1];
+    n = src.matrix_shape[axis][0];
     k = src.shape[axis];
     // Insert task
     int mpi_rank = starpu_mpi_world_rank();

@@ -107,7 +107,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [labels_shape, n_class] =
         GENERATE(std::tuple{std::vector<Index>{4}, Index(6)},
-            std::tuple{std::vector<Index>{4, 2}, Index(4)});
+            std::tuple{std::vector<Index>{2, 4}, Index(4)});
 
     std::vector<Index> src_shape = labels_shape;
     src_shape.push_back(n_class);
@@ -196,8 +196,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             labels_node,
             val_node,
             ignore_index);
-        auto *nclass_axis = src_node->axis(
-            static_cast<Index>(src_node->ndim()) - 1);
+        auto *nclass_axis = src_node->axis(src_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
             if (ag == nclass_axis)

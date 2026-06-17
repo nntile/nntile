@@ -27,7 +27,7 @@ void check(Scalar alpha)
 {
     using Y = typename T::repr_t;
     // Init data for checking
-    Tile<T> data({3, 4, 5}), data2({3, 4, 5});
+    Tile<T> data({5, 4, 3}), data2({5, 4, 3});
     auto data_local = data.acquire(STARPU_W);
     auto data2_local = data2.acquire(STARPU_W);
     for(Index i = 0; i < data.nelems; ++i)

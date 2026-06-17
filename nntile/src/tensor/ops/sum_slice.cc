@@ -16,7 +16,6 @@
 #include "nntile/tensor/ops/sum_slice.hh"
 
 #include "nntile/base_types.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -133,33 +132,29 @@ void TensorSumSliceOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
     const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
-    const Index src_nd = src->ndim();
-    const Index dst_nd = dst->ndim();
-    const Index lay_ax = layout_axis(axis, src_nd);
-
     std::vector<Index> dst_coord;
-    std::vector<Index> s_coord(static_cast<size_t>(src_nd));
+    std::vector<Index> s_coord(static_cast<size_t>(src->ndim()));
 
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
         TileGraph::TileNode *dst_tile = tiles_d[static_cast<size_t>(lin_d)];
 
-        for (Index g_src = 0; g_src < src_nd; ++g_src)
+        for (Index j = 0, k = 0; j < src->ndim(); ++j)
         {
-            if (g_src == axis)
+            if (j == axis)
             {
                 continue;
             }
-            const Index g_dst = (g_src < axis) ? g_src : (g_src - 1);
-            s_coord[static_cast<size_t>(layout_axis(g_src, src_nd))] =
-                dst_coord[static_cast<size_t>(layout_axis(g_dst, dst_nd))];
+            s_coord[static_cast<size_t>(j)] =
+                dst_coord[static_cast<size_t>(k)];
+            ++k;
         }
 
         const Index nseg_along_axis =
-            lay_s->grid_shape()[static_cast<size_t>(lay_ax)];
+            lay_s->grid_shape()[static_cast<size_t>(axis)];
 
-        s_coord[static_cast<size_t>(lay_ax)] = 0;
+        s_coord[static_cast<size_t>(axis)] = 0;
         Index lin_s0 = lay_s->grid_linear(s_coord);
         tile::sum_slice(alpha,
             tiles_s[static_cast<size_t>(lin_s0)],
@@ -170,7 +165,7 @@ void TensorSumSliceOp::lower_to_tile(const LoweringContext &ctx) const
 
         for (Index jj = 1; jj < nseg_along_axis; ++jj)
         {
-            s_coord[static_cast<size_t>(lay_ax)] = jj;
+            s_coord[static_cast<size_t>(axis)] = jj;
             const Index lin_s = lay_s->grid_linear(s_coord);
             tile::sum_slice(alpha,
                 tiles_s[static_cast<size_t>(lin_s)],

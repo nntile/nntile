@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "nntile/tensor.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/ops/embedding_backward.hh"
@@ -77,8 +76,8 @@ void embedding_backward(TensorGraph::TensorNode* index,
         throw std::invalid_argument("embedding_backward: index must have INT64 dtype");
     if(embed->dtype() != vocab->dtype())
         throw std::invalid_argument("embedding_backward: embed and vocab must have same dtype");
-    validate_embedding_shape_and_merge(
-        embed, index, vocab, axis, "embedding_backward");
+    validate_embedding_shape_and_merge(embed, index, vocab,
+                                      "embedding_backward");
 
     auto op = std::make_shared<TensorEmbeddingBackwardOp>(
         index, embed, vocab, axis, redux);
@@ -97,20 +96,15 @@ void TensorEmbeddingBackwardOp::lower_to_tile(const LoweringContext& ctx) const
             "index/embed/vocab");
     }
 
-    const Index emb_nd = embed->ndim();
-    const Index idx_nd = index->ndim();
-    const Index s_axis = graph_axis_to_storage(axis, emb_nd);
-    const Index vocab_embed_s = 0;
-
-    const Index vocab_b0 =
-        uniform_tile_extent_along(*lay_v, vocab_embed_s, "EMBEDDING_BACKWARD");
+    const Index vocab_b1 =
+        uniform_tile_extent_along(*lay_v, 1, "EMBEDDING_BACKWARD");
     const Index embed_axis_bs =
-        uniform_tile_extent_along(*lay_e, s_axis, "EMBEDDING_BACKWARD");
-    if(embed_axis_bs % vocab_b0 != 0)
+        uniform_tile_extent_along(*lay_e, axis, "EMBEDDING_BACKWARD");
+    if(embed_axis_bs % vocab_b1 != 0)
     {
         throw std::runtime_error(
             "lower_to_tile EMBEDDING_BACKWARD: embed tile extent along axis "
-            "must be divisible by vocab tile extent along embed dim");
+            "must be divisible by vocab tile extent along dim 1");
     }
 
     const auto& tiles_i = tile_lower::tiles_of(ctx.tile_map, index);
@@ -124,45 +118,48 @@ void TensorEmbeddingBackwardOp::lower_to_tile(const LoweringContext& ctx) const
     }
 
     std::vector<Index> embed_coord;
-    std::vector<Index> index_coord(static_cast<size_t>(idx_nd));
+    std::vector<Index> index_coord;
+    const Index g0_vocab = lay_v->grid_shape()[0];
     const Index g1_vocab =
         lay_v->grid_shape().size() > 1 ? lay_v->grid_shape()[1] : 1;
-    const Index vocab_g0 = lay_v->grid_shape()[0];
 
     for(Index lin_e = 0; lin_e < lay_e->grid_volume(); ++lin_e)
     {
         lay_e->grid_coord_from_linear(lin_e, embed_coord);
 
-        for(Index i = 0; i < idx_nd; ++i)
+        index_coord.resize(static_cast<size_t>(index->ndim()));
+        for(Index j = 0; j < axis; ++j)
         {
-            const Index g_e = (i < axis) ? i : (i + 1);
-            const Index s_e = graph_axis_to_storage(g_e, emb_nd);
-            const Index s_i = graph_axis_to_storage(i, idx_nd);
-            index_coord[static_cast<size_t>(s_i)] = embed_coord[s_e];
+            index_coord[static_cast<size_t>(j)] = embed_coord[static_cast<size_t>(j)];
+        }
+        for(Index j = axis; j < index->ndim(); ++j)
+        {
+            index_coord[static_cast<size_t>(j)] =
+                embed_coord[static_cast<size_t>(j + 1)];
         }
         const Index lin_i = lay_i->grid_linear(index_coord);
         TileGraph::TileNode* index_tile =
             tiles_i[static_cast<size_t>(lin_i)];
 
         Index axis_lo = 0, axis_hi = 0;
-        lay_e->tile_axis_global_range(embed_coord, s_axis, axis_lo, axis_hi);
-        const Index vocab_tile0_start = axis_lo / vocab_b0;
+        lay_e->tile_axis_global_range(embed_coord, axis, axis_lo, axis_hi);
+        const Index vocab_tile1_start = axis_lo / vocab_b1;
 
         const auto embed_ts = lay_e->tile_shape_at(embed_coord);
-        const Index k_axis = embed_ts[static_cast<size_t>(s_axis)];
-        const Index vocab_span = (k_axis - 1) / vocab_b0 + 1;
+        const Index k_axis = embed_ts[static_cast<size_t>(axis)];
+        const Index vocab_span = (k_axis - 1) / vocab_b1 + 1;
 
         nntile::core::TileTraits embed_traits(embed_ts);
-        const Index m = embed_traits.stride[s_axis];
-        const Index n =
-            embed_traits.matrix_shape[static_cast<size_t>(s_axis) + 1][1];
-        const Index k = embed_traits.shape[s_axis];
+        const Index m =
+            embed_traits.matrix_shape[static_cast<size_t>(axis) + 1][1];
+        const Index n = embed_traits.matrix_shape[static_cast<size_t>(axis)][0];
+        const Index k = embed_traits.shape[axis];
 
-        for(Index tv0 = vocab_tile0_start;
-            tv0 < vocab_tile0_start + vocab_span && tv0 < vocab_g0;
-            ++tv0)
+        for(Index tv0 = 0; tv0 < g0_vocab; ++tv0)
         {
-            for(Index tv1 = 0; tv1 < g1_vocab; ++tv1)
+            for(Index tv1 = vocab_tile1_start;
+                tv1 < vocab_tile1_start + vocab_span && tv1 < g1_vocab;
+                ++tv1)
             {
                 std::vector<Index> vocab_coord = {tv0, tv1};
                 const Index lin_v = lay_v->grid_linear(vocab_coord);
@@ -171,8 +168,8 @@ void TensorEmbeddingBackwardOp::lower_to_tile(const LoweringContext& ctx) const
                 const auto vocab_ts = lay_v->tile_shape_at(vocab_coord);
                 nntile::core::TileTraits vocab_traits(vocab_ts);
 
-                const Index k_start = (tv0 - vocab_tile0_start) * vocab_b0;
-                const Index k_size = vocab_traits.shape[0];
+                const Index k_start = (tv1 - vocab_tile1_start) * vocab_b1;
+                const Index k_size = vocab_traits.shape[1];
                 tile::embedding_backward(
                     m,
                     n,

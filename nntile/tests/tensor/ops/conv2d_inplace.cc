@@ -61,9 +61,9 @@ TEST_CASE("TensorGraph conv2d_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *x = graph.data({2, 2, 4, 4})->set_name("x");
+    auto *x = graph.data({4, 4, 2, 2})->set_name("x");
     auto *c = graph.data({2, 2, 2, 2})->set_name("c");
-    auto *y = graph.data({2, 2, 3, 3})->set_name("y");
+    auto *y = graph.data({3, 3, 2, 2})->set_name("y");
 
     gt::conv2d_inplace(1.0, x, c, 0.0, y, {0, 0}, {1, 1}, {1, 1});
 
@@ -80,9 +80,9 @@ TEST_CASE("TensorGraph conv2d_inplace structure", "[graph][tensor]")
 TEST_CASE("TensorGraph conv2d_inplace rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({2, 2, 4, 4})->set_name("x");
+    auto *x = graph.data({4, 4, 2, 2})->set_name("x");
     auto *c = graph.data({2, 2, 2, 2})->set_name("c");
-    auto *y = graph.data({2, 2, 3, 3})->set_name("y");
+    auto *y = graph.data({3, 3, 2, 2})->set_name("y");
 
     REQUIRE_THROWS_AS(
         gt::conv2d_inplace(1.0, nullptr, c, 0.0, y, {0, 0}, {1, 1}, {1, 1}),
@@ -91,3 +91,4 @@ TEST_CASE("TensorGraph conv2d_inplace rejects null tensors", "[graph][tensor]")
         gt::conv2d_inplace(1.0, x, nullptr, 0.0, y, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
 }
+

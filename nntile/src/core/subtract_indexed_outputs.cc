@@ -27,9 +27,12 @@ void subtract_indexed_outputs_async(int starpu_worker_hint, Scalar val, const Ti
     {
         throw std::runtime_error("labels.ndim != dst.ndim-1");
     }
+    const bool trailing_class =
+        labels.ndim > 0 && labels.shape[0] == dst.shape[0];
+    const Index spatial_offset = trailing_class ? 0 : 1;
     for(Index i = 0; i < labels.ndim; ++i)
     {
-        if(labels.shape[i] != dst.shape[i+1])
+        if(labels.shape[i] != dst.shape[i + spatial_offset])
         {
             throw std::runtime_error("labels.shape[i] != dst.shape[i+1]");
         }
@@ -40,8 +43,13 @@ void subtract_indexed_outputs_async(int starpu_worker_hint, Scalar val, const Ti
     if(mpi_rank == dst_rank)
     {
         // Insert task
-        starpu::subtract_indexed_outputs.submit<std::tuple<T>>(starpu_worker_hint, dst.shape[0],
-                labels.nelems, ignore_index, val, labels, dst);
+        const Index n_labels = trailing_class
+            ? dst.shape[dst.ndim - 1]
+            : dst.shape[0];
+        const Index leading_class = trailing_class ? 0 : 1;
+        starpu::subtract_indexed_outputs.submit<std::tuple<T>>(starpu_worker_hint,
+                n_labels, labels.nelems, ignore_index, leading_class, val,
+                labels, dst);
     }
 }
 

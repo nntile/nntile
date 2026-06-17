@@ -42,7 +42,7 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-// C-order maxsumexp output: non-axis dims, then trailing 2.
+// maxsumexp output shape: src.shape without axis + [2]
 static std::vector<Index> maxsumexp_dst_shape(
     const std::vector<Index> &src_shape, Index axis)
 {
@@ -63,13 +63,14 @@ TEST_CASE("TensorGraph logsumexp structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *src =
-        graph.data({5, 2})->set_name("src"); // maxsumexp output shape
+        graph.data({4, 5, 2})->set_name("src"); // maxsumexp output shape
     auto *dst = gt::logsumexp(src)->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape().size() == 1);
-    REQUIRE(dst->shape()[0] == 5);
+    REQUIRE(dst->shape().size() == 2);
+    REQUIRE(dst->shape()[0] == 4);
+    REQUIRE(dst->shape()[1] == 5);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "LOGSUMEXP");
@@ -90,8 +91,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [shape, axis] =
-        GENERATE(std::tuple{std::vector<Index>{6, 4}, Index(1)},
-            std::tuple{std::vector<Index>{4, 3}, Index(1)});
+        GENERATE(std::tuple{std::vector<Index>{4, 6}, Index(0)},
+            std::tuple{std::vector<Index>{3, 4}, Index(0)});
 
     const Index src_nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
@@ -139,10 +140,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *logsumexp_node =
             gt::logsumexp(maxsumexp_node)->set_name("logsumexp");
         logsumexp_node->mark_output(true);
-        auto *pair_axis = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
+        auto *maxsumexp_dim0 = maxsumexp_node->axis(0);
+        auto *maxsumexp_pair = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == pair_axis)
+            if (ag == maxsumexp_pair)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else if (ag == maxsumexp_dim0)
             {
                 ag->set_tiling(ag->extent);
             }

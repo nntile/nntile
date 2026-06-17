@@ -20,9 +20,9 @@
  * ``[norope]`` — no-RoPE bundles only (with or without causal mask);
  * ``[norope_nomask]`` — no-RoPE and no causal mask (subset of ``[nomask]``).
  *
- * NNTile tensor **bind** payloads use graph shape labels everywhere,
- * including safetensor bytes from ``generate_test_data.py`` (see
- * ``graph_bind.as_bind_float32`` in the examples).
+ * Safetensors payloads use the same C-order layout as NNTile tiles; tests
+ * load weights and references via ``read_tensor_from_safetensors`` (direct
+ * byte copy, no axis reversal).
  *
  * @version 1.1.0
  * */

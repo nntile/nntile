@@ -15,7 +15,7 @@
 #include "nntile/tile/ops/add.hh"
 
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 #include "nntile/core/add.hh"
@@ -28,7 +28,6 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 
 //! Run add via TileGraph (compile + execute) and via tile API, compare
 template <typename T>
@@ -94,12 +93,7 @@ void check_tile_add_vs_tile_api(
         loc.release();
     }
 
-    constexpr float tol = 1e-5f;
-    REQUIRE(graph_result.size() == tile_result.size());
-    for (size_t i = 0; i < graph_result.size(); ++i)
-    {
-        REQUIRE(std::abs(graph_result[i] - tile_result[i]) < tol);
-    }
+    nntile::test::require_relative_element_error(graph_result, tile_result);
 }
 
 TEST_CASE("TileGraph add structure", "[graph][tile]")
@@ -131,7 +125,7 @@ TEST_CASE("TileGraph add structure", "[graph][tile]")
 TEST_CASE("TileGraph add rejects duplicate tiles")
 {
     TileGraph graph("test");
-    auto *x = graph.data({4, 5}, "x");
+    auto *x = graph.data({5, 4}, "x");
 
     REQUIRE_THROWS_AS(tg::add(1.0, x, 1.0, x), std::invalid_argument);
 }
@@ -141,8 +135,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     const auto [alpha, beta, shape] =
-        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},
-            std::tuple{2.0, 3.0, std::vector<Index>{4, 5}},
+        GENERATE(std::tuple{1.0, 1.0, std::vector<Index>{5, 4}},
+            std::tuple{2.0, 3.0, std::vector<Index>{5, 4}},
             std::tuple{0.5, -1.0, std::vector<Index>{6}},
             std::tuple{1.0, 2.0, std::vector<Index>{3, 4}},
             std::tuple{-0.5, 1.5, std::vector<Index>{2, 2}});

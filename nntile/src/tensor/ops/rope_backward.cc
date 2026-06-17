@@ -17,7 +17,6 @@
 
 #include "nntile/dtype.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
@@ -29,6 +28,21 @@
 
 namespace nntile::tensor
 {
+
+namespace
+{
+
+inline Index graph_axis_to_storage(Index graph_axis, Index ndim)
+{
+    return ndim - 1 - graph_axis;
+}
+
+inline Index storage_axis_to_graph(Index storage_axis, Index ndim)
+{
+    return ndim - 1 - storage_axis;
+}
+
+} // anonymous namespace
 
 TensorGraph::TensorNode *rope_backward(TensorGraph::TensorNode *sin,
     TensorGraph::TensorNode *cos,

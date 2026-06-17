@@ -48,13 +48,10 @@ from huggingface_hub import snapshot_download
 from safetensors import safe_open
 from transformers import AutoConfig, AutoTokenizer
 
-from graph_bind import (
-    as_bind_float32,
-    gpt2_attn_o_weight,
-    gpt2_attn_qkv_weight,
-    linear_from_conv1d,
-    linear_weight,
-)
+
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    """Return a C-contiguous float32 array for safetensors / bind_data."""
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
 def _write_safetensors_streaming(
@@ -93,8 +90,13 @@ def _write_safetensors_streaming(
 
 
 def _conv1d_to_nntile_linear_weight(conv_weight: np.ndarray) -> np.ndarray:
-    """Map HF GPT-2 Conv1D weight to graph ``Linear`` bind layout."""
-    return linear_from_conv1d(conv_weight)
+    """Map HF GPT-2 Conv1D weight to graph ``Linear`` storage.
+
+    HuggingFace ``Conv1D`` stores ``weight`` with shape
+    ``(in_features, out_features)``. Graph ``Linear`` uses PyTorch
+    ``[out_features, in_features]`` layout in C-order.
+    """
+    return as_float32(conv_weight.T)
 
 
 def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
@@ -122,12 +124,12 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.attn.k_weight", (H, head_size, n_head)))
         specs.append((f"{p}.attn.v_weight", (H, head_size, n_head)))
         specs.append((f"{p}.attn.o_weight", (head_size, n_head, H)))
-        specs.append((f"{p}.attn.q_bias", (n_head, head_size)))
-        specs.append((f"{p}.attn.k_bias", (n_head, head_size)))
-        specs.append((f"{p}.attn.v_bias", (n_head, head_size)))
+        specs.append((f"{p}.attn.q_bias", (head_size, n_head)))
+        specs.append((f"{p}.attn.k_bias", (head_size, n_head)))
+        specs.append((f"{p}.attn.v_bias", (head_size, n_head)))
         specs.append((f"{p}.attn.o_bias", (H,)))
 
-        # MLP Linear weights: (out, in)
+        # MLP Linear weights: [out_features, in_features] (PyTorch / C-order)
         specs.append((f"{p}.mlp.fc1.weight", (n_inner, H)))
         specs.append((f"{p}.mlp.fc1.bias", (n_inner,)))
         specs.append((f"{p}.mlp.fc2.weight", (H, n_inner)))
@@ -156,20 +158,21 @@ def _make_converter(
 
     def convert(name: str) -> np.ndarray:
         if name == "model.transformer.wte.vocab":
-            return as_bind_float32(hf_get("wte.weight"))
+            return as_float32(hf_get("wte.weight"))
 
         if name == "model.transformer.wpe.vocab":
-            return as_bind_float32(hf_get("wpe.weight"))
+            return as_float32(hf_get("wpe.weight"))
 
         if name == "model.transformer.ln_f.gamma":
-            return as_bind_float32(hf_get("ln_f.weight"))
+            return as_float32(hf_get("ln_f.weight"))
         if name == "model.transformer.ln_f.beta":
-            return as_bind_float32(hf_get("ln_f.bias"))
+            return as_float32(hf_get("ln_f.bias"))
 
         if name == "model.lm_head.weight":
+            # GPT2LMHeadModel ties lm_head to wte; use wte if lm_head missing
             if "lm_head.weight" in tensor_keys:
-                return linear_weight(hf_get("lm_head.weight"))
-            return linear_weight(hf_get("wte.weight"))
+                return as_float32(hf_get("lm_head.weight"))
+            return as_float32(hf_get("wte.weight"))
 
         parts = name.split(".")
         layer_idx = int(parts[2].split("_", 1)[1])
@@ -177,49 +180,55 @@ def _make_converter(
         hp = f"h.{layer_idx}"
 
         if rest == "ln_1.gamma":
-            return as_bind_float32(hf_get(f"{hp}.ln_1.weight"))
+            return as_float32(hf_get(f"{hp}.ln_1.weight"))
         if rest == "ln_1.beta":
-            return as_bind_float32(hf_get(f"{hp}.ln_1.bias"))
+            return as_float32(hf_get(f"{hp}.ln_1.bias"))
         if rest == "ln_2.gamma":
-            return as_bind_float32(hf_get(f"{hp}.ln_2.weight"))
+            return as_float32(hf_get(f"{hp}.ln_2.weight"))
         if rest == "ln_2.beta":
-            return as_bind_float32(hf_get(f"{hp}.ln_2.bias"))
+            return as_float32(hf_get(f"{hp}.ln_2.bias"))
 
         if rest == "attn.q_weight":
             c_attn = hf_get(f"{hp}.attn.c_attn.weight")
-            return gpt2_attn_qkv_weight(c_attn[:, :H], H, n_head, head_size)
+            q = c_attn[:, :H].reshape(H, n_head, head_size).transpose(0, 2, 1)
+            return as_float32(q)
         if rest == "attn.k_weight":
             c_attn = hf_get(f"{hp}.attn.c_attn.weight")
-            return gpt2_attn_qkv_weight(c_attn[:, H:2 * H], H, n_head, head_size)
+            k = c_attn[:, H:2 * H].reshape(H, n_head, head_size).transpose(0, 2, 1)
+            return as_float32(k)
         if rest == "attn.v_weight":
             c_attn = hf_get(f"{hp}.attn.c_attn.weight")
-            return gpt2_attn_qkv_weight(
-                c_attn[:, 2 * H:3 * H], H, n_head, head_size)
+            v = c_attn[:, 2 * H:3 * H].reshape(H, n_head, head_size).transpose(0, 2, 1)
+            return as_float32(v)
         if rest == "attn.o_weight":
-            return gpt2_attn_o_weight(
-                hf_get(f"{hp}.attn.c_proj.weight"), H, n_head, head_size)
+            o = hf_get(f"{hp}.attn.c_proj.weight").reshape(
+                n_head, head_size, H).transpose(1, 0, 2)
+            return as_float32(o)
         if rest == "attn.q_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            return as_bind_float32(c_bias[:H].reshape(n_head, head_size))
+            b_q = c_bias[:H].reshape(n_head, head_size).transpose(1, 0)
+            return as_float32(b_q)
         if rest == "attn.k_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            return as_bind_float32(c_bias[H:2 * H].reshape(n_head, head_size))
+            b_k = c_bias[H:2 * H].reshape(n_head, head_size).transpose(1, 0)
+            return as_float32(b_k)
         if rest == "attn.v_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            return as_bind_float32(c_bias[2 * H:3 * H].reshape(n_head, head_size))
+            b_v = c_bias[2 * H:3 * H].reshape(n_head, head_size).transpose(1, 0)
+            return as_float32(b_v)
         if rest == "attn.o_bias":
-            return as_bind_float32(hf_get(f"{hp}.attn.c_proj.bias"))
+            return as_float32(hf_get(f"{hp}.attn.c_proj.bias"))
 
         if rest == "mlp.fc1.weight":
             return _conv1d_to_nntile_linear_weight(
                 hf_get(f"{hp}.mlp.c_fc.weight"))
         if rest == "mlp.fc1.bias":
-            return as_bind_float32(hf_get(f"{hp}.mlp.c_fc.bias"))
+            return as_float32(hf_get(f"{hp}.mlp.c_fc.bias"))
         if rest == "mlp.fc2.weight":
             return _conv1d_to_nntile_linear_weight(
                 hf_get(f"{hp}.mlp.c_proj.weight"))
         if rest == "mlp.fc2.bias":
-            return as_bind_float32(hf_get(f"{hp}.mlp.c_proj.bias"))
+            return as_float32(hf_get(f"{hp}.mlp.c_proj.bias"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 

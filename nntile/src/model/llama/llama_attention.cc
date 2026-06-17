@@ -109,33 +109,31 @@ NNGraph::TensorNode *LlamaAttention::forward(
     NNGraph::TensorNode *q;
     if (use_gqa_)
     {
-        // x (batch, seq, hidden) x w_q (hidden, head_size, n_head_kv,
-        // kv_group_size) gemm ndim=1 -> (batch, seq, head_size, n_head_kv,
-        // kv_group_size)
         q_proj = gemm(x, w_q_, 1.0, false, false, 1, 0);
         q_proj->set_name(tensor_name("q_proj"));
-        // transpose ndim=2 -> (n_head_kv, kv_group_size, batch, seq,
-        // head_size) for SDPA
+    }
+    else
+    {
+        q_proj = gemm(x, w_q_, 1.0, false, false, 1, 0);
+        q_proj->set_name(tensor_name("q_proj"));
+    }
+
+    // K = gemm(x, w_k), then transpose
+    NNGraph::TensorNode *k_proj =
+        gemm(x, w_k_, 1.0, false, false, 1, 0);
+    k_proj->set_name(tensor_name("k_proj"));
+
+    if (use_gqa_)
+    {
         q = transpose(q_proj, 2);
         q->set_name(tensor_name("q"));
     }
     else
     {
-        // x (batch, seq, hidden) x w_q (hidden, head_size, n_heads)
-        // gemm ndim=1 -> (batch, seq, head_size, n_heads)
-        q_proj = gemm(x, w_q_, 1.0, false, false, 1, 0);
-        q_proj->set_name(tensor_name("q_proj"));
-        // transpose ndim=1 -> (n_heads, batch, seq, head_size)
         q = transpose(q_proj, 1);
         q->set_name(tensor_name("q"));
     }
 
-    // K = gemm(x, w_k), then transpose
-    // w_k (n_emb, head_size, n_head_kv) x (batch, seq, hidden)
-    NNGraph::TensorNode *k_proj =
-        gemm(x, w_k_, 1.0, false, false, 1, 0);
-    k_proj->set_name(tensor_name("k_proj"));
-    // transpose ndim=1 -> (n_head_kv, batch, seq, head_size)
     NNGraph::TensorNode *k = transpose(k_proj, 1);
     k->set_name(tensor_name("k"));
 
@@ -146,7 +144,8 @@ NNGraph::TensorNode *LlamaAttention::forward(
     NNGraph::TensorNode *v = transpose(v_proj, 1);
     v->set_name(tensor_name("v"));
 
-    // RoPE on Q and K (if sin/cos provided)
+    // RoPE on Q/K after head-layout transpose; sin/cos are (batch, seq, half)
+    // and pair with head_size via the kernel (no broadcasting).
     NNGraph::TensorNode *q_rope = q;
     NNGraph::TensorNode *k_rope = k;
     if (sin != nullptr && cos != nullptr)

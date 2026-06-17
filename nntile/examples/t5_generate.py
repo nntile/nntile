@@ -50,13 +50,13 @@ from huggingface_hub import snapshot_download
 from safetensors import safe_open
 from transformers import AutoConfig, AutoTokenizer
 
-from graph_bind import (
-    as_bind_float32,
-    linear_attn_o_weight,
-    linear_attn_qkv_weight,
-    linear_from_conv1d,
-    linear_weight,
-)
+# ── Layout helpers ────────────────────────────────────────────────────────
+
+
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    """Return a C-contiguous float32 array for safetensors / bind_data."""
+    return np.ascontiguousarray(arr, dtype=np.float32)
+
 
 # ── Streaming safetensors writer ──────────────────────────────────────────
 
@@ -178,18 +178,26 @@ def _make_converter(
             )
         return hf_get(key)
 
+    def _attn_qkv(w: np.ndarray) -> np.ndarray:
+        return as_float32(
+            w.reshape(n_heads, d_kv, d_model).transpose(2, 1, 0))
+
+    def _attn_o(w: np.ndarray) -> np.ndarray:
+        return as_float32(
+            w.reshape(d_model, n_heads, d_kv).transpose(2, 1, 0))
+
     def convert(name: str) -> np.ndarray:
         if name == "model.model.embed_tokens.vocab":
-            return as_bind_float32(hf_get("shared.weight"))
+            return as_float32(hf_get("shared.weight"))
 
         if name == "model.model.encoder_final_norm.gamma":
-            return as_bind_float32(hf_get("encoder.final_layer_norm.weight"))
+            return as_float32(hf_get("encoder.final_layer_norm.weight"))
 
         if name == "model.model.decoder_final_norm.gamma":
-            return as_bind_float32(hf_get("decoder.final_layer_norm.weight"))
+            return as_float32(hf_get("decoder.final_layer_norm.weight"))
 
         if name == "model.lm_head.weight":
-            return linear_weight(hf_get("lm_head.weight"))
+            return as_float32(hf_get("lm_head.weight"))
 
         # Encoder layers
         if "encoder_layers_" in name and "decoder" not in name:
@@ -199,34 +207,30 @@ def _make_converter(
             hp = f"encoder.block.{layer_idx}"
 
             if rest == "layer_norm_0.gamma":
-                return as_bind_float32(
+                return as_float32(
                     hf_get(f"{hp}.layer.0.layer_norm.weight"))
             if rest == "self_attn.q_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.0.SelfAttention.q.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.q.weight"))
             if rest == "self_attn.k_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.0.SelfAttention.k.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.k.weight"))
             if rest == "self_attn.v_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.0.SelfAttention.v.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.v.weight"))
             if rest == "self_attn.o_weight":
-                return linear_attn_o_weight(
-                    hf_get(f"{hp}.layer.0.SelfAttention.o.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_o(
+                    hf_get(f"{hp}.layer.0.SelfAttention.o.weight"))
 
             if rest == "ff.layer_norm.gamma":
-                return as_bind_float32(
+                return as_float32(
                     hf_get(f"{hp}.layer.1.layer_norm.weight"))
             if rest == "ff.dense.gate_proj.weight":
-                return linear_weight(_gated_ff_wi(hp, 1, 0))
+                return as_float32(_gated_ff_wi(hp, 1, 0))
             if rest == "ff.dense.up_proj.weight":
-                return linear_weight(_gated_ff_wi(hp, 1, 1))
+                return as_float32(_gated_ff_wi(hp, 1, 1))
             if rest == "ff.dense.down_proj.weight":
-                return linear_from_conv1d(
+                return as_float32(
                     hf_get(f"{hp}.layer.1.DenseReluDense.wo.weight"))
 
         # Decoder layers
@@ -237,54 +241,46 @@ def _make_converter(
             hp = f"decoder.block.{layer_idx}"
 
             if rest == "layer_norm_0.gamma":
-                return as_bind_float32(
+                return as_float32(
                     hf_get(f"{hp}.layer.0.layer_norm.weight"))
             if rest == "self_attn.q_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.0.SelfAttention.q.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.q.weight"))
             if rest == "self_attn.k_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.0.SelfAttention.k.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.k.weight"))
             if rest == "self_attn.v_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.0.SelfAttention.v.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.0.SelfAttention.v.weight"))
             if rest == "self_attn.o_weight":
-                return linear_attn_o_weight(
-                    hf_get(f"{hp}.layer.0.SelfAttention.o.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_o(
+                    hf_get(f"{hp}.layer.0.SelfAttention.o.weight"))
 
             if rest == "layer_norm_1.gamma":
-                return as_bind_float32(
+                return as_float32(
                     hf_get(f"{hp}.layer.1.layer_norm.weight"))
             if rest == "cross_attn.q_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.1.EncDecAttention.q.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.1.EncDecAttention.q.weight"))
             if rest == "cross_attn.k_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.1.EncDecAttention.k.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.1.EncDecAttention.k.weight"))
             if rest == "cross_attn.v_weight":
-                return linear_attn_qkv_weight(
-                    hf_get(f"{hp}.layer.1.EncDecAttention.v.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_qkv(
+                    hf_get(f"{hp}.layer.1.EncDecAttention.v.weight"))
             if rest == "cross_attn.o_weight":
-                return linear_attn_o_weight(
-                    hf_get(f"{hp}.layer.1.EncDecAttention.o.weight"),
-                    d_model, n_heads, d_kv)
+                return _attn_o(
+                    hf_get(f"{hp}.layer.1.EncDecAttention.o.weight"))
 
             if rest == "ff.layer_norm.gamma":
-                return as_bind_float32(
+                return as_float32(
                     hf_get(f"{hp}.layer.2.layer_norm.weight"))
             if rest == "ff.dense.gate_proj.weight":
-                return linear_weight(_gated_ff_wi(hp, 2, 0))
+                return as_float32(_gated_ff_wi(hp, 2, 0))
             if rest == "ff.dense.up_proj.weight":
-                return linear_weight(_gated_ff_wi(hp, 2, 1))
+                return as_float32(_gated_ff_wi(hp, 2, 1))
             if rest == "ff.dense.down_proj.weight":
-                return linear_from_conv1d(
+                return as_float32(
                     hf_get(f"{hp}.layer.2.DenseReluDense.wo.weight"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")

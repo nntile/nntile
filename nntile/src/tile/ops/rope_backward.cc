@@ -26,12 +26,16 @@ namespace
 {
 template<typename T>
 void run(
-    Runtime& runtime, TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* y, TileGraph::TileNode* x)
+    Runtime& runtime, Index sin_pair0, TileGraph::TileNode* si,
+    TileGraph::TileNode* co, TileGraph::TileNode* y, TileGraph::TileNode* x)
 {
-    nntile::core::rope_backward<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(y), runtime.get_tile<T>(x));
+    nntile::core::rope_backward<T>(runtime.starpu_worker_hint(),
+        runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(y),
+        runtime.get_tile<T>(x), sin_pair0);
 }
 } // namespace
-void rope_backward(TileGraph::TileNode* s1, TileGraph::TileNode* c, TileGraph::TileNode* y, TileGraph::TileNode* x)
+void rope_backward(TileGraph::TileNode* s1, TileGraph::TileNode* c,
+    TileGraph::TileNode* y, TileGraph::TileNode* x, Index sin_pair0)
 {
     if(!s1 || !c || !y || !x)
         throw std::invalid_argument("rope_backward");
@@ -41,7 +45,8 @@ void rope_backward(TileGraph::TileNode* s1, TileGraph::TileNode* c, TileGraph::T
         throw std::invalid_argument("rope_backward");
     if(s1 == c || s1 == y || s1 == x || c == y || c == x || y == x)
         throw std::invalid_argument("rope_backward");
-    s1->graph()->add_op(std::make_shared<TileRopeBackwardOp>(s1, c, y, x));
+    s1->graph()->add_op(
+        std::make_shared<TileRopeBackwardOp>(s1, c, y, x, sin_pair0));
 }
 void TileRopeBackwardOp::execute(Runtime& runtime) const
 {
@@ -49,25 +54,25 @@ void TileRopeBackwardOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run<nntile::fp32_t>(runtime, sin, cos, dy, dx);
+            run<nntile::fp32_t>(runtime, sin_pair0, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_TF32:
-            run<nntile::fp32_fast_tf32_t>(runtime, sin, cos, dy, dx);
+            run<nntile::fp32_fast_tf32_t>(runtime, sin_pair0, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_FP16:
-            run<nntile::fp32_fast_fp16_t>(runtime, sin, cos, dy, dx);
+            run<nntile::fp32_fast_fp16_t>(runtime, sin_pair0, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_BF16:
-            run<nntile::fp32_fast_bf16_t>(runtime, sin, cos, dy, dx);
+            run<nntile::fp32_fast_bf16_t>(runtime, sin_pair0, sin, cos, dy, dx);
             break;
         case DataType::FP64:
-            run<nntile::fp64_t>(runtime, sin, cos, dy, dx);
+            run<nntile::fp64_t>(runtime, sin_pair0, sin, cos, dy, dx);
             break;
         case DataType::FP16:
-            run<nntile::fp16_t>(runtime, sin, cos, dy, dx);
+            run<nntile::fp16_t>(runtime, sin_pair0, sin, cos, dy, dx);
             break;
         case DataType::BF16:
-            run<nntile::bf16_t>(runtime, sin, cos, dy, dx);
+            run<nntile::bf16_t>(runtime, sin_pair0, sin, cos, dy, dx);
             break;
         case DataType::INT64:
         case DataType::BOOL:

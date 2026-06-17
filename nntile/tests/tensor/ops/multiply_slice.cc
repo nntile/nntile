@@ -70,13 +70,13 @@ TEST_CASE("TensorGraph multiply_slice structure", "[graph][tensor]")
 
     auto *src = graph.data({dim_2})->set_name(
         "src"); // slice for dst [dim_2, dim_4], axis=1
-    auto *dst = graph.data({dim_4, dim_2})->set_name("dst");
+    auto *dst = graph.data({dim_2, dim_4})->set_name("dst");
 
-    gt::multiply_slice(alpha_one, src, dst, axis_0);
+    gt::multiply_slice(alpha_one, src, dst, axis_1);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape() == (std::vector<Index>{dim_4, dim_2}));
+    REQUIRE(dst->shape() == (std::vector<Index>{dim_2, dim_4}));
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "MULTIPLY_SLICE");
@@ -90,9 +90,9 @@ TEST_CASE(
 {
     TensorGraph graph("test");
     auto *src = graph.data({dim_2})->set_name("src");
-    auto *dst = graph.data({dim_4, dim_2})->set_name("dst");
+    auto *dst = graph.data({dim_2, dim_4})->set_name("dst");
 
-    REQUIRE_THROWS_AS(gt::multiply_slice(alpha_one, src, src, axis_0),
+    REQUIRE_THROWS_AS(gt::multiply_slice(alpha_one, src, src, axis_1),
         std::invalid_argument);
 }
 
@@ -101,8 +101,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [dst_shape, axis, alpha] =
-        GENERATE(std::tuple{std::vector<Index>{4, 2}, Index(1), 1.0},
-            std::tuple{std::vector<Index>{4, 2}, Index(0), 1.0});
+        GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
+            std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

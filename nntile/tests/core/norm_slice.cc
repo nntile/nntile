@@ -24,10 +24,10 @@ template<typename T>
 void check()
 {
     using Y = typename T::repr_t;
-    Tile<T> src1({3, 4, 5});
-    Tile<T> src2[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}), Tile<T>({3, 4})};
-    Tile<T> dst[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}), Tile<T>({3, 4})};
-    Tile<T> dst2[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}), Tile<T>({3, 4})};
+    Tile<T> src1({5, 4, 3});
+    Tile<T> src2[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
+    Tile<T> dst[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
+    Tile<T> dst2[3] = {Tile<T>({4, 3}), Tile<T>({5, 3}), Tile<T>({5, 4})};
     auto s1 = src1.acquire(STARPU_W);
     Scalar alpha = -1.0, beta = 0.5;
     for(Index i = 0; i < src1.nelems; ++i)
@@ -53,7 +53,7 @@ void check()
     }
     // axis=0
     {
-        Index m = 1, n = 20, k = 3;
+        Index m = 12, n = 1, k = 5;
         starpu::norm_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src1, beta,
                 src2[0], dst[0], 0);
         norm_slice<T>(-1, alpha, src1, beta, src2[0], dst2[0], 0, 0);
@@ -83,7 +83,7 @@ void check()
     }
     // axis=2
     {
-        Index m = 12, n = 1, k = 5;
+        Index m = 1, n = 20, k = 3;
         starpu::norm_slice.submit<std::tuple<T>>(-1, m, n, k, alpha, src1, beta,
                 src2[2], dst[2], 0);
         norm_slice<T>(-1, alpha, src1, beta, src2[2], dst2[2], 2, 0);
@@ -102,10 +102,10 @@ template<typename T>
 void validate()
 {
     check<T>();
-    Tile<T> src({3, 4, 5});
-    Tile<T> slice({4, 5});
-    Tile<T> wrong1({2, 4, 5});
-    Tile<T> wrong2({2, 3, 5});
+    Tile<T> src({5, 4, 3});
+    Tile<T> slice({4, 3});
+    Tile<T> wrong1({2, 4, 3});
+    Tile<T> wrong2({5, 3, 2});
     TEST_THROW(norm_slice<T>(-1, 1.0, src, 1.0, wrong1, slice, 0, 0));
     TEST_THROW(norm_slice<T>(-1, 1.0, src, 1.0, wrong2, slice, 1, 0));
     TEST_THROW(norm_slice<T>(-1, 1.0, src, 1.0, slice, slice, -1, 0));

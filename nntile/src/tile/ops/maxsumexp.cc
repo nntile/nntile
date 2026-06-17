@@ -21,7 +21,6 @@
 #include <nntile/core/maxsumexp.hh>
 
 #include <nntile/runtime.hh>
-#include <nntile/tile/shape_layout.hh>
 namespace nntile::tile
 {
 namespace
@@ -47,32 +46,29 @@ void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, i
 }
 void TileMaxsumexpOp::execute(Runtime& runtime) const
 {
-    // axis is graph-indexed on src; convert for core Fortran kernel.
-    const Index s_axis =
-        tensor::graph_axis_to_storage(axis, src->ndim());
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)
     {
         case DataType::FP32:
-            run_me<nntile::fp32_t>(runtime, src, dst, s_axis, redux);
+            run_me<nntile::fp32_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP32_FAST_TF32:
-            run_me<nntile::fp32_fast_tf32_t>(runtime, src, dst, s_axis, redux);
+            run_me<nntile::fp32_fast_tf32_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP32_FAST_FP16:
-            run_me<nntile::fp32_fast_fp16_t>(runtime, src, dst, s_axis, redux);
+            run_me<nntile::fp32_fast_fp16_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP32_FAST_BF16:
-            run_me<nntile::fp32_fast_bf16_t>(runtime, src, dst, s_axis, redux);
+            run_me<nntile::fp32_fast_bf16_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP64:
-            run_me<nntile::fp64_t>(runtime, src, dst, s_axis, redux);
+            run_me<nntile::fp64_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::FP16:
-            run_me<nntile::fp16_t>(runtime, src, dst, s_axis, redux);
+            run_me<nntile::fp16_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::BF16:
-            run_me<nntile::bf16_t>(runtime, src, dst, s_axis, redux);
+            run_me<nntile::bf16_t>(runtime, src, dst, axis, redux);
             break;
         case DataType::INT64:
         case DataType::BOOL:

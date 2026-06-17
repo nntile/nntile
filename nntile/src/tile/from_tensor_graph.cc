@@ -19,7 +19,6 @@
 #include <stdexcept>
 
 #include "nntile/tensor/graph.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tile/lower_from_tensor.hh"
 
@@ -74,10 +73,7 @@ TileGraph TileGraph::from_tensor_graph(
         for(Index lin = 0; lin < vol; ++lin)
         {
             lay->grid_coord_from_linear(lin, grid_coord);
-            const std::vector<Index> storage_tile_shape =
-                lay->tile_shape_at(grid_coord);
-            const std::vector<Index> tile_shape =
-                tensor::storage_shape_to_graph(storage_tile_shape);
+            const std::vector<Index> tile_shape = lay->tile_shape_at(grid_coord);
             const std::string tname =
                 internal_tile_name(tensor_node->name(), lin, vol);
 
@@ -101,8 +97,7 @@ TileGraph TileGraph::from_tensor_graph(
         TileGraph::TensorDescriptor desc;
         desc.tensor_name = tensor_node->name();
         desc.tensor_shape = tensor_node->shape();
-        desc.tile_shape =
-            tensor::storage_shape_to_graph(lay->max_tile_extents());
+        desc.tile_shape = lay->max_tile_extents();
         desc.grid_shape = lay->grid_shape();
         desc.dtype = tensor_node->dtype();
         desc.tiles = tiles;

@@ -7,10 +7,10 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/nn/ops/transpose.hh
- * NNGraph transpose autograd operation (cyclic shift of dimensions).
+ * NNGraph transpose autograd operation (storage-order axis to graph axis).
  *
- * Forward: output[i] = src[(i+ndim) % ndim]
- * Backward: grad_src gets transpose of grad_out with inverse permutation
+ * Model code passes storage-order transpose axes; TensorGraph uses graph
+ * axes (C-order outermost first): graph_ndim = src.ndim - storage_ndim.
  *
  * @version 1.1.0
  * */
@@ -27,11 +27,7 @@
 namespace nntile
 {
 
-//! Transpose op: cyclic shift of dimensions.
-//!
-//! ``ndim`` uses **storage-order** axis semantics (matching graph model code):
-//! NN ``forward`` calls ``tensor::transpose(..., src->ndim() - ndim)``; backward
-//! uses ``tensor::transpose(..., ndim)`` as the inverse.
+//! Transpose op: cyclic shift of dimensions. PyTorch-style.
 struct NNTransposeOp : NNGraph::OpNode
 {
     Index ndim;
@@ -47,7 +43,7 @@ struct NNTransposeOp : NNGraph::OpNode
     void backward() const override;
 };
 
-//! Transpose: cyclic shift by ``ndim`` storage-order axes (see ``NNTransposeOp``).
+//! Transpose: cyclic shift by ndim dimensions
 NNGraph::TensorNode *transpose(NNGraph::TensorNode *src, Index ndim);
 
 } // namespace nntile

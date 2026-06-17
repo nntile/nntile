@@ -69,7 +69,7 @@ TEST_CASE("TensorGraph scatter rejects shape mismatch", "[graph][tensor]")
 {
     TensorGraph graph("test");
     auto *src = graph.data({5, 4})->set_name("src");
-    auto *dst = graph.data({4, 3})->set_name("dst");
+    auto *dst = graph.data({3, 4})->set_name("dst");
 
     REQUIRE_THROWS_AS(gt::scatter(src, dst), std::invalid_argument);
 }

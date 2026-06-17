@@ -15,10 +15,10 @@ For each block the script creates ``gptneox_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 Uses **HuggingFace Transformers** (``modeling_gpt_neox``) for forward and
-backward references plus NumPy layout helpers for NNTile safetensors — no
-custom attention reimplementation. Safetensor arrays use graph shape
-labels matching the graph API. Weights are split from HF ``query_key_value`` /
-``dense`` into graph ``q/k/v/o`` layouts matching ``gpt_neox_generate.py``. Attention
+backward references plus NumPy layout wrangling for NNTile safetensors — no
+custom attention reimplementation. Weights are split from HF
+``query_key_value`` / ``dense`` into graph
+``q/k/v/o`` layouts matching ``gpt_neox_generate.py``. Attention
 references call ``GPTNeoXAttention`` with ``_attn_implementation="eager"``,
 ``GPTNeoXRotaryEmbedding`` cos/sin, and additive ``attention_mask``: causal
 upper-triangular when ``use_causal_mask=True``, **zeros** when False (no mask).
@@ -89,17 +89,6 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
-def _gptneox_attn_qkv_weight(qkv_slice: np.ndarray) -> np.ndarray:
-    """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` graph layout."""
-    return as_float32(np.asarray(qkv_slice, dtype=np.float32).transpose(2, 1, 0))
-
-
-def _gptneox_attn_o_weight(o: np.ndarray, nh: int, hd: int, H: int) -> np.ndarray:
-    """HF ``dense`` ``(H, H)`` → graph ``o_weight`` ``(hd, nh, H)``."""
-    w = o.reshape(H, nh, hd)
-    return as_float32(w.transpose(2, 1, 0))
-
-
 def _make_config(dims: TestDims) -> GPTNeoXConfig:
     return GPTNeoXConfig(
         vocab_size=dims.vocab,
@@ -124,6 +113,17 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
         f"{prefix}.gamma": as_float32(ln.weight.detach().numpy()),
         f"{prefix}.beta": as_float32(ln.bias.detach().numpy()),
     }
+
+
+def _gptneox_attn_qkv_weight(qkv_slice: np.ndarray) -> np.ndarray:
+    """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` layout."""
+    return as_float32(np.asarray(qkv_slice, dtype=np.float32).transpose(2, 1, 0))
+
+
+def _gptneox_attn_o_weight(o: np.ndarray, nh: int, hd: int, H: int) -> np.ndarray:
+    """HF ``dense`` ``(H, H)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    w = o.reshape(H, nh, hd)
+    return as_float32(w.transpose(2, 1, 0))
 
 
 def _rotate_tensor_in_for_rope(
@@ -280,21 +280,20 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
     """Causal mask for ``sdpa_eager`` (1 = keep), shape ``(seq, seq)``."""
-    allowed = np.zeros((seq, seq), dtype=np.float32)
-    for k in range(seq):
-        for q in range(seq):
-            if k <= q:
-                allowed[k, q] = 1.0
-    return as_float32(allowed.T)
+    qq = np.arange(seq, dtype=np.int64)[:, None]
+    kk = np.arange(seq, dtype=np.int64)[None, :]
+    allowed = (kk <= qq).astype(np.float32)
+    return as_float32(allowed)
 
 
 def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device,
 ) -> torch.Tensor:
-    upper = torch.triu(
-        torch.ones(seq, seq, device=device), diagonal=1,
-    )
-    mask_torch = upper * torch.finfo(torch.float32).min
+    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
+    mask_torch = torch.tensor(
+        np.array(1 - mask, dtype=np.float32),
+    ).T * torch.finfo(torch.float32).min
+    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
     return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
 
 

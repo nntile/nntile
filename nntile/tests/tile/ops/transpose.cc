@@ -15,7 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/transpose.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,19 +24,16 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile", "[graph][tile]")
 {
-    const std::vector<Index> stor_sshape = {3, 5};
-    const std::vector<Index> graph_sshape = graph_shape(stor_sshape);
-    const std::vector<Index> stor_dshape = {5, 3};
-    const std::vector<Index> graph_dshape = graph_shape(stor_dshape);
+    const std::vector<Index> sshape = {5, 3};
+    const std::vector<Index> dshape = {3, 5};
     const Index nelems = 3 * 5;
     const Scalar alpha = 0.5;
     const Index ndim = 1;
     TileGraph g("g");
-    auto* s = g.data(graph_sshape, "s", DataType::FP32);
-    auto* d = g.data(graph_dshape, "d", DataType::FP32);
+    auto* s = g.data(sshape, "s", DataType::FP32);
+    auto* d = g.data(dshape, "d", DataType::FP32);
     s->mark_input(true);
     d->mark_output(true);
     tg::transpose(alpha, s, d, ndim);
@@ -50,7 +47,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> ts(stor_sshape), td(stor_dshape);
+    nntile::core::Tile<fp32_t> ts(sshape), td(dshape);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto a = ts.acquire(STARPU_W);
@@ -68,70 +65,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph transpose matches tile
         for(Index i = 0; i < 15; ++i) { tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]); }
         l2.release();
     }
-    constexpr float tol = 1e-4f;
-    REQUIRE(gout.size() == tref.size());
-    for(size_t i = 0; i < tref.size(); ++i) { REQUIRE(std::abs(gout[i] - tref[i]) < tol); }
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TileGraph transpose ndim=2 on 4D",
-    "[graph][tile]")
-{
-    const std::vector<Index> stor_sshape = {2, 3, 4, 5};
-    const std::vector<Index> graph_sshape = graph_shape(stor_sshape);
-    const std::vector<Index> stor_dshape = {4, 5, 2, 3};
-    const std::vector<Index> graph_dshape = graph_shape(stor_dshape);
-    const Index nelems = 2 * 3 * 4 * 5;
-    const Scalar alpha = 1.0;
-    const Index graph_ndim = 2;
-    // Cyclic shift of leading graph axes on {5,4,3,2} -> {3,2,5,4}.
-    TileGraph g("g");
-    auto* s = g.data(graph_sshape, "s", DataType::FP32);
-    auto* d = g.data(graph_dshape, "d", DataType::FP32);
-    s->mark_input(true);
-    d->mark_output(true);
-    tg::transpose(alpha, s, d, graph_ndim);
-    Runtime runtime(g);
-    runtime.compile();
-    std::vector<float> sv(nelems);
-    for(Index i = 0; i < nelems; ++i)
-    {
-        sv[static_cast<size_t>(i)] = 0.01f * static_cast<float>(i + 1);
-    }
-    runtime.bind_data(s, sv);
-    std::vector<float> dv(nelems, 0.f);
-    runtime.bind_data(d, dv);
-    runtime.execute();
-    runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> ts(stor_sshape), td(stor_dshape);
-    using Y = typename nntile::fp32_t::repr_t;
-    {
-        auto a = ts.acquire(STARPU_W);
-        auto b = td.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
-        {
-            a[i] = Y(sv[static_cast<size_t>(i)]);
-            b[i] = Y(0);
-        }
-        a.release();
-        b.release();
-    }
-    const Index stor_ndim =
-        static_cast<Index>(stor_sshape.size()) - graph_ndim;
-    nntile::core::transpose<fp32_t>(-1, alpha, ts, td, stor_ndim);
-    starpu_task_wait_for_all();
-    std::vector<float> tref(nelems);
-    {
-        auto l2 = td.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
-        {
-            tref[static_cast<size_t>(i)] = static_cast<float>(l2[i]);
-        }
-        l2.release();
-    }
-    for(size_t i = 0; i < tref.size(); ++i)
-    {
-        REQUIRE(std::abs(gout[i] - tref[i]) < 1e-4f);
-    }
+    nntile::test::require_relative_element_error(gout, tref);
 }

@@ -32,7 +32,8 @@ mmap, each tensor is read / converted / written one at a time, so peak memory
 is proportional to the *largest single tensor* rather than the whole model.
 
 Produces:
-  - ``weights.safetensors``  graph-layout weight file (NNTile parameter naming).
+  - ``weights.safetensors``  NNTile-layout weight file (C-order, NNTile
+    parameter naming).
   - ``config.json``  Model configuration readable by the C++ example.
   - ``prompt_ids.txt``  Comma-separated token IDs for the prompt (if
     ``--prompt`` is supplied).
@@ -53,12 +54,13 @@ from huggingface_hub import snapshot_download
 from safetensors import safe_open
 from transformers import AutoConfig, AutoTokenizer
 
-from graph_bind import (
-    as_bind_float32,
-    linear_from_conv1d,
-    linear_weight,
-    llama_attention_weights,
-)
+# ── Layout helpers ────────────────────────────────────────────────────────
+
+
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    """Return a C-contiguous float32 array for safetensors / bind_data."""
+    return np.ascontiguousarray(arr, dtype=np.float32)
+
 
 # ── Streaming safetensors writer ──────────────────────────────────────────
 
@@ -164,55 +166,58 @@ def _make_converter(
 
     def convert(name: str) -> np.ndarray:
         if name == "model.model.embed_tokens.vocab":
-            return as_bind_float32(hf_get("model.embed_tokens.weight"))
+            return as_float32(hf_get("model.embed_tokens.weight"))
 
         if name == "model.model.norm.gamma":
-            return as_bind_float32(hf_get("model.norm.weight"))
+            return as_float32(hf_get("model.norm.weight"))
 
         if name == "model.lm_head.weight":
             key = ("lm_head.weight" if has_lm_head
                    else "model.embed_tokens.weight")
-            return linear_weight(hf_get(key))
+            return as_float32(hf_get(key))
 
+        # Layer tensors: model.model.layers_{i}.<rest>
         parts = name.split(".")
         layer_idx = int(parts[2].split("_", 1)[1])
         rest = ".".join(parts[3:])
         hp = f"model.layers.{layer_idx}"
 
         if rest == "input_norm.gamma":
-            return as_bind_float32(hf_get(f"{hp}.input_layernorm.weight"))
+            return as_float32(hf_get(f"{hp}.input_layernorm.weight"))
         if rest == "post_attn_norm.gamma":
-            return as_bind_float32(
+            return as_float32(
                 hf_get(f"{hp}.post_attention_layernorm.weight"))
 
-        attn_hp = f"{hp}.self_attn"
-        if rest.startswith("attention."):
-            q_w, k_w, v_w, o_w = llama_attention_weights(
-                hf_get(f"{attn_hp}.q_proj.weight"),
-                hf_get(f"{attn_hp}.k_proj.weight"),
-                hf_get(f"{attn_hp}.v_proj.weight"),
-                hf_get(f"{attn_hp}.o_proj.weight"),
-                hidden=H,
-                n_heads=nh,
-                kv_heads=kv,
-                head_size=hd,
-                kv_group_size=gs,
-                use_gqa=gqa,
-            )
-            weight_map = {
-                "attention.q_weight": q_w,
-                "attention.k_weight": k_w,
-                "attention.v_weight": v_w,
-                "attention.o_weight": o_w,
-            }
-            return weight_map[rest]
+        if rest == "attention.q_weight":
+            q = hf_get(f"{hp}.self_attn.q_proj.weight")
+            if gqa:
+                q = q.reshape(kv, gs, hd, H).transpose(3, 2, 0, 1)
+            else:
+                q = q.reshape(H, nh, hd).transpose(0, 2, 1)
+            return as_float32(q)
+
+        if rest == "attention.k_weight":
+            k = hf_get(f"{hp}.self_attn.k_proj.weight").reshape(kv, hd, H)
+            return as_float32(k.transpose(2, 1, 0))
+
+        if rest == "attention.v_weight":
+            v = hf_get(f"{hp}.self_attn.v_proj.weight").reshape(kv, hd, H)
+            return as_float32(v.transpose(2, 1, 0))
+
+        if rest == "attention.o_weight":
+            o = hf_get(f"{hp}.self_attn.o_proj.weight")
+            if gqa:
+                o = o.reshape(kv, gs, hd, H).transpose(2, 0, 1, 3)
+            else:
+                o = o.reshape(nh, hd, H).transpose(1, 0, 2)
+            return as_float32(o)
 
         if rest == "mlp.gate_proj.weight":
-            return linear_from_conv1d(hf_get(f"{hp}.mlp.gate_proj.weight"))
+            return as_float32(hf_get(f"{hp}.mlp.gate_proj.weight"))
         if rest == "mlp.up_proj.weight":
-            return linear_from_conv1d(hf_get(f"{hp}.mlp.up_proj.weight"))
+            return as_float32(hf_get(f"{hp}.mlp.up_proj.weight"))
         if rest == "mlp.down_proj.weight":
-            return linear_from_conv1d(hf_get(f"{hp}.mlp.down_proj.weight"))
+            return as_float32(hf_get(f"{hp}.mlp.down_proj.weight"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 

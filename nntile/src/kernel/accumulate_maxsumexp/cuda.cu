@@ -36,29 +36,29 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
     constexpr Y zero = 0.0;
     if(i < nelems)
     {
-        Y dst_odd(dst[2*i+1]);
-        Y dst_even(dst[2*i]);
+        Y dst_odd(dst[i * 2 + 1]);
+        Y dst_even(dst[i * 2]);
 
-        Y src_odd(src[2*i+1]);
-        Y src_even(src[2*i]);
+        Y src_odd(src[i * 2 + 1]);
+        Y src_even(src[i * 2]);
         // Do nothing if sum of exponents of source is zero
         if(src_odd != zero)
         {
             // Overwrite if old value of sum is zero
             if(dst_odd == zero)
             {
-                dst[2*i] = src[2*i];
-                dst[2*i+1] = src[2*i+1];
+                dst[i * 2] = src[i * 2];
+                dst[i * 2 + 1] = src[i * 2 + 1];
             }
             // Otherwise update based on maximum
             else if(dst_even < src_even)
             {
-                dst[2*i+1] = src_odd + dst_odd*::exp(dst_even-src_even);
-                dst[2*i] = src[2*i];
+                dst[i * 2 + 1] = src_odd + dst_odd*::exp(dst_even-src_even);
+                dst[i * 2] = src[i * 2];
             }
             else
             {
-                dst[2*i+1] = dst_odd + src_odd*::exp(src_even-dst_even);
+                dst[i * 2 + 1] = dst_odd + src_odd*::exp(src_even-dst_even);
             }
         }
     }

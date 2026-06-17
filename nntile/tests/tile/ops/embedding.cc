@@ -15,7 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/embedding.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -25,7 +25,6 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][tile]")
 {
@@ -96,12 +95,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
         }
         L.release();
     }
-    for(int t = 0; t < 12; ++t)
-    {
-        REQUIRE(
-            std::abs(
-                gout[static_cast<size_t>(t)]
-                - tr[static_cast<size_t>(t)])
-            < 1e-3f);
-    }
+    nntile::test::require_relative_element_error(gout, tr);
 }

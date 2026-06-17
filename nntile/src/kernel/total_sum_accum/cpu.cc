@@ -21,8 +21,8 @@ namespace nntile::kernel::total_sum_accum
 {
 
 template<typename T>
-void cpu(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index, const T* logsumexp_,
-        const T* src_, const int64_t* labels_, float *val)
+void cpu(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
+        Index leading_class, const T* logsumexp_, const T* src_, const int64_t* labels_, float *val)
     noexcept
 //! Total sum accumulating from logsumexp and corrected by elements from src
 /*! Mnemonically, the following operations are performed:
@@ -50,7 +50,15 @@ void cpu(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index, cons
             // Kahan summation rule for the following:
             //      *val += logsumexp[i] - src[labels[i] + i*n_labels];
             float logsumexp_val = static_cast<Y>(logsumexp_[i]);
-            float src_val = static_cast<Y>(src_[labels[i] + i*n_labels]);
+            float src_val = 0.f;
+            if(leading_class != 0)
+            {
+                src_val = static_cast<Y>(src_[labels[i] * n_outputs + i]);
+            }
+            else
+            {
+                src_val = static_cast<Y>(src_[i * n_labels + labels[i]]);
+            }
             y = logsumexp_val - c;
             t = sum + y;
             c = (t-sum) - y;
@@ -67,24 +75,28 @@ void cpu(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index, cons
 // Explicit instantiation
 template
 void cpu<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
+        Index leading_class,
         const fp32_t* logsumexp, const fp32_t* src, const int64_t* labels,
         float *val)
     noexcept;
 
 template
 void cpu<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
+        Index leading_class,
         const fp64_t* logsumexp, const fp64_t* src, const int64_t* labels,
         float *val)
     noexcept;
 
 template
 void cpu<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
+        Index leading_class,
         const bf16_t* logsumexp, const bf16_t* src, const int64_t* labels,
         float *val)
     noexcept;
 
 template
 void cpu<fp16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
+        Index leading_class,
         const fp16_t* logsumexp, const fp16_t* src, const int64_t* labels,
         float *val)
     noexcept;

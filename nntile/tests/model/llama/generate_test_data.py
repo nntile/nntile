@@ -32,7 +32,7 @@ reference bundles). ``attention`` / ``attention_gqa`` use
 Attention ``q_weight`` / ``k_weight`` / ``v_weight`` / ``o_weight`` are the
 same numeric values as HuggingFace ``Linear`` weights, reshaped to the 3D/4D
 layouts expected by the graph module, then passed through :func:`as_float32`.
-So byte layout matches NNTile graph tiles. PyTorch runs forward and backward
+So byte layout matches NNTile C-order tiles. PyTorch runs forward and backward
 with the **original** HF weights (no in-place Q/K rewrite).
 
 For ``attention`` / ``attention_gqa`` blocks, Q/K/V/O weights use the same
@@ -46,7 +46,7 @@ the first half-channels of ``LlamaRotaryEmbedding`` cos/sin in
 
 Optional causal self-attention matches ``test_llama_attention``: additive
 ``attention_mask`` from the upper-triangular bool pattern; the graph tests
-load ``attn_mask`` as float32 ``(seq, seq)`` in graph (1 = keep
+load ``attn_mask`` as float32 ``(seq, seq)`` in C-order (1 = keep
 logits), converted to BOOL in C++ for ``sdpa_eager`` masking.
 
 Extra MHA/GQA safetensors (identity RoPE / causal / both) are written by
@@ -67,7 +67,7 @@ The ``mlp`` block likewise writes ``llama_mlp.json`` next to
 counts, ``sequence_length``, ``batch``, tolerances) for ``test_llama_mlp``.
 
 The ``decoder`` / ``decoder_gqa`` bundles add ``rope_cos`` / ``rope_sin`` in
-the same layout as the attention tests (first half-channels, graph),
+the same layout as the attention tests (first half-channels, C-order),
 plus ``llama_decoder.json`` / ``llama_decoder_gqa.json`` for
 ``test_llama_decoder``.
 
@@ -91,7 +91,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from safetensors.numpy import load_file, save_file
+from safetensors.numpy import save_file
 from transformers import LlamaConfig
 from transformers.models.llama.modeling_llama import (
     LlamaAttention as PtAttention, LlamaDecoderLayer as PtDecoderLayer,
@@ -193,7 +193,7 @@ def _make_config(dims: TestDims) -> LlamaConfig:
 
 
 def _linear(linear: torch.nn.Linear) -> np.ndarray:
-    """PT Linear weight ``(out, in)`` → graph ``(in, out)``."""
+    """PT Linear weight ``(out, in)`` → graph ``[out, in]``."""
     return as_float32(linear.weight.detach().numpy())
 
 
@@ -225,7 +225,7 @@ def _rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
 def _attention_weight_arrays(
     attn: PtAttention, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """HF Q/K/V/O reshaped to graph ``LlamaAttention`` graph layouts."""
+    """HF Q/K/V/O reshaped to graph ``LlamaAttention`` layouts."""
     q = attn.q_proj.weight.detach().numpy()
     k = attn.k_proj.weight.detach().numpy()
     v = attn.v_proj.weight.detach().numpy()
@@ -260,10 +260,10 @@ def _attn(attn: PtAttention, prefix: str, dims: TestDims) -> \
     dict[str, np.ndarray]:
     q_arr, k_arr, v_arr, o_arr = _attention_weight_arrays(attn, dims)
     return {
-        f"{prefix}.q_weight": q_arr,
-        f"{prefix}.k_weight": k_arr,
-        f"{prefix}.v_weight": v_arr,
-        f"{prefix}.o_weight": o_arr,
+        f"{prefix}.q_weight": as_float32(q_arr),
+        f"{prefix}.k_weight": as_float32(k_arr),
+        f"{prefix}.v_weight": as_float32(v_arr),
+        f"{prefix}.o_weight": as_float32(o_arr),
     }
 
 
@@ -356,20 +356,20 @@ def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device, dtype: torch.dtype,
 ) -> torch.Tensor:
     """HF additive mask (4D), same construction as ``test_llama_attention``."""
-    upper = torch.triu(
-        torch.ones(seq, seq, device=device), diagonal=1,
-    )
-    mask_torch = upper * torch.finfo(torch.float32).min
-    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1).to(dtype=dtype)
+    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
+    mask_torch = torch.tensor(
+        np.array(1 - mask, dtype=np.float32),
+    ).T * torch.finfo(torch.float32).min
+    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
+    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1). \
+        to(dtype=dtype)
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
-    allowed = np.zeros((seq, seq), dtype=np.float32)
-    for k in range(seq):
-        for q in range(seq):
-            if k <= q:
-                allowed[k, q] = 1.0
-    return as_float32(allowed.T)
+    qq = np.arange(seq, dtype=np.int64)[:, None]
+    kk = np.arange(seq, dtype=np.int64)[None, :]
+    allowed = (kk <= qq).astype(np.float32)
+    return as_float32(allowed)
 
 
 # ── Block generators ─────────────────────────────────────────────────----

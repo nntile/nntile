@@ -35,22 +35,54 @@ namespace
 constexpr float tolerance = 1e-4f;
 constexpr int distr_rank_single = 0;
 
-} 
-
-static std::vector<Index> make_src_shape(const std::vector<Index> &sin_shape)
+//! RoPE pair axis is the last sin dim; src uses 2x tiling on that axis.
+void tile_rope_sin_cos_src(TensorGraph::TensorNode *sin,
+    TensorGraph::TensorNode *cos,
+    TensorGraph::TensorNode *src)
 {
-    std::vector<Index> src_shape = sin_shape;
-    src_shape.back() = sin_shape.back() * 2;
-    return src_shape;
+    const Index rope_axis = sin->ndim() - 1;
+    for (Index d = 0; d < sin->ndim(); ++d)
+    {
+        const Index extent = sin->shape()[static_cast<size_t>(d)];
+        const Index tile = (extent + 1) / 2;
+        std::vector<Index> sin_seg;
+        if (extent <= tile)
+        {
+            sin_seg = {extent};
+        }
+        else
+        {
+            sin_seg = {tile, extent - tile};
+        }
+        sin->axis(static_cast<int>(d))->set_tiling(sin_seg);
+        cos->axis(static_cast<int>(d))->set_tiling(sin_seg);
+        if (d == rope_axis)
+        {
+            std::vector<Index> src_seg;
+            src_seg.reserve(sin_seg.size());
+            for (Index v : sin_seg)
+            {
+                src_seg.push_back(2 * v);
+            }
+            src->axis(static_cast<int>(rope_axis))
+                ->set_tiling(std::move(src_seg));
+        }
+        else
+        {
+            src->axis(static_cast<int>(d))->set_tiling(sin_seg);
+        }
+    }
 }
+
+} 
 
 TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *sin = graph.data({4, 2})->set_name("sin");
-    auto *cos = graph.data({4, 2})->set_name("cos");
-    auto *src = graph.data({4, 4})->set_name("src");
+    auto *sin = graph.data({2})->set_name("sin");
+    auto *cos = graph.data({2})->set_name("cos");
+    auto *src = graph.data({4})->set_name("src");
     auto *dst = gt::rope(sin, cos, src);
 
     REQUIRE(graph.num_data() == 4);
@@ -67,9 +99,9 @@ TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
 TEST_CASE("TensorGraph rope rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *sin = graph.data({4, 2})->set_name("sin");
-    auto *cos = graph.data({4, 2})->set_name("cos");
-    auto *src = graph.data({4, 4})->set_name("src");
+    auto *sin = graph.data({2})->set_name("sin");
+    auto *cos = graph.data({2})->set_name("cos");
+    auto *src = graph.data({4})->set_name("src");
 
     REQUIRE_THROWS_AS(gt::rope(nullptr, cos, src), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::rope(sin, nullptr, src), std::invalid_argument);
@@ -80,10 +112,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph rope tiled matches untiled",
     "[graph][tensor]")
 {
-    const auto sin_shape =
-        GENERATE(std::vector<Index>{4, 2}, std::vector<Index>{2, 3, 4});
+    const auto sin_shape = GENERATE(std::vector<Index>{2});
 
-    const std::vector<Index> src_shape = make_src_shape(sin_shape);
+    std::vector<Index> src_shape = {sin_shape[0] * 2};
 
     const Index sin_nelems = std::accumulate(
         sin_shape.begin(), sin_shape.end(), Index(1), std::multiplies<>());
@@ -150,10 +181,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         auto *dst_node = gt::rope(sin_node, cos_node, src_node);
         dst_node->mark_output(true);
-        for (auto *ag : graph.axis_groups())
-        {
-            ag->set_tiling((ag->extent + 1) / 2);
-        }
+        tile_rope_sin_cos_src(sin_node, cos_node, src_node);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 

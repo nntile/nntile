@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/dataset/seq2seq_lm_mmap.hh
- * Memory-mapped uint16 stream and seq2seq LM batch iterator (storage
+ * Memory-mapped uint16 stream and seq2seq LM batch iterator (Fortran
  * ``(seq, batch)`` layout for ``Runtime::bind_data``).
  *
  * Each training window uses ``enc_seq + dec_seq`` consecutive tokens from

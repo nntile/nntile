@@ -22,11 +22,11 @@ namespace nntile::core
 // Tile<T> RoPE
 template<typename T>
 void rope_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
-        const Tile<T> &src, const Tile<T> &dst);
+        const Tile<T> &src, const Tile<T> &dst, Index sin_pair0 = 0);
 
 // Tile<T> RoPE
 template<typename T>
 void rope(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos,
-        const Tile<T> &src, const Tile<T> &dst);
+        const Tile<T> &src, const Tile<T> &dst, Index sin_pair0 = 0);
 
 } // namespace nntile::core

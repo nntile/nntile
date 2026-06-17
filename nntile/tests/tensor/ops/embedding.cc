@@ -36,23 +36,13 @@ namespace
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
-// embed_shape from index_shape, vocab_shape, axis
-// embed.shape[axis] = vocab.shape[1], embed has index dims before/after axis
+// embed_shape: index_shape + [vocab embed_dim] at the last axis (axis ==
+// index.ndim)
 std::vector<Index> embed_output_shape(const std::vector<Index> &index_shape,
-    const std::vector<Index> &vocab_shape,
-    Index axis)
+    const std::vector<Index> &vocab_shape)
 {
-    std::vector<Index> embed_shape;
-    embed_shape.reserve(index_shape.size() + 1);
-    for (Index i = 0; i < axis; ++i)
-    {
-        embed_shape.push_back(index_shape[i]);
-    }
-    embed_shape.push_back(vocab_shape.back());
-    for (Index i = axis; i < static_cast<Index>(index_shape.size()); ++i)
-    {
-        embed_shape.push_back(index_shape[i]);
-    }
+    std::vector<Index> embed_shape = index_shape;
+    embed_shape.push_back(vocab_shape[1]);
     return embed_shape;
 }
 
@@ -63,8 +53,8 @@ TEST_CASE("TensorGraph embedding structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *vocab = graph.data({100, 10})->set_name("vocab");
-    auto *embed = graph.data({5, 4, 10})->set_name("embed");
+    auto *vocab = graph.data({10, 100})->set_name("vocab");
+    auto *embed = graph.data({5, 4, 100})->set_name("embed");
 
     gt::embedding(index, vocab, embed, 2);
 
@@ -82,8 +72,8 @@ TEST_CASE("TensorGraph embedding rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
     auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *vocab = graph.data({100, 10})->set_name("vocab");
-    auto *embed = graph.data({5, 4, 10})->set_name("embed");
+    auto *vocab = graph.data({10, 100})->set_name("vocab");
+    auto *embed = graph.data({5, 4, 100})->set_name("embed");
 
     REQUIRE_THROWS_AS(
         gt::embedding(nullptr, vocab, embed, 2), std::invalid_argument);
@@ -97,13 +87,14 @@ TEST_CASE("TensorGraph embedding with output_name", "[graph][tensor]")
 {
     TensorGraph graph("test");
     auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *vocab = graph.data({100, 10})->set_name("vocab");
+    auto *vocab = graph.data({10, 100})->set_name("vocab");
 
     auto *embed = gt::embedding(index, vocab, 2)->set_name("embed");
 
     REQUIRE(embed != nullptr);
-    // Graph layout: embed.shape[axis] == vocab.shape[1] (embed_dim)
-    REQUIRE(embed->shape() == std::vector<Index>{5, 4, 10});
+    // C-order vocab: [num_embeddings, embed_dim]; embed.shape[axis] ==
+    // vocab.shape[1]
+    REQUIRE(embed->shape() == std::vector<Index>{5, 4, 100});
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
 }
@@ -114,9 +105,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [index_shape, vocab_shape, axis] = GENERATE(
         std::tuple{
-            std::vector<Index>{5, 4}, std::vector<Index>{100, 10}, Index(2)},
+            std::vector<Index>{5, 4}, std::vector<Index>{10, 100}, Index(2)},
         std::tuple{
-            std::vector<Index>{3}, std::vector<Index>{50, 8}, Index(1)});
+            std::vector<Index>{3}, std::vector<Index>{8, 50}, Index(1)});
 
     const Index index_nelems = std::accumulate(
         index_shape.begin(), index_shape.end(), Index(1), std::multiplies<>());
@@ -176,10 +167,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *embed_node =
             gt::embedding(index_node, vocab_node, axis)->set_name("embed");
         embed_node->mark_output(true);
-        auto *vocab_size_axis = vocab_node->axis(0);
+        auto *embed_dim_axis = vocab_node->axis(1);
+        auto *num_embeddings_axis = vocab_node->axis(0);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == vocab_size_axis)
+            if (ag == embed_dim_axis || ag == num_embeddings_axis)
             {
                 ag->set_tiling(ag->extent);
             }

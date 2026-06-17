@@ -55,7 +55,7 @@ void TensorSubtractIndexedOutputsOp::lower_to_tile(const LoweringContext& ctx) c
         for(Index j = 0; j < labels->ndim(); ++j)
         {
             lab_coord[static_cast<size_t>(j)] =
-                dst_coord[static_cast<size_t>(j + 1)];
+                dst_coord[static_cast<size_t>(j + class_spatial_offset)];
         }
         const Index lin_l = lay_lab->grid_linear(lab_coord);
         tile::subtract_indexed_outputs(val,
@@ -78,29 +78,33 @@ void subtract_indexed_outputs(Scalar val,
     if(labels->dtype() != DataType::INT64)
         throw std::invalid_argument(
             "subtract_indexed_outputs: labels must have INT64 dtype");
-    // C-order: labels.dim[i] == dst.dim[i]; class axis is dst last dim.
+    // labels.dim[i] matches dst spatial dims: offset 1 for leading-class
+    // logits [class, ...], offset 0 for C-order trailing-class [..., class].
     if(labels->ndim() + 1 != dst->ndim())
     {
         throw std::invalid_argument(
             "subtract_indexed_outputs: dst must have ndim = labels.ndim + 1");
     }
+    const bool trailing_class =
+        labels->shape()[0] == dst->shape()[0];
+    const Index offset = trailing_class ? 0 : 1;
     for(Index i = 0; i < labels->ndim(); ++i)
     {
-        if(labels->shape()[i] != dst->shape()[i])
+        if(labels->shape()[i] != dst->shape()[i + offset])
         {
             throw std::invalid_argument(
                 "subtract_indexed_outputs: labels.dim[" +
                 std::to_string(i) + "] must match dst.dim[" +
-                std::to_string(i) + "] (" +
+                std::to_string(i + offset) + "] (" +
                 std::to_string(labels->shape()[i]) + " vs " +
-                std::to_string(dst->shape()[i]) + ")");
+                std::to_string(dst->shape()[i + offset]) + ")");
         }
         merge_axis(labels->mutable_axes()[i],
-                   dst->mutable_axes()[i]);
+                   dst->mutable_axes()[i + offset]);
     }
 
     auto op = std::make_shared<TensorSubtractIndexedOutputsOp>(
-        val, labels, dst, ignore_index);
+        val, labels, dst, ignore_index, offset);
     dst->graph()->add_op(op);
 }
 

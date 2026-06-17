@@ -24,8 +24,8 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> grad({2, 3}), vel({2, 3}), p({2, 3});
-    Tile<T> velr({2, 3}), pr({2, 3});
+    Tile<T> grad({3, 2}), vel({3, 2}), p({3, 2});
+    Tile<T> velr({3, 2}), pr({3, 2});
     auto gl = grad.acquire(STARPU_W);
     auto vl = vel.acquire(STARPU_W);
     auto pl = p.acquire(STARPU_W);

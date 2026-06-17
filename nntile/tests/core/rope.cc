@@ -24,7 +24,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> sin({2}), cos({2}), src({4, 5}), dst({4, 5}), dst_ref({4, 5});
+    Tile<T> sin({2}), cos({2}), src({5, 4}), dst({5, 4}), dst_ref({5, 4});
     auto sl = sin.acquire(STARPU_W);
     auto cl = cos.acquire(STARPU_W);
     auto srcl = src.acquire(STARPU_W);
@@ -47,10 +47,12 @@ void validate()
     dstl.release();
     drefl.release();
 
-    Index m = sin.nelems;
-    Index n = src.matrix_shape[sin.ndim][1];
-    starpu::rope.submit<std::tuple<T>>(-1, m, n, sin, cos, src, dst);
-    rope<T>(-1, sin, cos, src, dst_ref);
+    Index nrows = 5;
+    Index ncols = sin.nelems;
+    Index sin_pair0 = 0;
+    starpu::rope.submit<std::tuple<T>>(-1, nrows, ncols, sin_pair0, sin, cos,
+        src, dst);
+    rope<T>(-1, sin, cos, src, dst_ref, sin_pair0);
 
     dstl.acquire(STARPU_R);
     drefl.acquire(STARPU_R);

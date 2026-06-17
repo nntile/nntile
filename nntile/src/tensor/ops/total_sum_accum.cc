@@ -33,10 +33,13 @@ void TensorTotalSumAccumOp::lower_to_tile(const LoweringContext& ctx) const
 {
     // Match nntile::tensor::total_sum_accum_async (src/tensor/total_sum_accum.cc).
     const TensorAxisLayout* lay_l = ctx.tiling.find(class_labels);
-    if(lay_l == nullptr)
+    const TensorAxisLayout* lay_s = ctx.tiling.find(src);
+    const TensorAxisLayout* lay_e = ctx.tiling.find(logsumexp);
+    if(lay_l == nullptr || lay_s == nullptr || lay_e == nullptr)
     {
         throw std::runtime_error(
-            "lower_to_tile TOTAL_SUM_ACCUM: missing tiling for class_labels");
+            "lower_to_tile TOTAL_SUM_ACCUM: missing tiling for class_labels, "
+            "src, and/or logsumexp");
     }
     const auto& t_lse = tile_lower::tiles_of(ctx.tile_map, logsumexp);
     const auto& t_src = tile_lower::tiles_of(ctx.tile_map, src);
@@ -47,13 +50,26 @@ void TensorTotalSumAccumOp::lower_to_tile(const LoweringContext& ctx) const
         throw std::runtime_error(
             "lower_to_tile TOTAL_SUM_ACCUM: val must be single-tile");
     }
-    for(Index lin = 0; lin < lay_l->grid_volume(); ++lin)
+    const bool trailing_class =
+        class_labels->shape()[0] == src->shape()[0];
+    const Index spatial_offset = trailing_class ? 0 : 1;
+
+    std::vector<Index> src_coord;
+    std::vector<Index> lab_coord(static_cast<size_t>(class_labels->ndim()));
+    for(Index lin_s = 0; lin_s < lay_s->grid_volume(); ++lin_s)
     {
+        lay_s->grid_coord_from_linear(lin_s, src_coord);
+        for(Index j = 0; j < class_labels->ndim(); ++j)
+        {
+            lab_coord[static_cast<size_t>(j)] =
+                src_coord[static_cast<size_t>(j + spatial_offset)];
+        }
+        const Index lin_l = lay_l->grid_linear(lab_coord);
         tile::total_sum_accum(
             alpha,
-            t_lse[static_cast<size_t>(lin)],
-            t_src[static_cast<size_t>(lin)],
-            t_lab[static_cast<size_t>(lin)],
+            t_lse[static_cast<size_t>(lin_l)],
+            t_src[static_cast<size_t>(lin_s)],
+            t_lab[static_cast<size_t>(lin_l)],
             t_val[0],
             ignore_index);
     }

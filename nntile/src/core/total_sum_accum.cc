@@ -39,13 +39,16 @@ void total_sum_accum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &
         throw std::runtime_error("val.ndim != 0");
     }
     // Check shapes
+    const bool trailing_class =
+        labels.ndim > 0 && labels.shape[0] == src.shape[0];
+    const Index spatial_offset = trailing_class ? 0 : 1;
     for(Index i = 0; i < labels.ndim; ++i)
     {
         if(logsumexp.shape[i] != labels.shape[i])
         {
             throw std::runtime_error("logsumexp.shape[i] != labels.shape[i]");
         }
-        if(labels.shape[i] != src.shape[i+1])
+        if(labels.shape[i] != src.shape[i + spatial_offset])
         {
             throw std::runtime_error("labels.shape[i] != src.shape[i+1]");
         }
@@ -58,8 +61,13 @@ void total_sum_accum_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &
     if(mpi_rank == val_rank)
     {
         // Insert task
-        starpu::total_sum_accum.submit<std::tuple<T>>(starpu_worker_hint, alpha, src.shape[0],
-                logsumexp.nelems, ignore_index, logsumexp, src, labels, val);
+        const Index n_labels = trailing_class
+            ? src.shape[src.ndim - 1]
+            : src.shape[0];
+        const Index leading_class = trailing_class ? 0 : 1;
+        starpu::total_sum_accum.submit<std::tuple<T>>(starpu_worker_hint, alpha,
+                n_labels, logsumexp.nelems, ignore_index, leading_class,
+                logsumexp, src, labels, val);
     }
 }
 

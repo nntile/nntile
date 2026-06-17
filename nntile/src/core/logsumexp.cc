@@ -34,15 +34,15 @@ void logsumexp_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &
     {
         throw std::runtime_error("Scalar input makes no sense");
     }
-    if(src.shape[0] != 2)
+    if(src.shape[src.ndim-1] != 2)
     {
-        throw std::runtime_error("src.shape[0] != 2");
+        throw std::runtime_error("src last dim must be 2");
     }
     for(Index i = 0; i < ndim - 1; ++i)
     {
-        if (src.shape[i+1] != dst.shape[i])
+        if (src.shape[i] != dst.shape[i])
         {
-            throw std::runtime_error("src.shape[i+1] != dst.shape[i]");
+            throw std::runtime_error("src.shape[i] != dst.shape[i]");
         }
     }
     int mpi_rank = starpu_mpi_world_rank();

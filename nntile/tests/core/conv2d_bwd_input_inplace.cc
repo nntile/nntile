@@ -24,7 +24,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    Tile<T> dY({2, 2, 1, 1}), C({2, 2, 1, 1}), dX_ref({3, 3, 1, 1}),
+    Tile<T> dY({1, 1, 2, 2}), C({2, 2, 1, 1}), dX_ref({3, 3, 1, 1}),
         dX_tile({3, 3, 1, 1});
 
     auto dY_local = dY.acquire(STARPU_W);

@@ -73,8 +73,8 @@ void add_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, 
     }
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
-    m = dst.stride[axis];
-    n = dst.matrix_shape[axis+1][1];
+    m = dst.matrix_shape[axis+1][1];
+    n = dst.matrix_shape[axis][0];
     k = dst.shape[axis];
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();

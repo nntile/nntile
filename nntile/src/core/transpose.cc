@@ -47,8 +47,9 @@ void transpose_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, c
     src.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        starpu::transpose.submit<std::tuple<T>>(starpu_worker_hint, src.matrix_shape[ndim][0],
-                src.matrix_shape[ndim][1], alpha, src, dst);
+        starpu::transpose.submit<std::tuple<T>>(starpu_worker_hint,
+                src.matrix_shape[ndim][1],
+                src.matrix_shape[ndim][0], alpha, src, dst);
     }
 }
 
