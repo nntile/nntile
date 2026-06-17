@@ -6,6 +6,8 @@
 
 import torch
 import pytest
+
+pytest.importorskip("torchvision")
 from torchvision import datasets
 
 import torch_nntile

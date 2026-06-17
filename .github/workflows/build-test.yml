@@ -294,4 +294,4 @@ jobs:
           pip install --break-system-packages torch pytest
           CXX=g++ pip install --break-system-packages \
             -e ./torch_nntile --no-build-isolation --force-reinstall
-          pytest -vv -m 'not slow' torch_nntile/tests/
+          pytest -vv --rootdir=. -m 'not slow' torch_nntile/tests/

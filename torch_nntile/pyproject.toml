@@ -18,6 +18,7 @@ test = [
 ]
 
 [tool.pytest.ini_options]
+addopts = "-m 'not slow'"
 markers = [
     "slow: slow tests (deselect with '-m \"not slow\"')",
 ]
