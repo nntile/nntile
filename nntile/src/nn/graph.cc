@@ -442,7 +442,7 @@ std::pair<NNGraph::TensorNode *, bool> NNGraph::get_or_create_grad(
     }
 
     TensorGraph::TensorNode *grad_data =
-        tensor_graph_.data(tensor->data()->shape(), tensor->dtype());
+        tensor_graph_.data(tensor->shape(), tensor->dtype());
     grad_data->set_name(grad_name);
     // Grad axes must match the tensor's axes (same tiling, same dimension
     // groups)

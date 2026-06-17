@@ -15,7 +15,7 @@
 #include "nntile/tile/ops/relu.hh"
 
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "mixed_tile_common.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -30,19 +30,17 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 namespace gt = nntile::tensor;
 namespace tt = nntile::core_tests;
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TileGraph relu matches tile",
     "[graph][tile]")
 {
-    const std::vector<Index> stor_sh = {2, 3};
-    const std::vector<Index> graph_sh = graph_shape(stor_sh);
+    const std::vector<Index> sh = {3, 2};
     const Index nelems = 6;
     TileGraph g("g");
-    auto *s = g.data(graph_sh, "s", DataType::FP32);
-    auto *d = g.data(graph_sh, "d", DataType::FP32);
+    auto *s = g.data(sh, "s", DataType::FP32);
+    auto *d = g.data(sh, "d", DataType::FP32);
     s->mark_input(true);
     d->mark_output(true);
     tg::relu(s, d);
@@ -59,7 +57,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
     const std::vector<float> gout = runtime.get_output<float>(d);
-    nntile::core::Tile<fp32_t> ts(stor_sh), td(stor_sh);
+    nntile::core::Tile<fp32_t> ts(sh), td(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
         auto l1 = ts.acquire(STARPU_W);
@@ -80,12 +78,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         }
         l2.release();
     }
-    constexpr float tol = 1e-4f;
-    REQUIRE(gout.size() == tref.size());
-    for (size_t i = 0; i < tref.size(); ++i)
-    {
-        REQUIRE(std::abs(gout[i] - tref[i]) < tol);
-    }
+    nntile::test::require_relative_element_error(gout, tref);
 }
 
 TEST_CASE("ReLU mixed tile parity (TensorGraph ref vs TileGraph tile)",
@@ -136,6 +129,5 @@ TEST_CASE("ReLU mixed tile parity (TensorGraph ref vs TileGraph tile)",
     const std::vector<float> y_out_tile =
         rt_tile.get_output<float>(y_tile_node);
 
-    REQUIRE(tt::max_rel_err(y_out_ref, y_out_tile) < 1e-3f);
-    REQUIRE(tt::frob_rel_err(y_out_ref, y_out_tile) < 1e-3f);
+    nntile::test::require_relative_element_error(y_out_ref, y_out_tile);
 }

@@ -55,13 +55,13 @@ void cuda_kernel(Index nelems, packarg<NDIM> src_start,
     Index i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < nelems)
     {
-        Index src_offset=0, dst_offset=0;
-        for(int idim = 0; idim < NDIM; ++idim)
+        Index rem = i;
+        for(int idim = NDIM - 1; idim >= 0; --idim)
         {
-            Index j = i % copy_shape.value[idim];
-            i = i / copy_shape.value[idim];
-            src_offset += src_stride.value[idim] * (j+src_start.value[idim]);
-            dst_offset += dst_stride.value[idim] * (j+dst_start.value[idim]);
+            const Index j = rem % copy_shape.value[idim];
+            rem /= copy_shape.value[idim];
+            src_offset += src_stride.value[idim] * (j + src_start.value[idim]);
+            dst_offset += dst_stride.value[idim] * (j + dst_start.value[idim]);
         }
         dst[dst_offset] = src[src_offset];
     }

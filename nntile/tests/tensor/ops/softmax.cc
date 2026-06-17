@@ -36,7 +36,6 @@ namespace
 {
 
 constexpr Index axis_0 = 0;
-constexpr Index axis_1 = 1;
 constexpr int redux = 0;
 constexpr Scalar alpha_one = 1.0;
 constexpr float tolerance = 1e-4f;
@@ -66,16 +65,16 @@ TEST_CASE("TensorGraph softmax structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-  // maxsumexp shape for axis 1 on src {dim1, dim0}: {dim1, 2}
+    // maxsumexp shape for axis 0: src.shape without axis 0 + [2] = [dim1, 2]
     auto *maxsumexp_node = graph.data({dim1, 2})->set_name("maxsumexp");
-    auto *src = graph.data({dim1, dim0})->set_name("src");
-    auto *dst = gt::softmax(maxsumexp_node, src, alpha_one, axis_1);
+    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *dst = gt::softmax(maxsumexp_node, src, alpha_one, axis_0);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape().size() == 2);
-    REQUIRE(dst->shape()[0] == dim1);
-    REQUIRE(dst->shape()[1] == dim0);
+    REQUIRE(dst->shape()[0] == dim0);
+    REQUIRE(dst->shape()[1] == dim1);
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SOFTMAX");
@@ -87,13 +86,14 @@ TEST_CASE("TensorGraph softmax structure", "[graph][tensor]")
 TEST_CASE("TensorGraph softmax rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
+    // maxsumexp shape for axis 0, src [4,5]: [5, 2]
     auto *mse = graph.data({5, 2})->set_name("mse");
     auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(
-        gt::softmax(nullptr, src, alpha_one, axis_1), std::invalid_argument);
+        gt::softmax(nullptr, src, alpha_one, axis_0), std::invalid_argument);
     REQUIRE_THROWS_AS(
-        gt::softmax(mse, nullptr, alpha_one, axis_1), std::invalid_argument);
+        gt::softmax(mse, nullptr, alpha_one, axis_0), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -101,8 +101,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [shape, axis, alpha] =
-        GENERATE(std::tuple{std::vector<Index>{6, 4}, Index(1), 1.0},
-            std::tuple{std::vector<Index>{4, 3}, Index(1), 0.5});
+        GENERATE(std::tuple{std::vector<Index>{4, 6}, Index(0), 1.0},
+            std::tuple{std::vector<Index>{3, 4}, Index(0), 0.5});
 
     using Y = nntile::fp32_t::repr_t;
     const Index nelems = std::accumulate(
@@ -149,10 +149,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             gt::maxsumexp(src_node, axis, redux)->set_name("maxsumexp");
         auto *dst_node = gt::softmax(maxsumexp_node, src_node, alpha, axis);
         dst_node->mark_output(true);
-        auto *pair_axis = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
+        auto *maxsumexp_dim0 = maxsumexp_node->axis(0);
+        auto *maxsumexp_pair = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == pair_axis)
+            if (ag == maxsumexp_pair)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else if (ag == maxsumexp_dim0)
             {
                 ag->set_tiling(ag->extent);
             }

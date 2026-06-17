@@ -46,7 +46,7 @@ TEST_CASE("TensorGraph subtract_indexed_outputs structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
-    auto *dst = graph.data({4, 5})->set_name("dst");
+    auto *dst = graph.data({5, 4})->set_name("dst");
 
     gt::subtract_indexed_outputs(val, labels, dst, ignore_index);
 
@@ -65,7 +65,7 @@ TEST_CASE(
 {
     TensorGraph graph("test");
     auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
-    auto *dst = graph.data({4, 5})->set_name("dst");
+    auto *dst = graph.data({5, 4})->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::subtract_indexed_outputs(val, nullptr, dst, ignore_index),
@@ -80,7 +80,7 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects non-INT64 labels",
 {
     TensorGraph graph("test");
     auto *labels = graph.data({4})->set_name("labels"); // FP32 default
-    auto *dst = graph.data({4, 5})->set_name("dst");
+    auto *dst = graph.data({5, 4})->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::subtract_indexed_outputs(val, labels, dst, ignore_index),
@@ -93,9 +93,113 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects ndim mismatch",
     TensorGraph graph("test");
     auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
     // dst has ndim=3 (labels.ndim+2), but must be labels.ndim+1
-    auto *dst = graph.data({3, 4, 5})->set_name("dst");
+    auto *dst = graph.data({5, 4, 3})->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::subtract_indexed_outputs(val, labels, dst, ignore_index),
         std::invalid_argument);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph subtract_indexed_outputs tiled matches untiled",
+    "[graph][tensor]")
+{
+    const auto [labels_shape, n_class] =
+        GENERATE(std::tuple{std::vector<Index>{4}, Index(6)},
+            std::tuple{std::vector<Index>{2, 4}, Index(4)});
+
+    std::vector<Index> dst_shape = {n_class};
+    dst_shape.insert(
+        dst_shape.end(), labels_shape.begin(), labels_shape.end());
+    const Index labels_nelems = std::accumulate(labels_shape.begin(),
+        labels_shape.end(),
+        Index(1),
+        std::multiplies<>());
+    const Index dst_nelems = std::accumulate(
+        dst_shape.begin(), dst_shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<std::int64_t> labels_data(labels_nelems);
+    std::vector<float> dst_data(dst_nelems);
+    for (Index i = 0; i < labels_nelems; ++i)
+    {
+        labels_data[i] = static_cast<std::int64_t>(i % n_class);
+    }
+    for (Index i = 0; i < dst_nelems; ++i)
+    {
+        dst_data[i] = static_cast<float>(i);
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("subtract_indexed_outputs_untiled");
+        auto *labels_node =
+            graph.data(labels_shape, DataType::INT64)->set_name("labels");
+        auto *dst_node =
+            graph.data(dst_shape, DataType::FP32)->set_name("dst");
+        labels_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
+
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+        Runtime runtime(tile_graph);
+        runtime.compile();
+
+        runtime.bind_data(labels_node, labels_data);
+        runtime.bind_data(dst_node, dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>(dst_node);
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("subtract_indexed_outputs_tiled");
+        auto *labels_node =
+            graph.data(labels_shape, DataType::INT64)->set_name("labels");
+        auto *dst_node =
+            graph.data(dst_shape, DataType::FP32)->set_name("dst");
+        labels_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
+        auto *nclass_axis = dst_node->axis(0);
+        for (auto *ag : graph.axis_groups())
+        {
+            if (ag == nclass_axis)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else
+            {
+                ag->set_tiling((ag->extent + 1) / 2);
+            }
+        }
+
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+        Runtime runtime(tile_graph);
+        runtime.compile();
+
+        runtime.bind_data(labels_node, labels_data);
+        runtime.bind_data(dst_node, dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>(dst_node);
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for (size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

@@ -35,28 +35,30 @@ void cpu(Index nelems, const T* src_, T* dst_)
     constexpr typename T::repr_t zero{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
-        auto src_odd = static_cast<typename T::repr_t>(src_[2*i+1]);
-        auto src_even = static_cast<typename T::repr_t>(src_[2*i]);
-        auto dst_odd = static_cast<typename T::repr_t>(dst_[2*i+1]);
-        auto dst_even = static_cast<typename T::repr_t>(dst_[2*i]);
+        auto src_odd = static_cast<typename T::repr_t>(src_[i * 2 + 1]);
+        auto src_even = static_cast<typename T::repr_t>(src_[i * 2]);
+        auto dst_odd = static_cast<typename T::repr_t>(dst_[i * 2 + 1]);
+        auto dst_even = static_cast<typename T::repr_t>(dst_[i * 2]);
         // Do nothing if sum of exponents of source is zero
         if(src_odd != zero)
         {
             // Overwrite if old value of sum is zero
             if(dst_odd == zero)
             {
-                dst_[2*i] = src_[2*i];
-                dst_[2*i+1] = src_[2*i+1];
+                dst_[i * 2] = src_[i * 2];
+                dst_[i * 2 + 1] = src_[i * 2 + 1];
             }
             // Otherwise update based on maximum
             else if(dst_even < src_even)
             {
-                dst_[2*i+1] = static_cast<T>(src_odd + dst_odd*std::exp(dst_even - src_even));
-                dst_[2*i] = src_[2*i];
+                dst_[i * 2 + 1] = static_cast<T>(
+                    src_odd + dst_odd * std::exp(dst_even - src_even));
+                dst_[i * 2] = src_[i * 2];
             }
             else
             {
-                dst_[2*i+1] = static_cast<T>(dst_odd + src_odd * std::exp(src_even - dst_even));
+                dst_[i * 2 + 1] = static_cast<T>(
+                    dst_odd + src_odd * std::exp(src_even - dst_even));
             }
         }
     }

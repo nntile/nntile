@@ -31,6 +31,7 @@ namespace nntile::tensor
 
 void TensorLogsumexpOp::lower_to_tile(const LoweringContext &ctx) const
 {
+    // Match nntile::tensor::logsumexp_async (src/tensor/logsumexp.cc).
     const TensorAxisLayout *lay_src = ctx.tiling.find(src);
     const TensorAxisLayout *lay_dst = ctx.tiling.find(dst);
     if (lay_src == nullptr || lay_dst == nullptr)
@@ -64,7 +65,7 @@ TensorGraph::TensorNode *logsumexp(TensorGraph::TensorNode *src)
             "logsumexp: input tensor must be non-null");
     }
 
-    // C-order maxsumexp layout: drop last dim (pair slot).
+    // dst shape: maxsumexp spatial dims (drop trailing pair dim).
     std::vector<Index> output_shape;
     if (src->ndim() > 1)
     {

@@ -24,9 +24,9 @@ template<typename T>
 void check(Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
-    Tile<T> src1({3, 4, 5}), src2({3, 4, 5});
-    Tile<T> dst[3] = {Tile<T>({3}), Tile<T>({4}), Tile<T>({5})};
-    Tile<T> dst2[3] = {Tile<T>({3}), Tile<T>({4}), Tile<T>({5})};
+    Tile<T> src1({5, 4, 3}), src2({5, 4, 3});
+    Tile<T> dst[3] = {Tile<T>({5}), Tile<T>({4}), Tile<T>({3})};
+    Tile<T> dst2[3] = {Tile<T>({5}), Tile<T>({4}), Tile<T>({3})};
     auto a = src1.acquire(STARPU_W);
     auto b = src2.acquire(STARPU_W);
     for(Index i = 0; i < src1.nelems; ++i)
@@ -51,8 +51,8 @@ void check(Scalar alpha, Scalar beta)
     }
     for(Index ax = 0; ax < 3; ++ax)
     {
-        Index m = src1.stride[ax];
-        Index n = src1.matrix_shape[ax+1][1];
+        Index m = src1.matrix_shape[ax+1][1];
+        Index n = src1.matrix_shape[ax][0];
         Index k = src1.shape[ax];
         starpu::sumprod_fiber.submit<std::tuple<T>>(-1, m, n, k, alpha, src1, src2,
                 beta, dst[ax]);

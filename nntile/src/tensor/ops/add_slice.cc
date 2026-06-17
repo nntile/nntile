@@ -16,7 +16,6 @@
 #include "nntile/tensor/ops/add_slice.hh"
 
 #include "nntile/base_types.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -120,46 +119,30 @@ void TensorAddSliceOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_s2 = tile_lower::tiles_of(ctx.tile_map, src2);
     const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
-    const Index nd = dst->ndim();
-    const Index s1_nd = src1->ndim();
-    const Index lay_ax = layout_axis(axis, nd);
-
     std::vector<Index> s1_coord;
-    std::vector<Index> dst_coord(static_cast<size_t>(nd));
+    std::vector<Index> dst_coord(static_cast<size_t>(dst->ndim()));
 
     for (Index lin_s1 = 0; lin_s1 < lay_s1->grid_volume(); ++lin_s1)
     {
         lay_s1->grid_coord_from_linear(lin_s1, s1_coord);
         TileGraph::TileNode *s1_tile = tiles_s1[static_cast<size_t>(lin_s1)];
 
-        for (Index g = 0; g < nd; ++g)
+        for (Index j = 0; j < axis; ++j)
         {
-            if (g == axis)
-            {
-                continue;
-            }
-            Index g1 = 0;
-            for (Index g2 = 0; g2 < nd; ++g2)
-            {
-                if (g2 == axis)
-                {
-                    continue;
-                }
-                if (g2 == g)
-                {
-                    break;
-                }
-                ++g1;
-            }
-            dst_coord[static_cast<size_t>(layout_axis(g, nd))] =
-                s1_coord[static_cast<size_t>(layout_axis(g1, s1_nd))];
+            dst_coord[static_cast<size_t>(j)] =
+                s1_coord[static_cast<size_t>(j)];
+        }
+        for (Index j = axis + 1; j < dst->ndim(); ++j)
+        {
+            dst_coord[static_cast<size_t>(j)] =
+                s1_coord[static_cast<size_t>(j - 1)];
         }
 
         const Index nseg_along_axis =
-            lay_d->grid_shape()[static_cast<size_t>(lay_ax)];
+            lay_d->grid_shape()[static_cast<size_t>(axis)];
         for (Index jj = 0; jj < nseg_along_axis; ++jj)
         {
-            dst_coord[static_cast<size_t>(lay_ax)] = jj;
+            dst_coord[static_cast<size_t>(axis)] = jj;
             const Index lin_d = lay_d->grid_linear(dst_coord);
             tile::add_slice(alpha,
                 s1_tile,

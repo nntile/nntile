@@ -44,8 +44,8 @@ TEST_CASE("TensorGraph copy_intersection structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim1, dim0})->set_name("src");
-    auto *dst = graph.data({dim1, dim0})->set_name("dst");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *dst = graph.data({dim0, dim1})->set_name("dst");
     std::vector<Index> src_offset{0, 0};
     std::vector<Index> dst_offset{0, 0};
 
@@ -79,10 +79,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [shape, src_off, dst_off] =
-        GENERATE(std::tuple{std::vector<Index>{6, 4},
+        GENERATE(std::tuple{std::vector<Index>{4, 6},
                      std::vector<Index>{0, 0},
                      std::vector<Index>{0, 0}},
-            std::tuple{std::vector<Index>{4, 3},
+            std::tuple{std::vector<Index>{3, 4},
                 std::vector<Index>{0, 0},
                 std::vector<Index>{0, 0}});
 

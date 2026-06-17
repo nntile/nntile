@@ -33,7 +33,7 @@ void validate_traits(const TileTraits &traits)
         throw std::runtime_error("Inconsistent ndim and matrix_shape.size()");
     }
     Index tmp = 1;
-    for(Index i = 0; i < traits.ndim; ++i)
+    for(Index i = traits.ndim - 1; i >= 0; --i)
     {
         if(traits.stride[i] != tmp)
         {
@@ -73,13 +73,13 @@ void validate_traits(const TileTraits &traits)
         {
             index[i] -= 1;
         }
-        ++index[0];
+        ++index[traits.ndim - 1];
         TEST_THROW(traits.index_to_linear(index));
         TEST_ASSERT(!traits.contains_index(index));
-        for(Index i = 1; i < traits.ndim; ++i)
+        for(Index i = traits.ndim - 1; i >= 1; --i)
         {
-            --index[i-1];
-            ++index[i];
+            --index[i];
+            ++index[i - 1];
             TEST_THROW(traits.index_to_linear(index));
             TEST_ASSERT(!traits.contains_index(index));
         }

@@ -72,8 +72,8 @@ void norm_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1,
     }
     // Get sizes
     Index m, n, k;
-    m = src1.stride[axis];
-    n = src1.matrix_shape[axis+1][1];
+    m = src1.matrix_shape[axis+1][1];
+    n = src1.matrix_shape[axis][0];
     k = src1.shape[axis];
     // Insert task
     int mpi_rank = starpu_mpi_world_rank();

@@ -16,7 +16,6 @@
 #include "nntile/tensor/ops/add_fiber.hh"
 
 #include "nntile/base_types.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
@@ -97,7 +96,6 @@ void add_fiber(Scalar alpha,
         throw std::invalid_argument(
             "add_fiber: fiber, tensor, and output must be distinct tensors");
     }
-
     validate_fiber_shape_and_merge(
         fiber, tensor, axis, batch_ndim, "add_fiber");
     validate_same_shape_and_merge(tensor, output, "add_fiber");
@@ -125,17 +123,19 @@ void TensorAddFiberOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_t = tile_lower::tiles_of(ctx.tile_map, tensor);
     const auto &tiles_o = tile_lower::tiles_of(ctx.tile_map, output);
 
-    const Index out_nd = output->ndim();
-    const Index fiber_nd = fiber->ndim();
-
     std::vector<Index> dst_coord;
-    std::vector<Index> fiber_coord(static_cast<size_t>(fiber_nd));
+    std::vector<Index> fiber_coord(static_cast<size_t>(fiber->ndim()));
 
     for (Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
     {
         lay_d->grid_coord_from_linear(lin_d, dst_coord);
-        fiber_layout_coord_from_tensor(
-            dst_coord, axis, batch_ndim, fiber_nd, out_nd, fiber_coord);
+        const Index j = dst_coord[static_cast<size_t>(axis)];
+        for (Index b = 0; b < batch_ndim; ++b)
+        {
+            fiber_coord[static_cast<size_t>(b)] =
+                dst_coord[static_cast<size_t>(b)];
+        }
+        fiber_coord[static_cast<size_t>(batch_ndim)] = j;
         const Index lin_f = lay_f->grid_linear(fiber_coord);
         tile::add_fiber(alpha,
             tiles_f[static_cast<size_t>(lin_f)],

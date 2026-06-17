@@ -25,7 +25,7 @@ void check()
 {
     using Y = typename T::repr_t;
     // Init data for checking
-    Tile<T> src({3, 4, 5});
+    Tile<T> src({5, 4, 3});
     Tile<T> dst({});
     Tile<T> dst2({});
     auto src_local = src.acquire(STARPU_W);
@@ -60,7 +60,7 @@ void validate()
     // Check normal execution
     check<T>();
     // Check throwing exceptions
-    Tile<T> src({3, 4, 5});
+    Tile<T> src({5, 4, 3});
     Tile<T> dst({});
     Tile<T> dst_bad({1});
     Tile<T> empty({});

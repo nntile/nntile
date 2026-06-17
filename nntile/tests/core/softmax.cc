@@ -26,9 +26,8 @@ void check()
 {
     using Y = typename T::repr_t;
     constexpr Scalar alpha = 1.0;
-    Tile<T> src({3, 4, 5}), dst({3, 4, 5}), dst2({3, 4, 5});
-    Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
+    Tile<T> src({5, 4, 3}), dst({5, 4, 3}), dst2({5, 4, 3});
+    Tile<T> maxsumexp[3] = {Tile<T>({4, 3, 2}), Tile<T>({5, 3, 2}), Tile<T>({5, 4, 2})};
     auto sl = src.acquire(STARPU_W);
     auto dl = dst.acquire(STARPU_W);
     auto d2l = dst2.acquire(STARPU_W);
@@ -52,7 +51,7 @@ void check()
         ml.release();
     }
     {
-        starpu::softmax.submit<std::tuple<T>>(-1, 1, 20, 3, maxsumexp[0], src, alpha,
+        starpu::softmax.submit<std::tuple<T>>(-1, 12, 1, 5, maxsumexp[0], src, alpha,
                 dst);
         softmax<T>(-1, maxsumexp[0], src, alpha, dst2, 0);
         dl.acquire(STARPU_R);
@@ -78,7 +77,7 @@ void check()
         d2l.release();
     }
     {
-        starpu::softmax.submit<std::tuple<T>>(-1, 12, 1, 5, maxsumexp[2], src, alpha,
+        starpu::softmax.submit<std::tuple<T>>(-1, 1, 20, 3, maxsumexp[2], src, alpha,
                 dst);
         softmax<T>(-1, maxsumexp[2], src, alpha, dst2, 2);
         dl.acquire(STARPU_R);

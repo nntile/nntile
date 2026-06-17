@@ -49,6 +49,7 @@ public:
         Index n_labels;
         Index n_outputs;
         Index ignore_index;
+        Index leading_class;
     };
 
     //! Footprint function for the current operation
@@ -84,6 +85,7 @@ public:
         Index n_labels,
         Index n_outputs,
         Index ignore_index,
+        Index leading_class,
         Handle logsumexp,
         Handle src,
         Handle class_labels,

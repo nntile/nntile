@@ -24,11 +24,12 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    constexpr Index m = 2, n = 2, k = 3, k_start = 0, k_size = 3;
-    Tile<nntile::int64_t> index({m, n});
-    Tile<T> embed_grad({m, k, n});
-    Tile<T> vocab_grad_ref({k_size, 5});
-    Tile<T> vocab_grad({k_size, 5});
+    constexpr Index index_m = 2, index_n = 2;
+    constexpr Index embed_dim = 3, k_start = 0, k_size = embed_dim;
+    Tile<nntile::int64_t> index({index_m, index_n});
+    Tile<T> embed_grad({index_m, index_n, embed_dim});
+    Tile<T> vocab_grad_ref({5, embed_dim});
+    Tile<T> vocab_grad({5, embed_dim});
 
     auto index_local = index.acquire(STARPU_W);
     index_local[0] = 0;
@@ -54,6 +55,9 @@ void validate()
     vocab_grad_ref_local.release();
     vocab_grad_local.release();
 
+    constexpr Index m = 1;
+    constexpr Index n = index_m * index_n;
+    constexpr Index k = embed_dim;
     starpu::embedding_backward.submit<std::tuple<T>>(-1, m, n, k, k_start, k_size,
             index, embed_grad, vocab_grad_ref, 0);
     embedding_backward<T>(-1, m, n, k, k_start, k_size, index, embed_grad,

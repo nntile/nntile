@@ -33,13 +33,16 @@ struct TensorSubtractIndexedOutputsOp : TensorGraph::OpNode
     TensorGraph::TensorNode* labels = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
     Index ignore_index = -1;
+    Index class_spatial_offset = 1;
 
     TensorSubtractIndexedOutputsOp() = default;
     TensorSubtractIndexedOutputsOp(Scalar val_,
                                   TensorGraph::TensorNode* labels_,
                                   TensorGraph::TensorNode* dst_,
-                                  Index ignore_index_)
+                                  Index ignore_index_,
+                                  Index class_spatial_offset_)
         : val(val_), labels(labels_), dst(dst_), ignore_index(ignore_index_)
+        , class_spatial_offset(class_spatial_offset_)
     {
         inputs_ = {labels, dst};
         outputs_ = {dst};

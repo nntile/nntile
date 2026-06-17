@@ -15,7 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include "context_fixture.hh"
-#include "tile_graph_shape_helpers.hh"
+#include "test_frobenius.hh"
 #include "nntile/tile/ops/scale_fiber.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -24,23 +24,19 @@
 using namespace nntile;
 using namespace nntile;
 namespace tg = nntile::tile;
-using namespace nntile::test::tile_graph_shapes;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_fiber", "[graph][tile]")
 {
-    const std::vector<Index> stor_full = {3, 4, 5};
-    const std::vector<Index> graph_full = graph_shape(stor_full);
-    const std::vector<Index> stor_fib = {5};
-    const std::vector<Index> graph_fib = graph_shape(stor_fib);
-    const Index n = 60, nf = 5;
+    const std::vector<Index> full = {5, 4, 3};
+    const std::vector<Index> fib = {3};
+    const Index n = 60, nf = 3;
     const Scalar a = 1.25;
-    const Index stor_axis = 2, batch = 0;
-    const Index g_axis = graph_axis(stor_axis, static_cast<Index>(stor_full.size()));
+    const Index axis = 2, batch = 0;
     TileGraph g("g");
-    auto* s = g.data(graph_fib, "s", DataType::FP32);
-    auto* d = g.data(graph_full, "d", DataType::FP32);
+    auto* s = g.data(fib, "s", DataType::FP32);
+    auto* d = g.data(full, "d", DataType::FP32);
     s->mark_input(true);
     d->mark_output(true);
-    tg::scale_fiber(a, s, d, g_axis, batch);
+    tg::scale_fiber(a, s, d, axis, batch);
     Runtime rt(g);
     rt.compile();
     std::vector<float> f1(nf);
@@ -51,17 +47,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_fiber", "[graph]
     rt.execute();
     rt.wait();
     const std::vector<float> gout = rt.get_output<float>(d);
-    nntile::core::Tile<fp32_t> ts(stor_fib), td(stor_full);
+    nntile::core::Tile<fp32_t> ts(fib), td(full);
     using Y = typename nntile::fp32_t::repr_t;
     { auto A = ts.acquire(STARPU_W), B = td.acquire(STARPU_W);
       for(Index i = 0; i < nf; ++i) A[i] = Y(f1[static_cast<size_t>(i)]);
       for(Index i = 0; i < n; ++i) B[i] = Y(0);
       A.release(); B.release(); }
-    nntile::core::scale_fiber<fp32_t>(-1, a, ts, td, stor_axis, batch);
+    nntile::core::scale_fiber<fp32_t>(-1, a, ts, td, axis, batch);
     starpu_task_wait_for_all();
     std::vector<float> tref(n);
     { auto L = td.acquire(STARPU_R);
       for(Index i = 0; i < n; ++i) tref[static_cast<size_t>(i)] = static_cast<float>(L[i]);
       L.release(); }
-    for(size_t i = 0; i < tref.size(); ++i) REQUIRE(std::abs(gout[i] - tref[i]) < 1e-3f);
+    nntile::test::require_relative_element_error(gout, tref);
 }

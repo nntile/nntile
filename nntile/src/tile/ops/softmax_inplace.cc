@@ -21,7 +21,6 @@
 #include <nntile/core/softmax_inplace.hh>
 
 #include <nntile/runtime.hh>
-#include <nntile/tile/shape_layout.hh>
 namespace nntile::tile
 {
 namespace
@@ -48,31 +47,29 @@ void softmax_inplace(TileGraph::TileNode* mse, Scalar alpha, TileGraph::TileNode
 }
 void TileSoftmaxInplaceOp::execute(Runtime& runtime) const
 {
-    const Index s_axis =
-        tensor::graph_axis_to_storage(axis, dst->ndim());
     DataType dtype = runtime.get_dtype(dst);
     switch(dtype)
     {
         case DataType::FP32:
-            run_smi<nntile::fp32_t>(runtime, maxsumexp_n, alpha, dst, s_axis);
+            run_smi<nntile::fp32_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP32_FAST_TF32:
-            run_smi<nntile::fp32_fast_tf32_t>(runtime, maxsumexp_n, alpha, dst, s_axis);
+            run_smi<nntile::fp32_fast_tf32_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP32_FAST_FP16:
-            run_smi<nntile::fp32_fast_fp16_t>(runtime, maxsumexp_n, alpha, dst, s_axis);
+            run_smi<nntile::fp32_fast_fp16_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP32_FAST_BF16:
-            run_smi<nntile::fp32_fast_bf16_t>(runtime, maxsumexp_n, alpha, dst, s_axis);
+            run_smi<nntile::fp32_fast_bf16_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP64:
-            run_smi<nntile::fp64_t>(runtime, maxsumexp_n, alpha, dst, s_axis);
+            run_smi<nntile::fp64_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::FP16:
-            run_smi<nntile::fp16_t>(runtime, maxsumexp_n, alpha, dst, s_axis);
+            run_smi<nntile::fp16_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::BF16:
-            run_smi<nntile::bf16_t>(runtime, maxsumexp_n, alpha, dst, s_axis);
+            run_smi<nntile::bf16_t>(runtime, maxsumexp_n, alpha, dst, axis);
             break;
         case DataType::INT64:
         case DataType::BOOL:

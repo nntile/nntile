@@ -52,7 +52,7 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> maxsumexp;    // Size: 2*num_elems (interleaved max and sumexp)
+    std::vector<T> maxsumexp;    // Size: 2*num_elems (C-order [num_elems, 2])
     std::vector<T> logsumexp_init; // Size: num_elems
     std::vector<T> logsumexp_ref; // Size: num_elems
 };
@@ -65,8 +65,8 @@ void reference_logsumexp(TestData<T>& data)
 
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        ref_t max_val = static_cast<Y>(data.maxsumexp[2*i]);
-        ref_t sum_val = static_cast<Y>(data.maxsumexp[2*i+1]);
+        ref_t max_val = static_cast<Y>(data.maxsumexp[i * 2]);
+        ref_t sum_val = static_cast<Y>(data.maxsumexp[i * 2 + 1]);
         data.logsumexp_ref[i] = static_cast<T>(
             static_cast<Y>(max_val + std::log(sum_val)));
     }
@@ -96,8 +96,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.maxsumexp[2*i] = Y(i + 1);      // max value
-                data.maxsumexp[2*i+1] = Y(10.0 + i); // sum of exponents
+                data.maxsumexp[i * 2] = Y(i + 1);      // max value
+                data.maxsumexp[i * 2 + 1] = Y(10.0 + i); // sum of exponents
                 data.logsumexp_init[i] = Y(i - 1);
             }
             break;
@@ -109,8 +109,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             std::uniform_real_distribution<Y> dist_init(-1.0, 1.0);
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.maxsumexp[2*i] = dist_max(gen);     // max value
-                data.maxsumexp[2*i+1] = dist_sum(gen);   // sum of exponents
+                data.maxsumexp[i * 2] = dist_max(gen);     // max value
+                data.maxsumexp[i * 2 + 1] = dist_sum(gen);   // sum of exponents
                 data.logsumexp_init[i] = dist_init(gen);
             }
     }

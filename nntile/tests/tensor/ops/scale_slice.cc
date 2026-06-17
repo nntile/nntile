@@ -71,11 +71,11 @@ TEST_CASE("TensorGraph scale_slice structure", "[graph][tensor]")
     auto *src = graph.data({dim_4})->set_name(
         "src"); // slice for dst shape [dim_2, dim_4]
     auto *out =
-        gt::scale_slice(alpha_one, src, axis_1, dim_2)->set_name("out");
+        gt::scale_slice(alpha_one, src, axis_0, dim_2)->set_name("out");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(out->shape() == (std::vector<Index>{dim_4, dim_2}));
+    REQUIRE(out->shape() == (std::vector<Index>{dim_2, dim_4}));
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SCALE_SLICE");
@@ -91,7 +91,7 @@ TEST_CASE(
     auto *src = graph.data({dim_4})->set_name("src");
 
     REQUIRE_THROWS_AS(
-        gt::scale_slice(alpha_one, src, src, axis_1), std::invalid_argument);
+        gt::scale_slice(alpha_one, src, src, axis_0), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -99,8 +99,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [dst_shape, axis, alpha] =
-        GENERATE(std::tuple{std::vector<Index>{4, 2}, Index(1), 1.0},
-            std::tuple{std::vector<Index>{4, 2}, Index(0), 1.0});
+        GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
+            std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;

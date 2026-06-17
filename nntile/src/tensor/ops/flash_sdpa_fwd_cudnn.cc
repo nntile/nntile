@@ -57,8 +57,7 @@ TensorGraph::TensorNode *flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
     // A is 5D like Q (head_size, seq_q, batch, kv_group_size, n_head_kv)
     // Output has one value per query position, so shapes derive from Q.
     const auto &Q_shape = Q->shape();
-    std::vector<Index> logsumexp_shape = {
-        Q_shape[1], Q_shape[2], Q_shape[3], Q_shape[4]};
+    std::vector<Index> logsumexp_shape(Q_shape.begin(), Q_shape.end() - 1);
     std::vector<Index> A_shape = Q_shape;
     TensorGraph::TensorNode *logsumexp_node =
         K->graph()->data(std::move(logsumexp_shape), DataType::FP32);
@@ -68,11 +67,11 @@ TensorGraph::TensorNode *flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
 
     // A has same shape as Q
     A_node->set_axes(Q->axes());
-    // logsumexp.dim[i] == Q.dim[i+1]
+    // logsumexp drops head_size (last Q dim)
     for (Index i = 0; i < logsumexp_node->ndim(); ++i)
     {
         merge_axis(
-            logsumexp_node->mutable_axes()[i], Q->mutable_axes()[i + 1]);
+            logsumexp_node->mutable_axes()[i], Q->mutable_axes()[i]);
     }
 
     flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp_node, V, A_node);
@@ -103,15 +102,19 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
         throw std::invalid_argument(
             "flash_sdpa_fwd_cudnn: logsumexp must have FP32 dtype");
     validate_same_shape_and_merge(Q, A, "flash_sdpa_fwd_cudnn");
-    validate_logsumexp_shape_and_merge(Q, logsumexp, "flash_sdpa_fwd_cudnn");
+    validate_logsumexp_drop_last_shape_and_merge(
+        Q, logsumexp, "flash_sdpa_fwd_cudnn");
     validate_flash_sdpa_qkv_shape_and_merge(Q, K, V, "flash_sdpa_fwd_cudnn");
     if (mask->ndim() != 2)
         throw std::invalid_argument("flash_sdpa_fwd_cudnn: mask must be 2D");
-    if (mask->shape()[0] != K->shape()[1] || mask->shape()[1] != Q->shape()[1])
+    const Index q_seq_ax = Q->ndim() - 2;
+    const Index k_seq_ax = K->ndim() - 2;
+    if (mask->shape()[0] != Q->shape()[q_seq_ax] ||
+        mask->shape()[1] != K->shape()[k_seq_ax])
         throw std::invalid_argument(
-            "flash_sdpa_fwd_cudnn: mask shape must be {K_seq, Q_seq}");
-    merge_axis(mask->mutable_axes()[0], K->mutable_axes()[1]);
-    merge_axis(mask->mutable_axes()[1], Q->mutable_axes()[1]);
+            "flash_sdpa_fwd_cudnn: mask shape must be {Q_seq, K_seq}");
+    merge_axis(mask->mutable_axes()[0], Q->mutable_axes()[q_seq_ax]);
+    merge_axis(mask->mutable_axes()[1], K->mutable_axes()[k_seq_ax]);
 
     auto op = std::make_shared<TensorFlashSdpaFwdCudnnOp>(
         K, Q, mask, logsumexp, V, A);
@@ -142,36 +145,38 @@ void TensorFlashSdpaFwdCudnnOp::lower_to_tile(const LoweringContext &ctx) const
             std::string("lower_to_tile ") + op +
             ": K/Q/V/A must share the same per-axis tile grid");
     }
-    if (lay_k->grid_shape()[0] != 1)
+    if (lay_k->grid_shape()[static_cast<size_t>(K->ndim() - 1)] != 1)
     {
         throw std::runtime_error(
             std::string("lower_to_tile ") + op +
-            ": head dimension must not be tiled (grid_shape[0] != 1)");
+            ": head dimension must not be tiled (last grid axis != 1)");
     }
-    if (lay_mask->grid_shape()[0] != lay_k->grid_shape()[1] ||
-        lay_mask->grid_shape()[1] != lay_q->grid_shape()[1])
+    const Index seq_ax = K->ndim() - 2;
+    if (lay_mask->grid_shape()[0] != lay_q->grid_shape()[static_cast<size_t>(seq_ax)] ||
+        lay_mask->grid_shape()[1] != lay_k->grid_shape()[static_cast<size_t>(seq_ax)])
     {
         throw std::runtime_error(
             std::string("lower_to_tile ") + op +
-            ": mask tile grid must align with K dim1 and Q dim1");
+            ": mask tile grid must align with Q and K sequence axes");
     }
-    if (lay_lse->grid_shape().size() != 4)
+    if (lay_lse->grid_shape().size() != static_cast<size_t>(seq_ax + 1))
     {
         throw std::runtime_error(
-            std::string("lower_to_tile ") + op + ": logsumexp must be 4D");
+            std::string("lower_to_tile ") + op + ": logsumexp rank mismatch");
     }
-    for (int i = 0; i < 4; ++i)
+    for (Index i = 0; i < seq_ax + 1; ++i)
     {
         if (lay_lse->grid_shape()[static_cast<size_t>(i)] !=
-            lay_q->grid_shape()[static_cast<size_t>(i + 1)])
+            lay_q->grid_shape()[static_cast<size_t>(i)])
         {
             throw std::runtime_error(
                 std::string("lower_to_tile ") + op +
-                ": logsumexp tile grid must match Q on tail axes");
+                ": logsumexp tile grid must match Q leading axes");
         }
     }
 
-    const Index num_k_seq_tiles = lay_k->grid_shape()[1];
+    const Index num_k_seq_tiles =
+        lay_k->grid_shape()[static_cast<size_t>(seq_ax)];
     const auto &tiles_k = tile_lower::tiles_of(ctx.tile_map, K);
     const auto &tiles_q = tile_lower::tiles_of(ctx.tile_map, Q);
     const auto &tiles_v = tile_lower::tiles_of(ctx.tile_map, V);
@@ -187,20 +192,20 @@ void TensorFlashSdpaFwdCudnnOp::lower_to_tile(const LoweringContext &ctx) const
     for (Index lin_a = 0; lin_a < lay_a->grid_volume(); ++lin_a)
     {
         lay_a->grid_coord_from_linear(lin_a, a_coord);
-        for (Index i = 0; i < 4; ++i)
+        for (Index i = 0; i < seq_ax + 1; ++i)
         {
             lse_coord[static_cast<size_t>(i)] =
-                a_coord[static_cast<size_t>(i + 1)];
+                a_coord[static_cast<size_t>(i)];
         }
         const Index lin_lse = lay_lse->grid_linear(lse_coord);
 
         for (Index k_seq_idx = 0; k_seq_idx < num_k_seq_tiles; ++k_seq_idx)
         {
             kv_coord = a_coord;
-            kv_coord[1] = k_seq_idx;
+            kv_coord[static_cast<size_t>(seq_ax)] = k_seq_idx;
             const Index lin_kv = lay_k->grid_linear(kv_coord);
-            mask_coord[0] = k_seq_idx;
-            mask_coord[1] = a_coord[1];
+            mask_coord[0] = a_coord[static_cast<size_t>(seq_ax)];
+            mask_coord[1] = k_seq_idx;
             const Index lin_mask = lay_mask->grid_linear(mask_coord);
 
             tile::flash_sdpa_fwd_cudnn(

@@ -27,7 +27,6 @@
 // Include other NNTile headers
 #include "nntile/graph.hh"
 #include "nntile/module/linear.hh"
-#include "nntile/nn/shape_layout.hh"
 #include "nntile/tensor/graph.hh"
 
 #ifdef NNTILE_HAVE_TORCH

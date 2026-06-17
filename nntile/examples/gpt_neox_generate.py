@@ -48,13 +48,10 @@ from huggingface_hub import snapshot_download
 from safetensors import safe_open
 from transformers import AutoConfig, AutoTokenizer
 
-from graph_bind import (
-    as_bind_float32,
-    gptneox_attn_o_weight,
-    gptneox_attn_qkv_weight,
-    linear_from_conv1d,
-    linear_weight,
-)
+
+def as_float32(arr: np.ndarray) -> np.ndarray:
+    """Return a C-contiguous float32 array for safetensors / bind_data."""
+    return np.ascontiguousarray(arr, dtype=np.float32)
 
 
 def _write_safetensors_streaming(
@@ -139,12 +136,12 @@ def _make_converter(
 
     def convert(name: str) -> np.ndarray:
         if name == "model.model.embed_tokens.vocab":
-            return as_bind_float32(hf_get("gpt_neox.embed_in.weight"))
+            return as_float32(hf_get("gpt_neox.embed_in.weight"))
 
         if name == "model.model.norm.gamma":
-            return as_bind_float32(hf_get("gpt_neox.final_layer_norm.weight"))
+            return as_float32(hf_get("gpt_neox.final_layer_norm.weight"))
         if name == "model.model.norm.beta":
-            return as_bind_float32(hf_get("gpt_neox.final_layer_norm.bias"))
+            return as_float32(hf_get("gpt_neox.final_layer_norm.bias"))
 
         if name == "model.lm_head.weight":
             key = (
@@ -152,7 +149,7 @@ def _make_converter(
                 if has_lm_head
                 else "gpt_neox.embed_in.weight"
             )
-            return linear_weight(hf_get(key))
+            return as_float32(hf_get(key))
 
         parts = name.split(".")
         layer_idx = int(parts[2].split("_", 1)[1])
@@ -160,45 +157,43 @@ def _make_converter(
         hp = f"gpt_neox.layers.{layer_idx}"
 
         if rest == "input_norm.gamma":
-            return as_bind_float32(hf_get(f"{hp}.input_layernorm.weight"))
+            return as_float32(hf_get(f"{hp}.input_layernorm.weight"))
         if rest == "input_norm.beta":
-            return as_bind_float32(hf_get(f"{hp}.input_layernorm.bias"))
+            return as_float32(hf_get(f"{hp}.input_layernorm.bias"))
         if rest == "post_attn_norm.gamma":
-            return as_bind_float32(
+            return as_float32(
                 hf_get(f"{hp}.post_attention_layernorm.weight"))
         if rest == "post_attn_norm.beta":
-            return as_bind_float32(
+            return as_float32(
                 hf_get(f"{hp}.post_attention_layernorm.bias"))
 
         if rest == "attention.q_weight":
             qkv = hf_get(f"{hp}.attention.query_key_value.weight")
-            qkv = qkv.reshape(nh, 3 * hd, H)
-            return gptneox_attn_qkv_weight(qkv[:, :hd, :])
+            qkv = qkv.reshape(3, nh, hd, H)
+            return as_float32(qkv[0].transpose(2, 1, 0))
 
         if rest == "attention.k_weight":
             qkv = hf_get(f"{hp}.attention.query_key_value.weight")
-            qkv = qkv.reshape(nh, 3 * hd, H)
-            return gptneox_attn_qkv_weight(qkv[:, hd:2 * hd, :])
+            qkv = qkv.reshape(3, nh, hd, H)
+            return as_float32(qkv[1].transpose(2, 1, 0))
 
         if rest == "attention.v_weight":
             qkv = hf_get(f"{hp}.attention.query_key_value.weight")
-            qkv = qkv.reshape(nh, 3 * hd, H)
-            return gptneox_attn_qkv_weight(qkv[:, 2 * hd:3 * hd, :])
+            qkv = qkv.reshape(3, nh, hd, H)
+            return as_float32(qkv[2].transpose(2, 1, 0))
 
         if rest == "attention.o_weight":
-            return gptneox_attn_o_weight(
-                hf_get(f"{hp}.attention.dense.weight"), nh, hd, H)
+            o = hf_get(f"{hp}.attention.dense.weight")
+            return as_float32(o.reshape(nh, hd, H).transpose(1, 0, 2))
 
         if rest == "mlp.fc1.weight":
-            return linear_from_conv1d(
-                hf_get(f"{hp}.mlp.dense_h_to_4h.weight"))
+            return as_float32(hf_get(f"{hp}.mlp.dense_h_to_4h.weight"))
         if rest == "mlp.fc1.bias":
-            return as_bind_float32(hf_get(f"{hp}.mlp.dense_h_to_4h.bias"))
+            return as_float32(hf_get(f"{hp}.mlp.dense_h_to_4h.bias"))
         if rest == "mlp.fc2.weight":
-            return linear_from_conv1d(
-                hf_get(f"{hp}.mlp.dense_4h_to_h.weight"))
+            return as_float32(hf_get(f"{hp}.mlp.dense_4h_to_h.weight"))
         if rest == "mlp.fc2.bias":
-            return as_bind_float32(hf_get(f"{hp}.mlp.dense_4h_to_h.bias"))
+            return as_float32(hf_get(f"{hp}.mlp.dense_4h_to_h.bias"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 

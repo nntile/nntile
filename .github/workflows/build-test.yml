@@ -108,10 +108,13 @@ jobs:
         with:
           path: /tmp/ccache
           key: ccache-build-tests-${{ github.sha }}
-      - run: |
+      - name: Restore CTest execute bits
+        run: |
           chmod +x .github/scripts/restore-ctest-execute-bits.sh
           chmod +x .github/scripts/list-not-implemented-tests.sh
           .github/scripts/restore-ctest-execute-bits.sh build/nntile/tests
+      - name: Run C++ tests (ctest)
+        run: |
           export LD_LIBRARY_PATH="${PWD}/build/nntile:${PWD}/build/_deps/catch2-build/src:${LD_LIBRARY_PATH:-}"
           .github/scripts/list-not-implemented-tests.sh build || true
           ctest --test-dir build -E wrappers -LE NotImplemented \

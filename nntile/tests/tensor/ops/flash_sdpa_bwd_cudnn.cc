@@ -48,8 +48,8 @@ TEST_CASE(
 {
     TensorGraph graph("test");
 
-    std::vector<Index> kv_shape{1, 1, 2, 64, 32};
-    std::vector<Index> logsumexp_shape{1, 1, 2, 64};
+    std::vector<Index> kv_shape{32, 64, 2, 1, 1};
+    std::vector<Index> logsumexp_shape{64, 2, 1, 1};
     std::vector<Index> mask_shape{64, 64};
 
     auto *K = graph.data(kv_shape, DataType::FP16)->set_name("K");
@@ -79,8 +79,8 @@ TEST_CASE("TensorGraph flash_sdpa_bwd_cudnn rejects null tensors",
     "[graph][tensor][cuda]")
 {
     TensorGraph graph("test");
-    std::vector<Index> kv_shape{1, 1, 2, 64, 32};
-    std::vector<Index> logsumexp_shape{1, 1, 2, 64};
+    std::vector<Index> kv_shape{32, 64, 2, 1, 1};
+    std::vector<Index> logsumexp_shape{64, 2, 1, 1};
     std::vector<Index> mask_shape{64, 64};
 
     auto *K = graph.data(kv_shape, DataType::FP16)->set_name("K");

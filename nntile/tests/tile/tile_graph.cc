@@ -13,6 +13,7 @@
  * */
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -40,10 +41,10 @@ TEST_CASE("TileGraph data creation", "[graph][tile]")
 {
     TileGraph graph("data_test");
 
-    auto *x = graph.data({2, 3}, "x", DataType::FP32);
+    auto *x = graph.data({3, 2}, "x", DataType::FP32);
     REQUIRE(x != nullptr);
     REQUIRE(x->name() == "x");
-    REQUIRE(x->shape() == std::vector<Index>{2, 3});
+    REQUIRE(x->shape() == std::vector<Index>{3, 2});
     REQUIRE(x->dtype() == DataType::FP32);
     REQUIRE(x->nelems() == 6);
     REQUIRE(graph.num_data() == 1);
@@ -60,8 +61,8 @@ TEST_CASE("TileGraph data creation", "[graph][tile]")
 TEST_CASE("TileGraph allows duplicate tile labels", "[graph][tile]")
 {
     TileGraph graph("dup_test");
-    auto *a = graph.data({2, 3}, "x");
-    auto *b = graph.data({2, 3}, "x");
+    auto *a = graph.data({3, 2}, "x");
+    auto *b = graph.data({3, 2}, "x");
     REQUIRE(a != b);
     REQUIRE(graph.get_tile_node("x") == a);
 }
@@ -69,7 +70,7 @@ TEST_CASE("TileGraph allows duplicate tile labels", "[graph][tile]")
 TEST_CASE("TileGraph lookup", "[graph][tile]")
 {
     TileGraph graph("lookup_test");
-    auto *x = graph.data({2, 3}, "x");
+    auto *x = graph.data({3, 2}, "x");
 
     REQUIRE(graph.get_tile_node("x") == x);
     REQUIRE(graph.get_tile_node("missing") == nullptr);
@@ -135,8 +136,8 @@ TEST_CASE("TileGraph to_mermaid", "[graph][tile]")
 TEST_CASE("TileGraph from_tensor_graph structure")
 {
     TensorGraph tg_graph("tensor_test");
-    auto *x = tg_graph.data({2, 3}, DataType::FP32)->set_name("x");
-    auto *y = tg_graph.data({2, 3}, DataType::FP32)->set_name("y");
+    auto *x = tg_graph.data({3, 2}, DataType::FP32)->set_name("x");
+    auto *y = tg_graph.data({3, 2}, DataType::FP32)->set_name("y");
     x->mark_input(true);
     y->mark_input(true);
 
@@ -160,10 +161,9 @@ TEST_CASE("TileGraph from_tensor_graph structure")
     REQUIRE(ty->is_input());
     REQUIRE(tz->is_output());
 
-    // Tile payloads use graph-order shapes (match tensor {2, 3}).
-    REQUIRE(tx->shape() == std::vector<Index>{2, 3});
-    REQUIRE(ty->shape() == std::vector<Index>{2, 3});
-    REQUIRE(tz->shape() == std::vector<Index>{2, 3});
+    REQUIRE(tx->shape() == std::vector<Index>{3, 2});
+    REQUIRE(ty->shape() == std::vector<Index>{3, 2});
+    REQUIRE(tz->shape() == std::vector<Index>{3, 2});
 
     REQUIRE(tile_graph.ops()[0]->op_name() == "TILE_ADD");
 
@@ -171,8 +171,8 @@ TEST_CASE("TileGraph from_tensor_graph structure")
     auto *xd = tile_graph.get_tensor_descriptor(x);
     REQUIRE(xd != nullptr);
     REQUIRE(xd->tensor_name == "x");
-    REQUIRE(xd->tensor_shape == std::vector<Index>{2, 3});
-    REQUIRE(xd->tile_shape == std::vector<Index>{2, 3});
+    REQUIRE(xd->tensor_shape == std::vector<Index>{3, 2});
+    REQUIRE(xd->tile_shape == std::vector<Index>{3, 2});
     REQUIRE(xd->grid_shape == std::vector<Index>{1, 1});
     REQUIRE(xd->dtype == DataType::FP32);
     REQUIRE(xd->tiles.size() == 1);
@@ -276,12 +276,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tile_rt.wait();
     auto tile_result = tile_rt.get_output<float>(tz);
 
-    REQUIRE(tensor_result.size() == tile_result.size());
-    constexpr float tol = 1e-5f;
-    for (size_t i = 0; i < tensor_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tensor_result[i] - tile_result[i]) < tol);
-    }
+    nntile::test::require_relative_element_error(tile_result, tensor_result);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -311,13 +306,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    auto result = runtime.get_output<float>(y);
-    REQUIRE(result.size() == 4);
-    constexpr float tol = 1e-5f;
-    REQUIRE(std::abs(result[0] - 12.0f) < tol);
-    REQUIRE(std::abs(result[1] - 24.0f) < tol);
-    REQUIRE(std::abs(result[2] - 36.0f) < tol);
-    REQUIRE(std::abs(result[3] - 48.0f) < tol);
+    const auto result = runtime.get_output<float>(y);
+    const std::vector<float> expected{12.f, 24.f, 36.f, 48.f};
+    nntile::test::require_relative_element_error(result, expected);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -354,10 +345,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tile_rt.wait();
 
     auto result = tile_rt.get_output<float>(tz);
-    constexpr float tol = 1e-5f;
-    REQUIRE(result.size() == 2);
-    REQUIRE(std::abs(result[0] - 11.0f) < tol);
-    REQUIRE(std::abs(result[1] - 22.0f) < tol);
+    const std::vector<float> expected{11.f, 22.f};
+    nntile::test::require_relative_element_error(result, expected);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -383,12 +372,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     auto result = runtime.get_output<float>(x);
-    constexpr float tol = 1e-5f;
     REQUIRE(result.size() == 3);
-    for (auto v : result)
-    {
-        REQUIRE(std::abs(v) < tol);
-    }
+    nntile::test::require_relative_element_error(
+        result, std::vector<float>{0.f, 0.f, 0.f});
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -446,10 +432,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tile_rt.wait();
     auto tile_result = tile_rt.get_output<float>(tz);
 
-    REQUIRE(tensor_result.size() == tile_result.size());
-    constexpr float tol = 1e-5f;
-    for (size_t i = 0; i < tensor_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tensor_result[i] - tile_result[i]) < tol);
-    }
+    nntile::test::require_relative_element_error(tile_result, tensor_result);
 }

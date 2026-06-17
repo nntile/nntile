@@ -18,7 +18,6 @@
 #include "nntile/base_types.hh"
 #include "nntile/constants.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/graph_ops.hh"
@@ -331,18 +330,9 @@ struct GemmAxisRoles
     Index c_axis_n(Index i) const { return batch_ndim + num_m + i; }
     Index c_axis_batch(Index j) const { return j; }
 
-    Index a_storage(Index g) const
-    {
-        return graph_axis_to_storage(g, a_ndim);
-    }
-    Index b_storage(Index g) const
-    {
-        return graph_axis_to_storage(g, b_ndim);
-    }
-    Index c_storage(Index g) const
-    {
-        return graph_axis_to_storage(g, c_ndim);
-    }
+    Index a_storage(Index g) const { return g; }
+    Index b_storage(Index g) const { return g; }
+    Index c_storage(Index g) const { return g; }
 };
 
 void tile_bbox(const TensorAxisLayout &lay,
@@ -395,7 +385,7 @@ void set_full_range(const TensorGraph::TensorNode *t,
     std::vector<Index> &lo,
     std::vector<Index> &hi)
 {
-    const std::vector<Index> storage = t->storage_shape();
+    const std::vector<Index> &storage = t->shape();
     const Index nd = static_cast<Index>(storage.size());
     lo.resize(static_cast<size_t>(nd));
     hi.resize(static_cast<size_t>(nd));

@@ -40,17 +40,17 @@ void check()
     Index n_head_kv = 1;
 
     // Create tiles with appropriate shapes
-    Tile<T> K_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> Q_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> V_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> A_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dA_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dK_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dQ_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dV_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dK_ref_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dQ_ref_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dV_ref_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> K_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> Q_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> V_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> A_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dA_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dK_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dQ_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dV_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dK_ref_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dQ_ref_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dV_ref_tile({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
     Tile<T> mask_tile({n_seq, n_seq});
     Tile<fp32_t> logsumexp_tile({n_seq, n_batch, kv_group_size, n_head_kv});
 
@@ -126,14 +126,14 @@ void check()
     // Test 1: Compare tile-level vs starpu-level backward
     {
         // Create copies for starpu-level test
-        Tile<T> K_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> Q_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> V_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> A_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> dA_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> dK_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> dQ_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> dV_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+        Tile<T> K_starpu({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+        Tile<T> Q_starpu({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+        Tile<T> V_starpu({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+        Tile<T> A_starpu({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+        Tile<T> dA_starpu({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+        Tile<T> dK_starpu({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+        Tile<T> dQ_starpu({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+        Tile<T> dV_starpu({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
         Tile<T> mask_starpu({n_seq, n_seq});
         Tile<fp32_t> logsumexp_starpu({n_seq, n_batch, kv_group_size, n_head_kv});
 
@@ -356,18 +356,18 @@ void check_exceptions()
     Index n_batch = 2;
     Index kv_group_size = 1;
     Index n_head_kv = 1;
-    Tile<T> K({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> Q({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> V({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> K({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> Q({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> V({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
     Tile<T> A({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dA({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dK({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dQ({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dV({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> dA({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dK({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dQ({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
+    Tile<T> dV({n_head_kv, kv_group_size, n_batch, n_seq, head_size});
     Tile<T> mask({n_seq, n_seq});
     Tile<fp32_t> logsumexp({n_seq, n_batch, kv_group_size, n_head_kv});
 
-    Tile<T> K_4d({head_size, n_seq, n_batch, kv_group_size});
+    Tile<T> K_4d({kv_group_size, n_batch, n_seq, head_size});
     TEST_THROW(flash_sdpa_bwd_cudnn<T>(-1, K_4d, Q, V, A, dA, mask, logsumexp, dK,
             dQ, dV));
 
@@ -375,7 +375,7 @@ void check_exceptions()
     TEST_THROW(flash_sdpa_bwd_cudnn<T>(-1, K, Q, V, A, dA, mask_bad, logsumexp, dK,
             dQ, dV));
 
-    Tile<T> dQ_bad({head_size - 1, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> dQ_bad({n_head_kv, kv_group_size, n_batch, n_seq, head_size - 1});
     TEST_THROW(flash_sdpa_bwd_cudnn<T>(-1, K, Q, V, A, dA, mask, logsumexp, dK,
             dQ_bad, dV));
 

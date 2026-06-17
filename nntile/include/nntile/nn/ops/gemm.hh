@@ -7,7 +7,10 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/nn/ops/gemm.hh
- * NNGraph GEMM autograd operation (graph API).
+ * NNGraph GEMM autograd operation.
+ *
+ * Forward: C = alpha * op(A) @ op(B)
+ * Backward: grad_A = alpha * grad_C @ B^T, grad_B = alpha * A^T @ grad_C
  *
  * @version 1.1.0
  * */
@@ -24,11 +27,8 @@
 namespace nntile
 {
 
-//! Generic GEMM on graph shapes.
-//!
-//! ``trans_a`` / ``trans_b`` transpose the first ``ndim`` axes of operands
-//! ``a`` / ``b``.  Lowers to ``tensor::gemm(a, b, trans_a, trans_b, ndim,
-//! batch_ndim)`` on graph shapes (no operand swap).
+//! GEMM op: C = alpha * op(A) @ op(B). PyTorch-style: outputs created in
+//! forward().
 struct NNGemmOp : NNGraph::OpNode
 {
     Scalar alpha;
@@ -61,7 +61,6 @@ struct NNGemmOp : NNGraph::OpNode
     void backward() const override;
 };
 
-//! Generic GEMM: ``y = alpha * op(a) @ op(b)`` on graph shapes.
 NNGraph::TensorNode *gemm(NNGraph::TensorNode *a,
     NNGraph::TensorNode *b,
     Scalar alpha,

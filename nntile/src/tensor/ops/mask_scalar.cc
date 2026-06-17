@@ -19,7 +19,6 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/tensor.hh"
-#include "nntile/tensor/shape_layout.hh"
 #include "nntile/tensor/ops/mask_scalar.hh"
 
 #include "nntile/tile/lowering_context.hh"
@@ -53,16 +52,16 @@ void mask_scalar(TensorGraph::TensorNode* mask,
     }
     for(Index i = 0; i < A_data_ndim; ++i)
     {
-        const Index a_dim = batch_ndim + i;
-        if(mask->shape()[i] != A->shape()[a_dim])
+        const Index a_ax = batch_ndim + i;
+        if(mask->shape()[i] != A->shape()[a_ax])
         {
             throw std::invalid_argument(
                 "mask_scalar: mask.dim[" + std::to_string(i) +
-                "] must match A.dim[" + std::to_string(a_dim) + "] (" +
+                "] must match A.dim[" + std::to_string(a_ax) + "] (" +
                 std::to_string(mask->shape()[i]) + " vs " +
-                std::to_string(A->shape()[a_dim]) + ")");
+                std::to_string(A->shape()[a_ax]) + ")");
         }
-        merge_axis(mask->mutable_axes()[i], A->mutable_axes()[a_dim]);
+        merge_axis(mask->mutable_axes()[i], A->mutable_axes()[a_ax]);
     }
 
     auto op = std::make_shared<TensorMaskScalarOp>(mask, val, A, batch_ndim);
@@ -84,20 +83,16 @@ void TensorMaskScalarOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& tiles_a = tile_lower::tiles_of(ctx.tile_map, A);
 
     const Index mask_ndim = mask->ndim();
-    const Index a_ndim = A->ndim();
     std::vector<Index> a_coord;
     std::vector<Index> mask_coord(static_cast<size_t>(mask_ndim));
 
     for(Index lin_a = 0; lin_a < lay_a->grid_volume(); ++lin_a)
     {
         lay_a->grid_coord_from_linear(lin_a, a_coord);
-        for(Index i = 0; i < mask_ndim; ++i)
+        for(Index j = 0; j < mask_ndim; ++j)
         {
-            const Index g = batch_ndim + i;
-            const Index s_a = graph_axis_to_storage(g, a_ndim);
-            const Index s_m = graph_axis_to_storage(i, mask_ndim);
-            mask_coord[static_cast<size_t>(s_m)] =
-                a_coord[static_cast<size_t>(s_a)];
+            mask_coord[static_cast<size_t>(j)] =
+                a_coord[static_cast<size_t>(batch_ndim + j)];
         }
         const Index lin_m = lay_m->grid_linear(mask_coord);
         tile::mask_scalar(

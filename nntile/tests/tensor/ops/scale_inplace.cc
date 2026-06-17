@@ -43,7 +43,7 @@ TEST_CASE("TensorGraph scale_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *dst = graph.data({dim1, dim0})->set_name("dst");
+    auto *dst = graph.data({dim0, dim1})->set_name("dst");
 
     gt::scale_inplace(alpha, dst);
 
@@ -62,9 +62,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [alpha, shape] =
-        GENERATE(std::tuple{2.5, std::vector<Index>{6, 4}},
+        GENERATE(std::tuple{2.5, std::vector<Index>{4, 6}},
             std::tuple{-1.0, std::vector<Index>{6}},
-            std::tuple{0.5, std::vector<Index>{4, 2}});
+            std::tuple{0.5, std::vector<Index>{2, 4}});
 
     using T = nntile::fp32_t;
     using Y = typename T::repr_t;

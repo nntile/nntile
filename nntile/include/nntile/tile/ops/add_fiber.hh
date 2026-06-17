@@ -26,7 +26,6 @@ struct TileAddFiberOp : TileGraph::OpNode
 {
     Scalar alpha = 0.0;
     Scalar beta = 0.0;
-//! axis: graph axis index (0 = outermost); execute converts for core kernels.
     Index axis = 0;
     Index batch_ndim = 0;
     TileGraph::TileNode* s1 = nullptr;
@@ -47,7 +46,6 @@ struct TileAddFiberOp : TileGraph::OpNode
         return std::make_shared<TileAddFiberOp>(*this);
     }
 };
-//! Add along fibers: output = alpha * fiber + beta * tensor (uses existing output).
-//! @param axis graph axis index (0 = outermost); converted at execute.
+//! Add along fibers: output = alpha * fiber + beta * tensor (uses existing output)
 void add_fiber(Scalar a, TileGraph::TileNode* s1, Scalar b, TileGraph::TileNode* s2, TileGraph::TileNode* dst, Index axis, Index batch_ndim);
 } // namespace nntile::tile

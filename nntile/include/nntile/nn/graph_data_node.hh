@@ -51,7 +51,7 @@ class NNGraph::TensorNode
         TensorGraph::TensorNode *data,
         bool requires_grad = true);
 
-    //! Graph shape (C-order, same as underlying tensor node).
+    // Shape/dtype/name delegate to underlying data node
     const std::vector<Index> &shape() const { return data_->shape(); }
     Index ndim() const { return static_cast<Index>(data_->shape().size()); }
     DataType dtype() const { return data_->dtype(); }

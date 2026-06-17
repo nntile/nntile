@@ -4,7 +4,7 @@ Tests for the NNTile C++ GPT-2 graph model components. Reference data is stored 
 
 ## Layout
 
-Tensors use **(batch, seq, hidden_size)** in graph unless noted. Embeddings take `input_ids` with shape `(batch, seq)`. `Gpt2Causal` outputs logits `(batch, seq, vocab_size)`.
+Tensors use **(batch, seq, hidden_size)** in C-order unless noted. Embeddings take `input_ids` with shape `(batch, seq)`. `Gpt2Causal` outputs logits `(batch, seq, vocab_size)`.
 
 ## Test Coverage
 

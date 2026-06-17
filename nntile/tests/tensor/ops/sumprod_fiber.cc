@@ -61,13 +61,13 @@ TEST_CASE("TensorGraph sumprod_fiber structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src1 = graph.data({dim_4, dim_2})->set_name("src1");
-    auto *src2 = graph.data({dim_4, dim_2})->set_name("src2");
+    auto *src1 = graph.data({dim_2, dim_4})->set_name("src1");
+    auto *src2 = graph.data({dim_2, dim_4})->set_name("src2");
     auto *dst =
         graph.data({dim_4})->set_name("dst"); // axis=1: fiber length dim_4
 
     gt::sumprod_fiber(
-        src1, src2, dst, axis_0, redux_none, alpha_one, beta_zero);
+        src1, src2, dst, axis_1, redux_none, alpha_one, beta_zero);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -84,17 +84,17 @@ TEST_CASE(
     "TensorGraph sumprod_fiber rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src1 = graph.data({dim_4, dim_2})->set_name("src1");
-    auto *src2 = graph.data({dim_4, dim_2})->set_name("src2");
+    auto *src1 = graph.data({dim_2, dim_4})->set_name("src1");
+    auto *src2 = graph.data({dim_2, dim_4})->set_name("src2");
     auto *dst = graph.data({dim_4})->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::sumprod_fiber(
-            src1, src1, dst, axis_0, redux_none, alpha_one, beta_zero),
+            src1, src1, dst, axis_1, redux_none, alpha_one, beta_zero),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
         gt::sumprod_fiber(
-            src1, src2, src1, axis_0, redux_none, alpha_one, beta_zero),
+            src1, src2, src1, axis_1, redux_none, alpha_one, beta_zero),
         std::invalid_argument);
 }
 
@@ -103,13 +103,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] =
-        GENERATE(std::tuple{std::vector<Index>{dim_4, dim_2},
-                     axis_1,
+        GENERATE(std::tuple{std::vector<Index>{dim_2, dim_4},
+                     axis_0,
                      redux_none,
                      alpha_one,
                      beta_zero},
-            std::tuple{std::vector<Index>{dim_4, dim_3, dim_2},
-                axis_0,
+            std::tuple{std::vector<Index>{dim_2, dim_3, dim_4},
+                axis_2,
                 redux_none,
                 alpha_one,
                 beta_one});

@@ -7,15 +7,15 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/dataset/causal_lm_mmap.hh
- * Memory-mapped uint16 token stream and causal LM batch iterator (storage
- * ``(seq, batch)`` layout for ``Runtime::bind_data``).
+ * Memory-mapped uint16 token stream and causal LM batch iterator (C-order
+ * ``(batch, seq)`` layout for ``Runtime::bind_data``).
  *
  * Token files match ``wrappers/python/examples/llama_training.py`` (raw
  * ``uint16``, one token per element). Training windows use ``seq_len + 1``
  * tokens per sequence; ``input_ids`` are the first ``seq_len`` tokens and
  * ``target_ids`` are the last ``seq_len`` (next-token shifted). Graph
- * ``cross_entropy`` takes logits ``(vocab, seq, batch)`` and labels
- * ``(seq, batch)`` (same layout as ``target_ids``).
+ * ``cross_entropy`` takes logits ``(batch, seq, vocab)`` and labels
+ * ``(batch, seq)`` (same layout as ``target_ids``).
  *
  * @version 1.1.0
  * */
@@ -32,8 +32,8 @@
 namespace nntile::dataset
 {
 
-//! One minibatch: ``input_ids`` and ``target_ids``, shape ``(n_seq, n_batch)``
-//! storage, index ``(s, b)`` at ``s + n_seq * b``.
+//! One minibatch: ``input_ids`` and ``target_ids``, shape ``(n_batch, n_seq)``
+//! C-order, index ``(b, s)`` at ``b * n_seq + s``.
 struct CausalLmBatch
 {
     std::vector<std::int64_t> input_ids;
