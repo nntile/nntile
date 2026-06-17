@@ -5,10 +5,11 @@
 # Build PyTorch PrivateUse1 extension for the nntile device.
 
 import os
+import sys
 import subprocess
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import find_packages, setup
 from torch.utils.cpp_extension import BuildExtension, CppExtension
 
 ROOT = Path(__file__).resolve().parent
@@ -75,29 +76,61 @@ def _apply_pkg_config(
 
 
 def _nntile_extension_kwargs() -> dict:
-    nntile_build = os.environ.get("NNTILE_BUILD_DIR")
-    nntile_source = os.environ.get("NNTILE_SOURCE_DIR", str(REPO_ROOT))
+    ci_build_wheel = os.environ.get("CIBUILDWHEEL") == "1"
 
-    extra_compile_args = ["-std=c++17"]
+    if (var := os.environ.get("NNTILE_SOURCE_DIR")):
+        nntile_source = Path(var)
+    else:
+        nntile_source = REPO_ROOT
+
+    if (var := os.environ.get("NNTILE_BUILD_DIR")):
+        nntile_build = Path(var)
+    elif ci_build_wheel:
+        nntile_build = nntile_source / "build" / "torch_nntile_wheel"
+    else:
+        nntile_build = None
+
+    require_libnntile = os.environ.get("TORCH_NNTILE_REQUIRE_LIBNNTILE") == "1"
+    if ci_build_wheel:
+        require_libnntile = True
+
+    cxx_standard = os.environ.get("TORCH_NNTILE_CXX_STANDARD", "c++17")
+    extra_compile_args = [f"-std={cxx_standard}"]
     define_macros: list[tuple[str, str | None]] = []
     include_dirs: list[str] = []
     library_dirs: list[str] = []
     libraries: list[str] = []
     extra_link_args: list[str] = []
 
-    if nntile_build:
+    if nntile_build is not None:
+        nntile_lib_dir = nntile_build / "nntile"
+        nntile_header_dir = nntile_build / "include" / "nntile" / "defs.h"
+        if require_libnntile and not nntile_lib_dir.exists():
+            raise RuntimeError(
+                f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
+                "the expected nntile library directory"
+            )
+        if require_libnntile and not nntile_header_dir.exists():
+            raise RuntimeError(
+                f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
+                "generated nntile headers"
+            )
         define_macros.append(("TORCH_NNTILE_USE_LIBNNTILE", "1"))
-        include_dirs.extend(
-            [
-                str(Path(nntile_source) / "nntile" / "include"),
-                str(Path(nntile_build) / "include"),
-            ]
-        )
-        library_dirs.append(str(Path(nntile_build) / "nntile"))
+        include_dirs.extend([
+            str(nntile_source / "nntile" / "include"),
+            str(nntile_build / "include"),
+        ])
+        library_dirs.append(str(nntile_lib_dir))
         libraries.append("nntile")
-        extra_link_args.append(
-            f"-Wl,-rpath,$ORIGIN/../../build/nntile"
-        )
+        if os.environ.get("TORCH_NNTILE_WHEEL") != "1":
+            if sys.platform == "darwin":
+                extra_link_args.append(
+                    "-Wl,-rpath,@loader_path/../../build/nntile"
+                )
+            else:
+                extra_link_args.append(
+                    "-Wl,-rpath,$ORIGIN/../../build/nntile"
+                )
         _apply_pkg_config(
             "starpu-1.4",
             include_dirs,
@@ -105,6 +138,10 @@ def _nntile_extension_kwargs() -> dict:
             extra_compile_args,
             extra_link_args,
             libraries,
+        )
+    elif require_libnntile:
+        raise RuntimeError(
+            "torch_nntile wheel builds require libnntile; set NNTILE_BUILD_DIR"
         )
 
     return {
@@ -122,7 +159,7 @@ ext_kwargs = _nntile_extension_kwargs()
 setup(
     name="torch_nntile",
     version="0.7.1",
-    packages=["torch_nntile"],
+    packages=find_packages(),
     ext_modules=[
         CppExtension(
             name="torch_nntile._C",

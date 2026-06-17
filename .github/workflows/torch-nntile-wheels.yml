@@ -1,0 +1,81 @@
+name: torch_nntile wheels
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CIBUILDWHEEL_VERSION: "4.1.0"
+
+jobs:
+  build-wheels:
+    name: ${{ matrix.identifier }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            identifier: cp314-manylinux_x86_64
+          - os: macos-14
+            identifier: cp314-macosx_arm64
+    steps:
+      - uses: actions/checkout@v6
+        if: ${{ env.ACT != 'true' }}
+        with:
+          persist-credentials: false
+
+      - name: Configure host paths
+        run: |
+          host_workspace="${GITHUB_WORKSPACE}"
+          if [ "${ACT:-}" = "true" ]; then
+            if [ -z "${ACT_HOST_WORKSPACE:-}" ]; then
+              echo "ACT_HOST_WORKSPACE must point to the host-visible repository path for local act runs" >&2
+              exit 1
+            fi
+            host_workspace="${ACT_HOST_WORKSPACE}"
+          fi
+
+          echo "TORCH_NNTILE_HOST_WORKSPACE=${host_workspace}" >> "${GITHUB_ENV}"
+          echo "TORCH_NNTILE_PACKAGE_DIR=${host_workspace}/torch_nntile" >> "${GITHUB_ENV}"
+          echo "TORCH_NNTILE_OUTPUT_DIR=${host_workspace}/wheelhouse" >> "${GITHUB_ENV}"
+
+      - name: Configure Linux source mount
+        if: runner.os == 'Linux'
+        run: |
+          echo "CIBW_CONTAINER_ENGINE=docker; create_args: --volume ${TORCH_NNTILE_HOST_WORKSPACE}:/nntile-repo:ro" >> "${GITHUB_ENV}"
+          echo "CIBW_ENVIRONMENT_PASS_LINUX=NNTILE_SOURCE_DIR NNTILE_BUILD_DIR" >> "${GITHUB_ENV}"
+          echo "NNTILE_SOURCE_DIR=/nntile-repo" >> "${GITHUB_ENV}"
+          echo "NNTILE_BUILD_DIR=/tmp/nntile-build/torch_nntile_wheel" >> "${GITHUB_ENV}"
+
+      - name: Install cibuildwheel
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/cibw-venv"
+          "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install --upgrade pip
+          "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install "cibuildwheel==${CIBUILDWHEEL_VERSION}"
+          echo "${RUNNER_TEMP}/cibw-venv/bin" >> "${GITHUB_PATH}"
+
+      - name: Build wheel
+        env:
+          CIBW_BUILD: ${{ matrix.identifier }}
+          CIBW_CACHE_PATH: ${{ runner.temp }}/cibw-cache
+          CIBW_BUILD_VERBOSITY: "1"
+        run: |
+          mkdir -p "${TORCH_NNTILE_OUTPUT_DIR}"
+          cibuildwheel "${TORCH_NNTILE_PACKAGE_DIR}" --output-dir "${TORCH_NNTILE_OUTPUT_DIR}"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          name: torch-nntile-wheel-${{ matrix.identifier }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
