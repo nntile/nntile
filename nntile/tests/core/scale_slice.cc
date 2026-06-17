@@ -55,7 +55,7 @@ void validate()
 {
     using Y = typename T::repr_t;
     std::vector<Index> A_shape{3, 4, 5, 6}, b0_shape{4, 5, 6},
-        b1_shape{6, 5, 3}, b2_shape{6, 4, 3}, b3_shape{5, 4, 3};
+        b1_shape{3, 5, 6}, b2_shape{3, 4, 6}, b3_shape{3, 4, 5};
     TileTraits A_traits(A_shape), b0_traits(b0_shape), b1_traits(b1_shape),
               b2_traits(b2_shape), b3_traits(b3_shape);
     std::vector<T> A_data(A_traits.nelems), b0_data(b0_traits.nelems),
@@ -87,6 +87,22 @@ void validate()
     check<T>(1.0, b1, A, 1);
     check<T>(2.0, b2, A, 2);
     check<T>(-2.0, b3, A, 3);
+    // Llama GQA K/V repeat: (n_head_kv, batch, seq, head) along axis 1.
+    {
+        std::vector<Index> k_shape{4, 3, 8, 16};
+        std::vector<Index> k_rep_shape{4, 2, 3, 8, 16};
+        TileTraits k_traits(k_shape);
+        TileTraits k_rep_traits(k_rep_shape);
+        std::vector<T> k_data(k_traits.nelems);
+        std::vector<T> k_rep_data(k_rep_traits.nelems);
+        for(Index i = 0; i < k_traits.nelems; ++i)
+        {
+            k_data[i] = Y(0.01 * static_cast<Y>(i + 1));
+        }
+        Tile<T> k_tile(k_traits, &k_data[0], k_traits.nelems);
+        Tile<T> k_rep_tile(k_rep_traits, &k_rep_data[0], k_rep_traits.nelems);
+        check<T>(1.0, k_tile, k_rep_tile, 1);
+    }
     // Checking throwing exceptions
     TEST_THROW(scale_slice<T>(-1, 1.0, A, A, 0));
     TEST_THROW(scale_slice<T>(-1, 1.0, b0, A, -1));

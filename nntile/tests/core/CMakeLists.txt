@@ -63,6 +63,7 @@ set(TESTS
     "rope"
     "rope_backward"
     "scale_inplace"
+    "scale_slice"
     "adam_step"
     "adamw_step"
     "sgd_step"

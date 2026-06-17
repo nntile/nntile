@@ -57,11 +57,18 @@ void sum_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, S
         }
         j++;
     }
-    // Get sizes
-    Index m, n, k;
-    m = src.matrix_shape[axis+1][1];
-    n = src.matrix_shape[axis][0];
-    k = src.shape[axis];
+    // Match scale_slice / kernel layout (see core/scale_slice.cc).
+    Index m = 1;
+    for(Index i = axis + 1; i < src.ndim; ++i)
+    {
+        m *= src.shape[i];
+    }
+    Index n = 1;
+    for(Index i = 0; i < axis; ++i)
+    {
+        n *= src.shape[i];
+    }
+    const Index k = src.shape[axis];
     // Insert task
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();

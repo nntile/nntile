@@ -62,11 +62,20 @@ void scale_slice_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &src,
             throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
         }
     }
-    // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
-    Index m, n, k;
-    m = dst.matrix_shape[axis+1][1];
-    n = dst.matrix_shape[axis][0];
-    k = dst.shape[axis];
+    // Reshape inputs for simplicity: src -> (n,m), dst -> (n,k,m) in kernel
+    // layout (Fortran flat indexing).  Under C-order tiles m is trailing and
+    // n is leading relative to the broadcast axis.
+    Index m = 1;
+    for(Index i = axis + 1; i < dst.ndim; ++i)
+    {
+        m *= dst.shape[i];
+    }
+    Index n = 1;
+    for(Index i = 0; i < axis; ++i)
+    {
+        n *= dst.shape[i];
+    }
+    const Index k = dst.shape[axis];
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();
     src.mpi_transfer(dst_rank, mpi_rank);
