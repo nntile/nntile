@@ -61,6 +61,20 @@ class DeepReLU(nn.Module):
             depth=5,
         )
 
+    @classmethod
+    def mnist(
+        cls,
+        hidden_dim: int = 256,
+        depth: int = 5,
+    ) -> DeepReLU:
+        """MNIST classifier: flattened 28x28 image -> 10 logits."""
+        return cls(
+            input_dim=28 * 28,
+            hidden_dim=hidden_dim,
+            output_dim=10,
+            depth=depth,
+        )
+
     def init_kaiming_uniform_(self, seed: int = 42) -> None:
         """Kaiming-uniform-style init matching the C++ example."""
         generator = torch.Generator(device="cpu")

@@ -56,6 +56,34 @@ Parity test (forward + backward, nntile vs CPU, no fallback):
 pytest -vv torch_nntile/tests/test_deep_relu_parity.py
 ```
 
+## Phase 4 (MNIST full-batch training)
+
+Train `DeepReLU.mnist()` on all **60 000** MNIST training images in one batch,
+comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
+
+### Cross-entropy note
+
+NNTile `cross_entropy` is implemented at **NNGraph** level and chains
+`maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`,
+and INT64 labels. Exposing it in PyTorch would need many new ATen kernels plus
+label support on PrivateUse1. **Not a small plug-in.**
+
+The training example therefore computes cross-entropy on **CPU** for the scalar
+loss and `grad_logits`, then backpropagates through nntile `linear` / `relu`
+kernels (`cpu_fallback=False`). Optimizer steps use manual SGD (no `torch.optim`
+on nntile yet).
+
+```bash
+export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
+python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
+```
+
+Integration test (downloads MNIST, 3 epochs, compares losses and weights):
+
+```bash
+pytest -vv torch_nntile/tests/test_deep_relu_mnist_train.py
+```
+
 ## Install (stub only)
 
 ```bash

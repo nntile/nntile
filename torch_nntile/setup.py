@@ -119,7 +119,7 @@ ext_kwargs = _nntile_extension_kwargs()
 
 setup(
     name="torch_nntile",
-    version="0.4.0",
+    version="0.5.0",
     packages=["torch_nntile"],
     ext_modules=[
         CppExtension(
