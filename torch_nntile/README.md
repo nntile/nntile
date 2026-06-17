@@ -21,6 +21,7 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
 | `linear` backward / `mm` | `tensor::gemm` |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs` |
+| `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
 
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
 Gradients use **PyTorch autograd** (not `NNGraph` autograd).
@@ -65,8 +66,8 @@ comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
 Cross-entropy runs entirely on nntile via `torch_nntile.training.cross_entropy`
 (same tensor-op chain as `NNCrossEntropyOp` in libnntile). The scalar loss is
 returned on CPU so PyTorch autograd can call `loss.backward()` without extra
-ATen kernels on PrivateUse1. Optimizer steps use manual SGD (no `torch.optim`
-on nntile yet).
+ATen kernels on PrivateUse1. Optimizer steps use fused `tensor::sgd_step` via
+``torch_nntile.training.SGD`` (no per-parameter CPU round-trip).
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib

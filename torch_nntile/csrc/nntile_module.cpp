@@ -11,6 +11,7 @@
 
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
+#include "nntile_sgd_step.h"
 
 namespace torch_nntile
 {
@@ -117,4 +118,17 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("grad_output"),
         py::arg("reduction") = 1,
         py::arg("ignore_index") = -100);
+    m.def(
+        "sgd_step",
+        &torch_nntile::sgd_step,
+        "Fused SGD step on nntile tensors (updates param and velocity in-place)",
+        py::arg("param"),
+        py::arg("grad"),
+        py::arg("velocity"),
+        py::arg("num_iter"),
+        py::arg("lr"),
+        py::arg("momentum") = 0.0,
+        py::arg("weight_decay") = 0.0,
+        py::arg("dampening") = 0.0,
+        py::arg("nesterov") = false);
 }

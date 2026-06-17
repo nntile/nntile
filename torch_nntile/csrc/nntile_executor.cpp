@@ -20,6 +20,7 @@
 #include <nntile/tensor/ops/maxsumexp.hh>
 #include <nntile/tensor/ops/relu.hh>
 #include <nntile/tensor/ops/relu_backward.hh>
+#include <nntile/tensor/ops/sgd_step.hh>
 #include <nntile/tensor/ops/softmax.hh>
 #include <nntile/tensor/ops/subtract_indexed_outputs.hh>
 #include <nntile/tensor/ops/total_sum_accum.hh>
@@ -602,6 +603,82 @@ void tensor_cross_entropy_backward_fp32(
     std::memcpy(grad_logits_data, result.data(), expected * sizeof(float));
 }
 
+void tensor_sgd_step_fp32(
+    int64_t num_iter,
+    float momentum,
+    float lr,
+    float weight_decay,
+    float dampening,
+    bool nesterov,
+    const float *grad_data,
+    float *velocity_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> storage_shape =
+        pytorch_shape_to_storage(pytorch_shape);
+    const nntile::Index nelems = storage_numel(storage_shape);
+
+    nntile::TensorGraph graph("torch_sgd_step");
+    auto *grad_node =
+        graph.data(storage_shape, nntile::DataType::FP32)->set_name("grad");
+    auto *velocity_node =
+        graph.data(storage_shape, nntile::DataType::FP32)->set_name("velocity");
+    auto *param_node =
+        graph.data(storage_shape, nntile::DataType::FP32)->set_name("param");
+
+    grad_node->mark_input(true);
+    velocity_node->mark_input(true);
+    param_node->mark_input(true);
+    velocity_node->mark_output(true);
+    param_node->mark_output(true);
+
+    nntile::tensor::sgd_step(
+        static_cast<nntile::Index>(num_iter),
+        static_cast<nntile::Scalar>(momentum),
+        static_cast<nntile::Scalar>(lr),
+        static_cast<nntile::Scalar>(weight_decay),
+        static_cast<nntile::Scalar>(dampening),
+        nesterov,
+        grad_node,
+        velocity_node,
+        param_node);
+
+    ensure_nntile_context();
+
+    nntile::TileGraph tile_graph =
+        nntile::TileGraph::from_tensor_graph(graph);
+    nntile::Runtime runtime(tile_graph);
+    runtime.compile();
+
+    runtime.bind_data(
+        grad_node,
+        grad_data,
+        static_cast<std::size_t>(nelems));
+    runtime.bind_data(
+        velocity_node,
+        velocity_data,
+        static_cast<std::size_t>(nelems));
+    runtime.bind_data(
+        param_node,
+        param_data,
+        static_cast<std::size_t>(nelems));
+    runtime.execute();
+    runtime.wait();
+
+    const std::vector<float> velocity_out =
+        runtime.get_output<float>(velocity_node);
+    const std::vector<float> param_out =
+        runtime.get_output<float>(param_node);
+    const std::size_t expected = static_cast<std::size_t>(nelems);
+    if (velocity_out.size() != expected || param_out.size() != expected)
+    {
+        throw std::runtime_error("torch_sgd_step: output size mismatch");
+    }
+    std::memcpy(velocity_data, velocity_out.data(), expected * sizeof(float));
+    std::memcpy(param_data, param_out.data(), expected * sizeof(float));
+}
+
 } // namespace torch_nntile
 
 #else
@@ -719,6 +796,21 @@ void tensor_cross_entropy_backward_fp32(
     bool /*mean_reduction*/)
 {
     require_libnntile("cross_entropy_backward");
+}
+
+void tensor_sgd_step_fp32(
+    int64_t /*num_iter*/,
+    float /*momentum*/,
+    float /*lr*/,
+    float /*weight_decay*/,
+    float /*dampening*/,
+    bool /*nesterov*/,
+    const float * /*grad_data*/,
+    float * /*velocity_data*/,
+    float * /*param_data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("sgd_step");
 }
 
 } // namespace torch_nntile

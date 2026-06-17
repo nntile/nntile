@@ -6,12 +6,16 @@
 
 """Utilities for training on the nntile device.
 
-Cross-entropy is implemented with libnntile tensor ops (``maxsumexp``,
-``logsumexp``, ``total_sum_accum``, ``softmax``, ``subtract_indexed_outputs``),
-mirroring ``NNCrossEntropyOp`` in the main package.
+Cross-entropy uses libnntile tensor ops (``maxsumexp``, ``logsumexp``,
+``total_sum_accum``, ``softmax``, ``subtract_indexed_outputs``).
+
+SGD uses the fused ``tensor::sgd_step`` kernel (momentum, weight decay,
+Nesterov), mirroring ``nntile::optim::SGD`` in the main package.
 """
 
 from __future__ import annotations
+
+from typing import Iterable
 
 import torch
 import torch.nn.functional as F
@@ -74,20 +78,152 @@ def cross_entropy(
     )
 
 
+class SGD:
+    """Fused SGD for ``device='nntile'`` parameters (``tensor::sgd_step``)."""
+
+    def __init__(
+        self,
+        parameters: Iterable[torch.Tensor],
+        lr: float,
+        momentum: float = 0.0,
+        weight_decay: float = 0.0,
+        dampening: float = 0.0,
+        nesterov: bool = False,
+    ) -> None:
+        if nesterov and (momentum <= 0 or dampening != 0):
+            raise ValueError(
+                "Nesterov momentum requires momentum > 0 and dampening == 0"
+            )
+        params = list(parameters)
+        self.param_groups = [
+            {
+                "params": params,
+                "lr": float(lr),
+                "momentum": float(momentum),
+                "weight_decay": float(weight_decay),
+                "dampening": float(dampening),
+                "nesterov": bool(nesterov),
+            }
+        ]
+        self._num_iter = 0
+        self._velocity: dict[int, torch.Tensor] = {}
+
+    def zero_grad(self, set_to_none: bool = True) -> None:
+        for group in self.param_groups:
+            for param in group["params"]:
+                if set_to_none:
+                    param.grad = None
+                elif param.grad is not None:
+                    param.grad.zero_()
+
+    def step(self, closure=None) -> float | None:
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        self._num_iter += 1
+        with torch.no_grad():
+            for group in self.param_groups:
+                self._step_group(group)
+        return loss
+
+    def _velocity_for(self, param: torch.Tensor) -> torch.Tensor:
+        key = id(param)
+        velocity = self._velocity.get(key)
+        if velocity is None:
+            velocity = torch.zeros(
+                list(param.shape),
+                dtype=torch.float32,
+                device="cpu",
+            ).to("nntile")
+            self._velocity[key] = velocity
+        return velocity
+
+    def _step_group(self, group: dict) -> None:
+        lr = group["lr"]
+        momentum = group["momentum"]
+        weight_decay = group["weight_decay"]
+        dampening = group["dampening"]
+        nesterov = group["nesterov"]
+        for param in group["params"]:
+            if param.grad is None:
+                continue
+            if param.device.type == "nntile":
+                velocity = self._velocity_for(param)
+                _C.sgd_step(
+                    param,
+                    param.grad,
+                    velocity,
+                    self._num_iter,
+                    lr,
+                    momentum,
+                    weight_decay,
+                    dampening,
+                    nesterov,
+                )
+            else:
+                grad = param.grad
+                if weight_decay != 0:
+                    grad = grad.add(param, alpha=weight_decay)
+                if momentum != 0:
+                    velocity = self._velocity_for(param)
+                    if self._num_iter == 1:
+                        velocity.copy_(grad)
+                    else:
+                        velocity.mul_(momentum).add_(grad, alpha=1 - dampening)
+                    if nesterov:
+                        grad = grad.add(velocity, alpha=momentum)
+                    else:
+                        grad = velocity
+                param.add_(grad, alpha=-lr)
+
+
+def fused_sgd_step(
+    parameters: list[torch.Tensor],
+    learning_rate: float,
+    *,
+    momentum: float = 0.0,
+    weight_decay: float = 0.0,
+    dampening: float = 0.0,
+    nesterov: bool = False,
+    optimizer: SGD | None = None,
+) -> SGD:
+    """One fused SGD step; returns the optimizer holding momentum state."""
+    if optimizer is None:
+        optimizer = SGD(
+            parameters,
+            lr=learning_rate,
+            momentum=momentum,
+            weight_decay=weight_decay,
+            dampening=dampening,
+            nesterov=nesterov,
+        )
+    else:
+        optimizer.param_groups[0]["lr"] = float(learning_rate)
+    optimizer.step()
+    return optimizer
+
+
 def manual_sgd_step(
     parameters: list[torch.Tensor],
     learning_rate: float,
 ) -> None:
-    """In-place SGD without ``torch.optim`` (works for nntile parameters)."""
-    with torch.no_grad():
-        for param in parameters:
-            if param.grad is None:
-                continue
-            if param.device.type == "nntile":
-                updated = param.cpu() - learning_rate * param.grad.cpu()
-                param.copy_(updated.to("nntile"))
-            else:
-                param.add_(param.grad, alpha=-learning_rate)
+    """Deprecated alias for a single plain fused SGD step (momentum=0)."""
+    fused_sgd_step(parameters, learning_rate)
+
+
+def _nntile_optimizer_for(
+    model: torch.nn.Module,
+    learning_rate: float,
+) -> SGD:
+    optimizer = getattr(model, "_nntile_optimizer", None)
+    if optimizer is None or optimizer.param_groups[0]["lr"] != learning_rate:
+        optimizer = SGD(
+            [p for p in model.parameters() if p.requires_grad],
+            lr=learning_rate,
+        )
+        model._nntile_optimizer = optimizer
+    return optimizer
 
 
 def train_full_batch_step(
@@ -104,15 +240,12 @@ def train_full_batch_step(
     if inputs.device.type == "nntile":
         loss = cross_entropy(logits, targets)
         loss.backward()
-        manual_sgd_step(
-            [p for p in model.parameters() if p.requires_grad],
-            learning_rate,
-        )
+        _nntile_optimizer_for(model, learning_rate).step()
         return float(loss.detach().cpu().item())
 
     loss = F.cross_entropy(logits, targets)
     loss.backward()
-    manual_sgd_step(list(model.parameters()), learning_rate)
+    fused_sgd_step(list(model.parameters()), learning_rate)
     return float(loss.item())
 
 

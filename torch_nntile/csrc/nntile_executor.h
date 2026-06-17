@@ -80,4 +80,16 @@ void tensor_cross_entropy_backward_fp32(
     std::int64_t ignore_index,
     bool mean_reduction);
 
+void tensor_sgd_step_fp32(
+    int64_t num_iter,
+    float momentum,
+    float lr,
+    float weight_decay,
+    float dampening,
+    bool nesterov,
+    const float *grad_data,
+    float *velocity_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape);
+
 } // namespace torch_nntile
