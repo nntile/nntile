@@ -228,9 +228,10 @@ def test_graph_cross_entropy_backward_and_sgd():
         assert torch_nntile.has_pending_graph()
         SGD([w_nnt], lr=0.1).step()
         assert torch_nntile.has_pending_graph()
+        assert loss_nnt.device.type == "nntile"
         torch_nntile.execute()
         assert not torch_nntile.has_pending_graph()
-        assert torch.allclose(loss_nnt.detach(), loss_ref, rtol=1e-4, atol=1e-4)
+        assert torch.allclose(loss_nnt.detach().cpu(), loss_ref, rtol=1e-4, atol=1e-4)
         assert torch.allclose(w_nnt.detach().cpu(), w_after_ref, rtol=1e-4, atol=1e-4)
         """
     )
@@ -263,6 +264,33 @@ def test_train_full_batch_step_graph_mode():
         after = clone_model_weights(model)
         max_delta = max((before[k] - after[k]).abs().max().item() for k in before)
         assert max_delta > 0.0
+        """
+    )
+
+
+def test_graph_nntile_loss_backward_without_scalar_read():
+    _run_graph_subprocess(
+        """
+        import torch
+        import torch_nntile
+        from torch_nntile.training import cross_entropy
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+        )
+        torch_nntile.restrict_cpu()
+
+        logits_cpu = torch.randn(8, 5)
+        target = torch.randint(0, 5, (8,))
+        logits_nnt = logits_cpu.to("nntile").requires_grad_(True)
+        loss = cross_entropy(logits_nnt, target, reduction="mean")
+        assert loss.device.type == "nntile"
+        assert torch_nntile.has_pending_graph()
+        loss.backward()
+        assert torch_nntile.has_pending_graph()
+        torch_nntile.execute()
+        ref = torch.nn.functional.cross_entropy(logits_cpu, target, reduction="mean")
+        assert torch.allclose(loss.detach().cpu(), ref, rtol=1e-4, atol=1e-4)
         """
     )
 

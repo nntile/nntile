@@ -7,10 +7,10 @@
 
 """Full-batch MNIST training with DeepReLU on CPU and device=\"nntile\".
 
-Cross-entropy is evaluated on CPU (see ``torch_nntile.training``) because
-libnntile cross-entropy is an ``NNGraph`` composite not yet exposed as PyTorch
-ATen ops. Model forward/backward still uses nntile ``gemm`` / ``relu`` kernels
-when ``cpu_fallback=False``.
+Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
+(same tensor-op chain as ``NNCrossEntropyOp`` in libnntile). The scalar loss lives
+on ``device="nntile"``; call ``torch_nntile.execute()`` in graph mode before
+reading it on the host.
 
 Example::
 

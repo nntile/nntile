@@ -71,9 +71,7 @@ at::Tensor cross_entropy_forward(
         reduction == 1 || reduction == 2,
         "nntile cross_entropy supports reduction mean (1) or sum (2) only");
 
-    at::Tensor loss = at::empty(
-        {},
-        at::TensorOptions().dtype(at::kFloat).device(at::kCPU));
+    at::Tensor loss = at::empty({}, logits.options().dtype(at::kFloat));
     pin_graph_op_inputs({logits, target});
     pin_graph_op_output(loss, true);
     tensor_cross_entropy_forward_fp32(
@@ -101,16 +99,24 @@ at::Tensor cross_entropy_backward(
     TORCH_CHECK(
         grad_output.numel() == 1,
         "nntile cross_entropy_backward expects scalar grad_output");
+    TORCH_CHECK(
+        is_nntile_device(grad_output.device()),
+        "nntile cross_entropy_backward: grad_output must be on device nntile");
+    TORCH_CHECK(
+        target.dim() == 1,
+        "nntile cross_entropy_backward: deferred grad_output broadcast "
+        "requires 1-D labels (batch,) for now");
     at::Tensor grad_logits = at::empty_like(logits);
-    const float grad_scale = grad_output.item<float>();
-    pin_graph_op_inputs({logits, target});
+    at::Tensor grad_row = at::empty(target.sizes(), logits.options());
+    pin_graph_op_inputs({logits, target, grad_output});
     pin_graph_op_output(grad_logits, true);
     tensor_cross_entropy_backward_fp32(
         logits.data_ptr<float>(),
         logits.sizes(),
         target.data_ptr<std::int64_t>(),
         target.sizes(),
-        grad_scale,
+        grad_output.data_ptr<float>(),
+        grad_row.data_ptr<float>(),
         grad_logits.data_ptr<float>(),
         ignore_index,
         reduction_is_mean(reduction));

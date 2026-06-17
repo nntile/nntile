@@ -89,7 +89,71 @@ at::Scalar tensor_to_scalar(const at::Tensor &self)
     return at::Scalar();
 }
 
+void fill_tensor(at::Tensor &self, const at::Scalar &value)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "fill_: expected nntile tensor");
+    TORCH_CHECK(self.is_contiguous(), "fill_: requires contiguous tensor");
+    const int64_t nelems = self.numel();
+    if (nelems == 0)
+    {
+        return;
+    }
+    switch (self.scalar_type())
+    {
+    case at::ScalarType::Float:
+    {
+        const float fill_value = value.to<float>();
+        float *data = self.data_ptr<float>();
+        for (int64_t i = 0; i < nelems; ++i)
+        {
+            data[i] = fill_value;
+        }
+        break;
+    }
+    case at::ScalarType::Double:
+    {
+        const double fill_value = value.to<double>();
+        double *data = self.data_ptr<double>();
+        for (int64_t i = 0; i < nelems; ++i)
+        {
+            data[i] = fill_value;
+        }
+        break;
+    }
+    case at::ScalarType::Int:
+    {
+        const int32_t fill_value = value.to<int32_t>();
+        int32_t *data = self.data_ptr<int32_t>();
+        for (int64_t i = 0; i < nelems; ++i)
+        {
+            data[i] = fill_value;
+        }
+        break;
+    }
+    case at::ScalarType::Long:
+    {
+        const int64_t fill_value = value.to<int64_t>();
+        int64_t *data = self.data_ptr<int64_t>();
+        for (int64_t i = 0; i < nelems; ++i)
+        {
+            data[i] = fill_value;
+        }
+        break;
+    }
+    default:
+        TORCH_CHECK(false, "fill_: unsupported dtype on nntile");
+    }
+}
+
 } // namespace
+
+at::Tensor &fill_scalar(at::Tensor &self, const at::Scalar &value)
+{
+    fill_tensor(self, value);
+    return self;
+}
 
 at::Tensor empty_memory_format(
     at::IntArrayRef size,
@@ -333,6 +397,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("_copy_from", TORCH_FN(torch_nntile::copy_from));
     m.impl("_copy_from_and_resize", TORCH_FN(torch_nntile::copy_from_and_resize));
     m.impl("_local_scalar_dense", TORCH_FN(torch_nntile::local_scalar_dense));
+    m.impl("fill_.Scalar", TORCH_FN(torch_nntile::fill_scalar));
     m.impl("set_.source_Tensor", TORCH_FN(torch_nntile::set_source_tensor));
     m.impl("set_.source_Storage", TORCH_FN(torch_nntile::set_source_storage));
     m.impl(

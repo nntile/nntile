@@ -89,10 +89,10 @@ pytest -vv torch_nntile/tests/test_deep_relu_parity.py
 Train `DeepReLU.mnist()` on all **60 000** MNIST training images in one batch,
 comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
 
-Cross-entropy runs entirely on nntile via `torch_nntile.training.cross_entropy`
-(same tensor-op chain as `NNCrossEntropyOp` in libnntile). The scalar loss is
-returned on CPU so PyTorch autograd can call `loss.backward()` without extra
-ATen kernels on PrivateUse1. Optimizer steps use fused `tensor::sgd_step` via
+Cross-entropy is evaluated on nntile via `torch_nntile.training.cross_entropy`
+(same tensor-op chain as `NNCrossEntropyOp` in libnntile). The scalar loss lives
+on ``device="nntile"``; call ``torch_nntile.execute()`` in graph mode before
+reading it on the host. Optimizer steps use fused ``tensor::sgd_step`` via
 ``torch_nntile.training.SGD`` (no per-parameter CPU round-trip).
 
 ```bash

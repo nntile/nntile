@@ -76,7 +76,8 @@ void tensor_cross_entropy_backward_fp32(
     c10::IntArrayRef logits_shape,
     const std::int64_t *labels_data,
     c10::IntArrayRef labels_shape,
-    float grad_output,
+    const float *grad_output_data,
+    float *grad_row_data,
     float *grad_logits_data,
     std::int64_t ignore_index,
     bool mean_reduction);
