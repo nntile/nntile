@@ -18,6 +18,8 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | `a + b` | `tensor::add` |
 | `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
+| ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
+| `linear` backward / `mm` | `tensor::gemm` |
 
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
 Gradients use **PyTorch autograd** (not `NNGraph` autograd).
@@ -43,11 +45,12 @@ from torch_nntile.models import DeepReLU
 torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
 
 model = DeepReLU.tiny().to("nntile")
-x = torch.randn(32, 128, device="nntile")
+x = torch.randn(32, 128).to("nntile")
 y = model(x)
+y.backward(torch.ones(y.shape, device="cpu").to("nntile"))
 ```
 
-Parity test (nntile vs CPU, no fallback):
+Parity test (forward + backward, nntile vs CPU, no fallback):
 
 ```bash
 pytest -vv torch_nntile/tests/test_deep_relu_parity.py

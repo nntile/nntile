@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torch_nntile"
-version = "0.3.0"
+version = "0.4.0"
 description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnntile)"
 readme = "README.md"
 requires-python = ">=3.10"

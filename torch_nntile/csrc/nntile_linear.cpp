@@ -10,6 +10,8 @@
 #include <ATen/TensorUtils.h>
 #include <torch/library.h>
 
+#include <array>
+
 namespace torch_nntile
 {
 
@@ -108,10 +110,60 @@ at::Tensor &linear_out(
     return out;
 }
 
+std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
+    const at::Tensor &input,
+    const at::Tensor &grad_output,
+    const at::Tensor &weight,
+    std::array<bool, 3> output_mask)
+{
+    TORCH_CHECK(
+        is_nntile_device(input.device()) &&
+            is_nntile_device(grad_output.device()) &&
+            is_nntile_device(weight.device()),
+        "nntile linear_backward expects nntile tensors");
+    TORCH_CHECK(
+        input.scalar_type() == at::ScalarType::Float &&
+            grad_output.scalar_type() == at::ScalarType::Float &&
+            weight.scalar_type() == at::ScalarType::Float,
+        "nntile linear_backward supports float32 only");
+    TORCH_CHECK(
+        input.is_contiguous() && grad_output.is_contiguous() &&
+            weight.is_contiguous(),
+        "nntile linear_backward requires contiguous tensors");
+    TORCH_CHECK(!output_mask[2], "nntile linear_backward: bias is not supported");
+
+    at::Tensor grad_input;
+    at::Tensor grad_weight;
+    if (output_mask[0])
+    {
+        grad_input = at::empty_like(input);
+        tensor_linear_backward_input_fp32(
+            grad_output.data_ptr<float>(),
+            grad_output.sizes(),
+            weight.data_ptr<float>(),
+            weight.sizes(),
+            grad_input.data_ptr<float>(),
+            grad_input.sizes());
+    }
+    if (output_mask[1])
+    {
+        grad_weight = at::empty_like(weight);
+        tensor_linear_backward_weight_fp32(
+            grad_output.data_ptr<float>(),
+            grad_output.sizes(),
+            input.data_ptr<float>(),
+            input.sizes(),
+            grad_weight.data_ptr<float>(),
+            grad_weight.sizes());
+    }
+    return {grad_input, grad_weight, at::Tensor()};
+}
+
 } // namespace torch_nntile
 
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("linear", TORCH_FN(torch_nntile::linear));
     m.impl("linear.out", TORCH_FN(torch_nntile::linear_out));
+    m.impl("linear_backward", TORCH_FN(torch_nntile::linear_backward));
 }

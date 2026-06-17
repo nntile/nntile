@@ -32,4 +32,34 @@ void tensor_relu_fp32(
     float *out_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_relu_backward_fp32(
+    const float *x_data,
+    const float *dy_data,
+    float *dx_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_mm_fp32(
+    const float *a_data,
+    c10::IntArrayRef a_shape,
+    const float *b_data,
+    c10::IntArrayRef b_shape,
+    float *out_data,
+    c10::IntArrayRef out_shape);
+
+void tensor_linear_backward_input_fp32(
+    const float *grad_out_data,
+    c10::IntArrayRef grad_out_shape,
+    const float *weight_data,
+    c10::IntArrayRef weight_shape,
+    float *grad_input_data,
+    c10::IntArrayRef grad_input_shape);
+
+void tensor_linear_backward_weight_fp32(
+    const float *grad_out_data,
+    c10::IntArrayRef grad_out_shape,
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    float *grad_weight_data,
+    c10::IntArrayRef grad_weight_shape);
+
 } // namespace torch_nntile
