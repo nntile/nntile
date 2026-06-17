@@ -20,6 +20,7 @@ from typing import Iterable
 import torch
 import torch.nn.functional as F
 
+import torch_nntile
 from torch_nntile import _C
 
 # torch.nn._reduction: none=0, mean=1, sum=2
@@ -241,6 +242,8 @@ def train_full_batch_step(
         loss = cross_entropy(logits, targets)
         loss.backward()
         _nntile_optimizer_for(model, learning_rate).step()
+        if torch_nntile.is_graph_mode():
+            torch_nntile.execute()
         return float(loss.detach().cpu().item())
 
     loss = F.cross_entropy(logits, targets)

@@ -55,7 +55,7 @@ bool buffer_equal_cpu(const at::Tensor &nntile_tensor, const at::Tensor &cpu_ten
         nntile_tensor.device().type() == c10::DeviceType::PrivateUse1,
         "buffer_equal_cpu expects nntile tensor as first argument");
     TORCH_CHECK(cpu_tensor.is_cpu(), "buffer_equal_cpu expects CPU tensor");
-    // Host read: .cpu() runs execute() in graph mode before copying off-device.
+    // Host read: graph mode requires execute() before nntile -> CPU copy.
     at::Tensor lhs = nntile_tensor.contiguous().cpu();
     at::Tensor rhs = cpu_tensor.contiguous();
     return lhs.equal(rhs);

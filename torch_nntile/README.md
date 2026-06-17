@@ -41,26 +41,23 @@ Use this to verify that a model forward uses only nntile kernels.
 # Default: each op records a TensorGraph slice and runs it immediately.
 torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
 
-# Deferred: ops append to one shared TensorGraph until sync.
+# Deferred: ops append to one shared TensorGraph until you flush.
 torch_nntile.init_context(
     ncpu=1, ncuda=0, cpu_fallback=False, runtime_mode="graph"
 )
-y = model(x)  # recorded, not executed yet
-torch_nntile.execute()  # explicit flush
-# or: y.cpu() / tensor.to("cpu") / scalar .item() on nntile tensors
+y = model(x)              # recorded, not executed yet
+loss.backward()           # backward ops recorded too
+torch_nntile.execute()    # compile + run the full graph, then reset
+z = y.cpu()               # safe after execute()
 ```
 
 In graph mode, forward and backward can stay in one pending graph (StarPU
-resolves dependencies). The graph runs when host-visible data is needed:
-``tensor.cpu()``, ``tensor.to("cpu")``, ``tensor.item()`` on nntile tensors,
-or an explicit ``torch_nntile.execute()``. Copies **to** ``device="nntile"``
-do not flush the graph.
-
-```python
-y = model(x)              # recorded only
-z = y.cpu()               # execute() then copy nntile -> host
-# torch_nntile.execute()  # optional explicit flush
-```
+resolves dependencies). Call ``torch_nntile.execute()`` to compile and run
+the batch. Host reads from **nntile** tensors (``.cpu()``, ``.to("cpu")``,
+``.item()``) raise until ``execute()`` has run. Copies **to**
+``device="nntile"`` do not flush the graph. Training helpers such as
+``train_full_batch_step`` call ``execute()`` automatically in graph mode
+before returning the scalar loss.
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 

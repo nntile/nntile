@@ -90,7 +90,11 @@ def init_context(
 
 
 def execute() -> None:
-    """Compile and run the pending TensorGraph (graph mode only)."""
+    """Compile and run the pending TensorGraph, then reset the recorder.
+
+    Required in graph mode before reading nntile tensor data on the host.
+    No-op when the pending graph is empty (including in eager mode).
+    """
     _C.execute()
 
 

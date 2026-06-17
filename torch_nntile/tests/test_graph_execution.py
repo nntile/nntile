@@ -192,3 +192,95 @@ def test_execute_idempotent_on_empty():
         torch_nntile.execute()
         """
     )
+
+
+def test_graph_cross_entropy_backward_and_sgd():
+    _run_graph_subprocess(
+        """
+        import torch
+        import torch_nntile
+        from torch_nntile.training import SGD, cross_entropy
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+        )
+        torch_nntile.restrict_cpu()
+
+        torch.manual_seed(0)
+        batch, classes, features = 4, 3, 5
+        w_cpu = torch.randn(classes, features)
+        x_cpu = torch.randn(batch, features)
+        target = torch.randint(0, classes, (batch,))
+
+        w_ref = w_cpu.clone().requires_grad_(True)
+        logits_ref = x_cpu @ w_ref.t()
+        loss_ref = torch.nn.functional.cross_entropy(logits_ref, target)
+        loss_ref.backward()
+        torch.optim.SGD([w_ref], lr=0.1).step()
+        w_after_ref = w_ref.detach().clone()
+
+        w_nnt = w_cpu.detach().to("nntile").requires_grad_(True)
+        x_nnt = x_cpu.to("nntile")
+        logits_nnt = torch.nn.functional.linear(x_nnt, w_nnt, None)
+        loss_nnt = cross_entropy(logits_nnt, target, reduction="mean")
+        assert torch_nntile.has_pending_graph()
+        loss_nnt.backward()
+        assert torch_nntile.has_pending_graph()
+        SGD([w_nnt], lr=0.1).step()
+        assert torch_nntile.has_pending_graph()
+        torch_nntile.execute()
+        assert not torch_nntile.has_pending_graph()
+        assert torch.allclose(loss_nnt.detach(), loss_ref, rtol=1e-4, atol=1e-4)
+        assert torch.allclose(w_nnt.detach().cpu(), w_after_ref, rtol=1e-4, atol=1e-4)
+        """
+    )
+
+
+def test_train_full_batch_step_graph_mode():
+    _run_graph_subprocess(
+        """
+        import math
+
+        import torch
+        import torch_nntile
+        from torch_nntile.models import DeepReLU
+        from torch_nntile.training import clone_model_weights, train_full_batch_step
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+        )
+        torch_nntile.restrict_cpu()
+
+        model_cpu = DeepReLU.tiny()
+        model_cpu.init_kaiming_uniform_(seed=42)
+        model = DeepReLU.tiny().to("nntile")
+        model.load_state_dict(model_cpu.state_dict())
+        before = clone_model_weights(model)
+        x = torch.randn(8, model.input_dim).to("nntile")
+        y = torch.randint(0, model.output_dim, (8,))
+        loss = train_full_batch_step(model, x, y, learning_rate=0.1)
+        assert math.isfinite(loss)
+        after = clone_model_weights(model)
+        max_delta = max((before[k] - after[k]).abs().max().item() for k in before)
+        assert max_delta > 0.0
+        """
+    )
+
+
+def test_eager_mode_runs_immediately():
+    _run_graph_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="eager"
+        )
+        torch_nntile.restrict_cpu()
+        a = torch.tensor([1.0, 2.0], device="nntile")
+        b = torch.tensor([3.0, 4.0], device="nntile")
+        z = a + b
+        assert not torch_nntile.has_pending_graph()
+        assert torch.allclose(z.cpu(), torch.tensor([4.0, 6.0]))
+        """
+    )
