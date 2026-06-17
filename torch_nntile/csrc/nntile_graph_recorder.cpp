@@ -384,45 +384,16 @@ void maybe_execute_after_record()
 {
 }
 
-nntile::TensorGraph &recorder_graph()
-{
-    require_libnntile();
-}
-
-nntile::TensorGraph::TensorNode *get_or_create_data_node(
-    void * /*data_ptr*/,
-    const std::vector<nntile::Index> & /*shape*/,
-    nntile::DataType /*dtype*/,
-    bool /*mark_as_input*/)
-{
-    require_libnntile();
-}
-
-void register_data_node(
-    void * /*data_ptr*/,
-    nntile::TensorGraph::TensorNode * /*node*/)
-{
-    require_libnntile();
-}
-
-nntile::TensorGraph::TensorNode *lookup_data_node(void * /*data_ptr*/)
-{
-    require_libnntile();
-}
-
 void pin_tensor_for_graph(const at::Tensor & /*tensor*/)
 {
-    require_libnntile();
 }
 
 void pin_graph_op_inputs(const std::vector<at::Tensor> & /*inputs*/)
 {
-    require_libnntile();
 }
 
 void pin_graph_op_output(const at::Tensor & /*output*/, bool /*pin_output*/)
 {
-    require_libnntile();
 }
 
 } // namespace torch_nntile

@@ -604,7 +604,7 @@ void tensor_linear_backward_weight_fp32(
     require_libnntile("linear_backward_weight");
 }
 
-float tensor_cross_entropy_forward_fp32(
+void tensor_cross_entropy_forward_fp32(
     const float * /*logits_data*/,
     c10::IntArrayRef /*logits_shape*/,
     const std::int64_t * /*labels_data*/,
@@ -614,7 +614,6 @@ float tensor_cross_entropy_forward_fp32(
     float * /*loss_data*/)
 {
     require_libnntile("cross_entropy_forward");
-    return 0.0f;
 }
 
 void tensor_cross_entropy_backward_fp32(

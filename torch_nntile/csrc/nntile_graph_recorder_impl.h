@@ -7,10 +7,12 @@
 
 #pragma once
 
+#include <vector>
+
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/dtype.hh>
 #include <nntile/tensor/graph.hh>
-
-#include <vector>
+#endif
 
 namespace at
 {
@@ -19,6 +21,17 @@ class Tensor;
 
 namespace torch_nntile
 {
+
+//! Keep tensor storage alive until execute() (CUDA record_stream analog).
+void pin_tensor_for_graph(const at::Tensor &tensor);
+
+//! Pin op inputs and user-held outputs. Do not pin backward return buffers
+//! that autograd will steal into leaf .grad (extra refs block stealing).
+void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs);
+
+void pin_graph_op_output(const at::Tensor &output, bool is_user_visible);
+
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 nntile::TensorGraph &recorder_graph();
 
@@ -34,13 +47,6 @@ void register_data_node(
 
 nntile::TensorGraph::TensorNode *lookup_data_node(void *data_ptr);
 
-//! Keep tensor storage alive until execute() (CUDA record_stream analog).
-void pin_tensor_for_graph(const at::Tensor &tensor);
-
-//! Pin op inputs and user-held outputs. Do not pin backward return buffers
-//! that autograd will steal into leaf .grad (extra refs block stealing).
-void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs);
-
-void pin_graph_op_output(const at::Tensor &output, bool is_user_visible);
+#endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile
