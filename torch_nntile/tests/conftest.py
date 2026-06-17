@@ -4,6 +4,17 @@
 # @file torch_nntile/tests/conftest.py
 # Session-wide StarPU / nntile context for libnntile parity tests.
 
+import sys
+from pathlib import Path
+
+# Layout is torch_nntile/torch_nntile/; when pytest runs from the repo root,
+# cwd shadows the editable install unless the project root is on sys.path.
+_pkg_root = Path(__file__).resolve().parent.parent
+if _pkg_root.name == "torch_nntile":
+    _root = str(_pkg_root)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
 import pytest
 
 import torch_nntile
