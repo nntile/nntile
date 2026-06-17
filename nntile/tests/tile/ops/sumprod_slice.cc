@@ -77,5 +77,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_slice (axis=0)
         for(Index j = 0; j < nd; ++j) { tref[static_cast<size_t>(j)] = static_cast<float>(L[j]); }
         L.release();
     }
-    for(size_t j = 0; j < tref.size(); ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e+2f); }
+    for(size_t j = 0; j < tref.size(); ++j) { REQUIRE(std::abs(gout[j] - tref[j]) < 1e-6f); }
 }

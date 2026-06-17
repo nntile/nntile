@@ -50,5 +50,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
     { auto L=D.acquire(STARPU_R);
       for(Index j=0;j<n2;++j) tr[static_cast<size_t>(j)]=static_cast<float>(L[j]);
       L.release(); }
-    for(size_t j=0;j<tr.size();++j) REQUIRE(std::abs(gout[j]-tr[j])<1e+2f);
+    for(size_t j=0;j<tr.size();++j) REQUIRE(std::abs(gout[j]-tr[j])<1e-6f);
 }

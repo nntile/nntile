@@ -51,5 +51,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_inplace", "[gra
     { auto L=TY.acquire(STARPU_R);
       for(Index i=0;i<4;++i) tr[static_cast<size_t>(i)]=static_cast<float>(L[i]);
       L.release(); }
-    for(Index i=0;i<4;++i) REQUIRE(std::abs(gout[static_cast<size_t>(i)]-tr[static_cast<size_t>(i)])<1e+2f);
+    for(Index i=0;i<4;++i) REQUIRE(std::abs(gout[static_cast<size_t>(i)]-tr[static_cast<size_t>(i)])<1e-6f);
 }
