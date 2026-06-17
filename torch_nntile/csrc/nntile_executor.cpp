@@ -11,7 +11,6 @@
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 #include <nntile/base_types.hh>
-#include <nntile/nn/shape_layout.hh>
 #include <nntile/runtime.hh>
 #include <nntile/tensor/ops/add.hh>
 #include <nntile/tensor/ops/clear.hh>
@@ -38,7 +37,7 @@ namespace torch_nntile
 namespace
 {
 
-std::vector<nntile::Index> pytorch_shape_to_storage(c10::IntArrayRef shape)
+std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
 {
     std::vector<nntile::Index> graph_shape;
     graph_shape.reserve(shape.size());
@@ -46,13 +45,13 @@ std::vector<nntile::Index> pytorch_shape_to_storage(c10::IntArrayRef shape)
     {
         graph_shape.push_back(static_cast<nntile::Index>(dim));
     }
-    return nntile::nn::graph_shape_to_storage(graph_shape);
+    return graph_shape;
 }
 
-nntile::Index storage_numel(const std::vector<nntile::Index> &storage_shape)
+nntile::Index graph_numel(const std::vector<nntile::Index> &graph_shape)
 {
     nntile::Index nelems = 1;
-    for (const nntile::Index dim : storage_shape)
+    for (const nntile::Index dim : graph_shape)
     {
         nelems *= dim;
     }
@@ -65,7 +64,7 @@ void run_graph_output(
     const std::vector<std::pair<nntile::TensorGraph::TensorNode *, const float *>>
         &inputs,
     float *out_data,
-    const std::vector<nntile::Index> &out_storage_shape)
+    const std::vector<nntile::Index> &out_graph_shape)
 {
     ensure_nntile_context();
 
@@ -75,12 +74,12 @@ void run_graph_output(
     runtime.compile();
 
     const std::size_t expected =
-        static_cast<std::size_t>(storage_numel(out_storage_shape));
+        static_cast<std::size_t>(graph_numel(out_graph_shape));
     out_node->mark_input(true);
 
     for (const auto &[node, data] : inputs)
     {
-        const nntile::Index count = storage_numel(node->shape());
+        const nntile::Index count = graph_numel(node->shape());
         runtime.bind_data(node, data, static_cast<std::size_t>(count));
     }
     runtime.bind_data(out_node, out_data, expected);
@@ -109,14 +108,14 @@ void tensor_add_fp32(
     float *out_data,
     c10::IntArrayRef pytorch_shape)
 {
-    const std::vector<nntile::Index> storage_shape =
-        pytorch_shape_to_storage(pytorch_shape);
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
 
     nntile::TensorGraph graph("torch_add");
     auto *x_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("x");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("x");
     auto *y_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("y");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("y");
     x_node->mark_input(true);
     y_node->mark_input(true);
 
@@ -132,7 +131,7 @@ void tensor_add_fp32(
         z_node,
         {{x_node, x_data}, {y_node, y_data}},
         out_data,
-        storage_shape);
+        graph_shape);
 }
 
 void tensor_linear_fp32(
@@ -143,27 +142,27 @@ void tensor_linear_fp32(
     float *out_data,
     c10::IntArrayRef out_shape)
 {
-    const std::vector<nntile::Index> input_storage =
-        pytorch_shape_to_storage(input_shape);
-    const std::vector<nntile::Index> weight_storage =
-        pytorch_shape_to_storage(weight_shape);
-    const std::vector<nntile::Index> out_storage =
-        pytorch_shape_to_storage(out_shape);
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(input_shape);
+    const std::vector<nntile::Index> weight_graph =
+        pytorch_shape_to_graph(weight_shape);
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out_shape);
 
     nntile::TensorGraph graph("torch_linear");
     auto *input_node =
-        graph.data(input_storage, nntile::DataType::FP32)->set_name("input");
+        graph.data(input_graph, nntile::DataType::FP32)->set_name("input");
     auto *weight_node =
-        graph.data(weight_storage, nntile::DataType::FP32)->set_name("weight");
+        graph.data(weight_graph, nntile::DataType::FP32)->set_name("weight");
     input_node->mark_input(true);
     weight_node->mark_input(true);
 
     auto *out_node = nntile::tensor::gemm(
-        weight_node,
         input_node,
+        weight_node,
         static_cast<nntile::Scalar>(1.0),
-        true,
         false,
+        true,
         static_cast<nntile::Index>(1),
         static_cast<nntile::Index>(0))->set_name("output");
     out_node->mark_output(true);
@@ -173,7 +172,7 @@ void tensor_linear_fp32(
         out_node,
         {{input_node, input_data}, {weight_node, weight_data}},
         out_data,
-        out_storage);
+        out_graph);
 }
 
 void tensor_relu_fp32(
@@ -181,12 +180,12 @@ void tensor_relu_fp32(
     float *out_data,
     c10::IntArrayRef pytorch_shape)
 {
-    const std::vector<nntile::Index> storage_shape =
-        pytorch_shape_to_storage(pytorch_shape);
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
 
     nntile::TensorGraph graph("torch_relu");
     auto *src_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("src");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("src");
     src_node->mark_input(true);
 
     auto *dst_node = nntile::tensor::relu(src_node)->set_name("dst");
@@ -197,7 +196,7 @@ void tensor_relu_fp32(
         dst_node,
         {{src_node, input_data}},
         out_data,
-        storage_shape);
+        graph_shape);
 }
 
 void tensor_relu_backward_fp32(
@@ -206,16 +205,16 @@ void tensor_relu_backward_fp32(
     float *dx_data,
     c10::IntArrayRef pytorch_shape)
 {
-    const std::vector<nntile::Index> storage_shape =
-        pytorch_shape_to_storage(pytorch_shape);
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
 
     nntile::TensorGraph graph("torch_relu_backward");
     auto *x_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("x");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("x");
     auto *dy_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("dy");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("dy");
     auto *dx_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("dx");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("dx");
     x_node->mark_input(true);
     dy_node->mark_input(true);
     dx_node->mark_input(true);
@@ -231,7 +230,7 @@ void tensor_relu_backward_fp32(
     nntile::Runtime runtime(tile_graph);
     runtime.compile();
 
-    const nntile::Index count = storage_numel(storage_shape);
+    const nntile::Index count = graph_numel(graph_shape);
     std::vector<float> dx_init(static_cast<std::size_t>(count), 0.0f);
     runtime.bind_data(x_node, x_data, static_cast<std::size_t>(count));
     runtime.bind_data(dy_node, dy_data, static_cast<std::size_t>(count));
@@ -256,18 +255,18 @@ void tensor_mm_fp32(
     float *out_data,
     c10::IntArrayRef out_shape)
 {
-    const std::vector<nntile::Index> a_storage =
-        pytorch_shape_to_storage(a_shape);
-    const std::vector<nntile::Index> b_storage =
-        pytorch_shape_to_storage(b_shape);
-    const std::vector<nntile::Index> out_storage =
-        pytorch_shape_to_storage(out_shape);
+    const std::vector<nntile::Index> a_graph =
+        pytorch_shape_to_graph(a_shape);
+    const std::vector<nntile::Index> b_graph =
+        pytorch_shape_to_graph(b_shape);
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out_shape);
 
     nntile::TensorGraph graph("torch_mm");
     auto *a_node =
-        graph.data(a_storage, nntile::DataType::FP32)->set_name("a");
+        graph.data(a_graph, nntile::DataType::FP32)->set_name("a");
     auto *b_node =
-        graph.data(b_storage, nntile::DataType::FP32)->set_name("b");
+        graph.data(b_graph, nntile::DataType::FP32)->set_name("b");
     a_node->mark_input(true);
     b_node->mark_input(true);
 
@@ -286,7 +285,7 @@ void tensor_mm_fp32(
         out_node,
         {{a_node, a_data}, {b_node, b_data}},
         out_data,
-        out_storage);
+        out_graph);
 }
 
 void tensor_linear_backward_input_fp32(
@@ -297,24 +296,24 @@ void tensor_linear_backward_input_fp32(
     float *grad_input_data,
     c10::IntArrayRef grad_input_shape)
 {
-    const std::vector<nntile::Index> grad_out_storage =
-        pytorch_shape_to_storage(grad_out_shape);
-    const std::vector<nntile::Index> weight_storage =
-        pytorch_shape_to_storage(weight_shape);
-    const std::vector<nntile::Index> grad_input_storage =
-        pytorch_shape_to_storage(grad_input_shape);
+    const std::vector<nntile::Index> grad_out_graph =
+        pytorch_shape_to_graph(grad_out_shape);
+    const std::vector<nntile::Index> weight_graph =
+        pytorch_shape_to_graph(weight_shape);
+    const std::vector<nntile::Index> grad_input_graph =
+        pytorch_shape_to_graph(grad_input_shape);
 
     nntile::TensorGraph graph("torch_linear_backward_input");
-    auto *grad_out_node = graph.data(grad_out_storage, nntile::DataType::FP32)
+    auto *grad_out_node = graph.data(grad_out_graph, nntile::DataType::FP32)
                               ->set_name("grad_out");
     auto *weight_node =
-        graph.data(weight_storage, nntile::DataType::FP32)->set_name("weight");
+        graph.data(weight_graph, nntile::DataType::FP32)->set_name("weight");
     grad_out_node->mark_input(true);
     weight_node->mark_input(true);
 
     auto *grad_input_node = nntile::tensor::gemm(
-        weight_node,
         grad_out_node,
+        weight_node,
         static_cast<nntile::Scalar>(1.0),
         false,
         false,
@@ -327,7 +326,7 @@ void tensor_linear_backward_input_fp32(
         grad_input_node,
         {{grad_out_node, grad_out_data}, {weight_node, weight_data}},
         grad_input_data,
-        grad_input_storage);
+        grad_input_graph);
 }
 
 void tensor_linear_backward_weight_fp32(
@@ -338,27 +337,27 @@ void tensor_linear_backward_weight_fp32(
     float *grad_weight_data,
     c10::IntArrayRef grad_weight_shape)
 {
-    const std::vector<nntile::Index> grad_out_storage =
-        pytorch_shape_to_storage(grad_out_shape);
-    const std::vector<nntile::Index> input_storage =
-        pytorch_shape_to_storage(input_shape);
-    const std::vector<nntile::Index> grad_weight_storage =
-        pytorch_shape_to_storage(grad_weight_shape);
+    const std::vector<nntile::Index> grad_out_graph =
+        pytorch_shape_to_graph(grad_out_shape);
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(input_shape);
+    const std::vector<nntile::Index> grad_weight_graph =
+        pytorch_shape_to_graph(grad_weight_shape);
 
     nntile::TensorGraph graph("torch_linear_backward_weight");
-    auto *grad_out_node = graph.data(grad_out_storage, nntile::DataType::FP32)
+    auto *grad_out_node = graph.data(grad_out_graph, nntile::DataType::FP32)
                               ->set_name("grad_out");
     auto *input_node =
-        graph.data(input_storage, nntile::DataType::FP32)->set_name("input");
+        graph.data(input_graph, nntile::DataType::FP32)->set_name("input");
     grad_out_node->mark_input(true);
     input_node->mark_input(true);
 
     auto *grad_weight_node = nntile::tensor::gemm(
-        input_node,
         grad_out_node,
+        input_node,
         static_cast<nntile::Scalar>(1.0),
-        false,
         true,
+        false,
         static_cast<nntile::Index>(1),
         static_cast<nntile::Index>(0))->set_name("grad_weight");
     grad_weight_node->mark_output(true);
@@ -368,7 +367,7 @@ void tensor_linear_backward_weight_fp32(
         grad_weight_node,
         {{grad_out_node, grad_out_data}, {input_node, input_data}},
         grad_weight_data,
-        grad_weight_storage);
+        grad_weight_graph);
 }
 
 namespace
@@ -376,23 +375,24 @@ namespace
 
 constexpr int kRedux = 0;
 
-std::vector<nntile::Index> maxsumexp_storage_shape(
-    const std::vector<nntile::Index> &logits_storage)
+std::vector<nntile::Index> maxsumexp_graph_shape(
+    const std::vector<nntile::Index> &logits_graph)
 {
+    const nntile::Index class_axis =
+        static_cast<nntile::Index>(logits_graph.size()) - 1;
     std::vector<nntile::Index> maxsumexp_shape;
-    maxsumexp_shape.push_back(2);
-    for (std::size_t i = 1; i < logits_storage.size(); ++i)
+    maxsumexp_shape.reserve(logits_graph.size());
+    for (nntile::Index i = 0; i < class_axis; ++i)
     {
-        maxsumexp_shape.push_back(logits_storage[i]);
+        maxsumexp_shape.push_back(logits_graph[static_cast<std::size_t>(i)]);
     }
+    maxsumexp_shape.push_back(2);
     return maxsumexp_shape;
 }
 
-nntile::Index class_storage_axis(c10::IntArrayRef pytorch_logits_shape)
+nntile::Index class_graph_axis(c10::IntArrayRef pytorch_logits_shape)
 {
-    const auto ndim = static_cast<nntile::Index>(pytorch_logits_shape.size());
-    const nntile::Index graph_class_axis = ndim - 1;
-    return nntile::nn::graph_axis_to_storage(graph_class_axis, ndim);
+    return static_cast<nntile::Index>(pytorch_logits_shape.size()) - 1;
 }
 
 float cross_entropy_scale(
@@ -435,13 +435,13 @@ float tensor_cross_entropy_forward_fp32(
     std::int64_t ignore_index,
     bool mean_reduction)
 {
-    const std::vector<nntile::Index> logits_storage =
-        pytorch_shape_to_storage(logits_shape);
-    const std::vector<nntile::Index> labels_storage =
-        pytorch_shape_to_storage(labels_shape);
-    const std::vector<nntile::Index> maxsumexp_storage =
-        maxsumexp_storage_shape(logits_storage);
-    const nntile::Index storage_class_axis = class_storage_axis(logits_shape);
+    const std::vector<nntile::Index> logits_graph =
+        pytorch_shape_to_graph(logits_shape);
+    const std::vector<nntile::Index> labels_graph =
+        pytorch_shape_to_graph(labels_shape);
+    const std::vector<nntile::Index> maxsumexp_graph =
+        maxsumexp_graph_shape(logits_graph);
+    const nntile::Index class_axis = class_graph_axis(logits_shape);
     const float scale = cross_entropy_scale(
         labels_data,
         labels_shape,
@@ -450,14 +450,14 @@ float tensor_cross_entropy_forward_fp32(
 
     nntile::TensorGraph graph("torch_cross_entropy_forward");
     auto *logits_node =
-        graph.data(logits_storage, nntile::DataType::FP32)->set_name("logits");
-    auto *labels_node = graph.data(labels_storage, nntile::DataType::INT64)
+        graph.data(logits_graph, nntile::DataType::FP32)->set_name("logits");
+    auto *labels_node = graph.data(labels_graph, nntile::DataType::INT64)
                               ->set_name("labels");
     auto *maxsumexp_node =
-        graph.data(maxsumexp_storage, nntile::DataType::FP32)
+        graph.data(maxsumexp_graph, nntile::DataType::FP32)
             ->set_name("maxsumexp");
     auto *logsumexp_node =
-        graph.data(labels_storage, nntile::DataType::FP32)->set_name("logsumexp");
+        graph.data(labels_graph, nntile::DataType::FP32)->set_name("logsumexp");
     auto *loss_node = graph.data({}, nntile::DataType::FP32)->set_name("loss");
 
     logits_node->mark_input(true);
@@ -469,7 +469,7 @@ float tensor_cross_entropy_forward_fp32(
     nntile::tensor::maxsumexp(
         logits_node,
         maxsumexp_node,
-        storage_class_axis,
+        class_axis,
         kRedux);
     nntile::tensor::logsumexp(maxsumexp_node, logsumexp_node);
     nntile::tensor::clear(loss_node);
@@ -488,8 +488,8 @@ float tensor_cross_entropy_forward_fp32(
     nntile::Runtime runtime(tile_graph);
     runtime.compile();
 
-    const nntile::Index logits_count = storage_numel(logits_storage);
-    const nntile::Index labels_count = storage_numel(labels_storage);
+    const nntile::Index logits_count = graph_numel(logits_graph);
+    const nntile::Index labels_count = graph_numel(labels_graph);
     float loss_init = 0.0f;
     runtime.bind_data(
         logits_node,
@@ -522,13 +522,13 @@ void tensor_cross_entropy_backward_fp32(
     std::int64_t ignore_index,
     bool mean_reduction)
 {
-    const std::vector<nntile::Index> logits_storage =
-        pytorch_shape_to_storage(logits_shape);
-    const std::vector<nntile::Index> labels_storage =
-        pytorch_shape_to_storage(labels_shape);
-    const std::vector<nntile::Index> maxsumexp_storage =
-        maxsumexp_storage_shape(logits_storage);
-    const nntile::Index storage_class_axis = class_storage_axis(logits_shape);
+    const std::vector<nntile::Index> logits_graph =
+        pytorch_shape_to_graph(logits_shape);
+    const std::vector<nntile::Index> labels_graph =
+        pytorch_shape_to_graph(labels_shape);
+    const std::vector<nntile::Index> maxsumexp_graph =
+        maxsumexp_graph_shape(logits_graph);
+    const nntile::Index class_axis = class_graph_axis(logits_shape);
     const float scale =
         cross_entropy_scale(
             labels_data,
@@ -539,14 +539,14 @@ void tensor_cross_entropy_backward_fp32(
 
     nntile::TensorGraph graph("torch_cross_entropy_backward");
     auto *logits_node =
-        graph.data(logits_storage, nntile::DataType::FP32)->set_name("logits");
-    auto *labels_node = graph.data(labels_storage, nntile::DataType::INT64)
+        graph.data(logits_graph, nntile::DataType::FP32)->set_name("logits");
+    auto *labels_node = graph.data(labels_graph, nntile::DataType::INT64)
                               ->set_name("labels");
     auto *maxsumexp_node =
-        graph.data(maxsumexp_storage, nntile::DataType::FP32)
+        graph.data(maxsumexp_graph, nntile::DataType::FP32)
             ->set_name("maxsumexp");
     auto *grad_logits_node =
-        graph.data(logits_storage, nntile::DataType::FP32)
+        graph.data(logits_graph, nntile::DataType::FP32)
             ->set_name("grad_logits");
 
     logits_node->mark_input(true);
@@ -558,7 +558,7 @@ void tensor_cross_entropy_backward_fp32(
     nntile::tensor::maxsumexp(
         logits_node,
         maxsumexp_node,
-        storage_class_axis,
+        class_axis,
         kRedux);
     nntile::tensor::clear(grad_logits_node);
     nntile::tensor::softmax(
@@ -566,7 +566,7 @@ void tensor_cross_entropy_backward_fp32(
         logits_node,
         grad_logits_node,
         static_cast<nntile::Scalar>(scale),
-        storage_class_axis);
+        class_axis);
     nntile::tensor::subtract_indexed_outputs(
         static_cast<nntile::Scalar>(scale),
         labels_node,
@@ -580,8 +580,8 @@ void tensor_cross_entropy_backward_fp32(
     nntile::Runtime runtime(tile_graph);
     runtime.compile();
 
-    const nntile::Index logits_count = storage_numel(logits_storage);
-    const nntile::Index labels_count = storage_numel(labels_storage);
+    const nntile::Index logits_count = graph_numel(logits_graph);
+    const nntile::Index labels_count = graph_numel(labels_graph);
     std::vector<float> grad_init(static_cast<std::size_t>(logits_count), 0.0f);
     runtime.bind_data(
         logits_node,
@@ -621,17 +621,17 @@ void tensor_sgd_step_fp32(
     float *param_data,
     c10::IntArrayRef pytorch_shape)
 {
-    const std::vector<nntile::Index> storage_shape =
-        pytorch_shape_to_storage(pytorch_shape);
-    const nntile::Index nelems = storage_numel(storage_shape);
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+    const nntile::Index nelems = graph_numel(graph_shape);
 
     nntile::TensorGraph graph("torch_sgd_step");
     auto *grad_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("grad");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("grad");
     auto *velocity_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("velocity");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("velocity");
     auto *param_node =
-        graph.data(storage_shape, nntile::DataType::FP32)->set_name("param");
+        graph.data(graph_shape, nntile::DataType::FP32)->set_name("param");
 
     grad_node->mark_input(true);
     velocity_node->mark_input(true);
