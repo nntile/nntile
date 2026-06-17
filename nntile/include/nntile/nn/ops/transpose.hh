@@ -7,10 +7,10 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/nn/ops/transpose.hh
- * NNGraph transpose autograd operation (cyclic shift of dimensions).
+ * NNGraph transpose autograd operation (storage-order axis to graph axis).
  *
- * Forward: output[i] = src[(i+ndim) % ndim]
- * Backward: grad_src gets transpose of grad_out with inverse permutation
+ * Model code passes storage-order transpose axes; TensorGraph uses graph
+ * axes (C-order outermost first): graph_ndim = src.ndim - storage_ndim.
  *
  * @version 1.1.0
  * */

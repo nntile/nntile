@@ -143,7 +143,7 @@ def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
         ).transpose(2, 1, 0)
 
     def b(linear):
-        return linear.bias.detach().numpy().reshape(n_heads, hs).transpose(1, 0)
+        return linear.bias.detach().numpy().reshape(n_heads, hs)
 
     return {
         f"{prefix}.q_weight": as_float32(w(self_attn.query)),

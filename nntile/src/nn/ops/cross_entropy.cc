@@ -78,7 +78,7 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
 
     TensorGraph &tg = graph->tensor_graph();
 
-    std::vector<Index> maxsumexp_shape;
+    std::vector<Index> maxsumexp_shape = {2};
     for (Index i = 0; i < x->ndim(); ++i)
     {
         if (i != class_axis)
@@ -86,7 +86,6 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
             maxsumexp_shape.push_back(x_shape[i]);
         }
     }
-    maxsumexp_shape.push_back(2);
     maxsumexp_data_ = tg.data(maxsumexp_shape, x->dtype());
 
     // logsumexp shape: labels shape
