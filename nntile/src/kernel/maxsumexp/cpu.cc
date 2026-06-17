@@ -91,8 +91,8 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
             // Save result, do nothing if all elements are masked out
             if(not std::isinf(max))
             {
-                const Index max_idx = spatial;
-                const Index sum_idx = mn + spatial;
+                const Index max_idx = spatial * 2;
+                const Index sum_idx = spatial * 2 + 1;
                 Y sum_old = static_cast<Y>(maxsumexp[sum_idx]);
                 // If old sum is zero then just overwrite it with current sum
                 if(sum_old == zero)

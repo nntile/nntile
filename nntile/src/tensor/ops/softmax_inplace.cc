@@ -51,7 +51,8 @@ void softmax_inplace(
         throw std::invalid_argument(
             "softmax_inplace: input tensors must have the same dtype");
     }
-    // maxsumexp has shape with 2 at axis, dst has full shape
+    validate_maxsumexp_shape_and_merge(
+        dst, maxsumexp, axis, "softmax_inplace");
 
     auto op = std::make_shared<TensorSoftmaxInplaceOp>(
         maxsumexp, dst, alpha, axis);
@@ -83,15 +84,18 @@ void TensorSoftmaxInplaceOp::lower_to_tile(const LoweringContext& ctx) const
         lay_m->grid_coord_from_linear(lin_m, m_coord);
         TileGraph::TileNode* m_tile = tiles_m[static_cast<size_t>(lin_m)];
 
+        Index d = 0;
         for(Index j = 0; j < axis; ++j)
         {
             dst_coord[static_cast<size_t>(j)] =
-                m_coord[static_cast<size_t>(j + 1)];
+                m_coord[static_cast<size_t>(d)];
+            ++d;
         }
         for(Index j = axis + 1; j < dst->ndim(); ++j)
         {
             dst_coord[static_cast<size_t>(j)] =
-                m_coord[static_cast<size_t>(j)];
+                m_coord[static_cast<size_t>(d)];
+            ++d;
         }
 
         const Index nseg_along_axis =

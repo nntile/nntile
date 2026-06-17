@@ -27,7 +27,7 @@ void check()
     using Y = typename T::repr_t;
     constexpr Scalar alpha = 1.0;
     Tile<T> src({5, 4, 3}), dst({5, 4, 3}), dst2({5, 4, 3});
-    Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
+    Tile<T> maxsumexp[3] = {Tile<T>({4, 3, 2}), Tile<T>({5, 3, 2}), Tile<T>({5, 4, 2})};
     auto sl = src.acquire(STARPU_W);
     auto dl = dst.acquire(STARPU_W);
     auto d2l = dst2.acquire(STARPU_W);

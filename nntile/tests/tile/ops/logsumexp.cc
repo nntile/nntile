@@ -26,7 +26,7 @@ using namespace nntile;
 namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile", "[graph][tile]")
 {
-    const std::vector<Index> sh_src = {2, 3, 2};
+    const std::vector<Index> sh_src = {3, 2, 2};
     const std::vector<Index> sh_dst = {3, 2};
     const Index n_src = 12, n_dst = 6;
     TileGraph g("g");

@@ -55,7 +55,7 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> maxsumexp; // Size: 2*m*n (C-order [2, m, n])
+    std::vector<T> maxsumexp; // Size: 2*m*n (C-order [m, n, 2])
     std::vector<T> src;       // Size: m*n*k
     std::vector<T> dst_init;  // Size: m*n*k
     std::vector<T> dst_ref;   // Size: m*n*k
@@ -83,8 +83,8 @@ void reference_softmax(TestData<T>& data)
                 // Value-to-update
                 ref_t val = static_cast<Y>(data.src[src_dst_offset]);
                 // Max and sum of exponents
-                const ref_t max = static_cast<Y>(data.maxsumexp[spatial]);
-                const ref_t sum = static_cast<Y>(data.maxsumexp[mn + spatial]);
+                const ref_t max = static_cast<Y>(data.maxsumexp[spatial * 2]);
+                const ref_t sum = static_cast<Y>(data.maxsumexp[spatial * 2 + 1]);
                 // Update value
                 ref_t result = 0.0;
                 if(not std::isinf(val))
@@ -126,8 +126,8 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, DataGen strateg
         case DataGen::PRESET:
             for(Index i = 0; i < m * n; ++i)
             {
-                data.maxsumexp[i] = Y(1.0);     // max value
-                data.maxsumexp[m * n + i] = Y(10.0);  // sum of exponents
+                data.maxsumexp[i * 2] = Y(1.0);     // max value
+                data.maxsumexp[i * 2 + 1] = Y(10.0);  // sum of exponents
             }
             for(Index i = 0; i < m * n * k; ++i)
             {
@@ -148,8 +148,8 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, DataGen strateg
             std::uniform_real_distribution<Y> dist_src(-2.0, 2.0);
             for(Index i = 0; i < m * n; ++i)
             {
-                data.maxsumexp[i] = dist_max(gen);     // max value
-                data.maxsumexp[m * n + i] = dist_sum(gen);   // sum of exponents
+                data.maxsumexp[i * 2] = dist_max(gen);     // max value
+                data.maxsumexp[i * 2 + 1] = dist_sum(gen);   // sum of exponents
             }
             for(Index i = 0; i < m * n * k; ++i)
             {

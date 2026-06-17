@@ -65,11 +65,11 @@ TensorGraph::TensorNode *logsumexp(TensorGraph::TensorNode *src)
             "logsumexp: input tensor must be non-null");
     }
 
-    // dst shape: src.shape[1:] (src has shape[0]=2 for maxsumexp format)
+    // dst shape: maxsumexp spatial dims (drop trailing pair dim).
     std::vector<Index> output_shape;
     if (src->ndim() > 1)
     {
-        output_shape.assign(src->shape().begin() + 1, src->shape().end());
+        output_shape.assign(src->shape().begin(), src->shape().end() - 1);
     }
 
     TensorGraph::TensorNode *dst =

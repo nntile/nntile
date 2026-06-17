@@ -42,11 +42,11 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-// maxsumexp output shape: [2] + src.shape without axis
+// maxsumexp output shape: src.shape without axis + [2]
 static std::vector<Index> maxsumexp_dst_shape(
     const std::vector<Index> &src_shape, Index axis)
 {
-    std::vector<Index> dst = {2};
+    std::vector<Index> dst;
     for (Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
     {
         if (i != axis)
@@ -54,6 +54,7 @@ static std::vector<Index> maxsumexp_dst_shape(
             dst.push_back(src_shape[i]);
         }
     }
+    dst.push_back(2);
     return dst;
 }
 
@@ -62,7 +63,7 @@ TEST_CASE("TensorGraph logsumexp structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *src =
-        graph.data({2, 4, 5})->set_name("src"); // maxsumexp output shape
+        graph.data({4, 5, 2})->set_name("src"); // maxsumexp output shape
     auto *dst = gt::logsumexp(src)->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
@@ -140,9 +141,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             gt::logsumexp(maxsumexp_node)->set_name("logsumexp");
         logsumexp_node->mark_output(true);
         auto *maxsumexp_dim0 = maxsumexp_node->axis(0);
+        auto *maxsumexp_pair = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == maxsumexp_dim0)
+            if (ag == maxsumexp_pair)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else if (ag == maxsumexp_dim0)
             {
                 ag->set_tiling(ag->extent);
             }

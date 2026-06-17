@@ -236,12 +236,13 @@ inline void validate_maxsumexp_shape_and_merge(TensorGraph::TensorNode *src,
     {
         throw std::invalid_argument(op_name + ": axis out of range");
     }
-    if (dst->shape()[0] != 2)
+    if (dst->shape()[dst->ndim() - 1] != 2)
     {
-        throw std::invalid_argument(op_name + ": dst dim 0 must be 2 (got " +
-                                    std::to_string(dst->shape()[0]) + ")");
+        throw std::invalid_argument(
+            op_name + ": dst last dim must be 2 (got " +
+            std::to_string(dst->shape()[dst->ndim() - 1]) + ")");
     }
-    int d = 1;
+    int d = 0;
     for (Index i = 0; i < src->ndim(); ++i)
     {
         if (i == axis)
@@ -257,55 +258,6 @@ inline void validate_maxsumexp_shape_and_merge(TensorGraph::TensorNode *src,
         }
         merge_axis(src->mutable_axes()[i], dst->mutable_axes()[d]);
         ++d;
-    }
-}
-
-//! Validate logsumexp output: dst is src with the leading dimension removed
-//! (maxsumexp ``[2, ...]`` format).
-//!
-//! Supports both legacy leading-class logits ``[class, ...]`` (offset 1) and
-//! C-order trailing-class logits ``[..., class]`` (offset 0) when the first
-//! spatial dimension already matches between src and dst.
-inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
-    TensorGraph::TensorNode *dst,
-    const std::string &op_name)
-{
-    if (src->ndim() < 1 || dst->ndim() != src->ndim() - 1)
-    {
-        throw std::invalid_argument(op_name +
-                                    ": dst ndim must equal src.ndim - 1 (" +
-                                    std::to_string(dst->ndim()) + " vs " +
-                                    std::to_string(src->ndim()) + ")");
-    }
-    Index offset = 1;
-    if (src->shape()[0] == 2)
-    {
-        bool matches_leading_pair = true;
-        for (Index i = 0; i < dst->ndim(); ++i)
-        {
-            if (dst->shape()[i] != src->shape()[i + 1])
-            {
-                matches_leading_pair = false;
-                break;
-            }
-        }
-        offset = matches_leading_pair ? 1 : 0;
-    }
-    else if (src->shape()[0] == dst->shape()[0])
-    {
-        offset = 0;
-    }
-    for (Index i = 0; i < dst->ndim(); ++i)
-    {
-        if (dst->shape()[i] != src->shape()[i + offset])
-        {
-            throw std::invalid_argument(
-                op_name + ": shape mismatch at dimension " +
-                std::to_string(i) +
-                " (dst: " + std::to_string(dst->shape()[i]) +
-                " vs src: " + std::to_string(src->shape()[i + offset]) + ")");
-        }
-        merge_axis(src->mutable_axes()[i + offset], dst->mutable_axes()[i]);
     }
 }
 
@@ -334,6 +286,14 @@ inline void validate_logsumexp_drop_last_shape_and_merge(
         }
         merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
     }
+}
+
+//! Validate logsumexp output: dst is maxsumexp with trailing pair dim removed.
+inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
+    const std::string &op_name)
+{
+    validate_logsumexp_drop_last_shape_and_merge(src, dst, op_name);
 }
 
 //! Validate flash_sdpa Q/K/V shape (C-order): [batch..., seq, head_size].

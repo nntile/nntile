@@ -23,7 +23,7 @@
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax_inplace axis0", "[graph][tile]")
 {
-    const std::vector<Index> mh = {2,4,5}, dh = {3,4,5};
+    const std::vector<Index> mh = {4,5,2}, dh = {3,4,5};
     const Index nms=40, n=60; const Scalar al=1.0; const Index axis=0;
     TileGraph g("g");
     auto* m = g.data(mh, "m", DataType::FP32);

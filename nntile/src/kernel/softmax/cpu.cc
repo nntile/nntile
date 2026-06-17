@@ -52,8 +52,8 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp_, const T *src_,
                 // Value-to-update
                 Y val = static_cast<Y>(src_[src_dst_offset]);
                 // Max and sum of exponents
-                const Y max = static_cast<Y>(maxsumexp_[spatial]);
-                const Y sum = static_cast<Y>(maxsumexp_[mn + spatial]);
+                const Y max = static_cast<Y>(maxsumexp_[spatial * 2]);
+                const Y sum = static_cast<Y>(maxsumexp_[spatial * 2 + 1]);
                 // Update value
                 if(not std::isinf(val))
                 {

@@ -46,23 +46,23 @@ void softmax_async(int starpu_worker_hint, const Tile<T> &maxsumexp, const Tile<
     {
         throw std::runtime_error("axis >= dst.ndim");
     }
-    // Check shapes
-    if(maxsumexp.shape[0] != 2)
+    // Check shapes (C-order trailing pair dim).
+    if(maxsumexp.shape[maxsumexp.ndim-1] != 2)
     {
-        throw std::runtime_error("maxsumexp.shape[0] != 2");
+        throw std::runtime_error("maxsumexp last dim must be 2");
     }
     for(Index i = 0; i < axis; ++i)
-    {
-        if(dst.shape[i] != maxsumexp.shape[i+1])
-        {
-            throw std::runtime_error("dst.shape[i] != maxsumexp.shape[i+1]");
-        }
-    }
-    for(Index i = axis+1; i < dst.ndim; ++i)
     {
         if(dst.shape[i] != maxsumexp.shape[i])
         {
             throw std::runtime_error("dst.shape[i] != maxsumexp.shape[i]");
+        }
+    }
+    for(Index i = axis+1; i < dst.ndim; ++i)
+    {
+        if(dst.shape[i] != maxsumexp.shape[i-1])
+        {
+            throw std::runtime_error("dst.shape[i] != maxsumexp.shape[i-1]");
         }
     }
     if(src.shape != dst.shape)

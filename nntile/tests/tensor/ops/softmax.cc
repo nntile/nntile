@@ -46,7 +46,7 @@ constexpr int distr_rank_single = 0;
 static std::vector<Index> maxsumexp_dst_shape(
     const std::vector<Index> &src_shape, Index axis)
 {
-    std::vector<Index> dst = {2};
+    std::vector<Index> dst;
     for (Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
     {
         if (i != axis)
@@ -54,6 +54,7 @@ static std::vector<Index> maxsumexp_dst_shape(
             dst.push_back(src_shape[i]);
         }
     }
+    dst.push_back(2);
     return dst;
 }
 
@@ -64,8 +65,8 @@ TEST_CASE("TensorGraph softmax structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    // maxsumexp shape for axis 0: [2] + src.shape without axis 0 = [2, dim1]
-    auto *maxsumexp_node = graph.data({2, dim1})->set_name("maxsumexp");
+    // maxsumexp shape for axis 0: src.shape without axis 0 + [2] = [dim1, 2]
+    auto *maxsumexp_node = graph.data({dim1, 2})->set_name("maxsumexp");
     auto *src = graph.data({dim0, dim1})->set_name("src");
     auto *dst = gt::softmax(maxsumexp_node, src, alpha_one, axis_0);
 
@@ -85,8 +86,8 @@ TEST_CASE("TensorGraph softmax structure", "[graph][tensor]")
 TEST_CASE("TensorGraph softmax rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    // maxsumexp shape for axis 0, src [4,5]: [2, 5]
-    auto *mse = graph.data({2, 5})->set_name("mse");
+    // maxsumexp shape for axis 0, src [4,5]: [5, 2]
+    auto *mse = graph.data({5, 2})->set_name("mse");
     auto *src = graph.data({5, 4})->set_name("src");
 
     REQUIRE_THROWS_AS(
@@ -149,9 +150,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *dst_node = gt::softmax(maxsumexp_node, src_node, alpha, axis);
         dst_node->mark_output(true);
         auto *maxsumexp_dim0 = maxsumexp_node->axis(0);
+        auto *maxsumexp_pair = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == maxsumexp_dim0)
+            if (ag == maxsumexp_pair)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else if (ag == maxsumexp_dim0)
             {
                 ag->set_tiling(ag->extent);
             }

@@ -88,8 +88,8 @@ void validate(Index m, Index n, Index k)
         {
             const Index spatial = i0 + m * i1;
             Y max = Y(i0+i1+k-1) / Y{100};
-            maxsumexp[spatial] = max;
-            maxsumexp[m*n + spatial] = Y(i0+i1+1) / Y{100};
+            maxsumexp[spatial * 2] = max;
+            maxsumexp[spatial * 2 + 1] = Y(i0+i1+1) / Y{100};
         }
     }
     std::vector<T> dst_save(dst);

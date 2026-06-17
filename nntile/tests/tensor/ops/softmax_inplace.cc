@@ -46,7 +46,7 @@ constexpr int distr_rank_single = 0;
 static std::vector<Index> maxsumexp_dst_shape(
     const std::vector<Index> &src_shape, Index axis)
 {
-    std::vector<Index> dst = {2};
+    std::vector<Index> dst;
     for (Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
     {
         if (i != axis)
@@ -54,6 +54,7 @@ static std::vector<Index> maxsumexp_dst_shape(
             dst.push_back(src_shape[i]);
         }
     }
+    dst.push_back(2);
     return dst;
 }
 
@@ -64,7 +65,7 @@ TEST_CASE("TensorGraph softmax_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *maxsumexp_node = graph.data({2, dim0, dim1})->set_name("maxsumexp");
+    auto *maxsumexp_node = graph.data({dim1, 2})->set_name("maxsumexp");
     auto *dst = graph.data({dim0, dim1})->set_name("dst");
 
     gt::softmax_inplace(maxsumexp_node, dst, alpha_one, axis_0);
@@ -82,7 +83,7 @@ TEST_CASE("TensorGraph softmax_inplace structure", "[graph][tensor]")
 TEST_CASE("TensorGraph softmax_inplace rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *mse = graph.data({2, 4, 5})->set_name("mse");
+    auto *mse = graph.data({4, 5, 2})->set_name("mse");
     auto *dst = graph.data({5, 4})->set_name("dst");
 
     REQUIRE_THROWS_AS(gt::softmax_inplace(nullptr, dst, alpha_one, axis_0),
@@ -152,9 +153,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             gt::maxsumexp(src_node, axis, redux)->set_name("maxsumexp");
         gt::softmax_inplace(maxsumexp_node, dst_node, alpha, axis);
         auto *maxsumexp_dim0 = maxsumexp_node->axis(0);
+        auto *maxsumexp_pair = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == maxsumexp_dim0)
+            if (ag == maxsumexp_pair)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else if (ag == maxsumexp_dim0)
             {
                 ag->set_tiling(ag->extent);
             }

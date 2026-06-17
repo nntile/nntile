@@ -28,7 +28,7 @@ void check()
     constexpr Scalar alpha = 1.0;
     // Init data for checking
     Tile<T> dst({5, 4, 3}), dst2({5, 4, 3});
-    Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
+    Tile<T> maxsumexp[3] = {Tile<T>({4, 3, 2}), Tile<T>({5, 3, 2}), Tile<T>({5, 4, 2})};
     auto dst_local = dst.acquire(STARPU_W);
     auto dst2_local = dst2.acquire(STARPU_W);
     for(Index i = 0; i < dst.nelems; ++i)
@@ -98,7 +98,7 @@ void validate()
     // Check throwing exceptions
     Tile<T> empty({});
     Tile<T> dst({5, 4, 3});
-    Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
+    Tile<T> maxsumexp[3] = {Tile<T>({4, 3, 2}), Tile<T>({5, 3, 2}), Tile<T>({5, 4, 2})};
     TEST_THROW(softmax_inplace<T>(-1, empty, alpha, empty, 0));
     TEST_THROW(softmax_inplace<T>(-1, maxsumexp[0], alpha, dst, 1));
     TEST_THROW(softmax_inplace<T>(-1, maxsumexp[0], alpha, dst, 2));

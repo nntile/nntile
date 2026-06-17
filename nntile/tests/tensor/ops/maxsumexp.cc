@@ -40,11 +40,11 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-// dst shape for tensor API: [2] + src.shape without axis
+// dst shape for tensor API: src.shape without axis + [2]
 static std::vector<Index> maxsumexp_dst_shape(
     const std::vector<Index> &src_shape, Index axis)
 {
-    std::vector<Index> dst = {2};
+    std::vector<Index> dst;
     for (Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
     {
         if (i != axis)
@@ -52,6 +52,7 @@ static std::vector<Index> maxsumexp_dst_shape(
             dst.push_back(src_shape[i]);
         }
     }
+    dst.push_back(2);
     return dst;
 }
 
@@ -68,8 +69,8 @@ TEST_CASE("TensorGraph maxsumexp structure", "[graph][tensor]")
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape().size() == 2);
-    REQUIRE(dst->shape()[0] == 2);
-    REQUIRE(dst->shape()[1] == dim1); // axis 0: drop dim0, keep dim1
+    REQUIRE(dst->shape()[dst->shape().size() - 1] == 2);
+    REQUIRE(dst->shape()[0] == dim1); // axis 0: drop dim0, keep dim1
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "MAXSUMEXP");
@@ -135,9 +136,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto *dst_node = gt::maxsumexp(src_node, axis, 0)->set_name("dst");
         dst_node->mark_output(true);
         auto *maxsumexp_dim0 = dst_node->axis(0);
+        auto *maxsumexp_pair = dst_node->axis(dst_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
-            if (ag == maxsumexp_dim0)
+            if (ag == maxsumexp_pair)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else if (ag == maxsumexp_dim0)
             {
                 ag->set_tiling(ag->extent);
             }

@@ -51,8 +51,8 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, Scalar alpha_, T *dst)
                 // Value-to-update
                 T &val = dst[dst_offset];
                 // Max and sum of exponents
-                const Y max = Y{maxsumexp[spatial]};
-                const Y sum = Y{maxsumexp[mn + spatial]};
+                const Y max = Y{maxsumexp[spatial * 2]};
+                const Y sum = Y{maxsumexp[spatial * 2 + 1]};
                 // Update value
                 if(not std::isinf(Y{val}))
                 {

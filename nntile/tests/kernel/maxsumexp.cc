@@ -121,8 +121,8 @@ void reference_maxsumexp(TestData<T>& data)
             // Update result if we have finite values
             if(has_finite_values)
             {
-                const Index max_idx = spatial;
-                const Index sum_idx = mn + spatial;
+                const Index max_idx = spatial * 2;
+                const Index sum_idx = spatial * 2 + 1;
                 ref_t sum_old = static_cast<Y>(data.maxsumexp_ref[sum_idx]);
                 // If old sum is zero then just overwrite it with current sum
                 if(sum_old == 0.0)

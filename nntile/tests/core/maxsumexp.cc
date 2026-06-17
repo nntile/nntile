@@ -26,8 +26,8 @@ void check()
     using Y = typename T::repr_t;
     // Init data for checking
     Tile<T> src({5, 4, 3});
-    Tile<T> dst[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
-    Tile<T> dst2[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
+    Tile<T> dst[3] = {Tile<T>({4, 3, 2}), Tile<T>({5, 3, 2}), Tile<T>({5, 4, 2})};
+    Tile<T> dst2[3] = {Tile<T>({4, 3, 2}), Tile<T>({5, 3, 2}), Tile<T>({5, 4, 2})};
     auto src_local = src.acquire(STARPU_W);
     for(Index i = 0; i < src.nelems; ++i)
     {
@@ -95,7 +95,7 @@ void validate()
     check<T>();
     // Check throwing exceptions
     Tile<T> src({5, 4, 3});
-    Tile<T> dst[3] = {Tile<T>({2, 4, 3}), Tile<T>({2, 5, 3}), Tile<T>({2, 5, 4})};
+    Tile<T> dst[3] = {Tile<T>({4, 3, 2}), Tile<T>({5, 3, 2}), Tile<T>({5, 4, 2})};
     Tile<T> empty({});
     TEST_THROW(maxsumexp<T>(-1, src, empty, 0));
     TEST_THROW(maxsumexp<T>(-1, empty, empty, 0));

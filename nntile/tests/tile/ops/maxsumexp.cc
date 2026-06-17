@@ -23,8 +23,8 @@
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[graph][tile]")
 {
-    const std::vector<Index> sh = {3,4,5}, dh = {2,4,5};
-    const Index n1 = 60, n2 = 2*4*5;
+    const std::vector<Index> sh = {3,4,5}, dh = {4,5,2};
+    const Index n1 = 60, n2 = 4*5*2;
     const Index axis = 0; const int redux = 0;
     TileGraph g("g");
     auto* s = g.data(sh, "s", DataType::FP32);

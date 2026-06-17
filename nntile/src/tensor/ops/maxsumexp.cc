@@ -40,12 +40,9 @@ TensorGraph::TensorNode *maxsumexp(
             "maxsumexp: input tensor must be non-null");
     }
 
-    // dst shape: [2] + src.shape without axis (tensor API convention)
-    // dst.shape[0]=2, dst.shape[i+1]=src.shape[i] for i<axis,
-    // dst.shape[i]=src.shape[i] for i>axis
+    // C-order: same ndim as src, trailing dim = 2, axis removed from interior.
     std::vector<Index> output_shape;
     output_shape.reserve(src->ndim());
-    output_shape.push_back(2);
     for (Index i = 0; i < src->ndim(); ++i)
     {
         if (i != axis)
@@ -53,6 +50,7 @@ TensorGraph::TensorNode *maxsumexp(
             output_shape.push_back(src->shape()[i]);
         }
     }
+    output_shape.push_back(2);
 
     TensorGraph::TensorNode *dst =
         src->graph()->data(std::move(output_shape), src->dtype());
@@ -116,15 +114,16 @@ void TensorMaxsumexpOp::lower_to_tile(const LoweringContext &ctx) const
         TileGraph::TileNode *dst_tile =
             tiles_dst[static_cast<size_t>(lin_dst)];
 
-        for (Index j = 0; j < axis; ++j)
+        Index d = 0;
+        for (Index j = 0; j < src->ndim(); ++j)
         {
+            if (j == axis)
+            {
+                continue;
+            }
             src_coord[static_cast<size_t>(j)] =
-                dst_coord[static_cast<size_t>(j + 1)];
-        }
-        for (Index j = axis + 1; j < src->ndim(); ++j)
-        {
-            src_coord[static_cast<size_t>(j)] =
-                dst_coord[static_cast<size_t>(j)];
+                dst_coord[static_cast<size_t>(d)];
+            ++d;
         }
 
         tile::clear(dst_tile);
