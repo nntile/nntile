@@ -27,3 +27,51 @@ markers = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["torch_nntile*"]
+
+[tool.cibuildwheel]
+build = "cp314-*"
+skip = "*-musllinux* *-win*"
+build-frontend = "pip; args: --no-build-isolation"
+before-all = "bash {package}/tools/build_wheel_deps.sh \"$NNTILE_SOURCE_DIR\""
+before-build = [
+    "python -m pip install --upgrade pip",
+    "python -m pip install 'setuptools>=61,<82' wheel ninja",
+]
+test-command = "python {package}/tools/smoke_test_wheel.py"
+
+[tool.cibuildwheel.environment]
+STARPU_SILENT = "1"
+STARPU_FXT_TRACE = "0"
+STARPU_WORKERS_NOBIND = "1"
+
+TORCH_NNTILE_REQUIRE_LIBNNTILE = "1"
+TORCH_NNTILE_WHEEL = "1"
+TORCH_NNTILE_CXX_STANDARD = "c++20"
+
+[tool.cibuildwheel.test-environment]
+STARPU_SILENT = "1"
+STARPU_FXT_TRACE = "0"
+STARPU_WORKERS_NOBIND = "1"
+
+OPENBLAS_NUM_THREADS = "1"
+OMP_NUM_THREADS = "1"
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+manylinux-x86_64-image = "manylinux_2_28"
+before-build = [
+    "python -m pip install --upgrade pip",
+    "python -m pip install 'setuptools>=61,<82' wheel ninja",
+    "python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu 'torch==2.12.0+cpu'",
+]
+before-test = "python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu 'torch==2.12.0+cpu'"
+repair-wheel-command = "bash {package}/tools/repair_wheel_linux.sh {wheel} {dest_dir}"
+
+[tool.cibuildwheel.macos]
+archs = ["arm64"]
+before-build = [
+    "python -m pip install --upgrade pip",
+    "python -m pip install 'setuptools>=61,<82' wheel ninja 'torch==2.12.0'",
+]
+before-test = "python -m pip install 'torch==2.12.0'"
+repair-wheel-command = "bash {package}/tools/repair_wheel_macos.sh {wheel} {dest_dir} {delocate_archs}"

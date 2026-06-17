@@ -1,0 +1,6 @@
+include README.md
+recursive-include csrc *.cpp *.h
+recursive-include examples *.py
+recursive-include tests *.py
+recursive-include tools *.py *.sh
+recursive-include torch_nntile *.py
