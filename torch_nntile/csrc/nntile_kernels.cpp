@@ -5,6 +5,7 @@
  */
 
 #include "nntile_allocator.h"
+#include "nntile_context.h"
 
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
@@ -17,6 +18,7 @@
 
 #include <cstring>
 #include <optional>
+#include <sstream>
 
 namespace torch_nntile
 {
@@ -293,9 +295,15 @@ at::Tensor &set_source_storage_storage_offset(
 
 void cpu_fallback(const c10::OperatorHandle &op, torch::jit::Stack *stack)
 {
-    // PyTorch 2.12 exports only the 4-arg overload (with DispatchKey) from
-    // libtorch_cpu. Calling with default arguments can leave an unresolved
-    // reference to a 3-arg symbol on macOS.
+    if (!torch_nntile::is_cpu_fallback_enabled())
+    {
+        std::ostringstream message;
+        message << "Operator '" << op.schema().operator_name()
+                << "' is not implemented for device nntile and CPU "
+                   "fallback is disabled (set cpu_fallback=True in "
+                   "torch_nntile.init_context)";
+        TORCH_CHECK(false, message.str());
+    }
     at::native::cpu_fallback(
         op,
         stack,

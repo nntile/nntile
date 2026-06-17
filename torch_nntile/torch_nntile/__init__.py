@@ -66,6 +66,8 @@ def init_context(
     ooc_size: int = 16 * 1024 * 1024,
     logger: int = 0,
     verbose: int = 0,
+    *,
+    cpu_fallback: bool = True,
 ) -> None:
     """Configure StarPU workers before the first libnntile-backed op."""
     _C.init_context(
@@ -76,11 +78,16 @@ def init_context(
         ooc_size,
         logger,
         verbose,
+        cpu_fallback,
     )
 
 
 def is_context_initialized() -> bool:
     return _C.is_context_initialized()
+
+
+def is_cpu_fallback_enabled() -> bool:
+    return _C.is_cpu_fallback_enabled()
 
 
 def restrict_cpu() -> None:
@@ -103,6 +110,7 @@ __all__ = [
     "_C",
     "init_context",
     "is_context_initialized",
+    "is_cpu_fallback_enabled",
     "restrict_cpu",
     "restrict_cuda",
     "restore_where",

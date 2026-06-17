@@ -30,6 +30,7 @@ struct ContextConfig
     std::size_t ooc_size = 16 * 1024 * 1024;
     int logger = 0;
     int verbose = 0;
+    bool cpu_fallback = true;
 };
 
 std::mutex g_context_mutex;
@@ -65,7 +66,8 @@ void init_context(
     const char *ooc_path,
     std::size_t ooc_size,
     int logger,
-    int verbose)
+    int verbose,
+    bool cpu_fallback)
 {
     std::lock_guard<std::mutex> lock(g_context_mutex);
     if (g_context != nullptr)
@@ -86,7 +88,14 @@ void init_context(
     g_context_config.ooc_size = ooc_size;
     g_context_config.logger = logger;
     g_context_config.verbose = verbose;
+    g_context_config.cpu_fallback = cpu_fallback;
     g_context_config_locked = true;
+}
+
+bool is_cpu_fallback_enabled()
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    return g_context_config.cpu_fallback;
 }
 
 bool is_context_initialized()
@@ -148,9 +157,15 @@ void init_context(
     const char * /*ooc_path*/,
     std::size_t /*ooc_size*/,
     int /*logger*/,
-    int /*verbose*/)
+    int /*verbose*/,
+    bool /*cpu_fallback*/)
 {
     require_libnntile();
+}
+
+bool is_cpu_fallback_enabled()
+{
+    return true;
 }
 
 bool is_context_initialized()

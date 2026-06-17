@@ -286,4 +286,6 @@ jobs:
           export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           CXX=g++ pip install --break-system-packages \
             -e ./torch_nntile --no-build-isolation --force-reinstall
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          pytest -vv torch_nntile/tests/test_deep_relu_parity.py
           pytest -vv torch_nntile/tests

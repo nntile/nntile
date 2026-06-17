@@ -19,4 +19,17 @@ void tensor_add_fp32(
     float *out_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_linear_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    const float *weight_data,
+    c10::IntArrayRef weight_shape,
+    float *out_data,
+    c10::IntArrayRef out_shape);
+
+void tensor_relu_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape);
+
 } // namespace torch_nntile

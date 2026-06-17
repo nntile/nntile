@@ -18,9 +18,12 @@ void init_context(
     const char *ooc_path = "/tmp/nntile_ooc",
     std::size_t ooc_size = 16 * 1024 * 1024,
     int logger = 0,
-    int verbose = 0);
+    int verbose = 0,
+    bool cpu_fallback = true);
 
 bool is_context_initialized();
+
+bool is_cpu_fallback_enabled();
 
 void ensure_nntile_context();
 

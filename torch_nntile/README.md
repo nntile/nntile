@@ -8,13 +8,50 @@ Tensor storage is backed by a host `std::vector<uint8_t>` buffer. Supports
 allocation, `tensor.to("nntile")` / `.cpu()`, and a global CPU fallback for
 unsupported ATen ops. Does **not** require `libnntile`.
 
-## Phase 2 (TensorGraph add)
+## Phase 2 (TensorGraph ops)
 
-When built with `NNTILE_BUILD_DIR` pointing at a CMake build tree, `a + b` on
-`device="nntile"` runs `nntile::tensor::add` through `TensorGraph` →
-`TileGraph` → `Runtime`. PyTorch shapes use C-order labels; the bridge converts
-to TensorGraph storage layout internally. Gradients use **PyTorch autograd**
-(not `NNGraph` autograd).
+When built with `NNTILE_BUILD_DIR` pointing at a CMake build tree, selected ops
+run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
+
+| PyTorch op | libnntile |
+|------------|-----------|
+| `a + b` | `tensor::add` |
+| `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |
+| `F.relu` / `nn.ReLU` | `tensor::relu` |
+
+PyTorch C-order shapes are converted to TensorGraph storage layout internally.
+Gradients use **PyTorch autograd** (not `NNGraph` autograd).
+
+### CPU fallback control
+
+```python
+torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
+```
+
+When `cpu_fallback=False`, unsupported ATen ops raise instead of running on CPU.
+Use this to verify that a model forward uses only nntile kernels.
+
+## Phase 3 (DeepReLU example)
+
+Bias-free MLP matching `nntile/examples/deep_relu_forward.cc`:
+
+```python
+import torch
+import torch_nntile
+from torch_nntile.models import DeepReLU
+
+torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
+
+model = DeepReLU.tiny().to("nntile")
+x = torch.randn(32, 128, device="nntile")
+y = model(x)
+```
+
+Parity test (nntile vs CPU, no fallback):
+
+```bash
+pytest -vv torch_nntile/tests/test_deep_relu_parity.py
+```
 
 ## Install (stub only)
 

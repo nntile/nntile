@@ -22,6 +22,8 @@ CSRC = [
     "csrc/nntile_context.cpp",
     "csrc/nntile_executor.cpp",
     "csrc/nntile_add.cpp",
+    "csrc/nntile_linear.cpp",
+    "csrc/nntile_relu.cpp",
 ]
 
 
@@ -113,7 +115,7 @@ ext_kwargs = _nntile_extension_kwargs()
 
 setup(
     name="torch_nntile",
-    version="0.2.0",
+    version="0.3.0",
     packages=["torch_nntile"],
     ext_modules=[
         CppExtension(

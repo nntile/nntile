@@ -77,7 +77,12 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("ooc_path") = "/tmp/nntile_ooc",
         py::arg("ooc_size") = 16 * 1024 * 1024,
         py::arg("logger") = 0,
-        py::arg("verbose") = 0);
+        py::arg("verbose") = 0,
+        py::arg("cpu_fallback") = true);
+    m.def(
+        "is_cpu_fallback_enabled",
+        &torch_nntile::is_cpu_fallback_enabled,
+        "Whether unsupported ops may fall back to CPU");
     m.def(
         "is_context_initialized",
         &torch_nntile::is_context_initialized,
