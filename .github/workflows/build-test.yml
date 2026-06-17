@@ -280,12 +280,18 @@ jobs:
           path: build
       - run: rm -rf build/_deps
       - run: |
-          pip install --break-system-packages torch pytest
+          set -euo pipefail
+          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
+            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
+              /usr/lib/x86_64-linux-gnu/libstdc++.so
+          fi
           export NNTILE_BUILD_DIR="${PWD}/build"
           export NNTILE_SOURCE_DIR="${PWD}"
+          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
           export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
+          pip install --break-system-packages torch pytest
           CXX=g++ pip install --break-system-packages \
             -e ./torch_nntile --no-build-isolation --force-reinstall
-          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-          pytest -vv torch_nntile/tests/test_deep_relu_parity.py
-          pytest -vv torch_nntile/tests
+          pytest -vv -m 'not slow' torch_nntile/tests/

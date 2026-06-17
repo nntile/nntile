@@ -17,10 +17,9 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_init_context_before_ops():
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(ncpu=1, ncuda=0, verbose=0)
-    torch_nntile.restrict_cpu()
     assert torch_nntile.is_context_initialized()
+    assert not torch_nntile.is_cpu_fallback_enabled()
+    torch_nntile.restrict_cpu()
     torch_nntile.restore_where()
 
 

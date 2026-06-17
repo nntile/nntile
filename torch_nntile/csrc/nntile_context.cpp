@@ -30,7 +30,7 @@ struct ContextConfig
     std::size_t ooc_size = 16 * 1024 * 1024;
     int logger = 0;
     int verbose = 0;
-    bool cpu_fallback = true;
+    bool cpu_fallback = false;
 };
 
 std::mutex g_context_mutex;

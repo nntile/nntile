@@ -74,23 +74,29 @@ void run_graph_output(
     nntile::Runtime runtime(tile_graph);
     runtime.compile();
 
+    const std::size_t expected =
+        static_cast<std::size_t>(storage_numel(out_storage_shape));
+    out_node->mark_input(true);
+
     for (const auto &[node, data] : inputs)
     {
         const nntile::Index count = storage_numel(node->shape());
         runtime.bind_data(node, data, static_cast<std::size_t>(count));
     }
+    runtime.bind_data(out_node, out_data, expected);
     runtime.execute();
     runtime.wait();
 
     const std::vector<float> result = runtime.get_output<float>(out_node);
-    const std::size_t expected =
-        static_cast<std::size_t>(storage_numel(out_storage_shape));
     if (result.size() != expected)
     {
         throw std::runtime_error(
             std::string(graph_name) + ": output size mismatch");
     }
-    std::memcpy(out_data, result.data(), expected * sizeof(float));
+    if (result.data() != out_data)
+    {
+        std::memcpy(out_data, result.data(), expected * sizeof(float));
+    }
 }
 
 } // namespace

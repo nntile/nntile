@@ -17,16 +17,6 @@ pytestmark = pytest.mark.skipif(
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
 
-
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context():
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
-        )
-    yield
-
-
 def _reference_cpu_sgd(
     param: torch.Tensor,
     grad: torch.Tensor,

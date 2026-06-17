@@ -20,15 +20,11 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="module", autouse=True)
 def _nntile_context_no_fallback():
-    if torch_nntile.is_context_initialized():
-        if torch_nntile.is_cpu_fallback_enabled():
-            pytest.skip(
-                "context already initialized with CPU fallback enabled; "
-                "run test_deep_relu_parity.py in isolation"
-            )
-    else:
-        torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+    if not _C.has_libnntile():
+        return
+    if torch_nntile.is_cpu_fallback_enabled():
+        pytest.skip(
+            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
         )
     yield
 
