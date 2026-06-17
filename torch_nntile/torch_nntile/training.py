@@ -6,12 +6,9 @@
 
 """Utilities for training on the nntile device.
 
-NNTile cross-entropy lives in ``NNGraph`` and composes many tensor ops
-(``maxsumexp``, ``logsumexp``, ``total_sum_accum``, ``softmax``,
-``subtract_indexed_outputs``, INT64 labels). Wiring it into PyTorch autograd
-would require a sizable set of new ATen kernels. Until that exists, these
-helpers run cross-entropy on CPU for the loss value and ``grad_logits``, then
-propagate through nntile linear/ReLU backward kernels.
+Cross-entropy is implemented with libnntile tensor ops (``maxsumexp``,
+``logsumexp``, ``total_sum_accum``, ``softmax``, ``subtract_indexed_outputs``),
+mirroring ``NNCrossEntropyOp`` in the main package.
 """
 
 from __future__ import annotations
@@ -19,21 +16,62 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 
+from torch_nntile import _C
 
-def cross_entropy_loss_and_grad(
+# torch.nn._reduction: none=0, mean=1, sum=2
+_REDUCTION_MEAN = 1
+_REDUCTION_SUM = 2
+
+
+class _NntileCrossEntropy(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        logits: torch.Tensor,
+        target: torch.Tensor,
+        reduction: int,
+        ignore_index: int,
+    ) -> torch.Tensor:
+        loss = _C.cross_entropy_forward(logits, target, reduction, ignore_index)
+        ctx.save_for_backward(logits, target)
+        ctx.reduction = int(reduction)
+        ctx.ignore_index = int(ignore_index)
+        return loss
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        logits, target = ctx.saved_tensors
+        grad_logits = _C.cross_entropy_backward(
+            logits,
+            target,
+            grad_output,
+            ctx.reduction,
+            ctx.ignore_index,
+        )
+        return grad_logits, None, None, None
+
+
+def cross_entropy(
     logits: torch.Tensor,
-    targets: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Cross-entropy loss and ``grad_logits`` with a CPU bridge.
-
-    ``logits`` may live on ``nntile``; ``targets`` must be a CPU ``int64`` vector.
-    Returns ``(loss_cpu, grad_logits_on_same_device_as_logits)``.
-    """
-    logits_cpu = logits.detach().cpu().requires_grad_(True)
-    loss = F.cross_entropy(logits_cpu, targets)
-    (grad_logits_cpu,) = torch.autograd.grad(loss, logits_cpu)
-    grad_logits = grad_logits_cpu.to(device=logits.device)
-    return loss.detach(), grad_logits
+    target: torch.Tensor,
+    *,
+    reduction: str = "mean",
+    ignore_index: int = -100,
+) -> torch.Tensor:
+    """Cross-entropy on ``device='nntile'`` via libnntile tensor ops."""
+    if logits.device.type != "nntile":
+        raise ValueError("cross_entropy expects nntile logits")
+    if reduction == "mean":
+        reduction_enum = _REDUCTION_MEAN
+    elif reduction == "sum":
+        reduction_enum = _REDUCTION_SUM
+    else:
+        raise ValueError("nntile cross_entropy supports reduction 'mean' or 'sum'")
+    if target.device.type not in ("cpu", "nntile"):
+        target = target.cpu()
+    return _NntileCrossEntropy.apply(
+        logits, target, reduction_enum, ignore_index
+    )
 
 
 def manual_sgd_step(
@@ -59,25 +97,20 @@ def train_full_batch_step(
     learning_rate: float,
 ) -> float:
     """One full-batch SGD step; returns scalar loss."""
+    for param in model.parameters():
+        param.grad = None
+
     logits = model(inputs)
     if inputs.device.type == "nntile":
-        if targets.device.type != "cpu":
-            targets = targets.cpu()
-        loss, grad_logits = cross_entropy_loss_and_grad(logits, targets)
-        params = [p for p in model.parameters() if p.requires_grad]
-        grads = torch.autograd.grad(
-            logits,
-            params,
-            grad_outputs=grad_logits,
-            retain_graph=False,
+        loss = cross_entropy(logits, targets)
+        loss.backward()
+        manual_sgd_step(
+            [p for p in model.parameters() if p.requires_grad],
+            learning_rate,
         )
-        for param, grad in zip(params, grads):
-            param.grad = grad
-        manual_sgd_step(params, learning_rate)
-        return float(loss.item())
+        return float(loss.detach().cpu().item())
 
     loss = F.cross_entropy(logits, targets)
-    model.zero_grad(set_to_none=True)
     loss.backward()
     manual_sgd_step(list(model.parameters()), learning_rate)
     return float(loss.item())

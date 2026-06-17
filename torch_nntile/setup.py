@@ -28,6 +28,7 @@ CSRC = [
     "csrc/nntile_relu.cpp",
     "csrc/nntile_threshold_backward.cpp",
     "csrc/nntile_mm.cpp",
+    "csrc/nntile_cross_entropy.cpp",
 ]
 
 
@@ -119,7 +120,7 @@ ext_kwargs = _nntile_extension_kwargs()
 
 setup(
     name="torch_nntile",
-    version="0.5.0",
+    version="0.6.0",
     packages=["torch_nntile"],
     ext_modules=[
         CppExtension(

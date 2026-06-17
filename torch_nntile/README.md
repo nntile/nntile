@@ -20,6 +20,7 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
 | `linear` backward / `mm` | `tensor::gemm` |
+| `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs` |
 
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
 Gradients use **PyTorch autograd** (not `NNGraph` autograd).
@@ -61,16 +62,10 @@ pytest -vv torch_nntile/tests/test_deep_relu_parity.py
 Train `DeepReLU.mnist()` on all **60 000** MNIST training images in one batch,
 comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
 
-### Cross-entropy note
-
-NNTile `cross_entropy` is implemented at **NNGraph** level and chains
-`maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`,
-and INT64 labels. Exposing it in PyTorch would need many new ATen kernels plus
-label support on PrivateUse1. **Not a small plug-in.**
-
-The training example therefore computes cross-entropy on **CPU** for the scalar
-loss and `grad_logits`, then backpropagates through nntile `linear` / `relu`
-kernels (`cpu_fallback=False`). Optimizer steps use manual SGD (no `torch.optim`
+Cross-entropy runs entirely on nntile via `torch_nntile.training.cross_entropy`
+(same tensor-op chain as `NNCrossEntropyOp` in libnntile). The scalar loss is
+returned on CPU so PyTorch autograd can call `loss.backward()` without extra
+ATen kernels on PrivateUse1. Optimizer steps use manual SGD (no `torch.optim`
 on nntile yet).
 
 ```bash
@@ -81,7 +76,13 @@ python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
 Integration test (downloads MNIST, 3 epochs, compares losses and weights):
 
 ```bash
-pytest -vv torch_nntile/tests/test_deep_relu_mnist_train.py
+pytest -vv -m slow torch_nntile/tests/test_deep_relu_mnist_train.py
+```
+
+Cross-entropy parity (forward, backward, `ignore_index`):
+
+```bash
+pytest -vv torch_nntile/tests/test_cross_entropy_parity.py
 ```
 
 ## Install (stub only)

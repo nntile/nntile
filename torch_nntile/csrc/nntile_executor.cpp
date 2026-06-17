@@ -16,8 +16,13 @@
 #include <nntile/tensor/ops/add.hh>
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/gemm.hh>
+#include <nntile/tensor/ops/logsumexp.hh>
+#include <nntile/tensor/ops/maxsumexp.hh>
 #include <nntile/tensor/ops/relu.hh>
 #include <nntile/tensor/ops/relu_backward.hh>
+#include <nntile/tensor/ops/softmax.hh>
+#include <nntile/tensor/ops/subtract_indexed_outputs.hh>
+#include <nntile/tensor/ops/total_sum_accum.hh>
 #include <nntile/tile/graph.hh>
 
 #include <cstring>
@@ -359,6 +364,244 @@ void tensor_linear_backward_weight_fp32(
         grad_weight_storage);
 }
 
+namespace
+{
+
+constexpr int kRedux = 0;
+
+std::vector<nntile::Index> maxsumexp_storage_shape(
+    const std::vector<nntile::Index> &logits_storage)
+{
+    std::vector<nntile::Index> maxsumexp_shape;
+    maxsumexp_shape.push_back(2);
+    for (std::size_t i = 1; i < logits_storage.size(); ++i)
+    {
+        maxsumexp_shape.push_back(logits_storage[i]);
+    }
+    return maxsumexp_shape;
+}
+
+nntile::Index class_storage_axis(c10::IntArrayRef pytorch_logits_shape)
+{
+    const auto ndim = static_cast<nntile::Index>(pytorch_logits_shape.size());
+    const nntile::Index graph_class_axis = ndim - 1;
+    return nntile::nn::graph_axis_to_storage(graph_class_axis, ndim);
+}
+
+float cross_entropy_scale(
+    const std::int64_t *labels_data,
+    c10::IntArrayRef labels_shape,
+    std::int64_t ignore_index,
+    bool mean_reduction)
+{
+    if (!mean_reduction)
+    {
+        return 1.0f;
+    }
+    nntile::Index count = 0;
+    nntile::Index total = 1;
+    for (const auto dim : labels_shape)
+    {
+        total *= static_cast<nntile::Index>(dim);
+    }
+    for (nntile::Index i = 0; i < total; ++i)
+    {
+        if (labels_data[i] != ignore_index)
+        {
+            ++count;
+        }
+    }
+    if (count <= 0)
+    {
+        count = 1;
+    }
+    return 1.0f / static_cast<float>(count);
+}
+
+} // namespace
+
+float tensor_cross_entropy_forward_fp32(
+    const float *logits_data,
+    c10::IntArrayRef logits_shape,
+    const std::int64_t *labels_data,
+    c10::IntArrayRef labels_shape,
+    std::int64_t ignore_index,
+    bool mean_reduction)
+{
+    const std::vector<nntile::Index> logits_storage =
+        pytorch_shape_to_storage(logits_shape);
+    const std::vector<nntile::Index> labels_storage =
+        pytorch_shape_to_storage(labels_shape);
+    const std::vector<nntile::Index> maxsumexp_storage =
+        maxsumexp_storage_shape(logits_storage);
+    const nntile::Index storage_class_axis = class_storage_axis(logits_shape);
+    const float scale = cross_entropy_scale(
+        labels_data,
+        labels_shape,
+        ignore_index,
+        mean_reduction);
+
+    nntile::TensorGraph graph("torch_cross_entropy_forward");
+    auto *logits_node =
+        graph.data(logits_storage, nntile::DataType::FP32)->set_name("logits");
+    auto *labels_node = graph.data(labels_storage, nntile::DataType::INT64)
+                              ->set_name("labels");
+    auto *maxsumexp_node =
+        graph.data(maxsumexp_storage, nntile::DataType::FP32)
+            ->set_name("maxsumexp");
+    auto *logsumexp_node =
+        graph.data(labels_storage, nntile::DataType::FP32)->set_name("logsumexp");
+    auto *loss_node = graph.data({}, nntile::DataType::FP32)->set_name("loss");
+
+    logits_node->mark_input(true);
+    labels_node->mark_input(true);
+    loss_node->mark_input(true);
+    loss_node->mark_output(true);
+
+    nntile::tensor::clear(maxsumexp_node);
+    nntile::tensor::maxsumexp(
+        logits_node,
+        maxsumexp_node,
+        storage_class_axis,
+        kRedux);
+    nntile::tensor::logsumexp(maxsumexp_node, logsumexp_node);
+    nntile::tensor::clear(loss_node);
+    nntile::tensor::total_sum_accum(
+        static_cast<nntile::Scalar>(scale),
+        logsumexp_node,
+        logits_node,
+        labels_node,
+        loss_node,
+        static_cast<nntile::Index>(ignore_index));
+
+    ensure_nntile_context();
+
+    nntile::TileGraph tile_graph =
+        nntile::TileGraph::from_tensor_graph(graph);
+    nntile::Runtime runtime(tile_graph);
+    runtime.compile();
+
+    const nntile::Index logits_count = storage_numel(logits_storage);
+    const nntile::Index labels_count = storage_numel(labels_storage);
+    float loss_init = 0.0f;
+    runtime.bind_data(
+        logits_node,
+        logits_data,
+        static_cast<std::size_t>(logits_count));
+    runtime.bind_data(
+        labels_node,
+        labels_data,
+        static_cast<std::size_t>(labels_count));
+    runtime.bind_data(loss_node, &loss_init, 1);
+    runtime.execute();
+    runtime.wait();
+
+    const std::vector<float> result = runtime.get_output<float>(loss_node);
+    if (result.size() != 1)
+    {
+        throw std::runtime_error(
+            "torch_cross_entropy_forward: expected scalar loss");
+    }
+    return result[0];
+}
+
+void tensor_cross_entropy_backward_fp32(
+    const float *logits_data,
+    c10::IntArrayRef logits_shape,
+    const std::int64_t *labels_data,
+    c10::IntArrayRef labels_shape,
+    float grad_output,
+    float *grad_logits_data,
+    std::int64_t ignore_index,
+    bool mean_reduction)
+{
+    const std::vector<nntile::Index> logits_storage =
+        pytorch_shape_to_storage(logits_shape);
+    const std::vector<nntile::Index> labels_storage =
+        pytorch_shape_to_storage(labels_shape);
+    const std::vector<nntile::Index> maxsumexp_storage =
+        maxsumexp_storage_shape(logits_storage);
+    const nntile::Index storage_class_axis = class_storage_axis(logits_shape);
+    const float scale =
+        cross_entropy_scale(
+            labels_data,
+            labels_shape,
+            ignore_index,
+            mean_reduction)
+        * grad_output;
+
+    nntile::TensorGraph graph("torch_cross_entropy_backward");
+    auto *logits_node =
+        graph.data(logits_storage, nntile::DataType::FP32)->set_name("logits");
+    auto *labels_node = graph.data(labels_storage, nntile::DataType::INT64)
+                              ->set_name("labels");
+    auto *maxsumexp_node =
+        graph.data(maxsumexp_storage, nntile::DataType::FP32)
+            ->set_name("maxsumexp");
+    auto *grad_logits_node =
+        graph.data(logits_storage, nntile::DataType::FP32)
+            ->set_name("grad_logits");
+
+    logits_node->mark_input(true);
+    labels_node->mark_input(true);
+    grad_logits_node->mark_input(true);
+    grad_logits_node->mark_output(true);
+
+    nntile::tensor::clear(maxsumexp_node);
+    nntile::tensor::maxsumexp(
+        logits_node,
+        maxsumexp_node,
+        storage_class_axis,
+        kRedux);
+    nntile::tensor::clear(grad_logits_node);
+    nntile::tensor::softmax(
+        maxsumexp_node,
+        logits_node,
+        grad_logits_node,
+        static_cast<nntile::Scalar>(scale),
+        storage_class_axis);
+    nntile::tensor::subtract_indexed_outputs(
+        static_cast<nntile::Scalar>(scale),
+        labels_node,
+        grad_logits_node,
+        static_cast<nntile::Index>(ignore_index));
+
+    ensure_nntile_context();
+
+    nntile::TileGraph tile_graph =
+        nntile::TileGraph::from_tensor_graph(graph);
+    nntile::Runtime runtime(tile_graph);
+    runtime.compile();
+
+    const nntile::Index logits_count = storage_numel(logits_storage);
+    const nntile::Index labels_count = storage_numel(labels_storage);
+    std::vector<float> grad_init(static_cast<std::size_t>(logits_count), 0.0f);
+    runtime.bind_data(
+        logits_node,
+        logits_data,
+        static_cast<std::size_t>(logits_count));
+    runtime.bind_data(
+        labels_node,
+        labels_data,
+        static_cast<std::size_t>(labels_count));
+    runtime.bind_data(
+        grad_logits_node,
+        grad_init.data(),
+        static_cast<std::size_t>(logits_count));
+    runtime.execute();
+    runtime.wait();
+
+    const std::vector<float> result =
+        runtime.get_output<float>(grad_logits_node);
+    const std::size_t expected = static_cast<std::size_t>(logits_count);
+    if (result.size() != expected)
+    {
+        throw std::runtime_error(
+            "torch_cross_entropy_backward: output size mismatch");
+    }
+    std::memcpy(grad_logits_data, result.data(), expected * sizeof(float));
+}
+
 } // namespace torch_nntile
 
 #else
@@ -451,6 +694,31 @@ void tensor_linear_backward_weight_fp32(
     c10::IntArrayRef /*grad_weight_shape*/)
 {
     require_libnntile("linear_backward_weight");
+}
+
+float tensor_cross_entropy_forward_fp32(
+    const float * /*logits_data*/,
+    c10::IntArrayRef /*logits_shape*/,
+    const std::int64_t * /*labels_data*/,
+    c10::IntArrayRef /*labels_shape*/,
+    std::int64_t /*ignore_index*/,
+    bool /*mean_reduction*/)
+{
+    require_libnntile("cross_entropy_forward");
+    return 0.0f;
+}
+
+void tensor_cross_entropy_backward_fp32(
+    const float * /*logits_data*/,
+    c10::IntArrayRef /*logits_shape*/,
+    const std::int64_t * /*labels_data*/,
+    c10::IntArrayRef /*labels_shape*/,
+    float /*grad_output*/,
+    float * /*grad_logits_data*/,
+    std::int64_t /*ignore_index*/,
+    bool /*mean_reduction*/)
+{
+    require_libnntile("cross_entropy_backward");
 }
 
 } // namespace torch_nntile

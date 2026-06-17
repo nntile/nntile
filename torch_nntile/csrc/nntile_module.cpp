@@ -10,6 +10,7 @@
 #include <c10/core/DeviceType.h>
 
 #include "nntile_context.h"
+#include "nntile_cross_entropy.h"
 
 namespace torch_nntile
 {
@@ -99,4 +100,21 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "restore_where",
         &torch_nntile::restore_where,
         "Restore default StarPU codelet worker placement");
+    m.def(
+        "cross_entropy_forward",
+        &torch_nntile::cross_entropy_forward,
+        "NNTile cross-entropy forward (logits on nntile)",
+        py::arg("logits"),
+        py::arg("target"),
+        py::arg("reduction") = 1,
+        py::arg("ignore_index") = -100);
+    m.def(
+        "cross_entropy_backward",
+        &torch_nntile::cross_entropy_backward,
+        "NNTile cross-entropy backward w.r.t. logits",
+        py::arg("logits"),
+        py::arg("target"),
+        py::arg("grad_output"),
+        py::arg("reduction") = 1,
+        py::arg("ignore_index") = -100);
 }
