@@ -215,7 +215,7 @@ TEST_CASE("BertMlm forward builds logits", "[model][bert]")
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
-            std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
+            std::vector<Index>({fx.batch, fx.seq, fx.config.vocab_size}));
 }
 
 TEST_CASE("BertMlm load from safetensors roundtrip", "[model][bert][io]")

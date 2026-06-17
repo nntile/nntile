@@ -98,8 +98,8 @@ def _make_config(dims: TestDims) -> GPT2Config:
 
 
 def _lm_head_to_linear_weight(conv) -> np.ndarray:
-    """``lm_head`` Conv1D ``(vocab, hidden)`` → Linear ``(vocab, hidden)``."""
-    return as_float32(conv.weight.detach().numpy().T)
+    """HF ``lm_head`` Conv1D weight is already graph Linear ``[out, in]``."""
+    return as_float32(conv.weight.detach().numpy())
 
 
 def _conv1d_to_linear_weight(conv) -> np.ndarray:
@@ -221,8 +221,8 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 
 
 def _sdpa_causal_mask(seq: int) -> np.ndarray:
-    kk = np.arange(seq, dtype=np.int64)[:, None]
-    qq = np.arange(seq, dtype=np.int64)[None, :]
+    qq = np.arange(seq, dtype=np.int64)[:, None]
+    kk = np.arange(seq, dtype=np.int64)[None, :]
     allowed = (kk <= qq).astype(np.float32)
     return as_float32(allowed)
 

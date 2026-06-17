@@ -109,34 +109,44 @@ NNGraph::TensorNode *LlamaAttention::forward(
     NNGraph::TensorNode *q;
     if (use_gqa_)
     {
-        // x (batch, seq, hidden) x w_q (hidden, head_size, n_head_kv,
-        // kv_group_size) gemm ndim=1 -> (batch, seq, head_size, n_head_kv,
-        // kv_group_size)
         q_proj = gemm(x, w_q_, 1.0, false, false, 1, 0);
         q_proj->set_name(tensor_name("q_proj"));
-        // transpose ndim=2 -> (n_head_kv, kv_group_size, batch, seq,
-        // head_size) for SDPA
-        q = transpose(q_proj, 2);
+    }
+    else
+    {
+        q_proj = gemm(x, w_q_, 1.0, false, false, 1, 0);
+        q_proj->set_name(tensor_name("q_proj"));
+    }
+
+    // K = gemm(x, w_k)
+    NNGraph::TensorNode *k_proj =
+        gemm(x, w_k_, 1.0, false, false, 1, 0);
+    k_proj->set_name(tensor_name("k_proj"));
+
+    // RoPE on Q and K before head layout transpose (sin/cos are
+    // (batch, seq, half) and match q_proj/k_proj leading axes).
+    NNGraph::TensorNode *q_for_transpose = q_proj;
+    NNGraph::TensorNode *k_for_transpose = k_proj;
+    if (sin != nullptr && cos != nullptr)
+    {
+        q_for_transpose = rope(sin, cos, q_proj);
+        q_for_transpose->set_name(tensor_name("q_rope"));
+        k_for_transpose = rope(sin, cos, k_proj);
+        k_for_transpose->set_name(tensor_name("k_rope"));
+    }
+
+    if (use_gqa_)
+    {
+        q = transpose(q_for_transpose, 2);
         q->set_name(tensor_name("q"));
     }
     else
     {
-        // x (batch, seq, hidden) x w_q (hidden, head_size, n_heads)
-        // gemm ndim=1 -> (batch, seq, head_size, n_heads)
-        q_proj = gemm(x, w_q_, 1.0, false, false, 1, 0);
-        q_proj->set_name(tensor_name("q_proj"));
-        // transpose ndim=1 -> (n_heads, batch, seq, head_size)
-        q = transpose(q_proj, 1);
+        q = transpose(q_for_transpose, 1);
         q->set_name(tensor_name("q"));
     }
 
-    // K = gemm(x, w_k), then transpose
-    // w_k (n_emb, head_size, n_head_kv) x (batch, seq, hidden)
-    NNGraph::TensorNode *k_proj =
-        gemm(x, w_k_, 1.0, false, false, 1, 0);
-    k_proj->set_name(tensor_name("k_proj"));
-    // transpose ndim=1 -> (n_head_kv, batch, seq, head_size)
-    NNGraph::TensorNode *k = transpose(k_proj, 1);
+    NNGraph::TensorNode *k = transpose(k_for_transpose, 1);
     k->set_name(tensor_name("k"));
 
     // V = gemm(x, w_v), then transpose
@@ -146,16 +156,8 @@ NNGraph::TensorNode *LlamaAttention::forward(
     NNGraph::TensorNode *v = transpose(v_proj, 1);
     v->set_name(tensor_name("v"));
 
-    // RoPE on Q and K (if sin/cos provided)
     NNGraph::TensorNode *q_rope = q;
     NNGraph::TensorNode *k_rope = k;
-    if (sin != nullptr && cos != nullptr)
-    {
-        q_rope = rope(sin, cos, q);
-        q_rope->set_name(tensor_name("q_rope"));
-        k_rope = rope(sin, cos, k);
-        k_rope->set_name(tensor_name("k_rope"));
-    }
 
     // KV cache: use cached K,V when available, update cache with new K,V
     NNGraph::TensorNode *k_for_sdpa = k_rope;

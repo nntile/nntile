@@ -100,6 +100,7 @@ inline bool load_attn_mask_bool(nntile::NNGraph &g,
     }
     out_mask = g.tensor({n_seq, n_seq}, nntile::DataType::BOOL, false)
                    ->set_name("attn_mask");
+    auto raw = reader.read_tensor("attn_mask");
     mask_bytes = reader.read_tensor("attn_mask");
     return true;
 }
