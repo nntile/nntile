@@ -11,13 +11,20 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
+
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+#include <nntile/base_types.hh>
+#endif
 
 namespace torch_nntile
 {
@@ -104,6 +111,73 @@ void init_context_py(
         parse_runtime_mode(runtime_mode));
 }
 
+std::vector<std::int64_t> parse_tile_sizes_py(const py::object &tile_sizes)
+{
+    if (py::isinstance<py::int_>(tile_sizes))
+    {
+        const std::int64_t value = tile_sizes.cast<std::int64_t>();
+        if (value <= 0)
+        {
+            throw std::runtime_error(
+                "torch_nntile.set_axis_group_tiling: tile size must be positive");
+        }
+        return {value};
+    }
+    if (py::isinstance<py::list>(tile_sizes) ||
+        py::isinstance<py::tuple>(tile_sizes))
+    {
+        std::vector<std::int64_t> sizes;
+        for (const py::handle item : tile_sizes)
+        {
+            const std::int64_t value = py::cast<std::int64_t>(item);
+            if (value <= 0)
+            {
+                throw std::runtime_error(
+                    "torch_nntile.set_axis_group_tiling: tile size must be "
+                    "positive");
+            }
+            sizes.push_back(value);
+        }
+        if (sizes.empty())
+        {
+            throw std::runtime_error(
+                "torch_nntile.set_axis_group_tiling: tile_sizes must be "
+                "non-empty");
+        }
+        return sizes;
+    }
+    throw std::runtime_error(
+        "torch_nntile.set_axis_group_tiling: tile_sizes must be int or "
+        "sequence of ints");
+}
+
+void set_axis_group_name_py(
+    const at::Tensor &tensor,
+    const py::dict &names)
+{
+    TORCH_CHECK(
+        tensor.device().type() == c10::DeviceType::PrivateUse1,
+        "set_axis_group_name expects an nntile tensor");
+    std::unordered_map<int, std::string> parsed;
+    for (const auto &item : names)
+    {
+        const int dim = py::cast<int>(item.first);
+        const std::string name = py::cast<std::string>(item.second);
+        parsed.emplace(dim, name);
+    }
+    set_axis_group_name(
+        tensor.storage().data_ptr().get(),
+        static_cast<int>(tensor.dim()),
+        parsed);
+}
+
+void set_axis_group_tiling_py(
+    const std::string &name,
+    const py::object &tile_sizes)
+{
+    set_axis_group_tiling(name, parse_tile_sizes_py(tile_sizes));
+}
+
 } // namespace torch_nntile
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
@@ -164,6 +238,18 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "is_graph_mode",
         &torch_nntile::is_graph_mode,
         "Whether runtime_mode is graph");
+    m.def(
+        "set_axis_group_name",
+        &torch_nntile::set_axis_group_name_py,
+        "Name TensorGraph axis groups for selected tensor dimensions",
+        py::arg("tensor"),
+        py::arg("names"));
+    m.def(
+        "set_axis_group_tiling",
+        &torch_nntile::set_axis_group_tiling_py,
+        "Set tiling for a named axis group before execute()",
+        py::arg("name"),
+        py::arg("tile_sizes"));
     m.def(
         "cross_entropy_forward",
         &torch_nntile::cross_entropy_forward,

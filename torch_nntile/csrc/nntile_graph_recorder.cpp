@@ -15,6 +15,7 @@
 
 #include <nntile/runtime.hh>
 #include <nntile/tensor/graph.hh>
+#include <nntile/tensor/tiling_spec_json.hh>
 #include <nntile/tile/graph.hh>
 
 #include <cstring>
@@ -49,6 +50,82 @@ std::unique_ptr<nntile::TensorGraph> g_graph;
 std::unordered_map<void *, MappedTensor> g_tensor_nodes;
 std::unordered_set<nntile::TensorGraph::TensorNode *> g_all_nodes;
 std::vector<at::Tensor> g_pinned_tensors;
+std::unordered_map<void *, std::unordered_map<int, std::string>> g_axis_name_hints;
+std::unordered_map<std::string, std::vector<nntile::Index>> g_axis_tiling_by_name;
+
+void assign_axis_group_name(nntile::AxisDescriptor *axis, const std::string &name)
+{
+    if (axis == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile set_axis_group_name: invalid axis");
+    }
+    if (!axis->name.empty() && axis->name != name)
+    {
+        throw std::runtime_error(
+            "torch_nntile set_axis_group_name: axis group already named '" +
+            axis->name + "', cannot rename to '" + name + "'");
+    }
+    axis->name = name;
+}
+
+void apply_axis_name_hints_locked(void *data_ptr, nntile::TensorGraph::TensorNode *node)
+{
+    const auto hints = g_axis_name_hints.find(data_ptr);
+    if (hints == g_axis_name_hints.end())
+    {
+        return;
+    }
+    for (const auto &[dim, name] : hints->second)
+    {
+        if (dim < 0 || dim >= node->ndim())
+        {
+            throw std::runtime_error(
+                "torch_nntile set_axis_group_name: dimension out of range");
+        }
+        assign_axis_group_name(node->axis(dim), name);
+    }
+}
+
+void apply_pending_axis_tiling_locked()
+{
+    if (g_graph == nullptr || g_axis_tiling_by_name.empty())
+    {
+        return;
+    }
+
+    std::unordered_map<std::string, nntile::AxisDescriptor *> named_groups;
+    for (nntile::AxisDescriptor *axis : g_graph->axis_groups())
+    {
+        if (axis == nullptr || axis->name.empty())
+        {
+            continue;
+        }
+        const auto found = named_groups.find(axis->name);
+        if (found != named_groups.end() && found->second != axis)
+        {
+            throw std::runtime_error(
+                "torch_nntile set_axis_group_tiling: duplicate axis group name '" +
+                axis->name + "'");
+        }
+        named_groups.emplace(axis->name, axis);
+    }
+
+    for (const auto &[name, pattern] : g_axis_tiling_by_name)
+    {
+        const auto found = named_groups.find(name);
+        if (found == named_groups.end())
+        {
+            throw std::runtime_error(
+                "torch_nntile set_axis_group_tiling: unknown axis group '" +
+                name + "'");
+        }
+        nntile::AxisDescriptor *axis = found->second;
+        const std::vector<nntile::Index> resolved =
+            nntile::tile_sizes_for_axis_extent(pattern, axis->extent);
+        nntile::apply_tiling_to_axis(axis, resolved);
+    }
+}
 
 void track_node(nntile::TensorGraph::TensorNode *node)
 {
@@ -139,6 +216,8 @@ void reset_recorder_locked()
     g_tensor_nodes.clear();
     g_all_nodes.clear();
     g_pinned_tensors.clear();
+    g_axis_name_hints.clear();
+    g_axis_tiling_by_name.clear();
 }
 
 void execute_pending_graph_locked()
@@ -155,6 +234,8 @@ void execute_pending_graph_locked()
     {
         node->mark_output(true);
     }
+
+    apply_pending_axis_tiling_locked();
 
     nntile::TileGraph tile_graph =
         nntile::TileGraph::from_tensor_graph(*g_graph);
@@ -278,6 +359,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     {
         node->mark_input(true);
     }
+    apply_axis_name_hints_locked(data_ptr, node);
     track_node(node);
     g_tensor_nodes[data_ptr] = MappedTensor{
         node,
@@ -353,6 +435,61 @@ void pin_graph_op_output(const at::Tensor &output, bool pin_output)
     pin_tensor_for_graph(output);
 }
 
+void set_axis_group_name(
+    void *data_ptr,
+    int ndim,
+    const std::unordered_map<int, std::string> &names)
+{
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    for (const auto &[dim, name] : names)
+    {
+        if (dim < 0 || dim >= ndim)
+        {
+            throw std::runtime_error(
+                "torch_nntile set_axis_group_name: dimension out of range");
+        }
+        if (name.empty())
+        {
+            throw std::runtime_error(
+                "torch_nntile set_axis_group_name: name must be non-empty");
+        }
+
+        nntile::TensorGraph::TensorNode *node = nullptr;
+        const auto found = g_tensor_nodes.find(data_ptr);
+        if (found != g_tensor_nodes.end())
+        {
+            node = found->second.node;
+        }
+        if (node != nullptr)
+        {
+            assign_axis_group_name(node->axis(dim), name);
+        }
+        else
+        {
+            g_axis_name_hints[data_ptr][dim] = name;
+        }
+    }
+}
+
+void set_axis_group_tiling(
+    const std::string &name,
+    const std::vector<std::int64_t> &tile_sizes)
+{
+    if (name.empty())
+    {
+        throw std::runtime_error(
+            "torch_nntile set_axis_group_tiling: name must be non-empty");
+    }
+    if (tile_sizes.empty())
+    {
+        throw std::runtime_error(
+            "torch_nntile set_axis_group_tiling: tile_sizes must be non-empty");
+    }
+    std::vector<nntile::Index> pattern(tile_sizes.begin(), tile_sizes.end());
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    g_axis_tiling_by_name[name] = std::move(pattern);
+}
+
 } // namespace torch_nntile
 
 #else
@@ -400,6 +537,21 @@ void pin_graph_op_inputs(const std::vector<at::Tensor> & /*inputs*/)
 
 void pin_graph_op_output(const at::Tensor & /*output*/, bool /*pin_output*/)
 {
+}
+
+void set_axis_group_name(
+    void * /*data_ptr*/,
+    int /*ndim*/,
+    const std::unordered_map<int, std::string> & /*names*/)
+{
+    require_libnntile();
+}
+
+void set_axis_group_tiling(
+    const std::string & /*name*/,
+    const std::vector<std::int64_t> & /*tile_sizes*/)
+{
+    require_libnntile();
 }
 
 } // namespace torch_nntile

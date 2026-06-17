@@ -6,6 +6,11 @@
 
 #pragma once
 
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 namespace torch_nntile
 {
 
@@ -16,5 +21,14 @@ void require_no_pending_graph(const char *op_name);
 void execute_pending_graph();
 
 void maybe_execute_after_record();
+
+void set_axis_group_name(
+    void *data_ptr,
+    int ndim,
+    const std::unordered_map<int, std::string> &names);
+
+void set_axis_group_tiling(
+    const std::string &name,
+    const std::vector<std::int64_t> &tile_sizes);
 
 } // namespace torch_nntile
