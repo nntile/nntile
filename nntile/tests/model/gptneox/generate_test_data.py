@@ -115,6 +115,59 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
     }
 
 
+def _gptneox_attn_qkv_weight(qkv_slice: np.ndarray) -> np.ndarray:
+    """``(nh, hd, H)`` QKV slice → graph ``(H, hd, nh)`` layout."""
+    return as_float32(np.asarray(qkv_slice, dtype=np.float32).transpose(2, 1, 0))
+
+
+def _gptneox_attn_o_weight(o: np.ndarray, nh: int, hd: int, H: int) -> np.ndarray:
+    """HF ``dense`` ``(H, H)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    w = o.reshape(H, nh, hd)
+    return as_float32(w.transpose(2, 1, 0))
+
+
+def _rotate_tensor_in_for_rope(
+    x: np.ndarray, axis: int, rotary_pct: float,
+) -> np.ndarray:
+    """Interleave RoPE pairs on ``axis`` (first ``rotary_pct`` of that axis)."""
+    k_elements = int(x.shape[axis] * rotary_pct)
+    if axis == 0:
+        new_shape = (1, k_elements, int(np.prod(x.shape[1:])))
+    elif axis == x.ndim - 1:
+        new_shape = (int(np.prod(x.shape[:-1])), k_elements, 1)
+    else:
+        new_shape = (
+            int(np.prod(x.shape[:axis])),
+            k_elements,
+            int(np.prod(x.shape[axis + 1:])),
+        )
+    if axis == 0:
+        x_selected = x[:k_elements, ...]
+    elif axis == x.ndim - 1:
+        x_selected = x[..., :k_elements]
+    else:
+        slice_obj = [slice(None)] * x.ndim
+        slice_obj[axis] = slice(0, k_elements)
+        x_selected = x[tuple(slice_obj)]
+
+    x_reshaped = x_selected.reshape(new_shape)
+    mid = k_elements // 2
+    y_reshaped = np.empty_like(x_reshaped)
+    y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
+    y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
+
+    result = np.asarray(x, dtype=np.float32).copy()
+    if axis == 0:
+        result[:k_elements, ...] = y_reshaped.reshape(x_selected.shape)
+    elif axis == x.ndim - 1:
+        result[..., :k_elements] = y_reshaped.reshape(x_selected.shape)
+    else:
+        slice_obj = [slice(None)] * x.ndim
+        slice_obj[axis] = slice(0, k_elements)
+        result[tuple(slice_obj)] = y_reshaped.reshape(x_selected.shape)
+    return result
+
+
 def _gptneox_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
@@ -122,15 +175,20 @@ def _gptneox_attn_weights(
     H = dims.hidden
     nh = dims.n_heads
     hd = dims.head_size
-    qkv_w = attn.query_key_value.weight.detach().numpy()
-    qkv = qkv_w.reshape(3, nh, hd, H)
+    qkv = attn.query_key_value.weight.detach().numpy().reshape(nh, 3 * hd, H)
+    q = _rotate_tensor_in_for_rope(
+        np.asarray(qkv[:, :hd, :], dtype=np.float32), 1, dims.rotary_pct,
+    )
+    k = _rotate_tensor_in_for_rope(
+        np.asarray(qkv[:, hd:2 * hd, :], dtype=np.float32), 1, dims.rotary_pct,
+    )
+    v = qkv[:, 2 * hd:3 * hd, :]
     o = attn.dense.weight.detach().numpy()
     return {
-        f"{prefix}.q_weight": as_float32(qkv[0].transpose(2, 1, 0)),
-        f"{prefix}.k_weight": as_float32(qkv[1].transpose(2, 1, 0)),
-        f"{prefix}.v_weight": as_float32(qkv[2].transpose(2, 1, 0)),
-        f"{prefix}.o_weight": as_float32(
-            o.reshape(nh, hd, H).transpose(1, 0, 2)),
+        f"{prefix}.q_weight": _gptneox_attn_qkv_weight(q),
+        f"{prefix}.k_weight": _gptneox_attn_qkv_weight(k),
+        f"{prefix}.v_weight": _gptneox_attn_qkv_weight(v),
+        f"{prefix}.o_weight": _gptneox_attn_o_weight(o, nh, hd, H),
     }
 
 

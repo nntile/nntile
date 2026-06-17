@@ -91,6 +91,27 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
+def _linear(linear: torch.nn.Linear) -> np.ndarray:
+    """PT Linear ``(out, in)`` → graph weight ``[out, in]``."""
+    return as_float32(linear.weight.detach().numpy())
+
+
+def _linear_attn_qkv_weight(
+    linear: torch.nn.Linear, H: int, nh: int, hd: int,
+) -> np.ndarray:
+    """HF ``Linear`` ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``."""
+    w = linear.weight.detach().numpy().reshape(nh, hd, H)
+    return as_float32(w.transpose(2, 1, 0))
+
+
+def _linear_attn_o_weight(
+    linear: torch.nn.Linear, H: int, nh: int, hd: int,
+) -> np.ndarray:
+    """HF ``Linear`` ``(out, in)`` → graph ``o_weight`` ``(hd, nh, H)``."""
+    w = linear.weight.detach().numpy().reshape(H, nh, hd)
+    return as_float32(w.transpose(2, 1, 0))
+
+
 def _make_config(dims: TestDims) -> GPTNeoConfig:
     return GPTNeoConfig(
         vocab_size=dims.vocab,
@@ -138,22 +159,10 @@ def _gptneo_attn_weights(
     nh = dims.n_heads
     hd = dims.head_size
     return {
-        f"{prefix}.q_weight": as_float32(
-            inner.q_proj.weight.detach().numpy().reshape(
-                H, nh, hd,
-            ).transpose(0, 2, 1)),
-        f"{prefix}.k_weight": as_float32(
-            inner.k_proj.weight.detach().numpy().reshape(
-                H, nh, hd,
-            ).transpose(0, 2, 1)),
-        f"{prefix}.v_weight": as_float32(
-            inner.v_proj.weight.detach().numpy().reshape(
-                H, nh, hd,
-            ).transpose(0, 2, 1)),
-        f"{prefix}.o_weight": as_float32(
-            inner.out_proj.weight.detach().numpy().reshape(
-                nh, hd, H,
-            ).transpose(1, 0, 2)),
+        f"{prefix}.q_weight": _linear_attn_qkv_weight(inner.q_proj, H, nh, hd),
+        f"{prefix}.k_weight": _linear_attn_qkv_weight(inner.k_proj, H, nh, hd),
+        f"{prefix}.v_weight": _linear_attn_qkv_weight(inner.v_proj, H, nh, hd),
+        f"{prefix}.o_weight": _linear_attn_o_weight(inner.out_proj, H, nh, hd),
         f"{prefix}.o_bias": as_float32(
             inner.out_proj.bias.detach().numpy()),
     }

@@ -123,8 +123,8 @@ NNGraph::TensorNode *LlamaAttention::forward(
         gemm(x, w_k_, 1.0, false, false, 1, 0);
     k_proj->set_name(tensor_name("k_proj"));
 
-    // RoPE on Q and K before head layout transpose (sin/cos are
-    // (batch, seq, half) and match q_proj/k_proj leading axes).
+    // RoPE on Q/K projections before head-layout transpose.  sin/cos are
+    // (batch, seq, half); q_proj/k_proj are (batch, seq, head_size, ...).
     NNGraph::TensorNode *q_for_transpose = q_proj;
     NNGraph::TensorNode *k_for_transpose = k_proj;
     if (sin != nullptr && cos != nullptr)

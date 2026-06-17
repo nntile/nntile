@@ -93,6 +93,22 @@ def as_int64(arr: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(arr, dtype=np.int64)
 
 
+def _linear_attn_qkv_weight(
+    linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
+) -> np.ndarray:
+    """PT Linear ``(out, in)`` → graph ``q/k/v_weight`` ``(H, hd, nh)``."""
+    w = linear.weight.detach().numpy().reshape(nh, hs, n_emb)
+    return as_float32(w.transpose(2, 1, 0))
+
+
+def _linear_attn_o_weight(
+    linear: torch.nn.Linear, n_emb: int, nh: int, hs: int,
+) -> np.ndarray:
+    """PT Linear ``(out, in)`` → graph ``dense/o_weight`` ``(hd, nh, H)``."""
+    w = linear.weight.detach().numpy().reshape(n_emb, nh, hs)
+    return as_float32(w.transpose(2, 1, 0))
+
+
 def _make_config(dims: TestDims) -> BertConfig:
     return BertConfig(
         hidden_size=dims.hidden,
@@ -138,12 +154,10 @@ def _bert_self_attn_weights(self_attn, prefix: str, dims: TestDims):
     n_heads = dims.n_heads
 
     def w(linear):
-        return linear.weight.detach().numpy().reshape(
-            n_heads, hs, n_emb,
-        ).transpose(2, 1, 0)
+        return _linear_attn_qkv_weight(linear, n_emb, n_heads, hs)
 
     def b(linear):
-        return linear.bias.detach().numpy().reshape(n_heads, hs)
+        return as_float32(linear.bias.detach().numpy().reshape(n_heads, hs))
 
     return {
         f"{prefix}.q_weight": as_float32(w(self_attn.query)),
@@ -159,12 +173,7 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     n_emb = dims.hidden
     n_heads = dims.n_heads
     hs = dims.head_size
-    w = (
-        out_module.dense.weight.detach()
-        .numpy()
-        .reshape(n_heads, hs, n_emb)
-        .transpose(1, 0, 2)
-    )
+    w = _linear_attn_o_weight(out_module.dense, n_emb, n_heads, hs)
     return {
         f"{prefix}.dense.weight": as_float32(w),
         f"{prefix}.dense.bias": as_float32(

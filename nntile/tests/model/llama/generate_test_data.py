@@ -193,8 +193,33 @@ def _make_config(dims: TestDims) -> LlamaConfig:
 
 
 def _linear(linear: torch.nn.Linear) -> np.ndarray:
-    """PT Linear weight ``(out, in)`` → graph ``(in, out)``."""
+    """PT Linear weight ``(out, in)`` → graph ``[out, in]``."""
     return as_float32(linear.weight.detach().numpy())
+
+
+def _reverse_axes(arr: np.ndarray) -> np.ndarray:
+    """Map PT head layout to graph layout by reversing axis labels."""
+    axes = tuple(range(arr.ndim - 1, -1, -1))
+    return as_float32(np.asarray(arr, dtype=np.float32).transpose(axes))
+
+
+def _rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
+    if axis == 0:
+        new_shape = (1, x.shape[0], int(np.prod(x.shape[1:])))
+    elif axis == x.ndim - 1:
+        new_shape = (int(np.prod(x.shape[:-1])), x.shape[-1], 1)
+    else:
+        new_shape = (
+            int(np.prod(x.shape[:axis])),
+            x.shape[axis],
+            int(np.prod(x.shape[axis + 1:])),
+        )
+    x_reshaped = x.reshape(new_shape)
+    mid = x.shape[axis] // 2
+    y_reshaped = np.empty_like(x_reshaped)
+    y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
+    y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
+    return y_reshaped.reshape(x.shape)
 
 
 def _attention_weight_arrays(
@@ -206,23 +231,29 @@ def _attention_weight_arrays(
     v = attn.v_proj.weight.detach().numpy()
     o = attn.o_proj.weight.detach().numpy()
     n_emb = q.shape[1]
+    hd = dims.head_size
+    kv = dims.kv_heads
+    nh = dims.n_heads
+    gs = dims.kv_group_size
 
     if dims.use_gqa:
-        q_arr = q.reshape(
-            dims.kv_heads, dims.kv_group_size, dims.head_size, n_emb,
-        ).transpose(3, 2, 0, 1)
-        k_arr = k.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
-        v_arr = v.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
-        o_arr = o.reshape(
-            dims.kv_heads, dims.kv_group_size, dims.head_size, n_emb,
-        ).transpose(2, 0, 1, 3)
+        q_arr = q.reshape(kv, gs, hd, n_emb).transpose(1, 0, 2, 3)
+        o_arr = np.moveaxis(o.reshape(n_emb, kv, gs, hd), 1, 2)
     else:
-        q_arr = q.reshape(n_emb, dims.n_heads, dims.head_size).transpose(0, 2, 1)
-        k_arr = k.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
-        v_arr = v.reshape(dims.kv_heads, dims.head_size, n_emb).transpose(2, 1, 0)
-        o_arr = o.reshape(dims.n_heads, dims.head_size, n_emb).transpose(1, 0, 2)
+        q_arr = q.reshape(nh, hd, n_emb)
+        o_arr = o.reshape(n_emb, nh, hd)
 
-    return q_arr, k_arr, v_arr, o_arr
+    k_arr = k.reshape(kv, hd, n_emb)
+    v_arr = v.reshape(kv, hd, n_emb)
+
+    q_arr = _rotate_tensor_in(np.asarray(q_arr, dtype=np.float32), q_arr.ndim - 2)
+    k_arr = _rotate_tensor_in(np.asarray(k_arr, dtype=np.float32), 1)
+
+    q_c = _reverse_axes(q_arr)
+    k_c = _reverse_axes(k_arr)
+    v_c = _reverse_axes(v_arr)
+    o_c = _reverse_axes(o_arr)
+    return q_c, k_c, v_c, o_c
 
 
 def _attn(attn: PtAttention, prefix: str, dims: TestDims) -> \
