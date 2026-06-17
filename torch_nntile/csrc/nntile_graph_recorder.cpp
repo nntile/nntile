@@ -14,9 +14,19 @@
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 #include <nntile/runtime.hh>
+#include <nntile/tensor/axis_descriptor.hh>
 #include <nntile/tensor/graph.hh>
-#include <nntile/tensor/tiling_spec_json.hh>
 #include <nntile/tile/graph.hh>
+
+namespace nntile
+{
+void apply_tiling_to_axis(
+    AxisDescriptor *ad,
+    const std::vector<Index> &sizes);
+std::vector<Index> tile_sizes_for_axis_extent(
+    const std::vector<Index> &pattern,
+    Index extent);
+} // namespace nntile
 
 #include <cstring>
 #include <memory>

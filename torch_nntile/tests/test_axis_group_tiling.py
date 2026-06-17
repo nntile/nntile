@@ -60,11 +60,12 @@ def test_axis_group_tiling_add_graph_mode():
         )
         torch_nntile.restrict_cpu()
         x = torch.randn(4, 8).to("nntile")
+        y = torch.randn(4, 8).to("nntile")
         torch_nntile.set_axis_group_name(x, {0: "batch"})
-        y = x + x
+        z = x + y
         torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
         torch_nntile.execute()
-        assert torch.allclose(y.cpu(), (x.cpu() * 2.0))
+        assert torch.allclose(z.cpu(), (x.cpu() + y.cpu()))
         """
     )
 
@@ -80,8 +81,9 @@ def test_axis_group_tiling_invalid_sum_raises():
             ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
         )
         x = torch.randn(4, 8).to("nntile")
+        y = torch.randn(4, 8).to("nntile")
         torch_nntile.set_axis_group_name(x, {0: "batch"})
-        _ = x + x
+        _ = x + y
         torch_nntile.set_axis_group_tiling("batch", [1, 1, 1])
         with pytest.raises(RuntimeError, match="sum"):
             torch_nntile.execute()

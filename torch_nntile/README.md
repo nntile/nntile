@@ -61,6 +61,29 @@ before returning the scalar loss.
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 
+### Axis-group naming and tiling (graph mode)
+
+Tiling is configured on named **axis groups** in the recorded `TensorGraph`
+(mirroring the C++ `AxisDescriptor` workflow). Name dimensions from a tensor,
+then set tile sizes by group name before ``execute()``:
+
+```python
+torch_nntile.init_context(
+    ncpu=4, ncuda=0, cpu_fallback=False, runtime_mode="graph"
+)
+x = torch.randn(4, 128).to("nntile")
+torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
+y = model(x)
+torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+torch_nntile.execute()
+```
+
+``DeepReLU`` names ``batch``, ``features``, and ``classes`` in ``forward()``.
+The MNIST example accepts ``--axis-tiling NAME=SIZES`` (repeatable); tiling
+switches to graph mode automatically.
+
+Tests: `pytest -vv torch_nntile/tests/test_axis_group_tiling.py`
+
 ## Phase 3 (DeepReLU example)
 
 Bias-free MLP matching `nntile/examples/deep_relu_forward.cc`:
@@ -104,6 +127,8 @@ round-trip).
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
 python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 --runtime-mode graph
+python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 \
+  --axis-tiling batch=15000,15000,15000,15000,15000
 ```
 
 Integration test (downloads MNIST, 3 epochs, compares losses and weights):
