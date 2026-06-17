@@ -27,49 +27,41 @@ namespace nntile::kernel::cublas
 namespace
 {
 
-struct CublasGemmLayout
+void c_order_gemm_ld(
+    TransOp transA,
+    TransOp transB,
+    Index m,
+    Index n,
+    Index k,
+    cublasOperation_t &transA_out,
+    cublasOperation_t &transB_out,
+    int &ldA,
+    int &ldB)
 {
-    cublasOperation_t trans_first = CUBLAS_OP_N;
-    cublasOperation_t trans_second = CUBLAS_OP_N;
-};
-
-//! Map logical C-order GEMM operands to cuBLAS (row-major B_op @ A_op).
-CublasGemmLayout c_order_gemm_layout(TransOp transA, TransOp transB)
-{
-    CublasGemmLayout layout;
-    switch(transB.value)
+    switch(transA.value)
     {
         case TransOp::NoTrans:
-            switch(transA.value)
-            {
-                case TransOp::NoTrans:
-                    layout.trans_first = CUBLAS_OP_T;
-                    layout.trans_second = CUBLAS_OP_N;
-                    break;
-                case TransOp::Trans:
-                default:
-                    layout.trans_first = CUBLAS_OP_T;
-                    layout.trans_second = CUBLAS_OP_T;
-                    break;
-            }
+            transA_out = CUBLAS_OP_N;
+            ldA = static_cast<int>(k);
             break;
         case TransOp::Trans:
         default:
-            switch(transA.value)
-            {
-                case TransOp::NoTrans:
-                    layout.trans_first = CUBLAS_OP_N;
-                    layout.trans_second = CUBLAS_OP_N;
-                    break;
-                case TransOp::Trans:
-                default:
-                    layout.trans_first = CUBLAS_OP_N;
-                    layout.trans_second = CUBLAS_OP_T;
-                    break;
-            }
+            transA_out = CUBLAS_OP_T;
+            ldA = static_cast<int>(m);
             break;
     }
-    return layout;
+    switch(transB.value)
+    {
+        case TransOp::NoTrans:
+            transB_out = CUBLAS_OP_N;
+            ldB = static_cast<int>(n);
+            break;
+        case TransOp::Trans:
+        default:
+            transB_out = CUBLAS_OP_T;
+            ldB = static_cast<int>(k);
+            break;
+    }
 }
 
 } // namespace
@@ -100,32 +92,23 @@ void gemm(
     bool broadcast_b
 ) noexcept
 {
-    // C-order layout matches kernel::cblas::gemm (row-major B_op @ A_op).
-    const int M_out = n;
-    const int N_out = m;
-    const int K_inner = k;
-    const int BATCH = batch;
-    CublasGemmLayout layout = c_order_gemm_layout(transA, transB);
-    int ld_first = 0;
-    int ld_second = 0;
-    switch(transB.value)
-    {
-        case TransOp::NoTrans:
-            ld_first = M_out;
-            break;
-        case TransOp::Trans:
-        default:
-            ld_first = K_inner;
-            break;
-    }
-    ld_second = (transA.value == TransOp::NoTrans) ? N_out : K_inner;
-    const int ldC = N_out;
+    // Row-major C(m,n) via cuBLAS: C^T = B^T * A^T in column-major layout.
+    const int M = static_cast<int>(m);
+    const int N = static_cast<int>(n);
+    const int K = static_cast<int>(k);
+    const int BATCH = static_cast<int>(batch);
+    cublasOperation_t transA_ = CUBLAS_OP_N;
+    cublasOperation_t transB_ = CUBLAS_OP_N;
+    int ldA = 0;
+    int ldB = 0;
+    c_order_gemm_ld(transA, transB, m, n, k, transA_, transB_, ldA, ldB);
+    const int ldC = N;
     const long long int strideA = broadcast_a ? 0LL :
-        static_cast<long long int>(N_out) * K_inner;
+        static_cast<long long int>(m) * k;
     const long long int strideB = broadcast_b ? 0LL :
-        static_cast<long long int>(M_out) * K_inner;
+        static_cast<long long int>(k) * n;
     const long long int strideC =
-        static_cast<long long int>(M_out) * N_out;
+        static_cast<long long int>(m) * n;
     scalar_t<T> alpha_=alpha, beta_=beta;
 
     // Find out cublasGemmEx specific parameters
@@ -185,20 +168,20 @@ void gemm(
     // Call corresponding CUBLAS routine
     cublasGemmStridedBatchedEx(
         handle,
-        layout.trans_second,
-        layout.trans_first,
-        N_out,
-        M_out,
-        K_inner,
+        transB_,
+        transA_,
+        N,
+        M,
+        K,
         &alpha_,
-        reinterpret_cast<const void *>(A),
-        typeA,
-        ld_second,
-        strideA,
         reinterpret_cast<const void *>(B),
         typeB,
-        ld_first,
+        ldB,
         strideB,
+        reinterpret_cast<const void *>(A),
+        typeA,
+        ldA,
+        strideA,
         &beta_,
         reinterpret_cast<void *>(C),
         typeC,
@@ -223,8 +206,9 @@ template void gemm<fp64_t>(
     const fp64_t *A,
     const fp64_t *B,
     Scalar beta,
-    fp64_t *C
-) noexcept;
+    fp64_t *C,
+    bool broadcast_a,
+    bool broadcast_b) noexcept;
 
 template void gemm<fp32_t>(
     cublasHandle_t handle,
@@ -238,8 +222,9 @@ template void gemm<fp32_t>(
     const fp32_t *A,
     const fp32_t *B,
     Scalar beta,
-    fp32_t *C
-) noexcept;
+    fp32_t *C,
+    bool broadcast_a,
+    bool broadcast_b) noexcept;
 
 template void gemm<fp32_fast_tf32_t>(
     cublasHandle_t handle,
@@ -253,8 +238,9 @@ template void gemm<fp32_fast_tf32_t>(
     const fp32_fast_tf32_t *A,
     const fp32_fast_tf32_t *B,
     Scalar beta,
-    fp32_fast_tf32_t *C
-) noexcept;
+    fp32_fast_tf32_t *C,
+    bool broadcast_a,
+    bool broadcast_b) noexcept;
 
 template void gemm<fp32_fast_fp16_t>(
     cublasHandle_t handle,
@@ -268,8 +254,9 @@ template void gemm<fp32_fast_fp16_t>(
     const fp32_fast_fp16_t *A,
     const fp32_fast_fp16_t *B,
     Scalar beta,
-    fp32_fast_fp16_t *C
-) noexcept;
+    fp32_fast_fp16_t *C,
+    bool broadcast_a,
+    bool broadcast_b) noexcept;
 
 template void gemm<fp32_fast_bf16_t>(
     cublasHandle_t handle,
@@ -283,8 +270,9 @@ template void gemm<fp32_fast_bf16_t>(
     const fp32_fast_bf16_t *A,
     const fp32_fast_bf16_t *B,
     Scalar beta,
-    fp32_fast_bf16_t *C
-) noexcept;
+    fp32_fast_bf16_t *C,
+    bool broadcast_a,
+    bool broadcast_b) noexcept;
 
 template void gemm<bf16_t>(
     cublasHandle_t handle,
@@ -298,8 +286,9 @@ template void gemm<bf16_t>(
     const bf16_t *A,
     const bf16_t *B,
     Scalar beta,
-    bf16_t *C
-) noexcept;
+    bf16_t *C,
+    bool broadcast_a,
+    bool broadcast_b) noexcept;
 
 template void gemm<fp16_t>(
     cublasHandle_t handle,
@@ -313,8 +302,9 @@ template void gemm<fp16_t>(
     const fp16_t *A,
     const fp16_t *B,
     Scalar beta,
-    fp16_t *C
-) noexcept;
+    fp16_t *C,
+    bool broadcast_a,
+    bool broadcast_b) noexcept;
 
-} // namespace nntile:kernel::cblas
-#endif // NNTILE_USE_CBLAS
+} // namespace nntile:kernel::cublas
+#endif // NNTILE_USE_CUDA

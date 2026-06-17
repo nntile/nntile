@@ -27,52 +27,41 @@ namespace nntile::kernel::cblas
 namespace
 {
 
-struct CblasGemmLayout
+void c_order_gemm_ld(
+    TransOp transA,
+    TransOp transB,
+    Index m,
+    Index n,
+    Index k,
+    CBLAS_TRANSPOSE &transA_out,
+    CBLAS_TRANSPOSE &transB_out,
+    CBLAS_INT &ldA,
+    CBLAS_INT &ldB)
 {
-    CBLAS_TRANSPOSE trans_first = CblasNoTrans;
-    CBLAS_TRANSPOSE trans_second = CblasNoTrans;
-    CBLAS_INT ld_first = 0;
-    CBLAS_INT ld_second = 0;
-};
-
-//! Map logical C-order GEMM operands to row-major CBLAS call B_op @ A_op.
-CblasGemmLayout c_order_gemm_layout(TransOp transA, TransOp transB)
-{
-    CblasGemmLayout layout;
-    switch(transB.value)
+    switch(transA.value)
     {
         case TransOp::NoTrans:
-            layout.ld_first = 0; // set from n below
-            switch(transA.value)
-            {
-                case TransOp::NoTrans:
-                    layout.trans_first = CblasTrans;
-                    layout.trans_second = CblasNoTrans;
-                    break;
-                case TransOp::Trans:
-                default:
-                    layout.trans_first = CblasTrans;
-                    layout.trans_second = CblasTrans;
-                    break;
-            }
+            transA_out = CblasNoTrans;
+            ldA = static_cast<CBLAS_INT>(k);
             break;
         case TransOp::Trans:
         default:
-            switch(transA.value)
-            {
-                case TransOp::NoTrans:
-                    layout.trans_first = CblasNoTrans;
-                    layout.trans_second = CblasNoTrans;
-                    break;
-                case TransOp::Trans:
-                default:
-                    layout.trans_first = CblasNoTrans;
-                    layout.trans_second = CblasTrans;
-                    break;
-            }
+            transA_out = CblasTrans;
+            ldA = static_cast<CBLAS_INT>(m);
             break;
     }
-    return layout;
+    switch(transB.value)
+    {
+        case TransOp::NoTrans:
+            transB_out = CblasNoTrans;
+            ldB = static_cast<CBLAS_INT>(n);
+            break;
+        case TransOp::Trans:
+        default:
+            transB_out = CblasTrans;
+            ldB = static_cast<CBLAS_INT>(k);
+            break;
+    }
 }
 
 } // namespace
@@ -96,43 +85,34 @@ void gemm(
 ) noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    const CBLAS_INT M_out = static_cast<CBLAS_INT>(n);
-    const CBLAS_INT N_out = static_cast<CBLAS_INT>(m);
-    const CBLAS_INT K_inner = static_cast<CBLAS_INT>(k);
-    CblasGemmLayout layout = c_order_gemm_layout(transA, transB);
-    CBLAS_INT ld_first = 0;
-    CBLAS_INT ld_second = 0;
-    switch(transB.value)
-    {
-        case TransOp::NoTrans:
-            ld_first = M_out;
-            break;
-        case TransOp::Trans:
-        default:
-            ld_first = K_inner;
-            break;
-    }
-    ld_second = (transA.value == TransOp::NoTrans) ? N_out : K_inner;
-    const CBLAS_INT ldC = N_out;
-    const Index first_offset = static_cast<Index>(M_out) * K_inner;
-    const Index second_offset = static_cast<Index>(N_out) * K_inner;
-    const Index c_offset = static_cast<Index>(M_out) * N_out;
+    const CBLAS_INT M = static_cast<CBLAS_INT>(m);
+    const CBLAS_INT N = static_cast<CBLAS_INT>(n);
+    const CBLAS_INT K = static_cast<CBLAS_INT>(k);
+    CBLAS_TRANSPOSE transA_ = CblasNoTrans;
+    CBLAS_TRANSPOSE transB_ = CblasNoTrans;
+    CBLAS_INT ldA = 0;
+    CBLAS_INT ldB = 0;
+    c_order_gemm_ld(transA, transB, m, n, k, transA_, transB_, ldA, ldB);
+    const CBLAS_INT ldC = N;
+    const Index a_stride = static_cast<Index>(m) * k;
+    const Index b_stride = static_cast<Index>(k) * n;
+    const Index c_stride = static_cast<Index>(m) * n;
     for(Index i = 0; i < batch; ++i)
     {
         if constexpr(std::is_same_v<T, fp64_t>) // Double precision
         {
             cblas_dgemm(
                 CblasRowMajor,
-                layout.trans_first,
-                layout.trans_second,
-                M_out,
-                N_out,
-                K_inner,
+                transA_,
+                transB_,
+                M,
+                N,
+                K,
                 alpha,
-                reinterpret_cast<const double *>(B),
-                ld_first,
                 reinterpret_cast<const double *>(A),
-                ld_second,
+                ldA,
+                reinterpret_cast<const double *>(B),
+                ldB,
                 beta,
                 reinterpret_cast<double *>(C),
                 ldC
@@ -142,16 +122,16 @@ void gemm(
         {
             cblas_sgemm(
                 CblasRowMajor,
-                layout.trans_first,
-                layout.trans_second,
-                M_out,
-                N_out,
-                K_inner,
+                transA_,
+                transB_,
+                M,
+                N,
+                K,
                 alpha,
-                reinterpret_cast<const float *>(B),
-                ld_first,
                 reinterpret_cast<const float *>(A),
-                ld_second,
+                ldA,
+                reinterpret_cast<const float *>(B),
+                ldB,
                 beta,
                 reinterpret_cast<float *>(C),
                 ldC
@@ -159,13 +139,13 @@ void gemm(
         }
         if(!broadcast_b)
         {
-            B += first_offset;
+            B += b_stride;
         }
         if(!broadcast_a)
         {
-            A += second_offset;
+            A += a_stride;
         }
-        C += c_offset;
+        C += c_stride;
     }
 #endif // STARPU_SIMGRID
 }
