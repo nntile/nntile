@@ -11,6 +11,12 @@
 namespace torch_nntile
 {
 
+enum class RuntimeMode
+{
+    Eager,
+    Graph,
+};
+
 void init_context(
     int ncpu = -1,
     int ncuda = -1,
@@ -19,11 +25,16 @@ void init_context(
     std::size_t ooc_size = 16 * 1024 * 1024,
     int logger = 0,
     int verbose = 0,
-    bool cpu_fallback = true);
+    bool cpu_fallback = true,
+    RuntimeMode runtime_mode = RuntimeMode::Eager);
 
 bool is_context_initialized();
 
 bool is_cpu_fallback_enabled();
+
+RuntimeMode get_runtime_mode();
+
+bool is_graph_mode();
 
 void ensure_nntile_context();
 

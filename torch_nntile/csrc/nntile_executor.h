@@ -62,20 +62,22 @@ void tensor_linear_backward_weight_fp32(
     float *grad_weight_data,
     c10::IntArrayRef grad_weight_shape);
 
-float tensor_cross_entropy_forward_fp32(
+void tensor_cross_entropy_forward_fp32(
     const float *logits_data,
     c10::IntArrayRef logits_shape,
     const std::int64_t *labels_data,
     c10::IntArrayRef labels_shape,
     std::int64_t ignore_index,
-    bool mean_reduction);
+    bool mean_reduction,
+    float *loss_data);
 
 void tensor_cross_entropy_backward_fp32(
     const float *logits_data,
     c10::IntArrayRef logits_shape,
     const std::int64_t *labels_data,
     c10::IntArrayRef labels_shape,
-    float grad_output,
+    const float *grad_output_data,
+    float *grad_row_data,
     float *grad_logits_data,
     std::int64_t ignore_index,
     bool mean_reduction);

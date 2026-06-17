@@ -5,6 +5,7 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/TensorUtils.h>
 
@@ -66,6 +67,7 @@ void sgd_step(
 {
     check_sgd_step_tensors(param, grad, velocity);
     TORCH_CHECK(num_iter >= 1, "nntile sgd_step: num_iter must be >= 1");
+    pin_graph_op_inputs({param, grad, velocity});
     tensor_sgd_step_fp32(
         num_iter,
         static_cast<float>(momentum),

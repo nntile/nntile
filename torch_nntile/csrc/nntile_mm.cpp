@@ -5,6 +5,7 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -57,6 +58,8 @@ at::Tensor make_mm_output(const at::Tensor &self, const at::Tensor &mat2)
 
 void run_mm(const at::Tensor &self, const at::Tensor &mat2, at::Tensor &out)
 {
+    pin_graph_op_inputs({self, mat2});
+    pin_graph_op_output(out, true);
     tensor_mm_fp32(
         self.data_ptr<float>(),
         self.sizes(),

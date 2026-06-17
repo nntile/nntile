@@ -68,8 +68,14 @@ def init_context(
     verbose: int = 0,
     *,
     cpu_fallback: bool = True,
+    runtime_mode: str = "eager",
 ) -> None:
-    """Configure StarPU workers before the first libnntile-backed op."""
+    """Configure StarPU workers before the first libnntile-backed op.
+
+    ``runtime_mode`` is ``"eager"`` (compile and run each op immediately) or
+    ``"graph"`` (record ops into a shared TensorGraph; call :func:`execute`
+    to compile and run the pending graph).
+    """
     _C.init_context(
         ncpu,
         ncuda,
@@ -79,7 +85,25 @@ def init_context(
         logger,
         verbose,
         cpu_fallback,
+        runtime_mode,
     )
+
+
+def execute() -> None:
+    """Compile and run the pending TensorGraph, then reset the recorder.
+
+    Required in graph mode before reading nntile tensor data on the host.
+    No-op when the pending graph is empty (including in eager mode).
+    """
+    _C.execute()
+
+
+def is_graph_mode() -> bool:
+    return _C.is_graph_mode()
+
+
+def has_pending_graph() -> bool:
+    return _C.has_pending_graph()
 
 
 def is_context_initialized() -> bool:
@@ -109,6 +133,9 @@ __all__ = [
     "device",
     "_C",
     "init_context",
+    "execute",
+    "is_graph_mode",
+    "has_pending_graph",
     "is_context_initialized",
     "is_cpu_fallback_enabled",
     "restrict_cpu",

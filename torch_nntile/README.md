@@ -20,7 +20,7 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
 | `linear` backward / `mm` | `tensor::gemm` |
-| `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs` |
+| `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
 
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
@@ -34,6 +34,32 @@ torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
 
 When `cpu_fallback=False`, unsupported ATen ops raise instead of running on CPU.
 Use this to verify that a model forward uses only nntile kernels.
+
+### Runtime mode: eager vs graph
+
+```python
+# Default: each op records a TensorGraph slice and runs it immediately.
+torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
+
+# Deferred: ops append to one shared TensorGraph until you flush.
+torch_nntile.init_context(
+    ncpu=1, ncuda=0, cpu_fallback=False, runtime_mode="graph"
+)
+y = model(x)              # recorded, not executed yet
+loss.backward()           # backward ops recorded too
+torch_nntile.execute()    # compile + run the full graph, then reset
+z = y.cpu()               # safe after execute()
+```
+
+In graph mode, forward and backward can stay in one pending graph (StarPU
+resolves dependencies). Call ``torch_nntile.execute()`` to compile and run
+the batch. Host reads from **nntile** tensors (``.cpu()``, ``.to("cpu")``,
+``.item()``) raise until ``execute()`` has run. Copies **to**
+``device="nntile"`` do not flush the graph. Training helpers such as
+``train_full_batch_step`` call ``execute()`` automatically in graph mode
+before returning the scalar loss.
+
+Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 
 ## Phase 3 (DeepReLU example)
 
@@ -63,15 +89,21 @@ pytest -vv torch_nntile/tests/test_deep_relu_parity.py
 Train `DeepReLU.mnist()` on all **60 000** MNIST training images in one batch,
 comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
 
-Cross-entropy runs entirely on nntile via `torch_nntile.training.cross_entropy`
-(same tensor-op chain as `NNCrossEntropyOp` in libnntile). The scalar loss is
-returned on CPU so PyTorch autograd can call `loss.backward()` without extra
-ATen kernels on PrivateUse1. Optimizer steps use fused `tensor::sgd_step` via
-``torch_nntile.training.SGD`` (no per-parameter CPU round-trip).
+Cross-entropy is evaluated on nntile via `torch_nntile.training.cross_entropy`
+(same tensor-op chain as `NNCrossEntropyOp` in libnntile). Logits use **class
+dim last** (`[..., C]`); labels match logits without the class axis (`...`).
+The scalar loss lives on ``device="nntile"``; call ``torch_nntile.execute()`` in
+graph mode before reading it on the host. Backward keeps ``grad_output`` as a
+graph tensor (no host scalar read during recording) and broadcasts it to the
+label shape with one ``scale_slice`` per label dimension, then applies
+``multiply_slice`` along the class axis. Optimizer steps use fused
+``tensor::sgd_step`` via ``torch_nntile.training.SGD`` (no per-parameter CPU
+round-trip).
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
+python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 --runtime-mode graph
 ```
 
 Integration test (downloads MNIST, 3 epochs, compares losses and weights):
@@ -80,7 +112,7 @@ Integration test (downloads MNIST, 3 epochs, compares losses and weights):
 pytest -vv -m slow torch_nntile/tests/test_deep_relu_mnist_train.py
 ```
 
-Cross-entropy parity (forward, backward, `ignore_index`):
+Cross-entropy parity (forward, backward, multi-D labels, `ignore_index`):
 
 ```bash
 pytest -vv torch_nntile/tests/test_cross_entropy_parity.py

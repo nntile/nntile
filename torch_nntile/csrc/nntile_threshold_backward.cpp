@@ -5,6 +5,7 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -53,6 +54,8 @@ at::Tensor threshold_backward(
         threshold.to<double>() == 0.0,
         "nntile threshold_backward supports ReLU only (threshold=0)");
     at::Tensor grad_input = at::empty_like(self);
+    pin_graph_op_inputs({self, grad_output});
+    pin_graph_op_output(grad_input, true);
     tensor_relu_backward_fp32(
         self.data_ptr<float>(),
         grad_output.data_ptr<float>(),

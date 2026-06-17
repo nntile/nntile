@@ -7,7 +7,10 @@
 """Utilities for training on the nntile device.
 
 Cross-entropy uses libnntile tensor ops (``maxsumexp``, ``logsumexp``,
-``total_sum_accum``, ``softmax``, ``subtract_indexed_outputs``).
+``total_sum_accum``, ``softmax``, ``subtract_indexed_outputs``). Logits must
+have the class dimension last (``[..., C]``); labels match logits without that
+axis. Backward broadcasts scalar ``grad_output`` with chained ``scale_slice``
+(one per label dimension), then ``multiply_slice`` along the class axis.
 
 SGD uses the fused ``tensor::sgd_step`` kernel (momentum, weight decay,
 Nesterov), mirroring ``nntile::optim::SGD`` in the main package.
@@ -20,6 +23,7 @@ from typing import Iterable
 import torch
 import torch.nn.functional as F
 
+import torch_nntile
 from torch_nntile import _C
 
 # torch.nn._reduction: none=0, mean=1, sum=2
@@ -62,7 +66,12 @@ def cross_entropy(
     reduction: str = "mean",
     ignore_index: int = -100,
 ) -> torch.Tensor:
-    """Cross-entropy on ``device='nntile'`` via libnntile tensor ops."""
+    """Cross-entropy on ``device='nntile'`` via libnntile tensor ops.
+
+    ``logits`` shape ``[..., C]`` (class dim last). ``target`` is int64 with
+    shape matching logits without ``C``. Supports ``reduction='mean'`` or
+    ``'sum'`` and ``ignore_index`` (default ``-100``).
+    """
     if logits.device.type != "nntile":
         raise ValueError("cross_entropy expects nntile logits")
     if reduction == "mean":
@@ -241,6 +250,8 @@ def train_full_batch_step(
         loss = cross_entropy(logits, targets)
         loss.backward()
         _nntile_optimizer_for(model, learning_rate).step()
+        if torch_nntile.is_graph_mode():
+            torch_nntile.execute()
         return float(loss.detach().cpu().item())
 
     loss = F.cross_entropy(logits, targets)

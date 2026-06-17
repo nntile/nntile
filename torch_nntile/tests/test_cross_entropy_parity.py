@@ -72,6 +72,33 @@ def test_cross_entropy_backward_matches_cpu():
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-4, atol=1e-4)
 
 
+def test_cross_entropy_backward_multidim_labels_matches_cpu():
+    torch.manual_seed(4)
+    b1, b2, classes = 3, 4, 5
+    # nntile: class dim is last; PyTorch CE expects (N, C, ...).
+    logits_pytorch = torch.randn(
+        b1, classes, b2, dtype=torch.float32, requires_grad=True
+    )
+    target = torch.randint(0, classes, (b1, b2))
+
+    loss_cpu = F.cross_entropy(logits_pytorch, target, reduction="mean")
+    loss_cpu.backward()
+    grad_cpu = logits_pytorch.grad.detach()
+
+    logits_nnt = (
+        logits_pytorch.detach()
+        .permute(0, 2, 1)
+        .contiguous()
+        .to("nntile")
+        .requires_grad_(True)
+    )
+    loss_nnt = cross_entropy(logits_nnt, target, reduction="mean")
+    loss_nnt.backward()
+    grad_nnt = logits_nnt.grad.cpu().permute(0, 2, 1).contiguous()
+
+    assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-4, atol=1e-4)
+
+
 def test_cross_entropy_ignore_index_matches_cpu():
     torch.manual_seed(3)
     batch, classes = 5, 3
