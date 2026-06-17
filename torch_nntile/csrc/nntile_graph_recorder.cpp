@@ -316,6 +316,12 @@ nntile::TensorGraph::TensorNode *lookup_data_node(void *data_ptr)
     return found->second.node;
 }
 
+void track_graph_node(nntile::TensorGraph::TensorNode *node)
+{
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    track_node(node);
+}
+
 void pin_tensor_for_graph(const at::Tensor &tensor)
 {
     if (!is_graph_mode())

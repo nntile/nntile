@@ -102,10 +102,6 @@ at::Tensor cross_entropy_backward(
     TORCH_CHECK(
         is_nntile_device(grad_output.device()),
         "nntile cross_entropy_backward: grad_output must be on device nntile");
-    TORCH_CHECK(
-        target.dim() == 1,
-        "nntile cross_entropy_backward: deferred grad_output broadcast "
-        "requires 1-D labels (batch,) for now");
     at::Tensor grad_logits = at::empty_like(logits);
     at::Tensor grad_row = at::empty(target.sizes(), logits.options());
     pin_graph_op_inputs({logits, target, grad_output});

@@ -420,6 +420,35 @@ void tensor_cross_entropy_backward_fp32(
         ignore_index,
         mean_reduction);
 
+    auto broadcast_grad_output_to_row = [&](
+        nntile::TensorGraph::TensorNode *grad_output_node,
+        nntile::TensorGraph::TensorNode *grad_row_node,
+        nntile::TensorGraph &graph,
+        const std::vector<nntile::Index> &labels_graph_shape)
+    {
+        nntile::TensorGraph::TensorNode *src_node = grad_output_node;
+        for (std::size_t dim = 0; dim < labels_graph_shape.size(); ++dim)
+        {
+            nntile::TensorGraph::TensorNode *dst_node = grad_row_node;
+            if (dim + 1 < labels_graph_shape.size())
+            {
+                std::vector<nntile::Index> dst_shape(
+                    labels_graph_shape.begin(),
+                    labels_graph_shape.begin() +
+                        static_cast<std::ptrdiff_t>(dim) + 1);
+                dst_node = graph.data(dst_shape, nntile::DataType::FP32)
+                               ->set_name("grad_output_broadcast");
+                track_graph_node(dst_node);
+            }
+            nntile::tensor::scale_slice(
+                static_cast<nntile::Scalar>(1.0),
+                src_node,
+                dst_node,
+                static_cast<nntile::Index>(dim));
+            src_node = dst_node;
+        }
+    };
+
     auto *logits_node = get_or_create_data_node(
         const_cast<float *>(logits_data),
         logits_graph,
@@ -451,12 +480,12 @@ void tensor_cross_entropy_backward_fp32(
         graph.data(maxsumexp_graph, nntile::DataType::FP32)
             ->set_name("maxsumexp");
 
-    // Broadcast scalar grad_output into per-batch row scales without host read.
-    nntile::tensor::scale_slice(
-        static_cast<nntile::Scalar>(1.0),
+    // Broadcast scalar grad_output to labels shape via chained scale_slice.
+    broadcast_grad_output_to_row(
         grad_output_node,
         grad_row_node,
-        static_cast<nntile::Index>(0));
+        graph,
+        labels_graph);
 
     nntile::tensor::clear(maxsumexp_node);
     nntile::tensor::maxsumexp(

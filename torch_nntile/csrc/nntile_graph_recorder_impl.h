@@ -47,6 +47,8 @@ void register_data_node(
 
 nntile::TensorGraph::TensorNode *lookup_data_node(void *data_ptr);
 
+void track_graph_node(nntile::TensorGraph::TensorNode *node);
+
 #endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile
