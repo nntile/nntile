@@ -8,8 +8,9 @@
 """Full-batch MNIST training with DeepReLU on CPU and device=\"nntile\".
 
 Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
-(same tensor-op chain as ``NNCrossEntropyOp`` in libnntile). The scalar loss lives
-on ``device="nntile"``; call ``torch_nntile.execute()`` in graph mode before
+(same tensor-op chain as ``NNCrossEntropyOp`` in libnntile). Logits are
+``[batch, classes]`` (class dim last). The scalar loss lives on
+``device="nntile"``; call ``torch_nntile.execute()`` in graph mode before
 reading it on the host.
 
 Example::

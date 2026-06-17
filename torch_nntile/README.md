@@ -20,7 +20,7 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
 | `linear` backward / `mm` | `tensor::gemm` |
-| `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs` |
+| `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
 
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
@@ -90,10 +90,15 @@ Train `DeepReLU.mnist()` on all **60 000** MNIST training images in one batch,
 comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
 
 Cross-entropy is evaluated on nntile via `torch_nntile.training.cross_entropy`
-(same tensor-op chain as `NNCrossEntropyOp` in libnntile). The scalar loss lives
-on ``device="nntile"``; call ``torch_nntile.execute()`` in graph mode before
-reading it on the host. Optimizer steps use fused ``tensor::sgd_step`` via
-``torch_nntile.training.SGD`` (no per-parameter CPU round-trip).
+(same tensor-op chain as `NNCrossEntropyOp` in libnntile). Logits use **class
+dim last** (`[..., C]`); labels match logits without the class axis (`...`).
+The scalar loss lives on ``device="nntile"``; call ``torch_nntile.execute()`` in
+graph mode before reading it on the host. Backward keeps ``grad_output`` as a
+graph tensor (no host scalar read during recording) and broadcasts it to the
+label shape with one ``scale_slice`` per label dimension, then applies
+``multiply_slice`` along the class axis. Optimizer steps use fused
+``tensor::sgd_step`` via ``torch_nntile.training.SGD`` (no per-parameter CPU
+round-trip).
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
@@ -107,7 +112,7 @@ Integration test (downloads MNIST, 3 epochs, compares losses and weights):
 pytest -vv -m slow torch_nntile/tests/test_deep_relu_mnist_train.py
 ```
 
-Cross-entropy parity (forward, backward, `ignore_index`):
+Cross-entropy parity (forward, backward, multi-D labels, `ignore_index`):
 
 ```bash
 pytest -vv torch_nntile/tests/test_cross_entropy_parity.py
