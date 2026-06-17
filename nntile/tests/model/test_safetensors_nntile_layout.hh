@@ -32,9 +32,9 @@ inline Index shape_volume(const std::vector<std::int64_t> &shape)
     return vol;
 }
 
-//! SafeTensors and NNTile both store tensors in C-order; copy bytes directly.
+//! Copy SafeTensors payload bytes into NNTile bind layout (both C-order).
 template <typename T>
-inline void c_safetensors_to_nntile_fortran(
+inline void copy_safetensors_to_nntile(
     const std::uint8_t *raw,
     const std::vector<std::int64_t> &shape,
     std::vector<T> &out)
@@ -42,12 +42,12 @@ inline void c_safetensors_to_nntile_fortran(
     if(raw == nullptr)
     {
         throw std::invalid_argument(
-            "c_safetensors_to_nntile_fortran: null raw buffer");
+            "copy_safetensors_to_nntile: null raw buffer");
     }
     if(shape.empty())
     {
         throw std::invalid_argument(
-            "c_safetensors_to_nntile_fortran: empty shape");
+            "copy_safetensors_to_nntile: empty shape");
     }
     const Index vol = shape_volume(shape);
     const auto expected_bytes =
@@ -57,7 +57,7 @@ inline void c_safetensors_to_nntile_fortran(
 }
 
 template <typename T>
-inline void read_tensor_nntile_fortran(
+inline void read_tensor_from_safetensors(
     const nntile::io::SafeTensorsReader &reader,
     const char *name,
     std::vector<T> &out)
@@ -69,10 +69,10 @@ inline void read_tensor_nntile_fortran(
     if(raw.size() != expected)
     {
         throw std::runtime_error(
-            std::string("read_tensor_nntile_fortran: byte size mismatch for ")
+            std::string("read_tensor_from_safetensors: byte size mismatch for ")
             + name);
     }
-    c_safetensors_to_nntile_fortran<T>(raw.data(), info.shape, out);
+    copy_safetensors_to_nntile<T>(raw.data(), info.shape, out);
 }
 
 } // namespace nntile::test::safetensors_nntile_layout

@@ -13,6 +13,7 @@
  * */
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/graph.hh"
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
@@ -275,12 +276,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tile_rt.wait();
     auto tile_result = tile_rt.get_output<float>(tz);
 
-    REQUIRE(tensor_result.size() == tile_result.size());
-    constexpr float tol = 1e-5f;
-    for (size_t i = 0; i < tensor_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tensor_result[i] - tile_result[i]) < tol);
-    }
+    nntile::test::require_relative_element_error(tile_result, tensor_result);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -310,13 +306,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    auto result = runtime.get_output<float>(y);
-    REQUIRE(result.size() == 4);
-    constexpr float tol = 1e-5f;
-    REQUIRE(std::abs(result[0] - 12.0f) < tol);
-    REQUIRE(std::abs(result[1] - 24.0f) < tol);
-    REQUIRE(std::abs(result[2] - 36.0f) < tol);
-    REQUIRE(std::abs(result[3] - 48.0f) < tol);
+    const auto result = runtime.get_output<float>(y);
+    const std::vector<float> expected{12.f, 24.f, 36.f, 48.f};
+    nntile::test::require_relative_element_error(result, expected);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -353,10 +345,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tile_rt.wait();
 
     auto result = tile_rt.get_output<float>(tz);
-    constexpr float tol = 1e-5f;
-    REQUIRE(result.size() == 2);
-    REQUIRE(std::abs(result[0] - 11.0f) < tol);
-    REQUIRE(std::abs(result[1] - 22.0f) < tol);
+    const std::vector<float> expected{11.f, 22.f};
+    nntile::test::require_relative_element_error(result, expected);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -382,12 +372,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     auto result = runtime.get_output<float>(x);
-    constexpr float tol = 1e-5f;
     REQUIRE(result.size() == 3);
-    for (auto v : result)
-    {
-        REQUIRE(std::abs(v) < tol);
-    }
+    nntile::test::require_relative_element_error(
+        result, std::vector<float>{0.f, 0.f, 0.f});
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -445,10 +432,5 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tile_rt.wait();
     auto tile_result = tile_rt.get_output<float>(tz);
 
-    REQUIRE(tensor_result.size() == tile_result.size());
-    constexpr float tol = 1e-5f;
-    for (size_t i = 0; i < tensor_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tensor_result[i] - tile_result[i]) < tol);
-    }
+    nntile::test::require_relative_element_error(tile_result, tensor_result);
 }

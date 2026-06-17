@@ -27,7 +27,7 @@ namespace nntile::test
 //! Floor for relative scales (tiny activations / gradients).
 constexpr float relative_tolerance_floor = 1e-7f;
 
-//! Default relative Frobenius tolerance (matches Fortran-order graph tests).
+//! Default relative Frobenius tolerance for graph parity checks.
 constexpr float gemm_relative_tolerance = 1e-6f;
 
 //! Default max per-element relative tolerance for fp32 parity checks.

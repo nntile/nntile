@@ -20,9 +20,9 @@
  * ``[norope]`` — no-RoPE bundles only (with or without causal mask);
  * ``[norope_nomask]`` — no-RoPE and no causal mask (subset of ``[nomask]``).
  *
- * NNTile tensor **storage** is Fortran (column-major) everywhere, including
- * ``bind_hint`` bytes from safetensors (see
- * ``generate_test_data.fortran_order``).
+ * Safetensors payloads use the same C-order layout as NNTile tiles; tests
+ * load weights and references via ``read_tensor_from_safetensors`` (direct
+ * byte copy, no axis reversal).
  *
  * @version 1.1.0
  * */

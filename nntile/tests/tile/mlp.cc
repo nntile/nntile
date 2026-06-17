@@ -13,6 +13,7 @@
  * */
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
@@ -29,17 +30,6 @@ namespace mod = nntile::module;
 
 namespace
 {
-
-float max_abs_diff(const std::vector<float> &a, const std::vector<float> &b)
-{
-    float m = 0.f;
-    const size_t n = std::min(a.size(), b.size());
-    for (size_t i = 0; i < n; ++i)
-    {
-        m = std::max(m, std::abs(a[i] - b[i]));
-    }
-    return m;
-}
 
 void bind_same_weights(Runtime &rt,
     TensorGraph::TensorNode const *w1,
@@ -173,8 +163,7 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     const std::vector<float> gw2_tile =
         rt_tile.get_output<float>(mlp_tile.fc2().weight_tensor()->grad());
 
-    constexpr float tol = 1e-4f;
-    REQUIRE(max_abs_diff(out_ref_v, out_tile_v) < tol);
-    REQUIRE(max_abs_diff(gw1_ref, gw1_tile) < tol);
-    REQUIRE(max_abs_diff(gw2_ref, gw2_tile) < tol);
+    nntile::test::require_relative_element_error(out_tile_v, out_ref_v);
+    nntile::test::require_relative_element_error(gw1_tile, gw1_ref);
+    nntile::test::require_relative_element_error(gw2_tile, gw2_ref);
 }
