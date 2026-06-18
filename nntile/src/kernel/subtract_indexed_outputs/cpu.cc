@@ -21,7 +21,7 @@ namespace nntile::kernel::subtract_indexed_outputs
 {
 
 template<typename T>
-void cpu(Index n_labels, Index n_outputs, Index ignore_index, Index leading_class,
+void cpu(Index n_labels, Index n_outputs, Index ignore_index,
          Scalar val_, const int64_t* labels_, T *dst_)
     noexcept
 //! Subtraction of given val from indexed output of dst
@@ -50,52 +50,33 @@ void cpu(Index n_labels, Index n_outputs, Index ignore_index, Index leading_clas
     {
         if (labels[i] == ignore_index)
         {
-            for(Index c = 0; c < n_labels; ++c)
-            {
-                if(leading_class != 0)
-                {
-                    dst_[c * n_outputs + i] = static_cast<T>(0);
-                }
-                else
-                {
-                    dst_[i * n_labels + c] = static_cast<T>(0);
-                }
-            }
+            std::memset(dst_ + i*n_labels, 0, n_labels * sizeof(T));
         } else {
-            if(leading_class != 0)
-            {
-                dst_val = static_cast<Y>(dst_[labels[i] * n_outputs + i]);
-                dst_[labels[i] * n_outputs + i] = static_cast<T>(dst_val - val);
-            }
-            else
-            {
-                dst_val = static_cast<Y>(dst_[i * n_labels + labels[i]]);
-                dst_[i * n_labels + labels[i]] =
-                    static_cast<T>(dst_val - val);
-            }
+            dst_val = static_cast<Y>(dst_[labels[i] + i*n_labels]);
+            dst_[labels[i] + i*n_labels] = static_cast<T>(dst_val - val);
         }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index n_labels, Index n_outputs, Index ignore_index,
-        Index leading_class, Scalar val, const int64_t* labels, fp32_t *dst)
+void cpu<fp32_t>(Index n_labels, Index n_outputs, Index ignore_index, Scalar val,
+        const int64_t* labels, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index n_labels, Index n_outputs, Index ignore_index,
-        Index leading_class, Scalar val, const int64_t* labels, fp64_t *dst)
+void cpu<fp64_t>(Index n_labels, Index n_outputs, Index ignore_index, Scalar val,
+        const int64_t* labels, fp64_t *dst)
     noexcept;
 
 template
-void cpu<bf16_t>(Index n_labels, Index n_outputs, Index ignore_index,
-        Index leading_class, Scalar val, const int64_t* labels, bf16_t *dst)
+void cpu<bf16_t>(Index n_labels, Index n_outputs, Index ignore_index, Scalar val,
+        const int64_t* labels, bf16_t *dst)
     noexcept;
 
 template
-void cpu<fp16_t>(Index n_labels, Index n_outputs, Index ignore_index,
-        Index leading_class, Scalar val, const int64_t* labels, fp16_t *dst)
+void cpu<fp16_t>(Index n_labels, Index n_outputs, Index ignore_index, Scalar val,
+        const int64_t* labels, fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs

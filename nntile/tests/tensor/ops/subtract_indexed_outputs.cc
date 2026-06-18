@@ -46,7 +46,7 @@ TEST_CASE("TensorGraph subtract_indexed_outputs structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
-    auto *dst = graph.data({5, 4})->set_name("dst");
+    auto *dst = graph.data({4, 5})->set_name("dst");
 
     gt::subtract_indexed_outputs(val, labels, dst, ignore_index);
 
@@ -65,7 +65,7 @@ TEST_CASE(
 {
     TensorGraph graph("test");
     auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
-    auto *dst = graph.data({5, 4})->set_name("dst");
+    auto *dst = graph.data({4, 5})->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::subtract_indexed_outputs(val, nullptr, dst, ignore_index),
@@ -108,9 +108,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GENERATE(std::tuple{std::vector<Index>{4}, Index(6)},
             std::tuple{std::vector<Index>{2, 4}, Index(4)});
 
-    std::vector<Index> dst_shape = {n_class};
-    dst_shape.insert(
-        dst_shape.end(), labels_shape.begin(), labels_shape.end());
+    std::vector<Index> dst_shape = labels_shape;
+    dst_shape.push_back(n_class);
     const Index labels_nelems = std::accumulate(labels_shape.begin(),
         labels_shape.end(),
         Index(1),
@@ -169,7 +168,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         dst_node->mark_output(true);
 
         gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
-        auto *nclass_axis = dst_node->axis(0);
+        auto *nclass_axis = dst_node->axis(dst_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())
         {
             if (ag == nclass_axis)

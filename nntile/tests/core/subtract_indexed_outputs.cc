@@ -25,7 +25,7 @@ void validate()
 {
     using Y = typename T::repr_t;
     Tile<nntile::int64_t> labels({2, 2});
-    Tile<T> dst({3, 2, 2}), dst_ref({3, 2, 2});
+    Tile<T> dst({2, 2, 3}), dst_ref({2, 2, 3});
     auto ll = labels.acquire(STARPU_W);
     ll[0] = nntile::int64_t(0);
     ll[1] = nntile::int64_t(1);
@@ -45,8 +45,8 @@ void validate()
 
     Scalar val = 0.5;
     Index ignore_index = -1;
-    starpu::subtract_indexed_outputs.submit<std::tuple<T>>(-1, dst.shape[0],
-            labels.nelems, ignore_index, 1, val, labels, dst);
+    starpu::subtract_indexed_outputs.submit<std::tuple<T>>(dst.shape[2],
+            labels.nelems, ignore_index, val, labels, dst);
     subtract_indexed_outputs<T>(-1, val, labels, dst_ref, ignore_index);
 
     dl.acquire(STARPU_R);

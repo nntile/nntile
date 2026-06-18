@@ -46,7 +46,7 @@ void MaskScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     T *data = interfaces[0]->get_ptr<T>();
     const bool_t* mask = interfaces[1]->get_ptr<bool_t>();
     // Launch kernel
-    kernel::mask_scalar::cpu<T>(args->nslow, args->nfast, mask, args->val,
+    kernel::mask_scalar::cpu<T>(args->nrows, args->ncols, mask, args->val,
             data);
 #endif // STARPU_SIMGRID
 }
@@ -91,7 +91,7 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::mask_scalar::cuda<T>(stream, args->nslow, args->nfast, mask,
+    kernel::mask_scalar::cuda<T>(stream, args->nrows, args->ncols, mask,
             args->val, data);
 #endif // STARPU_SIMGRID
 }
@@ -128,14 +128,14 @@ uint32_t MaskScalar<std::tuple<T>>::footprint(struct starpu_task *task)
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->nslow, sizeof(args->nslow), hash);
-    hash = starpu_hash_crc32c_be_n(&args->nfast, sizeof(args->nfast), hash);
+    hash = starpu_hash_crc32c_be_n(&args->nrows, sizeof(args->nrows), hash);
+    hash = starpu_hash_crc32c_be_n(&args->ncols, sizeof(args->ncols), hash);
     return hash;
 }
 
 template<typename T>
 void MaskScalar<std::tuple<T>>::submit(int starpu_worker_hint,
-        Index nslow, Index nfast, Handle mask, Scalar val, Handle data)
+        Index nrows, Index ncols, Handle mask, Scalar val, Handle data)
 //! Insert mask_scalar task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
@@ -144,11 +144,11 @@ void MaskScalar<std::tuple<T>>::submit(int starpu_worker_hint,
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
-    args->nslow = nslow;
-    args->nfast = nfast;
+    args->nrows = nrows;
+    args->ncols = ncols;
     args->val = val;
     // Indicate maximal possible amount of writes as flops count
-    double nflops = sizeof(T) * nslow * (nfast+1);
+    double nflops = sizeof(T) * nrows * (ncols+1);
     // Submit task
     int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_RW, data.get(),

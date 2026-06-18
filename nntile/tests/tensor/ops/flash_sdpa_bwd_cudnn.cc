@@ -210,15 +210,23 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         if (tiled)
         {
             auto *head_axis = K_node->axis(0);
+            auto *seq_axis = K_node->axis(1);
             for (auto *ag : graph.axis_groups())
             {
-                if (ag == head_axis)
+                if (ag == head_axis || ag == seq_axis)
                 {
-                    ag->set_tiling(ag->extent);
+                    if (ag == head_axis)
+                    {
+                        ag->set_tiling(ag->extent);
+                    }
+                    else
+                    {
+                        ag->set_tiling((ag->extent + 1) / 2);
+                    }
                 }
                 else
                 {
-                    ag->set_tiling((ag->extent + 1) / 2);
+                    ag->set_tiling(ag->extent);
                 }
             }
         }

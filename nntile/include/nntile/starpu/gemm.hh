@@ -51,8 +51,6 @@ public:
         Index batch;
         Scalar alpha;
         Scalar beta;
-        bool broadcast_a;
-        bool broadcast_b;
     };
 
     //! Footprint function for the current operation
@@ -100,9 +98,7 @@ public:
         Handle B,
         Scalar beta,
         Handle C,
-        int redux=0,
-        bool broadcast_a=false,
-        bool broadcast_b=false
+        int redux=0
     );
 };
 

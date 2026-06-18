@@ -19,15 +19,15 @@ namespace nntile::kernel::rope
 {
 
 template<typename T>
-void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *src,
-    T *dst) noexcept
-/*! Apply RoPE on the Fortran-order (2, m, n) view of flat tile data.
+void cpu(Index m, Index n, const T *sin, const T *cos, const T *src, T *dst)
+    noexcept
+/*! Change provided 2-by-m-by-n src tensor and write result into dst tensor
+ *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
+ *  dst[2i,j] = cos[i] * src[2i,j] - sin[i] * src[2i+1,j]
+ *  dst[2i+1,j] = sin[i] * src[2i,j] + cos[i] * src[2i+1,j]
  *
- * C-order callers pass (nrows, ncols); the Fortran loop uses m = ncols and
- * n = nrows on the unchanged flat buffer.
- *
- * @param[in] nrows: spatial tile extent (Fortran n)
- * @param[in] ncols: sin/cos tile extent (Fortran m)
+ * @param[in] m: Size of sin and cos tensors
+ * @param[in] n: Size of the second mode of src and dst tensors
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
  * @param[in] src: Input embedding tensor
@@ -35,36 +35,41 @@ void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *src,
  * */
 {
     using Y = typename T::repr_t;
-    const Index m = ncols;
-    const Index n = nrows;
-    for(Index j = 0; j < n; ++j)
+    // Use these angles for pairwise rotation of the same elements across all
+    // batches
+    for (Index j = 0; j < n; ++j)
     {
+        // Cycle over all elements of sin and cos buffers.
         for(Index i = 0; i < m; ++i)
         {
-            const Index l = 2 * (i + j * m);
+            Index l = 2 * (i+j*m);
             Y c{cos[i]}, s{sin[i]};
-            Y a{src[l]}, b{src[l + 1]};
-            dst[l] = static_cast<T>(c * a - s * b);
-            dst[l + 1] = static_cast<T>(s * a + c * b);
+            Y a{src[l]}, b{src[l+1]};
+            dst[l] = static_cast<T>(c*a - s*b);
+            dst[l+1] = static_cast<T>(s*a + c*b);
         }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nrows, Index ncols, const fp32_t *sin,
-    const fp32_t *cos, const fp32_t *src, fp32_t *dst) noexcept;
+void cpu<fp32_t>(Index m, Index n, const fp32_t *sin, const fp32_t *cos,
+        const fp32_t *src, fp32_t *dst)
+    noexcept;
 
 template
-void cpu<fp64_t>(Index nrows, Index ncols, const fp64_t *sin,
-    const fp64_t *cos, const fp64_t *src, fp64_t *dst) noexcept;
+void cpu<fp64_t>(Index m, Index n, const fp64_t *sin, const fp64_t *cos,
+        const fp64_t *src, fp64_t *dst)
+    noexcept;
 
 template
-void cpu<fp16_t>(Index nrows, Index ncols, const fp16_t *sin,
-    const fp16_t *cos, const fp16_t *src, fp16_t *dst) noexcept;
+void cpu<fp16_t>(Index m, Index n, const fp16_t *sin, const fp16_t *cos,
+        const fp16_t *src, fp16_t *dst)
+    noexcept;
 
 template
-void cpu<bf16_t>(Index nrows, Index ncols, const bf16_t *sin,
-    const bf16_t *cos, const bf16_t *src, bf16_t *dst) noexcept;
+void cpu<bf16_t>(Index m, Index n, const bf16_t *sin, const bf16_t *cos,
+        const bf16_t *src, bf16_t *dst)
+    noexcept;
 
-} // namespace nntile::kernel::rope
+} // namespace rope

@@ -160,10 +160,14 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/sumprod_slice/cuda.cu"
             "kernel/total_sum_accum/cuda.cu"
             "kernel/transpose/cuda.cu"
-            "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
-            "kernel/flash_sdpa_bwd_cudnn/cuda.cc"
             "kernel/isfinite/cuda.cu"
         )
+        if(NNTILE_USE_FLASH_SDPA)
+            list(APPEND KERNEL_CUDA_SRC
+                "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
+                "kernel/flash_sdpa_bwd_cudnn/cuda.cc"
+            )
+        endif()
     endif(NNTILE_USE_CUDA)
 endif(NOT HAVE_STARPU_SIMGRID)
 
@@ -197,8 +201,6 @@ set(STARPU_CODELET_SRC
     "starpu/embedding.cc"
     "starpu/embedding_backward.cc"
     "starpu/fill.cc"
-    "starpu/flash_sdpa_fwd_cudnn.cc"
-    "starpu/flash_sdpa_bwd_cudnn.cc"
     "starpu/gelu.cc"
     "starpu/gelu_inplace.cc"
     "starpu/gelu_backward.cc"
@@ -275,8 +277,6 @@ set(CORE_OPERATION_SRC
     "core/embedding.cc"
     "core/embedding_backward.cc"
     "core/fill.cc"
-    "core/flash_sdpa_fwd_cudnn.cc"
-    "core/flash_sdpa_bwd_cudnn.cc"
     "core/gelu.cc"
     "core/gelu_inplace.cc"
     "core/gelu_backward.cc"
@@ -362,8 +362,6 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/ops/embedding.cc"
     "tensor/ops/embedding_backward.cc"
     "tensor/ops/fill.cc"
-    "tensor/ops/flash_sdpa_bwd_cudnn.cc"
-    "tensor/ops/flash_sdpa_fwd_cudnn.cc"
     "tensor/ops/gather.cc"
     "tensor/ops/gemm.cc"
     "tensor/ops/gelu.cc"
@@ -560,8 +558,6 @@ set(GRAPH_TILE_LAYER_SRC
     "tile/ops/copy_intersection.cc"
     "tile/ops/embedding.cc"
     "tile/ops/embedding_backward.cc"
-    "tile/ops/flash_sdpa_bwd_cudnn.cc"
-    "tile/ops/flash_sdpa_fwd_cudnn.cc"
     "tile/ops/fill.cc"
     "tile/ops/gemm.cc"
     "tile/ops/gelu.cc"
@@ -629,6 +625,36 @@ set(NNTILE_GRAPH_STACK_SRC
     ${GRAPH_TILE_LAYER_SRC}
 )
 
+if(NNTILE_USE_FLASH_SDPA)
+    list(APPEND STARPU_CODELET_SRC
+        "starpu/flash_sdpa_fwd_cudnn.cc"
+        "starpu/flash_sdpa_bwd_cudnn.cc"
+    )
+    list(APPEND CORE_OPERATION_SRC
+        "core/flash_sdpa_fwd_cudnn.cc"
+        "core/flash_sdpa_bwd_cudnn.cc"
+    )
+    list(APPEND GRAPH_TENSOR_LAYER_SRC
+        "tensor/ops/flash_sdpa_bwd_cudnn.cc"
+        "tensor/ops/flash_sdpa_fwd_cudnn.cc"
+    )
+    list(APPEND GRAPH_TILE_LAYER_SRC
+        "tile/ops/flash_sdpa_bwd_cudnn.cc"
+        "tile/ops/flash_sdpa_fwd_cudnn.cc"
+    )
+    set(NNTILE_GRAPH_STACK_SRC
+        ${GRAPH_TENSOR_LAYER_SRC}
+        ${GRAPH_NN_LAYER_SRC}
+        ${GRAPH_IO_SRC}
+        ${GRAPH_UTIL_SRC}
+        ${GRAPH_MODULE_SRC}
+        ${GRAPH_DATASET_SRC}
+        ${GRAPH_MODEL_SRC}
+        ${GRAPH_OPTIM_SRC}
+        ${GRAPH_RUNTIME_SRC}
+        ${GRAPH_TILE_LAYER_SRC}
+    )
+endif()
 
 set(NNTILE_CORE_SRC
     ${BASE_SRC}

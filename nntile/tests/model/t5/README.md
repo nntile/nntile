@@ -16,5 +16,5 @@ Blocks: `ff`, `attention`, `attention_causal`, `cross_attention`,
 ## Run tests
 
 ```bash
-ctest --test-dir build -R 'tests_graph_model_t5' --output-on-failure
+ctest --test-dir build -R 'tests_model_t5' --output-on-failure
 ```

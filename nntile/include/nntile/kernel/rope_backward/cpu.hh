@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/rope_backward/cpu.hh
- * Backward for rotary positional embedding
+ * Rotary positional embedding
  *
  * @version 1.1.0
  * */
@@ -20,7 +20,7 @@ namespace nntile::kernel::rope_backward
 {
 
 template<typename T>
-void cpu(Index nrows, Index ncols, const T *sin, const T *cos, const T *dy,
-    T *dx) noexcept;
+void cpu(Index m, Index n, const T *sin, const T *cos, const T *dy, T *dx)
+    noexcept;
 
 } // namespace nntile::kernel::rope_backward

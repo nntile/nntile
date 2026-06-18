@@ -58,7 +58,7 @@ GPT-Neo modules use `Module::save()` / `Module::load()` with qualified parameter
 ## Running Tests
 
 ```bash
-ctest -R 'tests_graph_model_gptneo'
+ctest -R 'tests_model_gptneo'
 ```
 
 Set `GPTNEO_DATA_DIR` to the directory containing generated fixtures when running binaries outside CTest.

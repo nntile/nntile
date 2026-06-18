@@ -22,7 +22,7 @@
 #include <mutex>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <nntile/starpu_c.hh>
+#include <starpu.h>
 #include "nntile/logger/websocket_client.hh"
 
 namespace nntile::logger

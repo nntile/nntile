@@ -20,7 +20,7 @@
 #include <nntile/defs.h>
 
 // Third-party headers
-#include <nntile/starpu_c.hh>
+#include <starpu.h>
 #ifdef NNTILE_USE_CUDA
 #include <cudnn.h>
 #endif // NNTILE_USE_CUDA

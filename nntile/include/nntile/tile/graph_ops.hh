@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <nntile/defs.h>
+
 // NNTile headers
 #include <nntile/tile/ops/add.hh>
 #include <nntile/tile/ops/add_fiber.hh>
@@ -30,8 +32,10 @@
 #include <nntile/tile/ops/embedding.hh>
 #include <nntile/tile/ops/embedding_backward.hh>
 #include <nntile/tile/ops/fill.hh>
+#ifdef NNTILE_USE_FLASH_SDPA
 #include <nntile/tile/ops/flash_sdpa_bwd_cudnn.hh>
 #include <nntile/tile/ops/flash_sdpa_fwd_cudnn.hh>
+#endif
 #include <nntile/tile/ops/gelu.hh>
 #include <nntile/tile/ops/gelu_backward.hh>
 #include <nntile/tile/ops/gelu_inplace.hh>

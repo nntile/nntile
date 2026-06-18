@@ -53,7 +53,7 @@ pytest -vv
 
 ### Known issues in CPU-only builds
 
-- `tests_graph_model_llama_*_data_setup` tests fail due to a torch/torchvision
+- `tests_model_llama_*_data_setup` tests fail due to a torch/torchvision
   CPU registration incompatibility. These are not caused by NNTile code and are
   skipped in practice.
 - Many Python tests are skipped (`no cuda` marker) because CUDA is not available.

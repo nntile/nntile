@@ -80,8 +80,13 @@ void rope_backward_async(int starpu_worker_hint, const Tile<T> &sin, const Tile<
             nrows *= dy.shape[i];
         }
         const Index ncols = sin.nelems;
-        starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, nrows,
-            ncols, sin_pair0, sin, cos, dy, dx);
+        if(sin_pair0 != 0)
+        {
+            throw std::runtime_error(
+                "rope_backward: sin_pair0 != 0 is not supported");
+        }
+        starpu::rope_backward.submit<std::tuple<T>>(starpu_worker_hint, ncols,
+            nrows, sin, cos, dy, dx);
     }
 }
 

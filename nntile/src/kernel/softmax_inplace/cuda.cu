@@ -41,10 +41,9 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
             __shared__ Y max, sum;
             if(i2_start == 0)
             {
-                const Index mn = m * n;
-                Index spatial = m*i1 + i0;
-                max = Y{maxsumexp[spatial * 2]};
-                sum = Y{maxsumexp[spatial * 2 + 1]};
+                Index src_offset = m*i1 + i0;
+                max = Y{maxsumexp[2*src_offset]};
+                sum = Y{maxsumexp[2*src_offset+1]};
             }
             __syncthreads();
             for(Index i2 = i2_start; i2 < k; i2 += i2_step)
@@ -85,10 +84,8 @@ void cuda_kernel_m1(Index n, Index k, const T *maxsumexp, Scalar alpha_,
     Index maxsumexp_j = dst_block_j*BLOCK_COL + threadIdx.x;
     if(maxsumexp_j < n and threadIdx.x < BLOCK_COL)
     {
-        const Index mn = n;
-        max_block[threadIdx.x] = static_cast<Y>(maxsumexp[maxsumexp_j * 2]);
-        sumexp_block[threadIdx.x] =
-            static_cast<Y>(maxsumexp[maxsumexp_j * 2 + 1]);
+        max_block[threadIdx.x] = static_cast<Y>(maxsumexp[2*maxsumexp_j]);
+        sumexp_block[threadIdx.x] = static_cast<Y>(maxsumexp[2*maxsumexp_j+1]);
     }
     __syncthreads();
     if(global_dst_l < k)

@@ -87,8 +87,10 @@
 #include <nntile/starpu/sumprod_slice.hh>
 #include <nntile/starpu/total_sum_accum.hh>
 #include <nntile/starpu/transpose.hh>
+#ifdef NNTILE_USE_FLASH_SDPA
 #include <nntile/starpu/flash_sdpa_fwd_cudnn.hh>
 #include <nntile/starpu/flash_sdpa_bwd_cudnn.hh>
+#endif
 #include <nntile/starpu/isfinite.hh>
 
 

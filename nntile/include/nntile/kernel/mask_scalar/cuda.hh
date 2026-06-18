@@ -21,7 +21,7 @@ namespace nntile::kernel::mask_scalar
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nslow, Index nfast, const bool_t *mask,
+void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask,
         Scalar val, T *data)
     noexcept;
 

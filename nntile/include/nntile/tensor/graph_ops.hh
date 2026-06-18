@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <nntile/defs.h>
+
 // NNTile headers
 #include <nntile/tensor/ops/add.hh>
 #include <nntile/tensor/ops/add_fiber.hh>
@@ -31,8 +33,10 @@
 #include <nntile/tensor/ops/embedding.hh>
 #include <nntile/tensor/ops/embedding_backward.hh>
 #include <nntile/tensor/ops/fill.hh>
+#ifdef NNTILE_USE_FLASH_SDPA
 #include <nntile/tensor/ops/flash_sdpa_bwd_cudnn.hh>
 #include <nntile/tensor/ops/flash_sdpa_fwd_cudnn.hh>
+#endif
 #include <nntile/tensor/ops/gather.hh>
 #include <nntile/tensor/ops/gelu.hh>
 #include <nntile/tensor/ops/gelu_backward.hh>

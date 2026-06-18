@@ -96,12 +96,11 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                     // variables
                     max_val = block_max_val;
                     sum_val = block_sum_val;
-                    Index spatial = i1 + i2*m;
-                    const Index mn = m * n;
+                    Index dst_offset = i1 + i2*m;
                     // Now max_val is finite, we need to accumulate sum of
                     // exponents with the data in global memory
                     Y max_output;
-                    Y sum_output = Y{maxsumexp[spatial * 2 + 1]};
+                    Y sum_output = Y{maxsumexp[2*dst_offset+1]};
                     // If data was not yet initialised, just overwrite it
                     if(sum_output == zero)
                     {
@@ -111,7 +110,7 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                     // Accumulate otherwise
                     else
                     {
-                        max_output = Y{maxsumexp[spatial * 2]};
+                        max_output = Y{maxsumexp[2*dst_offset]};
                         if(max_val < max_output)
                         {
                             sum_val *= ::exp(max_val - max_output);
@@ -123,8 +122,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                         }
                         sum_output += sum_val;
                     }
-                    maxsumexp[spatial * 2] = T{max_output};
-                    maxsumexp[spatial * 2 + 1] = T{sum_output};
+                    maxsumexp[2*dst_offset] = T{max_output};
+                    maxsumexp[2*dst_offset+1] = T{sum_output};
                 }
             }
         }
@@ -251,8 +250,8 @@ void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
         Y sumexp2 = dst_block_sumexp[0];
         if(not ::isinf(max2))
         {
-            Y max = static_cast<Y>(dst[blockIdx.x * 2]);
-            Y sumexp = static_cast<Y>(dst[blockIdx.x * 2 + 1]);
+            Y max = static_cast<Y>(dst[2*blockIdx.x]);
+            Y sumexp = static_cast<Y>(dst[2*blockIdx.x+1]);
             if(sumexp == 0.0)
             {
                 sumexp = sumexp2;
@@ -267,8 +266,8 @@ void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
             {
                 sumexp += ::exp(max2-max) * sumexp2;
             }
-            dst[blockIdx.x * 2] = static_cast<T>(max);
-            dst[blockIdx.x * 2 + 1] = static_cast<T>(sumexp);
+            dst[2*blockIdx.x] = static_cast<T>(max);
+            dst[2*blockIdx.x+1] = static_cast<T>(sumexp);
         }
     }
 }

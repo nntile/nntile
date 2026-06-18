@@ -14,6 +14,7 @@
 
 #include "nntile/context.hh"
 #include "nntile/core/copy_intersection.hh"
+#include "nntile/shape_utils.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
 
@@ -65,11 +66,11 @@ void validate()
     tile2_copy_local.release();
     // Check complex copying on CPU, no CUDA implementation as of now
     starpu::subcopy.submit<std::tuple<T>>(-1, 3,
-        std::vector<Index>{2, 0, 0},
-        tile3.stride,
-        std::vector<Index>{0, 1, 0},
-        tile2.stride,
-        std::vector<Index>{2, 1, 2},
+        reverse_shape(std::vector<Index>{2, 0, 0}),
+        reverse_shape(std::vector<Index>(tile3.stride.begin(), tile3.stride.end())),
+        reverse_shape(std::vector<Index>{0, 1, 0}),
+        reverse_shape(std::vector<Index>(tile2.stride.begin(), tile2.stride.end())),
+        reverse_shape(std::vector<Index>{2, 1, 2}),
         tile3,
         tile2,
         scratch,

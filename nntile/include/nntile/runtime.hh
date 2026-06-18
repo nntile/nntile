@@ -26,7 +26,7 @@
 #include <vector>
 
 // Third-party headers
-#include <nntile/starpu_c.hh>
+#include <starpu.h>
 
 // NNTile headers
 #include <nntile/base_types.hh>

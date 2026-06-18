@@ -50,10 +50,6 @@ void TensorTotalSumAccumOp::lower_to_tile(const LoweringContext& ctx) const
         throw std::runtime_error(
             "lower_to_tile TOTAL_SUM_ACCUM: val must be single-tile");
     }
-    const bool trailing_class =
-        class_labels->shape()[0] == src->shape()[0];
-    const Index spatial_offset = trailing_class ? 0 : 1;
-
     std::vector<Index> src_coord;
     std::vector<Index> lab_coord(static_cast<size_t>(class_labels->ndim()));
     for(Index lin_s = 0; lin_s < lay_s->grid_volume(); ++lin_s)
@@ -62,7 +58,7 @@ void TensorTotalSumAccumOp::lower_to_tile(const LoweringContext& ctx) const
         for(Index j = 0; j < class_labels->ndim(); ++j)
         {
             lab_coord[static_cast<size_t>(j)] =
-                src_coord[static_cast<size_t>(j + spatial_offset)];
+                src_coord[static_cast<size_t>(j)];
         }
         const Index lin_l = lay_l->grid_linear(lab_coord);
         tile::total_sum_accum(
