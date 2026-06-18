@@ -43,7 +43,6 @@ void SubtractIndexedOutputs<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     Index ignore_index = args->ignore_index;
-    Index leading_class = args->leading_class;
     Scalar val = args->value;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -51,7 +50,7 @@ void SubtractIndexedOutputs<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
     kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs, ignore_index,
-        leading_class, val, labels, dst);
+        val, labels, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -146,8 +145,8 @@ uint32_t SubtractIndexedOutputs<std::tuple<T>>::footprint(struct starpu_task *ta
 }
 
 template<typename T>
-void SubtractIndexedOutputs<std::tuple<T>>::submit(int starpu_worker_hint,
-        Index n_labels, Index n_outputs, Index ignore_index, Index leading_class,
+void SubtractIndexedOutputs<std::tuple<T>>::submit(
+        Index n_labels, Index n_outputs, Index ignore_index,
             Scalar val, Handle labels, Handle dst)
 {
     // Codelet arguments
@@ -156,9 +155,8 @@ void SubtractIndexedOutputs<std::tuple<T>>::submit(int starpu_worker_hint,
     args->n_outputs = n_outputs;
     args->value = val;
     args->ignore_index = ignore_index;
-    args->leading_class = leading_class;
     // Submit task
-    int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, labels.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_RW, dst.get(),

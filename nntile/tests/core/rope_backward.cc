@@ -49,10 +49,9 @@ void validate()
 
     Index nrows = 5;
     Index ncols = sin.nelems;
-    Index sin_pair0 = 0;
-    starpu::rope_backward.submit<std::tuple<T>>(-1, nrows, ncols, sin_pair0,
+    starpu::rope_backward.submit<std::tuple<T>>(-1, ncols, nrows,
         sin, cos, dy, dx);
-    rope_backward<T>(-1, sin, cos, dy, dx_ref, sin_pair0);
+    rope_backward<T>(-1, sin, cos, dy, dx_ref, 0);
 
     dx_local.acquire(STARPU_R);
     dx_ref_local.acquire(STARPU_R);

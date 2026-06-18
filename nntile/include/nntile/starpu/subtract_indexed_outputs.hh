@@ -49,7 +49,6 @@ public:
         Index n_outputs;
         Scalar value;
         Index ignore_index;
-        Index leading_class;
     };
 
     //! Footprint function for the current operation
@@ -80,11 +79,9 @@ public:
 
     //! Submit subtract_indexed_outputs task
     void submit(
-        int starpu_worker_hint,
         Index n_labels,
         Index n_outputs,
         Index ignore_index,
-        Index leading_class,
         Scalar val,
         Handle labels,
         Handle dst

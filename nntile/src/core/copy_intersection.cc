@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/core/copy_intersection.hh"
+#include "nntile/shape_utils.hh"
 #include "nntile/starpu/copy.hh"
 #include "nntile/starpu/config.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -136,8 +137,10 @@ void copy_intersection_async(int starpu_worker_hint, const Tile<T> &src,
                 throw std::runtime_error("copy_intersection: destination region out of bounds");
             }
         }
-        starpu::subcopy.submit<std::tuple<T>>(starpu_worker_hint, ndim, src_start, src.stride, dst_start,
-            dst.stride, copy_shape, src, dst, scratch, dst_tile_mode);
+        starpu::subcopy.submit<std::tuple<T>>(starpu_worker_hint, ndim,
+            reverse_shape(src_start), reverse_shape(src.stride),
+            reverse_shape(dst_start), reverse_shape(dst.stride),
+            reverse_shape(copy_shape), src, dst, scratch, dst_tile_mode);
     }
 }
 

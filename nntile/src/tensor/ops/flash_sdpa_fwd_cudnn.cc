@@ -53,11 +53,10 @@ TensorGraph::TensorNode *flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
     if (K->ndim() != 5 || Q->ndim() != 5)
         throw std::invalid_argument(
             "flash_sdpa_fwd_cudnn: K and Q must be 5D");
-    // logsumexp is FP32 (4D: seq_q, batch, kv_group_size, n_head_kv)
-    // A is 5D like Q (head_size, seq_q, batch, kv_group_size, n_head_kv)
-    // Output has one value per query position, so shapes derive from Q.
+    // logsumexp is FP32 (4D: seq, batch, kv_group_size, n_head_kv)
+    // A is 5D like Q (head_size, seq, batch, kv_group_size, n_head_kv)
     const auto &Q_shape = Q->shape();
-    std::vector<Index> logsumexp_shape(Q_shape.begin(), Q_shape.end() - 1);
+    std::vector<Index> logsumexp_shape(Q_shape.begin() + 1, Q_shape.end());
     std::vector<Index> A_shape = Q_shape;
     TensorGraph::TensorNode *logsumexp_node =
         K->graph()->data(std::move(logsumexp_shape), DataType::FP32);
@@ -67,13 +66,14 @@ TensorGraph::TensorNode *flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
 
     // A has same shape as Q
     A_node->set_axes(Q->axes());
-    // logsumexp drops head_size (last Q dim)
+    // logsumexp drops head_size (axis 0)
     for (Index i = 0; i < logsumexp_node->ndim(); ++i)
     {
         merge_axis(
-            logsumexp_node->mutable_axes()[i], Q->mutable_axes()[i]);
+            logsumexp_node->mutable_axes()[i], Q->mutable_axes()[i + 1]);
     }
 
+    fill(-std::numeric_limits<float>::infinity(), logsumexp_node);
     flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp_node, V, A_node);
     return A_node;
 }
@@ -102,13 +102,13 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
         throw std::invalid_argument(
             "flash_sdpa_fwd_cudnn: logsumexp must have FP32 dtype");
     validate_same_shape_and_merge(Q, A, "flash_sdpa_fwd_cudnn");
-    validate_logsumexp_drop_last_shape_and_merge(
+    validate_logsumexp_drop_first_shape_and_merge(
         Q, logsumexp, "flash_sdpa_fwd_cudnn");
     validate_flash_sdpa_qkv_shape_and_merge(Q, K, V, "flash_sdpa_fwd_cudnn");
     if (mask->ndim() != 2)
         throw std::invalid_argument("flash_sdpa_fwd_cudnn: mask must be 2D");
-    const Index q_seq_ax = Q->ndim() - 2;
-    const Index k_seq_ax = K->ndim() - 2;
+    const Index q_seq_ax = 1;
+    const Index k_seq_ax = 1;
     if (mask->shape()[0] != Q->shape()[q_seq_ax] ||
         mask->shape()[1] != K->shape()[k_seq_ax])
         throw std::invalid_argument(
@@ -145,13 +145,13 @@ void TensorFlashSdpaFwdCudnnOp::lower_to_tile(const LoweringContext &ctx) const
             std::string("lower_to_tile ") + op +
             ": K/Q/V/A must share the same per-axis tile grid");
     }
-    if (lay_k->grid_shape()[static_cast<size_t>(K->ndim() - 1)] != 1)
+    if (lay_k->grid_shape()[0] != 1)
     {
         throw std::runtime_error(
             std::string("lower_to_tile ") + op +
-            ": head dimension must not be tiled (last grid axis != 1)");
+            ": head dimension must not be tiled (first grid axis != 1)");
     }
-    const Index seq_ax = K->ndim() - 2;
+    const Index seq_ax = 1;
     if (lay_mask->grid_shape()[0] != lay_q->grid_shape()[static_cast<size_t>(seq_ax)] ||
         lay_mask->grid_shape()[1] != lay_k->grid_shape()[static_cast<size_t>(seq_ax)])
     {
@@ -159,14 +159,14 @@ void TensorFlashSdpaFwdCudnnOp::lower_to_tile(const LoweringContext &ctx) const
             std::string("lower_to_tile ") + op +
             ": mask tile grid must align with Q and K sequence axes");
     }
-    if (lay_lse->grid_shape().size() != static_cast<size_t>(seq_ax + 1))
+    if (lay_lse->grid_shape().size() != static_cast<size_t>(K->ndim() - 1))
     {
         throw std::runtime_error(
             std::string("lower_to_tile ") + op + ": logsumexp rank mismatch");
     }
-    for (Index i = 0; i < seq_ax + 1; ++i)
+    for (Index i = 1; i < K->ndim(); ++i)
     {
-        if (lay_lse->grid_shape()[static_cast<size_t>(i)] !=
+        if (lay_lse->grid_shape()[static_cast<size_t>(i - 1)] !=
             lay_q->grid_shape()[static_cast<size_t>(i)])
         {
             throw std::runtime_error(
@@ -192,9 +192,9 @@ void TensorFlashSdpaFwdCudnnOp::lower_to_tile(const LoweringContext &ctx) const
     for (Index lin_a = 0; lin_a < lay_a->grid_volume(); ++lin_a)
     {
         lay_a->grid_coord_from_linear(lin_a, a_coord);
-        for (Index i = 0; i < seq_ax + 1; ++i)
+        for (Index i = 1; i < K->ndim(); ++i)
         {
-            lse_coord[static_cast<size_t>(i)] =
+            lse_coord[static_cast<size_t>(i - 1)] =
                 a_coord[static_cast<size_t>(i)];
         }
         const Index lin_lse = lay_lse->grid_linear(lse_coord);

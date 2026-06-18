@@ -18,7 +18,7 @@
 #include <nntile/defs.h>
 
 //! StarPU headers
-#include <nntile/starpu_c.hh>
+#include <starpu.h>
 
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
@@ -45,9 +45,8 @@ public:
     //! Structure for operation arguments
     struct args_t
     {
-        Index nrows;
-        Index ncols;
-        Index sin_pair0;
+        Index m;
+        Index n;
     };
 
     //! Footprint function for the current operation
@@ -79,9 +78,8 @@ public:
     //! Submit rope task
     void submit(
         int starpu_worker_hint,
-        Index nrows,
-        Index ncols,
-        Index sin_pair0,
+        Index m,
+        Index n,
         Handle sin,
         Handle cos,
         Handle src,

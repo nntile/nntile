@@ -22,19 +22,16 @@ template<typename T>
 void subtract_indexed_outputs_async(int starpu_worker_hint, Scalar val, const Tile<int64_t> &labels,
         const Tile<T> &dst, Index ignore_index)
 {
-// TODO - add description
+    (void)starpu_worker_hint;
     if(labels.ndim != dst.ndim-1)
     {
         throw std::runtime_error("labels.ndim != dst.ndim-1");
     }
-    const bool trailing_class =
-        labels.ndim > 0 && labels.shape[0] == dst.shape[0];
-    const Index spatial_offset = trailing_class ? 0 : 1;
     for(Index i = 0; i < labels.ndim; ++i)
     {
-        if(labels.shape[i] != dst.shape[i + spatial_offset])
+        if(labels.shape[i] != dst.shape[i])
         {
-            throw std::runtime_error("labels.shape[i] != dst.shape[i+1]");
+            throw std::runtime_error("labels.shape[i] != dst.shape[i]");
         }
     }
     int mpi_rank = starpu_mpi_world_rank();
@@ -42,14 +39,9 @@ void subtract_indexed_outputs_async(int starpu_worker_hint, Scalar val, const Ti
     labels.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        // Insert task
-        const Index n_labels = trailing_class
-            ? dst.shape[dst.ndim - 1]
-            : dst.shape[0];
-        const Index leading_class = trailing_class ? 0 : 1;
-        starpu::subtract_indexed_outputs.submit<std::tuple<T>>(starpu_worker_hint,
-                n_labels, labels.nelems, ignore_index, leading_class, val,
-                labels, dst);
+        const Index n_labels = dst.shape[dst.ndim - 1];
+        starpu::subtract_indexed_outputs.submit<std::tuple<T>>(
+                n_labels, labels.nelems, ignore_index, val, labels, dst);
     }
 }
 

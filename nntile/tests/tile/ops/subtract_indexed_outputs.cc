@@ -23,7 +23,7 @@
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outputs", "[graph][tile]")
 {
-    const std::vector<Index> lh = {2,2}, dh = {3,2,2};
+    const std::vector<Index> lh = {2,2}, dh = {2,2,3};
     const Index nl = 4, nd = 3*2*2;
     const Scalar v = 0.5;
     const Index ign = -1;

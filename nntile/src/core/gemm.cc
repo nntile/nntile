@@ -395,8 +395,7 @@ void gemm_async(int starpu_worker_hint, Scalar alpha, const TransOp &transA, con
     if(mpi_rank == c_rank)
     {
         starpu::gemm.submit<std::tuple<T>>(starpu_worker_hint,
-            transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0,
-            broadcast_a, broadcast_b);
+            transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0);            
     }
 }
 

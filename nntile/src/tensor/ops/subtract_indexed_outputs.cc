@@ -30,11 +30,8 @@ namespace nntile::tensor
 
 void TensorSubtractIndexedOutputsOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    // Match nntile::tensor::subtract_indexed_outputs_async
-    // (src/tensor/subtract_indexed_outputs.cc): one tile op per dst grid cell,
-    // paired with the labels tile at grid coords (dst_coord[1], ..., dst_coord[ndim-1]).
-    // That equals shared linear index i with labels.get_tile(i) when dst axis 0 has
-    // a single tile (StarPU tensor requires shape[0] == basetile_shape[0]).
+    // C-order layout: dst shape is [spatial..., class]. Pair each dst tile with
+    // the labels tile at the same spatial grid coordinates.
     const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
     const TensorAxisLayout* lay_lab = ctx.tiling.find(labels);
     if(lay_d == nullptr || lay_lab == nullptr)
@@ -55,7 +52,7 @@ void TensorSubtractIndexedOutputsOp::lower_to_tile(const LoweringContext& ctx) c
         for(Index j = 0; j < labels->ndim(); ++j)
         {
             lab_coord[static_cast<size_t>(j)] =
-                dst_coord[static_cast<size_t>(j + class_spatial_offset)];
+                dst_coord[static_cast<size_t>(j)];
         }
         const Index lin_l = lay_lab->grid_linear(lab_coord);
         tile::subtract_indexed_outputs(val,
@@ -78,33 +75,27 @@ void subtract_indexed_outputs(Scalar val,
     if(labels->dtype() != DataType::INT64)
         throw std::invalid_argument(
             "subtract_indexed_outputs: labels must have INT64 dtype");
-    // labels.dim[i] matches dst spatial dims: offset 1 for leading-class
-    // logits [class, ...], offset 0 for C-order trailing-class [..., class].
     if(labels->ndim() + 1 != dst->ndim())
     {
         throw std::invalid_argument(
             "subtract_indexed_outputs: dst must have ndim = labels.ndim + 1");
     }
-    const bool trailing_class =
-        labels->shape()[0] == dst->shape()[0];
-    const Index offset = trailing_class ? 0 : 1;
     for(Index i = 0; i < labels->ndim(); ++i)
     {
-        if(labels->shape()[i] != dst->shape()[i + offset])
+        if(labels->shape()[i] != dst->shape()[i])
         {
             throw std::invalid_argument(
                 "subtract_indexed_outputs: labels.dim[" +
                 std::to_string(i) + "] must match dst.dim[" +
-                std::to_string(i + offset) + "] (" +
+                std::to_string(i) + "] (" +
                 std::to_string(labels->shape()[i]) + " vs " +
-                std::to_string(dst->shape()[i + offset]) + ")");
+                std::to_string(dst->shape()[i]) + ")");
         }
-        merge_axis(labels->mutable_axes()[i],
-                   dst->mutable_axes()[i + offset]);
+        merge_axis(labels->mutable_axes()[i], dst->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorSubtractIndexedOutputsOp>(
-        val, labels, dst, ignore_index, offset);
+        val, labels, dst, ignore_index);
     dst->graph()->add_op(op);
 }
 

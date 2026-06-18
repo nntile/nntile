@@ -288,6 +288,34 @@ inline void validate_logsumexp_drop_last_shape_and_merge(
     }
 }
 
+//! Validate logsumexp output: dst is src with the leading dimension removed.
+inline void validate_logsumexp_drop_first_shape_and_merge(
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
+    const std::string &op_name)
+{
+    if (src->ndim() < 1 || dst->ndim() != src->ndim() - 1)
+    {
+        throw std::invalid_argument(op_name +
+                                    ": dst ndim must equal src.ndim - 1 (" +
+                                    std::to_string(dst->ndim()) + " vs " +
+                                    std::to_string(src->ndim()) + ")");
+    }
+    for (Index i = 0; i < dst->ndim(); ++i)
+    {
+        if (dst->shape()[i] != src->shape()[i + 1])
+        {
+            throw std::invalid_argument(
+                op_name + ": shape mismatch at dimension " +
+                std::to_string(i) +
+                " (dst: " + std::to_string(dst->shape()[i]) +
+                " vs src: " + std::to_string(i + 1) + ": " +
+                std::to_string(src->shape()[i + 1]) + ")");
+        }
+        merge_axis(src->mutable_axes()[i + 1], dst->mutable_axes()[i]);
+    }
+}
+
 //! Validate logsumexp output: dst is maxsumexp with trailing pair dim removed.
 inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
     TensorGraph::TensorNode *dst,
@@ -296,8 +324,8 @@ inline void validate_logsumexp_shape_and_merge(TensorGraph::TensorNode *src,
     validate_logsumexp_drop_last_shape_and_merge(src, dst, op_name);
 }
 
-//! Validate flash_sdpa Q/K/V shape (C-order): [batch..., seq, head_size].
-//! Q and K share batch dims and head_size (last axis); Q's seq (dim ndim-2)
+//! Validate flash_sdpa Q/K/V shape (C-order): [head_size, n_seq, batch...].
+//! Q and K share batch dims and head_size (axis 0); Q's seq (axis 1)
 //! may differ from K's. V's seq must match K (key-sequence length).
 inline void validate_flash_sdpa_qkv_shape_and_merge(TensorGraph::TensorNode *Q,
     TensorGraph::TensorNode *K,
@@ -308,39 +336,37 @@ inline void validate_flash_sdpa_qkv_shape_and_merge(TensorGraph::TensorNode *Q,
         throw std::invalid_argument(op_name + ": Q.ndim must match K.ndim");
     if (V->ndim() != K->ndim())
         throw std::invalid_argument(op_name + ": V.ndim must match K.ndim");
-    const Index head_ax = K->ndim() - 1;
-    const Index seq_ax = K->ndim() - 2;
+    const Index head_ax = 0;
+    const Index seq_ax = 1;
     if (Q->shape()[head_ax] != K->shape()[head_ax])
         throw std::invalid_argument(
             op_name + ": Q head_size must match K head_size");
-    for (Index i = 0; i < seq_ax; ++i)
-    {
-        if (Q->shape()[i] != K->shape()[i])
-            throw std::invalid_argument(
-                op_name + ": Q.dim[" + std::to_string(i) +
-                "] must match K.dim[" + std::to_string(i) + "]");
-    }
     if (V->shape()[head_ax] != K->shape()[head_ax])
         throw std::invalid_argument(
             op_name + ": V head_size must match K head_size");
     if (V->shape()[seq_ax] != K->shape()[seq_ax])
         throw std::invalid_argument(
             op_name + ": V seq must match K seq (key-sequence length)");
-    for (Index i = 0; i < seq_ax; ++i)
+    for (Index i = 2; i < K->ndim(); ++i)
     {
+        if (Q->shape()[i] != K->shape()[i])
+            throw std::invalid_argument(
+                op_name + ": Q.dim[" + std::to_string(i) +
+                "] must match K.dim[" + std::to_string(i) + "]");
         if (V->shape()[i] != K->shape()[i])
             throw std::invalid_argument(
                 op_name + ": V.dim[" + std::to_string(i) +
                 "] must match K.dim[" + std::to_string(i) + "]");
     }
     merge_axis(Q->mutable_axes()[head_ax], K->mutable_axes()[head_ax]);
-    for (Index i = 0; i < seq_ax; ++i)
+    merge_axis(Q->mutable_axes()[seq_ax], K->mutable_axes()[seq_ax]);
+    for (Index i = 2; i < K->ndim(); ++i)
     {
         merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
     }
     merge_axis(V->mutable_axes()[head_ax], K->mutable_axes()[head_ax]);
     merge_axis(V->mutable_axes()[seq_ax], K->mutable_axes()[seq_ax]);
-    for (Index i = 0; i < seq_ax; ++i)
+    for (Index i = 2; i < K->ndim(); ++i)
     {
         merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
     }

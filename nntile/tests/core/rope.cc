@@ -49,10 +49,9 @@ void validate()
 
     Index nrows = 5;
     Index ncols = sin.nelems;
-    Index sin_pair0 = 0;
-    starpu::rope.submit<std::tuple<T>>(-1, nrows, ncols, sin_pair0, sin, cos,
+    starpu::rope.submit<std::tuple<T>>(-1, ncols, nrows, sin, cos,
         src, dst);
-    rope<T>(-1, sin, cos, src, dst_ref, sin_pair0);
+    rope<T>(-1, sin, cos, src, dst_ref, 0);
 
     dstl.acquire(STARPU_R);
     drefl.acquire(STARPU_R);

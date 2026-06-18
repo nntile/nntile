@@ -35,7 +35,6 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, Scalar alpha_, T *dst)
 {
     using Y = typename T::repr_t;
     const Y alpha{alpha_};
-    const Index mn = m * n;
     Index dst_offset = 0;
     constexpr Y zero{0.0};
     // Outer loop by the last mode of dst and sumexp arrays
@@ -44,15 +43,15 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, Scalar alpha_, T *dst)
         // Middle loop by the middle mode of dst array
         for(Index i1 = 0; i1 < k; ++i1)
         {
+            Index src_offset = 2 * m * i2;
             // Inner loop by the first mode of dst and sumexp arrays
             for(Index i0 = 0; i0 < m; ++i0)
             {
-                const Index spatial = i0 + m * i2;
                 // Value-to-update
                 T &val = dst[dst_offset];
                 // Max and sum of exponents
-                const Y max = Y{maxsumexp[spatial * 2]};
-                const Y sum = Y{maxsumexp[spatial * 2 + 1]};
+                const Y max = Y{maxsumexp[src_offset]};
+                const Y sum = Y{maxsumexp[src_offset+1]};
                 // Update value
                 if(not std::isinf(Y{val}))
                 {
@@ -64,6 +63,7 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, Scalar alpha_, T *dst)
                 }
                 // Update pointers
                 ++dst_offset;
+                src_offset += 2;
             }
         }
     }

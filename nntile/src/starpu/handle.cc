@@ -20,7 +20,7 @@
 #include <unordered_set>
 
 // Third-party headers
-#include <nntile/starpu_c.hh>
+#include <starpu.h>
 // Disabled MPI for now
 //#include <starpu_mpi.h>
 

@@ -12,7 +12,7 @@
 #include "nntile/core/execution_schedule.hh"
 #include "nntile/core/execution_worker.hh"
 
-#include "nntile/starpu_c.hh"
+#include <starpu.h>
 #include "nntile/tile/graph_data_node.hh"
 #include "nntile/tile/graph_decl.hh"
 #include "nntile/tile/graph_op_node.hh"

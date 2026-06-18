@@ -62,6 +62,10 @@ endmacro()
 macro(nntile_apply_cuda target)
     nntile_propagation_scope(${target} _scope)
     if(NNTILE_LINK_CUDA)
+        if(NNTILE_CUDA_ARCHITECTURES)
+            set_target_properties(${target} PROPERTIES
+                CUDA_ARCHITECTURES "${NNTILE_CUDA_ARCHITECTURES}")
+        endif()
         target_link_libraries(${target} ${_scope} CUDA::cublas CUDNN::cudnn_all)
         target_include_directories(${target} ${_scope}
             ${cudnn_frontend_SOURCE_DIR}/include)
@@ -92,6 +96,7 @@ endif()
 
 set(NNTILE_USE_CUDA OFF)
 set(NNTILE_LINK_CUDA OFF)
+set(NNTILE_CUDA_ARCHITECTURES "")
 if(HAVE_STARPU_SIMGRID)
     if(USE_CUDA)
         set(NNTILE_USE_CUDA ON)
@@ -100,6 +105,15 @@ elseif(USE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
+        if(CMAKE_CUDA_ARCHITECTURES)
+            set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+                CACHE STRING "Semicolon-separated CUDA SM versions for NVCC"
+                FORCE)
+        else()
+            set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89;90"
+                CACHE STRING "Semicolon-separated CUDA SM versions for NVCC"
+                FORCE)
+        endif()
         enable_language(CUDA)
         find_package(CUDAToolkit 11.0 REQUIRED)
         add_subdirectory("external/cudnn_frontend")
@@ -126,6 +140,7 @@ elseif(USE_CUDA)
         else()
             set(NNTILE_USE_CUDA_FP8 OFF)
         endif()
+        set(NNTILE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
     endif()
 endif()
 

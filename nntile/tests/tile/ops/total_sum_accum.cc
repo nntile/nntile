@@ -23,7 +23,7 @@
 using namespace nntile; using namespace nntile; namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[graph][tile]")
 {
-    const std::vector<Index> leh = {2,2}, srh = {3,2,2}, clh = {2,2}, vh = std::vector<Index>{};
+    const std::vector<Index> leh = {2,2}, srh = {2,2,3}, clh = {2,2}, vh = std::vector<Index>{};
     const Scalar a = 1.0; const Index ign = -1;
     TileGraph g("g");
     auto* l = g.data(leh, "lse", DataType::FP32);
@@ -37,7 +37,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     std::vector<float> lse(4), src(3*2*2), v0(1,0.f);
     std::vector<std::int64_t> cl(4);
     for(Index i=0;i<4;++i) lse[static_cast<size_t>(i)]=0.1f*static_cast<float>(i+1);
-    for(Index i=0;i<3*2*2;++i) src[static_cast<size_t>(i)]=0.05f*static_cast<float>(i+1);
+    for(Index i=0;i<2*2*3;++i) src[static_cast<size_t>(i)]=0.05f*static_cast<float>(i+1);
     cl[0]=0; cl[1]=1; cl[2]=2; cl[3]=0;
     r.bind_data(l, lse);
     r.bind_data(s, src);
@@ -51,7 +51,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     using Y = typename fp32_t::repr_t;
     { auto a1=L.acquire(STARPU_W),a2=S.acquire(STARPU_W);
       for(Index i=0;i<4;++i) a1[i]=Y(lse[static_cast<size_t>(i)]);
-      for(Index i=0;i<3*2*2;++i) a2[i]=Y(src[static_cast<size_t>(i)]);
+      for(Index i=0;i<2*2*3;++i) a2[i]=Y(src[static_cast<size_t>(i)]);
       a1.release(); a2.release(); }
     { auto b=C.acquire(STARPU_W);
       b[0]=0; b[1]=1; b[2]=2; b[3]=0; b.release(); }

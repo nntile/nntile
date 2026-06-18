@@ -19,7 +19,7 @@
 #include <memory>
 
 // Third-party headers
-#include <nntile/starpu_c.hh>
+#include <starpu.h>
 
 // Other NNTile headers
 

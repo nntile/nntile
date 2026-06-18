@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <nntile/starpu_c.hh>
+#include <starpu.h>
 
 //! Submit a StarPU task, optionally pinned to ``starpu_worker_hint``.
 #define nntile_starpu_task_insert(codelet, starpu_worker_hint, ...)           \

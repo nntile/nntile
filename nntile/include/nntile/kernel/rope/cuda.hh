@@ -21,7 +21,8 @@ namespace nntile::kernel::rope
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nrows, Index ncols, const T *sin,
-    const T *cos, const T *src, T *dst) noexcept;
+void cuda(cudaStream_t stream, Index m, Index n, const T *sin, const T *cos,
+        const T *src, T *dst)
+    noexcept;
 
 } // namespace nntile::kernel::rope
