@@ -126,7 +126,7 @@ set(TESTS_CATCH2
 )
 
 # CUDA-only tests (only added when CUDA is available)
-if(NNTILE_USE_CUDA)
+if(NNTILE_USE_CUDA AND NNTILE_USE_FLASH_SDPA)
     list(APPEND TESTS_CATCH2
         "flash_sdpa_fwd_cudnn"
         "flash_sdpa_bwd_cudnn"

@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <nntile/defs.h>
+
 // Get Tile<T> class
 #include <nntile/core/tile.hh>
 
@@ -80,8 +82,10 @@
 #include <nntile/core/rope_backward.hh>
 #include <nntile/core/norm_fiber.hh>
 #include <nntile/core/norm_fiber_inplace.hh>
+#ifdef NNTILE_USE_FLASH_SDPA
 #include <nntile/core/flash_sdpa_fwd_cudnn.hh>
 #include <nntile/core/flash_sdpa_bwd_cudnn.hh>
+#endif
 #include <nntile/core/norm.hh>
 #include <nntile/core/transpose.hh>
 #include <nntile/core/hypot_scalar_inverse.hh>

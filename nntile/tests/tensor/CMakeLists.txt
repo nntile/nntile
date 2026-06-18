@@ -99,7 +99,7 @@ set(TESTS_TENSOR_ROOT_CATCH2
 
 # CUDA-only tests (flash_* operations require n_cuda=1)
 set(TESTS_TENSOR_CUDA)
-if(NNTILE_USE_CUDA)
+if(NNTILE_USE_CUDA AND NNTILE_USE_FLASH_SDPA)
     list(APPEND TESTS_TENSOR_CUDA
         "flash_sdpa_fwd_cudnn"
         "flash_sdpa_bwd_cudnn"

@@ -127,7 +127,7 @@ foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
         ${CMAKE_SOURCE_DIR}/nntile/examples)
 endforeach()
 
-if(NNTILE_USE_CUDA)
+if(NNTILE_USE_CUDA AND NNTILE_USE_FLASH_SDPA)
     foreach(test IN ITEMS flash_sdpa_fwd_cudnn flash_sdpa_bwd_cudnn)
         add_test_set(TARGET_NAME tests_tile_ops_${test}
             EXEC_NAME test_${test}
