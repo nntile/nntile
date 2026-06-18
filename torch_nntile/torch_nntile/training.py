@@ -18,7 +18,7 @@ Nesterov), mirroring ``nntile::optim::SGD`` in the main package.
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Callable, Iterable, Mapping
 
 import torch
 import torch.nn.functional as F
@@ -240,6 +240,10 @@ def train_full_batch_step(
     inputs: torch.Tensor,
     targets: torch.Tensor,
     learning_rate: float,
+    *,
+    name_axis_groups: Callable[[torch.Tensor, torch.Tensor], None] | None = None,
+    axis_group_tiling: Mapping[str, int | list[int] | tuple[int, ...]] | None = None,
+    print_axis_groups: bool = False,
 ) -> float:
     """One full-batch SGD step; returns scalar loss."""
     for param in model.parameters():
@@ -247,9 +251,20 @@ def train_full_batch_step(
 
     logits = model(inputs)
     if inputs.device.type == "nntile":
+        if name_axis_groups is not None:
+            name_axis_groups(inputs, logits)
         loss = cross_entropy(logits, targets)
         loss.backward()
         _nntile_optimizer_for(model, learning_rate).step()
+        if axis_group_tiling is not None:
+            if not torch_nntile.is_graph_mode():
+                raise RuntimeError(
+                    "axis_group_tiling requires torch_nntile graph runtime mode"
+                )
+            for name, tile_sizes in axis_group_tiling.items():
+                torch_nntile.set_axis_group_tiling(name, tile_sizes)
+        if print_axis_groups and torch_nntile.is_graph_mode():
+            torch_nntile.print_axis_groups()
         if torch_nntile.is_graph_mode():
             torch_nntile.execute()
         return float(loss.detach().cpu().item())

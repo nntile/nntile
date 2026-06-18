@@ -7,9 +7,12 @@
 
 #pragma once
 
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
+#include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
 #include <nntile/tensor/graph.hh>
 #endif

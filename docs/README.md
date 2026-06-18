@@ -22,6 +22,7 @@ and end-to-end training examples.
 | Inference, gateway, Telegram bot | [inference/README.md](inference/README.md) |
 | SGOC scheduler (limited VRAM, single GPU) | [sgoc/README.md](sgoc/README.md) |
 | NNTile Graph API (work in progress) | [graph-wip.md](graph-wip.md) |
+| PyTorch `device="nntile"` (torch_nntile) | [torch_nntile.md](torch_nntile.md) |
 
 ## Documentation map
 
@@ -31,6 +32,7 @@ docs/
   build/README.md           Build, CMake, Docker, testing
   cpp/README.md             C++ kernel / starpu / tile / tensor
   graph-wip.md              NNTile Graph API status
+  torch_nntile.md           PyTorch device="nntile", axis-group tiling
   sgoc/README.md            SGOC StarPU scheduler
   inference/README.md       Inference, nntile_gateway, nntile_tgbot
   python/

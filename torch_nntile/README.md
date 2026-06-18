@@ -61,6 +61,46 @@ before returning the scalar loss.
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 
+### Axis-group naming and tiling (graph mode)
+
+Full reference: [docs/torch_nntile.md](../docs/torch_nntile.md).
+
+Tiling is configured on named **axis groups** in the recorded `TensorGraph`
+(mirroring the C++ `AxisDescriptor` workflow). Name dimensions from a tensor,
+then set tile sizes by group name before ``execute()``.
+
+| API | Purpose |
+|-----|---------|
+| `set_axis_group_name(tensor, {dim: name})` | Name axis groups (partial dims OK) |
+| `set_axis_group_tiling(name, tile_sizes)` | Uniform `int` or heterogeneous `list` |
+| `format_axis_groups()` | String summary of pending axis groups |
+| `print_axis_groups()` | Print summary (includes `pending_tile=` before execute) |
+
+```python
+torch_nntile.init_context(
+    ncpu=4, ncuda=0, cpu_fallback=False, runtime_mode="graph"
+)
+x = torch.randn(4, 128).to("nntile")
+torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
+logits = model(x)
+torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+torch_nntile.print_axis_groups()
+torch_nntile.execute()
+```
+
+Models do **not** assign axis names internally. The MNIST example defines
+``name_mnist_axis_groups`` and passes it to ``train_full_batch_step``:
+
+```python
+def name_mnist_axis_groups(x, logits):
+    torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
+    torch_nntile.set_axis_group_name(logits, {1: "classes"})
+```
+
+CLI: ``--axis-tiling NAME=SIZES`` (repeatable), ``--print-axis-groups``.
+
+Tests: `pytest -vv torch_nntile/tests/test_axis_group_tiling.py`
+
 ## Phase 3 (DeepReLU example)
 
 Bias-free MLP matching `nntile/examples/deep_relu_forward.cc`:
@@ -100,10 +140,16 @@ label shape with one ``scale_slice`` per label dimension, then applies
 ``tensor::sgd_step`` via ``torch_nntile.training.SGD`` (no per-parameter CPU
 round-trip).
 
+Axis naming (`batch`, `features`, `classes`) is in the example script — see
+[docs/torch_nntile.md](../docs/torch_nntile.md).
+
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
 python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 --runtime-mode graph
+python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 \
+  --print-axis-groups \
+  --axis-tiling batch=15000,15000,15000,15000,15000
 ```
 
 Integration test (downloads MNIST, 3 epochs, compares losses and weights):
