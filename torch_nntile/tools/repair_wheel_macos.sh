@@ -13,10 +13,12 @@ export DYLD_LIBRARY_PATH="${build_dir}/nntile:${starpu_prefix}/lib${DYLD_LIBRARY
 
 mkdir -p "${dest_dir}"
 
+# PyTorch dylibs are provided by the torch dependency and resolved via rpath.
 delocate-wheel \
     --exclude /torch/ \
     --exclude libtorch \
     --exclude libc10 \
+    --ignore-missing-dependencies \
     --require-archs "${require_archs}" \
     -w "${dest_dir}" \
     -v \
