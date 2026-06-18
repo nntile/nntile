@@ -91,7 +91,7 @@ def test_axis_group_tiling_invalid_sum_raises():
     )
 
 
-def test_deep_relu_names_axis_groups_in_forward():
+def test_deep_relu_axis_groups_with_explicit_naming():
     _run_subprocess(
         """
         import torch
@@ -104,10 +104,36 @@ def test_deep_relu_names_axis_groups_in_forward():
         model = DeepReLU.tiny().to("nntile")
         x = torch.randn(8, 128).to("nntile")
         logits = model(x)
+        torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
+        torch_nntile.set_axis_group_name(logits, {1: "classes"})
+        info = torch_nntile.format_axis_groups()
+        assert "name='batch'" in info
+        assert "name='features'" in info
+        assert "name='classes'" in info
         torch_nntile.set_axis_group_tiling("batch", [4, 4])
         torch_nntile.set_axis_group_tiling("features", 64)
-        torch_nntile.set_axis_group_tiling("classes", 5)
         torch_nntile.execute()
         assert logits.shape == (8, 10)
+        """
+    )
+
+
+def test_print_axis_groups_shows_pending_tiling():
+    _run_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+        )
+        x = torch.randn(4, 8).to("nntile")
+        y = torch.randn(4, 8).to("nntile")
+        torch_nntile.set_axis_group_name(x, {0: "batch"})
+        _ = x + y
+        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        info = torch_nntile.format_axis_groups()
+        assert "pending_tile=1,1,2" in info
+        torch_nntile.execute()
         """
     )

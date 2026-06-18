@@ -78,9 +78,18 @@ torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
 torch_nntile.execute()
 ```
 
-``DeepReLU`` names ``batch``, ``features``, and ``classes`` in ``forward()``.
-The MNIST example accepts ``--axis-tiling NAME=SIZES`` (repeatable); tiling
-switches to graph mode automatically.
+``DeepReLU`` does not assign axis names; name groups from your script or
+training helper, then set tiling before ``execute()``:
+
+```python
+torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
+torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+torch_nntile.print_axis_groups()  # like C++ TensorGraph::to_string axis section
+torch_nntile.execute()
+```
+
+The MNIST example defines ``name_mnist_axis_groups`` and accepts
+``--axis-tiling NAME=SIZES`` plus ``--print-axis-groups``.
 
 Tests: `pytest -vv torch_nntile/tests/test_axis_group_tiling.py`
 

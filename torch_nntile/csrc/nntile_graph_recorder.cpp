@@ -31,6 +31,7 @@ std::vector<Index> tile_sizes_for_axis_extent(
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -500,6 +501,104 @@ void set_axis_group_tiling(
     g_axis_tiling_by_name[name] = std::move(pattern);
 }
 
+std::string format_pending_tile_sizes(
+    const std::vector<nntile::Index> &sizes)
+{
+    if (sizes.empty())
+    {
+        return "";
+    }
+    if (sizes.size() == 1)
+    {
+        return std::to_string(sizes.front());
+    }
+    std::ostringstream ss;
+    for (size_t i = 0; i < sizes.size(); ++i)
+    {
+        if (i > 0)
+        {
+            ss << ',';
+        }
+        ss << sizes[i];
+    }
+    return ss.str();
+}
+
+std::string format_axis_groups_locked()
+{
+    if (g_graph == nullptr)
+    {
+        return "Axis groups: (no pending graph)\n";
+    }
+
+    const std::vector<nntile::AxisDescriptor *> groups = g_graph->axis_groups();
+    std::size_t tiled = 0;
+    for (const nntile::AxisDescriptor *group : groups)
+    {
+        if (group != nullptr && group->is_tiled())
+        {
+            ++tiled;
+        }
+    }
+
+    std::ostringstream ss;
+    ss << "Pending TensorGraph: data=" << g_graph->num_data()
+       << ", ops=" << g_graph->num_ops() << ", axis_groups=" << groups.size()
+       << ", tiled=" << tiled << '/' << groups.size() << '\n';
+    if (groups.empty())
+    {
+        return ss.str();
+    }
+
+    ss << "Axis groups:\n";
+    for (const nntile::AxisDescriptor *group : groups)
+    {
+        if (group == nullptr)
+        {
+            continue;
+        }
+        ss << "  extent=" << group->extent;
+        if (!group->name.empty())
+        {
+            ss << " name='" << group->name << '\'';
+        }
+        if (group->is_tiled())
+        {
+            ss << " tile=" << group->tile_sizes_to_string();
+        }
+        else if (!group->name.empty())
+        {
+            const auto pending = g_axis_tiling_by_name.find(group->name);
+            if (pending != g_axis_tiling_by_name.end())
+            {
+                ss << " pending_tile=" << format_pending_tile_sizes(pending->second);
+            }
+        }
+        ss << " members=" << group->members.size() << '\n';
+    }
+    return ss.str();
+}
+
+std::string format_axis_groups()
+{
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    return format_axis_groups_locked();
+}
+
+void print_axis_groups()
+{
+    const std::string text = format_axis_groups();
+    if (!text.empty())
+    {
+        std::fputs(text.c_str(), stdout);
+        if (text.back() != '\n')
+        {
+            std::fputc('\n', stdout);
+        }
+        std::fflush(stdout);
+    }
+}
+
 } // namespace torch_nntile
 
 #else
@@ -560,6 +659,17 @@ void set_axis_group_name(
 void set_axis_group_tiling(
     const std::string & /*name*/,
     const std::vector<std::int64_t> & /*tile_sizes*/)
+{
+    require_libnntile();
+}
+
+std::string format_axis_groups()
+{
+    require_libnntile();
+    return {};
+}
+
+void print_axis_groups()
 {
     require_libnntile();
 }

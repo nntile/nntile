@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <cstdio>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -250,6 +251,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "Set tiling for a named axis group before execute()",
         py::arg("name"),
         py::arg("tile_sizes"));
+    m.def(
+        "format_axis_groups",
+        &torch_nntile::format_axis_groups,
+        "Format pending TensorGraph axis groups (like C++ TensorGraph::to_string)");
+    m.def(
+        "print_axis_groups",
+        &torch_nntile::print_axis_groups,
+        "Print pending TensorGraph axis groups to stdout");
     m.def(
         "cross_entropy_forward",
         &torch_nntile::cross_entropy_forward,

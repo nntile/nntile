@@ -13,7 +13,7 @@ Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 ``device="nntile"``; call ``torch_nntile.execute()`` in graph mode before
 reading it on the host.
 
-Axis-group tiling (optional) uses names assigned inside :class:`DeepReLU`:
+Axis-group naming and tiling (optional) are configured in this script:
 
 - ``batch`` — input/logits batch dimension
 - ``features`` — flattened image dimension (784)
@@ -24,6 +24,7 @@ Example with batch tiling in graph mode::
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
     python torch_nntile/examples/train_deep_relu_mnist.py \\
         --runtime-mode graph \\
+        --print-axis-groups \\
         --axis-tiling batch=15000,15000,15000,15000,15000
 """
 
@@ -99,6 +100,12 @@ def build_axis_group_tiling(
     return tiling
 
 
+def name_mnist_axis_groups(x: torch.Tensor, logits: torch.Tensor) -> None:
+    """Name axis groups for DeepReLU MNIST training on nntile."""
+    torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
+    torch_nntile.set_axis_group_name(logits, {1: "classes"})
+
+
 def build_models(
     seed: int,
     hidden_dim: int,
@@ -123,6 +130,7 @@ def train_on_device(
     epochs: int,
     learning_rate: float,
     axis_group_tiling: dict[str, list[int]] | None = None,
+    print_axis_groups: bool = False,
 ) -> list[float]:
     if device == "nntile":
         x = images.to("nntile")
@@ -137,7 +145,9 @@ def train_on_device(
             x,
             y,
             learning_rate,
+            name_axis_groups=name_mnist_axis_groups if device == "nntile" else None,
             axis_group_tiling=axis_group_tiling if device == "nntile" else None,
+            print_axis_groups=print_axis_groups and device == "nntile" and epoch == 0,
         )
         losses.append(loss)
         print(f"[{device}] epoch {epoch + 1}/{epochs}  loss={loss:.6f}")
@@ -168,6 +178,11 @@ def main() -> None:
             "or features=392,392. Repeat for multiple groups."
         ),
     )
+    parser.add_argument(
+        "--print-axis-groups",
+        action="store_true",
+        help="Print axis groups after the first nntile training step (graph mode)",
+    )
     parser.add_argument("--output-dir", default="deep_relu_mnist_runs")
     args = parser.parse_args()
 
@@ -179,8 +194,8 @@ def main() -> None:
 
     axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
     runtime_mode = args.runtime_mode
-    if axis_group_tiling and runtime_mode != "graph":
-        print("Axis tiling requested; switching runtime mode to graph.")
+    if (axis_group_tiling or args.print_axis_groups) and runtime_mode != "graph":
+        print("Axis groups/tiling require graph mode; switching runtime mode.")
         runtime_mode = "graph"
 
     torch_nntile.init_context(
@@ -232,6 +247,7 @@ def main() -> None:
         epochs=args.epochs,
         learning_rate=args.lr,
         axis_group_tiling=axis_group_tiling or None,
+        print_axis_groups=args.print_axis_groups,
     )
 
     cpu_path = output_dir / "deep_relu_mnist_cpu.pt"

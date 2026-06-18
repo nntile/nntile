@@ -148,6 +148,19 @@ def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ..
     _C.set_axis_group_tiling(name, tile_sizes)
 
 
+def format_axis_groups() -> str:
+    """Return axis-group summary for the pending TensorGraph.
+
+  Format matches the axis-group section of C++ ``TensorGraph::to_string``.
+  """
+    return _C.format_axis_groups()
+
+
+def print_axis_groups() -> None:
+    """Print axis-group summary for the pending TensorGraph to stdout."""
+    _C.print_axis_groups()
+
+
 __all__ = [
     "device",
     "_C",
@@ -162,4 +175,6 @@ __all__ = [
     "restore_where",
     "set_axis_group_name",
     "set_axis_group_tiling",
+    "format_axis_groups",
+    "print_axis_groups",
 ]
