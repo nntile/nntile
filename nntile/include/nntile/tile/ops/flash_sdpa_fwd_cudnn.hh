@@ -27,8 +27,8 @@ struct TileFlashSdpaFwdCudnnOp : TileGraph::OpNode
     TileFlashSdpaFwdCudnnOp() = default;
     TileFlashSdpaFwdCudnnOp(TileGraph::TileNode* a, TileGraph::TileNode* b, TileGraph::TileNode* m, TileGraph::TileNode* l, TileGraph::TileNode* v, TileGraph::TileNode* o) : K(a), Q(b), mask(m), logsumexp(l), V(v), A(o)
     {
-        inputs_ = {K, Q, mask, logsumexp, V};
-        outputs_ = {A};
+        inputs_ = {K, Q, mask, logsumexp, V, A};
+        outputs_ = {logsumexp, A};
     }
     std::string op_name() const override { return "TILE_FLASH_SDPA_FWD_CUDNN"; }
     void execute(Runtime& runtime) const override;

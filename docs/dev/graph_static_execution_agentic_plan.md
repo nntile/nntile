@@ -138,7 +138,7 @@ python3 python/examples/gpt2_training.py --train-bin ... --tiny \
 **Verify:**
 
 ```bash
-cmake --build build --target gpt2_graph_training tests_graph_tensor_tiling_config_json
+cmake --build build --target gpt2_graph_training tests_tensor_tiling_config_json
 ```
 
 ---
@@ -208,8 +208,8 @@ cmake --build build --target gpt2_graph_training tests_graph_tensor_tiling_confi
 **Verify:**
 
 ```bash
-cmake --build build --target tests_graph_tile_execution_schedule
-./build/nntile/tests/tests_graph_tile_execution_schedule
+cmake --build build --target tests_tile_execution_schedule
+./build/nntile/tests/tests_tile_execution_schedule
 ```
 
 ---

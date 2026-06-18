@@ -51,5 +51,5 @@ GPT-2 modules use `Module::save()` / `Module::load()` with qualified parameter n
 ## Running Tests
 
 ```bash
-ctest -R 'tests_graph_model_gpt2'
+ctest -R 'tests_model_gpt2'
 ```

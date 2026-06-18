@@ -21,8 +21,8 @@
 #include "nntile/tensor/tile_lowering_helpers.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tile/ops/flash_sdpa_fwd_cudnn.hh"
-#include "nntile/tensor/ops/clear.hh"
-#include "nntile/tensor/ops/fill.hh"
+#include "nntile/tile/ops/clear.hh"
+#include "nntile/tile/ops/fill.hh"
 #include "nntile/tensor/ops/flash_sdpa_fwd_cudnn.hh"
 
 #include <cmath>
@@ -73,7 +73,6 @@ TensorGraph::TensorNode *flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
             logsumexp_node->mutable_axes()[i], Q->mutable_axes()[i + 1]);
     }
 
-    fill(-std::numeric_limits<float>::infinity(), logsumexp_node);
     flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp_node, V, A_node);
     return A_node;
 }
@@ -183,6 +182,17 @@ void TensorFlashSdpaFwdCudnnOp::lower_to_tile(const LoweringContext &ctx) const
     const auto &tiles_a = tile_lower::tiles_of(ctx.tile_map, A);
     const auto &tiles_mask = tile_lower::tiles_of(ctx.tile_map, mask);
     const auto &tiles_lse = tile_lower::tiles_of(ctx.tile_map, logsumexp);
+
+    for (Index lin_lse = 0; lin_lse < lay_lse->grid_volume(); ++lin_lse)
+    {
+        tile::fill(
+            -std::numeric_limits<float>::infinity(),
+            tiles_lse[static_cast<size_t>(lin_lse)]);
+    }
+    for (Index lin_a = 0; lin_a < lay_a->grid_volume(); ++lin_a)
+    {
+        tile::clear(tiles_a[static_cast<size_t>(lin_a)]);
+    }
 
     std::vector<Index> a_coord(5);
     std::vector<Index> kv_coord(5);

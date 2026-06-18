@@ -156,7 +156,7 @@ cmake -S . -B build -GNinja \
   -DBUILD_TESTS_PYTORCH=ON
 
 cmake --build build -j$(nproc)
-ctest --test-dir build -R tests_graph_ --output-on-failure
+ctest --test-dir build -R 'tests_(tile|tensor|nn|module|model|io)_' --output-on-failure
 ```
 
 Graph API usage and architecture are **not** documented here; see
@@ -214,7 +214,7 @@ become `target_name_1`, `target_name_2`, …
 | `tests/starpu/` | `tests_starpu_<op>` | `test_<op>` | StarPU codelets |
 | `tests/core/` | `tests_core_<op>` | `test_<op>` | `Tile<T>` |
 | `tests/tensor/` | `tests_tensor_<op>` | `test_<op>` | `Tensor<T>` |
-| `tests/graph/` | `tests_graph_*` | various | WIP graph / autograd (needs LibTorch; see above) |
+| `tests/tile/`, `tests/tensor/`, … | `tests_tile_*`, `tests_tensor_*`, … | various | Graph / autograd (needs LibTorch; see above) |
 
 **Catch2** tests (most kernel ops): `Catch2::Catch2WithMain`, `TEMPLATE_TEST_CASE`,
 reference checks, tags like `[add]`. Helpers: [`tests/testing.hh`](../../tests/testing.hh).

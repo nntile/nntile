@@ -66,7 +66,7 @@ TEST_CASE(
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "FLASH_SDPA_FWD_CUDNN");
-    REQUIRE(ops[0]->inputs().size() == 4);
+    REQUIRE(ops[0]->inputs().size() == 5);
     REQUIRE(ops[0]->outputs().size() == 2);
     REQUIRE(ops[0]->outputs()[1] == A);
     REQUIRE(A->shape() == kv_shape);
@@ -155,15 +155,23 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         if (tiled)
         {
             auto *head_axis = K_node->axis(0);
+            auto *seq_axis = K_node->axis(1);
             for (auto *ag : graph.axis_groups())
             {
-                if (ag == head_axis)
+                if (ag == head_axis || ag == seq_axis)
                 {
-                    ag->set_tiling(ag->extent);
+                    if (ag == head_axis)
+                    {
+                        ag->set_tiling(ag->extent);
+                    }
+                    else
+                    {
+                        ag->set_tiling((ag->extent + 1) / 2);
+                    }
                 }
                 else
                 {
-                    ag->set_tiling((ag->extent + 1) / 2);
+                    ag->set_tiling(ag->extent);
                 }
             }
         }

@@ -44,7 +44,7 @@ struct TensorFlashSdpaFwdCudnnOp : TensorGraph::OpNode
         TensorGraph::TensorNode *A_) :
         K(K_), Q(Q_), mask(mask_), logsumexp(logsumexp_), V(V_), A(A_)
     {
-        inputs_ = {K, Q, mask, V};
+        inputs_ = {K, Q, mask, logsumexp, V};
         outputs_ = {logsumexp, A};
     }
 

@@ -11,6 +11,13 @@
 #
 # @version 1.1.0
 
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_tile
+        EXECUTABLE ctest -R tests_tile_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
+
 set(TESTS_TILE_CATCH2
     "adam_step"
     "adamw_step"
@@ -92,29 +99,29 @@ set(TESTS_TILE_ROOT_CATCH2
 )
 
 foreach(test IN LISTS TESTS_TILE_CATCH2)
-    add_test_set(TARGET_NAME tests_graph_tile_ops_${test}
+    add_test_set(TARGET_NAME tests_tile_ops_${test}
         EXEC_NAME test_${test}
         SOURCES ops/${test}.cc
         LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_graph_tile_ops_${test}
-        COV_GLOBAL coverage_graph coverage
+        COV_NAME coverage_tile_ops_${test}
+        COV_GLOBAL coverage_tile coverage
     )
-    target_include_directories(tests_graph_tile_ops_${test} PRIVATE
+    target_include_directories(tests_tile_ops_${test} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endforeach()
 
 foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
-    add_test_set(TARGET_NAME tests_graph_tile_${test}
+    add_test_set(TARGET_NAME tests_tile_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_graph_tile_${test}
-        COV_GLOBAL coverage_graph coverage
+        COV_NAME coverage_tile_${test}
+        COV_GLOBAL coverage_tile coverage
     )
-    target_include_directories(tests_graph_tile_${test} PRIVATE
+    target_include_directories(tests_tile_${test} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..
         ${CMAKE_SOURCE_DIR}/nntile/examples)
@@ -122,7 +129,7 @@ endforeach()
 
 if(NNTILE_USE_CUDA)
     foreach(test IN ITEMS flash_sdpa_fwd_cudnn flash_sdpa_bwd_cudnn)
-        add_test_set(TARGET_NAME tests_graph_tile_ops_${test}
+        add_test_set(TARGET_NAME tests_tile_ops_${test}
             EXEC_NAME test_${test}
             SOURCES ops/${test}.cc
             LINK_LIBRARIES
@@ -130,10 +137,10 @@ if(NNTILE_USE_CUDA)
                 Catch2::Catch2WithMain
                 $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
             COV_ENABLE ${BUILD_COVERAGE}
-            COV_NAME coverage_graph_tile_ops_${test}
-            COV_GLOBAL coverage_graph coverage
+            COV_NAME coverage_tile_ops_${test}
+            COV_GLOBAL coverage_tile coverage
         )
-        target_include_directories(tests_graph_tile_ops_${test} PRIVATE
+        target_include_directories(tests_tile_ops_${test} PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/..)
     endforeach()

@@ -22,6 +22,8 @@
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
+#include "nntile/tile/ops/clear.hh"
+#include "nntile/tile/ops/fill.hh"
 #include "nntile/tile/ops/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/tile/lowering_context.hh"
 #include "nntile/tensor/ops/flash_sdpa_bwd_cudnn.hh"
@@ -154,6 +156,19 @@ void TensorFlashSdpaBwdCudnnOp::lower_to_tile(const LoweringContext& ctx) const
     const auto& tiles_dk = tile_lower::tiles_of(ctx.tile_map, dK);
     const auto& tiles_dq = tile_lower::tiles_of(ctx.tile_map, dQ);
     const auto& tiles_dv = tile_lower::tiles_of(ctx.tile_map, dV);
+
+    for (Index lin_dk = 0; lin_dk < lay_dk->grid_volume(); ++lin_dk)
+    {
+        tile::clear(tiles_dk[static_cast<size_t>(lin_dk)]);
+    }
+    for (Index lin_dq = 0; lin_dq < lay_dq->grid_volume(); ++lin_dq)
+    {
+        tile::clear(tiles_dq[static_cast<size_t>(lin_dq)]);
+    }
+    for (Index lin_dv = 0; lin_dv < lay_dv->grid_volume(); ++lin_dv)
+    {
+        tile::clear(tiles_dv[static_cast<size_t>(lin_dv)]);
+    }
 
     std::vector<Index> dq_coord(5);
     std::vector<Index> kv_coord(5);

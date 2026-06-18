@@ -38,5 +38,5 @@ Llama building blocks use NNTile-native safetensors via `Module::save()` / `Modu
 ## Running Tests
 
 ```bash
-ctest -R tests_graph_model_
+ctest -R tests_model_
 ```

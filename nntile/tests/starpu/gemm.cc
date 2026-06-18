@@ -96,30 +96,6 @@ void validate_cpu_many()
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
-// Overloaded call to cuBLAS GEMM
-static inline
-void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, float alpha,
-        const fp32_t *A, int ldA, const fp32_t *B, int ldB, float beta,
-        fp32_t *C, int ldC)
-    noexcept
-{
-    cublasSgemm(handle, transA, transB, M, N, K, &alpha, (const float *)A, ldA,
-            (const float *)B, ldB, &beta, (float *)C, ldC);
-}
-
-// Overloaded call to cuBLAS GEMM
-static inline
-void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, double alpha,
-        const fp64_t *A, int ldA, const fp64_t *B, int ldB, double beta,
-        fp64_t *C, int ldC)
-    noexcept
-{
-    cublasDgemm(handle, transA, transB, M, N, K, &alpha, (const double *)A, ldA,
-            (const double *)B, ldB, &beta, (double *)C, ldC);
-}
-
 template<typename T>
 void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
         Index batch, Scalar alpha, Scalar beta)
@@ -127,6 +103,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
+    TEST_ASSERT(cuda_worker_id >= 0);
     // Choose worker CUDA device
     int dev_id = starpu_worker_get_devid(cuda_worker_id);
     cudaError_t cuda_err = cudaSetDevice(dev_id);
@@ -157,29 +134,6 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     }
     // Create copy of C
     std::vector<T> C2(C);
-    // Launch low-level kernel
-    cublasOperation_t transA_, transB_;
-    Index ldA, ldB;
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            transA_ = CUBLAS_OP_N;
-            ldA = m;
-            break;
-        case TransOp::Trans:
-            transA_ = CUBLAS_OP_T;
-            ldA = k;
-    }
-    switch(transB.value)
-    {
-        case TransOp::NoTrans:
-            transB_ = CUBLAS_OP_N;
-            ldB = k;
-            break;
-        case TransOp::Trans:
-            transB_ = CUBLAS_OP_T;
-            ldB = n;
-    }
     T *dev_A, *dev_B, *dev_C;
     cuda_err = cudaMalloc(&dev_A, sizeof(T)*A.size());
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -196,12 +150,10 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cuda_err = cudaMemcpy(dev_C, &C[0], sizeof(T)*C.size(),
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run cublas_gemm<" << T::short_name << ">\n";
-    for(Index b = 0; b < batch; ++b)
-    {
-        cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, &dev_A[b*m*k],
-                ldA, &dev_B[b*n*k], ldB, beta, &dev_C[b*m*n], m);
-    }
+    // Launch low-level kernel (C-order row-major mapping)
+    std::cout << "Run kernel::cublas::gemm<" << T::short_name << ">\n";
+    kernel::cublas::gemm<T>(
+        cublas, transA, transB, m, n, k, batch, alpha, dev_A, dev_B, beta, dev_C);
     // Wait for result and destroy cublas handle and stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -241,8 +193,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
 template<typename T>
 void validate_cuda_many()
 {
-    int n_dev = 0;
-    if(cudaGetDeviceCount(&n_dev) != cudaSuccess || n_dev == 0)
+    if(starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0) < 0)
     {
         return;
     }
@@ -273,7 +224,7 @@ void validate_cuda_many()
 int main(int argc, char **argv)
 {
     // Initialize StarPU (it will automatically shutdown itself on exit)
-    int ncpus=1, ncuda=0, ooc=0, verbose=0;
+    int ncpus=1, ncuda=1, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
     auto context = Context(ncpus, ncuda, ooc, ooc_path, ooc_size, verbose);
@@ -284,12 +235,8 @@ int main(int argc, char **argv)
     validate_cpu_many<fp64_t>();
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-    int n_dev = 0;
-    if(cudaGetDeviceCount(&n_dev) == cudaSuccess && n_dev > 0)
-    {
-        validate_cuda_many<fp32_t>();
-        validate_cuda_many<fp64_t>();
-    }
+    validate_cuda_many<fp32_t>();
+    validate_cuda_many<fp64_t>();
 #endif // NNTILE_USE_CUDA
 
     return 0;
