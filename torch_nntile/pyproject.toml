@@ -75,3 +75,8 @@ before-build = [
 ]
 before-test = "python -m pip install 'torch==2.12.0'"
 repair-wheel-command = "bash {package}/tools/repair_wheel_macos.sh {wheel} {dest_dir} {delocate_archs}"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_arm64"
+inherit.environment = "append"
+environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }

@@ -122,7 +122,11 @@ build_nntile() {
         -GNinja
     )
     if [ "${os_name}" = "Darwin" ]; then
-        cmake_args+=(-DCMAKE_OSX_ARCHITECTURES=arm64)
+        export MACOSX_DEPLOYMENT_TARGET=14.0
+        cmake_args+=(
+            -DCMAKE_OSX_ARCHITECTURES=arm64
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+        )
     else
         cmake_args+=(
             -DCMAKE_C_COMPILER="${CC:-gcc}"
