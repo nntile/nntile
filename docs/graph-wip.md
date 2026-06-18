@@ -33,6 +33,17 @@ End-to-end training of BERT, GPT-2, Llama, T5, and similar models uses the
 - **Generators:** `generate_round_robin_execution_schedule`,
   `generate_affinity_batch_execution_schedule` (same JSON schema).
 
+## torch_nntile (PyTorch bridge)
+
+[`torch_nntile`](../torch_nntile/) exposes `device="nntile"` for PyTorch models.
+When linked against `libnntile`, ops record into `TensorGraph` and run through
+`Runtime`. In **graph mode**, you can name axis groups and set tiling before
+`torch_nntile.execute()` — the same `AxisDescriptor` model as C++ graph
+training.
+
+See [torch_nntile.md](torch_nntile.md) for API reference, MNIST example, and
+comparison with C++ `name_gpt2_training_axis_groups` / `tiling.json`.
+
 ## SGOC is not the Graph API
 
 The **SGOC** scheduler ([sgoc/README.md](sgoc/README.md)) is a StarPU scheduling

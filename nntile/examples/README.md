@@ -11,6 +11,7 @@ incremental training phases) and small Llama / GPT-2 workflows.
 - `gpt2_config_json.hh` — `load_gpt2_config_json` / `save_gpt2_config_json` (HF + NNTile keys).
 - `tiling_config_json.hh` — `load_tiling_json` / `save_tiling_json` (`default` + `layers` in `tiling.json`).
 - `gpt2_axis_naming.hh` — name axis groups for GPT-2 graph training before applying tiling.
+- PyTorch bridge: `torch_nntile.set_axis_group_name` / `set_axis_group_tiling` — same axis-group model from `device="nntile"` (see [docs/torch_nntile.md](../../docs/torch_nntile.md)).
 - `t5_config_json.hh` — `load_t5_config_json` / `save_t5_config_json` for T5 graph examples.
 - `gptneo_config_json.hh` — load/save for examples; HF `attention_types` parsing lives in `include/nntile/model/gptneo/gptneo_config_json.hh`.
 
