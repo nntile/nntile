@@ -102,6 +102,8 @@ def _nntile_extension_kwargs() -> dict:
     library_dirs: list[str] = []
     libraries: list[str] = []
     extra_link_args: list[str] = []
+    if sys.platform == "darwin":
+        extra_link_args.append("-Wl,-rpath,@loader_path/../torch/lib")
 
     if nntile_build is not None:
         nntile_lib_dir = nntile_build / "nntile"
