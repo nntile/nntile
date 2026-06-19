@@ -8,11 +8,28 @@
 
 from __future__ import annotations
 
+import atexit
+
 import torch
 
 from . import _C  # noqa: F401 — loads kernels and allocator
 
 _registered = False
+_atexit_shutdown_registered = False
+
+
+def _register_shutdown_atexit() -> None:
+    global _atexit_shutdown_registered
+    if _atexit_shutdown_registered:
+        return
+    atexit.register(_shutdown_on_exit)
+    _atexit_shutdown_registered = True
+
+
+def _shutdown_on_exit() -> None:
+    if is_context_initialized():
+        wait()
+        shutdown_context()
 
 
 class _NntileBackendModule:
@@ -87,6 +104,7 @@ def init_context(
         cpu_fallback,
         runtime_mode,
     )
+    _register_shutdown_atexit()
 
 
 def execute() -> None:
@@ -148,6 +166,28 @@ def restore_where() -> None:
     _C.restore_where()
 
 
+def wait() -> None:
+    """Block until all submitted StarPU tasks finish (``starpu_task_wait_for_all``).
+
+    Call before host readout (``.to("cpu")``) or :func:`shutdown_context`.
+    Required for clean CUDA teardown when ``ncuda > 0``.
+    """
+    _C.wait_for_all()
+
+
+wait_for_all = wait
+
+
+def shutdown_context() -> None:
+    """Shut down libnntile / StarPU and release the global context.
+
+    Flushes any pending TensorGraph and graph session, waits for workers, then
+    calls ``Context::shutdown``. Safe to call multiple times. An ``atexit`` hook
+    registered by :func:`init_context` runs the same teardown automatically.
+    """
+    _C.shutdown_context()
+
+
 def set_axis_group_name(tensor: torch.Tensor, names: dict[int, str]) -> None:
     """Name TensorGraph axis groups for selected dimensions of a tensor.
 
@@ -196,6 +236,9 @@ __all__ = [
     "restrict_cpu",
     "restrict_cuda",
     "restore_where",
+    "wait",
+    "wait_for_all",
+    "shutdown_context",
     "set_axis_group_name",
     "set_axis_group_tiling",
     "format_axis_groups",

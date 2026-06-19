@@ -268,7 +268,10 @@ def train_full_batch_step(
         if torch_nntile.is_graph_mode():
             torch_nntile.compile_graph()
             torch_nntile.run()
-        return float(loss.to("cpu").item())
+
+        torch_nntile.wait()
+        loss_cpu = loss.to("cpu")
+        return float(loss_cpu.item())
 
     loss = F.cross_entropy(logits, targets)
     loss.backward()

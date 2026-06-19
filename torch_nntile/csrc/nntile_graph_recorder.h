@@ -26,6 +26,8 @@ void run_graph();
 
 void reset_graph_session();
 
+void shutdown_recorder();
+
 bool has_graph_session();
 
 void sync_nntile_storage_to_runtime(void *data_ptr);

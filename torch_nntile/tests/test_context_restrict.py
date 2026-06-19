@@ -30,6 +30,10 @@ def test_restrict_restore_roundtrip():
     torch_nntile.restore_where()
 
 
+def test_wait_for_all():
+    torch_nntile.wait_for_all()
+
+
 def test_init_context_after_first_op_raises():
     import torch
 

@@ -18,6 +18,8 @@
 #include <nntile/tensor/graph.hh>
 #include <nntile/tile/graph.hh>
 
+#include <starpu.h>
+
 namespace nntile
 {
 void apply_tiling_to_axis(
@@ -354,6 +356,14 @@ void clear_pending_graph_after_compile_locked()
     g_axis_tiling_by_name.clear();
 }
 
+void drain_starpu_after_session_teardown()
+{
+    if (starpu_is_initialized())
+    {
+        starpu_task_wait_for_all();
+    }
+}
+
 void compile_graph_locked(bool clear_pending_after = true)
 {
     if (g_graph == nullptr || g_graph->num_ops() == 0)
@@ -374,6 +384,8 @@ void compile_graph_locked(bool clear_pending_after = true)
     auto compiled_tensor_graph = std::move(g_graph);
     nntile::TileGraph tile_graph =
         nntile::TileGraph::from_tensor_graph(*compiled_tensor_graph);
+    g_session.reset();
+    drain_starpu_after_session_teardown();
     g_session = std::make_unique<GraphSession>();
     g_session->tensor_graph = std::move(compiled_tensor_graph);
     g_session->tile_graph =
@@ -435,6 +447,7 @@ void reset_recorder_locked()
     g_axis_tiling_by_name.clear();
     g_session.reset();
     g_persisted_tiles_by_storage.clear();
+    drain_starpu_after_session_teardown();
 }
 
 void execute_pending_graph_locked()
@@ -446,6 +459,20 @@ void execute_pending_graph_locked()
         copy_host_visible_outputs(*g_session->runtime, nullptr);
     }
     clear_pending_graph_after_compile_locked();
+    reset_recorder_locked();
+}
+
+void shutdown_recorder_locked()
+{
+    if (g_graph != nullptr && g_graph->num_ops() > 0)
+    {
+        compile_graph_locked(false);
+        run_graph_locked();
+        if (g_session != nullptr && g_session->runtime != nullptr)
+        {
+            copy_host_visible_outputs(*g_session->runtime, nullptr);
+        }
+    }
     reset_recorder_locked();
 }
 
@@ -495,6 +522,12 @@ void reset_graph_session()
 {
     std::lock_guard<std::mutex> lock(g_recorder_mutex);
     reset_recorder_locked();
+}
+
+void shutdown_recorder()
+{
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    shutdown_recorder_locked();
 }
 
 bool has_graph_session()
@@ -569,6 +602,7 @@ void sync_runtime_to_nntile_storage(void *data_ptr)
     {
         return;
     }
+    g_session->runtime->wait();
     MappedTensor mapped;
     mapped.node = node;
     mapped.dtype = node->dtype();
@@ -616,7 +650,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     }
 
     const auto found = g_tensor_nodes.find(data_ptr);
-    if (found != g_tensor_nodes.end())
+    if (found != g_tensor_nodes.end() && found->second.node != nullptr)
     {
         // Intermediate op output fed into a later op: keep the node for DCE
         // but stop binding/copying through storage PyTorch may free or reuse.
@@ -629,8 +663,14 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
         return found->second.node;
     }
 
+    const bool is_persistent =
+        found != g_tensor_nodes.end() && found->second.is_persistent_input;
+    const bool bind_at_execute =
+        (found != g_tensor_nodes.end() && found->second.bind_at_execute) ||
+        mark_as_input;
+
     auto *node = g_graph->data(shape, dtype);
-    if (mark_as_input)
+    if (mark_as_input || is_persistent)
     {
         node->mark_input(true);
     }
@@ -641,8 +681,8 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
         dtype,
         static_cast<std::size_t>(graph_numel(shape)),
         false,
-        mark_as_input,
-        mark_as_input};
+        bind_at_execute,
+        is_persistent || mark_as_input};
     return node;
 }
 

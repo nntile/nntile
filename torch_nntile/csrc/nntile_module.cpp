@@ -228,6 +228,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::restore_where,
         "Restore default StarPU codelet worker placement");
     m.def(
+        "wait_for_all",
+        &torch_nntile::wait_for_all,
+        "Block until all submitted StarPU tasks finish");
+    m.def(
+        "shutdown_context",
+        &torch_nntile::shutdown_context,
+        "Shut down libnntile / StarPU (safe to call repeatedly)");
+    m.def(
         "execute",
         &torch_nntile::execute_pending_graph,
         "Compile, run, and reset the pending TensorGraph (legacy graph mode)");

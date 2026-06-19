@@ -203,78 +203,82 @@ def main() -> None:
         runtime_mode = "graph"
 
     torch_nntile.init_context(
-        ncpu=1,
-        ncuda=0,
-        verbose=0,
+        ncpu=-1,
+        ncuda=-1,
+        verbose=1,
         cpu_fallback=False,
         runtime_mode=runtime_mode,
     )
 
-    print(f"Runtime mode: {runtime_mode}")
-    if axis_group_tiling:
-        print(f"Axis-group tiling: {axis_group_tiling}")
+    try:
+        print(f"Runtime mode: {runtime_mode}")
+        if axis_group_tiling:
+            print(f"Axis-group tiling: {axis_group_tiling}")
 
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Loading MNIST training set (60 000 images, single batch)...")
-    images, labels = load_mnist_full_batch(args.data_dir)
-    print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
+        print("Loading MNIST training set (60 000 images, single batch)...")
+        images, labels = load_mnist_full_batch(args.data_dir)
+        print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
 
-    model_cpu, model_nnt = build_models(
-        seed=args.seed,
-        hidden_dim=args.hidden_dim,
-        depth=args.depth,
-    )
-
-    init_cpu = clone_model_weights(model_cpu)
-    init_nnt = clone_model_weights(model_nnt)
-    init_delta = max_weight_delta(init_cpu, init_nnt)
-    print(f"Initial weight max |cpu - nntile| = {init_delta:.3e} (expect 0)")
-
-    print("\nTraining on CPU...")
-    cpu_losses = train_on_device(
-        model_cpu,
-        images,
-        labels,
-        device="cpu",
-        epochs=args.epochs,
-        learning_rate=args.lr,
-    )
-
-    print("\nTraining on nntile...")
-    nnt_losses = train_on_device(
-        model_nnt,
-        images,
-        labels,
-        device="nntile",
-        epochs=args.epochs,
-        learning_rate=args.lr,
-        axis_group_tiling=axis_group_tiling or None,
-        print_axis_groups=args.print_axis_groups,
-    )
-
-    cpu_path = output_dir / "deep_relu_mnist_cpu.pt"
-    nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
-    torch.save(model_cpu.state_dict(), cpu_path)
-    torch.save(clone_model_weights(model_nnt), nnt_path)
-
-    final_cpu = clone_model_weights(model_cpu)
-    final_nnt = clone_model_weights(model_nnt)
-    weight_delta = max_weight_delta(final_cpu, final_nnt)
-
-    print("\nLoss comparison (cpu vs nntile):")
-    for epoch, (loss_cpu, loss_nnt) in enumerate(
-        zip(cpu_losses, nnt_losses), start=1
-    ):
-        print(
-            f"  epoch {epoch}: cpu={loss_cpu:.6f}  nntile={loss_nnt:.6f}  "
-            f"diff={abs(loss_cpu - loss_nnt):.3e}"
+        model_cpu, model_nnt = build_models(
+            seed=args.seed,
+            hidden_dim=args.hidden_dim,
+            depth=args.depth,
         )
 
-    print(f"\nFinal weight max |cpu - nntile| = {weight_delta:.3e}")
-    print(f"Saved CPU model to {cpu_path}")
-    print(f"Saved nntile model (CPU tensors) to {nnt_path}")
+        init_cpu = clone_model_weights(model_cpu)
+        init_nnt = clone_model_weights(model_nnt)
+        init_delta = max_weight_delta(init_cpu, init_nnt)
+        print(f"Initial weight max |cpu - nntile| = {init_delta:.3e} (expect 0)")
+
+        print("\nTraining on CPU...")
+        cpu_losses = train_on_device(
+            model_cpu,
+            images,
+            labels,
+            device="cpu",
+            epochs=args.epochs,
+            learning_rate=args.lr,
+        )
+
+        print("\nTraining on nntile...")
+        nnt_losses = train_on_device(
+            model_nnt,
+            images,
+            labels,
+            device="nntile",
+            epochs=args.epochs,
+            learning_rate=args.lr,
+            axis_group_tiling=axis_group_tiling or None,
+            print_axis_groups=args.print_axis_groups,
+        )
+
+        cpu_path = output_dir / "deep_relu_mnist_cpu.pt"
+        nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
+        torch.save(model_cpu.state_dict(), cpu_path)
+        torch.save(clone_model_weights(model_nnt), nnt_path)
+
+        final_cpu = clone_model_weights(model_cpu)
+        final_nnt = clone_model_weights(model_nnt)
+        weight_delta = max_weight_delta(final_cpu, final_nnt)
+
+        print("\nLoss comparison (cpu vs nntile):")
+        for epoch, (loss_cpu, loss_nnt) in enumerate(
+            zip(cpu_losses, nnt_losses), start=1
+        ):
+            print(
+                f"  epoch {epoch}: cpu={loss_cpu:.6f}  nntile={loss_nnt:.6f}  "
+                f"diff={abs(loss_cpu - loss_nnt):.3e}"
+            )
+
+        print(f"\nFinal weight max |cpu - nntile| = {weight_delta:.3e}")
+        print(f"Saved CPU model to {cpu_path}")
+        print(f"Saved nntile model (CPU tensors) to {nnt_path}")
+    finally:
+        torch_nntile.wait()
+        torch_nntile.shutdown_context()
 
 
 if __name__ == "__main__":

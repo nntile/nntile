@@ -6,12 +6,16 @@
 
 #include "nntile_context.h"
 
+#include "nntile_graph_recorder.h"
+
 #include <mutex>
 #include <stdexcept>
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 #include <nntile/context.hh>
+
+#include <starpu.h>
 
 #include <memory>
 
@@ -145,6 +149,32 @@ void restore_where()
     g_context->restore_where();
 }
 
+void wait_for_all()
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    if (g_context == nullptr || !starpu_is_initialized())
+    {
+        return;
+    }
+    starpu_task_wait_for_all();
+}
+
+void shutdown_context()
+{
+    shutdown_recorder();
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    if (g_context == nullptr)
+    {
+        return;
+    }
+    if (starpu_is_initialized())
+    {
+        starpu_task_wait_for_all();
+    }
+    g_context->shutdown();
+    g_context.reset();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -215,6 +245,14 @@ void restrict_cuda()
 void restore_where()
 {
     require_libnntile();
+}
+
+void wait_for_all()
+{
+}
+
+void shutdown_context()
+{
 }
 
 } // namespace torch_nntile

@@ -269,6 +269,37 @@ def test_train_full_batch_step_graph_mode():
     )
 
 
+def test_train_full_batch_step_graph_mode_multi_epoch():
+    """compile_graph() clears pending nodes; epoch 2 must recreate data nodes."""
+    _run_graph_subprocess(
+        """
+        import math
+
+        import torch
+        import torch_nntile
+        from torch_nntile.models import DeepReLU
+        from torch_nntile.training import train_full_batch_step
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+        )
+        torch_nntile.restrict_cpu()
+
+        model_cpu = DeepReLU.tiny()
+        model_cpu.init_kaiming_uniform_(seed=42)
+        model = DeepReLU.tiny().to("nntile")
+        model.load_state_dict(model_cpu.state_dict())
+        x = torch.randn(8, model.input_dim).to("nntile")
+        y = torch.randint(0, model.output_dim, (8,)).to("nntile")
+        losses = [
+            train_full_batch_step(model, x, y, learning_rate=0.1)
+            for _ in range(3)
+        ]
+        assert all(math.isfinite(loss) for loss in losses)
+        """
+    )
+
+
 def test_graph_nntile_loss_backward_without_scalar_read():
     _run_graph_subprocess(
         """
