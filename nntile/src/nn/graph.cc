@@ -15,6 +15,7 @@
 
 #include "nntile/nn/graph.hh"
 
+#include "nntile/bind_parameters.hh"
 #include "nntile/module/module.hh"
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/graph_op_node.hh"
@@ -449,6 +450,14 @@ NNGraph::named_parameters() const
 {
     ensure_module_parameter_cache();
     return module_parameter_cache_;
+}
+
+void NNGraph::bind_parameters(Runtime &rt) const
+{
+    for (TensorNode *param : parameters())
+    {
+        bind_tensor_host_data(rt, param);
+    }
 }
 
 bool NNGraph::requires_grad(const TensorNode *tensor) const

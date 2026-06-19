@@ -687,10 +687,7 @@ int main(int argc, char **argv)
 
             if (!bound_persistent_tensors)
             {
-                for (NNGraph::TensorNode *ptensor : graph.parameters())
-                {
-                    runtime.bind_data_from_hint(ptensor);
-                }
+                graph.bind_parameters(runtime);
                 runtime.bind_data(rope_sin, sin_data);
                 runtime.bind_data(rope_cos, cos_data);
                 runtime.bind_data(attn_mask, mask_data);

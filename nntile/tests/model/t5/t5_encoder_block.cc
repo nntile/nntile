@@ -12,7 +12,6 @@
 #include "nntile/model/t5/t5_block.hh"
 
 #include "context_fixture.hh"
-#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/t5/t5_config.hh"
@@ -130,7 +129,7 @@ void encoder_block_forward_compare_ref(const EncoderBlockFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input, input_data);
         runtime.execute();
         runtime.wait();
@@ -189,7 +188,7 @@ void encoder_block_backward_compare_ref(const EncoderBlockFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input, input_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         runtime.execute();

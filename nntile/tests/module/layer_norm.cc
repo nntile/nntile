@@ -28,7 +28,6 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #include "context_fixture.hh"
-#include "test_runtime_bind_helpers.hh"
 #include "pytorch_helper.hh"
 #include "pytorch_tile_helpers.hh"
 #endif
@@ -148,7 +147,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
     runtime.compile();
-    nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
     runtime.bind_data(input, x_data);
     runtime.bind_data(ln.gamma_tensor(), gamma_data);
     runtime.bind_data(ln.beta_tensor(), beta_data);
@@ -229,7 +227,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
     runtime.compile();
-    nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
     runtime.bind_data(input, x_data);
     runtime.bind_data(ln.gamma_tensor(), gamma_data);
     runtime.bind_data(ln.beta_tensor(), beta_data);

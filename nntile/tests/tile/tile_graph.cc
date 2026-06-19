@@ -314,7 +314,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TileGraph bind_data_from_hint replaces compile bind hints",
+    "TileGraph bind_data copies host values before execute",
     "[graph][tile]")
 {
     std::vector<Index> shape = {2};
@@ -327,16 +327,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
     tz->mark_output(true);
 
-    float x_vals[2] = {10.0f, 20.0f};
-    std::vector<std::uint8_t> x_hint(sizeof(x_vals));
-    std::memcpy(x_hint.data(), x_vals, sizeof(x_vals));
-    tx->set_bind_hint(x_hint);
+    std::vector<float> x_data = {10.0f, 20.0f};
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
 
     Runtime tile_rt(tile_graph);
     tile_rt.compile();
-    tile_rt.bind_data_from_hint(tx);
+    tile_rt.bind_data(tx, x_data);
 
     std::vector<float> y_data = {1.0f, 2.0f};
     tile_rt.bind_data(ty, y_data);
@@ -369,7 +366,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TileGraph set_bind_hint alone does not satisfy execute",
+    "TileGraph staged host bytes do not satisfy execute without bind_data",
     "[graph][tile]")
 {
     TensorGraph tg_graph("hint_only");

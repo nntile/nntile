@@ -222,10 +222,7 @@ int main(int argc, char **argv)
 
         if (!bound_persistent_tensors)
         {
-            for (NNGraph::TensorNode *ptensor : graph.parameters())
-            {
-                runtime.bind_data_from_hint(ptensor);
-            }
+            graph.bind_parameters(runtime);
             runtime.bind_data(position_ids, pos_data);
             bound_persistent_tensors = true;
         }

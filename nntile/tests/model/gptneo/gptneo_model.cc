@@ -12,7 +12,6 @@
 #include "nntile/model/gptneo/gptneo_model.hh"
 
 #include "context_fixture.hh"
-#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/gptneo/gptneo_config.hh"
@@ -191,7 +190,7 @@ void model_backward_compare_ref(const ModelFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input_ids, ids_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_position_ids(runtime, position_ids, pos_data);
@@ -305,7 +304,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input_ids, ids_data);
         bind_position_ids(runtime, position_ids, pos_data);
         bind_mask_input(runtime, mask, mask_bytes);

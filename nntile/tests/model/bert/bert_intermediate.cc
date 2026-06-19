@@ -12,7 +12,6 @@
 #include "nntile/model/bert/bert_intermediate.hh"
 
 #include "context_fixture.hh"
-#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/bert/bert_config.hh"
@@ -223,7 +222,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input, input_data);
         runtime.execute();
         runtime.wait();
@@ -287,7 +286,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input, input_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         runtime.execute();

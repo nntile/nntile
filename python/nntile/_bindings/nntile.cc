@@ -241,16 +241,6 @@ static void bind_runtime_methods(py::class_<PyRuntimeView> &cls)
             "tensor"_a,
             "data"_a)
         .def(
-            "bind_data_from_hint",
-            [](PyRuntimeView &s, NNGraph::TensorNode const *t)
-            { s.runtime->bind_data_from_hint(t); },
-            "tensor"_a)
-        .def(
-            "bind_data_from_hint",
-            [](PyRuntimeView &s, TensorGraph::TensorNode const *t)
-            { s.runtime->bind_data_from_hint(t); },
-            "tensor"_a)
-        .def(
             "is_initialized",
             [](PyRuntimeView const &s, NNGraph::TensorNode const *t)
             { return s.runtime->is_initialized(t); },
@@ -447,16 +437,6 @@ PYBIND11_MODULE(nntile, m)
             "tensor"_a,
             "data"_a)
         .def(
-            "bind_data_from_hint",
-            [](PyGraphRuntime &s, TensorGraph::TensorNode const *t)
-            { s.runtime.bind_data_from_hint(t); },
-            "tensor"_a)
-        .def(
-            "bind_data_from_hint",
-            [](PyGraphRuntime &s, NNGraph::TensorNode const *t)
-            { s.runtime.bind_data_from_hint(t); },
-            "tensor"_a)
-        .def(
             "is_initialized",
             [](const PyGraphRuntime &s, TensorGraph::TensorNode const *t)
             { return s.runtime.is_initialized(t); },
@@ -618,6 +598,14 @@ PYBIND11_MODULE(nntile, m)
                 }
                 return out;
             })
+        .def(
+            "bind_parameters",
+            [](NNGraph &g, PyGraphRuntime &rt) { g.bind_parameters(rt.runtime); },
+            "runtime"_a)
+        .def(
+            "bind_parameters",
+            [](NNGraph &g, PyRuntimeView &rt) { g.bind_parameters(*rt.runtime); },
+            "runtime"_a)
         .def(
             "tensor_graph",
             [](NNGraph &g) -> TensorGraph * { return &g.tensor_graph(); },

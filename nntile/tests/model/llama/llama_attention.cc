@@ -30,7 +30,6 @@
 #include "nntile/model/llama/llama_attention.hh"
 
 #include "context_fixture.hh"
-#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/llama/llama_config.hh"
@@ -116,7 +115,7 @@ void llama_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
 
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input, input_data);
         bind_rope_inputs(runtime, rope);
         bind_mask_input(runtime, mask, mask_bytes);
@@ -188,7 +187,7 @@ void llama_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
 
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input, input_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_rope_inputs(runtime, rope);

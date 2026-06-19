@@ -103,6 +103,9 @@ class NNGraph
     //! ``parameters()``).
     std::vector<std::pair<std::string, TensorNode *>> named_parameters() const;
 
+    //! Copy staged host parameter bytes into ``rt`` via ``bind_data``.
+    void bind_parameters(Runtime &rt) const;
+
     const std::vector<std::unique_ptr<TensorNode>> &tensors() const
     {
         return tensors_;

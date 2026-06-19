@@ -124,11 +124,6 @@ class Runtime
 
     void invalidate_initialized(NNGraph::TensorNode const *tensor);
 
-    //! Copy bytes from ``tensor->get_bind_hint()`` into tiles (explicit only).
-    void bind_data_from_hint(TensorGraph::TensorNode const *tensor);
-
-    void bind_data_from_hint(NNGraph::TensorNode const *tensor);
-
     //! Snapshot initialized tile buffers keyed by logical tensor (incremental reset).
     void export_initialized_tiles(
         std::unordered_map<TensorGraph::TensorNode const *,
@@ -1040,16 +1035,6 @@ inline void Runtime::invalidate_initialized(NNGraph::TensorNode const *tensor)
             "Runtime::invalidate_initialized: NN tensor must be non-null");
     }
     invalidate_initialized(tensor->data());
-}
-
-inline void Runtime::bind_data_from_hint(NNGraph::TensorNode const *tensor)
-{
-    if (tensor == nullptr)
-    {
-        throw std::invalid_argument(
-            "Runtime::bind_data_from_hint: NN tensor must be non-null");
-    }
-    bind_data_from_hint(tensor->data());
 }
 
 } // namespace nntile

@@ -31,7 +31,6 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #include "context_fixture.hh"
-#include "test_runtime_bind_helpers.hh"
 #include "pytorch_helper.hh"
 #include "pytorch_tile_helpers.hh"
 #endif
@@ -184,7 +183,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Runtime runtime(tile_graph);
     runtime.compile();
 
-    nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+    g.bind_parameters(runtime);
 
     std::vector<std::int64_t> index_data(4 * 5);
     for (Index i = 0; i < 20; ++i)
@@ -241,7 +240,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     Runtime runtime(tile_graph);
     runtime.compile();
-    nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+    g.bind_parameters(runtime);
     runtime.bind_data(index, index_data);
     runtime.execute();
     runtime.wait();
@@ -293,7 +292,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     Runtime runtime(tile_graph);
     runtime.compile();
-    nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+    g.bind_parameters(runtime);
     runtime.bind_data(index, index_data);
     runtime.execute();
     runtime.wait();

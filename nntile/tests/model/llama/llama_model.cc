@@ -25,7 +25,6 @@
 #include "nntile/model/llama/llama_model.hh"
 
 #include "context_fixture.hh"
-#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/llama/llama_config.hh"
@@ -337,7 +336,7 @@ void model_forward_compare_ref(const ModelFixtureSpec &fx)
 
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         runtime.bind_data(input_ids, ids_data);
         bind_rope_inputs(runtime, rope);
         bind_mask_input(runtime, mask, mask_bytes);

@@ -29,6 +29,7 @@
 namespace nntile
 {
 class NNGraph;
+class Runtime;
 }
 
 namespace nntile::module
@@ -189,13 +190,18 @@ public:
 
     //! Load parameters from a SafeTensors file in NNTile-native layout.
     //! Matches tensor names from the file to named_parameters_recursive()
-    //! and calls set_bind_hint() on each matched parameter.
+    //! and stages host bytes on each matched parameter.
+    //! Call ``bind_parameters(runtime)`` before ``execute()`` to copy staged
+    //! bytes into tiles via ``bind_data``.
     //! @param strict If true (default), throws if any module parameter is
     //!        missing from the file. If false, missing tensors are skipped.
     void load(const std::string& path, bool strict = true);
 
     //! Mark every recursive parameter as an NNGraph input (runtime bind slot).
     void mark_parameters_input_recursive();
+
+    //! Copy staged host parameter bytes into ``rt`` via ``bind_data``.
+    void bind_parameters(Runtime &rt) const;
 
     // -----------------------------------------------------------------
     // String Representation

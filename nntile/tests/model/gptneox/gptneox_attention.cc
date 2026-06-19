@@ -27,7 +27,6 @@
 #include "nntile/model/gptneox/gptneox_attention.hh"
 
 #include "context_fixture.hh"
-#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/gptneox/gptneox_config.hh"
@@ -129,7 +128,7 @@ void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         bind_attention_runtime_inputs(runtime, input, input_data, ctx);
         runtime.execute();
         runtime.wait();
@@ -184,7 +183,7 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
-        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
+        g.bind_parameters(runtime);
         bind_attention_runtime_inputs(runtime, input, input_data, ctx);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         runtime.execute();

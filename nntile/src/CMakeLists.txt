@@ -533,6 +533,7 @@ set(GRAPH_OPTIM_SRC
 )
 
 set(GRAPH_RUNTIME_SRC
+    "bind_parameters.cc"
     "core/execution_schedule.cc"
     "runtime.cc"
     )
