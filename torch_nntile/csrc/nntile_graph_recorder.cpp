@@ -118,36 +118,26 @@ void apply_pending_axis_tiling_locked()
         return;
     }
 
-    std::unordered_map<std::string, nntile::AxisDescriptor *> named_groups;
-    for (nntile::AxisDescriptor *axis : g_graph->axis_groups())
-    {
-        if (axis == nullptr || axis->name.empty())
-        {
-            continue;
-        }
-        const auto found = named_groups.find(axis->name);
-        if (found != named_groups.end() && found->second != axis)
-        {
-            throw std::runtime_error(
-                "torch_nntile set_axis_group_tiling: duplicate axis group name '" +
-                axis->name + "'");
-        }
-        named_groups.emplace(axis->name, axis);
-    }
-
     for (const auto &[name, pattern] : g_axis_tiling_by_name)
     {
-        const auto found = named_groups.find(name);
-        if (found == named_groups.end())
+        bool found_any = false;
+        for (nntile::AxisDescriptor *axis : g_graph->axis_groups())
+        {
+            if (axis == nullptr || axis->name != name)
+            {
+                continue;
+            }
+            found_any = true;
+            const std::vector<nntile::Index> resolved =
+                nntile::tile_sizes_for_axis_extent(pattern, axis->extent);
+            nntile::apply_tiling_to_axis(axis, resolved);
+        }
+        if (!found_any)
         {
             throw std::runtime_error(
                 "torch_nntile set_axis_group_tiling: unknown axis group '" +
                 name + "'");
         }
-        nntile::AxisDescriptor *axis = found->second;
-        const std::vector<nntile::Index> resolved =
-            nntile::tile_sizes_for_axis_extent(pattern, axis->extent);
-        nntile::apply_tiling_to_axis(axis, resolved);
     }
 }
 

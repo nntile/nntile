@@ -132,34 +132,124 @@ example script provides naming.
 trains `DeepReLU.mnist()` on the full MNIST training set (60k batch), comparing
 CPU PyTorch vs `device="nntile"`.
 
+Default model: **5 linear layers** (`--depth 5`), **4 hidden blocks** with output
+width `--hidden-dim 256` (784→256, then three 256→256, then 256→10 logits).
+
 Axis groups used by the example:
 
-| Name | Tensor / dim | Extent (MNIST) |
-|------|----------------|----------------|
-| `batch` | input `x` dim 0, logits dim 0 | 60000 |
-| `features` | input `x` dim 1 | 784 |
-| `classes` | logits dim 1 | 10 |
+| Name | Meaning | Extent (MNIST defaults) |
+|------|---------|-------------------------|
+| `batch` | input / logits batch dim | 60000 |
+| `features` | flattened image dim | 784 |
+| `hidden` | hidden MLP width (`--hidden-dim`) on weights, grads, velocities | 256 |
+| `classes` | logits class dim | 10 |
 
-Naming is defined in the example:
+There are **four** separate `hidden` axis groups in the graph (one per hidden
+linear output). The example names them explicitly on each linear weight, grad,
+and SGD velocity matrix row/column of size `hidden_dim`.
 
-```python
-def name_mnist_axis_groups(x, logits):
-    torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
-    torch_nntile.set_axis_group_name(logits, {1: "classes"})
-```
-
-CLI:
+### Prerequisites
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
-python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
-python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 --runtime-mode graph
-python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 \
-  --print-axis-groups \
-  --axis-tiling batch=15000,15000,15000,15000,15000
+# editable install with libnntile linked (see torch_nntile/README.md)
 ```
 
-`--axis-tiling` and `--print-axis-groups` switch to graph mode automatically.
+StarPU worker counts come from the environment (`STARPU_NCPU`, `STARPU_NCUDA`).
+The script calls `init_context(ncpu=-1, ncuda=-1, …)` so those env vars apply.
+
+### CPU workers only
+
+Use CPU StarPU workers for the nntile path (reference PyTorch path always runs
+on CPU tensors):
+
+```bash
+STARPU_NCPU=4 STARPU_NCUDA=0 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --runtime-mode graph \
+    --epochs 5
+```
+
+Optional graph tiling and axis-group dump:
+
+```bash
+STARPU_NCPU=4 STARPU_NCUDA=0 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --runtime-mode graph \
+    --epochs 5 \
+    --print-axis-groups \
+    --axis-tiling batch=15000,15000,15000,15000 \
+    --axis-tiling features=392,392 \
+    --axis-tiling hidden=128,128
+```
+
+**Expected tail output (CPU workers, graph mode, 5 epochs):**
+
+```
+Loss comparison (cpu vs nntile):
+  epoch 1: cpu=2.302172  nntile=2.302172  diff=2.384e-07
+  epoch 2: cpu=2.302079  nntile=2.302080  diff=4.768e-07
+  epoch 3: cpu=2.301987  nntile=2.301987  diff=0.000e+00
+  epoch 4: cpu=2.301894  nntile=2.301895  diff=4.768e-07
+  epoch 5: cpu=2.301802  nntile=2.301802  diff=0.000e+00
+
+Final weight max |cpu - nntile| = 1.118e-08
+```
+
+Per-epoch loss diffs at or below **~1e-6** are typical on CPU.
+
+### CUDA workers only
+
+Pin nntile kernels to CUDA workers (`--restrict-cuda`):
+
+```bash
+STARPU_NCPU=0 STARPU_NCUDA=2 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --runtime-mode graph \
+    --restrict-cuda \
+    --epochs 5 \
+    --axis-tiling batch=15000,15000,15000,15000 \
+    --axis-tiling features=392,392 \
+    --axis-tiling hidden=128,128
+```
+
+**Expected tail output (CUDA workers, graph mode, 5 epochs, with tiling above):**
+
+```
+Loss comparison (cpu vs nntile):
+  epoch 1: cpu=2.302172  nntile=2.302095  diff=7.701e-05
+  epoch 2: cpu=2.302079  nntile=2.301964  diff=1.152e-04
+  epoch 3: cpu=2.301987  nntile=2.301834  diff=1.538e-04
+  epoch 4: cpu=2.301894  nntile=2.301818  diff=7.653e-05
+  epoch 5: cpu=2.301802  nntile=2.301495  diff=3.073e-04
+
+Final weight max |cpu - nntile| = 1.583e-08
+```
+
+On CUDA, per-epoch **loss** diffs of order **1e-4** are normal (cuBLAS / TF32 /
+reduction order vs CPU reference). **Weights** should still match to **~1e-8**.
+Call `torch_nntile.wait()` before reading losses on the host; the example shuts
+down StarPU cleanly in a `finally` block.
+
+### Useful flags
+
+| Flag | Purpose |
+|------|---------|
+| `--runtime-mode graph` | Record full step, then `compile_graph()` + `run()` |
+| `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
+| `--verbose` | Verbose StarPU / NNTile context logging |
+| `--hidden-dim`, `--depth` | Model size (default 256, 5) |
+| `--axis-tiling NAME=SIZES` | Repeatable; auto-switches to graph mode |
+| `--print-axis-groups` | Dump axis groups after epoch 1 (graph mode) |
+
+`--axis-tiling` and `--print-axis-groups` switch to graph mode automatically if
+omitted from `--runtime-mode`.
+
+Integration test (downloads MNIST, 3 epochs, CPU workers):
+
+```bash
+pytest -vv -m slow torch_nntile/tests/test_deep_relu_mnist_train.py
+```
 
 ## Tests
 
