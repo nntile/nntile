@@ -81,14 +81,10 @@ inline void prepare_attention_run(NNGraph& g,
     load_attn_mask_bool(g, reader, fx.seq, ctx.mask, ctx.mask_bytes);
 }
 
-inline NNGraph::TensorNode* run_attention_forward(NNGraph& g,
+inline NNGraph::TensorNode* run_attention_forward(GptneoxAttention& attn,
     NNGraph::TensorNode* input,
-    const AttentionFixtureSpec& fx,
-    const AttentionRunContext& ctx,
-    const std::string& weights_path)
+    const AttentionRunContext& ctx)
 {
-    GptneoxAttention attn(&g, "attn", fx.config);
-    attn.load(weights_path);
     return attn.forward(input, ctx.rope.sin, ctx.rope.cos, ctx.mask);
 }
 
@@ -119,7 +115,9 @@ void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
                           ->set_name("input");
         AttentionRunContext ctx;
         prepare_attention_run(g, reader, fx, ctx);
-        auto* output = run_attention_forward(g, input, fx, ctx, full_path);
+        GptneoxAttention attn(&g, "attn", fx.config);
+        attn.load(full_path);
+        auto* output = run_attention_forward(attn, input, ctx);
         input->mark_input(true);
         output->mark_output(true);
         mark_rope_inputs(ctx.rope);
@@ -167,7 +165,9 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
                           ->set_name("input");
         AttentionRunContext ctx;
         prepare_attention_run(g, reader, fx, ctx);
-        auto* output = run_attention_forward(g, input, fx, ctx, full_path);
+        GptneoxAttention attn(&g, "attn", fx.config);
+        attn.load(full_path);
+        auto* output = run_attention_forward(attn, input, ctx);
 
         input->mark_input(true);
         output->mark_output(true);
