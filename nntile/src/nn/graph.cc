@@ -15,6 +15,7 @@
 
 #include "nntile/nn/graph.hh"
 
+#include "nntile/bind_parameters.hh"
 #include "nntile/module/module.hh"
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/graph_op_node.hh"
@@ -26,6 +27,7 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 
 namespace nntile
@@ -37,6 +39,10 @@ struct NNGraphExecState
     TileGraphIncrementalState inc_state;
     TensorNodeToTileMap tile_map;
     std::optional<Runtime> runtime;
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> persisted_tile_storage;
+    std::unordered_map<TensorGraph::TensorNode const *, bool>
+        persisted_init_state;
 };
 
 NNGraph::~NNGraph() = default;
@@ -107,7 +113,15 @@ void NNGraph::lower_and_compile(TensorGraphTiling const &tiling)
         *exec_->runtime,
         exec_->inc_state,
         exec_->tile_map,
-        true);
+        true,
+        exec_->persisted_tile_storage.empty()
+            ? nullptr
+            : &exec_->persisted_tile_storage,
+        exec_->persisted_init_state.empty()
+            ? nullptr
+            : &exec_->persisted_init_state);
+    exec_->persisted_tile_storage.clear();
+    exec_->persisted_init_state.clear();
 }
 
 void NNGraph::lower_and_compile()
@@ -130,6 +144,25 @@ bool NNGraph::has_runtime() const
     return exec_ && exec_->runtime.has_value();
 }
 
+bool NNGraph::is_initialized(TensorNode const *t) const
+{
+    if (t == nullptr || !exec_ || !exec_->runtime.has_value())
+    {
+        return false;
+    }
+    return exec_->runtime->is_initialized(t);
+}
+
+void NNGraph::invalidate_initialized(TensorNode const *t)
+{
+    if (t == nullptr || !exec_ || !exec_->runtime.has_value())
+    {
+        throw std::runtime_error(
+            "NNGraph::invalidate_initialized: call lower_and_compile() first");
+    }
+    exec_->runtime->invalidate_initialized(t);
+}
+
 void NNGraph::reset_incremental_tile_state()
 {
     if (pending_compile_phase_.has_value())
@@ -142,9 +175,21 @@ void NNGraph::reset_incremental_tile_state()
     {
         return;
     }
+    exec_->persisted_tile_storage.clear();
+    exec_->persisted_init_state.clear();
+    if (exec_->runtime.has_value())
+    {
+        exec_->runtime->export_initialized_tiles(
+            exec_->persisted_tile_storage);
+        for (const auto &[tensor, _] : exec_->persisted_tile_storage)
+        {
+            (void) _;
+            exec_->persisted_init_state[tensor] = true;
+        }
+    }
     clear_tensor_phase_archives();
     exec_->tile_graph.emplace(name_ + "_tile");
-    exec_->inc_state = TileGraphIncrementalState{};
+    exec_->inc_state.tensor_to_tiles.clear();
     exec_->tile_map.clear();
     exec_->runtime.emplace(*exec_->tile_graph);
 }
@@ -405,6 +450,14 @@ NNGraph::named_parameters() const
 {
     ensure_module_parameter_cache();
     return module_parameter_cache_;
+}
+
+void NNGraph::bind_parameters(Runtime &rt) const
+{
+    for (TensorNode *param : parameters())
+    {
+        bind_tensor_host_data(rt, param);
+    }
 }
 
 bool NNGraph::requires_grad(const TensorNode *tensor) const

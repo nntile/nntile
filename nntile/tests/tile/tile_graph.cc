@@ -19,6 +19,8 @@
 #include "nntile/tile.hh"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <nntile/graph.hh>
 #include <cstring>
 #include <numeric>
@@ -312,10 +314,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TileGraph compile resolves bind hints from source TensorNode",
+    "TileGraph bind_data copies host values before execute",
     "[graph][tile]")
 {
-    // Build a TensorGraph with a bind hint on x, convert, execute
     std::vector<Index> shape = {2};
     TensorGraph tg_graph("bind_via_source");
     auto *tx = tg_graph.data(shape, DataType::FP32)->set_name("x");
@@ -326,19 +327,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
     tz->mark_output(true);
 
-    // Set bind hint on the TensorNode (not on TileNode)
-    float x_vals[2] = {10.0f, 20.0f};
-    std::vector<std::uint8_t> x_hint(sizeof(x_vals));
-    std::memcpy(x_hint.data(), x_vals, sizeof(x_vals));
-    tx->set_bind_hint(x_hint);
+    std::vector<float> x_data = {10.0f, 20.0f};
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
 
     Runtime tile_rt(tile_graph);
     tile_rt.compile();
+    tile_rt.bind_data(tx, x_data);
 
-    // x was initialized from the source TensorNode's bind hint;
-    // we only need to bind y
     std::vector<float> y_data = {1.0f, 2.0f};
     tile_rt.bind_data(ty, y_data);
     tile_rt.execute();
@@ -347,6 +343,110 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto result = tile_rt.get_output<float>(tz);
     const std::vector<float> expected{11.f, 22.f};
     nntile::test::require_relative_element_error(result, expected);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TileGraph execute fails without bind_data on inputs",
+    "[graph][tile]")
+{
+    TensorGraph tg_graph("unbound");
+    auto *tx = tg_graph.data({2}, DataType::FP32)->set_name("x");
+    auto *ty = tg_graph.data({2}, DataType::FP32)->set_name("y");
+    tx->mark_input(true);
+    ty->mark_input(true);
+    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
+    tz->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
+    Runtime rt(tile_graph);
+    rt.compile();
+    REQUIRE_THROWS_WITH(
+        rt.execute(),
+        Catch::Matchers::ContainsSubstring("Input is not initialized"));
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TileGraph staged host bytes do not satisfy execute without bind_data",
+    "[graph][tile]")
+{
+    TensorGraph tg_graph("hint_only");
+    auto *tx = tg_graph.data({2}, DataType::FP32)->set_name("x");
+    auto *ty = tg_graph.data({2}, DataType::FP32)->set_name("y");
+    tx->mark_input(true);
+    ty->mark_input(true);
+    float x_vals[2] = {1.0f, 2.0f};
+    std::vector<std::uint8_t> x_hint(sizeof(x_vals));
+    std::memcpy(x_hint.data(), x_vals, sizeof(x_vals));
+    tx->set_bind_hint(x_hint);
+
+    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
+    tz->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
+    Runtime rt(tile_graph);
+    rt.compile();
+    rt.bind_data(ty, std::vector<float>{3.0f, 4.0f});
+    REQUIRE_THROWS_WITH(
+        rt.execute(),
+        Catch::Matchers::ContainsSubstring("Input is not initialized: x"));
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TileGraph recompile without rebind reuses tile values",
+    "[graph][tile]")
+{
+    TensorGraph tg_graph("reuse");
+    auto *tx = tg_graph.data({2}, DataType::FP32)->set_name("x");
+    auto *ty = tg_graph.data({2}, DataType::FP32)->set_name("y");
+    tx->mark_input(true);
+    ty->mark_input(true);
+    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
+    tz->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
+    Runtime rt(tile_graph);
+    rt.compile();
+    rt.bind_data(tx, std::vector<float>{1.0f, 2.0f});
+    rt.bind_data(ty, std::vector<float>{3.0f, 4.0f});
+    rt.execute();
+    rt.wait();
+    auto first = rt.get_output<float>(tz);
+    nntile::test::require_relative_element_error(
+        first, std::vector<float>{4.0f, 6.0f});
+
+    rt.compile();
+    rt.execute();
+    rt.wait();
+    auto second = rt.get_output<float>(tz);
+    nntile::test::require_relative_element_error(first, second);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TileGraph bind_data updates tiles on second execute",
+    "[graph][tile]")
+{
+    TensorGraph tg_graph("rebind");
+    auto *tx = tg_graph.data({2}, DataType::FP32)->set_name("x");
+    auto *ty = tg_graph.data({2}, DataType::FP32)->set_name("y");
+    tx->mark_input(true);
+    ty->mark_input(true);
+    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
+    tz->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
+    Runtime rt(tile_graph);
+    rt.compile();
+    rt.bind_data(tx, std::vector<float>{1.0f, 2.0f});
+    rt.bind_data(ty, std::vector<float>{3.0f, 4.0f});
+    rt.execute();
+    rt.wait();
+
+    rt.bind_data(tx, std::vector<float>{10.0f, 20.0f});
+    rt.execute();
+    rt.wait();
+    auto result = rt.get_output<float>(tz);
+    nntile::test::require_relative_element_error(
+        result, std::vector<float>{13.0f, 24.0f});
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

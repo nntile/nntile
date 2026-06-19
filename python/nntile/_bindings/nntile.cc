@@ -240,6 +240,26 @@ static void bind_runtime_methods(py::class_<PyRuntimeView> &cls)
                 py::array a) { runtime_bind_numpy(*s.runtime, t, a); },
             "tensor"_a,
             "data"_a)
+        .def(
+            "is_initialized",
+            [](PyRuntimeView const &s, NNGraph::TensorNode const *t)
+            { return s.runtime->is_initialized(t); },
+            "tensor"_a)
+        .def(
+            "is_initialized",
+            [](PyRuntimeView const &s, TensorGraph::TensorNode const *t)
+            { return s.runtime->is_initialized(t); },
+            "tensor"_a)
+        .def(
+            "invalidate_initialized",
+            [](PyRuntimeView &s, NNGraph::TensorNode const *t)
+            { s.runtime->invalidate_initialized(t); },
+            "tensor"_a)
+        .def(
+            "invalidate_initialized",
+            [](PyRuntimeView &s, TensorGraph::TensorNode const *t)
+            { s.runtime->invalidate_initialized(t); },
+            "tensor"_a)
         .def("execute", [](PyRuntimeView &s) { s.runtime->execute(); })
         .def("wait", [](PyRuntimeView &s) { s.runtime->wait(); })
         .def(
@@ -416,6 +436,26 @@ PYBIND11_MODULE(nntile, m)
             { runtime_bind_numpy_nn(s, t, a); },
             "tensor"_a,
             "data"_a)
+        .def(
+            "is_initialized",
+            [](const PyGraphRuntime &s, TensorGraph::TensorNode const *t)
+            { return s.runtime.is_initialized(t); },
+            "tensor"_a)
+        .def(
+            "is_initialized",
+            [](const PyGraphRuntime &s, NNGraph::TensorNode const *t)
+            { return s.runtime.is_initialized(t); },
+            "tensor"_a)
+        .def(
+            "invalidate_initialized",
+            [](PyGraphRuntime &s, TensorGraph::TensorNode const *t)
+            { s.runtime.invalidate_initialized(t); },
+            "tensor"_a)
+        .def(
+            "invalidate_initialized",
+            [](PyGraphRuntime &s, NNGraph::TensorNode const *t)
+            { s.runtime.invalidate_initialized(t); },
+            "tensor"_a)
         .def("execute", [](PyGraphRuntime &s) { s.runtime.execute(); })
         .def("wait", [](PyGraphRuntime &s) { s.runtime.wait(); })
         .def(
@@ -559,6 +599,14 @@ PYBIND11_MODULE(nntile, m)
                 return out;
             })
         .def(
+            "bind_parameters",
+            [](NNGraph &g, PyGraphRuntime &rt) { g.bind_parameters(rt.runtime); },
+            "runtime"_a)
+        .def(
+            "bind_parameters",
+            [](NNGraph &g, PyRuntimeView &rt) { g.bind_parameters(*rt.runtime); },
+            "runtime"_a)
+        .def(
             "tensor_graph",
             [](NNGraph &g) -> TensorGraph * { return &g.tensor_graph(); },
             py::return_value_policy::reference_internal)
@@ -593,6 +641,10 @@ PYBIND11_MODULE(nntile, m)
             "enable"_a = true)
         .def("reset_incremental_tile_state",
             &NNGraph::reset_incremental_tile_state)
+        .def("is_initialized", &NNGraph::is_initialized, "tensor"_a)
+        .def("invalidate_initialized",
+            &NNGraph::invalidate_initialized,
+            "tensor"_a)
         .def("__repr__", &NNGraph::to_string)
         .def("to_mermaid", &NNGraph::to_mermaid);
 

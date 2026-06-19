@@ -186,6 +186,7 @@ int main(int argc, char **argv)
 
     const Scalar ce_scale = 1.0f / static_cast<Scalar>(n_seq * n_batch);
     bool bound_optimizer_state = false;
+    bool bound_persistent_tensors = false;
 
     float first_loss = -1.f;
     float best_loss = 1e30f;
@@ -243,10 +244,16 @@ int main(int argc, char **argv)
             bound_optimizer_state = true;
         }
 
+        if (!bound_persistent_tensors)
+        {
+            graph.bind_parameters(runtime);
+            runtime.bind_data(position_ids, pos_data);
+            runtime.bind_data(token_type_ids, tt_data);
+            bound_persistent_tensors = true;
+        }
+
         runtime.bind_data(input_ids, batch.input_ids);
         runtime.bind_data(labels, batch.labels);
-        runtime.bind_data(position_ids, pos_data);
-        runtime.bind_data(token_type_ids, tt_data);
 
         runtime.execute();
         runtime.wait();
@@ -261,16 +268,6 @@ int main(int argc, char **argv)
             best_loss = loss_val;
         }
         std::cout << "Batch " << step << "  loss=" << loss_val << "\n";
-
-        for (NNGraph::TensorNode *ptensor : graph.parameters())
-        {
-            sync_param_hint_from_runtime(runtime, ptensor);
-        }
-        for (const auto &[sname, stensor] : optimizer->named_state_tensors())
-        {
-            (void)sname;
-            sync_param_hint_from_runtime(runtime, stensor);
-        }
     }
 
     std::cout << "Scratch first loss=" << first_loss
@@ -281,6 +278,13 @@ int main(int argc, char **argv)
         return EXIT_ERROR;
     }
 
+    if (graph.has_runtime())
+    {
+        for (NNGraph::TensorNode *ptensor : graph.parameters())
+        {
+            sync_param_hint_from_runtime(graph.runtime(), ptensor);
+        }
+    }
     model.save(checkpoint_path);
     std::cout << "Saved checkpoint " << checkpoint_path << "\n";
 

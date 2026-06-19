@@ -14,6 +14,7 @@
  * */
 
 // Include corresponding header
+#include "nntile/bind_parameters.hh"
 #include "nntile/module/module.hh"
 
 // Include standard headers
@@ -22,6 +23,7 @@
 
 // Include NNTile headers
 #include "nntile/dtype.hh"
+#include "nntile/runtime.hh"
 
 namespace nntile::module
 {
@@ -453,6 +455,14 @@ void Module::mark_parameters_input_recursive()
         {
             param->mark_input(true);
         }
+    }
+}
+
+void Module::bind_parameters(Runtime &rt) const
+{
+    for (NNGraph::TensorNode *param : parameters_recursive())
+    {
+        bind_tensor_host_data(rt, param);
     }
 }
 

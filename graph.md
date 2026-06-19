@@ -82,13 +82,27 @@ nntile/src/
 Data nodes can be marked as graph input and/or output via `mark_input()` and
 `mark_output()` on `TensorGraph::TensorNode`.
 
-- **Input tensors** (`mark_input(true)`): Provided via `bind_data()`; never
-  invalidated during execution.
-- **Output tensors** (`mark_output(true)`): Retrieved via `get_output()`; never
-  invalidated during execution.
+- **Input tensors** (`mark_input(true)`): Host data is copied into tile memory
+  only via explicit ``bind_data()``. Omitting ``bind_data()`` reuses existing
+  tile contents.
+- **Output tensors** (`mark_output(true)`): Retrieved via ``get_output()`` after
+  ``execute()``.
 
-`bind_data()` may only be called for tensors marked as input or output (or
-both). This ensures that user-bound data is never invalidated unexpectedly.
+``bind_data()`` is the only host-to-tile path at runtime. ``set_bind_hint()``
+stores host bytes on a tensor for checkpoint I/O (``Module::load`` / ``save``);
+it does not populate tiles. After ``load()``, call ``NNGraph::bind_parameters``
+or ``bind_data()`` with your buffers before ``execute()``. ``execute()`` fails
+with ``Input is not initialized: <name>`` when a required input tensor was not
+bound. Use ``invalidate_initialized()`` after checkpoint reload, then bind again.
+
+``NNGraph::reset_incremental_tile_state()`` preserves initialized tile buffers
+across incremental training steps when layout fingerprints match.
+
+For torch_nntile, data transfer uses ``tensor.to("nntile")`` / ``.to("cpu")``
+only (no ``bind_data`` in the Python API). See ``docs/torch_nntile.md``.
+
+``bind_data()`` may only be called for tensors marked as input or output (or
+both).
 
 When a graph executes, intermediate tensors that are no longer used by
 remaining operations are automatically invalidated via `invalidate_submit()` to

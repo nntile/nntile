@@ -488,6 +488,7 @@ int main(int argc, char **argv)
     graph.enable_auto_tensor_name_phase_suffix(true);
 
     bool bound_optimizer_state = false;
+    bool bound_persistent_tensors = false;
 
     TokenMemoryMap train_mmap(args.train_bin);
     Seq2SeqLmBatchConfig lcfg;
@@ -588,10 +589,16 @@ int main(int argc, char **argv)
                 bound_optimizer_state = true;
             }
 
+            if (!bound_persistent_tensors)
+            {
+                graph.bind_parameters(runtime);
+                runtime.bind_data(decoder_attn_mask, dec_mask_data);
+                bound_persistent_tensors = true;
+            }
+
             runtime.bind_data(encoder_input_ids, mmap_batch.encoder_input_ids);
             runtime.bind_data(decoder_input_ids, mmap_batch.decoder_input_ids);
             runtime.bind_data(labels, mmap_batch.labels);
-            runtime.bind_data(decoder_attn_mask, dec_mask_data);
 
             auto t0 = std::chrono::high_resolution_clock::now();
             runtime.execute();
@@ -612,17 +619,6 @@ int main(int argc, char **argv)
             {
                 std::cout << "Batch " << static_cast<long long>(train_step)
                           << "  loss=" << loss_val << "  (" << us << " us)\n";
-            }
-
-            for (NNGraph::TensorNode *ptensor : graph.parameters())
-            {
-                sync_param_hint_from_runtime(runtime, ptensor);
-            }
-            for (const auto &[sname, stensor] :
-                optimizer->named_state_tensors())
-            {
-                (void) sname;
-                sync_param_hint_from_runtime(runtime, stensor);
             }
 
             ++train_step;

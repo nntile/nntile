@@ -289,11 +289,32 @@ at::Tensor copy_from(
     check_copy_devices(self, dst);
     if (is_nntile_device(self.device()) && dst.is_cpu())
     {
-        require_no_pending_graph(
-            "copy nntile tensor to CPU (call torch_nntile.execute() first)");
+        if (is_graph_mode())
+        {
+            if (has_pending_graph())
+            {
+                require_no_pending_graph(
+                    "copy nntile tensor to CPU (call torch_nntile.compile_graph() "
+                    "and torch_nntile.run() first)");
+            }
+            if (has_graph_session())
+            {
+                sync_runtime_to_nntile_storage(
+                    self.storage().data_ptr().get());
+            }
+        }
+        else
+        {
+            require_no_pending_graph(
+                "copy nntile tensor to CPU");
+        }
     }
     at::Tensor mutable_dst = dst;
     memcpy_tensors(self, mutable_dst);
+    if (self.is_cpu() && is_nntile_device(dst.device()) && is_graph_mode())
+    {
+        sync_nntile_storage_to_runtime(dst.storage().data_ptr().get());
+    }
     return dst;
 }
 
@@ -314,7 +335,7 @@ at::Scalar local_scalar_dense(const at::Tensor &self)
     TORCH_CHECK(self.numel() > 0, "Cannot convert empty tensor to scalar");
     require_no_pending_graph(
         "read a scalar from an nntile tensor "
-        "(call torch_nntile.execute() first)");
+        "(call torch_nntile.compile_graph() and torch_nntile.run() first)");
     return tensor_to_scalar(self);
 }
 

@@ -103,6 +103,9 @@ class NNGraph
     //! ``parameters()``).
     std::vector<std::pair<std::string, TensorNode *>> named_parameters() const;
 
+    //! Copy staged host parameter bytes into ``rt`` via ``bind_data``.
+    void bind_parameters(Runtime &rt) const;
+
     const std::vector<std::unique_ptr<TensorNode>> &tensors() const
     {
         return tensors_;
@@ -143,9 +146,9 @@ class NNGraph
     //! Discard TileGraph / Runtime / incremental lowering state produced by
     //! prior ``lower_and_compile`` calls so the next one lowers only the
     //! pending sealed phase into a fresh tile program. Use between repeated
-    //! identical training steps on one ``NNGraph``. Sync persistent tensor
-    //! bind_hints from ``Runtime`` first (weights, optimizer buffers). Throws
-    //! if ``finish_phase()`` has not been matched by ``lower_and_compile()``.
+    //! identical training steps on one ``NNGraph``. Initialized tile buffers
+    //! are preserved across reset. Throws if ``finish_phase()`` has not been
+    //! matched by ``lower_and_compile()``.
     void reset_incremental_tile_state();
 
     friend void compile_incremental_nn_phase(
@@ -156,7 +159,16 @@ class NNGraph
         Runtime &runtime,
         TileGraphIncrementalState &state,
         TensorNodeToTileMap &tile_map,
-        bool archive_phase);
+        bool archive_phase,
+        std::unordered_map<TensorGraph::TensorNode const *,
+            std::vector<std::shared_ptr<void>>> const *persisted_tiles,
+        std::unordered_map<TensorGraph::TensorNode const *, bool> const
+            *persisted_init);
+
+    //! Whether ``runtime()`` has host data in tiles for this tensor.
+    bool is_initialized(TensorNode const *t) const;
+
+    void invalidate_initialized(TensorNode const *t);
 
     //! Delegate to ``TensorGraph::seal_phase()`` (persistent = input/output).
     TensorGraph::PhaseSnapshot seal_phase();

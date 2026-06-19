@@ -83,8 +83,7 @@ class TensorGraph::TensorNode
     void mark_input(bool v = true) { is_input_ = v; }
     void mark_output(bool v = true) { is_output_ = v; }
 
-    // Bind hint: data copied into the lowered tile when
-    // Runtime::compile() runs.
+    // Host-side parameter bytes (checkpoint I/O); not applied until bind_data.
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t> *get_bind_hint() const;
 

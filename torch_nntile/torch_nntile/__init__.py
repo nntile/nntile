@@ -73,8 +73,8 @@ def init_context(
     """Configure StarPU workers before the first libnntile-backed op.
 
     ``runtime_mode`` is ``"eager"`` (compile and run each op immediately) or
-    ``"graph"`` (record ops into a shared TensorGraph; call :func:`execute`
-    to compile and run the pending graph).
+    ``"graph"`` (record ops into a shared TensorGraph; call :func:`compile_graph`
+    and :func:`run` to compile and execute the pending graph).
     """
     _C.init_context(
         ncpu,
@@ -90,12 +90,31 @@ def init_context(
 
 
 def execute() -> None:
-    """Compile and run the pending TensorGraph, then reset the recorder.
+    """Compile, run, and reset the pending TensorGraph (legacy graph mode).
 
-    Required in graph mode before reading nntile tensor data on the host.
-    No-op when the pending graph is empty (including in eager mode).
+    Prefer :func:`compile_graph` and :func:`run` for training loops that reuse
+    tile memory across steps.
     """
     _C.execute()
+
+
+def compile_graph() -> None:
+    """Lower and compile the pending TensorGraph into a persistent session."""
+    _C.compile_graph()
+
+
+def run() -> None:
+    """Execute the compiled graph session (no host data transfer)."""
+    _C.run()
+
+
+def reset_graph_session() -> None:
+    """Discard the compiled graph session and recorder state."""
+    _C.reset_graph_session()
+
+
+def has_graph_session() -> bool:
+    return _C.has_graph_session()
 
 
 def is_graph_mode() -> bool:
@@ -166,6 +185,10 @@ __all__ = [
     "_C",
     "init_context",
     "execute",
+    "compile_graph",
+    "run",
+    "reset_graph_session",
+    "has_graph_session",
     "is_graph_mode",
     "has_pending_graph",
     "is_context_initialized",

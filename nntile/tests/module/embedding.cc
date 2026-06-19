@@ -183,6 +183,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Runtime runtime(tile_graph);
     runtime.compile();
 
+    g.bind_parameters(runtime);
+
     std::vector<std::int64_t> index_data(4 * 5);
     for (Index i = 0; i < 20; ++i)
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
@@ -238,6 +240,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     Runtime runtime(tile_graph);
     runtime.compile();
+    g.bind_parameters(runtime);
     runtime.bind_data(index, index_data);
     runtime.execute();
     runtime.wait();
@@ -289,6 +292,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     Runtime runtime(tile_graph);
     runtime.compile();
+    g.bind_parameters(runtime);
     runtime.bind_data(index, index_data);
     runtime.execute();
     runtime.wait();

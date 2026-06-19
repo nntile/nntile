@@ -28,6 +28,7 @@
 #include "nntile/tile/graph_data_node.hh"
 #include "nntile/tile/graph_op_node.hh"
 #include "nntile/core/tile.hh"
+#include "nntile/tile/lowering_context.hh"
 
 #include <cstring>
 #include <set>
@@ -48,124 +49,6 @@ void allocate_tile_and_register(const TileGraph::TileNode *node,
 {
     auto t = std::make_shared<nntile::core::Tile<T>>(shape);
     tile_map[node] = t;
-}
-
-void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
-    const TileGraph::TensorDescriptor &td,
-    Runtime &rt)
-{
-    const TensorGraph::TensorNode *src = td.source_node;
-    if (src == nullptr)
-    {
-        return;
-    }
-    const std::vector<std::uint8_t> *hint = src->get_bind_hint();
-    if (hint == nullptr)
-    {
-        return;
-    }
-    const TensorAxisLayout *lay = tsch.find(src);
-    if (lay == nullptr)
-    {
-        throw std::runtime_error(
-            "Runtime::compile: missing tiling for multitile bind "
-            "hint");
-    }
-    switch (td.dtype)
-    {
-    case DataType::FP32:
-        tile_layout_io::
-            scatter_logical_tensor<float, nntile::fp32_t, float>(*lay,
-                td.tiles,
-                reinterpret_cast<const float *>(hint->data()),
-                hint->size() / sizeof(float),
-                rt);
-        break;
-    case DataType::FP32_FAST_TF32:
-        tile_layout_io::scatter_logical_tensor<float,
-            nntile::fp32_fast_tf32_t,
-            float>(*lay,
-            td.tiles,
-            reinterpret_cast<const float *>(hint->data()),
-            hint->size() / sizeof(nntile::fp32_fast_tf32_t),
-            rt);
-        break;
-    case DataType::FP32_FAST_FP16:
-        tile_layout_io::scatter_logical_tensor<float,
-            nntile::fp32_fast_fp16_t,
-            float>(*lay,
-            td.tiles,
-            reinterpret_cast<const float *>(hint->data()),
-            hint->size() / sizeof(nntile::fp32_fast_fp16_t),
-            rt);
-        break;
-    case DataType::FP32_FAST_BF16:
-        tile_layout_io::scatter_logical_tensor<float,
-            nntile::fp32_fast_bf16_t,
-            float>(*lay,
-            td.tiles,
-            reinterpret_cast<const float *>(hint->data()),
-            hint->size() / sizeof(nntile::fp32_fast_bf16_t),
-            rt);
-        break;
-    case DataType::FP64:
-        tile_layout_io::
-            scatter_logical_tensor<double, nntile::fp64_t, double>(*lay,
-                td.tiles,
-                reinterpret_cast<const double *>(hint->data()),
-                hint->size() / sizeof(double),
-                rt);
-        break;
-    case DataType::FP16:
-        tile_layout_io::
-            scatter_logical_tensor<float, nntile::fp16_t, float>(*lay,
-                td.tiles,
-                reinterpret_cast<const float *>(hint->data()),
-                hint->size() / sizeof(nntile::fp16_t),
-                rt);
-        break;
-    case DataType::BF16:
-        tile_layout_io::
-            scatter_logical_tensor<float, nntile::bf16_t, float>(*lay,
-                td.tiles,
-                reinterpret_cast<const float *>(hint->data()),
-                hint->size() / sizeof(nntile::bf16_t),
-                rt);
-        break;
-    case DataType::INT64:
-        tile_layout_io::scatter_logical_tensor<std::int64_t,
-            nntile::int64_t,
-            std::int64_t>(*lay,
-            td.tiles,
-            reinterpret_cast<const std::int64_t *>(hint->data()),
-            hint->size() / sizeof(std::int64_t),
-            rt);
-        break;
-    case DataType::BOOL:
-        tile_layout_io::
-            scatter_logical_tensor<bool, nntile::bool_t, bool>(*lay,
-                td.tiles,
-                reinterpret_cast<const bool *>(hint->data()),
-                hint->size() / sizeof(bool),
-                rt);
-        break;
-    default:
-        throw std::runtime_error(
-            "apply_multitile_bind_hint_from_source: unsupported dtype");
-    }
-}
-
-template <typename T>
-void apply_bind_hint_impl(
-    nntile::core::Tile<T> &tile, const std::vector<std::uint8_t> &data)
-{
-    if (data.size() != static_cast<size_t>(tile.nelems) * sizeof(T))
-    {
-        throw std::runtime_error("apply_bind_hint: data size mismatch");
-    }
-    auto tile_local = tile.acquire(STARPU_W);
-    std::memcpy(tile_local.get_ptr(), data.data(), data.size());
-    tile_local.release();
 }
 
 //! Track both inputs and outputs when an op is needed: many kernels read
@@ -210,92 +93,7 @@ DataType Runtime::get_dtype(
 void Runtime::compile()
 {
     allocate_missing_tiles();
-
-    for (const auto &node : graph_.tile_nodes())
-    {
-        const auto *td = node->tensor_descriptor();
-        if (td != nullptr && td->tiles.size() > static_cast<size_t>(1))
-        {
-            continue;
-        }
-        // Resolve bind hint: prefer source TensorNode, fall back to TileNode
-        const std::vector<std::uint8_t> *hint = nullptr;
-        if (td != nullptr && td->source_node != nullptr)
-        {
-            hint = td->source_node->get_bind_hint();
-        }
-        if (hint == nullptr)
-        {
-            hint = node->get_bind_hint();
-        }
-        if (hint == nullptr)
-        {
-            continue;
-        }
-        const std::string &name = node->name();
-        DataType dtype = node->dtype();
-        TileGraph::TileNode *tile_ptr = node.get();
-        switch (dtype)
-        {
-        case DataType::FP32:
-            apply_bind_hint_impl<nntile::fp32_t>(
-                get_tile<nntile::fp32_t>(tile_ptr), *hint);
-            break;
-        case DataType::FP32_FAST_TF32:
-            apply_bind_hint_impl<nntile::fp32_fast_tf32_t>(
-                get_tile<nntile::fp32_fast_tf32_t>(tile_ptr), *hint);
-            break;
-        case DataType::FP32_FAST_FP16:
-            apply_bind_hint_impl<nntile::fp32_fast_fp16_t>(
-                get_tile<nntile::fp32_fast_fp16_t>(tile_ptr), *hint);
-            break;
-        case DataType::FP32_FAST_BF16:
-            apply_bind_hint_impl<nntile::fp32_fast_bf16_t>(
-                get_tile<nntile::fp32_fast_bf16_t>(tile_ptr), *hint);
-            break;
-        case DataType::FP64:
-            apply_bind_hint_impl<nntile::fp64_t>(
-                get_tile<nntile::fp64_t>(tile_ptr), *hint);
-            break;
-        case DataType::FP16:
-            apply_bind_hint_impl<nntile::fp16_t>(
-                get_tile<nntile::fp16_t>(tile_ptr), *hint);
-            break;
-        case DataType::BF16:
-            apply_bind_hint_impl<nntile::bf16_t>(
-                get_tile<nntile::bf16_t>(tile_ptr), *hint);
-            break;
-        case DataType::INT64:
-            apply_bind_hint_impl<nntile::int64_t>(
-                get_tile<nntile::int64_t>(tile_ptr), *hint);
-            break;
-        case DataType::BOOL:
-            apply_bind_hint_impl<nntile::bool_t>(
-                get_tile<nntile::bool_t>(tile_ptr), *hint);
-            break;
-        default:
-            throw std::runtime_error(
-                "apply_bind_hint: unsupported data type for " + name);
-        }
-    }
-
-    if (const TensorGraphTiling *tsch = graph_.tiling_scheme())
-    {
-        for (const auto &uptr : graph_.tensor_descriptors())
-        {
-            const TileGraph::TensorDescriptor &td = *uptr;
-            if (td.tiles.size() <= static_cast<size_t>(1))
-            {
-                continue;
-            }
-            if (td.source_node == nullptr ||
-                td.source_node->get_bind_hint() == nullptr)
-            {
-                continue;
-            }
-            apply_multitile_bind_hint_from_source(*tsch, td, *this);
-        }
-    }
+    tile_adoption_.clear();
 
     execution_order_.clear();
     execution_order_.reserve(graph_.ops().size());
@@ -309,6 +107,164 @@ void Runtime::compile()
     execution_schedule_ = ExecutionSchedule{};
 
     compiled_ = true;
+}
+
+void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
+{
+    if (tensor != nullptr)
+    {
+        init_state_[tensor] = true;
+    }
+}
+
+bool Runtime::tensor_requires_init_at_execute(
+    TileGraph::TensorDescriptor const &desc) const
+{
+    if (desc.source_node == nullptr)
+    {
+        return false;
+    }
+    if (!tile_bind_detail::tensor_desc_has_input_tile(desc))
+    {
+        return false;
+    }
+    std::unordered_set<const TileGraph::TileNode *> produced;
+    for (const auto &op : execution_order_)
+    {
+        for (const auto *out : op->outputs())
+        {
+            if (out != nullptr)
+            {
+                produced.insert(out);
+            }
+        }
+    }
+    bool consumed = false;
+    for (TileGraph::TileNode *tile : desc.tiles)
+    {
+        if (tile == nullptr || !tile->is_input())
+        {
+            continue;
+        }
+        if (produced.count(tile) != 0)
+        {
+            continue;
+        }
+        for (const auto &op : execution_order_)
+        {
+            for (const auto *in : op->inputs())
+            {
+                if (in == tile)
+                {
+                    consumed = true;
+                    break;
+                }
+            }
+            if (consumed)
+            {
+                break;
+            }
+        }
+        if (consumed)
+        {
+            break;
+        }
+    }
+    return consumed;
+}
+
+void Runtime::validate_initialized_inputs_at_compile()
+{
+    for (const auto &uptr : graph_.tensor_descriptors())
+    {
+        const TileGraph::TensorDescriptor &desc = *uptr;
+        if (!tensor_requires_init_at_execute(desc))
+        {
+            continue;
+        }
+        if (!is_initialized(desc.source_node))
+        {
+            throw std::runtime_error(
+                "Input is not initialized: " + desc.tensor_name);
+        }
+    }
+}
+
+void Runtime::export_initialized_tiles(
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> &out) const
+{
+    out.clear();
+    for (const auto &[tensor, initialized] : init_state_)
+    {
+        if (!initialized || tensor == nullptr)
+        {
+            continue;
+        }
+        const TileGraph::TensorDescriptor *desc =
+            graph_.get_tensor_descriptor(tensor);
+        if (desc == nullptr)
+        {
+            continue;
+        }
+        std::vector<std::shared_ptr<void>> ptrs;
+        ptrs.reserve(desc->tiles.size());
+        for (TileGraph::TileNode *tile : desc->tiles)
+        {
+            auto it = tile_map_.find(tile);
+            if (it == tile_map_.end())
+            {
+                ptrs.clear();
+                break;
+            }
+            ptrs.push_back(it->second);
+        }
+        if (!ptrs.empty())
+        {
+            out[tensor] = std::move(ptrs);
+        }
+    }
+}
+
+void Runtime::stage_persisted_tiles(
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> const &persisted,
+    TensorNodeToTileMap const &tile_map)
+{
+    tile_adoption_.clear();
+    for (const auto &[tensor, saved_ptrs] : persisted)
+    {
+        auto tm_it = tile_map.find(tensor);
+        if (tm_it == tile_map.end())
+        {
+            continue;
+        }
+        const std::vector<TileGraph::TileNode *> &new_tiles = tm_it->second;
+        if (new_tiles.size() != saved_ptrs.size())
+        {
+            continue;
+        }
+        for (size_t i = 0; i < new_tiles.size(); ++i)
+        {
+            if (new_tiles[i] != nullptr)
+            {
+                tile_adoption_[new_tiles[i]] = saved_ptrs[i];
+            }
+        }
+    }
+}
+
+void Runtime::restore_persisted_init_state(
+    std::unordered_map<TensorGraph::TensorNode const *, bool> const
+        &persisted_init)
+{
+    for (const auto &[tensor, initialized] : persisted_init)
+    {
+        if (tensor != nullptr && initialized)
+        {
+            init_state_[tensor] = true;
+        }
+    }
 }
 
 ExecutionSchedule Runtime::generate_round_robin_execution_schedule() const
@@ -491,7 +447,14 @@ void Runtime::allocate_missing_tiles()
 {
     for (const auto &node : graph_.tile_nodes())
     {
-        if (tile_map_.count(node.get()) != 0)
+        const TileGraph::TileNode *tile_key = node.get();
+        auto adopt_it = tile_adoption_.find(tile_key);
+        if (adopt_it != tile_adoption_.end())
+        {
+            tile_map_[tile_key] = adopt_it->second;
+            continue;
+        }
+        if (tile_map_.count(tile_key) != 0)
         {
             continue;
         }
@@ -697,6 +660,7 @@ void Runtime::eliminate_dead_ops()
 void Runtime::execute()
 {
     require_compiled();
+    validate_initialized_inputs_at_compile();
     bool const use_static_schedule = has_execution_schedule();
     for (size_t i = 0; i < execution_order_.size(); ++i)
     {

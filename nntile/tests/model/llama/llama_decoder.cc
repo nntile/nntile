@@ -193,6 +193,7 @@ void decoder_forward_compare_ref(const DecoderFixtureSpec &fx)
 
         Runtime runtime(tile_graph);
         runtime.compile();
+        g.bind_parameters(runtime);
         runtime.bind_data(input, input_data);
         bind_rope_inputs(runtime, rope);
         runtime.execute();
@@ -260,6 +261,7 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec &fx)
 
         Runtime runtime(tile_graph);
         runtime.compile();
+        g.bind_parameters(runtime);
         runtime.bind_data(input, input_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_rope_inputs(runtime, rope);

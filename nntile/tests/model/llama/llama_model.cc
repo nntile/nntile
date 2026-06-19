@@ -336,6 +336,7 @@ void model_forward_compare_ref(const ModelFixtureSpec &fx)
 
         Runtime runtime(tile_graph);
         runtime.compile();
+        g.bind_parameters(runtime);
         runtime.bind_data(input_ids, ids_data);
         bind_rope_inputs(runtime, rope);
         bind_mask_input(runtime, mask, mask_bytes);
