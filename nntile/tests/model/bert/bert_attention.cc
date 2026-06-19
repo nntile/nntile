@@ -12,6 +12,7 @@
 #include "nntile/model/bert/bert_attention.hh"
 
 #include "context_fixture.hh"
+#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/bert/bert_config.hh"
@@ -163,6 +164,7 @@ void bert_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
+        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
         runtime.bind_data(input, input_data);
         bind_mask_input(runtime, mask, mask_bytes);
         runtime.execute();
@@ -222,6 +224,7 @@ void bert_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
+        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
         runtime.bind_data(input, input_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_mask_input(runtime, mask, mask_bytes);

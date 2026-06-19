@@ -12,6 +12,7 @@
 #include "nntile/model/bert/bert_layer.hh"
 
 #include "context_fixture.hh"
+#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/roberta/roberta_config.hh"
@@ -133,6 +134,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
+        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
         runtime.bind_data(input, input_data);
         runtime.execute();
         runtime.wait();

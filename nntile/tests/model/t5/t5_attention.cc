@@ -12,6 +12,7 @@
 #include "nntile/model/t5/t5_attention.hh"
 
 #include "context_fixture.hh"
+#include "test_runtime_bind_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/io/safetensors.hh"
 #include "nntile/model/t5/t5_config.hh"
@@ -134,6 +135,7 @@ void t5_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
+        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
         runtime.bind_data(input, input_data);
         bind_mask_input(runtime, mask, mask_bytes);
         runtime.execute();
@@ -194,6 +196,7 @@ void t5_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
+        nntile::test::bind_hints_from_tensor_graph(runtime, g.tensor_graph());
         runtime.bind_data(input, input_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_mask_input(runtime, mask, mask_bytes);
