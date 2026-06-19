@@ -539,6 +539,7 @@ int main(int argc, char **argv)
     const Scalar ce_scale = 1.0f / static_cast<Scalar>(n_seq * n_batch);
 
     bool bound_optimizer_state = false;
+    bool bound_persistent_tensors = false;
 
     std::optional<ExecutionSchedule> cached_execution_schedule;
     bool use_round_robin_schedule = false;
@@ -683,10 +684,19 @@ int main(int argc, char **argv)
                 bound_optimizer_state = true;
             }
 
+            if (!bound_persistent_tensors)
+            {
+                for (NNGraph::TensorNode *ptensor : graph.parameters())
+                {
+                    runtime.bind_data_from_hint(ptensor);
+                }
+                runtime.bind_data(position_ids, pos_data);
+                runtime.bind_data(attn_mask, mask_data);
+                bound_persistent_tensors = true;
+            }
+
             runtime.bind_data(input_ids, mmap_batch.input_ids);
             runtime.bind_data(labels, mmap_batch.target_ids);
-            runtime.bind_data(position_ids, pos_data);
-            runtime.bind_data(attn_mask, mask_data);
 
             auto t0 = std::chrono::high_resolution_clock::now();
             runtime.execute();
@@ -707,17 +717,6 @@ int main(int argc, char **argv)
             {
                 std::cout << "Batch " << static_cast<long long>(train_step)
                           << "  loss=" << loss_val << "  (" << us << " us)\n";
-            }
-
-            for (NNGraph::TensorNode *ptensor : graph.parameters())
-            {
-                sync_param_hint_from_runtime(runtime, ptensor);
-            }
-            for (const auto &[sname, stensor] :
-                optimizer->named_state_tensors())
-            {
-                (void) sname;
-                sync_param_hint_from_runtime(runtime, stensor);
             }
 
             ++train_step;

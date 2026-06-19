@@ -266,8 +266,9 @@ def train_full_batch_step(
         if print_axis_groups and torch_nntile.is_graph_mode():
             torch_nntile.print_axis_groups()
         if torch_nntile.is_graph_mode():
-            torch_nntile.execute()
-        return float(loss.detach().cpu().item())
+            torch_nntile.compile_graph()
+            torch_nntile.run()
+        return float(loss.to("cpu").item())
 
     loss = F.cross_entropy(logits, targets)
     loss.backward()

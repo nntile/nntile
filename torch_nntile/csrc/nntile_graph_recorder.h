@@ -20,6 +20,18 @@ void require_no_pending_graph(const char *op_name);
 
 void execute_pending_graph();
 
+void compile_graph();
+
+void run_graph();
+
+void reset_graph_session();
+
+bool has_graph_session();
+
+void sync_nntile_storage_to_runtime(void *data_ptr);
+
+void sync_runtime_to_nntile_storage(void *data_ptr);
+
 void maybe_execute_after_record();
 
 void set_axis_group_name(

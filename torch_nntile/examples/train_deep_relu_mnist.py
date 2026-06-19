@@ -10,8 +10,8 @@
 Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 (same tensor-op chain as ``NNCrossEntropyOp`` in libnntile). Logits are
 ``[batch, classes]`` (class dim last). The scalar loss lives on
-``device="nntile"``; call ``torch_nntile.execute()`` in graph mode before
-reading it on the host.
+``device="nntile"``; read it with ``loss.to("cpu")`` after ``compile_graph()`` and
+``run()`` in graph mode.
 
 Axis-group naming and tiling (optional) are configured in this script:
 
@@ -134,9 +134,13 @@ def train_on_device(
 ) -> list[float]:
     if device == "nntile":
         x = images.to("nntile")
+        y = labels.to("nntile")
+        if axis_group_tiling is not None:
+            for name, tile_sizes in axis_group_tiling.items():
+                torch_nntile.set_axis_group_tiling(name, tile_sizes)
     else:
         x = images
-    y = labels if device == "cpu" else labels  # CE bridge expects CPU targets
+        y = labels
 
     losses: list[float] = []
     for epoch in range(epochs):

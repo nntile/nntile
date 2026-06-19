@@ -22,7 +22,7 @@ CXX=g++ pip install -e ./torch_nntile --no-build-isolation
 | Mode | Behavior |
 |------|----------|
 | `eager` (default) | Each op records a micro-graph and runs it immediately |
-| `graph` | Ops append to one `TensorGraph` until `torch_nntile.execute()` |
+| `graph` | Ops append to one `TensorGraph`; use `compile_graph()` + `run()` |
 
 ```python
 import torch
@@ -32,11 +32,17 @@ torch_nntile.init_context(ncpu=4, ncuda=0, cpu_fallback=False, runtime_mode="gra
 x = torch.randn(32, 128).to("nntile")
 y = model(x)
 loss.backward()
-torch_nntile.execute()  # required before .cpu() / .item() on nntile tensors
+torch_nntile.compile_graph()
+torch_nntile.run()
+loss_cpu = loss.to("cpu")  # host readout after run
 ```
 
-Training helper `torch_nntile.training.train_full_batch_step` calls `execute()`
-automatically in graph mode.
+Data transfer uses **`.to("nntile")` in** and **`.to("cpu")` out** — there is no
+`bind_data` in torch_nntile. Legacy `execute()` still compiles, runs, and resets
+in one call.
+
+Training helper `torch_nntile.training.train_full_batch_step` calls
+`compile_graph()` and `run()` in graph mode; read loss with `loss.to("cpu")`.
 
 ## Axis-group naming and tiling
 
@@ -48,14 +54,16 @@ training (`name_gpt2_training_axis_groups` + `apply_flat_tiling_spec`):
 2. Record forward/backward into the pending graph (ops merge related axes).
 3. **Set tiling** by axis group name.
 4. Optionally **inspect** axis groups before lowering.
-5. **`execute()`** — tiling is applied, then `TileGraph::from_tensor_graph`.
+5. **`compile_graph()`** / **`run()`** — tiling is applied, then
+   `TileGraph::from_tensor_graph` and `Runtime::execute()`. Host I/O is only via
+   `.to("nntile")` / `.to("cpu")`.
 
 ### API
 
 | Function | Description |
 |----------|-------------|
 | `set_axis_group_name(tensor, {dim: name, ...})` | Name axis groups for listed tensor dimensions. Names propagate through merged groups. |
-| `set_axis_group_tiling(name, tile_sizes)` | `tile_sizes` is `int` (uniform) or `list[int]` (heterogeneous; must sum to extent). Stored until `execute()`. |
+| `set_axis_group_tiling(name, tile_sizes)` | `tile_sizes` is `int` (uniform) or `list[int]` (heterogeneous; must sum to extent). Stored until `compile_graph()`. |
 | `format_axis_groups()` | Return a string summary of pending graph axis groups (like C++ `TensorGraph::to_string`). |
 | `print_axis_groups()` | Print that summary to stdout. Shows `pending_tile=` when tiling is registered but not yet applied. |
 
@@ -74,7 +82,8 @@ logits = model(x)  # ops merge axes across the network
 torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
 torch_nntile.set_axis_group_tiling("features", 64)
 torch_nntile.print_axis_groups()
-torch_nntile.execute()
+torch_nntile.compile_graph()
+torch_nntile.run()
 ```
 
 Example `format_axis_groups()` / `print_axis_groups()` output:
@@ -88,7 +97,8 @@ Axis groups:
   extent=10 name='classes' members=2
 ```
 
-After `execute()`, the recorder resets; call `format_axis_groups()` only while a
+After `compile_graph()` + `run()`, pending ops are cleared but the compiled
+session may persist for tile reuse. Call `format_axis_groups()` only while a
 graph is pending (`has_pending_graph()`).
 
 ### Training helper hooks

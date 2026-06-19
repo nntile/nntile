@@ -225,7 +225,11 @@ void compile_incremental_nn_phase(
     Runtime& runtime,
     TileGraphIncrementalState& state,
     TensorNodeToTileMap& tile_map,
-    bool archive_phase)
+    bool archive_phase,
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> const *persisted_tiles,
+    std::unordered_map<TensorGraph::TensorNode const *, bool> const
+        *persisted_init)
 {
     if(exec_phase.tensor_graph == nullptr)
     {
@@ -241,7 +245,15 @@ void compile_incremental_nn_phase(
         state,
         tile_map);
     std::size_t const tile_op_end = tile_graph.num_ops();
+    if(persisted_tiles != nullptr && !persisted_tiles->empty())
+    {
+        runtime.stage_persisted_tiles(*persisted_tiles, tile_map);
+    }
     runtime.compile();
+    if(persisted_init != nullptr && !persisted_init->empty())
+    {
+        runtime.restore_persisted_init_state(*persisted_init);
+    }
     if(archive_phase)
     {
         nn_graph_for_suffix.push_tensor_phase_archive(TensorPhaseArchiveEntry{

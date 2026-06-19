@@ -37,6 +37,7 @@
 #include <nntile/tensor/tensor_graph_tiling.hh>
 #include <nntile/tile/graph_data_node.hh>
 #include <nntile/tile/graph_decl.hh>
+#include <nntile/tile/lowering_context.hh>
 #include <nntile/core/tile.hh>
 
 namespace nntile
@@ -113,6 +114,35 @@ class Runtime
 
     bool is_compiled() const { return compiled_; }
 
+    //! Whether host data was copied into tiles for this logical tensor.
+    bool is_initialized(TensorGraph::TensorNode const *tensor) const;
+
+    bool is_initialized(NNGraph::TensorNode const *tensor) const;
+
+    //! Clear initialized flag (caller must ``bind_data`` again before execute).
+    void invalidate_initialized(TensorGraph::TensorNode const *tensor);
+
+    void invalidate_initialized(NNGraph::TensorNode const *tensor);
+
+    //! Copy bytes from ``tensor->get_bind_hint()`` into tiles (explicit only).
+    void bind_data_from_hint(TensorGraph::TensorNode const *tensor);
+
+    void bind_data_from_hint(NNGraph::TensorNode const *tensor);
+
+    //! Snapshot initialized tile buffers keyed by logical tensor (incremental reset).
+    void export_initialized_tiles(
+        std::unordered_map<TensorGraph::TensorNode const *,
+            std::vector<std::shared_ptr<void>>> &out) const;
+
+    void stage_persisted_tiles(
+        std::unordered_map<TensorGraph::TensorNode const *,
+            std::vector<std::shared_ptr<void>>> const &persisted,
+        TensorNodeToTileMap const &tile_map);
+
+    void restore_persisted_init_state(
+        std::unordered_map<TensorGraph::TensorNode const *, bool> const
+            &persisted_init);
+
     ExecutionSchedule const &execution_schedule() const
     {
         return execution_schedule_;
@@ -149,9 +179,27 @@ class Runtime
     void write_execution_schedule_json(std::string const &path) const;
 
   private:
+    friend class NNGraph;
+    friend void compile_incremental_nn_phase(
+        FinishedTensorPhase const &,
+        NNGraph &,
+        TensorGraphTiling const &,
+        TileGraph &,
+        Runtime &,
+        TileGraphIncrementalState &,
+        TensorNodeToTileMap &,
+        bool,
+        std::unordered_map<TensorGraph::TensorNode const *,
+            std::vector<std::shared_ptr<void>>> const *,
+        std::unordered_map<TensorGraph::TensorNode const *, bool> const *);
+
     void allocate_missing_tiles();
     void eliminate_dead_ops();
     void require_compiled() const;
+    void mark_initialized(TensorGraph::TensorNode const *tensor);
+    bool tensor_requires_init_at_execute(
+        TileGraph::TensorDescriptor const &desc) const;
+    void validate_initialized_inputs_at_compile();
 
     template <typename T, typename NntileT, typename CastT>
     void bind_data_impl(const TileNode *node, const T *data, size_t count);
@@ -166,6 +214,8 @@ class Runtime
     std::string execution_schedule_file_cache_path_;
     bool compiled_ = false;
     int starpu_worker_hint_ = -1;
+    std::unordered_map<TensorGraph::TensorNode const *, bool> init_state_;
+    std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
 };
 
 } // namespace nntile
@@ -544,6 +594,7 @@ void Runtime::bind_data(
                 "logical tensor '" +
                 tensor->name() + "'");
         }
+        mark_initialized(tensor);
         return;
     }
     if (desc->tiles.empty())
@@ -596,6 +647,7 @@ void Runtime::bind_data(
     default:
         throw std::runtime_error("Unsupported data type for binding");
     }
+    mark_initialized(tensor);
 }
 
 template <typename T>
@@ -947,6 +999,57 @@ inline DataType Runtime::get_dtype(
             "Runtime::get_dtype: NN tensor must be non-null");
     }
     return get_dtype(tensor->data());
+}
+
+inline bool Runtime::is_initialized(
+    TensorGraph::TensorNode const *tensor) const
+{
+    if (tensor == nullptr)
+    {
+        return false;
+    }
+    auto it = init_state_.find(tensor);
+    return it != init_state_.end() && it->second;
+}
+
+inline bool Runtime::is_initialized(NNGraph::TensorNode const *tensor) const
+{
+    if (tensor == nullptr)
+    {
+        return false;
+    }
+    return is_initialized(tensor->data());
+}
+
+inline void Runtime::invalidate_initialized(
+    TensorGraph::TensorNode const *tensor)
+{
+    if (tensor == nullptr)
+    {
+        throw std::invalid_argument(
+            "Runtime::invalidate_initialized: tensor must be non-null");
+    }
+    init_state_[tensor] = false;
+}
+
+inline void Runtime::invalidate_initialized(NNGraph::TensorNode const *tensor)
+{
+    if (tensor == nullptr)
+    {
+        throw std::invalid_argument(
+            "Runtime::invalidate_initialized: NN tensor must be non-null");
+    }
+    invalidate_initialized(tensor->data());
+}
+
+inline void Runtime::bind_data_from_hint(NNGraph::TensorNode const *tensor)
+{
+    if (tensor == nullptr)
+    {
+        throw std::invalid_argument(
+            "Runtime::bind_data_from_hint: NN tensor must be non-null");
+    }
+    bind_data_from_hint(tensor->data());
 }
 
 } // namespace nntile

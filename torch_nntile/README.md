@@ -47,17 +47,19 @@ torch_nntile.init_context(
 )
 y = model(x)              # recorded, not executed yet
 loss.backward()           # backward ops recorded too
-torch_nntile.execute()    # compile + run the full graph, then reset
-z = y.cpu()               # safe after execute()
+torch_nntile.compile_graph()
+torch_nntile.run()
+z = y.to("cpu")           # host readout after run
 ```
 
 In graph mode, forward and backward can stay in one pending graph (StarPU
-resolves dependencies). Call ``torch_nntile.execute()`` to compile and run
-the batch. Host reads from **nntile** tensors (``.cpu()``, ``.to("cpu")``,
-``.item()``) raise until ``execute()`` has run. Copies **to**
-``device="nntile"`` do not flush the graph. Training helpers such as
-``train_full_batch_step`` call ``execute()`` automatically in graph mode
-before returning the scalar loss.
+resolves dependencies). Call ``torch_nntile.compile_graph()`` then
+``torch_nntile.run()`` each step. Host reads from **nntile** tensors use
+``.to("cpu")`` or ``.cpu()`` after ``run()`` (data is synced from tile memory).
+Copies **to** ``device="nntile"`` move host storage into tiles via ``.to()``;
+there is no ``bind_data`` in torch_nntile. Training helpers such as
+``train_full_batch_step`` call ``compile_graph()`` + ``run()`` in graph mode
+and return ``loss.to("cpu").item()``.
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 
@@ -67,14 +69,14 @@ Full reference: [docs/torch_nntile.md](../docs/torch_nntile.md).
 
 Tiling is configured on named **axis groups** in the recorded `TensorGraph`
 (mirroring the C++ `AxisDescriptor` workflow). Name dimensions from a tensor,
-then set tile sizes by group name before ``execute()``.
+then set tile sizes by group name before ``compile_graph()``.
 
 | API | Purpose |
 |-----|---------|
 | `set_axis_group_name(tensor, {dim: name})` | Name axis groups (partial dims OK) |
 | `set_axis_group_tiling(name, tile_sizes)` | Uniform `int` or heterogeneous `list` |
 | `format_axis_groups()` | String summary of pending axis groups |
-| `print_axis_groups()` | Print summary (includes `pending_tile=` before execute) |
+| `print_axis_groups()` | Print summary (includes `pending_tile=` before compile) |
 
 ```python
 torch_nntile.init_context(
@@ -85,7 +87,8 @@ torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
 logits = model(x)
 torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
 torch_nntile.print_axis_groups()
-torch_nntile.execute()
+torch_nntile.compile_graph()
+torch_nntile.run()
 ```
 
 Models do **not** assign axis names internally. The MNIST example defines
@@ -132,8 +135,8 @@ comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
 Cross-entropy is evaluated on nntile via `torch_nntile.training.cross_entropy`
 (same tensor-op chain as `NNCrossEntropyOp` in libnntile). Logits use **class
 dim last** (`[..., C]`); labels match logits without the class axis (`...`).
-The scalar loss lives on ``device="nntile"``; call ``torch_nntile.execute()`` in
-graph mode before reading it on the host. Backward keeps ``grad_output`` as a
+The scalar loss lives on ``device="nntile"``; use ``loss.to("cpu")`` after
+``compile_graph()`` and ``run()`` in graph mode. Backward keeps ``grad_output`` as a
 graph tensor (no host scalar read during recording) and broadcasts it to the
 label shape with one ``scale_slice`` per label dimension, then applies
 ``multiply_slice`` along the class axis. Optimizer steps use fused

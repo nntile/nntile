@@ -33,7 +33,9 @@
 
 // Standard library headers
 #include <map>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // NNTile headers
@@ -79,6 +81,10 @@ void compile_incremental_nn_phase(
     Runtime& runtime,
     TileGraphIncrementalState& state,
     TensorNodeToTileMap& tile_map,
-    bool archive_phase = true);
+    bool archive_phase = true,
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> const *persisted_tiles = nullptr,
+    std::unordered_map<TensorGraph::TensorNode const *, bool> const
+        *persisted_init = nullptr);
 
 } // namespace nntile

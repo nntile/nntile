@@ -230,7 +230,23 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "execute",
         &torch_nntile::execute_pending_graph,
-        "Compile and run the pending TensorGraph (graph mode)");
+        "Compile, run, and reset the pending TensorGraph (legacy graph mode)");
+    m.def(
+        "compile_graph",
+        &torch_nntile::compile_graph,
+        "Lower and compile the pending TensorGraph into a persistent session");
+    m.def(
+        "run",
+        &torch_nntile::run_graph,
+        "Execute the compiled graph session (no data transfer)");
+    m.def(
+        "reset_graph_session",
+        &torch_nntile::reset_graph_session,
+        "Discard the compiled graph session and recorder state");
+    m.def(
+        "has_graph_session",
+        &torch_nntile::has_graph_session,
+        "Whether a compiled graph session exists");
     m.def(
         "has_pending_graph",
         &torch_nntile::has_pending_graph,

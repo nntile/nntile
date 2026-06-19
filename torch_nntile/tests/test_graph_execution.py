@@ -85,10 +85,11 @@ def test_cpu_copy_requires_execute():
         w = torch.randn(4, 3).to("nntile")
         y = torch.nn.functional.relu(torch.nn.functional.linear(x, w, None))
         assert torch_nntile.has_pending_graph()
-        with pytest.raises(RuntimeError, match="torch_nntile.execute"):
+        with pytest.raises(RuntimeError, match="compile_graph"):
             y.cpu()
-        torch_nntile.execute()
-        y_cpu = y.cpu()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        y_cpu = y.to("cpu")
         assert y_cpu.shape == (2, 4)
         """
     )
@@ -258,7 +259,7 @@ def test_train_full_batch_step_graph_mode():
         model.load_state_dict(model_cpu.state_dict())
         before = clone_model_weights(model)
         x = torch.randn(8, model.input_dim).to("nntile")
-        y = torch.randint(0, model.output_dim, (8,))
+        y = torch.randint(0, model.output_dim, (8,)).to("nntile")
         loss = train_full_batch_step(model, x, y, learning_rate=0.1)
         assert math.isfinite(loss)
         after = clone_model_weights(model)

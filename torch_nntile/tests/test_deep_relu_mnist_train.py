@@ -78,13 +78,14 @@ def test_mnist_full_batch_training_matches_cpu(mnist_full_batch):
     cpu_losses: list[float] = []
     nnt_losses: list[float] = []
     x_nnt = images.to("nntile")
+    y_nnt = labels.to("nntile")
 
     for _ in range(epochs):
         cpu_losses.append(
             train_full_batch_step(model_cpu, images, labels, lr)
         )
         nnt_losses.append(
-            train_full_batch_step(model_nnt, x_nnt, labels, lr)
+            train_full_batch_step(model_nnt, x_nnt, y_nnt, lr)
         )
 
     for loss_cpu, loss_nnt in zip(cpu_losses, nnt_losses):
