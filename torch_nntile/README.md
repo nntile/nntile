@@ -92,15 +92,11 @@ torch_nntile.run()
 ```
 
 Models do **not** assign axis names internally. The MNIST example defines
-``name_mnist_axis_groups`` and passes it to ``train_full_batch_step``:
+``name_mnist_axis_groups`` (batch, features, classes, and ``hidden`` on each
+linear weight/grad/velocity) and passes it to ``train_full_batch_step``.
 
-```python
-def name_mnist_axis_groups(x, logits):
-    torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
-    torch_nntile.set_axis_group_name(logits, {1: "classes"})
-```
-
-CLI: ``--axis-tiling NAME=SIZES`` (repeatable), ``--print-axis-groups``.
+CLI: ``--axis-tiling NAME=SIZES`` (repeatable), ``--print-axis-groups``,
+``--restrict-cuda``, ``--verbose``.
 
 Tests: `pytest -vv torch_nntile/tests/test_axis_group_tiling.py`
 
@@ -143,17 +139,31 @@ label shape with one ``scale_slice`` per label dimension, then applies
 ``tensor::sgd_step`` via ``torch_nntile.training.SGD`` (no per-parameter CPU
 round-trip).
 
-Axis naming (`batch`, `features`, `classes`) is in the example script — see
-[docs/torch_nntile.md](../docs/torch_nntile.md).
+Axis naming (`batch`, `features`, `hidden`, `classes`) is in the example script — see
+[docs/torch_nntile.md](../docs/torch_nntile.md) for full run instructions and
+expected output.
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
-python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5
-python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 --runtime-mode graph
-python torch_nntile/examples/train_deep_relu_mnist.py --epochs 5 \
-  --print-axis-groups \
-  --axis-tiling batch=15000,15000,15000,15000,15000
+
+# CPU StarPU workers (nntile path); reference PyTorch path is always CPU
+STARPU_NCPU=4 STARPU_NCUDA=0 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --runtime-mode graph --epochs 5
+
+# CUDA StarPU workers only
+STARPU_NCPU=0 STARPU_NCUDA=2 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --runtime-mode graph --restrict-cuda --epochs 5 \
+    --axis-tiling batch=15000,15000,15000,15000 \
+    --axis-tiling features=392,392 \
+    --axis-tiling hidden=128,128
 ```
+
+**Parity expectations:** with CPU workers, per-epoch loss diffs are ~1e-6 or
+smaller. With CUDA workers, **loss** diffs of ~1e-4 are acceptable; **weights**
+should still agree to ~1e-8. See [docs/torch_nntile.md](../docs/torch_nntile.md)
+for sample output.
 
 Integration test (downloads MNIST, 3 epochs, compares losses and weights):
 
@@ -229,6 +239,11 @@ torch_nntile.restore_where()   # default placement again
 `init_context()` must be called before the first libnntile-backed operation
 (e.g. `a + b` on `device="nntile"`). `restrict_cpu()` / `restrict_cuda()` /
 `restore_where()` auto-create the context with defaults if needed.
+
+When CUDA workers are enabled (`STARPU_NCUDA > 0`), use ``--restrict-cuda`` in
+the MNIST example (or call ``restrict_cuda()``) and shut StarPU down at exit.
+The example calls ``torch_nntile.wait()`` and ``torch_nntile.shutdown_context()``
+in a ``finally`` block; ``init_context()`` also registers an ``atexit`` hook.
 
 ## macOS / PyTorch 2.12
 

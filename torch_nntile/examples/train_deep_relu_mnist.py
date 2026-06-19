@@ -17,18 +17,29 @@ Axis-group naming and tiling (optional) are configured in this script:
 
 - ``batch`` — input/logits batch dimension
 - ``features`` — flattened image dimension (784)
+- ``hidden`` — hidden MLP width (``--hidden-dim``); named on each linear
+  weight/grad/velocity matrix row or column of that size
 - ``classes`` — output logits dimension (10)
 
-Example with batch tiling in graph mode::
+Example with batch and hidden tiling in graph mode::
 
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
+    STARPU_NCPU=0 STARPU_NCUDA=2 \\
     python torch_nntile/examples/train_deep_relu_mnist.py \\
         --runtime-mode graph \\
-        --print-axis-groups \\
-        --axis-tiling batch=15000,15000,15000,15000,15000
+        --restrict-cuda \\
+        --epochs 5 \\
+        --axis-tiling batch=15000,15000,15000,15000 \\
+        --axis-tiling features=392,392 \\
+        --axis-tiling hidden=128,128
+
+Run instructions and expected CPU vs CUDA output:
+``docs/torch_nntile.md`` (DeepReLU MNIST example section).
 """
 
 from __future__ import annotations
+
+from typing import Callable
 
 import argparse
 import sys
@@ -100,10 +111,40 @@ def build_axis_group_tiling(
     return tiling
 
 
-def name_mnist_axis_groups(x: torch.Tensor, logits: torch.Tensor) -> None:
+def _name_hidden_on_matrix(tensor: torch.Tensor, hidden_dim: int) -> None:
+    """Tag matrix rows/cols of size ``hidden_dim`` with the ``hidden`` axis group."""
+    if tensor.ndim != 2:
+        return
+    out_features, in_features = tensor.shape
+    names: dict[int, str] = {}
+    if out_features == hidden_dim:
+        names[0] = "hidden"
+    if in_features == hidden_dim:
+        names[1] = "hidden"
+    if names:
+        torch_nntile.set_axis_group_name(tensor, names)
+
+
+def name_mnist_axis_groups(
+    model: torch.nn.Module,
+    x: torch.Tensor,
+    logits: torch.Tensor,
+    *,
+    hidden_dim: int,
+) -> None:
     """Name axis groups for DeepReLU MNIST training on nntile."""
     torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
     torch_nntile.set_axis_group_name(logits, {1: "classes"})
+    for module in model.modules():
+        if not isinstance(module, torch.nn.Linear):
+            continue
+        _name_hidden_on_matrix(module.weight, hidden_dim)
+        if module.weight.grad is not None:
+            _name_hidden_on_matrix(module.weight.grad, hidden_dim)
+    optimizer = getattr(model, "_nntile_optimizer", None)
+    if optimizer is not None:
+        for velocity in optimizer._velocity.values():
+            _name_hidden_on_matrix(velocity, hidden_dim)
 
 
 def build_models(
@@ -129,6 +170,7 @@ def train_on_device(
     device: str,
     epochs: int,
     learning_rate: float,
+    hidden_dim: int,
     axis_group_tiling: dict[str, list[int]] | None = None,
     print_axis_groups: bool = False,
 ) -> list[float]:
@@ -143,13 +185,21 @@ def train_on_device(
         y = labels
 
     losses: list[float] = []
+    name_axis_groups: (
+        Callable[[torch.Tensor, torch.Tensor], None] | None
+    ) = None
+    if device == "nntile":
+
+        def name_axis_groups(x: torch.Tensor, logits: torch.Tensor) -> None:
+            name_mnist_axis_groups(model, x, logits, hidden_dim=hidden_dim)
+
     for epoch in range(epochs):
         loss = train_full_batch_step(
             model,
             x,
             y,
             learning_rate,
-            name_axis_groups=name_mnist_axis_groups if device == "nntile" else None,
+            name_axis_groups=name_axis_groups,
             axis_group_tiling=axis_group_tiling if device == "nntile" else None,
             print_axis_groups=print_axis_groups and device == "nntile" and epoch == 0,
         )
@@ -178,14 +228,24 @@ def main() -> None:
         default=[],
         metavar="NAME=SIZES",
         help=(
-            "Axis-group tiling for nntile, e.g. batch=15000,15000,15000,15000,15000 "
-            "or features=392,392. Repeat for multiple groups."
+            "Axis-group tiling for nntile, e.g. batch=15000,15000,15000,15000 "
+            "or features=392,392 or hidden=128,128. Repeat for multiple groups."
         ),
     )
     parser.add_argument(
         "--print-axis-groups",
         action="store_true",
         help="Print axis groups after the first nntile training step (graph mode)",
+    )
+    parser.add_argument(
+        "--restrict-cuda",
+        action="store_true",
+        help="Pin nntile kernels to CUDA workers (requires ncuda > 0)",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose StarPU / NNTile context logging",
     )
     parser.add_argument("--output-dir", default="deep_relu_mnist_runs")
     args = parser.parse_args()
@@ -203,78 +263,89 @@ def main() -> None:
         runtime_mode = "graph"
 
     torch_nntile.init_context(
-        ncpu=1,
-        ncuda=0,
-        verbose=0,
+        ncpu=-1,
+        ncuda=-1,
+        verbose=int(args.verbose),
         cpu_fallback=False,
         runtime_mode=runtime_mode,
     )
+    if args.restrict_cuda:
+        torch_nntile.restrict_cuda()
 
-    print(f"Runtime mode: {runtime_mode}")
-    if axis_group_tiling:
-        print(f"Axis-group tiling: {axis_group_tiling}")
+    try:
+        print(f"Runtime mode: {runtime_mode}")
+        if args.restrict_cuda:
+            print("Worker placement: CUDA only (restrict_cuda)")
+        if axis_group_tiling:
+            print(f"Axis-group tiling: {axis_group_tiling}")
+        print(f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth}")
 
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Loading MNIST training set (60 000 images, single batch)...")
-    images, labels = load_mnist_full_batch(args.data_dir)
-    print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
+        print("Loading MNIST training set (60 000 images, single batch)...")
+        images, labels = load_mnist_full_batch(args.data_dir)
+        print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
 
-    model_cpu, model_nnt = build_models(
-        seed=args.seed,
-        hidden_dim=args.hidden_dim,
-        depth=args.depth,
-    )
-
-    init_cpu = clone_model_weights(model_cpu)
-    init_nnt = clone_model_weights(model_nnt)
-    init_delta = max_weight_delta(init_cpu, init_nnt)
-    print(f"Initial weight max |cpu - nntile| = {init_delta:.3e} (expect 0)")
-
-    print("\nTraining on CPU...")
-    cpu_losses = train_on_device(
-        model_cpu,
-        images,
-        labels,
-        device="cpu",
-        epochs=args.epochs,
-        learning_rate=args.lr,
-    )
-
-    print("\nTraining on nntile...")
-    nnt_losses = train_on_device(
-        model_nnt,
-        images,
-        labels,
-        device="nntile",
-        epochs=args.epochs,
-        learning_rate=args.lr,
-        axis_group_tiling=axis_group_tiling or None,
-        print_axis_groups=args.print_axis_groups,
-    )
-
-    cpu_path = output_dir / "deep_relu_mnist_cpu.pt"
-    nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
-    torch.save(model_cpu.state_dict(), cpu_path)
-    torch.save(clone_model_weights(model_nnt), nnt_path)
-
-    final_cpu = clone_model_weights(model_cpu)
-    final_nnt = clone_model_weights(model_nnt)
-    weight_delta = max_weight_delta(final_cpu, final_nnt)
-
-    print("\nLoss comparison (cpu vs nntile):")
-    for epoch, (loss_cpu, loss_nnt) in enumerate(
-        zip(cpu_losses, nnt_losses), start=1
-    ):
-        print(
-            f"  epoch {epoch}: cpu={loss_cpu:.6f}  nntile={loss_nnt:.6f}  "
-            f"diff={abs(loss_cpu - loss_nnt):.3e}"
+        model_cpu, model_nnt = build_models(
+            seed=args.seed,
+            hidden_dim=args.hidden_dim,
+            depth=args.depth,
         )
 
-    print(f"\nFinal weight max |cpu - nntile| = {weight_delta:.3e}")
-    print(f"Saved CPU model to {cpu_path}")
-    print(f"Saved nntile model (CPU tensors) to {nnt_path}")
+        init_cpu = clone_model_weights(model_cpu)
+        init_nnt = clone_model_weights(model_nnt)
+        init_delta = max_weight_delta(init_cpu, init_nnt)
+        print(f"Initial weight max |cpu - nntile| = {init_delta:.3e} (expect 0)")
+
+        print("\nTraining on CPU...")
+        cpu_losses = train_on_device(
+            model_cpu,
+            images,
+            labels,
+            device="cpu",
+            epochs=args.epochs,
+            learning_rate=args.lr,
+            hidden_dim=args.hidden_dim,
+        )
+
+        print("\nTraining on nntile...")
+        nnt_losses = train_on_device(
+            model_nnt,
+            images,
+            labels,
+            device="nntile",
+            epochs=args.epochs,
+            learning_rate=args.lr,
+            hidden_dim=args.hidden_dim,
+            axis_group_tiling=axis_group_tiling or None,
+            print_axis_groups=args.print_axis_groups,
+        )
+
+        cpu_path = output_dir / "deep_relu_mnist_cpu.pt"
+        nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
+        torch.save(model_cpu.state_dict(), cpu_path)
+        torch.save(clone_model_weights(model_nnt), nnt_path)
+
+        final_cpu = clone_model_weights(model_cpu)
+        final_nnt = clone_model_weights(model_nnt)
+        weight_delta = max_weight_delta(final_cpu, final_nnt)
+
+        print("\nLoss comparison (cpu vs nntile):")
+        for epoch, (loss_cpu, loss_nnt) in enumerate(
+            zip(cpu_losses, nnt_losses), start=1
+        ):
+            print(
+                f"  epoch {epoch}: cpu={loss_cpu:.6f}  nntile={loss_nnt:.6f}  "
+                f"diff={abs(loss_cpu - loss_nnt):.3e}"
+            )
+
+        print(f"\nFinal weight max |cpu - nntile| = {weight_delta:.3e}")
+        print(f"Saved CPU model to {cpu_path}")
+        print(f"Saved nntile model (CPU tensors) to {nnt_path}")
+    finally:
+        torch_nntile.wait()
+        torch_nntile.shutdown_context()
 
 
 if __name__ == "__main__":

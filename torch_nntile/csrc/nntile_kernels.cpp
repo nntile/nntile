@@ -299,6 +299,7 @@ at::Tensor copy_from(
             }
             if (has_graph_session())
             {
+                wait_for_all();
                 sync_runtime_to_nntile_storage(
                     self.storage().data_ptr().get());
             }
@@ -336,6 +337,7 @@ at::Scalar local_scalar_dense(const at::Tensor &self)
     require_no_pending_graph(
         "read a scalar from an nntile tensor "
         "(call torch_nntile.compile_graph() and torch_nntile.run() first)");
+    wait_for_all();
     return tensor_to_scalar(self);
 }
 

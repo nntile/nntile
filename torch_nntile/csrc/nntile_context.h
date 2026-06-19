@@ -44,4 +44,10 @@ void restrict_cuda();
 
 void restore_where();
 
+//! Block until all submitted StarPU tasks finish (including async unregisters).
+void wait_for_all();
+
+//! Shut down libnntile / StarPU and release the context (safe to call repeatedly).
+void shutdown_context();
+
 } // namespace torch_nntile

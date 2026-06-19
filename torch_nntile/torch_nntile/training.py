@@ -251,11 +251,11 @@ def train_full_batch_step(
 
     logits = model(inputs)
     if inputs.device.type == "nntile":
-        if name_axis_groups is not None:
-            name_axis_groups(inputs, logits)
         loss = cross_entropy(logits, targets)
         loss.backward()
         _nntile_optimizer_for(model, learning_rate).step()
+        if name_axis_groups is not None:
+            name_axis_groups(inputs, logits)
         if axis_group_tiling is not None:
             if not torch_nntile.is_graph_mode():
                 raise RuntimeError(
@@ -268,7 +268,10 @@ def train_full_batch_step(
         if torch_nntile.is_graph_mode():
             torch_nntile.compile_graph()
             torch_nntile.run()
-        return float(loss.to("cpu").item())
+
+        torch_nntile.wait()
+        loss_cpu = loss.to("cpu")
+        return float(loss_cpu.item())
 
     loss = F.cross_entropy(logits, targets)
     loss.backward()

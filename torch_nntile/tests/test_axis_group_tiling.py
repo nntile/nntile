@@ -106,12 +106,25 @@ def test_deep_relu_axis_groups_with_explicit_naming():
         logits = model(x)
         torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})
         torch_nntile.set_axis_group_name(logits, {1: "classes"})
+        for module in model.modules():
+            if not isinstance(module, torch.nn.Linear):
+                continue
+            w = module.weight
+            names = {}
+            if w.shape[0] == 256:
+                names[0] = "hidden"
+            if w.shape[1] == 256:
+                names[1] = "hidden"
+            if names:
+                torch_nntile.set_axis_group_name(w, names)
         info = torch_nntile.format_axis_groups()
         assert "name='batch'" in info
         assert "name='features'" in info
         assert "name='classes'" in info
+        assert "name='hidden'" in info
         torch_nntile.set_axis_group_tiling("batch", [4, 4])
         torch_nntile.set_axis_group_tiling("features", 64)
+        torch_nntile.set_axis_group_tiling("hidden", 128)
         torch_nntile.execute()
         assert logits.shape == (8, 10)
         """
