@@ -20,11 +20,11 @@ if [ ! -f "${repo_file}" ]; then
     "https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo"
 fi
 
-# Minimal dev packages: nvcc, cudart/cublas headers+libs, driver API stubs.
+# Minimal dev packages: nvcc, cudart, math libs (cublas/cusolver/...), stubs.
 dnf install -y \
   "cuda-minimal-build-${pkg_ver}" \
   "cuda-driver-devel-${pkg_ver}" \
-  "libcublas-devel-${pkg_ver}" \
+  "cuda-libraries-devel-${pkg_ver}" \
   "cuda-nvrtc-devel-${pkg_ver}"
 dnf clean all
 

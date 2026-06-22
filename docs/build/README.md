@@ -257,7 +257,7 @@ PyPI upload is manual (`twine upload` from downloaded artifacts).
 device. StarPU and libnntile can still be built with CUDA enabled: the
 manylinux `before-all` hook installs a headless CUDA 12.8 toolkit via dnf
 (`cuda-minimal-build`, `cuda-driver-devel` for `lib64/stubs/libcuda.so`,
-`libcublas-devel`). Pip `nvidia-cuda-nvcc-cu12` does not ship `nvcc` or
+`cuda-libraries-devel` for cublas/cusolver headers). Pip `nvidia-cuda-nvcc-cu12`
 `cuda.h`; pip `nvidia-cudnn-cu12` supplies cuDNN for cmake. A driver is only
 required at runtime when using CUDA StarPU workers (`ncuda > 0`).
 
