@@ -9,8 +9,8 @@ Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 ## Prebuilt wheels
 
 CI builds `torch_nntile` 0.0.1 wheels via the **`torch_nntile wheels`** workflow
-(`.github/workflows/torch-nntile-wheels.yml`). It runs **only on manual
-workflow dispatch** — not on push or open PRs.
+(`.github/workflows/torch-nntile-wheels.yml`). It runs when a PR into
+`graph_api` is **merged**, or on manual `workflow_dispatch`.
 
 Each platform is a **separate** artifact (no combined bundle):
 

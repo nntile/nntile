@@ -13,12 +13,12 @@ Wheels are built in CI, not published to PyPI. Install from a downloaded
 |-|-|
 | **Workflow** (Actions sidebar / run title) | `torch_nntile wheels` |
 | **Workflow file** | `.github/workflows/torch-nntile-wheels.yml` |
-| **Trigger** | Manual **Run workflow** only (`workflow_dispatch`) |
+| **Trigger** | `pull_request` closed (merged into `graph_api`), or manual **Run workflow** |
 | **Python** | 3.12 (`cp312`) |
 
-Open **Actions → torch_nntile wheels → Run workflow**, choose the branch (usually
-`graph_api`), and start the run. The workflow does **not** run automatically on
-push or on PRs.
+Wheels build automatically when a PR into `graph_api` is **merged**, or when a
+maintainer starts the workflow manually (`workflow_dispatch`). Closed PRs that
+were not merged are skipped.
 
 Each matrix job uploads a **separate** artifact — there is no single bundle
 with all platforms:

@@ -1,6 +1,10 @@
 name: torch_nntile wheels
 
 on:
+  pull_request:
+    types: [closed]
+    branches:
+      - graph_api
   workflow_dispatch:
 
 permissions:
@@ -23,6 +27,7 @@ env:
 
 jobs:
   build-wheels:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
     name: ${{ matrix.identifier }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
@@ -41,6 +46,7 @@ jobs:
         if: ${{ env.ACT != 'true' }}
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || github.ref }}
 
       - name: Configure host paths
         run: |

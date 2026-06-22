@@ -176,8 +176,8 @@ workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/
 
 | | |
 |-|-|
-| **Trigger** | `workflow_dispatch` only (manual **Run workflow**) |
-| **Not triggered by** | Push, pull requests, or schedule |
+| **Trigger** | `pull_request` closed (merged into `graph_api`), or `workflow_dispatch` |
+| **Skipped when** | PR closed without merge |
 | **Tooling** | [cibuildwheel](https://cibuildwheel.pypa.io/) 4.1.0 |
 | **Version** | `0.0.1` (`TORCH_NNTILE_WHEEL_VERSION`) |
 
