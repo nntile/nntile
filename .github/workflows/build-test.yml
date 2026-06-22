@@ -254,7 +254,7 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - run: |
-          pip install --break-system-packages torch pytest
+          pip install --break-system-packages 'torch==2.9.1' pytest
           CXX=g++ pip install --break-system-packages \
             -e ./torch_nntile --no-build-isolation
           pytest -vv torch_nntile/tests/test_device_stub.py
