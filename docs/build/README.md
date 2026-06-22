@@ -169,6 +169,61 @@ Graph API usage and architecture are **not** documented here; see
 - Examples copied to `build/wrappers/python/examples/`
 - No `make install` required for development — set `PYTHONPATH` to the build tree
 
+## torch_nntile wheels (CI)
+
+Prebuilt `torch_nntile` wheels are built by the **`torch_nntile wheels`**
+workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/torch-nntile-wheels.yml)).
+
+| | |
+|-|-|
+| **Trigger** | Push to `graph_api`, or `workflow_dispatch` |
+| **Not triggered by** | Open PRs on feature branches |
+| **Tooling** | [cibuildwheel](https://cibuildwheel.pypa.io/) 4.1.0 |
+| **Version** | `0.0.1` (`TORCH_NNTILE_WHEEL_VERSION`) |
+
+### Matrix
+
+| Job | Runner | Wheel tag | CUDA |
+|-----|--------|-----------|------|
+| `cp312-manylinux_x86_64` | `ubuntu-24.04` | manylinux x86_64 | Yes (`torch==2.9.1+cu128`) |
+| `cp312-macosx_arm64` | `macos-14` | macOS 14+ arm64 | No (CPU StarPU only) |
+
+Each job uploads one artifact:
+
+- `torch-nntile-wheel-cp312-manylinux_x86_64`
+- `torch-nntile-wheel-cp312-macosx_arm64`
+
+There is no merge job that bundles both platforms into a single artifact.
+
+### Build pipeline
+
+Linux builds run inside a manylinux container with the repo mounted read-only.
+Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
+
+| Script | Role |
+|--------|------|
+| `build_wheel_deps.sh` | StarPU (nntile fork), FXT, libnntile; Linux CUDA / macOS CPU split |
+| `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1+cu128` + `nvidia-cuda-nvcc-cu12`, export `CUDA_HOME` |
+| `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver libs |
+| `repair_wheel_macos.sh` | `delocate-wheel`; macOS 14+ arm64 |
+| `smoke_test_wheel.py` | cibuildwheel `test-command` |
+
+PyTorch itself is **not** bundled; wheels declare `torch==2.9.1` as a runtime
+dependency. Linux users install `torch==2.9.1+cu128` from the PyTorch CUDA index
+before installing the wheel.
+
+### Download and publish
+
+```bash
+gh run list --workflow=torch-nntile-wheels.yml --branch graph_api --limit 5
+gh run download RUN_ID -D wheelhouse
+```
+
+End-user install instructions:
+[`torch_nntile/README.md`](../../torch_nntile/README.md#prebuilt-wheels-001).
+
+PyPI upload is manual (`twine upload` from downloaded artifacts).
+
 ## Running tests
 
 Requires `BUILD_TESTS=ON` (default) and a finished build. Tests are skipped when
@@ -294,5 +349,6 @@ pytest -vv --cov=wrappers/python/nntile wrappers/python/tests
 ## See also
 
 - [cpp/README.md](../cpp/README.md) — C++ layers under test
+- [torch_nntile.md](../torch_nntile.md) — PyTorch `device="nntile"` bridge
 - [sgoc/README.md](../sgoc/README.md) — SGOC built in Docker sandbox
 - [STYLE_GUIDE.md](../../STYLE_GUIDE.md) — C++ coding style

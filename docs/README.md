@@ -23,6 +23,7 @@ and end-to-end training examples.
 | SGOC scheduler (limited VRAM, single GPU) | [sgoc/README.md](sgoc/README.md) |
 | NNTile Graph API (work in progress) | [graph-wip.md](graph-wip.md) |
 | PyTorch `device="nntile"` (torch_nntile) | [torch_nntile.md](torch_nntile.md) |
+| Install prebuilt `torch_nntile` wheel (CI) | [torch_nntile.md#prebuilt-wheels](torch_nntile.md#prebuilt-wheels) |
 
 ## Documentation map
 

@@ -4,18 +4,51 @@ PyTorch **PrivateUse1** device registered as `device="nntile"`.
 
 ## Prebuilt wheels (0.0.1)
 
-CI builds platform-specific wheels on push to the `graph_api` branch. Download
-artifacts from the GitHub Actions workflow run.
+Wheels are built in CI, not published to PyPI. Install from a downloaded
+`.whl` file after installing the matching `torch` build.
+
+### CI workflow
+
+| | |
+|-|-|
+| **Workflow** (Actions sidebar / run title) | `torch_nntile wheels` |
+| **Workflow file** | `.github/workflows/torch-nntile-wheels.yml` |
+| **Trigger** | Push to `graph_api`, or manual **Run workflow** |
+| **Python** | 3.12 (`cp312`) |
+
+The workflow does **not** run on open PR branches. Wheels appear after changes
+land on `graph_api` (merge or direct push), unless someone triggers the workflow
+manually.
+
+Each matrix job uploads a **separate** artifact — there is no single bundle
+with all platforms:
+
+| Job | Artifact name |
+|-----|---------------|
+| Linux CUDA x86_64 | `torch-nntile-wheel-cp312-manylinux_x86_64` |
+| macOS arm64 CPU | `torch-nntile-wheel-cp312-macosx_arm64` |
+
+**Download (GitHub UI):** Actions → **torch_nntile wheels** → pick a run →
+**Artifacts** at the bottom of the run page.
+
+**Download (`gh` CLI):**
+
+```bash
+gh run list --workflow=torch-nntile-wheels.yml --branch graph_api --limit 5
+gh run download RUN_ID -D wheelhouse
+# → wheelhouse/torch-nntile-wheel-cp312-manylinux_x86_64/*.whl
+# → wheelhouse/torch-nntile-wheel-cp312-macosx_arm64/*.whl
+```
 
 ### Linux (CUDA, torch 2.9.1+cu128)
 
 CUDA wheels are built against `torch==2.9.1+cu128`. Install that torch build
-first (the `+cu128` tag is only on the PyTorch CUDA index, not PyPI), then
-`torch_nntile`:
+first (the `+cu128` tag is only on the PyTorch CUDA index, not PyPI), then the
+wheel:
 
 ```bash
 pip install torch==2.9.1+cu128 --index-url https://download.pytorch.org/whl/cu128
-pip install torch_nntile==0.0.1
+pip install /path/to/torch_nntile-0.0.1-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
 The wheel bundles `libstarpu` and `libnntile`. A compatible NVIDIA driver is
@@ -25,12 +58,13 @@ required at runtime for CUDA StarPU workers (`ncuda > 0`).
 
 ```bash
 pip install torch==2.9.1
-pip install torch_nntile==0.0.1
+pip install /path/to/torch_nntile-0.0.1-cp312-cp312-macosx_14_0_arm64.whl
 ```
 
 StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
 
 Publishing to PyPI is manual: download CI artifacts and run `twine upload` locally.
+See [docs/build/README.md](../docs/build/README.md) for maintainer CI details.
 
 ## Phase 1 (stub)
 
@@ -207,13 +241,16 @@ Cross-entropy parity (forward, backward, multi-D labels, `ignore_index`):
 pytest -vv torch_nntile/tests/test_cross_entropy_parity.py
 ```
 
-## Install (stub only)
+## Install from source (stub only)
+
+Install `torch==2.9.1` first (same ABI as `install_requires`), then:
 
 ```bash
+pip install 'torch==2.9.1'
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation
 ```
 
-## Install (with libnntile / phase 2)
+## Install from source (with libnntile / phase 2)
 
 Build NNTile first (CPU-only example):
 
@@ -226,9 +263,11 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
 cmake --build build -j$(nproc)
 ```
 
-Then install the extension against that build:
+Then install the extension against that build (use the same `torch` version you
+built NNTile against):
 
 ```bash
+pip install 'torch==2.9.1'
 export NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
@@ -282,9 +321,10 @@ PyTorch 2.12+ exports `at::native::cpu_fallback` with four arguments
 Older releases use a two-argument overload. The extension selects the
 appropriate overload at compile time via `TORCH_VERSION_*`.
 
-After upgrading PyTorch, rebuild:
+After upgrading PyTorch, reinstall the matching torch pin and rebuild:
 
 ```bash
+pip install 'torch==2.9.1'
 CXX=clang++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
 
