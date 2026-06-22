@@ -1,8 +1,7 @@
 name: torch_nntile wheels
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches:
       - graph_api
   workflow_dispatch:
@@ -16,10 +15,17 @@ defaults:
 
 env:
   CIBUILDWHEEL_VERSION: "4.1.0"
+  TORCH_VERSION: "2.9.1"
+  TORCH_CUDA_TAG: "cu128"
+  TORCH_CUDA_INDEX: "https://download.pytorch.org/whl/cu128"
+  TORCH_NNTILE_WHEEL_VERSION: "0.0.1"
+  STARPU_GITHUB_REPO: "nntile/starpu"
+  STARPU_GIT_BRANCH: "master"
+  CMAKE_CUDA_ARCHITECTURES: "70;75;80;86;89;90"
+  TORCH_CUDA_ARCH_LIST: "7.0;7.5;8.0;8.6;8.9;9.0"
 
 jobs:
   build-wheels:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
     name: ${{ matrix.identifier }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
@@ -28,15 +34,16 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            identifier: cp314-manylinux_x86_64
+            identifier: cp312-manylinux_x86_64
+            use_cuda: "1"
           - os: macos-14
-            identifier: cp314-macosx_arm64
+            identifier: cp312-macosx_arm64
+            use_cuda: "0"
     steps:
       - uses: actions/checkout@v6
         if: ${{ env.ACT != 'true' }}
         with:
           persist-credentials: false
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || github.ref }}
 
       - name: Configure host paths
         run: |
@@ -52,14 +59,23 @@ jobs:
           echo "TORCH_NNTILE_HOST_WORKSPACE=${host_workspace}" >> "${GITHUB_ENV}"
           echo "TORCH_NNTILE_PACKAGE_DIR=${host_workspace}/torch_nntile" >> "${GITHUB_ENV}"
           echo "TORCH_NNTILE_OUTPUT_DIR=${host_workspace}/wheelhouse" >> "${GITHUB_ENV}"
+          echo "NNTILE_SOURCE_DIR=${host_workspace}" >> "${GITHUB_ENV}"
+          echo "TORCH_NNTILE_USE_CUDA=${{ matrix.use_cuda }}" >> "${GITHUB_ENV}"
 
       - name: Configure Linux source mount
         if: runner.os == 'Linux'
         run: |
           echo "CIBW_CONTAINER_ENGINE=docker; create_args: --volume ${TORCH_NNTILE_HOST_WORKSPACE}:/nntile-repo:ro" >> "${GITHUB_ENV}"
-          echo "CIBW_ENVIRONMENT_PASS_LINUX=NNTILE_SOURCE_DIR NNTILE_BUILD_DIR" >> "${GITHUB_ENV}"
+          echo "CIBW_ENVIRONMENT_PASS_LINUX=NNTILE_SOURCE_DIR NNTILE_BUILD_DIR STARPU_PREFIX TORCH_NNTILE_USE_CUDA TORCH_VERSION TORCH_CUDA_TAG TORCH_CUDA_INDEX CMAKE_CUDA_ARCHITECTURES TORCH_CUDA_ARCH_LIST STARPU_GITHUB_REPO STARPU_GIT_BRANCH TORCH_NNTILE_WHEEL_VERSION" >> "${GITHUB_ENV}"
           echo "NNTILE_SOURCE_DIR=/nntile-repo" >> "${GITHUB_ENV}"
           echo "NNTILE_BUILD_DIR=/tmp/nntile-build/torch_nntile_wheel" >> "${GITHUB_ENV}"
+          echo "STARPU_PREFIX=/opt/starpu" >> "${GITHUB_ENV}"
+
+      - name: Configure macOS build paths
+        if: runner.os == 'macOS'
+        run: |
+          echo "NNTILE_BUILD_DIR=${RUNNER_TEMP}/nntile-build/torch_nntile_wheel" >> "${GITHUB_ENV}"
+          echo "STARPU_PREFIX=${RUNNER_TEMP}/starpu" >> "${GITHUB_ENV}"
 
       - name: Install cibuildwheel
         run: |

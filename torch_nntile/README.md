@@ -2,6 +2,34 @@
 
 PyTorch **PrivateUse1** device registered as `device="nntile"`.
 
+## Prebuilt wheels (0.0.1)
+
+CI builds platform-specific wheels on push to the `graph_api` branch. Download
+artifacts from the GitHub Actions workflow run.
+
+### Linux (CUDA, torch 2.9.1+cu128)
+
+CUDA comes from the PyTorch wheel — install torch first, then `torch_nntile`:
+
+```bash
+pip install torch==2.9.1+cu128 --index-url https://download.pytorch.org/whl/cu128
+pip install torch_nntile==0.0.1
+```
+
+The wheel bundles `libstarpu` and `libnntile`. A compatible NVIDIA driver is
+required at runtime for CUDA StarPU workers (`ncuda > 0`).
+
+### macOS arm64 (CPU-only, torch 2.9.1)
+
+```bash
+pip install torch==2.9.1
+pip install torch_nntile==0.0.1
+```
+
+StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
+
+Publishing to PyPI is manual: download CI artifacts and run `twine upload` locally.
+
 ## Phase 1 (stub)
 
 Tensor storage is backed by a host `std::vector<uint8_t>` buffer. Supports
@@ -245,13 +273,12 @@ the MNIST example (or call ``restrict_cuda()``) and shut StarPU down at exit.
 The example calls ``torch_nntile.wait()`` and ``torch_nntile.shutdown_context()``
 in a ``finally`` block; ``init_context()`` also registers an ``atexit`` hook.
 
-## macOS / PyTorch 2.12
+## macOS / PyTorch cpu_fallback ABI
 
-PyTorch 2.12 exports `at::native::cpu_fallback` with four arguments
+PyTorch 2.12+ exports `at::native::cpu_fallback` with four arguments
 (`OperatorHandle`, `Stack*`, `bool error_on_views`, `c10::DispatchKey`).
-Calling it with fewer arguments can leave an unresolved reference to a
-three-argument symbol at load time on macOS. The extension calls the
-four-argument overload explicitly.
+Older releases use a two-argument overload. The extension selects the
+appropriate overload at compile time via `TORCH_VERSION_*`.
 
 After upgrading PyTorch, rebuild:
 

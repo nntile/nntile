@@ -20,5 +20,9 @@ auditwheel repair \
     --exclude libtorch_cuda.so \
     --exclude libtorch_global_deps.so \
     --exclude libtorch_python.so \
+    --exclude libcuda.so \
+    --exclude libcuda.so.1 \
+    --exclude libnvidia-ml.so \
+    --exclude libnvidia-ml.so.1 \
     -w "${dest_dir}" \
     "${wheel}"

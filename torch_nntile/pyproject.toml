@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torch_nntile"
-version = "0.7.1"
+version = "0.0.1"
 description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnntile)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "torch>=2.1",
+    "torch==2.9.1+cu128; platform_system == 'Linux'",
+    "torch==2.9.1; platform_system == 'Darwin'",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +30,7 @@ where = ["."]
 include = ["torch_nntile*"]
 
 [tool.cibuildwheel]
-build = "cp314-*"
+build = "cp312-*"
 skip = "*-musllinux* *-win*"
 build-frontend = "pip; args: --no-build-isolation"
 before-all = "bash {package}/tools/build_wheel_deps.sh \"$NNTILE_SOURCE_DIR\""
@@ -59,24 +60,20 @@ OMP_NUM_THREADS = "1"
 [tool.cibuildwheel.linux]
 archs = ["x86_64"]
 manylinux-x86_64-image = "manylinux_2_28"
-before-build = [
-    "python -m pip install --upgrade pip",
-    "python -m pip install 'setuptools>=61,<82' wheel ninja",
-    "python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu 'torch==2.12.0+cpu'",
-]
-before-test = "python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu 'torch==2.12.0+cpu'"
+before-test = "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1+cu128'"
 repair-wheel-command = "bash {package}/tools/repair_wheel_linux.sh {wheel} {dest_dir}"
 
 [tool.cibuildwheel.macos]
 archs = ["arm64"]
-before-build = [
-    "python -m pip install --upgrade pip",
-    "python -m pip install 'setuptools>=61,<82' wheel ninja 'torch==2.12.0'",
-]
-before-test = "python -m pip install 'torch==2.12.0'"
+before-test = "python -m pip install 'torch==2.9.1'"
 repair-wheel-command = "bash {package}/tools/repair_wheel_macos.sh {wheel} {dest_dir} {delocate_archs}"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-manylinux_*"
+inherit.environment = "append"
+environment.TORCH_NNTILE_USE_CUDA = "1"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macosx_arm64"
 inherit.environment = "append"
-environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
+environment = { MACOSX_DEPLOYMENT_TARGET = "14.0", TORCH_NNTILE_USE_CUDA = "0" }

@@ -159,9 +159,15 @@ def _nntile_extension_kwargs() -> dict:
 
 ext_kwargs = _nntile_extension_kwargs()
 
+_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.1")
+if sys.platform == "darwin":
+    _torch_requires = "torch==2.9.1"
+else:
+    _torch_requires = "torch==2.9.1+cu128"
+
 setup(
     name="torch_nntile",
-    version="0.7.1",
+    version=_wheel_version,
     packages=find_packages(),
     ext_modules=[
         CppExtension(
@@ -171,5 +177,5 @@ setup(
         )
     ],
     cmdclass={"build_ext": BuildExtension.with_options(no_python_abi_suffix=True)},
-    install_requires=["torch>=2.1"],
+    install_requires=[_torch_requires],
 )
