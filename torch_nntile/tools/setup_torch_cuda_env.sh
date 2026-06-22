@@ -12,6 +12,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 python="$("${script_dir}/wheel_python.sh")"
 
 "${python}" -m pip install --upgrade pip
+"${python}" -m pip install numpy
 # Index is cu128-only; pin torch==X.Y.Z without a +cu128 local tag.
 "${python}" -m pip install \
     "torch==${torch_version}" \
@@ -37,12 +38,19 @@ export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${CUDA_HOME}/lib64/stubs:${TORCH_LIB_
 
 cudnn_paths="$("${python}" - <<'PY'
 from pathlib import Path
-import nvidia.cudnn
+import importlib
 
-root = Path(next(iter(nvidia.cudnn.__path__)))
-print(f"{root}")
-print(f"{root / 'include'}")
-print(f"{root / 'lib'}")
+mod = importlib.import_module("nvidia.cudnn")
+if getattr(mod, "__file__", None):
+    root = Path(mod.__file__).resolve().parent
+elif paths := getattr(mod, "__path__", None):
+    root = Path(next(iter(paths)))
+else:
+    raise RuntimeError("nvidia.cudnn is not installed or has no install path")
+
+print(root)
+print(root / "include")
+print(root / "lib")
 PY
 )"
 export CUDNN_PATH="$(echo "${cudnn_paths}" | sed -n '1p')"
