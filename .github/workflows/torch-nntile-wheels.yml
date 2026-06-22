@@ -17,7 +17,6 @@ defaults:
 env:
   CIBUILDWHEEL_VERSION: "4.1.0"
   TORCH_VERSION: "2.9.1"
-  TORCH_CUDA_TAG: "cu128"
   TORCH_CUDA_INDEX: "https://download.pytorch.org/whl/cu128"
   TORCH_NNTILE_WHEEL_VERSION: "0.0.1"
   STARPU_GITHUB_REPO: "nntile/starpu"

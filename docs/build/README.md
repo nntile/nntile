@@ -211,7 +211,7 @@ default branch ([`workflow_dispatch` docs](https://docs.github.com/en/actions/us
 
 | Job | Runner | Wheel tag | CUDA |
 |-----|--------|-----------|------|
-| `cp312-manylinux_x86_64` | `ubuntu-24.04` | manylinux x86_64 | Yes (`torch==2.9.1+cu128`) |
+| `cp312-manylinux_x86_64` | `ubuntu-24.04` | manylinux x86_64 | Yes (`torch==2.9.1` from cu128 index) |
 | `cp312-macosx_arm64` | `macos-14` | macOS 14+ arm64 | No (CPU StarPU only) |
 
 Each job uploads one artifact:
@@ -229,14 +229,14 @@ Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
 | Script | Role |
 |--------|------|
 | `build_wheel_deps.sh` | StarPU (nntile fork), FXT, libnntile; Linux CUDA / macOS CPU split |
-| `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1+cu128` + `nvidia-cuda-nvcc-cu12`, export `CUDA_HOME` |
+| `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index + `nvidia-cuda-nvcc-cu12`, export `CUDA_HOME` |
 | `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver libs |
 | `repair_wheel_macos.sh` | `delocate-wheel`; macOS 14+ arm64 |
 | `smoke_test_wheel.py` | cibuildwheel `test-command` |
 
 PyTorch itself is **not** bundled; wheels declare `torch==2.9.1` as a runtime
-dependency. Linux users install `torch==2.9.1+cu128` from the PyTorch CUDA index
-before installing the wheel.
+dependency. Linux users install `torch==2.9.1` from
+`https://download.pytorch.org/whl/cu128` before installing the wheel.
 
 ### Download and publish
 

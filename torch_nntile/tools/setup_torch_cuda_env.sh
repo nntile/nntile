@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Install torch 2.9.1+cu128 and export CUDA paths for libstarpu/libnntile builds.
+# Install torch from the PyTorch cu128 index and export CUDA paths for builds.
 # Source this script; do not execute in a subshell.
 set -euo pipefail
 
 torch_version="${TORCH_VERSION:-2.9.1}"
-torch_cuda_tag="${TORCH_CUDA_TAG:-cu128}"
 torch_cuda_index="${TORCH_CUDA_INDEX:-https://download.pytorch.org/whl/cu128}"
 
 python -m pip install --upgrade pip
+# Index is cu128-only; pin torch==X.Y.Z without a +cu128 local tag.
 python -m pip install \
-    "torch==${torch_version}+${torch_cuda_tag}" \
+    "torch==${torch_version}" \
     --index-url "${torch_cuda_index}"
 
 # nvcc is not bundled in the torch wheel.
