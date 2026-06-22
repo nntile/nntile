@@ -38,11 +38,16 @@ CSRC = [
 def _pkg_config(package: str, flag: str) -> list[str]:
     env = os.environ.copy()
     pkg_config_path = env.get("PKG_CONFIG_PATH", "")
-    starpu_pkg = "/opt/starpu/lib/pkgconfig"
-    if starpu_pkg not in pkg_config_path.split(":"):
-        env["PKG_CONFIG_PATH"] = (
-            f"{starpu_pkg}:{pkg_config_path}" if pkg_config_path else starpu_pkg
-        )
+    starpu_roots = []
+    if starpu_prefix := os.environ.get("STARPU_PREFIX"):
+        starpu_roots.append(f"{starpu_prefix}/lib/pkgconfig")
+    starpu_roots.append("/opt/starpu/lib/pkgconfig")
+    for starpu_pkg in starpu_roots:
+        if starpu_pkg not in pkg_config_path.split(":"):
+            pkg_config_path = (
+                f"{starpu_pkg}:{pkg_config_path}" if pkg_config_path else starpu_pkg
+            )
+    env["PKG_CONFIG_PATH"] = pkg_config_path
     try:
         out = subprocess.check_output(
             ["pkg-config", flag, package],
@@ -74,6 +79,40 @@ def _apply_pkg_config(
             libraries.append(flag[2:])
         else:
             extra_link_args.append(flag)
+
+
+def _cudnn_include_dir() -> str | None:
+    if os.environ.get("TORCH_NNTILE_USE_CUDA") != "1":
+        return None
+    if path := os.environ.get("CUDNN_INCLUDE_PATH"):
+        return path
+    try:
+        import importlib
+
+        mod = importlib.import_module("nvidia.cudnn")
+        if getattr(mod, "__file__", None):
+            root = Path(mod.__file__).resolve().parent
+        else:
+            root = Path(next(iter(mod.__path__)))
+        include = root / "include"
+        if (include / "cudnn.h").exists():
+            return str(include)
+    except ImportError:
+        return None
+    return None
+
+
+def _cuda_include_dirs() -> list[str]:
+    if os.environ.get("TORCH_NNTILE_USE_CUDA") != "1":
+        return []
+    dirs: list[str] = []
+    if cuda_home := os.environ.get("CUDA_HOME"):
+        cuda_include = Path(cuda_home) / "include"
+        if cuda_include.is_dir():
+            dirs.append(str(cuda_include))
+    if cudnn_include := _cudnn_include_dir():
+        dirs.append(cudnn_include)
+    return dirs
 
 
 def _nntile_extension_kwargs() -> dict:
@@ -142,6 +181,7 @@ def _nntile_extension_kwargs() -> dict:
             extra_link_args,
             libraries,
         )
+        include_dirs.extend(_cuda_include_dirs())
     elif require_libnntile:
         raise RuntimeError(
             "torch_nntile wheel builds require libnntile; set NNTILE_BUILD_DIR"

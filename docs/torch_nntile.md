@@ -13,11 +13,10 @@ CI builds `torch_nntile` 0.0.1 wheels via the **`torch_nntile wheels`** workflow
 
 | Trigger | When wheels build |
 |---------|-------------------|
-| **Merge into `graph_api`** | Automatic on `pull_request` closed + merged |
+| **Pull request → `graph_api`** | On open/update (and on merge close) |
 | **`workflow_dispatch`** | Maintainer runs manually (Actions UI or `gh workflow run`) |
 
-Open PRs do not produce wheels until merged. PRs closed without merging are
-skipped.
+Closed PRs that were not merged are skipped.
 
 Each platform is a **separate** artifact (no combined bundle):
 

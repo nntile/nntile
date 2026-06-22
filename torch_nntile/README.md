@@ -13,17 +13,16 @@ Wheels are built in CI, not published to PyPI. Install from a downloaded
 |-|-|
 | **Workflow** (Actions sidebar / run title) | `torch_nntile wheels` |
 | **Workflow file** | `.github/workflows/torch-nntile-wheels.yml` |
-| **Trigger** | `pull_request` closed (merged into `graph_api`), or manual **Run workflow** |
+| **Trigger** | Pull requests to `graph_api`, or manual **Run workflow** |
 | **Python** | 3.12 (`cp312`) |
 
-Wheels build automatically when a PR into `graph_api` is **merged**, or when a
-maintainer starts the workflow manually (`workflow_dispatch`). Closed PRs that
-were not merged are skipped. Open PRs do **not** build wheels until merge.
+Wheels build on every **open** PR to `graph_api` (push/sync/reopen), when a PR is
+**merged**, or when a maintainer starts the workflow manually
+(`workflow_dispatch`). Closed PRs that were not merged are skipped.
 
 ### Triggering a build
 
-**Automatic:** merge a PR into `graph_api`. GitHub fires `pull_request` with
-`types: [closed]`; the job runs only when `pull_request.merged` is true.
+**Automatic:** open or update a PR targeting `graph_api` (or merge it).
 
 **Manual:** from a machine with write access to the repo:
 
@@ -67,8 +66,9 @@ pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/cu128
 pip install /path/to/torch_nntile-0.0.1-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-The wheel bundles `libstarpu` and `libnntile`. A compatible NVIDIA driver is
-required at runtime for CUDA StarPU workers (`ncuda > 0`).
+The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing)
+and `libnntile`. A compatible NVIDIA driver is required at runtime for CUDA
+StarPU workers (`ncuda > 0`).
 
 ### macOS arm64 (CPU-only, torch 2.9.1)
 

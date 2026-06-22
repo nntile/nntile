@@ -35,9 +35,6 @@ install_linux_packages() {
             autoconf automake build-essential ca-certificates cmake curl git \
             libhwloc-dev libopenblas-dev libtool-bin ninja-build pkg-config \
             unzip wget
-        if [ "${use_cuda}" = "1" ]; then
-            apt-get install -y --no-install-recommends libfxt-dev
-        fi
     else
         echo "Unsupported Linux image: no yum or apt-get found" >&2
         exit 1
@@ -68,9 +65,10 @@ prepare_prefix() {
 }
 
 install_torch_cpu() {
-    python -m pip install --upgrade pip
-    python -m pip install "torch==${TORCH_VERSION:-2.9.1}"
-    export TORCH_PREFIX="$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+    local python="$("${script_dir}/wheel_python.sh")"
+    "${python}" -m pip install --upgrade pip
+    "${python}" -m pip install "torch==${TORCH_VERSION:-2.9.1}"
+    export TORCH_PREFIX="$("${python}" -c 'import torch; print(torch.utils.cmake_prefix_path)')"
     export CMAKE_PREFIX_PATH="${TORCH_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
 }
 
@@ -114,7 +112,8 @@ build_starpu() {
     if [ "${use_cuda}" = "1" ]; then
         configure_args+=(
             --enable-maxcudadev=8
-            --with-fxt
+            --without-fxt
+            --with-cuda-dir="${CUDA_HOME}"
         )
     else
         configure_args+=(
@@ -153,11 +152,19 @@ build_nntile() {
         cmake_args+=(
             -DUSE_CUDA=ON
             -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
+            -DCUDAToolkit_ROOT="${CUDA_HOME}"
         )
         if [ -n "${CMAKE_CUDA_COMPILER:-}" ]; then
             cmake_args+=(-DCMAKE_CUDA_COMPILER="${CMAKE_CUDA_COMPILER}")
         elif [ -n "${CUDA_HOME:-}" ]; then
             cmake_args+=(-DCMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc")
+        fi
+        if [ -n "${CUDNN_PATH:-}" ]; then
+            cmake_args+=(
+                -DCUDNN_PATH="${CUDNN_PATH}"
+                -DCUDNN_INCLUDE_PATH="${CUDNN_INCLUDE_PATH}"
+                -DCUDNN_LIBRARY_PATH="${CUDNN_LIBRARY_PATH}"
+            )
         fi
         if [ -n "${CMAKE_CUDA_ARCHITECTURES:-}" ]; then
             cmake_args+=(-DCMAKE_CUDA_ARCHITECTURES="${CMAKE_CUDA_ARCHITECTURES}")
@@ -190,6 +197,8 @@ case "${os_name}" in
     Linux)
         install_linux_packages
         if [ "${use_cuda}" = "1" ]; then
+            # shellcheck disable=SC1091
+            source "${script_dir}/install_linux_cuda_toolkit.sh"
             # shellcheck disable=SC1091
             source "${script_dir}/setup_torch_cuda_env.sh"
             export CMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc"

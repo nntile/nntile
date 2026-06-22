@@ -35,7 +35,7 @@ build-frontend = "pip; args: --no-build-isolation"
 before-all = "bash {package}/tools/build_wheel_deps.sh \"$NNTILE_SOURCE_DIR\""
 before-build = [
     "python -m pip install --upgrade pip",
-    "python -m pip install 'setuptools>=61,<82' wheel ninja",
+    "python -m pip install 'setuptools>=61,<82' wheel ninja numpy",
     "python -m pip install 'torch==2.9.1'",
 ]
 test-command = "python {package}/tools/smoke_test_wheel.py"
@@ -62,8 +62,9 @@ archs = ["x86_64"]
 manylinux-x86_64-image = "manylinux_2_28"
 before-build = [
     "python -m pip install --upgrade pip",
-    "python -m pip install 'setuptools>=61,<82' wheel ninja",
+    "python -m pip install 'setuptools>=61,<82' wheel ninja numpy",
     "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1'",
+    "python -m pip install nvidia-cudnn-cu12",
 ]
 before-test = "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1'"
 repair-wheel-command = "bash {package}/tools/repair_wheel_linux.sh {wheel} {dest_dir}"
@@ -77,6 +78,9 @@ repair-wheel-command = "bash {package}/tools/repair_wheel_macos.sh {wheel} {dest
 select = "*-manylinux_*"
 inherit.environment = "append"
 environment.TORCH_NNTILE_USE_CUDA = "1"
+environment.CUDA_HOME = "/usr/local/cuda"
+environment.PATH = "/usr/local/cuda/bin:$PATH"
+environment.LD_LIBRARY_PATH = "/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macosx_arm64"

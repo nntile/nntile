@@ -2,7 +2,6 @@ name: torch_nntile wheels
 
 on:
   pull_request:
-    types: [closed]
     branches:
       - graph_api
   workflow_dispatch:
@@ -26,7 +25,10 @@ env:
 
 jobs:
   build-wheels:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.action != 'closed' ||
+      github.event.pull_request.merged == true
     name: ${{ matrix.identifier }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
@@ -45,7 +47,7 @@ jobs:
         if: ${{ env.ACT != 'true' }}
         with:
           persist-credentials: false
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Configure host paths
         run: |
@@ -68,7 +70,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           echo "CIBW_CONTAINER_ENGINE=docker; create_args: --volume ${TORCH_NNTILE_HOST_WORKSPACE}:/nntile-repo:ro" >> "${GITHUB_ENV}"
-          echo "CIBW_ENVIRONMENT_PASS_LINUX=NNTILE_SOURCE_DIR NNTILE_BUILD_DIR STARPU_PREFIX TORCH_NNTILE_USE_CUDA TORCH_VERSION TORCH_CUDA_INDEX CMAKE_CUDA_ARCHITECTURES TORCH_CUDA_ARCH_LIST STARPU_GITHUB_REPO STARPU_GIT_BRANCH TORCH_NNTILE_WHEEL_VERSION" >> "${GITHUB_ENV}"
+          echo "CIBW_ENVIRONMENT_PASS_LINUX=NNTILE_SOURCE_DIR NNTILE_BUILD_DIR STARPU_PREFIX TORCH_NNTILE_USE_CUDA TORCH_VERSION TORCH_CUDA_INDEX CMAKE_CUDA_ARCHITECTURES TORCH_CUDA_ARCH_LIST STARPU_GITHUB_REPO STARPU_GIT_BRANCH TORCH_NNTILE_WHEEL_VERSION CUDA_HOME CUDNN_PATH CUDNN_INCLUDE_PATH CUDNN_LIBRARY_PATH CMAKE_CUDA_COMPILER" >> "${GITHUB_ENV}"
           echo "NNTILE_SOURCE_DIR=/nntile-repo" >> "${GITHUB_ENV}"
           echo "NNTILE_BUILD_DIR=/tmp/nntile-build/torch_nntile_wheel" >> "${GITHUB_ENV}"
           echo "STARPU_PREFIX=/opt/starpu" >> "${GITHUB_ENV}"
@@ -78,6 +80,7 @@ jobs:
         run: |
           echo "NNTILE_BUILD_DIR=${RUNNER_TEMP}/nntile-build/torch_nntile_wheel" >> "${GITHUB_ENV}"
           echo "STARPU_PREFIX=${RUNNER_TEMP}/starpu" >> "${GITHUB_ENV}"
+          echo "PKG_CONFIG_PATH=${RUNNER_TEMP}/starpu/lib/pkgconfig" >> "${GITHUB_ENV}"
 
       - name: Install cibuildwheel
         run: |
