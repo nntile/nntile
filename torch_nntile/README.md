@@ -57,14 +57,13 @@ gh run download RUN_ID -D wheelhouse
 # → wheelhouse/torch-nntile-wheel-cp312-macosx_arm64/*.whl
 ```
 
-### Linux (CUDA, torch 2.9.1+cu128)
+### Linux (CUDA, torch 2.9.1)
 
-CUDA wheels are built against `torch==2.9.1+cu128`. Install that torch build
-first (the `+cu128` tag is only on the PyTorch CUDA index, not PyPI), then the
-wheel:
+Linux CUDA wheels are built against `torch==2.9.1` from the PyTorch **cu128**
+wheel index. Install that torch build first, then the wheel:
 
 ```bash
-pip install torch==2.9.1+cu128 --index-url https://download.pytorch.org/whl/cu128
+pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/cu128
 pip install /path/to/torch_nntile-0.0.1-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
