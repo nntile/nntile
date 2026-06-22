@@ -9,7 +9,9 @@ artifacts from the GitHub Actions workflow run.
 
 ### Linux (CUDA, torch 2.9.1+cu128)
 
-CUDA comes from the PyTorch wheel — install torch first, then `torch_nntile`:
+CUDA wheels are built against `torch==2.9.1+cu128`. Install that torch build
+first (the `+cu128` tag is only on the PyTorch CUDA index, not PyPI), then
+`torch_nntile`:
 
 ```bash
 pip install torch==2.9.1+cu128 --index-url https://download.pytorch.org/whl/cu128

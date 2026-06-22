@@ -9,8 +9,7 @@ description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnnt
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "torch==2.9.1+cu128; platform_system == 'Linux'",
-    "torch==2.9.1; platform_system == 'Darwin'",
+    "torch==2.9.1",
 ]
 
 [project.optional-dependencies]

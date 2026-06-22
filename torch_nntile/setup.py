@@ -160,10 +160,7 @@ def _nntile_extension_kwargs() -> dict:
 ext_kwargs = _nntile_extension_kwargs()
 
 _wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.1")
-if sys.platform == "darwin":
-    _torch_requires = "torch==2.9.1"
-else:
-    _torch_requires = "torch==2.9.1+cu128"
+_torch_requires = "torch==2.9.1"
 
 setup(
     name="torch_nntile",
