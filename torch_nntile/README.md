@@ -18,7 +18,24 @@ Wheels are built in CI, not published to PyPI. Install from a downloaded
 
 Wheels build automatically when a PR into `graph_api` is **merged**, or when a
 maintainer starts the workflow manually (`workflow_dispatch`). Closed PRs that
-were not merged are skipped.
+were not merged are skipped. Open PRs do **not** build wheels until merge.
+
+### Triggering a build
+
+**Automatic:** merge a PR into `graph_api`. GitHub fires `pull_request` with
+`types: [closed]`; the job runs only when `pull_request.merged` is true.
+
+**Manual:** from a machine with write access to the repo:
+
+```bash
+gh workflow run torch-nntile-wheels.yml --ref graph_api
+gh run watch
+```
+
+In the GitHub UI, **Run workflow** appears only when the workflow file with
+`workflow_dispatch` exists on the repository **default branch** (see
+[GitHub docs](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch)).
+Use `gh workflow run` if the button is missing.
 
 Each matrix job uploads a **separate** artifact — there is no single bundle
 with all platforms:

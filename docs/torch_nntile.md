@@ -9,8 +9,15 @@ Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 ## Prebuilt wheels
 
 CI builds `torch_nntile` 0.0.1 wheels via the **`torch_nntile wheels`** workflow
-(`.github/workflows/torch-nntile-wheels.yml`). It runs when a PR into
-`graph_api` is **merged**, or on manual `workflow_dispatch`.
+(`.github/workflows/torch-nntile-wheels.yml`).
+
+| Trigger | When wheels build |
+|---------|-------------------|
+| **Merge into `graph_api`** | Automatic on `pull_request` closed + merged |
+| **`workflow_dispatch`** | Maintainer runs manually (Actions UI or `gh workflow run`) |
+
+Open PRs do not produce wheels until merged. PRs closed without merging are
+skipped.
 
 Each platform is a **separate** artifact (no combined bundle):
 
@@ -25,6 +32,12 @@ Artifacts, or:
 ```bash
 gh run list --workflow=torch-nntile-wheels.yml --limit 5
 gh run download RUN_ID -D wheelhouse
+```
+
+Manual dispatch (write access required):
+
+```bash
+gh workflow run torch-nntile-wheels.yml --ref graph_api
 ```
 
 Install the matching `torch` first, then the local wheel (see

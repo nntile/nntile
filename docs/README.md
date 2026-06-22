@@ -30,7 +30,7 @@ and end-to-end training examples.
 ```
 docs/
   README.md                 ← you are here
-  build/README.md           Build, CMake, Docker, testing
+  build/README.md           Build, CMake, Docker, testing, torch_nntile wheel CI
   cpp/README.md             C++ kernel / starpu / tile / tensor
   graph-wip.md              NNTile Graph API status
   torch_nntile.md           PyTorch device="nntile", axis-group tiling

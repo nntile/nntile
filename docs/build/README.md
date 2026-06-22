@@ -177,9 +177,35 @@ workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/
 | | |
 |-|-|
 | **Trigger** | `pull_request` closed (merged into `graph_api`), or `workflow_dispatch` |
-| **Skipped when** | PR closed without merge |
+| **Skipped when** | PR closed without merge; open PR pushes |
+| **Job guard** | `merged == true` or `workflow_dispatch` |
 | **Tooling** | [cibuildwheel](https://cibuildwheel.pypa.io/) 4.1.0 |
 | **Version** | `0.0.1` (`TORCH_NNTILE_WHEEL_VERSION`) |
+
+Workflow definition:
+
+```yaml
+on:
+  pull_request:
+    types: [closed]
+    branches: [graph_api]
+  workflow_dispatch:
+
+jobs:
+  build-wheels:
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+```
+
+### Triggering
+
+| Goal | Action |
+|------|--------|
+| Build after landing changes | Merge PR into `graph_api` (automatic) |
+| Rebuild without a merge | `gh workflow run torch-nntile-wheels.yml --ref graph_api` |
+| Download artifacts | `gh run download RUN_ID -D wheelhouse` |
+
+The Actions **Run workflow** button requires the workflow file on the repository
+default branch ([`workflow_dispatch` docs](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch)). On merge, checkout uses `pull_request.base.ref` (`graph_api`).
 
 ### Matrix
 
@@ -217,6 +243,7 @@ before installing the wheel.
 ```bash
 gh run list --workflow=torch-nntile-wheels.yml --limit 5
 gh run download RUN_ID -D wheelhouse
+gh workflow run torch-nntile-wheels.yml --ref graph_api   # manual rebuild
 ```
 
 End-user install instructions:
