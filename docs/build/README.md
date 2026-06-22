@@ -228,7 +228,7 @@ Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
 
 | Script | Role |
 |--------|------|
-| `build_wheel_deps.sh` | StarPU (nntile fork), FXT, libnntile; Linux CUDA / macOS CPU split |
+| `build_wheel_deps.sh` | StarPU (nntile fork, CUDA max 8 devices, no FXT), libnntile; Linux CUDA / macOS CPU split |
 | `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index (cp312 python) + nvcc, export `CUDA_HOME` |
 | `wheel_python.sh` | Select cp312 interpreter in manylinux `before-all` hooks |
 | `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver libs |

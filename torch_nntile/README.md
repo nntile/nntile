@@ -66,8 +66,9 @@ pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/cu128
 pip install /path/to/torch_nntile-0.0.1-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-The wheel bundles `libstarpu` and `libnntile`. A compatible NVIDIA driver is
-required at runtime for CUDA StarPU workers (`ncuda > 0`).
+The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing)
+and `libnntile`. A compatible NVIDIA driver is required at runtime for CUDA
+StarPU workers (`ncuda > 0`).
 
 ### macOS arm64 (CPU-only, torch 2.9.1)
 

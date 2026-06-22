@@ -35,9 +35,6 @@ install_linux_packages() {
             autoconf automake build-essential ca-certificates cmake curl git \
             libhwloc-dev libopenblas-dev libtool-bin ninja-build pkg-config \
             unzip wget
-        if [ "${use_cuda}" = "1" ]; then
-            apt-get install -y --no-install-recommends libfxt-dev
-        fi
     else
         echo "Unsupported Linux image: no yum or apt-get found" >&2
         exit 1
@@ -115,7 +112,7 @@ build_starpu() {
     if [ "${use_cuda}" = "1" ]; then
         configure_args+=(
             --enable-maxcudadev=8
-            --with-fxt
+            --without-fxt
         )
     else
         configure_args+=(
