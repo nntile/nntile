@@ -229,7 +229,8 @@ Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
 | Script | Role |
 |--------|------|
 | `build_wheel_deps.sh` | StarPU (nntile fork, CUDA max 8 devices, no FXT), libnntile; Linux CUDA / macOS CPU split |
-| `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index (cp312 python) + nvcc, export `CUDA_HOME` |
+| `install_linux_cuda_toolkit.sh` | manylinux: dnf CUDA 12.8 toolkit (nvcc, headers, libcuda stubs; no GPU) |
+| `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index + pip cuDNN; export `CUDA_HOME` |
 | `wheel_python.sh` | Select cp312 interpreter in manylinux `before-all` hooks |
 | `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver libs |
 | `repair_wheel_macos.sh` | `delocate-wheel`; macOS 14+ arm64 |
@@ -251,6 +252,14 @@ End-user install instructions:
 [`torch_nntile/README.md`](../../torch_nntile/README.md#prebuilt-wheels-001).
 
 PyPI upload is manual (`twine upload` from downloaded artifacts).
+
+**CUDA without a GPU (Linux wheel CI):** GitHub-hosted runners have no NVIDIA
+device. StarPU and libnntile can still be built with CUDA enabled: the
+manylinux `before-all` hook installs a headless CUDA 12.8 toolkit via dnf
+(`cuda-minimal-build`, `cuda-driver-devel` for `lib64/stubs/libcuda.so`,
+`cuda-cublas-devel`). Pip `nvidia-cuda-nvcc-cu12` does not ship `nvcc` or
+`cuda.h`; pip `nvidia-cudnn-cu12` supplies cuDNN for cmake. A driver is only
+required at runtime when using CUDA StarPU workers (`ncuda > 0`).
 
 ## Running tests
 

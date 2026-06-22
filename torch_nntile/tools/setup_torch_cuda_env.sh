@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Install torch from the PyTorch cu128 index and export CUDA paths for builds.
+# Install torch (cu128) and pip cuDNN; export build paths for libnntile/StarPU.
 # Source this script; do not execute in a subshell.
+#
+# nvcc and cuda.h come from the system CUDA toolkit (install_linux_cuda_toolkit.sh).
+# Pip nvidia-cuda-nvcc-cu12 does not ship nvcc; pip cudnn supplies cuDNN for cmake.
 set -euo pipefail
 
 torch_version="${TORCH_VERSION:-2.9.1}"
@@ -14,16 +17,34 @@ python="$("${script_dir}/wheel_python.sh")"
     "torch==${torch_version}" \
     --index-url "${torch_cuda_index}"
 
-# nvcc is not bundled in the torch wheel.
-"${python}" -m pip install nvidia-cuda-nvcc-cu12 nvidia-cudnn-cu12
+"${python}" -m pip install nvidia-cudnn-cu12
 
 export TORCH_PREFIX="$("${python}" -c 'import torch; print(torch.utils.cmake_prefix_path)')"
-export CUDA_HOME="$("${python}" - <<'PY'
+export TORCH_LIB_DIR="$("${python}" -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+
+if [ -z "${CUDA_HOME:-}" ]; then
+    if [ -d /usr/local/cuda ]; then
+        export CUDA_HOME=/usr/local/cuda
+    else
+        echo "CUDA_HOME is unset and /usr/local/cuda is missing; run install_linux_cuda_toolkit.sh" >&2
+        exit 1
+    fi
+fi
+
+export PATH="${CUDA_HOME}/bin:${PATH}"
+export CMAKE_PREFIX_PATH="${TORCH_PREFIX}:${CUDA_HOME}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
+export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${CUDA_HOME}/lib64/stubs:${TORCH_LIB_DIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+cudnn_paths="$("${python}" - <<'PY'
 from pathlib import Path
-import nvidia.cuda_nvcc
-print(Path(nvidia.cuda_nvcc.__file__).resolve().parent)
+import nvidia.cudnn
+
+root = Path(next(iter(nvidia.cudnn.__path__)))
+print(f"{root}")
+print(f"{root / 'include'}")
+print(f"{root / 'lib'}")
 PY
 )"
-export PATH="${CUDA_HOME}/bin:${PATH}"
-export CMAKE_PREFIX_PATH="${TORCH_PREFIX}:${CUDA_HOME}"
-export LD_LIBRARY_PATH="$("${python}" -c 'import torch, os; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export CUDNN_PATH="$(echo "${cudnn_paths}" | sed -n '1p')"
+export CUDNN_INCLUDE_PATH="$(echo "${cudnn_paths}" | sed -n '2p')"
+export CUDNN_LIBRARY_PATH="$(echo "${cudnn_paths}" | sed -n '3p')"

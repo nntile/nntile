@@ -113,6 +113,7 @@ build_starpu() {
         configure_args+=(
             --enable-maxcudadev=8
             --without-fxt
+            --with-cuda-dir="${CUDA_HOME}"
         )
     else
         configure_args+=(
@@ -151,11 +152,19 @@ build_nntile() {
         cmake_args+=(
             -DUSE_CUDA=ON
             -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
+            -DCUDAToolkit_ROOT="${CUDA_HOME}"
         )
         if [ -n "${CMAKE_CUDA_COMPILER:-}" ]; then
             cmake_args+=(-DCMAKE_CUDA_COMPILER="${CMAKE_CUDA_COMPILER}")
         elif [ -n "${CUDA_HOME:-}" ]; then
             cmake_args+=(-DCMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc")
+        fi
+        if [ -n "${CUDNN_PATH:-}" ]; then
+            cmake_args+=(
+                -DCUDNN_PATH="${CUDNN_PATH}"
+                -DCUDNN_INCLUDE_PATH="${CUDNN_INCLUDE_PATH}"
+                -DCUDNN_LIBRARY_PATH="${CUDNN_LIBRARY_PATH}"
+            )
         fi
         if [ -n "${CMAKE_CUDA_ARCHITECTURES:-}" ]; then
             cmake_args+=(-DCMAKE_CUDA_ARCHITECTURES="${CMAKE_CUDA_ARCHITECTURES}")
@@ -188,6 +197,8 @@ case "${os_name}" in
     Linux)
         install_linux_packages
         if [ "${use_cuda}" = "1" ]; then
+            # shellcheck disable=SC1091
+            source "${script_dir}/install_linux_cuda_toolkit.sh"
             # shellcheck disable=SC1091
             source "${script_dir}/setup_torch_cuda_env.sh"
             export CMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc"

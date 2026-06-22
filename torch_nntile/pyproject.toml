@@ -77,6 +77,9 @@ repair-wheel-command = "bash {package}/tools/repair_wheel_macos.sh {wheel} {dest
 select = "*-manylinux_*"
 inherit.environment = "append"
 environment.TORCH_NNTILE_USE_CUDA = "1"
+environment.CUDA_HOME = "/usr/local/cuda"
+environment.PATH = "/usr/local/cuda/bin:$PATH"
+environment.LD_LIBRARY_PATH = "/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macosx_arm64"
