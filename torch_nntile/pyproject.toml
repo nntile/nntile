@@ -64,6 +64,7 @@ before-build = [
     "python -m pip install --upgrade pip",
     "python -m pip install 'setuptools>=61,<82' wheel ninja numpy",
     "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1'",
+    "python -m pip install nvidia-cudnn-cu12",
 ]
 before-test = "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1'"
 repair-wheel-command = "bash {package}/tools/repair_wheel_linux.sh {wheel} {dest_dir}"

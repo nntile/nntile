@@ -81,6 +81,40 @@ def _apply_pkg_config(
             extra_link_args.append(flag)
 
 
+def _cudnn_include_dir() -> str | None:
+    if os.environ.get("TORCH_NNTILE_USE_CUDA") != "1":
+        return None
+    if path := os.environ.get("CUDNN_INCLUDE_PATH"):
+        return path
+    try:
+        import importlib
+
+        mod = importlib.import_module("nvidia.cudnn")
+        if getattr(mod, "__file__", None):
+            root = Path(mod.__file__).resolve().parent
+        else:
+            root = Path(next(iter(mod.__path__)))
+        include = root / "include"
+        if (include / "cudnn.h").exists():
+            return str(include)
+    except ImportError:
+        return None
+    return None
+
+
+def _cuda_include_dirs() -> list[str]:
+    if os.environ.get("TORCH_NNTILE_USE_CUDA") != "1":
+        return []
+    dirs: list[str] = []
+    if cuda_home := os.environ.get("CUDA_HOME"):
+        cuda_include = Path(cuda_home) / "include"
+        if cuda_include.is_dir():
+            dirs.append(str(cuda_include))
+    if cudnn_include := _cudnn_include_dir():
+        dirs.append(cudnn_include)
+    return dirs
+
+
 def _nntile_extension_kwargs() -> dict:
     ci_build_wheel = os.environ.get("CIBUILDWHEEL") == "1"
 
@@ -147,6 +181,7 @@ def _nntile_extension_kwargs() -> dict:
             extra_link_args,
             libraries,
         )
+        include_dirs.extend(_cuda_include_dirs())
     elif require_libnntile:
         raise RuntimeError(
             "torch_nntile wheel builds require libnntile; set NNTILE_BUILD_DIR"
