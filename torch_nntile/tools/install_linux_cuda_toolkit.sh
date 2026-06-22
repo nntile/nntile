@@ -24,7 +24,7 @@ fi
 dnf install -y \
   "cuda-minimal-build-${pkg_ver}" \
   "cuda-driver-devel-${pkg_ver}" \
-  "cuda-cublas-devel-${pkg_ver}" \
+  "libcublas-devel-${pkg_ver}" \
   "cuda-nvrtc-devel-${pkg_ver}"
 dnf clean all
 
