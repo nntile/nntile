@@ -13,12 +13,12 @@ Wheels are built in CI, not published to PyPI. Install from a downloaded
 |-|-|
 | **Workflow** (Actions sidebar / run title) | `torch_nntile wheels` |
 | **Workflow file** | `.github/workflows/torch-nntile-wheels.yml` |
-| **Trigger** | Push to `graph_api`, or manual **Run workflow** |
+| **Trigger** | Manual **Run workflow** only (`workflow_dispatch`) |
 | **Python** | 3.12 (`cp312`) |
 
-The workflow does **not** run on open PR branches. Wheels appear after changes
-land on `graph_api` (merge or direct push), unless someone triggers the workflow
-manually.
+Open **Actions → torch_nntile wheels → Run workflow**, choose the branch (usually
+`graph_api`), and start the run. The workflow does **not** run automatically on
+push or on PRs.
 
 Each matrix job uploads a **separate** artifact — there is no single bundle
 with all platforms:
@@ -34,7 +34,7 @@ with all platforms:
 **Download (`gh` CLI):**
 
 ```bash
-gh run list --workflow=torch-nntile-wheels.yml --branch graph_api --limit 5
+gh run list --workflow=torch-nntile-wheels.yml --limit 5
 gh run download RUN_ID -D wheelhouse
 # → wheelhouse/torch-nntile-wheel-cp312-manylinux_x86_64/*.whl
 # → wheelhouse/torch-nntile-wheel-cp312-macosx_arm64/*.whl

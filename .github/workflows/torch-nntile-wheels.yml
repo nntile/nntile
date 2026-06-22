@@ -1,9 +1,6 @@
 name: torch_nntile wheels
 
 on:
-  push:
-    branches:
-      - graph_api
   workflow_dispatch:
 
 permissions:

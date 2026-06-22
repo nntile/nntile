@@ -176,8 +176,8 @@ workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/
 
 | | |
 |-|-|
-| **Trigger** | Push to `graph_api`, or `workflow_dispatch` |
-| **Not triggered by** | Open PRs on feature branches |
+| **Trigger** | `workflow_dispatch` only (manual **Run workflow**) |
+| **Not triggered by** | Push, pull requests, or schedule |
 | **Tooling** | [cibuildwheel](https://cibuildwheel.pypa.io/) 4.1.0 |
 | **Version** | `0.0.1` (`TORCH_NNTILE_WHEEL_VERSION`) |
 
@@ -215,7 +215,7 @@ before installing the wheel.
 ### Download and publish
 
 ```bash
-gh run list --workflow=torch-nntile-wheels.yml --branch graph_api --limit 5
+gh run list --workflow=torch-nntile-wheels.yml --limit 5
 gh run download RUN_ID -D wheelhouse
 ```
 
