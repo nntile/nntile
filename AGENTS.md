@@ -74,3 +74,4 @@ Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 - **Agent checklist (actionable):** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)
 - **Roadmap:** [docs/dev/graph_static_execution_plan.md](docs/dev/graph_static_execution_plan.md)
 - **Per-task steps:** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)
+- **`torch_nntile` wheels:** built by the `torch_nntile wheels` workflow on merge into `graph_api` or `workflow_dispatch`; see [torch_nntile/README.md](torch_nntile/README.md#prebuilt-wheels-001)

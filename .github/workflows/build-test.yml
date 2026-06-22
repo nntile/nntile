@@ -254,7 +254,7 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - run: |
-          pip install --break-system-packages torch pytest
+          pip install --break-system-packages 'torch==2.9.1' pytest
           CXX=g++ pip install --break-system-packages \
             -e ./torch_nntile --no-build-isolation
           pytest -vv torch_nntile/tests/test_device_stub.py
@@ -294,7 +294,7 @@ jobs:
           export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
-          pip install --break-system-packages torch pytest
+          pip install --break-system-packages 'torch==2.9.1' pytest
           CXX=g++ pip install --break-system-packages \
             -e ./torch_nntile --no-build-isolation --force-reinstall
           pytest -vv --rootdir=. -m 'not slow' torch_nntile/tests/

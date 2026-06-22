@@ -6,11 +6,51 @@ against `libnntile`, selected ops record into a shared `TensorGraph`, lower to
 
 Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 
-## Install
+## Prebuilt wheels
 
-Build NNTile first (see [build/README.md](build/README.md)), then:
+CI builds `torch_nntile` 0.0.1 wheels via the **`torch_nntile wheels`** workflow
+(`.github/workflows/torch-nntile-wheels.yml`).
+
+| Trigger | When wheels build |
+|---------|-------------------|
+| **Merge into `graph_api`** | Automatic on `pull_request` closed + merged |
+| **`workflow_dispatch`** | Maintainer runs manually (Actions UI or `gh workflow run`) |
+
+Open PRs do not produce wheels until merged. PRs closed without merging are
+skipped.
+
+Each platform is a **separate** artifact (no combined bundle):
+
+| Platform | Artifact |
+|----------|----------|
+| Linux CUDA x86_64, Python 3.12 | `torch-nntile-wheel-cp312-manylinux_x86_64` |
+| macOS arm64 CPU, Python 3.12 | `torch-nntile-wheel-cp312-macosx_arm64` |
+
+Wheels are **not on PyPI**. Download from Actions → **torch_nntile wheels** →
+Artifacts, or:
 
 ```bash
+gh run list --workflow=torch-nntile-wheels.yml --limit 5
+gh run download RUN_ID -D wheelhouse
+```
+
+Manual dispatch (write access required):
+
+```bash
+gh workflow run torch-nntile-wheels.yml --ref graph_api
+```
+
+Install the matching `torch` first, then the local wheel (see
+[`torch_nntile/README.md`](../torch_nntile/README.md#prebuilt-wheels-001) for
+full commands). Maintainer CI notes: [build/README.md](build/README.md#torch_nntile-wheels-ci).
+
+## Install from source
+
+Build NNTile first (see [build/README.md](build/README.md)), then install a
+matching `torch` and the editable extension:
+
+```bash
+pip install 'torch==2.9.1'
 export NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}

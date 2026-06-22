@@ -23,13 +23,14 @@ and end-to-end training examples.
 | SGOC scheduler (limited VRAM, single GPU) | [sgoc/README.md](sgoc/README.md) |
 | NNTile Graph API (work in progress) | [graph-wip.md](graph-wip.md) |
 | PyTorch `device="nntile"` (torch_nntile) | [torch_nntile.md](torch_nntile.md) |
+| Install prebuilt `torch_nntile` wheel (CI) | [torch_nntile.md#prebuilt-wheels](torch_nntile.md#prebuilt-wheels) |
 
 ## Documentation map
 
 ```
 docs/
   README.md                 ← you are here
-  build/README.md           Build, CMake, Docker, testing
+  build/README.md           Build, CMake, Docker, testing, torch_nntile wheel CI
   cpp/README.md             C++ kernel / starpu / tile / tensor
   graph-wip.md              NNTile Graph API status
   torch_nntile.md           PyTorch device="nntile", axis-group tiling

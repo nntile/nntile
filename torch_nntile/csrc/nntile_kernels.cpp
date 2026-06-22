@@ -16,6 +16,7 @@
 #include <c10/core/DeviceGuard.h>
 #include <c10/core/ScalarType.h>
 #include <torch/library.h>
+#include <torch/version.h>
 
 #include <cstring>
 #include <optional>
@@ -400,11 +401,16 @@ void cpu_fallback(const c10::OperatorHandle &op, torch::jit::Stack *stack)
                    "torch_nntile.init_context)";
         TORCH_CHECK(false, message.str());
     }
+#if (TORCH_VERSION_MAJOR > 2) \
+    || (TORCH_VERSION_MAJOR == 2 && TORCH_VERSION_MINOR >= 12)
     at::native::cpu_fallback(
         op,
         stack,
         /*error_on_views=*/false,
         c10::DispatchKey::CPU);
+#else
+    at::native::cpu_fallback(op, stack);
+#endif
 }
 
 } // namespace torch_nntile

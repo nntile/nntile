@@ -2,6 +2,87 @@
 
 PyTorch **PrivateUse1** device registered as `device="nntile"`.
 
+## Prebuilt wheels (0.0.1)
+
+Wheels are built in CI, not published to PyPI. Install from a downloaded
+`.whl` file after installing the matching `torch` build.
+
+### CI workflow
+
+| | |
+|-|-|
+| **Workflow** (Actions sidebar / run title) | `torch_nntile wheels` |
+| **Workflow file** | `.github/workflows/torch-nntile-wheels.yml` |
+| **Trigger** | `pull_request` closed (merged into `graph_api`), or manual **Run workflow** |
+| **Python** | 3.12 (`cp312`) |
+
+Wheels build automatically when a PR into `graph_api` is **merged**, or when a
+maintainer starts the workflow manually (`workflow_dispatch`). Closed PRs that
+were not merged are skipped. Open PRs do **not** build wheels until merge.
+
+### Triggering a build
+
+**Automatic:** merge a PR into `graph_api`. GitHub fires `pull_request` with
+`types: [closed]`; the job runs only when `pull_request.merged` is true.
+
+**Manual:** from a machine with write access to the repo:
+
+```bash
+gh workflow run torch-nntile-wheels.yml --ref graph_api
+gh run watch
+```
+
+In the GitHub UI, **Run workflow** appears only when the workflow file with
+`workflow_dispatch` exists on the repository **default branch** (see
+[GitHub docs](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch)).
+Use `gh workflow run` if the button is missing.
+
+Each matrix job uploads a **separate** artifact — there is no single bundle
+with all platforms:
+
+| Job | Artifact name |
+|-----|---------------|
+| Linux CUDA x86_64 | `torch-nntile-wheel-cp312-manylinux_x86_64` |
+| macOS arm64 CPU | `torch-nntile-wheel-cp312-macosx_arm64` |
+
+**Download (GitHub UI):** Actions → **torch_nntile wheels** → pick a run →
+**Artifacts** at the bottom of the run page.
+
+**Download (`gh` CLI):**
+
+```bash
+gh run list --workflow=torch-nntile-wheels.yml --limit 5
+gh run download RUN_ID -D wheelhouse
+# → wheelhouse/torch-nntile-wheel-cp312-manylinux_x86_64/*.whl
+# → wheelhouse/torch-nntile-wheel-cp312-macosx_arm64/*.whl
+```
+
+### Linux (CUDA, torch 2.9.1+cu128)
+
+CUDA wheels are built against `torch==2.9.1+cu128`. Install that torch build
+first (the `+cu128` tag is only on the PyTorch CUDA index, not PyPI), then the
+wheel:
+
+```bash
+pip install torch==2.9.1+cu128 --index-url https://download.pytorch.org/whl/cu128
+pip install /path/to/torch_nntile-0.0.1-cp312-cp312-manylinux_2_28_x86_64.whl
+```
+
+The wheel bundles `libstarpu` and `libnntile`. A compatible NVIDIA driver is
+required at runtime for CUDA StarPU workers (`ncuda > 0`).
+
+### macOS arm64 (CPU-only, torch 2.9.1)
+
+```bash
+pip install torch==2.9.1
+pip install /path/to/torch_nntile-0.0.1-cp312-cp312-macosx_14_0_arm64.whl
+```
+
+StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
+
+Publishing to PyPI is manual: download CI artifacts and run `twine upload` locally.
+See [docs/build/README.md](../docs/build/README.md) for maintainer CI details.
+
 ## Phase 1 (stub)
 
 Tensor storage is backed by a host `std::vector<uint8_t>` buffer. Supports
@@ -177,13 +258,16 @@ Cross-entropy parity (forward, backward, multi-D labels, `ignore_index`):
 pytest -vv torch_nntile/tests/test_cross_entropy_parity.py
 ```
 
-## Install (stub only)
+## Install from source (stub only)
+
+Install `torch==2.9.1` first (same ABI as `install_requires`), then:
 
 ```bash
+pip install 'torch==2.9.1'
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation
 ```
 
-## Install (with libnntile / phase 2)
+## Install from source (with libnntile / phase 2)
 
 Build NNTile first (CPU-only example):
 
@@ -196,9 +280,11 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
 cmake --build build -j$(nproc)
 ```
 
-Then install the extension against that build:
+Then install the extension against that build (use the same `torch` version you
+built NNTile against):
 
 ```bash
+pip install 'torch==2.9.1'
 export NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
@@ -245,17 +331,17 @@ the MNIST example (or call ``restrict_cuda()``) and shut StarPU down at exit.
 The example calls ``torch_nntile.wait()`` and ``torch_nntile.shutdown_context()``
 in a ``finally`` block; ``init_context()`` also registers an ``atexit`` hook.
 
-## macOS / PyTorch 2.12
+## macOS / PyTorch cpu_fallback ABI
 
-PyTorch 2.12 exports `at::native::cpu_fallback` with four arguments
+PyTorch 2.12+ exports `at::native::cpu_fallback` with four arguments
 (`OperatorHandle`, `Stack*`, `bool error_on_views`, `c10::DispatchKey`).
-Calling it with fewer arguments can leave an unresolved reference to a
-three-argument symbol at load time on macOS. The extension calls the
-four-argument overload explicitly.
+Older releases use a two-argument overload. The extension selects the
+appropriate overload at compile time via `TORCH_VERSION_*`.
 
-After upgrading PyTorch, rebuild:
+After upgrading PyTorch, reinstall the matching torch pin and rebuild:
 
 ```bash
+pip install 'torch==2.9.1'
 CXX=clang++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
 
