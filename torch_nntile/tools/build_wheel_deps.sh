@@ -68,9 +68,10 @@ prepare_prefix() {
 }
 
 install_torch_cpu() {
-    python -m pip install --upgrade pip
-    python -m pip install "torch==${TORCH_VERSION:-2.9.1}"
-    export TORCH_PREFIX="$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+    local python="$("${script_dir}/wheel_python.sh")"
+    "${python}" -m pip install --upgrade pip
+    "${python}" -m pip install "torch==${TORCH_VERSION:-2.9.1}"
+    export TORCH_PREFIX="$("${python}" -c 'import torch; print(torch.utils.cmake_prefix_path)')"
     export CMAKE_PREFIX_PATH="${TORCH_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
 }
 

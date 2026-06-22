@@ -38,11 +38,16 @@ CSRC = [
 def _pkg_config(package: str, flag: str) -> list[str]:
     env = os.environ.copy()
     pkg_config_path = env.get("PKG_CONFIG_PATH", "")
-    starpu_pkg = "/opt/starpu/lib/pkgconfig"
-    if starpu_pkg not in pkg_config_path.split(":"):
-        env["PKG_CONFIG_PATH"] = (
-            f"{starpu_pkg}:{pkg_config_path}" if pkg_config_path else starpu_pkg
-        )
+    starpu_roots = []
+    if starpu_prefix := os.environ.get("STARPU_PREFIX"):
+        starpu_roots.append(f"{starpu_prefix}/lib/pkgconfig")
+    starpu_roots.append("/opt/starpu/lib/pkgconfig")
+    for starpu_pkg in starpu_roots:
+        if starpu_pkg not in pkg_config_path.split(":"):
+            pkg_config_path = (
+                f"{starpu_pkg}:{pkg_config_path}" if pkg_config_path else starpu_pkg
+            )
+    env["PKG_CONFIG_PATH"] = pkg_config_path
     try:
         out = subprocess.check_output(
             ["pkg-config", flag, package],

@@ -176,9 +176,9 @@ workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/
 
 | | |
 |-|-|
-| **Trigger** | `pull_request` closed (merged into `graph_api`), or `workflow_dispatch` |
-| **Skipped when** | PR closed without merge; open PR pushes |
-| **Job guard** | `merged == true` or `workflow_dispatch` |
+| **Trigger** | Pull requests to `graph_api`, or `workflow_dispatch` |
+| **Skipped when** | PR closed without merge |
+| **Job guard** | open/sync PR, merged close, or `workflow_dispatch` |
 | **Tooling** | [cibuildwheel](https://cibuildwheel.pypa.io/) 4.1.0 |
 | **Version** | `0.0.1` (`TORCH_NNTILE_WHEEL_VERSION`) |
 
@@ -187,20 +187,20 @@ Workflow definition:
 ```yaml
 on:
   pull_request:
-    types: [closed]
     branches: [graph_api]
   workflow_dispatch:
 
 jobs:
   build-wheels:
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: workflow_dispatch || action != closed || pull_request.merged
 ```
 
 ### Triggering
 
 | Goal | Action |
 |------|--------|
-| Build after landing changes | Merge PR into `graph_api` (automatic) |
+| Build from a PR branch | Push to the PR (automatic) |
+| Build after landing changes | Merge PR into `graph_api` |
 | Rebuild without a merge | `gh workflow run torch-nntile-wheels.yml --ref graph_api` |
 | Download artifacts | `gh run download RUN_ID -D wheelhouse` |
 
@@ -229,7 +229,8 @@ Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
 | Script | Role |
 |--------|------|
 | `build_wheel_deps.sh` | StarPU (nntile fork), FXT, libnntile; Linux CUDA / macOS CPU split |
-| `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index + `nvidia-cuda-nvcc-cu12`, export `CUDA_HOME` |
+| `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index (cp312 python) + nvcc, export `CUDA_HOME` |
+| `wheel_python.sh` | Select cp312 interpreter in manylinux `before-all` hooks |
 | `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver libs |
 | `repair_wheel_macos.sh` | `delocate-wheel`; macOS 14+ arm64 |
 | `smoke_test_wheel.py` | cibuildwheel `test-command` |
