@@ -79,11 +79,25 @@ done
 shopt -u nullglob
 
 wheel_name="$(basename "${repaired_wheel}")"
-rm -f "${repaired_wheel}"
-(
-    cd "${tmpdir}"
-    zip -r9 "${dest_dir}/${wheel_name}" .
-)
+repacked_wheel="${dest_dir}/${wheel_name}"
+rm -f "${repacked_wheel}"
+python3 - "${repacked_wheel}" "${tmpdir}" <<'PY'
+import sys
+import zipfile
+from pathlib import Path
 
-wheel_size_mb="$(du -m "${dest_dir}/${wheel_name}" | awk '{print $1}')"
-echo "Repaired wheel size: ${wheel_size_mb} MB (${dest_dir}/${wheel_name})"
+out_wheel = Path(sys.argv[1])
+tmpdir = Path(sys.argv[2])
+with zipfile.ZipFile(
+    out_wheel,
+    mode="w",
+    compression=zipfile.ZIP_DEFLATED,
+    compresslevel=9,
+) as zf:
+    for path in sorted(tmpdir.rglob("*")):
+        if path.is_file():
+            zf.write(path, path.relative_to(tmpdir).as_posix())
+PY
+
+wheel_size_mb="$(du -m "${repacked_wheel}" | awk '{print $1}')"
+echo "Repaired wheel size: ${wheel_size_mb} MB (${repacked_wheel})"
