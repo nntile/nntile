@@ -58,17 +58,27 @@ gh run download RUN_ID -D wheelhouse
 
 ### Linux (CUDA, torch 2.9.1)
 
-Linux CUDA wheels are built against `torch==2.9.1` from the PyTorch **cu128**
-wheel index. Install that torch build first, then the wheel:
+Linux CUDA wheels are built against `torch==2.9.1`. **PyTorch may be CPU-only**
+from default PyPI; a CUDA build of PyTorch is not required. NVIDIA math
+libraries come from `nvidia-*-cu12` pip packages (declared as `torch_nntile`
+dependencies on Linux x86_64), not from the wheel itself.
 
 ```bash
-pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/cu128
+pip install torch==2.9.1
 pip install /path/to/torch_nntile-0.0.1-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing)
-and `libnntile`. A compatible NVIDIA driver is required at runtime for CUDA
-StarPU workers (`ncuda > 0`).
+`pip install` of the wheel pulls the NVIDIA packages on Linux automatically.
+You can also install them manually:
+
+```bash
+pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 \
+    nvidia-cusolver-cu12 nvidia-nvjitlink-cu12 nvidia-cuda-runtime-cu12
+```
+
+The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing),
+`libnntile`, and small transitive deps (OpenBLAS, hwloc). A compatible NVIDIA
+**driver** is required at runtime for CUDA StarPU workers (`ncuda > 0`).
 
 ### macOS arm64 (CPU-only, torch 2.9.1)
 
