@@ -5,8 +5,8 @@
 # Build PyTorch PrivateUse1 extension for the nntile device.
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 from setuptools import find_packages, setup
@@ -201,6 +201,15 @@ ext_kwargs = _nntile_extension_kwargs()
 
 _wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.1")
 _torch_requires = "torch==2.9.1"
+_linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'
+_linux_nvidia_requires = [
+    f"nvidia-cublas-cu12>=12.8.4.1; {_linux_marker}",
+    f"nvidia-cudnn-cu12>=9.10.2.21; {_linux_marker}",
+    f"nvidia-cusparse-cu12>=12.5.8.93; {_linux_marker}",
+    f"nvidia-cusolver-cu12>=11.7.3.90; {_linux_marker}",
+    f"nvidia-nvjitlink-cu12>=12.8.93; {_linux_marker}",
+    f"nvidia-cuda-runtime-cu12>=12.8.90; {_linux_marker}",
+]
 
 setup(
     name="torch_nntile",
@@ -214,5 +223,5 @@ setup(
         )
     ],
     cmdclass={"build_ext": BuildExtension.with_options(no_python_abi_suffix=True)},
-    install_requires=[_torch_requires],
+    install_requires=[_torch_requires, *_linux_nvidia_requires],
 )

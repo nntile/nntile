@@ -232,13 +232,20 @@ Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
 | `install_linux_cuda_toolkit.sh` | manylinux: dnf CUDA 12.8 toolkit (nvcc, headers, libcuda stubs; no GPU) |
 | `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index + pip cuDNN; export `CUDA_HOME` |
 | `wheel_python.sh` | Select cp312 interpreter in manylinux `before-all` hooks |
-| `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver libs |
+| `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver and math libs; `patchelf` RPATH to `nvidia-*-cu12` pip libs |
 | `repair_wheel_macos.sh` | `delocate-wheel`; macOS 14+ arm64 |
 | `smoke_test_wheel.py` | cibuildwheel `test-command` |
 
 PyTorch itself is **not** bundled; wheels declare `torch==2.9.1` as a runtime
-dependency. Linux users install `torch==2.9.1` from
-`https://download.pytorch.org/whl/cu128` before installing the wheel.
+dependency. On Linux x86_64, wheels also declare `nvidia-*-cu12` pip packages
+for CUDA math libraries (cuBLAS, cuDNN, cuSPARSE, cuSOLVER, nvJitLink,
+cuda-runtime). **CPU-only PyTorch from default PyPI is supported**; users do
+not need the cu128 torch index. NVIDIA driver libs (`libcuda`) are never
+bundled.
+
+CI `before-test` installs CPU `torch==2.9.1` plus NVIDIA pip packages to
+match the supported end-user path. `before-build` still uses cu128 torch for
+compiling the extension against CUDA headers.
 
 ### Download and publish
 
