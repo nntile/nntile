@@ -41,14 +41,16 @@ if [ ! -f "${repaired_wheel}" ]; then
     exit 1
 fi
 
-# PyTorch-style RPATH: resolve nvidia-*-cu12 pip libs from site-packages.
+# nvidia-*-cu12 pip libs live in site-packages/nvidia/*/lib. torch_nntile
+# artifacts are one level below site-packages (torch_nntile/, torch_nntile.libs/),
+# so use $ORIGIN/../nvidia/... (PyTorch uses ../../ from torch/lib/).
 nvidia_rpath=(
-    '$ORIGIN/../../nvidia/cublas/lib'
-    '$ORIGIN/../../nvidia/cudnn/lib'
-    '$ORIGIN/../../nvidia/cusparse/lib'
-    '$ORIGIN/../../nvidia/cusolver/lib'
-    '$ORIGIN/../../nvidia/nvjitlink/lib'
-    '$ORIGIN/../../nvidia/cuda_runtime/lib'
+    '$ORIGIN/../nvidia/cublas/lib'
+    '$ORIGIN/../nvidia/cudnn/lib'
+    '$ORIGIN/../nvidia/cusparse/lib'
+    '$ORIGIN/../nvidia/cusolver/lib'
+    '$ORIGIN/../nvidia/nvjitlink/lib'
+    '$ORIGIN/../nvidia/cuda_runtime/lib'
 )
 nvidia_rpath_joined="$(IFS=:; echo "${nvidia_rpath[*]}")"
 
@@ -64,7 +66,16 @@ patch_so_rpath() {
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
-unzip -q "${repaired_wheel}" -d "${tmpdir}"
+python3 - "${repaired_wheel}" "${tmpdir}" <<'PY'
+import sys
+import zipfile
+from pathlib import Path
+
+wheel = Path(sys.argv[1])
+tmpdir = Path(sys.argv[2])
+with zipfile.ZipFile(wheel) as zf:
+    zf.extractall(tmpdir)
+PY
 
 if [ -f "${tmpdir}/torch_nntile/_C.so" ]; then
     patch_so_rpath "${tmpdir}/torch_nntile/_C.so"
