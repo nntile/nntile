@@ -562,7 +562,28 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
             starpu_worker_hint_ = -1;
         }
         execution_order_[i]->execute(*this);
-        starpu_task_wait_for_all();
+    }
+}
+
+void Runtime::execute()
+{
+    require_compiled();
+    validate_initialized_inputs_at_compile();
+    bool const use_static_schedule = has_execution_schedule();
+    for (size_t i = 0; i < execution_order_.size(); ++i)
+    {
+        if (use_static_schedule)
+        {
+            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
+                execution_schedule_.worker_for_op(i),
+                execution_schedule_.use_cuda_workers,
+                execution_order_[i]->op_name());
+        }
+        else
+        {
+            starpu_worker_hint_ = -1;
+        }
+        execution_order_[i]->execute(*this);
     }
 }
 
@@ -689,31 +710,6 @@ void Runtime::eliminate_dead_ops()
         }
     }
     execution_order_ = std::move(filtered);
-}
-
-void Runtime::execute()
-{
-    require_compiled();
-    validate_initialized_inputs_at_compile();
-    bool const use_static_schedule = has_execution_schedule();
-    for (size_t i = 0; i < execution_order_.size(); ++i)
-    {
-        if (use_static_schedule)
-        {
-            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
-                execution_schedule_.worker_for_op(i),
-                execution_schedule_.use_cuda_workers,
-                execution_order_[i]->op_name());
-        }
-        else
-        {
-            starpu_worker_hint_ = -1;
-        }
-        execution_order_[i]->execute(*this);
-        // Global sync between ops (revisit when last-use invalidation
-        // returns).
-        starpu_task_wait_for_all();
-    }
 }
 
 void Runtime::wait() { starpu_task_wait_for_all(); }

@@ -84,6 +84,8 @@ class Runtime
     template <typename T>
     void bind_data(TileNode const *tile, const std::vector<T> &data);
 
+    //! Submit all compiled ops to StarPU (asynchronous). Call ``wait()`` before
+    //! reading outputs or relying on computed tile values.
     void execute();
 
     //! StarPU worker for ``STARPU_EXECUTE_ON_WORKER`` during tile op execution,
@@ -91,6 +93,8 @@ class Runtime
     //! execution schedule when one is installed.
     int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
 
+    //! Block until all tasks submitted by ``execute()`` / ``execute_range()``
+    //! have finished.
     void wait();
 
     //! Read a logical tensor or tile buffer marked for host I/O (input or
