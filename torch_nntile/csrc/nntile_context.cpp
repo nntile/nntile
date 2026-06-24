@@ -122,6 +122,12 @@ bool is_context_initialized()
     return g_context != nullptr;
 }
 
+bool is_context_verbose()
+{
+    std::lock_guard<std::mutex> lock(g_context_mutex);
+    return g_context_config.verbose != 0;
+}
+
 void ensure_nntile_context()
 {
     std::lock_guard<std::mutex> lock(g_context_mutex);
@@ -224,6 +230,11 @@ bool is_cpu_fallback_enabled()
 }
 
 bool is_context_initialized()
+{
+    return false;
+}
+
+bool is_context_verbose()
 {
     return false;
 }

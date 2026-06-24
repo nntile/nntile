@@ -31,6 +31,7 @@ std::vector<Index> tile_sizes_for_axis_extent(
 } // namespace nntile
 
 #include <cstring>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -78,6 +79,23 @@ std::unique_ptr<GraphSession> g_session;
 std::unordered_map<void *, std::vector<std::shared_ptr<void>>> g_persisted_tiles_by_storage;
 //! Keeps every session tile buffer alive until recorder shutdown.
 std::vector<std::shared_ptr<void>> g_persisted_tile_pool;
+
+void log_tile_adoption(const std::string &message)
+{
+    if (is_context_verbose())
+    {
+        std::cerr << "[torch_nntile tile_adoption] " << message << '\n';
+    }
+}
+
+const char *tensor_node_label(nntile::TensorGraph::TensorNode const *node)
+{
+    if (node == nullptr)
+    {
+        return "<null>";
+    }
+    return node->name().empty() ? "<unnamed>" : node->name().c_str();
+}
 
 void assign_axis_group_name(nntile::AxisDescriptor *axis, const std::string &name)
 {
@@ -273,6 +291,7 @@ void capture_persisted_tiles_from_session()
     g_persisted_tiles_by_storage.clear();
     if (g_session == nullptr || g_session->runtime == nullptr)
     {
+        log_tile_adoption("capture: no previous session");
         return;
     }
     std::unordered_map<nntile::TensorGraph::TensorNode const *,
@@ -281,6 +300,8 @@ void capture_persisted_tiles_from_session()
         std::vector<std::shared_ptr<void>>> initialized_tiles;
     g_session->runtime->export_all_tiles(all_tiles);
     g_session->runtime->export_initialized_tiles(initialized_tiles);
+    const std::size_t pool_before = g_persisted_tile_pool.size();
+    std::size_t tiles_retained = 0;
     for (const auto &[tensor, tiles] : all_tiles)
     {
         (void) tensor;
@@ -289,9 +310,11 @@ void capture_persisted_tiles_from_session()
             if (tile_ptr != nullptr)
             {
                 g_persisted_tile_pool.push_back(tile_ptr);
+                ++tiles_retained;
             }
         }
     }
+    std::size_t storages_mapped = 0;
     for (const auto &[data_ptr, node] : g_session->storage_to_node)
     {
         if (node == nullptr)
@@ -302,7 +325,26 @@ void capture_persisted_tiles_from_session()
         if (found != initialized_tiles.end())
         {
             g_persisted_tiles_by_storage[data_ptr] = found->second;
+            ++storages_mapped;
+            if (is_context_verbose())
+            {
+                log_tile_adoption(
+                    "capture: storage=" + std::to_string(
+                        reinterpret_cast<std::uintptr_t>(data_ptr)) +
+                    " tensor='" + std::string(tensor_node_label(node)) +
+                    "' tiles=" + std::to_string(found->second.size()));
+            }
         }
+    }
+    if (is_context_verbose())
+    {
+        log_tile_adoption(
+            "capture: all_tensors=" + std::to_string(all_tiles.size()) +
+            " initialized_tensors=" + std::to_string(initialized_tiles.size()) +
+            " storages_for_adoption=" + std::to_string(storages_mapped) +
+            " tiles_retained=" + std::to_string(tiles_retained) +
+            " pool_size=" + std::to_string(pool_before) + "->" +
+            std::to_string(g_persisted_tile_pool.size()));
     }
 }
 
@@ -312,6 +354,7 @@ void stage_persisted_tiles_for_session(
 {
     if (g_persisted_tiles_by_storage.empty())
     {
+        log_tile_adoption("stage: no persisted storages");
         return;
     }
     nntile::TensorNodeToTileMap tile_map;
@@ -330,12 +373,58 @@ void stage_persisted_tiles_for_session(
         const auto mapped = g_tensor_nodes.find(data_ptr);
         if (mapped == g_tensor_nodes.end() || mapped->second.node == nullptr)
         {
+            log_tile_adoption(
+                "stage: skip storage=" + std::to_string(
+                    reinterpret_cast<std::uintptr_t>(data_ptr)) +
+                " (no pending tensor node)");
             continue;
         }
-        by_node[mapped->second.node] = tiles;
+        nntile::TensorGraph::TensorNode const *node = mapped->second.node;
+        const auto tm_it = tile_map.find(node);
+        if (tm_it == tile_map.end())
+        {
+            log_tile_adoption(
+                "stage: skip storage=" + std::to_string(
+                    reinterpret_cast<std::uintptr_t>(data_ptr)) +
+                " tensor='" + std::string(tensor_node_label(node)) +
+                "' (not in new tile_map)");
+            continue;
+        }
+        if (tm_it->second.size() != tiles.size())
+        {
+            log_tile_adoption(
+                "stage: skip storage=" + std::to_string(
+                    reinterpret_cast<std::uintptr_t>(data_ptr)) +
+                " tensor='" + std::string(tensor_node_label(node)) +
+                "' (tile count mismatch saved=" +
+                std::to_string(tiles.size()) + " new=" +
+                std::to_string(tm_it->second.size()) + ")");
+            continue;
+        }
+        log_tile_adoption(
+            "stage: candidate storage=" + std::to_string(
+                reinterpret_cast<std::uintptr_t>(data_ptr)) +
+            " tensor='" + std::string(tensor_node_label(node)) +
+            "' tiles=" + std::to_string(tiles.size()));
+        by_node[node] = tiles;
     }
     const std::vector<nntile::TensorGraph::TensorNode const *> adopted =
         runtime.stage_persisted_tiles(by_node, tile_map);
+    for (nntile::TensorGraph::TensorNode const *node : adopted)
+    {
+        if (node != nullptr)
+        {
+            log_tile_adoption(
+                "stage: adopted tensor='" +
+                std::string(tensor_node_label(node)) + "'");
+        }
+    }
+    if (is_context_verbose())
+    {
+        log_tile_adoption(
+            "stage: adopted " + std::to_string(adopted.size()) + " / " +
+            std::to_string(by_node.size()) + " candidates");
+    }
     std::unordered_map<nntile::TensorGraph::TensorNode const *, bool> init;
     for (nntile::TensorGraph::TensorNode const *node : adopted)
     {
@@ -421,8 +510,17 @@ void compile_graph_locked(bool clear_pending_after = true)
         mapped.node->mark_input(true);
         if (g_session->runtime->is_initialized(mapped.node))
         {
+            log_tile_adoption(
+                "compile: skip bind (already initialized / adopted) storage=" +
+                std::to_string(reinterpret_cast<std::uintptr_t>(data_ptr)) +
+                " tensor='" + std::string(tensor_node_label(mapped.node)) + "'");
             continue;
         }
+        log_tile_adoption(
+            "compile: bind scatter storage=" +
+            std::to_string(reinterpret_cast<std::uintptr_t>(data_ptr)) +
+            " tensor='" + std::string(tensor_node_label(mapped.node)) +
+            "' nelems=" + std::to_string(mapped.count));
         bind_storage_to_runtime(*g_session->runtime, data_ptr, mapped);
     }
 

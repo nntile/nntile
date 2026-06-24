@@ -30,6 +30,8 @@ void init_context(
 
 bool is_context_initialized();
 
+bool is_context_verbose();
+
 bool is_cpu_fallback_enabled();
 
 RuntimeMode get_runtime_mode();
