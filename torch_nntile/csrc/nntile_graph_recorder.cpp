@@ -882,6 +882,19 @@ void register_data_node(
     std::lock_guard<std::mutex> lock(g_recorder_mutex);
     node->mark_output(true);
     track_node(node);
+
+    const auto found = g_tensor_nodes.find(data_ptr);
+    if (found != g_tensor_nodes.end() && found->second.is_persistent_input)
+    {
+        // In-place update of optimizer state / weights: keep execute-time bind
+        // and gather updated values back to host after execute / .cpu().
+        found->second.node = node;
+        found->second.dtype = node->dtype();
+        found->second.count = static_cast<std::size_t>(node->nelems());
+        found->second.needs_host_copy = true;
+        return;
+    }
+
     g_tensor_nodes[data_ptr] = MappedTensor{
         node,
         nullptr,
