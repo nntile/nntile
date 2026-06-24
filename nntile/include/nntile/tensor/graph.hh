@@ -72,6 +72,42 @@ inline void TensorGraph::add_op(
     ops_.push_back(std::move(op_node));
 }
 
+inline void TensorGraph::prepend_ops(
+    std::vector<std::shared_ptr<TensorGraph::OpNode>> op_nodes)
+{
+    for (std::shared_ptr<TensorGraph::OpNode> &op_node : op_nodes)
+    {
+        if (op_node == nullptr)
+        {
+            throw std::invalid_argument(
+                "TensorGraph::prepend_ops: op node must be non-null");
+        }
+        for (const TensorGraph::TensorNode *input : op_node->inputs())
+        {
+            if (input->graph() != this)
+            {
+                throw std::invalid_argument(
+                    "TensorGraph::prepend_ops: input data '" +
+                    input->name() + "' does not belong to this graph");
+            }
+        }
+        for (const TensorGraph::TensorNode *output : op_node->outputs())
+        {
+            if (output->graph() != this)
+            {
+                throw std::invalid_argument(
+                    "TensorGraph::prepend_ops: output data '" +
+                    output->name() + "' does not belong to this graph");
+            }
+        }
+        op_node->id_ = next_op_id_++;
+    }
+    ops_.insert(
+        ops_.begin(),
+        std::make_move_iterator(op_nodes.begin()),
+        std::make_move_iterator(op_nodes.end()));
+}
+
 inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase()
 {
     std::vector<TensorNode const *> carried;

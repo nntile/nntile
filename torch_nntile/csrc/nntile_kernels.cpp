@@ -313,10 +313,6 @@ at::Tensor copy_from(
     }
     at::Tensor mutable_dst = dst;
     memcpy_tensors(self, mutable_dst);
-    if (self.is_cpu() && is_nntile_device(dst.device()) && is_graph_mode())
-    {
-        sync_nntile_storage_to_runtime(dst.storage().data_ptr().get());
-    }
     return dst;
 }
 

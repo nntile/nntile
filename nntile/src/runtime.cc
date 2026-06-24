@@ -226,11 +226,43 @@ void Runtime::export_initialized_tiles(
     }
 }
 
-void Runtime::stage_persisted_tiles(
+void Runtime::export_all_tiles(
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> &out) const
+{
+    out.clear();
+    for (const auto &uptr : graph_.tensor_descriptors())
+    {
+        const TileGraph::TensorDescriptor &desc = *uptr;
+        if (desc.source_node == nullptr)
+        {
+            continue;
+        }
+        std::vector<std::shared_ptr<void>> ptrs;
+        ptrs.reserve(desc.tiles.size());
+        for (TileGraph::TileNode *tile : desc.tiles)
+        {
+            auto it = tile_map_.find(tile);
+            if (it == tile_map_.end())
+            {
+                ptrs.clear();
+                break;
+            }
+            ptrs.push_back(it->second);
+        }
+        if (!ptrs.empty())
+        {
+            out[desc.source_node] = std::move(ptrs);
+        }
+    }
+}
+
+std::vector<TensorGraph::TensorNode const *> Runtime::stage_persisted_tiles(
     std::unordered_map<TensorGraph::TensorNode const *,
         std::vector<std::shared_ptr<void>>> const &persisted,
     TensorNodeToTileMap const &tile_map)
 {
+    std::vector<TensorGraph::TensorNode const *> adopted;
     tile_adoption_.clear();
     for (const auto &[tensor, saved_ptrs] : persisted)
     {
@@ -251,7 +283,9 @@ void Runtime::stage_persisted_tiles(
                 tile_adoption_[new_tiles[i]] = saved_ptrs[i];
             }
         }
+        adopted.push_back(tensor);
     }
+    return adopted;
 }
 
 void Runtime::restore_persisted_init_state(
@@ -528,7 +562,28 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
             starpu_worker_hint_ = -1;
         }
         execution_order_[i]->execute(*this);
-        starpu_task_wait_for_all();
+    }
+}
+
+void Runtime::execute()
+{
+    require_compiled();
+    validate_initialized_inputs_at_compile();
+    bool const use_static_schedule = has_execution_schedule();
+    for (size_t i = 0; i < execution_order_.size(); ++i)
+    {
+        if (use_static_schedule)
+        {
+            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
+                execution_schedule_.worker_for_op(i),
+                execution_schedule_.use_cuda_workers,
+                execution_order_[i]->op_name());
+        }
+        else
+        {
+            starpu_worker_hint_ = -1;
+        }
+        execution_order_[i]->execute(*this);
     }
 }
 
@@ -655,31 +710,6 @@ void Runtime::eliminate_dead_ops()
         }
     }
     execution_order_ = std::move(filtered);
-}
-
-void Runtime::execute()
-{
-    require_compiled();
-    validate_initialized_inputs_at_compile();
-    bool const use_static_schedule = has_execution_schedule();
-    for (size_t i = 0; i < execution_order_.size(); ++i)
-    {
-        if (use_static_schedule)
-        {
-            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
-                execution_schedule_.worker_for_op(i),
-                execution_schedule_.use_cuda_workers,
-                execution_order_[i]->op_name());
-        }
-        else
-        {
-            starpu_worker_hint_ = -1;
-        }
-        execution_order_[i]->execute(*this);
-        // Global sync between ops (revisit when last-use invalidation
-        // returns).
-        starpu_task_wait_for_all();
-    }
 }
 
 void Runtime::wait() { starpu_task_wait_for_all(); }

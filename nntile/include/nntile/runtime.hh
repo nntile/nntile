@@ -84,6 +84,8 @@ class Runtime
     template <typename T>
     void bind_data(TileNode const *tile, const std::vector<T> &data);
 
+    //! Submit all compiled ops to StarPU (asynchronous). Call ``wait()`` before
+    //! reading outputs or relying on computed tile values.
     void execute();
 
     //! StarPU worker for ``STARPU_EXECUTE_ON_WORKER`` during tile op execution,
@@ -91,6 +93,8 @@ class Runtime
     //! execution schedule when one is installed.
     int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
 
+    //! Block until all tasks submitted by ``execute()`` / ``execute_range()``
+    //! have finished.
     void wait();
 
     //! Read a logical tensor or tile buffer marked for host I/O (input or
@@ -129,7 +133,13 @@ class Runtime
         std::unordered_map<TensorGraph::TensorNode const *,
             std::vector<std::shared_ptr<void>>> &out) const;
 
-    void stage_persisted_tiles(
+    //! Snapshot every allocated tile buffer keyed by logical tensor.
+    void export_all_tiles(
+        std::unordered_map<TensorGraph::TensorNode const *,
+            std::vector<std::shared_ptr<void>>> &out) const;
+
+    //! Map saved tile buffers onto new tile nodes; returns adopted tensors.
+    std::vector<TensorGraph::TensorNode const *> stage_persisted_tiles(
         std::unordered_map<TensorGraph::TensorNode const *,
             std::vector<std::shared_ptr<void>>> const &persisted,
         TensorNodeToTileMap const &tile_map);
