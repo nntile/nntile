@@ -165,6 +165,7 @@ def main() -> None:
     if use_cuda and torch.cuda.is_available():
         c_ref = a.cuda() @ b.cuda()
         c2 = c_nnt.cpu().cuda()
+        c_round1 = c_round1.cuda()
     else:
         c_ref = a @ b
         c2 = c_nnt.cpu()
