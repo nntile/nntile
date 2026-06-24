@@ -24,6 +24,7 @@
 #include <nntile/graph.hh>
 #include <cstring>
 #include <numeric>
+#include <unordered_map>
 
 using namespace nntile;
 using namespace nntile;
@@ -533,4 +534,101 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto tile_result = tile_rt.get_output<float>(tz);
 
     nntile::test::require_relative_element_error(tile_result, tensor_result);
+}
+
+namespace
+{
+
+TensorNodeToTileMap build_tensor_tile_map(const TileGraph &graph)
+{
+    TensorNodeToTileMap tile_map;
+    for (const auto &uptr : graph.tensor_descriptors())
+    {
+        const TileGraph::TensorDescriptor &desc = *uptr;
+        if (desc.source_node != nullptr)
+        {
+            tile_map[desc.source_node] = desc.tiles;
+        }
+    }
+    return tile_map;
+}
+
+std::vector<float> make_gemm_matrix_data(Index rows, Index cols, float scale)
+{
+    std::vector<float> data(static_cast<size_t>(rows * cols));
+    for (Index i = 0; i < rows; ++i)
+    {
+        for (Index j = 0; j < cols; ++j)
+        {
+            data[static_cast<size_t>(i * cols + j)] =
+                scale + static_cast<float>(i + j);
+        }
+    }
+    return data;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TileGraph tiled tensor gemm export adopt recompile",
+    "[graph][tile]")
+{
+    TensorGraph tensor_graph("tiled_gemm_reuse");
+    auto *ta = tensor_graph.data({4, 6}, DataType::FP32)->set_name("a");
+    auto *tb = tensor_graph.data({6, 5}, DataType::FP32)->set_name("b");
+    ta->mark_input(true);
+    tb->mark_input(true);
+
+    ta->axis(0)->set_tiling(Index{2});
+    ta->axis(1)->set_tiling(Index{3});
+    tb->axis(1)->set_tiling(Index{3});
+
+    auto *tc = gt::gemm(ta,
+        tb,
+        Scalar(1.0),
+        false,
+        false,
+        Index(1),
+        Index(0))->set_name("c");
+    tc->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(tensor_graph);
+    REQUIRE(tile_graph.tiling_scheme() != nullptr);
+
+    const std::vector<float> a_data = make_gemm_matrix_data(4, 6, 0.25f);
+    const std::vector<float> b_data = make_gemm_matrix_data(6, 5, 0.5f);
+
+    Runtime first_rt(tile_graph);
+    first_rt.compile();
+    first_rt.bind_data(ta, a_data);
+    first_rt.bind_data(tb, b_data);
+    first_rt.execute();
+    first_rt.wait();
+    const std::vector<float> expected = first_rt.get_output<float>(tc);
+
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> exported;
+    first_rt.export_all_tiles(exported);
+    REQUIRE(exported.count(ta) != 0);
+    REQUIRE(exported.count(tb) != 0);
+
+    Runtime second_rt(tile_graph);
+    const TensorNodeToTileMap tile_map = build_tensor_tile_map(tile_graph);
+    const std::vector<TensorGraph::TensorNode const *> adopted =
+        second_rt.stage_persisted_tiles(exported, tile_map);
+    REQUIRE(adopted.size() >= 2);
+    second_rt.compile();
+    std::unordered_map<TensorGraph::TensorNode const *, bool> init;
+    for (TensorGraph::TensorNode const *node : adopted)
+    {
+        if (node != nullptr)
+        {
+            init[node] = true;
+        }
+    }
+    second_rt.restore_persisted_init_state(init);
+    second_rt.execute();
+    second_rt.wait();
+    const std::vector<float> reused = second_rt.get_output<float>(tc);
+    nntile::test::require_relative_element_error(reused, expected);
 }

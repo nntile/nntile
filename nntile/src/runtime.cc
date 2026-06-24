@@ -226,11 +226,43 @@ void Runtime::export_initialized_tiles(
     }
 }
 
-void Runtime::stage_persisted_tiles(
+void Runtime::export_all_tiles(
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> &out) const
+{
+    out.clear();
+    for (const auto &uptr : graph_.tensor_descriptors())
+    {
+        const TileGraph::TensorDescriptor &desc = *uptr;
+        if (desc.source_node == nullptr)
+        {
+            continue;
+        }
+        std::vector<std::shared_ptr<void>> ptrs;
+        ptrs.reserve(desc.tiles.size());
+        for (TileGraph::TileNode *tile : desc.tiles)
+        {
+            auto it = tile_map_.find(tile);
+            if (it == tile_map_.end())
+            {
+                ptrs.clear();
+                break;
+            }
+            ptrs.push_back(it->second);
+        }
+        if (!ptrs.empty())
+        {
+            out[desc.source_node] = std::move(ptrs);
+        }
+    }
+}
+
+std::vector<TensorGraph::TensorNode const *> Runtime::stage_persisted_tiles(
     std::unordered_map<TensorGraph::TensorNode const *,
         std::vector<std::shared_ptr<void>>> const &persisted,
     TensorNodeToTileMap const &tile_map)
 {
+    std::vector<TensorGraph::TensorNode const *> adopted;
     tile_adoption_.clear();
     for (const auto &[tensor, saved_ptrs] : persisted)
     {
@@ -251,7 +283,9 @@ void Runtime::stage_persisted_tiles(
                 tile_adoption_[new_tiles[i]] = saved_ptrs[i];
             }
         }
+        adopted.push_back(tensor);
     }
+    return adopted;
 }
 
 void Runtime::restore_persisted_init_state(

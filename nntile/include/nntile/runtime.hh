@@ -129,7 +129,13 @@ class Runtime
         std::unordered_map<TensorGraph::TensorNode const *,
             std::vector<std::shared_ptr<void>>> &out) const;
 
-    void stage_persisted_tiles(
+    //! Snapshot every allocated tile buffer keyed by logical tensor.
+    void export_all_tiles(
+        std::unordered_map<TensorGraph::TensorNode const *,
+            std::vector<std::shared_ptr<void>>> &out) const;
+
+    //! Map saved tile buffers onto new tile nodes; returns adopted tensors.
+    std::vector<TensorGraph::TensorNode const *> stage_persisted_tiles(
         std::unordered_map<TensorGraph::TensorNode const *,
             std::vector<std::shared_ptr<void>>> const &persisted,
         TensorNodeToTileMap const &tile_map);

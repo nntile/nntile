@@ -76,6 +76,8 @@ struct GraphSession
 
 std::unique_ptr<GraphSession> g_session;
 std::unordered_map<void *, std::vector<std::shared_ptr<void>>> g_persisted_tiles_by_storage;
+//! Keeps every session tile buffer alive until recorder shutdown.
+std::vector<std::shared_ptr<void>> g_persisted_tile_pool;
 
 void assign_axis_group_name(nntile::AxisDescriptor *axis, const std::string &name)
 {
@@ -274,16 +276,30 @@ void capture_persisted_tiles_from_session()
         return;
     }
     std::unordered_map<nntile::TensorGraph::TensorNode const *,
-        std::vector<std::shared_ptr<void>>> by_node;
-    g_session->runtime->export_initialized_tiles(by_node);
+        std::vector<std::shared_ptr<void>>> all_tiles;
+    std::unordered_map<nntile::TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>> initialized_tiles;
+    g_session->runtime->export_all_tiles(all_tiles);
+    g_session->runtime->export_initialized_tiles(initialized_tiles);
+    for (const auto &[tensor, tiles] : all_tiles)
+    {
+        (void) tensor;
+        for (const auto &tile_ptr : tiles)
+        {
+            if (tile_ptr != nullptr)
+            {
+                g_persisted_tile_pool.push_back(tile_ptr);
+            }
+        }
+    }
     for (const auto &[data_ptr, node] : g_session->storage_to_node)
     {
         if (node == nullptr)
         {
             continue;
         }
-        const auto found = by_node.find(node);
-        if (found != by_node.end())
+        const auto found = initialized_tiles.find(node);
+        if (found != initialized_tiles.end())
         {
             g_persisted_tiles_by_storage[data_ptr] = found->second;
         }
@@ -318,12 +334,15 @@ void stage_persisted_tiles_for_session(
         }
         by_node[mapped->second.node] = tiles;
     }
-    runtime.stage_persisted_tiles(by_node, tile_map);
+    const std::vector<nntile::TensorGraph::TensorNode const *> adopted =
+        runtime.stage_persisted_tiles(by_node, tile_map);
     std::unordered_map<nntile::TensorGraph::TensorNode const *, bool> init;
-    for (const auto &[node, _] : by_node)
+    for (nntile::TensorGraph::TensorNode const *node : adopted)
     {
-        (void) _;
-        init[node] = true;
+        if (node != nullptr)
+        {
+            init[node] = true;
+        }
     }
     runtime.restore_persisted_init_state(init);
 }
@@ -348,10 +367,14 @@ void clear_pending_graph_after_compile_locked()
 
 void drain_starpu_after_session_teardown()
 {
-    if (starpu_is_initialized())
+    if (!starpu_is_initialized())
     {
-        starpu_task_wait_for_all();
+        return;
     }
+    starpu_task_wait_for_all();
+    // Session tiles are retained in g_persisted_tile_pool so StarPU handles
+    // are not async-unregistered during recompile; wait again after teardown.
+    starpu_task_wait_for_all();
 }
 
 void compile_graph_locked(bool clear_pending_after = true)
@@ -437,6 +460,7 @@ void reset_recorder_locked()
     g_axis_tiling_by_name.clear();
     g_session.reset();
     g_persisted_tiles_by_storage.clear();
+    g_persisted_tile_pool.clear();
     drain_starpu_after_session_teardown();
 }
 
