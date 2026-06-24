@@ -51,6 +51,9 @@ class TensorGraph
     void add_op(std::shared_ptr<TensorGraph::OpNode> op_node,
         const std::string &name = "");
 
+    //! Insert operations at the front of the op list (before existing ops).
+    void prepend_ops(std::vector<std::shared_ptr<OpNode>> op_nodes);
+
     //! Collect unique axis groups across all tensors in the graph.
     //! Returns a vector of pointers to the distinct AxisDescriptors.
     std::vector<AxisDescriptor *> axis_groups() const;
