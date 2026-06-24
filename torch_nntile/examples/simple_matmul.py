@@ -17,12 +17,13 @@ CPU example::
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
     export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
     python torch_nntile/examples/simple_matmul.py \\
-        --restrict-cpu --ncpu=$(nproc) --ncuda=0
+        --size small --restrict-cpu --ncpu=$(nproc) --ncuda=0
 
 CUDA example (manual, requires GPU)::
 
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
-    python torch_nntile/examples/simple_matmul.py --restrict-cuda --ncuda=-1
+    python torch_nntile/examples/simple_matmul.py \\
+        --size small --restrict-cuda --ncuda=-1
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import torch
@@ -41,29 +43,72 @@ if str(_REPO / "torch_nntile") not in sys.path:
 import torch_nntile  # noqa: E402
 from torch_nntile import _C  # noqa: E402
 
-# Matrix shapes (smaller than the original 10k demo for faster CPU runs).
-M = 4096
-N = 3072
-K = 4096
-REPEAT = 10
 
-# Real tiling: 2 tiles along M, N, and K.
-MT = 2048
-NT = 1536
-KT = 2048
+@dataclass(frozen=True)
+class MatmulBenchmarkSize:
+    """Square GEMM shapes and axis-group tile sizes."""
+
+    m: int
+    n: int
+    k: int
+    mt: int
+    nt: int
+    kt: int
+    repeat: int
 
 
-def apply_axis_tiling() -> None:
+SIZE_PRESETS: dict[str, MatmulBenchmarkSize] = {
+    "tiny": MatmulBenchmarkSize(
+        m=1024,
+        n=1024,
+        k=1024,
+        mt=384,
+        nt=384,
+        kt=256,
+        repeat=10,
+    ),
+    "small": MatmulBenchmarkSize(
+        m=4096,
+        n=4096,
+        k=4096,
+        mt=1536,
+        nt=1536,
+        kt=1024,
+        repeat=20,
+    ),
+    "medium": MatmulBenchmarkSize(
+        m=6144,
+        n=6144,
+        k=6144,
+        mt=2048,
+        nt=2048,
+        kt=2048,
+        repeat=30,
+    ),
+    "large": MatmulBenchmarkSize(
+        m=10240,
+        n=10240,
+        k=10240,
+        mt=4096,
+        nt=3072,
+        kt=3072,
+        repeat=50,
+    ),
+}
+
+
+def apply_axis_tiling(mt: int, nt: int, kt: int) -> None:
     """Re-apply tiling before each compile (cleared after compile_graph)."""
-    torch_nntile.set_axis_group_tiling("M", MT)
-    torch_nntile.set_axis_group_tiling("N", NT)
-    torch_nntile.set_axis_group_tiling("K", KT)
+    torch_nntile.set_axis_group_tiling("M", mt)
+    torch_nntile.set_axis_group_tiling("N", nt)
+    torch_nntile.set_axis_group_tiling("K", kt)
 
 
 def run_matmul_round(
     a_nnt: torch.Tensor,
     b_nnt: torch.Tensor,
     *,
+    size: MatmulBenchmarkSize,
     repeat: int,
     round_idx: int,
     print_groups: bool,
@@ -75,7 +120,7 @@ def run_matmul_round(
     torch_nntile.set_axis_group_name(a_nnt, {0: "M", 1: "K"})
     torch_nntile.set_axis_group_name(b_nnt, {1: "N"})
 
-    apply_axis_tiling()
+    apply_axis_tiling(size.mt, size.nt, size.kt)
     if print_groups and round_idx == 1:
         torch_nntile.print_axis_groups()
 
@@ -90,7 +135,18 @@ def run_matmul_round(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repeat", type=int, default=REPEAT)
+    parser.add_argument(
+        "--size",
+        choices=tuple(SIZE_PRESETS),
+        default="small",
+        help="Benchmark preset (default: small)",
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=None,
+        help="Override matmul count per epoch (default: preset value)",
+    )
     parser.add_argument("--ncpu", type=int, default=-1)
     parser.add_argument("--ncuda", type=int, default=-1)
     parser.add_argument(
@@ -121,6 +177,9 @@ def main() -> None:
             "Set NNTILE_BUILD_DIR and rebuild."
         )
 
+    size = SIZE_PRESETS[args.size]
+    repeat = size.repeat if args.repeat is None else args.repeat
+
     torch_nntile.init_context(
         ncpu=args.ncpu,
         ncuda=args.ncuda,
@@ -134,19 +193,21 @@ def main() -> None:
         torch_nntile.restrict_cpu()
 
     print(
-        f"Shapes: {M}x{K} @ {K}x{N}, "
-        f"tiling M={MT} N={NT} K={KT}, repeat={args.repeat}"
+        f"Size preset: {args.size} | "
+        f"Shapes: {size.m}x{size.k} @ {size.k}x{size.n}, "
+        f"tiling M={size.mt} N={size.nt} K={size.kt}, repeat={repeat}"
     )
 
-    a = torch.randn(M, K)
-    b = torch.randn(K, N)
+    a = torch.randn(size.m, size.k)
+    b = torch.randn(size.k, size.n)
     a_nnt = a.to(device="nntile")
     b_nnt = b.to(device="nntile")
 
     c_nnt, t1 = run_matmul_round(
         a_nnt,
         b_nnt,
-        repeat=args.repeat,
+        size=size,
+        repeat=repeat,
         round_idx=1,
         print_groups=args.print_axis_groups,
     )
@@ -154,7 +215,8 @@ def main() -> None:
     c_nnt, t2 = run_matmul_round(
         a_nnt,
         b_nnt,
-        repeat=args.repeat,
+        size=size,
+        repeat=repeat,
         round_idx=2,
         print_groups=False,
     )
@@ -173,9 +235,10 @@ def main() -> None:
     rel_err = torch.norm(c_ref - c2) / torch.norm(c_ref)
     rel_err_r1 = torch.norm(c_ref - c_round1) / torch.norm(c_ref)
     total_time = t1 + t2
-    flops = 2e-12 * args.repeat * 2 * M * K * N / total_time
+    flops = 2e-12 * repeat * 2 * size.m * size.k * size.n / total_time
     print(
-        f"Matmul {args.repeat} times x2 epochs {M}x{K} @ {K}x{N} -> {M}x{N}: "
+        f"Matmul {repeat} times x2 epochs "
+        f"{size.m}x{size.k} @ {size.k}x{size.n} -> {size.m}x{size.n}: "
         f"{total_time:.4f} s total"
     )
     print(f"Performance (both rounds): {flops:.4f} Tflops/s")
