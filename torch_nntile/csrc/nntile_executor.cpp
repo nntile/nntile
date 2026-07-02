@@ -20,6 +20,8 @@
 #include <nntile/tensor/ops/maxsumexp.hh>
 #include <nntile/tensor/ops/relu.hh>
 #include <nntile/tensor/ops/relu_backward.hh>
+#include <nntile/tensor/ops/adam_step.hh>
+#include <nntile/tensor/ops/adamw_step.hh>
 #include <nntile/tensor/ops/sgd_step.hh>
 #include <nntile/tensor/ops/multiply_slice.hh>
 #include <nntile/tensor/ops/scale_slice.hh>
@@ -562,6 +564,116 @@ void tensor_sgd_step_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_adam_step_fp32(
+    int64_t num_iter,
+    float beta_1,
+    float beta_2,
+    float eps,
+    float lr,
+    float weight_decay,
+    const float *grad_data,
+    float *first_moment_data,
+    float *second_moment_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *grad_node = get_or_create_data_node(
+        const_cast<float *>(grad_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *first_moment_node = get_or_create_data_node(
+        first_moment_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *second_moment_node = get_or_create_data_node(
+        second_moment_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *param_node = get_or_create_data_node(
+        param_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    nntile::tensor::adam_step(
+        static_cast<nntile::Index>(num_iter),
+        static_cast<nntile::Scalar>(beta_1),
+        static_cast<nntile::Scalar>(beta_2),
+        static_cast<nntile::Scalar>(eps),
+        static_cast<nntile::Scalar>(lr),
+        static_cast<nntile::Scalar>(weight_decay),
+        grad_node,
+        first_moment_node,
+        second_moment_node,
+        param_node);
+
+    register_data_node(first_moment_data, first_moment_node);
+    register_data_node(second_moment_data, second_moment_node);
+    register_data_node(param_data, param_node);
+    maybe_execute_after_record();
+}
+
+void tensor_adamw_step_fp32(
+    int64_t num_iter,
+    float beta_1,
+    float beta_2,
+    float eps,
+    float lr,
+    float weight_decay,
+    const float *grad_data,
+    float *first_moment_data,
+    float *second_moment_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *grad_node = get_or_create_data_node(
+        const_cast<float *>(grad_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *first_moment_node = get_or_create_data_node(
+        first_moment_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *second_moment_node = get_or_create_data_node(
+        second_moment_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *param_node = get_or_create_data_node(
+        param_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    nntile::tensor::adamw_step(
+        static_cast<nntile::Index>(num_iter),
+        static_cast<nntile::Scalar>(beta_1),
+        static_cast<nntile::Scalar>(beta_2),
+        static_cast<nntile::Scalar>(eps),
+        static_cast<nntile::Scalar>(lr),
+        static_cast<nntile::Scalar>(weight_decay),
+        grad_node,
+        first_moment_node,
+        second_moment_node,
+        param_node);
+
+    register_data_node(first_moment_data, first_moment_node);
+    register_data_node(second_moment_data, second_moment_node);
+    register_data_node(param_data, param_node);
+    maybe_execute_after_record();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -695,6 +807,38 @@ void tensor_sgd_step_fp32(
     c10::IntArrayRef /*pytorch_shape*/)
 {
     require_libnntile("sgd_step");
+}
+
+void tensor_adam_step_fp32(
+    int64_t /*num_iter*/,
+    float /*beta_1*/,
+    float /*beta_2*/,
+    float /*eps*/,
+    float /*lr*/,
+    float /*weight_decay*/,
+    const float * /*grad_data*/,
+    float * /*first_moment_data*/,
+    float * /*second_moment_data*/,
+    float * /*param_data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("adam_step");
+}
+
+void tensor_adamw_step_fp32(
+    int64_t /*num_iter*/,
+    float /*beta_1*/,
+    float /*beta_2*/,
+    float /*eps*/,
+    float /*lr*/,
+    float /*weight_decay*/,
+    const float * /*grad_data*/,
+    float * /*first_moment_data*/,
+    float * /*second_moment_data*/,
+    float * /*param_data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("adamw_step");
 }
 
 } // namespace torch_nntile

@@ -14,10 +14,14 @@ axis. Backward broadcasts scalar ``grad_output`` with chained ``scale_slice``
 
 SGD uses the fused ``tensor::sgd_step`` kernel (momentum, weight decay,
 Nesterov), mirroring ``nntile::optim::SGD`` in the main package.
+
+Adam and AdamW use fused ``tensor::adam_step`` / ``tensor::adamw_step``
+kernels, mirroring ``nntile::optim::Adam`` / ``AdamW`` in libnntile.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Callable, Iterable, Mapping
 
 import torch
@@ -185,6 +189,258 @@ class SGD:
                     else:
                         grad = velocity
                 param.add_(grad, alpha=-lr)
+
+
+class _AdamBase:
+    """Shared Adam / AdamW logic for ``device='nntile'`` parameters."""
+
+    _use_decoupled_weight_decay: bool = False
+
+    def __init__(
+        self,
+        parameters: Iterable[torch.Tensor],
+        lr: float,
+        betas: tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-8,
+        weight_decay: float = 0.0,
+    ) -> None:
+        params = list(parameters)
+        self.param_groups = [
+            {
+                "params": params,
+                "lr": float(lr),
+                "betas": (float(betas[0]), float(betas[1])),
+                "eps": float(eps),
+                "weight_decay": float(weight_decay),
+            }
+        ]
+        self._num_iter = 0
+        self._moments: dict[int, tuple[torch.Tensor, torch.Tensor]] = {}
+
+    def zero_grad(self, set_to_none: bool = True) -> None:
+        for group in self.param_groups:
+            for param in group["params"]:
+                if set_to_none:
+                    param.grad = None
+                elif param.grad is not None:
+                    param.grad.zero_()
+
+    def step(self, closure=None) -> float | None:
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        self._num_iter += 1
+        with torch.no_grad():
+            for group in self.param_groups:
+                self._step_group(group)
+        return loss
+
+    def _moments_for(
+        self, param: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        key = id(param)
+        moments = self._moments.get(key)
+        if moments is None:
+            if param.device.type == "nntile":
+                zeros = torch.zeros(
+                    list(param.shape),
+                    dtype=torch.float32,
+                    device="cpu",
+                ).to("nntile")
+            else:
+                zeros = torch.zeros(
+                    list(param.shape),
+                    dtype=torch.float32,
+                    device=param.device,
+                )
+            moments = (zeros, zeros.clone())
+            self._moments[key] = moments
+        return moments
+
+    def _fused_step(
+        self,
+        param: torch.Tensor,
+        grad: torch.Tensor,
+        first_moment: torch.Tensor,
+        second_moment: torch.Tensor,
+        num_iter: int,
+        beta_1: float,
+        beta_2: float,
+        eps: float,
+        lr: float,
+        weight_decay: float,
+    ) -> None:
+        if self._use_decoupled_weight_decay:
+            _C.adamw_step(
+                param,
+                grad,
+                first_moment,
+                second_moment,
+                num_iter,
+                beta_1,
+                beta_2,
+                eps,
+                lr,
+                weight_decay,
+            )
+        else:
+            _C.adam_step(
+                param,
+                grad,
+                first_moment,
+                second_moment,
+                num_iter,
+                beta_1,
+                beta_2,
+                eps,
+                lr,
+                weight_decay,
+            )
+
+    @staticmethod
+    def _cpu_adam_values(
+        param: torch.Tensor,
+        grad: torch.Tensor,
+        first_moment: torch.Tensor,
+        second_moment: torch.Tensor,
+        num_iter: int,
+        beta_1: float,
+        beta_2: float,
+        eps: float,
+        lr: float,
+        weight_decay: float,
+        *,
+        decoupled_weight_decay: bool,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        p_val = param.detach().clone()
+        grad_val = grad.detach().clone()
+        m_val = first_moment.detach().clone()
+        v_val = second_moment.detach().clone()
+
+        alpha = lr / (1.0 - beta_1 ** num_iter)
+        beta_corr = 1.0 / math.sqrt(1.0 - beta_2 ** num_iter)
+
+        if decoupled_weight_decay:
+            if weight_decay != 0:
+                p_val = p_val * (1.0 - lr * weight_decay)
+        elif weight_decay != 0:
+            grad_val = grad_val + weight_decay * p_val
+
+        if num_iter == 1:
+            m_new = (1.0 - beta_1) * grad_val
+            v_new = math.sqrt(1.0 - beta_2) * grad_val.abs()
+        else:
+            m_new = beta_1 * m_val + (1.0 - beta_1) * grad_val
+            v_new = torch.hypot(
+                math.sqrt(beta_2) * v_val,
+                math.sqrt(1.0 - beta_2) * grad_val,
+            )
+
+        denom = v_new * beta_corr + eps
+        p_new = p_val - alpha * m_new / denom
+        return p_new, m_new, v_new
+
+    def _step_group(self, group: dict) -> None:
+        lr = group["lr"]
+        beta_1, beta_2 = group["betas"]
+        eps = group["eps"]
+        weight_decay = group["weight_decay"]
+        for param in group["params"]:
+            if param.grad is None:
+                continue
+            if param.device.type == "nntile":
+                first_moment, second_moment = self._moments_for(param)
+                self._fused_step(
+                    param,
+                    param.grad,
+                    first_moment,
+                    second_moment,
+                    self._num_iter,
+                    beta_1,
+                    beta_2,
+                    eps,
+                    lr,
+                    weight_decay,
+                )
+            else:
+                first_moment, second_moment = self._moments_for(param)
+                p_new, m_new, v_new = self._cpu_adam_values(
+                    param,
+                    param.grad,
+                    first_moment,
+                    second_moment,
+                    self._num_iter,
+                    beta_1,
+                    beta_2,
+                    eps,
+                    lr,
+                    weight_decay,
+                    decoupled_weight_decay=self._use_decoupled_weight_decay,
+                )
+                param.copy_(p_new)
+                first_moment.copy_(m_new)
+                second_moment.copy_(v_new)
+
+
+class Adam(_AdamBase):
+    """Fused Adam for nntile parameters (``tensor::adam_step``)."""
+
+    _use_decoupled_weight_decay = False
+
+
+class AdamW(_AdamBase):
+    """Fused AdamW on nntile (``tensor::adamw_step``)."""
+
+    _use_decoupled_weight_decay = True
+
+
+def fused_adam_step(
+    parameters: list[torch.Tensor],
+    learning_rate: float,
+    *,
+    betas: tuple[float, float] = (0.9, 0.999),
+    eps: float = 1e-8,
+    weight_decay: float = 0.0,
+    optimizer: Adam | None = None,
+) -> Adam:
+    """One fused Adam step; returns the optimizer holding moment state."""
+    if optimizer is None:
+        optimizer = Adam(
+            parameters,
+            lr=learning_rate,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+        )
+    else:
+        optimizer.param_groups[0]["lr"] = float(learning_rate)
+    optimizer.step()
+    return optimizer
+
+
+def fused_adamw_step(
+    parameters: list[torch.Tensor],
+    learning_rate: float,
+    *,
+    betas: tuple[float, float] = (0.9, 0.999),
+    eps: float = 1e-8,
+    weight_decay: float = 0.0,
+    optimizer: AdamW | None = None,
+) -> AdamW:
+    """One fused AdamW step; returns the optimizer holding moment state."""
+    if optimizer is None:
+        optimizer = AdamW(
+            parameters,
+            lr=learning_rate,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+        )
+    else:
+        optimizer.param_groups[0]["lr"] = float(learning_rate)
+    optimizer.step()
+    return optimizer
 
 
 def fused_sgd_step(

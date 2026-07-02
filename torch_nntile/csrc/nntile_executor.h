@@ -94,4 +94,30 @@ void tensor_sgd_step_fp32(
     float *param_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_adam_step_fp32(
+    int64_t num_iter,
+    float beta_1,
+    float beta_2,
+    float eps,
+    float lr,
+    float weight_decay,
+    const float *grad_data,
+    float *first_moment_data,
+    float *second_moment_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_adamw_step_fp32(
+    int64_t num_iter,
+    float beta_1,
+    float beta_2,
+    float eps,
+    float lr,
+    float weight_decay,
+    const float *grad_data,
+    float *first_moment_data,
+    float *second_moment_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape);
+
 } // namespace torch_nntile
