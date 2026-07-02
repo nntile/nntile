@@ -33,6 +33,7 @@ std::vector<Index> tile_sizes_for_axis_extent(
 } // namespace nntile
 
 #include <cstring>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -930,6 +931,13 @@ void pin_tensor_for_graph(const at::Tensor &tensor)
     }
     std::lock_guard<std::mutex> lock(g_recorder_mutex);
     g_pinned_tensors.push_back(tensor);
+    if (const char *env = std::getenv("TORCH_NNTILE_TRACE_STORAGE");
+        env != nullptr && env[0] != '\0' && env[0] != '0')
+    {
+        std::cerr << "[torch_nntile pin] data_ptr="
+                  << tensor.storage().data_ptr().get()
+                  << " pinned_count=" << g_pinned_tensors.size() << '\n';
+    }
 }
 
 void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
@@ -1106,6 +1114,23 @@ void print_axis_groups()
     }
 }
 
+GcDebugStats debug_gc_stats()
+{
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    GcDebugStats stats;
+    stats.pinned_tensors = static_cast<std::int64_t>(g_pinned_tensors.size());
+    stats.tensor_nodes = static_cast<std::int64_t>(g_tensor_nodes.size());
+    stats.tile_pool = static_cast<std::int64_t>(g_persisted_tile_pool.size());
+    if (g_graph != nullptr)
+    {
+        stats.pending_ops = static_cast<std::int64_t>(g_graph->num_ops());
+        stats.pending_data = static_cast<std::int64_t>(g_graph->num_data());
+    }
+    stats.has_session =
+        g_session != nullptr && g_session->runtime != nullptr;
+    return stats;
+}
+
 } // namespace torch_nntile
 
 #else
@@ -1207,6 +1232,11 @@ std::string format_axis_groups()
 void print_axis_groups()
 {
     require_libnntile();
+}
+
+GcDebugStats debug_gc_stats()
+{
+    return {};
 }
 
 } // namespace torch_nntile

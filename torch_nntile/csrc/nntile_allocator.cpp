@@ -9,7 +9,10 @@
 #include <c10/core/Allocator.h>
 #include <c10/core/DeviceType.h>
 
+#include <atomic>
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <vector>
 
 namespace torch_nntile
@@ -22,6 +25,17 @@ struct VectorStorage
 {
     std::vector<std::uint8_t> bytes;
 };
+
+std::atomic<std::int64_t> g_storage_release_count{0};
+
+bool trace_storage_enabled()
+{
+    static const bool enabled = []() {
+        const char *env = std::getenv("TORCH_NNTILE_TRACE_STORAGE");
+        return env != nullptr && env[0] != '\0' && env[0] != '0';
+    }();
+    return enabled;
+}
 
 } // namespace
 
@@ -57,7 +71,15 @@ struct NntileAllocator final : c10::Allocator
 
     static void release_storage(void *ctx)
     {
-        delete static_cast<VectorStorage *>(ctx);
+        auto *storage = static_cast<VectorStorage *>(ctx);
+        if (trace_storage_enabled())
+        {
+            std::cerr << "[torch_nntile storage] release data_ptr="
+                      << static_cast<void *>(storage->bytes.data())
+                      << " nbytes=" << storage->bytes.size() << '\n';
+        }
+        delete storage;
+        g_storage_release_count.fetch_add(1, std::memory_order_relaxed);
     }
 };
 
@@ -66,6 +88,16 @@ NntileAllocator g_nntile_allocator;
 c10::Allocator *get_nntile_allocator()
 {
     return &g_nntile_allocator;
+}
+
+std::int64_t storage_release_count()
+{
+    return g_storage_release_count.load(std::memory_order_relaxed);
+}
+
+void reset_storage_release_count()
+{
+    g_storage_release_count.store(0, std::memory_order_relaxed);
 }
 
 } // namespace torch_nntile

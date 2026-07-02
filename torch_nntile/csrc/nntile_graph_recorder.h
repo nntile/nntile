@@ -49,4 +49,17 @@ std::string format_axis_groups();
 
 void print_axis_groups();
 
+//! Snapshot recorder state for tensor GC investigation.
+struct GcDebugStats
+{
+    std::int64_t pinned_tensors = 0;
+    std::int64_t tensor_nodes = 0;
+    std::int64_t tile_pool = 0;
+    std::int64_t pending_ops = 0;
+    std::int64_t pending_data = 0;
+    bool has_session = false;
+};
+
+GcDebugStats debug_gc_stats();
+
 } // namespace torch_nntile

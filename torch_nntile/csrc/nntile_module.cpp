@@ -22,6 +22,7 @@
 #include "nntile_cross_entropy.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
+#include "nntile_allocator.h"
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
@@ -313,4 +314,23 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("weight_decay") = 0.0,
         py::arg("dampening") = 0.0,
         py::arg("nesterov") = false);
+    m.def(
+        "storage_release_count",
+        &torch_nntile::storage_release_count,
+        "Host storage buffers released since last reset (GC probe)");
+    m.def(
+        "reset_storage_release_count",
+        &torch_nntile::reset_storage_release_count,
+        "Reset storage_release_count counter");
+    py::class_<torch_nntile::GcDebugStats>(m, "GcDebugStats")
+        .def_readonly("pinned_tensors", &torch_nntile::GcDebugStats::pinned_tensors)
+        .def_readonly("tensor_nodes", &torch_nntile::GcDebugStats::tensor_nodes)
+        .def_readonly("tile_pool", &torch_nntile::GcDebugStats::tile_pool)
+        .def_readonly("pending_ops", &torch_nntile::GcDebugStats::pending_ops)
+        .def_readonly("pending_data", &torch_nntile::GcDebugStats::pending_data)
+        .def_readonly("has_session", &torch_nntile::GcDebugStats::has_session);
+    m.def(
+        "debug_gc_stats",
+        &torch_nntile::debug_gc_stats,
+        "Snapshot recorder pinning / tile-pool state (GC probe)");
 }
