@@ -20,6 +20,7 @@
 
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
+#include "nntile_rms_norm.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
 
@@ -313,4 +314,22 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("weight_decay") = 0.0,
         py::arg("dampening") = 0.0,
         py::arg("nesterov") = false);
+    m.def(
+        "rms_norm_forward",
+        &torch_nntile::rms_norm_forward,
+        "NNTile RMSNorm forward",
+        py::arg("input"),
+        py::arg("normalized_shape"),
+        py::arg("weight") = py::none(),
+        py::arg("eps") = py::none());
+    m.def(
+        "rms_norm_backward",
+        &torch_nntile::rms_norm_backward,
+        "NNTile RMSNorm backward",
+        py::arg("grad_out"),
+        py::arg("input"),
+        py::arg("normalized_shape"),
+        py::arg("rstd"),
+        py::arg("weight") = py::none(),
+        py::arg("output_mask"));
 }

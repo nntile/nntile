@@ -109,6 +109,8 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
+| `F.layer_norm` / `nn.LayerNorm` | `native_layer_norm` / `native_layer_norm_backward` |
+| `F.rms_norm` / `nn.RMSNorm` | custom autograd + `rms_norm_forward` / `rms_norm_backward` |
 | `linear` backward / `mm` | `tensor::gemm` |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
