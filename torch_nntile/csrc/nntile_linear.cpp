@@ -75,14 +75,8 @@ void run_linear(
     at::Tensor &output)
 {
     pin_graph_op_inputs({input, weight});
-    pin_graph_op_output(output, true);
-    tensor_linear_fp32(
-        input.data_ptr<float>(),
-        input.sizes(),
-        weight.data_ptr<float>(),
-        weight.sizes(),
-        output.data_ptr<float>(),
-        output.sizes());
+    pin_graph_op_output(output, false);
+    tensor_linear_fp32(input, weight, output);
 }
 
 } // namespace
@@ -142,26 +136,14 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         grad_input = at::empty_like(input);
         pin_graph_op_inputs({grad_output, weight});
         pin_graph_op_output(grad_input, false);
-        tensor_linear_backward_input_fp32(
-            grad_output.data_ptr<float>(),
-            grad_output.sizes(),
-            weight.data_ptr<float>(),
-            weight.sizes(),
-            grad_input.data_ptr<float>(),
-            grad_input.sizes());
+        tensor_linear_backward_input_fp32(grad_output, weight, grad_input);
     }
     if (output_mask[1])
     {
         grad_weight = at::empty_like(weight);
         pin_graph_op_inputs({grad_output, input});
         pin_graph_op_output(grad_weight, false);
-        tensor_linear_backward_weight_fp32(
-            grad_output.data_ptr<float>(),
-            grad_output.sizes(),
-            input.data_ptr<float>(),
-            input.sizes(),
-            grad_weight.data_ptr<float>(),
-            grad_weight.sizes());
+        tensor_linear_backward_weight_fp32(grad_output, input, grad_weight);
     }
     return {grad_input, grad_weight, at::Tensor()};
 }

@@ -232,15 +232,13 @@ def probe_nntile_graph_mode() -> ProbeResult:
         torch_nntile.restrict_cpu()
         _C.reset_storage_release_count()
 
-        a = torch.tensor([[1.0, 2.0], [3.0, 4.0]], device="nntile", requires_grad=True)
-        b = torch.tensor([[0.5, 1.0], [1.5, 2.0]], device="nntile", requires_grad=True)
-        c = torch.tensor([[0.25, 0.5], [0.75, 1.0]], device="nntile", requires_grad=True)
+        a = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True).to("nntile")
+        b = torch.tensor([[0.5, 1.0], [1.5, 2.0]], requires_grad=True).to("nntile")
+        c = torch.tensor([[0.25, 0.5], [0.75, 1.0]], requires_grad=True).to("nntile")
         out = {"after_inputs": gc_stats()}
         d = a + b + c
         out["after_forward"] = gc_stats()
         out["has_pending_graph"] = torch_nntile.has_pending_graph()
-        d.backward(torch.ones_like(d))
-        out["after_backward_before_execute"] = gc_stats()
         torch_nntile.compile_graph()
         out["after_compile"] = gc_stats()
         torch_nntile.run()
@@ -258,7 +256,8 @@ def probe_nntile_graph_mode() -> ProbeResult:
     return ProbeResult(
         name="nntile_graph_mode",
         notes=[
-            "g_pinned_tensors cleared at compile; tile_pool grows until shutdown"
+            "Inputs staged via .to('nntile'); pinned_tensors cleared at compile; "
+            "tile_pool retains persistent inputs only"
         ],
         data=payload,
     )
@@ -290,9 +289,9 @@ def probe_nntile_eager_mode() -> ProbeResult:
         )
         torch_nntile.restrict_cpu()
         _C.reset_storage_release_count()
-        a = torch.tensor([1.0, 2.0], device="nntile")
-        b = torch.tensor([3.0, 4.0], device="nntile")
-        c = torch.tensor([0.5, 0.5], device="nntile")
+        a = torch.tensor([1.0, 2.0]).to("nntile")
+        b = torch.tensor([3.0, 4.0]).to("nntile")
+        c = torch.tensor([0.5, 0.5]).to("nntile")
         d = a + b + c
         out = {
             "after_forward": gc_stats(),
@@ -344,9 +343,9 @@ def probe_nntile_no_grad() -> ProbeResult:
         torch_nntile.restrict_cpu()
         _C.reset_storage_release_count()
         with torch.no_grad():
-            a = torch.tensor([1.0, 2.0], device="nntile")
-            b = torch.tensor([3.0, 4.0], device="nntile")
-            c = torch.tensor([0.5, 0.5], device="nntile")
+            a = torch.tensor([1.0, 2.0]).to("nntile")
+            b = torch.tensor([3.0, 4.0]).to("nntile")
+            c = torch.tensor([0.5, 0.5]).to("nntile")
             d = a + b + c
             out = {"after_forward": gc_stats()}
         torch_nntile.compile_graph()

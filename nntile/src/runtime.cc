@@ -28,6 +28,7 @@
 #include "nntile/tile/graph_data_node.hh"
 #include "nntile/tile/graph_op_node.hh"
 #include "nntile/core/tile.hh"
+#include "nntile/dtype.hh"
 #include "nntile/tile/lowering_context.hh"
 
 #include <cstring>
@@ -92,9 +93,6 @@ DataType Runtime::get_dtype(
 
 void Runtime::compile()
 {
-    allocate_missing_tiles();
-    tile_adoption_.clear();
-
     execution_order_.clear();
     execution_order_.reserve(graph_.ops().size());
     for (const auto &op : graph_.ops())
@@ -103,6 +101,9 @@ void Runtime::compile()
     }
 
     eliminate_dead_ops();
+    build_tile_last_consumer_map();
+    allocate_missing_tiles();
+    tile_adoption_.clear();
 
     execution_schedule_ = ExecutionSchedule{};
 
@@ -482,6 +483,11 @@ void Runtime::allocate_missing_tiles()
     for (const auto &node : graph_.tile_nodes())
     {
         const TileGraph::TileNode *tile_key = node.get();
+        if (!live_tile_nodes_.empty() &&
+            live_tile_nodes_.count(tile_key) == 0)
+        {
+            continue;
+        }
         auto adopt_it = tile_adoption_.find(tile_key);
         if (adopt_it != tile_adoption_.end())
         {
@@ -587,8 +593,107 @@ void Runtime::execute()
     }
 }
 
+void Runtime::build_tile_last_consumer_map()
+{
+    tile_last_consumer_op_.clear();
+    for (size_t i = 0; i < execution_order_.size(); ++i)
+    {
+        for (const auto *in : execution_order_[i]->inputs())
+        {
+            if (in != nullptr)
+            {
+                tile_last_consumer_op_[in] = i;
+            }
+        }
+    }
+}
+
+void Runtime::invalidate_tile_buffer(
+    const TileGraph::TileNode *node,
+    const std::shared_ptr<void> &tile_ptr)
+{
+    if (node == nullptr || tile_ptr == nullptr)
+    {
+        return;
+    }
+    switch (node->dtype())
+    {
+    case DataType::FP32:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp32_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    case DataType::FP32_FAST_TF32:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_tf32_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    case DataType::FP32_FAST_FP16:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_fp16_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    case DataType::FP32_FAST_BF16:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_bf16_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    case DataType::FP64:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp64_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    case DataType::FP16:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp16_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    case DataType::BF16:
+        std::static_pointer_cast<nntile::core::Tile<nntile::bf16_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    case DataType::INT64:
+        std::static_pointer_cast<nntile::core::Tile<nntile::int64_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    case DataType::BOOL:
+        std::static_pointer_cast<nntile::core::Tile<nntile::bool_t>>(tile_ptr)
+            ->invalidate_submit();
+        break;
+    default:
+        break;
+    }
+}
+
+void Runtime::release_dead_tiles_after_op(size_t op_idx)
+{
+    starpu_task_wait_for_all();
+    std::vector<const TileGraph::TileNode *> to_release;
+    to_release.reserve(tile_last_consumer_op_.size());
+    for (const auto &[tile, last_op] : tile_last_consumer_op_)
+    {
+        if (last_op != op_idx)
+        {
+            continue;
+        }
+        if (tile->is_input() || tile->is_output())
+        {
+            continue;
+        }
+        to_release.push_back(tile);
+    }
+    for (const TileGraph::TileNode *tile : to_release)
+    {
+        auto it = tile_map_.find(tile);
+        if (it == tile_map_.end())
+        {
+            continue;
+        }
+        invalidate_tile_buffer(tile, it->second);
+        tile_map_.erase(it);
+    }
+}
+
 void Runtime::eliminate_dead_ops()
 {
+    live_tile_nodes_.clear();
     const size_t n = execution_order_.size();
     if (n == 0)
     {
@@ -710,6 +815,7 @@ void Runtime::eliminate_dead_ops()
         }
     }
     execution_order_ = std::move(filtered);
+    live_tile_nodes_ = std::move(live_data);
 }
 
 void Runtime::wait() { starpu_task_wait_for_all(); }

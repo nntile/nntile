@@ -6,7 +6,17 @@
 
 #pragma once
 
+#include "nntile_tensor_gc.h"
+
 #include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace at
+{
+class Tensor;
+}
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -37,7 +47,7 @@ void sync_runtime_to_nntile_storage(void *data_ptr);
 void maybe_execute_after_record();
 
 void set_axis_group_name(
-    void *data_ptr,
+    TensorImplKey impl_key,
     int ndim,
     const std::unordered_map<int, std::string> &names);
 
@@ -61,5 +71,7 @@ struct GcDebugStats
 };
 
 GcDebugStats debug_gc_stats();
+
+void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 
 } // namespace torch_nntile

@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include "nntile_tensor_gc.h"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -25,32 +27,33 @@ class Tensor;
 namespace torch_nntile
 {
 
-//! Keep tensor storage alive until execute() (CUDA record_stream analog).
-void pin_tensor_for_graph(const at::Tensor &tensor);
-
-//! Pin op inputs and user-held outputs. Do not pin backward return buffers
-//! that autograd will steal into leaf .grad (extra refs block stealing).
+//! Pin staged inputs only (not metadata-only intermediates).
 void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs);
 
+//! Pin output only when it has host staging and is user-visible.
 void pin_graph_op_output(const at::Tensor &output, bool is_user_visible);
+
+void on_tensor_impl_released(TensorImplKey key);
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 nntile::TensorGraph &recorder_graph();
 
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
-    void *data_ptr,
+    const at::Tensor &tensor,
     const std::vector<nntile::Index> &shape,
     nntile::DataType dtype,
     bool mark_as_input);
 
 void register_data_node(
-    void *data_ptr,
+    const at::Tensor &tensor,
     nntile::TensorGraph::TensorNode *node);
 
-nntile::TensorGraph::TensorNode *lookup_data_node(void *data_ptr);
+nntile::TensorGraph::TensorNode *lookup_data_node(TensorImplKey key);
 
 void track_graph_node(nntile::TensorGraph::TensorNode *node);
+
+void sync_runtime_to_nntile_tensor(const at::Tensor &tensor);
 
 #endif // TORCH_NNTILE_USE_LIBNNTILE
 

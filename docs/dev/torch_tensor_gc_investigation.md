@@ -164,17 +164,23 @@ Intermediate host buffers can be released once pinning clears and Python drops r
 
 `Runtime::compile()` calls `eliminate_dead_ops()` ([`runtime.cc`](../../nntile/src/runtime.cc)), which removes unreachable tile **ops** from `execution_order_` based on marked inputs/outputs and dataflow liveness.
 
-### Tile allocation ignores DCE (gap)
+### Tile allocation ignores DCE (implemented in PR #425)
 
-`allocate_missing_tiles()` iterates **all** `graph_.tile_nodes()` and inserts into `tile_map_`. Dead tiles from DCE are still allocated. `tile_map_` is never shrunk.
+`allocate_missing_tiles()` now runs **after** `eliminate_dead_ops()` and skips
+tiles outside the live set computed during DCE.
 
-### Runtime `invalidate_submit()` (documented, not implemented)
+### Runtime `invalidate_submit()` (infrastructure added, execute hook deferred)
 
-[`graph.md`](../../graph.md) states intermediates are invalidated during execute via `Handle::invalidate_submit()`. The function exists in [`handle.cc`](../../nntile/src/starpu/handle.cc) but is **never called** from `Runtime::execute()` or related execution paths. A repo-wide search finds only the definition and the `graph.md` mention.
+`Runtime::invalidate_tile_buffer()` and `release_intermediate_tiles_after_execute()`
+are implemented but **not called** during `execute()` yet — enabling end-of-execute
+invalidation triggered a StarPU handle assert in graph probes and needs more
+coherency work. Compile-time liveness (skip dead tile allocation) is active.
 
-### Session tile pool (incremental training)
+### Session tile pool (incremental training, narrowed in PR #425)
 
-`capture_persisted_tiles_from_session()` pushes tiles into `g_persisted_tile_pool` to keep StarPU handles alive across recompiles ([`nntile_graph_recorder.cpp`](../../torch_nntile/csrc/nntile_graph_recorder.cpp)). This is intentional for weight/optimizer tile adoption but currently captures **all** session tiles.
+`capture_persisted_tiles_from_session()` retains tiles only for
+`is_persistent_input` storages (weights / optimizer state), not all session
+tiles.
 
 ### Intermediate host-bind policy (partial)
 
@@ -182,15 +188,23 @@ When an intermediate output storage is reused as a later op input, the recorder 
 
 ---
 
-## What blocks GC today
+## What blocks GC today (after PR #425)
 
-1. **`g_pinned_tensors` during graph recording** — prevents host collection until `compile_graph()` / `execute()`.
-2. **`get_or_create_data_node(..., mark_as_input=true)` for all operands** in [`nntile_executor.cpp`](../../torch_nntile/csrc/nntile_executor.cpp) — treats every operand as a persistent bind candidate.
-3. **`g_persisted_tile_pool`** — retains StarPU tile buffers across recompiles (needed for weights; overly broad for intermediates).
-4. **`tile_map_` never shrinks** — `allocate_missing_tiles()` allocates for all tile nodes; DCE does not free buffers.
-5. **No storage-free callback** — `g_tensor_nodes` keys on `data_ptr`; freed storage is not removed from the map (stale key risk if pinning were relaxed without invalidation).
-6. **`invalidate_submit()` not wired** — runtime tile GC described in `graph.md` is not implemented.
-7. **Full host `std::vector` for every nntile tensor** — `NntileAllocator` allocates `numel × itemsize` bytes for all new `Storage`, including op intermediates created via `empty_like` (see proposition below).
+1. **Execute-time `invalidate_submit()`** — compile-time DCE skips dead tile
+   allocation, but `tile_map_` is not shrunk during/after `execute()` yet.
+2. **Autograd saved tensor hooks** — no `saved_tensors_hooks` integration; selective
+   input pinning mitigates but does not cover all saved activations.
+3. **Metadata output readout via `execute()`** — `torch_nntile.execute()` keeps
+   the compiled session for `.cpu()` on metadata outputs; callers must use
+   `compile_graph()` / `run()` / `shutdown_context()` explicitly in training loops.
+
+**Addressed in PR #425:** blanket operand pinning, `data_ptr` recorder keys, full
+host allocation for graph intermediates, unscoped `g_persisted_tile_pool`, and
+executor `mark_as_input=true` for all operands.
+
+---
+
+## What blocked GC before PR #425 (historical)
 
 ---
 
@@ -298,43 +312,48 @@ flowchart LR
 
 ---
 
-## Design recommendations (follow-up implementation)
+## Design recommendations (implementation status in PR #425)
 
-### 1. Selective pinning
+### 1. Selective pinning (implemented)
 
-Replace blanket `pin_graph_op_inputs` / `pin_graph_op_output(..., true)` with liveness-aware pinning:
+`pin_graph_op_inputs` pins only staged/host-backed tensors;
+`pin_graph_op_output(..., false)` is used for stolen grad buffers and
+metadata-only intermediates.
 
-- Pin only storages that are inputs to **pending** ops and not yet compiled.
-- Unpin at `clear_pending_graph_after_compile_locked()` (already done globally).
-- Do **not** pin backward grad outputs that autograd steals into `.grad` ([`nntile_graph_recorder_impl.h`](../../torch_nntile/csrc/nntile_graph_recorder_impl.h)).
+### 2. Storage destructor hook (implemented)
 
-### 2. Storage destructor hook
+`NntileAllocator::release_storage` calls `on_host_storage_released()`, which
+removes the host pointer mapping and notifies the recorder via
+`on_tensor_impl_released(TensorImpl*)`. `g_tensor_nodes` is keyed by
+`TensorImpl*`, not `data_ptr`.
 
-In `NntileAllocator::release_storage`, notify the recorder to remove or tombstone `g_tensor_nodes[data_ptr]`. Prevents stale pointer keys if host memory is reused by the allocator.
+### 3. Autograd-aware retention (partial)
 
-### 3. Autograd-aware retention
+Selective input pinning reduces over-retention during recording. Full
+`saved_tensors_hooks` integration is left as a follow-up for ops that save
+unexpected tensors.
 
-Use `torch.autograd.graph.saved_tensors_hooks` (or C++ saved-variable hooks) to extend tile lifetime **only** for tensors autograd actually packs/saves, instead of pinning every op output during recording.
+### 4. Runtime tile GC (partial)
 
-### 4. Runtime tile GC
+`invalidate_tile_buffer()` is implemented; wiring it safely into `execute()`
+remains follow-up work (see **Runtime `invalidate_submit()`** above).
 
-Implement liveness-driven `invalidate_submit()` during `Runtime::execute()` as documented in `graph.md`: after each op (or op range), invalidate tiles whose last consumer has executed. Inputs/outputs marked on tensor nodes must be exempt.
+### 5. Compile-time tile liveness (implemented)
 
-### 5. Compile-time tile liveness
+See **Tile allocation ignores DCE** above. `capture_persisted_tiles_from_session()`
+retains tiles only for `is_persistent_input` storages.
 
-After `eliminate_dead_ops()`, drop unreferenced entries from `tile_map_` (or skip allocating them in `allocate_missing_tiles()`). Restrict `g_persisted_tile_pool` to `is_persistent_input` / optimizer-state storages.
+### 6. Distinguish persistent vs ephemeral in executor (implemented)
 
-### 6. Distinguish persistent vs ephemeral in executor
+`mark_as_input_for_operand()` returns true for staged nntile inputs and CPU
+label tensors only.
 
-Pass `mark_as_input=false` for intermediate operands that are outputs of prior ops in the same pending graph; reserve `mark_as_input=true` for user weights, activations explicitly moved to nntile, and optimizer state.
+### 7. Input-only host staging (implemented)
 
-### 7. Input-only host staging (see proposition above)
-
-Implement metadata-only tensors for op intermediates so `NntileAllocator` is
-not invoked with full `nbytes` for every `empty_like`. Host `std::vector`
-allocation is reserved for `.to("nntile")`, persistent parameters, optimizer
-state, and on-demand output readout. This is the largest single win for host
-memory and aligns intermediate lifetime with tile GC.
+Graph-mode `empty` / `empty_strided` return metadata-only tensors
+(`empty_metadata_tensor`). `.to("nntile")` and `ensure_host_staging` allocate
+host bytes. On-demand readout uses `copy_nntile_tensor_to_cpu()` while a
+compiled session is active.
 
 ## Investigation tooling added
 
@@ -360,4 +379,6 @@ memory and aligns intermediate lifetime with tile GC.
 
 - NNGraph native autograd `buffers_` path ([`autograd_add_function.md`](autograd_add_function.md))
 - Graph static execution / `execution.json` scheduling
-- Implementing the recommendations above (separate implementation task)
+- Execute-time `invalidate_submit()` during long graphs (infrastructure exists;
+  not enabled in `execute()` yet)
+- Full `saved_tensors_hooks` autograd integration

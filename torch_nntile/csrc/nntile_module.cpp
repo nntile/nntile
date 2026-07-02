@@ -23,6 +23,7 @@
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
 #include "nntile_allocator.h"
+#include "nntile_tensor_gc.h"
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
@@ -168,7 +169,7 @@ void set_axis_group_name_py(
         parsed.emplace(dim, name);
     }
     set_axis_group_name(
-        tensor.storage().data_ptr().get(),
+        tensor_impl_key(tensor),
         static_cast<int>(tensor.dim()),
         parsed);
 }

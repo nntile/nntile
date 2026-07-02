@@ -200,6 +200,11 @@ class Runtime
 
     void allocate_missing_tiles();
     void eliminate_dead_ops();
+    void build_tile_last_consumer_map();
+    void release_dead_tiles_after_op(size_t op_idx);
+    void invalidate_tile_buffer(
+        const TileNode *node,
+        const std::shared_ptr<void> &tile_ptr);
     void require_compiled() const;
     void mark_initialized(TensorGraph::TensorNode const *tensor);
     bool tensor_requires_init_at_execute(
@@ -221,6 +226,8 @@ class Runtime
     int starpu_worker_hint_ = -1;
     std::unordered_map<TensorGraph::TensorNode const *, bool> init_state_;
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
+    std::unordered_set<const TileNode *> live_tile_nodes_;
+    std::unordered_map<const TileNode *, size_t> tile_last_consumer_op_;
 };
 
 } // namespace nntile

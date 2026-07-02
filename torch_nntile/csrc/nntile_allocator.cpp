@@ -5,6 +5,7 @@
  */
 
 #include "nntile_allocator.h"
+#include "nntile_tensor_gc.h"
 
 #include <c10/core/Allocator.h>
 #include <c10/core/DeviceType.h>
@@ -72,13 +73,17 @@ struct NntileAllocator final : c10::Allocator
     static void release_storage(void *ctx)
     {
         auto *storage = static_cast<VectorStorage *>(ctx);
+        void *host_data_ptr = storage->bytes.empty()
+            ? nullptr
+            : static_cast<void *>(storage->bytes.data());
         if (trace_storage_enabled())
         {
             std::cerr << "[torch_nntile storage] release data_ptr="
-                      << static_cast<void *>(storage->bytes.data())
+                      << host_data_ptr
                       << " nbytes=" << storage->bytes.size() << '\n';
         }
         delete storage;
+        on_host_storage_released(host_data_ptr);
         g_storage_release_count.fetch_add(1, std::memory_order_relaxed);
     }
 };

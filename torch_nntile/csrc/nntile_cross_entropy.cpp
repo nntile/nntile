@@ -6,6 +6,7 @@
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -73,15 +74,13 @@ at::Tensor cross_entropy_forward(
 
     at::Tensor loss = at::empty({}, logits.options().dtype(at::kFloat));
     pin_graph_op_inputs({logits, target});
-    pin_graph_op_output(loss, true);
+    pin_graph_op_output(loss, false);
     tensor_cross_entropy_forward_fp32(
-        logits.data_ptr<float>(),
-        logits.sizes(),
-        target.data_ptr<std::int64_t>(),
-        target.sizes(),
+        logits,
+        target,
         ignore_index,
         reduction_is_mean(reduction),
-        loss.data_ptr<float>());
+        loss);
     return loss;
 }
 
@@ -105,15 +104,13 @@ at::Tensor cross_entropy_backward(
     at::Tensor grad_logits = at::empty_like(logits);
     at::Tensor grad_row = at::empty(target.sizes(), logits.options());
     pin_graph_op_inputs({logits, target, grad_output});
-    pin_graph_op_output(grad_logits, true);
+    pin_graph_op_output(grad_logits, false);
     tensor_cross_entropy_backward_fp32(
-        logits.data_ptr<float>(),
-        logits.sizes(),
-        target.data_ptr<std::int64_t>(),
-        target.sizes(),
-        grad_output.data_ptr<float>(),
-        grad_row.data_ptr<float>(),
-        grad_logits.data_ptr<float>(),
+        logits,
+        target,
+        grad_output,
+        grad_row,
+        grad_logits,
         ignore_index,
         reduction_is_mean(reduction));
     return grad_logits;

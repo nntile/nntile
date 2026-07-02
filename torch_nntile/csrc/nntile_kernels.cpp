@@ -7,6 +7,7 @@
 #include "nntile_allocator.h"
 #include "nntile_context.h"
 #include "nntile_graph_recorder.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
@@ -15,6 +16,7 @@
 #include <ATen/native/Resize.h>
 #include <c10/core/DeviceGuard.h>
 #include <c10/core/ScalarType.h>
+#include <c10/core/ScalarTypeToTypeMeta.h>
 #include <torch/library.h>
 #include <torch/version.h>
 
@@ -156,6 +158,29 @@ at::Tensor &fill_scalar(at::Tensor &self, const at::Scalar &value)
     return self;
 }
 
+at::Tensor empty_metadata_tensor(
+    c10::IntArrayRef size,
+    c10::ScalarType dtype,
+    c10::Device device)
+{
+    const c10::DeviceGuard device_guard(device);
+    c10::Allocator *allocator = get_nntile_allocator();
+    c10::DataPtr data_ptr = allocator->allocate(0);
+    auto storage = c10::make_intrusive<c10::StorageImpl>(
+        c10::StorageImpl::use_byte_size_t(),
+        0,
+        std::move(data_ptr),
+        allocator,
+        /*resizable=*/true);
+    at::Tensor tensor = at::detail::make_tensor<at::TensorImpl>(
+        c10::Storage(std::move(storage)),
+        kPrivateUse1DispatchKeySet,
+        c10::scalarTypeToTypeMeta(dtype));
+    tensor.unsafeGetTensorImpl()->set_sizes_contiguous(size);
+    mark_metadata_only_tensor(tensor);
+    return tensor;
+}
+
 at::Tensor empty_memory_format(
     at::IntArrayRef size,
     std::optional<at::ScalarType> dtype_opt,
@@ -173,6 +198,11 @@ at::Tensor empty_memory_format(
         !c10::pinned_memory_or_default(pin_memory_opt),
         "Pin memory is CPU-only");
     const c10::DeviceGuard device_guard(device);
+    const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
+    if (is_graph_mode())
+    {
+        return empty_metadata_tensor(size, dtype, device);
+    }
     return at::detail::empty_generic(
         size,
         get_nntile_allocator(),
@@ -198,6 +228,11 @@ at::Tensor empty_strided(
         !c10::pinned_memory_or_default(pin_memory_opt),
         "Pin memory is CPU-only");
     const c10::DeviceGuard device_guard(device);
+    const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
+    if (is_graph_mode())
+    {
+        return empty_metadata_tensor(size, dtype, device);
+    }
     return at::detail::empty_strided_generic(
         size,
         stride,
@@ -288,7 +323,8 @@ at::Tensor copy_from(
     bool /*non_blocking*/)
 {
     check_copy_devices(self, dst);
-    if (is_nntile_device(self.device()) && dst.is_cpu())
+    at::Tensor mutable_dst = dst;
+    if (dst.is_cpu() && is_nntile_device(self.device()))
     {
         if (is_graph_mode())
         {
@@ -301,6 +337,11 @@ at::Tensor copy_from(
             if (has_graph_session())
             {
                 wait_for_all();
+                if (is_metadata_only_tensor(self))
+                {
+                    copy_nntile_tensor_to_cpu(self, mutable_dst);
+                    return dst;
+                }
                 sync_runtime_to_nntile_storage(
                     self.storage().data_ptr().get());
             }
@@ -311,7 +352,10 @@ at::Tensor copy_from(
                 "copy nntile tensor to CPU");
         }
     }
-    at::Tensor mutable_dst = dst;
+    if (is_nntile_device(mutable_dst.device()) && self.is_cpu())
+    {
+        ensure_host_staging(mutable_dst);
+    }
     memcpy_tensors(self, mutable_dst);
     return dst;
 }
@@ -335,6 +379,12 @@ at::Scalar local_scalar_dense(const at::Tensor &self)
         "read a scalar from an nntile tensor "
         "(call torch_nntile.compile_graph() and torch_nntile.run() first)");
     wait_for_all();
+    if (is_metadata_only_tensor(self))
+    {
+        at::Tensor cpu_scalar = at::empty({}, self.options().device(at::kCPU));
+        copy_nntile_tensor_to_cpu(self, cpu_scalar);
+        return tensor_to_scalar(cpu_scalar);
+    }
     return tensor_to_scalar(self);
 }
 

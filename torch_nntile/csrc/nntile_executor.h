@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <ATen/Tensor.h>
 #include <c10/util/ArrayRef.h>
 
 namespace torch_nntile
@@ -13,72 +14,51 @@ namespace torch_nntile
 
 void tensor_add_fp32(
     float alpha,
-    const float *x_data,
+    const at::Tensor &x,
     float beta,
-    const float *y_data,
-    float *out_data,
-    c10::IntArrayRef pytorch_shape);
+    const at::Tensor &y,
+    at::Tensor &out);
 
 void tensor_linear_fp32(
-    const float *input_data,
-    c10::IntArrayRef input_shape,
-    const float *weight_data,
-    c10::IntArrayRef weight_shape,
-    float *out_data,
-    c10::IntArrayRef out_shape);
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    at::Tensor &out);
 
-void tensor_relu_fp32(
-    const float *input_data,
-    float *out_data,
-    c10::IntArrayRef pytorch_shape);
+void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out);
 
 void tensor_relu_backward_fp32(
-    const float *x_data,
-    const float *dy_data,
-    float *dx_data,
-    c10::IntArrayRef pytorch_shape);
+    const at::Tensor &x,
+    const at::Tensor &dy,
+    at::Tensor &dx);
 
 void tensor_mm_fp32(
-    const float *a_data,
-    c10::IntArrayRef a_shape,
-    const float *b_data,
-    c10::IntArrayRef b_shape,
-    float *out_data,
-    c10::IntArrayRef out_shape);
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
 
 void tensor_linear_backward_input_fp32(
-    const float *grad_out_data,
-    c10::IntArrayRef grad_out_shape,
-    const float *weight_data,
-    c10::IntArrayRef weight_shape,
-    float *grad_input_data,
-    c10::IntArrayRef grad_input_shape);
+    const at::Tensor &grad_out,
+    const at::Tensor &weight,
+    at::Tensor &grad_input);
 
 void tensor_linear_backward_weight_fp32(
-    const float *grad_out_data,
-    c10::IntArrayRef grad_out_shape,
-    const float *input_data,
-    c10::IntArrayRef input_shape,
-    float *grad_weight_data,
-    c10::IntArrayRef grad_weight_shape);
+    const at::Tensor &grad_out,
+    const at::Tensor &input,
+    at::Tensor &grad_weight);
 
 void tensor_cross_entropy_forward_fp32(
-    const float *logits_data,
-    c10::IntArrayRef logits_shape,
-    const std::int64_t *labels_data,
-    c10::IntArrayRef labels_shape,
+    const at::Tensor &logits,
+    const at::Tensor &labels,
     std::int64_t ignore_index,
     bool mean_reduction,
-    float *loss_data);
+    at::Tensor &loss);
 
 void tensor_cross_entropy_backward_fp32(
-    const float *logits_data,
-    c10::IntArrayRef logits_shape,
-    const std::int64_t *labels_data,
-    c10::IntArrayRef labels_shape,
-    const float *grad_output_data,
-    float *grad_row_data,
-    float *grad_logits_data,
+    const at::Tensor &logits,
+    const at::Tensor &labels,
+    const at::Tensor &grad_output,
+    at::Tensor &grad_row,
+    at::Tensor &grad_logits,
     std::int64_t ignore_index,
     bool mean_reduction);
 
@@ -89,9 +69,8 @@ void tensor_sgd_step_fp32(
     float weight_decay,
     float dampening,
     bool nesterov,
-    const float *grad_data,
-    float *velocity_data,
-    float *param_data,
-    c10::IntArrayRef pytorch_shape);
+    const at::Tensor &grad,
+    at::Tensor &velocity,
+    at::Tensor &param);
 
 } // namespace torch_nntile

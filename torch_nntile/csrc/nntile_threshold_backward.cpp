@@ -55,12 +55,8 @@ at::Tensor threshold_backward(
         "nntile threshold_backward supports ReLU only (threshold=0)");
     at::Tensor grad_input = at::empty_like(self);
     pin_graph_op_inputs({self, grad_output});
-    pin_graph_op_output(grad_input, true);
-    tensor_relu_backward_fp32(
-        self.data_ptr<float>(),
-        grad_output.data_ptr<float>(),
-        grad_input.data_ptr<float>(),
-        self.sizes());
+    pin_graph_op_output(grad_input, false);
+    tensor_relu_backward_fp32(self, grad_output, grad_input);
     return grad_input;
 }
 
