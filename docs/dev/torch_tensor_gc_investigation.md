@@ -190,6 +190,111 @@ When an intermediate output storage is reused as a later op input, the recorder 
 4. **`tile_map_` never shrinks** — `allocate_missing_tiles()` allocates for all tile nodes; DCE does not free buffers.
 5. **No storage-free callback** — `g_tensor_nodes` keys on `data_ptr`; freed storage is not removed from the map (stale key risk if pinning were relaxed without invalidation).
 6. **`invalidate_submit()` not wired** — runtime tile GC described in `graph.md` is not implemented.
+7. **Full host `std::vector` for every nntile tensor** — `NntileAllocator` allocates `numel × itemsize` bytes for all new `Storage`, including op intermediates created via `empty_like` (see proposition below).
+
+---
+
+## Proposition: host staging for inputs only
+
+### Current behavior (problem)
+
+**Every** new `device="nntile"` tensor gets a dense host `std::vector` via
+[`NntileAllocator::allocate`](../../torch_nntile/csrc/nntile_allocator.cpp),
+including:
+
+- user-staged inputs (`x.to("nntile")`)
+- op outputs (`at::empty_like` in [`nntile_add.cpp`](../../torch_nntile/csrc/nntile_add.cpp), [`nntile_relu.cpp`](../../torch_nntile/csrc/nntile_relu.cpp), backward buffers, etc.)
+
+For `d = a + b + c` this means **five** host buffers (a, b, c, the `a+b`
+intermediate, and d) even though compute runs on StarPU tiles and the recorder
+already avoids binding intermediates from host after reuse.
+
+### Target behavior
+
+**Allocate host `std::vector` only for tensors staged as inputs** — tensors
+that must hold host bytes for I/O or round-trip:
+
+| Category | Host `std::vector` | Examples |
+|----------|-------------------|----------|
+| Staged input | Yes | `.to("nntile")` activations, parameters, labels |
+| Persistent state | Yes | weights, optimizer velocity, in-place SGD params |
+| User-visible output (optional) | Yes, on demand | loss/logits read via `.to("cpu")` when explicitly needed |
+| Op intermediate | **No** | `a+b`, relu output, internal forward temps |
+| Internal backward temp | **No** (tile-only) | non-leaf grad buffers not written to `.grad` |
+
+Intermediates should be **graph/tile-only handles**: valid PyTorch
+`Tensor` metadata (shape, dtype, device, autograd edge) with **no dense host
+payload**. Values live in `TensorGraph` / `Runtime::tile_map_` until consumed or
+read out.
+
+### What already partially aligns
+
+The recorder distinguishes inputs from intermediates at **execute** time, not at
+**allocation** time:
+
+| Mechanism | Staged / persistent | Intermediate |
+|-----------|---------------------|--------------|
+| `get_or_create_data_node(..., mark_as_input=true)` | operands marked input | outputs via `register_data_node` |
+| `bind_at_execute` | `true` for staged inputs | cleared to `false` when storage is reused |
+| `needs_host_copy` | `true` for weights / optimizer | `false` after reuse |
+| `is_persistent_input` | weights, optimizer state | — |
+
+So today we **do not bind** intermediates from host after reuse, but we still
+**allocate** host storage when PyTorch creates the tensor.
+
+### Implementation outline
+
+1. **Metadata-only nntile tensors** — in graph mode (and optionally eager),
+   op outputs from `empty` / `empty_like` get a `TensorImpl` with shape/dtype/
+   device but **zero-byte or sentinel `Storage`** (no `resize(numel × itemsize)`).
+
+2. **Stable identity without `data_ptr`** — `g_tensor_nodes` is keyed on
+   `storage().data_ptr()` today; intermediates need an opaque recorder id
+   (e.g. per-`TensorImpl` key or monotonic handle) so tile nodes are not tied
+   to host buffer addresses.
+
+3. **Explicit input staging** — `.to("nntile")` and copy-in paths allocate a
+   full host buffer and set `is_persistent_input` / `bind_at_execute=true`.
+   This is the only path that calls `NntileAllocator::allocate` with
+   `nbytes > 0` for user data.
+
+4. **Readout on demand** — `.to("cpu")` on a tile-only tensor syncs from
+   runtime tiles into a **temporary** CPU tensor (or stages once if marked
+   user-visible output). No standing host mirror for dead intermediates.
+
+5. **Autograd grad buffers** — leaf `.grad` tensors and parameters still need
+   staged host storage (or a dedicated grad-staging path). Internal backward
+   temps (`grad_input` for non-leaf) can remain tile-only; keep
+   `pin_graph_op_output(..., false)` for stolen grad buffers.
+
+6. **Executor operand marking** — pass `mark_as_input=false` for operands that
+   are outputs of a prior op in the same pending graph; reserve
+   `mark_as_input=true` for staged storages only (complements recommendation 6
+   below).
+
+### Suggested first milestone
+
+**Graph mode, forward only:** `empty_like` in op kernels returns metadata-only
+tensors; `.to("nntile")` still allocates host bytes; `compile_graph()` +
+`run()` executes without host mirrors for intermediates; `.to("cpu")` works for
+marked outputs and staged inputs after sync.
+
+Backward, eager mode, and SGD in-place updates follow in later milestones.
+
+```mermaid
+flowchart LR
+    subgraph today [Today]
+        A1[empty_like] --> H1["std::vector full size"]
+        H1 --> T1[StarPU tiles at execute]
+    end
+
+    subgraph target [Target]
+        A2[to nntile / staged input] --> H2["std::vector full size"]
+        A3[empty_like intermediate] --> M3[metadata-only Tensor]
+        M3 --> T3[StarPU tiles only]
+        H2 --> T3
+    end
+```
 
 ---
 
@@ -223,7 +328,13 @@ After `eliminate_dead_ops()`, drop unreferenced entries from `tile_map_` (or ski
 
 Pass `mark_as_input=false` for intermediate operands that are outputs of prior ops in the same pending graph; reserve `mark_as_input=true` for user weights, activations explicitly moved to nntile, and optimizer state.
 
----
+### 7. Input-only host staging (see proposition above)
+
+Implement metadata-only tensors for op intermediates so `NntileAllocator` is
+not invoked with full `nbytes` for every `empty_like`. Host `std::vector`
+allocation is reserved for `.to("nntile")`, persistent parameters, optimizer
+state, and on-demand output readout. This is the largest single win for host
+memory and aligns intermediate lifetime with tile GC.
 
 ## Investigation tooling added
 
