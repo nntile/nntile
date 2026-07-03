@@ -498,7 +498,9 @@ def main() -> int:
     save_file(data, bundle_path)
     print(f"Saved {bundle_path}")
 
-    tol = 1e-6
+    # FP32 parallel accumulation order can vary with StarPU scheduling; keep
+    # slack vs eager PyTorch refs (observed ~2.2e-6 on gpt2_block / gpt2_causal).
+    tol = 5e-6
     if args.block == "mlp":
         write_fixture_json(out, stem, MLP_DIMS, tol, tol)
     elif args.block in ("attention", "attention_causal"):

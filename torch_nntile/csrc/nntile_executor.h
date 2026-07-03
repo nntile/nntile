@@ -254,6 +254,32 @@ void tensor_rms_norm_backward_fp32(
     c10::IntArrayRef input_shape,
     int64_t norm_axis);
 
+void tensor_norm_fp32(
+    const float *x_data,
+    float *out_data,
+    c10::IntArrayRef x_shape);
+
+void tensor_norm_slice_fp32(
+    const float *x_data,
+    float *out_data,
+    c10::IntArrayRef x_shape,
+    int64_t axis,
+    bool keepdim);
+
+void tensor_norm_backward_fp32(
+    const float *grad_out_data,
+    const float *x_data,
+    const float *norm_data,
+    float *grad_input_data,
+    c10::IntArrayRef x_shape,
+    bool is_global,
+    int64_t axis);
+
+void tensor_sum_to_scalar_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef input_shape);
+
 void tensor_cat_fp32(
     const std::vector<const float *> &input_data,
     const std::vector<c10::IntArrayRef> &input_shapes,
