@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "nntile_gemm_layout.h"
+
 #include <c10/util/ArrayRef.h>
 
 namespace torch_nntile
@@ -88,6 +90,26 @@ void tensor_gelu_backward_fp32(
     float *dx_data,
     c10::IntArrayRef pytorch_shape,
     bool approximate_tanh);
+
+void tensor_gemm_fp32(
+    const GemmParams &params,
+    const float *a_data,
+    c10::IntArrayRef a_gemm_shape,
+    const float *b_data,
+    c10::IntArrayRef b_gemm_shape,
+    float *out_data,
+    c10::IntArrayRef out_shape);
+
+void tensor_gemm_accumulate_fp32(
+    const GemmParams &params,
+    const float *a_data,
+    c10::IntArrayRef a_gemm_shape,
+    const float *b_data,
+    c10::IntArrayRef b_gemm_shape,
+    const float *c_data,
+    c10::IntArrayRef c_shape,
+    float *out_data,
+    c10::IntArrayRef out_shape);
 
 void tensor_mm_fp32(
     const float *a_data,

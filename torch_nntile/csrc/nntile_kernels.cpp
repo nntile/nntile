@@ -11,6 +11,7 @@
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
 #include <ATen/TensorUtils.h>
+#include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/native/CPUFallback.h>
 #include <ATen/native/Resize.h>
 #include <c10/core/DeviceGuard.h>
@@ -19,6 +20,7 @@
 #include <torch/version.h>
 
 #include <cstring>
+#include <numeric>
 #include <optional>
 #include <sstream>
 
@@ -66,6 +68,51 @@ void memcpy_tensors(const at::Tensor &src, at::Tensor &dst)
         dst.storage().data_ptr().get(),
         src.storage().data_ptr().get(),
         nbytes);
+}
+
+void copy_strided_to_contiguous_f32(
+    const float *src,
+    float *dst,
+    at::IntArrayRef sizes,
+    at::IntArrayRef strides)
+{
+    const int64_t ndim = sizes.size();
+    if (ndim == 0)
+    {
+        return;
+    }
+    std::vector<int64_t> coord(static_cast<size_t>(ndim), 0);
+    int64_t dst_index = 0;
+    const int64_t numel = std::accumulate(
+        sizes.begin(),
+        sizes.end(),
+        int64_t{1},
+        std::multiplies<int64_t>());
+    while (dst_index < numel)
+    {
+        int64_t src_index = 0;
+        for (int64_t d = 0; d < ndim; ++d)
+        {
+            src_index += coord[static_cast<size_t>(d)]
+                * strides[static_cast<size_t>(d)];
+        }
+        dst[dst_index++] = src[src_index];
+        int64_t dim = ndim - 1;
+        while (dim >= 0)
+        {
+            coord[static_cast<size_t>(dim)]++;
+            if (coord[static_cast<size_t>(dim)] < sizes[dim])
+            {
+                break;
+            }
+            coord[static_cast<size_t>(dim)] = 0;
+            --dim;
+        }
+        if (dim < 0)
+        {
+            break;
+        }
+    }
 }
 
 at::Scalar tensor_to_scalar(const at::Tensor &self)
@@ -386,6 +433,115 @@ at::Tensor &set_source_storage_storage_offset(
     return result;
 }
 
+at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
+{
+    TORCH_CHECK(is_nntile_device(self.device()), "transpose: expected nntile");
+    const auto ndim = self.dim();
+    TORCH_CHECK(ndim >= 2, "nntile transpose expects at least 2D tensors");
+    if (dim0 < 0)
+    {
+        dim0 += ndim;
+    }
+    if (dim1 < 0)
+    {
+        dim1 += ndim;
+    }
+    TORCH_CHECK(
+        dim0 >= 0 && dim0 < ndim && dim1 >= 0 && dim1 < ndim,
+        "transpose: dimension out of range");
+    if (dim0 == dim1)
+    {
+        return self;
+    }
+    auto sizes = self.sizes().vec();
+    auto strides = self.strides().vec();
+    std::swap(sizes[static_cast<size_t>(dim0)], sizes[static_cast<size_t>(dim1)]);
+    std::swap(
+        strides[static_cast<size_t>(dim0)],
+        strides[static_cast<size_t>(dim1)]);
+    return reshape_alias(
+        self,
+        c10::IntArrayRef(sizes),
+        c10::IntArrayRef(strides));
+}
+
+at::Tensor t(const at::Tensor &self)
+{
+    TORCH_CHECK(is_nntile_device(self.device()), "t: expected nntile");
+    TORCH_CHECK(self.dim() == 2, "t: expected a 2D tensor");
+    return transpose_int(self, 0, 1);
+}
+
+at::Tensor permute(const at::Tensor &self, at::IntArrayRef dims)
+{
+    TORCH_CHECK(is_nntile_device(self.device()), "permute: expected nntile");
+    const auto ndim = self.dim();
+    TORCH_CHECK(
+        static_cast<int64_t>(dims.size()) == ndim,
+        "permute: number of dims does not match tensor dim");
+    std::vector<int64_t> sizes(static_cast<size_t>(ndim));
+    std::vector<int64_t> strides(static_cast<size_t>(ndim));
+    std::vector<bool> seen(static_cast<size_t>(ndim), false);
+    for (int64_t i = 0; i < ndim; ++i)
+    {
+        int64_t src = dims[static_cast<size_t>(i)];
+        if (src < 0)
+        {
+            src += ndim;
+        }
+        TORCH_CHECK(src >= 0 && src < ndim, "permute: dimension out of range");
+        TORCH_CHECK(!seen[static_cast<size_t>(src)], "permute: duplicate dim");
+        seen[static_cast<size_t>(src)] = true;
+        sizes[static_cast<size_t>(i)] = self.size(src);
+        strides[static_cast<size_t>(i)] = self.stride(src);
+    }
+    return reshape_alias(
+        self,
+        c10::IntArrayRef(sizes),
+        c10::IntArrayRef(strides));
+}
+
+at::Tensor contiguous(
+    const at::Tensor &self,
+    at::MemoryFormat memory_format)
+{
+    TORCH_CHECK(is_nntile_device(self.device()), "contiguous: expected nntile");
+    TORCH_CHECK(
+        memory_format == at::MemoryFormat::Contiguous,
+        "nntile contiguous supports Contiguous memory format only");
+    if (self.is_contiguous(memory_format))
+    {
+        return self;
+    }
+    at::Tensor result = at::empty(
+        self.sizes(),
+        self.options().memory_format(memory_format));
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile contiguous supports float32 only");
+    const int64_t numel = self.numel();
+    if (numel == 0)
+    {
+        return result;
+    }
+    const float *src = self.data_ptr<float>();
+    float *dst = result.data_ptr<float>();
+    copy_strided_to_contiguous_f32(
+        src,
+        dst,
+        self.sizes(),
+        self.strides());
+    return result;
+}
+
+at::Tensor contiguous_autograd(
+    const at::Tensor &self,
+    at::MemoryFormat memory_format)
+{
+    at::AutoDispatchBelowAutograd guard;
+    return contiguous(self, memory_format);
+}
+
 void cpu_fallback(const c10::OperatorHandle &op, torch::jit::Stack *stack)
 {
     if (!torch_nntile::is_cpu_fallback_enabled())
@@ -418,6 +574,10 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("as_strided", TORCH_FN(torch_nntile::as_strided));
     m.impl("view", TORCH_FN(torch_nntile::view));
     m.impl("_reshape_alias", TORCH_FN(torch_nntile::reshape_alias));
+    m.impl("transpose.int", TORCH_FN(torch_nntile::transpose_int));
+    m.impl("t", TORCH_FN(torch_nntile::t));
+    m.impl("permute", TORCH_FN(torch_nntile::permute));
+    m.impl("contiguous", TORCH_FN(torch_nntile::contiguous));
     m.impl("resize_", TORCH_FN(torch_nntile::resize_));
     m.impl("_copy_from", TORCH_FN(torch_nntile::copy_from));
     m.impl("_copy_from_and_resize", TORCH_FN(torch_nntile::copy_from_and_resize));
@@ -428,6 +588,11 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl(
         "set_.source_Storage_storage_offset",
         TORCH_FN(torch_nntile::set_source_storage_storage_offset));
+}
+
+TORCH_LIBRARY_IMPL(aten, AutogradPrivateUse1, m)
+{
+    m.impl("contiguous", TORCH_FN(torch_nntile::contiguous_autograd));
 }
 
 TORCH_LIBRARY_IMPL(_, PrivateUse1, m)
