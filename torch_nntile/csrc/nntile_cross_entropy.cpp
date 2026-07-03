@@ -7,6 +7,7 @@
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
+#include "nntile_context.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -73,8 +74,12 @@ at::Tensor cross_entropy_forward(
         "nntile cross_entropy supports reduction mean (1) or sum (2) only");
 
     at::Tensor loss = at::empty({}, logits.options().dtype(at::kFloat));
+    if (is_graph_mode())
+    {
+        ensure_host_staging(loss);
+    }
     pin_graph_op_inputs({logits, target});
-    pin_graph_op_output(loss, false);
+    pin_graph_op_output(loss, is_graph_mode());
     tensor_cross_entropy_forward_fp32(
         logits,
         target,

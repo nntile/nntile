@@ -14,7 +14,7 @@ namespace torch_nntile
 
 void sgd_step(
     at::Tensor &param,
-    const at::Tensor &grad,
+    at::Tensor &grad,
     at::Tensor &velocity,
     int64_t num_iter,
     double lr,

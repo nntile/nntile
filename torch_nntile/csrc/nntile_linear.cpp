@@ -25,6 +25,17 @@ bool is_nntile_device(c10::Device device)
     return device.type() == c10::DeviceType::PrivateUse1;
 }
 
+std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
+{
+    std::vector<nntile::Index> graph_shape;
+    graph_shape.reserve(shape.size());
+    for (const auto dim : shape)
+    {
+        graph_shape.push_back(static_cast<nntile::Index>(dim));
+    }
+    return graph_shape;
+}
+
 void check_linear_tensors(
     const at::Tensor &input,
     const at::Tensor &weight,
@@ -174,6 +185,15 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             forward.b_gemm_shape,
             grad_input,
             forward.a_gemm_shape);
+        nntile::TensorGraph::TensorNode *grad_input_node = lookup_data_node(
+            grad_input,
+            pytorch_shape_to_graph(grad_input.sizes()));
+        if (grad_input_node != nullptr)
+        {
+            register_param_grad_node(input, grad_input_node);
+            at::Tensor grad_input_alias = grad_input;
+            register_grad_alias_for_host_copy(grad_input_alias, grad_input_node);
+        }
     }
     if (output_mask[1])
     {
@@ -186,7 +206,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             : forward.a.contiguous();
 
         grad_weight = at::empty_like(weight);
-        pin_graph_op_output(grad_weight, false);
+        pin_graph_op_output(grad_weight, true);
         if (weight_layout.trans)
         {
             GemmParams grad_weight_params =
@@ -214,6 +234,15 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
                 forward.a_gemm_shape,
                 grad_weight,
                 forward.b_gemm_shape);
+        }
+        nntile::TensorGraph::TensorNode *grad_node = lookup_data_node(
+            grad_weight,
+            pytorch_shape_to_graph(grad_weight.sizes()));
+        if (grad_node != nullptr)
+        {
+            register_param_grad_node(weight, grad_node);
+            at::Tensor grad_weight_alias = grad_weight;
+            register_grad_alias_for_host_copy(grad_weight_alias, grad_node);
         }
     }
     return {grad_input, grad_weight, at::Tensor()};

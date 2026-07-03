@@ -36,7 +36,10 @@ void check_threshold_backward(
         "nntile threshold_backward supports float32 only");
     TORCH_CHECK(
         grad_output.sizes() == self.sizes(),
-        "nntile threshold_backward: shape mismatch");
+        "nntile threshold_backward: shape mismatch grad_output=",
+        grad_output.sizes(),
+        " self=",
+        self.sizes());
     TORCH_CHECK(
         grad_output.is_contiguous() && self.is_contiguous(),
         "nntile threshold_backward requires contiguous tensors");

@@ -51,6 +51,26 @@ void register_data_node(
 
 nntile::TensorGraph::TensorNode *lookup_data_node(TensorImplKey key);
 
+nntile::TensorGraph::TensorNode *lookup_data_node(
+    const at::Tensor &tensor,
+    const std::vector<nntile::Index> &shape);
+
+void register_param_grad_node(
+    const at::Tensor &param,
+    nntile::TensorGraph::TensorNode *grad_node);
+
+nntile::TensorGraph::TensorNode *lookup_param_grad_node(
+    const at::Tensor &param);
+
+void register_grad_alias_for_host_copy(
+    at::Tensor &grad,
+    nntile::TensorGraph::TensorNode *grad_node);
+
+void push_relu_preactivation_node(nntile::TensorGraph::TensorNode *node);
+
+nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
+    const std::vector<nntile::Index> &shape);
+
 void track_graph_node(nntile::TensorGraph::TensorNode *node);
 
 void sync_runtime_to_nntile_tensor(const at::Tensor &tensor);

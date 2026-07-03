@@ -57,7 +57,7 @@ void check_sgd_step_tensors(
 
 void sgd_step(
     at::Tensor &param,
-    const at::Tensor &grad,
+    at::Tensor &grad,
     at::Tensor &velocity,
     int64_t num_iter,
     double lr,
@@ -68,10 +68,20 @@ void sgd_step(
 {
     check_sgd_step_tensors(param, grad, velocity);
     TORCH_CHECK(num_iter >= 1, "nntile sgd_step: num_iter must be >= 1");
-    mark_staged_input_tensor(param);
-    mark_staged_input_tensor(grad);
-    mark_staged_input_tensor(velocity);
-    pin_graph_op_inputs({param, grad, velocity});
+    if (is_metadata_only_tensor(velocity))
+    {
+        ensure_host_staging(velocity);
+        velocity.zero_();
+    }
+    else
+    {
+        mark_staged_input_tensor(velocity);
+    }
+    if (has_host_staging(param))
+    {
+        mark_staged_input_tensor(param);
+    }
+    pin_graph_op_inputs({param, velocity});
     tensor_sgd_step_fp32(
         num_iter,
         static_cast<float>(momentum),

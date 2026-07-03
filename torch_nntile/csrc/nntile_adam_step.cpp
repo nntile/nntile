@@ -67,6 +67,19 @@ void check_adam_step_tensors(
         op_name, " requires contiguous tensors");
 }
 
+void ensure_optimizer_state_staging(at::Tensor &tensor)
+{
+    if (is_metadata_only_tensor(tensor))
+    {
+        ensure_host_staging(tensor);
+        tensor.zero_();
+    }
+    else
+    {
+        mark_staged_input_tensor(tensor);
+    }
+}
+
 } // namespace
 
 void adam_step(
@@ -84,11 +97,13 @@ void adam_step(
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adam_step");
     TORCH_CHECK(num_iter >= 1, "nntile adam_step: num_iter must be >= 1");
-    mark_staged_input_tensor(param);
-    mark_staged_input_tensor(grad);
-    mark_staged_input_tensor(first_moment);
-    mark_staged_input_tensor(second_moment);
-    pin_graph_op_inputs({param, grad, first_moment, second_moment});
+    if (has_host_staging(param))
+    {
+        mark_staged_input_tensor(param);
+    }
+    ensure_optimizer_state_staging(first_moment);
+    ensure_optimizer_state_staging(second_moment);
+    pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adam_step_fp32(
         num_iter,
         static_cast<float>(beta_1),
@@ -117,11 +132,13 @@ void adamw_step(
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adamw_step");
     TORCH_CHECK(num_iter >= 1, "nntile adamw_step: num_iter must be >= 1");
-    mark_staged_input_tensor(param);
-    mark_staged_input_tensor(grad);
-    mark_staged_input_tensor(first_moment);
-    mark_staged_input_tensor(second_moment);
-    pin_graph_op_inputs({param, grad, first_moment, second_moment});
+    if (has_host_staging(param))
+    {
+        mark_staged_input_tensor(param);
+    }
+    ensure_optimizer_state_staging(first_moment);
+    ensure_optimizer_state_staging(second_moment);
+    pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adamw_step_fp32(
         num_iter,
         static_cast<float>(beta_1),

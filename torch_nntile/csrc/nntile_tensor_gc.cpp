@@ -126,10 +126,6 @@ void on_host_storage_released(void *host_data_ptr, void *storage_ctx)
             g_staged_input_impls.erase(released_impl);
         }
     }
-    if (released_impl != nullptr)
-    {
-        on_tensor_impl_released(released_impl);
-    }
 }
 
 void ensure_host_staging(at::Tensor &tensor)
