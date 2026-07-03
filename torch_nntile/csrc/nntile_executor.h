@@ -8,6 +8,8 @@
 
 #include <c10/util/ArrayRef.h>
 
+#include <vector>
+
 namespace torch_nntile
 {
 
@@ -93,5 +95,12 @@ void tensor_sgd_step_fp32(
     float *velocity_data,
     float *param_data,
     c10::IntArrayRef pytorch_shape);
+
+void tensor_cat_fp32(
+    const std::vector<const float *> &input_data,
+    const std::vector<c10::IntArrayRef> &input_shapes,
+    float *out_data,
+    c10::IntArrayRef out_shape,
+    int64_t dim);
 
 } // namespace torch_nntile

@@ -14,6 +14,7 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/tensor/ops/add.hh>
+#include <nntile/tensor/ops/concat.hh>
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/gemm.hh>
 #include <nntile/tensor/ops/logsumexp.hh>
@@ -562,6 +563,43 @@ void tensor_sgd_step_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_cat_fp32(
+    const std::vector<const float *> &input_data,
+    const std::vector<c10::IntArrayRef> &input_shapes,
+    float *out_data,
+    c10::IntArrayRef out_shape,
+    int64_t dim)
+{
+    (void) out_shape;
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+
+    const std::vector<nntile::Index> first_graph =
+        pytorch_shape_to_graph(input_shapes[0]);
+    auto *acc_node = get_or_create_data_node(
+        const_cast<float *>(input_data[0]),
+        first_graph,
+        nntile::DataType::FP32,
+        true);
+
+    for (std::size_t i = 1; i < input_data.size(); ++i)
+    {
+        const std::vector<nntile::Index> shape_graph =
+            pytorch_shape_to_graph(input_shapes[i]);
+        auto *next_node = get_or_create_data_node(
+            const_cast<float *>(input_data[i]),
+            shape_graph,
+            nntile::DataType::FP32,
+            true);
+        acc_node = nntile::tensor::concat(
+            acc_node,
+            next_node,
+            axis)->set_name("cat");
+    }
+
+    register_data_node(out_data, acc_node);
+    maybe_execute_after_record();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -695,6 +733,16 @@ void tensor_sgd_step_fp32(
     c10::IntArrayRef /*pytorch_shape*/)
 {
     require_libnntile("sgd_step");
+}
+
+void tensor_cat_fp32(
+    const std::vector<const float *> & /*input_data*/,
+    const std::vector<c10::IntArrayRef> & /*input_shapes*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*out_shape*/,
+    int64_t /*dim*/)
+{
+    require_libnntile("cat");
 }
 
 } // namespace torch_nntile
