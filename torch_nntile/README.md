@@ -109,6 +109,13 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
+| `F.silu` / `nn.SiLU` | `tensor::silu` |
+| SiLU in-place (`silu_`) | `tensor::silu_inplace` |
+| SiLU backward | `tensor::silu_backward` (+ `tensor::clear` on output) |
+| `F.gelu` / `nn.GELU` (`approximate='none'`) | `tensor::gelu` |
+| `F.gelu` (`approximate='tanh'`) | `tensor::gelutanh` |
+| GELU in-place (`gelu_`) | `tensor::gelu_inplace` / `tensor::gelutanh_inplace` |
+| GELU backward | `tensor::gelu_backward` or `tensor::gelutanh_backward` |
 | `linear` backward / `mm` | `tensor::gemm` |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
