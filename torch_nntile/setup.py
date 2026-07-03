@@ -26,6 +26,7 @@ CSRC = [
     "csrc/nntile_graph_recorder.cpp",
     "csrc/nntile_executor.cpp",
     "csrc/nntile_add.cpp",
+    "csrc/nntile_mul.cpp",
     "csrc/nntile_linear.cpp",
     "csrc/nntile_relu.cpp",
     "csrc/nntile_threshold_backward.cpp",
@@ -36,6 +37,7 @@ CSRC = [
     "csrc/nntile_mm.cpp",
     "csrc/nntile_cross_entropy.cpp",
     "csrc/nntile_sgd_step.cpp",
+    "csrc/nntile_adam_step.cpp",
     "csrc/nntile_layer_norm.cpp",
     "csrc/nntile_rms_norm.cpp",
 ]

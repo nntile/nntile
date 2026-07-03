@@ -19,6 +19,24 @@ void tensor_add_fp32(
     float *out_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_add_inplace_fp32(
+    float alpha,
+    const float *other_data,
+    float beta,
+    float *self_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_mul_fp32(
+    const float *self_data,
+    const float *other_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_mul_inplace_fp32(
+    const float *other_data,
+    float *self_data,
+    c10::IntArrayRef pytorch_shape);
+
 void tensor_linear_fp32(
     const float *input_data,
     c10::IntArrayRef input_shape,
@@ -124,6 +142,32 @@ void tensor_sgd_step_fp32(
     bool nesterov,
     const float *grad_data,
     float *velocity_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_adam_step_fp32(
+    int64_t num_iter,
+    float beta_1,
+    float beta_2,
+    float eps,
+    float lr,
+    float weight_decay,
+    const float *grad_data,
+    float *first_moment_data,
+    float *second_moment_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_adamw_step_fp32(
+    int64_t num_iter,
+    float beta_1,
+    float beta_2,
+    float eps,
+    float lr,
+    float weight_decay,
+    const float *grad_data,
+    float *first_moment_data,
+    float *second_moment_data,
     float *param_data,
     c10::IntArrayRef pytorch_shape);
 
