@@ -10,8 +10,19 @@ from __future__ import annotations
 
 import torch
 import torch.nn.functional as F
+from torch.nn.modules.loss import _Reduction
 
 _ORIGINAL_CROSS_ENTROPY = F.cross_entropy
+
+
+def _resolve_reduction(
+    reduction: str,
+    size_average: bool | None,
+    reduce: bool | None,
+) -> str:
+    if size_average is not None or reduce is not None:
+        return _Reduction.legacy_get_string(size_average, reduce)
+    return reduction
 
 
 def cross_entropy(
@@ -40,6 +51,7 @@ def cross_entropy(
         raise ValueError("nntile cross_entropy does not support weight")
     if label_smoothing != 0.0:
         raise ValueError("nntile cross_entropy does not support label_smoothing")
+    reduction = _resolve_reduction(reduction, size_average, reduce)
     if reduction not in ("mean", "sum"):
         raise ValueError("nntile cross_entropy supports reduction 'mean' or 'sum'")
     from torch_nntile.training import cross_entropy as _nntile_cross_entropy
