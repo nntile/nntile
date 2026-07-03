@@ -5,6 +5,7 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
@@ -49,9 +50,6 @@ void check_linear_tensors(
         input.scalar_type() == at::ScalarType::Float &&
             weight.scalar_type() == at::ScalarType::Float,
         "nntile linear supports float32 only");
-    TORCH_CHECK(
-        input.is_contiguous() && weight.is_contiguous(),
-        "nntile linear requires contiguous tensors");
     if (bias.has_value())
     {
         TORCH_CHECK(false, "nntile linear: bias is not supported");
@@ -59,30 +57,44 @@ void check_linear_tensors(
 }
 
 at::Tensor make_linear_output(
-    const at::Tensor &input,
-    const at::Tensor &weight)
+    const std::vector<int64_t> &out_shape,
+    const at::Tensor &input)
 {
-    auto out_sizes = input.sizes().vec();
-    out_sizes.back() = weight.size(0);
+    std::vector<int64_t> sizes(out_shape.begin(), out_shape.end());
     return at::empty(
-        out_sizes,
+        sizes,
         input.options().memory_format(at::MemoryFormat::Contiguous));
 }
 
-void run_linear(
-    const at::Tensor &input,
-    const at::Tensor &weight,
-    at::Tensor &output)
+void run_linear(const PreparedGemmOperands &prepared, at::Tensor &output)
 {
-    pin_graph_op_inputs({input, weight});
+    pin_graph_op_inputs({prepared.a, prepared.b});
     pin_graph_op_output(output, true);
-    tensor_linear_fp32(
-        input.data_ptr<float>(),
-        input.sizes(),
-        weight.data_ptr<float>(),
-        weight.sizes(),
+    tensor_gemm_fp32(
+        prepared.params,
+        prepared.a.data_ptr<float>(),
+        prepared.a_gemm_shape,
+        prepared.b.data_ptr<float>(),
+        prepared.b_gemm_shape,
         output.data_ptr<float>(),
-        output.sizes());
+        prepared.out_shape);
+}
+
+GemmMatrixLayout linear_operand_layout(const at::Tensor &tensor)
+{
+    if (tensor.dim() == 1)
+    {
+        GemmMatrixLayout layout;
+        layout.gemm_shape = {1, tensor.size(0)};
+        layout.trans = false;
+        layout.needs_copy = !tensor.is_contiguous();
+        return layout;
+    }
+    GemmMatrixLayout layout;
+    layout.gemm_shape = pytorch_sizes_vector(tensor.sizes());
+    layout.trans = false;
+    layout.needs_copy = !tensor.is_contiguous();
+    return layout;
 }
 
 } // namespace
@@ -93,8 +105,9 @@ at::Tensor linear(
     const std::optional<at::Tensor> &bias)
 {
     check_linear_tensors(input, weight, bias);
-    at::Tensor output = make_linear_output(input, weight);
-    run_linear(input, weight, output);
+    const PreparedGemmOperands prepared = prepare_linear_operands(input, weight);
+    at::Tensor output = make_linear_output(prepared.out_shape, input);
+    run_linear(prepared, output);
     return output;
 }
 
@@ -105,11 +118,12 @@ at::Tensor &linear_out(
     at::Tensor &out)
 {
     check_linear_tensors(input, weight, bias, out);
+    const PreparedGemmOperands prepared = prepare_linear_operands(input, weight);
     TORCH_CHECK(
-        out.sizes() == make_linear_output(input, weight).sizes(),
+        out.sizes().vec() == prepared.out_shape,
         "nntile linear.out: output shape mismatch");
     TORCH_CHECK(out.is_contiguous(), "nntile linear.out requires contiguous out");
-    run_linear(input, weight, out);
+    run_linear(prepared, out);
     return out;
 }
 
@@ -129,39 +143,78 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             grad_output.scalar_type() == at::ScalarType::Float &&
             weight.scalar_type() == at::ScalarType::Float,
         "nntile linear_backward supports float32 only");
-    TORCH_CHECK(
-        input.is_contiguous() && grad_output.is_contiguous() &&
-            weight.is_contiguous(),
-        "nntile linear_backward requires contiguous tensors");
     TORCH_CHECK(!output_mask[2], "nntile linear_backward: bias is not supported");
+
+    const PreparedGemmOperands forward = prepare_linear_operands(input, weight);
+    const GemmMatrixLayout weight_layout = analyze_matrix_layout_for_nntile(weight);
 
     at::Tensor grad_input;
     at::Tensor grad_weight;
     if (output_mask[0])
     {
+        const GemmParams grad_input_params =
+            infer_linear_backward_grad_input_params(forward.params);
+
+        const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
+        at::Tensor grad_out_prepared = grad_out_layout.needs_copy
+            ? grad_output.contiguous()
+            : grad_output;
+        at::Tensor weight_prepared = weight_layout.needs_copy
+            ? weight.contiguous()
+            : forward.b;
+
         grad_input = at::empty_like(input);
-        pin_graph_op_inputs({grad_output, weight});
+        pin_graph_op_inputs({grad_out_prepared, weight_prepared});
         pin_graph_op_output(grad_input, false);
-        tensor_linear_backward_input_fp32(
-            grad_output.data_ptr<float>(),
-            grad_output.sizes(),
-            weight.data_ptr<float>(),
-            weight.sizes(),
+        tensor_gemm_fp32(
+            grad_input_params,
+            grad_out_prepared.data_ptr<float>(),
+            grad_out_layout.gemm_shape,
+            weight_prepared.data_ptr<float>(),
+            forward.b_gemm_shape,
             grad_input.data_ptr<float>(),
-            grad_input.sizes());
+            forward.a_gemm_shape);
     }
     if (output_mask[1])
     {
+        const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
+        at::Tensor grad_out_prepared = grad_out_layout.needs_copy
+            ? grad_output.contiguous()
+            : grad_output;
+        at::Tensor input_prepared = forward.a.is_contiguous()
+            ? forward.a
+            : forward.a.contiguous();
+
         grad_weight = at::empty_like(weight);
-        pin_graph_op_inputs({grad_output, input});
         pin_graph_op_output(grad_weight, false);
-        tensor_linear_backward_weight_fp32(
-            grad_output.data_ptr<float>(),
-            grad_output.sizes(),
-            input.data_ptr<float>(),
-            input.sizes(),
-            grad_weight.data_ptr<float>(),
-            grad_weight.sizes());
+        if (weight_layout.trans)
+        {
+            GemmParams grad_weight_params =
+                infer_linear_backward_grad_weight_params(forward.params);
+            pin_graph_op_inputs({input_prepared, grad_out_prepared});
+            tensor_gemm_fp32(
+                grad_weight_params,
+                input_prepared.data_ptr<float>(),
+                forward.a_gemm_shape,
+                grad_out_prepared.data_ptr<float>(),
+                grad_out_layout.gemm_shape,
+                grad_weight.data_ptr<float>(),
+                forward.b_gemm_shape);
+        }
+        else
+        {
+            GemmParams grad_weight_params =
+                infer_linear_backward_grad_weight_params(forward.params);
+            pin_graph_op_inputs({grad_out_prepared, input_prepared});
+            tensor_gemm_fp32(
+                grad_weight_params,
+                grad_out_prepared.data_ptr<float>(),
+                grad_out_layout.gemm_shape,
+                input_prepared.data_ptr<float>(),
+                forward.a_gemm_shape,
+                grad_weight.data_ptr<float>(),
+                forward.b_gemm_shape);
+        }
     }
     return {grad_input, grad_weight, at::Tensor()};
 }

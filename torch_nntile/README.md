@@ -106,6 +106,10 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | PyTorch op | libnntile |
 |------------|-----------|
 | `a + b` | `tensor::add` |
+| `torch.cat` | `tensor::concat` |
+| `torch.cat` backward | `tensor::copy_intersection` (via `aten::narrow`) |
+| `torch.split` / `torch.chunk` | `tensor::copy_intersection` |
+| `torch.split` backward | `tensor::concat` (PyTorch `SplitWithSizesBackward`) |
 | `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |

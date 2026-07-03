@@ -6,7 +6,11 @@
 
 #pragma once
 
+#include "nntile_gemm_layout.h"
+
 #include <c10/util/ArrayRef.h>
+
+#include <vector>
 
 namespace torch_nntile
 {
@@ -35,6 +39,12 @@ void tensor_mul_fp32(
 void tensor_mul_inplace_fp32(
     const float *other_data,
     float *self_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_hypot_fp32(
+    const float *self_data,
+    const float *other_data,
+    float *out_data,
     c10::IntArrayRef pytorch_shape);
 
 void tensor_linear_fp32(
@@ -88,6 +98,26 @@ void tensor_gelu_backward_fp32(
     float *dx_data,
     c10::IntArrayRef pytorch_shape,
     bool approximate_tanh);
+
+void tensor_gemm_fp32(
+    const GemmParams &params,
+    const float *a_data,
+    c10::IntArrayRef a_gemm_shape,
+    const float *b_data,
+    c10::IntArrayRef b_gemm_shape,
+    float *out_data,
+    c10::IntArrayRef out_shape);
+
+void tensor_gemm_accumulate_fp32(
+    const GemmParams &params,
+    const float *a_data,
+    c10::IntArrayRef a_gemm_shape,
+    const float *b_data,
+    c10::IntArrayRef b_gemm_shape,
+    const float *c_data,
+    c10::IntArrayRef c_shape,
+    float *out_data,
+    c10::IntArrayRef out_shape);
 
 void tensor_mm_fp32(
     const float *a_data,
@@ -244,5 +274,29 @@ void tensor_norm_backward_fp32(
     c10::IntArrayRef x_shape,
     bool is_global,
     int64_t axis);
+
+void tensor_cat_fp32(
+    const std::vector<const float *> &input_data,
+    const std::vector<c10::IntArrayRef> &input_shapes,
+    float *out_data,
+    c10::IntArrayRef out_shape,
+    int64_t dim);
+
+void tensor_narrow_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    int64_t dim,
+    int64_t start,
+    int64_t length,
+    float *out_data,
+    c10::IntArrayRef out_shape);
+
+void tensor_split_with_sizes_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    int64_t dim,
+    const std::vector<int64_t> &split_sizes,
+    const std::vector<float *> &out_data,
+    const std::vector<c10::IntArrayRef> &out_shapes);
 
 } // namespace torch_nntile
