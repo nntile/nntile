@@ -10,7 +10,17 @@
 
 #include <c10/util/ArrayRef.h>
 
+#include <cstdint>
 #include <vector>
+
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+#include <nntile/base_types.hh>
+#else
+namespace nntile
+{
+using Index = std::int64_t;
+} // namespace nntile
+#endif
 
 namespace torch_nntile
 {
@@ -303,5 +313,24 @@ void tensor_split_with_sizes_fp32(
     const std::vector<int64_t> &split_sizes,
     const std::vector<float *> &out_data,
     const std::vector<c10::IntArrayRef> &out_shapes);
+
+void tensor_embedding_forward_fp32(
+    const std::int64_t *index_data,
+    c10::IntArrayRef index_shape,
+    const float *weight_data,
+    c10::IntArrayRef weight_shape,
+    float *out_data,
+    c10::IntArrayRef out_shape,
+    nntile::Index axis);
+
+void tensor_embedding_backward_fp32(
+    const std::int64_t *index_data,
+    c10::IntArrayRef index_shape,
+    const float *grad_out_data,
+    c10::IntArrayRef grad_out_shape,
+    float *grad_weight_data,
+    c10::IntArrayRef weight_shape,
+    nntile::Index axis,
+    int redux);
 
 } // namespace torch_nntile
