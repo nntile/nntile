@@ -19,6 +19,7 @@
 #include <nntile/tensor/ops/add_slice.hh>
 #include <nntile/tensor/ops/add_slice_inplace.hh>
 #include <nntile/tensor/ops/concat.hh>
+#include <nntile/tensor/ops/copy_intersection.hh>
 #include <nntile/tensor/ops/multiply.hh>
 #include <nntile/tensor/ops/multiply_inplace.hh>
 #include <nntile/tensor/ops/clear.hh>
@@ -1577,6 +1578,99 @@ void tensor_cat_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_narrow_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    int64_t dim,
+    int64_t start,
+    int64_t length,
+    float *out_data,
+    c10::IntArrayRef out_shape)
+{
+    (void) length;
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input_shape);
+
+    auto *input_node = get_or_create_data_node(
+        const_cast<float *>(input_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out_shape);
+    auto *out_node = get_or_create_data_node(
+        out_data,
+        out_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::clear(out_node);
+
+    const nntile::Index ndim = static_cast<nntile::Index>(graph_shape.size());
+    std::vector<nntile::Index> zero(static_cast<size_t>(ndim), 0);
+    std::vector<nntile::Index> dst_off = zero;
+    dst_off[static_cast<size_t>(axis)] = static_cast<nntile::Index>(start);
+
+    nntile::tensor::copy_intersection(
+        input_node,
+        zero,
+        out_node,
+        dst_off);
+    register_data_node(out_data, out_node);
+    maybe_execute_after_record();
+}
+
+void tensor_split_with_sizes_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    int64_t dim,
+    const std::vector<int64_t> &split_sizes,
+    const std::vector<float *> &out_data,
+    const std::vector<c10::IntArrayRef> &out_shapes)
+{
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input_shape);
+
+    auto *input_node = get_or_create_data_node(
+        const_cast<float *>(input_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    const nntile::Index ndim = static_cast<nntile::Index>(graph_shape.size());
+    std::vector<nntile::Index> zero(static_cast<size_t>(ndim), 0);
+    nntile::Index accumulate = 0;
+
+    for (std::size_t i = 0; i < split_sizes.size(); ++i)
+    {
+        const std::vector<nntile::Index> out_graph =
+            pytorch_shape_to_graph(out_shapes[i]);
+        auto *out_node = get_or_create_data_node(
+            out_data[i],
+            out_graph,
+            nntile::DataType::FP32,
+            false);
+
+        nntile::tensor::clear(out_node);
+
+        std::vector<nntile::Index> dst_off = zero;
+        dst_off[static_cast<size_t>(axis)] = accumulate;
+
+        nntile::tensor::copy_intersection(
+            input_node,
+            zero,
+            out_node,
+            dst_off);
+        register_data_node(out_data[i], out_node);
+        accumulate += static_cast<nntile::Index>(split_sizes[i]);
+    }
+
+    maybe_execute_after_record();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -1904,6 +1998,29 @@ void tensor_cat_fp32(
     int64_t /*dim*/)
 {
     require_libnntile("cat");
+}
+
+void tensor_narrow_fp32(
+    const float * /*input_data*/,
+    c10::IntArrayRef /*input_shape*/,
+    int64_t /*dim*/,
+    int64_t /*start*/,
+    int64_t /*length*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*out_shape*/)
+{
+    require_libnntile("narrow");
+}
+
+void tensor_split_with_sizes_fp32(
+    const float * /*input_data*/,
+    c10::IntArrayRef /*input_shape*/,
+    int64_t /*dim*/,
+    const std::vector<int64_t> & /*split_sizes*/,
+    const std::vector<float *> & /*out_data*/,
+    const std::vector<c10::IntArrayRef> & /*out_shapes*/)
+{
+    require_libnntile("split_with_sizes");
 }
 
 } // namespace torch_nntile

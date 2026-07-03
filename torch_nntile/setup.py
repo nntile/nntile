@@ -28,6 +28,8 @@ CSRC = [
     "csrc/nntile_add.cpp",
     "csrc/nntile_mul.cpp",
     "csrc/nntile_cat.cpp",
+    "csrc/nntile_narrow.cpp",
+    "csrc/nntile_split.cpp",
     "csrc/nntile_hypot.cpp",
     "csrc/nntile_linear.cpp",
     "csrc/nntile_relu.cpp",

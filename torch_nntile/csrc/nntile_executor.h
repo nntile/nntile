@@ -239,4 +239,21 @@ void tensor_cat_fp32(
     c10::IntArrayRef out_shape,
     int64_t dim);
 
+void tensor_narrow_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    int64_t dim,
+    int64_t start,
+    int64_t length,
+    float *out_data,
+    c10::IntArrayRef out_shape);
+
+void tensor_split_with_sizes_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    int64_t dim,
+    const std::vector<int64_t> &split_sizes,
+    const std::vector<float *> &out_data,
+    const std::vector<c10::IntArrayRef> &out_shapes);
+
 } // namespace torch_nntile
