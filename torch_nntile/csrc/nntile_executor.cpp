@@ -86,7 +86,13 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
     {
         return true;
     }
-    return false;
+    if (!has_host_staging(tensor))
+    {
+        return false;
+    }
+    // Graph-mode intermediates are metadata-only (nbytes==0). Eager-mode
+    // chained ops reuse host-backed activations across execute() cycles.
+    return !is_metadata_only_tensor(tensor);
 }
 
 } // namespace

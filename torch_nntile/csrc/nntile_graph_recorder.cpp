@@ -639,7 +639,7 @@ void run_graph_locked()
     g_session->runtime->wait();
 }
 
-void reset_recorder_locked()
+void reset_recorder_locked(bool clear_tensor_gc = false)
 {
     g_graph.reset();
     g_tensor_nodes.clear();
@@ -651,7 +651,10 @@ void reset_recorder_locked()
     g_persisted_tiles_by_impl.clear();
     g_persisted_tile_pool.clear();
     drain_starpu_after_session_teardown();
-    clear_tensor_gc_state();
+    if (clear_tensor_gc)
+    {
+        clear_tensor_gc_state();
+    }
 }
 
 void execute_pending_graph_locked()
@@ -680,7 +683,7 @@ void shutdown_recorder_locked()
             copy_host_visible_outputs(*g_session->runtime, nullptr);
         }
     }
-    reset_recorder_locked();
+    reset_recorder_locked(true);
 }
 
 } // namespace
@@ -728,7 +731,7 @@ void run_graph()
 void reset_graph_session()
 {
     std::lock_guard<std::mutex> lock(g_recorder_mutex);
-    reset_recorder_locked();
+    reset_recorder_locked(true);
 }
 
 void shutdown_recorder()

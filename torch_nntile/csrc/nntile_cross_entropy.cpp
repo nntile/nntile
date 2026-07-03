@@ -101,14 +101,16 @@ at::Tensor cross_entropy_backward(
     TORCH_CHECK(
         is_nntile_device(grad_output.device()),
         "nntile cross_entropy_backward: grad_output must be on device nntile");
+    at::Tensor grad_out = grad_output;
+    ensure_host_staging(grad_out);
     at::Tensor grad_logits = at::empty_like(logits);
     at::Tensor grad_row = at::empty(target.sizes(), logits.options());
-    pin_graph_op_inputs({logits, target, grad_output});
+    pin_graph_op_inputs({logits, target, grad_out});
     pin_graph_op_output(grad_logits, false);
     tensor_cross_entropy_backward_fp32(
         logits,
         target,
-        grad_output,
+        grad_out,
         grad_row,
         grad_logits,
         ignore_index,
