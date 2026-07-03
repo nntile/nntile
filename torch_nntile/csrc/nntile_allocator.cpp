@@ -82,8 +82,8 @@ struct NntileAllocator final : c10::Allocator
                       << host_data_ptr
                       << " nbytes=" << storage->bytes.size() << '\n';
         }
+        on_host_storage_released(host_data_ptr, ctx);
         delete storage;
-        on_host_storage_released(host_data_ptr);
         g_storage_release_count.fetch_add(1, std::memory_order_relaxed);
     }
 };

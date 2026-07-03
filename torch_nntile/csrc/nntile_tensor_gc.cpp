@@ -27,6 +27,7 @@ std::mutex g_tensor_gc_mutex;
 std::unordered_set<TensorImplKey> g_metadata_only_impls;
 std::unordered_set<TensorImplKey> g_staged_input_impls;
 std::unordered_map<void *, TensorImplKey> g_host_ptr_to_impl;
+std::unordered_map<void *, TensorImplKey> g_storage_ctx_to_impl;
 
 } // namespace
 
@@ -59,8 +60,14 @@ bool has_host_staging(const at::Tensor &tensor)
 void mark_metadata_only_tensor(const at::Tensor &tensor)
 {
     std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    g_metadata_only_impls.insert(tensor_impl_key(tensor));
-    g_staged_input_impls.erase(tensor_impl_key(tensor));
+    const TensorImplKey key = tensor_impl_key(tensor);
+    g_metadata_only_impls.insert(key);
+    g_staged_input_impls.erase(key);
+    void *storage_ctx = tensor.storage().data_ptr().get_context();
+    if (storage_ctx != nullptr)
+    {
+        g_storage_ctx_to_impl[storage_ctx] = key;
+    }
 }
 
 void mark_staged_input_tensor(const at::Tensor &tensor)
@@ -74,6 +81,11 @@ void mark_staged_input_tensor(const at::Tensor &tensor)
     {
         g_host_ptr_to_impl[host_ptr] = key;
     }
+    void *storage_ctx = tensor.storage().data_ptr().get_context();
+    if (storage_ctx != nullptr)
+    {
+        g_storage_ctx_to_impl.erase(storage_ctx);
+    }
 }
 
 void clear_tensor_gc_state()
@@ -82,22 +94,36 @@ void clear_tensor_gc_state()
     g_metadata_only_impls.clear();
     g_staged_input_impls.clear();
     g_host_ptr_to_impl.clear();
+    g_storage_ctx_to_impl.clear();
 }
 
-void on_host_storage_released(void *host_data_ptr)
+void on_host_storage_released(void *host_data_ptr, void *storage_ctx)
 {
-    if (host_data_ptr == nullptr)
-    {
-        return;
-    }
     TensorImplKey released_impl = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-        const auto found = g_host_ptr_to_impl.find(host_data_ptr);
-        if (found != g_host_ptr_to_impl.end())
+        if (host_data_ptr != nullptr)
         {
-            released_impl = found->second;
-            g_host_ptr_to_impl.erase(found);
+            const auto found = g_host_ptr_to_impl.find(host_data_ptr);
+            if (found != g_host_ptr_to_impl.end())
+            {
+                released_impl = found->second;
+                g_host_ptr_to_impl.erase(found);
+            }
+        }
+        else if (storage_ctx != nullptr)
+        {
+            const auto found = g_storage_ctx_to_impl.find(storage_ctx);
+            if (found != g_storage_ctx_to_impl.end())
+            {
+                released_impl = found->second;
+                g_storage_ctx_to_impl.erase(found);
+            }
+        }
+        if (released_impl != nullptr)
+        {
+            g_metadata_only_impls.erase(released_impl);
+            g_staged_input_impls.erase(released_impl);
         }
     }
     if (released_impl != nullptr)

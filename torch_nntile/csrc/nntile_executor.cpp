@@ -235,12 +235,12 @@ void tensor_add_inplace_fp32(
         other,
         graph_shape,
         nntile::DataType::FP32,
-        true);
+        mark_as_input_for_operand(other));
     auto *self_node = get_or_create_data_node(
         self,
         graph_shape,
         nntile::DataType::FP32,
-        true);
+        mark_as_input_for_operand(self));
 
     nntile::tensor::add_inplace(
         static_cast<nntile::Scalar>(alpha),
@@ -287,12 +287,12 @@ void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
         other,
         graph_shape,
         nntile::DataType::FP32,
-        true);
+        mark_as_input_for_operand(other));
     auto *self_node = get_or_create_data_node(
         self,
         graph_shape,
         nntile::DataType::FP32,
-        true);
+        mark_as_input_for_operand(self));
 
     nntile::tensor::multiply_inplace(
         static_cast<nntile::Scalar>(1.0),

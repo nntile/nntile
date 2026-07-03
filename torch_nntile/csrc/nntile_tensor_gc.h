@@ -33,7 +33,7 @@ void mark_staged_input_tensor(const at::Tensor &tensor);
 
 void clear_tensor_gc_state();
 
-void on_host_storage_released(void *host_data_ptr);
+void on_host_storage_released(void *host_data_ptr, void *storage_ctx);
 
 at::Tensor empty_metadata_tensor(
     c10::IntArrayRef size,

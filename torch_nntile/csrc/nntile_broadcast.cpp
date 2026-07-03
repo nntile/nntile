@@ -9,6 +9,8 @@
 
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_context.h"
+#include "nntile_tensor_gc.h"
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
@@ -227,18 +229,26 @@ void tensor_repeat_fp32(
 
     if (out_node == src_node)
     {
-        std::size_t count = 1;
-        for (const nntile::Index dim : out_graph)
+        if (has_host_staging(input) && has_host_staging(out))
         {
-            count *= static_cast<std::size_t>(dim);
+            std::size_t count = 1;
+            for (const nntile::Index dim : out_graph)
+            {
+                count *= static_cast<std::size_t>(dim);
+            }
+            if (count > 0)
+            {
+                sync_runtime_to_nntile_tensor(input);
+                std::memcpy(
+                    out.data_ptr<float>(),
+                    input.data_ptr<float>(),
+                    count * sizeof(float));
+            }
         }
-        if (count > 0)
+        else
         {
-            sync_runtime_to_nntile_tensor(input);
-            std::memcpy(
-                out.data_ptr<float>(),
-                input.data_ptr<float>(),
-                count * sizeof(float));
+            register_data_node(out, src_node);
+            maybe_execute_after_record();
         }
         return;
     }
