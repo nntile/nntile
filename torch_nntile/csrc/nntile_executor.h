@@ -21,6 +21,24 @@ void tensor_add_fp32(
     float *out_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_add_inplace_fp32(
+    float alpha,
+    const float *other_data,
+    float beta,
+    float *self_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_mul_fp32(
+    const float *self_data,
+    const float *other_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_mul_inplace_fp32(
+    const float *other_data,
+    float *self_data,
+    c10::IntArrayRef pytorch_shape);
+
 void tensor_linear_fp32(
     const float *input_data,
     c10::IntArrayRef input_shape,
@@ -39,6 +57,39 @@ void tensor_relu_backward_fp32(
     const float *dy_data,
     float *dx_data,
     c10::IntArrayRef pytorch_shape);
+
+void tensor_silu_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_silu_inplace_fp32(
+    float *data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_silu_backward_fp32(
+    const float *x_data,
+    const float *dy_data,
+    float *dx_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_gelu_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape,
+    bool approximate_tanh);
+
+void tensor_gelu_inplace_fp32(
+    float *data,
+    c10::IntArrayRef pytorch_shape,
+    bool approximate_tanh);
+
+void tensor_gelu_backward_fp32(
+    const float *x_data,
+    const float *dy_data,
+    float *dx_data,
+    c10::IntArrayRef pytorch_shape,
+    bool approximate_tanh);
 
 void tensor_mm_fp32(
     const float *a_data,
@@ -95,6 +146,85 @@ void tensor_sgd_step_fp32(
     float *velocity_data,
     float *param_data,
     c10::IntArrayRef pytorch_shape);
+
+void tensor_adam_step_fp32(
+    int64_t num_iter,
+    float beta_1,
+    float beta_2,
+    float eps,
+    float lr,
+    float weight_decay,
+    const float *grad_data,
+    float *first_moment_data,
+    float *second_moment_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_adamw_step_fp32(
+    int64_t num_iter,
+    float beta_1,
+    float beta_2,
+    float eps,
+    float lr,
+    float weight_decay,
+    const float *grad_data,
+    float *first_moment_data,
+    float *second_moment_data,
+    float *param_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_layer_norm_forward_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    const float *weight_data,
+    const float *bias_data,
+    bool has_weight,
+    bool has_bias,
+    float *output_data,
+    float *mean_data,
+    float *rstd_data,
+    int64_t norm_axis,
+    float eps);
+
+void tensor_layer_norm_backward_fp32(
+    const float *grad_out_data,
+    const float *input_data,
+    const float *mean_data,
+    const float *rstd_data,
+    const float *weight_data,
+    bool has_weight,
+    bool has_bias,
+    float *grad_input_data,
+    float *grad_weight_data,
+    float *grad_bias_data,
+    bool grad_input_needed,
+    bool grad_weight_needed,
+    bool grad_bias_needed,
+    c10::IntArrayRef input_shape,
+    int64_t norm_axis);
+
+void tensor_rms_norm_forward_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    const float *weight_data,
+    bool has_weight,
+    float *output_data,
+    float *rstd_data,
+    int64_t norm_axis,
+    float eps);
+
+void tensor_rms_norm_backward_fp32(
+    const float *grad_out_data,
+    const float *input_data,
+    const float *rstd_data,
+    const float *weight_data,
+    bool has_weight,
+    float *grad_input_data,
+    float *grad_weight_data,
+    bool grad_input_needed,
+    bool grad_weight_needed,
+    c10::IntArrayRef input_shape,
+    int64_t norm_axis);
 
 void tensor_cat_fp32(
     const std::vector<const float *> &input_data,
