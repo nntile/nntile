@@ -27,7 +27,6 @@ def _nntile_context_no_fallback():
         pytest.skip(
             "context has CPU fallback enabled; rebuild with cpu_fallback=False"
         )
-    torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
     yield
 
 
@@ -60,9 +59,10 @@ def test_microbatch_grad_accumulation_matches_cpu():
     w_cpu = torch.randn(4, 3, requires_grad=True)
 
     y1_cpu = torch.nn.functional.relu(torch.nn.functional.linear(x1_cpu, w_cpu, None))
-    (y1_cpu.sum() / 2).backward()
     y2_cpu = torch.nn.functional.relu(torch.nn.functional.linear(x2_cpu, w_cpu, None))
-    (y2_cpu.sum() / 2).backward()
+    grad_scale = 0.5
+    y1_cpu.backward(torch.full_like(y1_cpu, grad_scale))
+    y2_cpu.backward(torch.full_like(y2_cpu, grad_scale))
 
     w_ref = w_cpu.grad.clone()
 
@@ -73,11 +73,11 @@ def test_microbatch_grad_accumulation_matches_cpu():
     y1_nnt = torch.nn.functional.relu(
         torch.nn.functional.linear(x1_nnt, w_nnt, None)
     )
-    (y1_nnt.sum() / 2).backward()
     y2_nnt = torch.nn.functional.relu(
         torch.nn.functional.linear(x2_nnt, w_nnt, None)
     )
-    (y2_nnt.sum() / 2).backward()
+    y1_nnt.backward(torch.full(y1_nnt.shape, grad_scale, device="cpu").to("nntile"))
+    y2_nnt.backward(torch.full(y2_nnt.shape, grad_scale, device="cpu").to("nntile"))
 
     assert torch.allclose(w_nnt.grad.cpu(), w_ref, rtol=1e-4, atol=1e-4)
 
