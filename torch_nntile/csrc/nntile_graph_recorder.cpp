@@ -467,7 +467,21 @@ void stage_persisted_tiles_for_session(
     runtime.restore_persisted_init_state(init);
 }
 
-void clear_pending_graph_after_compile_locked()
+void transfer_pinned_tensors_locked(std::vector<at::Tensor> &pin_drop)
+{
+    if (g_pinned_tensors.empty())
+    {
+        return;
+    }
+    pin_drop.insert(
+        pin_drop.end(),
+        std::make_move_iterator(g_pinned_tensors.begin()),
+        std::make_move_iterator(g_pinned_tensors.end()));
+    g_pinned_tensors.clear();
+}
+
+void clear_pending_graph_after_compile_locked(
+    std::vector<at::Tensor> &pin_drop)
 {
     g_graph = std::make_unique<nntile::TensorGraph>("torch_nntile");
     g_all_nodes.clear();
@@ -481,7 +495,7 @@ void clear_pending_graph_after_compile_locked()
             mapped.bind_at_execute = true;
         }
     }
-    g_pinned_tensors.clear();
+    transfer_pinned_tensors_locked(pin_drop);
     g_axis_name_hints.clear();
     g_axis_tiling_by_name.clear();
 }
@@ -541,7 +555,9 @@ void insert_input_scatter_staging_locked()
     }
 }
 
-void compile_graph_locked(bool clear_pending_after = true)
+void compile_graph_locked(
+    bool clear_pending_after,
+    std::vector<at::Tensor> &pin_drop)
 {
     if (g_graph == nullptr || g_graph->num_ops() == 0)
     {
@@ -625,7 +641,7 @@ void compile_graph_locked(bool clear_pending_after = true)
 
     if (clear_pending_after)
     {
-        clear_pending_graph_after_compile_locked();
+        clear_pending_graph_after_compile_locked(pin_drop);
     }
 }
 
@@ -639,12 +655,14 @@ void run_graph_locked()
     g_session->runtime->wait();
 }
 
-void reset_recorder_locked(bool clear_tensor_gc = false)
+void reset_recorder_locked(
+    bool clear_tensor_gc,
+    std::vector<at::Tensor> &pin_drop)
 {
     g_graph.reset();
     g_tensor_nodes.clear();
     g_all_nodes.clear();
-    g_pinned_tensors.clear();
+    transfer_pinned_tensors_locked(pin_drop);
     g_axis_name_hints.clear();
     g_axis_tiling_by_name.clear();
     g_session.reset();
@@ -657,33 +675,33 @@ void reset_recorder_locked(bool clear_tensor_gc = false)
     }
 }
 
-void execute_pending_graph_locked()
+void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
 {
-    compile_graph_locked(false);
+    compile_graph_locked(false, pin_drop);
     run_graph_locked();
     if (g_session != nullptr && g_session->runtime != nullptr)
     {
         copy_host_visible_outputs(*g_session->runtime, nullptr);
     }
-    clear_pending_graph_after_compile_locked();
+    clear_pending_graph_after_compile_locked(pin_drop);
     if (!is_graph_mode())
     {
-        reset_recorder_locked();
+        reset_recorder_locked(false, pin_drop);
     }
 }
 
-void shutdown_recorder_locked()
+void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
 {
     if (g_graph != nullptr && g_graph->num_ops() > 0)
     {
-        compile_graph_locked(false);
+        compile_graph_locked(false, pin_drop);
         run_graph_locked();
         if (g_session != nullptr && g_session->runtime != nullptr)
         {
             copy_host_visible_outputs(*g_session->runtime, nullptr);
         }
     }
-    reset_recorder_locked(true);
+    reset_recorder_locked(true, pin_drop);
 }
 
 } // namespace
@@ -712,14 +730,20 @@ void require_no_pending_graph(const char *op_name)
 
 void execute_pending_graph()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
-    execute_pending_graph_locked();
+    std::vector<at::Tensor> pin_drop;
+    {
+        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        execute_pending_graph_locked(pin_drop);
+    }
 }
 
 void compile_graph()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
-    compile_graph_locked(true);
+    std::vector<at::Tensor> pin_drop;
+    {
+        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        compile_graph_locked(true, pin_drop);
+    }
 }
 
 void run_graph()
@@ -730,14 +754,20 @@ void run_graph()
 
 void reset_graph_session()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
-    reset_recorder_locked(true);
+    std::vector<at::Tensor> pin_drop;
+    {
+        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        reset_recorder_locked(true, pin_drop);
+    }
 }
 
 void shutdown_recorder()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
-    shutdown_recorder_locked();
+    std::vector<at::Tensor> pin_drop;
+    {
+        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        shutdown_recorder_locked(pin_drop);
+    }
 }
 
 bool has_graph_session()
