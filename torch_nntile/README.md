@@ -126,6 +126,36 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
 Gradients use **PyTorch autograd** (not `NNGraph` autograd).
 
+### Gradient accumulation
+
+`torch_nntile` does **not** implement NNGraph-style `get_or_create_grad` /
+`add_inplace` fan-in. PyTorch's autograd engine owns all gradient accumulation:
+
+| Mechanism | When | torch_nntile op |
+|-----------|------|-----------------|
+| `AccumulateGrad` | Leaf `.grad` (params, inputs with `requires_grad=True`) | `add_.Tensor` (in-place `+=` on subsequent grads) or buffer steal on first grad |
+| `InputBuffer` | Fan-in on intermediate tensors (diamond graphs) | `add_.Tensor` or `add.Tensor` |
+| Optimizer / SGD | `param.add_(grad, alpha=-lr)`, `velocity.add_(grad)` | `add_.Tensor` |
+
+Backward ATen ops (`linear_backward`, `silu_backward`, …) always **overwrite**
+fresh grad buffers (`beta=0`). Accumulation is delegated to PyTorch; do not fold
+`beta=1` into backward kernels unless profiling proves a fusion win.
+
+**Grad buffer stealing:** backward return tensors must not be pinned for graph
+recording (`pin_graph_op_output(..., false)`), so PyTorch can move the first
+grad into `param.grad` without an extra copy.
+
+**Training microbatches:** use the standard PyTorch pattern — scale loss, call
+`loss.backward()` multiple times, then `optimizer.step()`. No special
+`torch_nntile` API. Prefer `optimizer.zero_grad(set_to_none=True)` so the
+first backward can steal into `.grad`; `grad.zero_()` is supported via
+`zero_` / `fill_(0)` when `set_to_none=False`.
+
+PyTorch does not fuse accumulation across the backward graph without
+`torch.compile`; each `+=` dispatches to `add_` as a separate kernel.
+
+Tests: `pytest -vv torch_nntile/tests/test_grad_accumulation.py`
+
 ### CPU fallback control
 
 ```python
