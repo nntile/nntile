@@ -25,17 +25,17 @@ void tensor_repeat_fp32(
     c10::IntArrayRef repeats,
     c10::IntArrayRef out_shape);
 
+void tensor_broadcast_scalar_fp32(
+    const float *scalar_data,
+    float *out_data,
+    c10::IntArrayRef out_shape);
+
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
     nntile::TensorGraph::TensorNode *src,
     nntile::TensorGraph::TensorNode *dst,
     nntile::TensorGraph &graph,
     const std::vector<nntile::Index> &dst_shape);
-
-void tensor_broadcast_scalar_fp32(
-    const float *scalar_data,
-    float *out_data,
-    c10::IntArrayRef out_shape);
 #endif
 
 } // namespace torch_nntile
