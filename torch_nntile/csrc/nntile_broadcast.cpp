@@ -13,6 +13,7 @@
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 #include <nntile/tensor/ops/scale_slice.hh>
+#include <nntile/tensor/ops/clear.hh>
 
 #include <cstring>
 #include <stdexcept>
@@ -246,6 +247,42 @@ void tensor_repeat_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_broadcast_scalar_fp32(
+    const float *scalar_data,
+    float *out_data,
+    c10::IntArrayRef out_shape)
+{
+    const std::vector<nntile::Index> dst_graph =
+        pytorch_shape_to_graph(out_shape);
+    if (dst_graph.empty())
+    {
+        if (out_data != scalar_data)
+        {
+            std::memcpy(out_data, scalar_data, sizeof(float));
+        }
+        return;
+    }
+
+    auto *src_node = get_or_create_data_node(
+        const_cast<float *>(scalar_data),
+        std::vector<nntile::Index>{},
+        nntile::DataType::FP32,
+        true);
+    auto *dst_node = get_or_create_data_node(
+        out_data,
+        dst_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::clear(dst_node);
+    broadcast_scale_slice_chain(
+        src_node,
+        dst_node,
+        *src_node->graph(),
+        dst_graph);
+    register_data_node(out_data, dst_node);
+    maybe_execute_after_record();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -261,6 +298,15 @@ void tensor_repeat_fp32(
     c10::IntArrayRef /*out_shape*/)
 {
     throw std::runtime_error("tensor_repeat_fp32 requires libnntile");
+}
+
+void tensor_broadcast_scalar_fp32(
+    const float * /*scalar_data*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*out_shape*/)
+{
+    throw std::runtime_error(
+        "tensor_broadcast_scalar_fp32 requires libnntile");
 }
 
 } // namespace torch_nntile

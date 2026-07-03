@@ -275,6 +275,11 @@ void tensor_norm_backward_fp32(
     bool is_global,
     int64_t axis);
 
+void tensor_sum_to_scalar_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef input_shape);
+
 void tensor_cat_fp32(
     const std::vector<const float *> &input_data,
     const std::vector<c10::IntArrayRef> &input_shapes,

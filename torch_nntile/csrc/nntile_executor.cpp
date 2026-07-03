@@ -59,6 +59,7 @@
 #include <nntile/tensor/ops/total_sum_accum.hh>
 
 #include <cmath>
+#include <cstring>
 #include <stdexcept>
 #include <vector>
 
@@ -1771,6 +1772,65 @@ void tensor_norm_backward_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_sum_to_scalar_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef input_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input_shape);
+    if (graph_shape.empty())
+    {
+        if (out_data != input_data)
+        {
+            std::memcpy(out_data, input_data, sizeof(float));
+        }
+        return;
+    }
+
+    auto *input_node = get_or_create_data_node(
+        const_cast<float *>(input_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    nntile::TensorGraph &graph = *input_node->graph();
+
+    nntile::TensorGraph::TensorNode *cur = input_node;
+    std::vector<nntile::Index> cur_shape = graph_shape;
+    while (cur_shape.size() > 1)
+    {
+        const std::vector<nntile::Index> next_shape =
+            reduced_shape_along_axis(cur_shape, 0);
+        auto *next = make_graph_tensor(graph, next_shape, "sum_to_scalar");
+        nntile::tensor::clear(next);
+        nntile::tensor::sum_slice(
+            cur,
+            next,
+            0,
+            kNormRedux,
+            static_cast<nntile::Scalar>(1.0),
+            static_cast<nntile::Scalar>(0.0));
+        cur = next;
+        cur_shape = next_shape;
+    }
+
+    auto *out_node = get_or_create_data_node(
+        out_data,
+        std::vector<nntile::Index>{},
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::clear(out_node);
+    nntile::tensor::sum_slice(
+        cur,
+        out_node,
+        0,
+        kNormRedux,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0));
+    register_data_node(out_data, out_node);
+    maybe_execute_after_record();
+}
+
 void tensor_cat_fp32(
     const std::vector<const float *> &input_data,
     const std::vector<c10::IntArrayRef> &input_shapes,
@@ -2274,6 +2334,14 @@ void tensor_norm_backward_fp32(
     int64_t /*axis*/)
 {
     require_libnntile("norm_backward");
+}
+
+void tensor_sum_to_scalar_fp32(
+    const float * /*input_data*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*input_shape*/)
+{
+    require_libnntile("sum_to_scalar");
 }
 
 void tensor_cat_fp32(

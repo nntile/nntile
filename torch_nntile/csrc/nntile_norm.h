@@ -17,7 +17,8 @@ namespace torch_nntile
 std::tuple<at::Tensor, at::Tensor> norm_forward(
     const at::Tensor &input,
     std::optional<int64_t> dim,
-    bool keepdim);
+    bool keepdim,
+    at::Tensor *out = nullptr);
 
 at::Tensor norm_backward(
     const at::Tensor &grad_out,
@@ -32,5 +33,13 @@ at::Tensor linalg_vector_norm_nntile(
     at::OptionalIntArrayRef dim,
     bool keepdim,
     std::optional<at::ScalarType> dtype);
+
+at::Tensor &linalg_vector_norm_out_nntile(
+    const at::Tensor &self,
+    const at::Scalar &ord,
+    at::OptionalIntArrayRef dim,
+    bool keepdim,
+    std::optional<at::ScalarType> dtype,
+    at::Tensor &out);
 
 } // namespace torch_nntile

@@ -7,6 +7,8 @@
 #include "nntile_norm.h"
 
 #include "nntile_executor.h"
+
+#include "nntile_broadcast.h"
 #include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
@@ -90,7 +92,8 @@ at::Tensor cpu_vector_norm_fallback(
 std::tuple<at::Tensor, at::Tensor> norm_forward(
     const at::Tensor &input,
     std::optional<int64_t> dim,
-    bool keepdim)
+    bool keepdim,
+    at::Tensor *out)
 {
     check_norm_input(input, "input");
     at::Tensor x = input.contiguous();
@@ -100,15 +103,56 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
         const int64_t numel = x.numel();
         TORCH_CHECK(numel > 0, "nntile norm: cannot compute norm of empty tensor");
         at::Tensor x_flat = x.view({numel});
-        at::Tensor output = at::empty({}, x.options());
+        at::Tensor norm_values = at::empty({}, x.options());
 
         pin_graph_op_inputs({x_flat});
-        pin_graph_op_output(output, true);
+        pin_graph_op_output(norm_values, true);
         tensor_norm_fp32(
             x_flat.data_ptr<float>(),
-            output.data_ptr<float>(),
+            norm_values.data_ptr<float>(),
             x_flat.sizes());
-        return {output, output};
+
+        if (keepdim)
+        {
+            std::vector<int64_t> sizes(
+                static_cast<std::size_t>(x.dim()),
+                1);
+            at::Tensor output;
+            if (out != nullptr)
+            {
+                TORCH_CHECK(
+                    out->sizes() == c10::IntArrayRef(sizes),
+                    "nntile norm: output tensor shape mismatch");
+                TORCH_CHECK(
+                    out->is_contiguous(),
+                    "nntile norm: output tensor must be contiguous");
+                output = *out;
+            }
+            else
+            {
+                output = at::empty(sizes, x.options());
+            }
+            pin_graph_op_output(output, true);
+            tensor_broadcast_scalar_fp32(
+                norm_values.data_ptr<float>(),
+                output.data_ptr<float>(),
+                output.sizes());
+            return {output, norm_values};
+        }
+
+        if (out != nullptr)
+        {
+            TORCH_CHECK(
+                out->sizes().empty(),
+                "nntile norm: output tensor shape mismatch");
+            TORCH_CHECK(
+                out->is_contiguous(),
+                "nntile norm: output tensor must be contiguous");
+            out->copy_(norm_values);
+            return {*out, norm_values};
+        }
+
+        return {norm_values, norm_values};
     }
 
     const int64_t axis = normalize_dim(*dim, x.dim());
@@ -117,7 +161,28 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
     at::IntArrayRef reduced_sizes_ref(reduced_sizes_vec);
 
     at::Tensor output;
-    if (keepdim)
+    if (out != nullptr)
+    {
+        if (keepdim)
+        {
+            auto sizes = x.sizes().vec();
+            sizes[static_cast<std::size_t>(axis)] = 1;
+            TORCH_CHECK(
+                out->sizes() == c10::IntArrayRef(sizes),
+                "nntile norm: output tensor shape mismatch");
+        }
+        else
+        {
+            TORCH_CHECK(
+                out->sizes() == reduced_sizes_ref,
+                "nntile norm: output tensor shape mismatch");
+        }
+        TORCH_CHECK(
+            out->is_contiguous(),
+            "nntile norm: output tensor must be contiguous");
+        output = *out;
+    }
+    else if (keepdim)
     {
         auto sizes = x.sizes().vec();
         sizes[static_cast<std::size_t>(axis)] = 1;
@@ -163,6 +228,17 @@ at::Tensor norm_backward(
     if (dim.has_value() && keepdim)
     {
         grad_out_reduced = grad_out.squeeze(*dim);
+    }
+    else if (!dim.has_value() && keepdim)
+    {
+        at::Tensor scalar_grad = at::empty({}, grad_out.options());
+        pin_graph_op_inputs({grad_out});
+        pin_graph_op_output(scalar_grad, false);
+        tensor_sum_to_scalar_fp32(
+            grad_out.data_ptr<float>(),
+            scalar_grad.data_ptr<float>(),
+            grad_out.sizes());
+        grad_out_reduced = scalar_grad;
     }
 
     at::Tensor grad_input = at::empty_like(x);
@@ -231,9 +307,75 @@ at::Tensor linalg_vector_norm_nntile(
     axis = (*dim)[0];
   }
 
-  auto [output, norm_values] = norm_forward(self, axis, keepdim);
+  auto [output, norm_values] = norm_forward(self, axis, keepdim, nullptr);
   (void)norm_values;
   return output;
+}
+
+at::Tensor &linalg_vector_norm_out_nntile(
+    const at::Tensor &self,
+    const at::Scalar &ord,
+    at::OptionalIntArrayRef dim,
+    bool keepdim,
+    std::optional<at::ScalarType> dtype,
+    at::Tensor &out)
+{
+    if (!is_nntile_device(self.device()))
+    {
+        out.copy_(at::linalg_vector_norm(self, ord, dim, keepdim, dtype));
+        return out;
+    }
+    TORCH_CHECK(
+        is_nntile_device(out.device()),
+        "nntile linalg_vector_norm.out: output must be on nntile");
+    if (!is_two_norm(ord))
+    {
+        at::Tensor result = cpu_vector_norm_fallback(
+            self,
+            ord,
+            dim,
+            keepdim,
+            dtype);
+        out.copy_(result);
+        return out;
+    }
+    if (dtype.has_value())
+    {
+        at::Tensor result = cpu_vector_norm_fallback(
+            self,
+            ord,
+            dim,
+            keepdim,
+            dtype);
+        out.copy_(result);
+        return out;
+    }
+    if (self.scalar_type() != at::ScalarType::Float)
+    {
+        at::Tensor result = cpu_vector_norm_fallback(
+            self,
+            ord,
+            dim,
+            keepdim,
+            dtype);
+        out.copy_(result);
+        return out;
+    }
+
+    std::optional<int64_t> axis;
+    if (dim.has_value())
+    {
+        TORCH_CHECK(
+            dim->size() == 1,
+            "nntile linalg_vector_norm supports a single dim; use CPU fallback "
+            "for multi-axis norms");
+        axis = (*dim)[0];
+    }
+
+    auto [output, norm_values] = norm_forward(self, axis, keepdim, &out);
+    (void)norm_values;
+    (void)output;
+    return out;
 }
 
 } // namespace torch_nntile
@@ -243,4 +385,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl(
         "linalg_vector_norm",
         TORCH_FN(torch_nntile::linalg_vector_norm_nntile));
+    m.impl(
+        "linalg_vector_norm.out",
+        TORCH_FN(torch_nntile::linalg_vector_norm_out_nntile));
 }

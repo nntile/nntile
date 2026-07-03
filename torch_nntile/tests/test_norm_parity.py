@@ -120,3 +120,47 @@ def test_axis_norm_keepdim_backward_matches_cpu():
     y.backward(grad.to("nntile"))
 
     assert torch.allclose(x.grad.cpu(), x_cpu.grad, rtol=1e-5, atol=1e-5)
+
+
+def test_global_norm_keepdim_matches_cpu():
+    x_cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    x = x_cpu.to("nntile")
+
+    y = torch.linalg.vector_norm(x, ord=2, keepdim=True)
+    y_cpu = torch.linalg.vector_norm(x_cpu, ord=2, keepdim=True)
+
+    assert y.shape == y_cpu.shape
+    assert torch.allclose(y.cpu(), y_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_global_norm_keepdim_backward_matches_cpu():
+    x_cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+    x = x_cpu.detach().clone().to("nntile").requires_grad_(True)
+
+    y_cpu = torch.linalg.vector_norm(x_cpu, ord=2, keepdim=True)
+    y = torch.linalg.vector_norm(x, ord=2, keepdim=True)
+
+    grad = torch.ones_like(y_cpu)
+    y_cpu.backward(grad)
+    y.backward(grad.to("nntile"))
+
+    assert torch.allclose(x.grad.cpu(), x_cpu.grad, rtol=1e-5, atol=1e-5)
+
+
+def test_vector_norm_out_matches_cpu():
+    x_cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    out_cpu = torch.empty(2)
+    y_cpu = torch.linalg.vector_norm(
+        x_cpu,
+        ord=2,
+        dim=1,
+        out=out_cpu,
+    )
+
+    x = x_cpu.to("nntile")
+    out = torch.empty(2, device="nntile")
+    y = torch.linalg.vector_norm(x, ord=2, dim=1, out=out)
+
+    assert y is out
+    assert torch.allclose(out.cpu(), out_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(y.cpu(), y_cpu, rtol=1e-5, atol=1e-5)
