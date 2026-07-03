@@ -14,6 +14,9 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/tensor/ops/add.hh>
+#include <nntile/tensor/ops/add_inplace.hh>
+#include <nntile/tensor/ops/multiply.hh>
+#include <nntile/tensor/ops/multiply_inplace.hh>
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/gemm.hh>
 #include <nntile/tensor/ops/logsumexp.hh>
@@ -77,6 +80,91 @@ void tensor_add_fp32(
         static_cast<nntile::Scalar>(beta),
         y_node)->set_name("z");
     register_data_node(out_data, z_node);
+    maybe_execute_after_record();
+}
+
+void tensor_add_inplace_fp32(
+    float alpha,
+    const float *other_data,
+    float beta,
+    float *self_data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *other_node = get_or_create_data_node(
+        const_cast<float *>(other_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *self_node = get_or_create_data_node(
+        self_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    nntile::tensor::add_inplace(
+        static_cast<nntile::Scalar>(alpha),
+        other_node,
+        static_cast<nntile::Scalar>(beta),
+        self_node);
+    register_data_node(self_data, self_node);
+    maybe_execute_after_record();
+}
+
+void tensor_mul_fp32(
+    const float *self_data,
+    const float *other_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *self_node = get_or_create_data_node(
+        const_cast<float *>(self_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *other_node = get_or_create_data_node(
+        const_cast<float *>(other_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    auto *out_node = nntile::tensor::multiply(
+        self_node,
+        other_node,
+        static_cast<nntile::Scalar>(1.0))->set_name("z");
+    register_data_node(out_data, out_node);
+    maybe_execute_after_record();
+}
+
+void tensor_mul_inplace_fp32(
+    const float *other_data,
+    float *self_data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *other_node = get_or_create_data_node(
+        const_cast<float *>(other_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *self_node = get_or_create_data_node(
+        self_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    nntile::tensor::multiply_inplace(
+        static_cast<nntile::Scalar>(1.0),
+        other_node,
+        self_node);
+    register_data_node(self_data, self_node);
     maybe_execute_after_record();
 }
 
@@ -593,6 +681,33 @@ void tensor_add_fp32(
     c10::IntArrayRef /*pytorch_shape*/)
 {
     require_libnntile("add");
+}
+
+void tensor_add_inplace_fp32(
+    float /*alpha*/,
+    const float * /*other_data*/,
+    float /*beta*/,
+    float * /*self_data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("add_");
+}
+
+void tensor_mul_fp32(
+    const float * /*self_data*/,
+    const float * /*other_data*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("mul");
+}
+
+void tensor_mul_inplace_fp32(
+    const float * /*other_data*/,
+    float * /*self_data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("mul_");
 }
 
 void tensor_linear_fp32(
