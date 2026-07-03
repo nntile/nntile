@@ -203,7 +203,7 @@ at::Tensor &fill_scalar(at::Tensor &self, const at::Scalar &value)
     return self;
 }
 
-at::Tensor &zero_(at::Tensor &self)
+at::Tensor &zero_tensor(at::Tensor &self)
 {
     return fill_scalar(self, 0);
 }
@@ -588,7 +588,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("_copy_from_and_resize", TORCH_FN(torch_nntile::copy_from_and_resize));
     m.impl("_local_scalar_dense", TORCH_FN(torch_nntile::local_scalar_dense));
     m.impl("fill_.Scalar", TORCH_FN(torch_nntile::fill_scalar));
-    m.impl("zero_", TORCH_FN(torch_nntile::zero_));
+    m.impl("zero_", TORCH_FN(torch_nntile::zero_tensor));
     m.impl("set_.source_Tensor", TORCH_FN(torch_nntile::set_source_tensor));
     m.impl("set_.source_Storage", TORCH_FN(torch_nntile::set_source_storage));
     m.impl(
