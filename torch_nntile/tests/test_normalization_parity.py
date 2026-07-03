@@ -155,3 +155,25 @@ def test_functional_rms_norm_matches_cpu():
     y_nnt = F.rms_norm(x_nnt, (5,), w_nnt, 1e-6).cpu()
 
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
+
+
+def test_rms_norm_without_weight_matches_cpu():
+    x_cpu = torch.randn(3, 5)
+    y_cpu = F.rms_norm(x_cpu, (5,), None, 1e-6)
+
+    x_nnt = x_cpu.to("nntile")
+    y_nnt = F.rms_norm(x_nnt, (5,), None, 1e-6).cpu()
+
+    assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
+
+
+def test_rms_norm_without_weight_backward_matches_cpu():
+    x_cpu = torch.randn(3, 5, requires_grad=True)
+    y_cpu = F.rms_norm(x_cpu, (5,), None, 1e-6)
+    y_cpu.backward(torch.ones_like(y_cpu))
+
+    x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
+    y_nnt = F.rms_norm(x_nnt, (5,), None, 1e-6)
+    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+
+    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)

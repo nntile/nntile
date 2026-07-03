@@ -41,22 +41,24 @@ class _NntileRmsNorm(torch.autograd.Function):
             weight,
             eps,
         )
-        ctx.save_for_backward(input, rstd, weight)
+        ctx.has_weight = weight is not None
+        ctx.save_for_backward(input, rstd, *((weight,) if weight is not None else ()))
         ctx.normalized_shape = normalized_shape
         return output
 
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
-        input, rstd, weight = ctx.saved_tensors
+        input, rstd, *weight_saved = ctx.saved_tensors
+        weight = weight_saved[0] if ctx.has_weight else None
         grad_input, grad_weight = _C.rms_norm_backward(
             grad_output,
             input,
             ctx.normalized_shape,
             rstd,
             weight,
-            [ctx.needs_input_grad[0], ctx.needs_input_grad[2]],
+            [ctx.needs_input_grad[0], ctx.has_weight and ctx.needs_input_grad[2]],
         )
-        return grad_input, None, grad_weight, None
+        return grad_input, None, grad_weight if ctx.has_weight else None, None
 
 
 def rms_norm(
