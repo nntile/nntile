@@ -80,6 +80,27 @@ def test_silu_backward_matches_cpu(random_input):
     assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
+def test_silu_inplace_matches_cpu(random_input):
+    x_cpu = random_input.clone()
+    y_cpu = torch.nn.functional.silu(x_cpu)
+
+    x_nnt = random_input.clone().to("nntile")
+    torch.nn.functional.silu(x_nnt, inplace=True)
+
+    assert torch.allclose(x_nnt.cpu(), y_cpu, rtol=1e-4, atol=1e-4)
+
+
+@pytest.mark.parametrize("approximate", ["none", "tanh"])
+def test_gelu_inplace_matches_cpu(random_input, approximate):
+    x_cpu = random_input.clone()
+    y_cpu = torch.nn.functional.gelu(x_cpu, approximate=approximate)
+
+    x_nnt = random_input.clone().to("nntile")
+    torch.ops.aten.gelu_(x_nnt, approximate=approximate)
+
+    assert torch.allclose(x_nnt.cpu(), y_cpu, rtol=1e-4, atol=1e-4)
+
+
 def test_linear_silu_layer_matches_cpu():
     x_cpu = torch.tensor([[1.0, -2.0, 0.5], [0.0, 3.0, -1.0]])
     weight = torch.tensor([[0.25, -0.5, 1.0], [2.0, 0.0, -1.0]])

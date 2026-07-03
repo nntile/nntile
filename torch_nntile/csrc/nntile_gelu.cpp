@@ -64,6 +64,14 @@ void run_gelu(
 {
     pin_graph_op_inputs({self});
     pin_graph_op_output(out, true);
+    if (self.data_ptr<float>() == out.data_ptr<float>())
+    {
+        tensor_gelu_inplace_fp32(
+            out.data_ptr<float>(),
+            self.sizes(),
+            approximate_tanh);
+        return;
+    }
     tensor_gelu_fp32(
         self.data_ptr<float>(),
         out.data_ptr<float>(),

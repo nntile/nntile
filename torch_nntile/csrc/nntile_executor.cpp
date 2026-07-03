@@ -20,12 +20,15 @@
 #include <nntile/tensor/ops/maxsumexp.hh>
 #include <nntile/tensor/ops/gelu.hh>
 #include <nntile/tensor/ops/gelu_backward.hh>
+#include <nntile/tensor/ops/gelu_inplace.hh>
 #include <nntile/tensor/ops/gelutanh.hh>
 #include <nntile/tensor/ops/gelutanh_backward.hh>
+#include <nntile/tensor/ops/gelutanh_inplace.hh>
 #include <nntile/tensor/ops/relu.hh>
 #include <nntile/tensor/ops/relu_backward.hh>
 #include <nntile/tensor/ops/silu.hh>
 #include <nntile/tensor/ops/silu_backward.hh>
+#include <nntile/tensor/ops/silu_inplace.hh>
 #include <nntile/tensor/ops/sgd_step.hh>
 #include <nntile/tensor/ops/multiply_slice.hh>
 #include <nntile/tensor/ops/scale_slice.hh>
@@ -191,6 +194,24 @@ void tensor_silu_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_silu_inplace_fp32(
+    float *data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *node = get_or_create_data_node(
+        data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    nntile::tensor::silu_inplace(node);
+    register_data_node(data, node);
+    maybe_execute_after_record();
+}
+
 void tensor_silu_backward_fp32(
     const float *x_data,
     const float *dy_data,
@@ -247,6 +268,32 @@ void tensor_gelu_fp32(
         dst_node = nntile::tensor::gelu(src_node)->set_name("dst");
     }
     register_data_node(out_data, dst_node);
+    maybe_execute_after_record();
+}
+
+void tensor_gelu_inplace_fp32(
+    float *data,
+    c10::IntArrayRef pytorch_shape,
+    bool approximate_tanh)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *node = get_or_create_data_node(
+        data,
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    if (approximate_tanh)
+    {
+        nntile::tensor::gelutanh_inplace(node);
+    }
+    else
+    {
+        nntile::tensor::gelu_inplace(node);
+    }
+    register_data_node(data, node);
     maybe_execute_after_record();
 }
 
@@ -754,6 +801,13 @@ void tensor_silu_fp32(
     require_libnntile("silu");
 }
 
+void tensor_silu_inplace_fp32(
+    float * /*data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("silu_inplace");
+}
+
 void tensor_silu_backward_fp32(
     const float * /*x_data*/,
     const float * /*dy_data*/,
@@ -770,6 +824,14 @@ void tensor_gelu_fp32(
     bool /*approximate_tanh*/)
 {
     require_libnntile("gelu");
+}
+
+void tensor_gelu_inplace_fp32(
+    float * /*data*/,
+    c10::IntArrayRef /*pytorch_shape*/,
+    bool /*approximate_tanh*/)
+{
+    require_libnntile("gelu_inplace");
 }
 
 void tensor_gelu_backward_fp32(

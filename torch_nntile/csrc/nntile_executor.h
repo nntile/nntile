@@ -43,6 +43,10 @@ void tensor_silu_fp32(
     float *out_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_silu_inplace_fp32(
+    float *data,
+    c10::IntArrayRef pytorch_shape);
+
 void tensor_silu_backward_fp32(
     const float *x_data,
     const float *dy_data,
@@ -52,6 +56,11 @@ void tensor_silu_backward_fp32(
 void tensor_gelu_fp32(
     const float *input_data,
     float *out_data,
+    c10::IntArrayRef pytorch_shape,
+    bool approximate_tanh);
+
+void tensor_gelu_inplace_fp32(
+    float *data,
     c10::IntArrayRef pytorch_shape,
     bool approximate_tanh);
 
