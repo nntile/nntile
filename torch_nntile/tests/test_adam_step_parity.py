@@ -88,10 +88,10 @@ def test_adam_step_matches_reference(
         m_nnt,
         v_nnt,
         1,
+        lr,
         beta_1,
         beta_2,
         eps,
-        lr,
         weight_decay,
     )
 
@@ -142,10 +142,10 @@ def test_adamw_step_matches_reference(
         m_nnt,
         v_nnt,
         1,
+        lr,
         beta_1,
         beta_2,
         eps,
-        lr,
         weight_decay,
     )
 
@@ -243,6 +243,31 @@ def test_fused_adamw_step_plain():
 
     param_nnt = param.clone().to("nntile")
     param_nnt.grad = grad.clone().to("nntile")
-    fused_adamw_step([param_nnt], learning_rate=1e-3, weight_decay=0.01)
+    fused_adamw_step([param_nnt], learning_rate=1e-3)
 
     assert torch.allclose(param_nnt.cpu(), expected_p, rtol=1e-4, atol=1e-4)
+
+
+def test_adamw_default_weight_decay():
+    opt = AdamW([torch.randn(2)], lr=1e-3)
+    assert opt.param_groups[0]["weight_decay"] == 0.01
+
+
+def test_adam_step_accepts_keyword_lr():
+    torch.manual_seed(6)
+    shape = (2, 2)
+    param = torch.randn(shape, dtype=torch.float32).to("nntile")
+    grad = torch.randn(shape, dtype=torch.float32).to("nntile")
+    m = torch.zeros(shape, dtype=torch.float32).to("nntile")
+    v = torch.zeros(shape, dtype=torch.float32).to("nntile")
+
+    _C.adam_step(
+        param,
+        grad,
+        m,
+        v,
+        num_iter=1,
+        lr=1e-3,
+    )
+
+    assert torch.isfinite(param.cpu()).all()

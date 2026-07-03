@@ -74,10 +74,10 @@ void adam_step(
     at::Tensor &first_moment,
     at::Tensor &second_moment,
     int64_t num_iter,
+    double lr,
     double beta_1,
     double beta_2,
     double eps,
-    double lr,
     double weight_decay)
 {
     check_adam_step_tensors(
@@ -104,10 +104,10 @@ void adamw_step(
     at::Tensor &first_moment,
     at::Tensor &second_moment,
     int64_t num_iter,
+    double lr,
     double beta_1,
     double beta_2,
     double eps,
-    double lr,
     double weight_decay)
 {
     check_adam_step_tensors(

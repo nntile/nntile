@@ -18,10 +18,10 @@ void adam_step(
     at::Tensor &first_moment,
     at::Tensor &second_moment,
     int64_t num_iter,
+    double lr,
     double beta_1,
     double beta_2,
     double eps,
-    double lr,
     double weight_decay);
 
 void adamw_step(
@@ -30,10 +30,10 @@ void adamw_step(
     at::Tensor &first_moment,
     at::Tensor &second_moment,
     int64_t num_iter,
+    double lr,
     double beta_1,
     double beta_2,
     double eps,
-    double lr,
     double weight_decay);
 
 } // namespace torch_nntile

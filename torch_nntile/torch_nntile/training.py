@@ -278,10 +278,10 @@ class _AdamBase:
                 first_moment,
                 second_moment,
                 num_iter,
+                lr,
                 beta_1,
                 beta_2,
                 eps,
-                lr,
                 weight_decay,
             )
         else:
@@ -291,10 +291,10 @@ class _AdamBase:
                 first_moment,
                 second_moment,
                 num_iter,
+                lr,
                 beta_1,
                 beta_2,
                 eps,
-                lr,
                 weight_decay,
             )
 
@@ -394,6 +394,22 @@ class AdamW(_AdamBase):
 
     _use_decoupled_weight_decay = True
 
+    def __init__(
+        self,
+        parameters: Iterable[torch.Tensor],
+        lr: float,
+        betas: tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-8,
+        weight_decay: float = 0.01,
+    ) -> None:
+        super().__init__(
+            parameters,
+            lr,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+        )
+
 
 def fused_adam_step(
     parameters: list[torch.Tensor],
@@ -425,7 +441,7 @@ def fused_adamw_step(
     *,
     betas: tuple[float, float] = (0.9, 0.999),
     eps: float = 1e-8,
-    weight_decay: float = 0.0,
+    weight_decay: float = 0.01,
     optimizer: AdamW | None = None,
 ) -> AdamW:
     """One fused AdamW step; returns the optimizer holding moment state."""
