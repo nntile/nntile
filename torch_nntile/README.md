@@ -106,6 +106,7 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | PyTorch op | libnntile |
 |------------|-----------|
 | `a + b` | `tensor::add` |
+| `torch.cat` | `tensor::concat` |
 | `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
