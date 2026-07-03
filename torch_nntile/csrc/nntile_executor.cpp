@@ -21,6 +21,8 @@
 #include <nntile/tensor/ops/add_slice_inplace.hh>
 #include <nntile/tensor/ops/concat.hh>
 #include <nntile/tensor/ops/copy_intersection.hh>
+#include <nntile/tensor/ops/embedding.hh>
+#include <nntile/tensor/ops/embedding_backward.hh>
 #include <nntile/tensor/ops/multiply.hh>
 #include <nntile/tensor/ops/multiply_inplace.hh>
 #include <nntile/tensor/ops/clear.hh>
@@ -1706,6 +1708,87 @@ void tensor_split_with_sizes_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_embedding_forward_fp32(
+    const std::int64_t *index_data,
+    c10::IntArrayRef index_shape,
+    const float *weight_data,
+    c10::IntArrayRef weight_shape,
+    float *out_data,
+    c10::IntArrayRef out_shape,
+    nntile::Index axis)
+{
+    const std::vector<nntile::Index> index_graph =
+        pytorch_shape_to_graph(index_shape);
+    const std::vector<nntile::Index> weight_graph =
+        pytorch_shape_to_graph(weight_shape);
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out_shape);
+
+    auto *index_node = get_or_create_data_node(
+        const_cast<std::int64_t *>(index_data),
+        index_graph,
+        nntile::DataType::INT64,
+        true);
+    auto *weight_node = get_or_create_data_node(
+        const_cast<float *>(weight_data),
+        weight_graph,
+        nntile::DataType::FP32,
+        true);
+    auto *out_node = get_or_create_data_node(
+        out_data,
+        out_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::embedding(index_node, weight_node, out_node, axis);
+    register_data_node(out_data, out_node);
+    maybe_execute_after_record();
+}
+
+void tensor_embedding_backward_fp32(
+    const std::int64_t *index_data,
+    c10::IntArrayRef index_shape,
+    const float *grad_out_data,
+    c10::IntArrayRef grad_out_shape,
+    float *grad_weight_data,
+    c10::IntArrayRef weight_shape,
+    nntile::Index axis,
+    int redux)
+{
+    const std::vector<nntile::Index> index_graph =
+        pytorch_shape_to_graph(index_shape);
+    const std::vector<nntile::Index> grad_out_graph =
+        pytorch_shape_to_graph(grad_out_shape);
+    const std::vector<nntile::Index> weight_graph =
+        pytorch_shape_to_graph(weight_shape);
+
+    auto *index_node = get_or_create_data_node(
+        const_cast<std::int64_t *>(index_data),
+        index_graph,
+        nntile::DataType::INT64,
+        true);
+    auto *grad_out_node = get_or_create_data_node(
+        const_cast<float *>(grad_out_data),
+        grad_out_graph,
+        nntile::DataType::FP32,
+        true);
+    auto *grad_weight_node = get_or_create_data_node(
+        grad_weight_data,
+        weight_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::clear(grad_weight_node);
+    nntile::tensor::embedding_backward(
+        index_node,
+        grad_out_node,
+        grad_weight_node,
+        axis,
+        redux);
+    register_data_node(grad_weight_data, grad_weight_node);
+    maybe_execute_after_record();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -2082,6 +2165,31 @@ void tensor_split_with_sizes_fp32(
     const std::vector<c10::IntArrayRef> & /*out_shapes*/)
 {
     require_libnntile("split_with_sizes");
+}
+
+void tensor_embedding_forward_fp32(
+    const std::int64_t * /*index_data*/,
+    c10::IntArrayRef /*index_shape*/,
+    const float * /*weight_data*/,
+    c10::IntArrayRef /*weight_shape*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*out_shape*/,
+    nntile::Index /*axis*/)
+{
+    require_libnntile("embedding");
+}
+
+void tensor_embedding_backward_fp32(
+    const std::int64_t * /*index_data*/,
+    c10::IntArrayRef /*index_shape*/,
+    const float * /*grad_out_data*/,
+    c10::IntArrayRef /*grad_out_shape*/,
+    float * /*grad_weight_data*/,
+    c10::IntArrayRef /*weight_shape*/,
+    nntile::Index /*axis*/,
+    int /*redux*/)
+{
+    require_libnntile("embedding_backward");
 }
 
 } // namespace torch_nntile

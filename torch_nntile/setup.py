@@ -50,6 +50,7 @@ CSRC = [
     "csrc/nntile_rms_norm.cpp",
     "csrc/nntile_broadcast.cpp",
     "csrc/nntile_repeat.cpp",
+    "csrc/nntile_embedding.cpp",
 ]
 
 
