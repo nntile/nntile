@@ -6,8 +6,13 @@
 
 #pragma once
 
+#include "nntile_gemm_layout.h"
+
 #include <ATen/Tensor.h>
 #include <c10/util/ArrayRef.h>
+
+#include <cstdint>
+#include <vector>
 
 namespace torch_nntile
 {
@@ -31,6 +36,11 @@ void tensor_mul_fp32(
     at::Tensor &out);
 
 void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self);
+
+void tensor_hypot_fp32(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
 
 void tensor_linear_fp32(
     const at::Tensor &input,
@@ -65,6 +75,26 @@ void tensor_gelu_backward_fp32(
     const at::Tensor &dy,
     at::Tensor &dx,
     bool approximate_tanh);
+
+void tensor_gemm_fp32(
+    const GemmParams &params,
+    const at::Tensor &a,
+    c10::IntArrayRef a_gemm_shape,
+    const at::Tensor &b,
+    c10::IntArrayRef b_gemm_shape,
+    at::Tensor &out,
+    c10::IntArrayRef out_shape);
+
+void tensor_gemm_accumulate_fp32(
+    const GemmParams &params,
+    const at::Tensor &a,
+    c10::IntArrayRef a_gemm_shape,
+    const at::Tensor &b,
+    c10::IntArrayRef b_gemm_shape,
+    const at::Tensor &c,
+    c10::IntArrayRef c_shape,
+    at::Tensor &out,
+    c10::IntArrayRef out_shape);
 
 void tensor_mm_fp32(
     const at::Tensor &a,
@@ -180,5 +210,23 @@ void tensor_rms_norm_backward_fp32(
     bool grad_input_needed,
     bool grad_weight_needed,
     int64_t norm_axis);
+
+void tensor_cat_fp32(
+    const std::vector<at::Tensor> &inputs,
+    at::Tensor &out,
+    int64_t dim);
+
+void tensor_narrow_fp32(
+    const at::Tensor &input,
+    int64_t dim,
+    int64_t start,
+    int64_t length,
+    at::Tensor &out);
+
+void tensor_split_with_sizes_fp32(
+    const at::Tensor &input,
+    int64_t dim,
+    const std::vector<int64_t> &split_sizes,
+    const std::vector<at::Tensor> &outputs);
 
 } // namespace torch_nntile

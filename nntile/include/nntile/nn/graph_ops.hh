@@ -29,6 +29,7 @@
 #include <nntile/nn/ops/gemm.hh>
 #include <nntile/nn/ops/gelu.hh>
 #include <nntile/nn/ops/gelutanh.hh>
+#include <nntile/nn/ops/hypot.hh>
 #include <nntile/nn/ops/layer_norm.hh>
 #include <nntile/nn/ops/mse_loss.hh>
 #include <nntile/nn/ops/multiply.hh>

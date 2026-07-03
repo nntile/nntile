@@ -6,12 +6,14 @@
 
 #include "nntile_executor.h"
 
+#include "nntile_gemm_layout.h"
 #include "nntile_context.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
 #include <ATen/Tensor.h>
+#include <c10/util/Exception.h>
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
@@ -21,11 +23,14 @@
 #include <nntile/tensor/ops/add_inplace.hh>
 #include <nntile/tensor/ops/add_slice.hh>
 #include <nntile/tensor/ops/add_slice_inplace.hh>
+#include <nntile/tensor/ops/concat.hh>
+#include <nntile/tensor/ops/copy_intersection.hh>
 #include <nntile/tensor/ops/multiply.hh>
 #include <nntile/tensor/ops/multiply_inplace.hh>
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/copy.hh>
 #include <nntile/tensor/ops/gemm.hh>
+#include <nntile/tensor/ops/hypot.hh>
 #include <nntile/tensor/ops/hypot_scalar_inverse.hh>
 #include <nntile/tensor/ops/logsumexp.hh>
 #include <nntile/tensor/ops/maxsumexp.hh>
@@ -96,6 +101,91 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
 }
 
 } // namespace
+
+void tensor_gemm_fp32(
+    const GemmParams &params,
+    const at::Tensor &a,
+    c10::IntArrayRef a_gemm_shape,
+    const at::Tensor &b,
+    c10::IntArrayRef b_gemm_shape,
+    at::Tensor &out,
+    c10::IntArrayRef /*out_shape*/)
+{
+    const std::vector<nntile::Index> a_graph =
+        pytorch_shape_to_graph(a_gemm_shape);
+    const std::vector<nntile::Index> b_graph =
+        pytorch_shape_to_graph(b_gemm_shape);
+
+    auto *a_node = get_or_create_data_node(
+        a,
+        a_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        b_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(b));
+
+    auto *out_node = nntile::tensor::gemm(
+        a_node,
+        b_node,
+        static_cast<nntile::Scalar>(params.alpha),
+        params.trans_a,
+        params.trans_b,
+        static_cast<nntile::Index>(params.ndim),
+        static_cast<nntile::Index>(params.batch_ndim))->set_name("out");
+    register_data_node(out, out_node);
+    maybe_execute_after_record();
+}
+
+void tensor_gemm_accumulate_fp32(
+    const GemmParams &params,
+    const at::Tensor &a,
+    c10::IntArrayRef a_gemm_shape,
+    const at::Tensor &b,
+    c10::IntArrayRef b_gemm_shape,
+    const at::Tensor &c,
+    c10::IntArrayRef c_shape,
+    at::Tensor &out,
+    c10::IntArrayRef /*out_shape*/)
+{
+    const std::vector<nntile::Index> a_graph =
+        pytorch_shape_to_graph(a_gemm_shape);
+    const std::vector<nntile::Index> b_graph =
+        pytorch_shape_to_graph(b_gemm_shape);
+    const std::vector<nntile::Index> c_graph =
+        pytorch_shape_to_graph(c_shape);
+
+    auto *a_node = get_or_create_data_node(
+        a,
+        a_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        b_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(b));
+    auto *c_node = get_or_create_data_node(
+        c,
+        c_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(c));
+
+    nntile::tensor::gemm(
+        a_node,
+        b_node,
+        c_node,
+        static_cast<nntile::Scalar>(params.alpha),
+        static_cast<nntile::Scalar>(params.beta),
+        params.trans_a,
+        params.trans_b,
+        static_cast<nntile::Index>(params.ndim),
+        static_cast<nntile::Index>(params.batch_ndim));
+    register_data_node(out, c_node);
+    maybe_execute_after_record();
+}
 
 void tensor_add_fp32(
     float alpha,
@@ -207,37 +297,48 @@ void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
     maybe_execute_after_record();
 }
 
+void tensor_hypot_fp32(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(other));
+
+    auto *out_node = nntile::tensor::hypot(
+        static_cast<nntile::Scalar>(1.0),
+        self_node,
+        static_cast<nntile::Scalar>(1.0),
+        other_node)->set_name("hypot_out");
+    register_data_node(out, out_node);
+    maybe_execute_after_record();
+}
+
 void tensor_linear_fp32(
     const at::Tensor &input,
     const at::Tensor &weight,
     at::Tensor &out)
 {
-    const std::vector<nntile::Index> input_graph =
-        pytorch_shape_to_graph(input.sizes());
-    const std::vector<nntile::Index> weight_graph =
-        pytorch_shape_to_graph(weight.sizes());
-
-    auto *input_node = get_or_create_data_node(
-        input,
-        input_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(input));
-    auto *weight_node = get_or_create_data_node(
-        weight,
-        weight_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(weight));
-
-    auto *out_node = nntile::tensor::gemm(
-        input_node,
-        weight_node,
-        static_cast<nntile::Scalar>(1.0),
-        false,
-        true,
-        static_cast<nntile::Index>(1),
-        static_cast<nntile::Index>(0))->set_name("output");
-    register_data_node(out, out_node);
-    maybe_execute_after_record();
+    const PreparedGemmOperands prepared = prepare_linear_operands(input, weight);
+    tensor_gemm_fp32(
+        prepared.params,
+        prepared.a,
+        prepared.a_gemm_shape,
+        prepared.b,
+        prepared.b_gemm_shape,
+        out,
+        prepared.out_shape);
 }
 
 void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out)
@@ -441,32 +542,15 @@ void tensor_mm_fp32(
     const at::Tensor &b,
     at::Tensor &out)
 {
-    const std::vector<nntile::Index> a_graph =
-        pytorch_shape_to_graph(a.sizes());
-    const std::vector<nntile::Index> b_graph =
-        pytorch_shape_to_graph(b.sizes());
-
-    auto *a_node = get_or_create_data_node(
-        a,
-        a_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(a));
-    auto *b_node = get_or_create_data_node(
-        b,
-        b_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(b));
-
-    auto *out_node = nntile::tensor::gemm(
-        a_node,
-        b_node,
-        static_cast<nntile::Scalar>(1.0),
-        false,
-        false,
-        static_cast<nntile::Index>(1),
-        static_cast<nntile::Index>(0))->set_name("out");
-    register_data_node(out, out_node);
-    maybe_execute_after_record();
+    const PreparedGemmOperands prepared = prepare_mm_operands(a, b);
+    tensor_gemm_fp32(
+        prepared.params,
+        prepared.a,
+        prepared.a_gemm_shape,
+        prepared.b,
+        prepared.b_gemm_shape,
+        out,
+        prepared.out_shape);
 }
 
 void tensor_linear_backward_input_fp32(
@@ -474,32 +558,20 @@ void tensor_linear_backward_input_fp32(
     const at::Tensor &weight,
     at::Tensor &grad_input)
 {
-    const std::vector<nntile::Index> grad_out_graph =
-        pytorch_shape_to_graph(grad_out.sizes());
-    const std::vector<nntile::Index> weight_graph =
-        pytorch_shape_to_graph(weight.sizes());
-
-    auto *grad_out_node = get_or_create_data_node(
-        grad_out,
-        grad_out_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(grad_out));
-    auto *weight_node = get_or_create_data_node(
+    const PreparedGemmOperands forward = prepare_linear_operands(grad_input, weight);
+    const GemmParams params = infer_linear_backward_grad_input_params(forward.params);
+    const GemmMatrixLayout grad_out_layout = analyze_matrix_layout_for_nntile(grad_out);
+    at::Tensor grad_out_prepared = grad_out_layout.needs_copy
+        ? grad_out.contiguous()
+        : grad_out;
+    tensor_gemm_fp32(
+        params,
+        grad_out_prepared,
+        grad_out_layout.gemm_shape,
         weight,
-        weight_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(weight));
-
-    auto *grad_input_node = nntile::tensor::gemm(
-        grad_out_node,
-        weight_node,
-        static_cast<nntile::Scalar>(1.0),
-        false,
-        false,
-        static_cast<nntile::Index>(1),
-        static_cast<nntile::Index>(0))->set_name("grad_input");
-    register_data_node(grad_input, grad_input_node);
-    maybe_execute_after_record();
+        forward.b_gemm_shape,
+        grad_input,
+        forward.a_gemm_shape);
 }
 
 void tensor_linear_backward_weight_fp32(
@@ -507,32 +579,23 @@ void tensor_linear_backward_weight_fp32(
     const at::Tensor &input,
     at::Tensor &grad_weight)
 {
-    const std::vector<nntile::Index> grad_out_graph =
-        pytorch_shape_to_graph(grad_out.sizes());
-    const std::vector<nntile::Index> input_graph =
-        pytorch_shape_to_graph(input.sizes());
-
-    auto *grad_out_node = get_or_create_data_node(
-        grad_out,
-        grad_out_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(grad_out));
-    auto *input_node = get_or_create_data_node(
-        input,
-        input_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(input));
-
-    auto *grad_weight_node = nntile::tensor::gemm(
-        grad_out_node,
-        input_node,
-        static_cast<nntile::Scalar>(1.0),
-        true,
-        false,
-        static_cast<nntile::Index>(1),
-        static_cast<nntile::Index>(0))->set_name("grad_weight");
-    register_data_node(grad_weight, grad_weight_node);
-    maybe_execute_after_record();
+    const PreparedGemmOperands forward = prepare_linear_operands(input, grad_weight);
+    const GemmParams params = infer_linear_backward_grad_weight_params(forward.params);
+    const GemmMatrixLayout grad_out_layout = analyze_matrix_layout_for_nntile(grad_out);
+    at::Tensor grad_out_prepared = grad_out_layout.needs_copy
+        ? grad_out.contiguous()
+        : grad_out;
+    at::Tensor input_prepared = forward.a.is_contiguous()
+        ? forward.a
+        : forward.a.contiguous();
+    tensor_gemm_fp32(
+        params,
+        grad_out_prepared,
+        grad_out_layout.gemm_shape,
+        input_prepared,
+        forward.a_gemm_shape,
+        grad_weight,
+        forward.b_gemm_shape);
 }
 
 namespace
@@ -1487,6 +1550,129 @@ void tensor_adamw_step_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_cat_fp32(
+    const std::vector<at::Tensor> &inputs,
+    at::Tensor &out,
+    int64_t dim)
+{
+    TORCH_CHECK(!inputs.empty(), "tensor_cat_fp32: expected non-empty inputs");
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+
+    const std::vector<nntile::Index> first_graph =
+        pytorch_shape_to_graph(inputs[0].sizes());
+    auto *acc_node = get_or_create_data_node(
+        inputs[0],
+        first_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(inputs[0]));
+
+    for (std::size_t i = 1; i < inputs.size(); ++i)
+    {
+        const std::vector<nntile::Index> shape_graph =
+            pytorch_shape_to_graph(inputs[i].sizes());
+        auto *next_node = get_or_create_data_node(
+            inputs[i],
+            shape_graph,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(inputs[i]));
+        acc_node = nntile::tensor::concat(
+            acc_node,
+            next_node,
+            axis)->set_name("cat");
+    }
+
+    register_data_node(out, acc_node);
+    maybe_execute_after_record();
+}
+
+void tensor_narrow_fp32(
+    const at::Tensor &input,
+    int64_t dim,
+    int64_t start,
+    int64_t length,
+    at::Tensor &out)
+{
+    (void) length;
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *input_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(out));
+
+    nntile::tensor::clear(out_node);
+
+    const nntile::Index ndim = static_cast<nntile::Index>(graph_shape.size());
+    std::vector<nntile::Index> zero(static_cast<size_t>(ndim), 0);
+    std::vector<nntile::Index> dst_off = zero;
+    dst_off[static_cast<size_t>(axis)] = static_cast<nntile::Index>(start);
+
+    nntile::tensor::copy_intersection(
+        input_node,
+        zero,
+        out_node,
+        dst_off);
+    register_data_node(out, out_node);
+    maybe_execute_after_record();
+}
+
+void tensor_split_with_sizes_fp32(
+    const at::Tensor &input,
+    int64_t dim,
+    const std::vector<int64_t> &split_sizes,
+    const std::vector<at::Tensor> &outputs)
+{
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *input_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    const nntile::Index ndim = static_cast<nntile::Index>(graph_shape.size());
+    std::vector<nntile::Index> zero(static_cast<size_t>(ndim), 0);
+    nntile::Index accumulate = 0;
+
+    for (std::size_t i = 0; i < split_sizes.size(); ++i)
+    {
+        const std::vector<nntile::Index> out_graph =
+            pytorch_shape_to_graph(outputs[i].sizes());
+        auto *out_node = get_or_create_data_node(
+            outputs[i],
+            out_graph,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(outputs[i]));
+
+        nntile::tensor::clear(out_node);
+
+        std::vector<nntile::Index> src_off = zero;
+        src_off[static_cast<size_t>(axis)] = accumulate;
+        nntile::tensor::copy_intersection(
+            input_node,
+            src_off,
+            out_node,
+            zero);
+        register_data_node(outputs[i], out_node);
+        accumulate += static_cast<nntile::Index>(split_sizes[i]);
+    }
+
+    maybe_execute_after_record();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -1541,6 +1727,14 @@ void tensor_mul_inplace_fp32(
     at::Tensor & /*self*/)
 {
     require_libnntile("mul_");
+}
+
+void tensor_hypot_fp32(
+    const at::Tensor & /*self*/,
+    const at::Tensor & /*other*/,
+    at::Tensor & /*out*/)
+{
+    require_libnntile("hypot");
 }
 
 void tensor_linear_fp32(
@@ -1604,6 +1798,32 @@ void tensor_gelu_backward_fp32(
     bool /*approximate_tanh*/)
 {
     require_libnntile("gelu_backward");
+}
+
+void tensor_gemm_fp32(
+    const GemmParams & /*params*/,
+    const at::Tensor & /*a*/,
+    c10::IntArrayRef /*a_gemm_shape*/,
+    const at::Tensor & /*b*/,
+    c10::IntArrayRef /*b_gemm_shape*/,
+    at::Tensor & /*out*/,
+    c10::IntArrayRef /*out_shape*/)
+{
+    require_libnntile("gemm");
+}
+
+void tensor_gemm_accumulate_fp32(
+    const GemmParams & /*params*/,
+    const at::Tensor & /*a*/,
+    c10::IntArrayRef /*a_gemm_shape*/,
+    const at::Tensor & /*b*/,
+    c10::IntArrayRef /*b_gemm_shape*/,
+    const at::Tensor & /*c*/,
+    c10::IntArrayRef /*c_shape*/,
+    at::Tensor & /*out*/,
+    c10::IntArrayRef /*out_shape*/)
+{
+    require_libnntile("gemm_accumulate");
 }
 
 void tensor_mm_fp32(
@@ -1755,6 +1975,33 @@ void tensor_adamw_step_fp32(
     at::Tensor & /*param*/)
 {
     require_libnntile("adamw_step");
+}
+
+void tensor_cat_fp32(
+    const std::vector<at::Tensor> & /*inputs*/,
+    at::Tensor & /*out*/,
+    int64_t /*dim*/)
+{
+    require_libnntile("cat");
+}
+
+void tensor_narrow_fp32(
+    const at::Tensor & /*input*/,
+    int64_t /*dim*/,
+    int64_t /*start*/,
+    int64_t /*length*/,
+    at::Tensor & /*out*/)
+{
+    require_libnntile("narrow");
+}
+
+void tensor_split_with_sizes_fp32(
+    const at::Tensor & /*input*/,
+    int64_t /*dim*/,
+    const std::vector<int64_t> & /*split_sizes*/,
+    const std::vector<at::Tensor> & /*outputs*/)
+{
+    require_libnntile("split_with_sizes");
 }
 
 } // namespace torch_nntile
