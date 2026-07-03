@@ -122,6 +122,8 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | `F.gelu` (`approximate='tanh'`) | `tensor::gelutanh` |
 | GELU in-place (`gelu_`) | `tensor::gelu_inplace` / `tensor::gelutanh_inplace` |
 | GELU backward | `tensor::gelu_backward` or `tensor::gelutanh_backward` |
+| `F.softmax` / `nn.Softmax` | `tensor::maxsumexp` + `tensor::softmax` |
+| Softmax backward | `tensor::sumprod_slice`, `tensor::add_slice`, `tensor::multiply_inplace` |
 | `linear` backward / `mm` | `tensor::gemm` |
 | `F.embedding` / `nn.Embedding` | `tensor::embedding` |
 | Embedding backward | `tensor::embedding_backward` |

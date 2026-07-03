@@ -173,6 +173,19 @@ void tensor_cross_entropy_backward_fp32(
     std::int64_t ignore_index,
     bool mean_reduction);
 
+void tensor_softmax_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape,
+    int64_t dim);
+
+void tensor_softmax_backward_fp32(
+    const float *grad_output_data,
+    const float *output_data,
+    float *grad_input_data,
+    c10::IntArrayRef pytorch_shape,
+    int64_t dim);
+
 void tensor_sgd_step_fp32(
     int64_t num_iter,
     float momentum,
