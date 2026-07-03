@@ -27,6 +27,7 @@ CSRC = [
     "csrc/nntile_executor.cpp",
     "csrc/nntile_add.cpp",
     "csrc/nntile_mul.cpp",
+    "csrc/nntile_hypot.cpp",
     "csrc/nntile_linear.cpp",
     "csrc/nntile_relu.cpp",
     "csrc/nntile_threshold_backward.cpp",
