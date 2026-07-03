@@ -171,4 +171,57 @@ void tensor_adamw_step_fp32(
     float *param_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_layer_norm_forward_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    const float *weight_data,
+    const float *bias_data,
+    bool has_weight,
+    bool has_bias,
+    float *output_data,
+    float *mean_data,
+    float *rstd_data,
+    int64_t norm_axis,
+    float eps);
+
+void tensor_layer_norm_backward_fp32(
+    const float *grad_out_data,
+    const float *input_data,
+    const float *mean_data,
+    const float *rstd_data,
+    const float *weight_data,
+    bool has_weight,
+    bool has_bias,
+    float *grad_input_data,
+    float *grad_weight_data,
+    float *grad_bias_data,
+    bool grad_input_needed,
+    bool grad_weight_needed,
+    bool grad_bias_needed,
+    c10::IntArrayRef input_shape,
+    int64_t norm_axis);
+
+void tensor_rms_norm_forward_fp32(
+    const float *input_data,
+    c10::IntArrayRef input_shape,
+    const float *weight_data,
+    bool has_weight,
+    float *output_data,
+    float *rstd_data,
+    int64_t norm_axis,
+    float eps);
+
+void tensor_rms_norm_backward_fp32(
+    const float *grad_out_data,
+    const float *input_data,
+    const float *rstd_data,
+    const float *weight_data,
+    bool has_weight,
+    float *grad_input_data,
+    float *grad_weight_data,
+    bool grad_input_needed,
+    bool grad_weight_needed,
+    c10::IntArrayRef input_shape,
+    int64_t norm_axis);
+
 } // namespace torch_nntile

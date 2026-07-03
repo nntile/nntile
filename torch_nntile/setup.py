@@ -38,6 +38,8 @@ CSRC = [
     "csrc/nntile_cross_entropy.cpp",
     "csrc/nntile_sgd_step.cpp",
     "csrc/nntile_adam_step.cpp",
+    "csrc/nntile_layer_norm.cpp",
+    "csrc/nntile_rms_norm.cpp",
 ]
 
 

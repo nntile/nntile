@@ -17,6 +17,7 @@ from ._cuda_deps import ensure_linux_cuda_deps
 ensure_linux_cuda_deps()
 
 from . import _C  # noqa: E402, F401 — loads kernels and allocator
+from . import normalization as _normalization  # noqa: E402, F401
 
 _registered = False
 _atexit_shutdown_registered = False
