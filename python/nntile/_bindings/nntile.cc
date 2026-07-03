@@ -716,6 +716,14 @@ PYBIND11_MODULE(nntile, m)
         "alpha"_a = 1.0f,
         py::return_value_policy::reference);
 
+    nn.def("hypot",
+        &nntile::hypot,
+        "x"_a,
+        "y"_a,
+        "alpha"_a = 1.0f,
+        "beta"_a = 1.0f,
+        py::return_value_policy::reference);
+
     nn.def("silu", &nntile::silu, "x"_a, py::return_value_policy::reference);
 
     nn.def("gelu", &nntile::gelu, "x"_a, py::return_value_policy::reference);

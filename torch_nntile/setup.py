@@ -28,6 +28,7 @@ CSRC = [
     "csrc/nntile_add.cpp",
     "csrc/nntile_mul.cpp",
     "csrc/nntile_cat.cpp",
+    "csrc/nntile_hypot.cpp",
     "csrc/nntile_linear.cpp",
     "csrc/nntile_relu.cpp",
     "csrc/nntile_threshold_backward.cpp",
@@ -41,6 +42,8 @@ CSRC = [
     "csrc/nntile_adam_step.cpp",
     "csrc/nntile_layer_norm.cpp",
     "csrc/nntile_rms_norm.cpp",
+    "csrc/nntile_broadcast.cpp",
+    "csrc/nntile_repeat.cpp",
 ]
 
 

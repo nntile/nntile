@@ -39,6 +39,12 @@ void tensor_mul_inplace_fp32(
     float *self_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_hypot_fp32(
+    const float *self_data,
+    const float *other_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape);
+
 void tensor_linear_fp32(
     const float *input_data,
     c10::IntArrayRef input_shape,
