@@ -432,6 +432,7 @@ set(GRAPH_NN_LAYER_SRC
     "nn/ops/gelu.cc"
     "nn/ops/layer_norm.cc"
     "nn/ops/gelutanh.cc"
+    "nn/ops/hypot.cc"
     "nn/ops/mse_loss.cc"
     "nn/ops/multiply.cc"
     "nn/ops/multiply_fiber.cc"

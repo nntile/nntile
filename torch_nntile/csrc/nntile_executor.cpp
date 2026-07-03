@@ -23,6 +23,7 @@
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/copy.hh>
 #include <nntile/tensor/ops/gemm.hh>
+#include <nntile/tensor/ops/hypot.hh>
 #include <nntile/tensor/ops/hypot_scalar_inverse.hh>
 #include <nntile/tensor/ops/logsumexp.hh>
 #include <nntile/tensor/ops/maxsumexp.hh>
@@ -188,6 +189,35 @@ void tensor_mul_inplace_fp32(
         other_node,
         self_node);
     register_data_node(self_data, self_node);
+    maybe_execute_after_record();
+}
+
+void tensor_hypot_fp32(
+    const float *self_data,
+    const float *other_data,
+    float *out_data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *self_node = get_or_create_data_node(
+        const_cast<float *>(self_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *other_node = get_or_create_data_node(
+        const_cast<float *>(other_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+
+    auto *out_node = nntile::tensor::hypot(
+        static_cast<nntile::Scalar>(1.0),
+        self_node,
+        static_cast<nntile::Scalar>(1.0),
+        other_node)->set_name("hypot_out");
+    register_data_node(out_data, out_node);
     maybe_execute_after_record();
 }
 
@@ -1567,6 +1597,15 @@ void tensor_mul_inplace_fp32(
     c10::IntArrayRef /*pytorch_shape*/)
 {
     require_libnntile("mul_");
+}
+
+void tensor_hypot_fp32(
+    const float * /*self_data*/,
+    const float * /*other_data*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("hypot");
 }
 
 void tensor_linear_fp32(
