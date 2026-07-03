@@ -21,6 +21,7 @@
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
 #include "nntile_rms_norm.h"
+#include "nntile_sdpa.h"
 #include "nntile_norm.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
@@ -362,6 +363,25 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("rstd"),
         py::arg("weight") = py::none(),
         py::arg("output_mask"));
+    m.def(
+        "sdpa_forward",
+        &torch_nntile::sdpa_forward,
+        "NNTile SDPA eager forward (NNTile tensor layout)",
+        py::arg("q"),
+        py::arg("k"),
+        py::arg("v"),
+        py::arg("mask") = py::none(),
+        py::arg("batch_ndim") = 2);
+    m.def(
+        "sdpa_backward",
+        &torch_nntile::sdpa_backward,
+        "NNTile SDPA eager backward",
+        py::arg("q"),
+        py::arg("k"),
+        py::arg("v"),
+        py::arg("grad_out"),
+        py::arg("mask") = py::none(),
+        py::arg("batch_ndim") = 2);
     m.def(
         "norm_forward",
         [](const at::Tensor &input,

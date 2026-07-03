@@ -294,6 +294,12 @@ void bind_storage_to_runtime(
             static_cast<const std::int64_t *>(data_ptr),
             count);
         break;
+    case nntile::DataType::BOOL:
+        runtime.bind_data(
+            target,
+            reinterpret_cast<const bool *>(data_ptr),
+            count);
+        break;
     default:
         throw std::runtime_error(
             "torch_nntile graph recorder: unsupported bind dtype");
