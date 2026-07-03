@@ -233,6 +233,50 @@ at::Tensor &zero_tensor(at::Tensor &self)
     return fill_scalar(self, 0);
 }
 
+at::Tensor ones_like(
+    const at::Tensor &self,
+    std::optional<at::ScalarType> dtype_opt,
+    std::optional<at::Layout> layout_opt,
+    std::optional<at::Device> device_opt,
+    std::optional<bool> pin_memory_opt,
+    std::optional<at::MemoryFormat> memory_format_opt)
+{
+    at::TensorOptions options = self.options();
+    if (dtype_opt.has_value())
+    {
+        options = options.dtype(*dtype_opt);
+    }
+    if (layout_opt.has_value())
+    {
+        options = options.layout(*layout_opt);
+    }
+    if (device_opt.has_value())
+    {
+        options = options.device(*device_opt);
+    }
+    if (pin_memory_opt.has_value())
+    {
+        options = options.pinned_memory(*pin_memory_opt);
+    }
+    at::MemoryFormat format = at::MemoryFormat::Contiguous;
+    if (memory_format_opt.has_value())
+    {
+        const at::MemoryFormat requested = *memory_format_opt;
+        format = requested == at::MemoryFormat::Preserve
+            ? self.suggest_memory_format()
+            : requested;
+    }
+    at::Tensor result = at::empty(
+        self.sizes(),
+        options.memory_format(format));
+    if (is_nntile_device(result.device()) && is_metadata_only_tensor(result))
+    {
+        ensure_host_staging(result);
+    }
+    result.fill_(1);
+    return result;
+}
+
 at::Tensor empty_memory_format(
     at::IntArrayRef size,
     std::optional<at::ScalarType> dtype_opt,
@@ -639,6 +683,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("_local_scalar_dense", TORCH_FN(torch_nntile::local_scalar_dense));
     m.impl("fill_.Scalar", TORCH_FN(torch_nntile::fill_scalar));
     m.impl("zero_", TORCH_FN(torch_nntile::zero_tensor));
+    m.impl("ones_like", TORCH_FN(torch_nntile::ones_like));
     m.impl("set_.source_Tensor", TORCH_FN(torch_nntile::set_source_tensor));
     m.impl("set_.source_Storage", TORCH_FN(torch_nntile::set_source_storage));
     m.impl(

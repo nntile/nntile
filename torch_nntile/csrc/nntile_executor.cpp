@@ -1915,13 +1915,13 @@ void tensor_split_with_sizes_fp32(
 
         nntile::tensor::clear(out_node);
 
-        std::vector<nntile::Index> src_off = zero;
-        src_off[static_cast<size_t>(axis)] = accumulate;
+        std::vector<nntile::Index> dst_off = zero;
+        dst_off[static_cast<size_t>(axis)] = accumulate;
         nntile::tensor::copy_intersection(
             input_node,
-            src_off,
+            zero,
             out_node,
-            zero);
+            dst_off);
         register_data_node(outputs[i], out_node);
         accumulate += static_cast<nntile::Index>(split_sizes[i]);
     }

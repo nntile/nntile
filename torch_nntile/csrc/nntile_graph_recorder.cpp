@@ -128,6 +128,28 @@ void assign_axis_group_name(nntile::AxisDescriptor *axis, const std::string &nam
     axis->name = name;
 }
 
+bool graph_shape_matches_node(
+    const std::vector<nntile::Index> &shape,
+    nntile::TensorGraph::TensorNode *node)
+{
+    if (node == nullptr)
+    {
+        return false;
+    }
+    if (static_cast<std::size_t>(node->ndim()) != shape.size())
+    {
+        return false;
+    }
+    for (std::size_t i = 0; i < shape.size(); ++i)
+    {
+        if (node->shape()[i] != shape[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void apply_axis_name_hints_locked(
     TensorImplKey key,
     nntile::TensorGraph::TensorNode *node)
@@ -949,7 +971,8 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     }
 
     const auto found = g_tensor_nodes.find(impl_key);
-    if (found != g_tensor_nodes.end() && found->second.node != nullptr)
+    if (found != g_tensor_nodes.end() && found->second.node != nullptr &&
+        graph_shape_matches_node(shape, found->second.node))
     {
         if (!found->second.is_persistent_input && found->second.needs_host_copy)
         {
