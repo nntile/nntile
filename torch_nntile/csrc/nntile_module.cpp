@@ -20,10 +20,12 @@
 
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
+#include "nntile_rms_norm.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
 #include "nntile_allocator.h"
 #include "nntile_tensor_gc.h"
+#include "nntile_adam_step.h"
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
@@ -315,6 +317,52 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("weight_decay") = 0.0,
         py::arg("dampening") = 0.0,
         py::arg("nesterov") = false);
+    m.def(
+        "adam_step",
+        &torch_nntile::adam_step,
+        "Fused Adam step on nntile tensors (updates param and moments in-place)",
+        py::arg("param"),
+        py::arg("grad"),
+        py::arg("first_moment"),
+        py::arg("second_moment"),
+        py::arg("num_iter"),
+        py::arg("lr"),
+        py::arg("beta_1") = 0.9,
+        py::arg("beta_2") = 0.999,
+        py::arg("eps") = 1e-8,
+        py::arg("weight_decay") = 0.0);
+    m.def(
+        "adamw_step",
+        &torch_nntile::adamw_step,
+        "Fused AdamW step on nntile tensors (updates param and moments in-place)",
+        py::arg("param"),
+        py::arg("grad"),
+        py::arg("first_moment"),
+        py::arg("second_moment"),
+        py::arg("num_iter"),
+        py::arg("lr"),
+        py::arg("beta_1") = 0.9,
+        py::arg("beta_2") = 0.999,
+        py::arg("eps") = 1e-8,
+        py::arg("weight_decay") = 0.0);
+    m.def(
+        "rms_norm_forward",
+        &torch_nntile::rms_norm_forward,
+        "NNTile RMSNorm forward",
+        py::arg("input"),
+        py::arg("normalized_shape"),
+        py::arg("weight") = py::none(),
+        py::arg("eps") = py::none());
+    m.def(
+        "rms_norm_backward",
+        &torch_nntile::rms_norm_backward,
+        "NNTile RMSNorm backward",
+        py::arg("grad_out"),
+        py::arg("input"),
+        py::arg("normalized_shape"),
+        py::arg("rstd"),
+        py::arg("weight") = py::none(),
+        py::arg("output_mask"));
     m.def(
         "storage_release_count",
         &torch_nntile::storage_release_count,
