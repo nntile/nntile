@@ -146,25 +146,22 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
     TORCH_CHECK(!output_mask[2], "nntile linear_backward: bias is not supported");
 
     const PreparedGemmOperands forward = prepare_linear_operands(input, weight);
+    const GemmMatrixLayout weight_layout = analyze_matrix_layout_for_nntile(weight);
 
     at::Tensor grad_input;
     at::Tensor grad_weight;
     if (output_mask[0])
     {
-        GemmParams grad_input_params;
-        grad_input_params.trans_a = false;
-        grad_input_params.trans_b = false;
-        grad_input_params.ndim = 1;
-        grad_input_params.batch_ndim = 0;
+        const GemmParams grad_input_params =
+            infer_linear_backward_grad_input_params(forward.params);
 
         const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
-        const GemmMatrixLayout weight_layout = analyze_matrix_layout_for_nntile(weight);
         at::Tensor grad_out_prepared = grad_out_layout.needs_copy
             ? grad_output.contiguous()
             : grad_output;
         at::Tensor weight_prepared = weight_layout.needs_copy
             ? weight.contiguous()
-            : weight;
+            : forward.b;
 
         grad_input = at::empty_like(input);
         pin_graph_op_inputs({grad_out_prepared, weight_prepared});
@@ -174,18 +171,12 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             grad_out_prepared.data_ptr<float>(),
             grad_out_layout.gemm_shape,
             weight_prepared.data_ptr<float>(),
-            weight_layout.gemm_shape,
+            forward.b_gemm_shape,
             grad_input.data_ptr<float>(),
             forward.a_gemm_shape);
     }
     if (output_mask[1])
     {
-        GemmParams grad_weight_params;
-        grad_weight_params.trans_a = true;
-        grad_weight_params.trans_b = false;
-        grad_weight_params.ndim = 1;
-        grad_weight_params.batch_ndim = 0;
-
         const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
         at::Tensor grad_out_prepared = grad_out_layout.needs_copy
             ? grad_output.contiguous()
@@ -195,16 +186,35 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             : forward.a.contiguous();
 
         grad_weight = at::empty_like(weight);
-        pin_graph_op_inputs({grad_out_prepared, input_prepared});
         pin_graph_op_output(grad_weight, false);
-        tensor_gemm_fp32(
-            grad_weight_params,
-            grad_out_prepared.data_ptr<float>(),
-            grad_out_layout.gemm_shape,
-            input_prepared.data_ptr<float>(),
-            forward.a_gemm_shape,
-            grad_weight.data_ptr<float>(),
-            forward.b_gemm_shape);
+        if (weight_layout.trans)
+        {
+            GemmParams grad_weight_params =
+                infer_linear_backward_grad_weight_params(forward.params);
+            pin_graph_op_inputs({input_prepared, grad_out_prepared});
+            tensor_gemm_fp32(
+                grad_weight_params,
+                input_prepared.data_ptr<float>(),
+                forward.a_gemm_shape,
+                grad_out_prepared.data_ptr<float>(),
+                grad_out_layout.gemm_shape,
+                grad_weight.data_ptr<float>(),
+                forward.b_gemm_shape);
+        }
+        else
+        {
+            GemmParams grad_weight_params =
+                infer_linear_backward_grad_weight_params(forward.params);
+            pin_graph_op_inputs({grad_out_prepared, input_prepared});
+            tensor_gemm_fp32(
+                grad_weight_params,
+                grad_out_prepared.data_ptr<float>(),
+                grad_out_layout.gemm_shape,
+                input_prepared.data_ptr<float>(),
+                forward.a_gemm_shape,
+                grad_weight.data_ptr<float>(),
+                forward.b_gemm_shape);
+        }
     }
     return {grad_input, grad_weight, at::Tensor()};
 }

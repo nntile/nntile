@@ -45,3 +45,24 @@ def test_contiguous_permute_matmul():
     x_perm_nnt = x_nnt.detach().permute(0, 2, 1).contiguous()
     out_nnt = torch.matmul(x_perm_nnt, w_nnt).cpu()
     torch.testing.assert_close(out_nnt, out_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_linear_transpose_weight_backward_parity():
+    torch.manual_seed(5)
+    base = torch.randn(5, 4)
+    x_cpu = torch.randn(3, 5, requires_grad=True)
+    w_cpu = base.t().requires_grad_(True)
+    x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
+    w_nnt = base.to("nntile").t().requires_grad_(True)
+    out_cpu = torch.nn.functional.linear(x_cpu, w_cpu)
+    grad_out = torch.ones_like(out_cpu)
+    out_cpu.backward(grad_out)
+    out_nnt = torch.nn.functional.linear(x_nnt, w_nnt)
+    out_nnt.backward(grad_out.to("nntile"))
+    torch.testing.assert_close(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(
+        w_nnt.grad.contiguous().cpu(),
+        w_cpu.grad,
+        rtol=1e-5,
+        atol=1e-5,
+    )

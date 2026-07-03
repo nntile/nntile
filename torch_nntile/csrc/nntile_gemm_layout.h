@@ -63,6 +63,9 @@ PreparedGemmOperands prepare_linear_operands(
 GemmParams infer_mm_backward_grad_a_params(const GemmParams &forward);
 GemmParams infer_mm_backward_grad_b_params(const GemmParams &forward);
 
+GemmParams infer_linear_backward_grad_input_params(const GemmParams &forward);
+GemmParams infer_linear_backward_grad_weight_params(const GemmParams &forward);
+
 std::vector<int64_t> pytorch_sizes_vector(c10::IntArrayRef sizes);
 
 void run_mm_backward_grad_a(

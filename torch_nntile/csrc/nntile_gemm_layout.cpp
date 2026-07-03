@@ -261,7 +261,7 @@ PreparedGemmOperands prepare_linear_operands(
     prepared.a_gemm_shape = input_layout.gemm_shape;
     prepared.b_gemm_shape = weight_layout.gemm_shape;
     prepared.params.trans_a = input_layout.trans;
-    prepared.params.trans_b = true;
+    prepared.params.trans_b = !weight_layout.trans;
     prepared.params.ndim = 1;
     prepared.params.batch_ndim = 0;
     prepared.out_shape = gemm_output_shape_pytorch(
@@ -285,6 +285,26 @@ GemmParams infer_mm_backward_grad_b_params(const GemmParams &forward)
 {
     GemmParams params;
     params.trans_a = !forward.trans_a;
+    params.trans_b = false;
+    params.ndim = forward.ndim;
+    params.batch_ndim = forward.batch_ndim;
+    return params;
+}
+
+GemmParams infer_linear_backward_grad_input_params(const GemmParams &forward)
+{
+    GemmParams params;
+    params.trans_a = false;
+    params.trans_b = !forward.trans_b;
+    params.ndim = forward.ndim;
+    params.batch_ndim = forward.batch_ndim;
+    return params;
+}
+
+GemmParams infer_linear_backward_grad_weight_params(const GemmParams &forward)
+{
+    GemmParams params;
+    params.trans_a = true;
     params.trans_b = false;
     params.ndim = forward.ndim;
     params.batch_ndim = forward.batch_ndim;
