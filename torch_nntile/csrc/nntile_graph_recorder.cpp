@@ -663,6 +663,10 @@ void execute_pending_graph_locked()
         copy_host_visible_outputs(*g_session->runtime, nullptr);
     }
     clear_pending_graph_after_compile_locked();
+    if (!is_graph_mode())
+    {
+        reset_recorder_locked();
+    }
 }
 
 void shutdown_recorder_locked()
@@ -1310,7 +1314,7 @@ void on_tensor_impl_released(TensorImplKey /*key*/)
 }
 
 void set_axis_group_name(
-    void * /*data_ptr*/,
+    TensorImplKey /*impl_key*/,
     int /*ndim*/,
     const std::unordered_map<int, std::string> & /*names*/)
 {
@@ -1338,6 +1342,14 @@ void print_axis_groups()
 GcDebugStats debug_gc_stats()
 {
     return {};
+}
+
+void shutdown_recorder()
+{
+}
+
+void copy_nntile_tensor_to_cpu(const at::Tensor & /*src*/, at::Tensor & /*dst*/)
+{
 }
 
 } // namespace torch_nntile
