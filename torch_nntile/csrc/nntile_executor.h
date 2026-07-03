@@ -14,6 +14,15 @@
 #include <cstdint>
 #include <vector>
 
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+#include <nntile/base_types.hh>
+#else
+namespace nntile
+{
+using Index = std::int64_t;
+} // namespace nntile
+#endif
+
 namespace torch_nntile
 {
 
@@ -211,6 +220,28 @@ void tensor_rms_norm_backward_fp32(
     bool grad_weight_needed,
     int64_t norm_axis);
 
+void tensor_norm_fp32(
+    const at::Tensor &x,
+    at::Tensor &out);
+
+void tensor_norm_slice_fp32(
+    const at::Tensor &x,
+    at::Tensor &out,
+    int64_t axis,
+    bool keepdim);
+
+void tensor_norm_backward_fp32(
+    const at::Tensor &grad_out,
+    const at::Tensor &x,
+    const at::Tensor &norm_values,
+    at::Tensor &grad_input,
+    bool is_global,
+    int64_t axis);
+
+void tensor_sum_to_scalar_fp32(
+    const at::Tensor &input,
+    at::Tensor &out);
+
 void tensor_cat_fp32(
     const std::vector<at::Tensor> &inputs,
     at::Tensor &out,
@@ -228,5 +259,18 @@ void tensor_split_with_sizes_fp32(
     int64_t dim,
     const std::vector<int64_t> &split_sizes,
     const std::vector<at::Tensor> &outputs);
+
+void tensor_embedding_forward_fp32(
+    const at::Tensor &indices,
+    const at::Tensor &weight,
+    at::Tensor &out,
+    nntile::Index axis);
+
+void tensor_embedding_backward_fp32(
+    const at::Tensor &indices,
+    const at::Tensor &grad_out,
+    at::Tensor &grad_weight,
+    nntile::Index axis,
+    int redux);
 
 } // namespace torch_nntile

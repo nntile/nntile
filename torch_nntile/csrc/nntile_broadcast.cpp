@@ -14,6 +14,7 @@
 
 #include <ATen/Tensor.h>
 #include <nntile/tensor/ops/scale_slice.hh>
+#include <nntile/tensor/ops/clear.hh>
 
 #include <cstring>
 #include <stdexcept>
@@ -246,6 +247,44 @@ void tensor_repeat_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_broadcast_scalar_fp32(
+    const at::Tensor &scalar,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> dst_graph =
+        pytorch_shape_to_graph(out.sizes());
+    if (dst_graph.empty())
+    {
+        if (scalar.data_ptr<float>() != out.data_ptr<float>())
+        {
+            std::memcpy(
+                out.data_ptr<float>(),
+                scalar.data_ptr<float>(),
+                sizeof(float));
+        }
+        return;
+    }
+
+    auto *src_node = get_or_create_data_node(
+        scalar,
+        std::vector<nntile::Index>{},
+        nntile::DataType::FP32,
+        true);
+    auto *dst_node = get_or_create_data_node(
+        out,
+        dst_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::clear(dst_node);
+    broadcast_scale_slice_chain(
+        src_node,
+        dst_node,
+        *src_node->graph(),
+        dst_graph);
+    register_data_node(out, dst_node);
+    maybe_execute_after_record();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -259,6 +298,14 @@ void tensor_repeat_fp32(
     c10::IntArrayRef /*repeats*/)
 {
     throw std::runtime_error("tensor_repeat_fp32 requires libnntile");
+}
+
+void tensor_broadcast_scalar_fp32(
+    const at::Tensor & /*scalar*/,
+    at::Tensor & /*out*/)
+{
+    throw std::runtime_error(
+        "tensor_broadcast_scalar_fp32 requires libnntile");
 }
 
 } // namespace torch_nntile

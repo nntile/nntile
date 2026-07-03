@@ -123,11 +123,17 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | GELU in-place (`gelu_`) | `tensor::gelu_inplace` / `tensor::gelutanh_inplace` |
 | GELU backward | `tensor::gelu_backward` or `tensor::gelutanh_backward` |
 | `linear` backward / `mm` | `tensor::gemm` |
+| `F.embedding` / `nn.Embedding` | `tensor::embedding` |
+| Embedding backward | `tensor::embedding_backward` |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
 
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
 Gradients use **PyTorch autograd** (not `NNGraph` autograd).
+
+**Embedding v1 limits:** `float32` weights only; `padding_idx` must be `-1`
+(default); `scale_grad_by_freq=False` and `sparse=False` only. Indices may stay
+on CPU while weights are on `device="nntile"`.
 
 ### Gradient accumulation
 

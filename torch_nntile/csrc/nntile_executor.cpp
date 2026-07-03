@@ -25,6 +25,8 @@
 #include <nntile/tensor/ops/add_slice_inplace.hh>
 #include <nntile/tensor/ops/concat.hh>
 #include <nntile/tensor/ops/copy_intersection.hh>
+#include <nntile/tensor/ops/embedding.hh>
+#include <nntile/tensor/ops/embedding_backward.hh>
 #include <nntile/tensor/ops/multiply.hh>
 #include <nntile/tensor/ops/multiply_inplace.hh>
 #include <nntile/tensor/ops/clear.hh>
@@ -42,6 +44,8 @@
 #include <nntile/tensor/ops/gelutanh_inplace.hh>
 #include <nntile/tensor/ops/multiply_fiber.hh>
 #include <nntile/tensor/ops/multiply_slice.hh>
+#include <nntile/tensor/ops/norm.hh>
+#include <nntile/tensor/ops/norm_slice.hh>
 #include <nntile/tensor/ops/norm_slice_inplace.hh>
 #include <nntile/tensor/ops/relu.hh>
 #include <nntile/tensor/ops/relu_backward.hh>
@@ -61,6 +65,7 @@
 #include <nntile/tensor/ops/total_sum_accum.hh>
 
 #include <cmath>
+#include <cstring>
 #include <stdexcept>
 #include <vector>
 
@@ -1550,6 +1555,257 @@ void tensor_adamw_step_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_norm_fp32(
+    const at::Tensor &x,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(x.sizes());
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+    auto *out_node = get_or_create_data_node(
+        out,
+        std::vector<nntile::Index>{},
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(out));
+
+    nntile::tensor::clear(out_node);
+    nntile::tensor::norm(
+        x_node,
+        out_node,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0));
+    register_data_node(out, out_node);
+    maybe_execute_after_record();
+}
+
+void tensor_norm_slice_fp32(
+    const at::Tensor &x,
+    at::Tensor &out,
+    int64_t axis,
+    bool keepdim)
+{
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(x.sizes());
+    const nntile::Index ax = static_cast<nntile::Index>(axis);
+    const std::vector<nntile::Index> reduced_graph =
+        reduced_shape_along_axis(input_graph, ax);
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+
+    if (keepdim)
+    {
+        const std::vector<nntile::Index> keepdim_graph =
+            keepdim_shape_along_axis(input_graph, ax);
+        auto *out_node = get_or_create_data_node(
+            out,
+            keepdim_graph,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(out));
+        nntile::TensorGraph &graph = *x_node->graph();
+        auto *reduced = make_graph_tensor(graph, reduced_graph, "norm_red");
+        auto *base = make_graph_tensor(graph, reduced_graph, "norm_base");
+        nntile::tensor::clear(base);
+        nntile::tensor::norm_slice(
+            static_cast<nntile::Scalar>(1.0),
+            x_node,
+            static_cast<nntile::Scalar>(0.0),
+            base,
+            reduced,
+            ax,
+            kNormRedux);
+        broadcast_slice_to_keepdim(reduced, out_node, ax);
+        register_data_node(out, out_node);
+    }
+    else
+    {
+        auto *out_node = get_or_create_data_node(
+            out,
+            reduced_graph,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(out));
+        nntile::TensorGraph &graph = *x_node->graph();
+        auto *base = make_graph_tensor(graph, reduced_graph, "norm_base");
+        nntile::tensor::clear(base);
+        nntile::tensor::norm_slice(
+            static_cast<nntile::Scalar>(1.0),
+            x_node,
+            static_cast<nntile::Scalar>(0.0),
+            base,
+            out_node,
+            ax,
+            kNormRedux);
+        register_data_node(out, out_node);
+    }
+    maybe_execute_after_record();
+}
+
+void tensor_norm_backward_fp32(
+    const at::Tensor &grad_out,
+    const at::Tensor &x,
+    const at::Tensor &norm_values,
+    at::Tensor &grad_input,
+    bool is_global,
+    int64_t axis)
+{
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(x.sizes());
+    constexpr float kNormEps = 1e-12f;
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+    auto *grad_input_node = get_or_create_data_node(
+        grad_input,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_input));
+    nntile::TensorGraph &graph = *x_node->graph();
+
+    if (is_global)
+    {
+        auto *grad_out_node = get_or_create_data_node(
+            grad_out,
+            std::vector<nntile::Index>{},
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(grad_out));
+        auto *norm_node = get_or_create_data_node(
+            norm_values,
+            std::vector<nntile::Index>{},
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(norm_values));
+
+        auto *inv_norm = make_graph_tensor(graph, std::vector<nntile::Index>{}, "inv_norm");
+        nntile::tensor::copy(norm_node, inv_norm);
+        nntile::tensor::hypot_scalar_inverse(
+            static_cast<nntile::Scalar>(kNormEps),
+            static_cast<nntile::Scalar>(1.0),
+            inv_norm);
+
+        nntile::tensor::copy(x_node, grad_input_node);
+        nntile::tensor::multiply_slice(
+            static_cast<nntile::Scalar>(1.0),
+            grad_out_node,
+            grad_input_node,
+            static_cast<nntile::Index>(0));
+        nntile::tensor::multiply_slice(
+            static_cast<nntile::Scalar>(1.0),
+            inv_norm,
+            grad_input_node,
+            static_cast<nntile::Index>(0));
+    }
+    else
+    {
+        const nntile::Index ax = static_cast<nntile::Index>(axis);
+        const std::vector<nntile::Index> reduced_graph =
+            reduced_shape_along_axis(input_graph, ax);
+
+        auto *grad_out_node = get_or_create_data_node(
+            grad_out,
+            reduced_graph,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(grad_out));
+        auto *norm_node = get_or_create_data_node(
+            norm_values,
+            reduced_graph,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(norm_values));
+
+        auto *inv_norm = make_graph_tensor(graph, reduced_graph, "inv_norm");
+        nntile::tensor::copy(norm_node, inv_norm);
+        nntile::tensor::hypot_scalar_inverse(
+            static_cast<nntile::Scalar>(kNormEps),
+            static_cast<nntile::Scalar>(1.0),
+            inv_norm);
+
+        nntile::tensor::copy(x_node, grad_input_node);
+        nntile::tensor::multiply_slice(
+            static_cast<nntile::Scalar>(1.0),
+            grad_out_node,
+            grad_input_node,
+            ax);
+        nntile::tensor::multiply_slice(
+            static_cast<nntile::Scalar>(1.0),
+            inv_norm,
+            grad_input_node,
+            ax);
+    }
+
+    register_data_node(grad_input, grad_input_node);
+    maybe_execute_after_record();
+}
+
+void tensor_sum_to_scalar_fp32(
+    const at::Tensor &input,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+    if (graph_shape.empty())
+    {
+        if (input.data_ptr<float>() != out.data_ptr<float>())
+        {
+            std::memcpy(
+                out.data_ptr<float>(),
+                input.data_ptr<float>(),
+                sizeof(float));
+        }
+        return;
+    }
+
+    auto *input_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    nntile::TensorGraph &graph = *input_node->graph();
+
+    nntile::TensorGraph::TensorNode *cur = input_node;
+    std::vector<nntile::Index> cur_shape = graph_shape;
+    while (cur_shape.size() > 1)
+    {
+        const std::vector<nntile::Index> next_shape =
+            reduced_shape_along_axis(cur_shape, 0);
+        auto *next = make_graph_tensor(graph, next_shape, "sum_to_scalar");
+        nntile::tensor::clear(next);
+        nntile::tensor::sum_slice(
+            cur,
+            next,
+            0,
+            kNormRedux,
+            static_cast<nntile::Scalar>(1.0),
+            static_cast<nntile::Scalar>(0.0));
+        cur = next;
+        cur_shape = next_shape;
+    }
+
+    auto *out_node = get_or_create_data_node(
+        out,
+        std::vector<nntile::Index>{},
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(out));
+    nntile::tensor::clear(out_node);
+    nntile::tensor::sum_slice(
+        cur,
+        out_node,
+        0,
+        kNormRedux,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0));
+    register_data_node(out, out_node);
+    maybe_execute_after_record();
+}
+
 void tensor_cat_fp32(
     const std::vector<at::Tensor> &inputs,
     at::Tensor &out,
@@ -1670,6 +1926,81 @@ void tensor_split_with_sizes_fp32(
         accumulate += static_cast<nntile::Index>(split_sizes[i]);
     }
 
+    maybe_execute_after_record();
+}
+
+void tensor_embedding_forward_fp32(
+    const at::Tensor &indices,
+    const at::Tensor &weight,
+    at::Tensor &out,
+    nntile::Index axis)
+{
+    const std::vector<nntile::Index> index_graph =
+        pytorch_shape_to_graph(indices.sizes());
+    const std::vector<nntile::Index> weight_graph =
+        pytorch_shape_to_graph(weight.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *index_node = get_or_create_data_node(
+        indices,
+        index_graph,
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(indices));
+    auto *weight_node = get_or_create_data_node(
+        weight,
+        weight_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(weight));
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(out));
+
+    nntile::tensor::embedding(index_node, weight_node, out_node, axis);
+    register_data_node(out, out_node);
+    maybe_execute_after_record();
+}
+
+void tensor_embedding_backward_fp32(
+    const at::Tensor &indices,
+    const at::Tensor &grad_out,
+    at::Tensor &grad_weight,
+    nntile::Index axis,
+    int redux)
+{
+    const std::vector<nntile::Index> index_graph =
+        pytorch_shape_to_graph(indices.sizes());
+    const std::vector<nntile::Index> grad_out_graph =
+        pytorch_shape_to_graph(grad_out.sizes());
+    const std::vector<nntile::Index> weight_graph =
+        pytorch_shape_to_graph(grad_weight.sizes());
+
+    auto *index_node = get_or_create_data_node(
+        indices,
+        index_graph,
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(indices));
+    auto *grad_out_node = get_or_create_data_node(
+        grad_out,
+        grad_out_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_out));
+    auto *grad_weight_node = get_or_create_data_node(
+        grad_weight,
+        weight_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_weight));
+
+    nntile::tensor::clear(grad_weight_node);
+    nntile::tensor::embedding_backward(
+        index_node,
+        grad_out_node,
+        grad_weight_node,
+        axis,
+        redux);
+    register_data_node(grad_weight, grad_weight_node);
     maybe_execute_after_record();
 }
 
@@ -1977,6 +2308,40 @@ void tensor_adamw_step_fp32(
     require_libnntile("adamw_step");
 }
 
+void tensor_norm_fp32(
+    const at::Tensor & /*x*/,
+    at::Tensor & /*out*/)
+{
+    require_libnntile("norm");
+}
+
+void tensor_norm_slice_fp32(
+    const at::Tensor & /*x*/,
+    at::Tensor & /*out*/,
+    int64_t /*axis*/,
+    bool /*keepdim*/)
+{
+    require_libnntile("norm_slice");
+}
+
+void tensor_norm_backward_fp32(
+    const at::Tensor & /*grad_out*/,
+    const at::Tensor & /*x*/,
+    const at::Tensor & /*norm_values*/,
+    at::Tensor & /*grad_input*/,
+    bool /*is_global*/,
+    int64_t /*axis*/)
+{
+    require_libnntile("norm_backward");
+}
+
+void tensor_sum_to_scalar_fp32(
+    const at::Tensor & /*input*/,
+    at::Tensor & /*out*/)
+{
+    require_libnntile("sum_to_scalar");
+}
+
 void tensor_cat_fp32(
     const std::vector<at::Tensor> & /*inputs*/,
     at::Tensor & /*out*/,
@@ -2002,6 +2367,25 @@ void tensor_split_with_sizes_fp32(
     const std::vector<at::Tensor> & /*outputs*/)
 {
     require_libnntile("split_with_sizes");
+}
+
+void tensor_embedding_forward_fp32(
+    const at::Tensor & /*indices*/,
+    const at::Tensor & /*weight*/,
+    at::Tensor & /*out*/,
+    nntile::Index /*axis*/)
+{
+    require_libnntile("embedding");
+}
+
+void tensor_embedding_backward_fp32(
+    const at::Tensor & /*indices*/,
+    const at::Tensor & /*grad_out*/,
+    at::Tensor & /*grad_weight*/,
+    nntile::Index /*axis*/,
+    int /*redux*/)
+{
+    require_libnntile("embedding_backward");
 }
 
 } // namespace torch_nntile
