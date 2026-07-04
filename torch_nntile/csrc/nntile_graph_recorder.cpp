@@ -71,7 +71,7 @@ nntile::TensorGraph::TensorNode *bind_target_node(const MappedTensor &mapped)
     return mapped.node;
 }
 
-std::mutex g_recorder_mutex;
+std::recursive_mutex g_recorder_mutex;
 std::unique_ptr<nntile::TensorGraph> g_graph;
 std::unordered_map<TensorImplKey, MappedTensor> g_tensor_nodes;
 std::unordered_map<TensorImplKey, nntile::TensorGraph::TensorNode *>
@@ -116,6 +116,23 @@ void log_tile_adoption(const std::string &message)
     {
         std::cerr << "[torch_nntile tile_adoption] " << message << '\n';
     }
+}
+
+//! Tile adoption applies to staged tensors whose runtime tiles are
+//! authoritative across recompiles (weights / optimizer state). Grad aliases
+//! set needs_host_copy but keep bind_at_execute=false; ephemeral staged
+//! inputs (x, labels) keep needs_host_copy=false and rebind from host.
+bool should_adopt_tiles_for_mapped(const MappedTensor &mapped)
+{
+    return mapped.needs_host_copy && mapped.bind_at_execute;
+}
+
+bool should_retain_mapped_tensor_after_compile(
+    TensorImplKey impl_key,
+    const MappedTensor &mapped)
+{
+    return is_staged_input_impl(impl_key) || mapped.needs_host_copy ||
+        mapped.is_persistent_input;
 }
 
 const char *tensor_node_label(nntile::TensorGraph::TensorNode const *node)
@@ -407,7 +424,7 @@ void capture_persisted_tiles_from_session()
         }
         const auto mapped = g_tensor_nodes.find(impl_key);
         if (mapped == g_tensor_nodes.end() ||
-            !is_tile_persistent_impl(impl_key))
+            !should_adopt_tiles_for_mapped(mapped->second))
         {
             continue;
         }
@@ -564,14 +581,18 @@ void clear_pending_graph_after_compile_locked(
     g_all_nodes.clear();
     for (auto it = g_tensor_nodes.begin(); it != g_tensor_nodes.end();)
     {
-        if (!is_tile_persistent_impl(it->first))
+        if (!should_retain_mapped_tensor_after_compile(it->first, it->second))
         {
             it = g_tensor_nodes.erase(it);
             continue;
         }
         it->second.node = nullptr;
         it->second.staging_node = nullptr;
-        it->second.bind_at_execute = true;
+        if (is_staged_input_impl(it->first) || it->second.needs_host_copy ||
+            it->second.is_persistent_input)
+        {
+            it->second.bind_at_execute = true;
+        }
         ++it;
     }
     g_param_grad_nodes.clear();
@@ -839,7 +860,7 @@ void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
 
 bool has_pending_graph()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     return g_graph != nullptr && g_graph->num_ops() > 0;
 }
 
@@ -849,7 +870,7 @@ void require_no_pending_graph(const char *op_name)
     {
         return;
     }
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_graph != nullptr && g_graph->num_ops() > 0)
     {
         throw std::runtime_error(
@@ -863,7 +884,7 @@ void execute_pending_graph()
 {
     std::vector<at::Tensor> pin_drop;
     {
-        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         execute_pending_graph_locked(pin_drop);
     }
 }
@@ -872,14 +893,14 @@ void compile_graph()
 {
     std::vector<at::Tensor> pin_drop;
     {
-        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         compile_graph_locked(true, pin_drop);
     }
 }
 
 void run_graph()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     run_graph_locked();
 }
 
@@ -887,7 +908,7 @@ void reset_graph_session()
 {
     std::vector<at::Tensor> pin_drop;
     {
-        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         reset_recorder_locked(true, pin_drop);
     }
 }
@@ -896,14 +917,14 @@ void shutdown_recorder()
 {
     std::vector<at::Tensor> pin_drop;
     {
-        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         shutdown_recorder_locked(pin_drop);
     }
 }
 
 bool has_graph_session()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     return g_session != nullptr && g_session->runtime != nullptr;
 }
 
@@ -914,7 +935,7 @@ nntile::TensorGraph::TensorNode *node_for_impl_locked(TensorImplKey impl_key)
 
 void sync_nntile_storage_to_runtime(void *host_data_ptr)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_session == nullptr || g_session->runtime == nullptr)
     {
         return;
@@ -956,7 +977,7 @@ void sync_nntile_storage_to_runtime(void *host_data_ptr)
 
 void sync_runtime_to_nntile_storage(void *host_data_ptr)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_session == nullptr || g_session->runtime == nullptr)
     {
         return;
@@ -1003,7 +1024,7 @@ void sync_runtime_to_nntile_tensor(const at::Tensor &tensor)
     {
         return;
     }
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_session == nullptr || g_session->runtime == nullptr)
     {
         return;
@@ -1028,7 +1049,7 @@ void sync_runtime_to_nntile_tensor(const at::Tensor &tensor)
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_session == nullptr || g_session->runtime == nullptr)
     {
         return;
@@ -1059,7 +1080,7 @@ void maybe_execute_after_record()
 
 nntile::TensorGraph &recorder_graph()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_graph == nullptr)
     {
         g_graph = std::make_unique<nntile::TensorGraph>("torch_nntile");
@@ -1073,7 +1094,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     nntile::DataType dtype,
     bool mark_as_input)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_graph == nullptr)
     {
         g_graph = std::make_unique<nntile::TensorGraph>("torch_nntile");
@@ -1139,7 +1160,7 @@ void register_data_node(
     const at::Tensor &tensor,
     nntile::TensorGraph::TensorNode *node)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     node->mark_output(true);
     track_node(node);
 
@@ -1178,7 +1199,7 @@ void register_data_node(
 
 nntile::TensorGraph::TensorNode *lookup_data_node(TensorImplKey impl_key)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     const auto found = g_tensor_nodes.find(impl_key);
     if (found == g_tensor_nodes.end())
     {
@@ -1191,7 +1212,7 @@ nntile::TensorGraph::TensorNode *lookup_data_node(
     const at::Tensor &tensor,
     const std::vector<nntile::Index> &shape)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     const TensorImplKey impl_key = tensor_impl_key(tensor);
     const auto found = g_tensor_nodes.find(impl_key);
     if (found == g_tensor_nodes.end() || found->second.node == nullptr)
@@ -1210,7 +1231,7 @@ void register_param_grad_node(
     const at::Tensor &param,
     nntile::TensorGraph::TensorNode *grad_node)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     const TensorImplKey key = tensor_impl_key(param);
     g_param_grad_nodes[key] = grad_node;
     g_param_grad_registry[key] = ParamGradEntry{grad_node, param};
@@ -1219,7 +1240,7 @@ void register_param_grad_node(
 nntile::TensorGraph::TensorNode *lookup_param_grad_node(
     const at::Tensor &param)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     const auto found = g_param_grad_nodes.find(tensor_impl_key(param));
     if (found == g_param_grad_nodes.end())
     {
@@ -1232,20 +1253,20 @@ void register_grad_alias_for_host_copy(
     at::Tensor &grad,
     nntile::TensorGraph::TensorNode *grad_node)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     register_grad_alias_for_host_copy_locked(grad, grad_node);
 }
 
 void push_relu_preactivation_node(nntile::TensorGraph::TensorNode *node)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     g_relu_preactivation_stack.push_back(node);
 }
 
 nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
     const std::vector<nntile::Index> &shape)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     for (auto it = g_relu_preactivation_stack.rbegin();
          it != g_relu_preactivation_stack.rend();
          ++it)
@@ -1263,7 +1284,7 @@ nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
 
 void on_tensor_impl_released(TensorImplKey key)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     for (const at::Tensor &pinned : g_pinned_tensors)
     {
         if (tensor_impl_key(pinned) == key)
@@ -1272,6 +1293,7 @@ void on_tensor_impl_released(TensorImplKey key)
         }
     }
     g_tensor_nodes.erase(key);
+    g_persisted_tiles_by_impl.erase(key);
     g_param_grad_nodes.erase(key);
     g_param_grad_registry.erase(key);
     g_axis_name_hints.erase(key);
@@ -1279,7 +1301,7 @@ void on_tensor_impl_released(TensorImplKey key)
 
 void track_graph_node(nntile::TensorGraph::TensorNode *node)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     track_node(node);
 }
 
@@ -1289,7 +1311,7 @@ void pin_tensor_for_graph(const at::Tensor &tensor)
     {
         return;
     }
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     g_pinned_tensors.push_back(tensor);
     if (const char *env = std::getenv("TORCH_NNTILE_TRACE_STORAGE");
         env != nullptr && env[0] != '\0' && env[0] != '0')
@@ -1332,7 +1354,7 @@ void set_axis_group_name(
     int ndim,
     const std::unordered_map<int, std::string> &names)
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     for (const auto &[dim, name] : names)
     {
         if (dim < 0 || dim >= ndim)
@@ -1378,7 +1400,7 @@ void set_axis_group_tiling(
             "torch_nntile set_axis_group_tiling: tile_sizes must be non-empty");
     }
     std::vector<nntile::Index> pattern(tile_sizes.begin(), tile_sizes.end());
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     g_axis_tiling_by_name[name] = std::move(pattern);
 }
 
@@ -1462,7 +1484,7 @@ std::string format_axis_groups_locked()
 
 std::string format_axis_groups()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     return format_axis_groups_locked();
 }
 
@@ -1482,7 +1504,7 @@ void print_axis_groups()
 
 GcDebugStats debug_gc_stats()
 {
-    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     GcDebugStats stats;
     stats.pinned_tensors = static_cast<std::int64_t>(g_pinned_tensors.size());
     stats.tensor_nodes = static_cast<std::int64_t>(g_tensor_nodes.size());

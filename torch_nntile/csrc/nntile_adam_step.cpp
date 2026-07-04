@@ -101,11 +101,8 @@ void adam_step(
     {
         mark_staged_input_tensor(param);
     }
-    mark_tile_persistent_tensor(param);
     ensure_optimizer_state_staging(first_moment);
     ensure_optimizer_state_staging(second_moment);
-    mark_tile_persistent_tensor(first_moment);
-    mark_tile_persistent_tensor(second_moment);
     pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adam_step_fp32(
         num_iter,
@@ -139,11 +136,8 @@ void adamw_step(
     {
         mark_staged_input_tensor(param);
     }
-    mark_tile_persistent_tensor(param);
     ensure_optimizer_state_staging(first_moment);
     ensure_optimizer_state_staging(second_moment);
-    mark_tile_persistent_tensor(first_moment);
-    mark_tile_persistent_tensor(second_moment);
     pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adamw_step_fp32(
         num_iter,

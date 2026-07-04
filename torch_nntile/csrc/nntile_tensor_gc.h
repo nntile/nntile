@@ -27,12 +27,10 @@ TensorImplKey tensor_impl_key(const at::Tensor &tensor);
 bool is_metadata_only_tensor(const at::Tensor &tensor);
 bool is_staged_input_tensor(const at::Tensor &tensor);
 bool is_staged_input_impl(TensorImplKey impl_key);
-bool is_tile_persistent_impl(TensorImplKey impl_key);
 bool has_host_staging(const at::Tensor &tensor);
 
 void mark_metadata_only_tensor(const at::Tensor &tensor);
 void mark_staged_input_tensor(const at::Tensor &tensor);
-void mark_tile_persistent_tensor(const at::Tensor &tensor);
 
 void clear_tensor_gc_state();
 
