@@ -278,7 +278,11 @@ def test_train_full_batch_step_graph_mode_multi_epoch():
         import torch
         import torch_nntile
         from torch_nntile.models import DeepReLU
-        from torch_nntile.training import train_full_batch_step
+        from torch_nntile.training import (
+            clone_model_weights,
+            max_weight_delta,
+            train_full_batch_step,
+        )
 
         torch_nntile.init_context(
             ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
@@ -291,11 +295,16 @@ def test_train_full_batch_step_graph_mode_multi_epoch():
         model.load_state_dict(model_cpu.state_dict())
         x = torch.randn(8, model.input_dim).to("nntile")
         y = torch.randint(0, model.output_dim, (8,)).to("nntile")
-        losses = [
-            train_full_batch_step(model, x, y, learning_rate=0.1)
-            for _ in range(3)
-        ]
-        assert all(math.isfinite(loss) for loss in losses)
+        w0 = clone_model_weights(model)
+        loss1 = train_full_batch_step(model, x, y, learning_rate=0.1)
+        w1 = clone_model_weights(model)
+        loss2 = train_full_batch_step(model, x, y, learning_rate=0.1)
+        loss3 = train_full_batch_step(model, x, y, learning_rate=0.1)
+        w3 = clone_model_weights(model)
+        assert all(math.isfinite(v) for v in (loss1, loss2, loss3))
+        assert loss2 < loss1
+        assert loss3 < loss2
+        assert max_weight_delta(w0, w3) > max_weight_delta(w0, w1)
         """
     )
 

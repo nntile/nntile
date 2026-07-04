@@ -300,6 +300,25 @@ void copy_output_if_needed(
     copy_tensor_from_runtime(runtime, mapped, data_ptr);
 }
 
+nntile::TensorGraph::TensorNode *session_node_for_impl_locked(
+    TensorImplKey impl_key)
+{
+    if (g_session != nullptr)
+    {
+        const auto session_it = g_session->impl_to_node.find(impl_key);
+        if (session_it != g_session->impl_to_node.end())
+        {
+            return session_it->second;
+        }
+    }
+    const auto found = g_tensor_nodes.find(impl_key);
+    if (found != g_tensor_nodes.end())
+    {
+        return found->second.node;
+    }
+    return nullptr;
+}
+
 void copy_host_visible_outputs(
     nntile::Runtime &runtime,
     const void * /*preferred_ptr*/)
@@ -322,6 +341,37 @@ void copy_host_visible_outputs(
                 mapped,
                 mapped.host_data_ptr);
         }
+    }
+}
+
+void sync_staged_inputs_to_host_from_session_locked()
+{
+    if (g_session == nullptr || g_session->runtime == nullptr)
+    {
+        return;
+    }
+    g_session->runtime->wait();
+    for (auto &[impl_key, mapped] : g_tensor_nodes)
+    {
+        if (!is_staged_input_impl(impl_key) || mapped.host_data_ptr == nullptr)
+        {
+            continue;
+        }
+        const auto node_it = g_session->impl_to_node.find(impl_key);
+        if (node_it == g_session->impl_to_node.end() ||
+            node_it->second == nullptr)
+        {
+            continue;
+        }
+        MappedTensor resolved = mapped;
+        resolved.node = node_it->second;
+        resolved.count =
+            static_cast<std::size_t>(node_it->second->nelems());
+        resolved.needs_host_copy = true;
+        copy_tensor_from_runtime(
+            *g_session->runtime,
+            resolved,
+            mapped.host_data_ptr);
     }
 }
 
@@ -377,7 +427,8 @@ void capture_persisted_tiles_from_session()
             continue;
         }
         const auto mapped = g_tensor_nodes.find(impl_key);
-        if (mapped == g_tensor_nodes.end() || !mapped->second.is_persistent_input)
+        if (mapped == g_tensor_nodes.end() ||
+            !is_staged_input_impl(impl_key))
         {
             continue;
         }
@@ -547,8 +598,6 @@ void clear_pending_graph_after_compile_locked(
     g_param_grad_nodes.clear();
     g_param_grad_registry.clear();
     g_relu_preactivation_stack.clear();
-    g_persisted_tiles_by_impl.clear();
-    g_persisted_tile_pool.clear();
     transfer_pinned_tensors_locked(pin_drop);
     g_axis_name_hints.clear();
     g_axis_tiling_by_name.clear();
@@ -627,6 +676,7 @@ void compile_graph_locked(
 
     apply_pending_axis_tiling_locked();
     insert_input_scatter_staging_locked();
+    sync_staged_inputs_to_host_from_session_locked();
     g_persisted_tiles_by_impl.clear();
     g_persisted_tile_pool.clear();
 
@@ -698,6 +748,17 @@ void compile_graph_locked(
     {
         clear_pending_graph_after_compile_locked(pin_drop);
     }
+}
+
+void sync_session_to_host_locked()
+{
+    if (g_session == nullptr || g_session->runtime == nullptr)
+    {
+        return;
+    }
+    sync_param_grad_aliases_locked();
+    sync_staged_inputs_to_host_from_session_locked();
+    copy_host_visible_outputs(*g_session->runtime, nullptr);
 }
 
 void run_graph_locked()
@@ -786,11 +847,7 @@ void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
 {
     compile_graph_locked(false, pin_drop);
     run_graph_locked();
-    if (g_session != nullptr && g_session->runtime != nullptr)
-    {
-        sync_param_grad_aliases_locked();
-        copy_host_visible_outputs(*g_session->runtime, nullptr);
-    }
+    sync_session_to_host_locked();
     clear_pending_graph_after_compile_locked(pin_drop);
     if (!is_graph_mode())
     {
@@ -886,20 +943,7 @@ bool has_graph_session()
 
 nntile::TensorGraph::TensorNode *node_for_impl_locked(TensorImplKey impl_key)
 {
-    if (g_session != nullptr)
-    {
-        const auto session_it = g_session->impl_to_node.find(impl_key);
-        if (session_it != g_session->impl_to_node.end())
-        {
-            return session_it->second;
-        }
-    }
-    const auto found = g_tensor_nodes.find(impl_key);
-    if (found != g_tensor_nodes.end())
-    {
-        return found->second.node;
-    }
-    return nullptr;
+    return session_node_for_impl_locked(impl_key);
 }
 
 void sync_nntile_storage_to_runtime(void *host_data_ptr)

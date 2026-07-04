@@ -48,6 +48,12 @@ bool is_staged_input_tensor(const at::Tensor &tensor)
     return g_staged_input_impls.count(tensor_impl_key(tensor)) != 0;
 }
 
+bool is_staged_input_impl(TensorImplKey impl_key)
+{
+    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
+    return g_staged_input_impls.count(impl_key) != 0;
+}
+
 bool has_host_staging(const at::Tensor &tensor)
 {
     if (is_metadata_only_tensor(tensor))
