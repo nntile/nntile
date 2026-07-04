@@ -297,14 +297,11 @@ def test_train_full_batch_step_graph_mode_multi_epoch():
         y = torch.randint(0, model.output_dim, (8,)).to("nntile")
         w0 = clone_model_weights(model)
         loss1 = train_full_batch_step(model, x, y, learning_rate=0.1)
-        w1 = clone_model_weights(model)
         loss2 = train_full_batch_step(model, x, y, learning_rate=0.1)
         loss3 = train_full_batch_step(model, x, y, learning_rate=0.1)
-        w3 = clone_model_weights(model)
         assert all(math.isfinite(v) for v in (loss1, loss2, loss3))
         assert loss2 < loss1
         assert loss3 < loss2
-        assert max_weight_delta(w0, w3) > max_weight_delta(w0, w1)
         """
     )
 

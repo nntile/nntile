@@ -7,6 +7,7 @@
 #include "nntile_allocator.h"
 #include "nntile_context.h"
 #include "nntile_graph_recorder.h"
+#include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
 #include <ATen/EmptyTensor.h>
@@ -438,8 +439,7 @@ at::Tensor copy_from(
                     copy_nntile_tensor_to_cpu(self, mutable_dst);
                     return dst;
                 }
-                sync_runtime_to_nntile_storage(
-                    self.storage().data_ptr().get());
+                sync_runtime_to_nntile_tensor(self);
             }
         }
         else

@@ -26,6 +26,7 @@ namespace
 std::mutex g_tensor_gc_mutex;
 std::unordered_set<TensorImplKey> g_metadata_only_impls;
 std::unordered_set<TensorImplKey> g_staged_input_impls;
+std::unordered_set<TensorImplKey> g_tile_persistent_impls;
 std::unordered_map<void *, TensorImplKey> g_host_ptr_to_impl;
 std::unordered_map<void *, TensorImplKey> g_storage_ctx_to_impl;
 
@@ -54,6 +55,12 @@ bool is_staged_input_impl(TensorImplKey impl_key)
     return g_staged_input_impls.count(impl_key) != 0;
 }
 
+bool is_tile_persistent_impl(TensorImplKey impl_key)
+{
+    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
+    return g_tile_persistent_impls.count(impl_key) != 0;
+}
+
 bool has_host_staging(const at::Tensor &tensor)
 {
     if (is_metadata_only_tensor(tensor))
@@ -61,6 +68,13 @@ bool has_host_staging(const at::Tensor &tensor)
         return false;
     }
     return tensor.storage().nbytes() > 0;
+}
+
+void mark_tile_persistent_tensor(const at::Tensor &tensor)
+{
+    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
+    const TensorImplKey key = tensor_impl_key(tensor);
+    g_tile_persistent_impls.insert(key);
 }
 
 void mark_metadata_only_tensor(const at::Tensor &tensor)
@@ -99,6 +113,7 @@ void clear_tensor_gc_state()
     std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
     g_metadata_only_impls.clear();
     g_staged_input_impls.clear();
+    g_tile_persistent_impls.clear();
     g_host_ptr_to_impl.clear();
     g_storage_ctx_to_impl.clear();
 }
@@ -130,6 +145,7 @@ void on_host_storage_released(void *host_data_ptr, void *storage_ctx)
         {
             g_metadata_only_impls.erase(released_impl);
             g_staged_input_impls.erase(released_impl);
+            g_tile_persistent_impls.erase(released_impl);
         }
     }
 }

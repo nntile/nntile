@@ -81,6 +81,8 @@ void sgd_step(
     {
         mark_staged_input_tensor(param);
     }
+    mark_tile_persistent_tensor(param);
+    mark_tile_persistent_tensor(velocity);
     pin_graph_op_inputs({param, velocity});
     tensor_sgd_step_fp32(
         num_iter,

@@ -344,35 +344,14 @@ void copy_host_visible_outputs(
     }
 }
 
-void sync_staged_inputs_to_host_from_session_locked()
+void sync_current_run_visible_outputs_locked()
 {
     if (g_session == nullptr || g_session->runtime == nullptr)
     {
         return;
     }
-    g_session->runtime->wait();
-    for (auto &[impl_key, mapped] : g_tensor_nodes)
-    {
-        if (!is_staged_input_impl(impl_key) || mapped.host_data_ptr == nullptr)
-        {
-            continue;
-        }
-        const auto node_it = g_session->impl_to_node.find(impl_key);
-        if (node_it == g_session->impl_to_node.end() ||
-            node_it->second == nullptr)
-        {
-            continue;
-        }
-        MappedTensor resolved = mapped;
-        resolved.node = node_it->second;
-        resolved.count =
-            static_cast<std::size_t>(node_it->second->nelems());
-        resolved.needs_host_copy = true;
-        copy_tensor_from_runtime(
-            *g_session->runtime,
-            resolved,
-            mapped.host_data_ptr);
-    }
+    sync_param_grad_aliases_locked();
+    copy_host_visible_outputs(*g_session->runtime, nullptr);
 }
 
 void bind_storage_to_runtime(
@@ -428,7 +407,7 @@ void capture_persisted_tiles_from_session()
         }
         const auto mapped = g_tensor_nodes.find(impl_key);
         if (mapped == g_tensor_nodes.end() ||
-            !is_staged_input_impl(impl_key))
+            !is_tile_persistent_impl(impl_key))
         {
             continue;
         }
@@ -585,7 +564,7 @@ void clear_pending_graph_after_compile_locked(
     g_all_nodes.clear();
     for (auto it = g_tensor_nodes.begin(); it != g_tensor_nodes.end();)
     {
-        if (!it->second.is_persistent_input)
+        if (!is_tile_persistent_impl(it->first))
         {
             it = g_tensor_nodes.erase(it);
             continue;
@@ -676,9 +655,7 @@ void compile_graph_locked(
 
     apply_pending_axis_tiling_locked();
     insert_input_scatter_staging_locked();
-    sync_staged_inputs_to_host_from_session_locked();
-    g_persisted_tiles_by_impl.clear();
-    g_persisted_tile_pool.clear();
+    capture_persisted_tiles_from_session();
 
     auto compiled_tensor_graph = std::move(g_graph);
     nntile::TileGraph tile_graph =
@@ -737,7 +714,11 @@ void compile_graph_locked(
 
     for (const auto &[impl_key, mapped] : g_tensor_nodes)
     {
-        nntile::TensorGraph::TensorNode *stored = bind_target_node(mapped);
+        nntile::TensorGraph::TensorNode *stored = mapped.node;
+        if (stored == nullptr)
+        {
+            stored = bind_target_node(mapped);
+        }
         if (stored != nullptr)
         {
             g_session->impl_to_node[impl_key] = stored;
@@ -748,17 +729,6 @@ void compile_graph_locked(
     {
         clear_pending_graph_after_compile_locked(pin_drop);
     }
-}
-
-void sync_session_to_host_locked()
-{
-    if (g_session == nullptr || g_session->runtime == nullptr)
-    {
-        return;
-    }
-    sync_param_grad_aliases_locked();
-    sync_staged_inputs_to_host_from_session_locked();
-    copy_host_visible_outputs(*g_session->runtime, nullptr);
 }
 
 void run_graph_locked()
@@ -847,7 +817,7 @@ void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
 {
     compile_graph_locked(false, pin_drop);
     run_graph_locked();
-    sync_session_to_host_locked();
+    sync_current_run_visible_outputs_locked();
     clear_pending_graph_after_compile_locked(pin_drop);
     if (!is_graph_mode())
     {
@@ -861,10 +831,6 @@ void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
     {
         compile_graph_locked(false, pin_drop);
         run_graph_locked();
-        if (g_session != nullptr && g_session->runtime != nullptr)
-        {
-            copy_host_visible_outputs(*g_session->runtime, nullptr);
-        }
     }
     reset_recorder_locked(true, pin_drop);
 }
@@ -1037,7 +1003,27 @@ void sync_runtime_to_nntile_tensor(const at::Tensor &tensor)
     {
         return;
     }
-    sync_runtime_to_nntile_storage(tensor.storage().data_ptr().get());
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    if (g_session == nullptr || g_session->runtime == nullptr)
+    {
+        return;
+    }
+    const TensorImplKey impl_key = tensor_impl_key(tensor);
+    nntile::TensorGraph::TensorNode *node =
+        session_node_for_impl_locked(impl_key);
+    if (node == nullptr)
+    {
+        return;
+    }
+    g_session->runtime->wait();
+    void *host_data_ptr = tensor.storage().data_ptr().get();
+    MappedTensor mapped;
+    mapped.node = node;
+    mapped.dtype = node->dtype();
+    mapped.count = static_cast<std::size_t>(node->nelems());
+    mapped.needs_host_copy = true;
+    mapped.host_data_ptr = host_data_ptr;
+    copy_tensor_from_runtime(*g_session->runtime, mapped, host_data_ptr);
 }
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
