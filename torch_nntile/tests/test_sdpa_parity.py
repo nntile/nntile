@@ -153,31 +153,75 @@ def test_sdpa_rejects_cpu_tensors():
         sdpa_eager(q, k, v)
 
 
-def test_sdpa_rejects_graph_mode():
+def test_sdpa_graph_mode_deferred_until_execute():
     import subprocess
     import sys
+    import textwrap
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    script = f"""
-import sys
-sys.path.insert(0, {str(root)!r})
-import torch
-import torch_nntile
-from torch_nntile.nn import sdpa_eager
+    repo = Path(__file__).resolve().parents[2]
+    env = dict(**__import__("os").environ)
+    build_lib = repo / "build" / "nntile"
+    starpu_lib = "/opt/starpu/lib"
+    ld = env.get("LD_LIBRARY_PATH", "")
+    for part in (str(build_lib), starpu_lib):
+        if part not in ld.split(":"):
+            ld = f"{part}:{ld}" if ld else part
+    env["LD_LIBRARY_PATH"] = ld
+    env["PYTHONPATH"] = f"{root}:{env.get('PYTHONPATH', '')}"
 
-torch_nntile.init_context(
-    ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
-)
-torch_nntile.restrict_cpu()
-q = torch.randn(2, 1, 4, 8).to("nntile")
-k = torch.randn(2, 1, 4, 8).to("nntile")
-v = torch.randn(2, 1, 4, 8).to("nntile")
-try:
-    sdpa_eager(q, k, v)
-except RuntimeError as exc:
-    assert "runtime_mode='eager'" in str(exc)
-else:
-    raise AssertionError("expected RuntimeError")
-"""
-    subprocess.check_call([sys.executable, "-c", script])
+    script = textwrap.dedent(
+        """
+        import torch
+        import torch_nntile
+        from torch_nntile.nn import sdpa_eager
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+        )
+        torch_nntile.restrict_cpu()
+
+        shape = (2, 1, 4, 8)
+        q_cpu = torch.randn(*shape, requires_grad=True)
+        k_cpu = torch.randn(*shape, requires_grad=True)
+        v_cpu = torch.randn(*shape, requires_grad=True)
+        ref = torch.einsum(
+            "...ce,...ed->...cd",
+            torch.softmax(
+                torch.einsum("...ed,...cd->...ce", k_cpu, q_cpu)
+                * (shape[-1] ** -0.5),
+                dim=-1,
+            ),
+            v_cpu,
+        )
+        grad_out = torch.randn_like(ref)
+        ref.backward(grad_out)
+
+        q = q_cpu.detach().to("nntile").requires_grad_(True)
+        k = k_cpu.detach().to("nntile").requires_grad_(True)
+        v = v_cpu.detach().to("nntile").requires_grad_(True)
+        out = sdpa_eager(q, k, v, batch_ndim=2)
+        assert torch_nntile.has_pending_graph()
+        out.backward(grad_out.to("nntile"))
+        assert torch_nntile.has_pending_graph()
+        torch_nntile.execute()
+        assert not torch_nntile.has_pending_graph()
+        assert torch.allclose(out.detach().cpu(), ref, rtol=1e-4, atol=1e-4)
+        assert torch.allclose(q.grad.cpu(), q_cpu.grad, rtol=1e-4, atol=1e-4)
+        assert torch.allclose(k.grad.cpu(), k_cpu.grad, rtol=1e-4, atol=1e-4)
+        assert torch.allclose(v.grad.cpu(), v_cpu.grad, rtol=1e-4, atol=1e-4)
+        """
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise AssertionError(
+            f"subprocess failed ({proc.returncode})\n"
+            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+        )

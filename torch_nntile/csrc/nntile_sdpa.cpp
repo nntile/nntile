@@ -6,7 +6,6 @@
 
 #include "nntile_sdpa.h"
 
-#include "nntile_context.h"
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
 
@@ -24,13 +23,6 @@ namespace
 bool is_nntile_device(c10::Device device)
 {
     return device.type() == c10::DeviceType::PrivateUse1;
-}
-
-void check_sdpa_runtime_mode()
-{
-    TORCH_CHECK(
-        get_runtime_mode() == RuntimeMode::Eager,
-        "nntile sdpa: only supported in runtime_mode='eager'");
 }
 
 void check_sdpa_tensor(
@@ -98,7 +90,6 @@ at::Tensor sdpa_forward(
     const std::optional<at::Tensor> &mask,
     int64_t batch_ndim)
 {
-    check_sdpa_runtime_mode();
     check_sdpa_qkv(q, k, v, batch_ndim);
     if (mask.has_value())
     {
@@ -157,7 +148,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     const std::optional<at::Tensor> &mask,
     int64_t batch_ndim)
 {
-    check_sdpa_runtime_mode();
     check_sdpa_qkv(q, k, v, batch_ndim);
     check_sdpa_tensor(grad_out, "grad_out");
     if (mask.has_value())

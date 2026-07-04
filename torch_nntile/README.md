@@ -137,7 +137,7 @@ Gradients use **PyTorch autograd** (not `NNGraph` autograd).
 (default); `scale_grad_by_freq=False` and `sparse=False` only. Indices may stay
 on CPU while weights are on `device="nntile"`.
 
-**SDPA v1 limits:** `float32` only; `runtime_mode='eager'` only; Q/K/V on
+**SDPA v1 limits:** `float32` only; Q/K/V on
 `device="nntile"` in NNTile layout `[batch..., seq, head_size]` (e.g.
 `(n_heads, batch, seq, head_size)` with `batch_ndim=2`); optional BOOL mask
 `[k_seq, q_seq]` on CPU or nntile; fixed scale `1/sqrt(head_size)`. Use
