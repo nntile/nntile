@@ -7,6 +7,7 @@
 #include "nntile_allocator.h"
 #include "nntile_context.h"
 #include "nntile_graph_recorder.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
@@ -306,7 +307,11 @@ at::Tensor view(const at::Tensor &self, at::IntArrayRef size)
     TORCH_CHECK(
         stride.has_value(),
         "view size is not compatible with input tensor's size and stride");
-    return reshape_alias(self, inferred, *stride);
+    at::Tensor result = reshape_alias(self, inferred, *stride);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    record_view_alias(self, result);
+#endif
+    return result;
 }
 
 const at::Tensor &resize_(

@@ -354,6 +354,7 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/ops/adamw_step.cc"
     "tensor/ops/clear.cc"
     "tensor/ops/concat.cc"
+    "tensor/ops/contiguous_view.cc"
     "tensor/ops/conv2d_bwd_input_inplace.cc"
     "tensor/ops/conv2d_bwd_weight_inplace.cc"
     "tensor/ops/conv2d_inplace.cc"

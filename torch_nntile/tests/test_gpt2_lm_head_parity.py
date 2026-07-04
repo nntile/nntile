@@ -330,7 +330,8 @@ def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
 
 
 @pytest.mark.xfail(
-    reason="graph-mode mm can return rank-3 tensors; GPT2 projection needs eager for now",
+    reason="GPT2 graph logits parity vs HF still diverges (~0.17 max diff); "
+    "mm+view ndim fixed in test_graph_mode_mm_view_add_ndim",
     strict=False,
 )
 def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
@@ -385,6 +386,7 @@ def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
         torch_nntile.compile_graph()
         torch_nntile.run()
         assert not torch_nntile.has_pending_graph()
+        assert out.shape == ref.shape
         assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
         """
     )
