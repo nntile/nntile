@@ -16,29 +16,39 @@ from transformers import GPT2Config
 from torch_nntile.nn import SDPA
 
 
-class _MergeHeadsLastDim(torch.autograd.Function):
-    """``[n_heads, batch, seq, head_size]`` -> ``[batch, seq, hidden]``."""
+class _NntileModelTranspose(torch.autograd.Function):
+    """``nntile::transpose(src, model_ndim)`` cyclic axis reordering.
+
+    Matches ``nntile/src/model/gpt2/gpt2_attention.cc`` (``transpose(q_proj, 1)``
+    before SDPA and ``transpose(attn_out, 3)`` before output GEMM). Uses an
+    explicit autograd wrapper because nntile view-transpose backward is not
+    wired through ATen yet.
+    """
 
     @staticmethod
-    def forward(ctx, attn_out: Tensor) -> Tensor:
-        n_heads, bsz, seq, head_size = attn_out.shape
-        ctx.n_heads = n_heads
-        ctx.head_size = head_size
-        parts = [attn_out[h].contiguous() for h in range(n_heads)]
-        return torch.cat(parts, dim=-1)
+    def forward(ctx, x: Tensor, model_ndim: int) -> Tensor:
+        n = x.dim()
+        if model_ndim <= 0 or model_ndim >= n:
+            raise ValueError(
+                f"model_ndim must be in (0, {n}), got {model_ndim}"
+            )
+        tensor_ndim = n - model_ndim
+        perm = [(i + tensor_ndim) % n for i in range(n)]
+        inv = [0] * n
+        for out_i, src_i in enumerate(perm):
+            inv[src_i] = out_i
+        ctx.inv_perm = inv
+        return x.permute(*perm).contiguous()
 
     @staticmethod
-    def backward(ctx, grad_merged: Tensor) -> tuple[Tensor,]:
-        n_heads = ctx.n_heads
-        head_size = ctx.head_size
-        bsz, seq, _ = grad_merged.shape
-        grad_view = grad_merged.view(bsz, seq, n_heads, head_size)
-        grads = [grad_view[:, :, h, :].contiguous() for h in range(n_heads)]
-        return (torch.stack(grads, dim=0).contiguous(),)
+    def backward(ctx, grad_out: Tensor) -> tuple[Tensor, None]:
+        inv = ctx.inv_perm
+        return grad_out.permute(*inv).contiguous(), None
 
 
-def _merge_heads_last_dim(attn_out: Tensor) -> Tensor:
-    return _MergeHeadsLastDim.apply(attn_out)
+def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:
+    """Apply model-code transpose axis (storage order) on nntile tensors."""
+    return _NntileModelTranspose.apply(x, model_ndim)
 
 
 def make_causal_sdpa_mask(seq_len: int, device: torch.device | None = None) -> Tensor:
@@ -132,32 +142,30 @@ class GPT2Attention(nn.Module):
         weight: Tensor,
         bias: Tensor,
     ) -> Tensor:
+        """``gemm`` + ``transpose(..., 1)`` + bias, mirroring C++ Q/K/V path."""
         bsz, seq, hidden = x.shape
         head_size = weight.size(1)
         n_heads = weight.size(2)
         x2d = x.reshape(bsz * seq, hidden)
-        chunks: list[Tensor] = []
-        for h in range(n_heads):
-            wh = weight[:, :, h].contiguous()
-            bh = (
-                bias[h]
-                .view(1, -1)
-                .expand(bsz * seq, -1)
-                .contiguous()
-            )
-            proj_h = torch.mm(x2d, wh) + bh
-            chunks.append(proj_h.view(bsz, seq, head_size).unsqueeze(0))
-        return torch.cat(chunks, dim=0).contiguous()
+        proj = torch.mm(
+            x2d,
+            weight.reshape(hidden, head_size * n_heads),
+        ).view(bsz, seq, head_size, n_heads)
+        out = nntile_model_transpose(proj, 1)
+        bias_bc = (
+            bias.view(n_heads, 1, 1, head_size)
+            .expand(n_heads, bsz, seq, head_size)
+            .contiguous()
+        )
+        return out + bias_bc
 
     def _output_proj(self, attn_out: Tensor) -> Tensor:
+        """``transpose(..., 3)`` + ``gemm`` + bias, mirroring C++ output path."""
         n_heads, bsz, seq, head_size = attn_out.shape
         hidden = self.hidden
-        merged = _merge_heads_last_dim(attn_out)
-        x2d = merged.reshape(bsz * seq, hidden)
-        o_blocks = [
-            self.o_weight[:, h, :].contiguous() for h in range(n_heads)
-        ]
-        w_o = torch.cat(o_blocks, dim=0).contiguous()
+        attn_t = nntile_model_transpose(attn_out, 3)
+        x2d = attn_t.reshape(bsz * seq, head_size * n_heads)
+        w_o = self.o_weight.reshape(head_size * n_heads, hidden)
         out = torch.mm(x2d, w_o)
         bias_bc = (
             self.o_bias.view(1, -1)
