@@ -56,7 +56,8 @@ def sdpa_eager(
     """NNTile-layout SDPA eager on ``device='nntile'``.
 
     Q/K/V shape ``[batch..., seq, head_size]`` (C-order). Optional BOOL mask
-    ``[k_seq, q_seq]`` on CPU or nntile. Scale is ``1/sqrt(head_size)``.
+    ``[q_seq, k_seq]`` on CPU or nntile (dim0 = query, dim1 = key, matching
+    ``tensor::mask_scalar`` / GPT-2 ``attn_mask``). Scale is ``1/sqrt(head_size)``.
   """
     if q.device.type != "nntile":
         raise ValueError("sdpa_eager expects nntile Q/K/V tensors")

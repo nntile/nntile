@@ -59,7 +59,8 @@ void check_sdpa_qkv(
 
 void check_sdpa_mask(
     const at::Tensor &mask,
-    const at::Tensor &q)
+    const at::Tensor &q,
+    const at::Tensor &k)
 {
     TORCH_CHECK(
         mask.scalar_type() == at::ScalarType::Bool ||
@@ -72,13 +73,14 @@ void check_sdpa_mask(
         mask.is_cpu() || is_nntile_device(mask.device()),
         "nntile sdpa: mask must be on CPU or nntile");
     const int64_t q_ndim = q.dim();
+    const int64_t k_ndim = k.dim();
     const int64_t q_seq = q.size(q_ndim - 2);
-    const int64_t k_seq = q.size(q_ndim - 2);
+    const int64_t k_seq = k.size(k_ndim - 2);
     TORCH_CHECK(
         mask.dim() == 2 &&
-            mask.size(0) == k_seq &&
-            mask.size(1) == q_seq,
-        "nntile sdpa: mask shape must be [k_seq, q_seq]");
+            mask.size(0) == q_seq &&
+            mask.size(1) == k_seq,
+        "nntile sdpa: mask shape must be [q_seq, k_seq]");
 }
 
 } // namespace
@@ -97,7 +99,7 @@ at::Tensor sdpa_forward(
             mask->scalar_type() == at::ScalarType::Bool ||
                 mask->scalar_type() == at::ScalarType::Byte,
             "nntile sdpa: mask must be bool or uint8");
-        check_sdpa_mask(*mask, q);
+        check_sdpa_mask(*mask, q, k);
     }
 
     at::Tensor out = at::empty_like(q);
@@ -150,13 +152,16 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
 {
     check_sdpa_qkv(q, k, v, batch_ndim);
     check_sdpa_tensor(grad_out, "grad_out");
+    TORCH_CHECK(
+        grad_out.sizes() == q.sizes(),
+        "nntile sdpa_backward: grad_out shape must match Q");
     if (mask.has_value())
     {
         TORCH_CHECK(
             mask->scalar_type() == at::ScalarType::Bool ||
                 mask->scalar_type() == at::ScalarType::Byte,
             "nntile sdpa: mask must be bool or uint8");
-        check_sdpa_mask(*mask, q);
+        check_sdpa_mask(*mask, q, k);
     }
 
     at::Tensor grad_q = at::empty_like(q);

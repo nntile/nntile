@@ -121,9 +121,9 @@ def test_sdpa_forward_with_mask_matches_reference():
     k_cpu = torch.randn(*shape)
     v_cpu = torch.randn(*shape)
     mask = torch.zeros(seq, seq, dtype=torch.bool)
-    for key in range(seq):
-        for query in range(seq):
-            mask[key, query] = key <= query
+    for query in range(seq):
+        for key in range(seq):
+            mask[query, key] = key <= query
 
     ref = _reference_sdpa_eager(q_cpu, k_cpu, v_cpu, mask)
     out = sdpa_eager(
@@ -134,6 +134,61 @@ def test_sdpa_forward_with_mask_matches_reference():
         batch_ndim=2,
     )
     assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+
+
+def test_sdpa_mask_axis_order_matches_causal_layout():
+    """Mask dim0=query, dim1=key (libnntile sdpa_causal_mask_bool_fill layout)."""
+    shape = (1, 1, 5, 8)
+    seq = shape[2]
+    torch.manual_seed(7)
+    q_cpu = torch.randn(*shape)
+    k_cpu = torch.randn(*shape)
+    v_cpu = torch.randn(*shape)
+    mask = torch.zeros(seq, seq, dtype=torch.bool)
+    for query in range(seq):
+        for key in range(seq):
+            mask[query, key] = key <= query
+
+    ref = _reference_sdpa_eager(q_cpu, k_cpu, v_cpu, mask)
+    out = sdpa_eager(
+        q_cpu.to("nntile"),
+        k_cpu.to("nntile"),
+        v_cpu.to("nntile"),
+        mask,
+        batch_ndim=2,
+    )
+    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+
+    # Asymmetric pattern: only (query=2, key=3) allowed. Transposed mask must differ.
+    mask_sparse = torch.zeros(seq, seq, dtype=torch.bool)
+    mask_sparse[2, 3] = True
+    out_sparse = sdpa_eager(
+        q_cpu.to("nntile"),
+        k_cpu.to("nntile"),
+        v_cpu.to("nntile"),
+        mask_sparse,
+        batch_ndim=2,
+    )
+    out_transposed_mask = sdpa_eager(
+        q_cpu.to("nntile"),
+        k_cpu.to("nntile"),
+        v_cpu.to("nntile"),
+        mask_sparse.t().contiguous(),
+        batch_ndim=2,
+    )
+    assert not torch.allclose(
+        out_sparse.cpu(), out_transposed_mask.cpu(), rtol=1e-4, atol=1e-4
+    )
+
+
+def test_sdpa_backward_rejects_mismatched_grad_out():
+    shape = (2, 1, 4, 8)
+    q = torch.randn(*shape).to("nntile")
+    k = torch.randn(*shape).to("nntile")
+    v = torch.randn(*shape).to("nntile")
+    bad_grad = torch.randn(2, 1, 3, 8).to("nntile")
+    with pytest.raises(RuntimeError, match="grad_out shape must match"):
+        _C.sdpa_backward(q, k, v, bad_grad, None, 2)
 
 
 def test_sdpa_module_forward():
