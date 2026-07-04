@@ -14,6 +14,7 @@ from torch import Tensor
 from transformers import GPT2Config
 
 from torch_nntile.nn import SDPA
+from torch_nntile.gemm import gemm
 
 
 def make_causal_sdpa_mask(seq_len: int, device: torch.device | None = None) -> Tensor:
@@ -107,15 +108,14 @@ class GPT2Attention(nn.Module):
         weight: Tensor,
         bias: Tensor,
     ) -> Tensor:
-        """``gemm(x, w)`` + bias → ``[batch, seq, head_size, n_heads]``."""
-        bsz, seq, hidden = x.shape
-        head_size = weight.size(1)
-        n_heads = weight.size(2)
-        x2d = x.reshape(bsz * seq, hidden)
-        proj = torch.mm(
-            x2d,
-            weight.reshape(hidden, head_size * n_heads),
-        ).view(bsz, seq, head_size, n_heads)
+        """``gemm(x, w, ndim=1)`` + bias → ``[batch, seq, head_size, n_heads]``."""
+        bsz, seq, head_size, n_heads = (
+            x.size(0),
+            x.size(1),
+            weight.size(1),
+            weight.size(2),
+        )
+        proj = gemm(x, weight, ndim=1, batch_ndim=0)
         bias_bc = (
             bias.transpose(0, 1)
             .view(1, 1, head_size, n_heads)
@@ -125,19 +125,16 @@ class GPT2Attention(nn.Module):
         return proj + bias_bc
 
     def _output_proj(self, attn_out: Tensor) -> Tensor:
-        """``gemm(attn, w_o)`` + bias on post-SDPA projection layout."""
-        bsz, seq, head_size, n_heads = attn_out.shape
+        """``gemm(attn, w_o, ndim=2)`` + bias on post-SDPA projection layout."""
+        bsz, seq = attn_out.size(0), attn_out.size(1)
         hidden = self.hidden
-        x2d = attn_out.reshape(bsz * seq, head_size * n_heads)
-        w_o = self.o_weight.reshape(head_size * n_heads, hidden)
-        out = torch.mm(x2d, w_o)
+        out = gemm(attn_out, self.o_weight, ndim=2, batch_ndim=0)
         bias_bc = (
-            self.o_bias.view(1, -1)
-            .expand(bsz * seq, -1)
+            self.o_bias.view(1, 1, hidden)
+            .expand(bsz, seq, hidden)
             .contiguous()
         )
-        out = out + bias_bc
-        return out.view(bsz, seq, hidden)
+        return out + bias_bc
 
     def forward(self, x: Tensor, causal_mask: Tensor | None) -> Tensor:
         q = self._project(x, self.q_weight, self.q_bias)

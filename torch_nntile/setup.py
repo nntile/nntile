@@ -25,6 +25,7 @@ CSRC = [
     "csrc/nntile_context.cpp",
     "csrc/nntile_graph_recorder.cpp",
     "csrc/nntile_gemm_layout.cpp",
+    "csrc/nntile_gemm.cpp",
     "csrc/nntile_executor.cpp",
     "csrc/nntile_add.cpp",
     "csrc/nntile_mul.cpp",

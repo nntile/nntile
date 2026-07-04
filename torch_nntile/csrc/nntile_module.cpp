@@ -20,6 +20,7 @@
 
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
+#include "nntile_gemm.h"
 #include "nntile_rms_norm.h"
 #include "nntile_sdpa.h"
 #include "nntile_norm.h"
@@ -287,6 +288,24 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "print_axis_groups",
         &torch_nntile::print_axis_groups,
         "Print pending TensorGraph axis groups to stdout");
+    m.def(
+        "gemm_forward",
+        &torch_nntile::gemm_forward,
+        "NNTile GEMM forward (N-D contraction, C++ graph API semantics)",
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("ndim"),
+        py::arg("batch_ndim") = 0);
+    m.def(
+        "gemm_backward",
+        &torch_nntile::gemm_backward,
+        "NNTile GEMM backward",
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("grad_out"),
+        py::arg("ndim"),
+        py::arg("batch_ndim"),
+        py::arg("output_mask"));
     m.def(
         "cross_entropy_forward",
         &torch_nntile::cross_entropy_forward,
