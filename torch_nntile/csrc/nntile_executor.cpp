@@ -619,15 +619,18 @@ namespace
 constexpr int kRedux = 0;
 
 std::vector<nntile::Index> maxsumexp_graph_shape(
-    const std::vector<nntile::Index> &logits_graph)
+    const std::vector<nntile::Index> &input_graph,
+    nntile::Index axis)
 {
-    const nntile::Index class_axis =
-        static_cast<nntile::Index>(logits_graph.size()) - 1;
     std::vector<nntile::Index> maxsumexp_shape;
-    maxsumexp_shape.reserve(logits_graph.size());
-    for (nntile::Index i = 0; i < class_axis; ++i)
+    maxsumexp_shape.reserve(input_graph.size());
+    for (nntile::Index i = 0; i < static_cast<nntile::Index>(input_graph.size());
+         ++i)
     {
-        maxsumexp_shape.push_back(logits_graph[static_cast<std::size_t>(i)]);
+        if (i != axis)
+        {
+            maxsumexp_shape.push_back(input_graph[static_cast<std::size_t>(i)]);
+        }
     }
     maxsumexp_shape.push_back(2);
     return maxsumexp_shape;
@@ -681,9 +684,9 @@ void tensor_cross_entropy_forward_fp32(
         pytorch_shape_to_graph(logits.sizes());
     const std::vector<nntile::Index> labels_graph =
         pytorch_shape_to_graph(labels.sizes());
-    const std::vector<nntile::Index> maxsumexp_graph =
-        maxsumexp_graph_shape(logits_graph);
     const nntile::Index class_axis = class_graph_axis(logits.sizes());
+    const std::vector<nntile::Index> maxsumexp_graph =
+        maxsumexp_graph_shape(logits_graph, class_axis);
     const float scale = cross_entropy_scale(
         labels.data_ptr<std::int64_t>(),
         labels.sizes(),
@@ -746,9 +749,9 @@ void tensor_cross_entropy_backward_fp32(
         pytorch_shape_to_graph(logits.sizes());
     const std::vector<nntile::Index> labels_graph =
         pytorch_shape_to_graph(labels.sizes());
-    const std::vector<nntile::Index> maxsumexp_graph =
-        maxsumexp_graph_shape(logits_graph);
     const nntile::Index class_axis = class_graph_axis(logits.sizes());
+    const std::vector<nntile::Index> maxsumexp_graph =
+        maxsumexp_graph_shape(logits_graph, class_axis);
     const float ce_scale = cross_entropy_scale(
         labels.data_ptr<std::int64_t>(),
         labels.sizes(),
@@ -847,6 +850,50 @@ void tensor_cross_entropy_backward_fp32(
         class_axis);
 
     register_data_node(grad_logits, grad_logits_node);
+    maybe_execute_after_record();
+}
+
+void tensor_softmax_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t dim)
+{
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(input.sizes());
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+    const std::vector<nntile::Index> maxsumexp_graph =
+        maxsumexp_graph_shape(input_graph, axis);
+
+    auto *src_node = get_or_create_data_node(
+        input,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *dst_node = get_or_create_data_node(
+        out,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(out));
+
+    auto &graph = *src_node->graph();
+    auto *maxsumexp_node =
+        graph.data(maxsumexp_graph, nntile::DataType::FP32)
+            ->set_name("maxsumexp");
+
+    nntile::tensor::clear(maxsumexp_node);
+    nntile::tensor::maxsumexp(
+        src_node,
+        maxsumexp_node,
+        axis,
+        kRedux);
+    nntile::tensor::softmax(
+        maxsumexp_node,
+        src_node,
+        dst_node,
+        static_cast<nntile::Scalar>(1.0),
+        axis);
+
+    register_data_node(out, dst_node);
     maybe_execute_after_record();
 }
 
@@ -967,6 +1014,63 @@ void broadcast_slice_to_keepdim(
 }
 
 } // namespace
+
+void tensor_softmax_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &output,
+    at::Tensor &grad_input,
+    int64_t dim)
+{
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(output.sizes());
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+    const std::vector<nntile::Index> reduced_graph =
+        reduced_shape_along_axis(input_graph, axis);
+
+    auto *grad_output_node = get_or_create_data_node(
+        grad_output,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_output));
+    auto *output_node = get_or_create_data_node(
+        output,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(output));
+    auto *grad_input_node = get_or_create_data_node(
+        grad_input,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_input));
+
+    nntile::TensorGraph &graph = *output_node->graph();
+    auto *sumprod_buf = make_graph_tensor(graph, reduced_graph, "sumprod_buf");
+    auto *grad_temp = make_graph_tensor(graph, input_graph, "grad_temp");
+
+    nntile::tensor::sumprod_slice(
+        output_node,
+        grad_output_node,
+        sumprod_buf,
+        axis,
+        kNormRedux,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0));
+    nntile::tensor::add_slice(
+        static_cast<nntile::Scalar>(-1.0),
+        sumprod_buf,
+        static_cast<nntile::Scalar>(1.0),
+        grad_output_node,
+        grad_temp,
+        axis);
+    nntile::tensor::multiply_inplace(
+        static_cast<nntile::Scalar>(1.0),
+        output_node,
+        grad_temp);
+    nntile::tensor::copy(grad_temp, grad_input_node);
+
+    register_data_node(grad_input, grad_input_node);
+    maybe_execute_after_record();
+}
 
 void tensor_layer_norm_forward_fp32(
     const at::Tensor &input,
@@ -2256,6 +2360,23 @@ void tensor_cross_entropy_backward_fp32(
     bool /*mean_reduction*/)
 {
     require_libnntile("cross_entropy_backward");
+}
+
+void tensor_softmax_fp32(
+    const at::Tensor & /*input*/,
+    at::Tensor & /*out*/,
+    int64_t /*dim*/)
+{
+    require_libnntile("softmax");
+}
+
+void tensor_softmax_backward_fp32(
+    const at::Tensor & /*grad_output*/,
+    const at::Tensor & /*output*/,
+    at::Tensor & /*grad_input*/,
+    int64_t /*dim*/)
+{
+    require_libnntile("softmax_backward");
 }
 
 void tensor_sgd_step_fp32(

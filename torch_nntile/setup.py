@@ -40,6 +40,8 @@ CSRC = [
     "csrc/nntile_silu_backward.cpp",
     "csrc/nntile_gelu.cpp",
     "csrc/nntile_gelu_backward.cpp",
+    "csrc/nntile_softmax.cpp",
+    "csrc/nntile_softmax_backward.cpp",
     "csrc/nntile_mm.cpp",
     "csrc/nntile_bmm.cpp",
     "csrc/nntile_addmm.cpp",
