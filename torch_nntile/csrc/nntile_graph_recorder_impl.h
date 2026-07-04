@@ -35,6 +35,8 @@ void pin_graph_op_output(const at::Tensor &output, bool is_user_visible);
 
 void on_tensor_impl_released(TensorImplKey key);
 
+void sync_runtime_to_nntile_tensor(const at::Tensor &tensor);
+
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 nntile::TensorGraph &recorder_graph();
@@ -73,7 +75,6 @@ nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
 
 void track_graph_node(nntile::TensorGraph::TensorNode *node);
 
-void sync_runtime_to_nntile_tensor(const at::Tensor &tensor);
 void record_view_alias(const at::Tensor &self, const at::Tensor &view);
 
 #endif // TORCH_NNTILE_USE_LIBNNTILE

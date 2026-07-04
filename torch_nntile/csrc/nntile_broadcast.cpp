@@ -12,6 +12,8 @@
 #include "nntile_context.h"
 #include "nntile_tensor_gc.h"
 
+#include <stdexcept>
+
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 #include <ATen/Tensor.h>

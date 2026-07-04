@@ -185,6 +185,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             forward.b_gemm_shape,
             grad_input,
             forward.a_gemm_shape);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
         nntile::TensorGraph::TensorNode *grad_input_node = lookup_data_node(
             grad_input,
             pytorch_shape_to_graph(grad_input.sizes()));
@@ -194,6 +195,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             at::Tensor grad_input_alias = grad_input;
             register_grad_alias_for_host_copy(grad_input_alias, grad_input_node);
         }
+#endif
     }
     if (output_mask[1])
     {
@@ -235,6 +237,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
                 grad_weight,
                 forward.b_gemm_shape);
         }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
         nntile::TensorGraph::TensorNode *grad_node = lookup_data_node(
             grad_weight,
             pytorch_shape_to_graph(grad_weight.sizes()));
@@ -244,6 +247,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             at::Tensor grad_weight_alias = grad_weight;
             register_grad_alias_for_host_copy(grad_weight_alias, grad_node);
         }
+#endif
     }
     return {grad_input, grad_weight, at::Tensor()};
 }

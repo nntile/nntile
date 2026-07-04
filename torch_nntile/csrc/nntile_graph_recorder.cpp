@@ -12,6 +12,7 @@
 
 #include <ATen/Tensor.h>
 #include <c10/core/DeviceType.h>
+#include <stdexcept>
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
@@ -1708,6 +1709,10 @@ void sync_nntile_storage_to_runtime(void * /*data_ptr*/)
 }
 
 void sync_runtime_to_nntile_storage(void * /*data_ptr*/)
+{
+}
+
+void sync_runtime_to_nntile_tensor(const at::Tensor & /*tensor*/)
 {
 }
 
