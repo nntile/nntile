@@ -994,31 +994,52 @@ void record_view_alias(const at::Tensor &self, const at::Tensor &view)
     {
         view_shape.push_back(static_cast<nntile::Index>(dim));
     }
-    void *data_ptr = view.data_ptr();
+    void *const view_ptr = view.data_ptr();
+    void *const self_ptr = self.data_ptr();
 
     std::lock_guard<std::mutex> lock(g_recorder_mutex);
     if (g_graph == nullptr)
     {
         return;
     }
-    const auto found = g_tensor_nodes.find(data_ptr);
-    if (found == g_tensor_nodes.end() || found->second.node == nullptr)
+
+    const MappedTensor *source = nullptr;
+    const auto view_it = g_tensor_nodes.find(view_ptr);
+    if (view_it != g_tensor_nodes.end() && view_it->second.node != nullptr)
+    {
+        source = &view_it->second;
+    }
+    else
+    {
+        const auto self_it = g_tensor_nodes.find(self_ptr);
+        if (self_it != g_tensor_nodes.end() && self_it->second.node != nullptr)
+        {
+            source = &self_it->second;
+        }
+    }
+    if (source == nullptr)
     {
         return;
     }
-    const nntile::DataType dtype = found->second.dtype;
-    if (shapes_equal(found->second.node->shape(), view_shape))
+
+    const nntile::DataType dtype = source->dtype;
+    nntile::TensorGraph::TensorNode *const src_node = source->node;
+    if (shapes_equal(src_node->shape(), view_shape))
     {
+        if (view_ptr != self_ptr)
+        {
+            g_tensor_nodes[view_ptr] = *source;
+        }
         return;
     }
     nntile::TensorGraph::TensorNode *view_node = ensure_view_alias_locked(
-        found->second.node,
+        src_node,
         view_shape,
         dtype);
-    MappedTensor updated = found->second;
+    MappedTensor updated = *source;
     updated.node = view_node;
     updated.count = static_cast<std::size_t>(graph_numel(view_shape));
-    g_tensor_nodes[data_ptr] = updated;
+    g_tensor_nodes[view_ptr] = updated;
 }
 
 void track_graph_node(nntile::TensorGraph::TensorNode *node)
