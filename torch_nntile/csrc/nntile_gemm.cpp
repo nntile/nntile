@@ -144,7 +144,19 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
 at::Tensor matmul_nd(const at::Tensor &a, const at::Tensor &b)
 {
     check_gemm_tensors(a, b);
-    const PreparedGemmOperands prepared = prepare_gemm_operands_inferred(a, b);
+    PreparedGemmOperands prepared;
+    if (a.dim() == 2 && b.dim() == 2)
+    {
+        prepared = prepare_mm_operands(a, b);
+    }
+    else if (a.dim() == 3 && b.dim() == 3 && a.size(0) == b.size(0))
+    {
+        prepared = prepare_bmm_operands(a, b);
+    }
+    else
+    {
+        prepared = prepare_gemm_operands_inferred(a, b);
+    }
     at::Tensor out = make_gemm_output(prepared.out_shape, a);
     run_gemm(prepared, out);
     return out;

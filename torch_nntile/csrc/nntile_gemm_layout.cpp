@@ -275,25 +275,39 @@ std::pair<int64_t, int64_t> infer_gemm_params(
 {
     const int64_t a_rank = static_cast<int64_t>(a_shape.size());
     const int64_t b_rank = static_cast<int64_t>(b_shape.size());
+    const int64_t max_batch = std::min(a_rank, b_rank);
 
-    int64_t batch_ndim = 0;
-    while (batch_ndim < a_rank && batch_ndim < b_rank &&
-           a_shape[batch_ndim] == b_shape[batch_ndim])
+    for (int64_t batch_ndim = 0; batch_ndim <= max_batch; ++batch_ndim)
     {
-        ++batch_ndim;
-    }
+        bool batch_ok = true;
+        for (int64_t b = 0; b < batch_ndim; ++b)
+        {
+            if (a_shape[b] != b_shape[b])
+            {
+                batch_ok = false;
+                break;
+            }
+        }
+        if (!batch_ok)
+        {
+            continue;
+        }
 
-    int64_t ndim = 0;
-    while (ndim < a_rank - batch_ndim && batch_ndim + ndim < b_rank &&
-           a_shape[a_rank - 1 - ndim] == b_shape[batch_ndim + ndim])
-    {
-        ++ndim;
+        int64_t ndim = 0;
+        while (ndim < a_rank - batch_ndim && batch_ndim + ndim < b_rank &&
+               a_shape[a_rank - 1 - ndim] == b_shape[batch_ndim + ndim])
+        {
+            ++ndim;
+        }
+        if (ndim > 0)
+        {
+            return {ndim, batch_ndim};
+        }
     }
 
     TORCH_CHECK(
-        ndim > 0,
+        false,
         "nntile gemm: no matching contraction dimensions between operands");
-    return {ndim, batch_ndim};
 }
 
 PreparedGemmOperands prepare_gemm_operands(

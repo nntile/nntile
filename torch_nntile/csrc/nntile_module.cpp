@@ -23,6 +23,7 @@
 #include "nntile_gemm.h"
 #include "nntile_rms_norm.h"
 #include "nntile_sdpa.h"
+#include "nntile_transpose.h"
 #include "nntile_norm.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
@@ -401,6 +402,18 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("grad_out"),
         py::arg("mask") = py::none(),
         py::arg("batch_ndim") = 2);
+    m.def(
+        "model_transpose_forward",
+        &torch_nntile::model_transpose_forward,
+        "NNTile model-code transpose forward",
+        py::arg("x"),
+        py::arg("model_ndim"));
+    m.def(
+        "model_transpose_backward",
+        &torch_nntile::model_transpose_backward,
+        "NNTile model-code transpose backward",
+        py::arg("grad_out"),
+        py::arg("model_ndim"));
     m.def(
         "norm_forward",
         [](const at::Tensor &input,

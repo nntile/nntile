@@ -61,6 +61,7 @@
 #include <nntile/tensor/ops/sumprod_fiber.hh>
 #include <nntile/tensor/ops/sumprod_slice.hh>
 #include <nntile/tensor/ops/total_sum_accum.hh>
+#include <nntile/tensor/ops/transpose.hh>
 
 #include <cmath>
 #include <cstring>
@@ -201,6 +202,114 @@ void tensor_add_fp32(
         static_cast<nntile::Scalar>(beta),
         y_node)->set_name("z");
     register_data_node(out_data, z_node);
+    maybe_execute_after_record();
+}
+
+void tensor_contiguous_fp32(
+    const float *src_data,
+    float *dst_data,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *src_node = get_or_create_data_node(
+        const_cast<float *>(src_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *dst_node = get_or_create_data_node(
+        dst_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::copy(src_node, dst_node);
+    register_data_node(dst_data, dst_node);
+    maybe_execute_after_record();
+}
+
+void tensor_model_transpose_forward_fp32(
+    const float *src_data,
+    c10::IntArrayRef src_shape,
+    float *dst_data,
+    int64_t model_ndim)
+{
+    const std::vector<nntile::Index> src_graph =
+        pytorch_shape_to_graph(src_shape);
+    const nntile::Index n = static_cast<nntile::Index>(src_graph.size());
+    TORCH_CHECK(
+        model_ndim > 0 && model_ndim < static_cast<int64_t>(n),
+        "nntile model_transpose: invalid model_ndim");
+    const nntile::Index tensor_ndim =
+        n - static_cast<nntile::Index>(model_ndim);
+
+    std::vector<nntile::Index> dst_graph(static_cast<std::size_t>(n));
+    for (nntile::Index i = 0; i < n; ++i)
+    {
+        dst_graph[static_cast<std::size_t>(i)] =
+            src_graph[static_cast<std::size_t>((i + tensor_ndim) % n)];
+    }
+
+    auto *src_node = get_or_create_data_node(
+        const_cast<float *>(src_data),
+        src_graph,
+        nntile::DataType::FP32,
+        true);
+    auto *dst_node = get_or_create_data_node(
+        dst_data,
+        dst_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::transpose(
+        static_cast<nntile::Scalar>(1.0),
+        src_node,
+        dst_node,
+        tensor_ndim);
+    register_data_node(dst_data, dst_node);
+    maybe_execute_after_record();
+}
+
+void tensor_model_transpose_backward_fp32(
+    const float *grad_out_data,
+    c10::IntArrayRef grad_out_shape,
+    float *grad_src_data,
+    int64_t model_ndim)
+{
+    const std::vector<nntile::Index> grad_out_graph =
+        pytorch_shape_to_graph(grad_out_shape);
+    const nntile::Index n =
+        static_cast<nntile::Index>(grad_out_graph.size());
+    TORCH_CHECK(
+        model_ndim > 0 && model_ndim < static_cast<int64_t>(n),
+        "nntile model_transpose backward: invalid model_ndim");
+
+    std::vector<nntile::Index> grad_src_graph(static_cast<std::size_t>(n));
+    for (nntile::Index i = 0; i < n; ++i)
+    {
+        grad_src_graph[static_cast<std::size_t>(i)] =
+            grad_out_graph[static_cast<std::size_t>(
+                (i + static_cast<nntile::Index>(model_ndim)) % n)];
+    }
+
+    auto *grad_out_node = get_or_create_data_node(
+        const_cast<float *>(grad_out_data),
+        grad_out_graph,
+        nntile::DataType::FP32,
+        true);
+    auto *grad_src_node = get_or_create_data_node(
+        grad_src_data,
+        grad_src_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::transpose(
+        static_cast<nntile::Scalar>(1.0),
+        grad_out_node,
+        grad_src_node,
+        static_cast<nntile::Index>(model_ndim));
+    register_data_node(grad_src_data, grad_src_node);
     maybe_execute_after_record();
 }
 
@@ -2507,6 +2616,32 @@ void tensor_add_fp32(
     c10::IntArrayRef /*pytorch_shape*/)
 {
     require_libnntile("add");
+}
+
+void tensor_contiguous_fp32(
+    const float * /*src_data*/,
+    float * /*dst_data*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("contiguous");
+}
+
+void tensor_model_transpose_forward_fp32(
+    const float * /*src_data*/,
+    c10::IntArrayRef /*src_shape*/,
+    float * /*dst_data*/,
+    int64_t /*model_ndim*/)
+{
+    require_libnntile("model_transpose_forward");
+}
+
+void tensor_model_transpose_backward_fp32(
+    const float * /*grad_out_data*/,
+    c10::IntArrayRef /*grad_out_shape*/,
+    float * /*grad_src_data*/,
+    int64_t /*model_ndim*/)
+{
+    require_libnntile("model_transpose_backward");
 }
 
 void tensor_add_inplace_fp32(
