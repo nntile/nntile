@@ -16,41 +16,6 @@ from transformers import GPT2Config
 from torch_nntile.nn import SDPA
 
 
-class _NntileModelTranspose(torch.autograd.Function):
-    """``nntile::transpose(src, model_ndim)`` cyclic axis reordering.
-
-    Matches ``nntile/src/model/gpt2/gpt2_attention.cc`` (``transpose(q_proj, 1)``
-    before SDPA and ``transpose(attn_out, 3)`` before output GEMM). Uses an
-    explicit autograd wrapper because nntile view-transpose backward is not
-    wired through ATen yet.
-    """
-
-    @staticmethod
-    def forward(ctx, x: Tensor, model_ndim: int) -> Tensor:
-        n = x.dim()
-        if model_ndim <= 0 or model_ndim >= n:
-            raise ValueError(
-                f"model_ndim must be in (0, {n}), got {model_ndim}"
-            )
-        tensor_ndim = n - model_ndim
-        perm = [(i + tensor_ndim) % n for i in range(n)]
-        inv = [0] * n
-        for out_i, src_i in enumerate(perm):
-            inv[src_i] = out_i
-        ctx.inv_perm = inv
-        return x.permute(*perm).contiguous()
-
-    @staticmethod
-    def backward(ctx, grad_out: Tensor) -> tuple[Tensor, None]:
-        inv = ctx.inv_perm
-        return grad_out.permute(*inv).contiguous(), None
-
-
-def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:
-    """Apply model-code transpose axis (storage order) on nntile tensors."""
-    return _NntileModelTranspose.apply(x, model_ndim)
-
-
 def make_causal_sdpa_mask(seq_len: int, device: torch.device | None = None) -> Tensor:
     """BOOL causal mask ``[seq, seq]`` with ``mask[q, k] = (k <= q)``."""
     q_idx = torch.arange(seq_len, device=device)
@@ -142,7 +107,7 @@ class GPT2Attention(nn.Module):
         weight: Tensor,
         bias: Tensor,
     ) -> Tensor:
-        """``gemm`` + ``transpose(..., 1)`` + bias, mirroring C++ Q/K/V path."""
+        """``gemm(x, w)`` + bias → ``[batch, seq, head_size, n_heads]``."""
         bsz, seq, hidden = x.shape
         head_size = weight.size(1)
         n_heads = weight.size(2)
@@ -151,20 +116,19 @@ class GPT2Attention(nn.Module):
             x2d,
             weight.reshape(hidden, head_size * n_heads),
         ).view(bsz, seq, head_size, n_heads)
-        out = nntile_model_transpose(proj, 1)
         bias_bc = (
-            bias.view(n_heads, 1, 1, head_size)
-            .expand(n_heads, bsz, seq, head_size)
+            bias.transpose(0, 1)
+            .view(1, 1, head_size, n_heads)
+            .expand(bsz, seq, head_size, n_heads)
             .contiguous()
         )
-        return out + bias_bc
+        return proj + bias_bc
 
     def _output_proj(self, attn_out: Tensor) -> Tensor:
-        """``transpose(..., 3)`` + ``gemm`` + bias, mirroring C++ output path."""
-        n_heads, bsz, seq, head_size = attn_out.shape
+        """``gemm(attn, w_o)`` + bias on post-SDPA projection layout."""
+        bsz, seq, head_size, n_heads = attn_out.shape
         hidden = self.hidden
-        attn_t = nntile_model_transpose(attn_out, 3)
-        x2d = attn_t.reshape(bsz * seq, head_size * n_heads)
+        x2d = attn_out.reshape(bsz * seq, head_size * n_heads)
         w_o = self.o_weight.reshape(head_size * n_heads, hidden)
         out = torch.mm(x2d, w_o)
         bias_bc = (

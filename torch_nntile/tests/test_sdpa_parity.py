@@ -193,9 +193,10 @@ def test_sdpa_backward_rejects_mismatched_grad_out():
 
 def test_sdpa_module_forward():
     mod = SDPA(batch_ndim=2)
-    q = torch.randn(2, 1, 4, 8).to("nntile")
-    k = torch.randn(2, 1, 4, 8).to("nntile")
-    v = torch.randn(2, 1, 4, 8).to("nntile")
+    # Post-GEMM layout: [batch, seq, head_size, n_heads]
+    q = torch.randn(1, 4, 8, 2).to("nntile")
+    k = torch.randn(1, 4, 8, 2).to("nntile")
+    v = torch.randn(1, 4, 8, 2).to("nntile")
     out = mod(q, k, v)
     assert out.shape == q.shape
 
