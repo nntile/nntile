@@ -1102,7 +1102,8 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
         return;
     }
     const TensorImplKey impl_key = tensor_impl_key(src);
-    nntile::TensorGraph::TensorNode *node = node_for_impl_locked(impl_key);
+    nntile::TensorGraph::TensorNode *node =
+        session_node_for_impl_locked(impl_key);
     if (node == nullptr)
     {
         return;
@@ -1475,10 +1476,7 @@ void pin_graph_op_output(const at::Tensor &output, bool pin_output)
     {
         return;
     }
-    if (has_host_staging(output))
-    {
-        pin_tensor_for_graph(output);
-    }
+    pin_tensor_for_graph(output);
 }
 
 void set_axis_group_name(

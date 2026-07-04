@@ -439,12 +439,14 @@ at::Tensor copy_from(
             if (has_graph_session())
             {
                 wait_for_all();
-                if (is_metadata_only_tensor(self))
+                if (!has_host_staging(self))
                 {
                     copy_nntile_tensor_to_cpu(self, mutable_dst);
                     return dst;
                 }
                 sync_runtime_to_nntile_tensor(self);
+                memcpy_tensors(self, mutable_dst);
+                return dst;
             }
         }
         else
@@ -454,6 +456,15 @@ at::Tensor copy_from(
         }
     }
     if (is_nntile_device(mutable_dst.device()) && self.is_cpu())
+    {
+        ensure_host_staging(mutable_dst);
+        mark_staged_input_tensor(mutable_dst);
+    }
+    else if (
+        is_nntile_device(self.device()) &&
+        is_nntile_device(mutable_dst.device()) &&
+        !has_host_staging(mutable_dst) &&
+        self.nbytes() > 0)
     {
         ensure_host_staging(mutable_dst);
     }

@@ -74,10 +74,6 @@ at::Tensor cross_entropy_forward(
         "nntile cross_entropy supports reduction mean (1) or sum (2) only");
 
     at::Tensor loss = at::empty({}, logits.options().dtype(at::kFloat));
-    if (is_graph_mode())
-    {
-        ensure_host_staging(loss);
-    }
     pin_graph_op_inputs({logits, target});
     pin_graph_op_output(loss, is_graph_mode());
     tensor_cross_entropy_forward_fp32(
@@ -107,7 +103,6 @@ at::Tensor cross_entropy_backward(
         is_nntile_device(grad_output.device()),
         "nntile cross_entropy_backward: grad_output must be on device nntile");
     at::Tensor grad_out = grad_output;
-    ensure_host_staging(grad_out);
     at::Tensor grad_logits = at::empty_like(logits);
     at::Tensor grad_row = at::empty(target.sizes(), logits.options());
     pin_graph_op_inputs({logits, target, grad_out});

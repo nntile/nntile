@@ -38,6 +38,14 @@ TensorImplKey tensor_impl_key(const at::Tensor &tensor)
 
 bool is_metadata_only_tensor(const at::Tensor &tensor)
 {
+    if (tensor.device().type() != c10::DeviceType::PrivateUse1)
+    {
+        return false;
+    }
+    if (tensor.storage().nbytes() == 0)
+    {
+        return true;
+    }
     std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
     return g_metadata_only_impls.count(tensor_impl_key(tensor)) != 0;
 }
@@ -142,7 +150,6 @@ void ensure_host_staging(at::Tensor &tensor)
 {
     if (has_host_staging(tensor))
     {
-        mark_staged_input_tensor(tensor);
         return;
     }
     const int64_t nbytes = tensor.numel() * tensor.element_size();
@@ -156,7 +163,6 @@ void ensure_host_staging(at::Tensor &tensor)
         allocator,
         /*resizable=*/true);
     tensor.unsafeGetTensorImpl()->set_storage_keep_dtype(std::move(storage));
-    mark_staged_input_tensor(tensor);
 }
 
 } // namespace torch_nntile
