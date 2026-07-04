@@ -140,7 +140,9 @@ on CPU while weights are on `device="nntile"`.
 **SDPA v1 limits:** `float32` only; Q/K/V on
 `device="nntile"` in NNTile layout `[batch..., seq, head_size]` (e.g.
 `(n_heads, batch, seq, head_size)` with `batch_ndim=2`); optional BOOL mask
-`[k_seq, q_seq]` on CPU or nntile; fixed scale `1/sqrt(head_size)`. Use
+`[k_seq, q_seq]` on CPU or nntile; fixed scale `1/sqrt(head_size)`. Works in
+both eager and graph runtime modes (graph defers execution until
+``compile_graph()`` / ``run()`` or ``execute()``). Use
 `torch_nntile.nn.weight_layout` to convert HF/PyTorch attention weights before
 NNTile-layout projection GEMMs. No dropout, causal flag, GQA, or custom scale.
 
