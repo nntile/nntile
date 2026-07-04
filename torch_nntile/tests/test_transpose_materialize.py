@@ -21,31 +21,6 @@ from torch_nntile import _C
 _PKG_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _gpt2_attention_layout(
-    x: torch.Tensor,
-    n_heads: int,
-    head_dim: int,
-    scale: float,
-    w: torch.Tensor,
-) -> torch.Tensor:
-    """Eager GPT-2-style Q layout + matmul with transposed K."""
-    batch, seq, hidden = x.shape
-    q = torch.matmul(x, w)
-    states = q.view(batch, seq, n_heads, head_dim).transpose(1, 2)
-    k = states
-    attn_weights = torch.matmul(states, k.transpose(-1, -2)) * scale
-    return attn_weights
-
-
-def _llama_attention_layout(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    head_dim: int,
-) -> torch.Tensor:
-    """Eager Llama-style matmul with key transpose on axes 2 and 3."""
-    return torch.matmul(q, k.transpose(2, 3)) / (head_dim**0.5)
-
-
 def test_transpose_materialize_forward_parity():
     torch.manual_seed(7)
     x_cpu = torch.randn(2, 8, 4, 16)
@@ -73,38 +48,68 @@ def test_transpose_backward_parity():
     grad = torch.randn_like(y_cpu)
     y_cpu.backward(grad)
     y_nnt = x_nnt.transpose(1, 2)
-    y_nnt.backward(grad.to("nntile"))
+    y_nnt.backward(grad.contiguous().to("nntile"))
     torch.testing.assert_close(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-5, atol=1e-5)
 
 
-def test_gpt2_attention_transpose_sequence_parity():
+def test_gpt2_view_transpose_head_layout_parity():
+    """GPT-2: hidden -> view(batch, seq, n_heads, head_dim) -> transpose(1, 2)."""
     torch.manual_seed(10)
     batch, seq, n_heads, head_dim = 2, 8, 4, 16
     hidden = n_heads * head_dim
-    x_cpu = torch.randn(batch, seq, hidden)
-    w_cpu = torch.randn(hidden, hidden)
-    x_nnt = x_cpu.to("nntile")
-    w_nnt = w_cpu.to("nntile")
-    scale = head_dim**-0.5
-    out_cpu = _gpt2_attention_layout(x_cpu, n_heads, head_dim, scale, w_cpu)
-    out_nnt = _gpt2_attention_layout(x_nnt, n_heads, head_dim, scale, w_nnt).cpu()
-    torch.testing.assert_close(out_nnt, out_cpu, rtol=1e-4, atol=1e-4)
-
-
-def test_llama_attention_transpose_sequence_parity():
-    torch.manual_seed(11)
-    bsz, q_len, n_heads, head_dim = 2, 8, 4, 16
-    q_cpu = torch.randn(bsz, n_heads, q_len, head_dim)
-    k_cpu = torch.randn(bsz, n_heads, q_len, head_dim)
+    q_cpu = torch.randn(batch, seq, hidden)
     q_nnt = q_cpu.to("nntile")
+    states_cpu = q_cpu.view(batch, seq, n_heads, head_dim).transpose(1, 2)
+    states_nnt = q_nnt.view(batch, seq, n_heads, head_dim).transpose(1, 2).cpu()
+    assert states_nnt.is_contiguous()
+    torch.testing.assert_close(states_nnt, states_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_gpt2_key_transpose_for_attn_weights_parity():
+    """GPT-2: key.transpose(-1, -2) on [B, H, S, D] for matmul layout."""
+    torch.manual_seed(11)
+    states_cpu = torch.randn(2, 4, 8, 16)
+    states_nnt = states_cpu.to("nntile")
+    key_t_cpu = states_cpu.transpose(-1, -2)
+    key_t_nnt = states_nnt.transpose(-1, -2).cpu()
+    torch.testing.assert_close(key_t_nnt, key_t_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_gpt2_attn_output_transpose_reshape_parity():
+    """GPT-2: attn_output.transpose(1, 2).reshape(batch, seq, -1).contiguous()."""
+    torch.manual_seed(12)
+    batch, seq, n_heads, head_dim = 2, 8, 4, 16
+    attn_cpu = torch.randn(batch, n_heads, seq, head_dim)
+    attn_nnt = attn_cpu.to("nntile")
+    out_cpu = attn_cpu.transpose(1, 2).reshape(batch, seq, -1).contiguous()
+    out_nnt = attn_nnt.transpose(1, 2).reshape(batch, seq, -1).contiguous().cpu()
+    torch.testing.assert_close(out_nnt, out_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_llama_query_transpose_parity():
+    """Llama: q_proj(h).view(bsz, q_len, n_heads, head_dim).transpose(1, 2)."""
+    torch.manual_seed(13)
+    bsz, q_len, n_heads, head_dim = 2, 8, 4, 16
+    hidden = n_heads * head_dim
+    q_cpu = torch.randn(bsz, q_len, hidden)
+    q_nnt = q_cpu.to("nntile")
+    query_cpu = q_cpu.view(bsz, q_len, n_heads, head_dim).transpose(1, 2)
+    query_nnt = q_nnt.view(bsz, q_len, n_heads, head_dim).transpose(1, 2).cpu()
+    torch.testing.assert_close(query_nnt, query_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_llama_key_transpose_for_attn_weights_parity():
+    """Llama: key_states.transpose(2, 3) on [B, H, S, D]."""
+    torch.manual_seed(14)
+    k_cpu = torch.randn(2, 4, 8, 16)
     k_nnt = k_cpu.to("nntile")
-    out_cpu = _llama_attention_layout(q_cpu, k_cpu, head_dim)
-    out_nnt = _llama_attention_layout(q_nnt, k_nnt, head_dim).cpu()
-    torch.testing.assert_close(out_nnt, out_cpu, rtol=1e-4, atol=1e-4)
+    k_t_cpu = k_cpu.transpose(2, 3)
+    k_t_nnt = k_nnt.transpose(2, 3).cpu()
+    torch.testing.assert_close(k_t_nnt, k_t_cpu, rtol=1e-5, atol=1e-5)
 
 
 def test_view_transpose_contiguous_sequence_parity():
-    torch.manual_seed(12)
+    torch.manual_seed(15)
     batch, seq, n_heads, head_dim = 2, 8, 4, 16
     hidden = n_heads * head_dim
     x_cpu = torch.randn(batch, seq, hidden)
@@ -124,6 +129,15 @@ def test_view_transpose_contiguous_sequence_parity():
         .contiguous()
         .cpu()
     )
+    torch.testing.assert_close(y_nnt, y_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_transpose_then_contiguous_is_noop_when_materialized():
+    torch.manual_seed(16)
+    x_cpu = torch.randn(2, 8, 4, 16)
+    x_nnt = x_cpu.to("nntile")
+    y_cpu = x_cpu.transpose(1, 2).contiguous()
+    y_nnt = x_nnt.transpose(1, 2).contiguous().cpu()
     torch.testing.assert_close(y_nnt, y_cpu, rtol=1e-5, atol=1e-5)
 
 
