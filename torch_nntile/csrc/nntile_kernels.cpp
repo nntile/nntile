@@ -6,7 +6,9 @@
 
 #include "nntile_allocator.h"
 #include "nntile_context.h"
+#include "nntile_executor.h"
 #include "nntile_graph_recorder.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
@@ -306,7 +308,11 @@ at::Tensor view(const at::Tensor &self, at::IntArrayRef size)
     TORCH_CHECK(
         stride.has_value(),
         "view size is not compatible with input tensor's size and stride");
-    return reshape_alias(self, inferred, *stride);
+    at::Tensor result = reshape_alias(self, inferred, *stride);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    record_view_alias(self, result);
+#endif
+    return result;
 }
 
 const at::Tensor &resize_(
@@ -500,10 +506,14 @@ at::Tensor permute(const at::Tensor &self, at::IntArrayRef dims)
         sizes[static_cast<size_t>(i)] = self.size(src);
         strides[static_cast<size_t>(i)] = self.stride(src);
     }
-    return reshape_alias(
+    at::Tensor result = reshape_alias(
         self,
         c10::IntArrayRef(sizes),
         c10::IntArrayRef(strides));
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    record_view_alias(self, result);
+#endif
+    return result;
 }
 
 at::Tensor contiguous(
@@ -531,6 +541,15 @@ at::Tensor contiguous(
     }
     const float *src = self.data_ptr<float>();
     float *dst = result.data_ptr<float>();
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_graph_mode())
+    {
+        pin_graph_op_inputs({self});
+        pin_graph_op_output(result, true);
+        tensor_contiguous_fp32(src, dst, self.sizes());
+        return result;
+    }
+#endif
     copy_strided_to_contiguous_f32(
         src,
         dst,

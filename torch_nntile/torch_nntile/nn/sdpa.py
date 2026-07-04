@@ -15,6 +15,27 @@ from torch import Tensor
 from torch_nntile import _C
 
 
+class _NntileModelTranspose(torch.autograd.Function):
+    """``nntile::transpose(src, model_ndim)`` cyclic axis reordering.
+
+    Matches ``nntile/src/nn/ops/transpose.cc`` model-code axis semantics.
+    """
+
+    @staticmethod
+    def forward(ctx, x: Tensor, model_ndim: int) -> Tensor:
+        ctx.model_ndim = int(model_ndim)
+        return _C.model_transpose_forward(x, int(model_ndim))
+
+    @staticmethod
+    def backward(ctx, grad_out: Tensor) -> tuple[Tensor, None]:
+        return _C.model_transpose_backward(grad_out, ctx.model_ndim), None
+
+
+def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:
+    """Apply model-code transpose axis (storage order) on nntile tensors."""
+    return _NntileModelTranspose.apply(x, model_ndim)
+
+
 class _NntileSdpaEager(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -53,12 +74,15 @@ def sdpa_eager(
     *,
     batch_ndim: int = 2,
 ) -> Tensor:
-    """NNTile-layout SDPA eager on ``device='nntile'``.
+    """SDPA on post-GEMM Q/K/V layout ``[batch, seq, head_size, n_heads]``.
 
-    Q/K/V shape ``[batch..., seq, head_size]`` (C-order). Optional BOOL mask
-    ``[q_seq, k_seq]`` on CPU or nntile (dim0 = query, dim1 = key, matching
-    ``tensor::mask_scalar`` / GPT-2 ``attn_mask``). Scale is ``1/sqrt(head_size)``.
-  """
+    Internally applies ``transpose(..., 1)``, calls the NNTile-layout kernel
+    (e.g. ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``), then
+    ``transpose(..., 3)`` on the output — matching
+    ``nntile/src/model/gpt2/gpt2_attention.cc`` around ``sdpa_eager``.
+    Optional BOOL mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key). Scale is
+    ``1/sqrt(head_size)``.
+    """
     if q.device.type != "nntile":
         raise ValueError("sdpa_eager expects nntile Q/K/V tensors")
     if k.device.type != "nntile" or v.device.type != "nntile":
@@ -67,11 +91,19 @@ def sdpa_eager(
         raise ValueError("nntile sdpa supports float32 only")
     if mask is not None and mask.dtype != torch.bool:
         raise ValueError("nntile sdpa: mask must be bool")
-    return _NntileSdpaEager.apply(q, k, v, mask, batch_ndim)
+    q_sdpa = nntile_model_transpose(q, 1)
+    k_sdpa = nntile_model_transpose(k, 1)
+    v_sdpa = nntile_model_transpose(v, 1)
+    attn_out = _NntileSdpaEager.apply(q_sdpa, k_sdpa, v_sdpa, mask, batch_ndim)
+    return nntile_model_transpose(attn_out, 3)
 
 
 class SDPA(nn.Module):
-    """Scaled dot-product attention via libnntile ``sdpa_eager``."""
+    """Scaled dot-product attention for post-GEMM Q/K/V tensors.
+
+    Accepts Q/K/V in projection layout ``[batch, seq, head_size, n_heads]``.
+    Delegates to ``sdpa_eager`` (transposes are handled there).
+    """
 
     def __init__(self, batch_ndim: int = 2) -> None:
         super().__init__()
@@ -87,4 +119,4 @@ class SDPA(nn.Module):
         return sdpa_eager(q, k, v, mask, batch_ndim=self.batch_ndim)
 
 
-__all__ = ["SDPA", "sdpa_eager"]
+__all__ = ["SDPA", "nntile_model_transpose", "sdpa_eager"]

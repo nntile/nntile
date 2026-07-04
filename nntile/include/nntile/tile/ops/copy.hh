@@ -39,6 +39,28 @@ struct TileCopyOp : TileGraph::OpNode
     }
 };
 
+struct TileCopySameNumelOp : TileGraph::OpNode
+{
+    TileGraph::TileNode* src = nullptr;
+    TileGraph::TileNode* dst = nullptr;
+    TileCopySameNumelOp() = default;
+    TileCopySameNumelOp(TileGraph::TileNode* s, TileGraph::TileNode* d) :
+        src(s), dst(d)
+    {
+        inputs_ = {src};
+        outputs_ = {dst};
+    }
+    std::string op_name() const override { return "TILE_COPY_SAME_NUMEL"; }
+    void execute(Runtime& runtime) const override;
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileCopySameNumelOp>(*this);
+    }
+};
+
 //! Copy: dst = src (uses existing output)
 void copy(TileGraph::TileNode* src, TileGraph::TileNode* dst);
+
+//! Copy contiguous buffers when shapes may differ but numel matches
+void copy_same_numel(TileGraph::TileNode* src, TileGraph::TileNode* dst);
 } // namespace nntile::tile

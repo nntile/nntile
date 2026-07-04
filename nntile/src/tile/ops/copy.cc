@@ -18,6 +18,7 @@
 #include <nntile/dtype.hh>
 #include <nntile/core.hh>
 #include <nntile/core/copy.hh>
+#include <nntile/starpu/copy.hh>
 
 #include <nntile/runtime.hh>
 namespace nntile::tile
@@ -28,6 +29,28 @@ template<typename T>
 void run_cp(Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
     nntile::core::copy<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(s), runtime.get_tile<T>(d));
+}
+
+template<typename T>
+void run_cp_same_numel(
+    Runtime& runtime,
+    TileGraph::TileNode* s,
+    TileGraph::TileNode* d)
+{
+    if (s->nelems() != d->nelems())
+    {
+        throw std::runtime_error("tile copy_same_numel: numel mismatch");
+    }
+    auto& src_tile = runtime.get_tile<T>(s);
+    auto& dst_tile = runtime.get_tile<T>(d);
+    if (src_tile.nelems != dst_tile.nelems)
+    {
+        throw std::runtime_error("tile copy_same_numel: buffer numel mismatch");
+    }
+    starpu::copy.submit(
+        runtime.starpu_worker_hint(),
+        src_tile,
+        dst_tile);
 }
 } // namespace
 void copy(TileGraph::TileNode* src, TileGraph::TileNode* dst)
@@ -76,6 +99,69 @@ void TileCopyOp::execute(Runtime& runtime) const
             break;
         default:
             throw std::runtime_error("Unsupported data type for tile copy");
+    }
+}
+
+void copy_same_numel(TileGraph::TileNode* src, TileGraph::TileNode* dst)
+{
+    if (!src || !dst)
+    {
+        throw std::invalid_argument("tile copy_same_numel: null");
+    }
+    if (src->graph() != dst->graph())
+    {
+        throw std::invalid_argument("tile copy_same_numel: same graph");
+    }
+    if (src->dtype() != dst->dtype())
+    {
+        throw std::invalid_argument("tile copy_same_numel: dtype");
+    }
+    if (src == dst)
+    {
+        throw std::invalid_argument("tile copy_same_numel: distinct");
+    }
+    if (src->nelems() != dst->nelems())
+    {
+        throw std::invalid_argument("tile copy_same_numel: numel mismatch");
+    }
+    src->graph()->add_op(std::make_shared<TileCopySameNumelOp>(src, dst));
+}
+
+void TileCopySameNumelOp::execute(Runtime& runtime) const
+{
+    DataType dtype = runtime.get_dtype(src);
+    switch (dtype)
+    {
+        case DataType::FP32:
+            run_cp_same_numel<nntile::fp32_t>(runtime, src, dst);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_cp_same_numel<nntile::fp32_fast_tf32_t>(runtime, src, dst);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_cp_same_numel<nntile::fp32_fast_fp16_t>(runtime, src, dst);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_cp_same_numel<nntile::fp32_fast_bf16_t>(runtime, src, dst);
+            break;
+        case DataType::FP64:
+            run_cp_same_numel<nntile::fp64_t>(runtime, src, dst);
+            break;
+        case DataType::FP16:
+            run_cp_same_numel<nntile::fp16_t>(runtime, src, dst);
+            break;
+        case DataType::BF16:
+            run_cp_same_numel<nntile::bf16_t>(runtime, src, dst);
+            break;
+        case DataType::INT64:
+            run_cp_same_numel<nntile::int64_t>(runtime, src, dst);
+            break;
+        case DataType::BOOL:
+            run_cp_same_numel<nntile::bool_t>(runtime, src, dst);
+            break;
+        default:
+            throw std::runtime_error(
+                "Unsupported data type for tile copy_same_numel");
     }
 }
 } // namespace nntile::tile

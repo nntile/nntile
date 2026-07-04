@@ -33,6 +33,23 @@ void tensor_add_fp32(
     float *out_data,
     c10::IntArrayRef pytorch_shape);
 
+void tensor_contiguous_fp32(
+    const float *src_data,
+    float *dst_data,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_model_transpose_forward_fp32(
+    const float *src_data,
+    c10::IntArrayRef src_shape,
+    float *dst_data,
+    int64_t model_ndim);
+
+void tensor_model_transpose_backward_fp32(
+    const float *grad_out_data,
+    c10::IntArrayRef grad_out_shape,
+    float *grad_src_data,
+    int64_t model_ndim);
+
 void tensor_add_inplace_fp32(
     float alpha,
     const float *other_data,

@@ -42,6 +42,31 @@ def _nntile_context_no_fallback():
     yield
 
 
+def _projection_to_kernel_layout(x: torch.Tensor) -> torch.Tensor:
+    """``[batch, seq, head_size, n_heads]`` -> ``[n_heads, batch, seq, head_size]``."""
+    return x.permute(3, 0, 1, 2).contiguous()
+
+
+def _kernel_to_projection_layout(x: torch.Tensor) -> torch.Tensor:
+    """``[n_heads, batch, seq, head_size]`` -> ``[batch, seq, head_size, n_heads]``."""
+    return x.permute(1, 2, 3, 0).contiguous()
+
+
+def _reference_sdpa_projection(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    mask: torch.Tensor | None,
+) -> torch.Tensor:
+    out = _reference_sdpa_eager(
+        _projection_to_kernel_layout(q),
+        _projection_to_kernel_layout(k),
+        _projection_to_kernel_layout(v),
+        mask,
+    )
+    return _kernel_to_projection_layout(out)
+
+
 def _reference_sdpa_eager(
     q: torch.Tensor,
     k: torch.Tensor,
@@ -72,9 +97,9 @@ def _reference_sdpa_eager(
 @pytest.mark.parametrize(
     "shape",
     [
-        (4, 2, 8, 16),
-        (2, 3, 6, 8),
-        (1, 1, 4, 8),
+        (2, 8, 16, 4),
+        (3, 6, 8, 2),
+        (1, 4, 8, 1),
     ],
 )
 def test_sdpa_forward_matches_reference(shape):
@@ -82,7 +107,7 @@ def test_sdpa_forward_matches_reference(shape):
     q_cpu = torch.randn(*shape)
     k_cpu = torch.randn(*shape)
     v_cpu = torch.randn(*shape)
-    ref = _reference_sdpa_eager(q_cpu, k_cpu, v_cpu, None)
+    ref = _reference_sdpa_projection(q_cpu, k_cpu, v_cpu, None)
 
     q = q_cpu.to("nntile")
     k = k_cpu.to("nntile")
@@ -92,13 +117,13 @@ def test_sdpa_forward_matches_reference(shape):
     assert not torch_nntile.has_pending_graph()
 
 
-@pytest.mark.parametrize("shape", [(4, 2, 8, 16), (2, 3, 6, 8)])
+@pytest.mark.parametrize("shape", [(2, 8, 16, 4), (3, 6, 8, 2)])
 def test_sdpa_backward_matches_reference(shape):
     torch.manual_seed(1)
     q_cpu = torch.randn(*shape, requires_grad=True)
     k_cpu = torch.randn(*shape, requires_grad=True)
     v_cpu = torch.randn(*shape, requires_grad=True)
-    ref = _reference_sdpa_eager(q_cpu, k_cpu, v_cpu, None)
+    ref = _reference_sdpa_projection(q_cpu, k_cpu, v_cpu, None)
     grad_out = torch.randn_like(ref)
     ref.backward(grad_out)
 
@@ -114,8 +139,8 @@ def test_sdpa_backward_matches_reference(shape):
 
 
 def test_sdpa_forward_with_mask_matches_reference():
-    shape = (2, 2, 6, 8)
-    seq = shape[2]
+    shape = (2, 6, 8, 2)
+    seq = shape[1]
     torch.manual_seed(2)
     q_cpu = torch.randn(*shape)
     k_cpu = torch.randn(*shape)
@@ -125,7 +150,7 @@ def test_sdpa_forward_with_mask_matches_reference():
         for key in range(seq):
             mask[query, key] = key <= query
 
-    ref = _reference_sdpa_eager(q_cpu, k_cpu, v_cpu, mask)
+    ref = _reference_sdpa_projection(q_cpu, k_cpu, v_cpu, mask)
     out = sdpa_eager(
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
@@ -138,8 +163,8 @@ def test_sdpa_forward_with_mask_matches_reference():
 
 def test_sdpa_mask_axis_order_matches_causal_layout():
     """Mask dim0=query, dim1=key (libnntile sdpa_causal_mask_bool_fill layout)."""
-    shape = (1, 1, 5, 8)
-    seq = shape[2]
+    shape = (1, 5, 8, 1)
+    seq = shape[1]
     torch.manual_seed(7)
     q_cpu = torch.randn(*shape)
     k_cpu = torch.randn(*shape)
@@ -149,7 +174,7 @@ def test_sdpa_mask_axis_order_matches_causal_layout():
         for key in range(seq):
             mask[query, key] = key <= query
 
-    ref = _reference_sdpa_eager(q_cpu, k_cpu, v_cpu, mask)
+    ref = _reference_sdpa_projection(q_cpu, k_cpu, v_cpu, mask)
     out = sdpa_eager(
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
@@ -193,17 +218,18 @@ def test_sdpa_backward_rejects_mismatched_grad_out():
 
 def test_sdpa_module_forward():
     mod = SDPA(batch_ndim=2)
-    q = torch.randn(2, 1, 4, 8).to("nntile")
-    k = torch.randn(2, 1, 4, 8).to("nntile")
-    v = torch.randn(2, 1, 4, 8).to("nntile")
+    # Post-GEMM layout: [batch, seq, head_size, n_heads]
+    q = torch.randn(1, 4, 8, 2).to("nntile")
+    k = torch.randn(1, 4, 8, 2).to("nntile")
+    v = torch.randn(1, 4, 8, 2).to("nntile")
     out = mod(q, k, v)
     assert out.shape == q.shape
 
 
 def test_sdpa_rejects_cpu_tensors():
-    q = torch.randn(2, 1, 4, 8)
-    k = torch.randn(2, 1, 4, 8)
-    v = torch.randn(2, 1, 4, 8)
+    q = torch.randn(1, 4, 8, 2)
+    k = torch.randn(1, 4, 8, 2)
+    v = torch.randn(1, 4, 8, 2)
     with pytest.raises(ValueError, match="nntile"):
         sdpa_eager(q, k, v)
 
@@ -237,19 +263,22 @@ def test_sdpa_graph_mode_deferred_until_execute():
         )
         torch_nntile.restrict_cpu()
 
-        shape = (2, 1, 4, 8)
+        shape = (1, 4, 8, 2)
         q_cpu = torch.randn(*shape, requires_grad=True)
         k_cpu = torch.randn(*shape, requires_grad=True)
         v_cpu = torch.randn(*shape, requires_grad=True)
+        q_ker = q_cpu.permute(3, 0, 1, 2).contiguous()
+        k_ker = k_cpu.permute(3, 0, 1, 2).contiguous()
+        v_ker = v_cpu.permute(3, 0, 1, 2).contiguous()
         ref = torch.einsum(
             "...ce,...ed->...cd",
             torch.softmax(
-                torch.einsum("...ed,...cd->...ce", k_cpu, q_cpu)
-                * (shape[-1] ** -0.5),
+                torch.einsum("...ed,...cd->...ce", k_ker, q_ker)
+                * (shape[-2] ** -0.5),
                 dim=-1,
             ),
-            v_cpu,
-        )
+            v_ker,
+        ).permute(1, 2, 3, 0).contiguous()
         grad_out = torch.randn_like(ref)
         ref.backward(grad_out)
 

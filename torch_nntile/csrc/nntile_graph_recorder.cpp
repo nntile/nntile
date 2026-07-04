@@ -10,6 +10,7 @@
 #include "nntile_context.h"
 
 #include <ATen/Tensor.h>
+#include <c10/core/DeviceType.h>
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
@@ -17,6 +18,7 @@
 #include <nntile/tensor/axis_descriptor.hh>
 #include <nntile/tensor/graph.hh>
 #include <nntile/tensor/ops/scatter.hh>
+#include <nntile/tensor/ops/contiguous_view.hh>
 #include <nntile/tensor/tensor_graph_tiling.hh>
 #include <nntile/tile/graph.hh>
 
@@ -186,6 +188,44 @@ nntile::Index graph_numel(const std::vector<nntile::Index> &graph_shape)
         nelems *= dim;
     }
     return nelems;
+}
+
+bool shapes_equal(
+    const std::vector<nntile::Index> &lhs,
+    const std::vector<nntile::Index> &rhs)
+{
+    if (lhs.size() != rhs.size())
+    {
+        return false;
+    }
+    for (std::size_t i = 0; i < lhs.size(); ++i)
+    {
+        if (lhs[i] != rhs[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+nntile::TensorGraph::TensorNode *ensure_view_alias_locked(
+    nntile::TensorGraph::TensorNode *src,
+    const std::vector<nntile::Index> &view_shape,
+    nntile::DataType dtype)
+{
+    if (shapes_equal(src->shape(), view_shape))
+    {
+        return src;
+    }
+    if (graph_numel(src->shape()) != graph_numel(view_shape))
+    {
+        throw std::invalid_argument(
+            "view: storage alias must preserve numel");
+    }
+    auto *view_node = g_graph->data(view_shape, dtype)->set_name("view");
+    track_node(view_node);
+    nntile::tensor::contiguous_view(src, view_node);
+    return view_node;
 }
 
 void copy_tensor_from_runtime(
@@ -846,15 +886,31 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     const auto found = g_tensor_nodes.find(data_ptr);
     if (found != g_tensor_nodes.end() && found->second.node != nullptr)
     {
+        nntile::TensorGraph::TensorNode *existing = found->second.node;
+        if (!shapes_equal(existing->shape(), shape))
+        {
+            if (graph_numel(existing->shape()) != graph_numel(shape))
+            {
+                throw std::invalid_argument(
+                    "get_or_create_data_node: storage alias numel mismatch");
+            }
+            existing = ensure_view_alias_locked(existing, shape, dtype);
+            MappedTensor updated = found->second;
+            updated.node = existing;
+            updated.dtype = dtype;
+            updated.count = static_cast<std::size_t>(graph_numel(shape));
+            g_tensor_nodes[data_ptr] = updated;
+        }
         // Intermediate op output fed into a later op: keep the node for DCE
         // but stop binding/copying through storage PyTorch may free or reuse.
-        if (!found->second.is_persistent_input && found->second.needs_host_copy)
+        MappedTensor &mapped = g_tensor_nodes[data_ptr];
+        if (!mapped.is_persistent_input && mapped.needs_host_copy)
         {
-            found->second.bind_at_execute = false;
-            found->second.needs_host_copy = false;
+            mapped.bind_at_execute = false;
+            mapped.needs_host_copy = false;
         }
-        track_node(found->second.node);
-        return found->second.node;
+        track_node(existing);
+        return existing;
     }
 
     const bool is_persistent =
@@ -920,6 +976,70 @@ nntile::TensorGraph::TensorNode *lookup_data_node(void *data_ptr)
         return nullptr;
     }
     return found->second.node;
+}
+
+void record_view_alias(const at::Tensor &self, const at::Tensor &view)
+{
+    if (!is_graph_mode())
+    {
+        return;
+    }
+    if (view.device().type() != c10::DeviceType::PrivateUse1)
+    {
+        return;
+    }
+    std::vector<nntile::Index> view_shape;
+    view_shape.reserve(static_cast<std::size_t>(view.dim()));
+    for (const auto dim : view.sizes())
+    {
+        view_shape.push_back(static_cast<nntile::Index>(dim));
+    }
+    void *const view_ptr = view.data_ptr();
+    void *const self_ptr = self.data_ptr();
+
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    if (g_graph == nullptr)
+    {
+        return;
+    }
+
+    const MappedTensor *source = nullptr;
+    const auto view_it = g_tensor_nodes.find(view_ptr);
+    if (view_it != g_tensor_nodes.end() && view_it->second.node != nullptr)
+    {
+        source = &view_it->second;
+    }
+    else
+    {
+        const auto self_it = g_tensor_nodes.find(self_ptr);
+        if (self_it != g_tensor_nodes.end() && self_it->second.node != nullptr)
+        {
+            source = &self_it->second;
+        }
+    }
+    if (source == nullptr)
+    {
+        return;
+    }
+
+    const nntile::DataType dtype = source->dtype;
+    nntile::TensorGraph::TensorNode *const src_node = source->node;
+    if (shapes_equal(src_node->shape(), view_shape))
+    {
+        if (view_ptr != self_ptr)
+        {
+            g_tensor_nodes[view_ptr] = *source;
+        }
+        return;
+    }
+    nntile::TensorGraph::TensorNode *view_node = ensure_view_alias_locked(
+        src_node,
+        view_shape,
+        dtype);
+    MappedTensor updated = *source;
+    updated.node = view_node;
+    updated.count = static_cast<std::size_t>(graph_numel(view_shape));
+    g_tensor_nodes[view_ptr] = updated;
 }
 
 void track_graph_node(nntile::TensorGraph::TensorNode *node)
@@ -1186,6 +1306,10 @@ void pin_graph_op_inputs(const std::vector<at::Tensor> & /*inputs*/)
 }
 
 void pin_graph_op_output(const at::Tensor & /*output*/, bool /*pin_output*/)
+{
+}
+
+void record_view_alias(const at::Tensor & /*self*/, const at::Tensor & /*view*/)
 {
 }
 
