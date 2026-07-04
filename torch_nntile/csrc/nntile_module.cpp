@@ -20,7 +20,10 @@
 
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
+#include "nntile_gemm.h"
 #include "nntile_rms_norm.h"
+#include "nntile_sdpa.h"
+#include "nntile_transpose.h"
 #include "nntile_norm.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
@@ -289,6 +292,24 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::print_axis_groups,
         "Print pending TensorGraph axis groups to stdout");
     m.def(
+        "gemm_forward",
+        &torch_nntile::gemm_forward,
+        "NNTile GEMM forward (N-D contraction, C++ graph API semantics)",
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("ndim"),
+        py::arg("batch_ndim") = 0);
+    m.def(
+        "gemm_backward",
+        &torch_nntile::gemm_backward,
+        "NNTile GEMM backward",
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("grad_out"),
+        py::arg("ndim"),
+        py::arg("batch_ndim"),
+        py::arg("output_mask"));
+    m.def(
         "cross_entropy_forward",
         &torch_nntile::cross_entropy_forward,
         "NNTile cross-entropy forward (logits on nntile)",
@@ -383,6 +404,37 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "debug_gc_stats",
         &torch_nntile::debug_gc_stats,
         "Snapshot recorder pinning / tile-pool state (GC probe)");
+    m.def(
+        "sdpa_forward",
+        &torch_nntile::sdpa_forward,
+        "NNTile SDPA eager forward (NNTile tensor layout)",
+        py::arg("q"),
+        py::arg("k"),
+        py::arg("v"),
+        py::arg("mask") = py::none(),
+        py::arg("batch_ndim") = 2);
+    m.def(
+        "sdpa_backward",
+        &torch_nntile::sdpa_backward,
+        "NNTile SDPA eager backward",
+        py::arg("q"),
+        py::arg("k"),
+        py::arg("v"),
+        py::arg("grad_out"),
+        py::arg("mask") = py::none(),
+        py::arg("batch_ndim") = 2);
+    m.def(
+        "model_transpose_forward",
+        &torch_nntile::model_transpose_forward,
+        "NNTile model-code transpose forward",
+        py::arg("x"),
+        py::arg("model_ndim"));
+    m.def(
+        "model_transpose_backward",
+        &torch_nntile::model_transpose_backward,
+        "NNTile model-code transpose backward",
+        py::arg("grad_out"),
+        py::arg("model_ndim"));
     m.def(
         "norm_forward",
         [](const at::Tensor &input,

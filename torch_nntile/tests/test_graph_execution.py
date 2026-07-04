@@ -333,6 +333,34 @@ def test_graph_nntile_loss_backward_without_scalar_read():
     )
 
 
+def test_graph_mode_mm_view_add_ndim():
+    """mm output viewed to higher rank must match bias ndim in graph mode."""
+    _run_graph_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+        )
+        torch_nntile.restrict_cpu()
+
+        x2d = torch.randn(4, 8).to("nntile")
+        w = torch.randn(8, 32).to("nntile")
+        bias = torch.randn(1, 4, 16, 2).to("nntile")
+
+        proj = torch.mm(x2d, w)
+        proj4 = proj.view(1, 4, 16, 2)
+        out = proj4 + bias
+        assert torch_nntile.has_pending_graph()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        assert out.shape == (1, 4, 16, 2)
+        assert out.device.type == "nntile"
+        """
+    )
+
+
 def test_eager_mode_runs_immediately():
     _run_graph_subprocess(
         """

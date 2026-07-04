@@ -74,6 +74,7 @@ nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
 void track_graph_node(nntile::TensorGraph::TensorNode *node);
 
 void sync_runtime_to_nntile_tensor(const at::Tensor &tensor);
+void record_view_alias(const at::Tensor &self, const at::Tensor &view);
 
 #endif // TORCH_NNTILE_USE_LIBNNTILE
 

@@ -35,6 +35,7 @@
 #include <nntile/tensor/ops/hypot.hh>
 #include <nntile/tensor/ops/hypot_scalar_inverse.hh>
 #include <nntile/tensor/ops/logsumexp.hh>
+#include <nntile/tensor/ops/mask_scalar.hh>
 #include <nntile/tensor/ops/maxsumexp.hh>
 #include <nntile/tensor/ops/gelu.hh>
 #include <nntile/tensor/ops/gelu_backward.hh>
@@ -57,15 +58,18 @@
 #include <nntile/tensor/ops/sgd_step.hh>
 #include <nntile/tensor/ops/scale_slice.hh>
 #include <nntile/tensor/ops/softmax.hh>
+#include <nntile/tensor/ops/softmax_inplace.hh>
 #include <nntile/tensor/ops/subtract_indexed_outputs.hh>
 #include <nntile/tensor/ops/sum_fiber.hh>
 #include <nntile/tensor/ops/sum_slice.hh>
 #include <nntile/tensor/ops/sumprod_fiber.hh>
 #include <nntile/tensor/ops/sumprod_slice.hh>
 #include <nntile/tensor/ops/total_sum_accum.hh>
+#include <nntile/tensor/ops/transpose.hh>
 
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <vector>
 
@@ -219,6 +223,101 @@ void tensor_add_fp32(
         static_cast<nntile::Scalar>(beta),
         y_node)->set_name("z");
     register_data_node(out, z_node);
+    maybe_execute_after_record();
+}
+
+void tensor_contiguous_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst,
+    c10::IntArrayRef pytorch_shape)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(pytorch_shape);
+
+    auto *src_node = get_or_create_data_node(
+        src,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    auto *dst_node = get_or_create_data_node(
+        dst,
+        graph_shape,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::copy(src_node, dst_node);
+    register_data_node(dst, dst_node);
+    maybe_execute_after_record();
+}
+
+void tensor_model_transpose_forward_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst,
+    int64_t model_ndim)
+{
+    const std::vector<nntile::Index> src_graph =
+        pytorch_shape_to_graph(src.sizes());
+    const std::vector<nntile::Index> dst_graph =
+        pytorch_shape_to_graph(dst.sizes());
+    const nntile::Index n = static_cast<nntile::Index>(src_graph.size());
+    TORCH_CHECK(
+        model_ndim > 0 && model_ndim < static_cast<int64_t>(n),
+        "nntile model_transpose: invalid model_ndim");
+    const nntile::Index tensor_ndim =
+        n - static_cast<nntile::Index>(model_ndim);
+
+    auto *src_node = get_or_create_data_node(
+        src,
+        src_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    auto *dst_node = get_or_create_data_node(
+        dst,
+        dst_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::transpose(
+        static_cast<nntile::Scalar>(1.0),
+        src_node,
+        dst_node,
+        tensor_ndim);
+    register_data_node(dst, dst_node);
+    maybe_execute_after_record();
+}
+
+void tensor_model_transpose_backward_fp32(
+    const at::Tensor &grad_out,
+    at::Tensor &grad_src,
+    int64_t model_ndim)
+{
+    const std::vector<nntile::Index> grad_out_graph =
+        pytorch_shape_to_graph(grad_out.sizes());
+    const std::vector<nntile::Index> grad_src_graph =
+        pytorch_shape_to_graph(grad_src.sizes());
+    const nntile::Index n =
+        static_cast<nntile::Index>(grad_out_graph.size());
+    TORCH_CHECK(
+        model_ndim > 0 && model_ndim < static_cast<int64_t>(n),
+        "nntile model_transpose backward: invalid model_ndim");
+
+    auto *grad_out_node = get_or_create_data_node(
+        grad_out,
+        grad_out_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_out));
+    auto *grad_src_node = get_or_create_data_node(
+        grad_src,
+        grad_src_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::transpose(
+        static_cast<nntile::Scalar>(1.0),
+        grad_out_node,
+        grad_src_node,
+        static_cast<nntile::Index>(model_ndim));
+    register_data_node(grad_src, grad_src_node);
     maybe_execute_after_record();
 }
 
@@ -2163,6 +2262,321 @@ void tensor_embedding_backward_fp32(
     maybe_execute_after_record();
 }
 
+namespace
+{
+
+constexpr float kSdpaMaskVal =
+    -std::numeric_limits<float>::infinity();
+constexpr int kSdpaRedux = 0;
+
+nntile::TensorGraph::TensorNode *make_sdpa_temp_tensor(
+    nntile::TensorGraph &graph,
+    const std::vector<nntile::Index> &shape,
+    const char *name)
+{
+    auto *node = graph.data(shape, nntile::DataType::FP32)->set_name(name);
+    track_graph_node(node);
+    return node;
+}
+
+nntile::TensorGraph::TensorNode *compute_sdpa_attn(
+    nntile::TensorGraph::TensorNode *q_node,
+    nntile::TensorGraph::TensorNode *k_node,
+    nntile::TensorGraph::TensorNode *mask_node,
+    nntile::Index batch_ndim,
+    float scale)
+{
+    const auto &q_shape = q_node->shape();
+    const auto &k_shape = k_node->shape();
+    const nntile::Index q_ndim = static_cast<nntile::Index>(q_shape.size());
+    const nntile::Index q_seq = q_shape[static_cast<std::size_t>(q_ndim - 2)];
+    const nntile::Index k_seq = k_shape[static_cast<std::size_t>(q_ndim - 2)];
+
+    std::vector<nntile::Index> batch_shape(
+        q_shape.begin(),
+        q_shape.begin() + static_cast<ptrdiff_t>(batch_ndim));
+
+    std::vector<nntile::Index> attn_shape = batch_shape;
+    attn_shape.push_back(q_seq);
+    attn_shape.push_back(k_seq);
+
+    nntile::TensorGraph &graph = *q_node->graph();
+    auto *attn_node = make_sdpa_temp_tensor(graph, attn_shape, "sdpa_attn");
+    nntile::tensor::gemm(
+        q_node,
+        k_node,
+        attn_node,
+        static_cast<nntile::Scalar>(scale),
+        static_cast<nntile::Scalar>(0.0),
+        false,
+        true,
+        static_cast<nntile::Index>(1),
+        batch_ndim);
+
+    if (mask_node != nullptr)
+    {
+        nntile::tensor::mask_scalar(
+            mask_node,
+            static_cast<nntile::Scalar>(kSdpaMaskVal),
+            attn_node,
+            batch_ndim);
+    }
+
+    std::vector<nntile::Index> maxsumexp_shape = batch_shape;
+    maxsumexp_shape.push_back(q_seq);
+    maxsumexp_shape.push_back(static_cast<nntile::Index>(2));
+    auto *maxsumexp_node =
+        make_sdpa_temp_tensor(graph, maxsumexp_shape, "sdpa_maxsumexp");
+    nntile::tensor::clear(maxsumexp_node);
+
+    const nntile::Index attn_axis = q_ndim - 1;
+    nntile::tensor::maxsumexp(
+        attn_node,
+        maxsumexp_node,
+        attn_axis,
+        kSdpaRedux);
+    nntile::tensor::softmax_inplace(
+        maxsumexp_node,
+        attn_node,
+        static_cast<nntile::Scalar>(1.0),
+        attn_axis);
+
+    return attn_node;
+}
+
+} // namespace
+
+void tensor_sdpa_forward_fp32(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const at::Tensor *mask,
+    at::Tensor &out,
+    int64_t batch_ndim)
+{
+    const std::vector<nntile::Index> q_graph = pytorch_shape_to_graph(q.sizes());
+    const std::vector<nntile::Index> k_graph = pytorch_shape_to_graph(k.sizes());
+    const std::vector<nntile::Index> v_graph = pytorch_shape_to_graph(v.sizes());
+    const nntile::Index batch_ndim_graph =
+        static_cast<nntile::Index>(batch_ndim);
+    const nntile::Index q_ndim = static_cast<nntile::Index>(q_graph.size());
+    const nntile::Index head_size = q_graph[static_cast<std::size_t>(q_ndim - 1)];
+    const float scale =
+        1.0f / std::sqrt(static_cast<float>(static_cast<std::int64_t>(head_size)));
+
+    auto *q_node = get_or_create_data_node(
+        q,
+        q_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(q));
+    auto *k_node = get_or_create_data_node(
+        k,
+        k_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(k));
+    auto *v_node = get_or_create_data_node(
+        v,
+        v_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(v));
+    auto *out_node = get_or_create_data_node(
+        out,
+        q_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::TensorGraph::TensorNode *mask_node = nullptr;
+    if (mask != nullptr)
+    {
+        const std::vector<nntile::Index> mask_graph =
+            pytorch_shape_to_graph(mask->sizes());
+        mask_node = get_or_create_data_node(
+            *mask,
+            mask_graph,
+            nntile::DataType::BOOL,
+            mark_as_input_for_operand(*mask));
+    }
+
+    auto *attn_node = compute_sdpa_attn(
+        q_node,
+        k_node,
+        mask_node,
+        batch_ndim_graph,
+        scale);
+    nntile::tensor::gemm(
+        attn_node,
+        v_node,
+        out_node,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0),
+        false,
+        false,
+        static_cast<nntile::Index>(1),
+        batch_ndim_graph);
+    register_data_node(out, out_node);
+    maybe_execute_after_record();
+}
+
+void tensor_sdpa_backward_fp32(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const at::Tensor *mask,
+    const at::Tensor &grad_out,
+    at::Tensor &grad_q,
+    at::Tensor &grad_k,
+    at::Tensor &grad_v,
+    int64_t batch_ndim)
+{
+    const std::vector<nntile::Index> q_graph = pytorch_shape_to_graph(q.sizes());
+    const std::vector<nntile::Index> k_graph = pytorch_shape_to_graph(k.sizes());
+    const std::vector<nntile::Index> v_graph = pytorch_shape_to_graph(v.sizes());
+    const nntile::Index batch_ndim_graph =
+        static_cast<nntile::Index>(batch_ndim);
+    const nntile::Index q_ndim = static_cast<nntile::Index>(q_graph.size());
+    const nntile::Index head_size = q_graph[static_cast<std::size_t>(q_ndim - 1)];
+    const nntile::Index q_seq = q_graph[static_cast<std::size_t>(q_ndim - 2)];
+    const float scale =
+        1.0f / std::sqrt(static_cast<float>(static_cast<std::int64_t>(head_size)));
+
+    auto *q_node = get_or_create_data_node(
+        q,
+        q_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(q));
+    auto *k_node = get_or_create_data_node(
+        k,
+        k_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(k));
+    auto *v_node = get_or_create_data_node(
+        v,
+        v_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(v));
+    auto *grad_out_node = get_or_create_data_node(
+        grad_out,
+        q_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_out));
+
+    nntile::TensorGraph::TensorNode *mask_node = nullptr;
+    if (mask != nullptr)
+    {
+        const std::vector<nntile::Index> mask_graph =
+            pytorch_shape_to_graph(mask->sizes());
+        mask_node = get_or_create_data_node(
+            *mask,
+            mask_graph,
+            nntile::DataType::BOOL,
+            mark_as_input_for_operand(*mask));
+    }
+
+    nntile::TensorGraph &graph = *q_node->graph();
+    auto *attn_node = compute_sdpa_attn(
+        q_node,
+        k_node,
+        mask_node,
+        batch_ndim_graph,
+        scale);
+
+    std::vector<nntile::Index> batch_shape(
+        q_graph.begin(),
+        q_graph.begin() + static_cast<ptrdiff_t>(batch_ndim_graph));
+    std::vector<nntile::Index> attn_shape = batch_shape;
+    attn_shape.push_back(q_seq);
+    attn_shape.push_back(k_graph[static_cast<std::size_t>(q_ndim - 2)]);
+    std::vector<nntile::Index> sumprod_shape = batch_shape;
+    sumprod_shape.push_back(q_seq);
+
+    auto *grad_temp = make_sdpa_temp_tensor(graph, attn_shape, "sdpa_grad_temp");
+    auto *sumprod_buf = make_sdpa_temp_tensor(graph, sumprod_shape, "sdpa_sumprod");
+
+    auto *grad_v_node = get_or_create_data_node(
+        grad_v,
+        v_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::gemm(
+        attn_node,
+        grad_out_node,
+        grad_v_node,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0),
+        true,
+        false,
+        static_cast<nntile::Index>(1),
+        batch_ndim_graph);
+
+    nntile::tensor::gemm(
+        grad_out_node,
+        v_node,
+        grad_temp,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0),
+        false,
+        true,
+        static_cast<nntile::Index>(1),
+        batch_ndim_graph);
+
+    const nntile::Index attn_axis = q_ndim - 1;
+    nntile::tensor::sumprod_slice(
+        attn_node,
+        grad_temp,
+        sumprod_buf,
+        attn_axis,
+        kSdpaRedux,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0));
+    nntile::tensor::add_slice_inplace(
+        static_cast<nntile::Scalar>(-1.0),
+        sumprod_buf,
+        static_cast<nntile::Scalar>(1.0),
+        grad_temp,
+        attn_axis);
+    nntile::tensor::multiply_inplace(
+        static_cast<nntile::Scalar>(1.0),
+        attn_node,
+        grad_temp);
+
+    auto *grad_q_node = get_or_create_data_node(
+        grad_q,
+        q_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::gemm(
+        grad_temp,
+        k_node,
+        grad_q_node,
+        static_cast<nntile::Scalar>(scale),
+        static_cast<nntile::Scalar>(0.0),
+        false,
+        false,
+        static_cast<nntile::Index>(1),
+        batch_ndim_graph);
+
+    auto *grad_k_node = get_or_create_data_node(
+        grad_k,
+        k_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::gemm(
+        grad_temp,
+        q_node,
+        grad_k_node,
+        static_cast<nntile::Scalar>(scale),
+        static_cast<nntile::Scalar>(0.0),
+        true,
+        false,
+        static_cast<nntile::Index>(1),
+        batch_ndim_graph);
+
+    register_data_node(grad_v, grad_v_node);
+    register_data_node(grad_q, grad_q_node);
+    register_data_node(grad_k, grad_k_node);
+    maybe_execute_after_record();
+}
+
 } // namespace torch_nntile
 
 #else
@@ -2193,6 +2607,30 @@ void tensor_add_fp32(
     at::Tensor & /*out*/)
 {
     require_libnntile("add");
+}
+
+void tensor_contiguous_fp32(
+    const at::Tensor & /*src*/,
+    at::Tensor & /*dst*/,
+    c10::IntArrayRef /*pytorch_shape*/)
+{
+    require_libnntile("contiguous");
+}
+
+void tensor_model_transpose_forward_fp32(
+    const at::Tensor & /*src*/,
+    at::Tensor & /*dst*/,
+    int64_t /*model_ndim*/)
+{
+    require_libnntile("model_transpose_forward");
+}
+
+void tensor_model_transpose_backward_fp32(
+    const at::Tensor & /*grad_out*/,
+    at::Tensor & /*grad_src*/,
+    int64_t /*model_ndim*/)
+{
+    require_libnntile("model_transpose_backward");
 }
 
 void tensor_add_inplace_fp32(
@@ -2562,6 +3000,31 @@ void tensor_embedding_backward_fp32(
     int /*redux*/)
 {
     require_libnntile("embedding_backward");
+}
+
+void tensor_sdpa_forward_fp32(
+    const at::Tensor & /*q*/,
+    const at::Tensor & /*k*/,
+    const at::Tensor & /*v*/,
+    const at::Tensor * /*mask*/,
+    at::Tensor & /*out*/,
+    int64_t /*batch_ndim*/)
+{
+    require_libnntile("sdpa_forward");
+}
+
+void tensor_sdpa_backward_fp32(
+    const at::Tensor & /*q*/,
+    const at::Tensor & /*k*/,
+    const at::Tensor & /*v*/,
+    const at::Tensor * /*mask*/,
+    const at::Tensor & /*grad_out*/,
+    at::Tensor & /*grad_q*/,
+    at::Tensor & /*grad_k*/,
+    at::Tensor & /*grad_v*/,
+    int64_t /*batch_ndim*/)
+{
+    require_libnntile("sdpa_backward");
 }
 
 } // namespace torch_nntile

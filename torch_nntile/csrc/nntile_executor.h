@@ -33,6 +33,21 @@ void tensor_add_fp32(
     const at::Tensor &y,
     at::Tensor &out);
 
+void tensor_contiguous_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst,
+    c10::IntArrayRef pytorch_shape);
+
+void tensor_model_transpose_forward_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst,
+    int64_t model_ndim);
+
+void tensor_model_transpose_backward_fp32(
+    const at::Tensor &grad_out,
+    at::Tensor &grad_src,
+    int64_t model_ndim);
+
 void tensor_add_inplace_fp32(
     float alpha,
     const at::Tensor &other,
@@ -283,5 +298,24 @@ void tensor_embedding_backward_fp32(
     at::Tensor &grad_weight,
     nntile::Index axis,
     int redux);
+
+void tensor_sdpa_forward_fp32(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const at::Tensor *mask,
+    at::Tensor &out,
+    int64_t batch_ndim);
+
+void tensor_sdpa_backward_fp32(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const at::Tensor *mask,
+    const at::Tensor &grad_out,
+    at::Tensor &grad_q,
+    at::Tensor &grad_k,
+    at::Tensor &grad_v,
+    int64_t batch_ndim);
 
 } // namespace torch_nntile

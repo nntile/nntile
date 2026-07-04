@@ -100,6 +100,48 @@ GemmMatrixLayout layout_from_prepared_batched(const at::Tensor &tensor)
     return layout;
 }
 
+void validate_gemm_contraction(
+    c10::IntArrayRef a_shape,
+    c10::IntArrayRef b_shape,
+    int64_t ndim,
+    int64_t batch_ndim,
+    bool trans_a,
+    bool trans_b)
+{
+    const int64_t a_rank = static_cast<int64_t>(a_shape.size());
+    const int64_t b_rank = static_cast<int64_t>(b_shape.size());
+
+    TORCH_CHECK(ndim > 0, "nntile gemm: ndim must be positive");
+    TORCH_CHECK(
+        batch_ndim >= 0 && batch_ndim <= a_rank && batch_ndim <= b_rank,
+        "nntile gemm: invalid batch_ndim");
+
+    const int64_t a_k_begin = trans_a ? batch_ndim : (a_rank - ndim);
+    const int64_t a_k_end = trans_a ? (batch_ndim + ndim) : a_rank;
+    const int64_t b_k_begin = trans_b ? (b_rank - ndim) : batch_ndim;
+    const int64_t b_k_end = trans_b ? b_rank : (batch_ndim + ndim);
+
+    TORCH_CHECK(
+        a_k_end - a_k_begin == ndim && b_k_end - b_k_begin == ndim,
+        "nntile gemm: ndim does not fit operand ranks");
+
+    for (int64_t k = 0; k < ndim; ++k)
+    {
+        TORCH_CHECK(
+            a_shape[a_k_begin + k] == b_shape[b_k_begin + k],
+            "nntile gemm: contraction dimension mismatch at axis ",
+            k);
+    }
+
+    for (int64_t b = 0; b < batch_ndim; ++b)
+    {
+        TORCH_CHECK(
+            a_shape[b] == b_shape[b],
+            "nntile gemm: batch dimension mismatch at axis ",
+            b);
+    }
+}
+
 } // namespace
 
 GemmMatrixLayout analyze_matrix_layout_for_nntile(const at::Tensor &tensor)
@@ -110,6 +152,15 @@ GemmMatrixLayout analyze_matrix_layout_for_nntile(const at::Tensor &tensor)
 GemmMatrixLayout analyze_batched_gemm_operand_layout(const at::Tensor &tensor)
 {
     return layout_from_prepared_batched(tensor);
+}
+
+GemmMatrixLayout layout_from_nd_contiguous(const at::Tensor &tensor)
+{
+    GemmMatrixLayout layout;
+    layout.gemm_shape = sizes_to_vector(tensor.sizes());
+    layout.trans = false;
+    layout.needs_copy = !tensor.is_contiguous();
+    return layout;
 }
 
 std::vector<int64_t> gemm_output_shape_pytorch(
@@ -218,6 +269,97 @@ PreparedGemmOperands prepare_bmm_operands(const at::Tensor &a, const at::Tensor 
     return prepared;
 }
 
+std::pair<int64_t, int64_t> infer_gemm_params(
+    c10::IntArrayRef a_shape,
+    c10::IntArrayRef b_shape)
+{
+    const int64_t a_rank = static_cast<int64_t>(a_shape.size());
+    const int64_t b_rank = static_cast<int64_t>(b_shape.size());
+    const int64_t max_batch = std::min(a_rank, b_rank);
+
+    for (int64_t batch_ndim = 0; batch_ndim <= max_batch; ++batch_ndim)
+    {
+        bool batch_ok = true;
+        for (int64_t b = 0; b < batch_ndim; ++b)
+        {
+            if (a_shape[b] != b_shape[b])
+            {
+                batch_ok = false;
+                break;
+            }
+        }
+        if (!batch_ok)
+        {
+            continue;
+        }
+
+        int64_t ndim = 0;
+        while (ndim < a_rank - batch_ndim && batch_ndim + ndim < b_rank &&
+               a_shape[a_rank - 1 - ndim] == b_shape[batch_ndim + ndim])
+        {
+            ++ndim;
+        }
+        if (ndim > 0)
+        {
+            return {ndim, batch_ndim};
+        }
+    }
+
+    TORCH_CHECK(
+        false,
+        "nntile gemm: no matching contraction dimensions between operands");
+}
+
+PreparedGemmOperands prepare_gemm_operands(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    int64_t ndim,
+    int64_t batch_ndim)
+{
+    GemmMatrixLayout a_layout = layout_from_nd_contiguous(a);
+    GemmMatrixLayout b_layout = layout_from_nd_contiguous(b);
+
+    PreparedGemmOperands prepared;
+    prepared.a = maybe_contiguous(a, a_layout);
+    prepared.b = maybe_contiguous(b, b_layout);
+    if (a_layout.needs_copy)
+    {
+        a_layout = layout_from_nd_contiguous(prepared.a);
+    }
+    if (b_layout.needs_copy)
+    {
+        b_layout = layout_from_nd_contiguous(prepared.b);
+    }
+
+    prepared.a_gemm_shape = a_layout.gemm_shape;
+    prepared.b_gemm_shape = b_layout.gemm_shape;
+    prepared.params.trans_a = a_layout.trans;
+    prepared.params.trans_b = b_layout.trans;
+    prepared.params.ndim = ndim;
+    prepared.params.batch_ndim = batch_ndim;
+    validate_gemm_contraction(
+        prepared.a_gemm_shape,
+        prepared.b_gemm_shape,
+        ndim,
+        batch_ndim,
+        prepared.params.trans_a,
+        prepared.params.trans_b);
+    prepared.out_shape = gemm_output_shape_pytorch(
+        prepared.a_gemm_shape,
+        prepared.b_gemm_shape,
+        prepared.params);
+    return prepared;
+}
+
+PreparedGemmOperands prepare_gemm_operands_inferred(
+    const at::Tensor &a,
+    const at::Tensor &b)
+{
+    const auto [ndim, batch_ndim] =
+        infer_gemm_params(a.sizes(), b.sizes());
+    return prepare_gemm_operands(a, b, ndim, batch_ndim);
+}
+
 PreparedGemmOperands prepare_linear_operands(
     const at::Tensor &input,
     const at::Tensor &weight)
@@ -271,24 +413,38 @@ PreparedGemmOperands prepare_linear_operands(
     return prepared;
 }
 
-GemmParams infer_mm_backward_grad_a_params(const GemmParams &forward)
+GemmParams infer_gemm_backward_grad_a_params(
+    const GemmParams &forward,
+    int64_t b_rank)
 {
     GemmParams params;
     params.trans_a = false;
     params.trans_b = !forward.trans_b;
-    params.ndim = forward.ndim;
+    params.ndim = b_rank - forward.batch_ndim - forward.ndim;
     params.batch_ndim = forward.batch_ndim;
     return params;
 }
 
-GemmParams infer_mm_backward_grad_b_params(const GemmParams &forward)
+GemmParams infer_gemm_backward_grad_b_params(
+    const GemmParams &forward,
+    int64_t a_rank)
 {
     GemmParams params;
     params.trans_a = !forward.trans_a;
     params.trans_b = false;
-    params.ndim = forward.ndim;
+    params.ndim = a_rank - forward.batch_ndim - forward.ndim;
     params.batch_ndim = forward.batch_ndim;
     return params;
+}
+
+GemmParams infer_mm_backward_grad_a_params(const GemmParams &forward)
+{
+    return infer_gemm_backward_grad_a_params(forward, 2);
+}
+
+GemmParams infer_mm_backward_grad_b_params(const GemmParams &forward)
+{
+    return infer_gemm_backward_grad_b_params(forward, 2);
 }
 
 GemmParams infer_linear_backward_grad_input_params(const GemmParams &forward)
