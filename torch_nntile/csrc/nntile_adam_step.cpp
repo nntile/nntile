@@ -74,10 +74,7 @@ void ensure_optimizer_state_staging(at::Tensor &tensor)
         ensure_host_staging(tensor);
         tensor.zero_();
     }
-    else
-    {
-        mark_staged_input_tensor(tensor);
-    }
+    mark_staged_input_tensor(tensor);
 }
 
 } // namespace

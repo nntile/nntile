@@ -99,6 +99,8 @@ struct GraphSession
     std::unique_ptr<nntile::Runtime> runtime;
     std::unordered_map<TensorImplKey, nntile::TensorGraph::TensorNode *>
         impl_to_node;
+    //! Pins transferred at compile; kept alive until run_graph() finishes.
+    std::vector<at::Tensor> pin_hold;
 };
 
 std::unique_ptr<GraphSession> g_session;
@@ -136,6 +138,14 @@ bool should_retain_mapped_tensor_after_compile(
 {
     return is_staged_input_impl(impl_key) || mapped.needs_host_copy ||
         mapped.is_persistent_input;
+}
+
+bool should_bind_mapped_at_compile(
+    TensorImplKey impl_key,
+    const MappedTensor &mapped)
+{
+    return mapped.bind_at_execute || mapped.is_persistent_input ||
+        is_staged_input_impl(impl_key);
 }
 
 const char *tensor_node_label(nntile::TensorGraph::TensorNode const *node)
@@ -675,7 +685,7 @@ void insert_input_scatter_staging_locked()
         {
             continue;
         }
-        if (!mapped.bind_at_execute && !mapped.is_persistent_input)
+        if (!should_bind_mapped_at_compile(impl_key, mapped))
         {
             continue;
         }
@@ -745,7 +755,7 @@ void compile_graph_locked(
         {
             continue;
         }
-        if (!mapped.bind_at_execute && !mapped.is_persistent_input)
+        if (!should_bind_mapped_at_compile(impl_key, mapped))
         {
             continue;
         }
@@ -942,6 +952,10 @@ void compile_graph()
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         compile_graph_locked(true, pin_drop);
+        if (g_session != nullptr && !pin_drop.empty())
+        {
+            g_session->pin_hold = std::move(pin_drop);
+        }
     }
 }
 
@@ -949,6 +963,11 @@ void run_graph()
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     run_graph_locked();
+    sync_current_run_visible_outputs_locked();
+    if (g_session != nullptr)
+    {
+        g_session->pin_hold.clear();
+    }
 }
 
 void reset_graph_session()
@@ -1179,6 +1198,10 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
                     mapped.bind_at_execute = false;
                     mapped.needs_host_copy = false;
                 }
+                if (host_ptr != nullptr)
+                {
+                    mapped.host_data_ptr = host_ptr;
+                }
                 track_node(existing);
                 return existing;
             }
@@ -1190,6 +1213,10 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
             {
                 found->second.bind_at_execute = false;
                 found->second.needs_host_copy = false;
+            }
+            if (host_ptr != nullptr)
+            {
+                found->second.host_data_ptr = host_ptr;
             }
             track_node(existing);
             return existing;
@@ -1242,7 +1269,7 @@ void register_data_node(
     const bool staged = is_staged_input_tensor(tensor);
     const bool metadata = is_metadata_only_tensor(tensor);
     const bool needs_host = !metadata && has_host_staging(tensor) &&
-        (!is_graph_mode() || staged);
+        (!is_graph_mode() || staged || node->is_output());
 
     const auto found = g_tensor_nodes.find(impl_key);
     if (found != g_tensor_nodes.end() && found->second.is_persistent_input)
@@ -1255,14 +1282,22 @@ void register_data_node(
         return;
     }
 
+    bool bind_at_execute = staged;
+    bool is_persistent = staged;
+    if (found != g_tensor_nodes.end())
+    {
+        bind_at_execute = bind_at_execute || found->second.bind_at_execute;
+        is_persistent = is_persistent || found->second.is_persistent_input;
+    }
+
     g_tensor_nodes[impl_key] = MappedTensor{
         node,
         nullptr,
         node->dtype(),
         static_cast<std::size_t>(node->nelems()),
         needs_host,
-        false,
-        staged,
+        bind_at_execute,
+        is_persistent,
         host_ptr};
 }
 

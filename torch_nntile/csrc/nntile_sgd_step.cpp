@@ -73,14 +73,8 @@ void sgd_step(
         ensure_host_staging(velocity);
         velocity.zero_();
     }
-    else
-    {
-        mark_staged_input_tensor(velocity);
-    }
-    if (has_host_staging(param))
-    {
-        mark_staged_input_tensor(param);
-    }
+    mark_staged_input_tensor(velocity);
+    mark_staged_input_tensor(param);
     pin_graph_op_inputs({param, velocity});
     tensor_sgd_step_fp32(
         num_iter,

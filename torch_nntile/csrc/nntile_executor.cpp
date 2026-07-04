@@ -100,13 +100,12 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
     {
         return true;
     }
-    if (!has_host_staging(tensor))
+    if (!is_graph_mode() && has_host_staging(tensor) &&
+        !is_metadata_only_tensor(tensor))
     {
-        return false;
+        return true;
     }
-    // Graph-mode intermediates are metadata-only (nbytes==0). Eager-mode
-    // chained ops reuse host-backed activations across execute() cycles.
-    return !is_metadata_only_tensor(tensor);
+    return false;
 }
 
 } // namespace
@@ -806,7 +805,7 @@ void tensor_cross_entropy_forward_fp32(
         loss,
         {},
         nntile::DataType::FP32,
-        mark_as_input_for_operand(loss));
+        false);
 
     auto &graph = *logits_node->graph();
     auto *maxsumexp_node =
@@ -910,7 +909,7 @@ void tensor_cross_entropy_backward_fp32(
         grad_logits,
         logits_graph,
         nntile::DataType::FP32,
-        mark_as_input_for_operand(grad_logits));
+        false);
 
     auto &graph = *logits_node->graph();
     auto *maxsumexp_node =
@@ -2214,7 +2213,7 @@ void tensor_embedding_forward_fp32(
         out,
         out_graph,
         nntile::DataType::FP32,
-        mark_as_input_for_operand(out));
+        false);
 
     nntile::tensor::embedding(index_node, weight_node, out_node, axis);
     register_data_node(out, out_node);
