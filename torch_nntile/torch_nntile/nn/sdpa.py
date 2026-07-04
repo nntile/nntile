@@ -85,11 +85,13 @@ def sdpa_eager(
     *,
     batch_ndim: int = 2,
 ) -> Tensor:
-    """Low-level NNTile-layout SDPA on ``device='nntile'``.
+    """SDPA on post-GEMM Q/K/V layout ``[batch, seq, head_size, n_heads]``.
 
-    Q/K/V shape ``[batch..., seq, head_size]`` in kernel layout, e.g.
-    ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``. Optional BOOL
-    mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key). Scale is
+    Internally applies ``transpose(..., 1)``, calls the NNTile-layout kernel
+    (e.g. ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``), then
+    ``transpose(..., 3)`` on the output — matching
+    ``nntile/src/model/gpt2/gpt2_attention.cc`` around ``sdpa_eager``.
+    Optional BOOL mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key). Scale is
     ``1/sqrt(head_size)``.
     """
     if q.device.type != "nntile":
@@ -100,17 +102,18 @@ def sdpa_eager(
         raise ValueError("nntile sdpa supports float32 only")
     if mask is not None and mask.dtype != torch.bool:
         raise ValueError("nntile sdpa: mask must be bool")
-    return _NntileSdpaEager.apply(q, k, v, mask, batch_ndim)
+    q_sdpa = nntile_model_transpose(q, 1)
+    k_sdpa = nntile_model_transpose(k, 1)
+    v_sdpa = nntile_model_transpose(v, 1)
+    attn_out = _NntileSdpaEager.apply(q_sdpa, k_sdpa, v_sdpa, mask, batch_ndim)
+    return nntile_model_transpose(attn_out, 3)
 
 
 class SDPA(nn.Module):
     """Scaled dot-product attention for post-GEMM Q/K/V tensors.
 
-    Accepts Q/K/V in projection layout ``[batch, seq, head_size, n_heads]``
-    (matching ``gemm`` output in ``Gpt2Attention``). Internally applies
-    ``transpose(..., 1)``, calls ``sdpa_forward`` / ``sdpa_backward``, then
-    ``transpose(..., 3)`` on the result — same as
-    ``nntile/src/model/gpt2/gpt2_attention.cc``.
+    Accepts Q/K/V in projection layout ``[batch, seq, head_size, n_heads]``.
+    Delegates to ``sdpa_eager`` (transposes are handled there).
     """
 
     def __init__(self, batch_ndim: int = 2) -> None:
@@ -124,17 +127,7 @@ class SDPA(nn.Module):
         v: Tensor,
         mask: Tensor | None = None,
     ) -> Tensor:
-        q_sdpa = nntile_model_transpose(q, 1)
-        k_sdpa = nntile_model_transpose(k, 1)
-        v_sdpa = nntile_model_transpose(v, 1)
-        attn_out = sdpa_eager(
-            q_sdpa,
-            k_sdpa,
-            v_sdpa,
-            mask,
-            batch_ndim=self.batch_ndim,
-        )
-        return nntile_model_transpose(attn_out, 3)
+        return sdpa_eager(q, k, v, mask, batch_ndim=self.batch_ndim)
 
 
 __all__ = ["SDPA", "nntile_model_transpose", "sdpa_eager"]
