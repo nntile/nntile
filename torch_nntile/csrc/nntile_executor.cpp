@@ -62,6 +62,8 @@
 #include <nntile/tensor/ops/sumprod_slice.hh>
 #include <nntile/tensor/ops/total_sum_accum.hh>
 #include <nntile/tensor/ops/transpose.hh>
+#include <nntile/tensor/ops/swap_two_axes.hh>
+#include <nntile/core/swap_two_axes_decompose.hh>
 
 #include <cmath>
 #include <cstring>
@@ -310,6 +312,51 @@ void tensor_model_transpose_backward_fp32(
         grad_src_node,
         static_cast<nntile::Index>(model_ndim));
     register_data_node(grad_src_data, grad_src_node);
+    maybe_execute_after_record();
+}
+
+void tensor_swap_two_axes_fp32(
+    const float *src_data,
+    c10::IntArrayRef src_shape,
+    float *dst_data,
+    int64_t dim0,
+    int64_t dim1)
+{
+    const std::vector<nntile::Index> src_graph =
+        pytorch_shape_to_graph(src_shape);
+    const nntile::Index n = static_cast<nntile::Index>(src_graph.size());
+    nntile::Index d0 = static_cast<nntile::Index>(dim0);
+    nntile::Index d1 = static_cast<nntile::Index>(dim1);
+    if (d0 < 0)
+    {
+        d0 += n;
+    }
+    if (d1 < 0)
+    {
+        d1 += n;
+    }
+    TORCH_CHECK(
+        d0 >= 0 && d0 < n && d1 >= 0 && d1 < n,
+        "nntile swap_two_axes: axis out of range");
+    TORCH_CHECK(d0 != d1, "nntile swap_two_axes: axes must differ");
+
+    const nntile::core::SwapTwoAxesDecomposition decomp =
+        nntile::core::decompose_swap_axes(src_graph, d0, d1);
+    const std::vector<nntile::Index> &dst_graph = decomp.output_shape;
+
+    auto *src_node = get_or_create_data_node(
+        const_cast<float *>(src_data),
+        src_graph,
+        nntile::DataType::FP32,
+        true);
+    auto *dst_node = get_or_create_data_node(
+        dst_data,
+        dst_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::swap_two_axes(src_node, dst_node, d0, d1);
+    register_data_node(dst_data, dst_node);
     maybe_execute_after_record();
 }
 
@@ -2591,6 +2638,7 @@ void tensor_sdpa_backward_fp32(
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace torch_nntile
 {
@@ -2603,6 +2651,73 @@ namespace
     throw std::runtime_error(
         std::string("torch_nntile ") + op +
         " requires libnntile (rebuild with NNTILE_BUILD_DIR set)");
+}
+
+int64_t normalize_swap_dim(int64_t dim, int64_t ndim)
+{
+    if (dim < 0)
+    {
+        dim += ndim;
+    }
+    return dim;
+}
+
+void swap_two_axes_reference_fp32(
+    const float *src,
+    c10::IntArrayRef shape,
+    float *dst,
+    int64_t dim0,
+    int64_t dim1)
+{
+    const int64_t n = static_cast<int64_t>(shape.size());
+    dim0 = normalize_swap_dim(dim0, n);
+    dim1 = normalize_swap_dim(dim1, n);
+    if (dim0 > dim1)
+    {
+        std::swap(dim0, dim1);
+    }
+
+    int64_t d0 = 1;
+    for (int64_t i = 0; i < dim0; ++i)
+    {
+        d0 *= shape[static_cast<size_t>(i)];
+    }
+    const int64_t d1 = shape[static_cast<size_t>(dim0)];
+    int64_t d2 = 1;
+    for (int64_t i = dim0 + 1; i < dim1; ++i)
+    {
+        d2 *= shape[static_cast<size_t>(i)];
+    }
+    const int64_t d3 = shape[static_cast<size_t>(dim1)];
+    int64_t d4 = 1;
+    for (int64_t i = dim1 + 1; i < n; ++i)
+    {
+        d4 *= shape[static_cast<size_t>(i)];
+    }
+
+    for (int64_t i0 = 0; i0 < d0; ++i0)
+    {
+        for (int64_t i1 = 0; i1 < d1; ++i1)
+        {
+            for (int64_t i2 = 0; i2 < d2; ++i2)
+            {
+                for (int64_t i3 = 0; i3 < d3; ++i3)
+                {
+                    for (int64_t i4 = 0; i4 < d4; ++i4)
+                    {
+                        const int64_t src_idx =
+                            ((((i0 * d1 + i1) * d2 + i2) * d3 + i3) * d4 +
+                                i4);
+                        const int64_t dst_idx =
+                            ((((i0 * d3 + i3) * d2 + i2) * d1 + i1) * d4 +
+                                i4);
+                        dst[static_cast<size_t>(dst_idx)] =
+                            src[static_cast<size_t>(src_idx)];
+                    }
+                }
+            }
+        }
+    }
 }
 
 } // namespace
@@ -2642,6 +2757,16 @@ void tensor_model_transpose_backward_fp32(
     int64_t /*model_ndim*/)
 {
     require_libnntile("model_transpose_backward");
+}
+
+void tensor_swap_two_axes_fp32(
+    const float *src_data,
+    c10::IntArrayRef src_shape,
+    float *dst_data,
+    int64_t dim0,
+    int64_t dim1)
+{
+    swap_two_axes_reference_fp32(src_data, src_shape, dst_data, dim0, dim1);
 }
 
 void tensor_add_inplace_fp32(
