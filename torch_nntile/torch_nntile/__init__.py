@@ -18,6 +18,7 @@ ensure_linux_cuda_deps()
 
 from . import _C  # noqa: E402, F401 — loads kernels and allocator
 from . import loss as _loss  # noqa: E402, F401
+from . import nn as nn  # noqa: E402, F401
 from . import normalization as _normalization  # noqa: E402, F401
 from . import norm as _norm  # noqa: E402, F401
 
@@ -250,4 +251,5 @@ __all__ = [
     "set_axis_group_tiling",
     "format_axis_groups",
     "print_axis_groups",
+    "nn",
 ]

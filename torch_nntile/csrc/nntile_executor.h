@@ -346,4 +346,31 @@ void tensor_embedding_backward_fp32(
     nntile::Index axis,
     int redux);
 
+void tensor_sdpa_forward_fp32(
+    const float *q_data,
+    c10::IntArrayRef q_shape,
+    const float *k_data,
+    c10::IntArrayRef k_shape,
+    const float *v_data,
+    c10::IntArrayRef v_shape,
+    const std::uint8_t *mask_data,
+    c10::IntArrayRef mask_shape,
+    float *out_data,
+    int64_t batch_ndim);
+
+void tensor_sdpa_backward_fp32(
+    const float *q_data,
+    c10::IntArrayRef q_shape,
+    const float *k_data,
+    c10::IntArrayRef k_shape,
+    const float *v_data,
+    c10::IntArrayRef v_shape,
+    const std::uint8_t *mask_data,
+    c10::IntArrayRef mask_shape,
+    const float *grad_out_data,
+    float *grad_q_data,
+    float *grad_k_data,
+    float *grad_v_data,
+    int64_t batch_ndim);
+
 } // namespace torch_nntile

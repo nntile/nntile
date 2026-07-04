@@ -127,6 +127,8 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 | `linear` backward / `mm` | `tensor::gemm` |
 | `F.embedding` / `nn.Embedding` | `tensor::embedding` |
 | Embedding backward | `tensor::embedding_backward` |
+| `torch_nntile.nn.SDPA` / `sdpa_eager` | `gemm`, `maxsumexp`, `softmax_inplace`, optional `mask_scalar`; backward: `gemm`, `sumprod_slice`, `add_slice_inplace`, `multiply_inplace` |
+| `torch_nntile.nn.weight_layout` | Pure PyTorch permutes for HF ↔ NNTile attention weights (no kernel) |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
 
@@ -136,6 +138,16 @@ Gradients use **PyTorch autograd** (not `NNGraph` autograd).
 **Embedding v1 limits:** `float32` weights only; `padding_idx` must be `-1`
 (default); `scale_grad_by_freq=False` and `sparse=False` only. Indices may stay
 on CPU while weights are on `device="nntile"`.
+
+**SDPA v1 limits:** `float32` only; Q/K/V on
+`device="nntile"` in NNTile layout `[batch..., seq, head_size]` (e.g.
+`(n_heads, batch, seq, head_size)` with `batch_ndim=2`); optional BOOL mask
+`[q_seq, k_seq]` on CPU or nntile (dim0 = query axis, dim1 = key axis, same as
+GPT-2 `attn_mask` / ``sdpa_causal_mask_bool_fill``); fixed scale `1/sqrt(head_size)`. Works in
+both eager and graph runtime modes (graph defers execution until
+``compile_graph()`` / ``run()`` or ``execute()``). Use
+`torch_nntile.nn.weight_layout` to convert HF/PyTorch attention weights before
+NNTile-layout projection GEMMs. No dropout, causal flag, GQA, or custom scale.
 
 ### Gradient accumulation
 
@@ -316,6 +328,8 @@ Cross-entropy parity (forward, backward, multi-D labels, `ignore_index`):
 
 ```bash
 pytest -vv torch_nntile/tests/test_cross_entropy_parity.py
+pytest -vv torch_nntile/tests/test_sdpa_parity.py
+pytest -vv torch_nntile/tests/test_attn_weight_layout.py
 ```
 
 ## Install from source (stub only)
