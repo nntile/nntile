@@ -50,6 +50,13 @@ void tensor_model_transpose_backward_fp32(
     float *grad_src_data,
     int64_t model_ndim);
 
+void tensor_swap_two_axes_fp32(
+    const float *src_data,
+    c10::IntArrayRef src_shape,
+    float *dst_data,
+    int64_t dim0,
+    int64_t dim1);
+
 void tensor_add_inplace_fp32(
     float alpha,
     const float *other_data,

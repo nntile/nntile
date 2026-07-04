@@ -80,6 +80,7 @@ set(TESTS
     "sum"
     "sumprod_fiber"
     "sumprod_slice"
+    "swap_two_axes"
     "transpose"
     "tile"
     "total_sum_accum"

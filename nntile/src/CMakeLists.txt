@@ -88,6 +88,7 @@ if(NOT HAVE_STARPU_SIMGRID)
         "kernel/sumprod_slice/cpu.cc"
         "kernel/total_sum_accum/cpu.cc"
         "kernel/transpose/cpu.cc"
+        "kernel/swap_two_axes/cpu.cc"
         "kernel/isfinite/cpu.cc"
     )
 
@@ -250,6 +251,7 @@ set(STARPU_CODELET_SRC
     "starpu/sumprod_slice.cc"
     "starpu/total_sum_accum.cc"
     "starpu/transpose.cc"
+    "starpu/swap_two_axes.cc"
     "starpu/isfinite.cc"
 )
 
@@ -309,6 +311,7 @@ set(CORE_OPERATION_SRC
     "core/rope.cc"
     "core/rope_backward.cc"
     "core/transpose.cc"
+    "core/swap_two_axes.cc"
     "core/scale.cc"
     "core/scale_inplace.cc"
     "core/scale_slice.cc"
@@ -416,6 +419,7 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/ops/sumprod_slice.cc"
     "tensor/ops/total_sum_accum.cc"
     "tensor/ops/transpose.cc"
+    "tensor/ops/swap_two_axes.cc"
 )
 
 set(GRAPH_NN_LAYER_SRC
@@ -613,6 +617,7 @@ set(GRAPH_TILE_LAYER_SRC
     "tile/ops/sumprod_slice.cc"
     "tile/ops/total_sum_accum.cc"
     "tile/ops/transpose.cc"
+    "tile/ops/swap_two_axes.cc"
 )
 
 set(NNTILE_GRAPH_STACK_SRC
