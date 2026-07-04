@@ -7,6 +7,10 @@
 from __future__ import annotations
 
 import pytest
+
+pytest.importorskip("numpy")
+pytest.importorskip("transformers")
+
 import torch
 from transformers import GPT2Config, GPT2LMHeadModel
 
