@@ -2573,6 +2573,15 @@ void tensor_sdpa_backward_fp32(
     register_data_node(grad_v, grad_v_node);
     register_data_node(grad_q, grad_q_node);
     register_data_node(grad_k, grad_k_node);
+    register_param_grad_node(q, grad_q_node);
+    register_param_grad_node(k, grad_k_node);
+    register_param_grad_node(v, grad_v_node);
+    at::Tensor grad_q_alias = grad_q;
+    at::Tensor grad_k_alias = grad_k;
+    at::Tensor grad_v_alias = grad_v;
+    register_grad_alias_for_host_copy(grad_q_alias, grad_q_node);
+    register_grad_alias_for_host_copy(grad_k_alias, grad_k_node);
+    register_grad_alias_for_host_copy(grad_v_alias, grad_v_node);
     maybe_execute_after_record();
 }
 

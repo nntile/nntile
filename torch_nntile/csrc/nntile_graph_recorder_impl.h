@@ -68,6 +68,8 @@ void register_grad_alias_for_host_copy(
     at::Tensor &grad,
     nntile::TensorGraph::TensorNode *grad_node);
 
+void refresh_staged_tensor_mapping(const at::Tensor &tensor);
+
 void push_relu_preactivation_node(nntile::TensorGraph::TensorNode *node);
 
 nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(

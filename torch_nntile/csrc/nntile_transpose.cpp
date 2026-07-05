@@ -6,8 +6,10 @@
 
 #include "nntile_transpose.h"
 
+#include "nntile_context.h"
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/TensorUtils.h>
 
@@ -85,8 +87,12 @@ at::Tensor model_transpose_backward(
     at::Tensor grad_x = at::empty(
         permuted_sizes(grad_out.sizes(), model_ndim),
         grad_out.options().memory_format(at::MemoryFormat::Contiguous));
+    if (is_graph_mode())
+    {
+        ensure_host_staging(grad_x);
+    }
     pin_graph_op_inputs({grad_out});
-    pin_graph_op_output(grad_x, false);
+    pin_graph_op_output(grad_x, true);
     tensor_model_transpose_backward_fp32(grad_out, grad_x, model_ndim);
     return grad_x;
 }

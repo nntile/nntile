@@ -29,11 +29,38 @@ std::unordered_set<TensorImplKey> g_staged_input_impls;
 std::unordered_map<void *, TensorImplKey> g_host_ptr_to_impl;
 std::unordered_map<void *, TensorImplKey> g_storage_ctx_to_impl;
 
+void register_tensor_storage_ctx_locked(const at::Tensor &tensor)
+{
+    void *storage_ctx = tensor.storage().data_ptr().get_context();
+    if (storage_ctx == nullptr)
+    {
+        return;
+    }
+    g_storage_ctx_to_impl[storage_ctx] = tensor_impl_key(tensor);
+}
+
 } // namespace
 
 TensorImplKey tensor_impl_key(const at::Tensor &tensor)
 {
     return tensor.unsafeGetTensorImpl();
+}
+
+TensorImplKey canonical_tensor_impl_key(const at::Tensor &tensor)
+{
+    const TensorImplKey key = tensor_impl_key(tensor);
+    void *storage_ctx = tensor.storage().data_ptr().get_context();
+    if (storage_ctx == nullptr)
+    {
+        return key;
+    }
+    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
+    const auto found = g_storage_ctx_to_impl.find(storage_ctx);
+    if (found != g_storage_ctx_to_impl.end())
+    {
+        return found->second;
+    }
+    return key;
 }
 
 bool is_metadata_only_tensor(const at::Tensor &tensor)
@@ -86,20 +113,23 @@ void mark_metadata_only_tensor(const at::Tensor &tensor)
 
 void mark_staged_input_tensor(const at::Tensor &tensor)
 {
-    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    const TensorImplKey key = tensor_impl_key(tensor);
-    g_metadata_only_impls.erase(key);
-    g_staged_input_impls.insert(key);
-    void *host_ptr = tensor.storage().data_ptr().get();
-    if (host_ptr != nullptr)
     {
-        g_host_ptr_to_impl[host_ptr] = key;
+        std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
+        const TensorImplKey key = tensor_impl_key(tensor);
+        g_metadata_only_impls.erase(key);
+        g_staged_input_impls.insert(key);
+        void *host_ptr = tensor.storage().data_ptr().get();
+        if (host_ptr != nullptr)
+        {
+            g_host_ptr_to_impl[host_ptr] = key;
+        }
+        void *storage_ctx = tensor.storage().data_ptr().get_context();
+        if (storage_ctx != nullptr)
+        {
+            register_tensor_storage_ctx_locked(tensor);
+        }
     }
-    void *storage_ctx = tensor.storage().data_ptr().get_context();
-    if (storage_ctx != nullptr)
-    {
-        g_storage_ctx_to_impl.erase(storage_ctx);
-    }
+    refresh_staged_tensor_mapping(tensor);
 }
 
 void clear_tensor_gc_state()
@@ -163,6 +193,7 @@ void ensure_host_staging(at::Tensor &tensor)
         allocator,
         /*resizable=*/true);
     tensor.unsafeGetTensorImpl()->set_storage_keep_dtype(std::move(storage));
+    register_tensor_storage_ctx_locked(tensor);
 }
 
 } // namespace torch_nntile

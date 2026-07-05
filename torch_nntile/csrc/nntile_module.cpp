@@ -178,6 +178,10 @@ void set_axis_group_name_py(
         tensor_impl_key(tensor),
         static_cast<int>(tensor.dim()),
         parsed);
+    if (is_graph_mode())
+    {
+        stage_tensor_for_axis_group_compile(tensor);
+    }
 }
 
 void set_axis_group_tiling_py(

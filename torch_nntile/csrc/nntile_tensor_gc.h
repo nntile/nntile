@@ -24,6 +24,9 @@ using TensorImplKey = c10::TensorImpl *;
 
 TensorImplKey tensor_impl_key(const at::Tensor &tensor);
 
+//! Resolve detached views to the recorder's canonical TensorImpl.
+TensorImplKey canonical_tensor_impl_key(const at::Tensor &tensor);
+
 bool is_metadata_only_tensor(const at::Tensor &tensor);
 bool is_staged_input_tensor(const at::Tensor &tensor);
 bool is_staged_input_impl(TensorImplKey impl_key);

@@ -382,9 +382,27 @@ nntile::TensorGraph::TensorNode *session_node_for_impl_locked(
     const auto found = g_tensor_nodes.find(impl_key);
     if (found != g_tensor_nodes.end())
     {
-        return found->second.node;
+        if (found->second.node != nullptr)
+        {
+            return found->second.node;
+        }
+        if (g_session != nullptr)
+        {
+            const auto session_it = g_session->impl_to_node.find(impl_key);
+            if (session_it != g_session->impl_to_node.end())
+            {
+                return session_it->second;
+            }
+        }
     }
     return nullptr;
+}
+
+nntile::TensorGraph::TensorNode *session_node_for_tensor_locked(
+    const at::Tensor &tensor)
+{
+    const TensorImplKey impl_key = canonical_tensor_impl_key(tensor);
+    return session_node_for_impl_locked(impl_key);
 }
 
 void copy_host_visible_outputs(
@@ -393,20 +411,34 @@ void copy_host_visible_outputs(
 {
     for (auto &[impl_key, mapped] : g_tensor_nodes)
     {
-        (void) impl_key;
         if (!mapped.needs_host_copy || mapped.host_data_ptr == nullptr)
         {
             continue;
         }
-        if (mapped.node != nullptr && mapped.node->is_output())
+        nntile::TensorGraph::TensorNode *node = mapped.node;
+        if (node == nullptr && g_session != nullptr)
         {
-            copy_output_if_needed(runtime, mapped, mapped.host_data_ptr);
+            const auto session_it = g_session->impl_to_node.find(impl_key);
+            if (session_it != g_session->impl_to_node.end())
+            {
+                node = session_it->second;
+            }
+        }
+        if (node == nullptr)
+        {
+            continue;
+        }
+        MappedTensor copy_mapped = mapped;
+        copy_mapped.node = node;
+        if (node->is_output())
+        {
+            copy_output_if_needed(runtime, copy_mapped, mapped.host_data_ptr);
         }
         else
         {
             copy_tensor_from_runtime(
                 runtime,
-                mapped,
+                copy_mapped,
                 mapped.host_data_ptr);
         }
     }
@@ -1095,7 +1127,7 @@ void sync_runtime_to_nntile_tensor(const at::Tensor &tensor)
     {
         return;
     }
-    const TensorImplKey impl_key = tensor_impl_key(tensor);
+    const TensorImplKey impl_key = canonical_tensor_impl_key(tensor);
     nntile::TensorGraph::TensorNode *node =
         session_node_for_impl_locked(impl_key);
     if (node == nullptr)
@@ -1120,9 +1152,9 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     {
         return;
     }
-    const TensorImplKey impl_key = tensor_impl_key(src);
+    const TensorImplKey impl_key = canonical_tensor_impl_key(src);
     nntile::TensorGraph::TensorNode *node =
-        session_node_for_impl_locked(impl_key);
+        session_node_for_tensor_locked(src);
     if (node == nullptr)
     {
         return;
@@ -1267,8 +1299,7 @@ void register_data_node(
         host_ptr = tensor.storage().data_ptr().get();
     }
     const bool staged = is_staged_input_tensor(tensor);
-    const bool metadata = is_metadata_only_tensor(tensor);
-    const bool needs_host = !metadata && has_host_staging(tensor) &&
+    const bool needs_host = has_host_staging(tensor) &&
         (!is_graph_mode() || staged || node->is_output());
 
     const auto found = g_tensor_nodes.find(impl_key);
@@ -1550,6 +1581,59 @@ void set_axis_group_name(
     }
 }
 
+bool is_tensor_graph_output(const at::Tensor &tensor)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    const TensorImplKey impl_key = canonical_tensor_impl_key(tensor);
+    const auto found = g_tensor_nodes.find(impl_key);
+    if (found == g_tensor_nodes.end() || found->second.node == nullptr)
+    {
+        return false;
+    }
+    return found->second.node->is_output();
+}
+
+void stage_tensor_for_axis_group_compile(const at::Tensor &tensor)
+{
+    if (!is_graph_mode())
+    {
+        return;
+    }
+    if (is_tensor_graph_output(tensor))
+    {
+        return;
+    }
+    at::Tensor mutable_tensor = tensor;
+    if (!has_host_staging(mutable_tensor))
+    {
+        ensure_host_staging(mutable_tensor);
+    }
+    if (has_host_staging(mutable_tensor))
+    {
+        mark_staged_input_tensor(mutable_tensor);
+    }
+}
+
+void refresh_staged_tensor_mapping(const at::Tensor &tensor)
+{
+    if (!is_graph_mode())
+    {
+        return;
+    }
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    const TensorImplKey impl_key = tensor_impl_key(tensor);
+    const auto found = g_tensor_nodes.find(impl_key);
+    if (found == g_tensor_nodes.end())
+    {
+        return;
+    }
+    found->second.bind_at_execute = true;
+    if (has_host_staging(tensor))
+    {
+        found->second.host_data_ptr = tensor.storage().data_ptr().get();
+    }
+}
+
 void set_axis_group_tiling(
     const std::string &name,
     const std::vector<std::int64_t> &tile_sizes)
@@ -1777,6 +1861,22 @@ void set_axis_group_name(
     TensorImplKey /*impl_key*/,
     int /*ndim*/,
     const std::unordered_map<int, std::string> & /*names*/)
+{
+    require_libnntile();
+}
+
+bool is_tensor_graph_output(const at::Tensor & /*tensor*/)
+{
+    require_libnntile();
+    return false;
+}
+
+void stage_tensor_for_axis_group_compile(const at::Tensor & /*tensor*/)
+{
+    require_libnntile();
+}
+
+void refresh_staged_tensor_mapping(const at::Tensor & /*tensor*/)
 {
     require_libnntile();
 }

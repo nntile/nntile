@@ -276,6 +276,10 @@ at::Tensor ones_like(
         ensure_host_staging(result);
     }
     result.fill_(1);
+    if (is_graph_mode() && has_host_staging(result))
+    {
+        mark_staged_input_tensor(result);
+    }
     return result;
 }
 

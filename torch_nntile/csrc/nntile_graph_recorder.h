@@ -51,6 +51,12 @@ void set_axis_group_name(
     int ndim,
     const std::unordered_map<int, std::string> &names);
 
+bool is_tensor_graph_output(const at::Tensor &tensor);
+
+void stage_tensor_for_axis_group_compile(const at::Tensor &tensor);
+
+void refresh_staged_tensor_mapping(const at::Tensor &tensor);
+
 void set_axis_group_tiling(
     const std::string &name,
     const std::vector<std::int64_t> &tile_sizes);
