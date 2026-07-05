@@ -87,26 +87,72 @@ at::Tensor make_causal_mask(int64_t q_seq, int64_t k_seq)
     return k_idx.unsqueeze(0) <= q_idx.unsqueeze(1);
 }
 
-at::Tensor squeeze_attn_bias_to_2d(const at::Tensor &attn_bias)
+constexpr float kFloatMaskThreshold = -1e20f;
+
+at::Tensor squeeze_size_one_dims(const at::Tensor &tensor)
 {
-    at::Tensor out = attn_bias;
-    while (out.dim() > 2 && out.size(0) == 1)
+    at::Tensor out = tensor;
+    for (int64_t dim = out.dim() - 1; dim >= 0; --dim)
     {
-        out = out.squeeze(0);
+        if (out.size(dim) == 1 && out.dim() > 2)
+        {
+            out = out.squeeze(dim);
+        }
     }
+    return out;
+}
+
+at::Tensor canonical_leading_slice(const at::Tensor &tensor)
+{
+    at::Tensor out = tensor;
     while (out.dim() > 2)
     {
         out = out.select(0, 0);
     }
-    return out.contiguous();
+    return out;
+}
+
+at::Tensor broadcastable_attn_bias_to_2d(
+    const at::Tensor &attn_bias,
+    int64_t q_seq,
+    int64_t k_seq)
+{
+    at::Tensor bias = squeeze_size_one_dims(attn_bias);
+    if (bias.dim() == 2)
+    {
+        return bias.contiguous();
+    }
+
+    TORCH_CHECK(
+        bias.dim() >= 2,
+        "nntile sdpa: attn_bias must be broadcastable to [q_seq, k_seq]");
+    TORCH_CHECK(
+        bias.size(-2) == q_seq && bias.size(-1) == k_seq,
+        "nntile sdpa: attn_bias trailing shape must be [q_seq, k_seq]");
+
+    const at::Tensor canonical = canonical_leading_slice(bias);
+    const at::Tensor expanded = canonical.expand(bias.sizes());
+    if (bias.scalar_type() == at::ScalarType::Bool)
+    {
+        TORCH_CHECK(
+            at::equal(bias, expanded),
+            "nntile sdpa: bool attn_bias must broadcast to [q_seq, k_seq]");
+    }
+    else
+    {
+        TORCH_CHECK(
+            at::allclose(
+                bias.to(at::kFloat),
+                expanded.to(at::kFloat)),
+            "nntile sdpa: float attn_bias must broadcast to [q_seq, k_seq]");
+    }
+    return canonical.contiguous();
 }
 
 at::Tensor float_attn_bias_to_bool(const at::Tensor &attn_bias)
 {
     const at::Tensor bias = attn_bias.to(at::kFloat);
-    const at::Tensor finite = at::isfinite(bias);
-    const at::Tensor not_neg_inf = ~at::isneginf(bias);
-    return finite & not_neg_inf;
+    return bias > kFloatMaskThreshold;
 }
 
 at::Tensor logsumexp_placeholder(const at::Tensor &query)
@@ -138,13 +184,13 @@ std::optional<at::Tensor> convert_attn_bias_to_mask(
         return std::nullopt;
     }
 
-    at::Tensor bias_2d = squeeze_attn_bias_to_2d(*attn_bias);
+    at::Tensor bias_2d = broadcastable_attn_bias_to_2d(*attn_bias, q_seq, k_seq);
     TORCH_CHECK(
         bias_2d.dim() == 2,
         "nntile sdpa: attn_bias must be broadcastable to [q_seq, k_seq]");
     TORCH_CHECK(
         bias_2d.size(0) == q_seq && bias_2d.size(1) == k_seq,
-        "nntile sdpa: attn_bias shape must be [q_seq, k_seq] after squeeze");
+        "nntile sdpa: attn_bias shape must be [q_seq, k_seq] after broadcast");
 
     at::Tensor bool_mask;
     if (bias_2d.scalar_type() == at::ScalarType::Bool)

@@ -167,6 +167,69 @@ def test_fsdpa_bool_mask_matches_reference():
     assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
 
 
+def test_fsdpa_float_finfo_mask_matches_reference():
+    """HF-style additive mask with finfo.min for masked positions."""
+    shape = (2, 4, 8, 16)
+    seq = shape[-2]
+    torch.manual_seed(5)
+    q_cpu = torch.randn(*shape)
+    k_cpu = torch.randn(*shape)
+    v_cpu = torch.randn(*shape)
+    mask = torch.zeros(seq, seq, dtype=torch.float32)
+    for query in range(seq):
+        for key in range(seq):
+            if key <= query:
+                mask[query, key] = 0.0
+            else:
+                mask[query, key] = torch.finfo(torch.float32).min
+
+    ref = _reference_sdpa_pytorch(q_cpu, k_cpu, v_cpu, attn_mask=mask)
+    out = F.scaled_dot_product_attention(
+        q_cpu.to("nntile"),
+        k_cpu.to("nntile"),
+        v_cpu.to("nntile"),
+        attn_mask=mask,
+    )
+    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+
+
+def test_fsdpa_broadcast_4d_mask_matches_reference():
+    """Broadcastable ``[1, 1, q_seq, k_seq]`` mask (HF-style)."""
+    shape = (2, 4, 8, 16)
+    seq = shape[-2]
+    torch.manual_seed(6)
+    q_cpu = torch.randn(*shape)
+    k_cpu = torch.randn(*shape)
+    v_cpu = torch.randn(*shape)
+    mask_2d = torch.zeros(seq, seq, dtype=torch.bool)
+    for query in range(seq):
+        for key in range(seq):
+            mask_2d[query, key] = key <= query
+    mask = mask_2d.view(1, 1, seq, seq)
+
+    ref = _reference_sdpa_pytorch(q_cpu, k_cpu, v_cpu, attn_mask=mask)
+    out = F.scaled_dot_product_attention(
+        q_cpu.to("nntile"),
+        k_cpu.to("nntile"),
+        v_cpu.to("nntile"),
+        attn_mask=mask,
+    )
+    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+
+
+def test_fsdpa_rejects_non_broadcastable_batched_mask():
+    shape = (2, 4, 8, 16)
+    seq = shape[-2]
+    mask = torch.zeros(2, seq, seq, dtype=torch.bool)
+    mask[0].fill_(True)
+    mask[1].fill_(False)
+    q = torch.randn(*shape).to("nntile")
+    k = torch.randn(*shape).to("nntile")
+    v = torch.randn(*shape).to("nntile")
+    with pytest.raises(RuntimeError, match="broadcast"):
+        F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+
+
 def test_fsdpa_rejects_dropout():
     q = torch.randn(2, 4, 8, 16).to("nntile")
     k = torch.randn(2, 4, 8, 16).to("nntile")
