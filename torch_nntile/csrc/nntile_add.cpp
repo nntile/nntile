@@ -7,6 +7,7 @@
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
 
+#include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
 #include <c10/core/DeviceGuard.h>
@@ -38,25 +39,37 @@ void check_add_inputs(
             is_nntile_device(out->device()),
             "nntile add.out expects output on device nntile");
     }
-    TORCH_CHECK(self.sizes() == other.sizes(), "nntile add: shape mismatch");
     TORCH_CHECK(
         self.scalar_type() == other.scalar_type(),
         "nntile add: dtype mismatch");
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile add supports float32 only in phase 2");
-    TORCH_CHECK(
-        self.is_contiguous() && other.is_contiguous(),
-        "nntile add requires contiguous tensors");
     if (out.has_value())
     {
         TORCH_CHECK(
-            out->sizes() == self.sizes(),
-            "nntile add.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile add.out requires contiguous output");
+            out->scalar_type() == at::ScalarType::Float,
+            "nntile add.out supports float32 only in phase 2");
     }
+}
+
+at::Tensor broadcast_add_operand(
+    const at::Tensor &tensor,
+    c10::IntArrayRef output_size)
+{
+    if (tensor.sizes().equals(output_size))
+    {
+        TORCH_CHECK(
+            tensor.is_contiguous(),
+            "nntile add requires contiguous tensors");
+        return tensor;
+    }
+    at::Tensor expanded = tensor.expand(output_size);
+    if (!expanded.is_contiguous())
+    {
+        expanded = expanded.contiguous();
+    }
+    return expanded;
 }
 
 void run_add_kernel(
@@ -86,8 +99,16 @@ at::Tensor add_tensor(
     const at::Scalar &alpha)
 {
     check_add_inputs(self, other);
-    at::Tensor out = at::empty_like(self);
-    run_add_kernel(self, other, alpha, out);
+    const c10::SymIntArrayRef output_size =
+        at::infer_size_symdimvector(self.sym_sizes(), other.sym_sizes());
+    const at::Tensor lhs =
+        broadcast_add_operand(self, C10_AS_INTARRAYREF_SLOW(output_size));
+    const at::Tensor rhs =
+        broadcast_add_operand(other, C10_AS_INTARRAYREF_SLOW(output_size));
+    at::Tensor out = at::empty(
+        C10_AS_INTARRAYREF_SLOW(output_size),
+        self.options().memory_format(at::MemoryFormat::Contiguous));
+    run_add_kernel(lhs, rhs, alpha, out);
     return out;
 }
 
@@ -98,7 +119,17 @@ at::Tensor &add_out(
     at::Tensor &out)
 {
     check_add_inputs(self, other, out);
-    run_add_kernel(self, other, alpha, out);
+    const c10::SymIntArrayRef output_size =
+        at::infer_size_symdimvector(self.sym_sizes(), other.sym_sizes());
+    TORCH_CHECK(
+        out.sizes().equals(C10_AS_INTARRAYREF_SLOW(output_size)),
+        "nntile add.out: output shape mismatch");
+    TORCH_CHECK(out.is_contiguous(), "nntile add.out requires contiguous out");
+    const at::Tensor lhs =
+        broadcast_add_operand(self, C10_AS_INTARRAYREF_SLOW(output_size));
+    const at::Tensor rhs =
+        broadcast_add_operand(other, C10_AS_INTARRAYREF_SLOW(output_size));
+    run_add_kernel(lhs, rhs, alpha, out);
     return out;
 }
 

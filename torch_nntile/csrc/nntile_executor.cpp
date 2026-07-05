@@ -52,6 +52,7 @@
 #include <nntile/tensor/ops/silu_backward.hh>
 #include <nntile/tensor/ops/silu_inplace.hh>
 #include <nntile/tensor/ops/sgd_step.hh>
+#include <nntile/tensor/ops/scale.hh>
 #include <nntile/tensor/ops/scale_slice.hh>
 #include <nntile/tensor/ops/softmax.hh>
 #include <nntile/tensor/ops/softmax_inplace.hh>
@@ -2098,6 +2099,144 @@ void tensor_sum_to_scalar_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_sum_dimlist_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef input_shape,
+    at::OptionalIntArrayRef dim,
+    bool keepdim)
+{
+    const int64_t rank = static_cast<int64_t>(input_shape.size());
+    TORCH_CHECK(rank > 0, "nntile sum: cannot sum a 0-dim tensor");
+
+    std::vector<int64_t> dims;
+    if (!dim.has_value() || dim->empty())
+    {
+        dims.reserve(static_cast<std::size_t>(rank));
+        for (int64_t i = 0; i < rank; ++i)
+        {
+            dims.push_back(i);
+        }
+    }
+    else
+    {
+        dims.reserve(dim->size());
+        for (const auto d : *dim)
+        {
+            const int64_t axis = d < 0 ? d + rank : d;
+            TORCH_CHECK(
+                axis >= 0 && axis < rank,
+                "nntile sum: dimension out of range");
+            dims.push_back(axis);
+        }
+    }
+    std::sort(dims.begin(), dims.end(), std::greater<int64_t>());
+
+    std::vector<nntile::Index> cur_shape =
+        pytorch_shape_to_graph(input_shape);
+    auto *cur_node = get_or_create_data_node(
+        const_cast<float *>(input_data),
+        cur_shape,
+        nntile::DataType::FP32,
+        true);
+    nntile::TensorGraph &graph = *cur_node->graph();
+
+    for (std::size_t idx = 0; idx < dims.size(); ++idx)
+    {
+        const nntile::Index axis =
+            static_cast<nntile::Index>(dims[idx]);
+        const bool is_last = idx + 1 == dims.size();
+        const std::vector<nntile::Index> reduced =
+            reduced_shape_along_axis(cur_shape, axis);
+
+        if (is_last)
+        {
+            if (keepdim)
+            {
+                const std::vector<nntile::Index> keepdim_shape =
+                    keepdim_shape_along_axis(cur_shape, axis);
+                auto *out_node = get_or_create_data_node(
+                    out_data,
+                    keepdim_shape,
+                    nntile::DataType::FP32,
+                    false);
+                auto *reduced_node =
+                    make_graph_tensor(graph, reduced, "sum_red");
+                nntile::tensor::clear(reduced_node);
+                nntile::tensor::sum_slice(
+                    cur_node,
+                    reduced_node,
+                    axis,
+                    kNormRedux,
+                    static_cast<nntile::Scalar>(1.0),
+                    static_cast<nntile::Scalar>(0.0));
+                broadcast_slice_to_keepdim(
+                    reduced_node,
+                    out_node,
+                    axis);
+                register_data_node(out_data, out_node);
+            }
+            else
+            {
+                auto *out_node = get_or_create_data_node(
+                    out_data,
+                    reduced,
+                    nntile::DataType::FP32,
+                    false);
+                nntile::tensor::clear(out_node);
+                nntile::tensor::sum_slice(
+                    cur_node,
+                    out_node,
+                    axis,
+                    kNormRedux,
+                    static_cast<nntile::Scalar>(1.0),
+                    static_cast<nntile::Scalar>(0.0));
+                register_data_node(out_data, out_node);
+            }
+            maybe_execute_after_record();
+            return;
+        }
+
+        auto *next = make_graph_tensor(graph, reduced, "sum_tmp");
+        nntile::tensor::clear(next);
+        nntile::tensor::sum_slice(
+            cur_node,
+            next,
+            axis,
+            kNormRedux,
+            static_cast<nntile::Scalar>(1.0),
+            static_cast<nntile::Scalar>(0.0));
+        cur_node = next;
+        cur_shape = reduced;
+    }
+}
+
+void tensor_mul_scalar_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef input_shape,
+    float scalar)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input_shape);
+    auto *input_node = get_or_create_data_node(
+        const_cast<float *>(input_data),
+        graph_shape,
+        nntile::DataType::FP32,
+        true);
+    auto *out_node = get_or_create_data_node(
+        out_data,
+        graph_shape,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::scale(
+        static_cast<nntile::Scalar>(scalar),
+        input_node,
+        out_node);
+    register_data_node(out_data, out_node);
+    maybe_execute_after_record();
+}
+
 void tensor_cat_fp32(
     const std::vector<const float *> &input_data,
     const std::vector<c10::IntArrayRef> &input_shapes,
@@ -3136,6 +3275,25 @@ void tensor_sum_to_scalar_fp32(
     c10::IntArrayRef /*input_shape*/)
 {
     require_libnntile("sum_to_scalar");
+}
+
+void tensor_sum_dimlist_fp32(
+    const float * /*input_data*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*input_shape*/,
+    at::OptionalIntArrayRef /*dim*/,
+    bool /*keepdim*/)
+{
+    require_libnntile("sum");
+}
+
+void tensor_mul_scalar_fp32(
+    const float * /*input_data*/,
+    float * /*out_data*/,
+    c10::IntArrayRef /*input_shape*/,
+    float /*scalar*/)
+{
+    require_libnntile("mul_scalar");
 }
 
 void tensor_cat_fp32(
