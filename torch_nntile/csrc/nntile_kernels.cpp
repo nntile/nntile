@@ -572,16 +572,33 @@ at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
     {
         return self;
     }
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile transpose supports float32 only");
+    TORCH_CHECK(
+        self.is_contiguous(),
+        "nntile transpose requires contiguous input");
     auto sizes = self.sizes().vec();
-    auto strides = self.strides().vec();
     std::swap(sizes[static_cast<size_t>(dim0)], sizes[static_cast<size_t>(dim1)]);
-    std::swap(
-        strides[static_cast<size_t>(dim0)],
-        strides[static_cast<size_t>(dim1)]);
-    return reshape_alias(
-        self,
+    at::Tensor result = at::empty(
         c10::IntArrayRef(sizes),
-        c10::IntArrayRef(strides));
+        self.options().memory_format(at::MemoryFormat::Contiguous));
+    const int64_t numel = self.numel();
+    if (numel == 0)
+    {
+        return result;
+    }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_graph_mode())
+    {
+        pin_graph_op_inputs({self});
+        pin_graph_op_output(result, true);
+        tensor_swap_two_axes_fp32(self, result, dim0, dim1);
+        return result;
+    }
+#endif
+    tensor_swap_two_axes_fp32(self, result, dim0, dim1);
+    return result;
 }
 
 at::Tensor t(const at::Tensor &self)

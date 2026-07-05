@@ -88,6 +88,7 @@ set(TESTS_TENSOR_CATCH2
     "sumprod_fiber"
     "sumprod_slice"
     "subtract_indexed_outputs"
+    "swap_two_axes"
     "total_sum_accum"
     "transpose"
 )

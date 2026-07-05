@@ -37,6 +37,8 @@ void on_tensor_impl_released(TensorImplKey key);
 
 void sync_runtime_to_nntile_tensor(const at::Tensor &tensor);
 
+void refresh_staged_tensor_mapping(const at::Tensor &tensor);
+
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 nntile::TensorGraph &recorder_graph();
@@ -67,8 +69,6 @@ nntile::TensorGraph::TensorNode *lookup_param_grad_node(
 void register_grad_alias_for_host_copy(
     at::Tensor &grad,
     nntile::TensorGraph::TensorNode *grad_node);
-
-void refresh_staged_tensor_mapping(const at::Tensor &tensor);
 
 void push_relu_preactivation_node(nntile::TensorGraph::TensorNode *node);
 
