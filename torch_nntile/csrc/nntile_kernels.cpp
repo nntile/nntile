@@ -462,7 +462,10 @@ at::Tensor copy_from(
     if (is_nntile_device(mutable_dst.device()) && self.is_cpu())
     {
         ensure_host_staging(mutable_dst);
-        mark_staged_input_tensor(mutable_dst);
+        if (is_graph_mode())
+        {
+            mark_staged_input_tensor(mutable_dst);
+        }
     }
     else if (
         is_nntile_device(self.device()) &&

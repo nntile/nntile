@@ -1878,7 +1878,6 @@ void stage_tensor_for_axis_group_compile(const at::Tensor & /*tensor*/)
 
 void refresh_staged_tensor_mapping(const at::Tensor & /*tensor*/)
 {
-    require_libnntile();
 }
 
 void set_axis_group_tiling(

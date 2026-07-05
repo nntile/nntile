@@ -193,7 +193,10 @@ void ensure_host_staging(at::Tensor &tensor)
         allocator,
         /*resizable=*/true);
     tensor.unsafeGetTensorImpl()->set_storage_keep_dtype(std::move(storage));
-    register_tensor_storage_ctx_locked(tensor);
+    {
+        std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
+        register_tensor_storage_ctx_locked(tensor);
+    }
 }
 
 } // namespace torch_nntile
