@@ -156,8 +156,9 @@ on CPU while weights are on `device="nntile"`.
   `[..., seq, head_size]` (e.g. `(batch, n_heads, seq, head_size)` or kernel layout
   `(n_heads, batch, seq, head_size)`); optional `attn_mask` (bool or float additive),
   `is_causal=True`; fixed scale `1/sqrt(head_size)`. No dropout, GQA, or custom scale.
-  Forward returns a placeholder `logsumexp` (OpenReg pattern); backward recomputes via
-  maxsumexp-based `sdpa_backward` (logsumexp is not used).
+  Forward returns a placeholder `logsumexp` (OpenReg API requirement only). Backward
+  ignores that tensor and delegates to `sdpa_backward`, which uses internal
+  `maxsumexp` buffers (not logsumexp) through the existing softmax backward chain.
 - **`torch_nntile.nn.sdpa_eager` / `SDPA`**: projection layout
   `[batch, seq, head_size, n_heads]`; internally transposes to kernel layout, calls
   `F.scaled_dot_product_attention`, transposes back. Optional BOOL mask `[q_seq, k_seq]`

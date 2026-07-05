@@ -243,6 +243,8 @@ sdpa_overrideable_forward(
         mask,
         batch_ndim);
     const at::Tensor logsumexp = logsumexp_placeholder(query);
+    // PyTorch SDPA API requires logsumexp; nntile softmax uses maxsumexp internally.
+    // Backward ignores this tensor and uses maxsumexp buffers in sdpa_backward.
     const at::Tensor philox_seed =
         at::empty({}, query.options().dtype(at::ScalarType::Long));
     const at::Tensor philox_offset =
@@ -296,6 +298,7 @@ sdpa_overrideable_backward(
     std::optional<double> scale)
 {
     (void)out;
+    // PyTorch passes logsumexp from forward; sdpa_backward uses maxsumexp internally.
     (void)logsumexp;
     (void)cum_seq_q;
     (void)cum_seq_k;
