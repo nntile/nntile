@@ -17,6 +17,7 @@ from transformers import GPT2Config, GPT2LMHeadModel
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
+from torch_nntile.training import cross_entropy, train_full_batch_step
 from torch_nntile.models.gpt2_minimal import (
     GPT2Attention,
     GPT2Block,
@@ -331,6 +332,50 @@ def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
 
     _assert_close(minimal.lm_head.weight.grad, hf.lm_head.weight.grad, atol=1e-3)
     _assert_close(minimal.transformer.wpe.weight.grad, hf.transformer.wpe.weight.grad)
+
+
+def test_gpt2_lm_head_cross_entropy_backward_matches_hf(tiny_gpt2_config):
+    hf, minimal = _make_models(tiny_gpt2_config)
+    for param in hf.parameters():
+        param.requires_grad_(True)
+    for param in minimal.parameters():
+        param.requires_grad_(True)
+
+    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8))
+    labels = input_ids.clone()
+
+    hf.zero_grad(set_to_none=True)
+    ref_logits = hf(input_ids).logits
+    ref_loss = torch.nn.functional.cross_entropy(
+        ref_logits.view(-1, tiny_gpt2_config.vocab_size),
+        labels.view(-1),
+    )
+    ref_loss.backward()
+
+    minimal.zero_grad(set_to_none=True)
+    logits = minimal(input_ids)
+    loss = cross_entropy(logits, labels, reduction="mean")
+    loss.backward()
+
+    _assert_close(loss.to("cpu"), ref_loss, atol=1e-3)
+    _assert_close(
+        minimal.transformer.wte.weight.grad,
+        hf.transformer.wte.weight.grad,
+        atol=1e-3,
+    )
+
+
+def test_gpt2_lm_head_train_full_batch_step_cpu_inputs(tiny_gpt2_config):
+    _, minimal = _make_models(tiny_gpt2_config)
+    for param in minimal.parameters():
+        param.requires_grad_(True)
+
+    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8))
+    labels = input_ids.clone()
+
+    loss = train_full_batch_step(minimal, input_ids, labels, learning_rate=1e-3)
+    assert loss > 0.0
+    assert minimal.transformer.wte.weight.grad is not None
 
 
 @pytest.mark.xfail(
