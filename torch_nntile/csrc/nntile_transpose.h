@@ -17,6 +17,7 @@ at::Tensor model_transpose_forward(
 
 at::Tensor model_transpose_backward(
     const at::Tensor &grad_out,
-    int64_t model_ndim);
+    int64_t model_ndim,
+    const at::Tensor &x = {});
 
 } // namespace torch_nntile

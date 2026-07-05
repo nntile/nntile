@@ -438,7 +438,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::model_transpose_backward,
         "NNTile model-code transpose backward",
         py::arg("grad_out"),
-        py::arg("model_ndim"));
+        py::arg("model_ndim"),
+        py::arg("x"));
     m.def(
         "norm_forward",
         [](const at::Tensor &input,

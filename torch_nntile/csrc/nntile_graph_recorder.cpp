@@ -115,6 +115,21 @@ void register_grad_alias_for_host_copy_locked(
     at::Tensor &grad,
     nntile::TensorGraph::TensorNode *grad_node);
 
+void clear_param_grad_registry_locked()
+{
+    std::vector<at::Tensor> params_to_release;
+    params_to_release.reserve(g_param_grad_registry.size());
+    for (auto &[key, entry] : g_param_grad_registry)
+    {
+        (void) key;
+        if (entry.param.defined())
+        {
+            params_to_release.push_back(std::move(entry.param));
+        }
+    }
+    g_param_grad_registry.clear();
+}
+
 void log_tile_adoption(const std::string &message)
 {
     if (is_context_verbose())
@@ -685,7 +700,7 @@ void clear_pending_graph_after_compile_locked(
         ++it;
     }
     g_param_grad_nodes.clear();
-    g_param_grad_registry.clear();
+    clear_param_grad_registry_locked();
     g_relu_preactivation_stack.clear();
     transfer_pinned_tensors_locked(pin_drop);
     g_axis_name_hints.clear();
@@ -718,6 +733,10 @@ void insert_input_scatter_staging_locked()
             continue;
         }
         if (!should_bind_mapped_at_compile(impl_key, mapped))
+        {
+            continue;
+        }
+        if (mapped.host_data_ptr == nullptr)
         {
             continue;
         }
@@ -858,7 +877,7 @@ void reset_recorder_locked(
     g_graph.reset();
     g_tensor_nodes.clear();
     g_param_grad_nodes.clear();
-    g_param_grad_registry.clear();
+    clear_param_grad_registry_locked();
     g_relu_preactivation_stack.clear();
     g_all_nodes.clear();
     transfer_pinned_tensors_locked(pin_drop);
@@ -1529,10 +1548,16 @@ void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
     }
     for (const at::Tensor &tensor : inputs)
     {
-        if (is_staged_input_tensor(tensor) || has_host_staging(tensor))
+        if (!has_host_staging(tensor))
         {
-            pin_tensor_for_graph(tensor);
+            continue;
         }
+        if (!is_staged_input_tensor(tensor) && !is_metadata_only_tensor(tensor))
+        {
+            at::Tensor mutable_tensor = tensor;
+            mark_staged_input_tensor(mutable_tensor);
+        }
+        pin_tensor_for_graph(tensor);
     }
 }
 
