@@ -232,6 +232,24 @@ torch_nntile. Training helpers such as ``train_full_batch_step`` call
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 
+### Memory and tensor lifetime
+
+NNTile tracks every ``device="nntile"`` tensor in the graph recorder while a
+Python ``Tensor`` object is alive. At ``compile_graph()`` all recorded tensor
+nodes are marked as graph outputs so values remain available through ``run()``.
+During ``run()``, ``Runtime::execute()`` releases StarPU tile buffers for
+intermediate tiles after their last consumer when those tiles are not marked as
+inputs or outputs.
+
+- **Reduce footprint:** ``del`` temporaries you no longer need (activations,
+  large intermediates) before ``compile_graph()`` in training loops so the
+  recorder does not retain stale mappings.
+- **Host RAM:** graph-mode op outputs use metadata-only storage (negligible host
+  bytes); weights and inputs staged via ``.to("nntile")`` use normal PyTorch
+  host storage and follow PyTorch refcounting.
+- **Readout:** call ``compile_graph()`` and ``run()`` before ``.to("cpu")`` on
+  values you still hold in Python.
+
 ### Axis-group naming and tiling
 
 Full reference: [docs/torch_nntile.md](../docs/torch_nntile.md).

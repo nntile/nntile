@@ -364,3 +364,55 @@ def test_graph_mode_mm_view_add_ndim():
         """
     )
 
+
+def test_intermediate_output_mark_cleared_when_python_ref_dropped():
+    _run_graph_subprocess(
+        """
+        import gc
+        import torch
+        import torch_nntile
+        from torch_nntile import _C
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        a = torch.tensor([1.0, 2.0]).to("nntile")
+        b = torch.tensor([3.0, 4.0]).to("nntile")
+        c = torch.tensor([0.5, 0.5]).to("nntile")
+        t = a + b
+        d = t + c
+        del t
+        gc.collect()
+        stats = _C.debug_gc_stats()
+        assert stats.tensor_nodes == 4
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        torch_nntile.wait()
+        assert torch.allclose(d.cpu(), torch.tensor([4.5, 6.5]))
+        """
+    )
+
+
+def test_intermediate_output_mark_kept_while_python_ref_alive():
+    _run_graph_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        a = torch.tensor([1.0, 2.0]).to("nntile")
+        b = torch.tensor([3.0, 4.0]).to("nntile")
+        c = torch.tensor([0.5, 0.5]).to("nntile")
+        t = a + b
+        d = t + c
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        torch_nntile.wait()
+        assert torch.allclose(t.cpu(), torch.tensor([4.0, 6.0]))
+        assert torch.allclose(d.cpu(), torch.tensor([4.5, 6.5]))
+        """
+    )

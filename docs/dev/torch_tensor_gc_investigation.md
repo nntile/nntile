@@ -355,6 +355,23 @@ Graph-mode `empty` / `empty_strided` return metadata-only tensors
 host bytes. On-demand readout uses `copy_nntile_tensor_to_cpu()` while a
 compiled session is active.
 
+### 8. PyTorch-refcount output marks (partial)
+
+`Runtime::execute()` calls `release_dead_tiles_after_op()` after each op so
+intermediate tiles that are not marked input/output release StarPU buffers via
+`invalidate_submit()` once their last consumer finishes.
+
+**Planned (not yet wired at compile):** mark `TensorGraph` nodes as output when
+linked to live nntile tensors, clear marks when the last Python reference dies,
+and call `seal_output_marks_from_live_tensors_locked()` at `compile_graph()`
+instead of blanket-marking every recorded node. A prototype of that seal path
+exists but recording-time mark clearing currently breaks backward graphs that
+defer `execute()` until after `backward()`; compile still marks all recorded
+nodes as outputs until the seal logic is finished.
+
+Users should still `del` unneeded nntile tensors before `compile_graph()` to
+keep the live tensor map small (see `torch_nntile/README.md`).
+
 ## Investigation tooling added
 
 | API / tool | Purpose |

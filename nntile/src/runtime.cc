@@ -568,6 +568,7 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
             starpu_worker_hint_ = -1;
         }
         execution_order_[i]->execute(*this);
+        release_dead_tiles_after_op(i);
     }
 }
 
@@ -590,6 +591,7 @@ void Runtime::execute()
             starpu_worker_hint_ = -1;
         }
         execution_order_[i]->execute(*this);
+        release_dead_tiles_after_op(i);
     }
 }
 

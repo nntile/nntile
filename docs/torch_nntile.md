@@ -81,6 +81,11 @@ in one call.
 Training helper `torch_nntile.training.train_full_batch_step` calls
 `compile_graph()` and `run()`; read loss with `loss.to("cpu")`.
 
+**Tile memory:** During `run()`, `Runtime::execute()` releases intermediate
+StarPU tiles after their last consumer when those tiles are not graph
+inputs/outputs. Delete unneeded temporaries with `del` before `compile_graph()`
+to keep the recorder map small (see `torch_nntile/README.md`).
+
 ## Axis-group naming and tiling
 
 Tiling in NNTile is defined on **shared axis groups** (`AxisDescriptor` in C++),
