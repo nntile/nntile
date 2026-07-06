@@ -8,8 +8,8 @@ import pytest
 import torch
 
 from torch_nntile import _C
-from torch_nntile.training import (
 from conftest import nntile_cpu
+from torch_nntile.training import (
     Adam, AdamW, _AdamBase, fused_adam_step, fused_adamw_step)
 
 pytestmark = pytest.mark.skipif(
