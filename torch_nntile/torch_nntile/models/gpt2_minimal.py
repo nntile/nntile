@@ -21,7 +21,7 @@ def make_causal_sdpa_mask(seq_len: int, device: torch.device | None = None) -> T
     """BOOL causal mask ``[seq, seq]`` with ``mask[q, k] = (k <= q)``."""
     q_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
     k_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
-    mask = k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)
+    mask = (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous()
     if device is not None and device.type != "cpu":
         mask = mask.to(device)
     return mask
@@ -207,10 +207,10 @@ class GPT2Model(nn.Module):
             seq = input_ids.size(-1)
             position_ids = (
                 torch.arange(seq, dtype=torch.long, device="cpu")
-                .to(input_ids.device)
                 .unsqueeze(0)
                 .expand(input_ids.size(0), -1)
                 .contiguous()
+                .to(input_ids.device)
             )
 
         if causal_mask is None:
