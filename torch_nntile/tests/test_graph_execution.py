@@ -211,11 +211,12 @@ def test_graph_cross_entropy_backward_and_sgd():
         batch, classes, features = 4, 3, 5
         w_cpu = torch.randn(classes, features)
         x_cpu = torch.randn(batch, features)
-        target = torch.randint(0, classes, (batch,))
+        target = torch.randint(0, classes, (batch,)).to("nntile")
+        target_cpu = target.cpu()
 
         w_ref = w_cpu.clone().requires_grad_(True)
         logits_ref = x_cpu @ w_ref.t()
-        loss_ref = torch.nn.functional.cross_entropy(logits_ref, target)
+        loss_ref = torch.nn.functional.cross_entropy(logits_ref, target_cpu)
         loss_ref.backward()
         torch.optim.SGD([w_ref], lr=0.1).step()
         w_after_ref = w_ref.detach().clone()
@@ -319,7 +320,8 @@ def test_graph_nntile_loss_backward_without_scalar_read():
         torch_nntile.restrict_cpu()
 
         logits_cpu = torch.randn(8, 5)
-        target = torch.randint(0, 5, (8,))
+        target = torch.randint(0, 5, (8,)).to("nntile")
+        target_cpu = target.cpu()
         logits_nnt = logits_cpu.to("nntile").requires_grad_(True)
         loss = cross_entropy(logits_nnt, target, reduction="mean")
         assert loss.device.type == "nntile"
@@ -327,7 +329,9 @@ def test_graph_nntile_loss_backward_without_scalar_read():
         loss.backward()
         assert torch_nntile.has_pending_graph()
         torch_nntile.execute()
-        ref = torch.nn.functional.cross_entropy(logits_cpu, target, reduction="mean")
+        ref = torch.nn.functional.cross_entropy(
+            logits_cpu, target_cpu, reduction="mean"
+        )
         assert torch.allclose(loss.detach().cpu(), ref, rtol=1e-4, atol=1e-4)
         """
     )

@@ -72,8 +72,8 @@ void check_sdpa_mask(
         mask.is_contiguous(),
         "nntile sdpa: mask must be contiguous");
     TORCH_CHECK(
-        mask.is_cpu() || is_nntile_device(mask.device()),
-        "nntile sdpa: mask must be on CPU or nntile");
+        is_nntile_device(mask.device()),
+        "nntile sdpa: mask must be on device nntile");
     const int64_t q_ndim = q.dim();
     const int64_t k_ndim = k.dim();
     const int64_t q_seq = q.size(q_ndim - 2);
@@ -83,6 +83,20 @@ void check_sdpa_mask(
             mask.size(0) == q_seq &&
             mask.size(1) == k_seq,
         "nntile sdpa: mask shape must be [q_seq, k_seq]");
+}
+
+at::Tensor mask_to_uint8_nntile(const at::Tensor &mask)
+{
+    if (mask.scalar_type() == at::ScalarType::Byte)
+    {
+        return mask.contiguous();
+    }
+    at::Tensor mask_u8 = mask.cpu().to(at::kByte);
+    if (is_nntile_device(mask.device()))
+    {
+        mask_u8 = mask_u8.to(mask.device());
+    }
+    return mask_u8.contiguous();
 }
 
 } // namespace
@@ -113,14 +127,7 @@ at::Tensor sdpa_forward(
     std::vector<at::Tensor> inputs = {q, k, v};
     if (mask.has_value())
     {
-        if (mask->scalar_type() == at::ScalarType::Bool)
-        {
-            mask_u8 = mask->to(at::kByte);
-        }
-        else
-        {
-            mask_u8 = *mask;
-        }
+        mask_u8 = mask_to_uint8_nntile(*mask);
         inputs.push_back(mask_u8);
     }
     pin_graph_op_inputs(inputs);
@@ -172,14 +179,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     std::vector<at::Tensor> inputs = {q, k, v, grad_out};
     if (mask.has_value())
     {
-        if (mask->scalar_type() == at::ScalarType::Bool)
-        {
-            mask_u8 = mask->to(at::kByte);
-        }
-        else
-        {
-            mask_u8 = *mask;
-        }
+        mask_u8 = mask_to_uint8_nntile(*mask);
         inputs.push_back(mask_u8);
     }
     pin_graph_op_inputs(inputs);

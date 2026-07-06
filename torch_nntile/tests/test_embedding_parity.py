@@ -60,7 +60,7 @@ def test_embedding_forward_matches_cpu(index_shape):
 
     out_cpu = F.embedding(indices, weight_cpu)
     weight_nnt = weight_cpu.detach().to("nntile")
-    out_nnt = F.embedding(indices, weight_nnt)
+    out_nnt = F.embedding(indices.to("nntile"), weight_nnt)
 
     assert torch.allclose(out_nnt.detach().cpu(), out_cpu, rtol=1e-5, atol=1e-5)
 
@@ -83,7 +83,7 @@ def test_embedding_backward_matches_cpu():
         weight_nnt.weight.copy_(weight_cpu.weight.detach())
     weight_nnt.weight.requires_grad_(True)
 
-    out_nnt = weight_nnt(indices)
+    out_nnt = weight_nnt(indices.to("nntile"))
     grad_out = torch.ones_like(out_cpu).to("nntile")
     torch.autograd.backward([out_nnt], [grad_out])
     grad_nnt = weight_nnt.weight.grad.cpu()
@@ -109,7 +109,7 @@ def test_embedding_duplicate_indices():
         weight_nnt.weight.copy_(weight_cpu.weight.detach())
     weight_nnt.weight.requires_grad_(True)
 
-    out_nnt = weight_nnt(indices)
+    out_nnt = weight_nnt(indices.to("nntile"))
     grad_out = torch.ones_like(out_cpu).to("nntile")
     torch.autograd.backward([out_nnt], [grad_out])
     grad_nnt = weight_nnt.weight.grad.cpu()
@@ -117,18 +117,17 @@ def test_embedding_duplicate_indices():
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-5, atol=1e-5)
 
 
-def test_embedding_indices_on_cpu():
+def test_embedding_rejects_cpu_indices():
     torch.manual_seed(3)
     num_embeddings, embed_dim = 10, 5
     indices = torch.randint(0, num_embeddings, (3, 3))
-    weight_cpu = torch.randn(num_embeddings, embed_dim, dtype=torch.float32)
-
-    out_cpu = F.embedding(indices, weight_cpu)
-    weight_nnt = weight_cpu.detach().to("nntile")
-    out_nnt = F.embedding(indices, weight_nnt)
+    weight_nnt = torch.randn(num_embeddings, embed_dim, dtype=torch.float32).to(
+        "nntile"
+    )
 
     assert indices.device.type == "cpu"
-    assert torch.allclose(out_nnt.detach().cpu(), out_cpu, rtol=1e-5, atol=1e-5)
+    with pytest.raises(RuntimeError, match="indices must be on device nntile"):
+        F.embedding(indices, weight_nnt)
 
 
 def test_embedding_graph_mode():
@@ -145,9 +144,9 @@ def test_embedding_graph_mode():
         torch_nntile.restrict_cpu()
 
         num_embeddings, embed_dim = 8, 4
-        indices = torch.randint(0, num_embeddings, (2, 3))
+        indices = torch.randint(0, num_embeddings, (2, 3)).to("nntile")
         weight_cpu = torch.randn(num_embeddings, embed_dim, dtype=torch.float32)
-        out_cpu = F.embedding(indices, weight_cpu)
+        out_cpu = F.embedding(indices.cpu(), weight_cpu)
 
         weight_nnt = weight_cpu.detach().to("nntile")
         out_nnt = F.embedding(indices, weight_nnt)

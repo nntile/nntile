@@ -137,7 +137,8 @@ for NNTile-layout SDPA.
 | `linear` backward / `mm` | `tensor::gemm` |
 | `F.embedding` / `nn.Embedding` | `tensor::embedding` |
 | Embedding backward | `tensor::embedding_backward` |
-| `torch_nntile.nn.SDPA` / `sdpa_eager` | `gemm`, `maxsumexp`, `softmax_inplace`, optional `mask_scalar`; backward: `gemm`, `sumprod_slice`, `add_slice_inplace`, `multiply_inplace` |
+| `torch_nntile.nn.SDPA` / `sdpa_eager` | Cyclic transpose → `F.scaled_dot_product_attention` → cyclic transpose; ATen overrideable → `sdpa_forward/backward` (`maxsumexp`, `softmax_inplace`, optional `mask_scalar`; backward: `gemm`, `sumprod_slice`, …) |
+| `F.scaled_dot_product_attention` on `device="nntile"` | Same ATen overrideable backend as above (PyTorch/HF layout `[..., seq, head_size]`, e.g. `(batch, n_heads, seq, head_size)`) |
 | `torch_nntile.nn.weight_layout` | Pure PyTorch permutes for HF ↔ NNTile attention weights (no kernel) |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
@@ -146,18 +147,27 @@ PyTorch C-order shapes are converted to TensorGraph storage layout internally.
 Gradients use **PyTorch autograd** (not `NNGraph` autograd).
 
 **Embedding v1 limits:** `float32` weights only; `padding_idx` must be `-1`
-(default); `scale_grad_by_freq=False` and `sparse=False` only. Indices may stay
-on CPU while weights are on `device="nntile"`.
+(default); `scale_grad_by_freq=False` and `sparse=False` only. Indices must be
+on `device="nntile"` (use `.to("nntile")` explicitly).
 
-**SDPA v1 limits:** `float32` only; Q/K/V on
-`device="nntile"` in NNTile layout `[batch..., seq, head_size]` (e.g.
-`(n_heads, batch, seq, head_size)` with `batch_ndim=2`); optional BOOL mask
-`[q_seq, k_seq]` on CPU or nntile (dim0 = query axis, dim1 = key axis, same as
-GPT-2 `attn_mask` / ``sdpa_causal_mask_bool_fill``); fixed scale `1/sqrt(head_size)`. Works in
-both eager and graph runtime modes (graph defers execution until
+**SDPA v1 limits:** `float32` only. Two entry points share one ATen kernel:
+
+- **`F.scaled_dot_product_attention`** on `device="nntile"`: Q/K/V in PyTorch layout
+  `[..., seq, head_size]` (e.g. `(batch, n_heads, seq, head_size)` or kernel layout
+  `(n_heads, batch, seq, head_size)`); optional `attn_mask` (bool or float additive),
+  `is_causal=True`; fixed scale `1/sqrt(head_size)`. No dropout, GQA, or custom scale.
+  Forward returns a placeholder `logsumexp` (OpenReg API requirement only). Backward
+  ignores that tensor and delegates to `sdpa_backward`, which uses internal
+  `maxsumexp` buffers (not logsumexp) through the existing softmax backward chain.
+- **`torch_nntile.nn.sdpa_eager` / `SDPA`**: projection layout
+  `[batch, seq, head_size, n_heads]`; internally transposes to kernel layout, calls
+  `F.scaled_dot_product_attention`, transposes back. Optional BOOL mask `[q_seq, k_seq]`
+  on `device="nntile"` (dim0 = query, dim1 = key).
+
+Works in both eager and graph runtime modes (graph defers execution until
 ``compile_graph()`` / ``run()`` or ``execute()``). Use
 `torch_nntile.nn.weight_layout` to convert HF/PyTorch attention weights before
-NNTile-layout projection GEMMs. No dropout, causal flag, GQA, or custom scale.
+NNTile-layout projection GEMMs.
 
 ### Gradient accumulation
 
@@ -292,7 +302,8 @@ Train `DeepReLU.mnist()` on all **60 000** MNIST training images in one batch,
 comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
 
 Cross-entropy is evaluated on nntile via `torch_nntile.training.cross_entropy`
-(same tensor-op chain as `NNCrossEntropyOp` in libnntile). Logits use **class
+(same tensor-op chain as `NNCrossEntropyOp` in libnntile). Logits and labels must
+both be on `device="nntile"` (use `.to("nntile")` explicitly). Logits use **class
 dim last** (`[..., C]`); labels match logits without the class axis (`...`).
 The scalar loss lives on ``device="nntile"``; use ``loss.to("cpu")`` after
 ``compile_graph()`` and ``run()`` in graph mode. Backward keeps ``grad_output`` as a

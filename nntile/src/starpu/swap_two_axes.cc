@@ -68,6 +68,55 @@ void SwapTwoAxes<std::tuple<fp32_fast_bf16_t>>::cpu(
     SwapTwoAxes<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void SwapTwoAxes<std::tuple<T>>::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    kernel::swap_two_axes::cuda<T>(
+        stream,
+        args->d0,
+        args->d1,
+        args->d2,
+        args->d3,
+        args->d4,
+        src,
+        dst);
+#endif
+}
+
+template<>
+void SwapTwoAxes<std::tuple<fp32_fast_tf32_t>>::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+    SwapTwoAxes<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SwapTwoAxes<std::tuple<fp32_fast_fp16_t>>::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+    SwapTwoAxes<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SwapTwoAxes<std::tuple<fp32_fast_bf16_t>>::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+    SwapTwoAxes<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
+
 template<typename T>
 uint32_t SwapTwoAxes<std::tuple<T>>::footprint(struct starpu_task *task)
 {

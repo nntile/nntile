@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 from torch_nntile import _C
@@ -43,31 +44,30 @@ def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:
     return _NntileModelTranspose.apply(x, model_ndim)
 
 
-class _NntileSdpaEager(torch.autograd.Function):
+class _NntileSdpaKernel(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
         q: Tensor,
         k: Tensor,
         v: Tensor,
-        mask: Tensor | None,
+        mask: Tensor,
         batch_ndim: int,
     ) -> Tensor:
         out = _C.sdpa_forward(q, k, v, mask, int(batch_ndim))
-        ctx.save_for_backward(q, k, v)
-        ctx.mask = mask
+        ctx.save_for_backward(q, k, v, mask)
         ctx.batch_ndim = int(batch_ndim)
         return out
 
     @staticmethod
     def backward(ctx, grad_out: Tensor):
-        q, k, v = ctx.saved_tensors
+        q, k, v, mask = ctx.saved_tensors
         grad_q, grad_k, grad_v = _C.sdpa_backward(
             q,
             k,
             v,
             grad_out,
-            ctx.mask,
+            mask,
             ctx.batch_ndim,
         )
         return grad_q, grad_k, grad_v, None, None
@@ -83,13 +83,16 @@ def sdpa_eager(
 ) -> Tensor:
     """SDPA on post-GEMM Q/K/V layout ``[batch, seq, head_size, n_heads]``.
 
-    Internally applies ``transpose(..., 1)``, calls the NNTile-layout kernel
-    (e.g. ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``), then
-    ``transpose(..., 3)`` on the output — matching
+    Internally applies ``transpose(..., 1)`` to kernel layout (e.g.
+    ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``), calls
+    ``F.scaled_dot_product_attention`` (dispatched to the nntile ATen
+    backend), then ``transpose(..., 3)`` on the output — matching
     ``nntile/src/model/gpt2/gpt2_attention.cc`` around ``sdpa_eager``.
     Optional BOOL mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key). Scale is
     ``1/sqrt(head_size)``.
     """
+    if batch_ndim != 2:
+        raise ValueError("sdpa_eager currently supports batch_ndim=2 only")
     if q.device.type != "nntile":
         raise ValueError("sdpa_eager expects nntile Q/K/V tensors")
     if k.device.type != "nntile" or v.device.type != "nntile":
@@ -98,10 +101,29 @@ def sdpa_eager(
         raise ValueError("nntile sdpa supports float32 only")
     if mask is not None and mask.dtype != torch.bool:
         raise ValueError("nntile sdpa: mask must be bool")
+    if mask is not None and mask.device.type != "nntile":
+        raise ValueError("nntile sdpa: mask must be on device nntile")
     q_sdpa = nntile_model_transpose(q, 1)
     k_sdpa = nntile_model_transpose(k, 1)
     v_sdpa = nntile_model_transpose(v, 1)
-    attn_out = _NntileSdpaEager.apply(q_sdpa, k_sdpa, v_sdpa, mask, batch_ndim)
+    if mask is None:
+        attn_out = F.scaled_dot_product_attention(
+            q_sdpa,
+            k_sdpa,
+            v_sdpa,
+            attn_mask=None,
+            dropout_p=0.0,
+            is_causal=False,
+            scale=None,
+        )
+    else:
+        attn_out = _NntileSdpaKernel.apply(
+            q_sdpa,
+            k_sdpa,
+            v_sdpa,
+            mask,
+            batch_ndim,
+        )
     return nntile_model_transpose(attn_out, 3)
 
 

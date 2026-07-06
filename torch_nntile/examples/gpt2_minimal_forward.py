@@ -39,9 +39,10 @@ def main() -> None:
     load_hf_into_gpt2_lm_head(model, hf)
     model = model.to("nntile")
 
-    input_ids = torch.randint(0, config.vocab_size, (2, 8))
+    input_ids_cpu = torch.randint(0, config.vocab_size, (2, 8))
+    input_ids = input_ids_cpu.to("nntile")
     with torch.no_grad():
-        ref = hf(input_ids).logits
+        ref = hf(input_ids_cpu).logits
         out = model(input_ids).cpu()
     print("forward match:", torch.allclose(out, ref, rtol=1e-4, atol=1e-4))
 

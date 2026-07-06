@@ -34,8 +34,8 @@ void check_cross_entropy_inputs(
         target.scalar_type() == at::ScalarType::Long,
         "nntile cross_entropy: target must be int64");
     TORCH_CHECK(
-        target.is_cpu() || is_nntile_device(target.device()),
-        "nntile cross_entropy: target must be CPU or nntile");
+        is_nntile_device(target.device()),
+        "nntile cross_entropy: target must be on device nntile");
     TORCH_CHECK(logits.dim() >= 2, "nntile cross_entropy: logits must be >= 2D");
     TORCH_CHECK(
         target.dim() + 1 == logits.dim(),

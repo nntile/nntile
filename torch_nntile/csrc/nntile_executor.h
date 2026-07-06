@@ -274,6 +274,19 @@ void tensor_sum_to_scalar_fp32(
     const at::Tensor &input,
     at::Tensor &out);
 
+void tensor_sum_dimlist_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef input_shape,
+    at::OptionalIntArrayRef dim,
+    bool keepdim);
+
+void tensor_mul_scalar_fp32(
+    const float *input_data,
+    float *out_data,
+    c10::IntArrayRef input_shape,
+    float scalar);
+
 void tensor_cat_fp32(
     const std::vector<at::Tensor> &inputs,
     at::Tensor &out,
