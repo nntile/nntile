@@ -10,6 +10,10 @@
 #pragma once
 
 #include <nntile/kernel/swap_two_axes/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/swap_two_axes/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
 namespace nntile::kernel::swap_two_axes
 {

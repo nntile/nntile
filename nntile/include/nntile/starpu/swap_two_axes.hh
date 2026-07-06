@@ -47,7 +47,15 @@ public:
         cpu
     };
 
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
     static constexpr func_array cuda_funcs = {};
+#endif // NNTILE_USE_CUDA
 
     void submit(
         int starpu_worker_hint,
