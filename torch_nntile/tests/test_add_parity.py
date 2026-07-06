@@ -50,3 +50,13 @@ def test_add_2d_shape_parity():
     z_cpu = a_cpu + b_cpu
 
     assert torch.allclose(z_nntile, z_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_add_inplace_broadcast_matches_cpu():
+    a_cpu = torch.randn(2, 3, 4, dtype=torch.float32)
+    b_cpu = torch.randn(1, 3, 4, dtype=torch.float32)
+    a_nnt = a_cpu.clone().to("nntile")
+    b_nnt = b_cpu.to("nntile")
+    a_cpu.add_(b_cpu)
+    a_nnt.add_(b_nnt)
+    torch.testing.assert_close(a_nnt.cpu(), a_cpu, rtol=1e-5, atol=1e-5)

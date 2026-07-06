@@ -2197,6 +2197,31 @@ void tensor_sum_dimlist_fp32(
             return;
         }
 
+        if (keepdim)
+        {
+            const std::vector<nntile::Index> keepdim_shape =
+                keepdim_shape_along_axis(cur_shape, axis);
+            auto *keepdim_node =
+                make_graph_tensor(graph, keepdim_shape, "sum_tmp");
+            auto *reduced_node =
+                make_graph_tensor(graph, reduced, "sum_red");
+            nntile::tensor::clear(reduced_node);
+            nntile::tensor::sum_slice(
+                cur_node,
+                reduced_node,
+                axis,
+                kNormRedux,
+                static_cast<nntile::Scalar>(1.0),
+                static_cast<nntile::Scalar>(0.0));
+            broadcast_slice_to_keepdim(
+                reduced_node,
+                keepdim_node,
+                axis);
+            cur_node = keepdim_node;
+            cur_shape = keepdim_shape;
+            continue;
+        }
+
         auto *next = make_graph_tensor(graph, reduced, "sum_tmp");
         nntile::tensor::clear(next);
         nntile::tensor::sum_slice(

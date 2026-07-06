@@ -7,6 +7,7 @@
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
 
+#include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
 #include <c10/core/DeviceGuard.h>
@@ -59,6 +60,44 @@ void check_add_inputs(
     }
 }
 
+void check_add_inplace_inputs(
+    const at::Tensor &self,
+    const at::Tensor &other)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()) &&
+            is_nntile_device(other.device()),
+        "nntile add expects both operands on device nntile");
+    TORCH_CHECK(
+        at::are_expandable(other.sizes(), self.sizes()),
+        "nntile add_.Tensor: shape not broadcastable to self");
+    TORCH_CHECK(
+        self.scalar_type() == other.scalar_type(),
+        "nntile add: dtype mismatch");
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile add supports float32 only in phase 2");
+    TORCH_CHECK(
+        self.is_contiguous() && other.is_contiguous(),
+        "nntile add requires contiguous tensors");
+}
+
+at::Tensor broadcast_to_self_shape(
+    const at::Tensor &tensor,
+    c10::IntArrayRef self_sizes)
+{
+    if (tensor.sizes().equals(self_sizes))
+    {
+        return tensor;
+    }
+    at::Tensor expanded = tensor.expand(self_sizes);
+    if (!expanded.is_contiguous())
+    {
+        expanded = expanded.contiguous();
+    }
+    return expanded;
+}
+
 void run_add_kernel(
     const at::Tensor &self,
     const at::Tensor &other,
@@ -107,14 +146,16 @@ at::Tensor &add_inplace_tensor(
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
-    check_add_inputs(self, other);
+    check_add_inplace_inputs(self, other);
+    const at::Tensor other_broadcast =
+        broadcast_to_self_shape(other, self.sizes());
     const float other_scale = alpha.to<float>();
     const float self_scale = 1.0f;
-    pin_graph_op_inputs({self, other});
+    pin_graph_op_inputs({self, other_broadcast});
     pin_graph_op_output(self, true);
     tensor_add_inplace_fp32(
         other_scale,
-        other.data_ptr<float>(),
+        other_broadcast.data_ptr<float>(),
         self_scale,
         self.data_ptr<float>(),
         self.sizes());
