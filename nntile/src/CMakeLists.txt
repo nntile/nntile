@@ -161,6 +161,7 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/sumprod_slice/cuda.cu"
             "kernel/total_sum_accum/cuda.cu"
             "kernel/transpose/cuda.cu"
+            "kernel/swap_two_axes/cuda.cu"
             "kernel/isfinite/cuda.cu"
         )
         if(NNTILE_USE_FLASH_SDPA)
