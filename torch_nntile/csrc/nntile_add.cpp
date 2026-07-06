@@ -24,7 +24,7 @@ bool is_nntile_device(c10::Device device)
     return device.type() == c10::DeviceType::PrivateUse1;
 }
 
-void check_add_inputs(
+void check_add_out_of_place_inputs(
     const at::Tensor &self,
     const at::Tensor &other,
     const std::optional<at::Tensor> &out = std::nullopt)
@@ -39,7 +39,9 @@ void check_add_inputs(
             is_nntile_device(out->device()),
             "nntile add.out expects output on device nntile");
     }
-    TORCH_CHECK(self.sizes() == other.sizes(), "nntile add: shape mismatch");
+    TORCH_CHECK(
+        at::are_expandable(self.sizes(), other.sizes()),
+        "nntile add: shape not broadcastable");
     TORCH_CHECK(
         self.scalar_type() == other.scalar_type(),
         "nntile add: dtype mismatch");
@@ -52,8 +54,8 @@ void check_add_inputs(
     if (out.has_value())
     {
         TORCH_CHECK(
-            out->sizes() == self.sizes(),
-            "nntile add.out: output shape mismatch");
+            out->scalar_type() == at::ScalarType::Float,
+            "nntile add.out supports float32 only in phase 2");
         TORCH_CHECK(
             out->is_contiguous(),
             "nntile add.out requires contiguous output");
@@ -82,15 +84,15 @@ void check_add_inplace_inputs(
         "nntile add requires contiguous tensors");
 }
 
-at::Tensor broadcast_to_self_shape(
+at::Tensor broadcast_to_shape(
     const at::Tensor &tensor,
-    c10::IntArrayRef self_sizes)
+    c10::IntArrayRef target_size)
 {
-    if (tensor.sizes().equals(self_sizes))
+    if (tensor.sizes().equals(target_size))
     {
         return tensor;
     }
-    at::Tensor expanded = tensor.expand(self_sizes);
+    at::Tensor expanded = tensor.expand(target_size);
     if (!expanded.is_contiguous())
     {
         expanded = expanded.contiguous();
@@ -124,9 +126,17 @@ at::Tensor add_tensor(
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
-    check_add_inputs(self, other);
-    at::Tensor out = at::empty_like(self);
-    run_add_kernel(self, other, alpha, out);
+    check_add_out_of_place_inputs(self, other);
+    const c10::SymIntArrayRef output_size =
+        at::infer_size_symdimvector(self.sym_sizes(), other.sym_sizes());
+    const at::Tensor lhs =
+        broadcast_to_shape(self, C10_AS_INTARRAYREF_SLOW(output_size));
+    const at::Tensor rhs =
+        broadcast_to_shape(other, C10_AS_INTARRAYREF_SLOW(output_size));
+    at::Tensor out = at::empty(
+        C10_AS_INTARRAYREF_SLOW(output_size),
+        self.options().memory_format(at::MemoryFormat::Contiguous));
+    run_add_kernel(lhs, rhs, alpha, out);
     return out;
 }
 
@@ -136,8 +146,17 @@ at::Tensor &add_out(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
-    check_add_inputs(self, other, out);
-    run_add_kernel(self, other, alpha, out);
+    check_add_out_of_place_inputs(self, other, out);
+    const c10::SymIntArrayRef output_size =
+        at::infer_size_symdimvector(self.sym_sizes(), other.sym_sizes());
+    TORCH_CHECK(
+        out.sizes().equals(C10_AS_INTARRAYREF_SLOW(output_size)),
+        "nntile add.out: output shape mismatch");
+    const at::Tensor lhs =
+        broadcast_to_shape(self, C10_AS_INTARRAYREF_SLOW(output_size));
+    const at::Tensor rhs =
+        broadcast_to_shape(other, C10_AS_INTARRAYREF_SLOW(output_size));
+    run_add_kernel(lhs, rhs, alpha, out);
     return out;
 }
 
@@ -148,7 +167,7 @@ at::Tensor &add_inplace_tensor(
 {
     check_add_inplace_inputs(self, other);
     const at::Tensor other_broadcast =
-        broadcast_to_self_shape(other, self.sizes());
+        broadcast_to_shape(other, self.sizes());
     const float other_scale = alpha.to<float>();
     const float self_scale = 1.0f;
     pin_graph_op_inputs({self, other_broadcast});
