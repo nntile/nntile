@@ -9,6 +9,7 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -26,7 +27,7 @@ def test_add_inplace_matches_cpu():
     expected = a_cpu + b_cpu
 
     a.add_(b)
-    assert torch.allclose(a.cpu(), expected)
+    assert torch.allclose(nntile_cpu(a), expected)
 
 
 def test_add_inplace_with_alpha_matches_cpu():
@@ -38,7 +39,7 @@ def test_add_inplace_with_alpha_matches_cpu():
     expected = torch.add(a_cpu, b_cpu, alpha=2.0)
 
     a.add_(b, alpha=2.0)
-    assert torch.allclose(a.cpu(), expected)
+    assert torch.allclose(nntile_cpu(a), expected)
 
 
 def test_add_inplace_2d_shape_parity():
@@ -51,4 +52,4 @@ def test_add_inplace_2d_shape_parity():
     a_nntile.add_(b_nntile)
 
     a_cpu.add_(b_cpu)
-    assert torch.allclose(a_nntile.cpu(), a_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(a_nntile), a_cpu, rtol=1e-5, atol=1e-5)

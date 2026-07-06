@@ -10,6 +10,7 @@ import pytest
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.models import DeepReLU
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -86,8 +87,8 @@ def test_linear_relu_layer_backward_matches_cpu():
     )
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(w_nnt.grad.cpu(), weight.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(w_nnt.grad), weight.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_deep_relu_backward_matches_cpu():
@@ -122,5 +123,5 @@ def test_deep_relu_backward_matches_cpu():
     )
 
     for g_nnt, g_cpu in zip(grads_nnt, grads_cpu):
-        assert torch.allclose(g_nnt.cpu(), g_cpu, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(gx_nnt.cpu(), gx_cpu, rtol=1e-4, atol=1e-4)
+        assert torch.allclose(nntile_cpu(g_nnt), g_cpu, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gx_nnt), gx_cpu, rtol=1e-4, atol=1e-4)

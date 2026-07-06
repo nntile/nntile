@@ -94,13 +94,11 @@ def init_context(
     verbose: int = 0,
     *,
     cpu_fallback: bool = True,
-    runtime_mode: str = "eager",
 ) -> None:
     """Configure StarPU workers before the first libnntile-backed op.
 
-    ``runtime_mode`` is ``"eager"`` (compile and run each op immediately) or
-    ``"graph"`` (record ops into a shared TensorGraph; call :func:`compile_graph`
-    and :func:`run` to compile and execute the pending graph).
+    Records ops into a shared TensorGraph; call :func:`compile_graph`
+    and :func:`run` to compile and execute the pending graph.
     """
     _C.init_context(
         ncpu,
@@ -111,16 +109,15 @@ def init_context(
         logger,
         verbose,
         cpu_fallback,
-        runtime_mode,
     )
     _register_shutdown_atexit()
 
 
 def execute() -> None:
-    """Compile, run, and reset the pending TensorGraph (legacy graph mode).
+    """Compile and run the pending TensorGraph in one call (legacy helper).
 
     Prefer :func:`compile_graph` and :func:`run` for training loops that reuse
-    tile memory across steps.
+    tile memory across steps. Does not reset the compiled session.
     """
     _C.execute()
 
@@ -142,10 +139,6 @@ def reset_graph_session() -> None:
 
 def has_graph_session() -> bool:
     return _C.has_graph_session()
-
-
-def is_graph_mode() -> bool:
-    return _C.is_graph_mode()
 
 
 def has_pending_graph() -> bool:
@@ -238,7 +231,6 @@ __all__ = [
     "run",
     "reset_graph_session",
     "has_graph_session",
-    "is_graph_mode",
     "has_pending_graph",
     "is_context_initialized",
     "is_cpu_fallback_enabled",

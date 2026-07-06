@@ -16,6 +16,7 @@ if _pkg_root.name == "torch_nntile":
         sys.path.insert(0, _root)
 
 import pytest
+import torch
 
 import torch_nntile
 from torch_nntile import _C
@@ -38,3 +39,15 @@ def pytest_sessionstart(session) -> None:
             # Configuration was locked earlier in this process.
             pass
     torch_nntile.restrict_cpu()
+
+
+def nntile_cpu(tensor: torch.Tensor) -> torch.Tensor:
+    """Copy an nntile tensor to CPU, flushing a pending TensorGraph first."""
+    if (
+        _C.has_libnntile()
+        and tensor.device.type == "nntile"
+        and torch_nntile.has_pending_graph()
+    ):
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+    return tensor.cpu()

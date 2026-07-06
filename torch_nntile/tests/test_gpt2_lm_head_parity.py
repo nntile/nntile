@@ -47,7 +47,6 @@ def _nntile_context_no_fallback():
             ncuda=0,
             verbose=0,
             cpu_fallback=False,
-            runtime_mode="eager",
         )
     torch_nntile.restrict_cpu()
     yield
@@ -365,7 +364,7 @@ def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
         from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 

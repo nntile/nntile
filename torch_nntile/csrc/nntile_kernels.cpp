@@ -276,7 +276,7 @@ at::Tensor ones_like(
         ensure_host_staging(result);
     }
     result.fill_(1);
-    if (is_graph_mode() && has_host_staging(result))
+    if (has_host_staging(result))
     {
         mark_staged_input_tensor(result);
     }
@@ -301,16 +301,7 @@ at::Tensor empty_memory_format(
         "Pin memory is CPU-only");
     const c10::DeviceGuard device_guard(device);
     const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
-    if (is_graph_mode())
-    {
-        return empty_metadata_tensor(size, dtype, device);
-    }
-    return at::detail::empty_generic(
-        size,
-        get_nntile_allocator(),
-        kPrivateUse1DispatchKeySet,
-        c10::dtype_or_default(dtype_opt),
-        memory_format_opt);
+    return empty_metadata_tensor(size, dtype, device);
 }
 
 at::Tensor empty_strided(
@@ -331,16 +322,7 @@ at::Tensor empty_strided(
         "Pin memory is CPU-only");
     const c10::DeviceGuard device_guard(device);
     const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
-    if (is_graph_mode())
-    {
-        return empty_metadata_tensor(size, dtype, device);
-    }
-    return at::detail::empty_strided_generic(
-        size,
-        stride,
-        get_nntile_allocator(),
-        kPrivateUse1DispatchKeySet,
-        c10::dtype_or_default(dtype_opt));
+    return empty_metadata_tensor(size, dtype, device);
 }
 
 at::Tensor as_strided(
@@ -432,40 +414,29 @@ at::Tensor copy_from(
     at::Tensor mutable_dst = dst;
     if (dst.is_cpu() && is_nntile_device(self.device()))
     {
-        if (is_graph_mode())
-        {
-            if (has_pending_graph())
-            {
-                require_no_pending_graph(
-                    "copy nntile tensor to CPU (call torch_nntile.compile_graph() "
-                    "and torch_nntile.run() first)");
-            }
-            if (has_graph_session())
-            {
-                wait_for_all();
-                if (!has_host_staging(self))
-                {
-                    copy_nntile_tensor_to_cpu(self, mutable_dst);
-                    return dst;
-                }
-                sync_runtime_to_nntile_tensor(self);
-                memcpy_tensors(self, mutable_dst);
-                return dst;
-            }
-        }
-        else
+        if (has_pending_graph())
         {
             require_no_pending_graph(
-                "copy nntile tensor to CPU");
+                "copy nntile tensor to CPU (call torch_nntile.compile_graph() "
+                "and torch_nntile.run() first)");
+        }
+        if (has_graph_session())
+        {
+            wait_for_all();
+            if (!has_host_staging(self))
+            {
+                copy_nntile_tensor_to_cpu(self, mutable_dst);
+                return dst;
+            }
+            sync_runtime_to_nntile_tensor(self);
+            memcpy_tensors(self, mutable_dst);
+            return dst;
         }
     }
     if (is_nntile_device(mutable_dst.device()) && self.is_cpu())
     {
         ensure_host_staging(mutable_dst);
-        if (is_graph_mode())
-        {
-            mark_staged_input_tensor(mutable_dst);
-        }
+        mark_staged_input_tensor(mutable_dst);
     }
     else if (
         is_nntile_device(self.device()) &&
@@ -592,13 +563,10 @@ at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
         return result;
     }
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
-    if (is_graph_mode())
-    {
-        pin_graph_op_inputs({self});
-        pin_graph_op_output(result, true);
-        tensor_swap_two_axes_fp32(self, result, dim0, dim1);
-        return result;
-    }
+    pin_graph_op_inputs({self});
+    pin_graph_op_output(result, true);
+    tensor_swap_two_axes_fp32(self, result, dim0, dim1);
+    return result;
 #endif
     tensor_swap_two_axes_fp32(self, result, dim0, dim1);
     return result;
@@ -670,13 +638,10 @@ at::Tensor contiguous(
     const float *src = self.data_ptr<float>();
     float *dst = result.data_ptr<float>();
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
-    if (is_graph_mode())
-    {
-        pin_graph_op_inputs({self});
-        pin_graph_op_output(result, true);
-        tensor_contiguous_fp32(self, result, self.sizes());
-        return result;
-    }
+    pin_graph_op_inputs({self});
+    pin_graph_op_output(result, true);
+    tensor_contiguous_fp32(self, result, self.sizes());
+    return result;
 #endif
     copy_strided_to_contiguous_f32(
         src,

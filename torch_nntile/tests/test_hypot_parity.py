@@ -9,6 +9,7 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -26,7 +27,7 @@ def test_hypot_matches_cpu():
     z = torch.hypot(a, b)
 
     assert z.device.type == "nntile"
-    assert torch.allclose(z.cpu(), torch.hypot(a_cpu, b_cpu))
+    assert torch.allclose(nntile_cpu(z), torch.hypot(a_cpu, b_cpu))
 
 
 def test_hypot_out_matches_cpu():
@@ -38,7 +39,7 @@ def test_hypot_out_matches_cpu():
     out = torch.empty_like(a, device="nntile")
     torch.hypot(a, b, out=out)
 
-    assert torch.allclose(out.cpu(), torch.hypot(a_cpu, b_cpu))
+    assert torch.allclose(nntile_cpu(out), torch.hypot(a_cpu, b_cpu))
 
 
 def test_hypot_2d_shape_parity():

@@ -227,7 +227,7 @@ def probe_nntile_graph_mode() -> ProbeResult:
             }
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         _C.reset_storage_release_count()
@@ -263,59 +263,6 @@ def probe_nntile_graph_mode() -> ProbeResult:
     )
 
 
-def probe_nntile_eager_mode() -> ProbeResult:
-    payload = _run_nntile_subprocess(
-        """
-        import gc
-        import json
-        import torch
-        import torch_nntile
-        from torch_nntile import _C
-
-        def gc_stats():
-            stats = _C.debug_gc_stats()
-            return {
-                "pinned_tensors": stats.pinned_tensors,
-                "tensor_nodes": stats.tensor_nodes,
-                "tile_pool": stats.tile_pool,
-                "pending_ops": stats.pending_ops,
-                "pending_data": stats.pending_data,
-                "has_session": stats.has_session,
-                "storage_releases": _C.storage_release_count(),
-            }
-
-        torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="eager"
-        )
-        torch_nntile.restrict_cpu()
-        _C.reset_storage_release_count()
-        a = torch.tensor([1.0, 2.0]).to("nntile")
-        b = torch.tensor([3.0, 4.0]).to("nntile")
-        c = torch.tensor([0.5, 0.5]).to("nntile")
-        d = a + b + c
-        out = {
-            "after_forward": gc_stats(),
-            "has_pending_graph": torch_nntile.has_pending_graph(),
-        }
-        del a, b, c, d
-        gc.collect()
-        out["after_del"] = gc_stats()
-        out["storage_releases_after_del"] = _C.storage_release_count()
-        torch_nntile.shutdown_context()
-        out["after_shutdown"] = gc_stats()
-        print(json.dumps(out))
-        """
-    )
-    return ProbeResult(
-        name="nntile_eager_mode",
-        notes=[
-            "eager mode executes and reset_recorder_locked per op batch; "
-            "tile_pool cleared each execute"
-        ],
-        data=payload,
-    )
-
-
 def probe_nntile_no_grad() -> ProbeResult:
     payload = _run_nntile_subprocess(
         """
@@ -338,7 +285,7 @@ def probe_nntile_no_grad() -> ProbeResult:
             }
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         _C.reset_storage_release_count()
@@ -393,7 +340,6 @@ def main() -> int:
             [
                 probe_nntile_no_grad,
                 probe_nntile_graph_mode,
-                probe_nntile_eager_mode,
             ]
         )
 

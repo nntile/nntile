@@ -217,12 +217,6 @@ def main() -> None:
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--depth", type=int, default=5)
     parser.add_argument(
-        "--runtime-mode",
-        choices=("eager", "graph"),
-        default="eager",
-        help="torch_nntile runtime mode (default: eager)",
-    )
-    parser.add_argument(
         "--axis-tiling",
         action="append",
         default=[],
@@ -257,23 +251,17 @@ def main() -> None:
         )
 
     axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
-    runtime_mode = args.runtime_mode
-    if (axis_group_tiling or args.print_axis_groups) and runtime_mode != "graph":
-        print("Axis groups/tiling require graph mode; switching runtime mode.")
-        runtime_mode = "graph"
 
     torch_nntile.init_context(
         ncpu=-1,
         ncuda=-1,
         verbose=int(args.verbose),
         cpu_fallback=False,
-        runtime_mode=runtime_mode,
     )
     if args.restrict_cuda:
         torch_nntile.restrict_cuda()
 
     try:
-        print(f"Runtime mode: {runtime_mode}")
         if args.restrict_cuda:
             print("Worker placement: CUDA only (restrict_cuda)")
         if axis_group_tiling:

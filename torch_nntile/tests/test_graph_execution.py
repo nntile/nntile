@@ -55,7 +55,7 @@ def test_graph_mode_deferred_until_execute():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         x = torch.randn(2, 3).to("nntile")
@@ -78,7 +78,7 @@ def test_cpu_copy_requires_execute():
         import pytest
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         x = torch.randn(2, 3).to("nntile")
@@ -102,7 +102,7 @@ def test_to_nntile_does_not_execute():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         x = x_cpu = torch.randn(2, 3)
@@ -127,7 +127,7 @@ def test_graph_forward_matches_cpu():
         x_cpu = torch.randn(32, model_cpu.input_dim)
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         model_graph = DeepReLU.tiny().to("nntile")
@@ -151,7 +151,7 @@ def test_graph_backward_without_mid_execute():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 
@@ -185,7 +185,7 @@ def test_execute_idempotent_on_empty():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         assert not torch_nntile.has_pending_graph()
@@ -203,7 +203,7 @@ def test_graph_cross_entropy_backward_and_sgd():
         from torch_nntile.training import SGD, cross_entropy
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 
@@ -250,7 +250,7 @@ def test_train_full_batch_step_graph_mode():
         from torch_nntile.training import clone_model_weights, train_full_batch_step
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 
@@ -286,7 +286,7 @@ def test_train_full_batch_step_graph_mode_multi_epoch():
         )
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 
@@ -315,7 +315,7 @@ def test_graph_nntile_loss_backward_without_scalar_read():
         from torch_nntile.training import cross_entropy
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 
@@ -345,7 +345,7 @@ def test_graph_mode_mm_view_add_ndim():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 
@@ -364,21 +364,3 @@ def test_graph_mode_mm_view_add_ndim():
         """
     )
 
-
-def test_eager_mode_runs_immediately():
-    _run_graph_subprocess(
-        """
-        import torch
-        import torch_nntile
-
-        torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="eager"
-        )
-        torch_nntile.restrict_cpu()
-        a = torch.tensor([1.0, 2.0], device="nntile")
-        b = torch.tensor([3.0, 4.0], device="nntile")
-        z = a + b
-        assert not torch_nntile.has_pending_graph()
-        assert torch.allclose(z.cpu(), torch.tensor([4.0, 6.0]))
-        """
-    )

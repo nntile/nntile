@@ -7,7 +7,6 @@
 #include "nntile_executor.h"
 
 #include "nntile_gemm_layout.h"
-#include "nntile_context.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
@@ -100,11 +99,6 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
         return true;
     }
     if (tensor.device().is_cpu())
-    {
-        return true;
-    }
-    if (!is_graph_mode() && has_host_staging(tensor) &&
-        !is_metadata_only_tensor(tensor))
     {
         return true;
     }
@@ -2111,12 +2105,12 @@ void tensor_sum_to_scalar_fp32(
 }
 
 void tensor_sum_dimlist_fp32(
-    const float *input_data,
-    float *out_data,
-    c10::IntArrayRef input_shape,
+    const at::Tensor &input,
+    at::Tensor &out,
     at::OptionalIntArrayRef dim,
     bool keepdim)
 {
+    const c10::IntArrayRef input_shape = input.sizes();
     const int64_t rank = static_cast<int64_t>(input_shape.size());
     TORCH_CHECK(rank > 0, "nntile sum: cannot sum a 0-dim tensor");
 
@@ -2146,10 +2140,10 @@ void tensor_sum_dimlist_fp32(
     std::vector<nntile::Index> cur_shape =
         pytorch_shape_to_graph(input_shape);
     auto *cur_node = get_or_create_data_node(
-        const_cast<float *>(input_data),
+        input,
         cur_shape,
         nntile::DataType::FP32,
-        true);
+        mark_as_input_for_operand(input));
     nntile::TensorGraph &graph = *cur_node->graph();
 
     for (std::size_t idx = 0; idx < dims.size(); ++idx)
@@ -2167,10 +2161,10 @@ void tensor_sum_dimlist_fp32(
                 const std::vector<nntile::Index> keepdim_shape =
                     keepdim_shape_along_axis(cur_shape, axis);
                 auto *out_node = get_or_create_data_node(
-                    out_data,
+                    out,
                     keepdim_shape,
                     nntile::DataType::FP32,
-                    false);
+                    mark_as_input_for_operand(out));
                 auto *reduced_node =
                     make_graph_tensor(graph, reduced, "sum_red");
                 nntile::tensor::clear(reduced_node);
@@ -2185,15 +2179,15 @@ void tensor_sum_dimlist_fp32(
                     reduced_node,
                     out_node,
                     axis);
-                register_data_node(out_data, out_node);
+                register_data_node(out, out_node);
             }
             else
             {
                 auto *out_node = get_or_create_data_node(
-                    out_data,
+                    out,
                     reduced,
                     nntile::DataType::FP32,
-                    false);
+                    mark_as_input_for_operand(out));
                 nntile::tensor::clear(out_node);
                 nntile::tensor::sum_slice(
                     cur_node,
@@ -2202,7 +2196,7 @@ void tensor_sum_dimlist_fp32(
                     kNormRedux,
                     static_cast<nntile::Scalar>(1.0),
                     static_cast<nntile::Scalar>(0.0));
-                register_data_node(out_data, out_node);
+                register_data_node(out, out_node);
             }
             maybe_execute_after_record();
             return;
@@ -2248,28 +2242,27 @@ void tensor_sum_dimlist_fp32(
 }
 
 void tensor_mul_scalar_fp32(
-    const float *input_data,
-    float *out_data,
-    c10::IntArrayRef input_shape,
+    const at::Tensor &input,
+    at::Tensor &out,
     float scalar)
 {
     const std::vector<nntile::Index> graph_shape =
-        pytorch_shape_to_graph(input_shape);
+        pytorch_shape_to_graph(input.sizes());
     auto *input_node = get_or_create_data_node(
-        const_cast<float *>(input_data),
+        input,
         graph_shape,
         nntile::DataType::FP32,
-        true);
+        mark_as_input_for_operand(input));
     auto *out_node = get_or_create_data_node(
-        out_data,
+        out,
         graph_shape,
         nntile::DataType::FP32,
-        false);
+        mark_as_input_for_operand(out));
     nntile::tensor::scale(
         static_cast<nntile::Scalar>(scalar),
         input_node,
         out_node);
-    register_data_node(out_data, out_node);
+    register_data_node(out, out_node);
     maybe_execute_after_record();
 }
 
@@ -3254,9 +3247,8 @@ void tensor_sum_to_scalar_fp32(
 }
 
 void tensor_sum_dimlist_fp32(
-    const float * /*input_data*/,
-    float * /*out_data*/,
-    c10::IntArrayRef /*input_shape*/,
+    const at::Tensor & /*input*/,
+    at::Tensor & /*out*/,
     at::OptionalIntArrayRef /*dim*/,
     bool /*keepdim*/)
 {
@@ -3264,9 +3256,8 @@ void tensor_sum_dimlist_fp32(
 }
 
 void tensor_mul_scalar_fp32(
-    const float * /*input_data*/,
-    float * /*out_data*/,
-    c10::IntArrayRef /*input_shape*/,
+    const at::Tensor & /*input*/,
+    at::Tensor & /*out*/,
     float /*scalar*/)
 {
     require_libnntile("mul_scalar");

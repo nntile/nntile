@@ -7,7 +7,6 @@
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
-#include "nntile_context.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -74,12 +73,9 @@ at::Tensor cross_entropy_forward(
         "nntile cross_entropy supports reduction mean (1) or sum (2) only");
 
     at::Tensor loss = at::empty({}, logits.options().dtype(at::kFloat));
-    if (is_graph_mode())
-    {
-        ensure_host_staging(loss);
-    }
+    ensure_host_staging(loss);
     pin_graph_op_inputs({logits, target});
-    pin_graph_op_output(loss, is_graph_mode());
+    pin_graph_op_output(loss, true);
     tensor_cross_entropy_forward_fp32(
         logits,
         target,
@@ -107,7 +103,7 @@ at::Tensor cross_entropy_backward(
         is_nntile_device(grad_output.device()),
         "nntile cross_entropy_backward: grad_output must be on device nntile");
     at::Tensor grad_out = grad_output;
-    if (is_graph_mode() && !has_host_staging(grad_out))
+    if (!has_host_staging(grad_out))
     {
         ensure_host_staging(grad_out);
         if (grad_out.numel() == 1)
@@ -115,7 +111,7 @@ at::Tensor cross_entropy_backward(
             grad_out.fill_(1.0f);
         }
     }
-    if (is_graph_mode() && has_host_staging(grad_out))
+    if (has_host_staging(grad_out))
     {
         mark_staged_input_tensor(grad_out);
     }

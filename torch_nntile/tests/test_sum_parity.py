@@ -9,6 +9,7 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -31,7 +32,6 @@ def _nntile_context_no_fallback():
             ncuda=0,
             verbose=0,
             cpu_fallback=False,
-            runtime_mode="eager",
         )
     torch_nntile.restrict_cpu()
     yield
@@ -42,7 +42,7 @@ def test_sum_multi_axis_keepdim_matches_cpu():
     x_nnt = x_cpu.to("nntile")
     ref = x_cpu.sum(dim=(0, 1), keepdim=True)
     got = x_nnt.sum(dim=(0, 1), keepdim=True)
-    torch.testing.assert_close(got.cpu(), ref, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(nntile_cpu(got), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_sum_empty_dim_matches_cpu():
@@ -50,4 +50,4 @@ def test_sum_empty_dim_matches_cpu():
     x_nnt = x_cpu.to("nntile")
     ref = x_cpu.sum(dim=())
     got = x_nnt.sum(dim=())
-    torch.testing.assert_close(got.cpu(), ref, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(nntile_cpu(got), ref, rtol=1e-4, atol=1e-4)

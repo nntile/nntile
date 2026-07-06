@@ -15,6 +15,7 @@ import torch.nn.functional as F
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.nn import sdpa_eager
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -37,7 +38,6 @@ def _nntile_context_no_fallback():
             ncuda=0,
             verbose=0,
             cpu_fallback=False,
-            runtime_mode="eager",
         )
     torch_nntile.restrict_cpu()
     yield
@@ -103,7 +103,7 @@ def test_fsdpa_forward_matches_reference(shape):
     k = k_cpu.to("nntile")
     v = v_cpu.to("nntile")
     out = F.scaled_dot_product_attention(q, k, v)
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
     assert not torch_nntile.has_pending_graph()
 
 
@@ -123,9 +123,9 @@ def test_fsdpa_backward_matches_reference():
     out = F.scaled_dot_product_attention(q, k, v)
     out.backward(grad_out.to("nntile"))
 
-    assert torch.allclose(q.grad.cpu(), q_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(k.grad.cpu(), k_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(v.grad.cpu(), v_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(q.grad), q_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(k.grad), k_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(v.grad), v_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_is_causal_matches_reference():
@@ -142,7 +142,7 @@ def test_fsdpa_is_causal_matches_reference():
         v_cpu.to("nntile"),
         is_causal=True,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_bool_mask_matches_reference():
@@ -164,7 +164,7 @@ def test_fsdpa_bool_mask_matches_reference():
         v_cpu.to("nntile"),
         attn_mask=mask,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_float_finfo_mask_matches_reference():
@@ -190,7 +190,7 @@ def test_fsdpa_float_finfo_mask_matches_reference():
         v_cpu.to("nntile"),
         attn_mask=mask,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_broadcast_4d_mask_matches_reference():
@@ -214,7 +214,7 @@ def test_fsdpa_broadcast_4d_mask_matches_reference():
         v_cpu.to("nntile"),
         attn_mask=mask,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_rejects_non_broadcastable_batched_mask():
@@ -264,4 +264,4 @@ def test_sdpa_eager_uses_fsdpa_path():
         v_cpu.to("nntile"),
         batch_ndim=2,
     )
-    assert torch.allclose(out.cpu(), ref.permute(1, 2, 3, 0), rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref.permute(1, 2, 3, 0), rtol=1e-4, atol=1e-4)

@@ -56,7 +56,7 @@ def test_axis_group_tiling_add_graph_mode():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         x = torch.randn(4, 8).to("nntile")
@@ -78,7 +78,7 @@ def test_axis_group_tiling_invalid_sum_raises():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         x = torch.randn(4, 8).to("nntile")
         y = torch.randn(4, 8).to("nntile")
@@ -99,7 +99,7 @@ def test_deep_relu_axis_groups_with_explicit_naming():
         from torch_nntile.models import DeepReLU
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         model = DeepReLU.tiny().to("nntile")
         x = torch.randn(8, 128).to("nntile")
@@ -138,7 +138,7 @@ def test_print_axis_groups_shows_pending_tiling():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         x = torch.randn(4, 8).to("nntile")
         y = torch.randn(4, 8).to("nntile")

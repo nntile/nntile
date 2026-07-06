@@ -9,6 +9,7 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -26,7 +27,7 @@ def test_add_matches_cpu():
     z = a + b
 
     assert z.device.type == "nntile"
-    assert torch.allclose(z.cpu(), a_cpu + b_cpu)
+    assert torch.allclose(nntile_cpu(z), a_cpu + b_cpu)
 
 
 def test_add_with_alpha_matches_cpu():
@@ -38,7 +39,7 @@ def test_add_with_alpha_matches_cpu():
     z = torch.add(a, b, alpha=2.0)
 
     expected = torch.add(a_cpu, b_cpu, alpha=2.0)
-    assert torch.allclose(z.cpu(), expected)
+    assert torch.allclose(nntile_cpu(z), expected)
 
 
 def test_add_2d_shape_parity():
@@ -46,7 +47,7 @@ def test_add_2d_shape_parity():
     a_cpu = torch.randn(shape, dtype=torch.float32)
     b_cpu = torch.randn(shape, dtype=torch.float32)
 
-    z_nntile = (a_cpu.to("nntile") + b_cpu.to("nntile")).cpu()
+    z_nntile = nntile_cpu(a_cpu.to("nntile") + b_cpu.to("nntile"))
     z_cpu = a_cpu + b_cpu
 
     assert torch.allclose(z_nntile, z_cpu, rtol=1e-5, atol=1e-5)
@@ -59,7 +60,7 @@ def test_add_inplace_broadcast_matches_cpu():
     b_nnt = b_cpu.to("nntile")
     a_cpu.add_(b_cpu)
     a_nnt.add_(b_nnt)
-    torch.testing.assert_close(a_nnt.cpu(), a_cpu, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(nntile_cpu(a_nnt), a_cpu, rtol=1e-5, atol=1e-5)
 
 
 def test_add_out_of_place_broadcast_matches_cpu():
@@ -67,4 +68,4 @@ def test_add_out_of_place_broadcast_matches_cpu():
     b_cpu = torch.randn(1, 3, 4, dtype=torch.float32)
     ref = a_cpu + b_cpu
     got = a_cpu.to("nntile") + b_cpu.to("nntile")
-    torch.testing.assert_close(got.cpu(), ref, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(nntile_cpu(got), ref, rtol=1e-5, atol=1e-5)

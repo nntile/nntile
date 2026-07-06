@@ -13,6 +13,7 @@ import torch
 import pytest
 
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -55,7 +56,7 @@ def test_cat_1d_dim0():
 
     result = torch.cat([a_cpu.to("nntile"), b_cpu.to("nntile")], dim=0)
     assert result.device.type == "nntile"
-    assert torch.allclose(result.cpu(), expected)
+    assert torch.allclose(nntile_cpu(result), expected)
 
 
 def test_cat_2d_dim1():
@@ -67,7 +68,7 @@ def test_cat_2d_dim1():
         [a_cpu.to("nntile"), b_cpu.to("nntile")],
         dim=1,
     )
-    assert torch.allclose(result.cpu(), expected, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(result), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_2d_dim0():
@@ -79,7 +80,7 @@ def test_cat_2d_dim0():
         [a_cpu.to("nntile"), b_cpu.to("nntile")],
         dim=0,
     )
-    assert torch.allclose(result.cpu(), expected, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(result), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_3d():
@@ -91,7 +92,7 @@ def test_cat_3d():
         [a_cpu.to("nntile"), b_cpu.to("nntile")],
         dim=2,
     )
-    assert torch.allclose(result.cpu(), expected, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(result), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_negative_dim():
@@ -103,7 +104,7 @@ def test_cat_negative_dim():
         [a_cpu.to("nntile"), b_cpu.to("nntile")],
         dim=-1,
     )
-    assert torch.allclose(result.cpu(), expected, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(result), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_many_tensors():
@@ -112,7 +113,7 @@ def test_cat_many_tensors():
 
     tensors_nntile = [t.to("nntile") for t in tensors_cpu]
     result = torch.cat(tensors_nntile, dim=1)
-    assert torch.allclose(result.cpu(), expected, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(result), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_single_tensor_is_noop():
@@ -120,7 +121,7 @@ def test_cat_single_tensor_is_noop():
     a = a_cpu.to("nntile")
     result = torch.cat([a], dim=0)
     assert result is a
-    assert torch.allclose(result.cpu(), a_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(result), a_cpu, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_out_variant():
@@ -130,7 +131,7 @@ def test_cat_out_variant():
 
     out = torch.empty(2, 7, device="nntile")
     torch.cat([a_cpu.to("nntile"), b_cpu.to("nntile")], dim=1, out=out)
-    assert torch.allclose(out.cpu(), expected, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(out), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_graph_mode():
@@ -143,7 +144,6 @@ def test_cat_graph_mode():
             ncpu=1,
             ncuda=0,
             cpu_fallback=False,
-            runtime_mode="graph",
         )
         torch_nntile.restrict_cpu()
         a_cpu = torch.randn(2, 3, dtype=torch.float32)
@@ -157,6 +157,6 @@ def test_cat_graph_mode():
         assert torch_nntile.has_pending_graph()
         torch_nntile.compile_graph()
         torch_nntile.run()
-        assert torch.allclose(result.cpu(), expected, rtol=1e-5, atol=1e-5)
+        assert torch.allclose(nntile_cpu(result), expected, rtol=1e-5, atol=1e-5)
         """
     )

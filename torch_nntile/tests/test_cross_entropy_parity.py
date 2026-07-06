@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.training import cross_entropy
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -67,7 +68,7 @@ def test_cross_entropy_backward_matches_cpu():
     logits_nnt = logits_cpu.detach().clone().to("nntile").requires_grad_(True)
     loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
     loss_nnt.backward()
-    grad_nnt = logits_nnt.grad.cpu()
+    grad_nnt = nntile_cpu(logits_nnt.grad)
 
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-4, atol=1e-4)
 
@@ -94,7 +95,7 @@ def test_cross_entropy_backward_multidim_labels_matches_cpu():
     )
     loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
     loss_nnt.backward()
-    grad_nnt = logits_nnt.grad.cpu().permute(0, 2, 1).contiguous()
+    grad_nnt = nntile_cpu(logits_nnt.grad).permute(0, 2, 1).contiguous()
 
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-4, atol=1e-4)
 

@@ -192,7 +192,6 @@ def test_split_cat_graph_mode_backward():
             ncpu=1,
             ncuda=0,
             cpu_fallback=False,
-            runtime_mode="graph",
         )
         torch_nntile.restrict_cpu()
 
@@ -232,7 +231,6 @@ def test_cat_backward_graph_mode():
             ncpu=1,
             ncuda=0,
             cpu_fallback=False,
-            runtime_mode="graph",
         )
         torch_nntile.restrict_cpu()
 

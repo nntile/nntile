@@ -17,6 +17,7 @@ from transformers import GPT2Config, GPT2LMHeadModel
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.training import cross_entropy, train_full_batch_step
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -39,7 +40,6 @@ def _nntile_context_no_fallback():
             ncuda=0,
             verbose=0,
             cpu_fallback=False,
-            runtime_mode="eager",
         )
     torch_nntile.restrict_cpu()
     yield
@@ -78,7 +78,7 @@ def test_hf_gpt2_forward_matches_cpu(tiny_gpt2_config):
     with torch.no_grad():
         ref_logits = ref(input_ids.cpu()).logits
         out = model(input_ids).logits
-    torch.testing.assert_close(out.cpu(), ref_logits, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(nntile_cpu(out), ref_logits, rtol=1e-4, atol=1e-4)
 
 
 def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
@@ -106,7 +106,7 @@ def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
 
     torch.testing.assert_close(loss.to("cpu"), ref_loss, rtol=1e-4, atol=1e-4)
     torch.testing.assert_close(
-        model.transformer.wte.weight.grad.cpu(),
+        nntile_cpu(model.transformer.wte.weight.grad),
         ref.transformer.wte.weight.grad,
         rtol=1e-3,
         atol=1e-3,

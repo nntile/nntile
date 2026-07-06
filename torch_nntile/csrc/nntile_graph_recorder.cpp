@@ -897,7 +897,7 @@ void register_grad_alias_for_host_copy_locked(
     at::Tensor &grad,
     nntile::TensorGraph::TensorNode *grad_node)
 {
-    if (!is_graph_mode() || grad_node == nullptr)
+    if (grad_node == nullptr)
     {
         return;
     }
@@ -948,10 +948,6 @@ void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
     run_graph_locked();
     sync_current_run_visible_outputs_locked();
     clear_pending_graph_after_compile_locked(pin_drop);
-    if (!is_graph_mode())
-    {
-        reset_recorder_locked(false, pin_drop);
-    }
 }
 
 void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
@@ -974,10 +970,6 @@ bool has_pending_graph()
 
 void require_no_pending_graph(const char *op_name)
 {
-    if (!is_graph_mode())
-    {
-        return;
-    }
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_graph != nullptr && g_graph->num_ops() > 0)
     {
@@ -1190,10 +1182,6 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
 
 void maybe_execute_after_record()
 {
-    if (get_runtime_mode() == RuntimeMode::Eager)
-    {
-        execute_pending_graph();
-    }
 }
 
 nntile::TensorGraph &recorder_graph()
@@ -1319,7 +1307,7 @@ void register_data_node(
     }
     const bool staged = is_staged_input_tensor(tensor);
     const bool needs_host = has_host_staging(tensor) &&
-        (!is_graph_mode() || staged || node->is_output());
+        (staged || node->is_output());
 
     const auto found = g_tensor_nodes.find(impl_key);
     if (found != g_tensor_nodes.end() && found->second.is_persistent_input)
@@ -1455,10 +1443,6 @@ void on_tensor_impl_released(TensorImplKey key)
 
 void record_view_alias(const at::Tensor &self, const at::Tensor &view)
 {
-    if (!is_graph_mode())
-    {
-        return;
-    }
     if (view.device().type() != c10::DeviceType::PrivateUse1)
     {
         return;
@@ -1525,10 +1509,6 @@ void track_graph_node(nntile::TensorGraph::TensorNode *node)
 
 void pin_tensor_for_graph(const at::Tensor &tensor)
 {
-    if (!is_graph_mode())
-    {
-        return;
-    }
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     g_pinned_tensors.push_back(tensor);
     if (const char *env = std::getenv("TORCH_NNTILE_TRACE_STORAGE");
@@ -1542,10 +1522,6 @@ void pin_tensor_for_graph(const at::Tensor &tensor)
 
 void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
 {
-    if (!is_graph_mode())
-    {
-        return;
-    }
     for (const at::Tensor &tensor : inputs)
     {
         if (!has_host_staging(tensor))
@@ -1563,7 +1539,7 @@ void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
 
 void pin_graph_op_output(const at::Tensor &output, bool pin_output)
 {
-    if (!is_graph_mode() || !pin_output)
+    if (!pin_output)
     {
         return;
     }
@@ -1620,10 +1596,6 @@ bool is_tensor_graph_output(const at::Tensor &tensor)
 
 void stage_tensor_for_axis_group_compile(const at::Tensor &tensor)
 {
-    if (!is_graph_mode())
-    {
-        return;
-    }
     if (is_tensor_graph_output(tensor))
     {
         return;
@@ -1641,10 +1613,6 @@ void stage_tensor_for_axis_group_compile(const at::Tensor &tensor)
 
 void refresh_staged_tensor_mapping(const at::Tensor &tensor)
 {
-    if (!is_graph_mode())
-    {
-        return;
-    }
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     const TensorImplKey impl_key = tensor_impl_key(tensor);
     const auto found = g_tensor_nodes.find(impl_key);

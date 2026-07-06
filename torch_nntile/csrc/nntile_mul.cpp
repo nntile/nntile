@@ -112,11 +112,7 @@ at::Tensor mul_scalar(const at::Tensor &self, const at::Scalar &other)
         "nntile mul.Scalar supports float32 only");
     TORCH_CHECK(self.is_contiguous(), "nntile mul.Scalar requires contiguous");
     at::Tensor out = at::empty_like(self);
-    tensor_mul_scalar_fp32(
-        self.data_ptr<float>(),
-        out.data_ptr<float>(),
-        self.sizes(),
-        other.to<float>());
+    tensor_mul_scalar_fp32(self, out, other.to<float>());
     return out;
 }
 
@@ -136,11 +132,7 @@ at::Tensor &mul_scalar_out(
     TORCH_CHECK(
         self.is_contiguous() && out.is_contiguous(),
         "nntile mul.Scalar_out requires contiguous tensors");
-    tensor_mul_scalar_fp32(
-        self.data_ptr<float>(),
-        out.data_ptr<float>(),
-        self.sizes(),
-        other.to<float>());
+    tensor_mul_scalar_fp32(self, out, other.to<float>());
     return out;
 }
 

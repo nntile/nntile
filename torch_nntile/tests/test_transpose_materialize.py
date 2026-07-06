@@ -162,7 +162,7 @@ def test_transpose_graph_mode_deferred():
         import torch_nntile
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         x = torch.randn(2, 8, 4, 16).to("nntile")

@@ -9,6 +9,7 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -63,7 +64,7 @@ def test_softmax_backward_matches_cpu(random_input):
     y_nnt = torch.nn.functional.softmax(x_nnt, dim=-1)
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_softmax_backward_dim0(random_input):
@@ -75,7 +76,7 @@ def test_softmax_backward_dim0(random_input):
     y_nnt = torch.nn.functional.softmax(x_nnt, dim=0)
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_nn_softmax_module(random_input):
@@ -89,5 +90,5 @@ def test_nn_softmax_module(random_input):
     y_nnt = module_nnt(x_nnt)
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(y_nnt.cpu(), y_cpu, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(y_nnt), y_cpu, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)

@@ -16,6 +16,7 @@ import torch.nn.functional as F
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -86,7 +87,7 @@ def test_embedding_backward_matches_cpu():
     out_nnt = weight_nnt(indices.to("nntile"))
     grad_out = torch.ones_like(out_cpu).to("nntile")
     torch.autograd.backward([out_nnt], [grad_out])
-    grad_nnt = weight_nnt.weight.grad.cpu()
+    grad_nnt = nntile_cpu(weight_nnt.weight.grad)
 
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-5, atol=1e-5)
 
@@ -112,7 +113,7 @@ def test_embedding_duplicate_indices():
     out_nnt = weight_nnt(indices.to("nntile"))
     grad_out = torch.ones_like(out_cpu).to("nntile")
     torch.autograd.backward([out_nnt], [grad_out])
-    grad_nnt = weight_nnt.weight.grad.cpu()
+    grad_nnt = nntile_cpu(weight_nnt.weight.grad)
 
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-5, atol=1e-5)
 
@@ -139,7 +140,7 @@ def test_embedding_graph_mode():
 
         torch.manual_seed(4)
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 

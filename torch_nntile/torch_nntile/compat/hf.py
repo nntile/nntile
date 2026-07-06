@@ -59,7 +59,7 @@ def patch_gpt2_cache_position() -> None:
 
     try:
         from transformers.models.gpt2.modeling_gpt2 import GPT2Model
-    except ImportError:
+    except (ImportError, RuntimeError, ModuleNotFoundError):
         return
 
     _orig_forward = GPT2Model.forward
@@ -192,7 +192,11 @@ def patch_hf_activations() -> None:
     _patched = True
 
 
-patch_hf_activations()
+try:
+    patch_hf_activations()
+except Exception:
+    # transformers/torchvision may be missing or incompatible in minimal CI images.
+    pass
 
 __all__ = [
     "patch_hf_activations",

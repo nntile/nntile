@@ -11,6 +11,7 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -74,12 +75,12 @@ def test_layer_norm_backward_matches_cpu(shape):
     y_nnt = ln_nnt(x_nnt)
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
     assert torch.allclose(
-        ln_nnt.weight.grad.cpu(), ln.weight.grad, rtol=1e-4, atol=1e-4
+        nntile_cpu(ln_nnt.weight.grad), ln.weight.grad, rtol=1e-4, atol=1e-4
     )
     assert torch.allclose(
-        ln_nnt.bias.grad.cpu(), ln.bias.grad, rtol=1e-4, atol=1e-4
+        nntile_cpu(ln_nnt.bias.grad), ln.bias.grad, rtol=1e-4, atol=1e-4
     )
 
 
@@ -125,9 +126,9 @@ def test_rms_norm_backward_matches_cpu(shape):
     y_nnt = rms_nnt(x_nnt)
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
     assert torch.allclose(
-        rms_nnt.weight.grad.cpu(), rms.weight.grad, rtol=1e-4, atol=1e-4
+        nntile_cpu(rms_nnt.weight.grad), rms.weight.grad, rtol=1e-4, atol=1e-4
     )
 
 
@@ -176,4 +177,4 @@ def test_rms_norm_without_weight_backward_matches_cpu():
     y_nnt = F.rms_norm(x_nnt, (5,), None, 1e-6)
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)

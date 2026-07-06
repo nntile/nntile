@@ -64,7 +64,6 @@ def test_simple_matmul_tiled_two_epochs():
             ncuda=0,
             verbose=0,
             cpu_fallback=False,
-            runtime_mode="graph",
         )
         torch_nntile.restrict_cpu()
 

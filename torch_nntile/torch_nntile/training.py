@@ -536,17 +536,12 @@ def train_full_batch_step(
         if name_axis_groups is not None:
             name_axis_groups(inputs, logits)
         if axis_group_tiling is not None:
-            if not torch_nntile.is_graph_mode():
-                raise RuntimeError(
-                    "axis_group_tiling requires torch_nntile graph runtime mode"
-                )
             for name, tile_sizes in axis_group_tiling.items():
                 torch_nntile.set_axis_group_tiling(name, tile_sizes)
-        if print_axis_groups and torch_nntile.is_graph_mode():
+        if print_axis_groups:
             torch_nntile.print_axis_groups()
-        if torch_nntile.is_graph_mode():
-            torch_nntile.compile_graph()
-            torch_nntile.run()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
 
         torch_nntile.wait()
         loss_cpu = loss.to("cpu")

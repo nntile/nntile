@@ -28,7 +28,6 @@ def _init_nntile():
             ncuda=0,
             verbose=0,
             cpu_fallback=False,
-            runtime_mode="eager",
         )
     torch_nntile.restrict_cpu()
     yield
@@ -122,7 +121,7 @@ def test_gemm_graph_mode_no_view():
         from torch_nntile.gemm import gemm
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         bsz, seq, hidden, hs, n_heads = 2, 4, 32, 8, 4

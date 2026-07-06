@@ -9,6 +9,7 @@ import torch
 
 from torch_nntile import _C
 from torch_nntile.training import (
+from conftest import nntile_cpu
     Adam, AdamW, _AdamBase, fused_adam_step, fused_adamw_step)
 
 pytestmark = pytest.mark.skipif(
@@ -95,9 +96,9 @@ def test_adam_step_matches_reference(
         weight_decay,
     )
 
-    assert torch.allclose(param_nnt.cpu(), expected_p, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(m_nnt.cpu(), expected_m, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(v_nnt.cpu(), expected_v, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), expected_p, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(m_nnt), expected_m, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(v_nnt), expected_v, rtol=1e-4, atol=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -149,9 +150,9 @@ def test_adamw_step_matches_reference(
         weight_decay,
     )
 
-    assert torch.allclose(param_nnt.cpu(), expected_p, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(m_nnt.cpu(), expected_m, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(v_nnt.cpu(), expected_v, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), expected_p, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(m_nnt), expected_m, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(v_nnt), expected_v, rtol=1e-4, atol=1e-4)
 
 
 def test_adam_optimizer_multistep():
@@ -170,7 +171,7 @@ def test_adam_optimizer_multistep():
         cpu_opt.step()
         nnt_opt.step()
 
-    assert torch.allclose(param_nnt.cpu(), param_cpu, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), param_cpu, rtol=1e-4, atol=1e-4)
 
 
 def test_adamw_optimizer_multistep():
@@ -189,7 +190,7 @@ def test_adamw_optimizer_multistep():
         cpu_opt.step()
         nnt_opt.step()
 
-    assert torch.allclose(param_nnt.cpu(), param_cpu, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), param_cpu, rtol=1e-4, atol=1e-4)
 
 
 def test_fused_adam_step_plain():
@@ -217,7 +218,7 @@ def test_fused_adam_step_plain():
     param_nnt.grad = grad.clone().to("nntile")
     fused_adam_step([param_nnt], learning_rate=1e-3)
 
-    assert torch.allclose(param_nnt.cpu(), expected_p, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), expected_p, rtol=1e-4, atol=1e-4)
 
 
 def test_fused_adamw_step_plain():
@@ -245,7 +246,7 @@ def test_fused_adamw_step_plain():
     param_nnt.grad = grad.clone().to("nntile")
     fused_adamw_step([param_nnt], learning_rate=1e-3)
 
-    assert torch.allclose(param_nnt.cpu(), expected_p, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), expected_p, rtol=1e-4, atol=1e-4)
 
 
 def test_adamw_default_weight_decay():
@@ -270,4 +271,4 @@ def test_adam_step_accepts_keyword_lr():
         lr=1e-3,
     )
 
-    assert torch.isfinite(param.cpu()).all()
+    assert torch.isfinite(nntile_cpu(param)).all()

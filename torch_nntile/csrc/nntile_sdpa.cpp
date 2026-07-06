@@ -8,7 +8,6 @@
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
-#include "nntile_context.h"
 #include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
@@ -119,10 +118,7 @@ at::Tensor sdpa_forward(
     }
 
     at::Tensor out = at::empty_like(q);
-    if (is_graph_mode())
-    {
-        ensure_host_staging(out);
-    }
+    ensure_host_staging(out);
     at::Tensor mask_u8;
     std::vector<at::Tensor> inputs = {q, k, v};
     if (mask.has_value())
@@ -168,12 +164,9 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     at::Tensor grad_q = at::empty_like(q);
     at::Tensor grad_k = at::empty_like(k);
     at::Tensor grad_v = at::empty_like(v);
-    if (is_graph_mode())
-    {
-        ensure_host_staging(grad_q);
-        ensure_host_staging(grad_k);
-        ensure_host_staging(grad_v);
-    }
+    ensure_host_staging(grad_q);
+    ensure_host_staging(grad_k);
+    ensure_host_staging(grad_v);
 
     at::Tensor mask_u8;
     std::vector<at::Tensor> inputs = {q, k, v, grad_out};

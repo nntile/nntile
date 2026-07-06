@@ -6,7 +6,6 @@
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
-#include "nntile_context.h"
 #include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
@@ -134,10 +133,7 @@ at::Tensor embedding(
     at::Tensor output = at::empty(
         out_shape,
         weight.options().memory_format(at::MemoryFormat::Contiguous));
-    if (is_graph_mode())
-    {
-        ensure_host_staging(output);
-    }
+    ensure_host_staging(output);
 
     const nntile::Index axis =
         static_cast<nntile::Index>(indices_contig.dim());

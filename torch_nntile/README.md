@@ -164,8 +164,8 @@ on `device="nntile"` (use `.to("nntile")` explicitly).
   `F.scaled_dot_product_attention`, transposes back. Optional BOOL mask `[q_seq, k_seq]`
   on `device="nntile"` (dim0 = query, dim1 = key).
 
-Works in both eager and graph runtime modes (graph defers execution until
-``compile_graph()`` / ``run()`` or ``execute()``). Use
+Ops record into a shared ``TensorGraph``; flush with ``compile_graph()`` /
+``run()`` (or legacy ``execute()``) before host readout. Use
 `torch_nntile.nn.weight_layout` to convert HF/PyTorch attention weights before
 NNTile-layout projection GEMMs.
 
@@ -208,16 +208,13 @@ torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
 When `cpu_fallback=False`, unsupported ATen ops raise instead of running on CPU.
 Use this to verify that a model forward uses only nntile kernels.
 
-### Runtime mode: eager vs graph
+### TensorGraph execution
+
+All ops record into a shared ``TensorGraph``. Flush with ``compile_graph()`` and
+``run()`` (or the legacy one-shot ``execute()``) before host readout.
 
 ```python
-# Default: each op records a TensorGraph slice and runs it immediately.
 torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
-
-# Deferred: ops append to one shared TensorGraph until you flush.
-torch_nntile.init_context(
-    ncpu=1, ncuda=0, cpu_fallback=False, runtime_mode="graph"
-)
 y = model(x)              # recorded, not executed yet
 loss.backward()           # backward ops recorded too
 torch_nntile.compile_graph()
@@ -225,18 +222,17 @@ torch_nntile.run()
 z = y.to("cpu")           # host readout after run
 ```
 
-In graph mode, forward and backward can stay in one pending graph (StarPU
-resolves dependencies). Call ``torch_nntile.compile_graph()`` then
-``torch_nntile.run()`` each step. Host reads from **nntile** tensors use
-``.to("cpu")`` or ``.cpu()`` after ``run()`` (data is synced from tile memory).
-Copies **to** ``device="nntile"`` move host storage into tiles via ``.to()``;
-there is no ``bind_data`` in torch_nntile. Training helpers such as
-``train_full_batch_step`` call ``compile_graph()`` + ``run()`` in graph mode
-and return ``loss.to("cpu").item()``.
+Forward and backward stay in one pending graph (StarPU resolves dependencies).
+Call ``torch_nntile.compile_graph()`` then ``torch_nntile.run()`` each step.
+Host reads from **nntile** tensors use ``.to("cpu")`` or ``.cpu()`` after
+``run()`` (data is synced from tile memory). Copies **to** ``device="nntile"``
+move host storage into tiles via ``.to()``; there is no ``bind_data`` in
+torch_nntile. Training helpers such as ``train_full_batch_step`` call
+``compile_graph()`` + ``run()`` and return ``loss.to("cpu").item()``.
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 
-### Axis-group naming and tiling (graph mode)
+### Axis-group naming and tiling
 
 Full reference: [docs/torch_nntile.md](../docs/torch_nntile.md).
 
@@ -253,7 +249,7 @@ then set tile sizes by group name before ``compile_graph()``.
 
 ```python
 torch_nntile.init_context(
-    ncpu=4, ncuda=0, cpu_fallback=False, runtime_mode="graph"
+    ncpu=4, ncuda=0, cpu_fallback=False
 )
 x = torch.randn(4, 128).to("nntile")
 torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})

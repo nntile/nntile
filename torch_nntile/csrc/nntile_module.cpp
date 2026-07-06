@@ -77,26 +77,6 @@ bool buffer_equal_cpu(const at::Tensor &nntile_tensor, const at::Tensor &cpu_ten
     return lhs.equal(rhs);
 }
 
-RuntimeMode parse_runtime_mode(const std::string &mode)
-{
-    std::string lowered = mode;
-    std::transform(
-        lowered.begin(),
-        lowered.end(),
-        lowered.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    if (lowered == "eager")
-    {
-        return RuntimeMode::Eager;
-    }
-    if (lowered == "graph")
-    {
-        return RuntimeMode::Graph;
-    }
-    throw std::runtime_error(
-        "torch_nntile.init_context runtime_mode must be 'eager' or 'graph'");
-}
-
 void init_context_py(
     int ncpu,
     int ncuda,
@@ -105,8 +85,7 @@ void init_context_py(
     std::size_t ooc_size,
     int logger,
     int verbose,
-    bool cpu_fallback,
-    const std::string &runtime_mode)
+    bool cpu_fallback)
 {
     init_context(
         ncpu,
@@ -116,8 +95,7 @@ void init_context_py(
         ooc_size,
         logger,
         verbose,
-        cpu_fallback,
-        parse_runtime_mode(runtime_mode));
+        cpu_fallback);
 }
 
 std::vector<std::int64_t> parse_tile_sizes_py(const py::object &tile_sizes)
@@ -178,10 +156,7 @@ void set_axis_group_name_py(
         tensor_impl_key(tensor),
         static_cast<int>(tensor.dim()),
         parsed);
-    if (is_graph_mode())
-    {
-        stage_tensor_for_axis_group_compile(tensor);
-    }
+    stage_tensor_for_axis_group_compile(tensor);
 }
 
 void set_axis_group_tiling_py(
@@ -217,8 +192,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("ooc_size") = 16 * 1024 * 1024,
         py::arg("logger") = 0,
         py::arg("verbose") = 0,
-        py::arg("cpu_fallback") = true,
-        py::arg("runtime_mode") = "eager");
+        py::arg("cpu_fallback") = true);
     m.def(
         "is_cpu_fallback_enabled",
         &torch_nntile::is_cpu_fallback_enabled,
@@ -271,10 +245,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "has_pending_graph",
         &torch_nntile::has_pending_graph,
         "Whether a deferred TensorGraph is waiting for execute()");
-    m.def(
-        "is_graph_mode",
-        &torch_nntile::is_graph_mode,
-        "Whether runtime_mode is graph");
     m.def(
         "set_axis_group_name",
         &torch_nntile::set_axis_group_name_py,
