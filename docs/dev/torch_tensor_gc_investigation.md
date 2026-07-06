@@ -355,22 +355,26 @@ Graph-mode `empty` / `empty_strided` return metadata-only tensors
 host bytes. On-demand readout uses `copy_nntile_tensor_to_cpu()` while a
 compiled session is active.
 
-### 8. PyTorch-refcount output marks (partial)
+### 8. PyTorch-refcount output marks (implemented)
+
+TensorGraph nodes linked to live nntile tensors are marked `mark_output(true)` at
+creation. When the last Python reference dies, `on_tensor_impl_released` removes
+only the stale `TensorImpl*` map entry and clears the output mark if no other
+live tensor or param-grad registry entry still references that node — it does
+**not** erase graph nodes or param-grad metadata for unrelated tensors.
+
+`compile_graph()` calls `seal_output_marks_from_live_tensors_locked()`: clear
+all output marks, re-mark live `g_tensor_nodes`, param grad nodes from
+`g_param_grad_registry`, and their producer closure in the pending graph.
+`sync_param_grad_aliases_locked()` runs after `run()` when copying results, not
+at compile time.
 
 `Runtime::execute()` calls `release_dead_tiles_after_op()` after each op so
-intermediate tiles that are not marked input/output release StarPU buffers via
-`invalidate_submit()` once their last consumer finishes.
+intermediate tiles that are not graph inputs/outputs release StarPU buffers via
+`invalidate_submit()`.
 
-**Planned (not yet wired at compile):** mark `TensorGraph` nodes as output when
-linked to live nntile tensors, clear marks when the last Python reference dies,
-and call `seal_output_marks_from_live_tensors_locked()` at `compile_graph()`
-instead of blanket-marking every recorded node. A prototype of that seal path
-exists but recording-time mark clearing currently breaks backward graphs that
-defer `execute()` until after `backward()`; compile still marks all recorded
-nodes as outputs until the seal logic is finished.
-
-Users should still `del` unneeded nntile tensors before `compile_graph()` to
-keep the live tensor map small (see `torch_nntile/README.md`).
+Users should `del` unneeded nntile tensors before `compile_graph()` to reduce
+tile memory footprint (see `torch_nntile/README.md`).
 
 ## Investigation tooling added
 

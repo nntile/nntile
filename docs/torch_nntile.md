@@ -81,10 +81,11 @@ in one call.
 Training helper `torch_nntile.training.train_full_batch_step` calls
 `compile_graph()` and `run()`; read loss with `loss.to("cpu")`.
 
-**Tile memory:** During `run()`, `Runtime::execute()` releases intermediate
-StarPU tiles after their last consumer when those tiles are not graph
-inputs/outputs. Delete unneeded temporaries with `del` before `compile_graph()`
-to keep the recorder map small (see `torch_nntile/README.md`).
+**Tile memory:** New nntile tensors are marked as graph outputs; `del` clears
+the mark when the last Python reference dies. At `compile_graph()` only live
+tensors (and their graph dependencies) stay marked. During `run()`,
+`Runtime::execute()` releases intermediate StarPU tiles after their last
+consumer when those tiles are not graph inputs/outputs.
 
 ## Axis-group naming and tiling
 

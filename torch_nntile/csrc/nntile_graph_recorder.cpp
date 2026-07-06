@@ -766,6 +766,115 @@ void insert_input_scatter_staging_locked()
     }
 }
 
+void clear_output_mark_if_unreferenced_locked(
+    nntile::TensorGraph::TensorNode *node)
+{
+    if (node == nullptr)
+    {
+        return;
+    }
+    for (const auto &[impl_key, mapped] : g_tensor_nodes)
+    {
+        (void)impl_key;
+        if (mapped.node == node)
+        {
+            return;
+        }
+    }
+    for (const auto &[param_key, entry] : g_param_grad_registry)
+    {
+        (void)param_key;
+        if (entry.grad_node == node)
+        {
+            return;
+        }
+    }
+    node->mark_output(false);
+}
+
+void mark_output_producer_closure_locked(
+    const std::unordered_set<nntile::TensorGraph::TensorNode *> &seeds)
+{
+    if (g_graph == nullptr || seeds.empty())
+    {
+        return;
+    }
+    std::unordered_map<
+        nntile::TensorGraph::TensorNode *,
+        std::vector<nntile::TensorGraph::OpNode *>>
+        producers;
+    for (const auto &op : g_graph->ops())
+    {
+        for (nntile::TensorGraph::TensorNode *out : op->outputs())
+        {
+            if (out != nullptr)
+            {
+                producers[out].push_back(op.get());
+            }
+        }
+    }
+    std::unordered_set<nntile::TensorGraph::TensorNode *> live = seeds;
+    bool changed = true;
+    while (changed)
+    {
+        changed = false;
+        const auto snapshot = live;
+        for (nntile::TensorGraph::TensorNode *node : snapshot)
+        {
+            const auto prod_it = producers.find(node);
+            if (prod_it == producers.end())
+            {
+                continue;
+            }
+            for (nntile::TensorGraph::OpNode *op : prod_it->second)
+            {
+                for (nntile::TensorGraph::TensorNode *in : op->inputs())
+                {
+                    if (in != nullptr && live.insert(in).second)
+                    {
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+    for (nntile::TensorGraph::TensorNode *node : live)
+    {
+        if (node != nullptr)
+        {
+            node->mark_output(true);
+        }
+    }
+}
+
+void seal_output_marks_from_live_tensors_locked()
+{
+    for (nntile::TensorGraph::TensorNode *node : g_all_nodes)
+    {
+        node->mark_output(false);
+    }
+    std::unordered_set<nntile::TensorGraph::TensorNode *> seeds;
+    for (const auto &[impl_key, mapped] : g_tensor_nodes)
+    {
+        (void)impl_key;
+        if (mapped.node != nullptr)
+        {
+            mapped.node->mark_output(true);
+            seeds.insert(mapped.node);
+        }
+    }
+    for (const auto &[param_key, entry] : g_param_grad_registry)
+    {
+        (void)param_key;
+        if (entry.grad_node != nullptr)
+        {
+            entry.grad_node->mark_output(true);
+            seeds.insert(entry.grad_node);
+        }
+    }
+    mark_output_producer_closure_locked(seeds);
+}
+
 void compile_graph_locked(
     bool clear_pending_after,
     std::vector<at::Tensor> &pin_drop)
@@ -777,10 +886,7 @@ void compile_graph_locked(
 
     ensure_nntile_context();
 
-    for (nntile::TensorGraph::TensorNode *node : g_all_nodes)
-    {
-        node->mark_output(true);
-    }
+    seal_output_marks_from_live_tensors_locked();
 
     apply_pending_axis_tiling_locked();
     insert_input_scatter_staging_locked();
@@ -1273,6 +1379,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
         mark_as_input || staged;
 
     auto *node = g_graph->data(shape, dtype);
+    node->mark_output(true);
     if (mark_as_input || is_persistent || staged)
     {
         node->mark_input(true);
@@ -1434,11 +1541,21 @@ void on_tensor_impl_released(TensorImplKey key)
             return;
         }
     }
-    g_tensor_nodes.erase(key);
+    nntile::TensorGraph::TensorNode *released_node = nullptr;
+    const auto found = g_tensor_nodes.find(key);
+    if (found != g_tensor_nodes.end())
+    {
+        released_node = found->second.node;
+        g_tensor_nodes.erase(found);
+    }
+    if (g_param_grad_nodes.count(key) != 0)
+    {
+        g_param_grad_nodes.erase(key);
+        g_param_grad_registry.erase(key);
+    }
     g_persisted_tiles_by_impl.erase(key);
-    g_param_grad_nodes.erase(key);
-    g_param_grad_registry.erase(key);
     g_axis_name_hints.erase(key);
+    clear_output_mark_if_unreferenced_locked(released_node);
 }
 
 void record_view_alias(const at::Tensor &self, const at::Tensor &view)
