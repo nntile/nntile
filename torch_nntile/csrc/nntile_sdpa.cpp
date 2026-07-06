@@ -83,6 +83,20 @@ void check_sdpa_mask(
         "nntile sdpa: mask shape must be [q_seq, k_seq]");
 }
 
+at::Tensor mask_to_uint8_nntile(const at::Tensor &mask)
+{
+    if (mask.scalar_type() == at::ScalarType::Byte)
+    {
+        return mask.contiguous();
+    }
+    at::Tensor mask_u8 = mask.cpu().to(at::kByte);
+    if (is_nntile_device(mask.device()))
+    {
+        mask_u8 = mask_u8.to(mask.device());
+    }
+    return mask_u8.contiguous();
+}
+
 } // namespace
 
 at::Tensor sdpa_forward(
@@ -107,14 +121,7 @@ at::Tensor sdpa_forward(
     std::vector<at::Tensor> inputs = {q, k, v};
     if (mask.has_value())
     {
-        if (mask->scalar_type() == at::ScalarType::Bool)
-        {
-            mask_u8 = mask->to(at::kByte);
-        }
-        else
-        {
-            mask_u8 = *mask;
-        }
+        mask_u8 = mask_to_uint8_nntile(*mask);
         inputs.push_back(mask_u8);
     }
     pin_graph_op_inputs(inputs);
@@ -172,14 +179,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     std::vector<at::Tensor> inputs = {q, k, v, grad_out};
     if (mask.has_value())
     {
-        if (mask->scalar_type() == at::ScalarType::Bool)
-        {
-            mask_u8 = mask->to(at::kByte);
-        }
-        else
-        {
-            mask_u8 = *mask;
-        }
+        mask_u8 = mask_to_uint8_nntile(*mask);
         inputs.push_back(mask_u8);
     }
     pin_graph_op_inputs(inputs);

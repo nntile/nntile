@@ -146,10 +146,10 @@ def test_embedding_graph_mode():
         num_embeddings, embed_dim = 8, 4
         indices = torch.randint(0, num_embeddings, (2, 3)).to("nntile")
         weight_cpu = torch.randn(num_embeddings, embed_dim, dtype=torch.float32)
-        out_cpu = F.embedding(indices, weight_cpu)
+        out_cpu = F.embedding(indices.cpu(), weight_cpu)
 
         weight_nnt = weight_cpu.detach().to("nntile")
-        out_nnt = F.embedding(indices.to("nntile"), weight_nnt)
+        out_nnt = F.embedding(indices, weight_nnt)
         assert torch_nntile.has_pending_graph()
         torch_nntile.compile_graph()
         torch_nntile.run()

@@ -37,6 +37,35 @@ def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:
     return _NntileModelTranspose.apply(x, model_ndim)
 
 
+class _NntileSdpaKernel(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+        mask: Tensor,
+        batch_ndim: int,
+    ) -> Tensor:
+        out = _C.sdpa_forward(q, k, v, mask, int(batch_ndim))
+        ctx.save_for_backward(q, k, v, mask)
+        ctx.batch_ndim = int(batch_ndim)
+        return out
+
+    @staticmethod
+    def backward(ctx, grad_out: Tensor):
+        q, k, v, mask = ctx.saved_tensors
+        grad_q, grad_k, grad_v = _C.sdpa_backward(
+            q,
+            k,
+            v,
+            grad_out,
+            mask,
+            ctx.batch_ndim,
+        )
+        return grad_q, grad_k, grad_v, None, None
+
+
 def sdpa_eager(
     q: Tensor,
     k: Tensor,
@@ -65,18 +94,29 @@ def sdpa_eager(
         raise ValueError("nntile sdpa supports float32 only")
     if mask is not None and mask.dtype != torch.bool:
         raise ValueError("nntile sdpa: mask must be bool")
+    if mask is not None and mask.device.type != "nntile":
+        raise ValueError("nntile sdpa: mask must be on device nntile")
     q_sdpa = nntile_model_transpose(q, 1)
     k_sdpa = nntile_model_transpose(k, 1)
     v_sdpa = nntile_model_transpose(v, 1)
-    attn_out = F.scaled_dot_product_attention(
-        q_sdpa,
-        k_sdpa,
-        v_sdpa,
-        attn_mask=mask,
-        dropout_p=0.0,
-        is_causal=False,
-        scale=None,
-    )
+    if mask is None:
+        attn_out = F.scaled_dot_product_attention(
+            q_sdpa,
+            k_sdpa,
+            v_sdpa,
+            attn_mask=None,
+            dropout_p=0.0,
+            is_causal=False,
+            scale=None,
+        )
+    else:
+        attn_out = _NntileSdpaKernel.apply(
+            q_sdpa,
+            k_sdpa,
+            v_sdpa,
+            mask,
+            batch_ndim,
+        )
     return nntile_model_transpose(attn_out, 3)
 
 

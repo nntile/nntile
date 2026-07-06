@@ -79,12 +79,20 @@ bool sdpa_inputs_supported(
     return true;
 }
 
-at::Tensor make_causal_mask(int64_t q_seq, int64_t k_seq)
+at::Tensor make_causal_mask(
+    int64_t q_seq,
+    int64_t k_seq,
+    const c10::Device &device)
 {
     const auto idx_opts = at::TensorOptions().dtype(at::kLong);
     const at::Tensor k_idx = at::arange(k_seq, idx_opts);
     const at::Tensor q_idx = at::arange(q_seq, idx_opts);
-    return k_idx.unsqueeze(0) <= q_idx.unsqueeze(1);
+    at::Tensor mask = k_idx.unsqueeze(0) <= q_idx.unsqueeze(1);
+    if (mask.device() != device)
+    {
+        mask = mask.to(device);
+    }
+    return mask.contiguous();
 }
 
 constexpr float kFloatMaskThreshold = -1e20f;
@@ -135,15 +143,15 @@ at::Tensor broadcastable_attn_bias_to_2d(
     if (bias.scalar_type() == at::ScalarType::Bool)
     {
         TORCH_CHECK(
-            at::equal(bias, expanded),
+            at::equal(bias.cpu(), expanded.cpu()),
             "nntile sdpa: bool attn_bias must broadcast to [q_seq, k_seq]");
     }
     else
     {
         TORCH_CHECK(
             at::allclose(
-                bias.to(at::kFloat),
-                expanded.to(at::kFloat)),
+                bias.to(at::kFloat).cpu(),
+                expanded.to(at::kFloat).cpu()),
             "nntile sdpa: float attn_bias must broadcast to [q_seq, k_seq]");
     }
     return canonical.contiguous();
@@ -172,11 +180,12 @@ std::optional<at::Tensor> convert_attn_bias_to_mask(
     const std::optional<at::Tensor> &attn_bias,
     bool is_causal,
     int64_t q_seq,
-    int64_t k_seq)
+    int64_t k_seq,
+    const c10::Device &device)
 {
     if (is_causal)
     {
-        return make_causal_mask(q_seq, k_seq);
+        return make_causal_mask(q_seq, k_seq, device);
     }
     if (!attn_bias.has_value() || !attn_bias->defined() ||
         attn_bias->numel() == 0)
@@ -200,6 +209,10 @@ std::optional<at::Tensor> convert_attn_bias_to_mask(
     else
     {
         bool_mask = float_attn_bias_to_bool(bias_2d);
+    }
+    if (bool_mask.device() != device)
+    {
+        bool_mask = bool_mask.to(device);
     }
     return bool_mask.contiguous();
 }
@@ -280,7 +293,8 @@ sdpa_overrideable_forward(
         attn_bias,
         is_causal,
         q_seq.expect_int(),
-        k_seq.expect_int());
+        k_seq.expect_int(),
+        query.device());
 
     const at::Tensor out = sdpa_forward(
         query,
@@ -372,7 +386,8 @@ sdpa_overrideable_backward(
         attn_bias_opt,
         is_causal,
         query.size(-2),
-        key.size(-2));
+        key.size(-2),
+        query.device());
 
     const at::Tensor grad_out_c = ensure_contiguous_nntile(grad_out);
     auto grad_qkv = sdpa_backward(
