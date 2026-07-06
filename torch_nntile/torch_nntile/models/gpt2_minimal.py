@@ -19,9 +19,12 @@ from torch_nntile.gemm import gemm
 
 def make_causal_sdpa_mask(seq_len: int, device: torch.device | None = None) -> Tensor:
     """BOOL causal mask ``[seq, seq]`` with ``mask[q, k] = (k <= q)``."""
-    q_idx = torch.arange(seq_len, device=device)
-    k_idx = torch.arange(seq_len, device=device)
-    return k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)
+    q_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
+    k_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
+    mask = (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous()
+    if device is not None and device.type != "cpu":
+        mask = mask.to(device)
+    return mask
 
 
 class NntileConv1D(nn.Module):
@@ -203,14 +206,18 @@ class GPT2Model(nn.Module):
         if position_ids is None:
             seq = input_ids.size(-1)
             position_ids = (
-                torch.arange(seq, dtype=torch.long, device=input_ids.device)
+                torch.arange(seq, dtype=torch.long, device="cpu")
                 .unsqueeze(0)
                 .expand(input_ids.size(0), -1)
                 .contiguous()
+                .to(input_ids.device)
             )
 
         if causal_mask is None:
-            causal_mask = make_causal_sdpa_mask(input_ids.size(-1))
+            causal_mask = make_causal_sdpa_mask(
+                input_ids.size(-1),
+                device=input_ids.device,
+            )
 
         x = self.wte(input_ids) + self.wpe(position_ids)
         for block in self.h:

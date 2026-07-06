@@ -26,7 +26,7 @@ def test_cross_entropy_forward_mean_matches_cpu():
 
     loss_cpu = F.cross_entropy(logits_cpu, target, reduction="mean")
     logits_nnt = logits_cpu.detach().to("nntile")
-    loss_nnt = cross_entropy(logits_nnt, target, reduction="mean")
+    loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
 
     assert torch.allclose(
         loss_nnt.detach().cpu(),
@@ -44,7 +44,7 @@ def test_cross_entropy_forward_sum_matches_cpu():
 
     loss_cpu = F.cross_entropy(logits_cpu, target, reduction="sum")
     logits_nnt = logits_cpu.detach().to("nntile")
-    loss_nnt = cross_entropy(logits_nnt, target, reduction="sum")
+    loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="sum")
 
     assert torch.allclose(
         loss_nnt.detach().cpu(),
@@ -65,7 +65,7 @@ def test_cross_entropy_backward_matches_cpu():
     grad_cpu = logits_cpu.grad.detach().clone()
 
     logits_nnt = logits_cpu.detach().clone().to("nntile").requires_grad_(True)
-    loss_nnt = cross_entropy(logits_nnt, target, reduction="mean")
+    loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
     loss_nnt.backward()
     grad_nnt = logits_nnt.grad.cpu()
 
@@ -92,7 +92,7 @@ def test_cross_entropy_backward_multidim_labels_matches_cpu():
         .to("nntile")
         .requires_grad_(True)
     )
-    loss_nnt = cross_entropy(logits_nnt, target, reduction="mean")
+    loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
     loss_nnt.backward()
     grad_nnt = logits_nnt.grad.cpu().permute(0, 2, 1).contiguous()
 
@@ -115,7 +115,7 @@ def test_cross_entropy_ignore_index_matches_cpu():
     logits_nnt = logits_cpu.detach().to("nntile")
     loss_nnt = cross_entropy(
         logits_nnt,
-        target,
+        target.to("nntile"),
         reduction="mean",
         ignore_index=ignore_index,
     )
@@ -126,3 +126,10 @@ def test_cross_entropy_ignore_index_matches_cpu():
         rtol=1e-4,
         atol=1e-4,
     )
+
+
+def test_cross_entropy_rejects_cpu_target():
+    logits_nnt = torch.randn(4, 5, dtype=torch.float32).to("nntile")
+    target = torch.randint(0, 5, (4,))
+    with pytest.raises(ValueError, match="nntile target"):
+        cross_entropy(logits_nnt, target, reduction="mean")

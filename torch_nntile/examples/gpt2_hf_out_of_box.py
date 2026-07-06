@@ -47,14 +47,16 @@ def main() -> None:
     for param in ref.parameters():
         param.requires_grad_(True)
 
-    input_ids = torch.randint(0, config.vocab_size, (2, 8))
-    labels = input_ids.clone()
+    input_ids_cpu = torch.randint(0, config.vocab_size, (2, 8))
+    labels_cpu = input_ids_cpu.clone()
+    input_ids = input_ids_cpu.to("nntile")
+    labels = labels_cpu.to("nntile")
 
     with torch.no_grad():
-        ref_logits = ref(input_ids).logits
+        ref_logits = ref(input_ids_cpu).logits
         ref_loss = torch.nn.functional.cross_entropy(
             ref_logits.view(-1, config.vocab_size),
-            labels.view(-1),
+            labels_cpu.view(-1),
         )
 
     model.zero_grad(set_to_none=True)

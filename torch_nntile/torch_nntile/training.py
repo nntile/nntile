@@ -72,6 +72,7 @@ def cross_entropy(
 ) -> torch.Tensor:
     """Cross-entropy on ``device='nntile'`` via libnntile tensor ops.
 
+    ``logits`` and ``target`` must both be on ``device='nntile'``.
     ``logits`` shape ``[..., C]`` (class dim last). ``target`` is int64 with
     shape matching logits without ``C``. Supports ``reduction='mean'`` or
     ``'sum'`` and ``ignore_index`` (default ``-100``).
@@ -84,8 +85,8 @@ def cross_entropy(
         reduction_enum = _REDUCTION_SUM
     else:
         raise ValueError("nntile cross_entropy supports reduction 'mean' or 'sum'")
-    if target.device.type not in ("cpu", "nntile"):
-        target = target.cpu()
+    if target.device.type != "nntile":
+        raise ValueError("cross_entropy expects nntile target")
     return _NntileCrossEntropy.apply(
         logits, target, reduction_enum, ignore_index
     )
@@ -517,7 +518,11 @@ def train_full_batch_step(
     axis_group_tiling: Mapping[str, int | list[int] | tuple[int, ...]] | None = None,
     print_axis_groups: bool = False,
 ) -> float:
-    """One full-batch SGD step; returns scalar loss."""
+    """One full-batch SGD step; returns scalar loss.
+
+    When the model runs on ``device='nntile'``, ``inputs`` and ``targets`` must
+    already be on nntile (use ``.to('nntile')`` explicitly).
+    """
     for param in model.parameters():
         param.grad = None
 

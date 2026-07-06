@@ -147,8 +147,8 @@ PyTorch C-order shapes are converted to TensorGraph storage layout internally.
 Gradients use **PyTorch autograd** (not `NNGraph` autograd).
 
 **Embedding v1 limits:** `float32` weights only; `padding_idx` must be `-1`
-(default); `scale_grad_by_freq=False` and `sparse=False` only. Indices may stay
-on CPU while weights are on `device="nntile"`.
+(default); `scale_grad_by_freq=False` and `sparse=False` only. Indices must be
+on `device="nntile"` (use `.to("nntile")` explicitly).
 
 **SDPA v1 limits:** `float32` only. Two entry points share one ATen kernel:
 
@@ -162,7 +162,7 @@ on CPU while weights are on `device="nntile"`.
 - **`torch_nntile.nn.sdpa_eager` / `SDPA`**: projection layout
   `[batch, seq, head_size, n_heads]`; internally transposes to kernel layout, calls
   `F.scaled_dot_product_attention`, transposes back. Optional BOOL mask `[q_seq, k_seq]`
-  on CPU or nntile (dim0 = query, dim1 = key).
+  on `device="nntile"` (dim0 = query, dim1 = key).
 
 Works in both eager and graph runtime modes (graph defers execution until
 ``compile_graph()`` / ``run()`` or ``execute()``). Use
@@ -302,7 +302,8 @@ Train `DeepReLU.mnist()` on all **60 000** MNIST training images in one batch,
 comparing CPU PyTorch vs `device="nntile"` with the same weight initialization.
 
 Cross-entropy is evaluated on nntile via `torch_nntile.training.cross_entropy`
-(same tensor-op chain as `NNCrossEntropyOp` in libnntile). Logits use **class
+(same tensor-op chain as `NNCrossEntropyOp` in libnntile). Logits and labels must
+both be on `device="nntile"` (use `.to("nntile")` explicitly). Logits use **class
 dim last** (`[..., C]`); labels match logits without the class axis (`...`).
 The scalar loss lives on ``device="nntile"``; use ``loss.to("cpu")`` after
 ``compile_graph()`` and ``run()`` in graph mode. Backward keeps ``grad_output`` as a
