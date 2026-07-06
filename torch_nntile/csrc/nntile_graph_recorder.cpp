@@ -1322,34 +1322,10 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     const auto found = g_tensor_nodes.find(impl_key);
     if (found != g_tensor_nodes.end() && found->second.node != nullptr)
     {
-        nntile::TensorGraph::TensorNode *existing = found->second.node;
-        if (!shapes_equal(existing->shape(), shape))
+        if (!shapes_equal(found->second.node->shape(), shape))
         {
-            if (graph_numel(existing->shape()) != graph_numel(shape))
-            {
-                g_tensor_nodes.erase(found);
-            }
-            else
-            {
-                existing = ensure_view_alias_locked(existing, shape, dtype);
-                MappedTensor updated = found->second;
-                updated.node = existing;
-                updated.dtype = dtype;
-                updated.count = static_cast<std::size_t>(graph_numel(shape));
-                g_tensor_nodes[impl_key] = updated;
-                MappedTensor &mapped = g_tensor_nodes[impl_key];
-                if (!mapped.is_persistent_input && mapped.needs_host_copy)
-                {
-                    mapped.bind_at_execute = false;
-                    mapped.needs_host_copy = false;
-                }
-                if (host_ptr != nullptr)
-                {
-                    mapped.host_data_ptr = host_ptr;
-                }
-                track_node(existing);
-                return existing;
-            }
+            // TensorImpl reuse: drop stale mapping (views use record_view_alias).
+            g_tensor_nodes.erase(found);
         }
         else
         {
@@ -1363,8 +1339,8 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
             {
                 found->second.host_data_ptr = host_ptr;
             }
-            track_node(existing);
-            return existing;
+            track_node(found->second.node);
+            return found->second.node;
         }
     }
 
@@ -1534,13 +1510,6 @@ nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
 void on_tensor_impl_released(TensorImplKey key)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    for (const at::Tensor &pinned : g_pinned_tensors)
-    {
-        if (tensor_impl_key(pinned) == key)
-        {
-            return;
-        }
-    }
     nntile::TensorGraph::TensorNode *released_node = nullptr;
     const auto found = g_tensor_nodes.find(key);
     if (found != g_tensor_nodes.end())
@@ -1555,7 +1524,10 @@ void on_tensor_impl_released(TensorImplKey key)
     }
     g_persisted_tiles_by_impl.erase(key);
     g_axis_name_hints.erase(key);
-    clear_output_mark_if_unreferenced_locked(released_node);
+    if (released_node != nullptr)
+    {
+        clear_output_mark_if_unreferenced_locked(released_node);
+    }
 }
 
 void record_view_alias(const at::Tensor &self, const at::Tensor &view)

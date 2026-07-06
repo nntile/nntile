@@ -7,6 +7,7 @@
 import pytest
 import torch
 
+import torch_nntile
 from torch_nntile import _C
 from conftest import nntile_cpu
 from torch_nntile.training import (
@@ -170,6 +171,8 @@ def test_adam_optimizer_multistep():
         param_nnt.grad = grad.clone().to("nntile")
         cpu_opt.step()
         nnt_opt.step()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
 
     assert torch.allclose(nntile_cpu(param_nnt), param_cpu, rtol=1e-4, atol=1e-4)
 
@@ -189,6 +192,8 @@ def test_adamw_optimizer_multistep():
         param_nnt.grad = grad.clone().to("nntile")
         cpu_opt.step()
         nnt_opt.step()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
 
     assert torch.allclose(nntile_cpu(param_nnt), param_cpu, rtol=1e-4, atol=1e-4)
 

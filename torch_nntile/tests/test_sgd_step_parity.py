@@ -132,6 +132,8 @@ def test_sgd_optimizer_multistep_momentum():
         param_nnt.grad = grad.clone().to("nntile")
         torch_opt.step()
         nnt_opt.step()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
 
     assert torch.allclose(nntile_cpu(param_nnt), param_cpu, rtol=1e-4, atol=1e-4)
 

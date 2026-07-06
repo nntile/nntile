@@ -41,6 +41,14 @@ def pytest_sessionstart(session) -> None:
     torch_nntile.restrict_cpu()
 
 
+@pytest.fixture(autouse=True)
+def _reset_nntile_graph_session_after_test():
+    """Isolate parity tests: stale TensorGraph sessions corrupt later tests."""
+    yield
+    if _C.has_libnntile():
+        torch_nntile.reset_graph_session()
+
+
 def nntile_cpu(tensor: torch.Tensor) -> torch.Tensor:
     """Copy an nntile tensor to CPU, flushing a pending TensorGraph first."""
     if (

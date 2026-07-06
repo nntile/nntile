@@ -66,8 +66,8 @@ void run_addmm(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
-    pin_graph_op_inputs({self, prepared.a, prepared.b});
-    pin_graph_op_output(out, true);
+    pin_graph_op_inputs({prepared.a, prepared.b});
+    pin_graph_op_output(out, false);
 
     GemmParams params = prepared.params;
     params.alpha = alpha.to<float>();
@@ -96,14 +96,14 @@ void run_addmm(
         return;
     }
 
-    out.copy_(self_expanded);
+    pin_graph_op_inputs({self_expanded});
     tensor_gemm_accumulate_fp32(
         params,
         prepared.a,
         prepared.a_gemm_shape,
         prepared.b,
         prepared.b_gemm_shape,
-        out,
+        self_expanded,
         prepared.out_shape,
         out,
         prepared.out_shape);
