@@ -45,6 +45,7 @@ CSRC = [
     "csrc/nntile_mm.cpp",
     "csrc/nntile_bmm.cpp",
     "csrc/nntile_addmm.cpp",
+    "csrc/nntile_sum.cpp",
     "csrc/nntile_mm_backward.cpp",
     "csrc/nntile_cross_entropy.cpp",
     "csrc/nntile_sgd_step.cpp",

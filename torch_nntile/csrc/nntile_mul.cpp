@@ -109,6 +109,48 @@ at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
     return self;
 }
 
+at::Tensor mul_scalar(const at::Tensor &self, const at::Scalar &other)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "nntile mul.Scalar expects tensor on device nntile");
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile mul.Scalar supports float32 only");
+    TORCH_CHECK(self.is_contiguous(), "nntile mul.Scalar requires contiguous");
+    at::Tensor out = at::empty_like(self);
+    tensor_mul_scalar_fp32(
+        self.data_ptr<float>(),
+        out.data_ptr<float>(),
+        self.sizes(),
+        other.to<float>());
+    return out;
+}
+
+at::Tensor &mul_scalar_out(
+    const at::Tensor &self,
+    const at::Scalar &other,
+    at::Tensor &out)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()) && is_nntile_device(out.device()),
+        "nntile mul.Scalar_out expects nntile tensors");
+    TORCH_CHECK(self.sizes() == out.sizes(), "nntile mul.Scalar_out shape");
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float &&
+            out.scalar_type() == at::ScalarType::Float,
+        "nntile mul.Scalar_out supports float32 only");
+    TORCH_CHECK(
+        self.is_contiguous() && out.is_contiguous(),
+        "nntile mul.Scalar_out requires contiguous tensors");
+    tensor_mul_scalar_fp32(
+        self.data_ptr<float>(),
+        out.data_ptr<float>(),
+        self.sizes(),
+        other.to<float>());
+    return out;
+}
+
 } // namespace torch_nntile
 
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
@@ -116,4 +158,6 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("mul.Tensor", TORCH_FN(torch_nntile::mul_tensor));
     m.impl("mul.out", TORCH_FN(torch_nntile::mul_out));
     m.impl("mul_.Tensor", TORCH_FN(torch_nntile::mul_inplace_tensor));
+    m.impl("mul.Scalar", TORCH_FN(torch_nntile::mul_scalar));
+    m.impl("mul.Scalar_out", TORCH_FN(torch_nntile::mul_scalar_out));
 }

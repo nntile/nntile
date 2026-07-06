@@ -522,7 +522,9 @@ def train_full_batch_step(
         param.grad = None
 
     logits = model(inputs)
-    if inputs.device.type == "nntile":
+    if hasattr(logits, "logits"):
+        logits = logits.logits
+    if logits.device.type == "nntile":
         loss = cross_entropy(logits, targets)
         loss.backward()
         _nntile_optimizer_for(model, learning_rate).step()
