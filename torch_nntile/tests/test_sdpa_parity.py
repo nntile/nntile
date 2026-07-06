@@ -155,7 +155,7 @@ def test_sdpa_forward_with_mask_matches_reference():
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
         v_cpu.to("nntile"),
-        mask,
+        mask.to("nntile"),
         batch_ndim=2,
     )
     assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
@@ -179,7 +179,7 @@ def test_sdpa_mask_axis_order_matches_causal_layout():
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
         v_cpu.to("nntile"),
-        mask,
+        mask.to("nntile"),
         batch_ndim=2,
     )
     assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
@@ -191,14 +191,14 @@ def test_sdpa_mask_axis_order_matches_causal_layout():
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
         v_cpu.to("nntile"),
-        mask_sparse,
+        mask_sparse.to("nntile"),
         batch_ndim=2,
     )
     out_transposed_mask = sdpa_eager(
         q_cpu.to("nntile"),
         k_cpu.to("nntile"),
         v_cpu.to("nntile"),
-        mask_sparse.t().contiguous(),
+        mask_sparse.t().contiguous().to("nntile"),
         batch_ndim=2,
     )
     assert not torch.allclose(

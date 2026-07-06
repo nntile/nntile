@@ -210,7 +210,10 @@ class GPT2Model(nn.Module):
             )
 
         if causal_mask is None:
-            causal_mask = make_causal_sdpa_mask(input_ids.size(-1))
+            causal_mask = make_causal_sdpa_mask(
+                input_ids.size(-1),
+                device=input_ids.device,
+            )
 
         x = self.wte(input_ids) + self.wpe(position_ids)
         for block in self.h:

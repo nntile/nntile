@@ -74,9 +74,9 @@ def _make_stock_models(config: GPT2Config):
 
 def test_hf_gpt2_forward_matches_cpu(tiny_gpt2_config):
     ref, model = _make_stock_models(tiny_gpt2_config)
-    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8))
+    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
-        ref_logits = ref(input_ids).logits
+        ref_logits = ref(input_ids.cpu()).logits
         out = model(input_ids).logits
     torch.testing.assert_close(out.cpu(), ref_logits, rtol=1e-4, atol=1e-4)
 
@@ -88,14 +88,14 @@ def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
     for param in model.parameters():
         param.requires_grad_(True)
 
-    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8))
+    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     labels = input_ids.clone()
 
     ref.zero_grad(set_to_none=True)
-    ref_logits = ref(input_ids).logits
+    ref_logits = ref(input_ids.cpu()).logits
     ref_loss = torch.nn.functional.cross_entropy(
         ref_logits.view(-1, tiny_gpt2_config.vocab_size),
-        labels.view(-1),
+        labels.cpu().view(-1),
     )
     ref_loss.backward()
 
@@ -113,12 +113,12 @@ def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
     )
 
 
-def test_hf_gpt2_train_full_batch_step_cpu_inputs(tiny_gpt2_config):
+def test_hf_gpt2_train_full_batch_step_nntile_inputs(tiny_gpt2_config):
     _, model = _make_stock_models(tiny_gpt2_config)
     for param in model.parameters():
         param.requires_grad_(True)
 
-    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8))
+    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     labels = input_ids.clone()
     loss = train_full_batch_step(model, input_ids, labels, learning_rate=1e-3)
     assert loss > 0.0

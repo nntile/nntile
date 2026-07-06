@@ -70,8 +70,8 @@ void check_sdpa_mask(
         mask.is_contiguous(),
         "nntile sdpa: mask must be contiguous");
     TORCH_CHECK(
-        mask.is_cpu() || is_nntile_device(mask.device()),
-        "nntile sdpa: mask must be on CPU or nntile");
+        is_nntile_device(mask.device()),
+        "nntile sdpa: mask must be on device nntile");
     const int64_t q_ndim = q.dim();
     const int64_t k_ndim = k.dim();
     const int64_t q_seq = q.size(q_ndim - 2);

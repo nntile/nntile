@@ -39,7 +39,7 @@ def main() -> None:
     load_hf_into_gpt2_lm_head(model, hf)
     model = model.to("nntile")
 
-    input_ids = torch.randint(0, config.vocab_size, (2, 8))
+    input_ids = torch.randint(0, config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
         ref = hf(input_ids).logits
         out = model(input_ids).cpu()

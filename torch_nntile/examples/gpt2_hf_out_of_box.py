@@ -47,7 +47,7 @@ def main() -> None:
     for param in ref.parameters():
         param.requires_grad_(True)
 
-    input_ids = torch.randint(0, config.vocab_size, (2, 8))
+    input_ids = torch.randint(0, config.vocab_size, (2, 8)).to("nntile")
     labels = input_ids.clone()
 
     with torch.no_grad():

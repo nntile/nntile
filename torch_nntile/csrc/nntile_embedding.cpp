@@ -54,8 +54,8 @@ void check_embedding_forward_inputs(
         indices.scalar_type() == at::ScalarType::Long,
         "nntile embedding: indices must be int64");
     TORCH_CHECK(
-        indices.is_cpu() || is_nntile_device(indices.device()),
-        "nntile embedding: indices must be CPU or nntile");
+        is_nntile_device(indices.device()),
+        "nntile embedding: indices must be on device nntile");
     TORCH_CHECK(weight.dim() == 2, "nntile embedding: weight must be 2D");
     TORCH_CHECK(
         weight.scalar_type() == at::ScalarType::Float,
@@ -77,8 +77,8 @@ void check_embedding_backward_inputs(
         indices.scalar_type() == at::ScalarType::Long,
         "nntile embedding_dense_backward: indices must be int64");
     TORCH_CHECK(
-        indices.is_cpu() || is_nntile_device(indices.device()),
-        "nntile embedding_dense_backward: indices must be CPU or nntile");
+        is_nntile_device(indices.device()),
+        "nntile embedding_dense_backward: indices must be on device nntile");
     TORCH_CHECK(
         grad_output.scalar_type() == at::ScalarType::Float,
         "nntile embedding_dense_backward supports float32 only");
