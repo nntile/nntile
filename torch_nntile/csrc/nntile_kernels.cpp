@@ -301,7 +301,12 @@ at::Tensor empty_memory_format(
         "Pin memory is CPU-only");
     const c10::DeviceGuard device_guard(device);
     const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
-    return empty_metadata_tensor(size, dtype, device);
+    at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    ensure_host_staging(tensor);
+    mark_staged_input_tensor(tensor);
+#endif
+    return tensor;
 }
 
 at::Tensor empty_strided(
@@ -322,7 +327,12 @@ at::Tensor empty_strided(
         "Pin memory is CPU-only");
     const c10::DeviceGuard device_guard(device);
     const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
-    return empty_metadata_tensor(size, dtype, device);
+    at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    ensure_host_staging(tensor);
+    mark_staged_input_tensor(tensor);
+#endif
+    return tensor;
 }
 
 at::Tensor as_strided(

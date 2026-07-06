@@ -24,7 +24,12 @@ def test_empty_on_device():
     assert x.device.type == "nntile"
     assert x.shape == (2, 3)
     assert x.dtype == torch.float32
-    assert _C.buffer_nbytes(x) == x.element_size() * x.numel()
+    nbytes = _C.buffer_nbytes(x)
+    if _C.has_libnntile():
+        # Graph mode: empty tensors are metadata-only until host staging.
+        assert nbytes == 0
+    else:
+        assert nbytes == x.element_size() * x.numel()
 
 
 def test_cpu_to_nntile_copy():
