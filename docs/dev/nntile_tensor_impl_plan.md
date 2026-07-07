@@ -160,18 +160,24 @@ lives in StarPU tiles addressed by `TensorNode*`.
 There is no optional host buffer for inputs, outputs, grads, or optimizer
 state.
 
-### 3.4 `NNTileBinding`: logical node + `io_staging`
+### 3.4 `NNTileBinding`: **L** (logical) + **S** (staging)
 
-**`io_staging` is part of `NNTileBinding` (the `NodeRef` target), not a sibling
-field on `NNTileBackendMeta`.** `NNTileBackendMeta` holds only `NodeRef binding`;
-both `L` and `S` are members of `NNTileBinding`.
+**Naming (canonical):** we keep **L** and **S** — **Logical** and **Staging** —
+not layout aliases like “distributed/contiguous”. `L` is the graph node used by
+ops; `S` is the single-tile PyTorch I/O seam. Optimizations belong **inside**
+`scatter` / `gather` (no-op when tiling matches), not in alternate binding
+shapes (§3.7).
+
+**`io_staging` (`S`) is part of `NNTileBinding` (the `NodeRef` target), not a
+sibling field on `NNTileBackendMeta`.** `NNTileBackendMeta` holds only
+`NodeRef binding`; both `L` and `S` are members of `NNTileBinding`.
 
 Each `device=nntile` `at::Tensor` has `NodeRef` → `NNTileBinding`:
 
-| Node | Member | Role |
-|------|--------|------|
-| `L` | `binding->logical` | Logical (possibly tiled) graph node; `mark_output(true)` via `NodeRef` |
-| `S` | `binding->io_staging` | Single-tile StarPU buffer for PyTorch I/O; `mark_output(false)` |
+| Node | Member | Name | Role |
+|------|--------|------|------|
+| `L` | `binding->logical` | **Logical** | Graph node for recorded ops (possibly multi-tile); `mark_output(true)` via `NodeRef` |
+| `S` | `binding->io_staging` | **Staging** | Single-tile StarPU buffer for PyTorch I/O; `mark_output(false)` |
 
 `S` is **not** a separate PyTorch tensor. It lives inside the binding so views
 that share `NodeRef` also share `S`.
@@ -193,8 +199,9 @@ tensor recreates `S` if needed.
 | **In** `.to("nntile")` | CPU `memcpy` → `S` (via `acquire(W)`); at compile prepend **`scatter(S → L)` always** |
 | **Out** `.cpu()` | **`gather(L → S)` always**; then `acquire(R)` → CPU `memcpy` → `release` |
 
-This may copy redundantly when `L` is already single-tile; that is accepted
-for v1 simplicity (see §3.7 for the future shortcut).
+This may copy redundantly when `L` is single-tile; that is accepted for v1.
+Future work lowers cost inside `scatter` / `gather` when layouts match (§3.7),
+without changing the always-emit graph structure.
 
 ### 3.5 Input: `x_nnt = x.to("nntile")`
 
@@ -730,7 +737,7 @@ torch_nntile.run()
 | New: `test_view_shares_node_ref` | same `NodeRef` pointer across views |
 | New: `test_no_contiguous_view_op_on_reshape` | op count / op names |
 | New: `test_to_nntile_scatter_input` | `.to("nntile")` creates S+L; scatter at compile |
-| New: `test_cpu_readout_gather_path` | `.cpu()` gather path; no nntile host bytes |
+| New: `test_cpu_invalidates_io_staging` | `binding->io_staging` null after `.cpu()`; tile freed |
 | New: `test_each_to_creates_new_binding` | two `x.to("nntile")` → distinct `L`/`S` |
 | New: `test_scatter_always_even_single_tile` | v1 emits scatter when `L` is single-tile |
 
@@ -746,7 +753,8 @@ torch_nntile.run()
 | Autograd holds tensor invisibly to Python | Refcount includes autograd saves |
 | Tiling depends on axis lengths after free reshape | Record ops use `tensor.sizes()` at call site; node nelems invariant |
 | Cross-graph weight identity | Tile pool + scatter input path; rebind `L`/`S` on next capture |
-| `S` invalidated when scatter runs | `mark_output(false)` on `io_staging`; only `L` is user output |
+| `S` invalidated after `.cpu()` readout | Immediate invalidate + `binding->io_staging = nullptr` after acquire release |
+| `S` invalidated when scatter runs (input) | `mark_output(false)` on `io_staging`; tile freed at run |
 | Redundant scatter/gather when untiled | Accepted in v1; §3.7 optimization later |
 
 ---
@@ -795,7 +803,7 @@ that branch; do not split into separate PRs.
 | **Free reshape** | Same numel, same `NodeRef`, no graph op |
 | **NNTileBinding** | `NodeRef` target: `{ logical L, io_staging S }`; `S` is not on `BackendMeta` |
 | **NodeRef** | `shared_ptr<NNTileBinding>`; refcount drives `mark_output` on `L` |
-| **io_staging (`S`)** | Member of `NNTileBinding`; single-tile I/O; `mark_output(false)` when scatter consumes it |
+| **io_staging (`S`)** | Member of `NNTileBinding`; invalidated after input `scatter` at run and **immediately after each `.cpu()`** |
 | **Logical node (`L`)** | Member of `NNTileBinding`; authoritative after scatter / for ops |
 | **Scatter / Gather** | v1: always `scatter(S→L)` on input compile; always `gather(L→S)` on `.cpu()` |
 | **Session** | Compiled graph + `Runtime` after `compile_graph()` |
