@@ -70,34 +70,36 @@ That makes views easy to forget and GC dependent on batch scans.
 flowchart TD
     subgraph tensor [device=nntile at::Tensor]
         Impl[TensorImpl sizes/strides]
-        Meta[NNTileBackendMeta]
+        Meta["NNTileBackendMeta: NodeRef only"]
         Storage["Storage: always 0 bytes"]
         Impl --> Meta
         Impl --> Storage
     end
 
-    subgraph noderef [NodeRef shared_ptr]
+    subgraph noderef [NodeRef → NNTileBinding]
         RC[refcount]
-        Ptr["TensorNode* tiled logical"]
+        L[logical L]
+        S[io_staging S]
     end
 
     Meta --> noderef
-    Ptr --> TG[TensorGraph owns nodes]
+    L --> TG[TensorGraph owns nodes]
+    S --> TG
     TG --> Session[GraphSession after compile]
 
     subgraph input_io [Input .to nntile]
         CPUx[CPU tensor x]
-        IO["io_staging S bound on meta"]
+        IO["io_staging S in NNTileBinding"]
         Scatter[scatter op always]
         CPUx -->|acquire W memcpy release| IO
         IO --> Scatter
-        Scatter --> Ptr
+        Scatter --> L
     end
 
     subgraph output_io [Output .cpu]
         Gather[gather op always]
         CPUout[CPU tensor]
-        Ptr --> Gather
+        L --> Gather
         Gather --> IO
         IO -->|acquire R memcpy release| CPUout
     end
@@ -106,21 +108,24 @@ flowchart TD
 ```cpp
 // torch_nntile/csrc/nntile_tensor_meta.h (new)
 
-struct NodeRefControlBlock {
+//! Graph binding for one at::Tensor: logical node + I/O staging node.
+//! io_staging is part of NNTileBinding (the NodeRef target), NOT a sibling
+//! field on NNTileBackendMeta.
+struct NNTileBinding {
     nntile::TensorGraph::TensorNode *logical = nullptr;     // L
     nntile::TensorGraph::TensorNode *io_staging = nullptr;  // S
 
-    explicit NodeRefControlBlock(nntile::TensorGraph::TensorNode *logical);
-    ~NodeRefControlBlock();  // last ref: logical->mark_output(false)
+    explicit NNTileBinding(nntile::TensorGraph::TensorNode *logical);
+    ~NNTileBinding();  // last NodeRef released: logical->mark_output(false)
 
-    NodeRefControlBlock(const NodeRefControlBlock &) = delete;
-    NodeRefControlBlock &operator=(const NodeRefControlBlock &) = delete;
+    NNTileBinding(const NNTileBinding &) = delete;
+    NNTileBinding &operator=(const NNTileBinding &) = delete;
 };
 
-using NodeRef = std::shared_ptr<NodeRefControlBlock>;
+using NodeRef = std::shared_ptr<NNTileBinding>;
 
 struct NNTileBackendMeta final : c10::BackendMeta {
-  NodeRef binding;  // { L, S } — one binding per at::Tensor
+    NodeRef binding;  // only field; { L, S } live inside NNTileBinding
 };
 
 // Accessors
@@ -142,7 +147,7 @@ iteration starts a **new** pending graph with **new** nodes; live weight
 | Three tiers (GraphHandle / Staged / Persistent) | One tensor kind; 0-byte Storage |
 | `is_persistent_input` | Param alive in Python → `NodeRef` refcount > 0 |
 | `g_metadata_only_impls` | All nntile tensors are metadata-only (`nbytes() == 0`) |
-| `is_staged_input_tensor` | **Delete** — replaced by bound `io_staging` node |
+| `is_staged_input_tensor` | **Delete** — `io_staging` lives in `NNTileBinding` |
 | Host `std::vector` on `Storage` | **Delete** — StarPU single-tile acquire/memcpy |
 | Graph epoch id on `NodeRef` | Pointer valid for lifetime of owning graph object |
 
@@ -155,10 +160,13 @@ lives in StarPU tiles addressed by `TensorNode*`.
 There is no optional host buffer for inputs, outputs, grads, or optimizer
 state.
 
-### 3.4 Bound single-tile I/O node (`io_staging`)
+### 3.4 `NNTileBinding`: logical node + `io_staging`
 
-Each `device=nntile` `at::Tensor` has a **`NodeRef` binding** (`shared_ptr` to
-`{ L, S }`):
+**`io_staging` is part of `NNTileBinding` (the `NodeRef` target), not a sibling
+field on `NNTileBackendMeta`.** `NNTileBackendMeta` holds only `NodeRef binding`;
+both `L` and `S` are members of `NNTileBinding`.
+
+Each `device=nntile` `at::Tensor` has `NodeRef` → `NNTileBinding`:
 
 | Node | Member | Role |
 |------|--------|------|
@@ -221,7 +229,7 @@ alive (`mark_output(true)` on `L`).
 
 ```text
 x_nnt.cpu()
-  1. Resolve L from NodeRef; resolve bound S from io_staging on meta
+  1. Resolve L and S from binding (binding->logical, binding->io_staging)
   2. gather(L → S)   # always, even if L is single-tile
   3. acquire(S, STARPU_R) → memcpy → CPU tensor Storage → release
 ```
@@ -323,8 +331,8 @@ compile_graph()                                   →  reads marks; does NOT rew
 
 **Keep / refactor:**
 
-- `clear_output_mark_if_unreferenced_locked` → logic moves into
-  `NodeRefControlBlock` destructor (refcount-based, not map scan).
+- `clear_output_mark_if_unreferenced_locked` → logic in `NNTileBinding`
+  destructor (refcount-based, not map scan).
 
 ### 5.2 What `is_output` means
 
@@ -525,7 +533,7 @@ Replace map-backed helpers with meta-backed implementations:
 | Current | Target |
 |---------|--------|
 | `get_or_create_data_node(tensor, shape, …)` | Ensure `node_ref`; create `TensorNode` in pending graph if null; `mark_output(true)` on first attach |
-| `register_data_node(tensor, node)` | `attach_node_ref(tensor, make_node_ref(node))` |
+| `register_data_node(tensor, node)` | `attach_binding(tensor, make_binding(node))` |
 | `lookup_data_node(tensor)` | `nntile_node(tensor)` |
 | `record_view_alias(self, view)` | `share_node_ref_for_reshape(self, view)` or reject |
 | `on_tensor_impl_released` | `NodeRef` refcount + storage hook |
@@ -548,10 +556,14 @@ same helper names; implementation moves to `nntile_tensor_meta.cpp`.
 
 ---
 
-### Phase 1 — `NodeRef` + `NNTileBackendMeta`
+### Phase 1 — `NNTileBinding` + `NNTileBackendMeta`
 
-- [ ] Add `nntile_tensor_meta.h` / `.cpp`.
-- [ ] `NodeRefControlBlock`: ctor `mark_output(true)`, dtor `mark_output(false)`.
+- [ ] Add `nntile_tensor_meta.h` / `.cpp` with `NNTileBinding` (`logical` +
+      `io_staging`); `NodeRef = shared_ptr<NNTileBinding>`.
+- [ ] `NNTileBackendMeta` holds **only** `NodeRef binding` (no sibling
+      `io_staging` field).
+- [ ] `NNTileBinding`: ctor `mark_output(true)` on `logical`, dtor
+      `mark_output(false)` on `logical` when last `NodeRef` released.
 - [ ] Attach meta on all nntile tensors; **all** use 0-byte `Storage`.
 - [ ] Dual-write: meta + legacy `g_tensor_nodes` (temporary).
 
@@ -610,9 +622,9 @@ Python ref clears `is_output` without compile seal.
 
 ---
 
-### Phase 7 — Bound `io_staging` + symmetric I/O (v1 always scatter/gather)
+### Phase 7 — `NNTileBinding` I/O (v1 always scatter/gather)
 
-- [ ] Add `io_staging` inside `NodeRef` binding `{ L, S }` (create with tensor).
+- [ ] `io_staging` member inside `NNTileBinding` only (not on `BackendMeta`).
 - [ ] `.to("nntile")`: new tensor + new binding; `acquire(W)`/`memcpy` into `S`;
       always record `scatter(S → L)` at compile; `S` → `mark_output(false)`.
 - [ ] `.cpu()`: always `gather(L → S)` on **that** tensor's binding, then
@@ -775,9 +787,10 @@ that branch; do not split into separate PRs.
 | **Capture** | Record ATen ops into pending `g_graph` until next compile |
 | **Compile segment** | Ops captured since the previous `compile_graph()` |
 | **Free reshape** | Same numel, same `NodeRef`, no graph op |
-| **Binding (`NodeRef`)** | `shared_ptr` to `{ logical L, io_staging S }` per `at::Tensor` |
-| **io_staging (`S`)** | Single-tile I/O buffer inside binding; `mark_output(false)` when scatter consumes it |
-| **Logical node (`L`)** | Tiled `TensorNode*` via `NodeRef`; authoritative after scatter / for ops |
+| **NNTileBinding** | `NodeRef` target: `{ logical L, io_staging S }`; `S` is not on `BackendMeta` |
+| **NodeRef** | `shared_ptr<NNTileBinding>`; refcount drives `mark_output` on `L` |
+| **io_staging (`S`)** | Member of `NNTileBinding`; single-tile I/O; `mark_output(false)` when scatter consumes it |
+| **Logical node (`L`)** | Member of `NNTileBinding`; authoritative after scatter / for ops |
 | **Scatter / Gather** | v1: always `scatter(S→L)` on input compile; always `gather(L→S)` on `.cpu()` |
 | **Session** | Compiled graph + `Runtime` after `compile_graph()` |
 
