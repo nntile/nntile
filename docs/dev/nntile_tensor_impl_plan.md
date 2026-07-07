@@ -5,11 +5,43 @@
 [#425](https://github.com/nntile/nntile/pull/425) only — branch
 `cursor/pytorch-tensor-gc-investigation-94e3`, base `graph_api`. Do **not**
 open follow-on PRs for this reimplementation.  
-**Status:** agreed target architecture (conversation 2026-07)
+**Status:** agreed target architecture (conversation 2026-07); **implementation
+in progress** on PR
+[#425](https://github.com/nntile/nntile/pull/425) (branch
+`cursor/pytorch-tensor-gc-investigation-94e3`, latest commit `87d1aa45`).
 
 This document is the **canonical spec** for reimplementing `device=nntile`
 PyTorch tensors. It replaces earlier “three tiers” and “seal at compile”
 framing with the ownership model agreed in design review.
+
+### Implementation status (audit 2026-07-07)
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| **0** Spec & harness | **Partial** | Doc landed; `TORCH_NNTILE_ASSERT_NODE_REF` wired; §11 inventory incomplete |
+| **1** `NNTileBinding` + meta | **Mostly done** | `nntile_tensor_meta.{h,cpp}`; dual-write with `g_tensor_nodes` remains |
+| **2** Free reshape | **Mostly done** | `share_node_ref_for_reshape` on view path; dead `ensure_view_alias_locked` / `contiguous_view` helpers still in recorder |
+| **3** Output marks (no seal) | **Mostly done** | Compile path does not call seal; `seal_output_marks_*` dead code remains; GC test passes |
+| **4** Remove side map | **Not started** | `g_tensor_nodes`, tier sets, `ensure_host_staging`, `is_staged_input_tensor` still active |
+| **5** Permute policy | **Not started** | `permute` still stride-aliases when contiguous-preserving; errors only when non-contiguous |
+| **6** Autograd `NodeRef` | **Not started** | |
+| **7** I/O scatter/gather | **Partial** | Input scatter-at-`.to()` + runtime `S` bind done; **gather on `.cpu()` not implemented**; staging invalidate not wired; 3 training tests fail |
+
+**Test snapshot** (`test_device_stub.py` + `test_graph_execution.py`): **15 passed,
+3 failed** — `test_graph_cross_entropy_backward_and_sgd`,
+`test_train_full_batch_step_graph_mode`,
+`test_train_full_batch_step_graph_mode_multi_epoch` (SGD weight parity + multi-epoch
+`io_staging_` init).
+
+**Open blockers before Phase 7 acceptance:**
+
+1. `.cpu()` must record **`gather(L → S)`** + compile + run (today reads `L` tiles
+   directly via `read_logical_to_host_locked`).
+2. Wire **`invalidate_staging_tile_buffer`** after scatter at run and after `.cpu()`
+   readout.
+3. Fix **SGD / param readout** after execute (weights stale vs CPU reference).
+4. Fix **multi-epoch reused inputs** (`refresh_input_scatter_locked` / new `L` in
+   fresh pending graph).
 
 ---
 
@@ -44,18 +76,18 @@ A `device=nntile` tensor is **one kind of object**:
 
 ## 2. What is wrong today (“mid-way” design)
 
-| Problem | Current code / behavior |
-|---------|-------------------------|
-| Graph link off-tensor | `g_tensor_nodes[TensorImpl*] → MappedTensor` in `nntile_graph_recorder.cpp` |
-| Tensor categories | `g_metadata_only_impls`, `is_staged_input_tensor`, `is_persistent_input` |
-| Lookup indirection | `canonical_tensor_impl_key` for node resolution |
-| Output marks at compile | `seal_output_marks_from_live_tensors_locked()` clears all marks, re-marks from map, runs `mark_output_producer_closure_locked` |
-| Reshape copies tiles | `record_view_alias` → `contiguous_view` when shape changes (same numel) |
-| Unwired views | `as_strided` has no graph link |
-| Permute vs transpose | `permute` = stride alias (often non-contiguous); `transpose` = materialize |
-| Post-compile node nulling | `clear_pending_graph_after_compile_locked` sets `mapped.node = nullptr` on retained entries |
-| Misleading host staging on outputs/grads | StarPU tiles + gather/scatter I/O (§3.4–3.6) |
-| `NntileAllocator` dense host bytes on nntile tensors | 0-byte `Storage` always |
+| Problem | Current code / behavior | Phase |
+|---------|-------------------------|-------|
+| Graph link off-tensor | `g_tensor_nodes[TensorImpl*] → MappedTensor` still primary alongside meta | 4 |
+| Tensor categories | `g_metadata_only_impls`, `is_staged_input_tensor`, `is_persistent_input` still used | 4 |
+| Lookup indirection | `canonical_tensor_impl_key` for node resolution | 4 |
+| Output marks at compile | `seal_output_marks_*` **dead code**; compile path does not call seal | 3 ✓ |
+| Reshape copies tiles | `record_view_alias` → `share_node_ref_for_reshape` (no `contiguous_view` on path) | 2 ✓ |
+| Unwired views | `as_strided` rejects non-contiguous; contiguous shares `NodeRef` | 2 ✓ |
+| Permute vs transpose | `permute` stride-alias when contiguous-preserving; error if non-contiguous | 5 |
+| Post-compile node nulling | `clear_pending_graph_after_compile` still nulls `mapped.node` | 4 |
+| Host staging on outputs/grads | Many ops still call `ensure_host_staging`; `.cpu()` reads `L` not gather | 7 |
+| `NntileAllocator` dense host bytes | Metadata-only path exists; legacy host staging not fully removed | 4, 7 |
 
 The map mixes **ownership**, **compile binding**, and **GC** in one structure.
 That makes views easy to forget and GC dependent on batch scans.
@@ -85,7 +117,7 @@ flowchart TD
     Meta --> noderef
     L --> TG[TensorGraph owns nodes]
     S --> TG
-    TG --> Session[GraphSession after compile]
+    TG --> Session[RecorderExecState after compile]
 
     subgraph input_io [Input .to nntile]
         CPUx[CPU tensor x]
@@ -136,9 +168,11 @@ void attach_binding(at::Tensor &, NodeRef);
 
 **No graph epoch id.** `TensorNode*` is valid while the owning `TensorGraph`
 object that contains it is alive. After `compile_graph()`, the pending graph is
-**moved** into `g_session->tensor_graph` — addresses are stable. The next
-iteration starts a **new** pending graph with **new** nodes; live weight
-**tiles** persist via adoption, not by carrying old `TensorNode*` across graphs.
+**archived** in `RecorderExecState::archived_graphs` and lowered into
+`RecorderExecState::tile_graph` / `runtime` — addresses are stable for that
+session. The next capture starts a **new** pending graph with **new** nodes;
+live weight **tiles** persist via adoption, not by carrying old `TensorNode*`
+across graphs.
 
 ### 3.2 What is NOT a tensor property
 
@@ -198,8 +232,8 @@ is not deleted and `binding->io_staging` is **not** nulled.
 
 | Direction | Steps |
 |-----------|--------|
-| **In** `.to("nntile")` | CPU `memcpy` → `S` (via `acquire(W)`); at compile prepend **`scatter(S → L)` always** |
-| **Out** `.cpu()` | **`gather(L → S)` always**; then `acquire(R)` → CPU `memcpy` → `release` |
+| **In** `.to("nntile")` | CPU `memcpy` → `S` (runtime bind); **`scatter(S → L)` recorded at init** (not compile prepend) |
+| **Out** `.cpu()` | **`gather(L → S)` always**; compile + run; then `acquire(R)` → CPU `memcpy` → `release` |
 
 This may copy redundantly when `L` is single-tile; that is accepted for v1.
 Future work lowers cost inside `scatter` / `gather` when layouts match (§3.7),
@@ -215,10 +249,15 @@ x_cpu.to("nntile")` again — new handles, not refreshing an old one.
 1. Create new at::Tensor x_nnt (0-byte Storage) and new binding { L, S }
 2. Create logical TensorNode* L in pending graph; attach NodeRef → mark_output(true) on L
 3. Create single-tile io_staging* S in binding; mark_output(false) on S
-4. acquire(S, STARPU_W) → memcpy from x CPU storage → release
-5. At compile_graph(): prepend scatter(S → L) — ALWAYS (v1)
-6. run() executes scatter; L holds authoritative tiled data for ops
+4. Lower S to tile graph; bind CPU bytes into S runtime buffer (init_nntile_input_from_cpu)
+5. Record scatter(S → L) in pending graph immediately — ALWAYS (v1)
+6. compile_graph() + run() executes scatter; L holds authoritative tiled data for ops
 ```
+
+**Implemented:** `init_nntile_input_from_cpu` in `nntile_graph_recorder.cpp` (steps
+1–5). `insert_input_scatter_staging_locked` at compile is intentionally a no-op.
+
+**Not yet:** invalidate `S` tile buffer after scatter at run.
 
 **`mark_output` on `S`:** because v1 always records `scatter(S → L)`, the data
 behind `S` is consumed and its StarPU buffer is **invalidated** during
@@ -257,10 +296,18 @@ Each `.to("nntile")` still creates a **new** tensor with a new binding (§3.5).
 `L` tiles remain until last `NodeRef` released → `mark_output(false)` → later
 compile+run reclaims them.
 
+**Implemented (interim):** `copy_nntile_tensor_to_cpu` reads initialized `L`
+tiles directly (`read_logical_to_host_locked`) — **does not** emit `gather(L → S)`
+yet. Staging readout path exists only when `can_read_nntile_tensor_from_staging`.
+
+**Target (v1):** replace direct `L` read with gather + compile + run + staging
+read + invalidate (steps above).
+
 ### 3.7 Future optimization: no-op `scatter` / `gather`
 
-v1 **always records** `scatter(S → L)` on input compile and runs `gather(L → S)`
-on `.cpu()`, even when `L` is single-tile. The graph shape stays uniform.
+v1 **always records** `scatter(S → L)` when the tensor is created (`.to("nntile")`)
+and runs `gather(L → S)` on `.cpu()`, even when `L` is single-tile. The graph
+shape stays uniform.
 
 **Future:** optimize **inside** the libnntile `scatter` and `gather` ops (and
 their tile lowering), not by omitting ops in the recorder:
@@ -520,15 +567,15 @@ After each `compile_graph()` + `run()`:
 
 ### 6.6 `compile_graph()` responsibilities (revised)
 
-| Step | Action |
-|------|--------|
-| 1 | **Do not** seal or rewrite `mark_output` |
-| 2 | `apply_pending_axis_tiling_locked` |
-| 3 | Prepend `scatter(S → L)` for every input with `io_staging` (**always** in v1) |
-| 4 | Move pending graph → session; build `TileGraph`; `runtime->compile()` |
-| 5 | `run()` — scatter fills tiled logical inputs; graph ops execute |
-| 6 | `capture_persisted_tiles_from_session` for nodes still `is_output` |
-| 7 | Start fresh empty pending `g_graph` for next capture |
+| Step | Action | Status |
+|------|--------|--------|
+| 1 | **Do not** seal or rewrite `mark_output` | Done (seal not called; dead code remains) |
+| 2 | `apply_pending_axis_tiling_locked` | Done |
+| 3 | Input `scatter(S → L)` already in pending graph from `.to("nntile")` — **no compile prepend** | Done (`insert_input_scatter_staging_locked` is no-op) |
+| 4 | Archive pending graph; incremental `append_tensor_graph_phase`; `runtime->compile()` | Done (`RecorderExecState`) |
+| 5 | `run()` — scatter + graph ops execute | Done |
+| 6 | `capture_persisted_tiles_from_session` for nodes still `is_output` | Done |
+| 7 | Start fresh empty pending `g_graph` for next capture | Done |
 
 ---
 
@@ -537,7 +584,7 @@ After each `compile_graph()` + `run()`:
 | Structure | Purpose |
 |-----------|---------|
 | `g_graph` | Pending capture graph |
-| `g_session` | Compiled graph + runtime + `pin_hold` |
+| `g_exec` (`RecorderExecState`) | Archived graphs + `TileGraph` + `Runtime` + `pin_hold` |
 | `g_pinned_tensors` | Pin holders during record window |
 | `g_param_grad_registry` | Param → grad node for alias sync (may fold into `NodeRef` on `.grad`) |
 | `g_relu_preactivation_stack` | Op-specific recording |
@@ -574,8 +621,8 @@ same helper names; implementation moves to `nntile_tensor_meta.cpp`.
 
 ### Phase 0 — Spec & harness
 
-- [ ] Land this document on `graph_api`.
-- [ ] Add `TORCH_NNTILE_ASSERT_NODE_REF=1` debug flag.
+- [x] Land this document on `graph_api`.
+- [x] Add `TORCH_NNTILE_ASSERT_NODE_REF=1` debug flag (`nntile_tensor_meta.cpp`).
 - [ ] Inventory all `make_tensor` / `empty_metadata` / view stubs (table in §11).
 
 **Acceptance:** no behavior change; inventory complete.
@@ -584,14 +631,15 @@ same helper names; implementation moves to `nntile_tensor_meta.cpp`.
 
 ### Phase 1 — `NNTileBinding` + `NNTileBackendMeta`
 
-- [ ] Add `nntile_tensor_meta.h` / `.cpp` with `NNTileBinding` (`logical` +
+- [x] Add `nntile_tensor_meta.h` / `.cpp` with `NNTileBinding` (`logical` +
       `io_staging`); `NodeRef = shared_ptr<NNTileBinding>`.
-- [ ] `NNTileBackendMeta` holds **only** `NodeRef binding` (no sibling
+- [x] `NNTileBackendMeta` holds **only** `NodeRef binding` (no sibling
       `io_staging` field).
-- [ ] `NNTileBinding`: ctor `mark_output(true)` on `logical`, dtor
+- [x] `NNTileBinding`: ctor `mark_output(true)` on `logical`, dtor
       `mark_output(false)` on `logical` when last `NodeRef` released.
-- [ ] Attach meta on all nntile tensors; **all** use 0-byte `Storage`.
-- [ ] Dual-write: meta + legacy `g_tensor_nodes` (temporary).
+- [x] Attach meta on nntile tensors; **all** use 0-byte `Storage` (metadata-only
+      path; legacy `ensure_host_staging` still present in some ops).
+- [~] Dual-write: meta + legacy `g_tensor_nodes` (temporary) — **still active**.
 
 **Acceptance:** graph tests pass; assert flag passes on smoke tests.
 
@@ -599,11 +647,12 @@ same helper names; implementation moves to `nntile_tensor_meta.cpp`.
 
 ### Phase 2 — Free reshape; remove `contiguous_view` on view path
 
-- [ ] `share_node_ref_for_reshape` for same-numel `view`/`reshape`.
-- [ ] Stop calling `ensure_view_alias_locked` / `contiguous_view` from
-      `record_view_alias`.
-- [ ] Wire `as_strided` (contiguous-only).
-- [ ] Tests: view chain shares `NodeRef`; graph op count unchanged across views.
+- [x] `share_node_ref_for_reshape` for same-numel `view`/`reshape`.
+- [x] Stop calling `ensure_view_alias_locked` / `contiguous_view` from
+      `record_view_alias` (view path uses `share_node_ref_for_reshape`).
+- [x] Wire `as_strided` (contiguous-only).
+- [ ] Delete dead `ensure_view_alias_locked` / `contiguous_view` helpers in recorder.
+- [x] Tests: view chain shares `NodeRef`; `test_graph_mode_mm_view_add_ndim` passes.
 
 **Acceptance:** `test_graph_mode_mm_view_add_ndim` and view tests pass; no
 `CONTIGUOUS_VIEW` op for reshape-only views.
@@ -612,10 +661,11 @@ same helper names; implementation moves to `nntile_tensor_meta.cpp`.
 
 ### Phase 3 — Output marks: remove seal at compile
 
-- [ ] Remove `seal_output_marks_from_live_tensors_locked` from `compile_graph_locked`.
-- [ ] Remove `mark_output_producer_closure_locked` output-mark inflation.
-- [ ] Verify DCE still correct via op-graph connectivity tests.
-- [ ] Update `test_intermediate_output_mark_cleared_when_python_ref_dropped`.
+- [x] Remove `seal_output_marks_from_live_tensors_locked` from `compile_graph_locked`.
+- [~] Remove `mark_output_producer_closure_locked` output-mark inflation (function
+      remains but is unused on compile path).
+- [x] Verify DCE still correct via op-graph connectivity tests.
+- [x] Update `test_intermediate_output_mark_cleared_when_python_ref_dropped`.
 
 **Acceptance:** `probe_tensor_lifetime.py --nntile` scenarios pass; dropping
 Python ref clears `is_output` without compile seal.
@@ -640,7 +690,8 @@ Python ref clears `is_output` without compile seal.
 
 - [ ] Decide v1: materialize `permute` (like transpose) or restrict to contiguous-
       preserving cases.
-- [ ] Remove non-contiguous stride aliases from `permute` stub.
+- [~] Remove non-contiguous stride aliases from `permute` stub (errors if result
+      non-contiguous; still aliases when permute preserves contiguity).
 - [ ] Update README layout table (§10).
 - [ ] Fix tests that use `permute` + `contiguous` on CPU reference only.
 
@@ -650,15 +701,19 @@ Python ref clears `is_output` without compile seal.
 
 ### Phase 7 — `NNTileBinding` I/O (v1 always scatter/gather)
 
-- [ ] `io_staging` member inside `NNTileBinding` only (not on `BackendMeta`).
-- [ ] `.to("nntile")`: new tensor + new binding; `acquire(W)`/`memcpy` into `S`;
-      always record `scatter(S → L)` at compile; `S` → `mark_output(false)`.
+- [x] `io_staging` member inside `NNTileBinding` only (not on `BackendMeta`).
+- [x] `.to("nntile")`: new tensor + new binding; runtime bind into `S`;
+      record `scatter(S → L)` at init (not compile prepend); `S` →
+      `mark_output(false)`.
 - [ ] `.cpu()`: always `gather(L → S)`; `compile_graph()` + `run()`;
       `acquire(R)`/`memcpy`/`release`; then **invalidate tile buffer on `S`**
       (keep `binding->io_staging` and the StarPU handle for reuse).
-- [ ] Remove host-bind paths (`copy_nntile_tensor_to_cpu` staging assumption,
-      `bind_storage_to_runtime` from host ptr).
-- [ ] Tests: roundtrip with 0-byte Storage; multi-tile and single-tile `L`.
+      **Current:** `copy_nntile_tensor_to_cpu` reads `L` directly when initialized.
+- [~] Remove host-bind paths (`bind_storage_to_runtime` from host ptr still used
+      for legacy staging; `bind_pending_staging_inputs` removed).
+- [~] `refresh_input_scatter_locked` for reused batch tensors across compiles
+      (multi-epoch test still fails).
+- [ ] Fix SGD / training weight readout parity (3 failing graph tests).
 
 **Acceptance:** v1 always copies via `S`; no host `Storage` payload; `S`
 invalidated after each `.cpu()` and after scatter at run (input path).
@@ -732,7 +787,7 @@ torch_nntile.run()
 
 | File | Site |
 |------|------|
-| `nntile_graph_recorder.cpp` | `g_tensor_nodes`, `seal_output_marks_*`, `mark_output_producer_closure_*`, `clear_pending_graph_after_compile_*` |
+| `nntile_graph_recorder.cpp` | `g_tensor_nodes` (still primary), dead `seal_output_marks_*`, `RecorderExecState`, I/O helpers |
 
 ---
 
@@ -748,12 +803,12 @@ torch_nntile.run()
 | `test_grad_accumulation.py` | multi-backward one graph |
 | `test_transpose_materialize.py` | layout ops; backward |
 | `test_contiguous_raises_on_noncontiguous_nntile` | always contiguous |
-| New: `test_view_shares_node_ref` | same `NodeRef` pointer across views |
-| New: `test_no_contiguous_view_op_on_reshape` | op count / op names |
-| New: `test_to_nntile_scatter_input` | `.to("nntile")` creates S+L; scatter at compile |
-| New: `test_cpu_invalidates_staging_buffer` | after `.cpu()`, `binding->io_staging` unchanged; tile buffer invalidated |
-| New: `test_each_to_creates_new_binding` | two `x.to("nntile")` → distinct `L`/`S` |
-| New: `test_scatter_always_even_single_tile` | v1 emits scatter when `L` is single-tile |
+| New: `test_to_nntile_scatter_input` | `.to("nntile")` creates S+L; scatter at init | **Not added** |
+| New: `test_cpu_invalidates_staging_buffer` | after `.cpu()`, `binding->io_staging` unchanged; tile buffer invalidated | **Not added** |
+| New: `test_view_shares_node_ref` | same `NodeRef` pointer across views | **Not added** |
+| New: `test_no_contiguous_view_op_on_reshape` | op count / op names | **Not added** |
+| New: `test_each_to_creates_new_binding` | two `x.to("nntile")` → distinct `L`/`S` | **Not added** |
+| New: `test_scatter_always_even_single_tile` | v1 emits scatter when `L` is single-tile | **Not added** |
 
 ---
 
@@ -775,35 +830,35 @@ torch_nntile.run()
 
 ## 14. Success criteria
 
-1. Every `device=nntile` tensor has `NodeRef` on `TensorImpl`; no `g_tensor_nodes`.
+1. Every `device=nntile` tensor has `NodeRef` on `TensorImpl`; no `g_tensor_nodes`. — **partial** (dual-write)
 2. `mark_output` set at node attach, cleared at last `NodeRef` release; **no**
-   seal pass at `compile_graph()`.
-3. Same-numel reshape shares `NodeRef`; no `CONTIGUOUS_VIEW` on view path.
-4. All nntile tensors contiguous; non-contiguous aliases rejected.
+   seal pass at `compile_graph()`. — **done** (compile path)
+3. Same-numel reshape shares `NodeRef`; no `CONTIGUOUS_VIEW` on view path. — **done**
+4. All nntile tensors contiguous; non-contiguous aliases rejected. — **partial** (permute policy open)
 5. Compile boundaries documented as caller-controlled (patterns §6.3); one `run()`
-   per `compile_graph()`.
-6. No graph epoch id; no tensor tier enums.
-7. **Zero host `Storage`**; bound `io_staging` node `S` for all I/O (§3.4–3.7).
-8. v1: `.to("nntile")` always `scatter(S → L)`; `.cpu()` always `gather(L → S)`;
-   each `.to("nntile")` creates a new tensor and new `{ L, S }` binding.
-9. Full torch_nntile test suite green (modulo known CUDA skips).
+   per `compile_graph()`. — **done**
+6. No graph epoch id; no tensor tier enums. — **partial** (tier flags remain)
+7. **Zero host `Storage`**; bound `io_staging` node `S` for all I/O (§3.4–3.7). — **partial**
+8. v1: `.to("nntile")` always `scatter(S → L)` at init; `.cpu()` always `gather(L → S)`;
+   each `.to("nntile")` creates a new tensor and new `{ L, S }` binding. — **partial** (gather missing)
+9. Full torch_nntile test suite green (modulo known CUDA skips). — **open** (3 graph training tests fail)
 
 ---
 
 ## 15. Delivery (single PR #425)
 
-All phases (0–7) are implemented and merged via
+All phases (0–7) land via
 [PR #425](https://github.com/nntile/nntile/pull/425) on branch
 `cursor/pytorch-tensor-gc-investigation-94e3`. Use **incremental commits** on
 that branch; do not split into separate PRs.
 
-| Commit batch | Phases | Description |
-|--------------|--------|-------------|
-| 1 | 0–1 | `NodeRef` + meta; dual-write |
-| 2 | 2–3 | Free reshape; remove compile seal |
-| 3 | 4 | Remove map and tier flags |
-| 4 | 5–6 | Layout policy + autograd refcount |
-| 5 | 7 | Symmetric single-tile I/O (`.to` + `.cpu`) |
+| Commit batch | Phases | Description | Status |
+|--------------|--------|-------------|--------|
+| 1 | 0–1 | `NodeRef` + meta; dual-write | **Done** (`9f979576`) |
+| 2 | 2–3 | Free reshape; remove compile seal from path | **Mostly done** (`9f979576`) |
+| 3 | 4 | Remove map and tier flags | **Not started** |
+| 4 | 5–6 | Layout policy + autograd refcount | **Not started** |
+| 5 | 7 | Symmetric I/O (scatter at `.to`, gather on `.cpu`) | **Partial** (`87d1aa45` — input path; gather + training parity open) |
 
 ---
 
@@ -820,7 +875,7 @@ that branch; do not split into separate PRs.
 | **Logical (`L`)** | `binding->logical`; graph/compute node; `mark_output(true)` via `NodeRef` |
 | **Staging (`S`)** | `binding->io_staging`; single-tile I/O node; invalidated after scatter at run and after each `.cpu()` |
 | **Scatter / Gather** | v1: always recorded / run; future no-op in libnntile when tiling matches (§3.7) |
-| **Session** | Compiled graph + `Runtime` after `compile_graph()` |
+| **Session** | `RecorderExecState`: archived graphs + compiled `TileGraph` + `Runtime` |
 
 ---
 
