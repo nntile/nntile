@@ -188,9 +188,11 @@ that share `NodeRef` also share `S`.
 `S` on second `.to()`” on one handle.
 
 `S` is created when that tensor is born (at `.to("nntile")` for inputs) or
-**lazily** before the first `.cpu()` (for op outputs). After each `.cpu()`,
-`S` is **invalidated immediately** (see §3.6); a later `.cpu()` on the same
-tensor recreates `S` if needed.
+**lazily** before the first `.cpu()` (for op outputs). The same `S` graph node
+and StarPU handle are **reused** for every later `.cpu()` on that tensor. After
+each readout or input scatter (see §3.5–3.6), only the **tile buffer** behind
+`S` is invalidated (`starpu_data_invalidate` / `invalidate_submit`) — the handle
+is not deleted and `binding->io_staging` is **not** nulled.
 
 **v1 policy (always copy):** regardless of how `L` is tiled:
 
@@ -218,10 +220,11 @@ x_cpu.to("nntile")` again — new handles, not refreshing an old one.
 6. run() executes scatter; L holds authoritative tiled data for ops
 ```
 
-**`mark_output` on `S`:** because v1 always records `scatter(S → L)`, `S` is
-consumed and its StarPU buffer is **invalidated** during `compile+run`. Therefore
-`S` must **`mark_output(false)`** — it must not be treated as a user-retained
-output. Only `L` carries the live `NodeRef` output mark.
+**`mark_output` on `S`:** because v1 always records `scatter(S → L)`, the data
+behind `S` is consumed and its StarPU buffer is **invalidated** during
+`compile+run` (handle kept; no data behind it until the next host write).
+Therefore `S` must **`mark_output(false)`** — it must not be treated as a
+user-retained output. Only `L` carries the live `NodeRef` output mark.
 
 Weights / params: `param = p.to("nntile")` once — that `nn.Parameter` keeps
 the same binding for later iterations (no second `.to()` on the same object).
@@ -237,36 +240,46 @@ alive (`mark_output(true)` on `L`).
 
 ```text
 x_nnt.cpu()
-  1. Resolve L from binding; ensure S exists (create single-tile S if null)
+  1. Resolve L and S from binding; create S only if this tensor never had one
   2. gather(L → S)   # always, even if L is single-tile
-  3. acquire(S, STARPU_R) → memcpy → CPU tensor Storage → release
-  4. invalidate S immediately (Runtime::invalidate_tile_buffer / delete staging node)
-  5. binding->io_staging = nullptr
+  3. compile_graph() + run()
+  4. acquire(S, STARPU_R) → memcpy → CPU tensor Storage → release
+  5. invalidate tile buffer on S (Runtime::invalidate_tile_buffer /
+     Tile::invalidate_submit) — handle and binding->io_staging stay live
 ```
 
-**`S` must be invalidated right after step 3** — do not keep the staging tile
-alive after readout. This saves StarPU memory (v1 policy).
+**Invalidate the buffer right after step 4** — mark the StarPU handle as having
+no data behind it. Do **not** delete the handle and do **not** set
+`binding->io_staging = nullptr`; the same `S` is reused on the next `.cpu()`.
 
-A second `.cpu()` on the **same** `x_nnt` recreates `S` at step 1. Each
-`.to("nntile")` still creates a **new** tensor with a new binding (§3.5).
+Each `.to("nntile")` still creates a **new** tensor with a new binding (§3.5).
 
 `L` tiles remain until last `NodeRef` released → `mark_output(false)` → later
 compile+run reclaims them.
 
-### 3.7 Future optimization (not v1)
+### 3.7 Future optimization: no-op `scatter` / `gather`
 
-When `L` is **single-tile** (no real tiling), skip the extra copy:
+v1 **always records** `scatter(S → L)` on input compile and runs `gather(L → S)`
+on `.cpu()`, even when `L` is single-tile. The graph shape stays uniform.
 
-| Case | Input `.to("nntile")` | Output `.cpu()` |
-|------|----------------------|-----------------|
-| `L` multi-tile | `memcpy` → `S`; `scatter(S → L)`; `S` invalidated at run | `gather(L → S)`; read `S` |
-| `L` single-tile | **Use `S` directly** — no `scatter` op | **Read `S` directly** — no `gather` op |
+**Future:** optimize **inside** the libnntile `scatter` and `gather` ops (and
+their tile lowering), not by omitting ops in the recorder:
 
-If `scatter` is omitted, `S` may serve as the effective logical node (or alias
-`L` ≡ `S`). If `scatter` is present, `S` stays `mark_output(false)` and is
-invalidated by run — `L` is authoritative.
+- When staging layout and logical layout are **the same tiling** (e.g. both
+  single-tile, same shape), `scatter` / `gather` become **no-ops** or alias
+  copies at compile/lowering time — no extra tile traffic.
+- `NNTileBinding` stays `{ L, S }`; no merge into one node, no alternate
+  naming. Recorder and PyTorch binding code remain unchanged.
 
-v1 does **not** implement this branch; always emit `scatter` / `gather`.
+Benefits of this approach:
+
+1. One code path in torch_nntile (always emit scatter/gather).
+2. Optimization is local to ops that already understand tile maps.
+3. **L** / **S** names remain meaningful: Logical = compute node, Staging =
+   I/O node, regardless of whether the op copies.
+
+v1 does **not** implement no-op scatter/gather; ops always run (or copy) even
+when redundant.
 
 ---
 
@@ -640,8 +653,9 @@ Python ref clears `is_output` without compile seal.
 - [ ] `io_staging` member inside `NNTileBinding` only (not on `BackendMeta`).
 - [ ] `.to("nntile")`: new tensor + new binding; `acquire(W)`/`memcpy` into `S`;
       always record `scatter(S → L)` at compile; `S` → `mark_output(false)`.
-- [ ] `.cpu()`: always `gather(L → S)`; `acquire(R)`/`memcpy`/`release`; then
-      **invalidate `S` immediately** and set `binding->io_staging = nullptr`.
+- [ ] `.cpu()`: always `gather(L → S)`; `compile_graph()` + `run()`;
+      `acquire(R)`/`memcpy`/`release`; then **invalidate tile buffer on `S`**
+      (keep `binding->io_staging` and the StarPU handle for reuse).
 - [ ] Remove host-bind paths (`copy_nntile_tensor_to_cpu` staging assumption,
       `bind_storage_to_runtime` from host ptr).
 - [ ] Tests: roundtrip with 0-byte Storage; multi-tile and single-tile `L`.
@@ -737,7 +751,7 @@ torch_nntile.run()
 | New: `test_view_shares_node_ref` | same `NodeRef` pointer across views |
 | New: `test_no_contiguous_view_op_on_reshape` | op count / op names |
 | New: `test_to_nntile_scatter_input` | `.to("nntile")` creates S+L; scatter at compile |
-| New: `test_cpu_invalidates_io_staging` | `binding->io_staging` null after `.cpu()`; tile freed |
+| New: `test_cpu_invalidates_staging_buffer` | after `.cpu()`, `binding->io_staging` unchanged; tile buffer invalidated |
 | New: `test_each_to_creates_new_binding` | two `x.to("nntile")` → distinct `L`/`S` |
 | New: `test_scatter_always_even_single_tile` | v1 emits scatter when `L` is single-tile |
 
@@ -753,9 +767,9 @@ torch_nntile.run()
 | Autograd holds tensor invisibly to Python | Refcount includes autograd saves |
 | Tiling depends on axis lengths after free reshape | Record ops use `tensor.sizes()` at call site; node nelems invariant |
 | Cross-graph weight identity | Tile pool + scatter input path; rebind `L`/`S` on next capture |
-| `S` invalidated after `.cpu()` readout | Immediate invalidate + `binding->io_staging = nullptr` after acquire release |
-| `S` invalidated when scatter runs (input) | `mark_output(false)` on `io_staging`; tile freed at run |
-| Redundant scatter/gather when untiled | Accepted in v1; §3.7 optimization later |
+| `S` buffer invalidated after `.cpu()` readout | `invalidate_tile_buffer` after acquire release; `io_staging` pointer kept |
+| `S` buffer invalidated when scatter runs (input) | `mark_output(false)` on `io_staging`; invalidate buffer at run, handle kept |
+| Redundant scatter/gather when untiled | Accepted in v1; no-op inside ops when tiling matches (§3.7) |
 
 ---
 
@@ -803,9 +817,9 @@ that branch; do not split into separate PRs.
 | **Free reshape** | Same numel, same `NodeRef`, no graph op |
 | **NNTileBinding** | `NodeRef` target: `{ logical L, io_staging S }`; `S` is not on `BackendMeta` |
 | **NodeRef** | `shared_ptr<NNTileBinding>`; refcount drives `mark_output` on `L` |
-| **io_staging (`S`)** | Member of `NNTileBinding`; invalidated after input `scatter` at run and **immediately after each `.cpu()`** |
-| **Logical node (`L`)** | Member of `NNTileBinding`; authoritative after scatter / for ops |
-| **Scatter / Gather** | v1: always `scatter(S→L)` on input compile; always `gather(L→S)` on `.cpu()` |
+| **Logical (`L`)** | `binding->logical`; graph/compute node; `mark_output(true)` via `NodeRef` |
+| **Staging (`S`)** | `binding->io_staging`; single-tile I/O node; invalidated after scatter at run and after each `.cpu()` |
+| **Scatter / Gather** | v1: always recorded / run; future no-op in libnntile when tiling matches (§3.7) |
 | **Session** | Compiled graph + `Runtime` after `compile_graph()` |
 
 ---
