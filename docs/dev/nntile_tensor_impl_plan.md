@@ -25,23 +25,16 @@ framing with the ownership model agreed in design review.
 | **4** Remove side map | **Not started** | `g_tensor_nodes`, tier sets, `ensure_host_staging`, `is_staged_input_tensor` still active |
 | **5** Permute policy | **Not started** | `permute` still stride-aliases when contiguous-preserving; errors only when non-contiguous |
 | **6** Autograd `NodeRef` | **Not started** | |
-| **7** I/O scatter/gather | **Partial** | Input scatter-at-`.to()` + runtime `S` bind done; **gather on `.cpu()` not implemented**; staging invalidate not wired; 3 training tests fail |
+| **7** I/O scatter/gather | **Partial** | Input scatter-at-`.to()` + runtime `S` bind done; **gather on `.cpu()` not implemented** (reads `L` directly post-run); staging invalidate not wired |
 
-**Test snapshot** (`test_device_stub.py` + `test_graph_execution.py`): **15 passed,
-3 failed** — `test_graph_cross_entropy_backward_and_sgd`,
-`test_train_full_batch_step_graph_mode`,
-`test_train_full_batch_step_graph_mode_multi_epoch` (SGD weight parity + multi-epoch
-`io_staging_` init).
+**Test snapshot** (`test_device_stub.py` + `test_graph_execution.py`): **18 passed**.
 
-**Open blockers before Phase 7 acceptance:**
+**Open before Phase 7 acceptance:**
 
-1. `.cpu()` must record **`gather(L → S)`** + compile + run (today reads `L` tiles
-   directly via `read_logical_to_host_locked`).
+1. `.cpu()` must record **`gather(L → S)`** + compile + run (today reads `L`
+   directly via `read_logical_to_host_locked` after sealed phases).
 2. Wire **`invalidate_staging_tile_buffer`** after scatter at run and after `.cpu()`
    readout.
-3. Fix **SGD / param readout** after execute (weights stale vs CPU reference).
-4. Fix **multi-epoch reused inputs** (`refresh_input_scatter_locked` / new `L` in
-   fresh pending graph).
 
 ---
 
@@ -167,12 +160,11 @@ void attach_binding(at::Tensor &, NodeRef);
 ```
 
 **No graph epoch id.** `TensorNode*` is valid while the owning `TensorGraph`
-object that contains it is alive. After `compile_graph()`, the pending graph is
-**archived** in `RecorderExecState::archived_graphs` and lowered into
-`RecorderExecState::tile_graph` / `runtime` — addresses are stable for that
-session. The next capture starts a **new** pending graph with **new** nodes;
-live weight **tiles** persist via adoption, not by carrying old `TensorNode*`
-across graphs.
+object that contains it is alive. The recorder keeps **one** growing
+`TensorGraph`; each `compile_graph()` seals only **new ops** since the last
+compile (`seal_phase` + `append_tensor_graph_phase`). `L` and `S` on
+`NNTileBinding` are created once at attach and **never rebound**; libnntile
+reuses StarPU tile nodes across phases when `layout_fingerprint` matches.
 
 ### 3.2 What is NOT a tensor property
 
@@ -478,14 +470,15 @@ next `compile_graph()`.
 
 Each `compile_graph()`:
 
-1. Takes the **current** pending graph (everything captured since the last
-   compile, or since session start).
-2. Compiles and executes it with **one** `run()`.
-3. Starts a **new empty** pending `g_graph` for the next capture segment.
+1. Seals **only uncompiled ops** in the persistent `g_graph`
+   (`phase_seal_cursor` … `num_ops()`).
+2. Appends the phase to `RecorderExecState::tile_graph` / `runtime` and
+   recompiles (incremental; tile reuse via `layout_fingerprint`).
+3. Clears **ephemeral recorder state** after `run()` (param-grad registry,
+   pins, axis hints) — **not** tensor nodes or `NodeRef` bindings.
 
-Live `at::Tensor` objects (params, activations still referenced) survive
-across compile boundaries; **tile adoption** carries weight/state tiles from the
-finished session into the next compile when those tensors are rebound.
+Live `at::Tensor` objects keep the same `binding->logical` / `binding->io_staging`
+across compile boundaries.
 
 ### 6.3 Valid training patterns (examples)
 
@@ -556,26 +549,24 @@ only; other patterns are equally first-class for the recorder design.
 
 After each `compile_graph()` + `run()`:
 
-- Weight **PyTorch tensors** survive (`nn.Parameter`, optimizer state).
-- Next capture creates **new** `TensorNode`s in the new pending graph for ops
-  that touch those weights.
-- **Tile adoption** (`capture_persisted_tiles_from_session` /
-  `stage_persisted_tiles`) carries StarPU buffers from the finished session when
-  live param tensors are rebound — driven by live `NodeRef`, not tier flags.
-- Do **not** null `NodeRef::node` on compile for tensors still alive; rebind
-  when recording the next graph segment.
+- Weight **PyTorch tensors** and their `NodeRef` bindings survive unchanged.
+- `binding->logical` and `binding->io_staging` are **stable** for the tensor
+  lifetime (set at `.to("nntile")` / first attach).
+- The same `TensorGraph` accumulates more ops; `get_or_create_data_node` returns
+  `binding->logical` — no per-segment nodes, no rebind.
+- **No torch_nntile tile adoption** — libnntile `append_tensor_graph_phase`
+  reuses tile nodes when layout fingerprints match.
 
 ### 6.6 `compile_graph()` responsibilities (revised)
 
 | Step | Action | Status |
 |------|--------|--------|
-| 1 | **Do not** seal or rewrite `mark_output` | Done (seal not called; dead code remains) |
+| 1 | **Do not** seal or rewrite `mark_output` | Done |
 | 2 | `apply_pending_axis_tiling_locked` | Done |
-| 3 | Input `scatter(S → L)` already in pending graph from `.to("nntile")` — **no compile prepend** | Done (`insert_input_scatter_staging_locked` is no-op) |
-| 4 | Archive pending graph; incremental `append_tensor_graph_phase`; `runtime->compile()` | Done (`RecorderExecState`) |
+| 3 | Input `scatter(S → L)` at `.to("nntile")` — **no compile prepend** | Done |
+| 4 | `seal_phase()` on persistent graph; `append_tensor_graph_phase`; `runtime->compile()` | Done |
 | 5 | `run()` — scatter + graph ops execute | Done |
-| 6 | `capture_persisted_tiles_from_session` for nodes still `is_output` | Done |
-| 7 | Start fresh empty pending `g_graph` for next capture | Done |
+| 6 | Clear ephemeral recorder state (not nodes / bindings) | Done |
 
 ---
 
@@ -583,13 +574,13 @@ After each `compile_graph()` + `run()`:
 
 | Structure | Purpose |
 |-----------|---------|
-| `g_graph` | Pending capture graph |
-| `g_exec` (`RecorderExecState`) | Archived graphs + `TileGraph` + `Runtime` + `pin_hold` |
+| `g_graph` | Persistent capture graph (grows across compiles; ops sealed incrementally) |
+| `g_exec` (`RecorderExecState`) | `TileGraph` + `Runtime` + incremental lowering state + `pin_hold` |
 | `g_pinned_tensors` | Pin holders during record window |
 | `g_param_grad_registry` | Param → grad node for alias sync (may fold into `NodeRef` on `.grad`) |
 | `g_relu_preactivation_stack` | Op-specific recording |
-| `g_persisted_tile_pool` | Tile buffers across compiles |
-| `g_all_nodes` | Optional; prefer graph-owned iteration |
+
+**Removed:** tile adoption pool, per-segment logical rebind, archived pending graphs.
 
 **Remove as primary store:** `g_tensor_nodes`, `g_metadata_only_impls`,
 `canonical_tensor_impl_key` for node lookup.
