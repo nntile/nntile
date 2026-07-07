@@ -217,7 +217,7 @@ def test_split_cat_graph_mode_backward():
         torch_nntile.compile_graph()
         torch_nntile.run()
 
-        assert torch.allclose(nntile_cpu(gx), gx_cpu, rtol=1e-5, atol=1e-5)
+        assert torch.allclose(gx.cpu(), gx_cpu, rtol=1e-5, atol=1e-5)
         """
     )
 

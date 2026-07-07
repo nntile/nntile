@@ -127,17 +127,22 @@ def test_linear_silu_layer_backward_matches_cpu():
     )
 
     y_cpu = torch.nn.functional.silu(x_cpu @ weight.t())
-    y_cpu.backward(torch.ones_like(y_cpu))
+    grad_out = torch.ones_like(y_cpu)
+    y_cpu.backward(grad_out)
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     w_nnt = weight.detach().to("nntile").requires_grad_(True)
     y_nnt = torch.nn.functional.silu(
         torch.nn.functional.linear(x_nnt, w_nnt, None)
     )
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    gx_nnt, gw_nnt = torch.autograd.grad(
+        y_nnt,
+        (x_nnt, w_nnt),
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(nntile_cpu(w_nnt.grad), weight.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gx_nnt), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_linear_gelu_layer_backward_matches_cpu():
@@ -148,14 +153,19 @@ def test_linear_gelu_layer_backward_matches_cpu():
     )
 
     y_cpu = torch.nn.functional.gelu(x_cpu @ weight.t())
-    y_cpu.backward(torch.ones_like(y_cpu))
+    grad_out = torch.ones_like(y_cpu)
+    y_cpu.backward(grad_out)
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     w_nnt = weight.detach().to("nntile").requires_grad_(True)
     y_nnt = torch.nn.functional.gelu(
         torch.nn.functional.linear(x_nnt, w_nnt, None)
     )
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    gx_nnt, gw_nnt = torch.autograd.grad(
+        y_nnt,
+        (x_nnt, w_nnt),
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(nntile_cpu(w_nnt.grad), weight.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gx_nnt), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4)

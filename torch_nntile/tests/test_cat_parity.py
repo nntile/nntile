@@ -157,6 +157,6 @@ def test_cat_graph_mode():
         assert torch_nntile.has_pending_graph()
         torch_nntile.compile_graph()
         torch_nntile.run()
-        assert torch.allclose(nntile_cpu(result), expected, rtol=1e-5, atol=1e-5)
+        assert torch.allclose(result.cpu(), expected, rtol=1e-5, atol=1e-5)
         """
     )

@@ -38,9 +38,9 @@ def _split_hf_attn_weights(
     o_w = attn.c_proj.weight.detach().reshape(n_heads, head_size, hidden)
 
     bias = attn.c_attn.bias.detach()
-    q_b = bias[:hidden].reshape(n_heads, head_size)
-    k_b = bias[hidden : 2 * hidden].reshape(n_heads, head_size)
-    v_b = bias[2 * hidden : 3 * hidden].reshape(n_heads, head_size)
+    q_b = bias[:hidden].reshape(n_heads, head_size).transpose(0, 1).contiguous()
+    k_b = bias[hidden : 2 * hidden].reshape(n_heads, head_size).transpose(0, 1).contiguous()
+    v_b = bias[2 * hidden : 3 * hidden].reshape(n_heads, head_size).transpose(0, 1).contiguous()
 
     return {
         "q_weight": torch_to_nntile_qkv_weight(q_hf),

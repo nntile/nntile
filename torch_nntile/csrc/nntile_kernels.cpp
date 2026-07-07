@@ -645,20 +645,35 @@ at::Tensor contiguous(
     {
         return result;
     }
-    const float *src = self.data_ptr<float>();
-    float *dst = result.data_ptr<float>();
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
     pin_graph_op_inputs({self});
     pin_graph_op_output(result, true);
+    const int64_t needed_bytes =
+        numel * static_cast<int64_t>(sizeof(float));
+    if (static_cast<int64_t>(self.storage().nbytes()) >= needed_bytes)
+    {
+        at::Tensor self_staged = self;
+        ensure_host_staging(self_staged);
+        ensure_host_staging(result);
+        copy_strided_to_contiguous_f32(
+            self_staged.data_ptr<float>(),
+            result.data_ptr<float>(),
+            self.sizes(),
+            self.strides());
+        return result;
+    }
     tensor_contiguous_fp32(self, result, self.sizes());
     return result;
-#endif
+#else
+    const float *src = self.data_ptr<float>();
+    float *dst = result.data_ptr<float>();
     copy_strided_to_contiguous_f32(
         src,
         dst,
         self.sizes(),
         self.strides());
     return result;
+#endif
 }
 
 at::Tensor contiguous_autograd(

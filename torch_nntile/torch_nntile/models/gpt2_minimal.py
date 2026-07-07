@@ -86,9 +86,9 @@ class GPT2Attention(nn.Module):
         self.v_weight = nn.Parameter(torch.empty(hidden, hs, n_heads))
         self.o_weight = nn.Parameter(torch.empty(hs, n_heads, hidden))
 
-        self.q_bias = nn.Parameter(torch.zeros(n_heads, hs))
-        self.k_bias = nn.Parameter(torch.zeros(n_heads, hs))
-        self.v_bias = nn.Parameter(torch.zeros(n_heads, hs))
+        self.q_bias = nn.Parameter(torch.zeros(hs, n_heads))
+        self.k_bias = nn.Parameter(torch.zeros(hs, n_heads))
+        self.v_bias = nn.Parameter(torch.zeros(hs, n_heads))
         self.o_bias = nn.Parameter(torch.zeros(hidden))
 
         self.sdpa = SDPA(batch_ndim=2)
@@ -112,31 +112,16 @@ class GPT2Attention(nn.Module):
         bias: Tensor,
     ) -> Tensor:
         """``gemm(x, w, ndim=1)`` + bias → ``[batch, seq, head_size, n_heads]``."""
-        bsz, seq, head_size, n_heads = (
-            x.size(0),
-            x.size(1),
-            weight.size(1),
-            weight.size(2),
-        )
+        head_size, n_heads = weight.size(1), weight.size(2)
         proj = gemm(x, weight, ndim=1, batch_ndim=0)
-        bias_bc = (
-            bias.transpose(0, 1)
-            .view(1, 1, head_size, n_heads)
-            .expand(bsz, seq, head_size, n_heads)
-            .contiguous()
-        )
+        bias_bc = bias.view(1, 1, head_size, n_heads)
         return proj + bias_bc
 
     def _output_proj(self, attn_out: Tensor) -> Tensor:
         """``gemm(attn, w_o, ndim=2)`` + bias on post-SDPA projection layout."""
-        bsz, seq = attn_out.size(0), attn_out.size(1)
         hidden = self.hidden
         out = gemm(attn_out, self.o_weight, ndim=2, batch_ndim=0)
-        bias_bc = (
-            self.o_bias.view(1, 1, hidden)
-            .expand(bsz, seq, hidden)
-            .contiguous()
-        )
+        bias_bc = self.o_bias.view(1, 1, hidden)
         return out + bias_bc
 
     def forward(self, x: Tensor, causal_mask: Tensor | None) -> Tensor:

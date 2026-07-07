@@ -131,11 +131,15 @@ def test_sdpa_backward_matches_reference(shape):
     k = k_cpu.detach().to("nntile").requires_grad_(True)
     v = v_cpu.detach().to("nntile").requires_grad_(True)
     out = sdpa_eager(q, k, v, batch_ndim=2)
-    out.backward(grad_out.to("nntile"))
+    gq, gk, gv = torch.autograd.grad(
+        out,
+        (q, k, v),
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    assert torch.allclose(nntile_cpu(q.grad), q_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(nntile_cpu(k.grad), k_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(nntile_cpu(v.grad), v_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gq), q_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gk), k_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gv), v_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_sdpa_forward_with_mask_matches_reference():

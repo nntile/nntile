@@ -90,12 +90,27 @@ at::Tensor mask_to_uint8_nntile(const at::Tensor &mask)
     {
         return mask.contiguous();
     }
-    at::Tensor mask_u8 = mask.cpu().to(at::kByte);
+    TORCH_CHECK(
+        mask.scalar_type() == at::ScalarType::Bool,
+        "nntile sdpa: mask must be bool or uint8");
     if (is_nntile_device(mask.device()))
     {
-        mask_u8 = mask_u8.to(mask.device());
+        at::Tensor mask_staged = mask;
+        at::Tensor mask_u8 = at::empty(
+            mask.sizes(),
+            mask.options().dtype(at::ScalarType::Byte));
+        ensure_host_staging(mask_staged);
+        ensure_host_staging(mask_u8);
+        const bool *src = mask_staged.data_ptr<bool>();
+        uint8_t *dst = mask_u8.data_ptr<uint8_t>();
+        const int64_t numel = mask.numel();
+        for (int64_t i = 0; i < numel; ++i)
+        {
+            dst[i] = src[i] ? static_cast<uint8_t>(1) : static_cast<uint8_t>(0);
+        }
+        return mask_u8;
     }
-    return mask_u8.contiguous();
+    return mask.cpu().to(at::kByte).contiguous();
 }
 
 } // namespace

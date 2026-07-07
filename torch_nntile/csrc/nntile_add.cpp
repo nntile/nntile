@@ -5,8 +5,10 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
+#include "nntile_broadcast.h"
 
 #include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
@@ -89,12 +91,56 @@ at::Tensor broadcast_to_shape(
     const at::Tensor &tensor,
     c10::IntArrayRef target_size)
 {
-    if (tensor.sizes().equals(target_size))
+    if (tensor.sizes().equals(target_size) && tensor.is_contiguous())
     {
         return tensor;
     }
     if (tensor.device().type() == c10::DeviceType::PrivateUse1)
     {
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        if (has_pending_graph())
+        {
+            if (tensor.sizes().equals(target_size))
+            {
+                return tensor.contiguous();
+            }
+            const int64_t target_ndim =
+                static_cast<int64_t>(target_size.size());
+            const int64_t tensor_ndim =
+                static_cast<int64_t>(tensor.sizes().size());
+            TORCH_CHECK(
+                tensor_ndim <= target_ndim,
+                "nntile broadcast: tensor rank exceeds target rank");
+            std::vector<int64_t> repeats(
+                static_cast<std::size_t>(target_ndim),
+                1);
+            const int64_t pad = target_ndim - tensor_ndim;
+            for (int64_t i = 0; i < tensor_ndim; ++i)
+            {
+                const int64_t in_dim =
+                    tensor.sizes()[static_cast<std::size_t>(i)];
+                const int64_t out_dim =
+                    target_size[static_cast<std::size_t>(i + pad)];
+                TORCH_CHECK(
+                    in_dim == 1 || in_dim == out_dim,
+                    "nntile broadcast: dimension is not broadcastable");
+                TORCH_CHECK(
+                    out_dim % in_dim == 0,
+                    "nntile broadcast: output size is not divisible "
+                    "by input");
+                repeats[static_cast<std::size_t>(i + pad)] =
+                    out_dim / in_dim;
+            }
+            at::Tensor out = at::empty(
+                target_size,
+                tensor.options().memory_format(
+                    at::MemoryFormat::Contiguous));
+            pin_graph_op_inputs({tensor});
+            pin_graph_op_output(out, true);
+            tensor_repeat_fp32(tensor, out, repeats);
+            return out;
+        }
+#endif
         const at::Tensor cpu_broadcast =
             tensor.cpu().expand(target_size).contiguous();
         at::Tensor out = at::empty(
