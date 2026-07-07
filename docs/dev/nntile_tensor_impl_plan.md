@@ -18,9 +18,10 @@ framing with the ownership model agreed in design review.
 A `device=nntile` tensor is **one kind of object**:
 
 > A PyTorch `at::Tensor` shell (shape, dtype, autograd) whose authoritative
-> compute state is a `TensorGraph::TensorNode*`, held via refcounted `NodeRef`
-> on the `TensorImpl`. Host bytes are an **optional** staging buffer, not a
-> tensor category.
+> compute state is a `TensorGraph::TensorNode*` (tiles in StarPU after
+> compile+run), held via refcounted `NodeRef` on the `TensorImpl`. A host
+> `std::vector` on `Storage` is for **input data bind only** — not for outputs,
+> grads, or optimizer state.
 
 **Core rules**
 
@@ -69,7 +70,7 @@ flowchart TD
     subgraph tensor [device=nntile at::Tensor]
         Impl[TensorImpl sizes/strides]
         Meta[NNTileBackendMeta]
-        Storage[Storage 0 bytes or host vector]
+        Storage["Storage: 0 bytes or input-bind host vector"]
         Impl --> Meta
         Impl --> Storage
     end
@@ -102,9 +103,8 @@ using NodeRef = std::shared_ptr<NodeRefControlBlock>;
 
 struct NNTileBackendMeta final : c10::BackendMeta {
     NodeRef node_ref;
-    nntile::TensorGraph::TensorNode *staging_node = nullptr;  // scatter staging
-    void *host_data_ptr_cache = nullptr;  // optional; refresh from Storage
-    // bind_at_execute, needs_host_copy: compile-time hints only
+    nntile::TensorGraph::TensorNode *staging_node = nullptr;  // input scatter staging
+    void *host_staging_ptr = nullptr;  // only when Storage holds input bind bytes
 };
 
 // Accessors
@@ -123,24 +123,69 @@ iteration starts a **new** pending graph with **new** nodes; live weight
 
 | Rejected concept | Replacement |
 |------------------|-------------|
-| Three tiers (GraphHandle / Staged / Persistent) | One tensor; optional host buffer |
+| Three tiers (GraphHandle / Staged / Persistent) | One tensor; tiles + optional input-bind host buffer |
 | `is_persistent_input` | Param alive in Python → `NodeRef` refcount > 0 |
 | `g_metadata_only_impls` | `storage.nbytes() == 0` |
-| `is_staged_input_tensor` | `storage.nbytes() > 0` when host staging attached |
+| `is_staged_input_tensor` | `storage.nbytes() > 0` on **input-bind** tensors only |
 | Graph epoch id on `NodeRef` | Pointer valid for lifetime of owning graph object |
 
-### 3.3 Host staging
+### 3.3 Host staging (input bind only)
 
-Host `std::vector` via `NntileAllocator` is **optional**:
+Host `std::vector` via `NntileAllocator` is allocated **only** for tensors
+that supply **input data** into the graph at compile/run (bind from host to
+tiles):
 
-| Situation | Host bytes |
-|-----------|------------|
-| Op output (graph mode) | 0 (default) |
-| `.to("nntile")`, user inputs | allocated |
-| Leaf `.grad` / optimizer state | allocated when needed for bind or `AccumulateGrad` |
-| Readout after `run()` | copy tiles → CPU tensor, or sync into staged buffer |
+| Situation | Host bytes | Tile data |
+|-----------|------------|-----------|
+| User / data `.to("nntile")` (activations, labels, initial weight load) | Yes — bind source | After first bind+run, authoritative copy is tiles |
+| Op outputs, intermediates, loss, logits | **No** | Tiles after compile+run |
+| Leaf `.grad`, optimizer state (velocity, moments) | **No** | Tiles — same as any output/marked node |
+| `x_nntile.cpu()` / `.to("cpu")` readout | No on nntile tensor | On-demand gather (see §3.4) |
 
-Staging is not semantic type — only whether `Storage` currently holds bytes.
+**Not** a tensor category — only whether this tensor currently carries an input
+bind buffer. Outputs and grads are **graph handles** with `NodeRef`; their
+bytes live in the NNTile runtime (StarPU tiles), not in `Storage`.
+
+### 3.4 Output tile lifetime and `.cpu()` readout
+
+After `compile_graph()` + `run()`, finished tensor values remain in the
+**NNTile framework** (session `Runtime` / `tile_map_`) for every
+`TensorNode` with a live `NodeRef` (`mark_output(true)`).
+
+**Retention until explicit release:**
+
+1. User drops all `at::Tensor` handles → last `NodeRef` released →
+   `mark_output(false)`.
+2. Next `compile_graph()` + `run()` → DCE / tile GC drops tiles for nodes no
+   longer marked output (and not needed by op graph).
+
+Until (1) happens, `x_nntile.cpu()` (or `.to("cpu")`) must work **without** a
+preallocated host buffer on the nntile tensor.
+
+**On-demand readout path** (target implementation):
+
+```text
+x_nntile.cpu()
+  1. Resolve TensorNode* from NodeRef (session graph)
+  2. gather tiled TensorNode → ephemeral single-tile TensorNode
+  3. acquire single tile from StarPU (STARPU_R)
+  4. memcpy tile bytes → PyTorch CPU tensor Storage
+  5. release acquire; invalidate / delete ephemeral single-tile TensorNode
+```
+
+The gather + single-tile node are **temporary** for the readout; they do not
+replace the tiled layout of the source node. The source node's tiles stay in the
+runtime until `mark_output(false)` + a later compile+run reclaims them.
+
+Use existing building blocks where possible:
+
+- `nntile::tensor::gather` (tensor graph) or
+  `tile_layout_io::gather_logical_tensor` (runtime) for step 2
+- `Runtime::get_tile` + `acquire` for step 3
+- `Runtime::invalidate_tile_buffer` (or equivalent) for step 5
+
+**Do not** allocate nntile `Storage` for outputs “so `.cpu()` works.” Readout is
+always gather → acquire → memcpy → release ephemeral resources.
 
 ---
 
@@ -226,17 +271,19 @@ compile_graph()                                   →  reads marks; does NOT rew
 > At least one live PyTorch tensor (or autograd-held `at::Tensor`) holds a
 > `NodeRef` to this node.
 
-It does **not** mean “needed for backward.” Intermediates whose Python handles
-were dropped before compile have `is_output == false` but remain in the **op
-graph** until DCE removes unreachable ops.
+It means **retain this node's tiles in the NNTile runtime** across compile+run
+until the last handle is gone. It does **not** mean “allocate host staging.”
+Intermediates whose Python handles were dropped before compile have
+`is_output == false` but may remain in the **op graph** until DCE removes
+unreachable ops.
 
 ### 5.3 DCE and tile GC
 
 `Runtime::eliminate_dead_ops()` already traces from `is_input()` /
 `is_output()` nodes through op connectivity. Under the new model:
 
-- **Output marks** = user-visible tensor handles (tile retention for readout /
-  next capture bind).
+- **Output marks** = retain StarPU tiles for live tensor handles; enable
+  `.cpu()` readout via gather (§3.4).
 - **Graph edges** = backward/forward dataflow (intermediate liveness without
   Python refs).
 
@@ -382,9 +429,9 @@ After each `compile_graph()` + `run()`:
 |------|--------|
 | 1 | **Do not** seal or rewrite `mark_output` |
 | 2 | `apply_pending_axis_tiling_locked` |
-| 3 | `insert_input_scatter_staging_locked` (read `host_data_ptr` from meta / Storage) |
+| 3 | `insert_input_scatter_staging_locked` (input-bind tensors only) |
 | 4 | Move pending graph → session; build `TileGraph`; `runtime->compile()` |
-| 5 | Bind staged inputs (`mark_input` nodes with host bytes) |
+| 5 | Bind **input** staged host bytes → tiles (`mark_input` nodes) |
 | 6 | `capture_persisted_tiles_from_session` for nodes still `is_output` with adopted tiles |
 | 7 | Start fresh empty pending `g_graph` for next capture |
 | 8 | Clear ephemeral state; retain param `NodeRef`s pointing into **session** graph until next record rebinds |
@@ -422,7 +469,7 @@ Replace map-backed helpers with meta-backed implementations:
 | `lookup_data_node(tensor)` | `nntile_node(tensor)` |
 | `record_view_alias(self, view)` | `share_node_ref_for_reshape(self, view)` or reject |
 | `on_tensor_impl_released` | `NodeRef` refcount + storage hook |
-| `refresh_staged_tensor_mapping` | Update `host_data_ptr_cache` on meta |
+| `refresh_staged_tensor_mapping` | Update `host_staging_ptr` on input-bind meta only |
 
 Executor files (`nntile_executor.cpp`, `nntile_linear.cpp`, …) keep calling the
 same helper names; implementation moves to `nntile_tensor_meta.cpp`.
@@ -445,7 +492,8 @@ same helper names; implementation moves to `nntile_tensor_meta.cpp`.
 
 - [ ] Add `nntile_tensor_meta.h` / `.cpp`.
 - [ ] `NodeRefControlBlock`: ctor `mark_output(true)`, dtor `mark_output(false)`.
-- [ ] Attach meta in `empty_metadata_tensor`, `ensure_host_staging`, op outputs.
+- [ ] Attach meta in `empty_metadata_tensor` and op outputs (no host bytes).
+- [ ] Restrict `ensure_host_staging` to input-bind tensors only.
 - [ ] Dual-write: meta + legacy `g_tensor_nodes` (temporary).
 
 **Acceptance:** graph tests pass; assert flag passes on smoke tests.
@@ -500,6 +548,18 @@ Python ref clears `is_output` without compile seal.
 - [ ] Fix tests that use `permute` + `contiguous` on CPU reference only.
 
 **Acceptance:** no nntile tensor exposes non-contiguous strides after layout ops.
+
+---
+
+### Phase 7 — On-demand `.cpu()` readout (gather path)
+
+- [ ] Replace `copy_nntile_tensor_to_cpu` host-staging assumption with:
+      gather → single-tile `TensorNode` → acquire → memcpy → release/invalidate.
+- [ ] Remove `needs_host_copy` / output host allocation paths.
+- [ ] Tests: `y_nnt.cpu()` after compile+run without nntile `Storage` bytes.
+
+**Acceptance:** readout works on metadata-only outputs; ephemeral gather resources
+freed after memcpy.
 
 ---
 
@@ -587,6 +647,7 @@ torch_nntile.run()
 | `test_contiguous_raises_on_noncontiguous_nntile` | always contiguous |
 | New: `test_view_shares_node_ref` | same `NodeRef` pointer across views |
 | New: `test_no_contiguous_view_op_on_reshape` | op count / op names |
+| New: `test_cpu_readout_gather_path` | `.cpu()` without output host staging |
 
 ---
 
@@ -599,7 +660,8 @@ torch_nntile.run()
 | `permute` breakage when stride alias removed | Phase 5; explicit materialize or CPU layout before `.to("nntile")` |
 | Autograd holds tensor invisibly to Python | Refcount includes autograd saves |
 | Tiling depends on axis lengths after free reshape | Record ops use `tensor.sizes()` at call site; node nelems invariant |
-| Cross-graph weight identity | Tile pool + bind at compile, not cross-graph `TensorNode*` identity |
+| Cross-graph weight identity | Tile pool + input bind at compile, not cross-graph `TensorNode*` identity |
+| Gather readout latency / extra StarPU work | Ephemeral single-tile node; invalidate after memcpy |
 
 ---
 
@@ -613,13 +675,15 @@ torch_nntile.run()
 5. Compile boundaries documented as caller-controlled (patterns §6.3); one `run()`
    per `compile_graph()`.
 6. No graph epoch id; no tensor tier enums.
-7. Full torch_nntile test suite green (modulo known CUDA skips).
+7. Host staging **input-bind only**; outputs/grads tile-resident (§3.3).
+8. `.cpu()` uses gather → acquire → memcpy → invalidate (§3.4).
+9. Full torch_nntile test suite green (modulo known CUDA skips).
 
 ---
 
 ## 15. Delivery (single PR #425)
 
-All phases (0–6) are implemented and merged via
+All phases (0–7) are implemented and merged via
 [PR #425](https://github.com/nntile/nntile/pull/425) on branch
 `cursor/pytorch-tensor-gc-investigation-94e3`. Use **incremental commits** on
 that branch; do not split into separate PRs.
@@ -630,6 +694,7 @@ that branch; do not split into separate PRs.
 | 2 | 2–3 | Free reshape; remove compile seal |
 | 3 | 4 | Remove map and tier flags |
 | 4 | 5–6 | Layout policy + autograd refcount |
+| 5 | 7 | On-demand `.cpu()` gather readout |
 
 ---
 
@@ -641,7 +706,8 @@ that branch; do not split into separate PRs.
 | **Capture** | Record ATen ops into pending `g_graph` until next compile |
 | **Compile segment** | Ops captured since the previous `compile_graph()` |
 | **Free reshape** | Same numel, same `NodeRef`, no graph op |
-| **Staging** | Optional host `std::vector` on `Storage` |
+| **Staging** | Host `std::vector` on `Storage` for **input bind only** |
+| **Readout** | On-demand gather + acquire; not preallocated output host bytes |
 | **Session** | Compiled graph + `Runtime` after `compile_graph()` |
 
 ---
