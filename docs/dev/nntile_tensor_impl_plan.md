@@ -1,488 +1,562 @@
-# Plan: embed NNTile graph state on `device=nntile` tensors
+# Plan: `device=nntile` tensor reimplementation
 
 **Parent context:** [torch_tensor_gc_investigation.md](torch_tensor_gc_investigation.md)  
-**Related PR:** [#425](https://github.com/nntile/nntile/pull/425) (GC + metadata-only staging)  
-**Branch target:** `graph_api` (follow-on work; do not block #425 merge on this)  
-**Status:** draft plan
+**Related work:** PR [#425](https://github.com/nntile/nntile/pull/425) (metadata-only staging, GC probes)  
+**Branch target:** `graph_api` (follow-on; do not block #425 merge)  
+**Status:** agreed target architecture (conversation 2026-07)
 
-This document describes how to reimplement `device=nntile` PyTorch tensors so
-each `TensorImpl` **owns** its association to `TensorGraph::TensorNode` (and
-related per-tensor flags), instead of treating `g_tensor_nodes[TensorImpl*]` as
-the primary source of truth.
-
----
-
-## 1. Problem statement
-
-### Today
-
-| Layer | What happens |
-|-------|----------------|
-| PyTorch | `at::Tensor` on `PrivateUse1`; views share `Storage`, new `TensorImpl` per view |
-| Host bytes | `NntileAllocator` (`std::vector`); 0-byte for metadata-only intermediates |
-| Graph link | Side map `g_tensor_nodes: TensorImpl* → MappedTensor` in `nntile_graph_recorder.cpp` |
-| Lookup | `tensor_impl_key` / `canonical_tensor_impl_key` + map find |
-| Views | `view` / `permute` call `record_view_alias`; `as_strided` does **not** |
-| Transpose | Always allocates contiguous output + `swap_two_axes` (materialize) |
-
-`MappedTensor` holds more than a node pointer:
-
-```cpp
-struct MappedTensor {
-    TensorNode *node;
-    TensorNode *staging_node;
-    DataType dtype;
-    size_t count;
-    bool needs_host_copy;
-    bool bind_at_execute;
-    bool is_persistent_input;
-    void *host_data_ptr;
-};
-```
-
-The map is used for **three different jobs**:
-
-1. **Per-tensor graph association** (should live on the tensor).
-2. **Compile / session binding** (host ptr → runtime tiles).
-3. **GC / output marks** (iterate “live” tensors at `compile_graph()`).
-
-Mixing these makes views fragile: a view’s `TensorImpl*` must be registered
-separately via `record_view_alias`, and lookup failures are silent until execute.
-
-### Goals
-
-1. **Primary ownership:** every `device=nntile` `TensorImpl` carries
-   `NNTileTensorMeta` (at minimum `TensorNode*`, plus per-tensor flags).
-2. **Explicit view propagation:** every view-creating ATen stub sets meta on
-   the **result** `TensorImpl` (derive or share node as appropriate).
-3. **Reliable lookup:** `lookup_data_node(tensor)` reads meta first; no
-   dependence on a side table for the common case.
-4. **Preserve GC behavior** from PR #425: metadata-only intermediates, selective
-   pinning, output marks, tile adoption, param-grad aliases.
-5. **Enable strided views** (`as_strided`, future non-materializing transpose)
-   by making graph wiring impossible to “forget.”
-
-### Non-goals (this plan)
-
-- MPI / multi-process
-- Full PyTorch `contiguous()` on nntile (remains unsupported)
-- Zero-copy tile aliasing for arbitrary strides (graph `contiguous_view` still
-  copies tiles at execute; separate op work if true zero-copy is needed)
-- Pickle / `torch.save` of nntile tensors with embedded graph nodes
-- Replacing `TensorGraph` or executor op set
+This document is the **canonical spec** for reimplementing `device=nntile`
+PyTorch tensors. It replaces earlier “three tiers” and “seal at compile”
+framing with the ownership model agreed in design review.
 
 ---
 
-## 2. Target architecture
+## 1. Executive summary
+
+A `device=nntile` tensor is **one kind of object**:
+
+> A PyTorch `at::Tensor` shell (shape, dtype, autograd) whose authoritative
+> compute state is a `TensorGraph::TensorNode*`, held via refcounted `NodeRef`
+> on the `TensorImpl`. Host bytes are an **optional** staging buffer, not a
+> tensor category.
+
+**Core rules**
+
+1. **`NodeRef`** (`shared_ptr` control block + `TensorNode*`) on every nntile
+   `TensorImpl` — no side map as source of truth.
+2. **`mark_output(true)`** when a node is first bound to a PyTorch tensor;
+   **`mark_output(false)`** when the last `NodeRef` is released — **never** a
+   compile-time seal pass.
+3. **NNTile tensors are always contiguous** (by design). Same-numel
+   `view`/`reshape` is **free** (same `NodeRef`, no graph op, no tile copy).
+4. **Training loop:** capture graph → compile → run, per iteration (or one
+   capture with multiple microbatches, then one compile + one run) — **not**
+   multiple `run()` on one compile.
+5. **No graph epoch id** on `NodeRef`. Work with whatever graph is current;
+   node pointers are valid for the lifetime of the owning `TensorGraph` object.
+
+---
+
+## 2. What is wrong today (“mid-way” design)
+
+| Problem | Current code / behavior |
+|---------|-------------------------|
+| Graph link off-tensor | `g_tensor_nodes[TensorImpl*] → MappedTensor` in `nntile_graph_recorder.cpp` |
+| Tensor categories | `g_metadata_only_impls`, `is_staged_input_tensor`, `is_persistent_input` |
+| Lookup indirection | `canonical_tensor_impl_key` for node resolution |
+| Output marks at compile | `seal_output_marks_from_live_tensors_locked()` clears all marks, re-marks from map, runs `mark_output_producer_closure_locked` |
+| Reshape copies tiles | `record_view_alias` → `contiguous_view` when shape changes (same numel) |
+| Unwired views | `as_strided` has no graph link |
+| Permute vs transpose | `permute` = stride alias (often non-contiguous); `transpose` = materialize |
+| Post-compile node nulling | `clear_pending_graph_after_compile_locked` sets `mapped.node = nullptr` on retained entries |
+| Misleading training model | Docs/examples implying multi-`run()` per compile |
+
+The map mixes **ownership**, **compile binding**, and **GC** in one structure.
+That makes views easy to forget and GC dependent on batch scans.
+
+---
+
+## 3. Target architecture
+
+### 3.1 Object model
 
 ```mermaid
 flowchart TD
-    subgraph pytorch [PyTorch object]
-        TensorImpl["TensorImpl"]
-        Storage["Storage / NntileAllocator"]
-        Meta["NNTileBackendMeta on TensorImpl"]
-        TensorImpl --> Storage
-        TensorImpl --> Meta
+    subgraph tensor [device=nntile at::Tensor]
+        Impl[TensorImpl sizes/strides]
+        Meta[NNTileBackendMeta]
+        Storage[Storage 0 bytes or host vector]
+        Impl --> Meta
+        Impl --> Storage
     end
 
-    subgraph meta_fields [NNTileTensorMeta]
-        Node["TensorNode* node"]
-        Staging["TensorNode* staging_node"]
-        Flags["needs_host_copy, bind_at_execute, ..."]
-        HostPtr["host_data_ptr cache"]
+    subgraph noderef [NodeRef shared_ptr]
+        RC[refcount]
+        Ptr[TensorNode*]
     end
 
-    Meta --> meta_fields
-    Node --> TensorGraph["Pending TensorGraph"]
-    TensorGraph --> Session["GraphSession / Runtime"]
-
-    subgraph registry [Global registry - slim]
-        Live["g_live_nntile_impls for seal/GC"]
-        ParamGrad["g_param_grad_registry"]
-        Pinned["g_pinned_tensors"]
-    end
-
-    TensorImpl -.->|register on create| Live
+    Meta --> noderef
+    Ptr --> TG[TensorGraph owns node unique_ptr]
+    TG --> Session[GraphSession after compile]
+    Storage -.->|optional bind at compile| Session
 ```
-
-### Design choice: `c10::BackendMeta` subclass
-
-Use PyTorch’s intended extension point (`TensorImpl::set_backend_meta`), not a
-second global map.
 
 ```cpp
-struct NNTileTensorMeta {
+// torch_nntile/csrc/nntile_tensor_meta.h (new)
+
+struct NodeRefControlBlock {
     nntile::TensorGraph::TensorNode *node = nullptr;
-    nntile::TensorGraph::TensorNode *staging_node = nullptr;
-    nntile::DataType dtype = nntile::DataType::FP32;
-    std::size_t count = 0;
-    bool needs_host_copy = false;
-    bool bind_at_execute = false;
-    bool is_persistent_input = false;
-    void *host_data_ptr = nullptr;
+
+    explicit NodeRefControlBlock(nntile::TensorGraph::TensorNode *n);
+    ~NodeRefControlBlock();  // if last ref: node->mark_output(false)
+
+    NodeRefControlBlock(const NodeRefControlBlock &) = delete;
+    NodeRefControlBlock &operator=(const NodeRefControlBlock &) = delete;
 };
+
+using NodeRef = std::shared_ptr<NodeRefControlBlock>;
 
 struct NNTileBackendMeta final : c10::BackendMeta {
-    NNTileTensorMeta data;
-    c10::intrusive_ptr<c10::BackendMeta> clone(
-        const c10::intrusive_ptr<c10::BackendMeta> &ptr) const override;
+    NodeRef node_ref;
+    nntile::TensorGraph::TensorNode *staging_node = nullptr;  // scatter staging
+    void *host_data_ptr_cache = nullptr;  // optional; refresh from Storage
+    // bind_at_execute, needs_host_copy: compile-time hints only
 };
+
+// Accessors
+NodeRef nntile_node_ref(const at::Tensor &);
+nntile::TensorGraph::TensorNode *nntile_node(const at::Tensor &);
+void attach_node_ref(at::Tensor &, NodeRef);
 ```
 
-**Why not only `NNTileTensorImpl` subclass?** Possible later, but `BackendMeta`
-works with `at::detail::make_tensor<at::TensorImpl>` already used in
-`reshape_alias` / `as_strided`. Fewer callsites to change.
+**No graph epoch id.** `TensorNode*` is valid while the owning `TensorGraph`
+object that contains it is alive. After `compile_graph()`, the pending graph is
+**moved** into `g_session->tensor_graph` — addresses are stable. The next
+iteration starts a **new** pending graph with **new** nodes; live weight
+**tiles** persist via adoption, not by carrying old `TensorNode*` across graphs.
 
-**Why not `Storage` context?** Views share storage but need different
-`TensorNode*` (e.g. `permute`). Meta must be per `TensorImpl`.
+### 3.2 What is NOT a tensor property
 
-**`BackendMeta::clone`:** default PyTorch `clone` returns the same pointer
-(shared). **Do not rely on automatic clone for views.** Each view ATen stub must
-call `assign_nntile_meta_from_view(base, result, ViewKind)`.
+| Rejected concept | Replacement |
+|------------------|-------------|
+| Three tiers (GraphHandle / Staged / Persistent) | One tensor; optional host buffer |
+| `is_persistent_input` | Param alive in Python → `NodeRef` refcount > 0 |
+| `g_metadata_only_impls` | `storage.nbytes() == 0` |
+| `is_staged_input_tensor` | `storage.nbytes() > 0` when host staging attached |
+| Graph epoch id on `NodeRef` | Pointer valid for lifetime of owning graph object |
 
-### Central API (new header `nntile_tensor_meta.h`)
+### 3.3 Host staging
 
-| Function | Role |
-|----------|------|
-| `NNTileTensorMeta *nntile_meta(TensorImpl *)` | Nullable accessor |
-| `NNTileTensorMeta &nntile_meta(at::Tensor &)` | Assert nntile device |
-| `void init_nntile_meta(at::Tensor &, NNTileTensorMeta)` | Attach on create |
-| `void assign_view_meta(base, view, ViewProp)` | View / permute / as_strided |
-| `TensorNode *nntile_node(const at::Tensor &)` | Replace `lookup_data_node` |
-| `void set_nntile_node(at::Tensor &, TensorNode *)` | Replace `register_data_node` body |
-| `void on_nntile_tensor_destroyed(TensorImpl *)` | Output-mark / live-set cleanup |
+Host `std::vector` via `NntileAllocator` is **optional**:
 
-All graph recording continues to go through these helpers so executor code stays
-readable.
+| Situation | Host bytes |
+|-----------|------------|
+| Op output (graph mode) | 0 (default) |
+| `.to("nntile")`, user inputs | allocated |
+| Leaf `.grad` / optimizer state | allocated when needed for bind or `AccumulateGrad` |
+| Readout after `run()` | copy tiles → CPU tensor, or sync into staged buffer |
 
----
-
-## 3. PyTorch view semantics (what we must mirror)
-
-PyTorch views:
-
-- New `TensorImpl`, shared `Storage`, updated sizes / strides / offset.
-- **No** built-in propagation of custom metadata.
-- Autograd tracks the view as a separate tensor; backward may call the same ATen
-  op again.
-
-### View → graph node policy
-
-| ATen op | PyTorch layout | Graph node on result |
-|---------|----------------|----------------------|
-| `view` / `reshape` (alias) | Same numel, maybe same shape | Same node if shape equal; else `contiguous_view` node |
-| `permute` | Strided alias | `contiguous_view` with permuted **shape** (today’s `record_view_alias`) |
-| `as_strided` | General strided alias | **New:** derive node from base + stride metadata, or graph “strided_view” op (phase 2) |
-| `transpose` | Today: new contiguous buffer | Phase 1: keep materialize; Phase 2: optional stride alias + `swap_axes` graph op only when needed |
-| `expand` / `broadcast_to` | Not a storage alias | Existing broadcast graph ops (unchanged) |
-| `slice` / `select` | Offset alias | `contiguous_view` or dedicated slice op (audit per stub) |
-
-**Important:** graph `contiguous_view` is a **same-numel reshape** at the tensor
-graph level; lowering copies tiles (`tile::copy_same_numel`). That is still
-“no extra host allocation,” which is the practical win for metadata-only
-intermediates.
+Staging is not semantic type — only whether `Storage` currently holds bytes.
 
 ---
 
-## 4. What shrinks vs what stays global
+## 4. Layout and views
 
-### Moves onto `TensorImpl` (via `NNTileBackendMeta`)
+### 4.1 Always contiguous
 
-- `node`, `staging_node`
-- `needs_host_copy`, `bind_at_execute`, `is_persistent_input`
-- `host_data_ptr` cache (still synced from `tensor.storage().data_ptr()` on
-  staging transitions)
+**Invariant:** every `device=nntile` tensor is C-contiguous for its current
+`sizes()`.
 
-### Stays global (session / graph scope)
+Enforcement:
 
-| Structure | Reason |
-|-----------|--------|
-| `g_graph`, `g_session` | One pending graph and compiled session per process |
-| `g_pinned_tensors` | Pin holders across record window |
-| `g_param_grad_registry`, `g_param_grad_nodes` | Param tensor → grad node; param may be CPU or nntile |
-| `g_relu_preactivation_stack` | Op-specific recording stack |
-| `g_all_nodes` | Track nodes for output-mark closure |
-| `g_persisted_tile_pool` | Tile adoption across recompiles |
-| `g_axis_name_hints`, `g_axis_tiling_by_name` | Tiling hints |
-| **`g_live_nntile_impls`** (new, small) | `unordered_set<TensorImpl*>` for `seal_output_marks` and optional leak checks |
+- `TORCH_CHECK(tensor.is_contiguous())` in kernels that require it (extend
+  coverage).
+- Reject non-contiguous `as_strided` results.
+- `aten::contiguous` on nntile: remains **unsupported** (noop if already
+  contiguous, else error) — layout is fixed at graph level.
 
-### `g_tensor_nodes` map
+### 4.2 Same-numel reshape is free
 
-**Phase out** as primary store. Migration options:
+`view` / `reshape` with unchanged numel:
 
-- **Phase A:** map mirrors meta (write-through) for debugging parity.
-- **Phase B:** map removed; compile iterates `g_live_nntile_impls` and reads meta.
+| Layer | Behavior |
+|-------|----------|
+| PyTorch | New `TensorImpl`, new `sizes()`, contiguous strides |
+| Graph | **Same `NodeRef`** — no new `TensorNode`, no `CONTIGUOUS_VIEW` op |
+| Execute | No tile work |
 
-### `canonical_tensor_impl_key`
+Rationale: nntile data is contiguous; reshape is reinterpretation of the same
+flat tile sequence. Shape for ops comes from the **PyTorch tensor at record
+time**; graph node identity is `(nelems, dtype)` for alias purposes.
 
-**Narrow scope** after migration:
+**Remove** `contiguous_view` from the `view`/`reshape` path. Deprecate or
+repurpose `record_view_alias` → `share_node_ref_for_reshape(base, view)`.
 
-- Still useful for `g_metadata_only_impls` / `g_staged_input_impls` sets in
-  `nntile_tensor_gc.cpp`.
-- **No longer** used to find `TensorNode*` for an arbitrary view; use
-  `nntile_node(tensor)` on the view’s own `TensorImpl`.
+### 4.3 What is not a free view
 
-### `on_tensor_impl_released` / storage hook
+| Op | Policy |
+|----|--------|
+| `view` / `reshape` (same numel) | Free — share `NodeRef` |
+| `permute` | Breaks contiguity in general → **layout op** (materialize) or **error** in v1; remove stride-alias `permute` that produces non-contiguous tensors |
+| `transpose` / `.t()` | Layout op — `swap_two_axes` (materialize in graph); document as layout conversion |
+| `as_strided` (non-contiguous) | **Reject** |
+| `expand` / `broadcast_to` | Existing broadcast graph ops (not storage alias) |
 
-Today: triggered from `NntileAllocator::release_storage` via
-`on_host_storage_released`, keyed by storage context → one canonical `TensorImpl*`.
+### 4.4 View implementation checklist
 
-**Gap:** shared-storage views can leave orphan map entries for non-canonical
-`TensorImpl*` keys.
+Every view-creating ATen stub must set meta on the **result**:
 
-**Fix in this plan:**
-
-1. Register each nntile `TensorImpl*` in `g_live_nntile_impls` when meta is
-   attached.
-2. Add **`TensorImpl` weak ownership hook**: on last `TensorImpl` destruction,
-   call `on_nntile_tensor_destroyed(impl)`:
-   - remove from `g_live_nntile_impls`
-   - `clear_output_mark_if_unreferenced(node)` (existing logic)
-   - do **not** free `TensorNode*` (owned by graph)
-
-Implement via `c10::intrusive_ptr` custom deleter or a small
-`NNTileTensorImpl` wrapper whose destructor notifies — pick the least invasive
-option that runs when **view** `TensorImpl` dies, not only when `Storage` dies.
+| Stub | Action |
+|------|--------|
+| `view` | `share_node_ref` if same numel |
+| `reshape` / `_reshape_alias` | same |
+| `as_strided` | contiguous only; share or reject |
+| `detach` | share `NodeRef` (same node) |
+| `slice` / `narrow` | audit; prefer free slice if contiguous rules allow |
+| `permute` | v1: materialize or forbid (see §4.3) |
 
 ---
 
-## 5. Implementation phases
+## 5. Output marks and GC
 
-### Phase 0 — Inventory & harness (no behavior change)
-
-**Files:** tests only + optional debug flag.
-
-1. Add unit test `test_nntile_meta_coverage.py` that records which ATen ops
-   create nntile tensors without going through `get_or_create_data_node` /
-   `record_view_alias`.
-2. Document all `make_tensor` / `empty` / `empty_metadata` callsites (see
-   table in §7).
-3. Add debug env `TORCH_NNTILE_ASSERT_META=1`: `TORCH_CHECK(nntile_meta(impl))`
-   on every executor `get_or_create_data_node` entry.
-
-**Acceptance:** inventory checklist committed; tests pass unchanged.
-
----
-
-### Phase 1 — `NNTileBackendMeta` + dual-write
-
-**New files:**
-
-- `torch_nntile/csrc/nntile_tensor_meta.h`
-- `torch_nntile/csrc/nntile_tensor_meta.cpp`
-
-**Changes:**
-
-1. Implement meta accessors and `init_nntile_meta`.
-2. **`get_or_create_data_node` / `register_data_node` / `record_view_alias`:**
-   write **both** map and meta (dual-write).
-3. **`lookup_data_node`:** read meta first; fall back to map.
-4. Attach meta in:
-   - `empty_metadata_tensor`
-   - `ensure_host_staging` (upgrade metadata-only → staged)
-   - `reshape_alias` (inherit or assign via new helper)
-   - `view`, `permute`, `as_strided` (wire `as_strided` — today’s gap)
-5. `compile_graph` / `seal_output_marks`: iterate `g_live_nntile_impls` **and**
-   map (union), verify same nodes during dual-write.
-
-**Acceptance:**
-
-- Full `pytest torch_nntile/tests` parity with current baseline.
-- `as_strided` on nntile records a graph alias (same policy as `view`).
-- `TORCH_NNTILE_ASSERT_META=1` passes on graph tests.
-
----
-
-### Phase 2 — Per-impl destruction hook + map read-remove
-
-1. Implement `on_nntile_tensor_destroyed(TensorImpl *)`.
-2. `seal_output_marks_from_live_tensors_locked` uses only `g_live_nntile_impls`.
-3. `lookup_data_node` meta-only (map read fallback deprecated).
-4. `on_tensor_impl_released` delegates to per-impl destroy where possible;
-   storage hook only updates `host_data_ptr` on surviving staged tensors.
-
-**Acceptance:**
-
-- `probe_tensor_lifetime.py --nntile` scenarios unchanged.
-- No growth of stale map entries in long view chains (add C++ unit test).
-
----
-
-### Phase 3 — Remove `g_tensor_nodes` primary map
-
-1. Replace `MappedTensor` map with session-local bind table if needed:
-   `GraphSession::impl_to_node` already exists; extend for compile bind only.
-2. `refresh_staged_tensor_mapping` mutates meta, not map.
-3. `clear_pending_graph_after_compile_locked` clears nodes in meta for
-   ephemeral tensors (`node = nullptr` on retained staged params).
-4. Delete dual-write; remove `g_tensor_nodes`.
-
-**Acceptance:**
-
-- Recorder stats (`tensor_nodes` count) derived from `g_live_nntile_impls`.
-- CI green on CPU-only cloud agent + CUDA wheel workflow.
-
----
-
-### Phase 4 — View / layout completeness (optional follow-on)
-
-1. Audit `slice`, `narrow`, `_unsafe_view`, `detach` (meta must copy or clear).
-2. **Transpose policy:** add `transpose_as_view` internal path when input is
-   contiguous and op is recording (stride alias + graph axis swap) vs keep
-   materialize for execute-only eager path.
-3. Graph op: `strided_view` if `as_strided` patterns exceed `contiguous_view`
-   (non-contiguous tile layout).
-
-**Acceptance:**
-
-- `test_transpose_materialize.py` extended: forward transpose without host alloc
-  in graph mode where legal.
-- Document remaining cases that still require materialize.
-
----
-
-## 6. Callsite migration map
-
-### Tensor creation (must call `init_nntile_meta`)
-
-| Location | Notes |
-|----------|-------|
-| `nntile_tensor_gc.cpp` — `empty_metadata_tensor` | Metadata-only default |
-| `nntile_tensor_gc.cpp` — `ensure_host_staging` | In-place storage upgrade |
-| `nntile_kernels.cpp` — `empty` / `empty_strided` | Staged vs metadata per graph mode |
-| `nntile_kernels.cpp` — `reshape_alias` | Base for all views |
-| `nntile_kernels.cpp` — `transpose_int` | New contiguous tensor + node from op |
-| `nntile_executor.cpp` — all `empty` outputs | Via `get_or_create_data_node` |
-| `nntile_add.cpp`, `broadcast.cpp`, … | Outputs of graph ops |
-
-### View ops (must call `assign_view_meta`)
-
-| Location | Today |
-|----------|-------|
-| `nntile_kernels.cpp` — `view` | `record_view_alias` ✓ |
-| `nntile_kernels.cpp` — `permute` | `record_view_alias` ✓ |
-| `nntile_kernels.cpp` — `as_strided` | **missing** |
-| Any custom `reshape_alias` caller | audit |
-
-### Recorder (simplify to meta wrappers)
-
-| API | After migration |
-|-----|-----------------|
-| `get_or_create_data_node` | ensure meta.node; create graph node if null |
-| `register_data_node` | `set_nntile_node` + output mark |
-| `lookup_data_node` | `nntile_node` |
-| `record_view_alias` | `assign_view_meta` |
-| `refresh_staged_tensor_mapping` | update meta.host_data_ptr, bind flags |
-
-### Unchanged executor surface
-
-Executor files (`nntile_executor.cpp`, `nntile_linear.cpp`, `nntile_norm.cpp`,
-…) keep calling `get_or_create_data_node` / `register_data_node`; implementation
-moves to meta-backed helpers. **No mass executor rewrite.**
-
----
-
-## 7. Compile / run lifecycle (adjusted)
+### 5.1 Event-driven `mark_output` (no seal at compile)
 
 ```text
-Record window
-  ATen op → init/update NNTileBackendMeta on each tensor touched
-  → g_live_nntile_impls.insert(impl)
-  → TensorGraph ops reference TensorNode* from meta
+create node + attach first NodeRef to at::Tensor  →  mark_output(true)
+last NodeRef released                             →  mark_output(false)
+compile_graph()                                   →  reads marks; does NOT rewrite them
+```
 
+**Delete:**
+
+- `seal_output_marks_from_live_tensors_locked()`
+- `mark_output_producer_closure_locked()` (inflating `is_output` on ancestors)
+
+**Keep / refactor:**
+
+- `clear_output_mark_if_unreferenced_locked` → logic moves into
+  `NodeRefControlBlock` destructor (refcount-based, not map scan).
+
+### 5.2 What `is_output` means
+
+> At least one live PyTorch tensor (or autograd-held `at::Tensor`) holds a
+> `NodeRef` to this node.
+
+It does **not** mean “needed for backward.” Intermediates whose Python handles
+were dropped before compile have `is_output == false` but remain in the **op
+graph** until DCE removes unreachable ops.
+
+### 5.3 DCE and tile GC
+
+`Runtime::eliminate_dead_ops()` already traces from `is_input()` /
+`is_output()` nodes through op connectivity. Under the new model:
+
+- **Output marks** = user-visible tensor handles (tile retention for readout /
+  next capture bind).
+- **Graph edges** = backward/forward dataflow (intermediate liveness without
+  Python refs).
+
+After `run()`, release StarPU buffers for tiles that are not inputs/outputs and
+are not needed by the compiled session (existing / planned
+`release_dead_tiles_after_op` work).
+
+When refcount hits zero **before** compile, `mark_output(false)` allows DCE to
+drop that node’s tiles on the **next** compile.
+
+### 5.4 Autograd without Python
+
+`NodeRef` refcount must reflect **all** live `at::Tensor` handles, including
+C++ autograd `SavedVariable` packs (Python `weakref` may be dead while backward
+still holds the tensor). Options:
+
+- Autograd saves tensors that already share `NodeRef` (refcount bump), or
+- Custom saved-tensor hook that pins `NodeRef` for backward.
+
+Document in implementation phase; do not rely on Python GC alone.
+
+---
+
+## 6. Execution and training loop
+
+### 6.1 Per-iteration loop (canonical)
+
+```text
+# iteration k
+forward + backward   # record into pending g_graph
+compile_graph()      # pending → session; DCE; bind staged inputs
+run()                # execute once
+# optional: loss.to("cpu"), optimizer already stepped or step before compile
+```
+
+**Wrong model (do not document or design for):**
+
+```text
 compile_graph()
-  seal_output_marks_from_live_tensors_locked()
-    for impl in g_live_nntile_impls: mark meta.node output
-    + param grad registry + producer closure
-  insert_input_scatter_staging_locked()
-    read meta.host_data_ptr, meta.staging_node
-  bind_storage_to_runtime per staged meta
-  g_session->impl_to_node[impl] = meta.node  // snapshot
-  clear ephemeral meta.node (retain staged params)
+run(); run(); run()   # NO — one run per compile
+```
 
-run() / backward
-  sync_runtime_to_nntile_tensor: meta.host_data_ptr from tensor storage
-  register_grad_alias_for_host_copy: meta on grad tensor
+### 6.2 Microbatch grad accumulation (one capture, one compile, one run)
+
+```text
+for microbatch in batches:
+    loss = model(x) / n
+    loss.backward()          # appends to same pending graph
+optimizer.step()             # recorded ops
+compile_graph()
+run()
+```
+
+Multiple backward chains in **one** graph capture; still **one** `run()`.
+
+### 6.3 Between iterations
+
+```text
+iteration k:   capture G_k → compile → run
+iteration k+1: capture G_{k+1} → compile → run   # new pending graph
+```
+
+- Weight **PyTorch tensors** survive (`nn.Parameter`).
+- New capture creates **new** `TensorNode`s in `G_{k+1}` for those weights.
+- **Tile adoption** (`capture_persisted_tiles_from_session` / `stage_persisted_tiles`)
+  carries StarPU buffers from session `k` into session `k+1` — keyed by live
+  param tensors + `NodeRef`, not by `is_persistent_input` flag.
+- Do **not** null `NodeRef::node` on compile for live tensors; rebind to new
+  graph nodes when recording `G_{k+1}`.
+
+### 6.4 `compile_graph()` responsibilities (revised)
+
+| Step | Action |
+|------|--------|
+| 1 | **Do not** seal or rewrite `mark_output` |
+| 2 | `apply_pending_axis_tiling_locked` |
+| 3 | `insert_input_scatter_staging_locked` (read `host_data_ptr` from meta / Storage) |
+| 4 | Move pending graph → session; build `TileGraph`; `runtime->compile()` |
+| 5 | Bind staged inputs (`mark_input` nodes with host bytes) |
+| 6 | `capture_persisted_tiles_from_session` for nodes still `is_output` with adopted tiles |
+| 7 | Start fresh empty pending `g_graph` for next capture |
+| 8 | Clear ephemeral state; retain param `NodeRef`s pointing into **session** graph until next record rebinds |
+
+---
+
+## 7. Global / session state (what remains)
+
+| Structure | Purpose |
+|-----------|---------|
+| `g_graph` | Pending capture graph |
+| `g_session` | Compiled graph + runtime + `pin_hold` |
+| `g_pinned_tensors` | Pin holders during record window |
+| `g_param_grad_registry` | Param → grad node for alias sync (may fold into `NodeRef` on `.grad`) |
+| `g_relu_preactivation_stack` | Op-specific recording |
+| `g_persisted_tile_pool` | Tile buffers across compiles |
+| `g_all_nodes` | Optional; prefer graph-owned iteration |
+
+**Remove as primary store:** `g_tensor_nodes`, `g_metadata_only_impls`,
+`canonical_tensor_impl_key` for node lookup.
+
+**Narrow `nntile_tensor_gc.cpp`:** storage release hooks only; tier sets
+deleted.
+
+---
+
+## 8. API surface (recorder helpers)
+
+Replace map-backed helpers with meta-backed implementations:
+
+| Current | Target |
+|---------|--------|
+| `get_or_create_data_node(tensor, shape, …)` | Ensure `node_ref`; create `TensorNode` in pending graph if null; `mark_output(true)` on first attach |
+| `register_data_node(tensor, node)` | `attach_node_ref(tensor, make_node_ref(node))` |
+| `lookup_data_node(tensor)` | `nntile_node(tensor)` |
+| `record_view_alias(self, view)` | `share_node_ref_for_reshape(self, view)` or reject |
+| `on_tensor_impl_released` | `NodeRef` refcount + storage hook |
+| `refresh_staged_tensor_mapping` | Update `host_data_ptr_cache` on meta |
+
+Executor files (`nntile_executor.cpp`, `nntile_linear.cpp`, …) keep calling the
+same helper names; implementation moves to `nntile_tensor_meta.cpp`.
+
+---
+
+## 9. Implementation phases
+
+### Phase 0 — Spec & harness
+
+- [ ] Land this document on `graph_api`.
+- [ ] Add `TORCH_NNTILE_ASSERT_NODE_REF=1` debug flag.
+- [ ] Inventory all `make_tensor` / `empty_metadata` / view stubs (table in §11).
+
+**Acceptance:** no behavior change; inventory complete.
+
+---
+
+### Phase 1 — `NodeRef` + `NNTileBackendMeta`
+
+- [ ] Add `nntile_tensor_meta.h` / `.cpp`.
+- [ ] `NodeRefControlBlock`: ctor `mark_output(true)`, dtor `mark_output(false)`.
+- [ ] Attach meta in `empty_metadata_tensor`, `ensure_host_staging`, op outputs.
+- [ ] Dual-write: meta + legacy `g_tensor_nodes` (temporary).
+
+**Acceptance:** graph tests pass; assert flag passes on smoke tests.
+
+---
+
+### Phase 2 — Free reshape; remove `contiguous_view` on view path
+
+- [ ] `share_node_ref_for_reshape` for same-numel `view`/`reshape`.
+- [ ] Stop calling `ensure_view_alias_locked` / `contiguous_view` from
+      `record_view_alias`.
+- [ ] Wire `as_strided` (contiguous-only).
+- [ ] Tests: view chain shares `NodeRef`; graph op count unchanged across views.
+
+**Acceptance:** `test_graph_mode_mm_view_add_ndim` and view tests pass; no
+`CONTIGUOUS_VIEW` op for reshape-only views.
+
+---
+
+### Phase 3 — Output marks: remove seal at compile
+
+- [ ] Remove `seal_output_marks_from_live_tensors_locked` from `compile_graph_locked`.
+- [ ] Remove `mark_output_producer_closure_locked` output-mark inflation.
+- [ ] Verify DCE still correct via op-graph connectivity tests.
+- [ ] Update `test_intermediate_output_mark_cleared_when_python_ref_dropped`.
+
+**Acceptance:** `probe_tensor_lifetime.py --nntile` scenarios pass; dropping
+Python ref clears `is_output` without compile seal.
+
+---
+
+### Phase 4 — Remove side map and tier flags
+
+- [ ] Delete `g_tensor_nodes`; compile binds via meta on live tensors / session
+      snapshot.
+- [ ] Remove `g_metadata_only_impls`, `is_staged_input_tensor`,
+      `is_persistent_input`.
+- [ ] Stop nulling `node` in `clear_pending_graph_after_compile` for live
+      params; rebind on next capture.
+- [ ] Tile adoption driven by live `NodeRef` on params, not flags.
+
+**Acceptance:** full `pytest torch_nntile/tests`; pre-commit clean.
+
+---
+
+### Phase 5 — Layout ops (`permute` policy)
+
+- [ ] Decide v1: materialize `permute` (like transpose) or restrict to contiguous-
+      preserving cases.
+- [ ] Remove non-contiguous stride aliases from `permute` stub.
+- [ ] Update README layout table (§10).
+- [ ] Fix tests that use `permute` + `contiguous` on CPU reference only.
+
+**Acceptance:** no nntile tensor exposes non-contiguous strides after layout ops.
+
+---
+
+### Phase 6 — Autograd `NodeRef` lifetime
+
+- [ ] Audit `.backward()` vs `autograd.grad` pinning (transpose, mm, linear).
+- [ ] Ensure grad tensors get `NodeRef`; refcount covers autograd retention.
+- [ ] Unskip backward tests blocked on grad policy.
+
+**Acceptance:** transpose backward via `.backward()` without segfault; grad
+accumulation test passes.
+
+---
+
+## 10. Documentation updates
+
+| File | Changes |
+|------|---------|
+| `torch_nntile/README.md` | Graph-handle model; capture→compile→run; free reshape; permute policy |
+| `docs/dev/torch_tensor_gc_investigation.md` | Remove seal-at-compile recommendation; point here |
+| `docs/dev/nntile_tensor_impl_plan.md` | This file |
+
+**README training loop (correct):**
+
+```python
+for batch in loader:
+    optimizer.zero_grad(set_to_none=True)
+    loss = model(x.to("nntile"), y.to("nntile"))
+    loss.backward()
+    optimizer.step()
+    torch_nntile.compile_graph()
+    torch_nntile.run()
 ```
 
 ---
 
-## 8. Testing strategy
+## 11. Callsite inventory (initial)
 
-| Layer | Tests |
-|-------|-------|
-| Meta presence | `test_nntile_tensor_meta.py`: every op in minimal GPT-2 forward leaves meta.node set |
-| Views | `view` / `permute` / `as_strided` same node or view-node; graph op count |
-| GC | `probe_tensor_lifetime.py --nntile`; storage release count |
-| Compile seal | compile with `del` intermediate; assert output marks shrink |
-| Regression | existing parity tests (mm, linear, sdpa, transpose, contiguous raises) |
-| Stress | chain 20 views; lookup never misses |
-| Debug | `TORCH_NNTILE_ASSERT_META=1` in CI optional job |
+### Tensor creation
+
+| File | Site |
+|------|------|
+| `nntile_tensor_gc.cpp` | `empty_metadata_tensor`, `ensure_host_staging` |
+| `nntile_kernels.cpp` | `empty`, `empty_strided`, `reshape_alias`, `transpose_int` |
+| `nntile_executor.cpp` | all `get_or_create_data_node` / `register_data_node` |
+| `nntile_add.cpp`, `nntile_broadcast.cpp`, … | op outputs |
+
+### View / layout
+
+| File | Site |
+|------|------|
+| `nntile_kernels.cpp` | `view`, `permute`, `as_strided`, `transpose_int`, `t` |
+
+### Recorder / compile (delete or refactor)
+
+| File | Site |
+|------|------|
+| `nntile_graph_recorder.cpp` | `g_tensor_nodes`, `seal_output_marks_*`, `mark_output_producer_closure_*`, `clear_pending_graph_after_compile_*` |
 
 ---
 
-## 9. Risks and mitigations
+## 12. Testing matrix
+
+| Test | Validates |
+|------|-----------|
+| `test_graph_execution.py` | capture → compile → run |
+| `test_graph_mode_mm_view_add_ndim` | free reshape + add broadcast |
+| `test_intermediate_output_mark_cleared_when_python_ref_dropped` | refcount → `mark_output(false)` |
+| `probe_tensor_lifetime.py --nntile` | host + tile GC |
+| `test_grad_accumulation.py` | multi-backward one graph |
+| `test_transpose_materialize.py` | layout ops; backward |
+| `test_contiguous_raises_on_noncontiguous_nntile` | always contiguous |
+| New: `test_view_shares_node_ref` | same `NodeRef` pointer across views |
+| New: `test_no_contiguous_view_op_on_reshape` | op count / op names |
+
+---
+
+## 13. Risks and mitigations
 
 | Risk | Mitigation |
 |------|------------|
-| `TensorImpl` destroyed without meta cleanup | `g_live_nntile_impls` + destructor hook (§4) |
-| Double-free of `TensorNode*` | Nodes owned by graph only; meta holds raw pointer |
-| Stale `node` after recompile | `clear_pending_graph_after_compile` nulls ephemeral meta.node (same as today) |
-| `detach` / `clone` copies meta incorrectly | Explicit stubs: `detach` shares node; `clone` new node + copy op |
-| CPU tensor mixed into graph | unchanged; only `PrivateUse1` gets meta |
-| Autograd backward re-enters ATen | meta must be set in forward stub before backward runs |
-| Wheel ABI | header-only meta inline minimal; compile torch_nntile against pinned torch 2.9.1 |
+| DCE drops nodes still needed for backward without Python refs | Liveness via op graph from `is_input` + remaining `is_output` + consumers |
+| `NodeRef` to old graph after new capture starts | Rebind on `get_or_create_data_node` for live params; tile adoption |
+| `permute` breakage when stride alias removed | Phase 5; explicit materialize or CPU layout before `.to("nntile")` |
+| Autograd holds tensor invisibly to Python | Refcount includes autograd saves |
+| Tiling depends on axis lengths after free reshape | Record ops use `tensor.sizes()` at call site; node nelems invariant |
+| Cross-graph weight identity | Tile pool + bind at compile, not cross-graph `TensorNode*` identity |
 
 ---
 
-## 10. Open questions
+## 14. Success criteria
 
-1. **`detach`:** share `TensorNode*` or break graph link? (Recommend: share node,
-   same as today’s map semantics for aliasing.)
-2. **In-place ops (`add_`):** meta.node unchanged; confirm `version_counter`
-   does not invalidate node binding.
-3. **`_values` / functional tensor:** out of scope unless used on nntile.
-4. **Transpose:** materialize vs view — product decision for Phase 4.
-5. **True zero-copy tile views:** needs new `TileGraph` op, not just meta move.
-
----
-
-## 11. Task checklist
-
-| ID | Task | Deps | Est. invasiveness |
-|----|------|------|-------------------|
-| M0 | Inventory callsites + `TORCH_NNTILE_ASSERT_META` harness | — | Low |
-| M1 | `NNTileBackendMeta` + accessors | M0 | Medium |
-| M2 | Dual-write in recorder + creation paths | M1 | Medium |
-| M3 | Wire `as_strided` + `reshape_alias` meta | M2 | Low |
-| M4 | `g_live_nntile_impls` + destroy hook | M2 | Medium |
-| M5 | `seal_output_marks` from live set only | M4 | Low |
-| M6 | Remove `g_tensor_nodes` map | M5 | High |
-| M7 | Docs: README architecture § + update GC doc | M6 | Low |
-| M8 | Phase 4 layout ops (optional) | M6 | High |
-
-**Suggested PR slicing:**
-
-- PR 1: M0–M3 (meta embedded, dual-write, behavior parity)
-- PR 2: M4–M7 (GC hook, map removal, docs)
-- PR 3: M8 (layout / transpose policy)
+1. Every `device=nntile` tensor has `NodeRef` on `TensorImpl`; no `g_tensor_nodes`.
+2. `mark_output` set at node attach, cleared at last `NodeRef` release; **no**
+   seal pass at `compile_graph()`.
+3. Same-numel reshape shares `NodeRef`; no `CONTIGUOUS_VIEW` on view path.
+4. All nntile tensors contiguous; non-contiguous aliases rejected.
+5. Training documented as capture → compile → run per iteration.
+6. No graph epoch id; no tensor tier enums.
+7. Full torch_nntile test suite green (modulo known CUDA skips).
 
 ---
 
-## 12. Success criteria
+## 15. PR slicing
 
-1. `lookup_data_node(tensor)` does not consult a global `TensorImpl* → node` map.
-2. Every view-creating nntile ATen stub sets meta on the result.
-3. Graph tests and `probe_tensor_lifetime.py` match PR #425 behavior.
-4. `as_strided` no longer silent-noops graph recording.
-5. Architecture docs describe per-tensor ownership clearly.
+| PR | Phases | Description |
+|----|--------|-------------|
+| A | 0–1 | `NodeRef` + meta; dual-write |
+| B | 2–3 | Free reshape; remove compile seal |
+| C | 4 | Remove map and tier flags |
+| D | 5–6 | Layout policy + autograd refcount |
+
+---
+
+## 16. Glossary
+
+| Term | Meaning |
+|------|---------|
+| **NodeRef** | `shared_ptr` control block; refcount = live PyTorch/autograd handles for this node |
+| **Capture** | Record ATen ops into pending `g_graph` |
+| **Free reshape** | Same numel, same `NodeRef`, no graph op |
+| **Staging** | Optional host `std::vector` on `Storage` |
+| **Session** | Compiled graph + `Runtime` after `compile_graph()` |
 
 ---
 
 ## References
 
-- `torch_nntile/csrc/nntile_graph_recorder.cpp` — `MappedTensor`, `g_tensor_nodes`
-- `torch_nntile/csrc/nntile_tensor_gc.cpp` — metadata-only, storage hooks
-- `torch_nntile/csrc/nntile_kernels.cpp` — view / permute / as_strided
-- `nntile/tensor/ops/contiguous_view.hh` — graph reshape alias op
-- PyTorch `c10::BackendMeta` in `TensorImpl.h` (torch 2.9.1)
+- `torch_nntile/csrc/nntile_graph_recorder.cpp` — current recorder
+- `torch_nntile/csrc/nntile_tensor_gc.cpp` — storage hooks
+- `torch_nntile/csrc/nntile_kernels.cpp` — view/layout stubs
+- `nntile/src/runtime.cc` — `eliminate_dead_ops`
+- `nntile/tensor/ops/contiguous_view.hh` — to be removed from view path
