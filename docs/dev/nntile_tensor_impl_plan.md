@@ -181,9 +181,10 @@ that share `NodeRef` also share `S`.
 `.to("nntile")` repeatedly into the same nntile tensor; there is no “overwrite
 `S` on second `.to()`” on one handle.
 
-`S` on a given tensor is created when that tensor is born (typically at
-`.to("nntile")` for inputs, or lazily before first `.cpu()` for op outputs) and
-is then reused for **`.cpu()` readout on that same tensor** only.
+`S` is created when that tensor is born (at `.to("nntile")` for inputs) or
+**lazily** before the first `.cpu()` (for op outputs). After each `.cpu()`,
+`S` is **invalidated immediately** (see §3.6); a later `.cpu()` on the same
+tensor recreates `S` if needed.
 
 **v1 policy (always copy):** regardless of how `L` is tiled:
 
@@ -229,13 +230,18 @@ alive (`mark_output(true)` on `L`).
 
 ```text
 x_nnt.cpu()
-  1. Resolve L and S from binding (binding->logical, binding->io_staging)
+  1. Resolve L from binding; ensure S exists (create single-tile S if null)
   2. gather(L → S)   # always, even if L is single-tile
   3. acquire(S, STARPU_R) → memcpy → CPU tensor Storage → release
+  4. invalidate S immediately (Runtime::invalidate_tile_buffer / delete staging node)
+  5. binding->io_staging = nullptr
 ```
 
-`S` remains in the binding for `.cpu()` on **this** tensor (gather target).
-It is not shared across different tensors created by separate `.to()` calls.
+**`S` must be invalidated right after step 3** — do not keep the staging tile
+alive after readout. This saves StarPU memory (v1 policy).
+
+A second `.cpu()` on the **same** `x_nnt` recreates `S` at step 1. Each
+`.to("nntile")` still creates a **new** tensor with a new binding (§3.5).
 
 `L` tiles remain until last `NodeRef` released → `mark_output(false)` → later
 compile+run reclaims them.
@@ -627,14 +633,14 @@ Python ref clears `is_output` without compile seal.
 - [ ] `io_staging` member inside `NNTileBinding` only (not on `BackendMeta`).
 - [ ] `.to("nntile")`: new tensor + new binding; `acquire(W)`/`memcpy` into `S`;
       always record `scatter(S → L)` at compile; `S` → `mark_output(false)`.
-- [ ] `.cpu()`: always `gather(L → S)` on **that** tensor's binding, then
-      `acquire(R)`/`memcpy`.
+- [ ] `.cpu()`: always `gather(L → S)`; `acquire(R)`/`memcpy`/`release`; then
+      **invalidate `S` immediately** and set `binding->io_staging = nullptr`.
 - [ ] Remove host-bind paths (`copy_nntile_tensor_to_cpu` staging assumption,
       `bind_storage_to_runtime` from host ptr).
 - [ ] Tests: roundtrip with 0-byte Storage; multi-tile and single-tile `L`.
 
-**Acceptance:** v1 always copies via `S`; no host `Storage` payload; §3.7
-optimization deferred.
+**Acceptance:** v1 always copies via `S`; no host `Storage` payload; `S`
+invalidated after each `.cpu()` and after scatter at run (input path).
 
 ---
 
