@@ -33,11 +33,6 @@ void tensor_add_fp32(
     const at::Tensor &y,
     at::Tensor &out);
 
-void tensor_contiguous_fp32(
-    const at::Tensor &src,
-    at::Tensor &dst,
-    c10::IntArrayRef pytorch_shape);
-
 void tensor_model_transpose_forward_fp32(
     const at::Tensor &src,
     at::Tensor &dst,

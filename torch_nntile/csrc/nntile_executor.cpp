@@ -222,30 +222,6 @@ void tensor_add_fp32(
     maybe_execute_after_record();
 }
 
-void tensor_contiguous_fp32(
-    const at::Tensor &src,
-    at::Tensor &dst,
-    c10::IntArrayRef pytorch_shape)
-{
-    const std::vector<nntile::Index> graph_shape =
-        pytorch_shape_to_graph(pytorch_shape);
-
-    auto *src_node = get_or_create_data_node(
-        src,
-        graph_shape,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(src));
-    auto *dst_node = get_or_create_data_node(
-        dst,
-        graph_shape,
-        nntile::DataType::FP32,
-        false);
-
-    nntile::tensor::copy(src_node, dst_node);
-    register_data_node(dst, dst_node);
-    maybe_execute_after_record();
-}
-
 void tensor_model_transpose_forward_fp32(
     const at::Tensor &src,
     at::Tensor &dst,
@@ -715,9 +691,11 @@ void tensor_linear_backward_input_fp32(
     const PreparedGemmOperands forward = prepare_linear_operands(grad_input, weight);
     const GemmParams params = infer_linear_backward_grad_input_params(forward.params);
     const GemmMatrixLayout grad_out_layout = analyze_matrix_layout_for_nntile(grad_out);
-    at::Tensor grad_out_prepared = grad_out_layout.needs_copy
-        ? grad_out.contiguous()
-        : grad_out;
+    TORCH_CHECK(
+        !grad_out_layout.needs_copy,
+        "nntile linear_backward_input: grad_out must be contiguous or "
+        "row/column-contiguous");
+    const at::Tensor &grad_out_prepared = grad_out;
     tensor_gemm_fp32(
         params,
         grad_out_prepared,
@@ -736,12 +714,15 @@ void tensor_linear_backward_weight_fp32(
     const PreparedGemmOperands forward = prepare_linear_operands(input, grad_weight);
     const GemmParams params = infer_linear_backward_grad_weight_params(forward.params);
     const GemmMatrixLayout grad_out_layout = analyze_matrix_layout_for_nntile(grad_out);
-    at::Tensor grad_out_prepared = grad_out_layout.needs_copy
-        ? grad_out.contiguous()
-        : grad_out;
-    at::Tensor input_prepared = forward.a.is_contiguous()
-        ? forward.a
-        : forward.a.contiguous();
+    TORCH_CHECK(
+        !grad_out_layout.needs_copy,
+        "nntile linear_backward_weight: grad_out must be contiguous or "
+        "row/column-contiguous");
+    TORCH_CHECK(
+        forward.a.is_contiguous(),
+        "nntile linear_backward_weight: input must be contiguous");
+    const at::Tensor &grad_out_prepared = grad_out;
+    const at::Tensor &input_prepared = forward.a;
     tensor_gemm_fp32(
         params,
         grad_out_prepared,
@@ -2883,14 +2864,6 @@ void tensor_add_fp32(
     at::Tensor & /*out*/)
 {
     require_libnntile("add");
-}
-
-void tensor_contiguous_fp32(
-    const at::Tensor & /*src*/,
-    at::Tensor & /*dst*/,
-    c10::IntArrayRef /*pytorch_shape*/)
-{
-    require_libnntile("contiguous");
 }
 
 void tensor_model_transpose_forward_fp32(

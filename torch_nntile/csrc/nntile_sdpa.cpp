@@ -88,7 +88,10 @@ at::Tensor mask_to_uint8_nntile(const at::Tensor &mask)
 {
     if (mask.scalar_type() == at::ScalarType::Byte)
     {
-        return mask.contiguous();
+        TORCH_CHECK(
+            mask.is_contiguous(),
+            "nntile sdpa: mask must be contiguous");
+        return mask;
     }
     TORCH_CHECK(
         mask.scalar_type() == at::ScalarType::Bool,

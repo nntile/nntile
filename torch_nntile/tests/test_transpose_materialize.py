@@ -78,13 +78,13 @@ def test_gpt2_key_transpose_for_attn_weights_parity():
 
 
 def test_gpt2_attn_output_transpose_reshape_parity():
-    """GPT-2: attn_output.transpose(1, 2).reshape(batch, seq, -1).contiguous()."""
+    """GPT-2: attn_output.transpose(1, 2).reshape(batch, seq, -1) (no contiguous)."""
     torch.manual_seed(12)
     batch, seq, n_heads, head_dim = 2, 8, 4, 16
     attn_cpu = torch.randn(batch, n_heads, seq, head_dim)
     attn_nnt = attn_cpu.to("nntile")
     out_cpu = attn_cpu.transpose(1, 2).reshape(batch, seq, -1).contiguous()
-    out_nnt = nntile_cpu(attn_nnt.transpose(1, 2).reshape(batch, seq, -1).contiguous())
+    out_nnt = nntile_cpu(attn_nnt.transpose(1, 2).reshape(batch, seq, -1))
     torch.testing.assert_close(out_nnt, out_cpu, rtol=1e-5, atol=1e-5)
 
 
@@ -110,7 +110,7 @@ def test_llama_key_transpose_for_attn_weights_parity():
     torch.testing.assert_close(k_t_nnt, k_t_cpu, rtol=1e-5, atol=1e-5)
 
 
-def test_view_transpose_contiguous_sequence_parity():
+def test_view_transpose_reshape_sequence_parity():
     torch.manual_seed(15)
     batch, seq, n_heads, head_dim = 2, 8, 4, 16
     hidden = n_heads * head_dim
@@ -128,18 +128,24 @@ def test_view_transpose_contiguous_sequence_parity():
         .transpose(1, 2)
         .transpose(1, 2)
         .reshape(batch, seq, hidden)
-        .contiguous()
     )
     torch.testing.assert_close(y_nnt, y_cpu, rtol=1e-5, atol=1e-5)
 
 
-def test_transpose_then_contiguous_is_noop_when_materialized():
+def test_contiguous_noop_when_already_contiguous():
     torch.manual_seed(16)
     x_cpu = torch.randn(2, 8, 4, 16)
     x_nnt = x_cpu.to("nntile")
     y_cpu = x_cpu.transpose(1, 2).contiguous()
     y_nnt = nntile_cpu(x_nnt.transpose(1, 2).contiguous())
     torch.testing.assert_close(y_nnt, y_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_contiguous_raises_on_noncontiguous_nntile():
+    torch.manual_seed(17)
+    x_nnt = torch.randn(2, 8, 4, 16).to("nntile").permute(0, 2, 1, 3)
+    with pytest.raises(RuntimeError, match="contiguous is not supported"):
+        x_nnt.contiguous()
 
 
 @pytest.mark.skipif(

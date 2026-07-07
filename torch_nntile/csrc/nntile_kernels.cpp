@@ -74,51 +74,6 @@ void memcpy_tensors(const at::Tensor &src, at::Tensor &dst)
         nbytes);
 }
 
-void copy_strided_to_contiguous_f32(
-    const float *src,
-    float *dst,
-    at::IntArrayRef sizes,
-    at::IntArrayRef strides)
-{
-    const int64_t ndim = sizes.size();
-    if (ndim == 0)
-    {
-        return;
-    }
-    std::vector<int64_t> coord(static_cast<size_t>(ndim), 0);
-    int64_t dst_index = 0;
-    const int64_t numel = std::accumulate(
-        sizes.begin(),
-        sizes.end(),
-        int64_t{1},
-        std::multiplies<int64_t>());
-    while (dst_index < numel)
-    {
-        int64_t src_index = 0;
-        for (int64_t d = 0; d < ndim; ++d)
-        {
-            src_index += coord[static_cast<size_t>(d)]
-                * strides[static_cast<size_t>(d)];
-        }
-        dst[dst_index++] = src[src_index];
-        int64_t dim = ndim - 1;
-        while (dim >= 0)
-        {
-            coord[static_cast<size_t>(dim)]++;
-            if (coord[static_cast<size_t>(dim)] < sizes[dim])
-            {
-                break;
-            }
-            coord[static_cast<size_t>(dim)] = 0;
-            --dim;
-        }
-        if (dim < 0)
-        {
-            break;
-        }
-    }
-}
-
 at::Scalar tensor_to_scalar(const at::Tensor &self)
 {
     if (self.scalar_type() == at::ScalarType::Float)
@@ -634,46 +589,11 @@ at::Tensor contiguous(
     {
         return self;
     }
-    at::Tensor result = at::empty(
-        self.sizes(),
-        self.options().memory_format(memory_format));
     TORCH_CHECK(
-        self.scalar_type() == at::ScalarType::Float,
-        "nntile contiguous supports float32 only");
-    const int64_t numel = self.numel();
-    if (numel == 0)
-    {
-        return result;
-    }
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(result, true);
-    const int64_t needed_bytes =
-        numel * static_cast<int64_t>(sizeof(float));
-    if (static_cast<int64_t>(self.storage().nbytes()) >= needed_bytes)
-    {
-        at::Tensor self_staged = self;
-        ensure_host_staging(self_staged);
-        ensure_host_staging(result);
-        copy_strided_to_contiguous_f32(
-            self_staged.data_ptr<float>(),
-            result.data_ptr<float>(),
-            self.sizes(),
-            self.strides());
-        return result;
-    }
-    tensor_contiguous_fp32(self, result, self.sizes());
-    return result;
-#else
-    const float *src = self.data_ptr<float>();
-    float *dst = result.data_ptr<float>();
-    copy_strided_to_contiguous_f32(
-        src,
-        dst,
-        self.sizes(),
-        self.strides());
-    return result;
-#endif
+        false,
+        "aten::contiguous is not supported on device=nntile; ensure tensors are "
+        "contiguous before .to('nntile') or use graph layout ops "
+        "(transpose, model_transpose, repeat, view)");
 }
 
 at::Tensor contiguous_autograd(

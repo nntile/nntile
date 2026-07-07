@@ -106,7 +106,9 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 **HuggingFace compatibility (v1):** Standard eager HF modules can use ordinary
 PyTorch tensor ops on `device="nntile"` when the forward path sticks to
 supported ATen ops — notably `view`, materialized `transpose(dim0, dim1)` /
-`.t()`, `contiguous`, and `matmul`. `aten::transpose.int` maps to
+`.t()`, and `matmul`. `Tensor.contiguous()` is **not** supported on
+`device=nntile`; ensure layout on CPU before `.to("nntile")` or use graph layout
+ops (`repeat`, `model_transpose`, `view`). `aten::transpose.int` maps to
 `tensor::swap_two_axes` (2-axis swap, not a stride alias). `aten::permute`
 stays view-only in v1. Cyclic `model_transpose` remains a separate custom API
 for NNTile-layout SDPA.
@@ -117,7 +119,7 @@ for NNTile-layout SDPA.
 | `torch.cat` | `tensor::concat` |
 | `torch.cat` backward | `tensor::copy_intersection` (via `aten::narrow`) |
 | `tensor.transpose` / `Tensor.t()` | `tensor::swap_two_axes` (2-axis swap; HF attention layouts) |
-| `tensor.contiguous` | `tensor::copy` (materialize strided tensors) |
+| `tensor.contiguous` | **unsupported** (check-only policy; noop when already contiguous) |
 | `torch.split` / `torch.chunk` | `tensor::copy_intersection` |
 | `torch.split` backward | `tensor::concat` (PyTorch `SplitWithSizesBackward`) |
 | `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |

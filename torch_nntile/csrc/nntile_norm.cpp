@@ -96,7 +96,7 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
     at::Tensor *out)
 {
     check_norm_input(input, "input");
-    at::Tensor x = input.contiguous();
+    const at::Tensor &x = input;
 
     if (!dim.has_value())
     {
@@ -142,23 +142,21 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
             TORCH_CHECK(
                 out->is_contiguous(),
                 "nntile norm: output tensor must be contiguous");
-            pin_graph_op_inputs({norm_values});
-            pin_graph_op_output(*out, true);
-            tensor_contiguous_fp32(
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+            nntile::TensorGraph::TensorNode *node = lookup_data_node(
                 norm_values,
-                *out,
-                c10::IntArrayRef{});
+                {});
+            TORCH_CHECK(
+                node != nullptr,
+                "nntile norm: scalar norm output node is missing");
+            register_data_node(*out, node);
+#else
+            TORCH_CHECK(false, "nntile norm requires libnntile");
+#endif
             return {*out, norm_values};
         }
 
-        at::Tensor output = at::empty({}, x.options());
-        pin_graph_op_inputs({norm_values});
-        pin_graph_op_output(output, true);
-        tensor_contiguous_fp32(
-            norm_values,
-            output,
-            c10::IntArrayRef{});
-        return {output, norm_values};
+        return {norm_values, norm_values};
     }
 
     const int64_t axis = normalize_dim(*dim, x.dim());
@@ -218,7 +216,7 @@ at::Tensor norm_backward(
     check_norm_input(grad_out, "grad_out");
     check_norm_input(input, "input");
     check_norm_input(norm_values, "norm_values");
-    at::Tensor x = input.contiguous();
+    const at::Tensor &x = input;
 
     at::Tensor grad_out_reduced = grad_out;
     if (dim.has_value() && keepdim)

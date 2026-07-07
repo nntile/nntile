@@ -36,20 +36,11 @@ def test_mm_backward_parity():
     torch.testing.assert_close(nntile_cpu(b_nnt.grad), b_cpu.grad, rtol=1e-5, atol=1e-5)
 
 
-@pytest.mark.skip(
-    reason="Permute+contiguous on nntile defers allocation until execute; "
-    "needs graph materialization fix",
-)
-def test_contiguous_permute_matmul():
+def test_contiguous_permute_matmul_raises():
     torch.manual_seed(4)
-    x_cpu = torch.randn(2, 3, 4)
-    w_cpu = torch.randn(3, 5)
-    x_nnt = x_cpu.to("nntile")
-    w_nnt = w_cpu.to("nntile")
-    out_cpu = torch.matmul(x_cpu.permute(0, 2, 1).contiguous(), w_cpu)
-    x_perm_nnt = x_nnt.detach().permute(0, 2, 1).contiguous()
-    out_nnt = nntile_cpu(torch.matmul(x_perm_nnt, w_nnt))
-    torch.testing.assert_close(out_nnt, out_cpu, rtol=1e-5, atol=1e-5)
+    x_nnt = torch.randn(2, 3, 4).to("nntile").permute(0, 2, 1)
+    with pytest.raises(RuntimeError, match="contiguous is not supported"):
+        x_nnt.contiguous()
 
 
 @pytest.mark.skip(
@@ -69,7 +60,7 @@ def test_linear_transpose_weight_backward_parity():
     out_nnt.backward(grad_out.to("nntile"))
     torch.testing.assert_close(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-5, atol=1e-5)
     torch.testing.assert_close(
-        nntile_cpu(w_nnt.grad.contiguous()),
+        nntile_cpu(w_nnt.grad).contiguous(),
         w_cpu.grad,
         rtol=1e-5,
         atol=1e-5,

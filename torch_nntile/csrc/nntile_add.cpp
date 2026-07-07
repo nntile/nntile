@@ -102,7 +102,10 @@ at::Tensor broadcast_to_shape(
         {
             if (tensor.sizes().equals(target_size))
             {
-                return tensor.contiguous();
+                TORCH_CHECK(
+                    tensor.is_contiguous(),
+                    "nntile broadcast: tensor must be contiguous");
+                return tensor;
             }
             const int64_t target_ndim =
                 static_cast<int64_t>(target_size.size());

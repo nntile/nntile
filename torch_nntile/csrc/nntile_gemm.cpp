@@ -98,9 +98,10 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
     const PreparedGemmOperands forward =
         prepare_gemm_operands(a, b, ndim, batch_ndim);
     const GemmMatrixLayout grad_out_layout = layout_from_nd_contiguous(grad_out);
-    at::Tensor grad_out_prepared = grad_out_layout.needs_copy
-        ? grad_out.contiguous()
-        : grad_out;
+    TORCH_CHECK(
+        !grad_out_layout.needs_copy,
+        "nntile gemm_backward: grad_out must be contiguous");
+    const at::Tensor &grad_out_prepared = grad_out;
 
     at::Tensor grad_a;
     at::Tensor grad_b;

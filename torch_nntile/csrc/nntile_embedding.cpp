@@ -103,7 +103,10 @@ void check_embedding_backward_inputs(
 
 at::Tensor prepare_indices(const at::Tensor &indices)
 {
-    return indices.is_contiguous() ? indices : indices.contiguous();
+    TORCH_CHECK(
+        indices.is_contiguous(),
+        "nntile embedding: indices must be contiguous");
+    return indices;
 }
 
 std::vector<int64_t> embedding_output_shape(

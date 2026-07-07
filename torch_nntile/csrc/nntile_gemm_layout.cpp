@@ -26,15 +26,17 @@ std::vector<int64_t> sizes_to_vector(c10::IntArrayRef sizes)
     return std::vector<int64_t>(sizes.begin(), sizes.end());
 }
 
-at::Tensor maybe_contiguous(
+void require_gemm_layout(
     const at::Tensor &tensor,
-    const GemmMatrixLayout &layout)
+    const GemmMatrixLayout &layout,
+    const char *name)
 {
-    if (layout.needs_copy)
-    {
-        return tensor.contiguous();
-    }
-    return tensor;
+    TORCH_CHECK(
+        !layout.needs_copy,
+        "nntile gemm: ",
+        name,
+        " must be contiguous or row/column-contiguous");
+    (void)tensor;
 }
 
 GemmMatrixLayout layout_from_prepared_2d(const at::Tensor &tensor)
@@ -215,16 +217,10 @@ PreparedGemmOperands prepare_mm_operands(const at::Tensor &a, const at::Tensor &
     GemmMatrixLayout b_layout = analyze_matrix_layout_for_nntile(b);
 
     PreparedGemmOperands prepared;
-    prepared.a = maybe_contiguous(a, a_layout);
-    prepared.b = maybe_contiguous(b, b_layout);
-    if (a_layout.needs_copy)
-    {
-        a_layout = layout_from_prepared_2d(prepared.a);
-    }
-    if (b_layout.needs_copy)
-    {
-        b_layout = layout_from_prepared_2d(prepared.b);
-    }
+    require_gemm_layout(a, a_layout, "operand a");
+    require_gemm_layout(b, b_layout, "operand b");
+    prepared.a = a;
+    prepared.b = b;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;
@@ -245,16 +241,10 @@ PreparedGemmOperands prepare_bmm_operands(const at::Tensor &a, const at::Tensor 
     GemmMatrixLayout b_layout = analyze_batched_gemm_operand_layout(b);
 
     PreparedGemmOperands prepared;
-    prepared.a = maybe_contiguous(a, a_layout);
-    prepared.b = maybe_contiguous(b, b_layout);
-    if (a_layout.needs_copy)
-    {
-        a_layout = layout_from_prepared_batched(prepared.a);
-    }
-    if (b_layout.needs_copy)
-    {
-        b_layout = layout_from_prepared_batched(prepared.b);
-    }
+    require_gemm_layout(a, a_layout, "operand a");
+    require_gemm_layout(b, b_layout, "operand b");
+    prepared.a = a;
+    prepared.b = b;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;
@@ -320,16 +310,10 @@ PreparedGemmOperands prepare_gemm_operands(
     GemmMatrixLayout b_layout = layout_from_nd_contiguous(b);
 
     PreparedGemmOperands prepared;
-    prepared.a = maybe_contiguous(a, a_layout);
-    prepared.b = maybe_contiguous(b, b_layout);
-    if (a_layout.needs_copy)
-    {
-        a_layout = layout_from_nd_contiguous(prepared.a);
-    }
-    if (b_layout.needs_copy)
-    {
-        b_layout = layout_from_nd_contiguous(prepared.b);
-    }
+    require_gemm_layout(a, a_layout, "operand a");
+    require_gemm_layout(b, b_layout, "operand b");
+    prepared.a = a;
+    prepared.b = b;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;
@@ -381,24 +365,10 @@ PreparedGemmOperands prepare_linear_operands(
     GemmMatrixLayout weight_layout = analyze_matrix_layout_for_nntile(weight);
 
     PreparedGemmOperands prepared;
-    prepared.a = maybe_contiguous(input, input_layout);
-    prepared.b = maybe_contiguous(weight, weight_layout);
-    if (input_layout.needs_copy)
-    {
-        if (prepared.a.dim() == 1)
-        {
-            input_layout.gemm_shape = {1, prepared.a.size(0)};
-        }
-        else
-        {
-            input_layout.gemm_shape = sizes_to_vector(prepared.a.sizes());
-        }
-        input_layout.needs_copy = false;
-    }
-    if (weight_layout.needs_copy)
-    {
-        weight_layout = layout_from_prepared_2d(prepared.b);
-    }
+    require_gemm_layout(input, input_layout, "input");
+    require_gemm_layout(weight, weight_layout, "weight");
+    prepared.a = input;
+    prepared.b = weight;
 
     prepared.a_gemm_shape = input_layout.gemm_shape;
     prepared.b_gemm_shape = weight_layout.gemm_shape;

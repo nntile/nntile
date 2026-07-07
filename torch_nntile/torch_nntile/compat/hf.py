@@ -106,7 +106,7 @@ def patch_gpt2_cache_position() -> None:
                 and out.shape[0] == 1
                 and batch_size > 1
             ):
-                return out.expand(batch_size, -1, -1).contiguous()
+                return out.repeat(batch_size, 1, 1)
             return out
 
         self.wpe.forward = _wpe_forward  # type: ignore[method-assign]

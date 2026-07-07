@@ -57,12 +57,7 @@ class NntileConv1D(nn.Module):
         x2d = x.reshape(-1, x.size(-1))
         out = torch.mm(x2d, self.weight.t())
         if self.bias is not None:
-            bias_bc = (
-                self.bias.view(1, -1)
-                .expand(x2d.size(0), -1)
-                .contiguous()
-            )
-            out = out + bias_bc
+            out = out + self.bias
         return out.view(size_out)
 
 
@@ -193,8 +188,7 @@ class GPT2Model(nn.Module):
             position_ids = (
                 torch.arange(seq, dtype=torch.long, device="cpu")
                 .unsqueeze(0)
-                .expand(input_ids.size(0), -1)
-                .contiguous()
+                .repeat(input_ids.size(0), 1)
                 .to(input_ids.device)
             )
 

@@ -72,7 +72,8 @@ bool buffer_equal_cpu(const at::Tensor &nntile_tensor, const at::Tensor &cpu_ten
         "buffer_equal_cpu expects nntile tensor as first argument");
     TORCH_CHECK(cpu_tensor.is_cpu(), "buffer_equal_cpu expects CPU tensor");
     // Host read: graph mode requires execute() before nntile -> CPU copy.
-    at::Tensor lhs = nntile_tensor.contiguous().cpu();
+    TORCH_CHECK(nntile_tensor.is_contiguous(), "buffer_equal_cpu: nntile tensor must be contiguous");
+    at::Tensor lhs = nntile_tensor.cpu();
     at::Tensor rhs = cpu_tensor.contiguous();
     return lhs.equal(rhs);
 }

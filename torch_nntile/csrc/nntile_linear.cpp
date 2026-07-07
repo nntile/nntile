@@ -167,12 +167,16 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             infer_linear_backward_grad_input_params(forward.params);
 
         const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
-        at::Tensor grad_out_prepared = grad_out_layout.needs_copy
-            ? grad_output.contiguous()
-            : grad_output;
-        at::Tensor weight_prepared = weight_layout.needs_copy
-            ? weight.contiguous()
-            : forward.b;
+        TORCH_CHECK(
+            !grad_out_layout.needs_copy,
+            "nntile linear_backward: grad_output must be contiguous or "
+            "row/column-contiguous");
+        TORCH_CHECK(
+            !weight_layout.needs_copy,
+            "nntile linear_backward: weight must be contiguous or "
+            "row/column-contiguous");
+        const at::Tensor &grad_out_prepared = grad_output;
+        const at::Tensor &weight_prepared = forward.b;
 
         grad_input = at::empty_like(input);
         pin_graph_op_inputs({grad_out_prepared, weight_prepared});
@@ -200,12 +204,15 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
     if (output_mask[1])
     {
         const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
-        at::Tensor grad_out_prepared = grad_out_layout.needs_copy
-            ? grad_output.contiguous()
-            : grad_output;
-        at::Tensor input_prepared = forward.a.is_contiguous()
-            ? forward.a
-            : forward.a.contiguous();
+        TORCH_CHECK(
+            !grad_out_layout.needs_copy,
+            "nntile linear_backward: grad_output must be contiguous or "
+            "row/column-contiguous");
+        TORCH_CHECK(
+            forward.a.is_contiguous(),
+            "nntile linear_backward: input must be contiguous");
+        const at::Tensor &grad_out_prepared = grad_output;
+        const at::Tensor &input_prepared = forward.a;
 
         grad_weight = at::empty_like(weight);
         pin_graph_op_output(grad_weight, true);
