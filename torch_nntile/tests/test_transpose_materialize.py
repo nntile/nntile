@@ -41,17 +41,20 @@ def test_transpose_last_two_axes_parity():
     torch.testing.assert_close(y_nnt, y_cpu, rtol=1e-5, atol=1e-5)
 
 
-@pytest.mark.skip(reason="transpose backward segfaults in graph execute")
 def test_transpose_backward_parity():
     torch.manual_seed(9)
     x_cpu = torch.randn(2, 8, 4, 16, requires_grad=True)
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_cpu = x_cpu.transpose(1, 2)
     grad = torch.randn_like(y_cpu)
-    y_cpu.backward(grad)
+    gx_cpu, = torch.autograd.grad(y_cpu, x_cpu, grad_outputs=grad)
     y_nnt = x_nnt.transpose(1, 2)
-    y_nnt.backward(grad.contiguous().to("nntile"))
-    torch.testing.assert_close(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-5, atol=1e-5)
+    gx_nnt, = torch.autograd.grad(
+        y_nnt,
+        x_nnt,
+        grad_outputs=grad.contiguous().to("nntile"),
+    )
+    torch.testing.assert_close(nntile_cpu(gx_nnt), gx_cpu, rtol=1e-5, atol=1e-5)
 
 
 def test_gpt2_view_transpose_head_layout_parity():
