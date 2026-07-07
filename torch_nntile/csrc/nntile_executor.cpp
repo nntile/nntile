@@ -10,6 +10,7 @@
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
+#include "nntile_tensor_meta.h"
 
 #include <ATen/Tensor.h>
 #include <c10/util/Exception.h>
@@ -116,8 +117,16 @@ const std::int64_t *labels_host_ptr(
 {
     if (is_metadata_only_tensor(labels))
     {
+        std::size_t cached_count = 0;
+        if (const std::int64_t *cached =
+                label_host_cache_ptr(labels, &cached_count);
+            cached != nullptr && cached_count > 0)
+        {
+            host_storage.assign(cached, cached + cached_count);
+            return host_storage.data();
+        }
         host_storage.resize(static_cast<std::size_t>(labels.numel()));
-        if (read_nntile_staging_to_host(
+        if (read_nntile_logical_to_host(
                 labels,
                 host_storage.data()))
         {
@@ -1103,8 +1112,11 @@ void tensor_sgd_step_fp32(
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(grad.sizes());
 
-    nntile::TensorGraph::TensorNode *grad_node =
-        lookup_param_grad_node(param);
+    nntile::TensorGraph::TensorNode *grad_node = nntile_node(grad);
+    if (grad_node == nullptr)
+    {
+        grad_node = lookup_param_grad_node(param);
+    }
     if (grad_node == nullptr)
     {
         grad_node = lookup_data_node(grad, graph_shape);

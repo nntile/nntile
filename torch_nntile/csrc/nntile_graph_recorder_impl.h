@@ -43,6 +43,12 @@ void mark_persistent_graph_tensor(const at::Tensor &tensor);
 
 bool read_nntile_staging_to_host(const at::Tensor &tensor, void *host_ptr);
 
+bool read_nntile_logical_to_host(const at::Tensor &tensor, void *host_ptr);
+
+const std::int64_t *label_host_cache_ptr(
+    const at::Tensor &tensor,
+    std::size_t *out_count);
+
 void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst);
