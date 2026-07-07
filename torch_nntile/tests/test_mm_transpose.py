@@ -38,9 +38,9 @@ def test_mm_backward_parity():
 
 def test_contiguous_permute_matmul_raises():
     torch.manual_seed(4)
-    x_nnt = torch.randn(2, 3, 4).to("nntile").permute(0, 2, 1)
-    with pytest.raises(RuntimeError, match="contiguous is not supported"):
-        x_nnt.contiguous()
+    x_nnt = torch.randn(2, 3, 4).to("nntile")
+    with pytest.raises(RuntimeError, match="permute: non-contiguous"):
+        x_nnt.permute(0, 2, 1)
 
 
 @pytest.mark.skip(

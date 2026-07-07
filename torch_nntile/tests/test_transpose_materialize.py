@@ -146,9 +146,9 @@ def test_contiguous_noop_when_already_contiguous():
 
 def test_contiguous_raises_on_noncontiguous_nntile():
     torch.manual_seed(17)
-    x_nnt = torch.randn(2, 8, 4, 16).to("nntile").permute(0, 2, 1, 3)
-    with pytest.raises(RuntimeError, match="contiguous is not supported"):
-        x_nnt.contiguous()
+    x_nnt = torch.randn(2, 8, 4, 16).to("nntile")
+    with pytest.raises(RuntimeError, match="permute: non-contiguous"):
+        x_nnt.permute(0, 2, 1, 3)
 
 
 @pytest.mark.skipif(

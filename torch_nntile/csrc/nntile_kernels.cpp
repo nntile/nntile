@@ -10,6 +10,7 @@
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
+#include "nntile_tensor_meta.h"
 
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
@@ -306,6 +307,12 @@ at::Tensor as_strided(
     auto *result_impl = result.unsafeGetTensorImpl();
     result_impl->set_storage_offset(storage_offset_value);
     result_impl->set_sizes_and_strides(size, stride);
+    TORCH_CHECK(
+        result.is_contiguous(),
+        "as_strided: non-contiguous layout is not supported on nntile");
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    record_view_alias(self, result);
+#endif
     return result;
 }
 
@@ -571,6 +578,10 @@ at::Tensor permute(const at::Tensor &self, at::IntArrayRef dims)
         self,
         c10::IntArrayRef(sizes),
         c10::IntArrayRef(strides));
+    TORCH_CHECK(
+        result.is_contiguous(),
+        "permute: non-contiguous layout is not supported on nntile; "
+        "use transpose for axis swaps");
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
     record_view_alias(self, result);
 #endif
