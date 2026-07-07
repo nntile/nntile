@@ -21,7 +21,7 @@ A `device=nntile` tensor is **one kind of object**:
 > compute state is a `TensorGraph::TensorNode*` (tiles in StarPU after
 > compile+run), held via refcounted `NodeRef` on the `TensorImpl`. **No host
 > payload on `Storage`** (always 0-byte metadata). Data enters and leaves via
-> single-tile StarPU staging nodes + gather/scatter (§3.4–3.6).
+> bound single-tile `io_staging` + gather/scatter (§3.4–3.7).
 
 **Core rules**
 
@@ -107,10 +107,11 @@ flowchart TD
 // torch_nntile/csrc/nntile_tensor_meta.h (new)
 
 struct NodeRefControlBlock {
-    nntile::TensorGraph::TensorNode *node = nullptr;
+    nntile::TensorGraph::TensorNode *logical = nullptr;     // L
+    nntile::TensorGraph::TensorNode *io_staging = nullptr;  // S
 
-    explicit NodeRefControlBlock(nntile::TensorGraph::TensorNode *n);
-    ~NodeRefControlBlock();  // if last ref: node->mark_output(false)
+    explicit NodeRefControlBlock(nntile::TensorGraph::TensorNode *logical);
+    ~NodeRefControlBlock();  // last ref: logical->mark_output(false)
 
     NodeRefControlBlock(const NodeRefControlBlock &) = delete;
     NodeRefControlBlock &operator=(const NodeRefControlBlock &) = delete;
@@ -119,18 +120,13 @@ struct NodeRefControlBlock {
 using NodeRef = std::shared_ptr<NodeRefControlBlock>;
 
 struct NNTileBackendMeta final : c10::BackendMeta {
-    //! Logical tiled node L — used by recorded graph ops (via NodeRef).
-    NodeRef node_ref;
-    //! Bound single-tile I/O staging node S — PyTorch↔StarPU transfers.
-    //! Created once per nntile tensor; reused across .to() / .cpu() calls.
-    //! NOT wrapped in NodeRef; mark_output(false) when scatter consumes it.
-    nntile::TensorGraph::TensorNode *io_staging = nullptr;
+  NodeRef binding;  // { L, S } — one binding per at::Tensor
 };
 
 // Accessors
-NodeRef nntile_node_ref(const at::Tensor &);
+NodeRef nntile_binding(const at::Tensor &);
 nntile::TensorGraph::TensorNode *nntile_node(const at::Tensor &);
-void attach_node_ref(at::Tensor &, NodeRef);
+void attach_binding(at::Tensor &, NodeRef);
 ```
 
 **No graph epoch id.** `TensorNode*` is valid while the owning `TensorGraph`
@@ -161,18 +157,27 @@ state.
 
 ### 3.4 Bound single-tile I/O node (`io_staging`)
 
-Extend the internal `device=nntile` representation with a **persistent bound
-single-tile `TensorNode* S`** (`io_staging` on `NNTileBackendMeta`), dedicated
-to PyTorch↔NNTile data transfer. It is **not** a separate PyTorch tensor and
-**not** wrapped in `NodeRef`.
+Each `device=nntile` `at::Tensor` has a **`NodeRef` binding** (`shared_ptr` to
+`{ L, S }`):
 
-| Node | Field | PyTorch link | Role |
-|------|-------|--------------|------|
-| `L` | `node_ref` | `at::Tensor` via `NodeRef` | Logical (possibly tiled) graph node |
-| `S` | `io_staging` | None (internal) | Single-tile StarPU buffer for I/O |
+| Node | Member | Role |
+|------|--------|------|
+| `L` | `binding->logical` | Logical (possibly tiled) graph node; `mark_output(true)` via `NodeRef` |
+| `S` | `binding->io_staging` | Single-tile StarPU buffer for PyTorch I/O; `mark_output(false)` |
 
-**v1 policy (always copy):** regardless of how `L` is tiled, always route I/O
-through `S` plus an explicit graph op:
+`S` is **not** a separate PyTorch tensor. It lives inside the binding so views
+that share `NodeRef` also share `S`.
+
+**One binding per `at::Tensor` object.** Each `x.to("nntile")` creates a **new**
+`at::Tensor` → new `NodeRef` → new `L` and new `S`. You do **not** call
+`.to("nntile")` repeatedly into the same nntile tensor; there is no “overwrite
+`S` on second `.to()`” on one handle.
+
+`S` on a given tensor is created when that tensor is born (typically at
+`.to("nntile")` for inputs, or lazily before first `.cpu()` for op outputs) and
+is then reused for **`.cpu()` readout on that same tensor** only.
+
+**v1 policy (always copy):** regardless of how `L` is tiled:
 
 | Direction | Steps |
 |-----------|--------|
@@ -182,21 +187,19 @@ through `S` plus an explicit graph op:
 This may copy redundantly when `L` is already single-tile; that is accepted
 for v1 simplicity (see §3.7 for the future shortcut).
 
-**Repeated `.to("nntile")`:** reuse the same `S` for that `at::Tensor`; each
-call overwrites `S`'s StarPU buffer (no new staging node per transfer).
-
 ### 3.5 Input: `x_nnt = x.to("nntile")`
 
-When copying a **CPU** tensor `x` to nntile:
+Each `.to("nntile")` allocates a **new** nntile `at::Tensor` `x_nnt` with a
+**new** binding `{ L, S }`. Copying a batch each step is `x_nnt =
+x_cpu.to("nntile")` again — new handles, not refreshing an old one.
 
 ```text
-1. Ensure logical TensorNode* L exists in pending graph; attach NodeRef(L) to x_nnt
-   → mark_output(true) on L
-2. Ensure bound io_staging* S exists on x_nnt meta (create once if null)
-   → single-tile; mark_output(false) on S (see below)
-3. acquire(S, STARPU_W) → memcpy from x CPU storage → release
-4. At compile_graph(): prepend scatter(S → L) — ALWAYS (v1), even if L is single-tile
-5. run() executes scatter; L holds authoritative tiled data for ops
+1. Create new at::Tensor x_nnt (0-byte Storage) and new binding { L, S }
+2. Create logical TensorNode* L in pending graph; attach NodeRef → mark_output(true) on L
+3. Create single-tile io_staging* S in binding; mark_output(false) on S
+4. acquire(S, STARPU_W) → memcpy from x CPU storage → release
+5. At compile_graph(): prepend scatter(S → L) — ALWAYS (v1)
+6. run() executes scatter; L holds authoritative tiled data for ops
 ```
 
 **`mark_output` on `S`:** because v1 always records `scatter(S → L)`, `S` is
@@ -204,11 +207,8 @@ consumed and its StarPU buffer is **invalidated** during `compile+run`. Therefor
 `S` must **`mark_output(false)`** — it must not be treated as a user-retained
 output. Only `L` carries the live `NodeRef` output mark.
 
-**Multiple `.to("nntile")` on the same `x_nnt`:** overwrite the same `S` buffer;
-refresh `scatter(S → L)` on the next compile (or update recorded scatter if the
-pending graph is still open).
-
-Weights / params loaded via `.to("nntile")` use the same path.
+Weights / params: `param = p.to("nntile")` once — that `nn.Parameter` keeps
+the same binding for later iterations (no second `.to()` on the same object).
 
 **No** `ensure_host_staging`, **no** host `Storage` on `x_nnt`.
 
@@ -226,9 +226,8 @@ x_nnt.cpu()
   3. acquire(S, STARPU_R) → memcpy → CPU tensor Storage → release
 ```
 
-`S` is **not** invalidated after `.cpu()` readout in v1 — it remains bound on
-the tensor for the next `.to("nntile")` overwrite. (Gather fills `S` from `L`;
-no ephemeral node.)
+`S` remains in the binding for `.cpu()` on **this** tensor (gather target).
+It is not shared across different tensors created by separate `.to()` calls.
 
 `L` tiles remain until last `NodeRef` released → `mark_output(false)` → later
 compile+run reclaims them.
@@ -613,12 +612,11 @@ Python ref clears `is_output` without compile seal.
 
 ### Phase 7 — Bound `io_staging` + symmetric I/O (v1 always scatter/gather)
 
-- [ ] Add `io_staging` single-tile node on `NNTileBackendMeta` (create once per
-      tensor, reuse across `.to()` / `.cpu()`).
-- [ ] `.to("nntile")`: `acquire(W)`/`memcpy` into `S`; **always** record
-      `scatter(S → L)` at compile; `S` → `mark_output(false)`.
-- [ ] `.cpu()`: **always** `gather(L → S)` then `acquire(R)`/`memcpy`; reuse `S`.
-- [ ] Repeated `.to("nntile")` overwrites same `S`.
+- [ ] Add `io_staging` inside `NodeRef` binding `{ L, S }` (create with tensor).
+- [ ] `.to("nntile")`: new tensor + new binding; `acquire(W)`/`memcpy` into `S`;
+      always record `scatter(S → L)` at compile; `S` → `mark_output(false)`.
+- [ ] `.cpu()`: always `gather(L → S)` on **that** tensor's binding, then
+      `acquire(R)`/`memcpy`.
 - [ ] Remove host-bind paths (`copy_nntile_tensor_to_cpu` staging assumption,
       `bind_storage_to_runtime` from host ptr).
 - [ ] Tests: roundtrip with 0-byte Storage; multi-tile and single-tile `L`.
@@ -715,7 +713,8 @@ torch_nntile.run()
 | New: `test_no_contiguous_view_op_on_reshape` | op count / op names |
 | New: `test_to_nntile_scatter_input` | `.to("nntile")` creates S+L; scatter at compile |
 | New: `test_cpu_readout_gather_path` | `.cpu()` gather path; no nntile host bytes |
-| New: `test_to_cpu_roundtrip_zero_storage` | 0-byte Storage roundtrip |
+| New: `test_each_to_creates_new_binding` | two `x.to("nntile")` → distinct `L`/`S` |
+| New: `test_scatter_always_even_single_tile` | v1 emits scatter when `L` is single-tile |
 
 ---
 
@@ -729,7 +728,8 @@ torch_nntile.run()
 | Autograd holds tensor invisibly to Python | Refcount includes autograd saves |
 | Tiling depends on axis lengths after free reshape | Record ops use `tensor.sizes()` at call site; node nelems invariant |
 | Cross-graph weight identity | Tile pool + scatter input path; rebind `L`/`S` on next capture |
-| Single-tile staging before first compile | Eager StarPU alloc + acquire at `.to()`; scatter deferred to compile+run |
+| `S` invalidated when scatter runs | `mark_output(false)` on `io_staging`; only `L` is user output |
+| Redundant scatter/gather when untiled | Accepted in v1; §3.7 optimization later |
 
 ---
 
@@ -743,9 +743,9 @@ torch_nntile.run()
 5. Compile boundaries documented as caller-controlled (patterns §6.3); one `run()`
    per `compile_graph()`.
 6. No graph epoch id; no tensor tier enums.
-7. **Zero host `Storage`** on all nntile tensors; symmetric gather/scatter I/O (§3.4–3.6).
-8. `.to("nntile")` uses internal single-tile `S` + `scatter(S → L)`; `.cpu()` uses
-   `gather(L → E)` + ephemeral `E`.
+7. **Zero host `Storage`**; bound `io_staging` node `S` for all I/O (§3.4–3.7).
+8. v1: `.to("nntile")` always `scatter(S → L)`; `.cpu()` always `gather(L → S)`;
+   each `.to("nntile")` creates a new tensor and new `{ L, S }` binding.
 9. Full torch_nntile test suite green (modulo known CUDA skips).
 
 ---
@@ -775,9 +775,10 @@ that branch; do not split into separate PRs.
 | **Capture** | Record ATen ops into pending `g_graph` until next compile |
 | **Compile segment** | Ops captured since the previous `compile_graph()` |
 | **Free reshape** | Same numel, same `NodeRef`, no graph op |
-| **Single-tile staging** | Internal `TensorNode` for CPU↔StarPU `acquire`/`memcpy` (not PyTorch-linked) |
-| **Logical node** | Tiled `TensorNode*` via `NodeRef` on the `at::Tensor` |
-| **Scatter / Gather** | `scatter(S→L)` at input; `gather(L→E)` at output readout |
+| **Binding (`NodeRef`)** | `shared_ptr` to `{ logical L, io_staging S }` per `at::Tensor` |
+| **io_staging (`S`)** | Single-tile I/O buffer inside binding; `mark_output(false)` when scatter consumes it |
+| **Logical node (`L`)** | Tiled `TensorNode*` via `NodeRef`; authoritative after scatter / for ops |
+| **Scatter / Gather** | v1: always `scatter(S→L)` on input compile; always `gather(L→S)` on `.cpu()` |
 | **Session** | Compiled graph + `Runtime` after `compile_graph()` |
 
 ---
