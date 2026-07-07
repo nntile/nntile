@@ -30,7 +30,7 @@ def test_cross_entropy_forward_mean_matches_cpu():
     loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="mean")
 
     assert torch.allclose(
-        loss_nnt.detach().cpu(),
+        nntile_cpu(loss_nnt.detach()),
         loss_cpu,
         rtol=1e-4,
         atol=1e-4,
@@ -48,7 +48,7 @@ def test_cross_entropy_forward_sum_matches_cpu():
     loss_nnt = cross_entropy(logits_nnt, target.to("nntile"), reduction="sum")
 
     assert torch.allclose(
-        loss_nnt.detach().cpu(),
+        nntile_cpu(loss_nnt.detach()),
         loss_cpu,
         rtol=1e-4,
         atol=1e-4,
@@ -122,7 +122,7 @@ def test_cross_entropy_ignore_index_matches_cpu():
     )
 
     assert torch.allclose(
-        loss_nnt.detach().cpu(),
+        nntile_cpu(loss_nnt.detach()),
         loss_cpu,
         rtol=1e-4,
         atol=1e-4,

@@ -47,7 +47,7 @@ def test_mul_2d_shape_parity():
     a_cpu = torch.randn(shape, dtype=torch.float32)
     b_cpu = torch.randn(shape, dtype=torch.float32)
 
-    z_nntile = (a_cpu.to("nntile") * b_cpu.to("nntile")).cpu()
+    z_nntile = nntile_cpu(a_cpu.to("nntile") * b_cpu.to("nntile"))
     z_cpu = a_cpu * b_cpu
 
     assert torch.allclose(z_nntile, z_cpu, rtol=1e-5, atol=1e-5)

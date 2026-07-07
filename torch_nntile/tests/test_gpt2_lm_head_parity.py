@@ -16,6 +16,7 @@ from transformers import GPT2Config, GPT2LMHeadModel
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
 from torch_nntile.models.gpt2_minimal import (
     GPT2Attention,
@@ -88,7 +89,7 @@ def _assert_close(
     rtol: float = 1e-4,
     atol: float = 1e-4,
 ) -> None:
-    torch.testing.assert_close(got.cpu(), ref.cpu(), rtol=rtol, atol=atol)
+    torch.testing.assert_close(nntile_cpu(got), ref.cpu(), rtol=rtol, atol=atol)
 
 
 def test_gpt2_model_forward_shape(tiny_gpt2_config):
@@ -111,7 +112,7 @@ def test_gpt2_lm_head_forward_matches_hf_tied(tiny_gpt2_config):
     hf, minimal = _make_models(tiny_gpt2_config)
     input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
-        ref = hf(input_ids.cpu()).logits
+        ref = hf(nntile_cpu(input_ids)).logits
         out = minimal(input_ids)
     _assert_close(out, ref)
 
@@ -121,7 +122,7 @@ def test_gpt2_lm_head_forward_matches_hf_untied(tiny_gpt2_config):
     hf, minimal = _make_models(tiny_gpt2_config)
     input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
-        ref = hf(input_ids.cpu()).logits
+        ref = hf(nntile_cpu(input_ids)).logits
         out = minimal(input_ids)
     _assert_close(out, ref)
 
@@ -301,7 +302,7 @@ def test_gpt2_lm_head_backward_matches_hf_tied(tiny_gpt2_config):
     grad_out = torch.randn(2, 8, tiny_gpt2_config.vocab_size)
 
     hf.zero_grad(set_to_none=True)
-    logits_ref = hf(input_ids.cpu()).logits
+    logits_ref = hf(nntile_cpu(input_ids)).logits
     logits_ref.backward(grad_out)
 
     minimal.zero_grad(set_to_none=True)
@@ -323,7 +324,7 @@ def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
     grad_out = torch.randn(2, 8, tiny_gpt2_config.vocab_size)
 
     hf.zero_grad(set_to_none=True)
-    hf(input_ids.cpu()).logits.backward(grad_out)
+    hf(nntile_cpu(input_ids)).logits.backward(grad_out)
 
     minimal.zero_grad(set_to_none=True)
     minimal(input_ids).backward(grad_out.to("nntile"))
@@ -382,7 +383,7 @@ def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
 
         input_ids = torch.randint(0, config.vocab_size, (1, 4)).to("nntile")
         with torch.no_grad():
-            ref = hf(input_ids.cpu()).logits
+            ref = hf(nntile_cpu(input_ids)).logits
         assert torch_nntile.has_pending_graph() is False
         out = model(input_ids)
         assert torch_nntile.has_pending_graph()

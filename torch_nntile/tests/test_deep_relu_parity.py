@@ -49,7 +49,7 @@ def test_deep_relu_forward_matches_cpu():
     x_nnt = x_cpu.to("nntile")
 
     with torch.no_grad():
-        y_nnt = model_nnt(x_nnt).cpu()
+        y_nnt = nntile_cpu(model_nnt(x_nnt))
 
     assert y_nnt.shape == y_cpu.shape
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
@@ -63,9 +63,11 @@ def test_linear_relu_layer_matches_cpu():
 
     x_nnt = x_cpu.to("nntile")
     w_nnt = weight.to("nntile")
-    y_nnt = torch.nn.functional.relu(
-        torch.nn.functional.linear(x_nnt, w_nnt, None)
-    ).cpu()
+    y_nnt = nntile_cpu(
+        torch.nn.functional.relu(
+            torch.nn.functional.linear(x_nnt, w_nnt, None)
+        )
+    )
 
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
 

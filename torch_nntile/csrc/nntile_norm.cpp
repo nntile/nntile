@@ -142,11 +142,23 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
             TORCH_CHECK(
                 out->is_contiguous(),
                 "nntile norm: output tensor must be contiguous");
-            out->copy_(norm_values);
+            pin_graph_op_inputs({norm_values});
+            pin_graph_op_output(*out, true);
+            tensor_contiguous_fp32(
+                norm_values,
+                *out,
+                c10::IntArrayRef{});
             return {*out, norm_values};
         }
 
-        return {norm_values, norm_values};
+        at::Tensor output = at::empty({}, x.options());
+        pin_graph_op_inputs({norm_values});
+        pin_graph_op_output(output, true);
+        tensor_contiguous_fp32(
+            norm_values,
+            output,
+            c10::IntArrayRef{});
+        return {output, norm_values};
     }
 
     const int64_t axis = normalize_dim(*dim, x.dim());
