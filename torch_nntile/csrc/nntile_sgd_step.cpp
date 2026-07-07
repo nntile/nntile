@@ -68,6 +68,7 @@ void sgd_step(
 {
     check_sgd_step_tensors(param, grad, velocity);
     TORCH_CHECK(num_iter >= 1, "nntile sgd_step: num_iter must be >= 1");
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
     if (is_metadata_only_tensor(velocity))
     {
         ensure_host_staging(velocity);
@@ -75,7 +76,8 @@ void sgd_step(
     }
     mark_staged_input_tensor(velocity);
     mark_staged_input_tensor(param);
-    pin_graph_op_inputs({param, velocity});
+#endif
+    pin_graph_op_inputs({param, grad, velocity});
     tensor_sgd_step_fp32(
         num_iter,
         static_cast<float>(momentum),

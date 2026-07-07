@@ -227,6 +227,16 @@ at::Tensor ones_like(
     at::Tensor result = at::empty(
         self.sizes(),
         options.memory_format(format));
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_nntile_device(result.device()))
+    {
+        result = empty_metadata_tensor(
+            self.sizes(),
+            result.scalar_type(),
+            result.device());
+        return result;
+    }
+#endif
     if (is_nntile_device(result.device()) && is_metadata_only_tensor(result))
     {
         ensure_host_staging(result);
@@ -386,39 +396,67 @@ at::Tensor copy_from(
     at::Tensor mutable_dst = dst;
     if (dst.is_cpu() && is_nntile_device(self.device()))
     {
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        if (can_read_nntile_tensor_from_staging(self))
+        {
+            copy_nntile_tensor_to_cpu(self, mutable_dst);
+            return dst;
+        }
+#endif
         if (has_pending_graph())
         {
             require_no_pending_graph(
                 "copy nntile tensor to CPU (call torch_nntile.compile_graph() "
                 "and torch_nntile.run() first)");
         }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
         if (has_graph_session())
         {
             wait_for_all();
-            if (!has_host_staging(self))
-            {
-                copy_nntile_tensor_to_cpu(self, mutable_dst);
-                return dst;
-            }
-            sync_runtime_to_nntile_tensor(self);
-            memcpy_tensors(self, mutable_dst);
+            copy_nntile_tensor_to_cpu(self, mutable_dst);
             return dst;
         }
+#endif
     }
     if (is_nntile_device(mutable_dst.device()) && self.is_cpu())
     {
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        init_nntile_input_from_cpu(self, mutable_dst);
+        return dst;
+#else
         ensure_host_staging(mutable_dst);
         mark_staged_input_tensor(mutable_dst);
+#endif
     }
     else if (
         is_nntile_device(self.device()) &&
-        is_nntile_device(mutable_dst.device()) &&
-        !has_host_staging(mutable_dst) &&
-        self.nbytes() > 0)
+        is_nntile_device(mutable_dst.device()))
     {
-        ensure_host_staging(mutable_dst);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        NodeRef src_binding = nntile_binding(self);
+        if (src_binding != nullptr &&
+            self.sizes() == mutable_dst.sizes() &&
+            self.scalar_type() == mutable_dst.scalar_type())
+        {
+            attach_binding(mutable_dst, src_binding);
+            return dst;
+        }
+        TORCH_CHECK(
+            false,
+            "nntile-to-nntile copy between distinct metadata-only tensors "
+            "is unsupported");
+#else
+        if (!has_host_staging(mutable_dst) && self.nbytes() > 0)
+        {
+            ensure_host_staging(mutable_dst);
+        }
+        memcpy_tensors(self, mutable_dst);
+#endif
     }
-    memcpy_tensors(self, mutable_dst);
+    if (has_host_staging(self) || has_host_staging(mutable_dst))
+    {
+        memcpy_tensors(self, mutable_dst);
+    }
     return dst;
 }
 

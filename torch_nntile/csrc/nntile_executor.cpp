@@ -25,6 +25,7 @@
 #include <nntile/tensor/ops/concat.hh>
 #include <nntile/tensor/ops/copy_intersection.hh>
 #include <nntile/tensor/ops/embedding.hh>
+#include <nntile/tensor/ops/fill.hh>
 #include <nntile/tensor/ops/embedding_backward.hh>
 #include <nntile/tensor/ops/multiply.hh>
 #include <nntile/tensor/ops/multiply_inplace.hh>
@@ -94,6 +95,10 @@ std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
 
 bool mark_as_input_for_operand(const at::Tensor &tensor)
 {
+    if (is_metadata_only_tensor(tensor))
+    {
+        return false;
+    }
     if (is_staged_input_tensor(tensor))
     {
         return true;
@@ -103,6 +108,64 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
         return true;
     }
     return false;
+}
+
+const std::int64_t *labels_host_ptr(
+    const at::Tensor &labels,
+    std::vector<std::int64_t> &host_storage)
+{
+    if (is_metadata_only_tensor(labels))
+    {
+        host_storage.resize(static_cast<std::size_t>(labels.numel()));
+        if (read_nntile_staging_to_host(
+                labels,
+                host_storage.data()))
+        {
+            return host_storage.data();
+        }
+        const at::Tensor cpu_labels = labels.cpu();
+        host_storage.assign(
+            cpu_labels.data_ptr<std::int64_t>(),
+            cpu_labels.data_ptr<std::int64_t>() + cpu_labels.numel());
+        return host_storage.data();
+    }
+    return labels.data_ptr<std::int64_t>();
+}
+
+bool tensor_node_has_graph_producer(
+    nntile::TensorGraph::TensorNode *node)
+{
+    if (node == nullptr || node->graph() == nullptr)
+    {
+        return false;
+    }
+    for (const auto &op : node->graph()->ops())
+    {
+        for (nntile::TensorGraph::TensorNode *out : op->outputs())
+        {
+            if (out == node)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void ensure_metadata_fill_if_unproduced(
+    const at::Tensor &tensor,
+    nntile::TensorGraph::TensorNode *node,
+    float value)
+{
+    if (!is_metadata_only_tensor(tensor) || node == nullptr)
+    {
+        return;
+    }
+    if (tensor_node_has_graph_producer(node))
+    {
+        return;
+    }
+    nntile::tensor::fill(static_cast<nntile::Scalar>(value), node);
 }
 
 } // namespace
@@ -126,6 +189,7 @@ void tensor_gemm_fp32(
         a_graph,
         nntile::DataType::FP32,
         mark_as_input_for_operand(a));
+    ensure_metadata_fill_if_unproduced(a, a_node, 1.0f);
     auto *b_node = get_or_create_data_node(
         b,
         b_graph,
@@ -167,6 +231,7 @@ void tensor_gemm_accumulate_fp32(
         a_graph,
         nntile::DataType::FP32,
         mark_as_input_for_operand(a));
+    ensure_metadata_fill_if_unproduced(a, a_node, 1.0f);
     auto *b_node = get_or_create_data_node(
         b,
         b_graph,
@@ -807,8 +872,9 @@ void tensor_cross_entropy_forward_fp32(
     const nntile::Index class_axis = class_graph_axis(logits.sizes());
     const std::vector<nntile::Index> maxsumexp_graph =
         maxsumexp_graph_shape(logits_graph, class_axis);
+    std::vector<std::int64_t> labels_host_storage;
     const float scale = cross_entropy_scale(
-        labels.data_ptr<std::int64_t>(),
+        labels_host_ptr(labels, labels_host_storage),
         labels.sizes(),
         ignore_index,
         mean_reduction);
@@ -872,8 +938,9 @@ void tensor_cross_entropy_backward_fp32(
     const nntile::Index class_axis = class_graph_axis(logits.sizes());
     const std::vector<nntile::Index> maxsumexp_graph =
         maxsumexp_graph_shape(logits_graph, class_axis);
+    std::vector<std::int64_t> labels_host_storage;
     const float ce_scale = cross_entropy_scale(
-        labels.data_ptr<std::int64_t>(),
+        labels_host_ptr(labels, labels_host_storage),
         labels.sizes(),
         ignore_index,
         mean_reduction);
@@ -921,7 +988,12 @@ void tensor_cross_entropy_backward_fp32(
         grad_output,
         {},
         nntile::DataType::FP32,
-        mark_as_input_for_operand(grad_output));
+        !is_metadata_only_tensor(grad_output) &&
+            mark_as_input_for_operand(grad_output));
+    if (is_metadata_only_tensor(grad_output))
+    {
+        nntile::tensor::fill(static_cast<nntile::Scalar>(1.0), grad_output_node);
+    }
     auto *grad_row_node = get_or_create_data_node(
         grad_row,
         labels_graph,
@@ -1055,12 +1127,17 @@ void tensor_sgd_step_fp32(
         velocity,
         graph_shape,
         nntile::DataType::FP32,
-        mark_as_input_for_operand(velocity));
+        !is_metadata_only_tensor(velocity) &&
+            mark_as_input_for_operand(velocity));
+    if (is_metadata_only_tensor(velocity))
+    {
+        nntile::tensor::clear(velocity_node);
+    }
     auto *param_node = get_or_create_data_node(
         param,
         graph_shape,
         nntile::DataType::FP32,
-        mark_as_input_for_operand(param));
+        false);
 
     nntile::tensor::sgd_step(
         static_cast<nntile::Index>(num_iter),
@@ -1075,6 +1152,8 @@ void tensor_sgd_step_fp32(
 
     register_data_node(velocity, velocity_node);
     register_data_node(param, param_node);
+    mark_persistent_graph_tensor(velocity);
+    mark_persistent_graph_tensor(param);
     maybe_execute_after_record();
 }
 

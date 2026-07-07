@@ -71,6 +71,24 @@ NNTileBinding::~NNTileBinding()
     }
 }
 
+void NNTileBinding::rebind_logical(
+    nntile::TensorGraph::TensorNode *logical_in)
+{
+    if (logical == logical_in)
+    {
+        return;
+    }
+    if (logical != nullptr)
+    {
+        logical->mark_output(false);
+    }
+    logical = logical_in;
+    if (logical != nullptr)
+    {
+        logical->mark_output(true);
+    }
+}
+
 NNTileBackendMeta::NNTileBackendMeta(NodeRef binding_in)
     : binding(std::move(binding_in))
 {

@@ -547,6 +547,7 @@ set(GRAPH_RUNTIME_SRC
 
 set(GRAPH_TILE_LAYER_SRC
     "tile/append_tensor_graph_phase.cc"
+    "tile/lower_staging_tensor.cc"
     "tile/from_tensor_graph.cc"
     "tile/graph_data_node.cc"
     "tile/lower_from_tensor.cc"

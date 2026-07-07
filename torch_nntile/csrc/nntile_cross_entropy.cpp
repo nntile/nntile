@@ -72,8 +72,11 @@ at::Tensor cross_entropy_forward(
         reduction == 1 || reduction == 2,
         "nntile cross_entropy supports reduction mean (1) or sum (2) only");
 
-    at::Tensor loss = at::empty({}, logits.options().dtype(at::kFloat));
+    at::Tensor loss = empty_metadata_tensor({}, at::kFloat, logits.device());
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+#else
     ensure_host_staging(loss);
+#endif
     pin_graph_op_inputs({logits, target});
     pin_graph_op_output(loss, true);
     tensor_cross_entropy_forward_fp32(
@@ -103,6 +106,12 @@ at::Tensor cross_entropy_backward(
         is_nntile_device(grad_output.device()),
         "nntile cross_entropy_backward: grad_output must be on device nntile");
     at::Tensor grad_out = grad_output;
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    if (!is_metadata_only_tensor(grad_out))
+    {
+        ensure_host_staging(grad_out);
+    }
+#else
     if (!has_host_staging(grad_out))
     {
         ensure_host_staging(grad_out);
@@ -115,6 +124,7 @@ at::Tensor cross_entropy_backward(
     {
         mark_staged_input_tensor(grad_out);
     }
+#endif
     at::Tensor grad_logits = at::empty_like(logits);
     at::Tensor grad_row = at::empty(target.sizes(), logits.options());
     pin_graph_op_inputs({logits, target, grad_out});

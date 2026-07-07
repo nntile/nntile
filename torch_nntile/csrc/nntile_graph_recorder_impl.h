@@ -39,6 +39,16 @@ void sync_runtime_to_nntile_tensor(const at::Tensor &tensor);
 
 void refresh_staged_tensor_mapping(const at::Tensor &tensor);
 
+void mark_persistent_graph_tensor(const at::Tensor &tensor);
+
+bool read_nntile_staging_to_host(const at::Tensor &tensor, void *host_ptr);
+
+void init_nntile_input_from_cpu(
+    const at::Tensor &cpu_src,
+    at::Tensor &nntile_dst);
+
+bool can_read_nntile_tensor_from_staging(const at::Tensor &tensor);
+
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 nntile::TensorGraph &recorder_graph();

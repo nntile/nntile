@@ -34,6 +34,8 @@ struct NNTileBinding
     explicit NNTileBinding(nntile::TensorGraph::TensorNode *logical_in);
     ~NNTileBinding();
 
+    void rebind_logical(nntile::TensorGraph::TensorNode *logical_in);
+
     NNTileBinding(const NNTileBinding &) = delete;
     NNTileBinding &operator=(const NNTileBinding &) = delete;
 };
