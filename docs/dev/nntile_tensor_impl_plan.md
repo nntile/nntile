@@ -1,8 +1,10 @@
 # Plan: `device=nntile` tensor reimplementation
 
 **Parent context:** [torch_tensor_gc_investigation.md](torch_tensor_gc_investigation.md)  
-**Related work:** PR [#425](https://github.com/nntile/nntile/pull/425) (metadata-only staging, GC probes)  
-**Branch target:** `graph_api` (follow-on; do not block #425 merge)  
+**Delivery:** all spec and implementation work lands in PR
+[#425](https://github.com/nntile/nntile/pull/425) only — branch
+`cursor/pytorch-tensor-gc-investigation-94e3`, base `graph_api`. Do **not**
+open follow-on PRs for this reimplementation.  
 **Status:** agreed target architecture (conversation 2026-07)
 
 This document is the **canonical spec** for reimplementing `device=nntile`
@@ -615,14 +617,19 @@ torch_nntile.run()
 
 ---
 
-## 15. PR slicing
+## 15. Delivery (single PR #425)
 
-| PR | Phases | Description |
-|----|--------|-------------|
-| A | 0–1 | `NodeRef` + meta; dual-write |
-| B | 2–3 | Free reshape; remove compile seal |
-| C | 4 | Remove map and tier flags |
-| D | 5–6 | Layout policy + autograd refcount |
+All phases (0–6) are implemented and merged via
+[PR #425](https://github.com/nntile/nntile/pull/425) on branch
+`cursor/pytorch-tensor-gc-investigation-94e3`. Use **incremental commits** on
+that branch; do not split into separate PRs.
+
+| Commit batch | Phases | Description |
+|--------------|--------|-------------|
+| 1 | 0–1 | `NodeRef` + meta; dual-write |
+| 2 | 2–3 | Free reshape; remove compile seal |
+| 3 | 4 | Remove map and tier flags |
+| 4 | 5–6 | Layout policy + autograd refcount |
 
 ---
 
