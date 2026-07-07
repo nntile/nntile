@@ -29,9 +29,11 @@ A `device=nntile` tensor is **one kind of object**:
    compile-time seal pass.
 3. **NNTile tensors are always contiguous** (by design). Same-numel
    `view`/`reshape` is **free** (same `NodeRef`, no graph op, no tile copy).
-4. **Training loop:** capture graph → compile → run, per iteration (or one
-   capture with multiple microbatches, then one compile + one run) — **not**
-   multiple `run()` on one compile.
+4. **Compile boundary is caller-controlled:** any recorded op sequence may be
+   flushed with `compile_graph()` + `run()` when the user chooses. Examples:
+   partial-iteration compile (forward then backward separately), or several
+   full forward+backward passes in one capture. **Invariant:** one `run()` per
+   `compile_graph()` — never multiple `run()` on the same compile.
 5. **No graph epoch id** on `NodeRef`. Work with whatever graph is current;
    node pointers are valid for the lifetime of the owning `TensorGraph` object.
 
@@ -49,7 +51,7 @@ A `device=nntile` tensor is **one kind of object**:
 | Unwired views | `as_strided` has no graph link |
 | Permute vs transpose | `permute` = stride alias (often non-contiguous); `transpose` = materialize |
 | Post-compile node nulling | `clear_pending_graph_after_compile_locked` sets `mapped.node = nullptr` on retained entries |
-| Misleading training model | Docs/examples implying multi-`run()` per compile |
+| Rigid “one compile per full step” docs | Caller chooses compile boundary (§6.3) |
 
 The map mixes **ownership**, **compile binding**, and **GC** in one structure.
 That makes views easy to forget and GC dependent on batch scans.
@@ -256,54 +258,123 @@ Document in implementation phase; do not rely on Python GC alone.
 
 ---
 
-## 6. Execution and training loop
+## 6. Execution and compile boundaries
 
-### 6.1 Per-iteration loop (canonical)
+### 6.1 Invariant (only hard rule)
 
 ```text
-# iteration k
-forward + backward   # record into pending g_graph
-compile_graph()      # pending → session; DCE; bind staged inputs
-run()                # execute once
-# optional: loss.to("cpu"), optimizer already stepped or step before compile
+compile_graph()  +  run()     # executes exactly what was captured before this compile
 ```
 
-**Wrong model (do not document or design for):**
+**Forbidden:**
 
 ```text
 compile_graph()
-run(); run(); run()   # NO — one run per compile
+run(); run(); run()            # NO — one run per compile
 ```
 
-### 6.2 Microbatch grad accumulation (one capture, one compile, one run)
+Everything else — how much you record before calling compile — is **user /
+framework choice**. The recorder appends ops to the pending graph until the
+next `compile_graph()`.
+
+### 6.2 Capture → compile → run cycle
 
 ```text
-for microbatch in batches:
-    loss = model(x) / n
-    loss.backward()          # appends to same pending graph
-optimizer.step()             # recorded ops
+[ capture ops into pending g_graph … ]  →  compile_graph()  →  run()
+[ capture more ops …               ]  →  compile_graph()  →  run()
+…
+```
+
+Each `compile_graph()`:
+
+1. Takes the **current** pending graph (everything captured since the last
+   compile, or since session start).
+2. Compiles and executes it with **one** `run()`.
+3. Starts a **new empty** pending `g_graph` for the next capture segment.
+
+Live `at::Tensor` objects (params, activations still referenced) survive
+across compile boundaries; **tile adoption** carries weight/state tiles from the
+finished session into the next compile when those tensors are rebound.
+
+### 6.3 Valid training patterns (examples)
+
+#### A — Full step, one compile (common)
+
+```text
+forward + loss + backward + optimizer.step()
 compile_graph()
 run()
 ```
 
-Multiple backward chains in **one** graph capture; still **one** `run()`.
+One capture segment; one compile; one run.
 
-### 6.3 Between iterations
+#### B — Partial-iteration compile (forward / backward split)
 
 ```text
-iteration k:   capture G_k → compile → run
-iteration k+1: capture G_{k+1} → compile → run   # new pending graph
+forward + loss
+compile_graph()
+run()
+backward (+ optimizer.step() if recorded here)
+compile_graph()
+run()
 ```
 
-- Weight **PyTorch tensors** survive (`nn.Parameter`).
-- New capture creates **new** `TensorNode`s in `G_{k+1}` for those weights.
-- **Tile adoption** (`capture_persisted_tiles_from_session` / `stage_persisted_tiles`)
-  carries StarPU buffers from session `k` into session `k+1` — keyed by live
-  param tensors + `NodeRef`, not by `is_persistent_input` flag.
-- Do **not** null `NodeRef::node` on compile for live tensors; rebind to new
-  graph nodes when recording `G_{k+1}`.
+Two capture segments in one logical training step. Useful when forward results
+must be materialized in tiles before backward is recorded, or when the framework
+flushes forward and backward separately. After the first `run()`, backward ops
+are captured into a **new** pending graph that consumes outputs from the
+executed session (live tensors / adopted tiles).
 
-### 6.4 `compile_graph()` responsibilities (revised)
+#### C — Several logical iterations, one compile
+
+```text
+forward + loss + backward    # iteration 1
+forward + loss + backward    # iteration 2
+forward + loss + backward    # iteration 3
+compile_graph()
+run()
+```
+
+Multiple forward+backward passes appended to **one** pending graph before a
+single flush. Microbatch grad accumulation is a special case (several
+`backward()` without `optimizer.step()` between them, then one compile+run).
+
+#### D — Several iterations, compile per iteration (also valid)
+
+```text
+# iteration 1
+forward + loss + backward → compile → run
+# iteration 2
+forward + loss + backward → compile → run
+```
+
+This is pattern A repeated; not required, but allowed.
+
+### 6.4 What the tensor model does *not* dictate
+
+| Not fixed | Fixed |
+|-----------|-------|
+| How many forward/backward passes per capture | One `run()` per `compile_graph()` |
+| Whether forward and backward share one compile | `NodeRef` / `mark_output` on every nntile tensor |
+| Optimizer step before or after backward in capture | Pending graph cleared after each compile |
+
+`train_full_batch_step` in `torch_nntile/training.py` implements pattern **A**
+only; other patterns are equally first-class for the recorder design.
+
+### 6.5 Across compile boundaries
+
+After each `compile_graph()` + `run()`:
+
+- Weight **PyTorch tensors** survive (`nn.Parameter`, optimizer state).
+- Next capture creates **new** `TensorNode`s in the new pending graph for ops
+  that touch those weights.
+- **Tile adoption** (`capture_persisted_tiles_from_session` /
+  `stage_persisted_tiles`) carries StarPU buffers from the finished session when
+  live param tensors are rebound — driven by live `NodeRef`, not tier flags.
+- Do **not** null `NodeRef::node` on compile for tensors still alive; rebind
+  when recording the next graph segment.
+
+### 6.6 `compile_graph()` responsibilities (revised)
 
 | Step | Action |
 |------|--------|
@@ -449,16 +520,29 @@ accumulation test passes.
 | `docs/dev/torch_tensor_gc_investigation.md` | Remove seal-at-compile recommendation; point here |
 | `docs/dev/nntile_tensor_impl_plan.md` | This file |
 
-**README training loop (correct):**
+**README training loops (examples — all valid):**
 
 ```python
-for batch in loader:
-    optimizer.zero_grad(set_to_none=True)
-    loss = model(x.to("nntile"), y.to("nntile"))
-    loss.backward()
-    optimizer.step()
-    torch_nntile.compile_graph()
-    torch_nntile.run()
+# Pattern A: one compile per step (train_full_batch_step style)
+loss = model(x)
+loss.backward()
+optimizer.step()
+torch_nntile.compile_graph()
+torch_nntile.run()
+
+# Pattern B: partial-iteration compile
+loss = model(x)
+torch_nntile.compile_graph()
+torch_nntile.run()
+loss.backward()
+torch_nntile.compile_graph()
+torch_nntile.run()
+
+# Pattern C: several backwards, one compile (grad accumulation)
+for x_mb, y_mb in microbatches:
+    (loss / n).backward()
+torch_nntile.compile_graph()
+torch_nntile.run()
 ```
 
 ---
@@ -524,7 +608,8 @@ for batch in loader:
    seal pass at `compile_graph()`.
 3. Same-numel reshape shares `NodeRef`; no `CONTIGUOUS_VIEW` on view path.
 4. All nntile tensors contiguous; non-contiguous aliases rejected.
-5. Training documented as capture → compile → run per iteration.
+5. Compile boundaries documented as caller-controlled (patterns §6.3); one `run()`
+   per `compile_graph()`.
 6. No graph epoch id; no tensor tier enums.
 7. Full torch_nntile test suite green (modulo known CUDA skips).
 
@@ -546,7 +631,8 @@ for batch in loader:
 | Term | Meaning |
 |------|---------|
 | **NodeRef** | `shared_ptr` control block; refcount = live PyTorch/autograd handles for this node |
-| **Capture** | Record ATen ops into pending `g_graph` |
+| **Capture** | Record ATen ops into pending `g_graph` until next compile |
+| **Compile segment** | Ops captured since the previous `compile_graph()` |
 | **Free reshape** | Same numel, same `NodeRef`, no graph op |
 | **Staging** | Optional host `std::vector` on `Storage` |
 | **Session** | Compiled graph + `Runtime` after `compile_graph()` |
