@@ -14,6 +14,12 @@
 
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
+
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+#include "nntile_allocator.h"
+#include <c10/util/Exception.h>
+#endif
 
 namespace torch_nntile
 {
@@ -98,10 +104,6 @@ void register_metadata_tensor_storage(const at::Tensor &tensor)
 }
 
 #ifndef TORCH_NNTILE_USE_LIBNNTILE
-
-#include "nntile_allocator.h"
-
-#include <c10/util/Exception.h>
 
 namespace
 {

@@ -239,6 +239,8 @@ nntile::DataType aten_scalar_to_nntile_dtype(at::ScalarType dtype)
         return nntile::DataType::INT64;
     case at::ScalarType::Bool:
         return nntile::DataType::BOOL;
+    case at::ScalarType::Byte:
+        return nntile::DataType::BOOL;
     default:
         throw std::runtime_error(
             "torch_nntile: unsupported nntile tensor dtype");

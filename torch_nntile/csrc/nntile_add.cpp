@@ -115,6 +115,14 @@ at::Tensor broadcast_to_shape(
             static_cast<std::size_t>(target_ndim),
             1);
         const int64_t pad = target_ndim - tensor_ndim;
+        for (int64_t d = 0; d < pad; ++d)
+        {
+            const int64_t out_dim = target_size[static_cast<std::size_t>(d)];
+            TORCH_CHECK(
+                out_dim >= 1,
+                "nntile broadcast: invalid target dimension");
+            repeats[static_cast<std::size_t>(d)] = out_dim;
+        }
         for (int64_t i = 0; i < tensor_ndim; ++i)
         {
             const int64_t in_dim =
