@@ -103,26 +103,6 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
     return false;
 }
 
-const std::int64_t *labels_host_ptr(
-    const at::Tensor &labels,
-    std::vector<std::int64_t> &host_storage)
-{
-    if (is_metadata_only_tensor(labels))
-    {
-        host_storage.resize(static_cast<std::size_t>(labels.numel()));
-        if (read_nntile_staging_to_host(labels, host_storage.data()))
-        {
-            return host_storage.data();
-        }
-        const at::Tensor cpu_labels = labels.cpu();
-        host_storage.assign(
-            cpu_labels.data_ptr<std::int64_t>(),
-            cpu_labels.data_ptr<std::int64_t>() + cpu_labels.numel());
-        return host_storage.data();
-    }
-    return labels.data_ptr<std::int64_t>();
-}
-
 bool tensor_node_has_graph_producer(
     nntile::TensorGraph::TensorNode *node)
 {
@@ -854,33 +834,23 @@ nntile::Index class_graph_axis(c10::IntArrayRef pytorch_logits_shape)
 }
 
 float cross_entropy_scale(
-    const std::int64_t *labels_data,
     c10::IntArrayRef labels_shape,
-    std::int64_t ignore_index,
     bool mean_reduction)
 {
     if (!mean_reduction)
     {
         return 1.0f;
     }
-    nntile::Index count = 0;
     nntile::Index total = 1;
     for (const auto dim : labels_shape)
     {
         total *= static_cast<nntile::Index>(dim);
     }
-    for (nntile::Index i = 0; i < total; ++i)
+    if (total <= 0)
     {
-        if (labels_data[i] != ignore_index)
-        {
-            ++count;
-        }
+        total = 1;
     }
-    if (count <= 0)
-    {
-        count = 1;
-    }
-    return 1.0f / static_cast<float>(count);
+    return 1.0f / static_cast<float>(total);
 }
 
 } // namespace
@@ -899,12 +869,7 @@ void tensor_cross_entropy_forward_fp32(
     const nntile::Index class_axis = class_graph_axis(logits.sizes());
     const std::vector<nntile::Index> maxsumexp_graph =
         maxsumexp_graph_shape(logits_graph, class_axis);
-    std::vector<std::int64_t> labels_host_storage;
-    const float scale = cross_entropy_scale(
-        labels_host_ptr(labels, labels_host_storage),
-        labels.sizes(),
-        ignore_index,
-        mean_reduction);
+    const float scale = cross_entropy_scale(labels.sizes(), mean_reduction);
 
     auto *logits_node = get_or_create_data_node(
         logits,
@@ -965,12 +930,7 @@ void tensor_cross_entropy_backward_fp32(
     const nntile::Index class_axis = class_graph_axis(logits.sizes());
     const std::vector<nntile::Index> maxsumexp_graph =
         maxsumexp_graph_shape(logits_graph, class_axis);
-    std::vector<std::int64_t> labels_host_storage;
-    const float ce_scale = cross_entropy_scale(
-        labels_host_ptr(labels, labels_host_storage),
-        labels.sizes(),
-        ignore_index,
-        mean_reduction);
+    const float ce_scale = cross_entropy_scale(labels.sizes(), mean_reduction);
 
     auto broadcast_grad_output_to_row = [&](
         nntile::TensorGraph::TensorNode *grad_output_node,

@@ -1113,22 +1113,9 @@ void init_nntile_input_from_cpu(
     if (NodeRef existing = nntile_binding(nntile_dst);
         existing != nullptr && existing->logical != nullptr)
     {
-        auto *logical = existing->logical;
-        auto *staging =
-            create_ephemeral_io_staging_locked(logical, "ingress", true);
-        if (staging == nullptr)
-        {
-            throw std::runtime_error(
-                "torch_nntile: failed to create ingress staging tensor");
-        }
-        write_cpu_bytes_to_staging_locked(
-            staging,
-            cpu_src.storage().data_ptr().get(),
-            dtype,
-            static_cast<std::size_t>(cpu_src.numel()));
-        nntile::tensor::scatter(staging, logical);
-        g_pinned_tensors.push_back(nntile_dst);
-        return;
+        throw std::runtime_error(
+            "torch_nntile: CPU→nntile copy into an already-bound tensor is "
+            "unsupported; ingress each tensor once via .to('nntile')");
     }
 
     auto *logical = g_graph->data(shape, dtype);
