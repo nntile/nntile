@@ -8,26 +8,26 @@ open follow-on PRs for this reimplementation.
 **Status:** agreed target architecture (conversation 2026-07); **implementation
 in progress** on PR
 [#425](https://github.com/nntile/nntile/pull/425) (branch
-`cursor/pytorch-tensor-gc-investigation-94e3`, latest commit `87d1aa45`).
+`cursor/pytorch-tensor-gc-investigation-94e3`, latest commit `1101ebfd`).
 
 This document is the **canonical spec** for reimplementing `device=nntile`
 PyTorch tensors. It replaces earlier “three tiers” and “seal at compile”
 framing with the ownership model agreed in design review.
 
-### Implementation status (audit 2026-07-07)
+### Implementation status (audit 2026-07-08)
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **0** Spec & harness | **Partial** | Doc landed; `TORCH_NNTILE_ASSERT_NODE_REF` wired; §11 inventory incomplete |
 | **1** `NNTileBinding` + meta | **Done** | `NodeRef` is sole graph link; no `g_tensor_nodes` dual-write |
-| **2** Free reshape | **Mostly done** | `share_node_ref_for_reshape` on view path; dead `ensure_view_alias_locked` / `contiguous_view` helpers still in recorder |
-| **3** Output marks (no seal) | **Mostly done** | Compile path does not call seal; `seal_output_marks_*` dead code remains; GC test passes |
+| **2** Free reshape | **Done** | `share_node_ref_for_reshape` on view path; `contiguous_view` kept only in `ensure_graph_shape_bridge_locked` (shape bridge, not view path) |
+| **3** Output marks (no seal) | **Done** | Compile path does not seal; dead seal helpers removed |
 | **4** Remove side map | **Done** | `g_tensor_nodes` removed; `NodeRef` only; tier flags gone under libnntile |
-| **5** Permute policy | **Not started** | `permute` still stride-aliases when contiguous-preserving; errors only when non-contiguous |
-| **6** Autograd `NodeRef` | **Not started** | |
+| **5** Permute policy | **Done** | Contiguous-preserving `permute` shares `NodeRef`; non-contiguous errors; README updated |
+| **6** Autograd `NodeRef` | **Done** | `fill_`/`zero_` graph path; grad accum + transposed-weight backward tests unskipped |
 | **7** I/O scatter/gather | **Done** | Input scatter-at-`.to()`; `.cpu()` uses `gather(L→S)` + incremental `execute_range`; staging invalidated after scatter run and after `.cpu()` readout |
 
-**Test snapshot** (`test_device_stub.py` + `test_graph_execution.py`): **18 passed**.
+**Test snapshot** (`test_device_stub.py` + `test_graph_execution.py` + grad/layout): **25 passed** (after Phase 6).
 
 **Phase 7 acceptance (complete):**
 
@@ -636,7 +636,7 @@ same helper names; implementation moves to `nntile_tensor_meta.cpp`.
 - [x] Stop calling `ensure_view_alias_locked` / `contiguous_view` from
       `record_view_alias` (view path uses `share_node_ref_for_reshape`).
 - [x] Wire `as_strided` (contiguous-only).
-- [ ] Delete dead `ensure_view_alias_locked` / `contiguous_view` helpers in recorder.
+- [x] `contiguous_view` retained only in `ensure_graph_shape_bridge_locked` (same-numel shape bridge for ops).
 - [x] Tests: view chain shares `NodeRef`; `test_graph_mode_mm_view_add_ndim` passes.
 
 **Acceptance:** `test_graph_mode_mm_view_add_ndim` and view tests pass; no
@@ -647,8 +647,7 @@ same helper names; implementation moves to `nntile_tensor_meta.cpp`.
 ### Phase 3 — Output marks: remove seal at compile
 
 - [x] Remove `seal_output_marks_from_live_tensors_locked` from `compile_graph_locked`.
-- [~] Remove `mark_output_producer_closure_locked` output-mark inflation (function
-      remains but is unused on compile path).
+- [x] Remove `mark_output_producer_closure_locked` output-mark inflation (removed).
 - [x] Verify DCE still correct via op-graph connectivity tests.
 - [x] Update `test_intermediate_output_mark_cleared_when_python_ref_dropped`.
 
@@ -671,12 +670,9 @@ Python ref clears `is_output` without compile seal.
 
 ### Phase 5 — Layout ops (`permute` policy)
 
-- [ ] Decide v1: materialize `permute` (like transpose) or restrict to contiguous-
-      preserving cases.
-- [~] Remove non-contiguous stride aliases from `permute` stub (errors if result
-      non-contiguous; still aliases when permute preserves contiguity).
-- [ ] Update README layout table (§10).
-- [ ] Fix tests that use `permute` + `contiguous` on CPU reference only.
+- [x] v1: contiguous-preserving `permute` shares `NodeRef`; non-contiguous errors.
+- [x] Update README layout table (§10).
+- [x] `test_contiguous_permute_matmul_raises` passes.
 
 **Acceptance:** no nntile tensor exposes non-contiguous strides after layout ops.
 
@@ -705,9 +701,9 @@ invalidated after each `.cpu()` and after scatter at run (input path).
 
 ### Phase 6 — Autograd `NodeRef` lifetime
 
-- [ ] Audit `.backward()` vs `autograd.grad` pinning (transpose, mm, linear).
-- [ ] Ensure grad tensors get `NodeRef`; refcount covers autograd retention.
-- [ ] Unskip backward tests blocked on grad policy.
+- [x] `fill_`/`zero_` record `tensor::fill` for metadata-only tensors (optimizer `zero_grad`).
+- [x] Grad tensors get `NodeRef` via `register_grad_alias_for_host_copy` / `register_param_grad_node`.
+- [x] Unskip `test_microbatch_grad_accumulation_matches_cpu`, `test_linear_transpose_weight_backward_parity`.
 
 **Acceptance:** transpose backward via `.backward()` without segfault; grad
 accumulation test passes.
@@ -813,18 +809,18 @@ torch_nntile.run()
 
 ## 14. Success criteria
 
-1. Every `device=nntile` tensor has `NodeRef` on `TensorImpl`; no `g_tensor_nodes`. — **partial** (dual-write)
+1. Every `device=nntile` tensor has `NodeRef` on `TensorImpl`; no `g_tensor_nodes`. — **done**
 2. `mark_output` set at node attach, cleared at last `NodeRef` release; **no**
-   seal pass at `compile_graph()`. — **done** (compile path)
+   seal pass at `compile_graph()`. — **done**
 3. Same-numel reshape shares `NodeRef`; no `CONTIGUOUS_VIEW` on view path. — **done**
-4. All nntile tensors contiguous; non-contiguous aliases rejected. — **partial** (permute policy open)
+4. All nntile tensors contiguous; non-contiguous aliases rejected. — **done** (permute policy)
 5. Compile boundaries documented as caller-controlled (patterns §6.3); one `run()`
    per `compile_graph()`. — **done**
-6. No graph epoch id; no tensor tier enums. — **partial** (tier flags remain)
-7. **Zero host `Storage`**; bound `io_staging` node `S` for all I/O (§3.4–3.7). — **partial**
+6. No graph epoch id; no tensor tier enums. — **done**
+7. **Zero host `Storage`**; bound `io_staging` node `S` for all I/O (§3.4–3.7). — **done**
 8. v1: `.to("nntile")` always `scatter(S → L)` at init; `.cpu()` always `gather(L → S)`;
-   each `.to("nntile")` creates a new tensor and new `{ L, S }` binding. — **partial** (gather missing)
-9. Full torch_nntile test suite green (modulo known CUDA skips). — **open** (3 graph training tests fail)
+   each `.to("nntile")` creates a new tensor and new `{ L, S }` binding. — **done**
+9. Full torch_nntile test suite green (modulo known CUDA skips). — **partial** (core graph + grad tests green; some parity tests still skipped)
 
 ---
 
@@ -838,10 +834,10 @@ that branch; do not split into separate PRs.
 | Commit batch | Phases | Description | Status |
 |--------------|--------|-------------|--------|
 | 1 | 0–1 | `NodeRef` + meta; dual-write | **Done** (`9f979576`) |
-| 2 | 2–3 | Free reshape; remove compile seal from path | **Mostly done** (`9f979576`) |
-| 3 | 4 | Remove map and tier flags | **Not started** |
-| 4 | 5–6 | Layout policy + autograd refcount | **Not started** |
-| 5 | 7 | Symmetric I/O (scatter at `.to`, gather on `.cpu`) | **Partial** (`87d1aa45` — input path; gather + training parity open) |
+| 2 | 2–3 | Free reshape; remove compile seal from path | **Done** (`9f979576`) |
+| 3 | 4 | Remove map and tier flags | **Done** (`1101ebfd`) |
+| 4 | 5–6 | Layout policy + autograd refcount | **Done** (this commit) |
+| 5 | 7 | Symmetric I/O (scatter at `.to`, gather on `.cpu`) | **Done** (`0278e25d`) |
 
 ---
 

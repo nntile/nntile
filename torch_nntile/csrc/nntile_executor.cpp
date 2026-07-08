@@ -436,6 +436,21 @@ void tensor_add_inplace_fp32(
     maybe_execute_after_record();
 }
 
+void tensor_fill_fp32(at::Tensor &self, float value)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    nntile::tensor::fill(static_cast<nntile::Scalar>(value), self_node);
+    register_data_node(self, self_node);
+    maybe_execute_after_record();
+}
+
 void tensor_mul_fp32(
     const at::Tensor &self,
     const at::Tensor &other,
@@ -2990,6 +3005,11 @@ void tensor_add_inplace_fp32(
     at::Tensor & /*self*/)
 {
     require_libnntile("add_");
+}
+
+void tensor_fill_fp32(at::Tensor & /*self*/, float /*value*/)
+{
+    require_libnntile("fill_");
 }
 
 void tensor_mul_fp32(

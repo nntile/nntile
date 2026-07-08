@@ -43,9 +43,6 @@ def test_contiguous_permute_matmul_raises():
         x_nnt.permute(0, 2, 1)
 
 
-@pytest.mark.skip(
-    reason="Linear backward with transposed weight grad mismatch in graph mode",
-)
 def test_linear_transpose_weight_backward_parity():
     torch.manual_seed(5)
     base = torch.randn(5, 4)

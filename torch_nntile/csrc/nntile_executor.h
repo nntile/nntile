@@ -55,6 +55,8 @@ void tensor_add_inplace_fp32(
     float beta,
     at::Tensor &self);
 
+void tensor_fill_fp32(at::Tensor &self, float value);
+
 void tensor_mul_fp32(
     const at::Tensor &self,
     const at::Tensor &other,

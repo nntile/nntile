@@ -108,6 +108,17 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
     {
         return;
     }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_metadata_only_tensor(self))
+    {
+        TORCH_CHECK(
+            self.scalar_type() == at::ScalarType::Float,
+            "fill_: metadata-only nntile tensors support float32 in graph mode");
+        pin_graph_op_output(self, true);
+        tensor_fill_fp32(self, value.to<float>());
+        return;
+    }
+#endif
     switch (self.scalar_type())
     {
     case at::ScalarType::Float:

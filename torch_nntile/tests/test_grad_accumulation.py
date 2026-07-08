@@ -52,9 +52,6 @@ def test_diamond_shared_weight_grad_matches_cpu():
     assert torch.allclose(nntile_cpu(w_nnt.grad), w_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.skip(
-    reason="Microbatch grad accumulation needs multi-backward graph fix",
-)
 def test_microbatch_grad_accumulation_matches_cpu():
     """Two backward() calls without clearing .grad exercises add_ on params."""
     torch.manual_seed(1)

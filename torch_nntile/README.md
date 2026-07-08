@@ -109,9 +109,9 @@ supported ATen ops — notably `view`, materialized `transpose(dim0, dim1)` /
 `.t()`, and `matmul`. `Tensor.contiguous()` is **not** supported on
 `device=nntile`; ensure layout on CPU before `.to("nntile")` or use graph layout
 ops (`repeat`, `model_transpose`, `view`). `aten::transpose.int` maps to
-`tensor::swap_two_axes` (2-axis swap, not a stride alias). `aten::permute`
-stays view-only in v1. Cyclic `model_transpose` remains a separate custom API
-for NNTile-layout SDPA.
+`tensor::swap_two_axes` (2-axis swap, not a stride alias). `aten::permute` shares `NodeRef` when the permutation preserves C-contiguity;
+otherwise it errors (use `transpose` / `model_transpose` for layout changes).
+Cyclic `model_transpose` remains a separate custom API for NNTile-layout SDPA.
 
 | PyTorch op | libnntile |
 |------------|-----------|
