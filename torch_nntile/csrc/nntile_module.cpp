@@ -370,7 +370,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "Reset storage_release_count counter");
     py::class_<torch_nntile::GcDebugStats>(m, "GcDebugStats")
         .def_readonly("pinned_tensors", &torch_nntile::GcDebugStats::pinned_tensors)
-        .def_readonly("tensor_nodes", &torch_nntile::GcDebugStats::tensor_nodes)
+        .def_readonly("live_bindings", &torch_nntile::GcDebugStats::live_bindings)
         .def_readonly("tile_pool", &torch_nntile::GcDebugStats::tile_pool)
         .def_readonly("pending_ops", &torch_nntile::GcDebugStats::pending_ops)
         .def_readonly("pending_data", &torch_nntile::GcDebugStats::pending_data)

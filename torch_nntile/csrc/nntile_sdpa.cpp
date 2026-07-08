@@ -98,19 +98,16 @@ at::Tensor mask_to_uint8_nntile(const at::Tensor &mask)
         "nntile sdpa: mask must be bool or uint8");
     if (is_nntile_device(mask.device()))
     {
-        at::Tensor mask_staged = mask;
-        at::Tensor mask_u8 = at::empty(
-            mask.sizes(),
-            mask.options().dtype(at::ScalarType::Byte));
-        ensure_host_staging(mask_staged);
-        ensure_host_staging(mask_u8);
-        const bool *src = mask_staged.data_ptr<bool>();
-        uint8_t *dst = mask_u8.data_ptr<uint8_t>();
-        const int64_t numel = mask.numel();
-        for (int64_t i = 0; i < numel; ++i)
+        at::Tensor mask_cpu = mask.cpu();
+        if (mask_cpu.scalar_type() != at::ScalarType::Byte)
         {
-            dst[i] = src[i] ? static_cast<uint8_t>(1) : static_cast<uint8_t>(0);
+            mask_cpu = mask_cpu.to(at::ScalarType::Byte);
         }
+        at::Tensor mask_u8 = empty_metadata_tensor(
+            mask.sizes(),
+            at::ScalarType::Byte,
+            mask.device());
+        init_nntile_input_from_cpu(mask_cpu.contiguous(), mask_u8);
         return mask_u8;
     }
     return mask.cpu().to(at::kByte).contiguous();
@@ -135,8 +132,10 @@ at::Tensor sdpa_forward(
         check_sdpa_mask(*mask, q, k);
     }
 
-    at::Tensor out = at::empty_like(q);
-    ensure_host_staging(out);
+    at::Tensor out = empty_metadata_tensor(
+        q.sizes(),
+        q.scalar_type(),
+        q.device());
     at::Tensor mask_u8;
     std::vector<at::Tensor> inputs = {q, k, v};
     if (mask.has_value())
@@ -179,12 +178,12 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
         check_sdpa_mask(*mask, q, k);
     }
 
-    at::Tensor grad_q = at::empty_like(q);
-    at::Tensor grad_k = at::empty_like(k);
-    at::Tensor grad_v = at::empty_like(v);
-    ensure_host_staging(grad_q);
-    ensure_host_staging(grad_k);
-    ensure_host_staging(grad_v);
+    at::Tensor grad_q = empty_metadata_tensor(
+        q.sizes(), q.scalar_type(), q.device());
+    at::Tensor grad_k = empty_metadata_tensor(
+        k.sizes(), k.scalar_type(), k.device());
+    at::Tensor grad_v = empty_metadata_tensor(
+        v.sizes(), v.scalar_type(), v.device());
 
     at::Tensor mask_u8;
     std::vector<at::Tensor> inputs = {q, k, v, grad_out};

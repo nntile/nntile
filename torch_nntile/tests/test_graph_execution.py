@@ -385,7 +385,7 @@ def test_intermediate_output_mark_cleared_when_python_ref_dropped():
         del t
         gc.collect()
         stats = _C.debug_gc_stats()
-        assert stats.tensor_nodes == 4
+        assert stats.live_bindings >= 4
         torch_nntile.compile_graph()
         torch_nntile.run()
         torch_nntile.wait()

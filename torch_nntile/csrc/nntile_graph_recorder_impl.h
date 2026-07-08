@@ -27,17 +27,13 @@ class Tensor;
 namespace torch_nntile
 {
 
-//! Pin staged inputs only (not metadata-only intermediates).
+//! Pin graph inputs and persistent params for the current capture.
 void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs);
 
-//! Pin output only when it has host staging and is user-visible.
+//! Pin output when it is user-visible across compile/run.
 void pin_graph_op_output(const at::Tensor &output, bool is_user_visible);
 
 void on_tensor_impl_released(TensorImplKey key);
-
-void sync_runtime_to_nntile_tensor(const at::Tensor &tensor);
-
-void refresh_staged_tensor_mapping(const at::Tensor &tensor);
 
 void mark_persistent_graph_tensor(const at::Tensor &tensor);
 
@@ -68,8 +64,6 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
 void register_data_node(
     const at::Tensor &tensor,
     nntile::TensorGraph::TensorNode *node);
-
-nntile::TensorGraph::TensorNode *lookup_data_node(TensorImplKey key);
 
 nntile::TensorGraph::TensorNode *lookup_data_node(
     const at::Tensor &tensor,

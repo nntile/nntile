@@ -231,27 +231,8 @@ void tensor_repeat_fp32(
 
     if (out_node == src_node)
     {
-        if (has_host_staging(input) && has_host_staging(out))
-        {
-            std::size_t count = 1;
-            for (const nntile::Index dim : out_graph)
-            {
-                count *= static_cast<std::size_t>(dim);
-            }
-            if (count > 0)
-            {
-                sync_runtime_to_nntile_tensor(input);
-                std::memcpy(
-                    out.data_ptr<float>(),
-                    input.data_ptr<float>(),
-                    count * sizeof(float));
-            }
-        }
-        else
-        {
-            register_data_node(out, src_node);
-            maybe_execute_after_record();
-        }
+        register_data_node(out, src_node);
+        maybe_execute_after_record();
         return;
     }
 

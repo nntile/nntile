@@ -6,16 +6,14 @@
 
 #include "nntile_tensor_gc.h"
 
-#include "nntile_allocator.h"
 #include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Tensor.h>
+#include <c10/core/DeviceType.h>
 #include <c10/core/Storage.h>
-#include <c10/util/Exception.h>
 
 #include <mutex>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace torch_nntile
 {
@@ -24,9 +22,6 @@ namespace
 {
 
 std::mutex g_tensor_gc_mutex;
-std::unordered_set<TensorImplKey> g_metadata_only_impls;
-std::unordered_set<TensorImplKey> g_staged_input_impls;
-std::unordered_map<void *, TensorImplKey> g_host_ptr_to_impl;
 std::unordered_map<void *, TensorImplKey> g_storage_ctx_to_impl;
 
 void register_tensor_storage_ctx_locked(const at::Tensor &tensor)
@@ -65,97 +60,22 @@ TensorImplKey canonical_tensor_impl_key(const at::Tensor &tensor)
 
 bool is_metadata_only_tensor(const at::Tensor &tensor)
 {
-    if (tensor.device().type() != c10::DeviceType::PrivateUse1)
-    {
-        return false;
-    }
-    if (tensor.storage().nbytes() == 0)
-    {
-        return true;
-    }
-    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    return g_metadata_only_impls.count(tensor_impl_key(tensor)) != 0;
-}
-
-bool is_staged_input_tensor(const at::Tensor &tensor)
-{
-    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    return g_staged_input_impls.count(tensor_impl_key(tensor)) != 0;
-}
-
-bool is_staged_input_impl(TensorImplKey impl_key)
-{
-    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    return g_staged_input_impls.count(impl_key) != 0;
-}
-
-bool has_host_staging(const at::Tensor &tensor)
-{
-    if (is_metadata_only_tensor(tensor))
-    {
-        return false;
-    }
-    return tensor.storage().nbytes() > 0;
-}
-
-void mark_metadata_only_tensor(const at::Tensor &tensor)
-{
-    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    const TensorImplKey key = tensor_impl_key(tensor);
-    g_metadata_only_impls.insert(key);
-    g_staged_input_impls.erase(key);
-    void *storage_ctx = tensor.storage().data_ptr().get_context();
-    if (storage_ctx != nullptr)
-    {
-        g_storage_ctx_to_impl[storage_ctx] = key;
-    }
-}
-
-void mark_staged_input_tensor(const at::Tensor &tensor)
-{
-    {
-        std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-        const TensorImplKey key = tensor_impl_key(tensor);
-        g_metadata_only_impls.erase(key);
-        g_staged_input_impls.insert(key);
-        void *host_ptr = tensor.storage().data_ptr().get();
-        if (host_ptr != nullptr)
-        {
-            g_host_ptr_to_impl[host_ptr] = key;
-        }
-        void *storage_ctx = tensor.storage().data_ptr().get_context();
-        if (storage_ctx != nullptr)
-        {
-            register_tensor_storage_ctx_locked(tensor);
-        }
-    }
-    refresh_staged_tensor_mapping(tensor);
+    return tensor.device().type() == c10::DeviceType::PrivateUse1 &&
+        tensor.storage().nbytes() == 0;
 }
 
 void clear_tensor_gc_state()
 {
     std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    g_metadata_only_impls.clear();
-    g_staged_input_impls.clear();
-    g_host_ptr_to_impl.clear();
     g_storage_ctx_to_impl.clear();
 }
 
-void on_host_storage_released(void *host_data_ptr, void *storage_ctx)
+void on_host_storage_released(void * /*host_data_ptr*/, void *storage_ctx)
 {
     TensorImplKey released_impl = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-        if (host_data_ptr != nullptr)
-        {
-            const auto found = g_host_ptr_to_impl.find(host_data_ptr);
-            if (found != g_host_ptr_to_impl.end())
-            {
-                released_impl = found->second;
-                g_host_ptr_to_impl.erase(found);
-            }
-        }
-        else if (storage_ctx != nullptr)
+        if (storage_ctx != nullptr)
         {
             const auto found = g_storage_ctx_to_impl.find(storage_ctx);
             if (found != g_storage_ctx_to_impl.end())
@@ -164,16 +84,41 @@ void on_host_storage_released(void *host_data_ptr, void *storage_ctx)
                 g_storage_ctx_to_impl.erase(found);
             }
         }
-        if (released_impl != nullptr)
-        {
-            g_metadata_only_impls.erase(released_impl);
-            g_staged_input_impls.erase(released_impl);
-        }
     }
     if (released_impl != nullptr)
     {
         on_tensor_impl_released(released_impl);
     }
+}
+
+void register_metadata_tensor_storage(const at::Tensor &tensor)
+{
+    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
+    register_tensor_storage_ctx_locked(tensor);
+}
+
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+
+#include "nntile_allocator.h"
+
+#include <c10/util/Exception.h>
+
+namespace
+{
+
+std::unordered_set<TensorImplKey> g_stub_staged_input_impls;
+
+} // namespace
+
+bool has_host_staging(const at::Tensor &tensor)
+{
+    return tensor.storage().nbytes() > 0;
+}
+
+void mark_staged_input_tensor(const at::Tensor &tensor)
+{
+    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
+    g_stub_staged_input_impls.insert(tensor_impl_key(tensor));
 }
 
 void ensure_host_staging(at::Tensor &tensor)
@@ -193,10 +138,9 @@ void ensure_host_staging(at::Tensor &tensor)
         allocator,
         /*resizable=*/true);
     tensor.unsafeGetTensorImpl()->set_storage_keep_dtype(std::move(storage));
-    {
-        std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-        register_tensor_storage_ctx_locked(tensor);
-    }
+    register_tensor_storage_ctx_locked(tensor);
 }
+
+#endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile

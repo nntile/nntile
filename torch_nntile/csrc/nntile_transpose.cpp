@@ -84,10 +84,10 @@ at::Tensor model_transpose_backward(
     const at::Tensor &x)
 {
     check_model_transpose_input(grad_out, model_ndim, "grad_out");
-    at::Tensor grad_x = at::empty(
+    at::Tensor grad_x = empty_metadata_tensor(
         permuted_sizes(grad_out.sizes(), model_ndim),
-        grad_out.options().memory_format(at::MemoryFormat::Contiguous));
-    ensure_host_staging(grad_x);
+        grad_out.scalar_type(),
+        grad_out.device());
     pin_graph_op_inputs({grad_out});
     pin_graph_op_output(grad_x, true);
     tensor_model_transpose_backward_fp32(grad_out, grad_x, model_ndim);

@@ -96,17 +96,13 @@ std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
 
 bool mark_as_input_for_operand(const at::Tensor &tensor)
 {
-    if (is_metadata_only_tensor(tensor))
-    {
-        return false;
-    }
-    if (is_staged_input_tensor(tensor))
-    {
-        return true;
-    }
     if (tensor.device().is_cpu())
     {
         return true;
+    }
+    if (NodeRef binding = nntile_binding(tensor))
+    {
+        return binding->io_staging != nullptr;
     }
     return false;
 }

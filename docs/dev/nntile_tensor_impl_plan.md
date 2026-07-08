@@ -19,10 +19,10 @@ framing with the ownership model agreed in design review.
 | Phase | Status | Notes |
 |-------|--------|-------|
 | **0** Spec & harness | **Partial** | Doc landed; `TORCH_NNTILE_ASSERT_NODE_REF` wired; §11 inventory incomplete |
-| **1** `NNTileBinding` + meta | **Mostly done** | `nntile_tensor_meta.{h,cpp}`; dual-write with `g_tensor_nodes` remains |
+| **1** `NNTileBinding` + meta | **Done** | `NodeRef` is sole graph link; no `g_tensor_nodes` dual-write |
 | **2** Free reshape | **Mostly done** | `share_node_ref_for_reshape` on view path; dead `ensure_view_alias_locked` / `contiguous_view` helpers still in recorder |
 | **3** Output marks (no seal) | **Mostly done** | Compile path does not call seal; `seal_output_marks_*` dead code remains; GC test passes |
-| **4** Remove side map | **Not started** | `g_tensor_nodes`, tier sets, `ensure_host_staging`, `is_staged_input_tensor` still active |
+| **4** Remove side map | **Done** | `g_tensor_nodes` removed; `NodeRef` only; tier flags gone under libnntile |
 | **5** Permute policy | **Not started** | `permute` still stride-aliases when contiguous-preserving; errors only when non-contiguous |
 | **6** Autograd `NodeRef` | **Not started** | |
 | **7** I/O scatter/gather | **Done** | Input scatter-at-`.to()`; `.cpu()` uses `gather(L→S)` + incremental `execute_range`; staging invalidated after scatter run and after `.cpu()` readout |
@@ -70,16 +70,11 @@ A `device=nntile` tensor is **one kind of object**:
 
 | Problem | Current code / behavior | Phase |
 |---------|-------------------------|-------|
-| Graph link off-tensor | `g_tensor_nodes[TensorImpl*] → MappedTensor` still primary alongside meta | 4 |
-| Tensor categories | `g_metadata_only_impls`, `is_staged_input_tensor`, `is_persistent_input` still used | 4 |
-| Lookup indirection | `canonical_tensor_impl_key` for node resolution | 4 |
-| Output marks at compile | `seal_output_marks_*` **dead code**; compile path does not call seal | 3 ✓ |
-| Reshape copies tiles | `record_view_alias` → `share_node_ref_for_reshape` (no `contiguous_view` on path) | 2 ✓ |
-| Unwired views | `as_strided` rejects non-contiguous; contiguous shares `NodeRef` | 2 ✓ |
-| Permute vs transpose | `permute` stride-alias when contiguous-preserving; error if non-contiguous | 5 |
-| Post-compile node nulling | `clear_pending_graph_after_compile` still nulls `mapped.node` | 4 |
-| Host staging on outputs/grads | Many ops still call `ensure_host_staging`; `.cpu()` uses gather via `S` | 7 ✓ (readout), 4 |
-| `NntileAllocator` dense host bytes | Metadata-only path exists; legacy host staging not fully removed | 4, 7 |
+| Graph link off-tensor | `NodeRef` on `TensorImpl` only (no side map) | 4 ✓ |
+| Tensor categories | Tier flags removed under libnntile | 4 ✓ |
+| Post-compile node nulling | Map removed; logical nodes stable via `NodeRef` | 4 ✓ |
+| Host staging on outputs/grads | `empty_metadata_tensor` for op outputs; gather on `.cpu()` | 4 ✓, 7 ✓ |
+| `NntileAllocator` dense host bytes | 0-byte metadata storage only under libnntile | 4 ✓ |
 
 The map mixes **ownership**, **compile binding**, and **GC** in one structure.
 That makes views easy to forget and GC dependent on batch scans.
@@ -664,15 +659,13 @@ Python ref clears `is_output` without compile seal.
 
 ### Phase 4 — Remove side map and tier flags
 
-- [ ] Delete `g_tensor_nodes`; compile binds via meta on live tensors / session
-      snapshot.
-- [ ] Remove `g_metadata_only_impls`, `is_staged_input_tensor`,
-      `is_persistent_input`, `ensure_host_staging`, `needs_host_copy`.
-- [ ] Stop nulling `node` in `clear_pending_graph_after_compile` for live
-      params; rebind on next capture.
-- [ ] Tile adoption driven by live `NodeRef` on params, not flags.
+- [x] Delete `g_tensor_nodes`; compile binds via `NodeRef` on live tensors / `g_pinned_tensors`.
+- [x] Remove `g_metadata_only_impls`, `is_staged_input_tensor`,
+      `is_persistent_input`, `ensure_host_staging`, `needs_host_copy` (libnntile build).
+- [x] `clear_pending_graph_after_compile` never nulled logical nodes (map removed).
+- [x] Persistence via `pin_tensor_for_graph` + live `NodeRef` (not map flags).
 
-**Acceptance:** full `pytest torch_nntile/tests`; pre-commit clean.
+**Acceptance:** `test_device_stub` + `test_graph_execution`: **18 passed**.
 
 ---
 

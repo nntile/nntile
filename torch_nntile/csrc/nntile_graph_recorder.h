@@ -17,9 +17,6 @@ namespace at
 {
 class Tensor;
 }
-#include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace torch_nntile
 {
@@ -40,10 +37,6 @@ void shutdown_recorder();
 
 bool has_graph_session();
 
-void sync_nntile_storage_to_runtime(void *data_ptr);
-
-void sync_runtime_to_nntile_storage(void *data_ptr);
-
 void maybe_execute_after_record();
 
 void set_axis_group_name(
@@ -54,8 +47,6 @@ void set_axis_group_name(
 bool is_tensor_graph_output(const at::Tensor &tensor);
 
 void stage_tensor_for_axis_group_compile(const at::Tensor &tensor);
-
-void refresh_staged_tensor_mapping(const at::Tensor &tensor);
 
 void set_axis_group_tiling(
     const std::string &name,
@@ -69,7 +60,7 @@ void print_axis_groups();
 struct GcDebugStats
 {
     std::int64_t pinned_tensors = 0;
-    std::int64_t tensor_nodes = 0;
+    std::int64_t live_bindings = 0;
     std::int64_t tile_pool = 0;
     std::int64_t pending_ops = 0;
     std::int64_t pending_data = 0;

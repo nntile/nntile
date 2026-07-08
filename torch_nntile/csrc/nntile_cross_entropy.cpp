@@ -106,27 +106,21 @@ at::Tensor cross_entropy_backward(
         is_nntile_device(grad_output.device()),
         "nntile cross_entropy_backward: grad_output must be on device nntile");
     at::Tensor grad_out = grad_output;
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-    if (!is_metadata_only_tensor(grad_out))
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    ensure_host_staging(grad_out);
+    if (grad_out.numel() == 1)
     {
-        ensure_host_staging(grad_out);
-    }
-#else
-    if (!has_host_staging(grad_out))
-    {
-        ensure_host_staging(grad_out);
-        if (grad_out.numel() == 1)
-        {
-            grad_out.fill_(1.0f);
-        }
-    }
-    if (has_host_staging(grad_out))
-    {
-        mark_staged_input_tensor(grad_out);
+        grad_out.fill_(1.0f);
     }
 #endif
-    at::Tensor grad_logits = at::empty_like(logits);
-    at::Tensor grad_row = at::empty(target.sizes(), logits.options());
+    at::Tensor grad_logits = empty_metadata_tensor(
+        logits.sizes(),
+        logits.scalar_type(),
+        logits.device());
+    at::Tensor grad_row = empty_metadata_tensor(
+        target.sizes(),
+        logits.scalar_type(),
+        logits.device());
     pin_graph_op_inputs({logits, target, grad_out});
     pin_graph_op_output(grad_logits, false);
     tensor_cross_entropy_backward_fp32(

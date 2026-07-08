@@ -182,7 +182,7 @@ at::Tensor empty_metadata_tensor(
         kPrivateUse1DispatchKeySet,
         c10::scalarTypeToTypeMeta(dtype));
     tensor.unsafeGetTensorImpl()->set_sizes_contiguous(size);
-    mark_metadata_only_tensor(tensor);
+    register_metadata_tensor_storage(tensor);
     return tensor;
 }
 
@@ -237,15 +237,19 @@ at::Tensor ones_like(
         return result;
     }
 #endif
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
     if (is_nntile_device(result.device()) && is_metadata_only_tensor(result))
     {
         ensure_host_staging(result);
     }
+#endif
     result.fill_(1);
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
     if (has_host_staging(result))
     {
         mark_staged_input_tensor(result);
     }
+#endif
     return result;
 }
 
@@ -453,10 +457,12 @@ at::Tensor copy_from(
         memcpy_tensors(self, mutable_dst);
 #endif
     }
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
     if (has_host_staging(self) || has_host_staging(mutable_dst))
     {
         memcpy_tensors(self, mutable_dst);
     }
+#endif
     return dst;
 }
 

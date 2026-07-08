@@ -133,10 +133,10 @@ at::Tensor embedding(
     const at::Tensor indices_contig = prepare_indices(indices);
     const std::vector<int64_t> out_shape =
         embedding_output_shape(indices_contig.sizes(), weight.size(1));
-    at::Tensor output = at::empty(
+    at::Tensor output = empty_metadata_tensor(
         out_shape,
-        weight.options().memory_format(at::MemoryFormat::Contiguous));
-    ensure_host_staging(output);
+        weight.scalar_type(),
+        weight.device());
 
     const nntile::Index axis =
         static_cast<nntile::Index>(indices_contig.dim());

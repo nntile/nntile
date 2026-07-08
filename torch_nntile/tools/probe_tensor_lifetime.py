@@ -160,7 +160,7 @@ def _gc_stats() -> dict[str, Any]:
     stats = _C.debug_gc_stats()
     return {
         "pinned_tensors": stats.pinned_tensors,
-        "tensor_nodes": stats.tensor_nodes,
+        "live_bindings": stats.live_bindings,
         "tile_pool": stats.tile_pool,
         "pending_ops": stats.pending_ops,
         "pending_data": stats.pending_data,
@@ -218,7 +218,7 @@ def probe_nntile_graph_mode() -> ProbeResult:
             stats = _C.debug_gc_stats()
             return {
                 "pinned_tensors": stats.pinned_tensors,
-                "tensor_nodes": stats.tensor_nodes,
+                "live_bindings": stats.live_bindings,
                 "tile_pool": stats.tile_pool,
                 "pending_ops": stats.pending_ops,
                 "pending_data": stats.pending_data,
@@ -276,7 +276,7 @@ def probe_nntile_no_grad() -> ProbeResult:
             stats = _C.debug_gc_stats()
             return {
                 "pinned_tensors": stats.pinned_tensors,
-                "tensor_nodes": stats.tensor_nodes,
+                "live_bindings": stats.live_bindings,
                 "tile_pool": stats.tile_pool,
                 "pending_ops": stats.pending_ops,
                 "pending_data": stats.pending_data,

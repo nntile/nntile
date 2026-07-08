@@ -149,9 +149,13 @@ at::Tensor broadcast_to_shape(
         at::Tensor out = at::empty(
             target_size,
             tensor.options().memory_format(at::MemoryFormat::Contiguous));
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
         ensure_host_staging(out);
+#endif
         out.copy_(cpu_broadcast);
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
         mark_staged_input_tensor(out);
+#endif
         return out;
     }
     at::Tensor expanded = tensor.expand(target_size);

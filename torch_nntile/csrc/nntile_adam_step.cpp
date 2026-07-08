@@ -69,12 +69,15 @@ void check_adam_step_tensors(
 
 void ensure_optimizer_state_staging(at::Tensor &tensor)
 {
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
     if (is_metadata_only_tensor(tensor))
     {
         ensure_host_staging(tensor);
         tensor.zero_();
     }
     mark_staged_input_tensor(tensor);
+#endif
+    (void)tensor;
 }
 
 } // namespace
@@ -94,10 +97,6 @@ void adam_step(
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adam_step");
     TORCH_CHECK(num_iter >= 1, "nntile adam_step: num_iter must be >= 1");
-    if (has_host_staging(param))
-    {
-        mark_staged_input_tensor(param);
-    }
     ensure_optimizer_state_staging(first_moment);
     ensure_optimizer_state_staging(second_moment);
     pin_graph_op_inputs({param, first_moment, second_moment});
@@ -129,10 +128,6 @@ void adamw_step(
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adamw_step");
     TORCH_CHECK(num_iter >= 1, "nntile adamw_step: num_iter must be >= 1");
-    if (has_host_staging(param))
-    {
-        mark_staged_input_tensor(param);
-    }
     ensure_optimizer_state_staging(first_moment);
     ensure_optimizer_state_staging(second_moment);
     pin_graph_op_inputs({param, first_moment, second_moment});
