@@ -264,8 +264,8 @@ def test_adam_step_accepts_keyword_lr():
     shape = (2, 2)
     param = torch.randn(shape, dtype=torch.float32).to("nntile")
     grad = torch.randn(shape, dtype=torch.float32).to("nntile")
-    m = torch.zeros(shape, dtype=torch.float32).to("nntile")
-    v = torch.zeros(shape, dtype=torch.float32).to("nntile")
+    m = torch.empty(shape, dtype=torch.float32, device="nntile")
+    v = torch.empty(shape, dtype=torch.float32, device="nntile")
 
     _C.adam_step(
         param,

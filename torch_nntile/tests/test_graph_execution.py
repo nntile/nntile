@@ -126,8 +126,9 @@ def test_graph_forward_matches_cpu():
             ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
-        model_graph = DeepReLU.tiny().to("nntile")
+        model_graph = DeepReLU.tiny()
         model_graph.load_state_dict(model_cpu.state_dict())
+        model_graph = model_graph.to("nntile")
         with torch.no_grad():
             y_graph = model_graph(x_cpu.to("nntile"))
             assert torch_nntile.has_pending_graph()
@@ -252,8 +253,9 @@ def test_train_full_batch_step_graph_mode():
 
         model_cpu = DeepReLU.tiny()
         model_cpu.init_kaiming_uniform_(seed=42)
-        model = DeepReLU.tiny().to("nntile")
+        model = DeepReLU.tiny()
         model.load_state_dict(model_cpu.state_dict())
+        model = model.to("nntile")
         before = clone_model_weights(model)
         x = torch.randn(8, model.input_dim).to("nntile")
         y = torch.randint(0, model.output_dim, (8,)).to("nntile")
@@ -288,8 +290,9 @@ def test_train_full_batch_step_graph_mode_multi_epoch():
 
         model_cpu = DeepReLU.tiny()
         model_cpu.init_kaiming_uniform_(seed=42)
-        model = DeepReLU.tiny().to("nntile")
+        model = DeepReLU.tiny()
         model.load_state_dict(model_cpu.state_dict())
+        model = model.to("nntile")
         x = torch.randn(8, model.input_dim).to("nntile")
         y = torch.randint(0, model.output_dim, (8,)).to("nntile")
         w0 = clone_model_weights(model)

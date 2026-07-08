@@ -120,16 +120,6 @@ nntile::TensorGraph::TensorNode *nntile_node(const at::Tensor &tensor)
     return binding->logical;
 }
 
-nntile::TensorGraph::TensorNode *nntile_io_staging(const at::Tensor &tensor)
-{
-    NodeRef binding = nntile_binding(tensor);
-    if (binding == nullptr)
-    {
-        return nullptr;
-    }
-    return binding->io_staging;
-}
-
 void attach_binding(at::Tensor &tensor, NodeRef binding)
 {
     TORCH_CHECK(

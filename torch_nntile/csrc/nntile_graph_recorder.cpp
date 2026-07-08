@@ -1067,11 +1067,6 @@ bool read_nntile_staging_to_host(const at::Tensor &tensor, void *host_ptr)
     return true;
 }
 
-bool can_read_nntile_tensor_from_staging(const at::Tensor & /*tensor*/)
-{
-    return false;
-}
-
 void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst)
@@ -1102,21 +1097,9 @@ void init_nntile_input_from_cpu(
     if (NodeRef existing = nntile_binding(nntile_dst);
         existing != nullptr && existing->logical != nullptr)
     {
-        auto *logical = existing->logical;
-        auto *staging = create_ephemeral_io_staging_locked(logical, "ingress", true);
-        if (staging == nullptr)
-        {
-            throw std::runtime_error(
-                "torch_nntile: failed to create ingress staging tensor");
-        }
-        write_cpu_bytes_to_staging_locked(
-            staging,
-            cpu_src.storage().data_ptr().get(),
-            dtype,
-            static_cast<std::size_t>(cpu_src.numel()));
-        nntile::tensor::scatter(staging, logical);
-        g_pinned_tensors.push_back(nntile_dst);
-        return;
+        throw std::runtime_error(
+            "torch_nntile: cannot copy CPU data into a bound nntile tensor; "
+            "load weights on CPU then call .to('nntile') once");
     }
 
     auto *logical = g_graph->data(shape, dtype);
@@ -1641,11 +1624,6 @@ void mark_persistent_graph_tensor(const at::Tensor & /*tensor*/)
 }
 
 bool read_nntile_staging_to_host(const at::Tensor & /*tensor*/, void * /*host_ptr*/)
-{
-    return false;
-}
-
-bool can_read_nntile_tensor_from_staging(const at::Tensor & /*tensor*/)
 {
     return false;
 }

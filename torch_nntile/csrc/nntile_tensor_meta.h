@@ -25,11 +25,10 @@ namespace torch_nntile
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
-//! Graph binding for one at::Tensor: logical node + I/O staging node.
+//! Graph binding for one at::Tensor: logical node L only (staging S is ephemeral).
 struct NNTileBinding
 {
     nntile::TensorGraph::TensorNode *logical = nullptr;
-    nntile::TensorGraph::TensorNode *io_staging = nullptr;
 
     explicit NNTileBinding(nntile::TensorGraph::TensorNode *logical_in);
     ~NNTileBinding();
@@ -57,8 +56,6 @@ void assert_has_node_ref(const at::Tensor &tensor, const char *site);
 NodeRef nntile_binding(const at::Tensor &tensor);
 
 nntile::TensorGraph::TensorNode *nntile_node(const at::Tensor &tensor);
-
-nntile::TensorGraph::TensorNode *nntile_io_staging(const at::Tensor &tensor);
 
 void attach_binding(at::Tensor &tensor, NodeRef binding);
 

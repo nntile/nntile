@@ -43,8 +43,6 @@ void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst);
 
-bool can_read_nntile_tensor_from_staging(const at::Tensor &tensor);
-
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 nntile::TensorGraph &recorder_graph();
