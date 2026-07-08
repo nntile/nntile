@@ -14,6 +14,7 @@
 #include <ATen/Tensor.h>
 #include <c10/core/DeviceType.h>
 #include <c10/util/Exception.h>
+#include <cstring>
 #include <stdexcept>
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
@@ -1649,6 +1650,37 @@ void mark_persistent_graph_tensor(const at::Tensor & /*tensor*/)
 bool read_nntile_staging_to_host(const at::Tensor & /*tensor*/, void * /*host_ptr*/)
 {
     return false;
+}
+
+bool can_read_nntile_tensor_from_staging(const at::Tensor & /*tensor*/)
+{
+    return false;
+}
+
+void init_nntile_input_from_cpu(
+    const at::Tensor &cpu_src,
+    at::Tensor &nntile_dst)
+{
+    TORCH_CHECK(cpu_src.is_cpu(), "init_nntile_input_from_cpu: expected CPU src");
+    TORCH_CHECK(
+        nntile_dst.device().type() == c10::DeviceType::PrivateUse1,
+        "init_nntile_input_from_cpu: expected nntile dst");
+    TORCH_CHECK(
+        cpu_src.sizes() == nntile_dst.sizes(),
+        "init_nntile_input_from_cpu: shape mismatch");
+    TORCH_CHECK(
+        cpu_src.is_contiguous() && nntile_dst.is_contiguous(),
+        "init_nntile_input_from_cpu: contiguous tensors required");
+    ensure_host_staging(nntile_dst);
+    const int64_t nbytes = cpu_src.nbytes();
+    if (nbytes > 0)
+    {
+        std::memcpy(
+            nntile_dst.data_ptr(),
+            cpu_src.data_ptr(),
+            static_cast<std::size_t>(nbytes));
+    }
+    mark_staged_input_tensor(nntile_dst);
 }
 
 void set_axis_group_tiling(
