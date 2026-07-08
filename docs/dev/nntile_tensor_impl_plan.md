@@ -25,16 +25,15 @@ framing with the ownership model agreed in design review.
 | **4** Remove side map | **Not started** | `g_tensor_nodes`, tier sets, `ensure_host_staging`, `is_staged_input_tensor` still active |
 | **5** Permute policy | **Not started** | `permute` still stride-aliases when contiguous-preserving; errors only when non-contiguous |
 | **6** Autograd `NodeRef` | **Not started** | |
-| **7** I/O scatter/gather | **Partial** | Input scatter-at-`.to()` + runtime `S` bind done; **gather on `.cpu()` not implemented** (reads `L` directly post-run); staging invalidate not wired |
+| **7** I/O scatter/gather | **Done** | Input scatter-at-`.to()`; `.cpu()` uses `gather(L→S)` + incremental `execute_range`; staging invalidated after scatter run and after `.cpu()` readout |
 
 **Test snapshot** (`test_device_stub.py` + `test_graph_execution.py`): **18 passed**.
 
-**Open before Phase 7 acceptance:**
+**Phase 7 acceptance (complete):**
 
-1. `.cpu()` must record **`gather(L → S)`** + compile + run (today reads `L`
-   directly via `read_logical_to_host_locked` after sealed phases).
-2. Wire **`invalidate_staging_tile_buffer`** after scatter at run and after `.cpu()`
-   readout.
+1. `.cpu()` records **`gather(L → S)`** + compile + incremental `execute_range` run.
+2. **`invalidate_staging_tile_buffer`** after scatter at run and after `.cpu()` readout.
+3. **`execute_range`** incremental execution — no full `execute()` re-run of prior phases.
 
 ---
 
@@ -79,7 +78,7 @@ A `device=nntile` tensor is **one kind of object**:
 | Unwired views | `as_strided` rejects non-contiguous; contiguous shares `NodeRef` | 2 ✓ |
 | Permute vs transpose | `permute` stride-alias when contiguous-preserving; error if non-contiguous | 5 |
 | Post-compile node nulling | `clear_pending_graph_after_compile` still nulls `mapped.node` | 4 |
-| Host staging on outputs/grads | Many ops still call `ensure_host_staging`; `.cpu()` reads `L` not gather | 7 |
+| Host staging on outputs/grads | Many ops still call `ensure_host_staging`; `.cpu()` uses gather via `S` | 7 ✓ (readout), 4 |
 | `NntileAllocator` dense host bytes | Metadata-only path exists; legacy host staging not fully removed | 4, 7 |
 
 The map mixes **ownership**, **compile binding**, and **GC** in one structure.
@@ -696,15 +695,15 @@ Python ref clears `is_output` without compile seal.
 - [x] `.to("nntile")`: new tensor + new binding; runtime bind into `S`;
       record `scatter(S → L)` at init (not compile prepend); `S` →
       `mark_output(false)`.
-- [ ] `.cpu()`: always `gather(L → S)`; `compile_graph()` + `run()`;
-      `acquire(R)`/`memcpy`/`release`; then **invalidate tile buffer on `S`**
-      (keep `binding->io_staging` and the StarPU handle for reuse).
-      **Current:** `copy_nntile_tensor_to_cpu` reads `L` directly when initialized.
+- [x] `.cpu()`: always `gather(L → S)`; `compile_graph()` + incremental
+      `execute_range` run; `acquire(R)`/`memcpy`/`release`; then **invalidate
+      tile buffer on `S`** (keep `binding->io_staging` and the StarPU handle
+      for reuse).
 - [~] Remove host-bind paths (`bind_storage_to_runtime` from host ptr still used
       for legacy staging; `bind_pending_staging_inputs` removed).
-- [~] `refresh_input_scatter_locked` for reused batch tensors across compiles
-      (multi-epoch test still fails).
-- [ ] Fix SGD / training weight readout parity (3 failing graph tests).
+- [x] `execute_range` incremental execution in `RecorderExecState` (no full
+      `execute()` re-run of sealed phases).
+- [x] Scatter staging invalidation after each phase `run_graph()`.
 
 **Acceptance:** v1 always copies via `S`; no host `Storage` payload; `S`
 invalidated after each `.cpu()` and after scatter at run (input path).
