@@ -9,6 +9,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Cloud images may default to clang without libstdc++ headers; g++ is required.
+os.environ.setdefault("CC", "gcc")
+os.environ.setdefault("CXX", "g++")
+
 from setuptools import find_packages, setup
 from torch.utils.cpp_extension import BuildExtension, CppExtension
 

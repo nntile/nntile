@@ -245,6 +245,7 @@ at::Tensor ones_like(
             self.sizes(),
             result.scalar_type(),
             result.device());
+        fill_scalar(result, 1);
         return result;
     }
 #endif

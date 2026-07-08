@@ -153,10 +153,7 @@ void set_axis_group_name_py(
         const std::string name = py::cast<std::string>(item.second);
         parsed.emplace(dim, name);
     }
-    set_axis_group_name(
-        tensor_impl_key(tensor),
-        static_cast<int>(tensor.dim()),
-        parsed);
+    set_axis_group_name(tensor, parsed);
     stage_tensor_for_axis_group_compile(tensor);
 }
 

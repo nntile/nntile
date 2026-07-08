@@ -1346,11 +1346,14 @@ void pin_graph_op_output(const at::Tensor &output, bool pin_output)
 }
 
 void set_axis_group_name(
-    TensorImplKey impl_key,
-    int ndim,
+    const at::Tensor &tensor,
     const std::unordered_map<int, std::string> &names)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    const TensorImplKey impl_key = tensor_impl_key(tensor);
+    const int ndim = static_cast<int>(tensor.dim());
+    nntile::TensorGraph::TensorNode *bound_node = nntile_node(tensor);
+
     for (const auto &[dim, name] : names)
     {
         if (dim < 0 || dim >= ndim)
@@ -1364,18 +1367,10 @@ void set_axis_group_name(
                 "torch_nntile set_axis_group_name: name must be non-empty");
         }
 
-        nntile::TensorGraph::TensorNode *node = nullptr;
-        for (const at::Tensor &tensor : g_pinned_tensors)
+        nntile::TensorGraph::TensorNode *node = bound_node;
+        if (node == nullptr)
         {
-            if (tensor_impl_key(tensor) != impl_key)
-            {
-                continue;
-            }
-            node = nntile_node(tensor);
-            if (node != nullptr)
-            {
-                break;
-            }
+            node = node_for_impl_locked(impl_key);
         }
         if (node != nullptr)
         {
@@ -1625,8 +1620,7 @@ void record_view_alias(const at::Tensor & /*self*/, const at::Tensor & /*view*/)
 }
 
 void set_axis_group_name(
-    TensorImplKey /*impl_key*/,
-    int /*ndim*/,
+    const at::Tensor & /*tensor*/,
     const std::unordered_map<int, std::string> & /*names*/)
 {
     require_libnntile();

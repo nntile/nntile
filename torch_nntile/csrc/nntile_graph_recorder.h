@@ -40,8 +40,7 @@ bool has_graph_session();
 void maybe_execute_after_record();
 
 void set_axis_group_name(
-    TensorImplKey impl_key,
-    int ndim,
+    const at::Tensor &tensor,
     const std::unordered_map<int, std::string> &names);
 
 bool is_tensor_graph_output(const at::Tensor &tensor);
