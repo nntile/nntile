@@ -336,9 +336,20 @@ void write_cpu_bytes_to_staging_locked(
     nntile::DataType dtype,
     std::size_t count)
 {
-    if (staging == nullptr || host_ptr == nullptr || count == 0)
+    if (staging == nullptr)
     {
         return;
+    }
+    if (count == 0)
+    {
+        ensure_recorder_exec_state_locked();
+        g_exec->runtime->mark_initialized(staging);
+        return;
+    }
+    if (host_ptr == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile: staging write requires non-null host pointer");
     }
     ensure_recorder_exec_state_locked();
     nntile::Runtime &runtime = *g_exec->runtime;
@@ -414,27 +425,22 @@ void invalidate_staging_tile_submit_locked(
     }
     nntile::Runtime &runtime = *g_exec->runtime;
     runtime.wait();
-    nntile::TileGraph::TileNode *tile = nullptr;
-    try
+    nntile::TileGraph::TileNode *tile =
+        require_single_staging_tile_locked(staging);
+    switch (staging->dtype())
     {
-        tile = require_single_staging_tile_locked(staging);
-        switch (staging->dtype())
-        {
-        case nntile::DataType::FP32:
-            runtime.get_tile<nntile::fp32_t>(tile).invalidate_submit();
-            break;
-        case nntile::DataType::INT64:
-            runtime.get_tile<nntile::int64_t>(tile).invalidate_submit();
-            break;
-        case nntile::DataType::BOOL:
-            runtime.get_tile<nntile::bool_t>(tile).invalidate_submit();
-            break;
-        default:
-            break;
-        }
-    }
-    catch (const std::exception &)
-    {
+    case nntile::DataType::FP32:
+        runtime.get_tile<nntile::fp32_t>(tile).invalidate_submit();
+        break;
+    case nntile::DataType::INT64:
+        runtime.get_tile<nntile::int64_t>(tile).invalidate_submit();
+        break;
+    case nntile::DataType::BOOL:
+        runtime.get_tile<nntile::bool_t>(tile).invalidate_submit();
+        break;
+    default:
+        throw std::runtime_error(
+            "torch_nntile: unsupported staging invalidate dtype");
     }
     runtime.invalidate_initialized(staging);
 }
@@ -1027,7 +1033,9 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     NodeRef binding = nntile_binding(src);
     if (binding == nullptr || binding->logical == nullptr)
     {
-        return;
+        throw std::runtime_error(
+            "torch_nntile: copy nntile tensor to CPU requires a bound "
+            "logical graph node (use .to('nntile') first)");
     }
     nntile::TensorGraph::TensorNode *logical = binding->logical;
     const nntile::DataType dtype = logical->dtype();

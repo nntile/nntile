@@ -855,7 +855,26 @@ that branch; do not split into separate PRs.
 
 ---
 
-## 16. Glossary
+## 16. Deferred I/O and session optimizations
+
+The one-shot ephemeral staging design in `nntile_graph_recorder.cpp` is correct
+for v1; the items below are **known limitations** scheduled for separate PRs
+after the base path is stable. Do not “fix” them opportunistically in I/O PRs.
+
+| # | Topic | Current behavior | Planned follow-up |
+|---|--------|------------------|-------------------|
+| D1 | **TensorGraph growth** | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node to the session `TensorGraph`. | Phase GC or graph compaction; possibly reuse readout staging within a session. |
+| D2 | **`TileGraphIncrementalState` growth** | Every ingress `.to("nntile")` and egress `.cpu()` lowers a fresh ephemeral `S` into `inc_state.tensor_to_tiles`; entries are never removed. | Reclaim staging tile descriptors after invalidate; or pool single-tile staging nodes per logical `L`. |
+| D3 | **`g_pinned_tensors` bookkeeping** | `pin_tensor_for_graph` / ingress may append duplicate `at::Tensor` refs until the next graph clear. | Dedup by `TensorImpl*` key; trim on phase seal. |
+
+**Current staging policy (implemented):** `NNTileBinding` holds only `logical` (`L`).
+Each ingress creates a new ephemeral single-tile `S`, scatter-invalidates it after
+run. Each egress creates a fresh `S`, gather-reads, then invalidates. Ingress is
+**once per tensor** via `.to("nntile")`; CPU→bound-nntile copy is rejected.
+
+---
+
+## 17. Glossary
 
 | Term | Meaning |
 |------|---------|
@@ -863,10 +882,10 @@ that branch; do not split into separate PRs.
 | **Capture** | Record ATen ops into pending `g_graph` until next compile |
 | **Compile segment** | Ops captured since the previous `compile_graph()` |
 | **Free reshape** | Same numel, same `NodeRef`, no graph op |
-| **NNTileBinding** | `NodeRef` target: `{ logical L, io_staging S }`; `S` is not on `BackendMeta` |
+| **NNTileBinding** | `NodeRef` target: `{ logical L }`; ephemeral staging `S` nodes are not stored in the binding |
 | **NodeRef** | `shared_ptr<NNTileBinding>`; refcount drives `mark_output` on `L` |
 | **Logical (`L`)** | `binding->logical`; graph/compute node; `mark_output(true)` via `NodeRef` |
-| **Staging (`S`)** | `binding->io_staging`; single-tile I/O node; invalidated after `.cpu()` gather readout; input `S` stays readable after scatter until gather readout |
+| **Staging (`S`)** | Ephemeral single-tile graph node per I/O event; created at `.to("nntile")` (ingress) or `.cpu()` (egress); tile buffer invalidated after scatter/gather run |
 | **Scatter / Gather** | v1: always recorded / run; future no-op in libnntile when tiling matches (§3.7) |
 | **Session** | `RecorderExecState`: archived graphs + compiled `TileGraph` + `Runtime` |
 
