@@ -2,11 +2,16 @@
 
 **Parent:** [nntile_tensor_impl_plan.md](nntile_tensor_impl_plan.md) (phases 0–7 largely complete)  
 **Branch:** `cursor/pytorch-tensor-gc-investigation-94e3` / PR [#425](https://github.com/nntile/nntile/pull/425)  
-**Audit date:** 2026-07-08
+**Audit date:** 2026-07-08  
+**Revised:** 2026-07-08 (design review feedback)
 
 This document **re-states the target tensor contract**, reviews the current
 `torch_nntile` implementation against it, and lists remaining work to **fully
 converge** on the design.
+
+**Scope:** All items below are **`torch_nntile` extension** work unless explicitly
+marked as libnntile. The extension adapts PyTorch to NNTile; it does not require
+changing libnntile semantics for finalization.
 
 ---
 
@@ -29,246 +34,221 @@ The tensor is **mainly a TensorNode provider**. PyTorch fields (`sizes`,
 | **Identity** | `NNTileBackendMeta` on `TensorImpl` holds `NodeRef` → `NNTileBinding { L, S }` only. No side map (`g_tensor_nodes`), no tier enums. |
 | **Logical (`L`)** | `binding->logical` — graph/compute node. `mark_output(true)` while any `NodeRef` exists; `mark_output(false)` in `NNTileBinding` destructor. |
 | **Staging (`S`)** | `binding->io_staging` — single-tile I/O seam. Created at `.to("nntile")` or lazily before first `.cpu()`. `mark_output(false)`. Buffer invalidated after scatter-at-run and after each `.cpu()`; pointer kept. |
-| **Storage** | Always **0 bytes** under libnntile (`is_metadata_only_tensor` ≡ `nbytes()==0`). |
-| **Views** | Same-numel `view`/`reshape`/`as_strided` (contiguous) / contiguous-preserving `permute` → **share `NodeRef`**, no graph op. |
+| **Storage** | Always **0 bytes** under libnntile (`is_metadata_only_tensor` ≡ `nbytes()==0`). **No resize, no `set_` on storage** — there is nothing to mutate. |
+| **Views (ATen)** | Same-numel `view` / contiguous `as_strided` / contiguous-preserving `permute` → **share `NodeRef`** on the PyTorch shell (virtual reshape). |
+| **Views (TensorGraph)** | NNTile **does not** treat same-numel reshape as a free tensor-graph op. When PyTorch shape at record time ≠ `L`'s graph shape but numel matches, the recorder may insert `tensor::contiguous_view` as a **shape bridge** — reshape is realized later at **tile / `nntile::core` level** during lowering. |
 | **Layout ops** | `transpose` / `.t()` → materialize (`swap_two_axes`). Non-contiguous `permute` → error. |
-| **I/O in** | `.to("nntile")` / CPU→nntile `copy_`: new binding, `bind_data` on `S`, record `scatter(S→L)` at init. |
-| **I/O out** | `.cpu()` / nntile→CPU `copy_`: record `gather(L→S)`, user `compile_graph()` + `run()`, read `S`, invalidate buffer. **No direct `L` read from PyTorch API.** |
-| **Compile** | Caller-controlled `compile_graph()` + `run()`; **one `run()` per compile**. Growing `g_graph`; `seal_phase` only new ops. |
-| **GC** | `is_output` = live `NodeRef` refcount (incl. autograd-retained tensors). No compile-time seal pass. DCE via op graph + marks. |
+| **I/O in** | `.to("nntile")` / CPU→nntile `copy_`: new binding, host bytes into `S`, record `scatter(S→L)` at init. |
+| **I/O out** | `.cpu()` / nntile→CPU `copy_`: `gather(L→S)` + compile + run + read `S`. **No `Runtime::get_output(L)` from torch_nntile.** |
+| **Compile** | Caller-controlled `compile_graph()` + `run()`; **one `run()` per compile**. |
+| **GC** | `is_output` = live `NodeRef` refcount. No compile-time seal pass. |
+| **No caching** | No host-side caches that bypass the graph/I/O path (e.g. label caches, logical-read shortcuts). Optimizations deferred until the base path is stable. |
 
-### 1.3 Allowed “helpful additions” (secondary, must not contradict core)
-
-These are **recorder/session helpers**, not alternate tensor kinds:
+### 1.3 Allowed “helpful additions” (secondary)
 
 | Mechanism | Purpose | Constraint |
 |-----------|---------|------------|
-| `pin_tensor_for_graph` / `g_pinned_tensors` | Keep live tensors visible across compile for axis naming / retention | Must not be required for correctness if `NodeRef` refcount is complete |
-| `g_param_grad_registry` | Map param `TensorImpl` → grad `TensorNode` for accumulation / optimizer | Grad `at::Tensor` must still carry `NodeRef` |
+| `pin_tensor_for_graph` / `g_pinned_tensors` | Compile-time retention / axis naming | Extension session state |
+| `g_param_grad_registry` | Param → grad `TensorNode` for accumulation / optimizer | Grad tensor still carries `NodeRef` |
 | `g_axis_name_hints` / `g_axis_tiling_by_name` | Pre-compile axis metadata | Orthogonal to tensor identity |
-| `g_label_host_cache` | INT64 label fast-path | **Violates** zero-host-bytes; should be removed or replaced with graph input |
-| `ensure_graph_shape_bridge_locked` | Same-numel PyTorch shape ≠ graph shape | Should not insert `CONTIGUOUS_VIEW` for free-reshape cases |
+| `ensure_graph_shape_bridge_locked` | PyTorch shape ≠ graph shape, same numel | **Intentional** — `contiguous_view` bridge at TensorGraph level |
 | `TORCH_NNTILE_ASSERT_NODE_REF` | Debug invariant | Keep |
 
 ### 1.4 Explicit non-requirements (rejected)
 
-- Host `std::vector` / dense bytes on `Storage`
-- Three tiers (GraphHandle / Staged / Persistent)
-- `is_staged_input_tensor`, `g_metadata_only_impls`, `needs_host_copy`
-- Tile adoption, per-segment logical rebind, graph epoch id
-- `seal_output_marks_*` at compile
-- `aten::contiguous` materialization (error if not already contiguous)
-- Optional host payload for grads / optimizer state
+- Host payload on `Storage`; `resize_`; `set_.source_*` mutating storage
+- Host caches (`g_label_host_cache`, logical-read fast paths)
+- `Runtime::get_output(L)` exposed from torch_nntile
+- Three tiers, side maps, compile-time seal, tile adoption
+- Same-numel **free reshape at TensorGraph level** (differs from ATen virtual reshape)
 
 ### 1.5 Public API invariants (testable)
 
-1. Every libnntile tensor participating in a recorded op has `nntile_binding(t) != nullptr` after the op returns (when `TORCH_NNTILE_ASSERT_NODE_REF=1`).
-2. `tensor.storage().nbytes() == 0` for all `device=nntile` tensors created via registered factories.
-3. `view(x)` where `x.numel() == view.numel()` → `nntile_binding(x) == nntile_binding(view)` (same `shared_ptr`).
-4. `.cpu()` after `compile`+`run` never calls `Runtime::get_output(L)` directly (only via `gather` → `S`).
-5. `grad.zero_()` on metadata grad records `tensor::fill` in the graph (no `data_ptr` write).
-6. No `tensor::contiguous_view` op recorded for pure reshape/view chains.
+1. `tensor.storage().nbytes() == 0` for libnntile `device=nntile` tensors from registered factories.
+2. `view(x)` same numel → `nntile_binding(x) == nntile_binding(view)` (ATen virtual reshape).
+3. Host export never calls `Runtime::get_output(L)` — only `gather` → `S` → host memcpy.
+4. No host-side label or logical-read caches in the recorder.
+5. `grad.zero_()` records `tensor::fill` in the graph (no `data_ptr` write on metadata tensors).
 
 ---
 
-## 2. Implementation review (2026-07-08)
+## 2. Design decisions from review (2026-07-08)
 
-### 2.1 Aligned with design ✓
+| Topic | Decision |
+|-------|----------|
+| **F-01 `reshape_alias`** | **OK as-is.** `view` calls `record_view_alias` after `reshape_alias`; a separate `_reshape_alias` hook without alias is acceptable. |
+| **F-02/03 `set_` / `resize_`** | **Non-issue / out of scope.** There is no `Storage` payload; resize is not supported. No plan work unless we add explicit `TORCH_CHECK` rejects later. |
+| **F-04/10 logical read + label cache** | **Remove.** No `Runtime::get_output(L)` in torch_nntile; no `g_label_host_cache` or similar caches at this time — optimizations risk breaking invariants. |
+| **F-06/07 copy / gather readout** | **torch_nntile extension** items only — not libnntile changes. Recorder/I/O code in `nntile_graph_recorder.cpp` / `nntile_kernels.cpp`. |
+| **F-08 `contiguous_view` bridge** | **Correct by design.** TensorGraph keeps canonical `L` shape; PyTorch may present a different same-numel shape; bridge op connects them; true reshape happens at tile/core lowering. |
 
-| Area | Location | Notes |
-|------|----------|-------|
-| `NodeRef` / `NNTileBinding` | `nntile_tensor_meta.{h,cpp}` | Sole graph link; ctor/dtor drives `mark_output` on `L` |
-| 0-byte factory | `empty_metadata_tensor`, `empty.memory_format` | Registered in `nntile_kernels.cpp` |
-| Free reshape (ATen) | `view`, `as_strided`, `permute` (contiguous) | `record_view_alias` → `share_node_ref_for_reshape` |
-| Input path | `init_nntile_input_from_cpu` | scatter at init, `S` mark_input/output |
-| Output path (main) | `copy_nntile_tensor_to_cpu` post-run | `gather_logical_to_staging_and_read_locked` |
-| Incremental exec | `execute_range` in `RecorderExecState` | No full re-run of sealed phases |
-| Tier removal | libnntile build | No `g_tensor_nodes`, no `ensure_host_staging` |
-| Grad policy | `register_param_grad_node`, `register_grad_alias_for_host_copy`, `tensor_fill_fp32` | Multi-backward + `zero_` work |
-| Compile seal removed | `compile_graph_locked` | No `seal_output_marks_*` |
-
-### 2.2 Not yet within design ✗
-
-Grouped by severity.
-
-#### P0 — Correctness / design violation (libnntile)
-
-| ID | File(s) | Issue |
-|----|---------|-------|
-| **F-01** | `nntile_kernels.cpp` `reshape_alias` | Registered as `_reshape_alias`; does **not** call `record_view_alias`. Autograd reshape can drop `NodeRef`. |
-| **F-02** | `nntile_kernels.cpp` `set_source_tensor`, `set_source_storage*` | Rebinds `Storage`/strides with no `NodeRef` update. |
-| **F-03** | `nntile_kernels.cpp` `resize_` | `resize_impl_cpu_` on 0-byte storage; no graph node update. |
-| **F-04** | `nntile_graph_recorder.cpp` `read_logical_to_host_locked`, `read_nntile_logical_to_host` | Direct `Runtime::get_output(L)` — bypasses gather. Used by labels and staging populate. |
-| **F-05** | `nntile_graph_recorder.cpp` `copy_nntile_tensor_to_cpu` L1330–1339 | Pre-first-compile staging fast-path skips gather (OK for fresh inputs only; document or narrow). |
-| **F-06** | `nntile_kernels.cpp` `copy_from` | `can_read_nntile_tensor_from_staging` fast-path can export without gather. |
-| **F-07** | `nntile_graph_recorder.cpp` `gather_logical_to_staging_and_read_locked` | **Inline** `compile_graph_locked` + `run_graph_locked` inside `.cpu()` — couples readout to implicit compile; inflates `mark_output` on `S` temporarily. |
-| **F-08** | `nntile_graph_recorder.cpp` `ensure_graph_shape_bridge_locked` | Inserts `tensor::contiguous_view` when PyTorch shape vector ≠ graph shape but numel matches — breaks “free reshape” for permute/view shape reinterpretation. |
-| **F-09** | `nntile_executor.cpp` `tensor_sum_to_scalar_fp32`, `nntile_broadcast.cpp` | 0-D `data_ptr` + `memcpy` on metadata tensors. |
-| **F-10** | `nntile_executor.cpp` `labels_host_ptr` | Order: `g_label_host_cache` → `read_nntile_logical_to_host` → CPU copy. Host cache + logical bypass. |
-| **F-11** | `nntile_norm.cpp` | `cpu_vector_norm_fallback` + `out.copy_` for several `linalg_vector_norm` cases — CPU compute, not graph. |
-| **F-12** | `nntile_add.cpp` `broadcast_to_shape` | When `!has_pending_graph()`, CPU expand + `out.copy_(cpu_broadcast)` — no graph record. |
-| **F-13** | *(missing)* `detach` | No `PrivateUse1` `detach` impl; may not share `NodeRef` on views. |
-
-#### P1 — Consistency / technical debt
-
-| ID | File(s) | Issue |
-|----|---------|-------|
-| **F-14** | `nntile_graph_recorder.cpp` | `g_pinned_tensors` parallel retention vs `NodeRef` refcount — dual liveness story. |
-| **F-15** | `nntile_graph_recorder.cpp` | `g_label_host_cache` duplicates INT64 host bytes outside `S`. |
-| **F-16** | `nntile_graph_recorder.cpp` | `populate_staging_from_logical_locked`, `refresh_input_scatter_locked` (dead) — logical-read gather bypass / dead code. |
-| **F-17** | Op files (`nntile_linear.cpp`, `nntile_gemm.cpp`, …) | Widespread `at::empty` vs explicit `empty_metadata_tensor` — works via dispatch but inconsistent. |
-| **F-18** | `nntile_sdpa_aten.cpp` | Placeholder `at::empty` debug tensors without `NodeRef`. |
-| **F-19** | `nntile_generator.cpp` | RNG state uses host `data_ptr` on nntile storage. |
-| **F-20** | `nntile_hooks.cpp` | Storage resize hooks assume host bytes. |
-
-#### P2 — Stub-only / docs (no libnntile)
-
-| ID | File(s) | Issue |
-|----|---------|-------|
-| **F-21** | `nntile_tensor_gc.cpp` | `ensure_host_staging`, `mark_staged_input_tensor`, `g_stub_staged_input_impls` — Phase-1 stub subsystem. |
-| **F-22** | `#ifndef TORCH_NNTILE_USE_LIBNNTILE` branches | `nntile_kernels.cpp`, `nntile_add.cpp`, `nntile_sgd_step.cpp`, `nntile_cross_entropy.cpp`, … |
-| **F-23** | `torch_nntile/README.md` L252–254 | Claims weights/inputs use “normal PyTorch host storage” — false for libnntile (0-byte + `S`). |
-| **F-24** | `nntile_tensor_impl_plan.md` L285–290 | Still says gather missing / direct logical read — partially stale. |
-
----
-
-## 3. Finalization plan
-
-Phases **A–F** complete the tensor design after phases 0–7. Land on PR #425.
-
-### Phase A — View / storage API hardening
-
-**Goal:** Every ATen op that creates or mutates a tensor identity preserves or
-explicitly breaks `NodeRef`.
-
-| Task | Fix |
-|------|-----|
-| A.1 | `reshape_alias`: call `record_view_alias(self, result)` under libnntile (same as `view`). |
-| A.2 | `detach`: add `PrivateUse1` impl → `share_node_ref_for_reshape` (no graph op). |
-| A.3 | `set_.source_*`: `TORCH_CHECK(false, "... unsupported on nntile")` or propagate `NodeRef` if same binding policy. |
-| A.4 | `resize_`: reject non-zero resize on metadata tensors; graph-aware path TBD or hard error. |
-
-**Tests:** `test_view_shares_node_ref`, `test_reshape_alias_shares_node_ref`, `test_detach_shares_node_ref`, `test_set_raises_on_nntile`.
-
-**Acceptance:** `TORCH_NNTILE_ASSERT_NODE_REF=1` passes on view/reshape/detach chains.
-
----
-
-### Phase B — Eliminate logical-read and staging I/O bypasses
-
-**Goal:** PyTorch host export always goes `L → gather → S → memcpy`; no
-`Runtime::get_output(L)` from torch_nntile.
-
-| Task | Fix |
-|------|-----|
-| B.1 | Delete or internalize `read_logical_to_host_locked` / `read_nntile_logical_to_host` from PyTorch API paths. |
-| B.2 | `labels_host_ptr`: use `S` staging read or graph INT64 input node only; remove `g_label_host_cache` (F-15). |
-| B.3 | Remove `populate_staging_from_logical_locked`; delete `refresh_input_scatter_locked` if unused. |
-| B.4 | Narrow `copy_nntile_tensor_to_cpu` staging fast-path to **fresh inputs only** (`phase_seal_cursor==0` && never executed && scatter pending) or remove. |
-| B.5 | Remove `can_read_nntile_tensor_from_staging` from `copy_from` fast-path. |
-
-**Tests:** `test_cpu_always_gathers`, `test_no_logical_read_after_run`, CE with INT64 labels without host cache.
-
-**Acceptance:** grep for `get_output` / `read_logical` under `torch_nntile/csrc` only in test helpers or deleted.
-
----
-
-### Phase C — Decouple `.cpu()` from implicit compile
-
-**Goal:** Readout records `gather(L→S)` into pending graph; **user** calls
-`compile_graph()` + `run()` (or test helper `nntile_cpu`).
-
-| Task | Fix |
-|------|-----|
-| C.1 | Split `gather_logical_to_staging_and_read_locked`: (1) `record_gather_to_staging(L,S)` only; (2) read `S` after user run. |
-| C.2 | `copy_nntile_tensor_to_cpu`: if gather recorded and session not run → error with message (mirror `require_no_pending_graph` style) **or** document `nntile_cpu` as the supported read API. |
-| C.3 | Stop temporary `staging->mark_output(true)` inflation during readout. |
-
-**Decision needed:** Strict (always require explicit compile before `.cpu()`) vs
-ergonomic (`nntile_cpu` / `.cpu()` auto-flush). **Recommend:** keep auto-flush
-in `nntile_cpu` / `.cpu()` for UX but implement as “record gather + call shared
-`execute_pending_if_needed`” without mutating `mark_output` on `S`.
-
-**Tests:** `test_cpu_invalidates_staging_buffer`, `test_gather_recorded_before_run`.
-
----
-
-### Phase D — Free reshape at graph level
-
-**Goal:** Same-numel shape reinterpretation never inserts `CONTIGUOUS_VIEW`.
-
-| Task | Fix |
-|------|-----|
-| D.1 | `lookup_data_node` / `get_or_create_data_node`: when numel matches and `NodeRef` shared, return `binding->logical` **without** `ensure_graph_shape_bridge_locked`. |
-| D.2 | Reserve `ensure_graph_shape_bridge_locked` for true layout bridges (e.g. batched GEMM shape metadata), not PyTorch view shape vectors. |
-| D.3 | Audit `permute` + matmul tests for spurious `CONTIGUOUS_VIEW` ops. |
-
-**Tests:** `test_no_contiguous_view_op_on_reshape`, op-name assertion on view chain.
-
----
-
-### Phase E — Metadata-safe scalar / broadcast / norm paths
-
-**Goal:** No `data_ptr` / host memcpy on 0-byte tensors in libnntile paths.
-
-| Task | Fix |
-|------|-----|
-| E.1 | `tensor_sum_to_scalar_fp32` 0-D branch: `tensor::copy` or identity node, not `memcpy`. |
-| E.2 | `tensor_broadcast_scalar_fp32` 0-D: graph scalar node or `tensor::fill`. |
-| E.3 | `nntile_norm.cpp`: route `linalg_vector_norm` fallback through graph ops or explicit `TORCH_CHECK` (no silent CPU copy). |
-| E.4 | `broadcast_to_shape` without pending graph: record `repeat` or error — no CPU round-trip. |
-
-**Tests:** extend `test_grad_zero_matches_cpu`; norm parity without CPU fallback path.
-
----
-
-### Phase F — Retention model & cleanup
-
-**Goal:** Single liveness story; stub retirement; docs match code.
-
-| Task | Fix |
-|------|-----|
-| F.1 | Audit whether `g_pinned_tensors` can fold into `NodeRef` + `pin_hold` only; remove duplicate retention. |
-| F.2 | Delete stub host-staging subsystem (`F-21`) or gate behind `!TORCH_NNTILE_USE_LIBNNTILE`-only build target. |
-| F.3 | Standardize op outputs on `empty_metadata_tensor`. |
-| F.4 | Update `torch_nntile/README.md`, `nntile_tensor_impl_plan.md` §3.6/§14, §11 inventory. |
-| F.5 | Add §11 callsite inventory table (Phase 0 completion). |
-
-**Acceptance:** README memory section describes 0-byte + `{L,S}` only; no “host storage on weights”.
-
----
-
-## 4. Suggested execution order
+### Two-layer reshape model (canonical)
 
 ```text
-A (view API)  →  D (graph reshape)  →  B (I/O purity)  →  C (readout compile)
-     ↓                                                              ↓
-E (metadata scalars)                                      F (cleanup + docs)
+ATen (PyTorch shell)     share NodeRef, new sizes/strides — virtual, no graph op
+        ↓ record op with tensor.sizes() at call site
+TensorGraph              L node shape may differ → contiguous_view bridge if same numel
+        ↓ lower_to_tile
+Tile / nntile::core      physical layout / reshape
 ```
 
-- **A + D** are low-risk and unblock autograd shape ops.
-- **B + C** are the largest design fidelity gap (logical read + implicit compile).
-- **E** fixes latent footguns (0-D memcpy, norm fallback).
-- **F** is ongoing cleanup; stub removal can be last.
+---
+
+## 3. Implementation review (revised)
+
+### 3.1 Aligned with design ✓
+
+| Area | Location |
+|------|----------|
+| `NodeRef` / `NNTileBinding` | `nntile_tensor_meta.{h,cpp}` |
+| 0-byte storage | `empty_metadata_tensor`, factories |
+| ATen virtual reshape | `view`, `as_strided`, contiguous `permute` |
+| Graph shape bridge | `ensure_graph_shape_bridge_locked` + `contiguous_view` |
+| Input scatter at init | `init_nntile_input_from_cpu` |
+| Gather readout (main path) | `gather_logical_to_staging_and_read_locked` |
+| Incremental `execute_range` | `RecorderExecState` |
+| Grad `NodeRef` + graph `fill_`/`zero_` | executor + recorder |
+
+### 3.2 Remaining gaps (re-prioritized)
+
+#### P0 — torch_nntile extension (agreed must-do)
+
+| ID | File(s) | Issue | Action |
+|----|---------|-------|--------|
+| **F-04** | `nntile_graph_recorder.cpp` | `read_logical_to_host_locked`, `read_nntile_logical_to_host` call `Runtime::get_output(L)` | **Delete** from torch_nntile; route all host reads through `S` after gather |
+| **F-10** | `nntile_graph_recorder.cpp`, `nntile_executor.cpp` | `g_label_host_cache` + logical read in `labels_host_ptr` | **Delete cache**; labels via `S` / graph input only |
+| **F-16** | `nntile_graph_recorder.cpp` | `populate_staging_from_logical_locked` uses logical read | **Delete** or rewrite via gather |
+| **F-15** | (same as F-10) | Host INT64 bytes outside `S` | **Delete** |
+
+#### P1 — torch_nntile extension (I/O recorder hygiene)
+
+| ID | File(s) | Issue | Action |
+|----|---------|-------|--------|
+| **F-05** | `copy_nntile_tensor_to_cpu` | Pre-first-compile staging read skips gather | Document as input-only fast path, or remove for uniformity |
+| **F-06** | `nntile_kernels.cpp` `copy_from` | `can_read_nntile_tensor_from_staging` bypass | Align with gather policy or restrict to fresh inputs |
+| **F-07** | `gather_logical_to_staging_and_read_locked` | Inline `compile_graph` + `run` inside `.cpu()` | Extension policy choice: keep ergonomic auto-flush or require explicit compile; **not** a libnntile change |
+| **F-09** | `tensor_sum_to_scalar_fp32`, `tensor_broadcast_scalar_fp32` | 0-D `data_ptr` memcpy on metadata tensors | Graph scalar path or hard error |
+| **F-11** | `nntile_norm.cpp` | CPU fallback + `out.copy_` | Graph ops or explicit unsupported error |
+| **F-12** | `nntile_add.cpp` `broadcast_to_shape` | CPU round-trip when no pending graph | Graph `repeat` or error |
+
+#### P2 — Accepted / no action
+
+| ID | Notes |
+|----|-------|
+| **F-01** | `reshape_alias` without `record_view_alias` — OK |
+| **F-02** | `set_.source_*` — no storage to mutate; out of scope |
+| **F-03** | `resize_` — not supported; out of scope |
+| **F-08** | `contiguous_view` shape bridge — **intentional** |
+| **F-13** | `detach` — optional; only if autograd path proves broken |
+
+#### P3 — Cleanup / docs / stub
+
+| ID | Issue |
+|----|-------|
+| **F-14** | `g_pinned_tensors` vs `NodeRef` — audit, simplify if possible |
+| **F-17–F-20** | Style consistency, SDPA placeholders, RNG, hooks |
+| **F-21–F-24** | Stub host-staging subsystem; README/plan doc staleness |
 
 ---
 
-## 5. Success criteria (final)
+## 4. Finalization plan (revised phases)
 
-1. **Tensor = TensorNode provider:** `NodeRef` on every participating tensor; no side map; 0-byte `Storage`.
-2. **I/O symmetry:** scatter-at-init, gather-on-export only; no `get_output(L)` from torch_nntile.
-3. **Free reshape:** ATen + graph levels — no `CONTIGUOUS_VIEW` for same-numel reinterpretation.
-4. **User-controlled compile:** readout does not silently seal extra phases or inflate `mark_output` (or documented auto-flush is intentional and tested).
-5. **No host payload:** remove `g_label_host_cache`; no `data_ptr` writes on metadata tensors.
-6. **Docs = code:** README and plan doc reflect libnntile reality.
-7. **Tests:** core graph + grad + new invariant tests green; parity skips documented per-op.
+All work is in **`torch_nntile/`** (primarily `csrc/nntile_graph_recorder.cpp`,
+`nntile_kernels.cpp`, `nntile_executor.cpp`).
+
+### Phase A — Remove logical read and all host caching (P0)
+
+**Goal:** torch_nntile never calls `Runtime::get_output(L)`; no recorder caches.
+
+| Task | Action |
+|------|--------|
+| A.1 | Remove `read_logical_to_host_locked` / `read_nntile_logical_to_host` and all callers. |
+| A.2 | Remove `g_label_host_cache`; stop populating it in `init_nntile_input_from_cpu`. |
+| A.3 | Rewrite `labels_host_ptr` to read INT64 labels from `S` (post-scatter / post-run) or from the graph operand node via staging — **no cache**. |
+| A.4 | Delete `populate_staging_from_logical_locked`; delete dead `refresh_input_scatter_locked`. |
+
+**Tests:** cross-entropy with INT64 labels; grep confirms no `get_output` on logical nodes in torch_nntile.
+
+**Acceptance:** No host-side caches; no direct logical read API in extension.
 
 ---
 
-## 6. Out of scope (separate tracks)
+### Phase B — torch_nntile I/O path consistency (P1)
 
-- RNG generator host state (`nntile_generator.cpp`)
-- SDPA debug placeholders
-- CUDA-only tests
-- libnntile no-op scatter/gather when tiling matches (§3.7 future work)
-- Broader parity test unskipping (softmax backward, embedding, etc.)
+**Goal:** Single story for CPU export in the extension recorder.
+
+| Task | Action |
+|------|--------|
+| B.1 | Audit `copy_nntile_tensor_to_cpu` and `copy_from` staging fast-paths — document or remove. |
+| B.2 | Policy for `gather_logical_to_staging_and_read_locked` inline compile+run: keep (ergonomic `.cpu()`) or split record vs execute — **extension-only** decision. |
+| B.3 | Ensure every post-run host read goes `gather(L→S)` → run → read `S` → invalidate `S`. |
+
+**Tests:** `test_cpu_invalidates_staging_buffer`, `test_nntile_to_cpu_copy`, graph execution training loop.
+
+---
+
+### Phase C — Document two-layer reshape model (P2 → doc)
+
+**Goal:** Code and docs match the TensorGraph vs ATen reshape split.
+
+| Task | Action |
+|------|--------|
+| C.1 | Document `ensure_graph_shape_bridge_locked` + `contiguous_view` in README and plan doc. |
+| C.2 | Clarify ATen `share_node_ref` (virtual) vs graph bridge (canonical `L` shape). |
+| C.3 | No code change to remove `contiguous_view` bridge. |
+
+---
+
+### Phase D — Metadata-safe scalars and CPU fallbacks (P1, optional)
+
+| Task | Action |
+|------|--------|
+| D.1 | Fix 0-D `data_ptr` paths in `tensor_sum_to_scalar_fp32`, `tensor_broadcast_scalar_fp32`. |
+| D.2 | Replace or reject `linalg_vector_norm` CPU fallback and `broadcast_to_shape` CPU path. |
+
+---
+
+### Phase E — Cleanup and stub retirement (P3)
+
+| Task | Action |
+|------|--------|
+| E.1 | Update `torch_nntile/README.md` (0-byte storage, no host cache, shape bridge). |
+| E.2 | Sync `nntile_tensor_impl_plan.md` §3.2 reshape wording with two-layer model. |
+| E.3 | Retire `#ifndef TORCH_NNTILE_USE_LIBNNTILE` host-staging when stub build deprecated. |
+| E.4 | Complete §11 callsite inventory (Phase 0). |
+
+---
+
+## 5. Suggested execution order
+
+```text
+A (remove logical read + caches)  →  B (I/O consistency)  →  C (docs)
+                                        ↓
+                                   D (scalars/fallbacks, optional)
+                                        ↓
+                                   E (cleanup)
+```
+
+**Start with Phase A** — highest agreement, removes fragile optimizations.
+
+---
+
+## 6. Success criteria (revised)
+
+1. **Tensor = TensorNode provider** — `NodeRef` on `TensorImpl`; 0-byte `Storage`; no side map.
+2. **No direct logical read** — torch_nntile does not call `Runtime::get_output(L)`.
+3. **No host caches** — no `g_label_host_cache` or equivalent in recorder.
+4. **I/O via `S` only** — scatter in, gather out (extension recorder).
+5. **Two-layer reshape documented** — ATen virtual reshape + TensorGraph `contiguous_view` bridge where needed; tile/core handles physical layout.
+6. **Extension scope only** — finalization does not require libnntile semantic changes.
+7. **Tests** — core graph + grad + CE labels green after Phase A.
+
+---
+
+## 7. Out of scope
+
+- `reshape_alias` / `set_` / `resize_` changes (accepted or unsupported)
+- Removing `contiguous_view` graph bridge (intentional)
+- libnntile no-op scatter/gather (§3.7 future)
+- RNG generator, SDPA debug tensors
+- Broader parity unskipping (softmax backward, etc.)
