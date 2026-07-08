@@ -177,7 +177,7 @@ All work is in **`torch_nntile/`** (primarily `csrc/nntile_graph_recorder.cpp`,
 
 ### Phase B — torch_nntile I/O path consistency (P1)
 
-**Status:** **Partial** — `copy_from` staging fast-path removed; gather readout policy unchanged (ergonomic inline compile on `.cpu()`).
+**Status:** **Done** (2026-07-08) — `copy_from` uses S read for fresh inputs; `g_invalidated_stagings` tracks gather readout invalidation; input `S` stays readable after scatter until `.cpu()`.
 
 **Goal:** Single story for CPU export in the extension recorder.
 
@@ -207,7 +207,7 @@ All work is in **`torch_nntile/`** (primarily `csrc/nntile_graph_recorder.cpp`,
 
 ### Phase D — Metadata-safe scalars and CPU fallbacks (P1, optional)
 
-**Status:** **Partial** — 0-D `tensor_sum_to_scalar_fp32` and `tensor_broadcast_scalar_fp32` use graph `copy`; norm/broadcast CPU fallbacks remain.
+**Status:** **Done** (2026-07-08) — 0-D scalar paths use graph `copy`; norm/add CPU round-trip fallbacks removed.
 
 | Task | Action |
 |------|--------|
@@ -218,12 +218,14 @@ All work is in **`torch_nntile/`** (primarily `csrc/nntile_graph_recorder.cpp`,
 
 ### Phase E — Cleanup and stub retirement (P3)
 
-| Task | Action |
-|------|--------|
-| E.1 | Update `torch_nntile/README.md` (0-byte storage, no host cache, shape bridge). |
-| E.2 | Sync `nntile_tensor_impl_plan.md` §3.2 reshape wording with two-layer model. |
-| E.3 | Retire `#ifndef TORCH_NNTILE_USE_LIBNNTILE` host-staging when stub build deprecated. |
-| E.4 | Complete §11 callsite inventory (Phase 0). |
+**Status:** **Partial** — README + two-layer reshape docs done; impl plan synced; stub host-staging retirement deferred.
+
+| Task | Action | Status |
+|------|--------|--------|
+| E.1 | Update `torch_nntile/README.md` (0-byte storage, no host cache, shape bridge). | Done |
+| E.2 | Sync `nntile_tensor_impl_plan.md` §3.2 reshape wording with two-layer model. | Done |
+| E.3 | Retire `#ifndef TORCH_NNTILE_USE_LIBNNTILE` host-staging when stub build deprecated. | Deferred |
+| E.4 | Complete §11 callsite inventory (Phase 0). | Done |
 
 ---
 

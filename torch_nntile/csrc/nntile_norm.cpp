@@ -70,23 +70,6 @@ std::vector<int64_t> reduced_sizes(
     return sizes;
 }
 
-at::Tensor cpu_vector_norm_fallback(
-    const at::Tensor &self,
-    const at::Scalar &ord,
-    at::OptionalIntArrayRef dim,
-    bool keepdim,
-    std::optional<at::ScalarType> dtype)
-{
-    at::Tensor cpu_self = self.cpu();
-    at::Tensor result = at::linalg_vector_norm(
-        cpu_self,
-        ord,
-        dim,
-        keepdim,
-        dtype);
-    return result.to(self.device());
-}
-
 } // namespace
 
 std::tuple<at::Tensor, at::Tensor> norm_forward(
@@ -273,18 +256,15 @@ at::Tensor linalg_vector_norm_nntile(
     {
         return at::linalg_vector_norm(self, ord, dim, keepdim, dtype);
     }
-    if (!is_two_norm(ord))
-    {
-        return cpu_vector_norm_fallback(self, ord, dim, keepdim, dtype);
-    }
-    if (dtype.has_value())
-    {
-        return cpu_vector_norm_fallback(self, ord, dim, keepdim, dtype);
-    }
-    if (self.scalar_type() != at::ScalarType::Float)
-    {
-        return cpu_vector_norm_fallback(self, ord, dim, keepdim, dtype);
-    }
+    TORCH_CHECK(
+        is_two_norm(ord),
+        "nntile linalg_vector_norm supports ord=2 only");
+    TORCH_CHECK(
+        !dtype.has_value(),
+        "nntile linalg_vector_norm does not support dtype conversion");
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile linalg_vector_norm supports float32 only");
 
   std::optional<int64_t> axis;
   if (dim.has_value())
@@ -317,39 +297,15 @@ at::Tensor &linalg_vector_norm_out_nntile(
     TORCH_CHECK(
         is_nntile_device(out.device()),
         "nntile linalg_vector_norm.out: output must be on nntile");
-    if (!is_two_norm(ord))
-    {
-        at::Tensor result = cpu_vector_norm_fallback(
-            self,
-            ord,
-            dim,
-            keepdim,
-            dtype);
-        out.copy_(result);
-        return out;
-    }
-    if (dtype.has_value())
-    {
-        at::Tensor result = cpu_vector_norm_fallback(
-            self,
-            ord,
-            dim,
-            keepdim,
-            dtype);
-        out.copy_(result);
-        return out;
-    }
-    if (self.scalar_type() != at::ScalarType::Float)
-    {
-        at::Tensor result = cpu_vector_norm_fallback(
-            self,
-            ord,
-            dim,
-            keepdim,
-            dtype);
-        out.copy_(result);
-        return out;
-    }
+    TORCH_CHECK(
+        is_two_norm(ord),
+        "nntile linalg_vector_norm supports ord=2 only");
+    TORCH_CHECK(
+        !dtype.has_value(),
+        "nntile linalg_vector_norm does not support dtype conversion");
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile linalg_vector_norm supports float32 only");
 
     std::optional<int64_t> axis;
     if (dim.has_value())
