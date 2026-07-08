@@ -77,7 +77,7 @@ std::vector<at::Tensor> g_pinned_tensors;
 std::unordered_map<TensorImplKey, std::unordered_map<int, std::string>>
     g_axis_name_hints;
 std::unordered_map<std::string, std::vector<nntile::Index>> g_axis_tiling_by_name;
-std::unordered_set<nntile::TensorGraph::TensorNode *> g_invalidated_stagings;
+std::size_t g_ephemeral_staging_serial = 0;
 
 struct RecorderExecState
 {
@@ -403,18 +403,40 @@ void write_cpu_bytes_to_staging_locked(
             "torch_nntile: unsupported staging write dtype");
     }
     runtime.mark_initialized(staging);
-    g_invalidated_stagings.erase(staging);
 }
 
-void invalidate_staging_tile_buffer_locked(
+void invalidate_staging_tile_submit_locked(
     nntile::TensorGraph::TensorNode *staging)
 {
     if (staging == nullptr || g_exec == nullptr || g_exec->runtime == nullptr)
     {
         return;
     }
-    g_invalidated_stagings.insert(staging);
-    g_exec->runtime->invalidate_initialized(staging);
+    nntile::Runtime &runtime = *g_exec->runtime;
+    runtime.wait();
+    nntile::TileGraph::TileNode *tile = nullptr;
+    try
+    {
+        tile = require_single_staging_tile_locked(staging);
+        switch (staging->dtype())
+        {
+        case nntile::DataType::FP32:
+            runtime.get_tile<nntile::fp32_t>(tile).invalidate_submit();
+            break;
+        case nntile::DataType::INT64:
+            runtime.get_tile<nntile::int64_t>(tile).invalidate_submit();
+            break;
+        case nntile::DataType::BOOL:
+            runtime.get_tile<nntile::bool_t>(tile).invalidate_submit();
+            break;
+        default:
+            break;
+        }
+    }
+    catch (const std::exception &)
+    {
+    }
+    runtime.invalidate_initialized(staging);
 }
 
 void read_staging_to_host_locked(
@@ -496,36 +518,28 @@ void read_staging_to_host_locked(
     }
 }
 
-nntile::TensorGraph::TensorNode *ensure_io_staging_node_locked(
-    NodeRef binding)
+nntile::TensorGraph::TensorNode *create_ephemeral_io_staging_locked(
+    nntile::TensorGraph::TensorNode *logical,
+    const std::string &tag,
+    bool ingress)
 {
-    if (binding == nullptr || binding->logical == nullptr || g_graph == nullptr)
+    if (logical == nullptr || g_graph == nullptr)
     {
         return nullptr;
     }
-    if (binding->io_staging != nullptr)
-    {
-        return binding->io_staging;
-    }
-    auto *staging = g_graph->data(
-        binding->logical->shape(),
-        binding->logical->dtype());
-    staging->mark_input(true);
+    auto *staging = g_graph->data(logical->shape(), logical->dtype());
+    staging->mark_input(ingress);
     staging->mark_output(false);
     staging->set_name(
-        std::string("io_staging_") + binding->logical->name());
+        std::string("io_staging_") + logical->name() + "_" + tag + "_" +
+        std::to_string(++g_ephemeral_staging_serial));
     track_node(staging);
-    binding->io_staging = staging;
     lower_io_staging_locked(staging);
     return staging;
 }
 
 bool should_pin_tensor_for_graph_locked(const at::Tensor &tensor)
 {
-    if (nntile_io_staging(tensor) != nullptr)
-    {
-        return true;
-    }
     return is_metadata_only_tensor(tensor) &&
         nntile_binding(tensor) != nullptr;
 }
@@ -541,29 +555,6 @@ void pin_tensor_for_graph(const at::Tensor &tensor)
                   << tensor.storage().data_ptr().get()
                   << " pinned_count=" << g_pinned_tensors.size() << '\n';
     }
-}
-
-bool staging_ready_for_direct_read_locked(
-    nntile::TensorGraph::TensorNode *staging)
-{
-    if (staging == nullptr ||
-        g_invalidated_stagings.count(staging) != 0)
-    {
-        return false;
-    }
-    return g_exec != nullptr &&
-        g_exec->runtime != nullptr && g_exec->runtime->is_compiled() &&
-        g_exec->runtime->is_initialized(staging);
-}
-
-bool can_read_tensor_from_staging_locked(const at::Tensor &tensor)
-{
-    NodeRef binding = nntile_binding(tensor);
-    if (binding == nullptr || binding->io_staging == nullptr)
-    {
-        return false;
-    }
-    return staging_ready_for_direct_read_locked(binding->io_staging);
 }
 
 nntile::Index graph_numel(const std::vector<nntile::Index> &graph_shape)
@@ -789,6 +780,11 @@ void run_graph_locked()
             g_exec->pending_exec_op_begin,
             g_exec->pending_exec_op_end);
         g_exec->runtime->wait();
+        for (nntile::TensorGraph::TensorNode *staging :
+            g_exec->pending_scatter_stagings)
+        {
+            invalidate_staging_tile_submit_locked(staging);
+        }
         g_exec->pending_scatter_stagings.clear();
         g_exec->executed_op_end = g_exec->pending_exec_op_end;
     }
@@ -817,7 +813,7 @@ void reset_recorder_locked(
     g_defer_pending_clear_after_run = false;
     g_axis_name_hints.clear();
     g_axis_tiling_by_name.clear();
-    g_invalidated_stagings.clear();
+    g_ephemeral_staging_serial = 0;
     g_exec.reset();
     drain_starpu_after_session_teardown();
     if (clear_tensor_gc)
@@ -878,33 +874,6 @@ void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
 }
 
 } // namespace
-
-bool can_read_nntile_tensor_from_staging(const at::Tensor &tensor)
-{
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    return can_read_tensor_from_staging_locked(tensor);
-}
-
-bool read_nntile_staging_to_host(const at::Tensor &tensor, void *host_ptr)
-{
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    if (host_ptr == nullptr || !can_read_tensor_from_staging_locked(tensor))
-    {
-        return false;
-    }
-    NodeRef binding = nntile_binding(tensor);
-    if (binding == nullptr || binding->io_staging == nullptr ||
-        binding->logical == nullptr)
-    {
-        return false;
-    }
-    read_staging_to_host_locked(
-        binding->io_staging,
-        host_ptr,
-        binding->logical->dtype(),
-        static_cast<std::size_t>(binding->logical->nelems()));
-    return true;
-}
 
 bool has_pending_graph()
 {
@@ -1002,13 +971,11 @@ nntile::TensorGraph::TensorNode *node_for_impl_locked(TensorImplKey impl_key)
 
 void gather_logical_to_staging_and_read_locked(
     nntile::TensorGraph::TensorNode *logical,
-    nntile::TensorGraph::TensorNode *staging,
     void *host_ptr,
     nntile::DataType dtype,
     std::size_t count)
 {
-    if (logical == nullptr || staging == nullptr || host_ptr == nullptr ||
-        count == 0)
+    if (logical == nullptr || host_ptr == nullptr || count == 0)
     {
         return;
     }
@@ -1017,7 +984,13 @@ void gather_logical_to_staging_and_read_locked(
         throw std::runtime_error(
             "torch_nntile: gather readout requires an active TensorGraph");
     }
-    const bool staging_was_output = staging->is_output();
+    nntile::TensorGraph::TensorNode *staging =
+        create_ephemeral_io_staging_locked(logical, "readout", false);
+    if (staging == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile: gather readout failed to create staging tensor");
+    }
     staging->mark_output(true);
     nntile::tensor::clear(staging);
     nntile::tensor::gather(logical, staging);
@@ -1026,11 +999,10 @@ void gather_logical_to_staging_and_read_locked(
     compile_graph_locked(false, pin_drop);
     run_graph_locked();
 
-    g_invalidated_stagings.erase(staging);
     g_exec->runtime->mark_initialized(staging);
     read_staging_to_host_locked(staging, host_ptr, dtype, count);
-    invalidate_staging_tile_buffer_locked(staging);
-    staging->mark_output(staging_was_output);
+    invalidate_staging_tile_submit_locked(staging);
+    staging->mark_output(false);
 }
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
@@ -1047,39 +1019,57 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
         static_cast<std::size_t>(logical->nelems());
     void *host_ptr = dst.storage().data_ptr().get();
 
-    // Pre-first-compile: bound staging still holds host bytes from .to().
-    if (g_graph != nullptr && g_graph->phase_seal_cursor() == 0 &&
-        can_read_tensor_from_staging_locked(src))
+    if (g_graph != nullptr &&
+        g_graph->num_ops() > g_graph->phase_seal_cursor())
     {
-        read_staging_to_host_locked(
-            binding->io_staging,
-            host_ptr,
-            dtype,
-            count);
-        return;
+        std::vector<at::Tensor> pin_drop;
+        compile_graph_locked(false, pin_drop);
+        run_graph_locked();
     }
 
     if (g_exec == nullptr || g_exec->runtime == nullptr ||
-        !g_exec->runtime->is_compiled() || g_exec->executed_op_end == 0)
+        !g_exec->runtime->is_compiled())
     {
         throw std::runtime_error(
             "torch_nntile: copy nntile tensor to CPU requires compile_graph() "
             "and run() first");
     }
 
-    nntile::TensorGraph::TensorNode *staging =
-        ensure_io_staging_node_locked(binding);
-    if (staging == nullptr)
-    {
-        throw std::runtime_error(
-            "torch_nntile: copy nntile tensor to CPU missing io_staging");
-    }
     gather_logical_to_staging_and_read_locked(
         logical,
-        staging,
         host_ptr,
         dtype,
         count);
+}
+
+bool read_nntile_staging_to_host(const at::Tensor &tensor, void *host_ptr)
+{
+    if (host_ptr == nullptr)
+    {
+        return false;
+    }
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    NodeRef binding = nntile_binding(tensor);
+    if (binding == nullptr || binding->logical == nullptr)
+    {
+        return false;
+    }
+    if (g_exec == nullptr || g_exec->runtime == nullptr ||
+        !g_exec->runtime->is_compiled())
+    {
+        return false;
+    }
+    gather_logical_to_staging_and_read_locked(
+        binding->logical,
+        host_ptr,
+        binding->logical->dtype(),
+        static_cast<std::size_t>(binding->logical->nelems()));
+    return true;
+}
+
+bool can_read_nntile_tensor_from_staging(const at::Tensor & /*tensor*/)
+{
+    return false;
 }
 
 void init_nntile_input_from_cpu(
@@ -1113,12 +1103,12 @@ void init_nntile_input_from_cpu(
         existing != nullptr && existing->logical != nullptr)
     {
         auto *logical = existing->logical;
-        auto *staging = existing->io_staging;
+        auto *staging = create_ephemeral_io_staging_locked(logical, "ingress", true);
         if (staging == nullptr)
         {
-            staging = ensure_io_staging_node_locked(existing);
+            throw std::runtime_error(
+                "torch_nntile: failed to create ingress staging tensor");
         }
-        staging->mark_input(true);
         write_cpu_bytes_to_staging_locked(
             staging,
             cpu_src.storage().data_ptr().get(),
@@ -1134,15 +1124,14 @@ void init_nntile_input_from_cpu(
     track_node(logical);
 
     auto binding = std::make_shared<NNTileBinding>(logical);
-    auto *staging = g_graph->data(shape, dtype);
-    staging->mark_input(true);
-    staging->mark_output(false);
-    staging->set_name(std::string("io_staging_") + logical->name());
-    track_node(staging);
-    binding->io_staging = staging;
     attach_binding(nntile_dst, binding);
 
-    lower_io_staging_locked(staging);
+    auto *staging = create_ephemeral_io_staging_locked(logical, "ingress", true);
+    if (staging == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile: failed to create ingress staging tensor");
+    }
     write_cpu_bytes_to_staging_locked(
         staging,
         cpu_src.storage().data_ptr().get(),

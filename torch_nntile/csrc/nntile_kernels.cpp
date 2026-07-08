@@ -412,20 +412,6 @@ at::Tensor copy_from(
     if (dst.is_cpu() && is_nntile_device(self.device()))
     {
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
-        // Fresh inputs: read bound host bytes from io_staging S (not logical L).
-        if (can_read_nntile_tensor_from_staging(self))
-        {
-            copy_nntile_tensor_to_cpu(self, mutable_dst);
-            return dst;
-        }
-#endif
-        if (has_pending_graph())
-        {
-            require_no_pending_graph(
-                "copy nntile tensor to CPU (call torch_nntile.compile_graph() "
-                "and torch_nntile.run() first)");
-        }
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         if (has_graph_session())
         {
             wait_for_all();

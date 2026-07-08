@@ -100,10 +100,6 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
     {
         return true;
     }
-    if (NodeRef binding = nntile_binding(tensor))
-    {
-        return binding->io_staging != nullptr;
-    }
     return false;
 }
 
@@ -161,6 +157,27 @@ void ensure_metadata_fill_if_unproduced(
         return;
     }
     nntile::tensor::fill(static_cast<nntile::Scalar>(value), node);
+}
+
+nntile::TensorGraph::TensorNode *optimizer_state_node(
+    at::Tensor &tensor,
+    const std::vector<nntile::Index> &graph_shape)
+{
+    nntile::TensorGraph::TensorNode *node = lookup_data_node(tensor, graph_shape);
+    const bool is_new = node == nullptr;
+    if (node == nullptr)
+    {
+        node = get_or_create_data_node(
+            tensor,
+            graph_shape,
+            nntile::DataType::FP32,
+            false);
+    }
+    if (is_new && is_metadata_only_tensor(tensor))
+    {
+        nntile::tensor::clear(node);
+    }
+    return node;
 }
 
 } // namespace
@@ -1136,16 +1153,7 @@ void tensor_sgd_step_fp32(
         "run backward before the optimizer step");
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);
-    auto *velocity_node = get_or_create_data_node(
-        velocity,
-        graph_shape,
-        nntile::DataType::FP32,
-        !is_metadata_only_tensor(velocity) &&
-            mark_as_input_for_operand(velocity));
-    if (is_metadata_only_tensor(velocity))
-    {
-        nntile::tensor::clear(velocity_node);
-    }
+    auto *velocity_node = optimizer_state_node(velocity, graph_shape);
     auto *param_node = get_or_create_data_node(
         param,
         graph_shape,
@@ -1823,21 +1831,13 @@ void tensor_adam_step_fp32(
         "run backward before the optimizer step");
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);
-    auto *first_moment_node = get_or_create_data_node(
-        first_moment,
-        graph_shape,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(first_moment));
-    auto *second_moment_node = get_or_create_data_node(
-        second_moment,
-        graph_shape,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(second_moment));
+    auto *first_moment_node = optimizer_state_node(first_moment, graph_shape);
+    auto *second_moment_node = optimizer_state_node(second_moment, graph_shape);
     auto *param_node = get_or_create_data_node(
         param,
         graph_shape,
         nntile::DataType::FP32,
-        mark_as_input_for_operand(param));
+        false);
 
     nntile::tensor::adam_step(
         static_cast<nntile::Index>(num_iter),
@@ -1892,21 +1892,13 @@ void tensor_adamw_step_fp32(
         "run backward before the optimizer step");
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);
-    auto *first_moment_node = get_or_create_data_node(
-        first_moment,
-        graph_shape,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(first_moment));
-    auto *second_moment_node = get_or_create_data_node(
-        second_moment,
-        graph_shape,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(second_moment));
+    auto *first_moment_node = optimizer_state_node(first_moment, graph_shape);
+    auto *second_moment_node = optimizer_state_node(second_moment, graph_shape);
     auto *param_node = get_or_create_data_node(
         param,
         graph_shape,
         nntile::DataType::FP32,
-        mark_as_input_for_operand(param));
+        false);
 
     nntile::tensor::adamw_step(
         static_cast<nntile::Index>(num_iter),

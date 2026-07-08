@@ -145,11 +145,11 @@ class SGD:
         key = id(param)
         velocity = self._velocity.get(key)
         if velocity is None:
-            velocity = torch.zeros(
+            velocity = torch.empty(
                 list(param.shape),
                 dtype=torch.float32,
-                device="cpu",
-            ).to("nntile")
+                device="nntile",
+            )
             self._velocity[key] = velocity
         return velocity
 
@@ -244,18 +244,23 @@ class _AdamBase:
         moments = self._moments.get(key)
         if moments is None:
             if param.device.type == "nntile":
-                zeros = torch.zeros(
+                zeros = torch.empty(
                     list(param.shape),
                     dtype=torch.float32,
-                    device="cpu",
-                ).to("nntile")
+                    device="nntile",
+                )
+                moments = (zeros, torch.empty(
+                    list(param.shape),
+                    dtype=torch.float32,
+                    device="nntile",
+                ))
             else:
                 zeros = torch.zeros(
                     list(param.shape),
                     dtype=torch.float32,
                     device=param.device,
                 )
-            moments = (zeros, zeros.clone())
+                moments = (zeros, zeros.clone())
             self._moments[key] = moments
         return moments
 

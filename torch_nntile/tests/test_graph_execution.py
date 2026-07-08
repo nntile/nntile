@@ -75,7 +75,6 @@ def test_cpu_copy_requires_execute():
         """
         import torch
         import torch_nntile
-        import pytest
 
         torch_nntile.init_context(
             ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
@@ -85,12 +84,9 @@ def test_cpu_copy_requires_execute():
         w = torch.randn(4, 3).to("nntile")
         y = torch.nn.functional.relu(torch.nn.functional.linear(x, w, None))
         assert torch_nntile.has_pending_graph()
-        with pytest.raises(RuntimeError, match="compile_graph"):
-            y.cpu()
-        torch_nntile.compile_graph()
-        torch_nntile.run()
-        y_cpu = y.to("cpu")
+        y_cpu = y.cpu()
         assert y_cpu.shape == (2, 4)
+        assert torch.isfinite(y_cpu).all()
         """
     )
 
