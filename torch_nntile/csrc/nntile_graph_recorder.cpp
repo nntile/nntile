@@ -23,6 +23,7 @@
 #include <nntile/dtype.hh>
 #include <nntile/tensor/axis_descriptor.hh>
 #include <nntile/tensor/graph.hh>
+#include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/gather.hh>
 #include <nntile/tensor/ops/scatter.hh>
 #include <nntile/tensor/ops/contiguous_view.hh>
@@ -306,7 +307,30 @@ void lower_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
     compile_exec_runtime_locked();
 }
 
-void bind_host_bytes_to_staging_locked(
+nntile::TileGraph::TileNode *require_single_staging_tile_locked(
+    nntile::TensorGraph::TensorNode *staging)
+{
+    if (g_exec == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile: no runtime for io_staging tile lookup");
+    }
+    const auto found = g_exec->tile_map.find(staging);
+    if (found == g_exec->tile_map.end() || found->second.size() != 1)
+    {
+        throw std::runtime_error(
+            "torch_nntile: io_staging must be single-tile");
+    }
+    nntile::TileGraph::TileNode *tile = found->second[0];
+    if (tile == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile: io_staging tile missing");
+    }
+    return tile;
+}
+
+void write_cpu_bytes_to_staging_locked(
     nntile::TensorGraph::TensorNode *staging,
     const void *host_ptr,
     nntile::DataType dtype,
@@ -318,30 +342,67 @@ void bind_host_bytes_to_staging_locked(
     }
     ensure_recorder_exec_state_locked();
     nntile::Runtime &runtime = *g_exec->runtime;
+    nntile::TileGraph::TileNode *tile =
+        require_single_staging_tile_locked(staging);
     switch (dtype)
     {
     case nntile::DataType::FP32:
-        runtime.bind_data(
-            staging,
-            static_cast<const float *>(host_ptr),
-            count);
+    {
+        auto &buf = runtime.get_tile<nntile::fp32_t>(tile);
+        if (count != static_cast<std::size_t>(buf.nelems))
+        {
+            throw std::runtime_error(
+                "torch_nntile: staging write size mismatch");
+        }
+        auto local = buf.acquire(STARPU_W);
+        const auto *src = static_cast<const float *>(host_ptr);
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            local[static_cast<nntile::Index>(i)] = nntile::fp32_t(src[i]);
+        }
+        local.release();
         break;
+    }
     case nntile::DataType::INT64:
-        runtime.bind_data(
-            staging,
-            static_cast<const std::int64_t *>(host_ptr),
-            count);
+    {
+        auto &buf = runtime.get_tile<nntile::int64_t>(tile);
+        if (count != static_cast<std::size_t>(buf.nelems))
+        {
+            throw std::runtime_error(
+                "torch_nntile: staging write size mismatch");
+        }
+        auto local = buf.acquire(STARPU_W);
+        const auto *src = static_cast<const std::int64_t *>(host_ptr);
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            local[static_cast<nntile::Index>(i)] =
+                nntile::int64_t(src[i]);
+        }
+        local.release();
         break;
+    }
     case nntile::DataType::BOOL:
-        runtime.bind_data(
-            staging,
-            reinterpret_cast<const bool *>(host_ptr),
-            count);
+    {
+        auto &buf = runtime.get_tile<nntile::bool_t>(tile);
+        if (count != static_cast<std::size_t>(buf.nelems))
+        {
+            throw std::runtime_error(
+                "torch_nntile: staging write size mismatch");
+        }
+        auto local = buf.acquire(STARPU_W);
+        const auto *src = static_cast<const bool *>(host_ptr);
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            local[static_cast<nntile::Index>(i)] = nntile::bool_t(src[i]);
+        }
+        local.release();
         break;
+    }
     default:
         throw std::runtime_error(
-            "torch_nntile: unsupported staging bind dtype");
+            "torch_nntile: unsupported staging write dtype");
     }
+    runtime.mark_initialized(staging);
     g_invalidated_stagings.erase(staging);
 }
 
@@ -353,26 +414,7 @@ void invalidate_staging_tile_buffer_locked(
         return;
     }
     g_invalidated_stagings.insert(staging);
-    const auto found = g_exec->tile_map.find(staging);
-    if (found == g_exec->tile_map.end() || found->second.size() != 1)
-    {
-        return;
-    }
-    nntile::TileGraph::TileNode *tile = found->second[0];
-    switch (staging->dtype())
-    {
-    case nntile::DataType::FP32:
-        g_exec->runtime->get_tile<nntile::fp32_t>(tile).invalidate_submit();
-        break;
-    case nntile::DataType::INT64:
-        g_exec->runtime->get_tile<nntile::int64_t>(tile).invalidate_submit();
-        break;
-    case nntile::DataType::BOOL:
-        g_exec->runtime->get_tile<nntile::bool_t>(tile).invalidate_submit();
-        break;
-    default:
-        break;
-    }
+    g_exec->runtime->invalidate_initialized(staging);
 }
 
 void read_staging_to_host_locked(
@@ -392,101 +434,60 @@ void read_staging_to_host_locked(
     }
     nntile::Runtime &runtime = *g_exec->runtime;
     runtime.wait();
-
-    const auto tile_it = g_exec->tile_map.find(staging);
-    if (tile_it != g_exec->tile_map.end() && tile_it->second.size() == 1)
-    {
-        nntile::TileGraph::TileNode *tile = tile_it->second[0];
-        if (tile != nullptr && (tile->is_input() || tile->is_output()))
-        {
-            switch (dtype)
-            {
-            case nntile::DataType::FP32:
-            {
-                const std::vector<float> out = runtime.get_output<float>(tile);
-                if (out.size() != count)
-                {
-                    throw std::runtime_error(
-                        "torch_nntile: staging tile read size mismatch");
-                }
-                std::memcpy(host_ptr, out.data(), count * sizeof(float));
-                return;
-            }
-            case nntile::DataType::INT64:
-            {
-                const std::vector<std::int64_t> out =
-                    runtime.get_output<std::int64_t>(tile);
-                if (out.size() != count)
-                {
-                    throw std::runtime_error(
-                        "torch_nntile: staging tile read size mismatch");
-                }
-                std::memcpy(
-                    host_ptr,
-                    out.data(),
-                    count * sizeof(std::int64_t));
-                return;
-            }
-            case nntile::DataType::BOOL:
-            {
-                const std::vector<bool> out = runtime.get_output<bool>(tile);
-                if (out.size() != count)
-                {
-                    throw std::runtime_error(
-                        "torch_nntile: staging tile read size mismatch");
-                }
-                for (std::size_t i = 0; i < count; ++i)
-                {
-                    static_cast<bool *>(host_ptr)[i] = out[i];
-                }
-                return;
-            }
-            default:
-                break;
-            }
-        }
-    }
-
+    nntile::TileGraph::TileNode *tile =
+        require_single_staging_tile_locked(staging);
     switch (dtype)
     {
     case nntile::DataType::FP32:
     {
-        const std::vector<float> out = runtime.get_output<float>(staging);
-        if (out.size() != count)
+        const auto &buf = runtime.get_tile<nntile::fp32_t>(tile);
+        if (count != static_cast<std::size_t>(buf.nelems))
         {
             throw std::runtime_error(
                 "torch_nntile: staging read size mismatch");
         }
-        std::memcpy(host_ptr, out.data(), count * sizeof(float));
+        auto local = buf.acquire(STARPU_R);
+        auto *dst = static_cast<float *>(host_ptr);
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            dst[i] = static_cast<float>(local[static_cast<nntile::Index>(i)]);
+        }
+        local.release();
         break;
     }
     case nntile::DataType::INT64:
     {
-        const std::vector<std::int64_t> out =
-            runtime.get_output<std::int64_t>(staging);
-        if (out.size() != count)
+        const auto &buf = runtime.get_tile<nntile::int64_t>(tile);
+        if (count != static_cast<std::size_t>(buf.nelems))
         {
             throw std::runtime_error(
                 "torch_nntile: staging read size mismatch");
         }
-        std::memcpy(
-            host_ptr,
-            out.data(),
-            count * sizeof(std::int64_t));
+        auto local = buf.acquire(STARPU_R);
+        auto *dst = static_cast<std::int64_t *>(host_ptr);
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            dst[i] = static_cast<std::int64_t>(
+                local[static_cast<nntile::Index>(i)]);
+        }
+        local.release();
         break;
     }
     case nntile::DataType::BOOL:
     {
-        const std::vector<bool> out = runtime.get_output<bool>(staging);
-        if (out.size() != count)
+        const auto &buf = runtime.get_tile<nntile::bool_t>(tile);
+        if (count != static_cast<std::size_t>(buf.nelems))
         {
             throw std::runtime_error(
                 "torch_nntile: staging read size mismatch");
         }
+        auto local = buf.acquire(STARPU_R);
+        auto *dst = static_cast<bool *>(host_ptr);
         for (std::size_t i = 0; i < count; ++i)
         {
-            static_cast<bool *>(host_ptr)[i] = out[i];
+            dst[i] = static_cast<bool>(local[static_cast<nntile::Index>(i)]);
         }
+        local.release();
         break;
     }
     default:
@@ -1018,12 +1019,15 @@ void gather_logical_to_staging_and_read_locked(
     }
     const bool staging_was_output = staging->is_output();
     staging->mark_output(true);
+    nntile::tensor::clear(staging);
     nntile::tensor::gather(logical, staging);
 
     std::vector<at::Tensor> pin_drop;
     compile_graph_locked(false, pin_drop);
     run_graph_locked();
 
+    g_invalidated_stagings.erase(staging);
+    g_exec->runtime->mark_initialized(staging);
     read_staging_to_host_locked(staging, host_ptr, dtype, count);
     invalidate_staging_tile_buffer_locked(staging);
     staging->mark_output(staging_was_output);
@@ -1115,7 +1119,7 @@ void init_nntile_input_from_cpu(
             staging = ensure_io_staging_node_locked(existing);
         }
         staging->mark_input(true);
-        bind_host_bytes_to_staging_locked(
+        write_cpu_bytes_to_staging_locked(
             staging,
             cpu_src.storage().data_ptr().get(),
             dtype,
@@ -1139,7 +1143,7 @@ void init_nntile_input_from_cpu(
     attach_binding(nntile_dst, binding);
 
     lower_io_staging_locked(staging);
-    bind_host_bytes_to_staging_locked(
+    write_cpu_bytes_to_staging_locked(
         staging,
         cpu_src.storage().data_ptr().get(),
         dtype,

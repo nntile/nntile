@@ -123,10 +123,13 @@ class Runtime
 
     bool is_initialized(NNGraph::TensorNode const *tensor) const;
 
-    //! Clear initialized flag (caller must ``bind_data`` again before execute).
+    //! Clear initialized flag after staging readout (tile handle stays live).
     void invalidate_initialized(TensorGraph::TensorNode const *tensor);
 
     void invalidate_initialized(NNGraph::TensorNode const *tensor);
+
+    //! Mark logical tensor tiles as host-populated (after acquire write I/O).
+    void mark_initialized(TensorGraph::TensorNode const *tensor);
 
     //! Snapshot initialized tile buffers keyed by logical tensor (incremental reset).
     void export_initialized_tiles(
@@ -206,7 +209,6 @@ class Runtime
         const TileNode *node,
         const std::shared_ptr<void> &tile_ptr);
     void require_compiled() const;
-    void mark_initialized(TensorGraph::TensorNode const *tensor);
     bool tensor_requires_init_at_execute(
         TileGraph::TensorDescriptor const &desc) const;
     void validate_initialized_inputs_at_compile();
