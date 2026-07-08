@@ -109,9 +109,11 @@ supported ATen ops — notably `view`, materialized `transpose(dim0, dim1)` /
 `.t()`, and `matmul`. `Tensor.contiguous()` is **not** supported on
 `device=nntile`; ensure layout on CPU before `.to("nntile")` or use graph layout
 ops (`repeat`, `model_transpose`, `view`). `aten::transpose.int` maps to
-`tensor::swap_two_axes` (2-axis swap, not a stride alias). `aten::permute` shares `NodeRef` when the permutation preserves C-contiguity;
-otherwise it errors (use `transpose` / `model_transpose` for layout changes).
-Cyclic `model_transpose` remains a separate custom API for NNTile-layout SDPA.
+`tensor::swap_two_axes` (2-axis swap, not a stride alias). `aten::permute` shares
+`NodeRef` when the permutation preserves C-contiguity; otherwise it errors. At the
+TensorGraph level, same-numel PyTorch shape changes may use a `contiguous_view`
+**bridge** (reshape is realized at tile/core lowering). Cyclic `model_transpose`
+remains a separate custom API for NNTile-layout SDPA.
 
 | PyTorch op | libnntile |
 |------------|-----------|
@@ -249,11 +251,13 @@ inputs or outputs.
 
 - **Reduce footprint:** ``del`` temporaries you no longer need (activations,
   large intermediates) before ``compile_graph()`` in training loops.
-- **Host RAM:** graph-mode op outputs use metadata-only storage (negligible host
-  bytes); weights and inputs staged via ``.to("nntile")`` use normal PyTorch
-  host storage and follow PyTorch refcounting.
-- **Readout:** call ``compile_graph()`` and ``run()`` before ``.to("cpu")`` on
-  values you still hold in Python.
+- **Host RAM:** all ``device=nntile`` tensors use **0-byte** ``Storage``;
+  payload lives in StarPU tiles behind ``NodeRef`` → ``{ L, S }``. Host bytes
+  enter/leave only via the single-tile **staging** node ``S`` (scatter/gather).
+  No recorder host caches (e.g. label copies).
+- **Readout:** ``.cpu()`` / ``.to("cpu")`` uses ``gather(L→S)``; call
+  ``compile_graph()`` and ``run()`` first when reading computed values (or use
+  test helper ``nntile_cpu`` which auto-flushes a pending graph).
 
 ### Axis-group naming and tiling
 

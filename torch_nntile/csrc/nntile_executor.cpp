@@ -113,18 +113,8 @@ const std::int64_t *labels_host_ptr(
 {
     if (is_metadata_only_tensor(labels))
     {
-        std::size_t cached_count = 0;
-        if (const std::int64_t *cached =
-                label_host_cache_ptr(labels, &cached_count);
-            cached != nullptr && cached_count > 0)
-        {
-            host_storage.assign(cached, cached + cached_count);
-            return host_storage.data();
-        }
         host_storage.resize(static_cast<std::size_t>(labels.numel()));
-        if (read_nntile_logical_to_host(
-                labels,
-                host_storage.data()))
+        if (read_nntile_staging_to_host(labels, host_storage.data()))
         {
             return host_storage.data();
         }
@@ -2134,13 +2124,19 @@ void tensor_sum_to_scalar_fp32(
         pytorch_shape_to_graph(input.sizes());
     if (graph_shape.empty())
     {
-        if (input.data_ptr<float>() != out.data_ptr<float>())
-        {
-            std::memcpy(
-                out.data_ptr<float>(),
-                input.data_ptr<float>(),
-                sizeof(float));
-        }
+        auto *input_node = get_or_create_data_node(
+            input,
+            graph_shape,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(input));
+        auto *out_node = get_or_create_data_node(
+            out,
+            graph_shape,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(out));
+        nntile::tensor::copy(input_node, out_node);
+        register_data_node(out, out_node);
+        maybe_execute_after_record();
         return;
     }
 

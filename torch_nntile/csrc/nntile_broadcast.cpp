@@ -19,6 +19,7 @@
 #include <ATen/Tensor.h>
 #include <nntile/tensor/ops/scale_slice.hh>
 #include <nntile/tensor/ops/clear.hh>
+#include <nntile/tensor/ops/copy.hh>
 
 #include <cstring>
 #include <stdexcept>
@@ -248,13 +249,19 @@ void tensor_broadcast_scalar_fp32(
         pytorch_shape_to_graph(out.sizes());
     if (dst_graph.empty())
     {
-        if (scalar.data_ptr<float>() != out.data_ptr<float>())
-        {
-            std::memcpy(
-                out.data_ptr<float>(),
-                scalar.data_ptr<float>(),
-                sizeof(float));
-        }
+        auto *src_node = get_or_create_data_node(
+            scalar,
+            std::vector<nntile::Index>{},
+            nntile::DataType::FP32,
+            true);
+        auto *dst_node = get_or_create_data_node(
+            out,
+            dst_graph,
+            nntile::DataType::FP32,
+            false);
+        nntile::tensor::copy(src_node, dst_node);
+        register_data_node(out, dst_node);
+        maybe_execute_after_record();
         return;
     }
 

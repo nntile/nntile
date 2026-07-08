@@ -158,6 +158,8 @@ All work is in **`torch_nntile/`** (primarily `csrc/nntile_graph_recorder.cpp`,
 
 ### Phase A — Remove logical read and all host caching (P0)
 
+**Status:** **Done** (2026-07-08)
+
 **Goal:** torch_nntile never calls `Runtime::get_output(L)`; no recorder caches.
 
 | Task | Action |
@@ -175,19 +177,23 @@ All work is in **`torch_nntile/`** (primarily `csrc/nntile_graph_recorder.cpp`,
 
 ### Phase B — torch_nntile I/O path consistency (P1)
 
+**Status:** **Partial** — `copy_from` staging fast-path removed; gather readout policy unchanged (ergonomic inline compile on `.cpu()`).
+
 **Goal:** Single story for CPU export in the extension recorder.
 
 | Task | Action |
 |------|--------|
 | B.1 | Audit `copy_nntile_tensor_to_cpu` and `copy_from` staging fast-paths — document or remove. |
 | B.2 | Policy for `gather_logical_to_staging_and_read_locked` inline compile+run: keep (ergonomic `.cpu()`) or split record vs execute — **extension-only** decision. |
-| B.3 | Ensure every post-run host read goes `gather(L→S)` → run → read `S` → invalidate `S`. |
+| B.3 | Ensure every post-run host read goes `gather(L→S)` → run → read `S` → invalidate `S`. Input `S` stays readable after scatter until `.cpu()` gather readout. |
 
 **Tests:** `test_cpu_invalidates_staging_buffer`, `test_nntile_to_cpu_copy`, graph execution training loop.
 
 ---
 
 ### Phase C — Document two-layer reshape model (P2 → doc)
+
+**Status:** **Done** — README + plan updated.
 
 **Goal:** Code and docs match the TensorGraph vs ATen reshape split.
 
@@ -200,6 +206,8 @@ All work is in **`torch_nntile/`** (primarily `csrc/nntile_graph_recorder.cpp`,
 ---
 
 ### Phase D — Metadata-safe scalars and CPU fallbacks (P1, optional)
+
+**Status:** **Partial** — 0-D `tensor_sum_to_scalar_fp32` and `tensor_broadcast_scalar_fp32` use graph `copy`; norm/broadcast CPU fallbacks remain.
 
 | Task | Action |
 |------|--------|
