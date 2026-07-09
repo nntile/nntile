@@ -223,8 +223,10 @@ def build_nntile_model(
     from torch_nntile.models import DeepReLU
 
     model = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
-    model.load_state_dict(state_dict)
-    return model.to("nntile")
+    with torch.no_grad():
+        model.load_state_dict(state_dict)
+        model = model.to("nntile")
+    return model
 
 
 def train_on_nntile(
@@ -241,8 +243,9 @@ def train_on_nntile(
     import torch_nntile
     from torch_nntile.training import train_full_batch_step
 
-    x = images.to("nntile")
-    y = labels.to("nntile")
+    with torch.no_grad():
+        x = images.to("nntile")
+        y = labels.to("nntile")
     if axis_group_tiling is not None:
         for name, tile_sizes in axis_group_tiling.items():
             torch_nntile.set_axis_group_tiling(name, tile_sizes)

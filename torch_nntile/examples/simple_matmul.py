@@ -199,8 +199,9 @@ def main() -> None:
 
     a = torch.randn(size.m, size.k)
     b = torch.randn(size.k, size.n)
-    a_nnt = a.to(device="nntile")
-    b_nnt = b.to(device="nntile")
+    with torch.no_grad():
+        a_nnt = a.to(device="nntile")
+        b_nnt = b.to(device="nntile")
 
     c_nnt, t1 = run_matmul_round(
         a_nnt,
@@ -210,7 +211,8 @@ def main() -> None:
         round_idx=1,
         print_groups=args.print_axis_groups,
     )
-    c_round1 = c_nnt.cpu().clone()
+    with torch.no_grad():
+        c_round1 = c_nnt.cpu().clone()
     c_nnt, t2 = run_matmul_round(
         a_nnt,
         b_nnt,
@@ -223,16 +225,17 @@ def main() -> None:
     use_cuda = args.restrict_cuda or (
         args.ncuda != 0 and not args.restrict_cpu
     )
-    if use_cuda and torch.cuda.is_available():
-        c_ref = a.cuda() @ b.cuda()
-        c2 = c_nnt.cpu().cuda()
-        c_round1 = c_round1.cuda()
-    else:
-        c_ref = a @ b
-        c2 = c_nnt.cpu()
+    with torch.no_grad():
+        if use_cuda and torch.cuda.is_available():
+            c_ref = a.cuda() @ b.cuda()
+            c2 = c_nnt.cpu().cuda()
+            c_round1 = c_round1.cuda()
+        else:
+            c_ref = a @ b
+            c2 = c_nnt.cpu()
 
-    rel_err = torch.norm(c_ref - c2) / torch.norm(c_ref)
-    rel_err_r1 = torch.norm(c_ref - c_round1) / torch.norm(c_ref)
+        rel_err = torch.norm(c_ref - c2) / torch.norm(c_ref)
+        rel_err_r1 = torch.norm(c_ref - c_round1) / torch.norm(c_ref)
     total_time = t1 + t2
     flops = 2e-12 * repeat * 2 * size.m * size.k * size.n / total_time
     print(

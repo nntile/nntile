@@ -548,7 +548,8 @@ def train_full_batch_step(
         torch_nntile.run()
 
         torch_nntile.wait()
-        loss_cpu = loss.to("cpu")
+        with torch.no_grad():
+            loss_cpu = loss.to("cpu")
         return float(loss_cpu.item())
 
     loss = F.cross_entropy(logits, targets)
@@ -559,10 +560,11 @@ def train_full_batch_step(
 
 def clone_model_weights(model: torch.nn.Module) -> dict[str, torch.Tensor]:
     """Copy weights to CPU tensors for checkpointing."""
-    return {
-        name: tensor.detach().cpu().clone()
-        for name, tensor in model.state_dict().items()
-    }
+    with torch.no_grad():
+        return {
+            name: tensor.detach().cpu().clone()
+            for name, tensor in model.state_dict().items()
+        }
 
 
 def max_weight_delta(

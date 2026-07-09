@@ -40,7 +40,8 @@ def main() -> None:
     ref = GPT2LMHeadModel(config).eval().float()
     model = GPT2LMHeadModel(config).eval().float()
     model.load_state_dict(ref.state_dict())
-    model = model.to("nntile")
+    with torch.no_grad():
+        model = model.to("nntile")
 
     for param in model.parameters():
         param.requires_grad_(True)
@@ -49,8 +50,9 @@ def main() -> None:
 
     input_ids_cpu = torch.randint(0, config.vocab_size, (2, 8))
     labels_cpu = input_ids_cpu.clone()
-    input_ids = input_ids_cpu.to("nntile")
-    labels = labels_cpu.to("nntile")
+    with torch.no_grad():
+        input_ids = input_ids_cpu.to("nntile")
+        labels = labels_cpu.to("nntile")
 
     with torch.no_grad():
         ref_logits = ref(input_ids_cpu).logits
@@ -68,18 +70,22 @@ def main() -> None:
     optimizer.step()
     torch_nntile.wait()
 
-    print(
-        "forward match:",
-        torch.allclose(logits.cpu(), ref_logits, rtol=1e-4, atol=1e-4),
-    )
-    print(
-        "loss match:",
-        torch.allclose(loss.to("cpu"), ref_loss, rtol=1e-4, atol=1e-4),
-    )
-    print(
-        "wte grad norm:",
-        model.transformer.wte.weight.grad.norm().cpu().item(),
-    )
+    with torch.no_grad():
+        print(
+            "forward match:",
+            torch.allclose(logits.cpu(), ref_logits, rtol=1e-4, atol=1e-4),
+        )
+        print(
+            "loss match:",
+            torch.allclose(loss.to("cpu"), ref_loss, rtol=1e-4, atol=1e-4),
+        )
+        wte_grad = model.transformer.wte.weight.grad
+        grad_norm = (
+            wte_grad.norm().detach().cpu().item()
+            if wte_grad is not None
+            else None
+        )
+        print("wte grad norm:", grad_norm)
 
 
 if __name__ == "__main__":
