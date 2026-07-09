@@ -2,7 +2,7 @@
 
 PyTorch **PrivateUse1** device registered as `device="nntile"`.
 
-## Prebuilt wheels (0.0.1)
+## Prebuilt wheels (0.0.2)
 
 Wheels are built in CI, not published to PyPI. Install from a downloaded
 `.whl` file after installing the matching `torch` build.
@@ -65,7 +65,7 @@ dependencies on Linux x86_64), not from the wheel itself.
 
 ```bash
 pip install torch==2.9.1
-pip install /path/to/torch_nntile-0.0.1-cp312-cp312-manylinux_2_28_x86_64.whl
+pip install /path/to/torch_nntile-0.0.2-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
 `pip install` of the wheel pulls the NVIDIA packages on Linux automatically.
@@ -84,7 +84,7 @@ The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing),
 
 ```bash
 pip install torch==2.9.1
-pip install /path/to/torch_nntile-0.0.1-cp312-cp312-macosx_14_0_arm64.whl
+pip install /path/to/torch_nntile-0.0.2-cp312-cp312-macosx_14_0_arm64.whl
 ```
 
 StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
