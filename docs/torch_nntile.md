@@ -224,6 +224,11 @@ STARPU_NCPU=4 STARPU_NCUDA=0 \
     --axis-tiling hidden=128,128
 ```
 
+Do not call ``.cpu()`` / ``clone_model_weights()`` on nntile parameters
+**before** the first ``compile_graph()`` that applies ``--axis-tiling``:
+that seals the default (untiled) layout and later tiling raises
+``layout_fingerprint mismatch``. The example compares weights only after
+training.
 **Expected tail output (CPU workers, 5 epochs):**
 
 ```
@@ -242,9 +247,12 @@ Per-epoch loss diffs at or below **~1e-6** are typical on CPU.
 ### CUDA workers only
 
 Pin nntile kernels to CUDA workers (`--restrict-cuda`). Optionally run the
-reference PyTorch path on CUDA too (`--torch-device cuda`). The example runs
-the torch CUDA path **before** ``init_context()`` so StarPU does not break
-PyTorch autograd streams:
+reference PyTorch path on CUDA too (`--torch-device cuda`). PyTorch >= 2.8
+treats a registered PrivateUse1 backend as the global accelerator, so CUDA
+``loss.backward()`` fails after ``import torch_nntile``
+([pytorch#161129](https://github.com/pytorch/pytorch/issues/161129)). The
+example therefore runs the CUDA torch reference in a **subprocess that never
+imports** ``torch_nntile``:
 
 ```bash
 STARPU_NCPU=0 STARPU_NCUDA=2 \
@@ -280,7 +288,7 @@ down StarPU cleanly in a `finally` block.
 
 | Flag | Purpose |
 |------|---------|
-| `--torch-device DEVICE` | Reference PyTorch device: `cpu` (default), `cuda`, or `cuda:N` (torch CUDA runs before StarPU init) |
+| `--torch-device DEVICE` | Reference PyTorch device: `cpu` (default), `cuda`, or `cuda:N` (CUDA uses a subprocess without PrivateUse1) |
 | `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
 | `--verbose` | Verbose StarPU / NNTile context logging |
 | `--hidden-dim`, `--depth` | Model size (default 256, 5) |

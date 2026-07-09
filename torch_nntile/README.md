@@ -361,6 +361,9 @@ STARPU_NCPU=0 STARPU_NCUDA=2 \
     --axis-tiling hidden=128,128
 ```
 
+Do not ``.cpu()`` nntile weights before the first tiled ``compile_graph()``
+(``layout_fingerprint mismatch``); the example compares weights after training.
+
 **Parity expectations:** with CPU workers, per-epoch loss diffs are ~1e-6 or
 smaller. With CUDA workers, **loss** diffs of ~1e-4 are acceptable; **weights**
 should still agree to ~1e-8. See [docs/torch_nntile.md](../docs/torch_nntile.md)
@@ -452,8 +455,9 @@ When CUDA workers are enabled (`STARPU_NCUDA > 0`), use ``--restrict-cuda`` in
 the MNIST example (or call ``restrict_cuda()``) and shut StarPU down at exit.
 The example calls ``torch_nntile.wait()`` and ``torch_nntile.shutdown_context()``
 in a ``finally`` block; ``init_context()`` also registers an ``atexit`` hook.
-With ``--torch-device cuda``, the example finishes the PyTorch CUDA reference
-**before** ``init_context()`` to avoid StarPU/PyTorch CUDA stream conflicts.
+With ``--torch-device cuda``, the example runs the PyTorch CUDA reference in a
+subprocess that never imports ``torch_nntile``, because registering PrivateUse1
+breaks CUDA autograd streams on PyTorch >= 2.8 (pytorch/pytorch#161129).
 
 ## macOS / PyTorch cpu_fallback ABI
 

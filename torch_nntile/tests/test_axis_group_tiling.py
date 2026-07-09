@@ -176,3 +176,53 @@ def test_int64_label_ingress_with_batch_tiling():
         assert value == value  # finite
         """
     )
+
+
+def test_early_host_roundtrip_before_axis_tiling_raises():
+    """``.cpu()`` before tiling seals untiled layouts; later tiling must fail."""
+    _run_subprocess(
+        """
+        import pytest
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(4, 8).to("nntile")
+        y = torch.randn(4, 8).to("nntile")
+        # Host round-trip compiles ingress scatter under the default
+        # (untiled) layout before axis tiling is registered.
+        _ = x.cpu()
+        torch_nntile.set_axis_group_name(x, {0: "batch"})
+        z = x + y
+        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        with pytest.raises(RuntimeError, match="layout_fingerprint mismatch"):
+            torch_nntile.execute()
+        """
+    )
+
+
+def test_axis_tiling_without_early_host_roundtrip():
+    """Axis tiling works when no host read seals the graph first."""
+    _run_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(4, 8).to("nntile")
+        y = torch.randn(4, 8).to("nntile")
+        torch_nntile.set_axis_group_name(x, {0: "batch"})
+        z = x + y
+        torch_nntile.set_axis_group_tiling("batch", [1, 1, 2])
+        torch_nntile.execute()
+        assert z.shape == (4, 8)
+        out = z.cpu()
+        assert out.shape == (4, 8)
+        """
+    )
