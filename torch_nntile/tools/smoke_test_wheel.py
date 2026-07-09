@@ -9,12 +9,14 @@ if not _C.has_libnntile():
 torch_nntile.init_context(ncpu=1, ncuda=0, verbose=0, cpu_fallback=False)
 torch_nntile.restrict_cpu()
 
-lhs = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32).to("nntile")
-rhs = torch.tensor([4.0, 5.0, 6.0], dtype=torch.float32).to("nntile")
+with torch.no_grad():
+    lhs = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32).to("nntile")
+    rhs = torch.tensor([4.0, 5.0, 6.0], dtype=torch.float32).to("nntile")
 out = lhs + rhs
 torch_nntile.compile_graph()
 torch_nntile.run()
-result = out.cpu()
+with torch.no_grad():
+    result = out.cpu()
 
 torch.testing.assert_close(
     result,

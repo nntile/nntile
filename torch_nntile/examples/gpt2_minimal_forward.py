@@ -37,10 +37,12 @@ def main() -> None:
     hf = GPT2LMHeadModel(config).eval().float()
     model = GPT2LMHead(config).eval().float()
     load_hf_into_gpt2_lm_head(model, hf)
-    model = model.to("nntile")
+    with torch.no_grad():
+        model = model.to("nntile")
 
     input_ids_cpu = torch.randint(0, config.vocab_size, (2, 8))
-    input_ids = input_ids_cpu.to("nntile")
+    with torch.no_grad():
+        input_ids = input_ids_cpu.to("nntile")
     with torch.no_grad():
         ref = hf(input_ids_cpu).logits
         out = model(input_ids).cpu()
@@ -48,15 +50,19 @@ def main() -> None:
 
     for p in model.parameters():
         p.requires_grad_(True)
-    grad_out = torch.randn_like(out).to("nntile")
+    with torch.no_grad():
+        grad_out = torch.randn_like(out).to("nntile")
     model.zero_grad(set_to_none=True)
     logits = model(input_ids)
     logits.backward(grad_out)
     wte_grad = model.transformer.wte.weight.grad
-    print(
-        "backward ok, wte grad norm:",
-        wte_grad.norm().cpu().item() if wte_grad is not None else None,
-    )
+    with torch.no_grad():
+        grad_norm = (
+            wte_grad.norm().detach().cpu().item()
+            if wte_grad is not None
+            else None
+        )
+    print("backward ok, wte grad norm:", grad_norm)
 
 
 if __name__ == "__main__":
