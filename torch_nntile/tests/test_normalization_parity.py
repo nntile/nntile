@@ -56,10 +56,6 @@ def test_layer_norm_forward_matches_cpu(shape):
 
 
 @pytest.mark.parametrize("shape", [(4, 8), (2, 3, 8)])
-@pytest.mark.skip(
-    reason="LayerNorm backward aborts in graph execute (intermediate tile "
-    "lifecycle); forward parity is covered",
-)
 def test_layer_norm_backward_matches_cpu(shape):
     torch.manual_seed(1)
     feat = shape[-1]
@@ -77,7 +73,7 @@ def test_layer_norm_backward_matches_cpu(shape):
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = ln_nnt(x_nnt)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
     assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
     assert torch.allclose(
@@ -112,10 +108,6 @@ def test_rms_norm_forward_matches_cpu(shape):
 
 
 @pytest.mark.parametrize("shape", [(4, 8), (2, 3, 8)])
-@pytest.mark.skip(
-    reason="RMSNorm backward aborts in graph execute (intermediate tile "
-    "lifecycle); forward parity is covered",
-)
 def test_rms_norm_backward_matches_cpu(shape):
     torch.manual_seed(3)
     feat = shape[-1]
@@ -132,7 +124,7 @@ def test_rms_norm_backward_matches_cpu(shape):
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = rms_nnt(x_nnt)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
     assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
     assert torch.allclose(
@@ -176,9 +168,6 @@ def test_rms_norm_without_weight_matches_cpu():
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.skip(
-    reason="RMSNorm no-weight backward aborts in graph execute",
-)
 def test_rms_norm_without_weight_backward_matches_cpu():
     x_cpu = torch.randn(3, 5, requires_grad=True)
     y_cpu = F.rms_norm(x_cpu, (5,), None, 1e-6)
@@ -186,6 +175,6 @@ def test_rms_norm_without_weight_backward_matches_cpu():
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = F.rms_norm(x_nnt, (5,), None, 1e-6)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
     assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)

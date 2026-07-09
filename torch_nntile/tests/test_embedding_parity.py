@@ -66,9 +66,6 @@ def test_embedding_forward_matches_cpu(index_shape):
     assert torch.allclose(nntile_cpu(out_nnt.detach()), out_cpu, rtol=1e-5, atol=1e-5)
 
 
-@pytest.mark.skip(
-    reason="Embedding backward hits deferred-allocation path in graph mode",
-)
 def test_embedding_backward_matches_cpu():
     torch.manual_seed(1)
     num_embeddings, embed_dim = 12, 6
@@ -82,22 +79,19 @@ def test_embedding_backward_matches_cpu():
     out_cpu.sum().backward()
     grad_cpu = weight_cpu.weight.grad.detach().clone()
 
-    weight_nnt = nn.Embedding(num_embeddings, embed_dim).to("nntile")
-    with torch.no_grad():
-        weight_nnt.weight.copy_(weight_cpu.weight.detach())
+    weight_nnt = nn.Embedding(num_embeddings, embed_dim)
+    weight_nnt.load_state_dict(weight_cpu.state_dict())
+    weight_nnt = weight_nnt.to("nntile")
     weight_nnt.weight.requires_grad_(True)
 
     out_nnt = weight_nnt(indices.to("nntile"))
-    grad_out = torch.ones_like(out_cpu).to("nntile")
+    grad_out = torch.ones_like(out_nnt)
     torch.autograd.backward([out_nnt], [grad_out])
     grad_nnt = nntile_cpu(weight_nnt.weight.grad)
 
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-5, atol=1e-5)
 
 
-@pytest.mark.skip(
-    reason="Embedding backward hits deferred-allocation path in graph mode",
-)
 def test_embedding_duplicate_indices():
     torch.manual_seed(2)
     num_embeddings, embed_dim = 6, 4
@@ -111,13 +105,13 @@ def test_embedding_duplicate_indices():
     out_cpu.sum().backward()
     grad_cpu = weight_cpu.weight.grad.detach().clone()
 
-    weight_nnt = nn.Embedding(num_embeddings, embed_dim).to("nntile")
-    with torch.no_grad():
-        weight_nnt.weight.copy_(weight_cpu.weight.detach())
+    weight_nnt = nn.Embedding(num_embeddings, embed_dim)
+    weight_nnt.load_state_dict(weight_cpu.state_dict())
+    weight_nnt = weight_nnt.to("nntile")
     weight_nnt.weight.requires_grad_(True)
 
     out_nnt = weight_nnt(indices.to("nntile"))
-    grad_out = torch.ones_like(out_cpu).to("nntile")
+    grad_out = torch.ones_like(out_nnt)
     torch.autograd.backward([out_nnt], [grad_out])
     grad_nnt = nntile_cpu(weight_nnt.weight.grad)
 

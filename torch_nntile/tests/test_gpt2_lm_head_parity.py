@@ -33,11 +33,6 @@ pytestmark = pytest.mark.skipif(
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
 
-_SKIP_FULL_MODEL_GRAPH = pytest.mark.skip(
-    reason="Full GPT-2 TensorGraph execute aborts (uninitialized handles in add)",
-)
-
-
 @pytest.fixture(scope="module", autouse=True)
 def _nntile_context_no_fallback():
     if not _C.has_libnntile():
@@ -112,7 +107,6 @@ def test_gpt2_lm_head_forward_shape(tiny_gpt2_config):
     assert logits.dtype == torch.float32
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_lm_head_forward_matches_hf_tied(tiny_gpt2_config):
     hf, minimal = _make_models(tiny_gpt2_config)
     input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
@@ -122,7 +116,6 @@ def test_gpt2_lm_head_forward_matches_hf_tied(tiny_gpt2_config):
     _assert_close(out, ref)
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_lm_head_forward_matches_hf_untied(tiny_gpt2_config):
     tiny_gpt2_config.tie_word_embeddings = False
     hf, minimal = _make_models(tiny_gpt2_config)
@@ -141,7 +134,6 @@ def test_gpt2_lm_head_tied_weights_share_storage(tiny_gpt2_config):
     )
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_block_forward_matches_hf(tiny_gpt2_config):
     torch.manual_seed(1)
     hf = GPT2LMHeadModel(tiny_gpt2_config).eval().float()
@@ -182,7 +174,6 @@ def test_gpt2_block_forward_matches_hf(tiny_gpt2_config):
     _assert_close(out, ref)
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_mlp_forward_matches_hf(tiny_gpt2_config):
     torch.manual_seed(2)
     from transformers.models.gpt2.modeling_gpt2 import GPT2MLP as HfMLP
@@ -202,7 +193,6 @@ def test_gpt2_mlp_forward_matches_hf(tiny_gpt2_config):
     _assert_close(out, ref)
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_mlp_backward_matches_hf(tiny_gpt2_config):
     torch.manual_seed(3)
     from transformers.models.gpt2.modeling_gpt2 import GPT2MLP as HfMLP
@@ -234,7 +224,6 @@ def test_gpt2_mlp_backward_matches_hf(tiny_gpt2_config):
     _assert_close(gcp_w, hf_mlp.c_proj.weight.grad.t())
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_attention_forward_matches_hf(tiny_gpt2_config):
     torch.manual_seed(4)
     from transformers.models.gpt2.modeling_gpt2 import GPT2Attention as HfAttention
@@ -265,7 +254,6 @@ def test_gpt2_attention_forward_matches_hf(tiny_gpt2_config):
     _assert_close(out, ref)
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_attention_backward_matches_hf(tiny_gpt2_config):
     torch.manual_seed(5)
     from transformers.models.gpt2.modeling_gpt2 import GPT2Attention as HfAttention
@@ -311,7 +299,6 @@ def test_gpt2_attention_backward_matches_hf(tiny_gpt2_config):
     _assert_close(gx_nnt, x_cpu.grad, atol=1e-3)
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_lm_head_backward_matches_hf_tied(tiny_gpt2_config):
     hf, minimal = _make_models(tiny_gpt2_config)
     for p in hf.parameters():
@@ -337,7 +324,6 @@ def test_gpt2_lm_head_backward_matches_hf_tied(tiny_gpt2_config):
     _assert_close(gw_nnt, hf.transformer.wte.weight.grad, atol=1e-3)
 
 
-@_SKIP_FULL_MODEL_GRAPH
 def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
     tiny_gpt2_config.tie_word_embeddings = False
     hf, minimal = _make_models(tiny_gpt2_config)
@@ -364,11 +350,6 @@ def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
     _assert_close(gwpe, hf.transformer.wpe.weight.grad)
 
 
-@pytest.mark.xfail(
-    reason="GPT2 graph logits parity vs HF still diverges (~0.17 max diff); "
-    "mm+view ndim fixed in test_graph_mode_mm_view_add_ndim",
-    strict=False,
-)
 def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
     import subprocess
     import sys
@@ -414,7 +395,7 @@ def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
 
         input_ids = torch.randint(0, config.vocab_size, (1, 4)).to("nntile")
         with torch.no_grad():
-            ref = hf(nntile_cpu(input_ids)).logits
+            ref = hf(input_ids.cpu()).logits
         assert torch_nntile.has_pending_graph() is False
         out = model(input_ids)
         assert torch_nntile.has_pending_graph()

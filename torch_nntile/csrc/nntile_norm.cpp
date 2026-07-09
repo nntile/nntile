@@ -70,6 +70,19 @@ std::vector<int64_t> reduced_sizes(
     return sizes;
 }
 
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
+{
+    std::vector<nntile::Index> graph_shape;
+    graph_shape.reserve(shape.size());
+    for (const auto dim : shape)
+    {
+        graph_shape.push_back(static_cast<nntile::Index>(dim));
+    }
+    return graph_shape;
+}
+#endif
+
 } // namespace
 
 std::tuple<at::Tensor, at::Tensor> norm_forward(
@@ -231,6 +244,17 @@ at::Tensor norm_backward(
             grad_input_flat,
             true,
             0);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        nntile::TensorGraph::TensorNode *grad_input_node = lookup_data_node(
+            grad_input_flat,
+            pytorch_shape_to_graph(grad_input_flat.sizes()));
+        if (grad_input_node != nullptr)
+        {
+            register_data_node(grad_input, grad_input_node);
+            register_param_grad_node(x, grad_input_node);
+            register_grad_alias_for_host_copy(grad_input, grad_input_node);
+        }
+#endif
         return grad_input;
     }
 
@@ -242,6 +266,17 @@ at::Tensor norm_backward(
         grad_input,
         false,
         axis);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    nntile::TensorGraph::TensorNode *grad_input_node = lookup_data_node(
+        grad_input,
+        pytorch_shape_to_graph(grad_input.sizes()));
+    if (grad_input_node != nullptr)
+    {
+        register_param_grad_node(x, grad_input_node);
+        at::Tensor grad_alias = grad_input;
+        register_grad_alias_for_host_copy(grad_alias, grad_input_node);
+    }
+#endif
     return grad_input;
 }
 
