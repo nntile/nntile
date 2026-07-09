@@ -202,62 +202,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
     return {output, norm_values};
 }
 
-at::Tensor norm_backward(
-    const at::Tensor &grad_out,
-    const at::Tensor &input,
-    const at::Tensor &norm_values,
-    std::optional<int64_t> dim,
-    bool keepdim)
-{
-    check_norm_input(grad_out, "grad_out");
-    check_norm_input(input, "input");
-    check_norm_input(norm_values, "norm_values");
-    const at::Tensor &x = input;
-
-    at::Tensor grad_out_reduced = grad_out;
-    if (dim.has_value() && keepdim)
-    {
-        grad_out_reduced = grad_out.squeeze(*dim);
-    }
-    else if (!dim.has_value() && keepdim)
-    {
-        at::Tensor scalar_grad = at::empty({}, grad_out.options());
-        pin_graph_op_inputs({grad_out});
-        pin_graph_op_output(scalar_grad, false);
-        tensor_sum_to_scalar_fp32(grad_out, scalar_grad);
-        grad_out_reduced = scalar_grad;
-    }
-
-    at::Tensor grad_input = at::empty_like(x);
-    pin_graph_op_inputs({grad_out_reduced, x, norm_values});
-    pin_graph_op_output(grad_input, false);
-
-    if (!dim.has_value())
-    {
-        const int64_t numel = x.numel();
-        at::Tensor x_flat = x.view({numel});
-        at::Tensor grad_input_flat = grad_input.view({numel});
-        tensor_norm_backward_fp32(
-            grad_out_reduced,
-            x_flat,
-            norm_values,
-            grad_input_flat,
-            true,
-            0);
-        return grad_input;
-    }
-
-    const int64_t axis = normalize_dim(*dim, x.dim());
-    tensor_norm_backward_fp32(
-        grad_out_reduced,
-        x,
-        norm_values,
-        grad_input,
-        false,
-        axis);
-    return grad_input;
-}
-
 at::Tensor linalg_vector_norm_nntile(
     const at::Tensor &self,
     const at::Scalar &ord,

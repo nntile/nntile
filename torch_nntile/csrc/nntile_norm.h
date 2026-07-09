@@ -20,13 +20,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
     bool keepdim,
     at::Tensor *out = nullptr);
 
-at::Tensor norm_backward(
-    const at::Tensor &grad_out,
-    const at::Tensor &input,
-    const at::Tensor &norm_values,
-    std::optional<int64_t> dim,
-    bool keepdim);
-
 at::Tensor linalg_vector_norm_nntile(
     const at::Tensor &self,
     const at::Scalar &ord,

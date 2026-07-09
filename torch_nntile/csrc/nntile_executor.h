@@ -259,18 +259,6 @@ void tensor_norm_slice_fp32(
     int64_t axis,
     bool keepdim);
 
-void tensor_norm_backward_fp32(
-    const at::Tensor &grad_out,
-    const at::Tensor &x,
-    const at::Tensor &norm_values,
-    at::Tensor &grad_input,
-    bool is_global,
-    int64_t axis);
-
-void tensor_sum_to_scalar_fp32(
-    const at::Tensor &input,
-    at::Tensor &out);
-
 void tensor_sum_dimlist_fp32(
     const at::Tensor &input,
     at::Tensor &out,

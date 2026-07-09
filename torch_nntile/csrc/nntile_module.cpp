@@ -432,13 +432,4 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("dim") = py::none(),
         py::arg("keepdim") = false,
         py::arg("out") = py::none());
-    m.def(
-        "norm_backward",
-        &torch_nntile::norm_backward,
-        "NNTile 2-norm backward",
-        py::arg("grad_out"),
-        py::arg("input"),
-        py::arg("norm_values"),
-        py::arg("dim") = py::none(),
-        py::arg("keepdim") = false);
 }
