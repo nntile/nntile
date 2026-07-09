@@ -172,8 +172,9 @@ example script provides naming.
 ## DeepReLU MNIST example
 
 [`torch_nntile/examples/train_deep_relu_mnist.py`](../torch_nntile/examples/train_deep_relu_mnist.py)
-trains `DeepReLU.mnist()` on the full MNIST training set (60k batch), comparing
-CPU PyTorch vs `device="nntile"`.
+trains `DeepReLU.mnist()` on the full MNIST training set (60k batch) on
+`device="nntile"`. By default it is nntile-only; ``--compare-torch`` adds a CPU
+PyTorch reference for loss/weight parity.
 
 Default model: **5 linear layers** (`--depth 5`), **4 hidden blocks** with output
 width `--hidden-dim 256` (784→256, then three 256→256, then 256→10 logits).
@@ -201,10 +202,12 @@ export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 StarPU worker counts come from the environment (`STARPU_NCPU`, `STARPU_NCUDA`).
 The script calls `init_context(ncpu=-1, ncuda=-1, …)` so those env vars apply.
 
-### CPU workers only
+By default the script trains **nntile only**. Pass ``--compare-torch`` to also
+run a CPU PyTorch reference and print per-epoch loss / final weight parity.
+A CUDA torch reference is not supported (PrivateUse1 breaks CUDA autograd on
+PyTorch >= 2.8, [pytorch#161129](https://github.com/pytorch/pytorch/issues/161129)).
 
-Use CPU StarPU workers for the nntile path. The reference PyTorch path is
-always CPU:
+### Nntile-only (CPU StarPU workers)
 
 ```bash
 STARPU_NCPU=4 STARPU_NCUDA=0 \
@@ -227,8 +230,16 @@ STARPU_NCPU=4 STARPU_NCUDA=0 \
 Do not call ``.cpu()`` / ``clone_model_weights()`` on nntile parameters
 **before** the first ``compile_graph()`` that applies ``--axis-tiling``:
 that seals the default (untiled) layout and later tiling raises
-``layout_fingerprint mismatch``. The example compares weights only after
+``layout_fingerprint mismatch``. The example gathers weights only after
 training.
+
+### CPU torch parity (`--compare-torch`)
+
+```bash
+STARPU_NCPU=4 STARPU_NCUDA=0 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --compare-torch --epochs 5
+```
 
 **Expected tail output (CPU workers, 5 epochs):**
 
@@ -245,14 +256,14 @@ Final weight max |torch - nntile| = 1.118e-08
 
 Per-epoch loss diffs at or below **~1e-6** are typical on CPU.
 
-### CUDA workers only
+### CUDA workers only (nntile-only or with parity)
 
-Pin nntile kernels to CUDA workers (`--restrict-cuda`). The torch reference
-stays on CPU (a CUDA torch reference is not supported: registering PrivateUse1
-breaks CUDA autograd on PyTorch >= 2.8,
-[pytorch#161129](https://github.com/pytorch/pytorch/issues/161129)):
+Pin nntile kernels to CUDA workers (`--restrict-cuda`). Use without
+``--compare-torch`` for larger tiled multi-GPU runs; add ``--compare-torch``
+when you want loss parity against the CPU reference:
 
 ```bash
+# Parallel nntile training (no torch reference)
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --restrict-cuda \
@@ -260,10 +271,18 @@ STARPU_NCPU=0 STARPU_NCUDA=2 \
     --axis-tiling batch=15000,15000,15000,15000 \
     --axis-tiling features=392,392 \
     --axis-tiling hidden=128,128
+
+# Same setup + CPU torch parity
+STARPU_NCPU=0 STARPU_NCUDA=2 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --restrict-cuda --compare-torch \
+    --epochs 5 \
+    --axis-tiling batch=15000,15000,15000,15000 \
+    --axis-tiling features=392,392 \
+    --axis-tiling hidden=128,128
 ```
 
-**Expected tail output (CUDA workers, torch CPU reference, 5 epochs, with
-tiling above):**
+**Expected tail with ``--compare-torch`` (CUDA workers, 5 epochs, tiling above):**
 
 ```
 Loss comparison (torch/cpu vs nntile):
@@ -285,6 +304,7 @@ down StarPU cleanly in a `finally` block.
 
 | Flag | Purpose |
 |------|---------|
+| `--compare-torch` | Also train CPU PyTorch reference and print loss/weight parity |
 | `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
 | `--verbose` | Verbose StarPU / NNTile context logging |
 | `--hidden-dim`, `--depth` | Model size (default 256, 5) |

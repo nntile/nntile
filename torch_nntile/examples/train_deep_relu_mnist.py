@@ -3,9 +3,13 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/examples/train_deep_relu_mnist.py
-# Train DeepReLU on the full MNIST training set (60k batch) on torch vs nntile.
+# Train DeepReLU on the full MNIST training set (60k batch) on nntile.
 
-"""Full-batch MNIST training with DeepReLU on torch (CPU) vs device=\"nntile\".
+"""Full-batch MNIST training with DeepReLU on device=\"nntile\".
+
+By default this script trains only on nntile (useful for larger tiled /
+multi-worker runs). Pass ``--compare-torch`` to also train a CPU PyTorch
+reference and print per-epoch loss / final weight parity.
 
 Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 (same tensor-op chain as ``NNCrossEntropyOp`` in libnntile). Logits are
@@ -13,8 +17,8 @@ Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 ``device="nntile"``; read it with ``loss.to("cpu")`` after ``compile_graph()`` and
 ``run()`` in graph mode.
 
-The reference PyTorch path is always CPU. StarPU may still use CUDA workers
-for the nntile path via ``STARPU_NCUDA`` and ``--restrict-cuda``.
+StarPU may use CUDA workers for the nntile path via ``STARPU_NCUDA`` and
+``--restrict-cuda``.
 
 Axis-group naming and tiling (optional) are configured in this script:
 
@@ -24,7 +28,7 @@ Axis-group naming and tiling (optional) are configured in this script:
   weight/grad/velocity matrix row or column of that size
 - ``classes`` — output logits dimension (10)
 
-Example with batch and hidden tiling::
+Nntile-only (tiled CUDA workers)::
 
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
     STARPU_NCPU=0 STARPU_NCUDA=2 \\
@@ -35,7 +39,13 @@ Example with batch and hidden tiling::
         --axis-tiling features=392,392 \\
         --axis-tiling hidden=128,128
 
-Run instructions and expected CPU vs CUDA-worker output:
+CPU torch parity check::
+
+    STARPU_NCPU=4 STARPU_NCUDA=0 \\
+    python torch_nntile/examples/train_deep_relu_mnist.py \\
+        --compare-torch --epochs 5
+
+Run instructions and expected output:
 ``docs/torch_nntile.md`` (DeepReLU MNIST example section).
 """
 
@@ -102,12 +112,19 @@ def build_axis_group_tiling(
     return tiling
 
 
+def _clone_state_dict_cpu(model: torch.nn.Module) -> dict[str, torch.Tensor]:
+    return {
+        name: tensor.detach().cpu().clone()
+        for name, tensor in model.state_dict().items()
+    }
+
+
 def build_torch_model(
     seed: int,
     hidden_dim: int,
     depth: int,
 ) -> torch.nn.Module:
-    """Build the reference DeepReLU on CPU."""
+    """Build DeepReLU on CPU with Kaiming init."""
     from torch_nntile.models import DeepReLU
 
     torch.manual_seed(seed)
@@ -243,6 +260,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--depth", type=int, default=5)
     parser.add_argument(
+        "--compare-torch",
+        action="store_true",
+        help=(
+            "Also train a CPU PyTorch reference and print loss/weight "
+            "parity (default: nntile-only)"
+        ),
+    )
+    parser.add_argument(
         "--axis-tiling",
         action="append",
         default=[],
@@ -274,8 +299,12 @@ def _build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = _build_parser().parse_args()
     axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
+    compare_torch = bool(args.compare_torch)
 
-    print("Reference torch device: cpu")
+    if compare_torch:
+        print("Mode: nntile + CPU torch parity")
+    else:
+        print("Mode: nntile-only (pass --compare-torch for CPU parity)")
     if axis_group_tiling:
         print(f"Axis-group tiling: {axis_group_tiling}")
     print(f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth}")
@@ -297,28 +326,26 @@ def main() -> None:
             "Set NNTILE_BUILD_DIR and reinstall."
         )
 
-    model_torch = build_torch_model(
+    model_init = build_torch_model(
         seed=args.seed,
         hidden_dim=args.hidden_dim,
         depth=args.depth,
     )
-    init_weights = {
-        name: tensor.detach().cpu().clone()
-        for name, tensor in model_torch.state_dict().items()
-    }
-    print("\nTraining on torch (cpu)...")
-    torch_losses = train_torch_reference(
-        model_torch,
-        images,
-        labels,
-        epochs=args.epochs,
-        learning_rate=args.lr,
-    )
-    final_torch = {
-        name: tensor.detach().cpu().clone()
-        for name, tensor in model_torch.state_dict().items()
-    }
-    del model_torch
+    init_weights = _clone_state_dict_cpu(model_init)
+
+    torch_losses: list[float] | None = None
+    final_torch: dict[str, torch.Tensor] | None = None
+    if compare_torch:
+        print("\nTraining on torch (cpu)...")
+        torch_losses = train_torch_reference(
+            model_init,
+            images,
+            labels,
+            epochs=args.epochs,
+            learning_rate=args.lr,
+        )
+        final_torch = _clone_state_dict_cpu(model_init)
+    del model_init
 
     torch_nntile.init_context(
         ncpu=-1,
@@ -356,27 +383,36 @@ def main() -> None:
             print_axis_groups=args.print_axis_groups,
         )
 
-        torch_path = output_dir / "deep_relu_mnist_torch_cpu.pt"
         nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
-        torch.save(final_torch, torch_path)
-        torch.save(clone_model_weights(model_nnt), nnt_path)
-
+        # Host gather only after training (safe with --axis-tiling).
         final_nnt = clone_model_weights(model_nnt)
-        weight_delta = max_weight_delta(final_torch, final_nnt)
+        torch.save(final_nnt, nnt_path)
+        print(f"\nSaved nntile model (CPU tensors) to {nnt_path}")
 
-        print("\nLoss comparison (torch/cpu vs nntile):")
-        for epoch, (loss_torch, loss_nnt) in enumerate(
-            zip(torch_losses, nnt_losses), start=1
-        ):
+        if compare_torch:
+            assert torch_losses is not None and final_torch is not None
+            torch_path = output_dir / "deep_relu_mnist_torch_cpu.pt"
+            torch.save(final_torch, torch_path)
+            weight_delta = max_weight_delta(final_torch, final_nnt)
+
+            print("\nLoss comparison (torch/cpu vs nntile):")
+            for epoch, (loss_torch, loss_nnt) in enumerate(
+                zip(torch_losses, nnt_losses), start=1
+            ):
+                print(
+                    f"  epoch {epoch}: torch={loss_torch:.6f}  "
+                    f"nntile={loss_nnt:.6f}  "
+                    f"diff={abs(loss_torch - loss_nnt):.3e}"
+                )
+
             print(
-                f"  epoch {epoch}: torch={loss_torch:.6f}  "
-                f"nntile={loss_nnt:.6f}  "
-                f"diff={abs(loss_torch - loss_nnt):.3e}"
+                f"\nFinal weight max |torch - nntile| = {weight_delta:.3e}"
             )
-
-        print(f"\nFinal weight max |torch - nntile| = {weight_delta:.3e}")
-        print(f"Saved torch model (CPU tensors) to {torch_path}")
-        print(f"Saved nntile model (CPU tensors) to {nnt_path}")
+            print(f"Saved torch model (CPU tensors) to {torch_path}")
+        else:
+            print("\nNntile losses:")
+            for epoch, loss_nnt in enumerate(nnt_losses, start=1):
+                print(f"  epoch {epoch}: nntile={loss_nnt:.6f}")
     finally:
         torch_nntile.wait()
         torch_nntile.shutdown_context()
