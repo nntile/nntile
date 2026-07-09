@@ -21,6 +21,7 @@ kernels, mirroring ``nntile::optim::Adam`` / ``AdamW`` in libnntile.
 
 from __future__ import annotations
 
+import gc
 import math
 from typing import Callable, Iterable, Mapping
 
@@ -544,12 +545,18 @@ def train_full_batch_step(
                 torch_nntile.set_axis_group_tiling(name, tile_sizes)
         if print_axis_groups:
             torch_nntile.print_axis_groups()
+        # Keep logits marked through compile/run and loss readout so this
+        # phase (and gather) can execute. Drop afterward so the next compile
+        # can invalidate_submit the buffer via mark_output(false).
         torch_nntile.compile_graph()
         torch_nntile.run()
 
         torch_nntile.wait()
         with torch.no_grad():
             loss_cpu = loss.to("cpu")
+        del logits
+        del loss
+        gc.collect()
         return float(loss_cpu.item())
 
     loss = F.cross_entropy(logits, targets)

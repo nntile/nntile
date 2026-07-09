@@ -13,7 +13,9 @@
 #include "nntile/graph.hh"
 
 #include <catch2/catch_test_macros.hpp>
+#include <memory>
 #include <stdexcept>
+#include <unordered_map>
 #include <vector>
 
 using namespace nntile;
@@ -73,6 +75,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TensorGraph::TensorNode *x = tg.data({2}, DataType::FP32)->set_name("x");
     x->mark_input(true);
     TensorGraph::TensorNode *y = gt::scale(2.0f, x)->set_name("y");
+    // Carry y across phases: must stay marked or compile reclaim frees it
+    // before a later full execute() can rewrite it.
+    y->mark_output(true);
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TileGraph tile("t2");
     TileGraphIncrementalState st;
@@ -102,6 +107,114 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> zout = rt.get_output<float>(z);
     REQUIRE(zout[0] == 6.f);
     REQUIRE(zout[1] == 9.f);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Runtime execute reallocates unmarked tiles after recompile",
+    "[graph][tile]")
+{
+    // Unmarked intermediate: freed after first execute / next compile, but
+    // a subsequent full execute() must still be able to re-run from op 0.
+    TensorGraph tg("reexec");
+    TensorGraph::TensorNode *x = tg.data({2}, DataType::FP32)->set_name("x");
+    x->mark_input(true);
+    TensorGraph::TensorNode *y = gt::scale(2.0f, x)->set_name("y");
+    TensorGraph::TensorNode *z = gt::add(1.0f, y, 1.0f, x)->set_name("z");
+    z->mark_output(true);
+
+    TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
+    TileGraph tile("t_reexec");
+    TileGraphIncrementalState st;
+    TensorNodeToTileMap tm;
+    append_tensor_graph_phase(
+        tg, p1, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
+
+    Runtime rt(tile);
+    rt.compile();
+    rt.bind_data(x, std::vector<float>{2.f, 3.f});
+    rt.execute();
+    rt.wait();
+    std::vector<float> first = rt.get_output<float>(z);
+    REQUIRE(first[0] == 6.f);
+    REQUIRE(first[1] == 9.f);
+
+    // Recompile with watermark at end: pending slice empty; unmarked y must
+    // not stay allocated. Full execute() must still succeed.
+    rt.compile();
+    rt.execute();
+    rt.wait();
+    std::vector<float> second = rt.get_output<float>(z);
+    REQUIRE(second[0] == 6.f);
+    REQUIRE(second[1] == 9.f);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Runtime compile invalidates tiles after mark_output false",
+    "[graph][tile]")
+{
+    TensorGraph tg("reclaim");
+    TensorGraph::TensorNode *x = tg.data({4}, DataType::FP32)->set_name("x");
+    x->mark_input(true);
+    // Two outputs so clearing one does not hit the no-output DCE fallback.
+    TensorGraph::TensorNode *y = gt::scale(2.0f, x)->set_name("y");
+    y->mark_output(true);
+    TensorGraph::TensorNode *z = gt::scale(3.0f, x)->set_name("z");
+    z->mark_output(true);
+
+    TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
+    TileGraph tile("t_reclaim");
+    TileGraphIncrementalState st;
+    TensorNodeToTileMap tm;
+    append_tensor_graph_phase(
+        tg, p1, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
+
+    Runtime rt(tile);
+    rt.compile();
+    rt.bind_data(x, std::vector<float>{1.f, 2.f, 3.f, 4.f});
+    rt.execute();
+    rt.wait();
+    std::vector<float> y_out = rt.get_output<float>(y);
+    REQUIRE(y_out.size() == 4);
+    REQUIRE(y_out[0] == 2.f);
+    REQUIRE(y_out[1] == 4.f);
+    REQUIRE(y_out[2] == 6.f);
+    REQUIRE(y_out[3] == 8.f);
+
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>>
+        before;
+    rt.export_all_tiles(before);
+    REQUIRE(before.count(y) == 1);
+    REQUIRE(before.count(z) == 1);
+
+    // Drop output mark on y only: next compile must invalidate y's buffer.
+    y->mark_output(false);
+    rt.compile();
+
+    std::unordered_map<TensorGraph::TensorNode const *,
+        std::vector<std::shared_ptr<void>>>
+        after;
+    rt.export_all_tiles(after);
+    REQUIRE(after.count(y) == 0);
+    REQUIRE(after.count(z) == 1);
+    REQUIRE(after.count(x) == 1);
+
+    // Re-mark y and use it in a new phase; buffer is reallocated.
+    y->mark_output(true);
+    TensorGraph::TensorNode *w = gt::add(1.0f, y, 1.0f, x)->set_name("w");
+    w->mark_output(true);
+    TensorGraph::PhaseSnapshot p2 = tg.seal_phase();
+    append_tensor_graph_phase(
+        tg, p2, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
+    rt.compile();
+    rt.execute();
+    rt.wait();
+    std::vector<float> w_out = rt.get_output<float>(w);
+    REQUIRE(w_out.size() == 4);
+    REQUIRE(w_out[0] == 3.f);
+    REQUIRE(w_out[1] == 6.f);
+    REQUIRE(w_out[2] == 9.f);
+    REQUIRE(w_out[3] == 12.f);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

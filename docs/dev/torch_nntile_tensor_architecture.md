@@ -22,6 +22,27 @@ There is no side map (`g_tensor_nodes`) and no eager per-op flush. All ops
 record into a shared `TensorGraph`; the caller flushes with `compile_graph()`
 + `run()` (or legacy `execute()` = compile+run).
 
+## Incremental session memory (`mark_output`)
+
+The session is **one incremental** `TensorGraph` / `TileGraph` (phases append;
+do not reset the session to free memory). StarPU payload reclaim is controlled
+only by marks:
+
+1. Dropping a Python nntile tensor runs `~NNTileBinding` → `L.mark_output(false)`.
+2. On each `Runtime::compile()`, tile `is_output` is refreshed from the logical
+   `TensorNode` (`is_input` is only set true from logical, never cleared — torch_nntile
+   drives persistence via `mark_output`). Allocated tiles with
+   `mark_output(false)` and `mark_input(false)` get `invalidate_submit` and are
+   removed from the runtime tile map (and not reallocated until re-marked).
+3. Mid-phase, `release_dead_tiles_after_op` still invalidates unmarked tiles
+   after their last consumer.
+
+Training loops should ``del`` step temporaries (e.g. logits) **after**
+``run()`` / ``wait()`` and any host readout of the loss so the next
+``compile_graph()`` sees ``mark_output(false)`` and can reclaim StarPU
+buffers; keep parameters, optimizer state, and persistent inputs marked via
+live bindings. ``train_full_batch_step`` drops logits after the step runs.
+
 ## I/O
 
 | Direction | API | Behavior |
@@ -76,7 +97,7 @@ run backward (or ingress a real grad tensor via `.to("nntile")`) first.
 
 | # | Topic | Current behavior | Planned follow-up |
 |---|--------|------------------|-------------------|
-| D1 | TensorGraph growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node. | Phase GC / compaction; reuse readout staging per session. |
+| D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows; StarPU payloads for unmarked tensors are reclaimed on compile). | Phase GC / compaction; reuse readout staging per session. |
 | D2 | Incremental tile-map growth | Every ingress/egress lowers a fresh ephemeral `S` into `inc_state.tensor_to_tiles`; entries are never removed. | Reclaim staging descriptors after invalidate; or pool single-tile `S` per `L`. |
 | D3 | Pin bookkeeping | `pin_tensor_for_graph` / ingress may append duplicate `at::Tensor` refs until the next graph clear. | Dedup by `TensorImpl*`; trim on phase seal. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |

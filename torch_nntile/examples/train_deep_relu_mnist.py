@@ -436,10 +436,6 @@ def main() -> None:
                 f"\nFinal weight max |torch - nntile| = {weight_delta:.3e}"
             )
             print(f"Saved torch model (CPU tensors) to {torch_path}")
-        else:
-            print("\nNntile losses:")
-            for epoch, loss_nnt in enumerate(nnt_losses, start=1):
-                print(f"  epoch {epoch}: nntile={loss_nnt:.6f}")
     finally:
         torch_nntile.wait()
         torch_nntile.shutdown_context()

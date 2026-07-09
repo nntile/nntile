@@ -204,6 +204,8 @@ class Runtime
     void allocate_missing_tiles();
     void eliminate_dead_ops();
     void build_tile_last_consumer_map();
+    void sync_tile_marks_from_logical();
+    void invalidate_non_output_tiles();
     void release_dead_tiles_after_op(size_t op_idx);
     void invalidate_tile_buffer(
         const TileNode *node,
@@ -230,6 +232,8 @@ class Runtime
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
     std::unordered_set<const TileNode *> live_tile_nodes_;
     std::unordered_map<const TileNode *, size_t> tile_last_consumer_op_;
+    //! Highest exclusive op index already run via execute / execute_range.
+    size_t executed_op_end_ = 0;
 };
 
 } // namespace nntile

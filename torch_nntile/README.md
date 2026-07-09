@@ -260,8 +260,12 @@ Architecture reference:
 - ``Tensor.contiguous()`` is unsupported on non-contiguous nntile tensors.
 - During ``run()``, intermediate StarPU tile buffers may be released after
   their last consumer when not marked as inputs/outputs.
-- **Reduce footprint:** ``del`` temporaries before ``compile_graph()`` in
-  training loops when you want fewer live output marks.
+- On each ``compile_graph()``, ``Runtime`` refreshes tile marks from logical
+  ``mark_output`` / ``mark_input`` and ``invalidate_submit``s allocated tiles
+  that are neither input nor output (incremental session reclaim).
+- **Reduce footprint:** ``del`` step temporaries after ``run()`` so the next
+  compile sees cleared ``mark_output`` and can reclaim buffers.
+  ``train_full_batch_step`` already drops logits after each step.
 
 ### Axis-group naming and tiling
 
