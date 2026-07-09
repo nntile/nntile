@@ -150,3 +150,29 @@ def test_print_axis_groups_shows_pending_tiling():
         torch_nntile.execute()
         """
     )
+
+
+def test_int64_label_ingress_with_batch_tiling():
+    """INT64 scatter into a tiled logical must work (CE labels + --axis-tiling)."""
+    _run_subprocess(
+        """
+        import torch
+        import torch_nntile
+        from torch_nntile.training import cross_entropy
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        logits = torch.randn(8, 4).to("nntile")
+        labels = torch.randint(0, 4, (8,), dtype=torch.long).to("nntile")
+        torch_nntile.set_axis_group_name(logits, {0: "batch"})
+        torch_nntile.set_axis_group_name(labels, {0: "batch"})
+        loss = cross_entropy(logits, labels)
+        torch_nntile.set_axis_group_tiling("batch", [4, 4])
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        value = float(loss.to("cpu").item())
+        assert value == value  # finite
+        """
+    )

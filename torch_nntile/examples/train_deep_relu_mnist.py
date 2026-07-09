@@ -26,7 +26,6 @@ Example with batch and hidden tiling in graph mode::
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
     STARPU_NCPU=0 STARPU_NCUDA=2 \\
     python torch_nntile/examples/train_deep_relu_mnist.py \\
-        --runtime-mode graph \\
         --restrict-cuda \\
         --epochs 5 \\
         --axis-tiling batch=15000,15000,15000,15000 \\

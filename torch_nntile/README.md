@@ -350,12 +350,12 @@ export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 # CPU StarPU workers (nntile path); reference PyTorch path is always CPU
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph --epochs 5
+    --epochs 5
 
 # CUDA StarPU workers only
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph --restrict-cuda --epochs 5 \
+    --restrict-cuda --epochs 5 \
     --axis-tiling batch=15000,15000,15000,15000 \
     --axis-tiling features=392,392 \
     --axis-tiling hidden=128,128

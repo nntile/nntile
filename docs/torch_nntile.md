@@ -209,7 +209,6 @@ on CPU tensors):
 ```bash
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph \
     --epochs 5
 ```
 
@@ -218,7 +217,6 @@ Optional graph tiling and axis-group dump:
 ```bash
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph \
     --epochs 5 \
     --print-axis-groups \
     --axis-tiling batch=15000,15000,15000,15000 \
@@ -226,7 +224,7 @@ STARPU_NCPU=4 STARPU_NCUDA=0 \
     --axis-tiling hidden=128,128
 ```
 
-**Expected tail output (CPU workers, graph mode, 5 epochs):**
+**Expected tail output (CPU workers, 5 epochs):**
 
 ```
 Loss comparison (cpu vs nntile):
@@ -248,7 +246,6 @@ Pin nntile kernels to CUDA workers (`--restrict-cuda`):
 ```bash
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph \
     --restrict-cuda \
     --epochs 5 \
     --axis-tiling batch=15000,15000,15000,15000 \
@@ -256,7 +253,7 @@ STARPU_NCPU=0 STARPU_NCUDA=2 \
     --axis-tiling hidden=128,128
 ```
 
-**Expected tail output (CUDA workers, graph mode, 5 epochs, with tiling above):**
+**Expected tail output (CUDA workers, 5 epochs, with tiling above):**
 
 ```
 Loss comparison (cpu vs nntile):
@@ -278,15 +275,11 @@ down StarPU cleanly in a `finally` block.
 
 | Flag | Purpose |
 |------|---------|
-| `--runtime-mode graph` | Record full step, then `compile_graph()` + `run()` |
 | `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
 | `--verbose` | Verbose StarPU / NNTile context logging |
 | `--hidden-dim`, `--depth` | Model size (default 256, 5) |
-| `--axis-tiling NAME=SIZES` | Repeatable; auto-switches to graph mode |
-| `--print-axis-groups` | Dump axis groups after epoch 1 (graph mode) |
-
-`--axis-tiling` and `--print-axis-groups` switch to graph mode automatically if
-omitted from `--runtime-mode`.
+| `--axis-tiling NAME=SIZES` | Repeatable; apply named axis-group tiling before `compile_graph()` |
+| `--print-axis-groups` | Dump axis groups after epoch 1 |
 
 Integration test (downloads MNIST, 3 epochs, CPU workers):
 
