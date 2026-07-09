@@ -12,6 +12,7 @@
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
+#include <atomic>
 #include <cstdlib>
 
 namespace torch_nntile
@@ -19,6 +20,8 @@ namespace torch_nntile
 
 namespace
 {
+
+std::atomic<bool> g_logical_tensor_nodes_alive{false};
 
 bool trace_assert_enabled()
 {
@@ -41,10 +44,20 @@ NNTileBackendMeta *backend_meta_ptr(const at::Tensor &tensor)
 
 } // namespace
 
+bool logical_tensor_nodes_alive()
+{
+    return g_logical_tensor_nodes_alive.load(std::memory_order_acquire);
+}
+
+void set_logical_tensor_nodes_alive(bool alive)
+{
+    g_logical_tensor_nodes_alive.store(alive, std::memory_order_release);
+}
+
 NNTileBinding::NNTileBinding(nntile::TensorGraph::TensorNode *logical_in)
     : logical(logical_in)
 {
-    if (logical != nullptr)
+    if (logical != nullptr && logical_tensor_nodes_alive())
     {
         logical->mark_output(true);
     }
@@ -52,10 +65,13 @@ NNTileBinding::NNTileBinding(nntile::TensorGraph::TensorNode *logical_in)
 
 NNTileBinding::~NNTileBinding()
 {
-    if (logical != nullptr)
+    // TensorGraph may already be destroyed (atexit / reset_graph_session).
+    // Skip mark_output on a stale node pointer.
+    if (logical != nullptr && logical_tensor_nodes_alive())
     {
         logical->mark_output(false);
     }
+    logical = nullptr;
 }
 
 NNTileBackendMeta::NNTileBackendMeta(NodeRef binding_in)

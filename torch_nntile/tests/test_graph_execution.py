@@ -412,3 +412,28 @@ def test_intermediate_output_mark_kept_while_python_ref_alive():
         assert torch.allclose(d.cpu(), torch.tensor([4.5, 6.5]))
         """
     )
+
+
+def test_clean_exit_with_live_nntile_tensors_after_atexit():
+    """Bindings must not UAF TensorNodes destroyed by atexit shutdown."""
+    _run_graph_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        # Keep live nntile tensors across process exit so atexit
+        # shutdown_context() tears down TensorGraph before Python GC
+        # destroys the TensorImpl / NodeRef shells.
+        x = torch.randn(4, 4).to("nntile")
+        y = torch.nn.functional.relu(x)
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        # Intentionally leave x/y alive until interpreter teardown.
+        assert x.device.type == "nntile"
+        assert y.device.type == "nntile"
+        """
+    )

@@ -764,20 +764,38 @@ void reset_recorder_locked(
     bool clear_tensor_gc,
     std::vector<at::Tensor> &pin_drop)
 {
-    g_graph.reset();
+    // Destroy tensors that hold NodeRefs while TensorGraph nodes are still
+    // alive so ~NNTileBinding can safely call mark_output(false).
+    if (g_exec != nullptr && g_exec->runtime != nullptr)
+    {
+        g_exec->runtime->wait();
+    }
+    if (g_exec != nullptr)
+    {
+        g_exec->pin_hold.clear();
+    }
+    {
+        std::vector<at::Tensor> pins;
+        transfer_pinned_tensors_locked(pins);
+        // pins destroyed here, before g_graph.reset().
+    }
     clear_param_grad_registry_locked();
     g_relu_preactivation_stack.clear();
-    transfer_pinned_tensors_locked(pin_drop);
     g_defer_pending_clear_after_run = false;
     g_axis_name_hints.clear();
     g_axis_tiling_by_name.clear();
     g_ephemeral_staging_serial = 0;
     g_exec.reset();
+    set_logical_tensor_nodes_alive(false);
+    g_graph.reset();
     drain_starpu_after_session_teardown();
     if (clear_tensor_gc)
     {
         clear_tensor_gc_state();
     }
+    // Callers historically destroyed pin_drop after unlock; pins are now
+    // released above while the graph is alive.
+    pin_drop.clear();
 }
 
 void register_grad_alias_for_host_copy_locked(
@@ -824,7 +842,6 @@ void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
 
 void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
 {
-    g_graph.reset();
     g_defer_pending_clear_after_run = false;
     reset_recorder_locked(true, pin_drop);
 }
@@ -1019,6 +1036,7 @@ void init_nntile_input_from_cpu(
     if (g_graph == nullptr)
     {
         g_graph = std::make_unique<nntile::TensorGraph>("torch_nntile");
+        set_logical_tensor_nodes_alive(true);
     }
 
     const std::vector<nntile::Index> shape =
@@ -1071,6 +1089,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     if (g_graph == nullptr)
     {
         g_graph = std::make_unique<nntile::TensorGraph>("torch_nntile");
+        set_logical_tensor_nodes_alive(true);
     }
 
     const TensorImplKey impl_key = tensor_impl_key(tensor);

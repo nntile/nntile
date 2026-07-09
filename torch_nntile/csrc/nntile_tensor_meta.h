@@ -59,6 +59,12 @@ void attach_binding(at::Tensor &tensor, NodeRef binding);
 
 void share_node_ref_for_reshape(const at::Tensor &base, at::Tensor &view);
 
+//! True while the recorder TensorGraph (and its TensorNodes) are alive.
+bool logical_tensor_nodes_alive();
+
+//! Called by the graph recorder around TensorGraph create/destroy.
+void set_logical_tensor_nodes_alive(bool alive);
+
 #endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile

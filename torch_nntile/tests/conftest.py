@@ -63,6 +63,16 @@ def pytest_sessionstart(session) -> None:
     ensure_nntile_context(cpu_fallback=False)
 
 
+def pytest_sessionfinish(session, exitstatus) -> None:
+    """Tear down StarPU before interpreter finalization (avoids exit UAF)."""
+    del session, exitstatus
+    if not _C.has_libnntile():
+        return
+    if torch_nntile.is_context_initialized():
+        torch_nntile.wait()
+        torch_nntile.shutdown_context()
+
+
 @pytest.fixture(autouse=True)
 def _reset_nntile_graph_session_after_test():
     """Isolate parity tests: stale TensorGraph sessions corrupt later tests."""
