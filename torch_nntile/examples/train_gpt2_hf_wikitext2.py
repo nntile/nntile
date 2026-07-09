@@ -372,16 +372,17 @@ def train_cuda(args: argparse.Namespace) -> int:
             f"[cuda] epoch {epoch + 1}/{start_epoch + args.epochs}  "
             f"loss={mean_loss:.6f}  steps={global_step}"
         )
-        save_checkpoint(
-            ckpt_path,
-            model=model,
-            config=config,
-            seed=seed,
-            epoch=epoch + 1,
-            global_step=global_step,
-            optimizer_state=optimizer.state_dict(),
-            device_name="cuda",
-        )
+
+    save_checkpoint(
+        ckpt_path,
+        model=model,
+        config=config,
+        seed=seed,
+        epoch=start_epoch + args.epochs,
+        global_step=global_step,
+        optimizer_state=optimizer.state_dict(),
+        device_name="cuda",
+    )
     return 0
 
 
@@ -504,20 +505,21 @@ def train_nntile(args: argparse.Namespace) -> int:
                 f"[nntile] epoch {epoch + 1}/{start_epoch + args.epochs}  "
                 f"loss={mean_loss:.6f}  steps={global_step}"
             )
-            weights = clone_model_weights(model)
-            path = ckpt_path
-            path.parent.mkdir(parents=True, exist_ok=True)
-            payload = {
-                "model_state_dict": weights,
-                "config": config.to_dict(),
-                "seed": seed,
-                "epoch": epoch + 1,
-                "global_step": global_step,
-                "device": "nntile",
-                "optimizer_state_dict": None,
-            }
-            torch.save(payload, path)
-            print(f"Saved checkpoint to {path}")
+
+        weights = clone_model_weights(model)
+        path = ckpt_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "model_state_dict": weights,
+            "config": config.to_dict(),
+            "seed": seed,
+            "epoch": start_epoch + args.epochs,
+            "global_step": global_step,
+            "device": "nntile",
+            "optimizer_state_dict": None,
+        }
+        torch.save(payload, path)
+        print(f"Saved checkpoint to {path}")
     finally:
         torch_nntile.wait()
         torch_nntile.shutdown_context()
