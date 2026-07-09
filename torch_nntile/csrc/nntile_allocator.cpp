@@ -10,7 +10,6 @@
 #include <c10/core/Allocator.h>
 #include <c10/core/DeviceType.h>
 
-#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -27,7 +26,6 @@ struct VectorStorage
     std::vector<std::uint8_t> bytes;
 };
 
-std::atomic<std::int64_t> g_storage_release_count{0};
 
 bool trace_storage_enabled()
 {
@@ -82,9 +80,8 @@ struct NntileAllocator final : c10::Allocator
                       << host_data_ptr
                       << " nbytes=" << storage->bytes.size() << '\n';
         }
-        on_host_storage_released(host_data_ptr, ctx);
+        on_host_storage_released(ctx);
         delete storage;
-        g_storage_release_count.fetch_add(1, std::memory_order_relaxed);
     }
 };
 
@@ -95,15 +92,6 @@ c10::Allocator *get_nntile_allocator()
     return &g_nntile_allocator;
 }
 
-std::int64_t storage_release_count()
-{
-    return g_storage_release_count.load(std::memory_order_relaxed);
-}
-
-void reset_storage_release_count()
-{
-    g_storage_release_count.store(0, std::memory_order_relaxed);
-}
 
 } // namespace torch_nntile
 

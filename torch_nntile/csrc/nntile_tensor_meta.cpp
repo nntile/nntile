@@ -12,17 +12,13 @@
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
-#include <mutex>
-#include <unordered_set>
+#include <cstdlib>
 
 namespace torch_nntile
 {
 
 namespace
 {
-
-std::mutex g_binding_mutex;
-std::unordered_set<c10::TensorImpl *> g_live_binding_impls;
 
 bool trace_assert_enabled()
 {
@@ -33,23 +29,14 @@ bool trace_assert_enabled()
     return enabled;
 }
 
-void register_binding_impl(c10::TensorImpl *impl)
-{
-    if (impl == nullptr)
-    {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(g_binding_mutex);
-    g_live_binding_impls.insert(impl);
-}
-
 NNTileBackendMeta *backend_meta_ptr(const at::Tensor &tensor)
 {
     if (tensor.device().type() != c10::DeviceType::PrivateUse1)
     {
         return nullptr;
     }
-    return static_cast<NNTileBackendMeta *>(tensor.unsafeGetTensorImpl()->get_backend_meta());
+    return static_cast<NNTileBackendMeta *>(
+        tensor.unsafeGetTensorImpl()->get_backend_meta());
 }
 
 } // namespace
@@ -81,11 +68,6 @@ c10::intrusive_ptr<c10::BackendMeta> NNTileBackendMeta::clone(
 {
     const auto *other = static_cast<const NNTileBackendMeta *>(ptr.get());
     return c10::make_intrusive<NNTileBackendMeta>(other->binding);
-}
-
-bool assert_node_ref_enabled()
-{
-    return trace_assert_enabled();
 }
 
 void assert_has_node_ref(const at::Tensor &tensor, const char *site)
@@ -128,17 +110,6 @@ void attach_binding(at::Tensor &tensor, NodeRef binding)
     auto meta = c10::make_intrusive<NNTileBackendMeta>(std::move(binding));
     c10::TensorImpl *impl = tensor.unsafeGetTensorImpl();
     impl->set_backend_meta(std::move(meta));
-    register_binding_impl(impl);
-}
-
-void unregister_binding_impl(c10::TensorImpl *impl)
-{
-    if (impl == nullptr)
-    {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(g_binding_mutex);
-    g_live_binding_impls.erase(impl);
 }
 
 void share_node_ref_for_reshape(const at::Tensor &base, at::Tensor &view)
@@ -149,18 +120,6 @@ void share_node_ref_for_reshape(const at::Tensor &base, at::Tensor &view)
         return;
     }
     attach_binding(view, binding);
-}
-
-std::int64_t count_live_bindings()
-{
-    std::lock_guard<std::mutex> lock(g_binding_mutex);
-    return static_cast<std::int64_t>(g_live_binding_impls.size());
-}
-
-void clear_binding_registry()
-{
-    std::lock_guard<std::mutex> lock(g_binding_mutex);
-    g_live_binding_impls.clear();
 }
 
 } // namespace torch_nntile

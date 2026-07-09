@@ -370,7 +370,6 @@ def test_intermediate_output_mark_cleared_when_python_ref_dropped():
         import gc
         import torch
         import torch_nntile
-        from torch_nntile import _C
 
         torch_nntile.init_context(
             ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
@@ -383,8 +382,6 @@ def test_intermediate_output_mark_cleared_when_python_ref_dropped():
         d = t + c
         del t
         gc.collect()
-        stats = _C.debug_gc_stats()
-        assert stats.live_bindings >= 4
         torch_nntile.compile_graph()
         torch_nntile.run()
         torch_nntile.wait()

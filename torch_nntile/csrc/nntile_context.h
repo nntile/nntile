@@ -23,8 +23,6 @@ void init_context(
 
 bool is_context_initialized();
 
-bool is_context_verbose();
-
 bool is_cpu_fallback_enabled();
 
 void ensure_nntile_context();

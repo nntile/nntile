@@ -137,10 +137,6 @@ def reset_graph_session() -> None:
     _C.reset_graph_session()
 
 
-def has_graph_session() -> bool:
-    return _C.has_graph_session()
-
-
 def has_pending_graph() -> bool:
     return _C.has_pending_graph()
 
@@ -230,7 +226,6 @@ __all__ = [
     "compile_graph",
     "run",
     "reset_graph_session",
-    "has_graph_session",
     "has_pending_graph",
     "is_context_initialized",
     "is_cpu_fallback_enabled",

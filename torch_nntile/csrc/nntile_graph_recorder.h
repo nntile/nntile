@@ -37,8 +37,6 @@ void shutdown_recorder();
 
 bool has_graph_session();
 
-void maybe_execute_after_record();
-
 void set_axis_group_name(
     const at::Tensor &tensor,
     const std::unordered_map<int, std::string> &names);
@@ -54,19 +52,6 @@ void set_axis_group_tiling(
 std::string format_axis_groups();
 
 void print_axis_groups();
-
-//! Snapshot recorder state for tensor GC investigation.
-struct GcDebugStats
-{
-    std::int64_t pinned_tensors = 0;
-    std::int64_t live_bindings = 0;
-    std::int64_t tile_pool = 0;
-    std::int64_t pending_ops = 0;
-    std::int64_t pending_data = 0;
-    bool has_session = false;
-};
-
-GcDebugStats debug_gc_stats();
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 

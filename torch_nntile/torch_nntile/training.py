@@ -491,14 +491,6 @@ def fused_sgd_step(
     return optimizer
 
 
-def manual_sgd_step(
-    parameters: list[torch.Tensor],
-    learning_rate: float,
-) -> None:
-    """Deprecated alias for a single plain fused SGD step (momentum=0)."""
-    fused_sgd_step(parameters, learning_rate)
-
-
 def _nntile_optimizer_for(
     model: torch.nn.Module,
     learning_rate: float,

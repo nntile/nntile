@@ -124,7 +124,6 @@ nntile::TensorGraph::TensorNode *bridge_node_to_shape(
     nntile::TensorGraph &graph = *node->graph();
     nntile::TensorGraph::TensorNode *view_node =
         graph.data(target_shape, node->dtype());
-    track_graph_node(view_node);
     nntile::tensor::contiguous_view(node, view_node);
     return view_node;
 }
@@ -258,7 +257,6 @@ void tensor_gemm_fp32(
         static_cast<nntile::Index>(params.ndim),
         static_cast<nntile::Index>(params.batch_ndim))->set_name("out");
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_gemm_accumulate_fp32(
@@ -307,7 +305,6 @@ void tensor_gemm_accumulate_fp32(
         static_cast<nntile::Index>(params.ndim),
         static_cast<nntile::Index>(params.batch_ndim));
     register_data_node(out, c_node);
-    maybe_execute_after_record();
 }
 
 void tensor_add_fp32(
@@ -337,7 +334,6 @@ void tensor_add_fp32(
         static_cast<nntile::Scalar>(beta),
         y_node)->set_name("z");
     register_data_node(out, z_node);
-    maybe_execute_after_record();
 }
 
 void tensor_model_transpose_forward_fp32(
@@ -373,7 +369,6 @@ void tensor_model_transpose_forward_fp32(
         dst_node,
         tensor_ndim);
     register_data_node(dst, dst_node);
-    maybe_execute_after_record();
 }
 
 void tensor_model_transpose_backward_fp32(
@@ -408,7 +403,6 @@ void tensor_model_transpose_backward_fp32(
         grad_src_node,
         static_cast<nntile::Index>(model_ndim));
     register_data_node(grad_src, grad_src_node);
-    maybe_execute_after_record();
 }
 
 void tensor_swap_two_axes_fp32(
@@ -452,7 +446,6 @@ void tensor_swap_two_axes_fp32(
 
     nntile::tensor::swap_two_axes(src_node, dst_node, d0, d1);
     register_data_node(dst, dst_node);
-    maybe_execute_after_record();
 }
 
 void tensor_add_inplace_fp32(
@@ -481,7 +474,6 @@ void tensor_add_inplace_fp32(
         static_cast<nntile::Scalar>(beta),
         self_node);
     register_data_node(self, self_node);
-    maybe_execute_after_record();
 }
 
 void tensor_fill_fp32(at::Tensor &self, float value)
@@ -496,7 +488,6 @@ void tensor_fill_fp32(at::Tensor &self, float value)
         mark_as_input_for_operand(self));
     nntile::tensor::fill(static_cast<nntile::Scalar>(value), self_node);
     register_data_node(self, self_node);
-    maybe_execute_after_record();
 }
 
 void tensor_mul_fp32(
@@ -523,7 +514,6 @@ void tensor_mul_fp32(
         other_node,
         static_cast<nntile::Scalar>(1.0))->set_name("z");
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
@@ -547,7 +537,6 @@ void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
         other_node,
         self_node);
     register_data_node(self, self_node);
-    maybe_execute_after_record();
 }
 
 void tensor_hypot_fp32(
@@ -575,7 +564,6 @@ void tensor_hypot_fp32(
         static_cast<nntile::Scalar>(1.0),
         other_node)->set_name("hypot_out");
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_linear_fp32(
@@ -608,7 +596,6 @@ void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out)
     auto *dst_node = nntile::tensor::relu(src_node)->set_name("dst");
     push_relu_preactivation_node(src_node);
     register_data_node(out, dst_node);
-    maybe_execute_after_record();
 }
 
 void tensor_relu_backward_fp32(
@@ -647,7 +634,6 @@ void tensor_relu_backward_fp32(
     nntile::tensor::clear(dx_node);
     nntile::tensor::relu_backward(x_node, dy_node, dx_node);
     register_data_node(dx, dx_node);
-    maybe_execute_after_record();
 }
 
 void tensor_silu_fp32(const at::Tensor &input, at::Tensor &out)
@@ -663,7 +649,6 @@ void tensor_silu_fp32(const at::Tensor &input, at::Tensor &out)
 
     auto *dst_node = nntile::tensor::silu(src_node)->set_name("dst");
     register_data_node(out, dst_node);
-    maybe_execute_after_record();
 }
 
 void tensor_silu_inplace_fp32(at::Tensor &self)
@@ -679,7 +664,6 @@ void tensor_silu_inplace_fp32(at::Tensor &self)
 
     nntile::tensor::silu_inplace(node);
     register_data_node(self, node);
-    maybe_execute_after_record();
 }
 
 void tensor_silu_backward_fp32(
@@ -709,7 +693,6 @@ void tensor_silu_backward_fp32(
     nntile::tensor::clear(dx_node);
     nntile::tensor::silu_backward(x_node, dy_node, dx_node);
     register_data_node(dx, dx_node);
-    maybe_execute_after_record();
 }
 
 void tensor_gelu_fp32(
@@ -736,7 +719,6 @@ void tensor_gelu_fp32(
         dst_node = nntile::tensor::gelu(src_node)->set_name("dst");
     }
     register_data_node(out, dst_node);
-    maybe_execute_after_record();
 }
 
 void tensor_gelu_inplace_fp32(at::Tensor &self, bool approximate_tanh)
@@ -759,7 +741,6 @@ void tensor_gelu_inplace_fp32(at::Tensor &self, bool approximate_tanh)
         nntile::tensor::gelu_inplace(node);
     }
     register_data_node(self, node);
-    maybe_execute_after_record();
 }
 
 void tensor_gelu_backward_fp32(
@@ -797,7 +778,6 @@ void tensor_gelu_backward_fp32(
         nntile::tensor::gelu_backward(x_node, dy_node, dx_node);
     }
     register_data_node(dx, dx_node);
-    maybe_execute_after_record();
 }
 
 void tensor_mm_fp32(
@@ -972,7 +952,6 @@ void tensor_cross_entropy_forward_fp32(
         static_cast<nntile::Index>(ignore_index));
 
     register_data_node(loss, loss_node);
-    maybe_execute_after_record();
 }
 
 void tensor_cross_entropy_backward_fp32(
@@ -1011,7 +990,6 @@ void tensor_cross_entropy_backward_fp32(
                         static_cast<std::ptrdiff_t>(dim) + 1);
                 dst_node = graph.data(dst_shape, nntile::DataType::FP32)
                                ->set_name("grad_output_broadcast");
-                track_graph_node(dst_node);
             }
             nntile::tensor::scale_slice(
                 static_cast<nntile::Scalar>(1.0),
@@ -1090,7 +1068,6 @@ void tensor_cross_entropy_backward_fp32(
         class_axis);
 
     register_data_node(grad_logits, grad_logits_node);
-    maybe_execute_after_record();
 }
 
 void tensor_softmax_fp32(
@@ -1134,7 +1111,6 @@ void tensor_softmax_fp32(
         axis);
 
     register_data_node(out, dst_node);
-    maybe_execute_after_record();
 }
 
 void tensor_sgd_step_fp32(
@@ -1178,7 +1154,6 @@ void tensor_sgd_step_fp32(
     register_data_node(param, param_node);
     mark_persistent_graph_tensor(velocity);
     mark_persistent_graph_tensor(param);
-    maybe_execute_after_record();
 }
 
 namespace
@@ -1219,7 +1194,6 @@ nntile::TensorGraph::TensorNode *make_graph_tensor(
     const char *name)
 {
     auto *node = graph.data(shape, nntile::DataType::FP32)->set_name(name);
-    track_graph_node(node);
     return node;
 }
 
@@ -1292,7 +1266,6 @@ void tensor_softmax_backward_fp32(
     nntile::tensor::copy(grad_temp, grad_input_node);
 
     register_data_node(grad_input, grad_input_node);
-    maybe_execute_after_record();
 }
 
 void tensor_layer_norm_forward_fp32(
@@ -1421,7 +1394,6 @@ void tensor_layer_norm_forward_fp32(
     register_data_node(output, output_node);
     register_data_node(mean, mean_node);
     register_data_node(rstd, rstd_node);
-    maybe_execute_after_record();
 }
 
 void tensor_layer_norm_backward_fp32(
@@ -1587,7 +1559,6 @@ void tensor_layer_norm_backward_fp32(
         register_data_node(*grad_input, grad_input_node);
     }
 
-    maybe_execute_after_record();
 }
 
 void tensor_rms_norm_forward_fp32(
@@ -1671,7 +1642,6 @@ void tensor_rms_norm_forward_fp32(
 
     register_data_node(output, output_node);
     register_data_node(rstd, rstd_node);
-    maybe_execute_after_record();
 }
 
 void tensor_rms_norm_backward_fp32(
@@ -1796,7 +1766,6 @@ void tensor_rms_norm_backward_fp32(
         register_data_node(*grad_input, grad_input_node);
     }
 
-    maybe_execute_after_record();
 }
 
 void tensor_adam_step_fp32(
@@ -1842,7 +1811,6 @@ void tensor_adam_step_fp32(
     register_data_node(first_moment, first_moment_node);
     register_data_node(second_moment, second_moment_node);
     register_data_node(param, param_node);
-    maybe_execute_after_record();
 }
 
 void tensor_adamw_step_fp32(
@@ -1888,7 +1856,6 @@ void tensor_adamw_step_fp32(
     register_data_node(first_moment, first_moment_node);
     register_data_node(second_moment, second_moment_node);
     register_data_node(param, param_node);
-    maybe_execute_after_record();
 }
 
 void tensor_norm_fp32(
@@ -1916,7 +1883,6 @@ void tensor_norm_fp32(
         static_cast<nntile::Scalar>(1.0),
         static_cast<nntile::Scalar>(0.0));
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_norm_slice_fp32(
@@ -1981,7 +1947,6 @@ void tensor_norm_slice_fp32(
             kNormRedux);
         register_data_node(out, out_node);
     }
-    maybe_execute_after_record();
 }
 
 void tensor_sum_dimlist_fp32(
@@ -2078,7 +2043,6 @@ void tensor_sum_dimlist_fp32(
                     static_cast<nntile::Scalar>(0.0));
                 register_data_node(out, out_node);
             }
-            maybe_execute_after_record();
             return;
         }
 
@@ -2143,7 +2107,6 @@ void tensor_mul_scalar_fp32(
         input_node,
         out_node);
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_cat_fp32(
@@ -2178,7 +2141,6 @@ void tensor_cat_fp32(
     }
 
     register_data_node(out, acc_node);
-    maybe_execute_after_record();
 }
 
 void tensor_narrow_fp32(
@@ -2220,7 +2182,6 @@ void tensor_narrow_fp32(
         out_node,
         dst_off);
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_split_with_sizes_fp32(
@@ -2266,7 +2227,6 @@ void tensor_split_with_sizes_fp32(
         accumulate += static_cast<nntile::Index>(split_sizes[i]);
     }
 
-    maybe_execute_after_record();
 }
 
 void tensor_embedding_forward_fp32(
@@ -2300,7 +2260,6 @@ void tensor_embedding_forward_fp32(
 
     nntile::tensor::embedding(index_node, weight_node, out_node, axis);
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_embedding_backward_fp32(
@@ -2341,7 +2300,6 @@ void tensor_embedding_backward_fp32(
         axis,
         redux);
     register_data_node(grad_weight, grad_weight_node);
-    maybe_execute_after_record();
 }
 
 namespace
@@ -2357,7 +2315,6 @@ nntile::TensorGraph::TensorNode *make_sdpa_temp_tensor(
     const char *name)
 {
     auto *node = graph.data(shape, nntile::DataType::FP32)->set_name(name);
-    track_graph_node(node);
     return node;
 }
 
@@ -2496,7 +2453,6 @@ void tensor_sdpa_forward_fp32(
         static_cast<nntile::Index>(1),
         batch_ndim_graph);
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_sdpa_backward_fp32(
@@ -2662,7 +2618,6 @@ void tensor_sdpa_backward_fp32(
     register_grad_alias_for_host_copy(grad_q_alias, grad_q_node);
     register_grad_alias_for_host_copy(grad_k_alias, grad_k_node);
     register_grad_alias_for_host_copy(grad_v_alias, grad_v_node);
-    maybe_execute_after_record();
 }
 
 } // namespace torch_nntile

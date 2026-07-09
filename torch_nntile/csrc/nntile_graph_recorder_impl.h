@@ -37,15 +37,11 @@ void on_tensor_impl_released(TensorImplKey key);
 
 void mark_persistent_graph_tensor(const at::Tensor &tensor);
 
-bool read_nntile_staging_to_host(const at::Tensor &tensor, void *host_ptr);
-
 void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst);
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
-
-nntile::TensorGraph &recorder_graph();
 
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
     const at::Tensor &tensor,
@@ -76,8 +72,6 @@ void push_relu_preactivation_node(nntile::TensorGraph::TensorNode *node);
 
 nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
     const std::vector<nntile::Index> &shape);
-
-void track_graph_node(nntile::TensorGraph::TensorNode *node);
 
 void record_view_alias(const at::Tensor &self, const at::Tensor &view);
 

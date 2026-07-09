@@ -49,8 +49,6 @@ struct NNTileBackendMeta final : c10::BackendMeta
         const c10::intrusive_ptr<c10::BackendMeta> &ptr) const override;
 };
 
-bool assert_node_ref_enabled();
-
 void assert_has_node_ref(const at::Tensor &tensor, const char *site);
 
 NodeRef nntile_binding(const at::Tensor &tensor);
@@ -59,13 +57,7 @@ nntile::TensorGraph::TensorNode *nntile_node(const at::Tensor &tensor);
 
 void attach_binding(at::Tensor &tensor, NodeRef binding);
 
-void unregister_binding_impl(c10::TensorImpl *impl);
-
 void share_node_ref_for_reshape(const at::Tensor &base, at::Tensor &view);
-
-std::int64_t count_live_bindings();
-
-void clear_binding_registry();
 
 #endif // TORCH_NNTILE_USE_LIBNNTILE
 

@@ -259,12 +259,6 @@ at::Tensor ones_like(
     }
 #endif
     result.fill_(1);
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-    if (has_host_staging(result))
-    {
-        mark_staged_input_tensor(result);
-    }
-#endif
     return result;
 }
 
@@ -289,7 +283,6 @@ at::Tensor empty_memory_format(
     at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
 #ifndef TORCH_NNTILE_USE_LIBNNTILE
     ensure_host_staging(tensor);
-    mark_staged_input_tensor(tensor);
 #endif
     return tensor;
 }
@@ -315,7 +308,6 @@ at::Tensor empty_strided(
     at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
 #ifndef TORCH_NNTILE_USE_LIBNNTILE
     ensure_host_staging(tensor);
-    mark_staged_input_tensor(tensor);
 #endif
     return tensor;
 }
@@ -431,7 +423,6 @@ at::Tensor copy_from(
         return dst;
 #else
         ensure_host_staging(mutable_dst);
-        mark_staged_input_tensor(mutable_dst);
 #endif
     }
     else if (

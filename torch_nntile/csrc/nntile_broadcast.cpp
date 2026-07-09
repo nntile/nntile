@@ -91,7 +91,6 @@ nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
                 dst_shape.begin() + static_cast<std::ptrdiff_t>(dim) + 1);
             dst_node = graph.data(partial_shape, src->dtype())
                            ->set_name("broadcast_scale_slice");
-            track_graph_node(dst_node);
         }
         nntile::tensor::scale_slice(
             static_cast<nntile::Scalar>(1.0),
@@ -172,7 +171,6 @@ nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
         {
             dst_node = graph.data(next_graph_shape, dtype)
                            ->set_name("repeat_scale_slice");
-            track_graph_node(dst_node);
         }
 
         nntile::tensor::scale_slice(
@@ -233,12 +231,10 @@ void tensor_repeat_fp32(
     if (out_node == src_node)
     {
         register_data_node(out, src_node);
-        maybe_execute_after_record();
         return;
     }
 
     register_data_node(out, out_node);
-    maybe_execute_after_record();
 }
 
 void tensor_broadcast_scalar_fp32(
@@ -261,7 +257,6 @@ void tensor_broadcast_scalar_fp32(
             false);
         nntile::tensor::copy(src_node, dst_node);
         register_data_node(out, dst_node);
-        maybe_execute_after_record();
         return;
     }
 
@@ -282,7 +277,6 @@ void tensor_broadcast_scalar_fp32(
         *src_node->graph(),
         dst_graph);
     register_data_node(out, dst_node);
-    maybe_execute_after_record();
 }
 
 } // namespace torch_nntile

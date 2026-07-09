@@ -67,18 +67,16 @@ void check_adam_step_tensors(
         op_name, " requires contiguous tensors");
 }
 
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
 void ensure_optimizer_state_staging(at::Tensor &tensor)
 {
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
     if (is_metadata_only_tensor(tensor))
     {
         ensure_host_staging(tensor);
         tensor.zero_();
     }
-    mark_staged_input_tensor(tensor);
-#endif
-    (void)tensor;
 }
+#endif
 
 } // namespace
 
@@ -97,8 +95,10 @@ void adam_step(
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adam_step");
     TORCH_CHECK(num_iter >= 1, "nntile adam_step: num_iter must be >= 1");
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
     ensure_optimizer_state_staging(first_moment);
     ensure_optimizer_state_staging(second_moment);
+#endif
     pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adam_step_fp32(
         num_iter,
@@ -128,8 +128,10 @@ void adamw_step(
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adamw_step");
     TORCH_CHECK(num_iter >= 1, "nntile adamw_step: num_iter must be >= 1");
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
     ensure_optimizer_state_staging(first_moment);
     ensure_optimizer_state_staging(second_moment);
+#endif
     pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adamw_step_fp32(
         num_iter,

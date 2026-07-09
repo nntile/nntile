@@ -27,8 +27,6 @@
 #include "nntile_norm.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
-#include "nntile_allocator.h"
-#include "nntile_tensor_gc.h"
 #include "nntile_adam_step.h"
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
@@ -37,11 +35,6 @@
 
 namespace torch_nntile
 {
-
-c10::Device nntile_device()
-{
-    return c10::Device(c10::DeviceType::PrivateUse1, 0);
-}
 
 bool is_registered()
 {
@@ -71,7 +64,7 @@ bool buffer_equal_cpu(const at::Tensor &nntile_tensor, const at::Tensor &cpu_ten
         nntile_tensor.device().type() == c10::DeviceType::PrivateUse1,
         "buffer_equal_cpu expects nntile tensor as first argument");
     TORCH_CHECK(cpu_tensor.is_cpu(), "buffer_equal_cpu expects CPU tensor");
-    // Host read: graph mode requires execute() before nntile -> CPU copy.
+    // Host read: .cpu() auto-compiles/runs any pending graph, then gathers.
     TORCH_CHECK(nntile_tensor.is_contiguous(), "buffer_equal_cpu: nntile tensor must be contiguous");
     at::Tensor lhs = nntile_tensor.cpu();
     at::Tensor rhs = cpu_tensor.contiguous();
@@ -168,7 +161,6 @@ void set_axis_group_tiling_py(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
-    m.def("nntile_device", &torch_nntile::nntile_device, "Return nntile device");
     m.def("is_registered", &torch_nntile::is_registered, "Backend loaded");
     m.def(
         "has_libnntile",
@@ -236,13 +228,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::reset_graph_session,
         "Discard the compiled graph session and recorder state");
     m.def(
-        "has_graph_session",
-        &torch_nntile::has_graph_session,
-        "Whether a compiled graph session exists");
-    m.def(
         "has_pending_graph",
         &torch_nntile::has_pending_graph,
-        "Whether a deferred TensorGraph is waiting for execute()");
+        "Whether a deferred TensorGraph is waiting for compile/run");
     m.def(
         "set_axis_group_name",
         &torch_nntile::set_axis_group_name_py,
@@ -252,7 +240,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "set_axis_group_tiling",
         &torch_nntile::set_axis_group_tiling_py,
-        "Set tiling for a named axis group before execute()",
+        "Set tiling for a named axis group before compile/run",
         py::arg("name"),
         py::arg("tile_sizes"));
     m.def(
@@ -357,25 +345,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("rstd"),
         py::arg("weight") = py::none(),
         py::arg("output_mask"));
-    m.def(
-        "storage_release_count",
-        &torch_nntile::storage_release_count,
-        "Host storage buffers released since last reset (GC probe)");
-    m.def(
-        "reset_storage_release_count",
-        &torch_nntile::reset_storage_release_count,
-        "Reset storage_release_count counter");
-    py::class_<torch_nntile::GcDebugStats>(m, "GcDebugStats")
-        .def_readonly("pinned_tensors", &torch_nntile::GcDebugStats::pinned_tensors)
-        .def_readonly("live_bindings", &torch_nntile::GcDebugStats::live_bindings)
-        .def_readonly("tile_pool", &torch_nntile::GcDebugStats::tile_pool)
-        .def_readonly("pending_ops", &torch_nntile::GcDebugStats::pending_ops)
-        .def_readonly("pending_data", &torch_nntile::GcDebugStats::pending_data)
-        .def_readonly("has_session", &torch_nntile::GcDebugStats::has_session);
-    m.def(
-        "debug_gc_stats",
-        &torch_nntile::debug_gc_stats,
-        "Snapshot recorder pinning / tile-pool state (GC probe)");
     m.def(
         "sdpa_forward",
         &torch_nntile::sdpa_forward,

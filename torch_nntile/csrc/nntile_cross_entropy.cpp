@@ -73,8 +73,7 @@ at::Tensor cross_entropy_forward(
         "nntile cross_entropy supports reduction mean (1) or sum (2) only");
 
     at::Tensor loss = empty_metadata_tensor({}, at::kFloat, logits.device());
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-#else
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
     ensure_host_staging(loss);
 #endif
     pin_graph_op_inputs({logits, target});

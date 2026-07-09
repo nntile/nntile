@@ -14,7 +14,6 @@
 
 #include <mutex>
 #include <unordered_map>
-#include <unordered_set>
 
 #ifndef TORCH_NNTILE_USE_LIBNNTILE
 #include "nntile_allocator.h"
@@ -47,23 +46,6 @@ TensorImplKey tensor_impl_key(const at::Tensor &tensor)
     return tensor.unsafeGetTensorImpl();
 }
 
-TensorImplKey canonical_tensor_impl_key(const at::Tensor &tensor)
-{
-    const TensorImplKey key = tensor_impl_key(tensor);
-    void *storage_ctx = tensor.storage().data_ptr().get_context();
-    if (storage_ctx == nullptr)
-    {
-        return key;
-    }
-    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    const auto found = g_storage_ctx_to_impl.find(storage_ctx);
-    if (found != g_storage_ctx_to_impl.end())
-    {
-        return found->second;
-    }
-    return key;
-}
-
 bool is_metadata_only_tensor(const at::Tensor &tensor)
 {
     return tensor.device().type() == c10::DeviceType::PrivateUse1 &&
@@ -76,7 +58,7 @@ void clear_tensor_gc_state()
     g_storage_ctx_to_impl.clear();
 }
 
-void on_host_storage_released(void * /*host_data_ptr*/, void *storage_ctx)
+void on_host_storage_released(void *storage_ctx)
 {
     TensorImplKey released_impl = nullptr;
     {
@@ -105,22 +87,9 @@ void register_metadata_tensor_storage(const at::Tensor &tensor)
 
 #ifndef TORCH_NNTILE_USE_LIBNNTILE
 
-namespace
-{
-
-std::unordered_set<TensorImplKey> g_stub_staged_input_impls;
-
-} // namespace
-
 bool has_host_staging(const at::Tensor &tensor)
 {
     return tensor.storage().nbytes() > 0;
-}
-
-void mark_staged_input_tensor(const at::Tensor &tensor)
-{
-    std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
-    g_stub_staged_input_impls.insert(tensor_impl_key(tensor));
 }
 
 void ensure_host_staging(at::Tensor &tensor)

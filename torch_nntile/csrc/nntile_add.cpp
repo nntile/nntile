@@ -155,7 +155,6 @@ at::Tensor broadcast_to_shape(
             tensor.options().memory_format(at::MemoryFormat::Contiguous));
         ensure_host_staging(out);
         out.copy_(cpu_broadcast);
-        mark_staged_input_tensor(out);
         return out;
 #endif
     }
