@@ -347,15 +347,15 @@ expected output.
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 
-# CPU StarPU workers (nntile path); reference PyTorch path defaults to CPU
+# CPU StarPU workers (nntile path); torch reference is always CPU
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --epochs 5
 
-# CUDA StarPU workers + CUDA torch reference
+# CUDA StarPU workers (nntile); torch reference stays on CPU
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --restrict-cuda --torch-device cuda --epochs 5 \
+    --restrict-cuda --epochs 5 \
     --axis-tiling batch=15000,15000,15000,15000 \
     --axis-tiling features=392,392 \
     --axis-tiling hidden=128,128
@@ -455,9 +455,9 @@ When CUDA workers are enabled (`STARPU_NCUDA > 0`), use ``--restrict-cuda`` in
 the MNIST example (or call ``restrict_cuda()``) and shut StarPU down at exit.
 The example calls ``torch_nntile.wait()`` and ``torch_nntile.shutdown_context()``
 in a ``finally`` block; ``init_context()`` also registers an ``atexit`` hook.
-With ``--torch-device cuda``, the example runs the PyTorch CUDA reference in a
-subprocess that never imports ``torch_nntile``, because registering PrivateUse1
-breaks CUDA autograd streams on PyTorch >= 2.8 (pytorch/pytorch#161129).
+The MNIST torch reference is always CPU: a CUDA torch reference is not
+supported because registering PrivateUse1 breaks CUDA autograd on PyTorch
+>= 2.8 (pytorch/pytorch#161129).
 
 ## macOS / PyTorch cpu_fallback ABI
 

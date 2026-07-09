@@ -5,7 +5,7 @@
 # @file torch_nntile/examples/train_deep_relu_mnist.py
 # Train DeepReLU on the full MNIST training set (60k batch) on torch vs nntile.
 
-"""Full-batch MNIST training with DeepReLU on a torch device vs device=\"nntile\".
+"""Full-batch MNIST training with DeepReLU on torch (CPU) vs device=\"nntile\".
 
 Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 (same tensor-op chain as ``NNCrossEntropyOp`` in libnntile). Logits are
@@ -13,15 +13,8 @@ Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 ``device="nntile"``; read it with ``loss.to("cpu")`` after ``compile_graph()`` and
 ``run()`` in graph mode.
 
-The reference PyTorch path defaults to CPU; pass ``--torch-device cuda`` to
-compare against a CUDA torch reference instead.
-
-**Important (PyTorch >= 2.8):** registering the ``nntile`` PrivateUse1 backend
-makes ``at::getAccelerator()`` prefer it over CUDA, so CUDA ``loss.backward()``
-fails with ``opt_ready_stream && opt_parent_stream`` (pytorch/pytorch#161129).
-When ``--torch-device`` is CUDA, this script runs the torch reference in a
-**subprocess that never imports** ``torch_nntile``, then starts the nntile path
-in the parent process.
+The reference PyTorch path is always CPU. StarPU may still use CUDA workers
+for the nntile path via ``STARPU_NCUDA`` and ``--restrict-cuda``.
 
 Axis-group naming and tiling (optional) are configured in this script:
 
@@ -37,25 +30,21 @@ Example with batch and hidden tiling::
     STARPU_NCPU=0 STARPU_NCUDA=2 \\
     python torch_nntile/examples/train_deep_relu_mnist.py \\
         --restrict-cuda \\
-        --torch-device cuda \\
         --epochs 5 \\
         --axis-tiling batch=15000,15000,15000,15000 \\
         --axis-tiling features=392,392 \\
         --axis-tiling hidden=128,128
 
-Run instructions and expected CPU vs CUDA output:
+Run instructions and expected CPU vs CUDA-worker output:
 ``docs/torch_nntile.md`` (DeepReLU MNIST example section).
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
-import pickle
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
+
 import torch
 from torchvision import datasets
 
@@ -113,62 +102,18 @@ def build_axis_group_tiling(
     return tiling
 
 
-def resolve_torch_device(spec: str) -> torch.device:
-    """Parse ``cpu`` / ``cuda`` / ``cuda:N`` and check availability."""
-    device = torch.device(spec)
-    if device.type == "cpu":
-        return device
-    if device.type == "cuda":
-        if not torch.cuda.is_available():
-            raise SystemExit(
-                f"--torch-device {spec!r} requested but torch.cuda is "
-                "not available"
-            )
-        index = 0 if device.index is None else device.index
-        if index >= torch.cuda.device_count():
-            raise SystemExit(
-                f"--torch-device {spec!r} is out of range "
-                f"(torch.cuda.device_count()={torch.cuda.device_count()})"
-            )
-        return torch.device("cuda", index)
-    raise SystemExit(
-        f"--torch-device must be cpu or cuda[:N], got {spec!r}"
-    )
-
-
-def _load_deep_relu_class():
-    """Load DeepReLU without importing the torch_nntile package (no PrivateUse1)."""
-    path = _TORCH_NNTILE_ROOT / "torch_nntile" / "models" / "deep_relu.py"
-    spec = importlib.util.spec_from_file_location(
-        "_deep_relu_standalone",
-        path,
-    )
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load DeepReLU from {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.DeepReLU
-
-
-def _clone_state_dict_cpu(model: torch.nn.Module) -> dict[str, torch.Tensor]:
-    return {
-        name: tensor.detach().cpu().clone()
-        for name, tensor in model.state_dict().items()
-    }
-
-
 def build_torch_model(
     seed: int,
     hidden_dim: int,
     depth: int,
-    torch_device: torch.device,
 ) -> torch.nn.Module:
-    """Build the reference DeepReLU on ``torch_device`` (no torch_nntile import)."""
-    deep_relu = _load_deep_relu_class()
+    """Build the reference DeepReLU on CPU."""
+    from torch_nntile.models import DeepReLU
+
     torch.manual_seed(seed)
-    model = deep_relu.mnist(hidden_dim=hidden_dim, depth=depth)
+    model = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
     model.init_kaiming_uniform_(seed=seed)
-    return model.to(torch_device)
+    return model
 
 
 def train_torch_reference(
@@ -176,110 +121,25 @@ def train_torch_reference(
     images: torch.Tensor,
     labels: torch.Tensor,
     *,
-    device: torch.device,
     epochs: int,
     learning_rate: float,
 ) -> list[float]:
-    """Pure-PyTorch full-batch SGD (no torch_nntile / PrivateUse1)."""
-    x = images.to(device)
-    y = labels.to(device)
+    """Pure-PyTorch full-batch SGD on CPU."""
     losses: list[float] = []
     for epoch in range(epochs):
         for param in model.parameters():
             param.grad = None
-        logits = model(x)
-        loss = torch.nn.functional.cross_entropy(logits, y)
+        logits = model(images)
+        loss = torch.nn.functional.cross_entropy(logits, labels)
         loss.backward()
         with torch.no_grad():
             for param in model.parameters():
                 if param.grad is not None:
                     param.add_(param.grad, alpha=-learning_rate)
-        value = float(loss.detach().cpu().item())
+        value = float(loss.detach().item())
         losses.append(value)
-        print(f"[{device}] epoch {epoch + 1}/{epochs}  loss={value:.6f}")
+        print(f"[cpu] epoch {epoch + 1}/{epochs}  loss={value:.6f}")
     return losses
-
-
-def _run_torch_reference_worker(args: argparse.Namespace) -> None:
-    """Subprocess entry: train torch reference, write pickle, never import nntile."""
-    torch_device = resolve_torch_device(args.torch_device)
-    images, labels = load_mnist_full_batch(args.data_dir)
-    model = build_torch_model(
-        seed=args.seed,
-        hidden_dim=args.hidden_dim,
-        depth=args.depth,
-        torch_device=torch_device,
-    )
-    init_weights = _clone_state_dict_cpu(model)
-    losses = train_torch_reference(
-        model,
-        images,
-        labels,
-        device=torch_device,
-        epochs=args.epochs,
-        learning_rate=args.lr,
-    )
-    final_weights = _clone_state_dict_cpu(model)
-    out_path = Path(args.torch_reference_out)
-    with out_path.open("wb") as handle:
-        pickle.dump(
-            {
-                "losses": losses,
-                "init_weights": init_weights,
-                "final_weights": final_weights,
-            },
-            handle,
-        )
-
-
-def run_torch_reference_subprocess(
-    *,
-    script_path: Path,
-    data_dir: str,
-    torch_device: torch.device,
-    epochs: int,
-    lr: float,
-    seed: int,
-    hidden_dim: int,
-    depth: int,
-) -> tuple[list[float], dict[str, torch.Tensor], dict[str, torch.Tensor]]:
-    """Train CUDA torch reference in a child that never registers PrivateUse1."""
-    with tempfile.TemporaryDirectory(prefix="mnist_torch_ref_") as tmp:
-        out_path = Path(tmp) / "torch_reference.pkl"
-        cmd = [
-            sys.executable,
-            str(script_path),
-            "--torch-reference-worker",
-            "--torch-reference-out",
-            str(out_path),
-            "--data-dir",
-            data_dir,
-            "--torch-device",
-            str(torch_device),
-            "--epochs",
-            str(epochs),
-            "--lr",
-            str(lr),
-            "--seed",
-            str(seed),
-            "--hidden-dim",
-            str(hidden_dim),
-            "--depth",
-            str(depth),
-        ]
-        proc = subprocess.run(cmd, check=False)
-        if proc.returncode != 0:
-            raise SystemExit(
-                f"torch CUDA reference subprocess failed "
-                f"(exit {proc.returncode})"
-            )
-        with out_path.open("rb") as handle:
-            payload = pickle.load(handle)
-    return (
-        payload["losses"],
-        payload["init_weights"],
-        payload["final_weights"],
-    )
 
 
 def _name_hidden_on_matrix(tensor: torch.Tensor, hidden_dim: int) -> None:
@@ -383,16 +243,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--depth", type=int, default=5)
     parser.add_argument(
-        "--torch-device",
-        default="cpu",
-        metavar="DEVICE",
-        help=(
-            "Device for the reference PyTorch path: cpu (default), cuda, "
-            "or cuda:N. CUDA runs in a subprocess that never imports "
-            "torch_nntile (PrivateUse1 breaks CUDA autograd streams)."
-        ),
-    )
-    parser.add_argument(
         "--axis-tiling",
         action="append",
         default=[],
@@ -418,32 +268,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Enable verbose StarPU / NNTile context logging",
     )
     parser.add_argument("--output-dir", default="deep_relu_mnist_runs")
-    parser.add_argument(
-        "--torch-reference-worker",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--torch-reference-out",
-        default="",
-        help=argparse.SUPPRESS,
-    )
     return parser
 
 
 def main() -> None:
     args = _build_parser().parse_args()
-
-    if args.torch_reference_worker:
-        if not args.torch_reference_out:
-            raise SystemExit("--torch-reference-out is required for the worker")
-        _run_torch_reference_worker(args)
-        return
-
-    torch_device = resolve_torch_device(args.torch_device)
     axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
 
-    print(f"Reference torch device: {torch_device}")
+    print("Reference torch device: cpu")
     if axis_group_tiling:
         print(f"Axis-group tiling: {axis_group_tiling}")
     print(f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth}")
@@ -455,26 +287,6 @@ def main() -> None:
     images, labels = load_mnist_full_batch(args.data_dir)
     print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
 
-    # CUDA torch reference must not see PrivateUse1 (nntile) registration
-    # (pytorch/pytorch#161129). CPU torch is fine in-process after import.
-    if torch_device.type == "cuda":
-        print(
-            f"\nTraining on torch ({torch_device}) in a subprocess "
-            "(avoids PrivateUse1 / CUDA autograd conflict)..."
-        )
-        torch_losses, init_weights, final_torch = (
-            run_torch_reference_subprocess(
-                script_path=Path(__file__).resolve(),
-                data_dir=args.data_dir,
-                torch_device=torch_device,
-                epochs=args.epochs,
-                lr=args.lr,
-                seed=args.seed,
-                hidden_dim=args.hidden_dim,
-                depth=args.depth,
-            )
-        )
-
     import torch_nntile
     from torch_nntile import _C
     from torch_nntile.training import clone_model_weights, max_weight_delta
@@ -485,25 +297,28 @@ def main() -> None:
             "Set NNTILE_BUILD_DIR and reinstall."
         )
 
-    if torch_device.type != "cuda":
-        model_torch = build_torch_model(
-            seed=args.seed,
-            hidden_dim=args.hidden_dim,
-            depth=args.depth,
-            torch_device=torch_device,
-        )
-        init_weights = _clone_state_dict_cpu(model_torch)
-        print(f"\nTraining on torch ({torch_device})...")
-        torch_losses = train_torch_reference(
-            model_torch,
-            images,
-            labels,
-            device=torch_device,
-            epochs=args.epochs,
-            learning_rate=args.lr,
-        )
-        final_torch = _clone_state_dict_cpu(model_torch)
-        del model_torch
+    model_torch = build_torch_model(
+        seed=args.seed,
+        hidden_dim=args.hidden_dim,
+        depth=args.depth,
+    )
+    init_weights = {
+        name: tensor.detach().cpu().clone()
+        for name, tensor in model_torch.state_dict().items()
+    }
+    print("\nTraining on torch (cpu)...")
+    torch_losses = train_torch_reference(
+        model_torch,
+        images,
+        labels,
+        epochs=args.epochs,
+        learning_rate=args.lr,
+    )
+    final_torch = {
+        name: tensor.detach().cpu().clone()
+        for name, tensor in model_torch.state_dict().items()
+    }
+    del model_torch
 
     torch_nntile.init_context(
         ncpu=-1,
@@ -541,9 +356,7 @@ def main() -> None:
             print_axis_groups=args.print_axis_groups,
         )
 
-        torch_path = (
-            output_dir / f"deep_relu_mnist_torch_{torch_device.type}.pt"
-        )
+        torch_path = output_dir / "deep_relu_mnist_torch_cpu.pt"
         nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
         torch.save(final_torch, torch_path)
         torch.save(clone_model_weights(model_nnt), nnt_path)
@@ -551,7 +364,7 @@ def main() -> None:
         final_nnt = clone_model_weights(model_nnt)
         weight_delta = max_weight_delta(final_torch, final_nnt)
 
-        print(f"\nLoss comparison (torch/{torch_device} vs nntile):")
+        print("\nLoss comparison (torch/cpu vs nntile):")
         for epoch, (loss_torch, loss_nnt) in enumerate(
             zip(torch_losses, nnt_losses), start=1
         ):
