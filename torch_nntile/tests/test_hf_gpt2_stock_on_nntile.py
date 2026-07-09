@@ -48,14 +48,16 @@ def _make_stock_models(config: GPT2Config):
     torch.manual_seed(0)
     ref = GPT2LMHeadModel(config).eval().float()
     model = GPT2LMHeadModel(config).eval().float()
-    model.load_state_dict(ref.state_dict())
-    model = model.to("nntile")
+    with torch.no_grad():
+        model.load_state_dict(ref.state_dict())
+        model = model.to("nntile")
     return ref, model
 
 
 def test_hf_gpt2_forward_matches_cpu(tiny_gpt2_config):
     ref, model = _make_stock_models(tiny_gpt2_config)
-    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
+    with torch.no_grad():
+        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
         ref_logits = ref(nntile_cpu(input_ids)).logits
         out = model(input_ids).logits
@@ -69,7 +71,8 @@ def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
     for param in model.parameters():
         param.requires_grad_(True)
 
-    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
+    with torch.no_grad():
+        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     labels = input_ids.clone()
 
     ref.zero_grad(set_to_none=True)
@@ -99,7 +102,8 @@ def test_hf_gpt2_train_full_batch_step_nntile_inputs(tiny_gpt2_config):
     for param in model.parameters():
         param.requires_grad_(True)
 
-    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
+    with torch.no_grad():
+        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     labels = input_ids.clone()
     loss = train_full_batch_step(model, input_ids, labels, learning_rate=1e-3)
     assert loss > 0.0

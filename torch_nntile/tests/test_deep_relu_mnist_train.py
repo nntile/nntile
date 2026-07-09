@@ -56,8 +56,9 @@ def test_mnist_full_batch_training_matches_cpu(mnist_full_batch):
     model_cpu.init_kaiming_uniform_(seed=seed)
 
     model_nnt = DeepReLU.mnist()
-    model_nnt.load_state_dict(model_cpu.state_dict())
-    model_nnt = model_nnt.to("nntile")
+    with torch.no_grad():
+        model_nnt.load_state_dict(model_cpu.state_dict())
+        model_nnt = model_nnt.to("nntile")
 
     assert max_weight_delta(
         clone_model_weights(model_cpu),
@@ -66,8 +67,9 @@ def test_mnist_full_batch_training_matches_cpu(mnist_full_batch):
 
     cpu_losses: list[float] = []
     nnt_losses: list[float] = []
-    x_nnt = images.to("nntile")
-    y_nnt = labels.to("nntile")
+    with torch.no_grad():
+        x_nnt = images.to("nntile")
+        y_nnt = labels.to("nntile")
 
     for _ in range(epochs):
         cpu_losses.append(

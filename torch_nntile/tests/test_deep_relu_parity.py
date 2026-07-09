@@ -33,9 +33,10 @@ def test_deep_relu_forward_matches_cpu():
         y_cpu = model_cpu(x_cpu)
 
     model_nnt = DeepReLU.tiny()
-    model_nnt.load_state_dict(model_cpu.state_dict())
-    model_nnt = model_nnt.to("nntile")
-    x_nnt = x_cpu.to("nntile")
+    with torch.no_grad():
+        model_nnt.load_state_dict(model_cpu.state_dict())
+        model_nnt = model_nnt.to("nntile")
+        x_nnt = x_cpu.to("nntile")
 
     with torch.no_grad():
         y_nnt = nntile_cpu(model_nnt(x_nnt))
@@ -50,8 +51,9 @@ def test_linear_relu_layer_matches_cpu():
 
     y_cpu = torch.nn.functional.relu(x_cpu @ weight.t())
 
-    x_nnt = x_cpu.to("nntile")
-    w_nnt = weight.to("nntile")
+    with torch.no_grad():
+        x_nnt = x_cpu.to("nntile")
+        w_nnt = weight.to("nntile")
     y_nnt = nntile_cpu(
         torch.nn.functional.relu(
             torch.nn.functional.linear(x_nnt, w_nnt, None)
@@ -77,10 +79,12 @@ def test_linear_relu_layer_backward_matches_cpu():
     y_nnt = torch.nn.functional.relu(
         torch.nn.functional.linear(x_nnt, w_nnt, None)
     )
+    with torch.no_grad():
+        grad_out_nnt = grad_out.to("nntile")
     gx_nnt, gw_nnt = torch.autograd.grad(
         y_nnt,
         (x_nnt, w_nnt),
-        grad_outputs=grad_out.to("nntile"),
+        grad_outputs=grad_out_nnt,
     )
 
     assert torch.allclose(nntile_cpu(gx_nnt), x_cpu.grad, rtol=1e-4, atol=1e-4)
@@ -103,12 +107,14 @@ def test_deep_relu_backward_matches_cpu():
     grad_out_cpu = torch.ones_like(y_cpu)
 
     model_nnt = DeepReLU.tiny()
-    model_nnt.load_state_dict(model_cpu.state_dict())
-    model_nnt = model_nnt.to("nntile")
+    with torch.no_grad():
+        model_nnt.load_state_dict(model_cpu.state_dict())
+        model_nnt = model_nnt.to("nntile")
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = model_nnt(x_nnt)
-    grad_out = torch.ones(y_nnt.shape, device="cpu").to("nntile")
+    with torch.no_grad():
+        grad_out = torch.ones(y_nnt.shape, device="cpu").to("nntile")
 
     params_nnt = list(model_nnt.parameters())
     gx_nnt, *grads_nnt = torch.autograd.grad(

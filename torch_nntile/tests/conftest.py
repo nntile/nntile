@@ -90,4 +90,5 @@ def nntile_cpu(tensor: torch.Tensor) -> torch.Tensor:
     ):
         torch_nntile.compile_graph()
         torch_nntile.run()
-    return tensor.cpu()
+    with torch.no_grad():
+        return tensor.cpu()
