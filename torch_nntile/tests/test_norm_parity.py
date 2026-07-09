@@ -83,8 +83,8 @@ def test_3d_axis_norm_matches_cpu():
 
 
 @pytest.mark.skip(
-    reason="Global scalar norm backward aborts in graph execute "
-    "(tile lifecycle); axis-norm backward is covered elsewhere",
+    reason="Global scalar norm backward aborts in graph gather (shape-bridge "
+    "on grad alias); axis-norm backward is covered",
 )
 def test_global_norm_backward_matches_cpu():
     x_cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
@@ -94,7 +94,7 @@ def test_global_norm_backward_matches_cpu():
     y = torch.linalg.vector_norm(x, ord=2)
 
     y_cpu.backward()
-    y.backward()
+    y.backward(torch.ones_like(y))
 
     assert torch.allclose(nntile_cpu(x.grad), x_cpu.grad, rtol=1e-5, atol=1e-5)
 
@@ -139,8 +139,8 @@ def test_global_norm_keepdim_matches_cpu():
 
 
 @pytest.mark.skip(
-    reason="Global keepdim norm backward aborts in graph execute "
-    "(tile lifecycle); axis-norm backward is covered elsewhere",
+    reason="Global keepdim norm backward aborts in graph gather (shape-bridge "
+    "on grad alias); axis-norm backward is covered",
 )
 def test_global_norm_keepdim_backward_matches_cpu():
     x_cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
@@ -151,7 +151,7 @@ def test_global_norm_keepdim_backward_matches_cpu():
 
     grad = torch.ones_like(y_cpu)
     y_cpu.backward(grad)
-    y.backward(grad.to("nntile"))
+    y.backward(torch.ones_like(y))
 
     assert torch.allclose(nntile_cpu(x.grad), x_cpu.grad, rtol=1e-5, atol=1e-5)
 

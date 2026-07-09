@@ -31,6 +31,7 @@
 #include <nntile/tensor/ops/multiply.hh>
 #include <nntile/tensor/ops/multiply_inplace.hh>
 #include <nntile/tensor/ops/clear.hh>
+#include <nntile/tensor/ops/contiguous_view.hh>
 #include <nntile/tensor/ops/copy.hh>
 #include <nntile/tensor/ops/gemm.hh>
 #include <nntile/tensor/ops/hypot.hh>
@@ -92,6 +93,40 @@ std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
         graph_shape.push_back(static_cast<nntile::Index>(dim));
     }
     return graph_shape;
+}
+
+nntile::Index tensor_graph_numel(const std::vector<nntile::Index> &shape)
+{
+    nntile::Index n = 1;
+    for (const nntile::Index dim : shape)
+    {
+        n *= dim;
+    }
+    return n;
+}
+
+nntile::TensorGraph::TensorNode *bridge_node_to_shape(
+    nntile::TensorGraph::TensorNode *node,
+    const std::vector<nntile::Index> &target_shape)
+{
+    if (node == nullptr)
+    {
+        return nullptr;
+    }
+    if (node->shape() == target_shape)
+    {
+        return node;
+    }
+    if (tensor_graph_numel(node->shape()) != tensor_graph_numel(target_shape))
+    {
+        return node;
+    }
+    nntile::TensorGraph &graph = *node->graph();
+    nntile::TensorGraph::TensorNode *view_node =
+        graph.data(target_shape, node->dtype());
+    track_graph_node(view_node);
+    nntile::tensor::contiguous_view(node, view_node);
+    return view_node;
 }
 
 bool mark_as_input_for_operand(const at::Tensor &tensor)
@@ -1088,7 +1123,7 @@ void tensor_sgd_step_fp32(
     at::Tensor &param)
 {
     const std::vector<nntile::Index> graph_shape =
-        pytorch_shape_to_graph(grad.sizes());
+        pytorch_shape_to_graph(param.sizes());
 
     nntile::TensorGraph::TensorNode *grad_node = nntile_node(grad);
     if (grad_node == nullptr)
@@ -1097,7 +1132,9 @@ void tensor_sgd_step_fp32(
     }
     if (grad_node == nullptr)
     {
-        grad_node = lookup_data_node(grad, graph_shape);
+        grad_node = lookup_data_node(
+            grad,
+            pytorch_shape_to_graph(grad.sizes()));
     }
     if (grad_node == nullptr)
     {
@@ -1111,6 +1148,7 @@ void tensor_sgd_step_fp32(
         grad_node != nullptr,
         "nntile sgd_step: parameter grad is not registered in the graph; "
         "run backward before the optimizer step");
+    grad_node = bridge_node_to_shape(grad_node, graph_shape);
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);
     auto *velocity_node = optimizer_state_node(velocity, graph_shape);
@@ -1769,13 +1807,15 @@ void tensor_adam_step_fp32(
     at::Tensor &param)
 {
     const std::vector<nntile::Index> graph_shape =
-        pytorch_shape_to_graph(grad.sizes());
+        pytorch_shape_to_graph(param.sizes());
 
     nntile::TensorGraph::TensorNode *grad_node =
         lookup_param_grad_node(param);
     if (grad_node == nullptr)
     {
-        grad_node = lookup_data_node(grad, graph_shape);
+        grad_node = lookup_data_node(
+            grad,
+            pytorch_shape_to_graph(grad.sizes()));
     }
     if (grad_node == nullptr)
     {
@@ -1789,6 +1829,7 @@ void tensor_adam_step_fp32(
         grad_node != nullptr,
         "nntile adam_step: parameter grad is not registered in the graph; "
         "run backward before the optimizer step");
+    grad_node = bridge_node_to_shape(grad_node, graph_shape);
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);
     auto *first_moment_node = optimizer_state_node(first_moment, graph_shape);
@@ -1830,13 +1871,15 @@ void tensor_adamw_step_fp32(
     at::Tensor &param)
 {
     const std::vector<nntile::Index> graph_shape =
-        pytorch_shape_to_graph(grad.sizes());
+        pytorch_shape_to_graph(param.sizes());
 
     nntile::TensorGraph::TensorNode *grad_node =
         lookup_param_grad_node(param);
     if (grad_node == nullptr)
     {
-        grad_node = lookup_data_node(grad, graph_shape);
+        grad_node = lookup_data_node(
+            grad,
+            pytorch_shape_to_graph(grad.sizes()));
     }
     if (grad_node == nullptr)
     {
@@ -1850,6 +1893,7 @@ void tensor_adamw_step_fp32(
         grad_node != nullptr,
         "nntile adam_step: parameter grad is not registered in the graph; "
         "run backward before the optimizer step");
+    grad_node = bridge_node_to_shape(grad_node, graph_shape);
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);
     auto *first_moment_node = optimizer_state_node(first_moment, graph_shape);

@@ -55,7 +55,6 @@ def test_softmax_forward_dim0(random_input):
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.skip(reason="Softmax backward segfaults in graph execute")
 def test_softmax_backward_matches_cpu(random_input):
     x_cpu = random_input.clone().requires_grad_(True)
     y_cpu = torch.nn.functional.softmax(x_cpu, dim=-1)
@@ -63,12 +62,11 @@ def test_softmax_backward_matches_cpu(random_input):
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = torch.nn.functional.softmax(x_nnt, dim=-1)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
     assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.skip(reason="Softmax backward segfaults in graph execute")
 def test_softmax_backward_dim0(random_input):
     x_cpu = random_input.clone().requires_grad_(True)
     y_cpu = torch.nn.functional.softmax(x_cpu, dim=0)
@@ -76,12 +74,11 @@ def test_softmax_backward_dim0(random_input):
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = torch.nn.functional.softmax(x_nnt, dim=0)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
     assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.skip(reason="Softmax module backward segfaults in graph execute")
 def test_nn_softmax_module(random_input):
     x_cpu = random_input.clone().requires_grad_(True)
     module_cpu = torch.nn.Softmax(dim=1)
@@ -91,7 +88,7 @@ def test_nn_softmax_module(random_input):
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     module_nnt = torch.nn.Softmax(dim=1)
     y_nnt = module_nnt(x_nnt)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
     assert torch.allclose(nntile_cpu(y_nnt), y_cpu, rtol=1e-4, atol=1e-4)
     assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
