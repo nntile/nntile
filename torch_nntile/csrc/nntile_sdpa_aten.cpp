@@ -87,12 +87,15 @@ at::Tensor make_causal_mask(
     const auto idx_opts = at::TensorOptions().dtype(at::kLong);
     const at::Tensor k_idx = at::arange(k_seq, idx_opts);
     const at::Tensor q_idx = at::arange(q_seq, idx_opts);
-    at::Tensor mask = k_idx.unsqueeze(0) <= q_idx.unsqueeze(1);
+    at::Tensor mask = (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous();
     if (mask.device() != device)
     {
         mask = mask.to(device);
     }
-    return mask.contiguous();
+    TORCH_CHECK(
+        mask.is_contiguous(),
+        "nntile sdpa: causal mask must be contiguous");
+    return mask;
 }
 
 constexpr float kFloatMaskThreshold = -1e20f;
@@ -128,7 +131,10 @@ at::Tensor broadcastable_attn_bias_to_2d(
     at::Tensor bias = squeeze_size_one_dims(attn_bias);
     if (bias.dim() == 2)
     {
-        return bias.contiguous();
+        TORCH_CHECK(
+            bias.is_contiguous(),
+            "nntile sdpa: attn_bias must be contiguous");
+        return bias;
     }
 
     TORCH_CHECK(
@@ -154,7 +160,10 @@ at::Tensor broadcastable_attn_bias_to_2d(
                 expanded.to(at::kFloat).cpu()),
             "nntile sdpa: float attn_bias must broadcast to [q_seq, k_seq]");
     }
-    return canonical.contiguous();
+    TORCH_CHECK(
+        canonical.is_contiguous(),
+        "nntile sdpa: attn_bias canonical slice must be contiguous");
+    return canonical;
 }
 
 at::Tensor float_attn_bias_to_bool(const at::Tensor &attn_bias)
@@ -214,16 +223,19 @@ std::optional<at::Tensor> convert_attn_bias_to_mask(
     {
         bool_mask = bool_mask.to(device);
     }
-    return bool_mask.contiguous();
+    TORCH_CHECK(
+        bool_mask.is_contiguous(),
+        "nntile sdpa: mask must be contiguous");
+    return bool_mask;
 }
 
-at::Tensor ensure_contiguous_nntile(const at::Tensor &tensor)
+void require_contiguous_nntile(const at::Tensor &tensor, const char *name)
 {
-    if (tensor.is_contiguous())
-    {
-        return tensor;
-    }
-    return tensor.contiguous();
+    TORCH_CHECK(
+        tensor.is_contiguous(),
+        "nntile sdpa: ",
+        name,
+        " must be contiguous");
 }
 
 } // namespace
@@ -389,7 +401,8 @@ sdpa_overrideable_backward(
         key.size(-2),
         query.device());
 
-    const at::Tensor grad_out_c = ensure_contiguous_nntile(grad_out);
+    require_contiguous_nntile(grad_out, "grad_out");
+    const at::Tensor &grad_out_c = grad_out;
     auto grad_qkv = sdpa_backward(
         query,
         key,

@@ -67,11 +67,7 @@ void run_hypot_kernel(
 {
     pin_graph_op_inputs({self, other});
     pin_graph_op_output(out, true);
-    tensor_hypot_fp32(
-        self.data_ptr<float>(),
-        other.data_ptr<float>(),
-        out.data_ptr<float>(),
-        self.sizes());
+    tensor_hypot_fp32(self, other, out);
 }
 
 } // namespace

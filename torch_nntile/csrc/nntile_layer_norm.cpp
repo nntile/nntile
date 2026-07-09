@@ -113,19 +113,18 @@ void run_layer_norm_forward(
         inputs.push_back(*bias);
     }
     pin_graph_op_inputs(inputs);
-    pin_graph_op_output(output, true);
-    pin_graph_op_output(mean, true);
-    pin_graph_op_output(rstd, true);
+    pin_graph_op_output(output, false);
+    pin_graph_op_output(mean, false);
+    pin_graph_op_output(rstd, false);
     tensor_layer_norm_forward_fp32(
-        input.data_ptr<float>(),
-        input.sizes(),
-        weight.has_value() ? weight->data_ptr<float>() : nullptr,
-        bias.has_value() ? bias->data_ptr<float>() : nullptr,
+        input,
+        weight.has_value() ? &*weight : nullptr,
+        bias.has_value() ? &*bias : nullptr,
         weight.has_value(),
         bias.has_value(),
-        output.data_ptr<float>(),
-        mean.data_ptr<float>(),
-        rstd.data_ptr<float>(),
+        output,
+        mean,
+        rstd,
         norm_axis,
         static_cast<float>(eps));
 }
@@ -203,22 +202,19 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm_backward(
     }
 
     tensor_layer_norm_backward_fp32(
-        grad_out.data_ptr<float>(),
-        input.data_ptr<float>(),
-        mean_reduced.data_ptr<float>(),
-        rstd_reduced.data_ptr<float>(),
-        weight.has_value() ? weight->data_ptr<float>() : nullptr,
+        grad_out,
+        input,
+        mean_reduced,
+        rstd_reduced,
+        weight.has_value() ? &*weight : nullptr,
         weight.has_value(),
         bias.has_value(),
-        output_mask[0] ? grad_input.data_ptr<float>() : nullptr,
-        output_mask[1] && weight.has_value() ?
-            grad_weight.data_ptr<float>() :
-            nullptr,
-        output_mask[2] && bias.has_value() ? grad_bias.data_ptr<float>() : nullptr,
+        output_mask[0] ? &grad_input : nullptr,
+        output_mask[1] && weight.has_value() ? &grad_weight : nullptr,
+        output_mask[2] && bias.has_value() ? &grad_bias : nullptr,
         output_mask[0],
         output_mask[1] && weight.has_value(),
         output_mask[2] && bias.has_value(),
-        input.sizes(),
         norm_axis);
 
     return {grad_input, grad_weight, grad_bias};

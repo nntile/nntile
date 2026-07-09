@@ -145,11 +145,11 @@ class SGD:
         key = id(param)
         velocity = self._velocity.get(key)
         if velocity is None:
-            velocity = torch.zeros(
+            velocity = torch.empty(
                 list(param.shape),
                 dtype=torch.float32,
-                device="cpu",
-            ).to("nntile")
+                device="nntile",
+            )
             self._velocity[key] = velocity
         return velocity
 
@@ -244,18 +244,23 @@ class _AdamBase:
         moments = self._moments.get(key)
         if moments is None:
             if param.device.type == "nntile":
-                zeros = torch.zeros(
+                zeros = torch.empty(
                     list(param.shape),
                     dtype=torch.float32,
-                    device="cpu",
-                ).to("nntile")
+                    device="nntile",
+                )
+                moments = (zeros, torch.empty(
+                    list(param.shape),
+                    dtype=torch.float32,
+                    device="nntile",
+                ))
             else:
                 zeros = torch.zeros(
                     list(param.shape),
                     dtype=torch.float32,
                     device=param.device,
                 )
-            moments = (zeros, zeros.clone())
+                moments = (zeros, zeros.clone())
             self._moments[key] = moments
         return moments
 
@@ -486,14 +491,6 @@ def fused_sgd_step(
     return optimizer
 
 
-def manual_sgd_step(
-    parameters: list[torch.Tensor],
-    learning_rate: float,
-) -> None:
-    """Deprecated alias for a single plain fused SGD step (momentum=0)."""
-    fused_sgd_step(parameters, learning_rate)
-
-
 def _nntile_optimizer_for(
     model: torch.nn.Module,
     learning_rate: float,
@@ -536,17 +533,12 @@ def train_full_batch_step(
         if name_axis_groups is not None:
             name_axis_groups(inputs, logits)
         if axis_group_tiling is not None:
-            if not torch_nntile.is_graph_mode():
-                raise RuntimeError(
-                    "axis_group_tiling requires torch_nntile graph runtime mode"
-                )
             for name, tile_sizes in axis_group_tiling.items():
                 torch_nntile.set_axis_group_tiling(name, tile_sizes)
-        if print_axis_groups and torch_nntile.is_graph_mode():
+        if print_axis_groups:
             torch_nntile.print_axis_groups()
-        if torch_nntile.is_graph_mode():
-            torch_nntile.compile_graph()
-            torch_nntile.run()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
 
         torch_nntile.wait()
         loss_cpu = loss.to("cpu")

@@ -10,6 +10,7 @@ import pytest
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.training import SGD, fused_sgd_step
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -91,9 +92,9 @@ def test_sgd_step_matches_reference(
         nesterov,
     )
 
-    assert torch.allclose(param_nnt.cpu(), expected_p, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), expected_p, rtol=1e-4, atol=1e-4)
     assert torch.allclose(
-        velocity_nnt.cpu(), expected_v, rtol=1e-4, atol=1e-4
+        nntile_cpu(velocity_nnt), expected_v, rtol=1e-4, atol=1e-4
     )
 
 
@@ -113,7 +114,7 @@ def test_sgd_optimizer_matches_torch():
     torch_opt.step()
     nnt_opt.step()
 
-    assert torch.allclose(param_nnt.cpu(), param_cpu.detach(), rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), param_cpu.detach(), rtol=1e-4, atol=1e-4)
 
 
 def test_sgd_optimizer_multistep_momentum():
@@ -131,8 +132,10 @@ def test_sgd_optimizer_multistep_momentum():
         param_nnt.grad = grad.clone().to("nntile")
         torch_opt.step()
         nnt_opt.step()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
 
-    assert torch.allclose(param_nnt.cpu(), param_cpu, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), param_cpu, rtol=1e-4, atol=1e-4)
 
 
 def test_fused_sgd_step_plain():
@@ -145,4 +148,4 @@ def test_fused_sgd_step_plain():
     param_nnt.grad = grad.clone().to("nntile")
     fused_sgd_step([param_nnt], learning_rate=0.1)
 
-    assert torch.allclose(param_nnt.cpu(), expected, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(param_nnt), expected, rtol=1e-4, atol=1e-4)

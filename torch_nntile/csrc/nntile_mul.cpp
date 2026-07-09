@@ -65,21 +65,14 @@ void run_mul_kernel(
 {
     pin_graph_op_inputs({self, other});
     pin_graph_op_output(out, true);
-    tensor_mul_fp32(
-        self.data_ptr<float>(),
-        other.data_ptr<float>(),
-        out.data_ptr<float>(),
-        self.sizes());
+    tensor_mul_fp32(self, other, out);
 }
 
 void run_mul_inplace_kernel(at::Tensor &self, const at::Tensor &other)
 {
     pin_graph_op_inputs({self, other});
     pin_graph_op_output(self, true);
-    tensor_mul_inplace_fp32(
-        other.data_ptr<float>(),
-        self.data_ptr<float>(),
-        self.sizes());
+    tensor_mul_inplace_fp32(other, self);
 }
 
 } // namespace
@@ -119,11 +112,7 @@ at::Tensor mul_scalar(const at::Tensor &self, const at::Scalar &other)
         "nntile mul.Scalar supports float32 only");
     TORCH_CHECK(self.is_contiguous(), "nntile mul.Scalar requires contiguous");
     at::Tensor out = at::empty_like(self);
-    tensor_mul_scalar_fp32(
-        self.data_ptr<float>(),
-        out.data_ptr<float>(),
-        self.sizes(),
-        other.to<float>());
+    tensor_mul_scalar_fp32(self, out, other.to<float>());
     return out;
 }
 
@@ -143,11 +132,7 @@ at::Tensor &mul_scalar_out(
     TORCH_CHECK(
         self.is_contiguous() && out.is_contiguous(),
         "nntile mul.Scalar_out requires contiguous tensors");
-    tensor_mul_scalar_fp32(
-        self.data_ptr<float>(),
-        out.data_ptr<float>(),
-        self.sizes(),
-        other.to<float>());
+    tensor_mul_scalar_fp32(self, out, other.to<float>());
     return out;
 }
 

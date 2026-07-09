@@ -11,23 +11,13 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    yield
 
 
 @pytest.mark.parametrize("shape", [(4, 8), (2, 3, 8)])
@@ -48,7 +38,7 @@ def test_layer_norm_forward_matches_cpu(shape):
     x_nnt = x_cpu.to("nntile")
 
     with torch.no_grad():
-        y_nnt = ln_nnt(x_nnt).cpu()
+        y_nnt = nntile_cpu(ln_nnt(x_nnt))
 
     assert y_nnt.shape == y_cpu.shape
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
@@ -72,14 +62,14 @@ def test_layer_norm_backward_matches_cpu(shape):
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = ln_nnt(x_nnt)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
     assert torch.allclose(
-        ln_nnt.weight.grad.cpu(), ln.weight.grad, rtol=1e-4, atol=1e-4
+        nntile_cpu(ln_nnt.weight.grad), ln.weight.grad, rtol=1e-4, atol=1e-4
     )
     assert torch.allclose(
-        ln_nnt.bias.grad.cpu(), ln.bias.grad, rtol=1e-4, atol=1e-4
+        nntile_cpu(ln_nnt.bias.grad), ln.bias.grad, rtol=1e-4, atol=1e-4
     )
 
 
@@ -100,7 +90,7 @@ def test_rms_norm_forward_matches_cpu(shape):
     x_nnt = x_cpu.to("nntile")
 
     with torch.no_grad():
-        y_nnt = rms_nnt(x_nnt).cpu()
+        y_nnt = nntile_cpu(rms_nnt(x_nnt))
 
     assert y_nnt.shape == y_cpu.shape
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
@@ -123,11 +113,11 @@ def test_rms_norm_backward_matches_cpu(shape):
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = rms_nnt(x_nnt)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
     assert torch.allclose(
-        rms_nnt.weight.grad.cpu(), rms.weight.grad, rtol=1e-4, atol=1e-4
+        nntile_cpu(rms_nnt.weight.grad), rms.weight.grad, rtol=1e-4, atol=1e-4
     )
 
 
@@ -140,7 +130,7 @@ def test_functional_layer_norm_matches_cpu():
     x_nnt = x_cpu.to("nntile")
     w_nnt = weight.to("nntile")
     b_nnt = bias.to("nntile")
-    y_nnt = F.layer_norm(x_nnt, (5,), w_nnt, b_nnt, 1e-5).cpu()
+    y_nnt = nntile_cpu(F.layer_norm(x_nnt, (5,), w_nnt, b_nnt, 1e-5))
 
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
 
@@ -152,7 +142,7 @@ def test_functional_rms_norm_matches_cpu():
 
     x_nnt = x_cpu.to("nntile")
     w_nnt = weight.to("nntile")
-    y_nnt = F.rms_norm(x_nnt, (5,), w_nnt, 1e-6).cpu()
+    y_nnt = nntile_cpu(F.rms_norm(x_nnt, (5,), w_nnt, 1e-6))
 
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
 
@@ -162,7 +152,7 @@ def test_rms_norm_without_weight_matches_cpu():
     y_cpu = F.rms_norm(x_cpu, (5,), None, 1e-6)
 
     x_nnt = x_cpu.to("nntile")
-    y_nnt = F.rms_norm(x_nnt, (5,), None, 1e-6).cpu()
+    y_nnt = nntile_cpu(F.rms_norm(x_nnt, (5,), None, 1e-6))
 
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
 
@@ -174,6 +164,6 @@ def test_rms_norm_without_weight_backward_matches_cpu():
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_nnt = F.rms_norm(x_nnt, (5,), None, 1e-6)
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    y_nnt.backward(torch.ones_like(y_nnt))
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)

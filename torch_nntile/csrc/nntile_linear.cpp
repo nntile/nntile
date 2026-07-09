@@ -25,6 +25,17 @@ bool is_nntile_device(c10::Device device)
     return device.type() == c10::DeviceType::PrivateUse1;
 }
 
+std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
+{
+    std::vector<nntile::Index> graph_shape;
+    graph_shape.reserve(shape.size());
+    for (const auto dim : shape)
+    {
+        graph_shape.push_back(static_cast<nntile::Index>(dim));
+    }
+    return graph_shape;
+}
+
 void check_linear_tensors(
     const at::Tensor &input,
     const at::Tensor &weight,
@@ -69,14 +80,14 @@ at::Tensor make_linear_output(
 void run_linear(const PreparedGemmOperands &prepared, at::Tensor &output)
 {
     pin_graph_op_inputs({prepared.a, prepared.b});
-    pin_graph_op_output(output, true);
+    pin_graph_op_output(output, false);
     tensor_gemm_fp32(
         prepared.params,
-        prepared.a.data_ptr<float>(),
+        prepared.a,
         prepared.a_gemm_shape,
-        prepared.b.data_ptr<float>(),
+        prepared.b,
         prepared.b_gemm_shape,
-        output.data_ptr<float>(),
+        output,
         prepared.out_shape);
 }
 
@@ -156,37 +167,55 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             infer_linear_backward_grad_input_params(forward.params);
 
         const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
-        at::Tensor grad_out_prepared = grad_out_layout.needs_copy
-            ? grad_output.contiguous()
-            : grad_output;
-        at::Tensor weight_prepared = weight_layout.needs_copy
-            ? weight.contiguous()
-            : forward.b;
+        TORCH_CHECK(
+            !grad_out_layout.needs_copy,
+            "nntile linear_backward: grad_output must be contiguous or "
+            "row/column-contiguous");
+        TORCH_CHECK(
+            !weight_layout.needs_copy,
+            "nntile linear_backward: weight must be contiguous or "
+            "row/column-contiguous");
+        const at::Tensor &grad_out_prepared = grad_output;
+        const at::Tensor &weight_prepared = forward.b;
 
         grad_input = at::empty_like(input);
         pin_graph_op_inputs({grad_out_prepared, weight_prepared});
         pin_graph_op_output(grad_input, false);
         tensor_gemm_fp32(
             grad_input_params,
-            grad_out_prepared.data_ptr<float>(),
+            grad_out_prepared,
             grad_out_layout.gemm_shape,
-            weight_prepared.data_ptr<float>(),
+            weight_prepared,
             forward.b_gemm_shape,
-            grad_input.data_ptr<float>(),
+            grad_input,
             forward.a_gemm_shape);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        nntile::TensorGraph::TensorNode *grad_input_node = lookup_data_node(
+            grad_input,
+            pytorch_shape_to_graph(grad_input.sizes()));
+        if (grad_input_node != nullptr)
+        {
+            register_param_grad_node(input, grad_input_node);
+            at::Tensor grad_input_alias = grad_input;
+            register_grad_alias_for_host_copy(grad_input_alias, grad_input_node);
+        }
+#endif
     }
     if (output_mask[1])
     {
         const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
-        at::Tensor grad_out_prepared = grad_out_layout.needs_copy
-            ? grad_output.contiguous()
-            : grad_output;
-        at::Tensor input_prepared = forward.a.is_contiguous()
-            ? forward.a
-            : forward.a.contiguous();
+        TORCH_CHECK(
+            !grad_out_layout.needs_copy,
+            "nntile linear_backward: grad_output must be contiguous or "
+            "row/column-contiguous");
+        TORCH_CHECK(
+            forward.a.is_contiguous(),
+            "nntile linear_backward: input must be contiguous");
+        const at::Tensor &grad_out_prepared = grad_output;
+        const at::Tensor &input_prepared = forward.a;
 
         grad_weight = at::empty_like(weight);
-        pin_graph_op_output(grad_weight, false);
+        pin_graph_op_output(grad_weight, true);
         if (weight_layout.trans)
         {
             GemmParams grad_weight_params =
@@ -194,11 +223,11 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             pin_graph_op_inputs({input_prepared, grad_out_prepared});
             tensor_gemm_fp32(
                 grad_weight_params,
-                input_prepared.data_ptr<float>(),
+                input_prepared,
                 forward.a_gemm_shape,
-                grad_out_prepared.data_ptr<float>(),
+                grad_out_prepared,
                 grad_out_layout.gemm_shape,
-                grad_weight.data_ptr<float>(),
+                grad_weight,
                 forward.b_gemm_shape);
         }
         else
@@ -208,13 +237,24 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             pin_graph_op_inputs({grad_out_prepared, input_prepared});
             tensor_gemm_fp32(
                 grad_weight_params,
-                grad_out_prepared.data_ptr<float>(),
+                grad_out_prepared,
                 grad_out_layout.gemm_shape,
-                input_prepared.data_ptr<float>(),
+                input_prepared,
                 forward.a_gemm_shape,
-                grad_weight.data_ptr<float>(),
+                grad_weight,
                 forward.b_gemm_shape);
         }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        nntile::TensorGraph::TensorNode *grad_node = lookup_data_node(
+            grad_weight,
+            pytorch_shape_to_graph(grad_weight.sizes()));
+        if (grad_node != nullptr)
+        {
+            register_param_grad_node(weight, grad_node);
+            at::Tensor grad_weight_alias = grad_weight;
+            register_grad_alias_for_host_copy(grad_weight_alias, grad_node);
+        }
+#endif
     }
     return {grad_input, grad_weight, at::Tensor()};
 }

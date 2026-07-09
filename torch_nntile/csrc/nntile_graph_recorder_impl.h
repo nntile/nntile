@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include "nntile_tensor_gc.h"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -25,32 +27,51 @@ class Tensor;
 namespace torch_nntile
 {
 
-//! Keep tensor storage alive until execute() (CUDA record_stream analog).
-void pin_tensor_for_graph(const at::Tensor &tensor);
-
-//! Pin op inputs and user-held outputs. Do not pin backward return buffers
-//! that autograd will steal into leaf .grad (extra refs block stealing).
+//! Pin graph inputs and persistent params for the current capture.
 void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs);
 
+//! Pin output when it is user-visible across compile/run.
 void pin_graph_op_output(const at::Tensor &output, bool is_user_visible);
+
+void on_tensor_impl_released(TensorImplKey key);
+
+void mark_persistent_graph_tensor(const at::Tensor &tensor);
+
+void init_nntile_input_from_cpu(
+    const at::Tensor &cpu_src,
+    at::Tensor &nntile_dst);
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
-nntile::TensorGraph &recorder_graph();
-
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
-    void *data_ptr,
+    const at::Tensor &tensor,
     const std::vector<nntile::Index> &shape,
     nntile::DataType dtype,
     bool mark_as_input);
 
 void register_data_node(
-    void *data_ptr,
+    const at::Tensor &tensor,
     nntile::TensorGraph::TensorNode *node);
 
-nntile::TensorGraph::TensorNode *lookup_data_node(void *data_ptr);
+nntile::TensorGraph::TensorNode *lookup_data_node(
+    const at::Tensor &tensor,
+    const std::vector<nntile::Index> &shape);
 
-void track_graph_node(nntile::TensorGraph::TensorNode *node);
+void register_param_grad_node(
+    const at::Tensor &param,
+    nntile::TensorGraph::TensorNode *grad_node);
+
+nntile::TensorGraph::TensorNode *lookup_param_grad_node(
+    const at::Tensor &param);
+
+void register_grad_alias_for_host_copy(
+    at::Tensor &grad,
+    nntile::TensorGraph::TensorNode *grad_node);
+
+void push_relu_preactivation_node(nntile::TensorGraph::TensorNode *node);
+
+nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
+    const std::vector<nntile::Index> &shape);
 
 void record_view_alias(const at::Tensor &self, const at::Tensor &view);
 

@@ -9,6 +9,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Cloud images may default to clang without libstdc++ headers; g++ is required.
+os.environ.setdefault("CC", "gcc")
+os.environ.setdefault("CXX", "g++")
+
 from setuptools import find_packages, setup
 from torch.utils.cpp_extension import BuildExtension, CppExtension
 
@@ -17,6 +21,8 @@ REPO_ROOT = ROOT.parent
 
 CSRC = [
     "csrc/nntile_allocator.cpp",
+    "csrc/nntile_tensor_gc.cpp",
+    "csrc/nntile_tensor_meta.cpp",
     "csrc/nntile_kernels.cpp",
     "csrc/nntile_guard.cpp",
     "csrc/nntile_generator.cpp",
@@ -226,7 +232,7 @@ def _nntile_extension_kwargs() -> dict:
 
 ext_kwargs = _nntile_extension_kwargs()
 
-_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.1")
+_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.2")
 _torch_requires = "torch==2.9.1"
 _linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'
 _linux_nvidia_requires = [

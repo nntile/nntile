@@ -25,11 +25,18 @@ class _NntileModelTranspose(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: Tensor, model_ndim: int) -> Tensor:
         ctx.model_ndim = int(model_ndim)
+        ctx.save_for_backward(x)
         return _C.model_transpose_forward(x, int(model_ndim))
 
     @staticmethod
     def backward(ctx, grad_out: Tensor) -> tuple[Tensor, None]:
-        return _C.model_transpose_backward(grad_out, ctx.model_ndim), None
+        x, = ctx.saved_tensors
+        grad_x = _C.model_transpose_backward(
+            grad_out,
+            ctx.model_ndim,
+            x,
+        )
+        return grad_x, None
 
 
 def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:

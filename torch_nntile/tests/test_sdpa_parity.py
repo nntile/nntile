@@ -14,32 +14,13 @@ import torch
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.nn import SDPA, sdpa_eager
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(
-            ncpu=1,
-            ncuda=0,
-            verbose=0,
-            cpu_fallback=False,
-            runtime_mode="eager",
-        )
-    torch_nntile.restrict_cpu()
-    yield
 
 
 def _projection_to_kernel_layout(x: torch.Tensor) -> torch.Tensor:
@@ -113,7 +94,7 @@ def test_sdpa_forward_matches_reference(shape):
     k = k_cpu.to("nntile")
     v = v_cpu.to("nntile")
     out = sdpa_eager(q, k, v, batch_ndim=2)
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
     assert not torch_nntile.has_pending_graph()
 
 
@@ -131,11 +112,15 @@ def test_sdpa_backward_matches_reference(shape):
     k = k_cpu.detach().to("nntile").requires_grad_(True)
     v = v_cpu.detach().to("nntile").requires_grad_(True)
     out = sdpa_eager(q, k, v, batch_ndim=2)
-    out.backward(grad_out.to("nntile"))
+    gq, gk, gv = torch.autograd.grad(
+        out,
+        (q, k, v),
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    assert torch.allclose(q.grad.cpu(), q_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(k.grad.cpu(), k_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(v.grad.cpu(), v_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gq), q_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gk), k_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gv), v_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_sdpa_forward_with_mask_matches_reference():
@@ -158,7 +143,7 @@ def test_sdpa_forward_with_mask_matches_reference():
         mask.to("nntile"),
         batch_ndim=2,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_sdpa_mask_axis_order_matches_causal_layout():
@@ -182,7 +167,7 @@ def test_sdpa_mask_axis_order_matches_causal_layout():
         mask.to("nntile"),
         batch_ndim=2,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
     # Asymmetric pattern: only (query=2, key=3) allowed. Transposed mask must differ.
     mask_sparse = torch.zeros(seq, seq, dtype=torch.bool)
@@ -202,7 +187,7 @@ def test_sdpa_mask_axis_order_matches_causal_layout():
         batch_ndim=2,
     )
     assert not torch.allclose(
-        out_sparse.cpu(), out_transposed_mask.cpu(), rtol=1e-4, atol=1e-4
+        nntile_cpu(out_sparse), nntile_cpu(out_transposed_mask), rtol=1e-4, atol=1e-4
     )
 
 
@@ -234,7 +219,7 @@ def test_sdpa_rejects_cpu_tensors():
         sdpa_eager(q, k, v)
 
 
-def test_sdpa_graph_mode_deferred_until_execute():
+def test_sdpa_deferred_until_execute():
     import subprocess
     import sys
     import textwrap
@@ -259,7 +244,7 @@ def test_sdpa_graph_mode_deferred_until_execute():
         from torch_nntile.nn import sdpa_eager
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 

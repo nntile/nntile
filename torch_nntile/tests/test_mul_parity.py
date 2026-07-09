@@ -9,6 +9,7 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -26,7 +27,7 @@ def test_mul_matches_cpu():
     z = a * b
 
     assert z.device.type == "nntile"
-    assert torch.allclose(z.cpu(), a_cpu * b_cpu)
+    assert torch.allclose(nntile_cpu(z), a_cpu * b_cpu)
 
 
 def test_mul_inplace_matches_cpu():
@@ -38,7 +39,7 @@ def test_mul_inplace_matches_cpu():
     expected = a_cpu * b_cpu
 
     a.mul_(b)
-    assert torch.allclose(a.cpu(), expected)
+    assert torch.allclose(nntile_cpu(a), expected)
 
 
 def test_mul_2d_shape_parity():
@@ -46,7 +47,7 @@ def test_mul_2d_shape_parity():
     a_cpu = torch.randn(shape, dtype=torch.float32)
     b_cpu = torch.randn(shape, dtype=torch.float32)
 
-    z_nntile = (a_cpu.to("nntile") * b_cpu.to("nntile")).cpu()
+    z_nntile = nntile_cpu(a_cpu.to("nntile") * b_cpu.to("nntile"))
     z_cpu = a_cpu * b_cpu
 
     assert torch.allclose(z_nntile, z_cpu, rtol=1e-5, atol=1e-5)

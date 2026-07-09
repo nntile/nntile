@@ -56,14 +56,7 @@ void run_narrow(
 {
     pin_graph_op_inputs({self});
     pin_graph_op_output(out, true);
-    tensor_narrow_fp32(
-        self.data_ptr<float>(),
-        self.sizes(),
-        dim,
-        start,
-        length,
-        out.data_ptr<float>(),
-        out.sizes());
+    tensor_narrow_fp32(self, dim, start, length, out);
 }
 
 } // namespace

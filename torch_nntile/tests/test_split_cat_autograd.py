@@ -13,6 +13,7 @@ import torch
 import pytest
 
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -61,7 +62,7 @@ def test_split_with_sizes_forward_2d():
     parts = torch.split(x_cpu.to("nntile"), [3, 4], dim=1)
     assert len(parts) == 2
     for part, ref in zip(parts, expected, strict=True):
-        assert torch.allclose(part.cpu(), ref, rtol=1e-5, atol=1e-5)
+        assert torch.allclose(nntile_cpu(part), ref, rtol=1e-5, atol=1e-5)
 
 
 def test_chunk_forward():
@@ -71,7 +72,7 @@ def test_chunk_forward():
     parts = torch.chunk(x_cpu.to("nntile"), 3, dim=1)
     assert len(parts) == len(expected)
     for part, ref in zip(parts, expected, strict=True):
-        assert torch.allclose(part.cpu(), ref, rtol=1e-5, atol=1e-5)
+        assert torch.allclose(nntile_cpu(part), ref, rtol=1e-5, atol=1e-5)
 
 
 def test_split_equal_size_forward():
@@ -80,7 +81,7 @@ def test_split_equal_size_forward():
 
     parts = torch.split(x_cpu.to("nntile"), 3, dim=1)
     for part, ref in zip(parts, expected, strict=True):
-        assert torch.allclose(part.cpu(), ref, rtol=1e-5, atol=1e-5)
+        assert torch.allclose(nntile_cpu(part), ref, rtol=1e-5, atol=1e-5)
 
 
 def test_narrow_forward():
@@ -88,7 +89,7 @@ def test_narrow_forward():
     expected = x_cpu.narrow(1, 2, 4)
 
     result = x_cpu.to("nntile").narrow(1, 2, 4)
-    assert torch.allclose(result.cpu(), expected, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(result), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_backward_two_tensors():
@@ -102,8 +103,8 @@ def test_cat_backward_two_tensors():
     y = torch.cat([a, b], dim=1)
     ga, gb = _grad_with_ones(y, (a, b))
 
-    assert torch.allclose(ga.cpu(), ga_cpu, rtol=1e-5, atol=1e-5)
-    assert torch.allclose(gb.cpu(), gb_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(ga), ga_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(gb), gb_cpu, rtol=1e-5, atol=1e-5)
 
 
 def test_cat_backward_many_tensors():
@@ -118,7 +119,7 @@ def test_cat_backward_many_tensors():
     grads = _grad_with_ones(y, tuple(tensors))
 
     for g, ref in zip(grads, grads_cpu, strict=True):
-        assert torch.allclose(g.cpu(), ref, rtol=1e-5, atol=1e-5)
+        assert torch.allclose(nntile_cpu(g), ref, rtol=1e-5, atol=1e-5)
 
 
 def test_split_backward():
@@ -144,7 +145,7 @@ def test_split_backward():
         ),
     )[0]
 
-    assert torch.allclose(gx.cpu(), gx_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(gx), gx_cpu, rtol=1e-5, atol=1e-5)
 
 
 def test_split_cat_roundtrip_backward():
@@ -156,7 +157,7 @@ def test_split_cat_roundtrip_backward():
     y = torch.cat(torch.split(x, [2, 3], dim=1), dim=1)
     gx = _grad_with_ones(y, (x,))[0]
 
-    assert torch.allclose(gx.cpu(), gx_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(gx), gx_cpu, rtol=1e-5, atol=1e-5)
 
 
 def test_chunk_backward():
@@ -179,10 +180,10 @@ def test_chunk_backward():
         grad_outputs=tuple(torch.ones_like(part) for part in parts),
     )[0]
 
-    assert torch.allclose(gx.cpu(), gx_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(gx), gx_cpu, rtol=1e-5, atol=1e-5)
 
 
-def test_split_cat_graph_mode_backward():
+def test_split_cat_backward_subprocess():
     _run_graph_subprocess(
         """
         import torch
@@ -192,7 +193,6 @@ def test_split_cat_graph_mode_backward():
             ncpu=1,
             ncuda=0,
             cpu_fallback=False,
-            runtime_mode="graph",
         )
         torch_nntile.restrict_cpu()
 
@@ -222,7 +222,7 @@ def test_split_cat_graph_mode_backward():
     )
 
 
-def test_cat_backward_graph_mode():
+def test_cat_backward_subprocess():
     _run_graph_subprocess(
         """
         import torch
@@ -232,7 +232,6 @@ def test_cat_backward_graph_mode():
             ncpu=1,
             ncuda=0,
             cpu_fallback=False,
-            runtime_mode="graph",
         )
         torch_nntile.restrict_cpu()
 

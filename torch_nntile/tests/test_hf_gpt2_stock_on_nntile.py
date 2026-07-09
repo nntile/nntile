@@ -17,32 +17,13 @@ from transformers import GPT2Config, GPT2LMHeadModel
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.training import cross_entropy, train_full_batch_step
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(
-            ncpu=1,
-            ncuda=0,
-            verbose=0,
-            cpu_fallback=False,
-            runtime_mode="eager",
-        )
-    torch_nntile.restrict_cpu()
-    yield
 
 
 @pytest.fixture
@@ -76,9 +57,9 @@ def test_hf_gpt2_forward_matches_cpu(tiny_gpt2_config):
     ref, model = _make_stock_models(tiny_gpt2_config)
     input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
-        ref_logits = ref(input_ids.cpu()).logits
+        ref_logits = ref(nntile_cpu(input_ids)).logits
         out = model(input_ids).logits
-    torch.testing.assert_close(out.cpu(), ref_logits, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(nntile_cpu(out), ref_logits, rtol=1e-4, atol=1e-4)
 
 
 def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
@@ -92,21 +73,21 @@ def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
     labels = input_ids.clone()
 
     ref.zero_grad(set_to_none=True)
-    ref_logits = ref(input_ids.cpu()).logits
+    ref_logits = ref(nntile_cpu(input_ids)).logits
     ref_loss = torch.nn.functional.cross_entropy(
         ref_logits.view(-1, tiny_gpt2_config.vocab_size),
-        labels.cpu().view(-1),
+        nntile_cpu(labels).view(-1),
     )
     ref_loss.backward()
 
     model.zero_grad(set_to_none=True)
     logits = model(input_ids).logits
     loss = cross_entropy(logits, labels, reduction="mean")
-    loss.backward()
+    gw_nnt, = torch.autograd.grad(loss, model.transformer.wte.weight)
 
-    torch.testing.assert_close(loss.to("cpu"), ref_loss, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(nntile_cpu(loss), ref_loss, rtol=1e-4, atol=1e-4)
     torch.testing.assert_close(
-        model.transformer.wte.weight.grad.cpu(),
+        nntile_cpu(gw_nnt),
         ref.transformer.wte.weight.grad,
         rtol=1e-3,
         atol=1e-3,

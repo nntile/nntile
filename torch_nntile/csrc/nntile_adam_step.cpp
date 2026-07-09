@@ -8,6 +8,7 @@
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/TensorUtils.h>
 
@@ -66,6 +67,17 @@ void check_adam_step_tensors(
         op_name, " requires contiguous tensors");
 }
 
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+void ensure_optimizer_state_staging(at::Tensor &tensor)
+{
+    if (is_metadata_only_tensor(tensor))
+    {
+        ensure_host_staging(tensor);
+        tensor.zero_();
+    }
+}
+#endif
+
 } // namespace
 
 void adam_step(
@@ -83,7 +95,11 @@ void adam_step(
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adam_step");
     TORCH_CHECK(num_iter >= 1, "nntile adam_step: num_iter must be >= 1");
-    pin_graph_op_inputs({param, grad, first_moment, second_moment});
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    ensure_optimizer_state_staging(first_moment);
+    ensure_optimizer_state_staging(second_moment);
+#endif
+    pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adam_step_fp32(
         num_iter,
         static_cast<float>(beta_1),
@@ -91,11 +107,10 @@ void adam_step(
         static_cast<float>(eps),
         static_cast<float>(lr),
         static_cast<float>(weight_decay),
-        grad.data_ptr<float>(),
-        first_moment.data_ptr<float>(),
-        second_moment.data_ptr<float>(),
-        param.data_ptr<float>(),
-        param.sizes());
+        grad,
+        first_moment,
+        second_moment,
+        param);
 }
 
 void adamw_step(
@@ -113,7 +128,11 @@ void adamw_step(
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adamw_step");
     TORCH_CHECK(num_iter >= 1, "nntile adamw_step: num_iter must be >= 1");
-    pin_graph_op_inputs({param, grad, first_moment, second_moment});
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    ensure_optimizer_state_staging(first_moment);
+    ensure_optimizer_state_staging(second_moment);
+#endif
+    pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adamw_step_fp32(
         num_iter,
         static_cast<float>(beta_1),
@@ -121,11 +140,10 @@ void adamw_step(
         static_cast<float>(eps),
         static_cast<float>(lr),
         static_cast<float>(weight_decay),
-        grad.data_ptr<float>(),
-        first_moment.data_ptr<float>(),
-        second_moment.data_ptr<float>(),
-        param.data_ptr<float>(),
-        param.sizes());
+        grad,
+        first_moment,
+        second_moment,
+        param);
 }
 
 } // namespace torch_nntile

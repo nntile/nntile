@@ -5,11 +5,14 @@
  */
 
 #include "nntile_allocator.h"
+#include "nntile_tensor_gc.h"
 
 #include <c10/core/Allocator.h>
 #include <c10/core/DeviceType.h>
 
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <vector>
 
 namespace torch_nntile
@@ -22,6 +25,16 @@ struct VectorStorage
 {
     std::vector<std::uint8_t> bytes;
 };
+
+
+bool trace_storage_enabled()
+{
+    static const bool enabled = []() {
+        const char *env = std::getenv("TORCH_NNTILE_TRACE_STORAGE");
+        return env != nullptr && env[0] != '\0' && env[0] != '0';
+    }();
+    return enabled;
+}
 
 } // namespace
 
@@ -57,7 +70,18 @@ struct NntileAllocator final : c10::Allocator
 
     static void release_storage(void *ctx)
     {
-        delete static_cast<VectorStorage *>(ctx);
+        auto *storage = static_cast<VectorStorage *>(ctx);
+        void *host_data_ptr = storage->bytes.empty()
+            ? nullptr
+            : static_cast<void *>(storage->bytes.data());
+        if (trace_storage_enabled())
+        {
+            std::cerr << "[torch_nntile storage] release data_ptr="
+                      << host_data_ptr
+                      << " nbytes=" << storage->bytes.size() << '\n';
+        }
+        on_host_storage_released(ctx);
+        delete storage;
     }
 };
 
@@ -67,6 +91,7 @@ c10::Allocator *get_nntile_allocator()
 {
     return &g_nntile_allocator;
 }
+
 
 } // namespace torch_nntile
 

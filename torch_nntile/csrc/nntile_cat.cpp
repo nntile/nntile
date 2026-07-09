@@ -145,24 +145,9 @@ void run_cat(
     int64_t dim,
     at::Tensor &out)
 {
-    std::vector<const float *> input_data;
-    std::vector<c10::IntArrayRef> input_shapes;
-    input_data.reserve(tensors.size());
-    input_shapes.reserve(tensors.size());
-    for (const at::Tensor &tensor : tensors)
-    {
-        input_data.push_back(tensor.data_ptr<float>());
-        input_shapes.push_back(tensor.sizes());
-    }
-
     pin_graph_op_inputs(tensors);
     pin_graph_op_output(out, true);
-    tensor_cat_fp32(
-        input_data,
-        input_shapes,
-        out.data_ptr<float>(),
-        out.sizes(),
-        dim);
+    tensor_cat_fp32(tensors, out, dim);
 }
 
 } // namespace

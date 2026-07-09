@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <ATen/Tensor.h>
 #include <c10/util/ArrayRef.h>
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
@@ -19,16 +20,13 @@ namespace torch_nntile
 {
 
 void tensor_repeat_fp32(
-    const float *input_data,
-    float *out_data,
-    c10::IntArrayRef input_shape,
-    c10::IntArrayRef repeats,
-    c10::IntArrayRef out_shape);
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef repeats);
 
 void tensor_broadcast_scalar_fp32(
-    const float *scalar_data,
-    float *out_data,
-    c10::IntArrayRef out_shape);
+    const at::Tensor &scalar,
+    at::Tensor &out);
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(

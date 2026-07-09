@@ -48,12 +48,8 @@ void run_silu_backward(
     at::Tensor &grad_input)
 {
     pin_graph_op_inputs({self, grad_output});
-    pin_graph_op_output(grad_input, true);
-    tensor_silu_backward_fp32(
-        self.data_ptr<float>(),
-        grad_output.data_ptr<float>(),
-        grad_input.data_ptr<float>(),
-        self.sizes());
+    pin_graph_op_output(grad_input, false);
+    tensor_silu_backward_fp32(self, grad_output, grad_input);
 }
 
 } // namespace

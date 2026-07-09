@@ -6,6 +6,7 @@
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -102,7 +103,10 @@ void check_embedding_backward_inputs(
 
 at::Tensor prepare_indices(const at::Tensor &indices)
 {
-    return indices.is_contiguous() ? indices : indices.contiguous();
+    TORCH_CHECK(
+        indices.is_contiguous(),
+        "nntile embedding: indices must be contiguous");
+    return indices;
 }
 
 std::vector<int64_t> embedding_output_shape(
@@ -129,22 +133,16 @@ at::Tensor embedding(
     const at::Tensor indices_contig = prepare_indices(indices);
     const std::vector<int64_t> out_shape =
         embedding_output_shape(indices_contig.sizes(), weight.size(1));
-    at::Tensor output = at::empty(
+    at::Tensor output = empty_metadata_tensor(
         out_shape,
-        weight.options().memory_format(at::MemoryFormat::Contiguous));
+        weight.scalar_type(),
+        weight.device());
 
     const nntile::Index axis =
         static_cast<nntile::Index>(indices_contig.dim());
     pin_graph_op_inputs({weight, indices_contig});
     pin_graph_op_output(output, true);
-    tensor_embedding_forward_fp32(
-        indices_contig.data_ptr<std::int64_t>(),
-        indices_contig.sizes(),
-        weight.data_ptr<float>(),
-        weight.sizes(),
-        output.data_ptr<float>(),
-        output.sizes(),
-        axis);
+    tensor_embedding_forward_fp32(indices_contig, weight, output, axis);
     return output;
 }
 
@@ -173,12 +171,9 @@ at::Tensor embedding_dense_backward(
     pin_graph_op_inputs({grad_output, indices_contig});
     pin_graph_op_output(grad_weight, false);
     tensor_embedding_backward_fp32(
-        indices_contig.data_ptr<std::int64_t>(),
-        indices_contig.sizes(),
-        grad_output.data_ptr<float>(),
-        grad_output.sizes(),
-        grad_weight.data_ptr<float>(),
-        grad_weight.sizes(),
+        indices_contig,
+        grad_output,
+        grad_weight,
         axis,
         0);
     return grad_weight;

@@ -55,11 +55,11 @@ void run_gemm(const PreparedGemmOperands &prepared, at::Tensor &out)
     pin_graph_op_output(out, true);
     tensor_gemm_fp32(
         prepared.params,
-        prepared.a.data_ptr<float>(),
+        prepared.a,
         prepared.a_gemm_shape,
-        prepared.b.data_ptr<float>(),
+        prepared.b,
         prepared.b_gemm_shape,
-        out.data_ptr<float>(),
+        out,
         prepared.out_shape);
 }
 
@@ -98,9 +98,10 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
     const PreparedGemmOperands forward =
         prepare_gemm_operands(a, b, ndim, batch_ndim);
     const GemmMatrixLayout grad_out_layout = layout_from_nd_contiguous(grad_out);
-    at::Tensor grad_out_prepared = grad_out_layout.needs_copy
-        ? grad_out.contiguous()
-        : grad_out;
+    TORCH_CHECK(
+        !grad_out_layout.needs_copy,
+        "nntile gemm_backward: grad_out must be contiguous");
+    const at::Tensor &grad_out_prepared = grad_out;
 
     at::Tensor grad_a;
     at::Tensor grad_b;
@@ -114,11 +115,11 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         pin_graph_op_output(grad_a, false);
         tensor_gemm_fp32(
             params,
-            grad_out_prepared.data_ptr<float>(),
+            grad_out_prepared,
             grad_out_layout.gemm_shape,
-            forward.b.data_ptr<float>(),
+            forward.b,
             forward.b_gemm_shape,
-            grad_a.data_ptr<float>(),
+            grad_a,
             pytorch_sizes_vector(grad_a.sizes()));
     }
     if (output_mask[1])
@@ -131,11 +132,11 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         pin_graph_op_output(grad_b, false);
         tensor_gemm_fp32(
             params,
-            forward.a.data_ptr<float>(),
+            forward.a,
             forward.a_gemm_shape,
-            grad_out_prepared.data_ptr<float>(),
+            grad_out_prepared,
             grad_out_layout.gemm_shape,
-            grad_b.data_ptr<float>(),
+            grad_b,
             pytorch_sizes_vector(grad_b.sizes()));
     }
     return {grad_a, grad_b};

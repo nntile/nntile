@@ -6,6 +6,7 @@
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/TensorUtils.h>
 
@@ -56,7 +57,7 @@ void check_sgd_step_tensors(
 
 void sgd_step(
     at::Tensor &param,
-    const at::Tensor &grad,
+    at::Tensor &grad,
     at::Tensor &velocity,
     int64_t num_iter,
     double lr,
@@ -67,6 +68,13 @@ void sgd_step(
 {
     check_sgd_step_tensors(param, grad, velocity);
     TORCH_CHECK(num_iter >= 1, "nntile sgd_step: num_iter must be >= 1");
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_metadata_only_tensor(velocity))
+    {
+        ensure_host_staging(velocity);
+        velocity.zero_();
+    }
+#endif
     pin_graph_op_inputs({param, grad, velocity});
     tensor_sgd_step_fp32(
         num_iter,
@@ -75,10 +83,9 @@ void sgd_step(
         static_cast<float>(weight_decay),
         static_cast<float>(dampening),
         nesterov,
-        grad.data_ptr<float>(),
-        velocity.data_ptr<float>(),
-        param.data_ptr<float>(),
-        param.sizes());
+        grad,
+        velocity,
+        param);
 }
 
 } // namespace torch_nntile

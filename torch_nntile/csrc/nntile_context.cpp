@@ -35,7 +35,6 @@ struct ContextConfig
     int logger = 0;
     int verbose = 0;
     bool cpu_fallback = false;
-    RuntimeMode runtime_mode = RuntimeMode::Eager;
 };
 
 std::mutex g_context_mutex;
@@ -72,8 +71,7 @@ void init_context(
     std::size_t ooc_size,
     int logger,
     int verbose,
-    bool cpu_fallback,
-    RuntimeMode runtime_mode)
+    bool cpu_fallback)
 {
     std::lock_guard<std::mutex> lock(g_context_mutex);
     if (g_context != nullptr)
@@ -95,19 +93,7 @@ void init_context(
     g_context_config.logger = logger;
     g_context_config.verbose = verbose;
     g_context_config.cpu_fallback = cpu_fallback;
-    g_context_config.runtime_mode = runtime_mode;
     g_context_config_locked = true;
-}
-
-RuntimeMode get_runtime_mode()
-{
-    std::lock_guard<std::mutex> lock(g_context_mutex);
-    return g_context_config.runtime_mode;
-}
-
-bool is_graph_mode()
-{
-    return get_runtime_mode() == RuntimeMode::Graph;
 }
 
 bool is_cpu_fallback_enabled()
@@ -120,12 +106,6 @@ bool is_context_initialized()
 {
     std::lock_guard<std::mutex> lock(g_context_mutex);
     return g_context != nullptr;
-}
-
-bool is_context_verbose()
-{
-    std::lock_guard<std::mutex> lock(g_context_mutex);
-    return g_context_config.verbose != 0;
 }
 
 void ensure_nntile_context()
@@ -208,20 +188,9 @@ void init_context(
     std::size_t /*ooc_size*/,
     int /*logger*/,
     int /*verbose*/,
-    bool /*cpu_fallback*/,
-    RuntimeMode /*runtime_mode*/)
+    bool /*cpu_fallback*/)
 {
     require_libnntile();
-}
-
-RuntimeMode get_runtime_mode()
-{
-    return RuntimeMode::Eager;
-}
-
-bool is_graph_mode()
-{
-    return false;
 }
 
 bool is_cpu_fallback_enabled()
@@ -230,11 +199,6 @@ bool is_cpu_fallback_enabled()
 }
 
 bool is_context_initialized()
-{
-    return false;
-}
-
-bool is_context_verbose()
 {
     return false;
 }

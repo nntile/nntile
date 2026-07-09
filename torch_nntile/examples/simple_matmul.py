@@ -185,7 +185,6 @@ def main() -> None:
         ncuda=args.ncuda,
         verbose=int(args.verbose),
         cpu_fallback=False,
-        runtime_mode="graph",
     )
     if args.restrict_cuda:
         torch_nntile.restrict_cuda()

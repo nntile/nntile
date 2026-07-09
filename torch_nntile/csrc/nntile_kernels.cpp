@@ -9,6 +9,8 @@
 #include "nntile_executor.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
+#include "nntile_tensor_meta.h"
 
 #include <ATen/EmptyTensor.h>
 #include <ATen/InferSize.h>
@@ -18,6 +20,7 @@
 #include <ATen/native/Resize.h>
 #include <c10/core/DeviceGuard.h>
 #include <c10/core/ScalarType.h>
+#include <c10/core/ScalarTypeToTypeMeta.h>
 #include <torch/library.h>
 #include <torch/version.h>
 
@@ -72,51 +75,6 @@ void memcpy_tensors(const at::Tensor &src, at::Tensor &dst)
         nbytes);
 }
 
-void copy_strided_to_contiguous_f32(
-    const float *src,
-    float *dst,
-    at::IntArrayRef sizes,
-    at::IntArrayRef strides)
-{
-    const int64_t ndim = sizes.size();
-    if (ndim == 0)
-    {
-        return;
-    }
-    std::vector<int64_t> coord(static_cast<size_t>(ndim), 0);
-    int64_t dst_index = 0;
-    const int64_t numel = std::accumulate(
-        sizes.begin(),
-        sizes.end(),
-        int64_t{1},
-        std::multiplies<int64_t>());
-    while (dst_index < numel)
-    {
-        int64_t src_index = 0;
-        for (int64_t d = 0; d < ndim; ++d)
-        {
-            src_index += coord[static_cast<size_t>(d)]
-                * strides[static_cast<size_t>(d)];
-        }
-        dst[dst_index++] = src[src_index];
-        int64_t dim = ndim - 1;
-        while (dim >= 0)
-        {
-            coord[static_cast<size_t>(dim)]++;
-            if (coord[static_cast<size_t>(dim)] < sizes[dim])
-            {
-                break;
-            }
-            coord[static_cast<size_t>(dim)] = 0;
-            --dim;
-        }
-        if (dim < 0)
-        {
-            break;
-        }
-    }
-}
-
 at::Scalar tensor_to_scalar(const at::Tensor &self)
 {
     if (self.scalar_type() == at::ScalarType::Float)
@@ -150,6 +108,17 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
     {
         return;
     }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_metadata_only_tensor(self))
+    {
+        TORCH_CHECK(
+            self.scalar_type() == at::ScalarType::Float,
+            "fill_: metadata-only nntile tensors support float32 in graph mode");
+        pin_graph_op_output(self, true);
+        tensor_fill_fp32(self, value.to<float>());
+        return;
+    }
+#endif
     switch (self.scalar_type())
     {
     case at::ScalarType::Float:
@@ -205,9 +174,92 @@ at::Tensor &fill_scalar(at::Tensor &self, const at::Scalar &value)
     return self;
 }
 
+at::Tensor empty_metadata_tensor(
+    c10::IntArrayRef size,
+    c10::ScalarType dtype,
+    c10::Device device)
+{
+    const c10::DeviceGuard device_guard(device);
+    c10::Allocator *allocator = get_nntile_allocator();
+    c10::DataPtr data_ptr = allocator->allocate(0);
+    auto storage = c10::make_intrusive<c10::StorageImpl>(
+        c10::StorageImpl::use_byte_size_t(),
+        0,
+        std::move(data_ptr),
+        allocator,
+        /*resizable=*/true);
+    at::Tensor tensor = at::detail::make_tensor<at::TensorImpl>(
+        c10::Storage(std::move(storage)),
+        kPrivateUse1DispatchKeySet,
+        c10::scalarTypeToTypeMeta(dtype));
+    tensor.unsafeGetTensorImpl()->set_sizes_contiguous(size);
+    register_metadata_tensor_storage(tensor);
+    return tensor;
+}
+
 at::Tensor &zero_tensor(at::Tensor &self)
 {
     return fill_scalar(self, 0);
+}
+
+at::Tensor ones_like(
+    const at::Tensor &self,
+    std::optional<at::ScalarType> dtype_opt,
+    std::optional<at::Layout> layout_opt,
+    std::optional<at::Device> device_opt,
+    std::optional<bool> pin_memory_opt,
+    std::optional<at::MemoryFormat> memory_format_opt)
+{
+    at::TensorOptions options = self.options();
+    if (dtype_opt.has_value())
+    {
+        options = options.dtype(*dtype_opt);
+    }
+    if (layout_opt.has_value())
+    {
+        options = options.layout(*layout_opt);
+    }
+    if (device_opt.has_value())
+    {
+        options = options.device(*device_opt);
+    }
+    if (pin_memory_opt.has_value())
+    {
+        options = options.pinned_memory(*pin_memory_opt);
+    }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_nntile_device(options.device()))
+    {
+        const c10::ScalarType dtype = dtype_opt.has_value()
+            ? *dtype_opt
+            : self.scalar_type();
+        at::Tensor result = empty_metadata_tensor(
+            self.sizes(),
+            dtype,
+            options.device());
+        fill_scalar(result, 1);
+        return result;
+    }
+#endif
+    at::MemoryFormat format = at::MemoryFormat::Contiguous;
+    if (memory_format_opt.has_value())
+    {
+        const at::MemoryFormat requested = *memory_format_opt;
+        format = requested == at::MemoryFormat::Preserve
+            ? self.suggest_memory_format()
+            : requested;
+    }
+    at::Tensor result = at::empty(
+        self.sizes(),
+        options.memory_format(format));
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_nntile_device(result.device()) && is_metadata_only_tensor(result))
+    {
+        ensure_host_staging(result);
+    }
+#endif
+    result.fill_(1);
+    return result;
 }
 
 at::Tensor empty_memory_format(
@@ -227,12 +279,12 @@ at::Tensor empty_memory_format(
         !c10::pinned_memory_or_default(pin_memory_opt),
         "Pin memory is CPU-only");
     const c10::DeviceGuard device_guard(device);
-    return at::detail::empty_generic(
-        size,
-        get_nntile_allocator(),
-        kPrivateUse1DispatchKeySet,
-        c10::dtype_or_default(dtype_opt),
-        memory_format_opt);
+    const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
+    at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    ensure_host_staging(tensor);
+#endif
+    return tensor;
 }
 
 at::Tensor empty_strided(
@@ -252,12 +304,12 @@ at::Tensor empty_strided(
         !c10::pinned_memory_or_default(pin_memory_opt),
         "Pin memory is CPU-only");
     const c10::DeviceGuard device_guard(device);
-    return at::detail::empty_strided_generic(
-        size,
-        stride,
-        get_nntile_allocator(),
-        kPrivateUse1DispatchKeySet,
-        c10::dtype_or_default(dtype_opt));
+    const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
+    at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    ensure_host_staging(tensor);
+#endif
+    return tensor;
 }
 
 at::Tensor as_strided(
@@ -276,6 +328,12 @@ at::Tensor as_strided(
     auto *result_impl = result.unsafeGetTensorImpl();
     result_impl->set_storage_offset(storage_offset_value);
     result_impl->set_sizes_and_strides(size, stride);
+    TORCH_CHECK(
+        result.is_contiguous(),
+        "as_strided: non-contiguous layout is not supported on nntile");
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    record_view_alias(self, result);
+#endif
     return result;
 }
 
@@ -346,31 +404,58 @@ at::Tensor copy_from(
     bool /*non_blocking*/)
 {
     check_copy_devices(self, dst);
-    if (is_nntile_device(self.device()) && dst.is_cpu())
-    {
-        if (is_graph_mode())
-        {
-            if (has_pending_graph())
-            {
-                require_no_pending_graph(
-                    "copy nntile tensor to CPU (call torch_nntile.compile_graph() "
-                    "and torch_nntile.run() first)");
-            }
-            if (has_graph_session())
-            {
-                wait_for_all();
-                sync_runtime_to_nntile_storage(
-                    self.storage().data_ptr().get());
-            }
-        }
-        else
-        {
-            require_no_pending_graph(
-                "copy nntile tensor to CPU");
-        }
-    }
     at::Tensor mutable_dst = dst;
-    memcpy_tensors(self, mutable_dst);
+    if (dst.is_cpu() && is_nntile_device(self.device()))
+    {
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        if (has_graph_session())
+        {
+            wait_for_all();
+            copy_nntile_tensor_to_cpu(self, mutable_dst);
+            return dst;
+        }
+#endif
+    }
+    if (is_nntile_device(mutable_dst.device()) && self.is_cpu())
+    {
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        init_nntile_input_from_cpu(self, mutable_dst);
+        return dst;
+#else
+        ensure_host_staging(mutable_dst);
+#endif
+    }
+    else if (
+        is_nntile_device(self.device()) &&
+        is_nntile_device(mutable_dst.device()))
+    {
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        NodeRef src_binding = nntile_binding(self);
+        if (src_binding != nullptr &&
+            self.sizes() == mutable_dst.sizes() &&
+            self.scalar_type() == mutable_dst.scalar_type())
+        {
+            attach_binding(mutable_dst, src_binding);
+            return dst;
+        }
+        TORCH_CHECK(
+            false,
+            "nntile-to-nntile copy between distinct metadata-only tensors "
+            "is unsupported");
+#else
+        if (!has_host_staging(mutable_dst) && self.nbytes() > 0)
+        {
+            ensure_host_staging(mutable_dst);
+        }
+        memcpy_tensors(self, mutable_dst);
+#endif
+    }
+#ifndef TORCH_NNTILE_USE_LIBNNTILE
+    if (has_host_staging(self) || has_host_staging(mutable_dst))
+    {
+        memcpy_tensors(self, mutable_dst);
+    }
+#endif
     return dst;
 }
 
@@ -393,6 +478,12 @@ at::Scalar local_scalar_dense(const at::Tensor &self)
         "read a scalar from an nntile tensor "
         "(call torch_nntile.compile_graph() and torch_nntile.run() first)");
     wait_for_all();
+    if (is_metadata_only_tensor(self))
+    {
+        at::Tensor cpu_scalar = at::empty({}, self.options().device(at::kCPU));
+        copy_nntile_tensor_to_cpu(self, cpu_scalar);
+        return tensor_to_scalar(cpu_scalar);
+    }
     return tensor_to_scalar(self);
 }
 
@@ -480,18 +571,13 @@ at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
     {
         return result;
     }
-    const float *src = self.data_ptr<float>();
-    float *dst = result.data_ptr<float>();
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
-    if (is_graph_mode())
-    {
-        pin_graph_op_inputs({self});
-        pin_graph_op_output(result, true);
-        tensor_swap_two_axes_fp32(src, self.sizes(), dst, dim0, dim1);
-        return result;
-    }
+    pin_graph_op_inputs({self});
+    pin_graph_op_output(result, true);
+    tensor_swap_two_axes_fp32(self, result, dim0, dim1);
+    return result;
 #endif
-    tensor_swap_two_axes_fp32(src, self.sizes(), dst, dim0, dim1);
+    tensor_swap_two_axes_fp32(self, result, dim0, dim1);
     return result;
 }
 
@@ -529,6 +615,10 @@ at::Tensor permute(const at::Tensor &self, at::IntArrayRef dims)
         self,
         c10::IntArrayRef(sizes),
         c10::IntArrayRef(strides));
+    TORCH_CHECK(
+        result.is_contiguous(),
+        "permute: non-contiguous layout is not supported on nntile; "
+        "use transpose for axis swaps");
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
     record_view_alias(self, result);
 #endif
@@ -547,34 +637,11 @@ at::Tensor contiguous(
     {
         return self;
     }
-    at::Tensor result = at::empty(
-        self.sizes(),
-        self.options().memory_format(memory_format));
     TORCH_CHECK(
-        self.scalar_type() == at::ScalarType::Float,
-        "nntile contiguous supports float32 only");
-    const int64_t numel = self.numel();
-    if (numel == 0)
-    {
-        return result;
-    }
-    const float *src = self.data_ptr<float>();
-    float *dst = result.data_ptr<float>();
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-    if (is_graph_mode())
-    {
-        pin_graph_op_inputs({self});
-        pin_graph_op_output(result, true);
-        tensor_contiguous_fp32(src, dst, self.sizes());
-        return result;
-    }
-#endif
-    copy_strided_to_contiguous_f32(
-        src,
-        dst,
-        self.sizes(),
-        self.strides());
-    return result;
+        false,
+        "aten::contiguous is not supported on device=nntile; ensure tensors are "
+        "contiguous before .to('nntile') or use graph layout ops "
+        "(transpose, model_transpose, repeat, view)");
 }
 
 at::Tensor contiguous_autograd(
@@ -627,6 +694,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("_local_scalar_dense", TORCH_FN(torch_nntile::local_scalar_dense));
     m.impl("fill_.Scalar", TORCH_FN(torch_nntile::fill_scalar));
     m.impl("zero_", TORCH_FN(torch_nntile::zero_tensor));
+    m.impl("ones_like", TORCH_FN(torch_nntile::ones_like));
     m.impl("set_.source_Tensor", TORCH_FN(torch_nntile::set_source_tensor));
     m.impl("set_.source_Storage", TORCH_FN(torch_nntile::set_source_storage));
     m.impl(

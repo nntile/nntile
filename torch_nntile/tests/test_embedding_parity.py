@@ -16,6 +16,7 @@ import torch.nn.functional as F
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
@@ -62,7 +63,7 @@ def test_embedding_forward_matches_cpu(index_shape):
     weight_nnt = weight_cpu.detach().to("nntile")
     out_nnt = F.embedding(indices.to("nntile"), weight_nnt)
 
-    assert torch.allclose(out_nnt.detach().cpu(), out_cpu, rtol=1e-5, atol=1e-5)
+    assert torch.allclose(nntile_cpu(out_nnt.detach()), out_cpu, rtol=1e-5, atol=1e-5)
 
 
 def test_embedding_backward_matches_cpu():
@@ -78,15 +79,15 @@ def test_embedding_backward_matches_cpu():
     out_cpu.sum().backward()
     grad_cpu = weight_cpu.weight.grad.detach().clone()
 
-    weight_nnt = nn.Embedding(num_embeddings, embed_dim).to("nntile")
-    with torch.no_grad():
-        weight_nnt.weight.copy_(weight_cpu.weight.detach())
+    weight_nnt = nn.Embedding(num_embeddings, embed_dim)
+    weight_nnt.load_state_dict(weight_cpu.state_dict())
+    weight_nnt = weight_nnt.to("nntile")
     weight_nnt.weight.requires_grad_(True)
 
     out_nnt = weight_nnt(indices.to("nntile"))
-    grad_out = torch.ones_like(out_cpu).to("nntile")
+    grad_out = torch.ones_like(out_nnt)
     torch.autograd.backward([out_nnt], [grad_out])
-    grad_nnt = weight_nnt.weight.grad.cpu()
+    grad_nnt = nntile_cpu(weight_nnt.weight.grad)
 
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-5, atol=1e-5)
 
@@ -104,15 +105,15 @@ def test_embedding_duplicate_indices():
     out_cpu.sum().backward()
     grad_cpu = weight_cpu.weight.grad.detach().clone()
 
-    weight_nnt = nn.Embedding(num_embeddings, embed_dim).to("nntile")
-    with torch.no_grad():
-        weight_nnt.weight.copy_(weight_cpu.weight.detach())
+    weight_nnt = nn.Embedding(num_embeddings, embed_dim)
+    weight_nnt.load_state_dict(weight_cpu.state_dict())
+    weight_nnt = weight_nnt.to("nntile")
     weight_nnt.weight.requires_grad_(True)
 
     out_nnt = weight_nnt(indices.to("nntile"))
-    grad_out = torch.ones_like(out_cpu).to("nntile")
+    grad_out = torch.ones_like(out_nnt)
     torch.autograd.backward([out_nnt], [grad_out])
-    grad_nnt = weight_nnt.weight.grad.cpu()
+    grad_nnt = nntile_cpu(weight_nnt.weight.grad)
 
     assert torch.allclose(grad_nnt, grad_cpu, rtol=1e-5, atol=1e-5)
 
@@ -130,7 +131,7 @@ def test_embedding_rejects_cpu_indices():
         F.embedding(indices, weight_nnt)
 
 
-def test_embedding_graph_mode():
+def test_embedding_deferred_until_compile():
     _run_graph_subprocess(
         """
         import torch
@@ -139,7 +140,7 @@ def test_embedding_graph_mode():
 
         torch.manual_seed(4)
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 

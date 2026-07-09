@@ -30,11 +30,11 @@ void run_mm_backward_grad_a(
     pin_graph_op_output(grad_a, false);
     tensor_gemm_fp32(
         params,
-        prepared.a.data_ptr<float>(),
+        prepared.a,
         prepared.a_gemm_shape,
-        prepared.b.data_ptr<float>(),
+        prepared.b,
         prepared.b_gemm_shape,
-        grad_a.data_ptr<float>(),
+        grad_a,
         pytorch_sizes_vector(grad_a.sizes()));
 }
 
@@ -50,11 +50,11 @@ void run_mm_backward_grad_b(
     pin_graph_op_output(grad_b, false);
     tensor_gemm_fp32(
         params,
-        prepared.a.data_ptr<float>(),
+        prepared.a,
         prepared.a_gemm_shape,
-        prepared.b.data_ptr<float>(),
+        prepared.b,
         prepared.b_gemm_shape,
-        grad_b.data_ptr<float>(),
+        grad_b,
         pytorch_sizes_vector(grad_b.sizes()));
 }
 

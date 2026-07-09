@@ -11,6 +11,7 @@ import torch
 
 from torch_nntile import _C
 from torch_nntile.gemm import gemm
+from conftest import nntile_cpu
 
 pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
@@ -28,7 +29,6 @@ def _init_nntile():
             ncuda=0,
             verbose=0,
             cpu_fallback=False,
-            runtime_mode="eager",
         )
     torch_nntile.restrict_cpu()
     yield
@@ -67,7 +67,7 @@ def test_gemm_qkv_projection_shape():
     out = gemm(x_n, w_n, ndim=1, batch_ndim=0)
     assert out.shape == (bsz, seq, hs, n_heads)
     ref = _cpu_ref_gemm(x, w, ndim=1, batch_ndim=0)
-    assert torch.allclose(out.cpu(), ref, atol=1e-5, rtol=1e-5)
+    assert torch.allclose(nntile_cpu(out), ref, atol=1e-5, rtol=1e-5)
 
 
 def test_gemm_output_projection_shape():
@@ -79,7 +79,7 @@ def test_gemm_output_projection_shape():
     out = gemm(attn_n, w_o_n, ndim=2, batch_ndim=0)
     assert out.shape == (bsz, seq, hidden)
     ref = _cpu_ref_gemm(attn, w_o, ndim=2, batch_ndim=0)
-    assert torch.allclose(out.cpu(), ref, atol=1e-5, rtol=1e-5)
+    assert torch.allclose(nntile_cpu(out), ref, atol=1e-5, rtol=1e-5)
 
 
 def test_matmul_inferred_qkv():
@@ -89,7 +89,7 @@ def test_matmul_inferred_qkv():
     out = torch.matmul(x.to("nntile"), w.to("nntile"))
     assert out.shape == (bsz, seq, hs, n_heads)
     ref = _cpu_ref_gemm(x, w, ndim=1, batch_ndim=0)
-    assert torch.allclose(out.cpu(), ref, atol=1e-5, rtol=1e-5)
+    assert torch.allclose(nntile_cpu(out), ref, atol=1e-5, rtol=1e-5)
 
 
 def test_gemm_qkv_backward():
@@ -99,15 +99,18 @@ def test_gemm_qkv_backward():
     x_n = x.detach().to("nntile").requires_grad_(True)
     w_n = w.detach().to("nntile").requires_grad_(True)
     out = gemm(x_n, w_n, ndim=1, batch_ndim=0)
-    grad_out = torch.randn_like(out.cpu()).to("nntile")
+    grad_cpu = torch.randn_like(
+        _cpu_ref_gemm(x, w, ndim=1, batch_ndim=0)
+    )
+    grad_out = grad_cpu.to("nntile")
     out.backward(grad_out)
     ref_out = _cpu_ref_gemm(x, w, ndim=1, batch_ndim=0)
-    ref_out.backward(grad_out.cpu())
-    assert torch.allclose(x_n.grad.cpu(), x.grad, atol=1e-4, rtol=1e-4)
-    assert torch.allclose(w_n.grad.cpu(), w.grad, atol=1e-4, rtol=1e-4)
+    ref_out.backward(grad_cpu)
+    assert torch.allclose(nntile_cpu(x_n.grad), x.grad, atol=1e-4, rtol=1e-4)
+    assert torch.allclose(nntile_cpu(w_n.grad), w.grad, atol=1e-4, rtol=1e-4)
 
 
-def test_gemm_graph_mode_no_view():
+def test_gemm_no_view():
     import subprocess
     import sys
     import textwrap
@@ -122,7 +125,7 @@ def test_gemm_graph_mode_no_view():
         from torch_nntile.gemm import gemm
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
         bsz, seq, hidden, hs, n_heads = 2, 4, 32, 8, 4

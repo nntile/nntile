@@ -2,7 +2,7 @@
 
 PyTorch **PrivateUse1** device registered as `device="nntile"`.
 
-## Prebuilt wheels (0.0.1)
+## Prebuilt wheels (0.0.2)
 
 Wheels are built in CI, not published to PyPI. Install from a downloaded
 `.whl` file after installing the matching `torch` build.
@@ -65,7 +65,7 @@ dependencies on Linux x86_64), not from the wheel itself.
 
 ```bash
 pip install torch==2.9.1
-pip install /path/to/torch_nntile-0.0.1-cp312-cp312-manylinux_2_28_x86_64.whl
+pip install /path/to/torch_nntile-0.0.2-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
 `pip install` of the wheel pulls the NVIDIA packages on Linux automatically.
@@ -84,7 +84,7 @@ The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing),
 
 ```bash
 pip install torch==2.9.1
-pip install /path/to/torch_nntile-0.0.1-cp312-cp312-macosx_14_0_arm64.whl
+pip install /path/to/torch_nntile-0.0.2-cp312-cp312-macosx_14_0_arm64.whl
 ```
 
 StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
@@ -106,10 +106,14 @@ run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 **HuggingFace compatibility (v1):** Standard eager HF modules can use ordinary
 PyTorch tensor ops on `device="nntile"` when the forward path sticks to
 supported ATen ops — notably `view`, materialized `transpose(dim0, dim1)` /
-`.t()`, `contiguous`, and `matmul`. `aten::transpose.int` maps to
-`tensor::swap_two_axes` (2-axis swap, not a stride alias). `aten::permute`
-stays view-only in v1. Cyclic `model_transpose` remains a separate custom API
-for NNTile-layout SDPA.
+`.t()`, and `matmul`. `Tensor.contiguous()` is **not** supported on
+`device=nntile`; ensure layout on CPU before `.to("nntile")` or use graph layout
+ops (`repeat`, `model_transpose`, `view`). `aten::transpose.int` maps to
+`tensor::swap_two_axes` (2-axis swap, not a stride alias). `aten::permute` shares
+`NodeRef` when the permutation preserves C-contiguity; otherwise it errors. At the
+TensorGraph level, same-numel PyTorch shape changes may use a `contiguous_view`
+**bridge** (reshape is realized at tile/core lowering). Cyclic `model_transpose`
+remains a separate custom API for NNTile-layout SDPA.
 
 | PyTorch op | libnntile |
 |------------|-----------|
@@ -117,7 +121,7 @@ for NNTile-layout SDPA.
 | `torch.cat` | `tensor::concat` |
 | `torch.cat` backward | `tensor::copy_intersection` (via `aten::narrow`) |
 | `tensor.transpose` / `Tensor.t()` | `tensor::swap_two_axes` (2-axis swap; HF attention layouts) |
-| `tensor.contiguous` | `tensor::copy` (materialize strided tensors) |
+| `tensor.contiguous` | **unsupported** (check-only policy; noop when already contiguous) |
 | `torch.split` / `torch.chunk` | `tensor::copy_intersection` |
 | `torch.split` backward | `tensor::concat` (PyTorch `SplitWithSizesBackward`) |
 | `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |
@@ -125,6 +129,7 @@ for NNTile-layout SDPA.
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
 | `F.layer_norm` / `nn.LayerNorm` | `native_layer_norm` / `native_layer_norm_backward` |
 | `F.rms_norm` / `nn.RMSNorm` | custom autograd + `rms_norm_forward` / `rms_norm_backward` |
+| `torch.linalg.vector_norm` (ord=2) | forward only via `norm_forward`; errors if `requires_grad` and grad mode is on; use under `torch.no_grad()` |
 | `F.silu` / `nn.SiLU` | `tensor::silu` |
 | SiLU in-place (`silu_`) | `tensor::silu_inplace` |
 | SiLU backward | `tensor::silu_backward` (+ `tensor::clear` on output) |
@@ -164,8 +169,8 @@ on `device="nntile"` (use `.to("nntile")` explicitly).
   `F.scaled_dot_product_attention`, transposes back. Optional BOOL mask `[q_seq, k_seq]`
   on `device="nntile"` (dim0 = query, dim1 = key).
 
-Works in both eager and graph runtime modes (graph defers execution until
-``compile_graph()`` / ``run()`` or ``execute()``). Use
+Ops record into a shared ``TensorGraph``; flush with ``compile_graph()`` /
+``run()`` (or legacy ``execute()``) before host readout. Use
 `torch_nntile.nn.weight_layout` to convert HF/PyTorch attention weights before
 NNTile-layout projection GEMMs.
 
@@ -208,35 +213,57 @@ torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
 When `cpu_fallback=False`, unsupported ATen ops raise instead of running on CPU.
 Use this to verify that a model forward uses only nntile kernels.
 
-### Runtime mode: eager vs graph
+### TensorGraph execution
+
+All ops record into a shared ``TensorGraph``. Flush with ``compile_graph()`` and
+``run()`` (or the legacy one-shot ``execute()``) before relying on tile side
+effects other than host readout.
 
 ```python
-# Default: each op records a TensorGraph slice and runs it immediately.
 torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
-
-# Deferred: ops append to one shared TensorGraph until you flush.
-torch_nntile.init_context(
-    ncpu=1, ncuda=0, cpu_fallback=False, runtime_mode="graph"
-)
 y = model(x)              # recorded, not executed yet
 loss.backward()           # backward ops recorded too
 torch_nntile.compile_graph()
 torch_nntile.run()
-z = y.to("cpu")           # host readout after run
+z = y.to("cpu")           # host readout (also auto-flushes if still pending)
 ```
 
-In graph mode, forward and backward can stay in one pending graph (StarPU
-resolves dependencies). Call ``torch_nntile.compile_graph()`` then
-``torch_nntile.run()`` each step. Host reads from **nntile** tensors use
-``.to("cpu")`` or ``.cpu()`` after ``run()`` (data is synced from tile memory).
-Copies **to** ``device="nntile"`` move host storage into tiles via ``.to()``;
-there is no ``bind_data`` in torch_nntile. Training helpers such as
-``train_full_batch_step`` call ``compile_graph()`` + ``run()`` in graph mode
-and return ``loss.to("cpu").item()``.
+Forward and backward stay in one pending graph (StarPU resolves dependencies).
+Call ``torch_nntile.compile_graph()`` then ``torch_nntile.run()`` each step when
+you want an explicit compile boundary. Training helpers such as
+``train_full_batch_step`` call ``compile_graph()`` + ``run()`` and return
+``loss.to("cpu").item()``.
+
+**`.cpu()` / `.to("cpu")` auto-flush (by design):** host readout of a nntile
+tensor compiles and runs any still-pending ops, then records and runs
+`gather(L→S)` into an ephemeral staging node. You do not need a prior
+``compile_graph()``/``run()`` for correctness, but each readout permanently
+appends gather nodes to the session graph (see debt D1 in
+[torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)).
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 
-### Axis-group naming and tiling (graph mode)
+### Memory and tensor lifetime
+
+Architecture reference:
+[docs/dev/torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md).
+
+- Every ``device=nntile`` tensor uses **0-byte** ``Storage``. Payload lives in
+  StarPU tiles behind ``NodeRef`` → ``NNTileBinding { logical L }``.
+- **Staging ``S`` is ephemeral** (not stored in the binding): created for each
+  ``.to("nntile")`` scatter or ``.cpu()`` gather, then invalidated after run.
+- Ingress is **one-shot** per tensor via ``.to("nntile")``; CPU→bound-nntile
+  copy raises.
+- **Views / reshape / contiguous-preserving permute** share ``NodeRef`` (no
+  data copy). **nntile→nntile ``copy_``** with matching shape/dtype also
+  **aliases** ``NodeRef`` (no tile copy).
+- ``Tensor.contiguous()`` is unsupported on non-contiguous nntile tensors.
+- During ``run()``, intermediate StarPU tile buffers may be released after
+  their last consumer when not marked as inputs/outputs.
+- **Reduce footprint:** ``del`` temporaries before ``compile_graph()`` in
+  training loops when you want fewer live output marks.
+
+### Axis-group naming and tiling
 
 Full reference: [docs/torch_nntile.md](../docs/torch_nntile.md).
 
@@ -253,7 +280,7 @@ then set tile sizes by group name before ``compile_graph()``.
 
 ```python
 torch_nntile.init_context(
-    ncpu=4, ncuda=0, cpu_fallback=False, runtime_mode="graph"
+    ncpu=4, ncuda=0, cpu_fallback=False
 )
 x = torch.randn(4, 128).to("nntile")
 torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})

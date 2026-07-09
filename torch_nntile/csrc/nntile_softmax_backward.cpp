@@ -61,10 +61,9 @@ void run_softmax_backward(
     pin_graph_op_inputs({output, grad_output});
     pin_graph_op_output(grad_input, true);
     tensor_softmax_backward_fp32(
-        grad_output.data_ptr<float>(),
-        output.data_ptr<float>(),
-        grad_input.data_ptr<float>(),
-        output.sizes(),
+        grad_output,
+        output,
+        grad_input,
         wrapped_dim);
 }
 

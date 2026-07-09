@@ -111,15 +111,14 @@ std::tuple<at::Tensor, at::Tensor> rms_norm_forward(
         inputs.push_back(*weight);
     }
     pin_graph_op_inputs(inputs);
-    pin_graph_op_output(output, true);
-    pin_graph_op_output(rstd, true);
+    pin_graph_op_output(output, false);
+    pin_graph_op_output(rstd, false);
     tensor_rms_norm_forward_fp32(
-        input.data_ptr<float>(),
-        input.sizes(),
-        weight.has_value() ? weight->data_ptr<float>() : nullptr,
+        input,
+        weight.has_value() ? &*weight : nullptr,
         weight.has_value(),
-        output.data_ptr<float>(),
-        rstd.data_ptr<float>(),
+        output,
+        rstd,
         norm_axis,
         resolve_eps(eps));
     return {output, rstd};
@@ -165,18 +164,15 @@ std::tuple<at::Tensor, at::Tensor> rms_norm_backward(
     }
 
     tensor_rms_norm_backward_fp32(
-        grad_out.data_ptr<float>(),
-        input.data_ptr<float>(),
-        rstd_reduced.data_ptr<float>(),
-        weight.has_value() ? weight->data_ptr<float>() : nullptr,
+        grad_out,
+        input,
+        rstd_reduced,
+        weight.has_value() ? &*weight : nullptr,
         weight.has_value(),
-        output_mask[0] ? grad_input.data_ptr<float>() : nullptr,
-        output_mask[1] && weight.has_value() ?
-            grad_weight.data_ptr<float>() :
-            nullptr,
+        output_mask[0] ? &grad_input : nullptr,
+        output_mask[1] && weight.has_value() ? &grad_weight : nullptr,
         output_mask[0],
         output_mask[1] && weight.has_value(),
-        input.sizes(),
         norm_axis);
 
     return {grad_input, grad_weight};

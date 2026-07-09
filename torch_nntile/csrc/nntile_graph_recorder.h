@@ -6,10 +6,17 @@
 
 #pragma once
 
+#include "nntile_tensor_gc.h"
+
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+namespace at
+{
+class Tensor;
+}
 
 namespace torch_nntile
 {
@@ -30,16 +37,13 @@ void shutdown_recorder();
 
 bool has_graph_session();
 
-void sync_nntile_storage_to_runtime(void *data_ptr);
-
-void sync_runtime_to_nntile_storage(void *data_ptr);
-
-void maybe_execute_after_record();
-
 void set_axis_group_name(
-    void *data_ptr,
-    int ndim,
+    const at::Tensor &tensor,
     const std::unordered_map<int, std::string> &names);
+
+bool is_tensor_graph_output(const at::Tensor &tensor);
+
+void stage_tensor_for_axis_group_compile(const at::Tensor &tensor);
 
 void set_axis_group_tiling(
     const std::string &name,
@@ -48,5 +52,7 @@ void set_axis_group_tiling(
 std::string format_axis_groups();
 
 void print_axis_groups();
+
+void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 
 } // namespace torch_nntile

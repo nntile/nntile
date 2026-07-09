@@ -9,11 +9,17 @@
 
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_context.h"
+#include "nntile_tensor_gc.h"
+
+#include <stdexcept>
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
+#include <ATen/Tensor.h>
 #include <nntile/tensor/ops/scale_slice.hh>
 #include <nntile/tensor/ops/clear.hh>
+#include <nntile/tensor/ops/copy.hh>
 
 #include <cstring>
 #include <stdexcept>
@@ -85,7 +91,6 @@ nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
                 dst_shape.begin() + static_cast<std::ptrdiff_t>(dim) + 1);
             dst_node = graph.data(partial_shape, src->dtype())
                            ->set_name("broadcast_scale_slice");
-            track_graph_node(dst_node);
         }
         nntile::tensor::scale_slice(
             static_cast<nntile::Scalar>(1.0),
@@ -103,7 +108,7 @@ nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
     const std::vector<nntile::Index> &repeats,
     nntile::TensorGraph &graph,
     nntile::DataType dtype,
-    void *out_data_ptr,
+    const at::Tensor &out,
     const std::vector<nntile::Index> &out_shape,
     std::vector<nntile::Index> &graph_shape_out)
 {
@@ -156,7 +161,7 @@ nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
         if (is_last)
         {
             dst_node = get_or_create_data_node(
-                out_data_ptr,
+                out,
                 next_graph_shape,
                 dtype,
                 false);
@@ -166,7 +171,6 @@ nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
         {
             dst_node = graph.data(next_graph_shape, dtype)
                            ->set_name("repeat_scale_slice");
-            track_graph_node(dst_node);
         }
 
         nntile::tensor::scale_slice(
@@ -196,21 +200,19 @@ nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
 }
 
 void tensor_repeat_fp32(
-    const float *input_data,
-    float *out_data,
-    c10::IntArrayRef input_shape,
-    c10::IntArrayRef repeats,
-    c10::IntArrayRef out_shape)
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef repeats)
 {
     const std::vector<nntile::Index> input_graph =
-        pytorch_shape_to_graph(input_shape);
+        pytorch_shape_to_graph(input.sizes());
     const std::vector<nntile::Index> repeats_graph =
         pytorch_shape_to_graph(repeats);
     const std::vector<nntile::Index> out_graph =
-        pytorch_shape_to_graph(out_shape);
+        pytorch_shape_to_graph(out.sizes());
 
     auto *src_node = get_or_create_data_node(
-        const_cast<float *>(input_data),
+        input,
         input_graph,
         nntile::DataType::FP32,
         true);
@@ -222,54 +224,49 @@ void tensor_repeat_fp32(
         repeats_graph,
         *src_node->graph(),
         nntile::DataType::FP32,
-        out_data,
+        out,
         out_graph,
         graph_shape);
 
     if (out_node == src_node)
     {
-        std::size_t count = 1;
-        for (const nntile::Index dim : out_graph)
-        {
-            count *= static_cast<std::size_t>(dim);
-        }
-        if (count > 0)
-        {
-            std::memcpy(
-                out_data,
-                input_data,
-                count * sizeof(float));
-        }
+        register_data_node(out, src_node);
         return;
     }
 
-    register_data_node(out_data, out_node);
-    maybe_execute_after_record();
+    register_data_node(out, out_node);
 }
 
 void tensor_broadcast_scalar_fp32(
-    const float *scalar_data,
-    float *out_data,
-    c10::IntArrayRef out_shape)
+    const at::Tensor &scalar,
+    at::Tensor &out)
 {
     const std::vector<nntile::Index> dst_graph =
-        pytorch_shape_to_graph(out_shape);
+        pytorch_shape_to_graph(out.sizes());
     if (dst_graph.empty())
     {
-        if (out_data != scalar_data)
-        {
-            std::memcpy(out_data, scalar_data, sizeof(float));
-        }
+        auto *src_node = get_or_create_data_node(
+            scalar,
+            std::vector<nntile::Index>{},
+            nntile::DataType::FP32,
+            true);
+        auto *dst_node = get_or_create_data_node(
+            out,
+            dst_graph,
+            nntile::DataType::FP32,
+            false);
+        nntile::tensor::copy(src_node, dst_node);
+        register_data_node(out, dst_node);
         return;
     }
 
     auto *src_node = get_or_create_data_node(
-        const_cast<float *>(scalar_data),
+        scalar,
         std::vector<nntile::Index>{},
         nntile::DataType::FP32,
         true);
     auto *dst_node = get_or_create_data_node(
-        out_data,
+        out,
         dst_graph,
         nntile::DataType::FP32,
         false);
@@ -279,8 +276,7 @@ void tensor_broadcast_scalar_fp32(
         dst_node,
         *src_node->graph(),
         dst_graph);
-    register_data_node(out_data, dst_node);
-    maybe_execute_after_record();
+    register_data_node(out, dst_node);
 }
 
 } // namespace torch_nntile
@@ -291,19 +287,16 @@ namespace torch_nntile
 {
 
 void tensor_repeat_fp32(
-    const float * /*input_data*/,
-    float * /*out_data*/,
-    c10::IntArrayRef /*input_shape*/,
-    c10::IntArrayRef /*repeats*/,
-    c10::IntArrayRef /*out_shape*/)
+    const at::Tensor & /*input*/,
+    at::Tensor & /*out*/,
+    c10::IntArrayRef /*repeats*/)
 {
     throw std::runtime_error("tensor_repeat_fp32 requires libnntile");
 }
 
 void tensor_broadcast_scalar_fp32(
-    const float * /*scalar_data*/,
-    float * /*out_data*/,
-    c10::IntArrayRef /*out_shape*/)
+    const at::Tensor & /*scalar*/,
+    at::Tensor & /*out*/)
 {
     throw std::runtime_error(
         "tensor_broadcast_scalar_fp32 requires libnntile");

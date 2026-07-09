@@ -67,12 +67,7 @@ void run_repeat(const at::Tensor &self, at::Tensor &out, c10::IntArrayRef repeat
 {
     pin_graph_op_inputs({self});
     pin_graph_op_output(out, true);
-    tensor_repeat_fp32(
-        self.data_ptr<float>(),
-        out.data_ptr<float>(),
-        self.sizes(),
-        repeats,
-        out.sizes());
+    tensor_repeat_fp32(self, out, repeats);
 }
 
 } // namespace

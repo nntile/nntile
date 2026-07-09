@@ -16,6 +16,7 @@ from transformers import GPT2Config, GPT2LMHeadModel
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
 from torch_nntile.models.gpt2_minimal import (
     GPT2Attention,
@@ -31,26 +32,6 @@ pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(
-            ncpu=1,
-            ncuda=0,
-            verbose=0,
-            cpu_fallback=False,
-            runtime_mode="eager",
-        )
-    torch_nntile.restrict_cpu()
-    yield
 
 
 @pytest.fixture
@@ -89,7 +70,7 @@ def _assert_close(
     rtol: float = 1e-4,
     atol: float = 1e-4,
 ) -> None:
-    torch.testing.assert_close(got.cpu(), ref.cpu(), rtol=rtol, atol=atol)
+    torch.testing.assert_close(nntile_cpu(got), ref.cpu(), rtol=rtol, atol=atol)
 
 
 def test_gpt2_model_forward_shape(tiny_gpt2_config):
@@ -112,7 +93,7 @@ def test_gpt2_lm_head_forward_matches_hf_tied(tiny_gpt2_config):
     hf, minimal = _make_models(tiny_gpt2_config)
     input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
-        ref = hf(input_ids.cpu()).logits
+        ref = hf(nntile_cpu(input_ids)).logits
         out = minimal(input_ids)
     _assert_close(out, ref)
 
@@ -122,7 +103,7 @@ def test_gpt2_lm_head_forward_matches_hf_untied(tiny_gpt2_config):
     hf, minimal = _make_models(tiny_gpt2_config)
     input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
-        ref = hf(input_ids.cpu()).logits
+        ref = hf(nntile_cpu(input_ids)).logits
         out = minimal(input_ids)
     _assert_close(out, ref)
 
@@ -212,12 +193,17 @@ def test_gpt2_mlp_backward_matches_hf(tiny_gpt2_config):
     y_ref.backward(grad_out)
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
+    params_nnt = [x_nnt, mlp.c_fc.weight, mlp.c_fc.bias, mlp.c_proj.weight, mlp.c_proj.bias]
     y = mlp(x_nnt)
-    y.backward(grad_out.to("nntile"))
+    gx_nnt, gfc_w, gfc_b, gcp_w, gcp_b = torch.autograd.grad(
+        y,
+        params_nnt,
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    _assert_close(x_nnt.grad, x_cpu.grad)
-    _assert_close(mlp.c_fc.weight.grad, hf_mlp.c_fc.weight.grad.t())
-    _assert_close(mlp.c_proj.weight.grad, hf_mlp.c_proj.weight.grad.t())
+    _assert_close(gx_nnt, x_cpu.grad)
+    _assert_close(gfc_w, hf_mlp.c_fc.weight.grad.t())
+    _assert_close(gcp_w, hf_mlp.c_proj.weight.grad.t())
 
 
 def test_gpt2_attention_forward_matches_hf(tiny_gpt2_config):
@@ -286,9 +272,13 @@ def test_gpt2_attention_backward_matches_hf(tiny_gpt2_config):
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y = attn(x_nnt, mask)
-    y.backward(grad_out.to("nntile"))
+    gx_nnt, = torch.autograd.grad(
+        y,
+        x_nnt,
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    _assert_close(x_nnt.grad, x_cpu.grad, atol=1e-3)
+    _assert_close(gx_nnt, x_cpu.grad, atol=1e-3)
 
 
 def test_gpt2_lm_head_backward_matches_hf_tied(tiny_gpt2_config):
@@ -302,14 +292,18 @@ def test_gpt2_lm_head_backward_matches_hf_tied(tiny_gpt2_config):
     grad_out = torch.randn(2, 8, tiny_gpt2_config.vocab_size)
 
     hf.zero_grad(set_to_none=True)
-    logits_ref = hf(input_ids.cpu()).logits
+    logits_ref = hf(nntile_cpu(input_ids)).logits
     logits_ref.backward(grad_out)
 
     minimal.zero_grad(set_to_none=True)
     logits = minimal(input_ids)
-    logits.backward(grad_out.to("nntile"))
+    gw_nnt, = torch.autograd.grad(
+        logits,
+        minimal.transformer.wte.weight,
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    _assert_close(minimal.transformer.wte.weight.grad, hf.transformer.wte.weight.grad, atol=1e-3)
+    _assert_close(gw_nnt, hf.transformer.wte.weight.grad, atol=1e-3)
 
 
 def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
@@ -324,21 +318,21 @@ def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
     grad_out = torch.randn(2, 8, tiny_gpt2_config.vocab_size)
 
     hf.zero_grad(set_to_none=True)
-    hf(input_ids.cpu()).logits.backward(grad_out)
+    hf(nntile_cpu(input_ids)).logits.backward(grad_out)
 
     minimal.zero_grad(set_to_none=True)
-    minimal(input_ids).backward(grad_out.to("nntile"))
+    logits = minimal(input_ids)
+    glm_w, gwpe = torch.autograd.grad(
+        logits,
+        (minimal.lm_head.weight, minimal.transformer.wpe.weight),
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    _assert_close(minimal.lm_head.weight.grad, hf.lm_head.weight.grad, atol=1e-3)
-    _assert_close(minimal.transformer.wpe.weight.grad, hf.transformer.wpe.weight.grad)
+    _assert_close(glm_w, hf.lm_head.weight.grad, atol=1e-3)
+    _assert_close(gwpe, hf.transformer.wpe.weight.grad)
 
 
-@pytest.mark.xfail(
-    reason="GPT2 graph logits parity vs HF still diverges (~0.17 max diff); "
-    "mm+view ndim fixed in test_graph_mode_mm_view_add_ndim",
-    strict=False,
-)
-def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
+def test_gpt2_lm_head_forward_deferred(tiny_gpt2_config):
     import subprocess
     import sys
     import textwrap
@@ -365,7 +359,7 @@ def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
         from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
 
         torch_nntile.init_context(
-            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False, runtime_mode="graph"
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
 

@@ -36,11 +36,6 @@
 namespace torch_nntile
 {
 
-c10::Device nntile_device()
-{
-    return c10::Device(c10::DeviceType::PrivateUse1, 0);
-}
-
 bool is_registered()
 {
     return true;
@@ -69,30 +64,11 @@ bool buffer_equal_cpu(const at::Tensor &nntile_tensor, const at::Tensor &cpu_ten
         nntile_tensor.device().type() == c10::DeviceType::PrivateUse1,
         "buffer_equal_cpu expects nntile tensor as first argument");
     TORCH_CHECK(cpu_tensor.is_cpu(), "buffer_equal_cpu expects CPU tensor");
-    // Host read: graph mode requires execute() before nntile -> CPU copy.
-    at::Tensor lhs = nntile_tensor.contiguous().cpu();
+    // Host read: .cpu() auto-compiles/runs any pending graph, then gathers.
+    TORCH_CHECK(nntile_tensor.is_contiguous(), "buffer_equal_cpu: nntile tensor must be contiguous");
+    at::Tensor lhs = nntile_tensor.cpu();
     at::Tensor rhs = cpu_tensor.contiguous();
     return lhs.equal(rhs);
-}
-
-RuntimeMode parse_runtime_mode(const std::string &mode)
-{
-    std::string lowered = mode;
-    std::transform(
-        lowered.begin(),
-        lowered.end(),
-        lowered.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    if (lowered == "eager")
-    {
-        return RuntimeMode::Eager;
-    }
-    if (lowered == "graph")
-    {
-        return RuntimeMode::Graph;
-    }
-    throw std::runtime_error(
-        "torch_nntile.init_context runtime_mode must be 'eager' or 'graph'");
 }
 
 void init_context_py(
@@ -103,8 +79,7 @@ void init_context_py(
     std::size_t ooc_size,
     int logger,
     int verbose,
-    bool cpu_fallback,
-    const std::string &runtime_mode)
+    bool cpu_fallback)
 {
     init_context(
         ncpu,
@@ -114,8 +89,7 @@ void init_context_py(
         ooc_size,
         logger,
         verbose,
-        cpu_fallback,
-        parse_runtime_mode(runtime_mode));
+        cpu_fallback);
 }
 
 std::vector<std::int64_t> parse_tile_sizes_py(const py::object &tile_sizes)
@@ -172,10 +146,8 @@ void set_axis_group_name_py(
         const std::string name = py::cast<std::string>(item.second);
         parsed.emplace(dim, name);
     }
-    set_axis_group_name(
-        tensor.storage().data_ptr().get(),
-        static_cast<int>(tensor.dim()),
-        parsed);
+    set_axis_group_name(tensor, parsed);
+    stage_tensor_for_axis_group_compile(tensor);
 }
 
 void set_axis_group_tiling_py(
@@ -189,7 +161,6 @@ void set_axis_group_tiling_py(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
-    m.def("nntile_device", &torch_nntile::nntile_device, "Return nntile device");
     m.def("is_registered", &torch_nntile::is_registered, "Backend loaded");
     m.def(
         "has_libnntile",
@@ -211,8 +182,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("ooc_size") = 16 * 1024 * 1024,
         py::arg("logger") = 0,
         py::arg("verbose") = 0,
-        py::arg("cpu_fallback") = true,
-        py::arg("runtime_mode") = "eager");
+        py::arg("cpu_fallback") = true);
     m.def(
         "is_cpu_fallback_enabled",
         &torch_nntile::is_cpu_fallback_enabled,
@@ -258,17 +228,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::reset_graph_session,
         "Discard the compiled graph session and recorder state");
     m.def(
-        "has_graph_session",
-        &torch_nntile::has_graph_session,
-        "Whether a compiled graph session exists");
-    m.def(
         "has_pending_graph",
         &torch_nntile::has_pending_graph,
-        "Whether a deferred TensorGraph is waiting for execute()");
-    m.def(
-        "is_graph_mode",
-        &torch_nntile::is_graph_mode,
-        "Whether runtime_mode is graph");
+        "Whether a deferred TensorGraph is waiting for compile/run");
     m.def(
         "set_axis_group_name",
         &torch_nntile::set_axis_group_name_py,
@@ -278,7 +240,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "set_axis_group_tiling",
         &torch_nntile::set_axis_group_tiling_py,
-        "Set tiling for a named axis group before execute()",
+        "Set tiling for a named axis group before compile/run",
         py::arg("name"),
         py::arg("tile_sizes"));
     m.def(
@@ -413,7 +375,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::model_transpose_backward,
         "NNTile model-code transpose backward",
         py::arg("grad_out"),
-        py::arg("model_ndim"));
+        py::arg("model_ndim"),
+        py::arg("x"));
     m.def(
         "norm_forward",
         [](const at::Tensor &input,
@@ -438,13 +401,4 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("dim") = py::none(),
         py::arg("keepdim") = false,
         py::arg("out") = py::none());
-    m.def(
-        "norm_backward",
-        &torch_nntile::norm_backward,
-        "NNTile 2-norm backward",
-        py::arg("grad_out"),
-        py::arg("input"),
-        py::arg("norm_values"),
-        py::arg("dim") = py::none(),
-        py::arg("keepdim") = false);
 }

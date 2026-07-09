@@ -55,14 +55,14 @@ at::Tensor make_mm_output(const std::vector<int64_t> &out_shape, const at::Tenso
 void run_mm(const PreparedGemmOperands &prepared, at::Tensor &out)
 {
     pin_graph_op_inputs({prepared.a, prepared.b});
-    pin_graph_op_output(out, true);
+    pin_graph_op_output(out, false);
     tensor_gemm_fp32(
         prepared.params,
-        prepared.a.data_ptr<float>(),
+        prepared.a,
         prepared.a_gemm_shape,
-        prepared.b.data_ptr<float>(),
+        prepared.b,
         prepared.b_gemm_shape,
-        out.data_ptr<float>(),
+        out,
         prepared.out_shape);
 }
 

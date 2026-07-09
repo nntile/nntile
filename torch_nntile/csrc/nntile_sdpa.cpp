@@ -8,6 +8,7 @@
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -87,14 +88,29 @@ at::Tensor mask_to_uint8_nntile(const at::Tensor &mask)
 {
     if (mask.scalar_type() == at::ScalarType::Byte)
     {
-        return mask.contiguous();
+        TORCH_CHECK(
+            mask.is_contiguous(),
+            "nntile sdpa: mask must be contiguous");
+        return mask;
     }
-    at::Tensor mask_u8 = mask.cpu().to(at::kByte);
+    TORCH_CHECK(
+        mask.scalar_type() == at::ScalarType::Bool,
+        "nntile sdpa: mask must be bool or uint8");
     if (is_nntile_device(mask.device()))
     {
-        mask_u8 = mask_u8.to(mask.device());
+        at::Tensor mask_cpu = mask.cpu();
+        if (mask_cpu.scalar_type() != at::ScalarType::Byte)
+        {
+            mask_cpu = mask_cpu.to(at::ScalarType::Byte);
+        }
+        at::Tensor mask_u8 = empty_metadata_tensor(
+            mask.sizes(),
+            at::ScalarType::Byte,
+            mask.device());
+        init_nntile_input_from_cpu(mask_cpu.contiguous(), mask_u8);
+        return mask_u8;
     }
-    return mask_u8.contiguous();
+    return mask.cpu().to(at::kByte).contiguous();
 }
 
 } // namespace
@@ -116,7 +132,10 @@ at::Tensor sdpa_forward(
         check_sdpa_mask(*mask, q, k);
     }
 
-    at::Tensor out = at::empty_like(q);
+    at::Tensor out = empty_metadata_tensor(
+        q.sizes(),
+        q.scalar_type(),
+        q.device());
     at::Tensor mask_u8;
     std::vector<at::Tensor> inputs = {q, k, v};
     if (mask.has_value())
@@ -127,25 +146,13 @@ at::Tensor sdpa_forward(
     pin_graph_op_inputs(inputs);
     pin_graph_op_output(out, true);
 
-    const std::uint8_t *mask_data = nullptr;
-    c10::IntArrayRef mask_shape;
+    const at::Tensor *mask_ptr = nullptr;
     if (mask.has_value())
     {
-        mask_data = mask_u8.data_ptr<std::uint8_t>();
-        mask_shape = mask_u8.sizes();
+        mask_ptr = &mask_u8;
     }
 
-    tensor_sdpa_forward_fp32(
-        q.data_ptr<float>(),
-        q.sizes(),
-        k.data_ptr<float>(),
-        k.sizes(),
-        v.data_ptr<float>(),
-        v.sizes(),
-        mask_data,
-        mask_shape,
-        out.data_ptr<float>(),
-        batch_ndim);
+    tensor_sdpa_forward_fp32(q, k, v, mask_ptr, out, batch_ndim);
     return out;
 }
 
@@ -171,9 +178,12 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
         check_sdpa_mask(*mask, q, k);
     }
 
-    at::Tensor grad_q = at::empty_like(q);
-    at::Tensor grad_k = at::empty_like(k);
-    at::Tensor grad_v = at::empty_like(v);
+    at::Tensor grad_q = empty_metadata_tensor(
+        q.sizes(), q.scalar_type(), q.device());
+    at::Tensor grad_k = empty_metadata_tensor(
+        k.sizes(), k.scalar_type(), k.device());
+    at::Tensor grad_v = empty_metadata_tensor(
+        v.sizes(), v.scalar_type(), v.device());
 
     at::Tensor mask_u8;
     std::vector<at::Tensor> inputs = {q, k, v, grad_out};
@@ -183,31 +193,25 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
         inputs.push_back(mask_u8);
     }
     pin_graph_op_inputs(inputs);
-    pin_graph_op_output(grad_q, false);
-    pin_graph_op_output(grad_k, false);
-    pin_graph_op_output(grad_v, false);
+    pin_graph_op_output(grad_q, true);
+    pin_graph_op_output(grad_k, true);
+    pin_graph_op_output(grad_v, true);
 
-    const std::uint8_t *mask_data = nullptr;
-    c10::IntArrayRef mask_shape;
+    const at::Tensor *mask_ptr = nullptr;
     if (mask.has_value())
     {
-        mask_data = mask_u8.data_ptr<std::uint8_t>();
-        mask_shape = mask_u8.sizes();
+        mask_ptr = &mask_u8;
     }
 
     tensor_sdpa_backward_fp32(
-        q.data_ptr<float>(),
-        q.sizes(),
-        k.data_ptr<float>(),
-        k.sizes(),
-        v.data_ptr<float>(),
-        v.sizes(),
-        mask_data,
-        mask_shape,
-        grad_out.data_ptr<float>(),
-        grad_q.data_ptr<float>(),
-        grad_k.data_ptr<float>(),
-        grad_v.data_ptr<float>(),
+        q,
+        k,
+        v,
+        mask_ptr,
+        grad_out,
+        grad_q,
+        grad_k,
+        grad_v,
         batch_ndim);
     return {grad_q, grad_k, grad_v};
 }

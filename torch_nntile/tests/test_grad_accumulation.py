@@ -11,23 +11,13 @@ import pytest
 
 import torch_nntile
 from torch_nntile import _C
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    yield
 
 
 def test_diamond_shared_weight_grad_matches_cpu():
@@ -48,7 +38,7 @@ def test_diamond_shared_weight_grad_matches_cpu():
     y_nnt = h1_nnt + h2_nnt
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(w_nnt.grad.cpu(), w_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(w_nnt.grad), w_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_microbatch_grad_accumulation_matches_cpu():
@@ -79,7 +69,7 @@ def test_microbatch_grad_accumulation_matches_cpu():
     y1_nnt.backward(torch.full(y1_nnt.shape, grad_scale, device="cpu").to("nntile"))
     y2_nnt.backward(torch.full(y2_nnt.shape, grad_scale, device="cpu").to("nntile"))
 
-    assert torch.allclose(w_nnt.grad.cpu(), w_ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(w_nnt.grad), w_ref, rtol=1e-4, atol=1e-4)
 
 
 def test_grad_zero_matches_cpu():
@@ -90,5 +80,5 @@ def test_grad_zero_matches_cpu():
     grad_cpu.zero_()
     grad_nnt.zero_()
 
-    assert torch.allclose(grad_nnt.cpu(), grad_cpu)
-    assert torch.all(grad_nnt.cpu() == 0)
+    assert torch.allclose(nntile_cpu(grad_nnt), grad_cpu)
+    assert torch.all(nntile_cpu(grad_nnt) == 0)

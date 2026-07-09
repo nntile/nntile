@@ -59,7 +59,7 @@ def patch_gpt2_cache_position() -> None:
 
     try:
         from transformers.models.gpt2.modeling_gpt2 import GPT2Model
-    except ImportError:
+    except (ImportError, RuntimeError, ModuleNotFoundError):
         return
 
     _orig_forward = GPT2Model.forward
@@ -106,7 +106,7 @@ def patch_gpt2_cache_position() -> None:
                 and out.shape[0] == 1
                 and batch_size > 1
             ):
-                return out.expand(batch_size, -1, -1).contiguous()
+                return out.repeat(batch_size, 1, 1)
             return out
 
         self.wpe.forward = _wpe_forward  # type: ignore[method-assign]
@@ -192,7 +192,11 @@ def patch_hf_activations() -> None:
     _patched = True
 
 
-patch_hf_activations()
+try:
+    patch_hf_activations()
+except Exception:
+    # transformers/torchvision may be missing or incompatible in minimal CI images.
+    pass
 
 __all__ = [
     "patch_hf_activations",

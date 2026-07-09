@@ -8,7 +8,7 @@ Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 
 ## Prebuilt wheels
 
-CI builds `torch_nntile` 0.0.1 wheels via the **`torch_nntile wheels`** workflow
+CI builds `torch_nntile` 0.0.2 wheels via the **`torch_nntile wheels`** workflow
 (`.github/workflows/torch-nntile-wheels.yml`).
 
 | Trigger | When wheels build |
@@ -56,18 +56,16 @@ export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation
 ```
 
-## Runtime modes
+## TensorGraph execution
 
-| Mode | Behavior |
-|------|----------|
-| `eager` (default) | Each op records a micro-graph and runs it immediately |
-| `graph` | Ops append to one `TensorGraph`; use `compile_graph()` + `run()` |
+Ops append to one shared ``TensorGraph``. Flush with ``compile_graph()`` and
+``run()`` (or legacy ``execute()``) before host readout.
 
 ```python
 import torch
 import torch_nntile
 
-torch_nntile.init_context(ncpu=4, ncuda=0, cpu_fallback=False, runtime_mode="graph")
+torch_nntile.init_context(ncpu=4, ncuda=0, cpu_fallback=False)
 x = torch.randn(32, 128).to("nntile")
 y = model(x)
 loss.backward()
@@ -81,7 +79,13 @@ Data transfer uses **`.to("nntile")` in** and **`.to("cpu")` out** — there is 
 in one call.
 
 Training helper `torch_nntile.training.train_full_batch_step` calls
-`compile_graph()` and `run()` in graph mode; read loss with `loss.to("cpu")`.
+`compile_graph()` and `run()`; read loss with `loss.to("cpu")`.
+
+**Tile memory:** New nntile tensors are marked as graph outputs; `del` clears
+the mark when the last Python reference dies. At `compile_graph()` only live
+tensors (and their graph dependencies) stay marked. During `run()`,
+`Runtime::execute()` releases intermediate StarPU tiles after their last
+consumer when those tiles are not graph inputs/outputs.
 
 ## Axis-group naming and tiling
 
@@ -106,12 +110,12 @@ training (`name_gpt2_training_axis_groups` + `apply_flat_tiling_spec`):
 | `format_axis_groups()` | Return a string summary of pending graph axis groups (like C++ `TensorGraph::to_string`). |
 | `print_axis_groups()` | Print that summary to stdout. Shows `pending_tile=` when tiling is registered but not yet applied. |
 
-**Graph mode required** for axis-group tiling across a full training step.
+**Axis-group tiling** applies across a full training step before ``compile_graph()``.
 
 ### Minimal example
 
 ```python
-torch_nntile.init_context(ncpu=2, runtime_mode="graph", cpu_fallback=False)
+torch_nntile.init_context(ncpu=2, cpu_fallback=False)
 
 x = torch.randn(4, 128).to("nntile")
 torch_nntile.set_axis_group_name(x, {0: "batch", 1: "features"})

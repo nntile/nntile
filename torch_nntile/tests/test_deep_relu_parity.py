@@ -10,23 +10,13 @@ import pytest
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.models import DeepReLU
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    yield
 
 
 def test_deep_relu_forward_matches_cpu():
@@ -48,7 +38,7 @@ def test_deep_relu_forward_matches_cpu():
     x_nnt = x_cpu.to("nntile")
 
     with torch.no_grad():
-        y_nnt = model_nnt(x_nnt).cpu()
+        y_nnt = nntile_cpu(model_nnt(x_nnt))
 
     assert y_nnt.shape == y_cpu.shape
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
@@ -62,9 +52,11 @@ def test_linear_relu_layer_matches_cpu():
 
     x_nnt = x_cpu.to("nntile")
     w_nnt = weight.to("nntile")
-    y_nnt = torch.nn.functional.relu(
-        torch.nn.functional.linear(x_nnt, w_nnt, None)
-    ).cpu()
+    y_nnt = nntile_cpu(
+        torch.nn.functional.relu(
+            torch.nn.functional.linear(x_nnt, w_nnt, None)
+        )
+    )
 
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
 
@@ -77,17 +69,22 @@ def test_linear_relu_layer_backward_matches_cpu():
     )
 
     y_cpu = torch.nn.functional.relu(x_cpu @ weight.t())
-    y_cpu.backward(torch.ones_like(y_cpu))
+    grad_out = torch.ones_like(y_cpu)
+    y_cpu.backward(grad_out)
 
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     w_nnt = weight.detach().to("nntile").requires_grad_(True)
     y_nnt = torch.nn.functional.relu(
         torch.nn.functional.linear(x_nnt, w_nnt, None)
     )
-    y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
+    gx_nnt, gw_nnt = torch.autograd.grad(
+        y_nnt,
+        (x_nnt, w_nnt),
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    assert torch.allclose(x_nnt.grad.cpu(), x_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(w_nnt.grad.cpu(), weight.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gx_nnt), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_deep_relu_backward_matches_cpu():
@@ -122,5 +119,5 @@ def test_deep_relu_backward_matches_cpu():
     )
 
     for g_nnt, g_cpu in zip(grads_nnt, grads_cpu):
-        assert torch.allclose(g_nnt.cpu(), g_cpu, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(gx_nnt.cpu(), gx_cpu, rtol=1e-4, atol=1e-4)
+        assert torch.allclose(nntile_cpu(g_nnt), g_cpu, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gx_nnt), gx_cpu, rtol=1e-4, atol=1e-4)

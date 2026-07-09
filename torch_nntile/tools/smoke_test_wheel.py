@@ -11,7 +11,10 @@ torch_nntile.restrict_cpu()
 
 lhs = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32).to("nntile")
 rhs = torch.tensor([4.0, 5.0, 6.0], dtype=torch.float32).to("nntile")
-result = (lhs + rhs).cpu()
+out = lhs + rhs
+torch_nntile.compile_graph()
+torch_nntile.run()
+result = out.cpu()
 
 torch.testing.assert_close(
     result,

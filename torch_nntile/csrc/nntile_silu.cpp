@@ -51,16 +51,13 @@ void check_silu_input(
 void run_silu(const at::Tensor &self, at::Tensor &out)
 {
     pin_graph_op_inputs({self});
-    pin_graph_op_output(out, true);
-    if (self.data_ptr<float>() == out.data_ptr<float>())
+    pin_graph_op_output(out, false);
+    if (self.is_same(out))
     {
-        tensor_silu_inplace_fp32(out.data_ptr<float>(), self.sizes());
+        tensor_silu_inplace_fp32(out);
         return;
     }
-    tensor_silu_fp32(
-        self.data_ptr<float>(),
-        out.data_ptr<float>(),
-        self.sizes());
+    tensor_silu_fp32(self, out);
 }
 
 } // namespace

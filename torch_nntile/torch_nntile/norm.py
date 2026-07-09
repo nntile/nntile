@@ -40,34 +40,6 @@ def _is_two_norm(ord: float | int) -> bool:
     return abs(float(ord) - 2.0) < 1e-6
 
 
-class _NntileVectorNorm(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx,
-        input: torch.Tensor,
-        ord: float | int,
-        dim: int | None,
-        keepdim: bool,
-    ) -> torch.Tensor:
-        output, norm_values = _C.norm_forward(input, dim, keepdim)
-        ctx.dim = dim
-        ctx.keepdim = keepdim
-        ctx.save_for_backward(input, norm_values)
-        return output
-
-    @staticmethod
-    def backward(ctx, grad_output: torch.Tensor):
-        input, norm_values = ctx.saved_tensors
-        grad_input = _C.norm_backward(
-            grad_output,
-            input,
-            norm_values,
-            ctx.dim,
-            ctx.keepdim,
-        )
-        return grad_input, None, None, None
-
-
 def vector_norm(
     input: torch.Tensor,
     ord: float | int = 2,
@@ -77,7 +49,13 @@ def vector_norm(
     out: torch.Tensor | None = None,
     dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
-    """2-norm on ``device='nntile'`` via libnntile tensor ops."""
+    """2-norm on ``device='nntile'`` via libnntile tensor ops.
+
+    Forward only: unlike ``F.layer_norm`` / ``F.rms_norm``, this does not
+    register an autograd backward on nntile. Intended for use under
+    ``torch.no_grad()`` (e.g. logging / clipping diagnostics). Raises if
+    ``input.requires_grad`` and grad mode is enabled.
+    """
     if input.device.type != "nntile":
         return _ORIGINAL_LINALG_VECTOR_NORM(
             input,
@@ -90,37 +68,26 @@ def vector_norm(
     if out is not None and out.device.type != "nntile":
         raise RuntimeError("nntile vector_norm: out tensor must be on nntile")
     if dtype is not None:
-        return _ORIGINAL_LINALG_VECTOR_NORM(
-            input,
-            ord,
-            dim,
-            keepdim,
-            out=out,
-            dtype=dtype,
-        ).to(input.device)
-    if not _is_two_norm(ord):
-        cpu_out = _ORIGINAL_LINALG_VECTOR_NORM(
-            input.cpu(),
-            ord,
-            dim,
-            keepdim,
-            out=None,
+        raise RuntimeError(
+            "nntile linalg.vector_norm does not support dtype conversion"
         )
-        if out is not None:
-            out.copy_(cpu_out.to(input.device))
-            return out
-        return cpu_out.to(input.device)
+    if not _is_two_norm(ord):
+        raise RuntimeError(
+            "nntile linalg.vector_norm supports ord=2 only "
+            "(no CPU round-trip)"
+        )
+    if input.requires_grad and torch.is_grad_enabled():
+        raise RuntimeError(
+            "nntile linalg.vector_norm is forward-only; call it under "
+            "torch.no_grad() or detach the input. Use F.layer_norm / "
+            "F.rms_norm when you need differentiable normalization."
+        )
     axis = _normalize_dim(dim, input.ndim)
     if out is not None:
-        if input.requires_grad:
-            raise RuntimeError(
-                "linalg_vector_norm(): functions with out=... arguments don't "
-                "support automatic differentiation, but one of the arguments "
-                "requires grad."
-            )
         _C.norm_forward(input, axis, keepdim, out)
         return out
-    return _NntileVectorNorm.apply(input, ord, axis, keepdim)
+    output, _norm_values = _C.norm_forward(input, axis, keepdim)
+    return output
 
 
 def patch_vector_norm() -> None:

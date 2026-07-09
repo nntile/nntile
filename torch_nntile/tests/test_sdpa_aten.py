@@ -15,32 +15,13 @@ import torch.nn.functional as F
 import torch_nntile
 from torch_nntile import _C
 from torch_nntile.nn import sdpa_eager
+from conftest import nntile_cpu
 
 
 pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(
-            ncpu=1,
-            ncuda=0,
-            verbose=0,
-            cpu_fallback=False,
-            runtime_mode="eager",
-        )
-    torch_nntile.restrict_cpu()
-    yield
 
 
 def _reference_sdpa_pytorch(
@@ -103,7 +84,7 @@ def test_fsdpa_forward_matches_reference(shape):
     k = k_cpu.to("nntile")
     v = v_cpu.to("nntile")
     out = F.scaled_dot_product_attention(q, k, v)
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
     assert not torch_nntile.has_pending_graph()
 
 
@@ -121,11 +102,15 @@ def test_fsdpa_backward_matches_reference():
     k = k_cpu.detach().to("nntile").requires_grad_(True)
     v = v_cpu.detach().to("nntile").requires_grad_(True)
     out = F.scaled_dot_product_attention(q, k, v)
-    out.backward(grad_out.to("nntile"))
+    gq, gk, gv = torch.autograd.grad(
+        out,
+        (q, k, v),
+        grad_outputs=grad_out.to("nntile"),
+    )
 
-    assert torch.allclose(q.grad.cpu(), q_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(k.grad.cpu(), k_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(v.grad.cpu(), v_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gq), q_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gk), k_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(gv), v_cpu.grad, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_is_causal_matches_reference():
@@ -142,7 +127,7 @@ def test_fsdpa_is_causal_matches_reference():
         v_cpu.to("nntile"),
         is_causal=True,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_bool_mask_matches_reference():
@@ -164,7 +149,7 @@ def test_fsdpa_bool_mask_matches_reference():
         v_cpu.to("nntile"),
         attn_mask=mask,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_float_finfo_mask_matches_reference():
@@ -190,7 +175,7 @@ def test_fsdpa_float_finfo_mask_matches_reference():
         v_cpu.to("nntile"),
         attn_mask=mask,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_broadcast_4d_mask_matches_reference():
@@ -214,7 +199,7 @@ def test_fsdpa_broadcast_4d_mask_matches_reference():
         v_cpu.to("nntile"),
         attn_mask=mask,
     )
-    assert torch.allclose(out.cpu(), ref, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref, rtol=1e-4, atol=1e-4)
 
 
 def test_fsdpa_rejects_non_broadcastable_batched_mask():
@@ -264,4 +249,4 @@ def test_sdpa_eager_uses_fsdpa_path():
         v_cpu.to("nntile"),
         batch_ndim=2,
     )
-    assert torch.allclose(out.cpu(), ref.permute(1, 2, 3, 0), rtol=1e-4, atol=1e-4)
+    assert torch.allclose(nntile_cpu(out), ref.permute(1, 2, 3, 0), rtol=1e-4, atol=1e-4)

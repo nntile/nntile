@@ -117,29 +117,13 @@ void run_split_with_sizes(
     const std::vector<int64_t> &split_sizes,
     std::vector<at::Tensor> &outputs)
 {
-    std::vector<float *> out_data;
-    std::vector<c10::IntArrayRef> out_shapes;
-    out_data.reserve(outputs.size());
-    out_shapes.reserve(outputs.size());
-    for (at::Tensor &out : outputs)
-    {
-        out_data.push_back(out.data_ptr<float>());
-        out_shapes.push_back(out.sizes());
-    }
-
     pin_graph_op_inputs({self});
     for (at::Tensor &out : outputs)
     {
         pin_graph_op_output(out, true);
     }
 
-    tensor_split_with_sizes_fp32(
-        self.data_ptr<float>(),
-        self.sizes(),
-        dim,
-        split_sizes,
-        out_data,
-        out_shapes);
+    tensor_split_with_sizes_fp32(self, dim, split_sizes, outputs);
 }
 
 std::vector<at::Tensor> split_with_sizes_impl(
