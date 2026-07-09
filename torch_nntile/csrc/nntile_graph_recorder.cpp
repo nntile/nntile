@@ -707,13 +707,30 @@ void compile_graph_locked(
     const nntile::TensorGraphTiling tiling =
         nntile::TensorGraphTiling::from_tensor_graph(*g_graph);
 
-    nntile::append_tensor_graph_phase(
-        *g_graph,
-        phase,
-        tiling,
-        *g_exec->tile_graph,
-        g_exec->inc_state,
-        g_exec->tile_map);
+    try
+    {
+        nntile::append_tensor_graph_phase(
+            *g_graph,
+            phase,
+            tiling,
+            *g_exec->tile_graph,
+            g_exec->inc_state,
+            g_exec->tile_map);
+    }
+    catch (const std::runtime_error &err)
+    {
+        const std::string msg = err.what();
+        if (msg.find("layout_fingerprint mismatch") != std::string::npos)
+        {
+            throw std::runtime_error(
+                msg +
+                " Hint: avoid .cpu() / host round-trips on nntile tensors "
+                "before the first compile_graph() that applies "
+                "set_axis_group_tiling(); early host reads seal the untiled "
+                "layout into the TileGraph.");
+        }
+        throw;
+    }
 
     g_exec->pending_exec_op_begin = g_exec->executed_op_end;
     g_exec->runtime->compile();
@@ -818,6 +835,13 @@ void sync_param_grad_aliases_locked()
     {
         (void) param_key;
         if (entry.grad_node == nullptr || !entry.param.defined())
+        {
+            continue;
+        }
+        // Autograd only populates .grad on leaves. Linear/transpose backward
+        // also register activation tensors here; accessing .grad on those
+        // non-leaves triggers TensorBody warnings (pytorch#30531).
+        if (!entry.param.is_leaf())
         {
             continue;
         }

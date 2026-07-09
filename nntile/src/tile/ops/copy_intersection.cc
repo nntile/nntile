@@ -83,10 +83,16 @@ void TileCopyIntersectionOp::execute(Runtime& runtime) const
             run<nntile::bf16_t>(runtime, src_offset, dst_offset, src, dst, scratch);
             break;
         case DataType::INT64:
+            run<nntile::int64_t>(
+                runtime, src_offset, dst_offset, src, dst, scratch);
+            break;
         case DataType::BOOL:
-            throw std::runtime_error("copy_intersection");
+            run<nntile::bool_t>(
+                runtime, src_offset, dst_offset, src, dst, scratch);
+            break;
         default:
-            throw std::runtime_error("copy_intersection");
+            throw std::runtime_error(
+                "Unsupported data type for tile copy_intersection");
     }
 }
 } // namespace nntile::tile

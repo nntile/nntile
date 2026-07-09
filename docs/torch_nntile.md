@@ -172,8 +172,9 @@ example script provides naming.
 ## DeepReLU MNIST example
 
 [`torch_nntile/examples/train_deep_relu_mnist.py`](../torch_nntile/examples/train_deep_relu_mnist.py)
-trains `DeepReLU.mnist()` on the full MNIST training set (60k batch), comparing
-CPU PyTorch vs `device="nntile"`.
+trains `DeepReLU.mnist()` on the full MNIST training set (60k batch) on
+`device="nntile"`. By default it is nntile-only; ``--compare-torch`` adds a CPU
+PyTorch reference for loss/weight parity.
 
 Default model: **5 linear layers** (`--depth 5`), **4 hidden blocks** with output
 width `--hidden-dim 256` (784→256, then three 256→256, then 256→10 logits).
@@ -201,15 +202,16 @@ export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 StarPU worker counts come from the environment (`STARPU_NCPU`, `STARPU_NCUDA`).
 The script calls `init_context(ncpu=-1, ncuda=-1, …)` so those env vars apply.
 
-### CPU workers only
+By default the script trains **nntile only**. Pass ``--compare-torch`` to also
+run a CPU PyTorch reference and print per-epoch loss / final weight parity.
+A CUDA torch reference is not supported (PrivateUse1 breaks CUDA autograd on
+PyTorch >= 2.8, [pytorch#161129](https://github.com/pytorch/pytorch/issues/161129)).
 
-Use CPU StarPU workers for the nntile path (reference PyTorch path always runs
-on CPU tensors):
+### Nntile-only (CPU StarPU workers)
 
 ```bash
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph \
     --epochs 5
 ```
 
@@ -218,7 +220,6 @@ Optional graph tiling and axis-group dump:
 ```bash
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph \
     --epochs 5 \
     --print-axis-groups \
     --axis-tiling batch=15000,15000,15000,15000 \
@@ -226,47 +227,72 @@ STARPU_NCPU=4 STARPU_NCUDA=0 \
     --axis-tiling hidden=128,128
 ```
 
-**Expected tail output (CPU workers, graph mode, 5 epochs):**
+Do not call ``.cpu()`` / ``clone_model_weights()`` on nntile parameters
+**before** the first ``compile_graph()`` that applies ``--axis-tiling``:
+that seals the default (untiled) layout and later tiling raises
+``layout_fingerprint mismatch``. The example gathers weights only after
+training.
+
+### CPU torch parity (`--compare-torch`)
+
+```bash
+STARPU_NCPU=4 STARPU_NCUDA=0 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --compare-torch --epochs 5
+```
+
+**Expected tail output (CPU workers, 5 epochs):**
 
 ```
-Loss comparison (cpu vs nntile):
-  epoch 1: cpu=2.302172  nntile=2.302172  diff=2.384e-07
-  epoch 2: cpu=2.302079  nntile=2.302080  diff=4.768e-07
-  epoch 3: cpu=2.301987  nntile=2.301987  diff=0.000e+00
-  epoch 4: cpu=2.301894  nntile=2.301895  diff=4.768e-07
-  epoch 5: cpu=2.301802  nntile=2.301802  diff=0.000e+00
+Loss comparison (torch/cpu vs nntile):
+  epoch 1: torch=2.302172  nntile=2.302172  diff=2.384e-07
+  epoch 2: torch=2.302079  nntile=2.302080  diff=4.768e-07
+  epoch 3: torch=2.301987  nntile=2.301987  diff=0.000e+00
+  epoch 4: torch=2.301894  nntile=2.301895  diff=4.768e-07
+  epoch 5: torch=2.301802  nntile=2.301802  diff=0.000e+00
 
-Final weight max |cpu - nntile| = 1.118e-08
+Final weight max |torch - nntile| = 1.118e-08
 ```
 
 Per-epoch loss diffs at or below **~1e-6** are typical on CPU.
 
-### CUDA workers only
+### CUDA workers only (nntile-only or with parity)
 
-Pin nntile kernels to CUDA workers (`--restrict-cuda`):
+Pin nntile kernels to CUDA workers (`--restrict-cuda`). Use without
+``--compare-torch`` for larger tiled multi-GPU runs; add ``--compare-torch``
+when you want loss parity against the CPU reference:
 
 ```bash
+# Parallel nntile training (no torch reference)
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph \
     --restrict-cuda \
+    --epochs 5 \
+    --axis-tiling batch=15000,15000,15000,15000 \
+    --axis-tiling features=392,392 \
+    --axis-tiling hidden=128,128
+
+# Same setup + CPU torch parity
+STARPU_NCPU=0 STARPU_NCUDA=2 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --restrict-cuda --compare-torch \
     --epochs 5 \
     --axis-tiling batch=15000,15000,15000,15000 \
     --axis-tiling features=392,392 \
     --axis-tiling hidden=128,128
 ```
 
-**Expected tail output (CUDA workers, graph mode, 5 epochs, with tiling above):**
+**Expected tail with ``--compare-torch`` (CUDA workers, 5 epochs, tiling above):**
 
 ```
-Loss comparison (cpu vs nntile):
-  epoch 1: cpu=2.302172  nntile=2.302095  diff=7.701e-05
-  epoch 2: cpu=2.302079  nntile=2.301964  diff=1.152e-04
-  epoch 3: cpu=2.301987  nntile=2.301834  diff=1.538e-04
-  epoch 4: cpu=2.301894  nntile=2.301818  diff=7.653e-05
-  epoch 5: cpu=2.301802  nntile=2.301495  diff=3.073e-04
+Loss comparison (torch/cpu vs nntile):
+  epoch 1: torch=2.302172  nntile=2.302095  diff=7.701e-05
+  epoch 2: torch=2.302079  nntile=2.301964  diff=1.152e-04
+  epoch 3: torch=2.301987  nntile=2.301834  diff=1.538e-04
+  epoch 4: torch=2.301894  nntile=2.301818  diff=7.653e-05
+  epoch 5: torch=2.301802  nntile=2.301495  diff=3.073e-04
 
-Final weight max |cpu - nntile| = 1.583e-08
+Final weight max |torch - nntile| = 1.583e-08
 ```
 
 On CUDA, per-epoch **loss** diffs of order **1e-4** are normal (cuBLAS / TF32 /
@@ -278,15 +304,12 @@ down StarPU cleanly in a `finally` block.
 
 | Flag | Purpose |
 |------|---------|
-| `--runtime-mode graph` | Record full step, then `compile_graph()` + `run()` |
+| `--compare-torch` | Also train CPU PyTorch reference and print loss/weight parity |
 | `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
-| `--verbose` | Verbose StarPU / NNTile context logging |
+| `--verbose` | Verbose StarPU / NNTile logging; also print weight norms under `torch.no_grad()` |
 | `--hidden-dim`, `--depth` | Model size (default 256, 5) |
-| `--axis-tiling NAME=SIZES` | Repeatable; auto-switches to graph mode |
-| `--print-axis-groups` | Dump axis groups after epoch 1 (graph mode) |
-
-`--axis-tiling` and `--print-axis-groups` switch to graph mode automatically if
-omitted from `--runtime-mode`.
+| `--axis-tiling NAME=SIZES` | Repeatable; apply named axis-group tiling before `compile_graph()` |
+| `--print-axis-groups` | Dump axis groups after epoch 1 |
 
 Integration test (downloads MNIST, 3 epochs, CPU workers):
 

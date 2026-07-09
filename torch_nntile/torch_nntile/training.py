@@ -145,11 +145,18 @@ class SGD:
         key = id(param)
         velocity = self._velocity.get(key)
         if velocity is None:
-            velocity = torch.empty(
-                list(param.shape),
-                dtype=torch.float32,
-                device="nntile",
-            )
+            if param.device.type == "nntile":
+                velocity = torch.empty(
+                    list(param.shape),
+                    dtype=torch.float32,
+                    device="nntile",
+                )
+            else:
+                velocity = torch.zeros(
+                    list(param.shape),
+                    dtype=torch.float32,
+                    device=param.device,
+                )
             self._velocity[key] = velocity
         return velocity
 

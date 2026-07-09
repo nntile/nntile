@@ -347,24 +347,31 @@ expected output.
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 
-# CPU StarPU workers (nntile path); reference PyTorch path is always CPU
+# Nntile-only (CPU StarPU workers)
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph --epochs 5
+    --epochs 5
 
-# CUDA StarPU workers only
+# Optional CPU torch parity
+STARPU_NCPU=4 STARPU_NCUDA=0 \
+  python torch_nntile/examples/train_deep_relu_mnist.py \
+    --compare-torch --epochs 5
+
+# CUDA StarPU workers, nntile-only (larger tiled runs)
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --runtime-mode graph --restrict-cuda --epochs 5 \
+    --restrict-cuda --epochs 5 \
     --axis-tiling batch=15000,15000,15000,15000 \
     --axis-tiling features=392,392 \
     --axis-tiling hidden=128,128
 ```
 
-**Parity expectations:** with CPU workers, per-epoch loss diffs are ~1e-6 or
-smaller. With CUDA workers, **loss** diffs of ~1e-4 are acceptable; **weights**
-should still agree to ~1e-8. See [docs/torch_nntile.md](../docs/torch_nntile.md)
-for sample output.
+Do not ``.cpu()`` nntile weights before the first tiled ``compile_graph()``
+(``layout_fingerprint mismatch``); the example gathers weights after training.
+
+**Parity expectations** (with ``--compare-torch``): CPU workers → loss diffs
+~1e-6; CUDA workers → loss diffs ~1e-4, weights ~1e-8. See
+[docs/torch_nntile.md](../docs/torch_nntile.md).
 
 Integration test (downloads MNIST, 3 epochs, compares losses and weights):
 
@@ -452,6 +459,10 @@ When CUDA workers are enabled (`STARPU_NCUDA > 0`), use ``--restrict-cuda`` in
 the MNIST example (or call ``restrict_cuda()``) and shut StarPU down at exit.
 The example calls ``torch_nntile.wait()`` and ``torch_nntile.shutdown_context()``
 in a ``finally`` block; ``init_context()`` also registers an ``atexit`` hook.
+The MNIST example is nntile-only by default; ``--compare-torch`` adds a CPU
+PyTorch reference for loss/weight parity. A CUDA torch reference is not
+supported (PrivateUse1 breaks CUDA autograd on PyTorch >= 2.8,
+pytorch/pytorch#161129).
 
 ## macOS / PyTorch cpu_fallback ABI
 

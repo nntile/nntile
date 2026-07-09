@@ -19,10 +19,12 @@
 #include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tile.hh"
 #include "nntile/tensor/ops/copy_intersection.hh"
+#include "nntile/tensor/ops/scatter.hh"
 #include "nntile/tensor.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
+#include <memory>
 #include <numeric>
 
 using namespace nntile;
@@ -157,5 +159,191 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph copy_intersection INT64 tiled matches untiled",
+    "[graph][tensor]")
+{
+    const std::vector<Index> shape{8, 3};
+    const std::vector<Index> src_off{0, 0};
+    const std::vector<Index> dst_off{0, 0};
+    const Index nelems = 24;
+
+    std::vector<std::int64_t> src_data(nelems);
+    std::vector<std::int64_t> dst_data(nelems, 0);
+    for (Index i = 0; i < nelems; ++i)
+    {
+        src_data[static_cast<size_t>(i)] = static_cast<std::int64_t>(i + 1);
+    }
+
+    std::vector<std::int64_t> untiled_result;
+    {
+        TensorGraph graph("copy_intersection_int64_untiled");
+        auto *src_node =
+            graph.data(shape, DataType::INT64)->set_name("src");
+        auto *dst_node =
+            graph.data(shape, DataType::INT64)->set_name("dst");
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+        gt::copy_intersection(src_node, src_off, dst_node, dst_off);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+        Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data(src_node, src_data);
+        runtime.bind_data(dst_node, dst_data);
+        runtime.execute();
+        runtime.wait();
+        untiled_result = runtime.get_output<std::int64_t>(dst_node);
+    }
+
+    std::vector<std::int64_t> tiled_result;
+    {
+        TensorGraph graph("copy_intersection_int64_tiled");
+        auto *src_node =
+            graph.data(shape, DataType::INT64)->set_name("src");
+        auto *dst_node =
+            graph.data(shape, DataType::INT64)->set_name("dst");
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+        gt::copy_intersection(src_node, src_off, dst_node, dst_off);
+        for (auto *ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+        Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data(src_node, src_data);
+        runtime.bind_data(dst_node, dst_data);
+        runtime.execute();
+        runtime.wait();
+        tiled_result = runtime.get_output<std::int64_t>(dst_node);
+    }
+
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for (size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(tiled_result[i] == untiled_result[i]);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph copy_intersection BOOL tiled matches untiled",
+    "[graph][tensor]")
+{
+    const std::vector<Index> shape{8, 3};
+    const std::vector<Index> src_off{0, 0};
+    const std::vector<Index> dst_off{0, 0};
+    const Index nelems = 24;
+
+    // Avoid std::vector<bool> (no .data()); bind via contiguous bool buffer.
+    std::unique_ptr<bool[]> src_data(new bool[static_cast<size_t>(nelems)]);
+    std::unique_ptr<bool[]> dst_data(new bool[static_cast<size_t>(nelems)]);
+    for (Index i = 0; i < nelems; ++i)
+    {
+        src_data[static_cast<size_t>(i)] = (i % 3) != 0;
+        dst_data[static_cast<size_t>(i)] = false;
+    }
+
+    std::vector<bool> untiled_result;
+    {
+        TensorGraph graph("copy_intersection_bool_untiled");
+        auto *src_node =
+            graph.data(shape, DataType::BOOL)->set_name("src");
+        auto *dst_node =
+            graph.data(shape, DataType::BOOL)->set_name("dst");
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+        gt::copy_intersection(src_node, src_off, dst_node, dst_off);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+        Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data(
+            src_node, src_data.get(), static_cast<size_t>(nelems));
+        runtime.bind_data(
+            dst_node, dst_data.get(), static_cast<size_t>(nelems));
+        runtime.execute();
+        runtime.wait();
+        untiled_result = runtime.get_output<bool>(dst_node);
+    }
+
+    for (Index i = 0; i < nelems; ++i)
+    {
+        dst_data[static_cast<size_t>(i)] = false;
+    }
+
+    std::vector<bool> tiled_result;
+    {
+        TensorGraph graph("copy_intersection_bool_tiled");
+        auto *src_node =
+            graph.data(shape, DataType::BOOL)->set_name("src");
+        auto *dst_node =
+            graph.data(shape, DataType::BOOL)->set_name("dst");
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+        gt::copy_intersection(src_node, src_off, dst_node, dst_off);
+        for (auto *ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+        Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data(
+            src_node, src_data.get(), static_cast<size_t>(nelems));
+        runtime.bind_data(
+            dst_node, dst_data.get(), static_cast<size_t>(nelems));
+        runtime.execute();
+        runtime.wait();
+        tiled_result = runtime.get_output<bool>(dst_node);
+    }
+
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for (size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(tiled_result[i] == untiled_result[i]);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph scatter INT64 into tiled logical",
+    "[graph][tensor]")
+{
+    // Mirrors torch_nntile label ingress: single-tile INT64 staging scatters
+    // into a multi-tile logical (axes are not merged by scatter).
+    const std::vector<Index> shape{8};
+    std::vector<std::int64_t> src_data(8);
+    for (Index i = 0; i < 8; ++i)
+    {
+        src_data[static_cast<size_t>(i)] = static_cast<std::int64_t>(i + 1);
+    }
+
+    TensorGraph graph("scatter_int64_tiled");
+    auto *staging = graph.data(shape, DataType::INT64)->set_name("staging");
+    auto *logical = graph.data(shape, DataType::INT64)->set_name("logical");
+    staging->mark_input(true);
+    logical->mark_output(true);
+    gt::scatter(staging, logical);
+    // Tile only the logical axis group; staging stays single-tile.
+    logical->axis(0)->set_tiling(std::vector<Index>{4, 4});
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(staging, src_data);
+    runtime.execute();
+    runtime.wait();
+
+    const auto out = runtime.get_output<std::int64_t>(logical);
+    REQUIRE(out.size() == src_data.size());
+    for (size_t i = 0; i < out.size(); ++i)
+    {
+        REQUIRE(out[i] == src_data[i]);
     }
 }
