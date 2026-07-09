@@ -129,6 +129,32 @@ nntile::TensorGraph::TensorNode *bridge_node_to_shape(
     return view_node;
 }
 
+//! Resolve an existing grad graph node; never invent a fresh empty node.
+nntile::TensorGraph::TensorNode *resolve_optimizer_grad_node(
+    const at::Tensor &param,
+    const at::Tensor &grad,
+    const char *op_name)
+{
+    nntile::TensorGraph::TensorNode *grad_node = nntile_node(grad);
+    if (grad_node == nullptr)
+    {
+        grad_node = lookup_param_grad_node(param);
+    }
+    if (grad_node == nullptr)
+    {
+        grad_node = lookup_data_node(
+            grad,
+            pytorch_shape_to_graph(grad.sizes()));
+    }
+    TORCH_CHECK(
+        grad_node != nullptr,
+        "nntile ",
+        op_name,
+        ": parameter grad is not registered in the graph; "
+        "run backward before the optimizer step");
+    return grad_node;
+}
+
 bool mark_as_input_for_operand(const at::Tensor &tensor)
 {
     if (tensor.device().is_cpu())
@@ -1125,29 +1151,8 @@ void tensor_sgd_step_fp32(
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(param.sizes());
 
-    nntile::TensorGraph::TensorNode *grad_node = nntile_node(grad);
-    if (grad_node == nullptr)
-    {
-        grad_node = lookup_param_grad_node(param);
-    }
-    if (grad_node == nullptr)
-    {
-        grad_node = lookup_data_node(
-            grad,
-            pytorch_shape_to_graph(grad.sizes()));
-    }
-    if (grad_node == nullptr)
-    {
-        grad_node = get_or_create_data_node(
-            grad,
-            graph_shape,
-            nntile::DataType::FP32,
-            mark_as_input_for_operand(grad));
-    }
-    TORCH_CHECK(
-        grad_node != nullptr,
-        "nntile sgd_step: parameter grad is not registered in the graph; "
-        "run backward before the optimizer step");
+    nntile::TensorGraph::TensorNode *grad_node =
+        resolve_optimizer_grad_node(param, grad, "sgd_step");
     grad_node = bridge_node_to_shape(grad_node, graph_shape);
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);
@@ -1810,25 +1815,7 @@ void tensor_adam_step_fp32(
         pytorch_shape_to_graph(param.sizes());
 
     nntile::TensorGraph::TensorNode *grad_node =
-        lookup_param_grad_node(param);
-    if (grad_node == nullptr)
-    {
-        grad_node = lookup_data_node(
-            grad,
-            pytorch_shape_to_graph(grad.sizes()));
-    }
-    if (grad_node == nullptr)
-    {
-        grad_node = get_or_create_data_node(
-            grad,
-            graph_shape,
-            nntile::DataType::FP32,
-            mark_as_input_for_operand(grad));
-    }
-    TORCH_CHECK(
-        grad_node != nullptr,
-        "nntile adam_step: parameter grad is not registered in the graph; "
-        "run backward before the optimizer step");
+        resolve_optimizer_grad_node(param, grad, "adam_step");
     grad_node = bridge_node_to_shape(grad_node, graph_shape);
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);
@@ -1874,25 +1861,7 @@ void tensor_adamw_step_fp32(
         pytorch_shape_to_graph(param.sizes());
 
     nntile::TensorGraph::TensorNode *grad_node =
-        lookup_param_grad_node(param);
-    if (grad_node == nullptr)
-    {
-        grad_node = lookup_data_node(
-            grad,
-            pytorch_shape_to_graph(grad.sizes()));
-    }
-    if (grad_node == nullptr)
-    {
-        grad_node = get_or_create_data_node(
-            grad,
-            graph_shape,
-            nntile::DataType::FP32,
-            mark_as_input_for_operand(grad));
-    }
-    TORCH_CHECK(
-        grad_node != nullptr,
-        "nntile adam_step: parameter grad is not registered in the graph; "
-        "run backward before the optimizer step");
+        resolve_optimizer_grad_node(param, grad, "adamw_step");
     grad_node = bridge_node_to_shape(grad_node, graph_shape);
     at::Tensor mutable_grad = grad;
     register_grad_alias_for_host_copy(mutable_grad, grad_node);

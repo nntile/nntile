@@ -13,6 +13,7 @@
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
+#include <ATen/core/grad_mode.h>
 #include <c10/core/DeviceGuard.h>
 #include <torch/library.h>
 
@@ -69,19 +70,6 @@ std::vector<int64_t> reduced_sizes(
     sizes.erase(sizes.begin() + static_cast<std::size_t>(axis));
     return sizes;
 }
-
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
-{
-    std::vector<nntile::Index> graph_shape;
-    graph_shape.reserve(shape.size());
-    for (const auto dim : shape)
-    {
-        graph_shape.push_back(static_cast<nntile::Index>(dim));
-    }
-    return graph_shape;
-}
-#endif
 
 } // namespace
 
@@ -222,14 +210,17 @@ at::Tensor linalg_vector_norm_nntile(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile linalg_vector_norm supports float32 only");
+    TORCH_CHECK(
+        !self.requires_grad() || !at::GradMode::is_enabled(),
+        "nntile linalg_vector_norm is forward-only; call it under "
+        "torch.no_grad() or detach the input");
 
   std::optional<int64_t> axis;
   if (dim.has_value())
   {
     TORCH_CHECK(
         dim->size() == 1,
-        "nntile linalg_vector_norm supports a single dim; use CPU fallback "
-        "for multi-axis norms");
+        "nntile linalg_vector_norm supports a single dim only");
     axis = (*dim)[0];
   }
 
@@ -263,14 +254,17 @@ at::Tensor &linalg_vector_norm_out_nntile(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile linalg_vector_norm supports float32 only");
+    TORCH_CHECK(
+        !self.requires_grad() || !at::GradMode::is_enabled(),
+        "nntile linalg_vector_norm is forward-only; call it under "
+        "torch.no_grad() or detach the input");
 
     std::optional<int64_t> axis;
     if (dim.has_value())
     {
         TORCH_CHECK(
             dim->size() == 1,
-            "nntile linalg_vector_norm supports a single dim; use CPU fallback "
-            "for multi-axis norms");
+            "nntile linalg_vector_norm supports a single dim only");
         axis = (*dim)[0];
     }
 

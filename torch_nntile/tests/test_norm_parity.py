@@ -110,3 +110,28 @@ def test_vector_norm_out_matches_cpu():
     assert y is out
     assert torch.allclose(nntile_cpu(out), out_cpu, rtol=1e-5, atol=1e-5)
     assert torch.allclose(nntile_cpu(y), y_cpu, rtol=1e-5, atol=1e-5)
+
+
+def test_vector_norm_rejects_requires_grad_in_grad_mode():
+    x = torch.tensor([[1.0, 2.0], [3.0, 4.0]]).to("nntile").requires_grad_(True)
+    with pytest.raises(RuntimeError, match="forward-only"):
+        torch.linalg.vector_norm(x, ord=2)
+
+
+def test_vector_norm_allows_requires_grad_under_no_grad():
+    x_cpu = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    x = x_cpu.to("nntile").requires_grad_(True)
+    with torch.no_grad():
+        y = torch.linalg.vector_norm(x, ord=2)
+    assert torch.allclose(
+        nntile_cpu(y),
+        torch.linalg.vector_norm(x_cpu, ord=2),
+        rtol=1e-5,
+        atol=1e-5,
+    )
+
+
+def test_vector_norm_rejects_non_l2():
+    x = torch.tensor([[1.0, 2.0], [3.0, 4.0]]).to("nntile")
+    with pytest.raises(RuntimeError, match="ord=2 only"):
+        torch.linalg.vector_norm(x, ord=1)

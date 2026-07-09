@@ -129,7 +129,7 @@ remains a separate custom API for NNTile-layout SDPA.
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
 | `F.layer_norm` / `nn.LayerNorm` | `native_layer_norm` / `native_layer_norm_backward` |
 | `F.rms_norm` / `nn.RMSNorm` | custom autograd + `rms_norm_forward` / `rms_norm_backward` |
-| `torch.linalg.vector_norm` (ord=2) | forward only via `norm_forward`; no autograd backward on nntile |
+| `torch.linalg.vector_norm` (ord=2) | forward only via `norm_forward`; errors if `requires_grad` and grad mode is on; use under `torch.no_grad()` |
 | `F.silu` / `nn.SiLU` | `tensor::silu` |
 | SiLU in-place (`silu_`) | `tensor::silu_inplace` |
 | SiLU backward | `tensor::silu_backward` (+ `tensor::clear` on output) |
@@ -216,7 +216,8 @@ Use this to verify that a model forward uses only nntile kernels.
 ### TensorGraph execution
 
 All ops record into a shared ``TensorGraph``. Flush with ``compile_graph()`` and
-``run()`` (or the legacy one-shot ``execute()``) before host readout.
+``run()`` (or the legacy one-shot ``execute()``) before relying on tile side
+effects other than host readout.
 
 ```python
 torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
@@ -224,41 +225,43 @@ y = model(x)              # recorded, not executed yet
 loss.backward()           # backward ops recorded too
 torch_nntile.compile_graph()
 torch_nntile.run()
-z = y.to("cpu")           # host readout after run
+z = y.to("cpu")           # host readout (also auto-flushes if still pending)
 ```
 
 Forward and backward stay in one pending graph (StarPU resolves dependencies).
-Call ``torch_nntile.compile_graph()`` then ``torch_nntile.run()`` each step.
-Host reads from **nntile** tensors use ``.to("cpu")`` or ``.cpu()`` after
-``run()`` (data is synced from tile memory). Copies **to** ``device="nntile"``
-move host storage into tiles via ``.to()``; there is no ``bind_data`` in
-torch_nntile. Training helpers such as ``train_full_batch_step`` call
-``compile_graph()`` + ``run()`` and return ``loss.to("cpu").item()``.
+Call ``torch_nntile.compile_graph()`` then ``torch_nntile.run()`` each step when
+you want an explicit compile boundary. Training helpers such as
+``train_full_batch_step`` call ``compile_graph()`` + ``run()`` and return
+``loss.to("cpu").item()``.
+
+**`.cpu()` / `.to("cpu")` auto-flush (by design):** host readout of a nntile
+tensor compiles and runs any still-pending ops, then records and runs
+`gather(L→S)` into an ephemeral staging node. You do not need a prior
+``compile_graph()``/``run()`` for correctness, but each readout permanently
+appends gather nodes to the session graph (see debt D1 in
+[torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)).
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
 
 ### Memory and tensor lifetime
 
-NNTile tracks every ``device="nntile"`` tensor in the graph recorder while a
-Python ``Tensor`` object is alive. Each new nntile tensor is marked as a graph
-**output**; when the last ``Tensor`` object is deleted, that output mark is
-cleared (the graph node and ops are kept). At ``compile_graph()``, only tensors
-still referenced in Python — plus their producer closure and registered param
-grad nodes — remain marked as outputs.
+Architecture reference:
+[docs/dev/torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md).
 
-During ``run()``, ``Runtime::execute()`` releases StarPU tile buffers for
-intermediate tiles after their last consumer when those tiles are not marked as
-inputs or outputs.
-
-- **Reduce footprint:** ``del`` temporaries you no longer need (activations,
-  large intermediates) before ``compile_graph()`` in training loops.
-- **Host RAM:** all ``device=nntile`` tensors use **0-byte** ``Storage``;
-  payload lives in StarPU tiles behind ``NodeRef`` → ``{ L, S }``. Host bytes
-  enter/leave only via the single-tile **staging** node ``S`` (scatter/gather).
-  No recorder host caches (e.g. label copies).
-- **Readout:** ``.cpu()`` / ``.to("cpu")`` uses ``gather(L→S)``; call
-  ``compile_graph()`` and ``run()`` first when reading computed values (or use
-  test helper ``nntile_cpu`` which auto-flushes a pending graph).
+- Every ``device=nntile`` tensor uses **0-byte** ``Storage``. Payload lives in
+  StarPU tiles behind ``NodeRef`` → ``NNTileBinding { logical L }``.
+- **Staging ``S`` is ephemeral** (not stored in the binding): created for each
+  ``.to("nntile")`` scatter or ``.cpu()`` gather, then invalidated after run.
+- Ingress is **one-shot** per tensor via ``.to("nntile")``; CPU→bound-nntile
+  copy raises.
+- **Views / reshape / contiguous-preserving permute** share ``NodeRef`` (no
+  data copy). **nntile→nntile ``copy_``** with matching shape/dtype also
+  **aliases** ``NodeRef`` (no tile copy).
+- ``Tensor.contiguous()`` is unsupported on non-contiguous nntile tensors.
+- During ``run()``, intermediate StarPU tile buffers may be released after
+  their last consumer when not marked as inputs/outputs.
+- **Reduce footprint:** ``del`` temporaries before ``compile_graph()`` in
+  training loops when you want fewer live output marks.
 
 ### Axis-group naming and tiling
 
