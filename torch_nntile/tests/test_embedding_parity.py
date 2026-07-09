@@ -131,7 +131,7 @@ def test_embedding_rejects_cpu_indices():
         F.embedding(indices, weight_nnt)
 
 
-def test_embedding_graph_mode():
+def test_embedding_deferred_until_compile():
     _run_graph_subprocess(
         """
         import torch

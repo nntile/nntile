@@ -134,7 +134,7 @@ def test_cat_out_variant():
     assert torch.allclose(nntile_cpu(out), expected, rtol=1e-5, atol=1e-5)
 
 
-def test_cat_graph_mode():
+def test_cat_deferred_until_compile():
     _run_graph_subprocess(
         """
         import torch

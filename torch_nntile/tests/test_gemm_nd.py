@@ -110,7 +110,7 @@ def test_gemm_qkv_backward():
     assert torch.allclose(nntile_cpu(w_n.grad), w.grad, atol=1e-4, rtol=1e-4)
 
 
-def test_gemm_graph_mode_no_view():
+def test_gemm_no_view():
     import subprocess
     import sys
     import textwrap

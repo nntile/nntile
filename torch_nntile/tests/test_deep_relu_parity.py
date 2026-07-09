@@ -19,17 +19,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    yield
-
-
 def test_deep_relu_forward_matches_cpu():
     torch.manual_seed(0)
     model_cpu = DeepReLU.tiny()

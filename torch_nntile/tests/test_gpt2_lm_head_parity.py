@@ -33,24 +33,6 @@ pytestmark = pytest.mark.skipif(
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
 
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(
-            ncpu=1,
-            ncuda=0,
-            verbose=0,
-            cpu_fallback=False,
-        )
-    torch_nntile.restrict_cpu()
-    yield
-
 
 @pytest.fixture
 def tiny_gpt2_config() -> GPT2Config:
@@ -350,7 +332,7 @@ def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
     _assert_close(gwpe, hf.transformer.wpe.weight.grad)
 
 
-def test_gpt2_lm_head_graph_mode_forward(tiny_gpt2_config):
+def test_gpt2_lm_head_forward_deferred(tiny_gpt2_config):
     import subprocess
     import sys
     import textwrap

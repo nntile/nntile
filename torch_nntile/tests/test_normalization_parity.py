@@ -20,17 +20,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    yield
-
-
 @pytest.mark.parametrize("shape", [(4, 8), (2, 3, 8)])
 def test_layer_norm_forward_matches_cpu(shape):
     torch.manual_seed(0)

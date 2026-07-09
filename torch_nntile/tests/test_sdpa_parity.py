@@ -23,25 +23,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(
-            ncpu=1,
-            ncuda=0,
-            verbose=0,
-            cpu_fallback=False,
-        )
-    torch_nntile.restrict_cpu()
-    yield
-
-
 def _projection_to_kernel_layout(x: torch.Tensor) -> torch.Tensor:
     """``[batch, seq, head_size, n_heads]`` -> ``[n_heads, batch, seq, head_size]``."""
     return x.permute(3, 0, 1, 2).contiguous()
@@ -238,7 +219,7 @@ def test_sdpa_rejects_cpu_tensors():
         sdpa_eager(q, k, v)
 
 
-def test_sdpa_graph_mode_deferred_until_execute():
+def test_sdpa_deferred_until_execute():
     import subprocess
     import sys
     import textwrap

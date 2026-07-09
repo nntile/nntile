@@ -183,7 +183,7 @@ def test_chunk_backward():
     assert torch.allclose(nntile_cpu(gx), gx_cpu, rtol=1e-5, atol=1e-5)
 
 
-def test_split_cat_graph_mode_backward():
+def test_split_cat_backward_subprocess():
     _run_graph_subprocess(
         """
         import torch
@@ -222,7 +222,7 @@ def test_split_cat_graph_mode_backward():
     )
 
 
-def test_cat_backward_graph_mode():
+def test_cat_backward_subprocess():
     _run_graph_subprocess(
         """
         import torch

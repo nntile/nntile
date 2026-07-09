@@ -22,23 +22,45 @@ import torch_nntile
 from torch_nntile import _C
 
 
-def pytest_sessionstart(session) -> None:
-    """Configure nntile before collection or any libnntile-backed op."""
-    del session
+def ensure_nntile_context(
+    *,
+    ncpu: int = 1,
+    ncuda: int = 0,
+    verbose: int = 0,
+    cpu_fallback: bool = False,
+) -> None:
+    """Initialize the nntile context before the first libnntile-backed op.
+
+    ``cpu_fallback`` is selected at :func:`init_context` time (runtime flag, not
+    a compile-time setting). Call this early with ``cpu_fallback=False`` for
+    parity tests that require unsupported ATen ops to fail instead of silently
+    falling back to CPU.
+    """
     if not _C.has_libnntile():
         return
     if not torch_nntile.is_context_initialized():
-        try:
-            torch_nntile.init_context(
-                ncpu=1,
-                ncuda=0,
-                verbose=0,
-                cpu_fallback=False,
-            )
-        except RuntimeError:
-            # Configuration was locked earlier in this process.
-            pass
+        torch_nntile.init_context(
+            ncpu=ncpu,
+            ncuda=ncuda,
+            verbose=verbose,
+            cpu_fallback=cpu_fallback,
+        )
+        torch_nntile.restrict_cpu()
+        return
+    if cpu_fallback and torch_nntile.is_cpu_fallback_enabled():
+        return
+    if not cpu_fallback and torch_nntile.is_cpu_fallback_enabled():
+        pytest.fail(
+            "nntile context already initialized with cpu_fallback=True; "
+            "tests in this process require cpu_fallback=False"
+        )
     torch_nntile.restrict_cpu()
+
+
+def pytest_sessionstart(session) -> None:
+    """Configure nntile before collection or any libnntile-backed op."""
+    del session
+    ensure_nntile_context(cpu_fallback=False)
 
 
 @pytest.fixture(autouse=True)

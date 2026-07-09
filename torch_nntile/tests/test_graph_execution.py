@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_graph_execution.py
-# Graph (non-eager) runtime mode for torch_nntile.
+# TensorGraph deferred execution for torch_nntile.
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def _run_graph_subprocess(script: str) -> None:
         )
 
 
-def test_graph_mode_deferred_until_execute():
+def test_deferred_until_execute():
     _run_graph_subprocess(
         """
         import torch
@@ -236,7 +236,7 @@ def test_graph_cross_entropy_backward_and_sgd():
     )
 
 
-def test_train_full_batch_step_graph_mode():
+def test_train_full_batch_step():
     _run_graph_subprocess(
         """
         import math
@@ -268,7 +268,7 @@ def test_train_full_batch_step_graph_mode():
     )
 
 
-def test_train_full_batch_step_graph_mode_multi_epoch():
+def test_train_full_batch_step_multi_epoch():
     """compile_graph() clears pending nodes; epoch 2 must recreate data nodes."""
     _run_graph_subprocess(
         """
@@ -336,8 +336,8 @@ def test_graph_nntile_loss_backward_without_scalar_read():
     )
 
 
-def test_graph_mode_mm_view_add_ndim():
-    """mm output viewed to higher rank must match bias ndim in graph mode."""
+def test_mm_view_add_ndim():
+    """mm output viewed to higher rank must match bias ndim."""
     _run_graph_subprocess(
         """
         import torch

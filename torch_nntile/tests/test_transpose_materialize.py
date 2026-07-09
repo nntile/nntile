@@ -155,7 +155,7 @@ def test_contiguous_raises_on_noncontiguous_nntile():
     not _C.has_libnntile(),
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
-def test_transpose_graph_mode_deferred():
+def test_transpose_deferred_until_execute():
     repo = Path(__file__).resolve().parents[2]
     build_lib = repo / "build" / "nntile"
     starpu_lib = "/opt/starpu/lib"
@@ -180,7 +180,8 @@ def test_transpose_graph_mode_deferred():
         assert torch_nntile.has_pending_graph()
         z = y.transpose(-1, -2)
         assert torch_nntile.has_pending_graph()
-        torch_nntile.execute()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
         assert not torch_nntile.has_pending_graph()
         ref = x.cpu().transpose(1, 2).transpose(-1, -2)
         torch.testing.assert_close(z.cpu(), ref, rtol=1e-5, atol=1e-5)

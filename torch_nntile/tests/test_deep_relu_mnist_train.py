@@ -29,17 +29,6 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    yield
-
-
 @pytest.fixture(scope="module")
 def mnist_full_batch(tmp_path_factory):
     data_dir = tmp_path_factory.mktemp("mnist")

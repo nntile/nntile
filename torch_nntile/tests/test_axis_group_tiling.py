@@ -49,7 +49,7 @@ def _run_subprocess(script: str) -> None:
         )
 
 
-def test_axis_group_tiling_add_graph_mode():
+def test_axis_group_tiling_add():
     _run_subprocess(
         """
         import torch

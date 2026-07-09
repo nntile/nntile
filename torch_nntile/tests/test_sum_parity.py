@@ -18,25 +18,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _nntile_context_no_fallback():
-    if not _C.has_libnntile():
-        return
-    if torch_nntile.is_cpu_fallback_enabled():
-        pytest.skip(
-            "context has CPU fallback enabled; rebuild with cpu_fallback=False"
-        )
-    if not torch_nntile.is_context_initialized():
-        torch_nntile.init_context(
-            ncpu=1,
-            ncuda=0,
-            verbose=0,
-            cpu_fallback=False,
-        )
-    torch_nntile.restrict_cpu()
-    yield
-
-
 def test_sum_multi_axis_keepdim_matches_cpu():
     x_cpu = torch.randn(2, 3, 4, dtype=torch.float32)
     x_nnt = x_cpu.to("nntile")
