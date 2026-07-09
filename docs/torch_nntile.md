@@ -306,7 +306,7 @@ down StarPU cleanly in a `finally` block.
 |------|---------|
 | `--compare-torch` | Also train CPU PyTorch reference and print loss/weight parity |
 | `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
-| `--verbose` | Verbose StarPU / NNTile context logging |
+| `--verbose` | Verbose StarPU / NNTile logging; also print weight norms under `torch.no_grad()` |
 | `--hidden-dim`, `--depth` | Model size (default 256, 5) |
 | `--axis-tiling NAME=SIZES` | Repeatable; apply named axis-group tiling before `compile_graph()` |
 | `--print-axis-groups` | Dump axis groups after epoch 1 |

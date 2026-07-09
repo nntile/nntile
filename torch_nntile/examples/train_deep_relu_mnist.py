@@ -119,6 +119,21 @@ def _clone_state_dict_cpu(model: torch.nn.Module) -> dict[str, torch.Tensor]:
     }
 
 
+def print_tensor_norm(label: str, tensor: torch.Tensor) -> None:
+    """Print ``tensor.norm()`` without recording autograd (norm has no nntile backward)."""
+    with torch.no_grad():
+        print(f"{label}: {tensor.norm().detach().cpu()}")
+
+
+def print_state_dict_norms(
+    prefix: str,
+    state: dict[str, torch.Tensor],
+) -> None:
+    """Print Frobenius norms of state-dict tensors under ``torch.no_grad()``."""
+    for name, tensor in state.items():
+        print_tensor_norm(f"{prefix} {name} norm", tensor)
+
+
 def build_torch_model(
     seed: int,
     hidden_dim: int,
@@ -290,7 +305,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--verbose",
         action="store_true",
-        help="Enable verbose StarPU / NNTile context logging",
+        help=(
+            "Verbose StarPU / NNTile context logging, and print weight "
+            "norms under torch.no_grad()"
+        ),
     )
     parser.add_argument("--output-dir", default="deep_relu_mnist_runs")
     return parser
@@ -332,6 +350,8 @@ def main() -> None:
         depth=args.depth,
     )
     init_weights = _clone_state_dict_cpu(model_init)
+    if args.verbose:
+        print_state_dict_norms("init", init_weights)
 
     torch_losses: list[float] | None = None
     final_torch: dict[str, torch.Tensor] | None = None
@@ -345,6 +365,8 @@ def main() -> None:
             learning_rate=args.lr,
         )
         final_torch = _clone_state_dict_cpu(model_init)
+        if args.verbose:
+            print_state_dict_norms("torch/final", final_torch)
     del model_init
 
     torch_nntile.init_context(
@@ -388,6 +410,8 @@ def main() -> None:
         final_nnt = clone_model_weights(model_nnt)
         torch.save(final_nnt, nnt_path)
         print(f"\nSaved nntile model (CPU tensors) to {nnt_path}")
+        if args.verbose:
+            print_state_dict_norms("nntile/final", final_nnt)
 
         if compare_torch:
             assert torch_losses is not None and final_torch is not None
