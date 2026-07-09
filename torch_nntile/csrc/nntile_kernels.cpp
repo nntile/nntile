@@ -227,6 +227,20 @@ at::Tensor ones_like(
     {
         options = options.pinned_memory(*pin_memory_opt);
     }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    if (is_nntile_device(options.device()))
+    {
+        const c10::ScalarType dtype = dtype_opt.has_value()
+            ? *dtype_opt
+            : self.scalar_type();
+        at::Tensor result = empty_metadata_tensor(
+            self.sizes(),
+            dtype,
+            options.device());
+        fill_scalar(result, 1);
+        return result;
+    }
+#endif
     at::MemoryFormat format = at::MemoryFormat::Contiguous;
     if (memory_format_opt.has_value())
     {
@@ -238,17 +252,6 @@ at::Tensor ones_like(
     at::Tensor result = at::empty(
         self.sizes(),
         options.memory_format(format));
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-    if (is_nntile_device(result.device()))
-    {
-        result = empty_metadata_tensor(
-            self.sizes(),
-            result.scalar_type(),
-            result.device());
-        fill_scalar(result, 1);
-        return result;
-    }
-#endif
 #ifndef TORCH_NNTILE_USE_LIBNNTILE
     if (is_nntile_device(result.device()) && is_metadata_only_tensor(result))
     {
