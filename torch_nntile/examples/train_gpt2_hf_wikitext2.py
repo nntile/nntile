@@ -294,17 +294,6 @@ def train_cuda(args: argparse.Namespace) -> int:
             "or train with --device nntile."
         )
     device = torch.device("cuda")
-    config = load_gpt2_config(Path(args.config))
-    sequences = build_sequences(
-        encode_wikitext2(config.vocab_size),
-        seq_len=args.seq_len,
-        max_sequences=args.max_sequences,
-    )
-    print(
-        f"Device=cuda  sequences={sequences.shape[0]}  "
-        f"seq_len={args.seq_len}  batch_size={args.batch_size}"
-    )
-
     start_epoch = 0
     global_step = 0
     ckpt = None
@@ -325,7 +314,19 @@ def train_cuda(args: argparse.Namespace) -> int:
     else:
         if args.seed is None:
             raise SystemExit("--seed is required when training from scratch")
+        config = load_gpt2_config(Path(args.config))
         model = build_model(config, args.seed)
+
+    # Pack sequences after config is final (checkpoint vocab_size on resume).
+    sequences = build_sequences(
+        encode_wikitext2(config.vocab_size),
+        seq_len=args.seq_len,
+        max_sequences=args.max_sequences,
+    )
+    print(
+        f"Device=cuda  sequences={sequences.shape[0]}  "
+        f"seq_len={args.seq_len}  batch_size={args.batch_size}"
+    )
 
     model = model.to(device)
     optimizer = torch.optim.SGD(
@@ -399,17 +400,6 @@ def train_nntile(args: argparse.Namespace) -> int:
             "Set NNTILE_BUILD_DIR and reinstall."
         )
 
-    config = load_gpt2_config(Path(args.config))
-    sequences = build_sequences(
-        encode_wikitext2(config.vocab_size),
-        seq_len=args.seq_len,
-        max_sequences=args.max_sequences,
-    )
-    print(
-        f"Device=nntile  sequences={sequences.shape[0]}  "
-        f"seq_len={args.seq_len}  batch_size={args.batch_size}"
-    )
-
     start_epoch = 0
     global_step = 0
     ckpt = None
@@ -430,7 +420,19 @@ def train_nntile(args: argparse.Namespace) -> int:
     else:
         if args.seed is None:
             raise SystemExit("--seed is required when training from scratch")
+        config = load_gpt2_config(Path(args.config))
         cpu_model = build_model(config, args.seed)
+
+    # Pack sequences after config is final (checkpoint vocab_size on resume).
+    sequences = build_sequences(
+        encode_wikitext2(config.vocab_size),
+        seq_len=args.seq_len,
+        max_sequences=args.max_sequences,
+    )
+    print(
+        f"Device=nntile  sequences={sequences.shape[0]}  "
+        f"seq_len={args.seq_len}  batch_size={args.batch_size}"
+    )
 
     torch_nntile.init_context(
         ncpu=args.ncpu,
