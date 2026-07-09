@@ -100,14 +100,112 @@ void Runtime::compile()
         execution_order_.push_back(op);
     }
 
+    // Refresh tile marks from logical TensorNodes before DCE / reclaim so
+    // incremental sessions see mark_output(false) after Python drops refs.
+    sync_tile_marks_from_logical();
     eliminate_dead_ops();
     build_tile_last_consumer_map();
+    // Free StarPU buffers for unmarked tiles not used by the pending
+    // (not-yet-executed) op slice.
+    invalidate_non_output_tiles();
     allocate_missing_tiles();
     tile_adoption_.clear();
 
     execution_schedule_ = ExecutionSchedule{};
 
     compiled_ = true;
+}
+
+void Runtime::sync_tile_marks_from_logical()
+{
+    for (const auto &uptr : graph_.tensor_descriptors())
+    {
+        const TileGraph::TensorDescriptor &desc = *uptr;
+        if (desc.source_node == nullptr)
+        {
+            continue;
+        }
+        const bool is_in = desc.source_node->is_input();
+        const bool is_out = desc.source_node->is_output();
+        for (TileGraph::TileNode *tile : desc.tiles)
+        {
+            if (tile == nullptr)
+            {
+                continue;
+            }
+            // Propagate input mark only when logical is marked input; never
+            // clear tile is_input from a false logical (torch_nntile drives
+            // persistence via mark_output only).
+            if (is_in)
+            {
+                tile->mark_input(true);
+            }
+            tile->mark_output(is_out);
+        }
+    }
+}
+
+void Runtime::invalidate_non_output_tiles()
+{
+    std::unordered_set<const TileGraph::TileNode *> needed_by_pending;
+    const size_t n = execution_order_.size();
+    const size_t begin =
+        executed_op_end_ < n ? executed_op_end_ : n;
+    for (size_t i = begin; i < n; ++i)
+    {
+        for (const auto *in : execution_order_[i]->inputs())
+        {
+            if (in != nullptr)
+            {
+                needed_by_pending.insert(in);
+            }
+        }
+        for (const auto *out : execution_order_[i]->outputs())
+        {
+            if (out != nullptr)
+            {
+                needed_by_pending.insert(out);
+            }
+        }
+    }
+
+    std::vector<const TileGraph::TileNode *> to_release;
+    to_release.reserve(tile_map_.size());
+    for (const auto &[tile, tile_ptr] : tile_map_)
+    {
+        (void)tile_ptr;
+        if (tile == nullptr)
+        {
+            continue;
+        }
+        if (tile->is_output() || tile->is_input())
+        {
+            continue;
+        }
+        if (needed_by_pending.count(tile) != 0)
+        {
+            continue;
+        }
+        to_release.push_back(tile);
+    }
+    if (to_release.empty())
+    {
+        return;
+    }
+    if (starpu_is_initialized())
+    {
+        starpu_task_wait_for_all();
+    }
+    for (const TileGraph::TileNode *tile : to_release)
+    {
+        auto it = tile_map_.find(tile);
+        if (it == tile_map_.end())
+        {
+            continue;
+        }
+        invalidate_tile_buffer(tile, it->second);
+        tile_map_.erase(it);
+    }
 }
 
 void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
@@ -480,11 +578,41 @@ void Runtime::require_compiled() const
 
 void Runtime::allocate_missing_tiles()
 {
+    std::unordered_set<const TileGraph::TileNode *> needed_by_pending;
+    const size_t n = execution_order_.size();
+    const size_t begin =
+        executed_op_end_ < n ? executed_op_end_ : n;
+    for (size_t i = begin; i < n; ++i)
+    {
+        for (const auto *in : execution_order_[i]->inputs())
+        {
+            if (in != nullptr)
+            {
+                needed_by_pending.insert(in);
+            }
+        }
+        for (const auto *out : execution_order_[i]->outputs())
+        {
+            if (out != nullptr)
+            {
+                needed_by_pending.insert(out);
+            }
+        }
+    }
+
     for (const auto &node : graph_.tile_nodes())
     {
         const TileGraph::TileNode *tile_key = node.get();
         if (!live_tile_nodes_.empty() &&
             live_tile_nodes_.count(tile_key) == 0)
+        {
+            continue;
+        }
+        // Full-graph DCE may keep historical unmarked tiles "live"; do not
+        // reallocate them unless a pending op needs them (or they are
+        // marked input/output).
+        if (!tile_key->is_output() && !tile_key->is_input() &&
+            needed_by_pending.count(tile_key) == 0)
         {
             continue;
         }
@@ -570,6 +698,10 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
         execution_order_[i]->execute(*this);
         release_dead_tiles_after_op(i);
     }
+    if (op_end > executed_op_end_)
+    {
+        executed_op_end_ = op_end;
+    }
 }
 
 void Runtime::execute()
@@ -593,6 +725,7 @@ void Runtime::execute()
         execution_order_[i]->execute(*this);
         release_dead_tiles_after_op(i);
     }
+    executed_op_end_ = execution_order_.size();
 }
 
 void Runtime::build_tile_last_consumer_map()

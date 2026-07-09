@@ -206,7 +206,23 @@ void append_tensor_graph_phase(
                 "under a new tiling is not supported yet.");
         }
 
-        tile_map[t] = state.tensor_to_tiles[t];
+        // Refresh marks on reused tiles: logical mark_output may have flipped
+        // since the tiles were first created (e.g. Python dropped a NodeRef).
+        std::vector<TileGraph::TileNode*>& reused =
+            state.tensor_to_tiles[t];
+        for(TileGraph::TileNode* tile_node_ptr : reused)
+        {
+            if(tile_node_ptr == nullptr)
+            {
+                continue;
+            }
+            if(t->is_input())
+            {
+                tile_node_ptr->mark_input(true);
+            }
+            tile_node_ptr->mark_output(t->is_output());
+        }
+        tile_map[t] = reused;
     }
 
     lower_tensor_ops_to_tile_graph(
