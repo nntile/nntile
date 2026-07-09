@@ -129,6 +129,7 @@ remains a separate custom API for NNTile-layout SDPA.
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
 | `F.layer_norm` / `nn.LayerNorm` | `native_layer_norm` / `native_layer_norm_backward` |
 | `F.rms_norm` / `nn.RMSNorm` | custom autograd + `rms_norm_forward` / `rms_norm_backward` |
+| `torch.linalg.vector_norm` (ord=2) | forward only via `norm_forward`; no autograd backward on nntile |
 | `F.silu` / `nn.SiLU` | `tensor::silu` |
 | SiLU in-place (`silu_`) | `tensor::silu_inplace` |
 | SiLU backward | `tensor::silu_backward` (+ `tensor::clear` on output) |

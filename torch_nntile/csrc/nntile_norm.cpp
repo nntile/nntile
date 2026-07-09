@@ -244,17 +244,6 @@ at::Tensor norm_backward(
             grad_input_flat,
             true,
             0);
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-        nntile::TensorGraph::TensorNode *grad_input_node = lookup_data_node(
-            grad_input_flat,
-            pytorch_shape_to_graph(grad_input_flat.sizes()));
-        if (grad_input_node != nullptr)
-        {
-            register_data_node(grad_input, grad_input_node);
-            register_param_grad_node(x, grad_input_node);
-            register_grad_alias_for_host_copy(grad_input, grad_input_node);
-        }
-#endif
         return grad_input;
     }
 
@@ -266,17 +255,6 @@ at::Tensor norm_backward(
         grad_input,
         false,
         axis);
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-    nntile::TensorGraph::TensorNode *grad_input_node = lookup_data_node(
-        grad_input,
-        pytorch_shape_to_graph(grad_input.sizes()));
-    if (grad_input_node != nullptr)
-    {
-        register_param_grad_node(x, grad_input_node);
-        at::Tensor grad_alias = grad_input;
-        register_grad_alias_for_host_copy(grad_alias, grad_input_node);
-    }
-#endif
     return grad_input;
 }
 

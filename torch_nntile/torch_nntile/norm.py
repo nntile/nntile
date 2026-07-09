@@ -40,34 +40,6 @@ def _is_two_norm(ord: float | int) -> bool:
     return abs(float(ord) - 2.0) < 1e-6
 
 
-class _NntileVectorNorm(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx,
-        input: torch.Tensor,
-        ord: float | int,
-        dim: int | None,
-        keepdim: bool,
-    ) -> torch.Tensor:
-        output, norm_values = _C.norm_forward(input, dim, keepdim)
-        ctx.dim = dim
-        ctx.keepdim = keepdim
-        ctx.save_for_backward(input, norm_values)
-        return output
-
-    @staticmethod
-    def backward(ctx, grad_output: torch.Tensor):
-        input, norm_values = ctx.saved_tensors
-        grad_input = _C.norm_backward(
-            grad_output,
-            input,
-            norm_values,
-            ctx.dim,
-            ctx.keepdim,
-        )
-        return grad_input, None, None, None
-
-
 def vector_norm(
     input: torch.Tensor,
     ord: float | int = 2,
@@ -77,7 +49,12 @@ def vector_norm(
     out: torch.Tensor | None = None,
     dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
-    """2-norm on ``device='nntile'`` via libnntile tensor ops."""
+    """2-norm on ``device='nntile'`` via libnntile tensor ops.
+
+    Forward only: unlike ``F.layer_norm`` / ``F.rms_norm``, this does not
+    register an autograd backward on nntile. Use layer norm or RMS norm when
+    you need differentiable normalization.
+    """
     if input.device.type != "nntile":
         return _ORIGINAL_LINALG_VECTOR_NORM(
             input,
@@ -120,7 +97,8 @@ def vector_norm(
             )
         _C.norm_forward(input, axis, keepdim, out)
         return out
-    return _NntileVectorNorm.apply(input, ord, axis, keepdim)
+    output, _norm_values = _C.norm_forward(input, axis, keepdim)
+    return output
 
 
 def patch_vector_norm() -> None:
