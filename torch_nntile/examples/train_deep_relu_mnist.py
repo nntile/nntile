@@ -3,15 +3,18 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/examples/train_deep_relu_mnist.py
-# Train DeepReLU on the full MNIST training set (60k batch) on CPU vs nntile.
+# Train DeepReLU on the full MNIST training set (60k batch) on torch vs nntile.
 
-"""Full-batch MNIST training with DeepReLU on CPU and device=\"nntile\".
+"""Full-batch MNIST training with DeepReLU on a torch device vs device=\"nntile\".
 
 Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 (same tensor-op chain as ``NNCrossEntropyOp`` in libnntile). Logits are
 ``[batch, classes]`` (class dim last). The scalar loss lives on
 ``device="nntile"``; read it with ``loss.to("cpu")`` after ``compile_graph()`` and
 ``run()`` in graph mode.
+
+The reference PyTorch path defaults to CPU; pass ``--torch-device cuda`` to
+compare against a CUDA torch reference instead.
 
 Axis-group naming and tiling (optional) are configured in this script:
 
@@ -27,6 +30,7 @@ Example with batch and hidden tiling in graph mode::
     STARPU_NCPU=0 STARPU_NCUDA=2 \\
     python torch_nntile/examples/train_deep_relu_mnist.py \\
         --restrict-cuda \\
+        --torch-device cuda \\
         --epochs 5 \\
         --axis-tiling batch=15000,15000,15000,15000 \\
         --axis-tiling features=392,392 \\
@@ -110,6 +114,29 @@ def build_axis_group_tiling(
     return tiling
 
 
+def resolve_torch_device(spec: str) -> torch.device:
+    """Parse ``cpu`` / ``cuda`` / ``cuda:N`` and check availability."""
+    device = torch.device(spec)
+    if device.type == "cpu":
+        return device
+    if device.type == "cuda":
+        if not torch.cuda.is_available():
+            raise SystemExit(
+                f"--torch-device {spec!r} requested but torch.cuda is "
+                "not available"
+            )
+        index = 0 if device.index is None else device.index
+        if index >= torch.cuda.device_count():
+            raise SystemExit(
+                f"--torch-device {spec!r} is out of range "
+                f"(torch.cuda.device_count()={torch.cuda.device_count()})"
+            )
+        return torch.device("cuda", index)
+    raise SystemExit(
+        f"--torch-device must be cpu or cuda[:N], got {spec!r}"
+    )
+
+
 def _name_hidden_on_matrix(tensor: torch.Tensor, hidden_dim: int) -> None:
     """Tag matrix rows/cols of size ``hidden_dim`` with the ``hidden`` axis group."""
     if tensor.ndim != 2:
@@ -150,15 +177,17 @@ def build_models(
     seed: int,
     hidden_dim: int,
     depth: int,
+    torch_device: torch.device,
 ) -> tuple[DeepReLU, DeepReLU]:
     torch.manual_seed(seed)
-    model_cpu = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
-    model_cpu.init_kaiming_uniform_(seed=seed)
+    model_torch = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
+    model_torch.init_kaiming_uniform_(seed=seed)
 
     model_nnt = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
-    model_nnt.load_state_dict(model_cpu.state_dict())
+    model_nnt.load_state_dict(model_torch.state_dict())
+    model_torch = model_torch.to(torch_device)
     model_nnt = model_nnt.to("nntile")
-    return model_cpu, model_nnt
+    return model_torch, model_nnt
 
 
 def train_on_device(
@@ -166,28 +195,30 @@ def train_on_device(
     images: torch.Tensor,
     labels: torch.Tensor,
     *,
-    device: str,
+    device: str | torch.device,
     epochs: int,
     learning_rate: float,
     hidden_dim: int,
     axis_group_tiling: dict[str, list[int]] | None = None,
     print_axis_groups: bool = False,
 ) -> list[float]:
-    if device == "nntile":
+    device_label = str(device)
+    if device_label == "nntile":
         x = images.to("nntile")
         y = labels.to("nntile")
         if axis_group_tiling is not None:
             for name, tile_sizes in axis_group_tiling.items():
                 torch_nntile.set_axis_group_tiling(name, tile_sizes)
     else:
-        x = images
-        y = labels
+        torch_device = torch.device(device)
+        x = images.to(torch_device)
+        y = labels.to(torch_device)
 
     losses: list[float] = []
     name_axis_groups: (
         Callable[[torch.Tensor, torch.Tensor], None] | None
     ) = None
-    if device == "nntile":
+    if device_label == "nntile":
 
         def name_axis_groups(x: torch.Tensor, logits: torch.Tensor) -> None:
             name_mnist_axis_groups(model, x, logits, hidden_dim=hidden_dim)
@@ -199,11 +230,15 @@ def train_on_device(
             y,
             learning_rate,
             name_axis_groups=name_axis_groups,
-            axis_group_tiling=axis_group_tiling if device == "nntile" else None,
-            print_axis_groups=print_axis_groups and device == "nntile" and epoch == 0,
+            axis_group_tiling=(
+                axis_group_tiling if device_label == "nntile" else None
+            ),
+            print_axis_groups=(
+                print_axis_groups and device_label == "nntile" and epoch == 0
+            ),
         )
         losses.append(loss)
-        print(f"[{device}] epoch {epoch + 1}/{epochs}  loss={loss:.6f}")
+        print(f"[{device_label}] epoch {epoch + 1}/{epochs}  loss={loss:.6f}")
     return losses
 
 
@@ -215,6 +250,15 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--depth", type=int, default=5)
+    parser.add_argument(
+        "--torch-device",
+        default="cpu",
+        metavar="DEVICE",
+        help=(
+            "Device for the reference PyTorch path: cpu (default), cuda, "
+            "or cuda:N"
+        ),
+    )
     parser.add_argument(
         "--axis-tiling",
         action="append",
@@ -249,6 +293,7 @@ def main() -> None:
             "Set NNTILE_BUILD_DIR and reinstall."
         )
 
+    torch_device = resolve_torch_device(args.torch_device)
     axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
 
     torch_nntile.init_context(
@@ -261,6 +306,7 @@ def main() -> None:
         torch_nntile.restrict_cuda()
 
     try:
+        print(f"Reference torch device: {torch_device}")
         if args.restrict_cuda:
             print("Worker placement: CUDA only (restrict_cuda)")
         if axis_group_tiling:
@@ -274,23 +320,27 @@ def main() -> None:
         images, labels = load_mnist_full_batch(args.data_dir)
         print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
 
-        model_cpu, model_nnt = build_models(
+        model_torch, model_nnt = build_models(
             seed=args.seed,
             hidden_dim=args.hidden_dim,
             depth=args.depth,
+            torch_device=torch_device,
         )
 
-        init_cpu = clone_model_weights(model_cpu)
+        init_torch = clone_model_weights(model_torch)
         init_nnt = clone_model_weights(model_nnt)
-        init_delta = max_weight_delta(init_cpu, init_nnt)
-        print(f"Initial weight max |cpu - nntile| = {init_delta:.3e} (expect 0)")
+        init_delta = max_weight_delta(init_torch, init_nnt)
+        print(
+            f"Initial weight max |torch - nntile| = {init_delta:.3e} "
+            "(expect 0)"
+        )
 
-        print("\nTraining on CPU...")
-        cpu_losses = train_on_device(
-            model_cpu,
+        print(f"\nTraining on torch ({torch_device})...")
+        torch_losses = train_on_device(
+            model_torch,
             images,
             labels,
-            device="cpu",
+            device=torch_device,
             epochs=args.epochs,
             learning_rate=args.lr,
             hidden_dim=args.hidden_dim,
@@ -309,26 +359,27 @@ def main() -> None:
             print_axis_groups=args.print_axis_groups,
         )
 
-        cpu_path = output_dir / "deep_relu_mnist_cpu.pt"
+        torch_path = output_dir / f"deep_relu_mnist_torch_{torch_device.type}.pt"
         nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
-        torch.save(model_cpu.state_dict(), cpu_path)
+        torch.save(clone_model_weights(model_torch), torch_path)
         torch.save(clone_model_weights(model_nnt), nnt_path)
 
-        final_cpu = clone_model_weights(model_cpu)
+        final_torch = clone_model_weights(model_torch)
         final_nnt = clone_model_weights(model_nnt)
-        weight_delta = max_weight_delta(final_cpu, final_nnt)
+        weight_delta = max_weight_delta(final_torch, final_nnt)
 
-        print("\nLoss comparison (cpu vs nntile):")
-        for epoch, (loss_cpu, loss_nnt) in enumerate(
-            zip(cpu_losses, nnt_losses), start=1
+        print(f"\nLoss comparison (torch/{torch_device} vs nntile):")
+        for epoch, (loss_torch, loss_nnt) in enumerate(
+            zip(torch_losses, nnt_losses), start=1
         ):
             print(
-                f"  epoch {epoch}: cpu={loss_cpu:.6f}  nntile={loss_nnt:.6f}  "
-                f"diff={abs(loss_cpu - loss_nnt):.3e}"
+                f"  epoch {epoch}: torch={loss_torch:.6f}  "
+                f"nntile={loss_nnt:.6f}  "
+                f"diff={abs(loss_torch - loss_nnt):.3e}"
             )
 
-        print(f"\nFinal weight max |cpu - nntile| = {weight_delta:.3e}")
-        print(f"Saved CPU model to {cpu_path}")
+        print(f"\nFinal weight max |torch - nntile| = {weight_delta:.3e}")
+        print(f"Saved torch model (CPU tensors) to {torch_path}")
         print(f"Saved nntile model (CPU tensors) to {nnt_path}")
     finally:
         torch_nntile.wait()

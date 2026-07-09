@@ -203,8 +203,8 @@ The script calls `init_context(ncpu=-1, ncuda=-1, …)` so those env vars apply.
 
 ### CPU workers only
 
-Use CPU StarPU workers for the nntile path (reference PyTorch path always runs
-on CPU tensors):
+Use CPU StarPU workers for the nntile path. The reference PyTorch path defaults
+to CPU (`--torch-device cpu`):
 
 ```bash
 STARPU_NCPU=4 STARPU_NCUDA=0 \
@@ -227,43 +227,46 @@ STARPU_NCPU=4 STARPU_NCUDA=0 \
 **Expected tail output (CPU workers, 5 epochs):**
 
 ```
-Loss comparison (cpu vs nntile):
-  epoch 1: cpu=2.302172  nntile=2.302172  diff=2.384e-07
-  epoch 2: cpu=2.302079  nntile=2.302080  diff=4.768e-07
-  epoch 3: cpu=2.301987  nntile=2.301987  diff=0.000e+00
-  epoch 4: cpu=2.301894  nntile=2.301895  diff=4.768e-07
-  epoch 5: cpu=2.301802  nntile=2.301802  diff=0.000e+00
+Loss comparison (torch/cpu vs nntile):
+  epoch 1: torch=2.302172  nntile=2.302172  diff=2.384e-07
+  epoch 2: torch=2.302079  nntile=2.302080  diff=4.768e-07
+  epoch 3: torch=2.301987  nntile=2.301987  diff=0.000e+00
+  epoch 4: torch=2.301894  nntile=2.301895  diff=4.768e-07
+  epoch 5: torch=2.301802  nntile=2.301802  diff=0.000e+00
 
-Final weight max |cpu - nntile| = 1.118e-08
+Final weight max |torch - nntile| = 1.118e-08
 ```
 
 Per-epoch loss diffs at or below **~1e-6** are typical on CPU.
 
 ### CUDA workers only
 
-Pin nntile kernels to CUDA workers (`--restrict-cuda`):
+Pin nntile kernels to CUDA workers (`--restrict-cuda`). Optionally run the
+reference PyTorch path on CUDA too (`--torch-device cuda`):
 
 ```bash
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --restrict-cuda \
+    --torch-device cuda \
     --epochs 5 \
     --axis-tiling batch=15000,15000,15000,15000 \
     --axis-tiling features=392,392 \
     --axis-tiling hidden=128,128
 ```
 
-**Expected tail output (CUDA workers, 5 epochs, with tiling above):**
+**Expected tail output (CUDA workers, torch CPU reference, 5 epochs, with
+tiling above):**
 
 ```
-Loss comparison (cpu vs nntile):
-  epoch 1: cpu=2.302172  nntile=2.302095  diff=7.701e-05
-  epoch 2: cpu=2.302079  nntile=2.301964  diff=1.152e-04
-  epoch 3: cpu=2.301987  nntile=2.301834  diff=1.538e-04
-  epoch 4: cpu=2.301894  nntile=2.301818  diff=7.653e-05
-  epoch 5: cpu=2.301802  nntile=2.301495  diff=3.073e-04
+Loss comparison (torch/cpu vs nntile):
+  epoch 1: torch=2.302172  nntile=2.302095  diff=7.701e-05
+  epoch 2: torch=2.302079  nntile=2.301964  diff=1.152e-04
+  epoch 3: torch=2.301987  nntile=2.301834  diff=1.538e-04
+  epoch 4: torch=2.301894  nntile=2.301818  diff=7.653e-05
+  epoch 5: torch=2.301802  nntile=2.301495  diff=3.073e-04
 
-Final weight max |cpu - nntile| = 1.583e-08
+Final weight max |torch - nntile| = 1.583e-08
 ```
 
 On CUDA, per-epoch **loss** diffs of order **1e-4** are normal (cuBLAS / TF32 /
@@ -275,6 +278,7 @@ down StarPU cleanly in a `finally` block.
 
 | Flag | Purpose |
 |------|---------|
+| `--torch-device DEVICE` | Reference PyTorch device: `cpu` (default), `cuda`, or `cuda:N` |
 | `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
 | `--verbose` | Verbose StarPU / NNTile context logging |
 | `--hidden-dim`, `--depth` | Model size (default 256, 5) |

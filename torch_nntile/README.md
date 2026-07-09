@@ -347,15 +347,15 @@ expected output.
 ```bash
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 
-# CPU StarPU workers (nntile path); reference PyTorch path is always CPU
+# CPU StarPU workers (nntile path); reference PyTorch path defaults to CPU
 STARPU_NCPU=4 STARPU_NCUDA=0 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
     --epochs 5
 
-# CUDA StarPU workers only
+# CUDA StarPU workers + CUDA torch reference
 STARPU_NCPU=0 STARPU_NCUDA=2 \
   python torch_nntile/examples/train_deep_relu_mnist.py \
-    --restrict-cuda --epochs 5 \
+    --restrict-cuda --torch-device cuda --epochs 5 \
     --axis-tiling batch=15000,15000,15000,15000 \
     --axis-tiling features=392,392 \
     --axis-tiling hidden=128,128
