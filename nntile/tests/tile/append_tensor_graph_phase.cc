@@ -110,6 +110,45 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Runtime execute reallocates unmarked tiles after recompile",
+    "[graph][tile]")
+{
+    // Unmarked intermediate: freed after first execute / next compile, but
+    // a subsequent full execute() must still be able to re-run from op 0.
+    TensorGraph tg("reexec");
+    TensorGraph::TensorNode *x = tg.data({2}, DataType::FP32)->set_name("x");
+    x->mark_input(true);
+    TensorGraph::TensorNode *y = gt::scale(2.0f, x)->set_name("y");
+    TensorGraph::TensorNode *z = gt::add(1.0f, y, 1.0f, x)->set_name("z");
+    z->mark_output(true);
+
+    TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
+    TileGraph tile("t_reexec");
+    TileGraphIncrementalState st;
+    TensorNodeToTileMap tm;
+    append_tensor_graph_phase(
+        tg, p1, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
+
+    Runtime rt(tile);
+    rt.compile();
+    rt.bind_data(x, std::vector<float>{2.f, 3.f});
+    rt.execute();
+    rt.wait();
+    std::vector<float> first = rt.get_output<float>(z);
+    REQUIRE(first[0] == 6.f);
+    REQUIRE(first[1] == 9.f);
+
+    // Recompile with watermark at end: pending slice empty; unmarked y must
+    // not stay allocated. Full execute() must still succeed.
+    rt.compile();
+    rt.execute();
+    rt.wait();
+    std::vector<float> second = rt.get_output<float>(z);
+    REQUIRE(second[0] == 6.f);
+    REQUIRE(second[1] == 9.f);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
     "Runtime compile invalidates tiles after mark_output false",
     "[graph][tile]")
 {

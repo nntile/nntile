@@ -708,6 +708,11 @@ void Runtime::execute()
 {
     require_compiled();
     validate_initialized_inputs_at_compile();
+    // Full execute always re-runs the post-DCE order from index 0. Reset the
+    // incremental watermark and reallocate unmarked tiles that a prior
+    // compile may have skipped (pending slice was empty after a previous run).
+    executed_op_end_ = 0;
+    allocate_missing_tiles();
     bool const use_static_schedule = has_execution_schedule();
     for (size_t i = 0; i < execution_order_.size(); ++i)
     {
