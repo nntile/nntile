@@ -323,19 +323,20 @@ Parity test (forward + backward, nntile vs CPU, no fallback):
 pytest -vv torch_nntile/tests/test_deep_relu_parity.py
 ```
 
-## Phase 4b (GPT-2 HF WikiText-2 training)
+## Phase 4b (GPT-2 HF training)
 
-Train stock HuggingFace `GPT2LMHeadModel` on a hardcoded WikiText-2 excerpt with
+Train stock HuggingFace `GPT2LMHeadModel` on a tiny synthetic token stream with
 `--device cuda` or `--device nntile` (separate processes — Torch cannot use both
 in one program). Supports from-scratch (`--seed`), resume (`--checkpoint`), and
-`compare` (relative Frobenius norms of weight diffs).
+`compare` (relative Frobenius norms of weight diffs). No external dataset is
+downloaded or stored in git.
 
 ```bash
 # CUDA vs nntile driver (requires a CUDA GPU + CUDA torch)
 ./torch_nntile/examples/run_gpt2_hf_cuda_vs_nntile.sh
 
 # Or invoke the Python entrypoint directly — see docs/torch_nntile.md
-python torch_nntile/examples/train_gpt2_hf_wikitext2.py train \
+python torch_nntile/examples/train_gpt2_hf.py train \
   --device nntile --seed 42 \
   --config torch_nntile/examples/gpt2_hf_tiny_config.json \
   --output-dir /tmp/gpt2_hf/nntile --epochs 2 --no-shuffle

@@ -169,11 +169,11 @@ loss = train_full_batch_step(
 Models such as `DeepReLU` do **not** assign axis names internally; the caller or
 example script provides naming.
 
-## GPT-2 HF WikiText-2 training example
+## GPT-2 HF training example
 
-[`torch_nntile/examples/train_gpt2_hf_wikitext2.py`](../torch_nntile/examples/train_gpt2_hf_wikitext2.py)
-trains stock HuggingFace `GPT2LMHeadModel` on a hardcoded WikiText-2 excerpt
-(~200 KiB of `wikitext-2-raw-v1` train text embedded in the script).
+[`torch_nntile/examples/train_gpt2_hf.py`](../torch_nntile/examples/train_gpt2_hf.py)
+trains stock HuggingFace `GPT2LMHeadModel` on a tiny deterministic synthetic
+token stream (no external corpus downloaded or stored in git).
 
 Torch cannot use CUDA and `device="nntile"` in one process (PrivateUse1 /
 [pytorch#161129](https://github.com/pytorch/pytorch/issues/161129)). Train with
@@ -183,26 +183,26 @@ Torch cannot use CUDA and `device="nntile"` in one process (PrivateUse1 /
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
 
 # From scratch on CUDA
-python torch_nntile/examples/train_gpt2_hf_wikitext2.py train \
+python torch_nntile/examples/train_gpt2_hf.py train \
   --device cuda --seed 42 \
   --config torch_nntile/examples/gpt2_hf_tiny_config.json \
   --output-dir /tmp/gpt2_hf/cuda --epochs 2 --no-shuffle
 
 # From scratch on nntile (same seed, separate process)
-python torch_nntile/examples/train_gpt2_hf_wikitext2.py train \
+python torch_nntile/examples/train_gpt2_hf.py train \
   --device nntile --seed 42 \
   --config torch_nntile/examples/gpt2_hf_tiny_config.json \
   --output-dir /tmp/gpt2_hf/nntile --epochs 2 --no-shuffle \
   --restrict-cpu
 
 # Resume from a checkpoint
-python torch_nntile/examples/train_gpt2_hf_wikitext2.py train \
+python torch_nntile/examples/train_gpt2_hf.py train \
   --device nntile --seed 42 \
   --checkpoint /tmp/gpt2_hf/nntile/checkpoint.pt \
   --output-dir /tmp/gpt2_hf/nntile --epochs 1
 
 # Relative Frobenius norms of weight differences
-python torch_nntile/examples/train_gpt2_hf_wikitext2.py compare \
+python torch_nntile/examples/train_gpt2_hf.py compare \
   --checkpoint-a /tmp/gpt2_hf/cuda/checkpoint.pt \
   --checkpoint-b /tmp/gpt2_hf/nntile/checkpoint.pt
 ```

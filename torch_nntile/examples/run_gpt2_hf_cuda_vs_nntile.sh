@@ -4,6 +4,7 @@
 #
 # @file torch_nntile/examples/run_gpt2_hf_cuda_vs_nntile.sh
 # Train GPT-2 HF from scratch on CUDA and on nntile (same seed), then compare.
+# Uses a tiny synthetic token stream (no external dataset in git).
 #
 # Torch cannot use CUDA and device=nntile in one process, so this script runs
 # two separate Python invocations and then compares checkpoints.
@@ -27,7 +28,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-TRAIN_PY="${SCRIPT_DIR}/train_gpt2_hf_wikitext2.py"
+TRAIN_PY="${SCRIPT_DIR}/train_gpt2_hf.py"
 CONFIG_JSON="${SCRIPT_DIR}/gpt2_hf_tiny_config.json"
 
 SEED="${SEED:-42}"
