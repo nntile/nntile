@@ -838,6 +838,13 @@ void sync_param_grad_aliases_locked()
         {
             continue;
         }
+        // Autograd only populates .grad on leaves. Linear/transpose backward
+        // also register activation tensors here; accessing .grad on those
+        // non-leaves triggers TensorBody warnings (pytorch#30531).
+        if (!entry.param.is_leaf())
+        {
+            continue;
+        }
         const at::Tensor grad = entry.param.grad();
         if (!grad.defined())
         {
