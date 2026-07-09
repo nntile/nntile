@@ -452,6 +452,8 @@ When CUDA workers are enabled (`STARPU_NCUDA > 0`), use ``--restrict-cuda`` in
 the MNIST example (or call ``restrict_cuda()``) and shut StarPU down at exit.
 The example calls ``torch_nntile.wait()`` and ``torch_nntile.shutdown_context()``
 in a ``finally`` block; ``init_context()`` also registers an ``atexit`` hook.
+With ``--torch-device cuda``, the example finishes the PyTorch CUDA reference
+**before** ``init_context()`` to avoid StarPU/PyTorch CUDA stream conflicts.
 
 ## macOS / PyTorch cpu_fallback ABI
 

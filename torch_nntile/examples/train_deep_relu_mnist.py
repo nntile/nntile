@@ -14,7 +14,9 @@ Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
 ``run()`` in graph mode.
 
 The reference PyTorch path defaults to CPU; pass ``--torch-device cuda`` to
-compare against a CUDA torch reference instead.
+compare against a CUDA torch reference instead. When ``cuda`` is selected, the
+torch path runs **before** ``torch_nntile.init_context()`` so StarPU CUDA
+workers do not break PyTorch autograd streams.
 
 Axis-group naming and tiling (optional) are configured in this script:
 
@@ -173,21 +175,28 @@ def name_mnist_axis_groups(
             _name_hidden_on_matrix(velocity, hidden_dim)
 
 
-def build_models(
+def build_torch_model(
     seed: int,
     hidden_dim: int,
     depth: int,
     torch_device: torch.device,
-) -> tuple[DeepReLU, DeepReLU]:
+) -> DeepReLU:
+    """Build the reference DeepReLU on ``torch_device`` (no StarPU yet)."""
     torch.manual_seed(seed)
-    model_torch = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
-    model_torch.init_kaiming_uniform_(seed=seed)
+    model = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
+    model.init_kaiming_uniform_(seed=seed)
+    return model.to(torch_device)
 
-    model_nnt = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
-    model_nnt.load_state_dict(model_torch.state_dict())
-    model_torch = model_torch.to(torch_device)
-    model_nnt = model_nnt.to("nntile")
-    return model_torch, model_nnt
+
+def build_nntile_model(
+    hidden_dim: int,
+    depth: int,
+    state_dict: dict[str, torch.Tensor],
+) -> DeepReLU:
+    """Clone CPU ``state_dict`` onto ``device='nntile'`` (requires init_context)."""
+    model = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
+    model.load_state_dict(state_dict)
+    return model.to("nntile")
 
 
 def train_on_device(
@@ -256,7 +265,8 @@ def main() -> None:
         metavar="DEVICE",
         help=(
             "Device for the reference PyTorch path: cpu (default), cuda, "
-            "or cuda:N"
+            "or cuda:N. When cuda, the torch path runs before StarPU "
+            "init_context to avoid CUDA stream conflicts."
         ),
     )
     parser.add_argument(
@@ -296,6 +306,44 @@ def main() -> None:
     torch_device = resolve_torch_device(args.torch_device)
     axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
 
+    print(f"Reference torch device: {torch_device}")
+    if axis_group_tiling:
+        print(f"Axis-group tiling: {axis_group_tiling}")
+    print(f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth}")
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    print("Loading MNIST training set (60 000 images, single batch)...")
+    images, labels = load_mnist_full_batch(args.data_dir)
+    print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
+
+    # Run the torch reference before StarPU init_context. StarPU CUDA workers
+    # share the process CUDA context and can break PyTorch autograd streams
+    # (opt_ready_stream INTERNAL ASSERT) if torch CUDA training runs after.
+    model_torch = build_torch_model(
+        seed=args.seed,
+        hidden_dim=args.hidden_dim,
+        depth=args.depth,
+        torch_device=torch_device,
+    )
+    init_weights = clone_model_weights(model_torch)
+
+    print(f"\nTraining on torch ({torch_device})...")
+    torch_losses = train_on_device(
+        model_torch,
+        images,
+        labels,
+        device=torch_device,
+        epochs=args.epochs,
+        learning_rate=args.lr,
+        hidden_dim=args.hidden_dim,
+    )
+    final_torch = clone_model_weights(model_torch)
+    del model_torch
+    if torch_device.type == "cuda":
+        torch.cuda.synchronize()
+
     torch_nntile.init_context(
         ncpu=-1,
         ncuda=-1,
@@ -304,46 +352,18 @@ def main() -> None:
     )
     if args.restrict_cuda:
         torch_nntile.restrict_cuda()
+        print("Worker placement: CUDA only (restrict_cuda)")
 
     try:
-        print(f"Reference torch device: {torch_device}")
-        if args.restrict_cuda:
-            print("Worker placement: CUDA only (restrict_cuda)")
-        if axis_group_tiling:
-            print(f"Axis-group tiling: {axis_group_tiling}")
-        print(f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth}")
-
-        output_dir = Path(args.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        print("Loading MNIST training set (60 000 images, single batch)...")
-        images, labels = load_mnist_full_batch(args.data_dir)
-        print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
-
-        model_torch, model_nnt = build_models(
-            seed=args.seed,
+        model_nnt = build_nntile_model(
             hidden_dim=args.hidden_dim,
             depth=args.depth,
-            torch_device=torch_device,
+            state_dict=init_weights,
         )
-
-        init_torch = clone_model_weights(model_torch)
-        init_nnt = clone_model_weights(model_nnt)
-        init_delta = max_weight_delta(init_torch, init_nnt)
+        init_delta = max_weight_delta(init_weights, clone_model_weights(model_nnt))
         print(
             f"Initial weight max |torch - nntile| = {init_delta:.3e} "
             "(expect 0)"
-        )
-
-        print(f"\nTraining on torch ({torch_device})...")
-        torch_losses = train_on_device(
-            model_torch,
-            images,
-            labels,
-            device=torch_device,
-            epochs=args.epochs,
-            learning_rate=args.lr,
-            hidden_dim=args.hidden_dim,
         )
 
         print("\nTraining on nntile...")
@@ -359,12 +379,13 @@ def main() -> None:
             print_axis_groups=args.print_axis_groups,
         )
 
-        torch_path = output_dir / f"deep_relu_mnist_torch_{torch_device.type}.pt"
+        torch_path = (
+            output_dir / f"deep_relu_mnist_torch_{torch_device.type}.pt"
+        )
         nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
-        torch.save(clone_model_weights(model_torch), torch_path)
+        torch.save(final_torch, torch_path)
         torch.save(clone_model_weights(model_nnt), nnt_path)
 
-        final_torch = clone_model_weights(model_torch)
         final_nnt = clone_model_weights(model_nnt)
         weight_delta = max_weight_delta(final_torch, final_nnt)
 

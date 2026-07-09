@@ -242,7 +242,9 @@ Per-epoch loss diffs at or below **~1e-6** are typical on CPU.
 ### CUDA workers only
 
 Pin nntile kernels to CUDA workers (`--restrict-cuda`). Optionally run the
-reference PyTorch path on CUDA too (`--torch-device cuda`):
+reference PyTorch path on CUDA too (`--torch-device cuda`). The example runs
+the torch CUDA path **before** ``init_context()`` so StarPU does not break
+PyTorch autograd streams:
 
 ```bash
 STARPU_NCPU=0 STARPU_NCUDA=2 \
@@ -278,7 +280,7 @@ down StarPU cleanly in a `finally` block.
 
 | Flag | Purpose |
 |------|---------|
-| `--torch-device DEVICE` | Reference PyTorch device: `cpu` (default), `cuda`, or `cuda:N` |
+| `--torch-device DEVICE` | Reference PyTorch device: `cpu` (default), `cuda`, or `cuda:N` (torch CUDA runs before StarPU init) |
 | `--restrict-cuda` | `restrict_cuda()` — CUDA workers only |
 | `--verbose` | Verbose StarPU / NNTile context logging |
 | `--hidden-dim`, `--depth` | Model size (default 256, 5) |
