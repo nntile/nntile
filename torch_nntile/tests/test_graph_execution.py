@@ -25,6 +25,9 @@ _PKG_ROOT = Path(__file__).resolve().parent.parent
 
 def _run_graph_subprocess(script: str) -> None:
     env = dict(**__import__("os").environ)
+    # Bench scripts may leave STARPU_DISABLE_KERNELS=1 in the parent env;
+    # that skips kernels and makes host readout look like garbage.
+    env.pop("STARPU_DISABLE_KERNELS", None)
     repo = Path(__file__).resolve().parents[2]
     build_lib = repo / "build" / "nntile"
     starpu_lib = "/opt/starpu/lib"
@@ -210,7 +213,8 @@ def test_execute_does_not_wait():
                 os.close(w)
                 w = -1
                 torch_nntile.print_info()
-                os.fsync(1)
+                import ctypes
+                ctypes.CDLL(None).fflush(None)
             finally:
                 os.dup2(old, 1)
                 os.close(old)
