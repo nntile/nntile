@@ -238,6 +238,10 @@ class Runtime
     //! ``execution_order_``. Incremental ``compile()`` only pulls ops beyond
     //! this watermark so cost stays O(pending) rather than O(history).
     size_t compiled_graph_op_count_ = 0;
+    //! How many ``graph_.tile_nodes()`` have been considered for allocation.
+    //! Ingress may lower marked staging tiles before any new op is appended;
+    //! those nodes must still be allocated without scanning full history.
+    size_t compiled_tile_node_count_ = 0;
 };
 
 } // namespace nntile

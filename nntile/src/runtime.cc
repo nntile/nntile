@@ -101,6 +101,7 @@ void Runtime::compile()
     if (compiled_graph_op_count_ > graph_ops.size())
     {
         compiled_graph_op_count_ = 0;
+        compiled_tile_node_count_ = 0;
         execution_order_.clear();
         executed_op_end_ = 0;
     }
@@ -134,10 +135,50 @@ void Runtime::compile()
 
 void Runtime::sync_tile_marks_from_logical()
 {
-    // Prefer descriptors that still own allocated tiles or appear in the
-    // pending op slice. Full-graph scans made incremental compile scale with
-    // session length once TensorDescriptors accumulated.
-    std::unordered_set<const TileGraph::TileNode *> pending_tiles;
+    // Sync only descriptors reachable from allocated tiles or the pending
+    // op slice — do not walk every historical TensorDescriptor.
+    std::unordered_set<const TileGraph::TensorDescriptor *> synced;
+
+    auto sync_tile = [&](const TileGraph::TileNode *tile_key)
+    {
+        if (tile_key == nullptr)
+        {
+            return;
+        }
+        // tensor_descriptor() is non-const on the node API via const TileNode*
+        auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile_key);
+        const TileGraph::TensorDescriptor *desc =
+            mutable_tile->tensor_descriptor();
+        if (desc == nullptr || desc->source_node == nullptr)
+        {
+            return;
+        }
+        if (!synced.insert(desc).second)
+        {
+            return;
+        }
+        const bool is_in = desc->source_node->is_input();
+        const bool is_out = desc->source_node->is_output();
+        for (TileGraph::TileNode *tile : desc->tiles)
+        {
+            if (tile == nullptr)
+            {
+                continue;
+            }
+            if (is_in)
+            {
+                tile->mark_input(true);
+            }
+            tile->mark_output(is_out);
+        }
+    };
+
+    for (const auto &[tile, tile_ptr] : tile_map_)
+    {
+        (void)tile_ptr;
+        sync_tile(tile);
+    }
+
     const size_t n = execution_order_.size();
     const size_t begin =
         executed_op_end_ < n ? executed_op_end_ : n;
@@ -145,61 +186,11 @@ void Runtime::sync_tile_marks_from_logical()
     {
         for (const auto *in : execution_order_[i]->inputs())
         {
-            if (in != nullptr)
-            {
-                pending_tiles.insert(in);
-            }
+            sync_tile(in);
         }
         for (const auto *out : execution_order_[i]->outputs())
         {
-            if (out != nullptr)
-            {
-                pending_tiles.insert(out);
-            }
-        }
-    }
-
-    for (const auto &uptr : graph_.tensor_descriptors())
-    {
-        const TileGraph::TensorDescriptor &desc = *uptr;
-        if (desc.source_node == nullptr)
-        {
-            continue;
-        }
-        bool touch = false;
-        for (TileGraph::TileNode *tile : desc.tiles)
-        {
-            if (tile == nullptr)
-            {
-                continue;
-            }
-            if (tile_map_.count(tile) != 0 ||
-                pending_tiles.count(tile) != 0)
-            {
-                touch = true;
-                break;
-            }
-        }
-        if (!touch)
-        {
-            continue;
-        }
-        const bool is_in = desc.source_node->is_input();
-        const bool is_out = desc.source_node->is_output();
-        for (TileGraph::TileNode *tile : desc.tiles)
-        {
-            if (tile == nullptr)
-            {
-                continue;
-            }
-            // Propagate input mark only when logical is marked input; never
-            // clear tile is_input from a false logical (torch_nntile drives
-            // persistence via mark_output only).
-            if (is_in)
-            {
-                tile->mark_input(true);
-            }
-            tile->mark_output(is_out);
+            sync_tile(out);
         }
     }
 }
@@ -659,13 +650,11 @@ void Runtime::allocate_missing_tiles()
         }
     }
 
-    for (const auto &node : graph_.tile_nodes())
+    auto try_allocate = [&](const TileGraph::TileNode *tile_key)
     {
-        const TileGraph::TileNode *tile_key = node.get();
-        if (!live_tile_nodes_.empty() &&
-            live_tile_nodes_.count(tile_key) == 0)
+        if (tile_key == nullptr)
         {
-            continue;
+            return;
         }
         // Full-graph DCE may keep historical unmarked tiles "live"; do not
         // reallocate them unless a pending op needs them (or they are
@@ -673,64 +662,96 @@ void Runtime::allocate_missing_tiles()
         if (!tile_key->is_output() && !tile_key->is_input() &&
             needed_by_pending.count(tile_key) == 0)
         {
-            continue;
+            return;
         }
         auto adopt_it = tile_adoption_.find(tile_key);
         if (adopt_it != tile_adoption_.end())
         {
             tile_map_[tile_key] = adopt_it->second;
-            continue;
+            return;
         }
         if (tile_map_.count(tile_key) != 0)
         {
-            continue;
+            return;
         }
-        DataType dtype = node->dtype();
-        std::vector<Index> shape = node->shape();
+        // graph_.tile_nodes() owns the unique_ptr; tile_key is non-owning.
+        // Reconstruct mutable node for dtype/shape accessors that are const.
+        DataType dtype = tile_key->dtype();
+        std::vector<Index> shape = tile_key->shape();
+        // allocate_tile_and_register needs non-const TileNode* matching map
+        // keys used elsewhere; const_cast is safe (nodes owned by graph_).
+        auto *node = const_cast<TileGraph::TileNode *>(tile_key);
 
         switch (dtype)
         {
         case DataType::FP32:
             allocate_tile_and_register<nntile::fp32_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP32_FAST_TF32:
             allocate_tile_and_register<nntile::fp32_fast_tf32_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP32_FAST_FP16:
             allocate_tile_and_register<nntile::fp32_fast_fp16_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP32_FAST_BF16:
             allocate_tile_and_register<nntile::fp32_fast_bf16_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP64:
             allocate_tile_and_register<nntile::fp64_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP16:
             allocate_tile_and_register<nntile::fp16_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::BF16:
             allocate_tile_and_register<nntile::bf16_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::INT64:
             allocate_tile_and_register<nntile::int64_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::BOOL:
             allocate_tile_and_register<nntile::bool_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         default:
             throw std::runtime_error(
                 "Unsupported data type for tile allocation");
         }
+    };
+
+    // Only touch pending I/O, DCE-live tiles, and newly lowered tile nodes —
+    // never scan the full historical tile_nodes() list (that made compile
+    // O(session length)). New nodes cover ingress staging lowered before any
+    // scatter op is appended to execution_order_.
+    for (const auto *tile : needed_by_pending)
+    {
+        try_allocate(tile);
     }
+    for (const auto *tile : live_tile_nodes_)
+    {
+        if (needed_by_pending.count(tile) != 0)
+        {
+            continue;
+        }
+        try_allocate(tile);
+    }
+    const auto &all_tiles = graph_.tile_nodes();
+    if (compiled_tile_node_count_ > all_tiles.size())
+    {
+        compiled_tile_node_count_ = 0;
+    }
+    for (size_t i = compiled_tile_node_count_; i < all_tiles.size(); ++i)
+    {
+        try_allocate(all_tiles[i].get());
+    }
+    compiled_tile_node_count_ = all_tiles.size();
 }
 
 void Runtime::execute_range(size_t op_begin, size_t op_end)
