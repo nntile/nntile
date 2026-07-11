@@ -24,9 +24,26 @@ namespace nntile
 void lower_staging_tensor_immediate(
     TensorGraph const &tg,
     TensorGraph::TensorNode const *staging,
-    TensorGraphTiling const &tiling,
+    std::shared_ptr<TensorGraphTiling const> tiling,
     TileGraph &tile_graph,
     TileGraphIncrementalState &state,
     TensorNodeToTileMap &tile_map);
+
+inline void lower_staging_tensor_immediate(
+    TensorGraph const &tg,
+    TensorGraph::TensorNode const *staging,
+    TensorGraphTiling const &tiling,
+    TileGraph &tile_graph,
+    TileGraphIncrementalState &state,
+    TensorNodeToTileMap &tile_map)
+{
+    lower_staging_tensor_immediate(
+        tg,
+        staging,
+        std::make_shared<TensorGraphTiling>(tiling),
+        tile_graph,
+        state,
+        tile_map);
+}
 
 } // namespace nntile

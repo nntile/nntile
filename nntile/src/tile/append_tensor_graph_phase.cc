@@ -149,7 +149,7 @@ std::vector<TileGraph::TileNode*> build_tile_nodes(
 void append_tensor_graph_phase(
     TensorGraph const& tg,
     TensorGraph::PhaseSnapshot const& phase,
-    TensorGraphTiling const& tiling,
+    std::shared_ptr<TensorGraphTiling const> tiling,
     TileGraph& tile_graph,
     TileGraphIncrementalState& state,
     TensorNodeToTileMap& tile_map)
@@ -164,23 +164,27 @@ void append_tensor_graph_phase(
         throw std::out_of_range(
             "append_tensor_graph_phase: phase.op_end > num_ops");
     }
+    if(tiling == nullptr)
+    {
+        throw std::invalid_argument(
+            "append_tensor_graph_phase: tiling must be non-null");
+    }
 
-    tile_graph.set_tiling_scheme(
-        std::make_shared<TensorGraphTiling>(tiling));
+    tile_graph.set_tiling_scheme(tiling);
 
     std::set<TensorGraph::TensorNode const*> touched;
     collect_phase_tensors(tg, phase, touched);
 
     for(TensorGraph::TensorNode const* t : touched)
     {
-        const TensorAxisLayout* lay = tiling.find(t);
+        const TensorAxisLayout* lay = tiling->find(t);
         if(lay == nullptr)
         {
             throw std::runtime_error(
                 "append_tensor_graph_phase: missing tiling for tensor '" +
                 t->name() + "'");
         }
-        const std::string fp = lay->layout_fingerprint();
+        std::string const& fp = lay->layout_fingerprint();
         auto fp_it = state.tensor_layout_fp.find(t);
         const bool have_tiles =
             state.tensor_to_tiles.count(t) != 0 &&

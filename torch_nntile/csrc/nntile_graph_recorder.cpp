@@ -80,6 +80,8 @@ struct RecorderExecState
     std::unique_ptr<nntile::Runtime> runtime;
     nntile::TileGraphIncrementalState inc_state;
     nntile::TensorNodeToTileMap tile_map;
+    //! Session-scoped layouts; ensure_phase_layouts only adds new tensors.
+    std::shared_ptr<nntile::TensorGraphTiling> session_tiling;
     //! Pins transferred at compile; kept alive until wait_graph_session().
     std::vector<at::Tensor> pin_hold;
     //! Post-DCE execution_order index already submitted via execute_range.
@@ -276,6 +278,7 @@ void apply_pending_axis_tiling_locked()
         return;
     }
 
+    bool applied_any = false;
     for (const auto &[name, pattern] : g_axis_tiling_by_name)
     {
         bool found_any = false;
@@ -286,6 +289,7 @@ void apply_pending_axis_tiling_locked()
                 continue;
             }
             found_any = true;
+            applied_any = true;
             const std::vector<nntile::Index> resolved =
                 nntile::tile_sizes_for_axis_extent(pattern, axis->extent);
             nntile::apply_tiling_to_axis(axis, resolved);
@@ -296,6 +300,12 @@ void apply_pending_axis_tiling_locked()
                 "torch_nntile set_axis_group_tiling: unknown axis group '" +
                 name + "'");
         }
+    }
+    // Axis tile_sizes changed: drop cached layouts so the next ensure rebuilds
+    // from the updated AxisDescriptors.
+    if (applied_any && g_exec != nullptr && g_exec->session_tiling != nullptr)
+    {
+        g_exec->session_tiling->clear();
     }
 }
 
@@ -368,12 +378,16 @@ void lower_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
     staging_phase.op_begin = g_graph->num_ops();
     staging_phase.op_end = staging_phase.op_begin;
     staging_phase.carried_tensors = {staging};
-    const nntile::TensorGraphTiling tiling =
-        nntile::TensorGraphTiling::from_phase(*g_graph, staging_phase);
+    if (g_exec->session_tiling == nullptr)
+    {
+        g_exec->session_tiling =
+            std::make_shared<nntile::TensorGraphTiling>();
+    }
+    g_exec->session_tiling->ensure_phase_layouts(*g_graph, staging_phase);
     nntile::lower_staging_tensor_immediate(
         *g_graph,
         staging,
-        tiling,
+        g_exec->session_tiling,
         *g_exec->tile_graph,
         g_exec->inc_state,
         g_exec->tile_map);
@@ -815,9 +829,15 @@ void compile_graph_locked(
 
     // Phase-scoped tiling: full-graph from_tensor_graph rebuilt layouts for
     // every historical tensor node and made compile O(session length).
+    // Session-scoped tiling only constructs layouts for newly touched tensors
+    // and is shared into TileGraph (no per-compile deep copy).
     t_part = SteadyClock::now();
-    const nntile::TensorGraphTiling tiling =
-        nntile::TensorGraphTiling::from_phase(*g_graph, phase);
+    if (g_exec->session_tiling == nullptr)
+    {
+        g_exec->session_tiling =
+            std::make_shared<nntile::TensorGraphTiling>();
+    }
+    g_exec->session_tiling->ensure_phase_layouts(*g_graph, phase);
     g_timing.compile_tiling_s += seconds_since(t_part);
 
     t_part = SteadyClock::now();
@@ -826,7 +846,7 @@ void compile_graph_locked(
         nntile::append_tensor_graph_phase(
             *g_graph,
             phase,
-            tiling,
+            g_exec->session_tiling,
             *g_exec->tile_graph,
             g_exec->inc_state,
             g_exec->tile_map);

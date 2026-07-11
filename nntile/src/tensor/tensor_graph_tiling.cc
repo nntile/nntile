@@ -15,8 +15,8 @@
 #include "nntile/tensor/tensor_graph_tiling.hh"
 
 #include <algorithm>
-#include <set>
 #include <sstream>
+#include <unordered_set>
 
 #include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tensor/graph.hh"
@@ -204,8 +204,12 @@ Index TensorAxisLayout::tile_index_containing(
     return static_cast<Index>((it - origin.begin()) - 1);
 }
 
-std::string TensorAxisLayout::layout_fingerprint() const
+std::string const &TensorAxisLayout::layout_fingerprint() const
 {
+    if(!fingerprint_.empty())
+    {
+        return fingerprint_;
+    }
     std::ostringstream o;
     for(Index g : grid_shape_)
     {
@@ -220,7 +224,8 @@ std::string TensorAxisLayout::layout_fingerprint() const
         }
         o << ';';
     }
-    return o.str();
+    fingerprint_ = o.str();
+    return fingerprint_;
 }
 
 void TensorAxisLayout::tile_axis_global_range(
@@ -250,12 +255,14 @@ TensorGraphTiling TensorGraphTiling::from_tensor_graph(const TensorGraph& tg)
     return out;
 }
 
-TensorGraphTiling TensorGraphTiling::from_phase(
-    const TensorGraph& tg,
-    const TensorGraph::PhaseSnapshot& phase)
+namespace
 {
-    TensorGraphTiling out;
-    std::set<const TensorGraph::TensorNode*> touched;
+
+void collect_phase_touched(
+    const TensorGraph& tg,
+    const TensorGraph::PhaseSnapshot& phase,
+    std::unordered_set<const TensorGraph::TensorNode*>& touched)
+{
     for(const TensorGraph::TensorNode* t : phase.carried_tensors)
     {
         if(t != nullptr)
@@ -285,11 +292,33 @@ TensorGraphTiling TensorGraphTiling::from_phase(
             }
         }
     }
+}
+
+} // namespace
+
+TensorGraphTiling TensorGraphTiling::from_phase(
+    const TensorGraph& tg,
+    const TensorGraph::PhaseSnapshot& phase)
+{
+    TensorGraphTiling out;
+    out.ensure_phase_layouts(tg, phase);
+    return out;
+}
+
+void TensorGraphTiling::ensure_phase_layouts(
+    const TensorGraph& tg,
+    const TensorGraph::PhaseSnapshot& phase)
+{
+    std::unordered_set<const TensorGraph::TensorNode*> touched;
+    collect_phase_touched(tg, phase, touched);
     for(const TensorGraph::TensorNode* t : touched)
     {
-        out.layouts_.emplace(t, TensorAxisLayout(t));
+        if(layouts_.count(t) != 0)
+        {
+            continue;
+        }
+        layouts_.emplace(t, TensorAxisLayout(t));
     }
-    return out;
 }
 
 const TensorAxisLayout* TensorGraphTiling::find(

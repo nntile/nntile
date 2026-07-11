@@ -61,13 +61,31 @@ struct TileGraphIncrementalState
 //! Append one sealed phase: ensure tile nodes for touched tensors (reuse when
 //! layout matches), then lower tensor ops in ``[phase.op_begin, phase.op_end)``.
 //! Updates \p state and \p tile_map in sync.
+//! Prefer the shared_ptr overload so the tiling map is not deep-copied.
 void append_tensor_graph_phase(
+    TensorGraph const& tg,
+    TensorGraph::PhaseSnapshot const& phase,
+    std::shared_ptr<TensorGraphTiling const> tiling,
+    TileGraph& tile_graph,
+    TileGraphIncrementalState& state,
+    TensorNodeToTileMap& tile_map);
+
+inline void append_tensor_graph_phase(
     TensorGraph const& tg,
     TensorGraph::PhaseSnapshot const& phase,
     TensorGraphTiling const& tiling,
     TileGraph& tile_graph,
     TileGraphIncrementalState& state,
-    TensorNodeToTileMap& tile_map);
+    TensorNodeToTileMap& tile_map)
+{
+    append_tensor_graph_phase(
+        tg,
+        phase,
+        std::make_shared<TensorGraphTiling>(tiling),
+        tile_graph,
+        state,
+        tile_map);
+}
 
 //! Lower \p exec_phase into ``tile_graph``, ``compile()`` \p runtime, optionally
 //! ``push_tensor_phase_archive`` on ``nn_graph_for_suffix``, then bump auto
