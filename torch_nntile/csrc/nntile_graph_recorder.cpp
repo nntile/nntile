@@ -105,6 +105,10 @@ struct GraphApiTimingStats
     std::uint64_t compile_calls = 0;
     double compile_s = 0.0;
     std::uint64_t compile_ops = 0;
+    double compile_seal_s = 0.0;
+    double compile_tiling_s = 0.0;
+    double compile_append_s = 0.0;
+    double compile_runtime_s = 0.0;
     std::uint64_t run_calls = 0;
     double run_s = 0.0;
     std::uint64_t run_ops = 0;
@@ -802,15 +806,21 @@ void compile_graph_locked(
     sync_param_grad_aliases_locked();
     apply_pending_axis_tiling_locked();
 
+    SteadyClock::time_point t_part = SteadyClock::now();
     const nntile::TensorGraph::PhaseSnapshot phase = g_graph->seal_phase();
     std::vector<nntile::TensorGraph::TensorNode *> scatter_stagings;
     collect_scatter_stagings_from_phase_locked(phase, scatter_stagings);
     collect_pending_output_reclaim_locked(phase);
+    g_timing.compile_seal_s += seconds_since(t_part);
+
     // Phase-scoped tiling: full-graph from_tensor_graph rebuilt layouts for
     // every historical tensor node and made compile O(session length).
+    t_part = SteadyClock::now();
     const nntile::TensorGraphTiling tiling =
         nntile::TensorGraphTiling::from_phase(*g_graph, phase);
+    g_timing.compile_tiling_s += seconds_since(t_part);
 
+    t_part = SteadyClock::now();
     try
     {
         nntile::append_tensor_graph_phase(
@@ -835,9 +845,12 @@ void compile_graph_locked(
         }
         throw;
     }
+    g_timing.compile_append_s += seconds_since(t_part);
 
     g_exec->pending_exec_op_begin = g_exec->executed_op_end;
+    t_part = SteadyClock::now();
     g_exec->runtime->compile();
+    g_timing.compile_runtime_s += seconds_since(t_part);
     g_exec->pending_exec_op_end =
         g_exec->runtime->execution_op_count();
     g_exec->pending_scatter_stagings = std::move(scatter_stagings);
@@ -1623,6 +1636,25 @@ std::string format_info_locked()
        << g_timing.compile_s << "s"
        << " (avg " << avg_ms(g_timing.compile_s, g_timing.compile_calls)
        << " ms), tile-ops lowered=" << g_timing.compile_ops << '\n';
+    if (g_timing.compile_calls > 0)
+    {
+        ss << "    seal+reclaim: " << g_timing.compile_seal_s << "s"
+           << " (avg "
+           << avg_ms(g_timing.compile_seal_s, g_timing.compile_calls)
+           << " ms)\n";
+        ss << "    from_phase:   " << g_timing.compile_tiling_s << "s"
+           << " (avg "
+           << avg_ms(g_timing.compile_tiling_s, g_timing.compile_calls)
+           << " ms)\n";
+        ss << "    append_phase: " << g_timing.compile_append_s << "s"
+           << " (avg "
+           << avg_ms(g_timing.compile_append_s, g_timing.compile_calls)
+           << " ms)\n";
+        ss << "    runtime.compile: " << g_timing.compile_runtime_s << "s"
+           << " (avg "
+           << avg_ms(g_timing.compile_runtime_s, g_timing.compile_calls)
+           << " ms)\n";
+    }
     ss << "  run (submit):  " << g_timing.run_calls << " calls, "
        << g_timing.run_s << "s"
        << " (avg " << avg_ms(g_timing.run_s, g_timing.run_calls)

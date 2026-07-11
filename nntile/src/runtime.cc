@@ -134,8 +134,10 @@ void Runtime::compile()
 
 void Runtime::sync_tile_marks_from_logical()
 {
-    // Sync only descriptors reachable from allocated tiles or the pending
-    // op slice — do not walk every historical TensorDescriptor.
+    // Sync only descriptors touched by the pending op slice. Walking
+    // tile_map_ every compile was O(allocated history) and duplicated mark
+    // refresh already done in append_tensor_graph_phase for carried tensors.
+    // Unmarked phase outputs are reclaimed via pending_output_reclaim.
     std::unordered_set<const TileGraph::TensorDescriptor *> synced;
 
     auto sync_tile = [&](const TileGraph::TileNode *tile_key)
@@ -171,12 +173,6 @@ void Runtime::sync_tile_marks_from_logical()
             tile->mark_output(is_out);
         }
     };
-
-    for (const auto &[tile, tile_ptr] : tile_map_)
-    {
-        (void)tile_ptr;
-        sync_tile(tile);
-    }
 
     const size_t n = execution_order_.size();
     const size_t begin =
@@ -1036,20 +1032,27 @@ void Runtime::eliminate_dead_ops()
         }
     }
 
-    std::vector<std::shared_ptr<OpNode>> filtered;
-    filtered.reserve(pending_begin + live_ops.size());
-    for (size_t i = 0; i < pending_begin; ++i)
+    // Keep the executed prefix in place. Rebuilding the full vector every
+    // compile recopied O(history) shared_ptrs and made step time grow.
+    if (live_ops.size() == n - pending_begin)
     {
-        filtered.push_back(execution_order_[i]);
+        live_tile_nodes_ = std::move(live_data);
+        return;
     }
+    size_t write = pending_begin;
     for (size_t i = pending_begin; i < n; ++i)
     {
-        if (live_ops.count(i))
+        if (live_ops.count(i) == 0)
         {
-            filtered.push_back(execution_order_[i]);
+            continue;
         }
+        if (write != i)
+        {
+            execution_order_[write] = std::move(execution_order_[i]);
+        }
+        ++write;
     }
-    execution_order_ = std::move(filtered);
+    execution_order_.resize(write);
     live_tile_nodes_ = std::move(live_data);
 }
 
