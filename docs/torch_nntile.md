@@ -229,9 +229,12 @@ It reproduces Google’s “TensorFlow without a PhD” five-layer ReLU MLP
 (`784→200→100→60→30→10`, cross-entropy, Adam + exponential LR decay, batch
 100, 10 000 steps) on ``--device cpu`` / ``cuda`` or ``--device nntile``.
 ``nn.Linear`` bias is unsupported on nntile, so the example uses
-``F.linear(x, weight, None) + bias``. Source expected test accuracy ≈
-**0.9824**. Observed: CPU torch (seed 0) max **0.9827** / final **0.9822**;
-nntile (CPU workers, seed 0) **0.9702** by step 1000 (meets ≥0.97).
+``F.linear(x, weight, None) + bias``. On nntile, train/test batches are
+preloaded with ``.to("nntile")`` before training; the script reports
+host→nntile preprocess time separately from train/eval compute time.
+Source expected test accuracy ≈ **0.9824**. Observed: CPU torch (seed 0)
+max **0.9827** / final **0.9822**; nntile (CPU workers, seed 0) **0.9702**
+by step 1000 (meets ≥0.97).
 
 ```bash
 # Pure torch

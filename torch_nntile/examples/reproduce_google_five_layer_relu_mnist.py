@@ -26,6 +26,10 @@ Supports ``--device cpu`` / ``cuda`` (PyTorch Adam) and ``--device nntile``
 step). ``nn.Linear`` bias is unsupported on nntile, so layers use
 ``F.linear(x, weight, None) + bias``.
 
+On ``nntile``, all train/test batches (images + labels) are moved to the
+device **before** training. The script prints host→nntile preprocess time
+separately from train/eval compute time (compile/run/wait).
+
 CPU torch reference::
 
     python torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py \\
@@ -53,6 +57,7 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+import time
 from pathlib import Path
 from typing import Iterator
 
@@ -118,24 +123,46 @@ def learning_rate(step: int) -> float:
     return 0.0001 + 0.003 * math.exp(-step / 2000.0)
 
 
-def infinite_batches(
-    loader: DataLoader,
-) -> Iterator[tuple[torch.Tensor, torch.Tensor]]:
+def cycle_batches(batches: list) -> Iterator:
     while True:
-        yield from loader
+        yield from batches
+
+
+def materialize_cpu_batches(
+    loader: DataLoader,
+) -> list[tuple[torch.Tensor, torch.Tensor]]:
+    """Eagerly pull one epoch of batches onto contiguous CPU tensors."""
+    return [
+        (images.contiguous(), labels.contiguous())
+        for images, labels in loader
+    ]
+
+
+@torch.no_grad()
+def preload_batches_to_nntile(
+    cpu_batches: list[tuple[torch.Tensor, torch.Tensor]],
+) -> list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    """Move images/labels to nntile; keep CPU labels for host-side metrics.
+
+    Returns list of ``(images_nntile, labels_nntile, labels_cpu)``.
+    """
+    out: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = []
+    for images, labels in cpu_batches:
+        out.append((images.to("nntile"), labels.to("nntile"), labels))
+    return out
 
 
 @torch.no_grad()
 def evaluate_torch(
     model: nn.Module,
-    loader: DataLoader,
+    batches: list[tuple[torch.Tensor, torch.Tensor]],
     device: torch.device,
 ) -> tuple[float, float]:
     model.eval()
     total_loss = 0.0
     total_correct = 0
     total = 0
-    for images, labels in loader:
+    for images, labels in batches:
         images = images.to(device)
         labels = labels.to(device)
         logits = model(images)
@@ -151,9 +178,9 @@ def evaluate_torch(
 @torch.no_grad()
 def evaluate_nntile(
     model: nn.Module,
-    loader: DataLoader,
-) -> tuple[float, float]:
-    """Evaluate on nntile via forward + host readout (no weight clone)."""
+    nntile_batches: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+) -> tuple[float, float, float]:
+    """Evaluate on preloaded nntile batches; return loss, acc, compute seconds."""
     import torch_nntile
     from torch_nntile.training import cross_entropy
 
@@ -161,14 +188,16 @@ def evaluate_nntile(
     total_loss = 0.0
     total_correct = 0
     total = 0
-    for images_cpu, labels_cpu in loader:
-        images = images_cpu.to("nntile")
-        labels = labels_cpu.to("nntile")
+    compute_s = 0.0
+    for images, labels, labels_cpu in nntile_batches:
+        t0 = time.perf_counter()
         logits = model(images)
         loss = cross_entropy(logits, labels, reduction="sum")
         torch_nntile.compile_graph()
         torch_nntile.run()
         torch_nntile.wait()
+        compute_s += time.perf_counter() - t0
+
         logits_cpu = logits.to("cpu")
         loss_cpu = float(loss.to("cpu").item())
         total_loss += loss_cpu
@@ -177,7 +206,7 @@ def evaluate_nntile(
         )
         total += labels_cpu.numel()
     model.train()
-    return total_loss / total, total_correct / total
+    return total_loss / total, total_correct / total, compute_s
 
 
 def parse_args() -> argparse.Namespace:
@@ -245,8 +274,8 @@ def parse_args() -> argparse.Namespace:
 
 def train_torch(
     model: nn.Module,
-    train_loader: DataLoader,
-    test_loader: DataLoader,
+    train_batches: list[tuple[torch.Tensor, torch.Tensor]],
+    test_batches: list[tuple[torch.Tensor, torch.Tensor]],
     *,
     steps: int,
     train_log_every: int,
@@ -256,7 +285,7 @@ def train_torch(
     batch_size: int,
 ) -> tuple[float, float, float]:
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate(0))
-    batches = infinite_batches(train_loader)
+    batches = cycle_batches(train_batches)
     max_test_acc = 0.0
     last_test_loss = float("nan")
     last_test_acc = float("nan")
@@ -288,7 +317,9 @@ def train_torch(
             )
 
         if step % test_every == 0:
-            test_loss, test_acc = evaluate_torch(model, test_loader, device)
+            test_loss, test_acc = evaluate_torch(
+                model, test_batches, device
+            )
             last_test_loss = test_loss
             last_test_acc = test_acc
             max_test_acc = max(max_test_acc, test_acc)
@@ -303,15 +334,21 @@ def train_torch(
 
 def train_nntile(
     model: nn.Module,
-    train_loader: DataLoader,
-    test_loader: DataLoader,
+    train_batches: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+    test_batches: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
     *,
     steps: int,
     train_log_every: int,
     test_every: int,
     n_train: int,
     batch_size: int,
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float, float]:
+    """Train on preloaded nntile batches.
+
+    Returns
+    -------
+    max_test_acc, last_test_acc, last_test_loss, train_compute_s, eval_compute_s
+    """
     import torch_nntile
     from torch_nntile.training import Adam, cross_entropy
 
@@ -319,10 +356,13 @@ def train_nntile(
         [p for p in model.parameters() if p.requires_grad],
         lr=learning_rate(0),
     )
-    batches = infinite_batches(train_loader)
+    batches = cycle_batches(train_batches)
     max_test_acc = 0.0
     last_test_loss = float("nan")
     last_test_acc = float("nan")
+    train_compute_s = 0.0
+    eval_compute_s = 0.0
+    host_readout_s = 0.0
     model.train()
 
     for step in range(steps + 1):
@@ -330,11 +370,9 @@ def train_nntile(
         for group in optimizer.param_groups:
             group["lr"] = lr
 
-        images_cpu, labels_cpu = next(batches)
-        with torch.no_grad():
-            images = images_cpu.to("nntile")
-            labels = labels_cpu.to("nntile")
+        images, labels, labels_cpu = next(batches)
 
+        t0 = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
         loss = cross_entropy(logits, labels)
@@ -343,8 +381,10 @@ def train_nntile(
         torch_nntile.compile_graph()
         torch_nntile.run()
         torch_nntile.wait()
+        train_compute_s += time.perf_counter() - t0
 
         if step % train_log_every == 0:
+            t1 = time.perf_counter()
             with torch.no_grad():
                 logits_cpu = logits.to("cpu")
                 loss_cpu = float(loss.to("cpu").item())
@@ -354,13 +394,17 @@ def train_nntile(
                     .mean()
                     .item()
                 )
+            host_readout_s += time.perf_counter() - t1
             print(
                 f"{step}: train accuracy={train_acc:.4f} "
                 f"loss={loss_cpu:.4f} (lr={lr:.6f})"
             )
 
         if step % test_every == 0:
-            test_loss, test_acc = evaluate_nntile(model, test_loader)
+            test_loss, test_acc, eval_s = evaluate_nntile(
+                model, test_batches
+            )
+            eval_compute_s += eval_s
             last_test_loss = test_loss
             last_test_acc = test_acc
             max_test_acc = max(max_test_acc, test_acc)
@@ -370,7 +414,24 @@ def train_nntile(
                 f"test accuracy={test_acc:.4f} test loss={test_loss:.4f}"
             )
 
-    return max_test_acc, last_test_acc, last_test_loss
+    print(
+        f"timing nntile train compute: {train_compute_s:.3f}s "
+        f"({steps + 1} steps, {train_compute_s / (steps + 1) * 1e3:.2f} "
+        f"ms/step)"
+    )
+    print(f"timing nntile eval compute: {eval_compute_s:.3f}s")
+    print(f"timing nntile host readout (logs): {host_readout_s:.3f}s")
+    print(
+        f"timing nntile compute total "
+        f"(train+eval): {train_compute_s + eval_compute_s:.3f}s"
+    )
+    return (
+        max_test_acc,
+        last_test_acc,
+        last_test_loss,
+        train_compute_s,
+        eval_compute_s,
+    )
 
 
 def main() -> None:
@@ -413,6 +474,16 @@ def main() -> None:
         "reproduction success floor ≥ 0.97"
     )
 
+    print("Materializing CPU train/test batches...")
+    t_mat0 = time.perf_counter()
+    train_cpu = materialize_cpu_batches(train_loader)
+    test_cpu = materialize_cpu_batches(test_loader)
+    materialize_s = time.perf_counter() - t_mat0
+    print(
+        f"timing CPU materialize: {materialize_s:.3f}s "
+        f"({len(train_cpu)} train batches, {len(test_cpu)} test batches)"
+    )
+
     model_cpu = FiveLayerReLU()
 
     if use_nntile:
@@ -438,15 +509,31 @@ def main() -> None:
             torch_nntile.restrict_cpu()
             print("Worker placement: CPU only (restrict_cpu)")
         try:
+            print("Preloading train/test batches to nntile...")
+            t_pre0 = time.perf_counter()
             with torch.no_grad():
+                train_nnt = preload_batches_to_nntile(train_cpu)
+                test_nnt = preload_batches_to_nntile(test_cpu)
                 model = model_cpu.to("nntile")
+            # Ensure transfers are complete before stopping the clock.
+            torch_nntile.wait()
+            preprocess_s = time.perf_counter() - t_pre0
+            n_train_elems = sum(x.numel() for x, _ in train_cpu)
+            n_test_elems = sum(x.numel() for x, _ in test_cpu)
+            print(
+                f"timing host→nntile preprocess: {preprocess_s:.3f}s "
+                f"(train images {n_train_elems}, "
+                f"test images {n_test_elems}, + labels + model)"
+            )
             del model_cpu
+            del train_cpu
+            del test_cpu
             for param in model.parameters():
                 param.requires_grad_(True)
-            max_test_acc, last_test_acc, last_test_loss = train_nntile(
+            max_test_acc, last_test_acc, last_test_loss, _, _ = train_nntile(
                 model,
-                train_loader,
-                test_loader,
+                train_nnt,
+                test_nnt,
                 steps=args.steps,
                 train_log_every=args.train_log_every,
                 test_every=args.test_every,
@@ -461,8 +548,8 @@ def main() -> None:
         model = model_cpu.to(device)
         max_test_acc, last_test_acc, last_test_loss = train_torch(
             model,
-            train_loader,
-            test_loader,
+            train_cpu,
+            test_cpu,
             steps=args.steps,
             train_log_every=args.train_log_every,
             test_every=args.test_every,
