@@ -26,9 +26,9 @@ Supports ``--device cpu`` / ``cuda`` (PyTorch Adam) and ``--device nntile``
 step). ``nn.Linear`` bias is unsupported on nntile, so layers use
 ``F.linear(x, weight, None) + bias``.
 
-On ``nntile``, all train/test batches (images + labels) are moved to the
-device **before** training. The script prints host→nntile preprocess time
-separately from train/eval compute time (compile/run/wait).
+On ``cpu`` / ``cuda`` / ``nntile``, all train/test batches (images + labels)
+are moved onto the training device **before** training. The script prints
+data-preparation time separately from train/eval compute time.
 
 CPU torch reference::
 
@@ -128,6 +128,11 @@ def cycle_batches(batches: list) -> Iterator:
         yield from batches
 
 
+def synchronize_device(device: torch.device) -> None:
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
+
 def materialize_cpu_batches(
     loader: DataLoader,
 ) -> list[tuple[torch.Tensor, torch.Tensor]]:
@@ -136,6 +141,24 @@ def materialize_cpu_batches(
         (images.contiguous(), labels.contiguous())
         for images, labels in loader
     ]
+
+
+@torch.no_grad()
+def preload_batches_to_device(
+    cpu_batches: list[tuple[torch.Tensor, torch.Tensor]],
+    device: torch.device,
+) -> list[tuple[torch.Tensor, torch.Tensor]]:
+    """Copy every (images, labels) pair onto ``device`` (cpu or cuda)."""
+    out: list[tuple[torch.Tensor, torch.Tensor]] = []
+    for images, labels in cpu_batches:
+        out.append(
+            (
+                images.to(device, non_blocking=True),
+                labels.to(device, non_blocking=True),
+            )
+        )
+    synchronize_device(device)
+    return out
 
 
 @torch.no_grad()
@@ -157,22 +180,24 @@ def evaluate_torch(
     model: nn.Module,
     batches: list[tuple[torch.Tensor, torch.Tensor]],
     device: torch.device,
-) -> tuple[float, float]:
+) -> tuple[float, float, float]:
+    """Evaluate on preloaded device batches; return loss, acc, compute seconds."""
     model.eval()
     total_loss = 0.0
     total_correct = 0
     total = 0
+    compute_s = 0.0
     for images, labels in batches:
-        images = images.to(device)
-        labels = labels.to(device)
+        t0 = time.perf_counter()
         logits = model(images)
-        total_loss += float(
-            F.cross_entropy(logits, labels, reduction="sum").item()
-        )
+        loss = F.cross_entropy(logits, labels, reduction="sum")
+        synchronize_device(device)
+        compute_s += time.perf_counter() - t0
+        total_loss += float(loss.item())
         total_correct += int((logits.argmax(dim=1) == labels).sum().item())
         total += labels.numel()
     model.train()
-    return total_loss / total, total_correct / total
+    return total_loss / total, total_correct / total, compute_s
 
 
 @torch.no_grad()
@@ -283,12 +308,20 @@ def train_torch(
     device: torch.device,
     n_train: int,
     batch_size: int,
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float, float]:
+    """Train on preloaded cpu/cuda batches.
+
+    Returns
+    -------
+    max_test_acc, last_test_acc, last_test_loss, train_compute_s, eval_compute_s
+    """
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate(0))
     batches = cycle_batches(train_batches)
     max_test_acc = 0.0
     last_test_loss = float("nan")
     last_test_acc = float("nan")
+    train_compute_s = 0.0
+    eval_compute_s = 0.0
     model.train()
 
     for step in range(steps + 1):
@@ -297,14 +330,15 @@ def train_torch(
             group["lr"] = lr
 
         images, labels = next(batches)
-        images = images.to(device)
-        labels = labels.to(device)
 
+        t0 = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
         loss = F.cross_entropy(logits, labels)
         loss.backward()
         optimizer.step()
+        synchronize_device(device)
+        train_compute_s += time.perf_counter() - t0
 
         if step % train_log_every == 0:
             with torch.no_grad():
@@ -317,9 +351,10 @@ def train_torch(
             )
 
         if step % test_every == 0:
-            test_loss, test_acc = evaluate_torch(
+            test_loss, test_acc, eval_s = evaluate_torch(
                 model, test_batches, device
             )
+            eval_compute_s += eval_s
             last_test_loss = test_loss
             last_test_acc = test_acc
             max_test_acc = max(max_test_acc, test_acc)
@@ -329,8 +364,23 @@ def train_torch(
                 f"test accuracy={test_acc:.4f} test loss={test_loss:.4f}"
             )
 
-    return max_test_acc, last_test_acc, last_test_loss
-
+    print(
+        f"timing torch train compute: {train_compute_s:.3f}s "
+        f"({steps + 1} steps, {train_compute_s / (steps + 1) * 1e3:.2f} "
+        f"ms/step)"
+    )
+    print(f"timing torch eval compute: {eval_compute_s:.3f}s")
+    print(
+        f"timing torch compute total "
+        f"(train+eval): {train_compute_s + eval_compute_s:.3f}s"
+    )
+    return (
+        max_test_acc,
+        last_test_acc,
+        last_test_loss,
+        train_compute_s,
+        eval_compute_s,
+    )
 
 def train_nntile(
     model: nn.Module,
@@ -545,11 +595,28 @@ def main() -> None:
             torch_nntile.shutdown_context()
     else:
         device = torch.device(args.device)
-        model = model_cpu.to(device)
-        max_test_acc, last_test_acc, last_test_loss = train_torch(
+        print(f"Preloading train/test batches to {device}...")
+        t_pre0 = time.perf_counter()
+        with torch.no_grad():
+            train_dev = preload_batches_to_device(train_cpu, device)
+            test_dev = preload_batches_to_device(test_cpu, device)
+            model = model_cpu.to(device)
+            synchronize_device(device)
+        preprocess_s = time.perf_counter() - t_pre0
+        n_train_elems = sum(x.numel() for x, _ in train_cpu)
+        n_test_elems = sum(x.numel() for x, _ in test_cpu)
+        print(
+            f"timing host→{device} preprocess: {preprocess_s:.3f}s "
+            f"(train images {n_train_elems}, "
+            f"test images {n_test_elems}, + labels + model)"
+        )
+        del model_cpu
+        del train_cpu
+        del test_cpu
+        max_test_acc, last_test_acc, last_test_loss, _, _ = train_torch(
             model,
-            train_cpu,
-            test_cpu,
+            train_dev,
+            test_dev,
             steps=args.steps,
             train_log_every=args.train_log_every,
             test_every=args.test_every,
