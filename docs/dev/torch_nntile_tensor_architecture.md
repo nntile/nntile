@@ -35,8 +35,10 @@ by marks, with an explicit pending list in torch_nntile:
 3. After `wait()` (following `run()`), pin holds are cleared (temps drop their
    NodeRefs). Any snapshot entry that is no longer marked input/output is
    passed to `Runtime::invalidate_logical_tiles` once — no full tile-map scan.
-4. Mid-phase, `release_dead_tiles_after_op` still invalidates unmarked tiles
-   after their last consumer.
+4. Mid-phase, ``execute_range`` queues unmarked tiles after their last
+   consumer; ``Runtime::wait()`` invalidates them after StarPU drains.
+   Core ``*`` wrappers skip ``starpu_task_wait_for_all`` while submit is
+   deferred so ``run()`` stays asynchronous.
 
 Training loops should ``del`` step temporaries (e.g. logits) **after**
 ``wait()`` and any host readout of the loss so reclaim sees

@@ -79,7 +79,7 @@ void norm_slice_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src
         Index axis, int redux)
 {
     norm_slice_inplace_async<T>(starpu_worker_hint, alpha, src, beta, dst, axis, redux);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

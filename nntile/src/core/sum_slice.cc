@@ -86,7 +86,7 @@ void sum_slice(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar 
         Index axis, int redux)
 {
     sum_slice_async<T>(starpu_worker_hint, alpha, src, beta, dst, axis, redux);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

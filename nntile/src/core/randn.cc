@@ -106,7 +106,7 @@ void randn(int starpu_worker_hint, const Tile<T> &dst, const std::vector<Index> 
         Scalar mean, Scalar stddev)
 {
     randn_async<T>(starpu_worker_hint, dst, start, underlying_shape, seed, mean, stddev);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

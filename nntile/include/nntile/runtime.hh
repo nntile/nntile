@@ -211,6 +211,8 @@ class Runtime
     void build_tile_last_consumer_map();
     void sync_tile_marks_from_logical();
     void release_dead_tiles_after_op(size_t op_idx);
+    void queue_dead_tiles_after_op(size_t op_idx);
+    void flush_queued_dead_tiles();
     void invalidate_tile_buffer(
         const TileNode *node,
         const std::shared_ptr<void> &tile_ptr);
@@ -236,6 +238,9 @@ class Runtime
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
     std::unordered_set<const TileNode *> live_tile_nodes_;
     std::unordered_map<const TileNode *, size_t> tile_last_consumer_op_;
+    //! Tiles whose last consumer ran during async execute_range; flushed in
+    //! ``wait()`` after ``starpu_task_wait_for_all``.
+    std::vector<const TileNode *> queued_dead_tiles_;
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;
     //! How many ``graph_.ops()`` entries have been appended into

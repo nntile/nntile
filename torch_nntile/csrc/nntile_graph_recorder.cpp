@@ -637,6 +637,14 @@ bool should_pin_tensor_for_graph_locked(const at::Tensor &tensor)
 void pin_tensor_for_graph(const at::Tensor &tensor)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    TensorImplKey const key = tensor_impl_key(tensor);
+    for (at::Tensor const &pinned : g_pinned_tensors)
+    {
+        if (tensor_impl_key(pinned) == key)
+        {
+            return;
+        }
+    }
     g_pinned_tensors.push_back(tensor);
 }
 

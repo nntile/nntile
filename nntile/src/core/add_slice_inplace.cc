@@ -94,7 +94,7 @@ void add_slice_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src,
  * */
 {
     add_slice_inplace_async<T>(starpu_worker_hint, alpha, src, beta, dst, axis);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation of template

@@ -50,7 +50,7 @@ void multiply(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, const T
         const Tile<T> &dst)
 {
     multiply_async<T>(starpu_worker_hint, alpha, src1, src2, dst);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

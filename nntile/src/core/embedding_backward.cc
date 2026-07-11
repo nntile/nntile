@@ -42,7 +42,7 @@ void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k, Index
 {
     embedding_backward_async<T>(starpu_worker_hint, m, n, k, k_start, k_size, index, embed, vocab,
             redux);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

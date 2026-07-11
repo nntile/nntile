@@ -45,7 +45,7 @@ template<typename T>
 void sum(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
     sum_async<T>(starpu_worker_hint, alpha, src, beta, dst);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

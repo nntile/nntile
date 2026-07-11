@@ -36,7 +36,7 @@ template<typename T>
 void clear(int starpu_worker_hint, const Tile<T> &tile)
 {
     clear_async<T>(starpu_worker_hint, tile);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

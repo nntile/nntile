@@ -35,7 +35,7 @@ template<typename T>
 void hypot_scalar_inverse(int starpu_worker_hint, Scalar eps, Scalar alpha, const Tile<T> &dst)
 {
     hypot_scalar_inverse_async<T>(starpu_worker_hint, eps, alpha, dst);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation of template

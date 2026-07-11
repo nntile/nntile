@@ -52,7 +52,7 @@ template<typename T>
 void multiply_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
     multiply_inplace_async<T>(starpu_worker_hint, alpha, src, dst);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

@@ -69,7 +69,7 @@ void swap_two_axes(
     Index dim1)
 {
     swap_two_axes_async<T>(starpu_worker_hint, src, dst, dim0, dim1);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 template

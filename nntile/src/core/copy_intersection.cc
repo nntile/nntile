@@ -161,7 +161,7 @@ void copy_intersection(int starpu_worker_hint, const Tile<T> &src,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch)
 {
     copy_intersection_async<T>(starpu_worker_hint, src, src_offset, dst, dst_offset, scratch);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

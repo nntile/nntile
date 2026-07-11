@@ -39,7 +39,7 @@ template<typename T>
 void log_scalar(int starpu_worker_hint, const std::string &name, const Tile<T> &value)
 {
     log_scalar_async<T>(starpu_worker_hint, name, value);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

@@ -83,7 +83,7 @@ template<typename T>
 void maxsumexp(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst, Index axis, int redux)
 {
     maxsumexp_async<T>(starpu_worker_hint, src, dst, axis, redux);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

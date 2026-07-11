@@ -21,6 +21,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 // NNTile headers
@@ -111,10 +112,15 @@ class TensorGraph
 
     size_t phase_seal_cursor() const { return phase_seal_cursor_; }
 
+    //! Keep ``marked_io_`` in sync with ``mark_input`` / ``mark_output``.
+    void refresh_marked_io_(TensorNode const *node);
+
   private:
     std::string name_;
     std::vector<std::unique_ptr<TensorNode>> data_;
     std::vector<std::shared_ptr<TensorGraph::OpNode>> ops_;
+    //! Nodes with ``is_input || is_output`` for O(1) ``seal_phase`` carry.
+    std::unordered_set<TensorNode const *> marked_io_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

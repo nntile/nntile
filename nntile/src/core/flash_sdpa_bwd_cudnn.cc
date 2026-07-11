@@ -150,7 +150,7 @@ void flash_sdpa_bwd_cudnn(int starpu_worker_hint,
 {
     flash_sdpa_bwd_cudnn_async<T>(starpu_worker_hint, 
         K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 template

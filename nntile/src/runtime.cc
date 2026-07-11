@@ -17,6 +17,7 @@
 
 #include "nntile/core/execution_schedule.hh"
 #include "nntile/core/execution_worker.hh"
+#include "nntile/starpu/sync_defer.hh"
 
 // TileGraph::get_tensor_descriptor is inline in graph.hh; this TU must see
 // the definition when calling it on const TileGraph&.
@@ -755,6 +756,9 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
     {
         throw std::out_of_range("Runtime::execute_range: bad range");
     }
+    // Submit only: core sync wrappers skip wait_for_all while deferred so
+    // torch_nntile run() can return before StarPU finishes the phase.
+    StarpuSyncDefer defer_waits;
     bool const use_static_schedule = has_execution_schedule();
     for (size_t i = op_begin; i < op_end; ++i)
     {
@@ -770,7 +774,7 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
             starpu_worker_hint_ = -1;
         }
         execution_order_[i]->execute(*this);
-        release_dead_tiles_after_op(i);
+        queue_dead_tiles_after_op(i);
     }
     if (op_end > executed_op_end_)
     {
@@ -787,24 +791,8 @@ void Runtime::execute()
     // compile may have skipped (pending slice was empty after a previous run).
     executed_op_end_ = 0;
     allocate_missing_tiles();
-    bool const use_static_schedule = has_execution_schedule();
-    for (size_t i = 0; i < execution_order_.size(); ++i)
-    {
-        if (use_static_schedule)
-        {
-            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
-                execution_schedule_.worker_for_op(i),
-                execution_schedule_.use_cuda_workers,
-                execution_order_[i]->op_name());
-        }
-        else
-        {
-            starpu_worker_hint_ = -1;
-        }
-        execution_order_[i]->execute(*this);
-        release_dead_tiles_after_op(i);
-    }
-    executed_op_end_ = execution_order_.size();
+    execute_range(0, execution_order_.size());
+    wait();
 }
 
 void Runtime::build_tile_last_consumer_map()
@@ -883,9 +871,16 @@ void Runtime::invalidate_tile_buffer(
 
 void Runtime::release_dead_tiles_after_op(size_t op_idx)
 {
-    starpu_task_wait_for_all();
-    std::vector<const TileGraph::TileNode *> to_release;
-    to_release.reserve(tile_last_consumer_op_.size());
+    queue_dead_tiles_after_op(op_idx);
+    if (g_starpu_sync_defer_depth == 0)
+    {
+        starpu_task_wait_for_all();
+        flush_queued_dead_tiles();
+    }
+}
+
+void Runtime::queue_dead_tiles_after_op(size_t op_idx)
+{
     for (const auto &[tile, last_op] : tile_last_consumer_op_)
     {
         if (last_op != op_idx)
@@ -896,9 +891,17 @@ void Runtime::release_dead_tiles_after_op(size_t op_idx)
         {
             continue;
         }
-        to_release.push_back(tile);
+        queued_dead_tiles_.push_back(tile);
     }
-    for (const TileGraph::TileNode *tile : to_release)
+}
+
+void Runtime::flush_queued_dead_tiles()
+{
+    if (queued_dead_tiles_.empty())
+    {
+        return;
+    }
+    for (const TileGraph::TileNode *tile : queued_dead_tiles_)
     {
         auto it = tile_map_.find(tile);
         if (it == tile_map_.end())
@@ -908,6 +911,7 @@ void Runtime::release_dead_tiles_after_op(size_t op_idx)
         invalidate_tile_buffer(tile, it->second);
         tile_map_.erase(it);
     }
+    queued_dead_tiles_.clear();
 }
 
 void Runtime::eliminate_dead_ops()
@@ -1056,6 +1060,10 @@ void Runtime::eliminate_dead_ops()
     live_tile_nodes_ = std::move(live_data);
 }
 
-void Runtime::wait() { starpu_task_wait_for_all(); }
+void Runtime::wait()
+{
+    starpu_task_wait_for_all();
+    flush_queued_dead_tiles();
+}
 
 } // namespace nntile

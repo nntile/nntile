@@ -111,16 +111,57 @@ inline void TensorGraph::prepend_ops(
 inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase()
 {
     std::vector<TensorNode const *> carried;
-    carried.reserve(data_.size());
-    for (auto const &node : data_)
+    carried.reserve(marked_io_.size());
+    for (TensorNode const *t : marked_io_)
     {
-        TensorNode const *t = node.get();
-        if (t->is_input() || t->is_output())
+        if (t != nullptr && (t->is_input() || t->is_output()))
         {
             carried.push_back(t);
         }
     }
     return seal_phase(std::move(carried));
+}
+
+inline void TensorGraph::refresh_marked_io_(TensorNode const *node)
+{
+    if (node == nullptr)
+    {
+        return;
+    }
+    if (node->is_input() || node->is_output())
+    {
+        marked_io_.insert(node);
+    }
+    else
+    {
+        marked_io_.erase(node);
+    }
+}
+
+inline void TensorGraph::TensorNode::mark_input(bool v)
+{
+    if (is_input_ == v)
+    {
+        return;
+    }
+    is_input_ = v;
+    if (graph_ != nullptr)
+    {
+        graph_->refresh_marked_io_(this);
+    }
+}
+
+inline void TensorGraph::TensorNode::mark_output(bool v)
+{
+    if (is_output_ == v)
+    {
+        return;
+    }
+    is_output_ = v;
+    if (graph_ != nullptr)
+    {
+        graph_->refresh_marked_io_(this);
+    }
 }
 
 inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase(

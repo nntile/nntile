@@ -115,7 +115,7 @@ void rope(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &cos, const 
  * */
 {
     rope_async<T>(starpu_worker_hint, sin, cos, src, dst, sin_pair0);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation of template
