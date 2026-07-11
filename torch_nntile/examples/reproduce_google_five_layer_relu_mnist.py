@@ -62,7 +62,6 @@ run is slower on CPU workers than pure torch).
 from __future__ import annotations
 
 import argparse
-import gc
 import math
 import sys
 import time
@@ -218,10 +217,6 @@ def evaluate_nntile(
             loss_cpu = float(loss.to("cpu").item())
         del logits
         del loss
-        # Full gc.collect() scans the whole heap and dominates step time as the
-        # session graph grows; generation-0 is enough to drop young cycles so
-        # ~NNTileBinding can mark_output(false) for reclaim.
-        gc.collect(0)
         total_loss += loss_cpu
         total_correct += int(
             (logits_cpu.argmax(dim=1) == labels_cpu).sum().item()
@@ -442,7 +437,6 @@ def train_nntile(
     run_s = 0.0
     wait_s = 0.0
     readout_s = 0.0
-    gc_s = 0.0
     # Host-side previous log: (step, accuracy, loss, lr). Printed only after
     # the next step has been ordered. Do not keep nntile logits/loss across
     # the next compile_graph() — that blocks pending_output_reclaim.
@@ -510,13 +504,10 @@ def train_nntile(
 
         # Drop step temporaries so mark_output(false) is visible to the
         # pending_output_reclaim pass (end of this run / start of next compile).
+        # Refcount drop via del is enough — do not gc.collect() in the step
+        # loop (full/gen0 collections scale with session size).
         del logits
         del loss_current
-        t0 = time.perf_counter()
-        # Full gc.collect() dominates step time on long sessions; gen0 is enough
-        # for young autograd cycles so bindings can mark_output(false).
-        gc.collect(0)
-        gc_s += time.perf_counter() - t0
         train_step_s += time.perf_counter() - t_step0
 
         if step % test_every == 0:
@@ -555,7 +546,7 @@ def train_nntile(
         f"timing nntile step breakdown: "
         f"record={record_s:.3f}s compile={compile_s:.3f}s "
         f"run={run_s:.3f}s wait={wait_s:.3f}s "
-        f"readout={readout_s:.3f}s gc={gc_s:.3f}s"
+        f"readout={readout_s:.3f}s"
     )
     print(f"timing nntile eval wall: {eval_wall_s:.3f}s")
     torch_nntile.print_info()

@@ -21,7 +21,6 @@ kernels, mirroring ``nntile::optim::Adam`` / ``AdamW`` in libnntile.
 
 from __future__ import annotations
 
-import gc
 import math
 from typing import Callable, Iterable, Mapping
 
@@ -554,11 +553,10 @@ def train_full_batch_step(
         torch_nntile.wait()
         with torch.no_grad():
             loss_cpu = loss.to("cpu")
+        # Drop step temps so pending_output reclaim sees mark_output(false).
+        # Do not gc.collect() here — it scales with session size.
         del logits
         del loss
-        # Avoid full gc.collect() — it scales with session size and dominates
-        # step time. Generation-0 clears young cycles for mark_output(false).
-        gc.collect(0)
         return float(loss_cpu.item())
 
     loss = F.cross_entropy(logits, targets)

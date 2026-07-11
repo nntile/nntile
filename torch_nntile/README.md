@@ -268,9 +268,9 @@ Architecture reference:
   phase outputs and, after ``wait()`` (and again at the next compile), calls
   ``invalidate_logical_tiles`` on snapshot entries that are no longer marked.
 - **Reduce footprint:** ``del`` step temporaries after ``wait()`` so reclaim
-  sees cleared ``mark_output``. Prefer ``gc.collect(0)`` over a full
-  ``gc.collect()`` (full collections scale with session size and can dominate
-  step time). ``train_full_batch_step`` already drops logits after each step.
+  sees cleared ``mark_output``. Do not call ``gc.collect()`` in the training
+  step loop (it scales with session size and can dominate step time).
+  ``train_full_batch_step`` already drops logits after each step.
 
 ### Axis-group naming and tiling
 
