@@ -190,34 +190,10 @@ void Runtime::sync_tile_marks_from_logical()
         }
     }
 
-    // Refresh marks on allocated tiles not touched by the pending slice so
-    // last-consumer reclaim sees mark_output(false) after Python drops refs.
-    for (const auto &[tile, tile_ptr] : tile_map_)
-    {
-        (void)tile_ptr;
-        if (tile == nullptr)
-        {
-            continue;
-        }
-        auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile);
-        const TileGraph::TensorDescriptor *desc =
-            mutable_tile->tensor_descriptor();
-        if (desc == nullptr || desc->source_node == nullptr)
-        {
-            continue;
-        }
-        if (synced.count(desc) != 0)
-        {
-            continue;
-        }
-        // Only sync when the logical is unmarked — carried/live marks were
-        // refreshed by append_tensor_graph_phase for the current phase.
-        if (desc->source_node->is_input() || desc->source_node->is_output())
-        {
-            continue;
-        }
-        sync_tile(tile);
-    }
+    // Do not walk the full tile_map_ here: that scan grew O(session) for
+    // incremental training. Unmarked outputs dropped by the host are
+    // reclaimed via Runtime::invalidate_logical_tiles /
+    // pending_output_reclaim instead.
 }
 
 void Runtime::invalidate_logical_tiles(

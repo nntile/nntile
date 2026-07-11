@@ -46,8 +46,6 @@ std::vector<Index> tile_sizes_for_axis_extent(
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <exception>
-#include <future>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -104,14 +102,6 @@ std::unique_ptr<RecorderExecState> g_exec;
 bool g_defer_pending_clear_after_run = false;
 //! True after run_graph() until wait_graph_session() finishes post-run work.
 bool g_run_cleanup_pending = false;
-
-//! Async compile/run pipeline: Python compile_graph()/run() must not block.
-//! Only wait_graph_session() joins the future and drains StarPU.
-std::future<void> g_pipeline_future;
-bool g_pipeline_compile_done = true;
-bool g_pipeline_submit_requested = false;
-bool g_pipeline_clear_pending_after = false;
-std::exception_ptr g_pipeline_error;
 
 struct GraphApiTimingStats
 {
@@ -821,13 +811,19 @@ void collect_scatter_stagings_from_phase_locked(
     }
 }
 
-void drain_starpu_only_locked()
+void compact_tensor_graph_session_locked()
 {
-    // Drain prior execute_range without pin/reclaim cleanup. Reclaim stays in
-    // finish_run_locked() so compile_graph() never performs wait-side work.
-    if (g_exec != nullptr && g_exec->runtime != nullptr)
+    // Drop sealed TensorGraph ops so the next record/compile is O(phase).
+    // Keep data nodes and session_tiling layouts (TileGraph still references
+    // logical nodes; clearing layouts forced a full rebuild every step).
+    if (g_graph == nullptr)
     {
-        g_exec->runtime->wait();
+        return;
+    }
+    g_graph->drop_all_ops();
+    if (g_exec != nullptr)
+    {
+        g_exec->pending_output_reclaim.clear();
     }
 }
 
@@ -835,11 +831,10 @@ void compile_graph_locked(
     bool clear_pending_after,
     std::vector<at::Tensor> &pin_drop)
 {
-    // Prior StarPU tasks must finish before lowering the next phase, but
-    // session reclaim / pin_hold cleanup belongs in wait() only.
+    // Prior async run() must finish before sealing the next phase.
     if (g_run_cleanup_pending)
     {
-        drain_starpu_only_locked();
+        finish_run_locked();
     }
 
     if (g_graph == nullptr ||
@@ -924,57 +919,6 @@ void compile_graph_locked(
     g_timing.compile_ops += phase_ops;
 }
 
-void rethrow_pipeline_error_locked()
-{
-    if (g_pipeline_error)
-    {
-        std::exception_ptr err = g_pipeline_error;
-        g_pipeline_error = nullptr;
-        std::rethrow_exception(err);
-    }
-}
-
-void join_pipeline_future_unlocked()
-{
-    if (!g_pipeline_future.valid())
-    {
-        return;
-    }
-    g_pipeline_future.get();
-}
-
-void run_pipeline_job_locked()
-{
-    try
-    {
-        rethrow_pipeline_error_locked();
-        std::vector<at::Tensor> pin_drop;
-        compile_graph_locked(g_pipeline_clear_pending_after, pin_drop);
-        if (g_exec != nullptr && !pin_drop.empty())
-        {
-            g_exec->pin_hold = std::move(pin_drop);
-        }
-        g_pipeline_compile_done = true;
-        if (g_pipeline_submit_requested)
-        {
-            g_pipeline_submit_requested = false;
-            run_graph_locked();
-        }
-    }
-    catch (...)
-    {
-        g_pipeline_error = std::current_exception();
-        g_pipeline_compile_done = true;
-        g_pipeline_submit_requested = false;
-    }
-}
-
-void flush_pipeline_unlocked()
-{
-    // Join async compile/run outside g_recorder_mutex (job acquires it).
-    join_pipeline_future_unlocked();
-}
-
 void run_graph_locked()
 {
     if (g_exec == nullptr || g_exec->runtime == nullptr)
@@ -1034,6 +978,8 @@ void finish_run_locked()
     // flips are visible before reclaim.
     g_exec->pin_hold.clear();
     reclaim_pending_outputs_locked();
+    // Compact TensorGraph history so the next record/compile is O(phase).
+    compact_tensor_graph_session_locked();
     g_run_cleanup_pending = false;
     g_timing.wait_s += seconds_since(t0);
     ++g_timing.wait_calls;
@@ -1161,71 +1107,35 @@ void require_no_pending_graph(const char *op_name)
 
 void execute_pending_graph()
 {
-    join_pipeline_future_unlocked();
     std::vector<at::Tensor> pin_drop;
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        rethrow_pipeline_error_locked();
         execute_pending_graph_locked(pin_drop);
     }
 }
 
 void compile_graph()
 {
-    std::future<void> prev;
+    std::vector<at::Tensor> pin_drop;
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        if (g_pipeline_future.valid())
+        compile_graph_locked(true, pin_drop);
+        if (g_exec != nullptr && !pin_drop.empty())
         {
-            prev = std::move(g_pipeline_future);
+            g_exec->pin_hold = std::move(pin_drop);
         }
-        g_pipeline_clear_pending_after = true;
-        g_pipeline_compile_done = false;
-        g_pipeline_submit_requested = false;
-        g_pipeline_error = nullptr;
     }
-    // Prior async job must finish before starting another (no wait() yet).
-    if (prev.valid())
-    {
-        prev.get();
-    }
-    g_pipeline_future = std::async(std::launch::async, []
-    {
-        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        run_pipeline_job_locked();
-    });
 }
 
 void run_graph()
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    rethrow_pipeline_error_locked();
-    if (!g_pipeline_compile_done)
-    {
-        // Compile still running on the pipeline thread; submit after it.
-        g_pipeline_submit_requested = true;
-        return;
-    }
-    // Compile already finished (or never started); submit now.
     run_graph_locked();
 }
 
 void wait_graph_session()
 {
-    std::future<void> pending;
-    {
-        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        if (g_pipeline_future.valid())
-        {
-            pending = std::move(g_pipeline_future);
-        }
-    }
-    if (pending.valid())
-    {
-        pending.get();
-    }
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    rethrow_pipeline_error_locked();
     finish_run_locked();
     if (starpu_is_initialized())
     {
@@ -1235,22 +1145,18 @@ void wait_graph_session()
 
 void reset_graph_session()
 {
-    join_pipeline_future_unlocked();
     std::vector<at::Tensor> pin_drop;
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        rethrow_pipeline_error_locked();
         reset_recorder_locked(true, pin_drop);
     }
 }
 
 void shutdown_recorder()
 {
-    join_pipeline_future_unlocked();
     std::vector<at::Tensor> pin_drop;
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        rethrow_pipeline_error_locked();
         shutdown_recorder_locked(pin_drop);
     }
 }
@@ -1320,10 +1226,7 @@ void gather_logical_to_staging_and_read_locked(
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
 {
-    // Finish any async compile/run before synchronous host readout.
-    join_pipeline_future_unlocked();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    rethrow_pipeline_error_locked();
     NodeRef binding = nntile_binding(src);
     if (binding == nullptr || binding->logical == nullptr)
     {
@@ -1815,7 +1718,7 @@ std::string format_info_locked()
     ss << "  wait:          " << g_timing.wait_calls << " calls, "
        << g_timing.wait_s << "s"
        << " (avg " << avg_ms(g_timing.wait_s, g_timing.wait_calls)
-       << " ms; joins async compile/run + StarPU drain)\n";
+       << " ms; finishes a pending run() only)\n";
     ss << "  host_readout:  " << g_timing.host_readout_calls << " calls, "
        << g_timing.host_readout_s << "s"
        << " (avg "
@@ -1824,8 +1727,6 @@ std::string format_info_locked()
        << "compile/run/wait)\n";
     ss << "  sum compile+run+wait: "
        << (g_timing.compile_s + g_timing.run_s + g_timing.wait_s) << "s\n";
-    ss << "  note: compile_graph/run are non-blocking; compile_s is CPU work "
-       << "on the pipeline thread (joined in wait())\n";
     if (g_timing.run_calls > 0)
     {
         ss << "  note: wait_calls should be ≈ run_calls when callers avoid "
@@ -1847,12 +1748,9 @@ std::string format_info_locked()
 
 void print_info()
 {
-    // Join so timing counters include any in-flight async compile/run.
-    join_pipeline_future_unlocked();
     std::string text;
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        rethrow_pipeline_error_locked();
         text = format_info_locked();
     }
     std::fputs(text.c_str(), stdout);

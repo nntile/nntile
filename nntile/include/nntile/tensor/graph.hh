@@ -188,6 +188,35 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase(
 
 inline void TensorGraph::reset_phase_seal_cursor() { phase_seal_cursor_ = 0; }
 
+inline void TensorGraph::drop_all_ops()
+{
+    ops_.clear();
+    phase_seal_cursor_ = 0;
+}
+
+inline void TensorGraph::gc_unmarked_data_nodes()
+{
+    std::vector<std::unique_ptr<TensorNode>> kept;
+    kept.reserve(data_.size());
+    for (std::unique_ptr<TensorNode> &node : data_)
+    {
+        if (node == nullptr)
+        {
+            continue;
+        }
+        if (node->is_input() || node->is_output())
+        {
+            kept.push_back(std::move(node));
+        }
+    }
+    data_ = std::move(kept);
+    marked_io_.clear();
+    for (std::unique_ptr<TensorNode> const &node : data_)
+    {
+        refresh_marked_io_(node.get());
+    }
+}
+
 inline void TensorGraph::rename_data_node(
     TensorNode *node, std::string new_name)
 {

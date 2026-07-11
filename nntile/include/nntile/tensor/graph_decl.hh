@@ -112,6 +112,14 @@ class TensorGraph
 
     size_t phase_seal_cursor() const { return phase_seal_cursor_; }
 
+    //! Drop all recorded ops and rewind the seal cursor. Persistent data
+    //! nodes remain; used by incremental training to keep compile O(phase).
+    void drop_all_ops();
+
+    //! Destroy data nodes that are not marked input/output. Call only after
+    //! ``drop_all_ops()`` and after live NodeRefs have cleared unmarked temps.
+    void gc_unmarked_data_nodes();
+
     //! Keep ``marked_io_`` in sync with ``mark_input`` / ``mark_output``.
     void refresh_marked_io_(TensorNode const *node);
 

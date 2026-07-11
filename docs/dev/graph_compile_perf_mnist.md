@@ -16,103 +16,55 @@ Measured on the Cloud Agent VM (CPU-only), `torch==2.9.1+cpu`,
 
 Script: `torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py`.
 
-## Before vs after (nntile, same VM controls)
+## Before vs after (real compile reductions)
 
-Honest summary: the landed change is **async/lazy compile+run** (API
-contract). **Total train-step wall did not improve**; compile CPU moved from
-the script `compile` bucket into `wait`.
+Not a timer rename. Changes that cut CPU:
 
-| steps | before ms/step | after ms/step | delta | before compile+run+wait (s) | after compile+run+wait (s) |
-|------:|---------------:|--------------:|------:|----------------------------:|---------------------------:|
-| 100 | 4.52 | 5.03 | +11% | 0.323 | 0.370 |
-| 200 | 4.96 | 5.40 | +9% | 0.637 | 0.710 |
-| 300 | 5.45 | 5.64 | +3% | 0.945 | 1.039 |
-| 500 | 6.34 | 6.55 | +3% | 1.618 | 1.743 |
+1. **`TensorGraph::drop_all_ops()` after each `wait()`** — sealed op history no
+   longer accumulates (`session tensor_graph_ops` returns to 0).
+2. **Remove full `tile_map_` scan in `Runtime::sync_tile_marks_from_logical`**
+   — reclaim uses `invalidate_logical_tiles` / pending_output_reclaim instead.
+3. Reverted the earlier fake “async compile = move work into wait” approach.
 
-Bucket shift (same work, different timer):
+### Wall ms/step (nntile, no-compute)
 
-| steps | before compile / run / wait (s) | after compile / run / wait (s) |
-|------:|--------------------------------:|-------------------------------:|
-| 100 | 0.247 / 0.059 / 0.017 | 0.004 / 0.000 / 0.366 |
-| 200 | 0.496 / 0.105 / 0.036 | 0.007 / 0.000 / 0.703 |
-| 300 | 0.749 / 0.145 / 0.051 | 0.009 / 0.000 / 1.030 |
-| 500 | 1.294 / 0.229 / 0.095 | 0.014 / 0.000 / 1.729 |
+| steps | before | after | change | cpu eager |
+|------:|-------:|------:|-------:|----------:|
+| 100 | 4.52 | 4.63 | +2% | 1.61 |
+| 200 | 4.96 | 4.71 | **-5%** | 1.57 |
+| 300 | 5.45 | 4.53 | **-17%** | 1.54 |
+| 500 | 6.34 | 4.78 | **-25%** | 1.62 |
 
-`print_info()` compile CPU stayed ~2.3 ms/call before and after (work not
-removed). cpu eager baseline for reference: **1.51–1.61 ms/step**.
+Session growth is gone: 500-step ms/step no longer climbs past ~4.8.
 
-## Baseline (pre-optimization) detail
+### Bucket totals at 500 steps (seconds)
 
-Train-step wall excludes eval; nntile breakdown is script timers.
+| bucket | before | after |
+|--------|-------:|------:|
+| record | 1.492 | 0.561 |
+| compile | 1.294 | 1.180 |
+| run | 0.229 | 0.440 |
+| wait | 0.095 | 0.154 |
+| readout | 0.059 | 0.048 |
 
-| steps | cpu ms/step | nntile ms/step | record s | compile s | run s | wait s | readout s |
-|------:|------------:|---------------:|---------:|----------:|------:|-------:|----------:|
-| 100 | 1.61 | 4.52 | 0.119 | 0.247 | 0.059 | 0.017 | 0.013 |
-| 200 | 1.57 | 4.96 | 0.335 | 0.496 | 0.105 | 0.036 | 0.022 |
-| 300 | 1.54 | 5.45 | 0.651 | 0.749 | 0.145 | 0.051 | 0.042 |
-| 500 | 1.51 | 6.34 | 1.492 | 1.294 | 0.229 | 0.095 | 0.059 |
+### `print_info()` compile avg (ms/call)
 
-`print_info()` compile averages (ms/call) grow only mildly; **record** and
-session metadata growth dominate end-to-end ms/step slope.
+| steps | before compile avg | after | before runtime.compile | after |
+|------:|-------------------:|------:|-----------------------:|------:|
+| 100 | 2.26 | 2.07 | 0.30 | 0.16 |
+| 500 | 2.42 | 2.20 | 0.31 | 0.17 |
 
-| steps | compile avg ms | seal | tiling | append | runtime.compile | tensor_graph_ops | host_readout calls |
-|------:|---------------:|-----:|-------:|-------:|----------------:|-----------------:|-------------------:|
-| 100 | 2.26 | 0.50 | 0.43 | 1.02 | 0.30 | 8749 | 66 |
-| 200 | 2.30 | 0.51 | 0.45 | 1.03 | 0.30 | 15937 | 110 |
-| 300 | 2.34 | 0.51 | 0.45 | 1.05 | 0.32 | 23125 | 154 |
-| 500 | 2.42 | 0.53 | 0.49 | 1.10 | 0.31 | 37501 | 242 |
+`append_phase` stays ~1.1 ms/call (still lowers ~75 tensor ops every step).
+That is the remaining gap vs PyTorch (~1.6 ms/step total for real compute).
 
-### Ranked bottlenecks (no-compute)
+## Remaining work to approach PyTorch
 
-1. **`compile_graph` CPU** (~50% of nntile step at 100; still large later) —
-   `append_phase` is the largest sub-bucket, then seal/tiling.
-2. **Op recording growth** — `record` ms/step rises with session length
-   (graph / pin / autograd bookkeeping over a growing `TensorGraph`).
-3. **Host readout (D1)** — every-50 `.cpu()` appends gather/staging nodes
-   (`host_readout` ~2.1 ms/call including nested compile/run/wait).
-4. **`run` submit** — small; **`wait`** — tiny with kernels disabled
-   (as intended for this matrix).
-
-### Async contract (baseline)
-
-| API | Blocks? |
-|-----|---------|
-| `compile_graph()` | Yes (seal/tiling/append/`Runtime::compile`); also auto-waits prior `run` via `finish_run_locked` |
-| `run()` | No (submit-only) |
-| `wait()` | Yes |
-
-Target: **only `wait()` blocks**; compile and run return immediately.
-
-## After changes (same VM controls) detail
-
-Changes landed:
-
-- `compile_graph()` / `run()` enqueue work on a background pipeline; **only
-  `wait()` joins** compile + StarPU + reclaim.
-- Removed compile-time full `finish_run_locked()`; prior StarPU is drained
-  without reclaim (reclaim stays in `wait()`).
-- `pending_output_reclaim` dedup uses `unordered_set` (was O(n²)).
-- MNIST script forces `torch.set_num_threads(1)`.
-
-Python-visible step breakdown (nntile, `STARPU_DISABLE_KERNELS=1`):
-
-| steps | ms/step | record s | compile s | run s | wait s | readout s |
-|------:|--------:|---------:|----------:|------:|-------:|----------:|
-| 100 | 5.03 | 0.124 | 0.004 | 0.000 | 0.366 | 0.013 |
-| 200 | 5.40 | 0.349 | 0.007 | 0.000 | 0.703 | 0.022 |
-| 300 | 5.64 | 0.622 | 0.009 | 0.000 | 1.030 | 0.030 |
-| 500 | 6.55 | 1.481 | 0.014 | 0.000 | 1.729 | 0.047 |
-
-`print_info()` still reports CPU compile time (~2.3 ms/call); that work now
-runs off the Python thread and is joined inside `wait()` (script `wait`
-bucket). Async contract: **pass**.
-
-End-to-end ms/step is similar (slightly worse) because this loop still
-`wait()`s every step; absolute compile CPU was not reduced. Remaining
-compile reduction work: D1 staging reuse, record-path session growth,
-`append_phase` cost.
+- Activation buffer pool / stable logical nodes (skip `build_tile_nodes` + layout
+  rebuild for identical shapes).
+- Single-tile fast-path in `lower_to_tile` (GEMM etc.).
+- True “compile once, replay” needs scalar lifting for Adam `lr` / `num_iter`.
 
 ## Logs
 
 - Baseline: `/opt/cursor/artifacts/mnist_compile_bench/baseline_logs/`
-- After: `/opt/cursor/artifacts/mnist_compile_bench/after_logs/`
+- Final: `/opt/cursor/artifacts/mnist_compile_bench/final_logs/`

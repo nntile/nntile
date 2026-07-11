@@ -439,43 +439,58 @@ def test_clean_exit_with_live_nntile_tensors_after_atexit():
     )
 
 
-def test_compile_and_run_are_nonblocking_wait_joins():
-    """compile_graph/run return quickly; only wait() drains work."""
+def test_compile_cost_stays_flat_across_steps():
+    """Session compaction: late-step compile must not grow with history."""
     _run_graph_subprocess(
         """
         import time
         import torch
         import torch_nntile
+        from torch_nntile.training import Adam, cross_entropy
 
+        torch.set_num_threads(1)
         torch_nntile.init_context(
             ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
         )
         torch_nntile.restrict_cpu()
-        x = torch.randn(64, 128).to("nntile")
-        w = torch.randn(64, 128).to("nntile")
-        y = torch.nn.functional.linear(x, w, None)
-        z = torch.randn(64, 64).to("nntile")
-        for _ in range(8):
-            y = torch.nn.functional.relu(y)
-            y = y + z
 
-        t0 = time.perf_counter()
-        torch_nntile.compile_graph()
-        compile_ms = (time.perf_counter() - t0) * 1e3
-        t0 = time.perf_counter()
-        torch_nntile.run()
-        run_ms = (time.perf_counter() - t0) * 1e3
-        t0 = time.perf_counter()
-        torch_nntile.wait()
-        wait_ms = (time.perf_counter() - t0) * 1e3
+        model = torch.nn.Sequential(
+            torch.nn.Linear(64, 32),
+            torch.nn.ReLU(),
+            torch.nn.Linear(32, 10),
+        ).to("nntile")
+        for p in model.parameters():
+            p.requires_grad_(True)
+        opt = Adam(
+            [p for p in model.parameters() if p.requires_grad],
+            lr=1e-3,
+        )
+        x = torch.randn(16, 64).to("nntile")
+        y = torch.randint(0, 10, (16,)).to("nntile")
 
-        # Python-visible compile/run must not do the heavy work inline.
-        assert compile_ms < 5.0, compile_ms
-        assert run_ms < 5.0, run_ms
-        # wait joins background compile + StarPU; should dominate.
-        assert wait_ms > compile_ms, (wait_ms, compile_ms)
-        out = y.cpu()
-        assert out.shape[0] == 64
-        assert torch.isfinite(out).all()
+        def one_step():
+            opt.zero_grad(set_to_none=True)
+            logits = model(x)
+            loss = cross_entropy(logits, y)
+            loss.backward()
+            opt.step()
+            t0 = time.perf_counter()
+            torch_nntile.compile_graph()
+            compile_s = time.perf_counter() - t0
+            torch_nntile.run()
+            torch_nntile.wait()
+            del logits, loss
+            return compile_s
+
+        for _ in range(5):
+            one_step()
+        early = [one_step() for _ in range(10)]
+        for _ in range(40):
+            one_step()
+        late = [one_step() for _ in range(10)]
+        early_ms = sum(early) / len(early) * 1e3
+        late_ms = sum(late) / len(late) * 1e3
+        # Without compaction, late compile grows with session length.
+        assert late_ms < early_ms * 2.5, (early_ms, late_ms)
         """
     )
