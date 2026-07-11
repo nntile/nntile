@@ -887,14 +887,14 @@ void finish_run_locked()
         g_run_cleanup_pending = false;
         return;
     }
-    SteadyClock::time_point const t0 = SteadyClock::now();
-    g_exec->runtime->wait();
+    // run() is asynchronous: only wait when a submit is still unfinished.
+    // Idle calls (e.g. redundant wait_for_all before .to("cpu")) are no-ops.
     if (!g_run_cleanup_pending)
     {
-        g_timing.wait_s += seconds_since(t0);
-        ++g_timing.wait_calls;
         return;
     }
+    SteadyClock::time_point const t0 = SteadyClock::now();
+    g_exec->runtime->wait();
     for (nntile::TensorGraph::TensorNode *staging :
         g_exec->pending_scatter_stagings)
     {
@@ -1630,7 +1630,7 @@ std::string format_info_locked()
     ss << "  wait:          " << g_timing.wait_calls << " calls, "
        << g_timing.wait_s << "s"
        << " (avg " << avg_ms(g_timing.wait_s, g_timing.wait_calls)
-       << " ms)\n";
+       << " ms; finishes a pending run() only)\n";
     ss << "  host_readout:  " << g_timing.host_readout_calls << " calls, "
        << g_timing.host_readout_s << "s"
        << " (avg "
@@ -1639,6 +1639,11 @@ std::string format_info_locked()
        << "compile/run/wait)\n";
     ss << "  sum compile+run+wait: "
        << (g_timing.compile_s + g_timing.run_s + g_timing.wait_s) << "s\n";
+    if (g_timing.run_calls > 0)
+    {
+        ss << "  note: wait_calls should be ≈ run_calls when callers avoid "
+           << "redundant wait(); idle wait() is a no-op\n";
+    }
 
     if (g_graph != nullptr)
     {
