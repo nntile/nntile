@@ -59,6 +59,8 @@ That is the remaining gap vs PyTorch (~1.6 ms/step total for real compute).
 
 ## Async API contract
 
+### `torch_nntile` (Python)
+
 `compile_graph()` / `run()` / `execute()` / `wait()`:
 
 - **`compile_graph()` / `run()` / `execute()`** — host work on the calling
@@ -66,6 +68,11 @@ That is the remaining gap vs PyTorch (~1.6 ms/step total for real compute).
   `execute()` is compile+run only (same as the split API).
 - **`wait()`** — the only API that blocks on StarPU completion and runs
   post-run reclaim / session compact.
+
+### C++ `nntile::Runtime`
+
+- **`execute()` / `execute_range()`** — submit compiled tile ops only (async).
+- **`wait()`** — `starpu_task_wait_for_all` + flush last-consumer reclaim.
 
 Do **not** treat “async compile” as moving host CPU work onto a background
 thread and joining in `wait()` — that only renames timers.

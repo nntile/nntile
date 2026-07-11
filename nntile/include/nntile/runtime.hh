@@ -85,8 +85,9 @@ class Runtime
     template <typename T>
     void bind_data(TileNode const *tile, const std::vector<T> &data);
 
-    //! Submit all compiled ops then ``wait()`` (convenience for tests).
-    //! Prefer ``execute_range`` + ``wait()`` for incremental async sessions.
+    //! Submit all compiled ops asynchronously (no StarPU drain).
+    //! Call ``wait()`` to join and flush last-consumer reclaim. Same
+    //! submit contract as ``execute_range(0, execution_op_count())``.
     void execute();
 
     //! StarPU worker for ``STARPU_EXECUTE_ON_WORKER`` during tile op execution,
@@ -95,8 +96,8 @@ class Runtime
     //! installed.
     int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
 
-    //! Block until all tasks submitted by ``execute_range()`` have finished,
-    //! then flush queued last-consumer tile reclaim.
+    //! Block until all tasks submitted by ``execute()`` / ``execute_range()``
+    //! have finished, then flush queued last-consumer tile reclaim.
     void wait();
 
     //! Read a logical tensor or tile buffer marked for host I/O (input or

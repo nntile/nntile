@@ -796,8 +796,9 @@ void Runtime::execute()
     // compile may have skipped (pending slice was empty after a previous run).
     executed_op_end_ = 0;
     allocate_missing_tiles();
+    // Submit only — same contract as execute_range. Call wait() to join
+    // StarPU and flush queued last-consumer reclaim.
     execute_range(0, execution_order_.size());
-    wait();
 }
 
 void Runtime::build_tile_last_consumer_map()
