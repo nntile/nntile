@@ -124,7 +124,7 @@ remains a separate custom API for NNTile-layout SDPA.
 | `tensor.contiguous` | **unsupported** (check-only policy; noop when already contiguous) |
 | `torch.split` / `torch.chunk` | `tensor::copy_intersection` |
 | `torch.split` backward | `tensor::concat` (PyTorch `SplitWithSizesBackward`) |
-| `F.linear` / `nn.Linear` (no bias) | `tensor::gemm` |
+| `F.linear` / `nn.Linear` | `tensor::gemm` (+ `add_fiber_inplace` / `sum_fiber` when bias is set) |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
 | ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
 | `F.layer_norm` / `nn.LayerNorm` | `native_layer_norm` / `native_layer_norm_backward` |
