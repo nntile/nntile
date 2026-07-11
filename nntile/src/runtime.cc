@@ -93,11 +93,27 @@ DataType Runtime::get_dtype(
 
 void Runtime::compile()
 {
-    execution_order_.clear();
-    execution_order_.reserve(graph_.ops().size());
-    for (const auto &op : graph_.ops())
+    const auto &graph_ops = graph_.ops();
+    // TileGraph is append-only. Rebuilding execution_order_ from the full
+    // op list every compile made each training step pay DCE / last-consumer
+    // cost over all prior phases (ms/step grew with step count). Append only
+    // newly lowered ops; keep already-executed prefix for full execute().
+    if (compiled_graph_op_count_ > graph_ops.size())
     {
-        execution_order_.push_back(op);
+        compiled_graph_op_count_ = 0;
+        execution_order_.clear();
+        executed_op_end_ = 0;
+    }
+    if (compiled_graph_op_count_ < graph_ops.size())
+    {
+        execution_order_.reserve(
+            execution_order_.size() +
+            (graph_ops.size() - compiled_graph_op_count_));
+        for (size_t i = compiled_graph_op_count_; i < graph_ops.size(); ++i)
+        {
+            execution_order_.push_back(graph_ops[i]);
+        }
+        compiled_graph_op_count_ = graph_ops.size();
     }
 
     // Refresh tile marks from logical TensorNodes before DCE / reclaim so
@@ -118,10 +134,53 @@ void Runtime::compile()
 
 void Runtime::sync_tile_marks_from_logical()
 {
+    // Prefer descriptors that still own allocated tiles or appear in the
+    // pending op slice. Full-graph scans made incremental compile scale with
+    // session length once TensorDescriptors accumulated.
+    std::unordered_set<const TileGraph::TileNode *> pending_tiles;
+    const size_t n = execution_order_.size();
+    const size_t begin =
+        executed_op_end_ < n ? executed_op_end_ : n;
+    for (size_t i = begin; i < n; ++i)
+    {
+        for (const auto *in : execution_order_[i]->inputs())
+        {
+            if (in != nullptr)
+            {
+                pending_tiles.insert(in);
+            }
+        }
+        for (const auto *out : execution_order_[i]->outputs())
+        {
+            if (out != nullptr)
+            {
+                pending_tiles.insert(out);
+            }
+        }
+    }
+
     for (const auto &uptr : graph_.tensor_descriptors())
     {
         const TileGraph::TensorDescriptor &desc = *uptr;
         if (desc.source_node == nullptr)
+        {
+            continue;
+        }
+        bool touch = false;
+        for (TileGraph::TileNode *tile : desc.tiles)
+        {
+            if (tile == nullptr)
+            {
+                continue;
+            }
+            if (tile_map_.count(tile) != 0 ||
+                pending_tiles.count(tile) != 0)
+            {
+                touch = true;
+                break;
+            }
+        }
+        if (!touch)
         {
             continue;
         }
@@ -735,8 +794,13 @@ void Runtime::execute()
 
 void Runtime::build_tile_last_consumer_map()
 {
+    // Only pending ops run next; historical last-consumer edges are unused
+    // by release_dead_tiles_after_op during execute_range.
     tile_last_consumer_op_.clear();
-    for (size_t i = 0; i < execution_order_.size(); ++i)
+    const size_t n = execution_order_.size();
+    const size_t begin =
+        executed_op_end_ < n ? executed_op_end_ : n;
+    for (size_t i = begin; i < n; ++i)
     {
         for (const auto *in : execution_order_[i]->inputs())
         {
@@ -839,13 +903,21 @@ void Runtime::eliminate_dead_ops()
     {
         return;
     }
+    // Already-executed prefix is immutable for incremental sessions; DCE only
+    // the pending suffix so compile stays O(new phase), not O(history).
+    const size_t pending_begin =
+        executed_op_end_ < n ? executed_op_end_ : n;
+    if (pending_begin >= n)
+    {
+        return;
+    }
 
     using TNode = const TileGraph::TileNode *;
     std::unordered_map<TNode, std::unordered_set<size_t>> producer;
     std::unordered_map<TNode, std::unordered_set<size_t>> consumer;
     std::unordered_set<TNode> consumed;
 
-    for (size_t i = 0; i < n; ++i)
+    for (size_t i = pending_begin; i < n; ++i)
     {
         const auto &op = execution_order_[i];
         for (const auto *out : op->outputs())
@@ -866,30 +938,30 @@ void Runtime::eliminate_dead_ops()
     }
 
     std::unordered_set<TNode> live_data;
-    for (const auto &node : graph_.tile_nodes())
+    // Seed from marked tiles touched by the pending slice only — scanning
+    // every historical tile_node made compile O(session length).
+    for (size_t i = pending_begin; i < n; ++i)
     {
-        if (node->is_output())
+        const auto &op = execution_order_[i];
+        for (const auto *out : op->outputs())
         {
-            live_data.insert(node.get());
+            if (out != nullptr &&
+                (out->is_output() || out->is_input()))
+            {
+                live_data.insert(out);
+            }
         }
-    }
-    for (const auto &node : graph_.tile_nodes())
-    {
-        if (node->is_input())
+        for (const auto *in : op->inputs())
         {
-            live_data.insert(node.get());
+            if (in != nullptr &&
+                (in->is_output() || in->is_input()))
+            {
+                live_data.insert(in);
+            }
         }
     }
 
-    bool any_marked_output = false;
-    for (const auto &node : graph_.tile_nodes())
-    {
-        if (node->is_output())
-        {
-            any_marked_output = true;
-            break;
-        }
-    }
+    const bool any_marked_output = !live_data.empty();
     if (!any_marked_output)
     {
         for (const auto &p : producer)
@@ -946,8 +1018,12 @@ void Runtime::eliminate_dead_ops()
     }
 
     std::vector<std::shared_ptr<OpNode>> filtered;
-    filtered.reserve(live_ops.size());
-    for (size_t i = 0; i < n; ++i)
+    filtered.reserve(pending_begin + live_ops.size());
+    for (size_t i = 0; i < pending_begin; ++i)
+    {
+        filtered.push_back(execution_order_[i]);
+    }
+    for (size_t i = pending_begin; i < n; ++i)
     {
         if (live_ops.count(i))
         {

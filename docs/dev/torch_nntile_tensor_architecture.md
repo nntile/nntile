@@ -97,7 +97,7 @@ run backward (or ingress a real grad tensor via `.to("nntile")`) first.
 
 | # | Topic | Current behavior | Planned follow-up |
 |---|--------|------------------|-------------------|
-| D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows; StarPU payloads for unmarked tensors are reclaimed on compile). | Phase GC / compaction; reuse readout staging per session. |
+| D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows; StarPU payloads for unmarked tensors are reclaimed on compile). `Runtime::compile()` appends only new tile ops and DCE/last-consumer scan the **pending** suffix so ms/step no longer scales with step count; historical TileGraph/TensorGraph nodes still accumulate in memory. | Phase GC / compaction; reuse readout staging per session. |
 | D2 | Incremental tile-map growth | Every ingress/egress lowers a fresh ephemeral `S` into `inc_state.tensor_to_tiles`; entries are never removed. | Reclaim staging descriptors after invalidate; or pool single-tile `S` per `L`. |
 | D3 | Pin bookkeeping | `pin_tensor_for_graph` / ingress may append duplicate `at::Tensor` refs until the next graph clear. | Dedup by `TensorImpl*`; trim on phase seal. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |

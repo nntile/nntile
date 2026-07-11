@@ -86,6 +86,12 @@ class TensorGraphTiling
 public:
     static TensorGraphTiling from_tensor_graph(const TensorGraph& tg);
 
+    //! Layouts only for tensors touched by ``phase`` (ops + carried). Prefer
+    //! this for incremental compile so cost stays O(phase), not O(history).
+    static TensorGraphTiling from_phase(
+        const TensorGraph& tg,
+        const TensorGraph::PhaseSnapshot& phase);
+
     const TensorAxisLayout* find(const TensorGraph::TensorNode* node) const;
 
     bool contains(const TensorGraph::TensorNode* node) const

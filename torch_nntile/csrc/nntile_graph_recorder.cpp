@@ -271,8 +271,12 @@ void lower_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
         return;
     }
     ensure_recorder_exec_state_locked();
+    nntile::TensorGraph::PhaseSnapshot staging_phase;
+    staging_phase.op_begin = g_graph->num_ops();
+    staging_phase.op_end = staging_phase.op_begin;
+    staging_phase.carried_tensors = {staging};
     const nntile::TensorGraphTiling tiling =
-        nntile::TensorGraphTiling::from_tensor_graph(*g_graph);
+        nntile::TensorGraphTiling::from_phase(*g_graph, staging_phase);
     nntile::lower_staging_tensor_immediate(
         *g_graph,
         staging,
@@ -704,8 +708,10 @@ void compile_graph_locked(
     const nntile::TensorGraph::PhaseSnapshot phase = g_graph->seal_phase();
     std::vector<nntile::TensorGraph::TensorNode *> scatter_stagings;
     collect_scatter_stagings_from_phase_locked(phase, scatter_stagings);
+    // Phase-scoped tiling: full-graph from_tensor_graph rebuilt layouts for
+    // every historical tensor node and made compile O(session length).
     const nntile::TensorGraphTiling tiling =
-        nntile::TensorGraphTiling::from_tensor_graph(*g_graph);
+        nntile::TensorGraphTiling::from_phase(*g_graph, phase);
 
     try
     {

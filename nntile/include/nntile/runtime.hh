@@ -234,6 +234,10 @@ class Runtime
     std::unordered_map<const TileNode *, size_t> tile_last_consumer_op_;
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;
+    //! How many ``graph_.ops()`` entries have been appended into
+    //! ``execution_order_``. Incremental ``compile()`` only pulls ops beyond
+    //! this watermark so cost stays O(pending) rather than O(history).
+    size_t compiled_graph_op_count_ = 0;
 };
 
 } // namespace nntile

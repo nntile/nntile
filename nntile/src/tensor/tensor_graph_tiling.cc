@@ -15,6 +15,7 @@
 #include "nntile/tensor/tensor_graph_tiling.hh"
 
 #include <algorithm>
+#include <set>
 #include <sstream>
 
 #include "nntile/tensor/axis_descriptor.hh"
@@ -245,6 +246,48 @@ TensorGraphTiling TensorGraphTiling::from_tensor_graph(const TensorGraph& tg)
     for(const auto& tn : tg.tensor_nodes())
     {
         out.layouts_.emplace(tn.get(), TensorAxisLayout(tn.get()));
+    }
+    return out;
+}
+
+TensorGraphTiling TensorGraphTiling::from_phase(
+    const TensorGraph& tg,
+    const TensorGraph::PhaseSnapshot& phase)
+{
+    TensorGraphTiling out;
+    std::set<const TensorGraph::TensorNode*> touched;
+    for(const TensorGraph::TensorNode* t : phase.carried_tensors)
+    {
+        if(t != nullptr)
+        {
+            touched.insert(t);
+        }
+    }
+    const auto& ops = tg.ops();
+    for(size_t i = phase.op_begin; i < phase.op_end; ++i)
+    {
+        if(i >= ops.size() || ops[i] == nullptr)
+        {
+            continue;
+        }
+        for(TensorGraph::TensorNode* in : ops[i]->inputs())
+        {
+            if(in != nullptr)
+            {
+                touched.insert(in);
+            }
+        }
+        for(TensorGraph::TensorNode* ot : ops[i]->outputs())
+        {
+            if(ot != nullptr)
+            {
+                touched.insert(ot);
+            }
+        }
+    }
+    for(const TensorGraph::TensorNode* t : touched)
+    {
+        out.layouts_.emplace(t, TensorAxisLayout(t));
     }
     return out;
 }
