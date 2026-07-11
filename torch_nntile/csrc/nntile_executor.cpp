@@ -846,6 +846,84 @@ void tensor_linear_backward_weight_fp32(
         forward.b_gemm_shape);
 }
 
+void tensor_linear_add_bias_fp32(
+    at::Tensor &output,
+    const at::Tensor &bias)
+{
+    TORCH_CHECK(output.dim() >= 1, "nntile linear bias: output rank < 1");
+    TORCH_CHECK(bias.dim() == 1, "nntile linear bias: bias must be 1D");
+    TORCH_CHECK(
+        bias.size(0) == output.size(-1),
+        "nntile linear bias: size mismatch");
+    const std::vector<nntile::Index> output_graph =
+        pytorch_shape_to_graph(output.sizes());
+    const nntile::Index axis =
+        static_cast<nntile::Index>(output.dim() - 1);
+    const nntile::Index out_features =
+        static_cast<nntile::Index>(bias.size(0));
+
+    auto *output_node = get_or_create_data_node(
+        output,
+        output_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(output));
+    auto *bias_node = get_or_create_data_node(
+        bias,
+        {out_features},
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(bias));
+    nntile::tensor::add_fiber_inplace(
+        static_cast<nntile::Scalar>(1.0),
+        bias_node,
+        static_cast<nntile::Scalar>(1.0),
+        output_node,
+        axis,
+        static_cast<nntile::Index>(0));
+    register_data_node(output, output_node);
+}
+
+void tensor_linear_grad_bias_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_bias)
+{
+    TORCH_CHECK(
+        grad_output.dim() >= 1,
+        "nntile linear grad_bias: grad_output rank < 1");
+    TORCH_CHECK(
+        grad_bias.dim() == 1,
+        "nntile linear grad_bias: grad_bias must be 1D");
+    TORCH_CHECK(
+        grad_bias.size(0) == grad_output.size(-1),
+        "nntile linear grad_bias: size mismatch");
+    const std::vector<nntile::Index> grad_out_graph =
+        pytorch_shape_to_graph(grad_output.sizes());
+    const nntile::Index axis =
+        static_cast<nntile::Index>(grad_output.dim() - 1);
+    const nntile::Index out_features =
+        static_cast<nntile::Index>(grad_bias.size(0));
+
+    auto *grad_out_node = get_or_create_data_node(
+        grad_output,
+        grad_out_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_output));
+    auto *grad_bias_node = get_or_create_data_node(
+        grad_bias,
+        {out_features},
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_bias));
+    nntile::tensor::clear(grad_bias_node);
+    nntile::tensor::sum_fiber(
+        grad_out_node,
+        grad_bias_node,
+        axis,
+        static_cast<nntile::Index>(0),
+        0,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0));
+    register_data_node(grad_bias, grad_bias_node);
+}
+
 namespace
 {
 
@@ -2898,6 +2976,20 @@ void tensor_linear_backward_weight_fp32(
     at::Tensor & /*grad_weight*/)
 {
     require_libnntile("linear_backward_weight");
+}
+
+void tensor_linear_add_bias_fp32(
+    at::Tensor & /*output*/,
+    const at::Tensor & /*bias*/)
+{
+    require_libnntile("linear_add_bias");
+}
+
+void tensor_linear_grad_bias_fp32(
+    const at::Tensor & /*grad_output*/,
+    at::Tensor & /*grad_bias*/)
+{
+    require_libnntile("linear_grad_bias");
 }
 
 void tensor_cross_entropy_forward_fp32(

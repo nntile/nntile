@@ -36,6 +36,25 @@ std::vector<nntile::Index> pytorch_shape_to_graph(c10::IntArrayRef shape)
     return graph_shape;
 }
 
+void check_linear_bias(
+    const at::Tensor &bias,
+    const at::Tensor &weight)
+{
+    TORCH_CHECK(
+        is_nntile_device(bias.device()),
+        "nntile linear: bias must be on device nntile");
+    TORCH_CHECK(
+        bias.scalar_type() == at::ScalarType::Float,
+        "nntile linear: bias must be float32");
+    TORCH_CHECK(
+        bias.is_contiguous(),
+        "nntile linear: bias must be contiguous");
+    TORCH_CHECK(bias.dim() == 1, "nntile linear: bias must be 1D");
+    TORCH_CHECK(
+        bias.size(0) == weight.size(0),
+        "nntile linear: bias size must equal out_features");
+}
+
 void check_linear_tensors(
     const at::Tensor &input,
     const at::Tensor &weight,
@@ -61,9 +80,9 @@ void check_linear_tensors(
         input.scalar_type() == at::ScalarType::Float &&
             weight.scalar_type() == at::ScalarType::Float,
         "nntile linear supports float32 only");
-    if (bias.has_value())
+    if (bias.has_value() && bias->defined())
     {
-        TORCH_CHECK(false, "nntile linear: bias is not supported");
+        check_linear_bias(*bias, weight);
     }
 }
 
@@ -77,9 +96,20 @@ at::Tensor make_linear_output(
         input.options().memory_format(at::MemoryFormat::Contiguous));
 }
 
-void run_linear(const PreparedGemmOperands &prepared, at::Tensor &output)
+void run_linear(
+    const PreparedGemmOperands &prepared,
+    at::Tensor &output,
+    const std::optional<at::Tensor> &bias)
 {
-    pin_graph_op_inputs({prepared.a, prepared.b});
+    const bool has_bias = bias.has_value() && bias->defined();
+    if (has_bias)
+    {
+        pin_graph_op_inputs({prepared.a, prepared.b, *bias});
+    }
+    else
+    {
+        pin_graph_op_inputs({prepared.a, prepared.b});
+    }
     pin_graph_op_output(output, false);
     tensor_gemm_fp32(
         prepared.params,
@@ -89,6 +119,10 @@ void run_linear(const PreparedGemmOperands &prepared, at::Tensor &output)
         prepared.b_gemm_shape,
         output,
         prepared.out_shape);
+    if (has_bias)
+    {
+        tensor_linear_add_bias_fp32(output, *bias);
+    }
 }
 
 GemmMatrixLayout linear_operand_layout(const at::Tensor &tensor)
@@ -116,9 +150,10 @@ at::Tensor linear(
     const std::optional<at::Tensor> &bias)
 {
     check_linear_tensors(input, weight, bias);
-    const PreparedGemmOperands prepared = prepare_linear_operands(input, weight);
+    const PreparedGemmOperands prepared =
+        prepare_linear_operands(input, weight);
     at::Tensor output = make_linear_output(prepared.out_shape, input);
-    run_linear(prepared, output);
+    run_linear(prepared, output, bias);
     return output;
 }
 
@@ -129,12 +164,15 @@ at::Tensor &linear_out(
     at::Tensor &out)
 {
     check_linear_tensors(input, weight, bias, out);
-    const PreparedGemmOperands prepared = prepare_linear_operands(input, weight);
+    const PreparedGemmOperands prepared =
+        prepare_linear_operands(input, weight);
     TORCH_CHECK(
         out.sizes().vec() == prepared.out_shape,
         "nntile linear.out: output shape mismatch");
-    TORCH_CHECK(out.is_contiguous(), "nntile linear.out requires contiguous out");
-    run_linear(prepared, out);
+    TORCH_CHECK(
+        out.is_contiguous(),
+        "nntile linear.out requires contiguous out");
+    run_linear(prepared, out, bias);
     return out;
 }
 
@@ -154,19 +192,22 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             grad_output.scalar_type() == at::ScalarType::Float &&
             weight.scalar_type() == at::ScalarType::Float,
         "nntile linear_backward supports float32 only");
-    TORCH_CHECK(!output_mask[2], "nntile linear_backward: bias is not supported");
 
-    const PreparedGemmOperands forward = prepare_linear_operands(input, weight);
-    const GemmMatrixLayout weight_layout = analyze_matrix_layout_for_nntile(weight);
+    const PreparedGemmOperands forward =
+        prepare_linear_operands(input, weight);
+    const GemmMatrixLayout weight_layout =
+        analyze_matrix_layout_for_nntile(weight);
 
     at::Tensor grad_input;
     at::Tensor grad_weight;
+    at::Tensor grad_bias;
     if (output_mask[0])
     {
         const GemmParams grad_input_params =
             infer_linear_backward_grad_input_params(forward.params);
 
-        const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
+        const GemmMatrixLayout grad_out_layout =
+            linear_operand_layout(grad_output);
         TORCH_CHECK(
             !grad_out_layout.needs_copy,
             "nntile linear_backward: grad_output must be contiguous or "
@@ -197,13 +238,16 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         {
             register_param_grad_node(input, grad_input_node);
             at::Tensor grad_input_alias = grad_input;
-            register_grad_alias_for_host_copy(grad_input_alias, grad_input_node);
+            register_grad_alias_for_host_copy(
+                grad_input_alias,
+                grad_input_node);
         }
 #endif
     }
     if (output_mask[1])
     {
-        const GemmMatrixLayout grad_out_layout = linear_operand_layout(grad_output);
+        const GemmMatrixLayout grad_out_layout =
+            linear_operand_layout(grad_output);
         TORCH_CHECK(
             !grad_out_layout.needs_copy,
             "nntile linear_backward: grad_output must be contiguous or "
@@ -256,7 +300,32 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         }
 #endif
     }
-    return {grad_input, grad_weight, at::Tensor()};
+    if (output_mask[2])
+    {
+        TORCH_CHECK(
+            grad_output.dim() >= 1,
+            "nntile linear_backward: grad_output must be at least 1D");
+        grad_bias = at::empty(
+            {weight.size(0)},
+            grad_output.options().memory_format(
+                at::MemoryFormat::Contiguous));
+        pin_graph_op_inputs({grad_output});
+        pin_graph_op_output(grad_bias, true);
+        tensor_linear_grad_bias_fp32(grad_output, grad_bias);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+        nntile::TensorGraph::TensorNode *grad_bias_node = lookup_data_node(
+            grad_bias,
+            pytorch_shape_to_graph(grad_bias.sizes()));
+        if (grad_bias_node != nullptr)
+        {
+            at::Tensor grad_bias_alias = grad_bias;
+            register_grad_alias_for_host_copy(
+                grad_bias_alias,
+                grad_bias_node);
+        }
+#endif
+    }
+    return {grad_input, grad_weight, grad_bias};
 }
 
 } // namespace torch_nntile

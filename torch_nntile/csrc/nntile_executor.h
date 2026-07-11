@@ -138,6 +138,14 @@ void tensor_linear_backward_weight_fp32(
     const at::Tensor &input,
     at::Tensor &grad_weight);
 
+void tensor_linear_add_bias_fp32(
+    at::Tensor &output,
+    const at::Tensor &bias);
+
+void tensor_linear_grad_bias_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_bias);
+
 void tensor_cross_entropy_forward_fp32(
     const at::Tensor &logits,
     const at::Tensor &labels,
