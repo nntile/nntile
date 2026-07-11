@@ -16,7 +16,32 @@ Measured on the Cloud Agent VM (CPU-only), `torch==2.9.1+cpu`,
 
 Script: `torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py`.
 
-## Baseline (pre-optimization)
+## Before vs after (nntile, same VM controls)
+
+Honest summary: the landed change is **async/lazy compile+run** (API
+contract). **Total train-step wall did not improve**; compile CPU moved from
+the script `compile` bucket into `wait`.
+
+| steps | before ms/step | after ms/step | delta | before compile+run+wait (s) | after compile+run+wait (s) |
+|------:|---------------:|--------------:|------:|----------------------------:|---------------------------:|
+| 100 | 4.52 | 5.03 | +11% | 0.323 | 0.370 |
+| 200 | 4.96 | 5.40 | +9% | 0.637 | 0.710 |
+| 300 | 5.45 | 5.64 | +3% | 0.945 | 1.039 |
+| 500 | 6.34 | 6.55 | +3% | 1.618 | 1.743 |
+
+Bucket shift (same work, different timer):
+
+| steps | before compile / run / wait (s) | after compile / run / wait (s) |
+|------:|--------------------------------:|-------------------------------:|
+| 100 | 0.247 / 0.059 / 0.017 | 0.004 / 0.000 / 0.366 |
+| 200 | 0.496 / 0.105 / 0.036 | 0.007 / 0.000 / 0.703 |
+| 300 | 0.749 / 0.145 / 0.051 | 0.009 / 0.000 / 1.030 |
+| 500 | 1.294 / 0.229 / 0.095 | 0.014 / 0.000 / 1.729 |
+
+`print_info()` compile CPU stayed ~2.3 ms/call before and after (work not
+removed). cpu eager baseline for reference: **1.51–1.61 ms/step**.
+
+## Baseline (pre-optimization) detail
 
 Train-step wall excludes eval; nntile breakdown is script timers.
 
@@ -58,7 +83,7 @@ session metadata growth dominate end-to-end ms/step slope.
 
 Target: **only `wait()` blocks**; compile and run return immediately.
 
-## After changes (same VM controls)
+## After changes (same VM controls) detail
 
 Changes landed:
 
@@ -82,9 +107,10 @@ Python-visible step breakdown (nntile, `STARPU_DISABLE_KERNELS=1`):
 runs off the Python thread and is joined inside `wait()` (script `wait`
 bucket). Async contract: **pass**.
 
-End-to-end ms/step is similar because this loop still `wait()`s every step;
-absolute compile CPU is not yet much smaller. Remaining compile reduction
-work: D1 staging reuse, record-path session growth, append_phase cost.
+End-to-end ms/step is similar (slightly worse) because this loop still
+`wait()`s every step; absolute compile CPU was not reduced. Remaining
+compile reduction work: D1 staging reuse, record-path session growth,
+`append_phase` cost.
 
 ## Logs
 
