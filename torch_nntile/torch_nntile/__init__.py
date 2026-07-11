@@ -128,7 +128,7 @@ def compile_graph() -> None:
 
 
 def run() -> None:
-    """Execute the compiled graph session (no host data transfer)."""
+    """Submit the compiled graph to StarPU (asynchronous; does not wait)."""
     _C.run()
 
 
@@ -165,10 +165,12 @@ def restore_where() -> None:
 
 
 def wait() -> None:
-    """Block until all submitted StarPU tasks finish (``starpu_task_wait_for_all``).
+    """Block until tasks submitted by :func:`run` finish.
 
-    Call before host readout (``.to("cpu")``) or :func:`shutdown_context`.
-    Required for clean CUDA teardown when ``ncuda > 0``.
+    Also runs post-run reclaim (scatter staging invalidate, pin_hold release,
+    ``pending_output_reclaim``). Call before host readout (``.to("cpu")``) or
+    :func:`shutdown_context`. Required for clean CUDA teardown when
+    ``ncuda > 0``.
     """
     _C.wait_for_all()
 

@@ -217,28 +217,31 @@ Use this to verify that a model forward uses only nntile kernels.
 
 All ops record into a shared ``TensorGraph``. Flush with ``compile_graph()`` and
 ``run()`` (or the legacy one-shot ``execute()``) before relying on tile side
-effects other than host readout.
+effects other than host readout. ``run()`` **submits asynchronously** and does
+not wait; call ``wait()`` before host readout or the next dependent phase
+(``.to("cpu")`` also waits).
 
 ```python
 torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)
 y = model(x)              # recorded, not executed yet
 loss.backward()           # backward ops recorded too
 torch_nntile.compile_graph()
-torch_nntile.run()
+torch_nntile.run()        # async submit
+torch_nntile.wait()       # sync + post-run reclaim
 z = y.to("cpu")           # host readout (also auto-flushes if still pending)
 ```
 
 Forward and backward stay in one pending graph (StarPU resolves dependencies).
 Call ``torch_nntile.compile_graph()`` then ``torch_nntile.run()`` each step when
 you want an explicit compile boundary. Training helpers such as
-``train_full_batch_step`` call ``compile_graph()`` + ``run()`` and return
-``loss.to("cpu").item()``.
+``train_full_batch_step`` call ``compile_graph()`` + ``run()`` + ``wait()`` and
+return ``loss.to("cpu").item()``.
 
 **`.cpu()` / `.to("cpu")` auto-flush (by design):** host readout of a nntile
-tensor compiles and runs any still-pending ops, then records and runs
-`gather(L→S)` into an ephemeral staging node. You do not need a prior
-``compile_graph()``/``run()`` for correctness, but each readout permanently
-appends gather nodes to the session graph (see debt D1 in
+tensor waits for any in-flight ``run()``, compiles and runs any still-pending
+ops, then records and runs `gather(L→S)` into an ephemeral staging node. You do
+not need a prior ``compile_graph()``/``run()`` for correctness, but each
+readout permanently appends gather nodes to the session graph (see debt D1 in
 [torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)).
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`
@@ -262,9 +265,9 @@ Architecture reference:
   their last consumer when not marked as inputs/outputs.
 - On each ``compile_graph()``, ``Runtime`` refreshes tile marks from logical
   ``mark_output`` / ``mark_input`` for the pending slice. torch_nntile snapshots
-  phase outputs and, after ``run()`` (and again at the next compile), calls
+  phase outputs and, after ``wait()`` (and again at the next compile), calls
   ``invalidate_logical_tiles`` on snapshot entries that are no longer marked.
-- **Reduce footprint:** ``del`` step temporaries after ``run()`` so reclaim
+- **Reduce footprint:** ``del`` step temporaries after ``wait()`` so reclaim
   sees cleared ``mark_output``. ``train_full_batch_step`` already drops logits
   after each step.
 

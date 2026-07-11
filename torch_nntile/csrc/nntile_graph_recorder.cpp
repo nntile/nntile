@@ -77,23 +77,25 @@ struct RecorderExecState
     std::unique_ptr<nntile::Runtime> runtime;
     nntile::TileGraphIncrementalState inc_state;
     nntile::TensorNodeToTileMap tile_map;
-    //! Pins transferred at compile; kept alive until run_graph() finishes.
+    //! Pins transferred at compile; kept alive until wait_graph_session().
     std::vector<at::Tensor> pin_hold;
     //! Post-DCE execution_order index already submitted via execute_range.
     std::size_t executed_op_end = 0;
     //! Slice scheduled by the latest compile_graph_locked call.
     std::size_t pending_exec_op_begin = 0;
     std::size_t pending_exec_op_end = 0;
-    //! Scatter staging tensors in the pending phase (invalidate after run).
+    //! Scatter staging tensors in the pending phase (invalidate after wait).
     std::vector<nntile::TensorGraph::TensorNode *> pending_scatter_stagings;
     //! Logical tensors that were mark_output(true) when the pending slice
-    //! was compiled. After run() drops step temps (pin_hold / NodeRef), any
+    //! was compiled. After wait() drops step temps (pin_hold / NodeRef), any
     //! entry that is no longer marked is invalidated once.
     std::vector<nntile::TensorGraph::TensorNode *> pending_output_reclaim;
 };
 
 std::unique_ptr<RecorderExecState> g_exec;
 bool g_defer_pending_clear_after_run = false;
+//! True after run_graph() until wait_graph_session() finishes post-run work.
+bool g_run_cleanup_pending = false;
 
 void reclaim_pending_outputs_locked()
 {
@@ -106,7 +108,7 @@ void reclaim_pending_outputs_locked()
         return;
     }
     nntile::Runtime &runtime = *g_exec->runtime;
-    // Temps are often del'd after run(); keep still-marked entries so the
+    // Temps are often del'd after wait(); keep still-marked entries so the
     // next compile/run can invalidate them once NodeRefs drop.
     std::vector<nntile::TensorGraph::TensorNode *> still_marked;
     still_marked.reserve(g_exec->pending_output_reclaim.size());
@@ -157,6 +159,8 @@ void compile_graph_locked(
     std::vector<at::Tensor> &pin_drop);
 
 void run_graph_locked();
+
+void finish_run_locked();
 
 void register_grad_alias_for_host_copy_locked(
     at::Tensor &grad,
@@ -752,6 +756,12 @@ void compile_graph_locked(
     bool clear_pending_after,
     std::vector<at::Tensor> &pin_drop)
 {
+    // A prior async run() must finish before sealing the next phase.
+    if (g_run_cleanup_pending)
+    {
+        finish_run_locked();
+    }
+
     if (g_graph == nullptr ||
         g_graph->num_ops() <= g_graph->phase_seal_cursor())
     {
@@ -817,24 +827,37 @@ void run_graph_locked()
     {
         return;
     }
+    // Submit only. Never wait here — callers use wait_graph_session() /
+    // torch_nntile.wait() for synchronization and post-run reclaim.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
         g_exec->runtime->execute_range(
             g_exec->pending_exec_op_begin,
             g_exec->pending_exec_op_end);
-        g_exec->runtime->wait();
-        for (nntile::TensorGraph::TensorNode *staging :
-            g_exec->pending_scatter_stagings)
-        {
-            invalidate_staging_tile_submit_locked(staging);
-        }
-        g_exec->pending_scatter_stagings.clear();
         g_exec->executed_op_end = g_exec->pending_exec_op_end;
+        g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
+        g_run_cleanup_pending = true;
     }
-    else
+}
+
+void finish_run_locked()
+{
+    if (g_exec == nullptr || g_exec->runtime == nullptr)
     {
-        g_exec->runtime->wait();
+        g_run_cleanup_pending = false;
+        return;
     }
+    g_exec->runtime->wait();
+    if (!g_run_cleanup_pending)
+    {
+        return;
+    }
+    for (nntile::TensorGraph::TensorNode *staging :
+        g_exec->pending_scatter_stagings)
+    {
+        invalidate_staging_tile_submit_locked(staging);
+    }
+    g_exec->pending_scatter_stagings.clear();
     if (g_defer_pending_clear_after_run)
     {
         std::vector<at::Tensor> pin_drop;
@@ -845,6 +868,7 @@ void run_graph_locked()
     // flips are visible before reclaim.
     g_exec->pin_hold.clear();
     reclaim_pending_outputs_locked();
+    g_run_cleanup_pending = false;
 }
 
 void reset_recorder_locked(
@@ -857,6 +881,7 @@ void reset_recorder_locked(
     {
         g_exec->runtime->wait();
     }
+    g_run_cleanup_pending = false;
     if (g_exec != nullptr)
     {
         g_exec->pin_hold.clear();
@@ -931,6 +956,9 @@ void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
 {
     compile_graph_locked(false, pin_drop);
     run_graph_locked();
+    // Legacy execute() flushes then clears recorder pins; wait first so
+    // scatter staging is done before host buffers are released.
+    finish_run_locked();
     clear_pending_graph_after_compile_locked(pin_drop);
 }
 
@@ -989,6 +1017,16 @@ void run_graph()
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     run_graph_locked();
+}
+
+void wait_graph_session()
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    finish_run_locked();
+    if (starpu_is_initialized())
+    {
+        starpu_task_wait_for_all();
+    }
 }
 
 void reset_graph_session()
@@ -1062,6 +1100,7 @@ void gather_logical_to_staging_and_read_locked(
     std::vector<at::Tensor> pin_drop;
     compile_graph_locked(false, pin_drop);
     run_graph_locked();
+    finish_run_locked();
 
     read_staging_to_host_locked(staging, host_ptr, dtype, count);
     invalidate_staging_tile_submit_locked(staging);
@@ -1090,6 +1129,7 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
         std::vector<at::Tensor> pin_drop;
         compile_graph_locked(false, pin_drop);
         run_graph_locked();
+        finish_run_locked();
     }
 
     if (g_exec == nullptr || g_exec->runtime == nullptr ||
@@ -1561,6 +1601,10 @@ void compile_graph()
 void run_graph()
 {
     require_libnntile();
+}
+
+void wait_graph_session()
+{
 }
 
 void reset_graph_session()

@@ -25,13 +25,13 @@ Supports ``--device cpu`` / ``cuda`` (PyTorch Adam) and ``--device nntile``
 (``torch_nntile.training.Adam`` + ``cross_entropy``, graph compile/run per
 step). Layers use ``nn.Linear`` with bias (nntile ``aten::linear`` bias path).
 
-Train loss logging is **double-buffered on the host**: after each step is
-ordered, the script prints the previous step's train metrics (when that step
-was a log step), then snapshots the current metrics to host scalars if needed.
-The final current loss is printed separately after the loop. Nntile step
-tensors (``logits`` / ``loss``) are still ``del``'d every iteration so
-``pending_output_reclaim`` can run — holding them across the next
-``compile_graph()`` would stall tile reclaim and inflate step time.
+Train loss logging is **double-buffered on the host**: after ``run()``
+submits the current step (asynchronous), the script prints the previous
+step's train metrics so host I/O can overlap StarPU compute, then
+``wait()`` synchronizes. Current metrics are snapshotted to host scalars
+when needed; the final current loss is printed after the loop. Nntile
+step tensors (``logits`` / ``loss``) are ``del``'d every iteration so
+``pending_output_reclaim`` can run.
 
 On ``cpu`` / ``cuda`` / ``nntile``, all train/test batches (images + labels)
 are moved onto the training device **before** training. The script prints
@@ -457,10 +457,8 @@ def train_nntile(
         optimizer.step()
         torch_nntile.compile_graph()
         torch_nntile.run()
-        torch_nntile.wait()
-        train_compute_s += time.perf_counter() - t0
-
-        # Current step ordered: emit previous train log if any.
+        # Current step is submitted asynchronously. Print the previous host
+        # log here so it overlaps with StarPU compute; wait() syncs below.
         if pending_log is not None:
             prev_step, prev_acc, prev_loss, prev_lr = pending_log
             print(
@@ -468,6 +466,8 @@ def train_nntile(
                 f"loss={prev_loss:.4f} (lr={prev_lr:.6f})"
             )
             pending_log = None
+        torch_nntile.wait()
+        train_compute_s += time.perf_counter() - t0
 
         is_last = step == steps
         if step % train_log_every == 0 or is_last:
