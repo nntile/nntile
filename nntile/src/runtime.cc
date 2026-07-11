@@ -135,10 +135,10 @@ void Runtime::compile()
 
 void Runtime::sync_tile_marks_from_logical()
 {
-    // Sync only descriptors touched by the pending op slice. Walking
-    // tile_map_ every compile was O(allocated history) and duplicated mark
-    // refresh already done in append_tensor_graph_phase for carried tensors.
-    // Unmarked phase outputs are reclaimed via pending_output_reclaim.
+    // Sync descriptors for the pending op slice and for any allocated tile
+    // whose logical mark flipped to unmarked (held-across-compile outputs
+    // that NodeRefs later dropped). Avoid a full historical TensorDescriptor
+    // walk; tile_map_ is bounded by live allocations.
     std::unordered_set<const TileGraph::TensorDescriptor *> synced;
 
     auto sync_tile = [&](const TileGraph::TileNode *tile_key)
@@ -188,6 +188,35 @@ void Runtime::sync_tile_marks_from_logical()
         {
             sync_tile(out);
         }
+    }
+
+    // Refresh marks on allocated tiles not touched by the pending slice so
+    // last-consumer reclaim sees mark_output(false) after Python drops refs.
+    for (const auto &[tile, tile_ptr] : tile_map_)
+    {
+        (void)tile_ptr;
+        if (tile == nullptr)
+        {
+            continue;
+        }
+        auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile);
+        const TileGraph::TensorDescriptor *desc =
+            mutable_tile->tensor_descriptor();
+        if (desc == nullptr || desc->source_node == nullptr)
+        {
+            continue;
+        }
+        if (synced.count(desc) != 0)
+        {
+            continue;
+        }
+        // Only sync when the logical is unmarked — carried/live marks were
+        // refreshed by append_tensor_graph_phase for the current phase.
+        if (desc->source_node->is_input() || desc->source_node->is_output())
+        {
+            continue;
+        }
+        sync_tile(tile);
     }
 }
 

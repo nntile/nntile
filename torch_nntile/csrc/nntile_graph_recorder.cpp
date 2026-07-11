@@ -168,19 +168,33 @@ void collect_pending_output_reclaim_locked(
     {
         return;
     }
-    // Drain any unreclaimed candidates from a prior compile that never ran
-    // (or whose temps were dropped early) before replacing the list.
+    // Invalidate unmarked leftovers from a prior phase, but keep entries that
+    // are still marked (held across compile) so a later wait() can reclaim.
     reclaim_pending_outputs_locked();
-    g_exec->pending_output_reclaim.clear();
-    g_exec->pending_output_reclaim.reserve(phase.carried_tensors.size());
+    auto &reclaim = g_exec->pending_output_reclaim;
+    auto already = [&](nntile::TensorGraph::TensorNode *node) -> bool
+    {
+        for (nntile::TensorGraph::TensorNode *existing : reclaim)
+        {
+            if (existing == node)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    reclaim.reserve(reclaim.size() + phase.carried_tensors.size());
     for (nntile::TensorGraph::TensorNode const *t : phase.carried_tensors)
     {
         if (t == nullptr || !t->is_output())
         {
             continue;
         }
-        g_exec->pending_output_reclaim.push_back(
-            const_cast<nntile::TensorGraph::TensorNode *>(t));
+        auto *mutable_t = const_cast<nntile::TensorGraph::TensorNode *>(t);
+        if (!already(mutable_t))
+        {
+            reclaim.push_back(mutable_t);
+        }
     }
 }
 
@@ -917,8 +931,11 @@ void run_graph_locked()
         g_timing.run_ops += phase_ops;
         g_exec->executed_op_end = g_exec->pending_exec_op_end;
         g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
-        g_run_cleanup_pending = true;
     }
+    // Always require wait() for compile-side cleanup (pin_hold, reclaim,
+    // scatter stagings, deferred pending clear) — including empty post-DCE
+    // phases that submit no StarPU tasks.
+    g_run_cleanup_pending = true;
 }
 
 void finish_run_locked()

@@ -25,6 +25,8 @@
 #include <nntile/tensor/graph_data_node.hh>
 #include <nntile/tensor/graph_op_node.hh>
 
+#include <algorithm>
+
 namespace nntile
 {
 
@@ -119,6 +121,15 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase()
             carried.push_back(t);
         }
     }
+    // Stable order by node id (insertion order) so pending-compile equality
+    // checks compare carried lists by index deterministically.
+    std::sort(
+        carried.begin(),
+        carried.end(),
+        [](TensorNode const *a, TensorNode const *b)
+        {
+            return a->id() < b->id();
+        });
     return seal_phase(std::move(carried));
 }
 
