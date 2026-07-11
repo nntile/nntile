@@ -31,6 +31,9 @@ Example::
         --steps 10000
 
 Success floor for this reproduction: test accuracy ≥ 0.97 (prefer ~0.975–0.985).
+
+Observed (CPU, seed=0, 10 000 steps): max test accuracy **0.9827**, final
+**0.9822** (Google source quotes ≈ 0.9824).
 """
 
 from __future__ import annotations
@@ -210,7 +213,7 @@ def main() -> None:
                 )
             print(
                 f"{step}: train accuracy={train_acc:.4f} "
-                f"loss={float(loss):.4f} (lr={lr:.6f})"
+                f"loss={float(loss.detach()):.4f} (lr={lr:.6f})"
             )
 
         if step % args.test_every == 0:

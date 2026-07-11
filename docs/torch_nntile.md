@@ -220,6 +220,21 @@ trains `DeepReLU.mnist()` on the full MNIST training set (60k batch) on
 `device="nntile"`. By default it is nntile-only; ``--compare-torch`` adds a CPU
 PyTorch reference for loss/weight parity.
 
+### Recognition baseline (Google five-layer ReLU)
+
+For a published digit-recognition recipe (not the full-batch nntile parity
+smoke), see
+[`torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py`](../torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py).
+It reproduces Google’s “TensorFlow without a PhD” five-layer ReLU MLP
+(`784→200→100→60→30→10`, cross-entropy, Adam + exponential LR decay, batch
+100, 10 000 steps) in pure PyTorch. Source expected test accuracy ≈ **0.9824**;
+this reproduction (CPU, seed 0) reached max **0.9827** / final **0.9822**.
+
+```bash
+python torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py \
+  --steps 10000
+```
+
 Default model: **5 linear layers** (`--depth 5`), **4 hidden blocks** with output
 width `--hidden-dim 256` (784→256, then three 256→256, then 256→10 logits).
 
