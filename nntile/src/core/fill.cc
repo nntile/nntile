@@ -41,7 +41,7 @@ template<typename T>
 void fill(int starpu_worker_hint, Scalar val, const Tile<T> &A)
 {
     fill_async<T>(starpu_worker_hint, val, A);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

@@ -20,7 +20,8 @@ TensorImpl → NNTileBackendMeta → NodeRef → NNTileBinding { logical L }
 
 There is no side map (`g_tensor_nodes`) and no eager per-op flush. All ops
 record into a shared `TensorGraph`; the caller flushes with `compile_graph()`
-+ `run()` (or legacy `execute()` = compile+run).
++ `run()` (or legacy `execute()` = compile+run+wait). `run()` submits
+StarPU tasks asynchronously; `wait()` synchronizes and runs post-run reclaim.
 
 ## Incremental session memory (`mark_output`)
 
@@ -31,17 +32,21 @@ by marks, with an explicit pending list in torch_nntile:
 1. Dropping a Python nntile tensor runs `~NNTileBinding` → `L.mark_output(false)`.
 2. On `compile_graph()`, torch_nntile snapshots logical tensors that are
    `mark_output(true)` in the sealed phase (`pending_output_reclaim`).
-3. After `run()`, pin holds are cleared (temps drop their NodeRefs). Any
-   snapshot entry that is no longer marked input/output is passed to
-   `Runtime::invalidate_logical_tiles` once — no full tile-map scan.
-4. Mid-phase, `release_dead_tiles_after_op` still invalidates unmarked tiles
-   after their last consumer.
+3. After `wait()` (following `run()`), pin holds are cleared (temps drop their
+   NodeRefs). Any snapshot entry that is no longer marked input/output is
+   passed to `Runtime::invalidate_logical_tiles` once — no full tile-map scan.
+4. Mid-phase, ``execute_range`` queues unmarked tiles after their last
+   consumer; ``Runtime::wait()`` invalidates them after StarPU drains.
+   Core ``*`` wrappers skip ``starpu_task_wait_for_all`` while submit is
+   deferred so ``run()`` stays asynchronous.
 
 Training loops should ``del`` step temporaries (e.g. logits) **after**
-``run()`` / ``wait()`` and any host readout of the loss so reclaim sees
+``wait()`` and any host readout of the loss so reclaim sees
 ``mark_output(false)``; keep parameters, optimizer state, and persistent
-inputs marked via live bindings. ``train_full_batch_step`` drops logits
-after the step runs.
+inputs marked via live bindings. Do **not** call ``gc.collect()`` in the
+step loop — refcount drop from ``del`` is enough for bindings, and a full
+collection scans the growing session heap and can dominate step time.
+``train_full_batch_step`` drops logits after the step runs.
 
 ## I/O
 
@@ -97,7 +102,7 @@ run backward (or ingress a real grad tensor via `.to("nntile")`) first.
 
 | # | Topic | Current behavior | Planned follow-up |
 |---|--------|------------------|-------------------|
-| D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows). Phase outputs cleared after `run()` are reclaimed via `pending_output_reclaim` (O(phase outputs), not a full tile-map scan). Historical TileGraph/TensorGraph nodes still accumulate in memory. | Phase GC / compaction; reuse readout staging per session. |
+| D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows). Phase outputs cleared after `wait()` are reclaimed via `pending_output_reclaim` (O(phase outputs), not a full tile-map scan). Historical TileGraph/TensorGraph nodes still accumulate in memory. | Phase GC / compaction; reuse readout staging per session. |
 | D2 | Incremental tile-map growth | Every ingress/egress lowers a fresh ephemeral `S` into `inc_state.tensor_to_tiles`; entries are never removed. | Reclaim staging descriptors after invalidate; or pool single-tile `S` per `L`. |
 | D3 | Pin bookkeeping | `pin_tensor_for_graph` / ingress may append duplicate `at::Tensor` refs until the next graph clear. | Dedup by `TensorImpl*`; trim on phase seal. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |

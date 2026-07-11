@@ -80,8 +80,8 @@ class TensorGraph::TensorNode
     // Graph structure
     bool is_input() const { return is_input_; }
     bool is_output() const { return is_output_; }
-    void mark_input(bool v = true) { is_input_ = v; }
-    void mark_output(bool v = true) { is_output_ = v; }
+    void mark_input(bool v = true);
+    void mark_output(bool v = true);
 
     // Host-side parameter bytes (checkpoint I/O); not applied until bind_data.
     void set_bind_hint(std::vector<std::uint8_t> data);

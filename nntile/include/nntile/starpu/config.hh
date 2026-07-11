@@ -105,3 +105,5 @@ void unpack_args_ptr(void *cl_args, const Ts *&...args)
 
 } // namespace starpu
 } // namespace nntile
+
+#include <nntile/starpu/sync_defer.hh>

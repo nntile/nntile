@@ -410,7 +410,8 @@ at::Tensor copy_from(
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
         if (has_graph_session())
         {
-            wait_for_all();
+            // run() is async; do not wait_for_all here. copy_nntile_tensor_to_cpu
+            // / gather compile finishes any pending run before readout.
             copy_nntile_tensor_to_cpu(self, mutable_dst);
             return dst;
         }

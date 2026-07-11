@@ -71,7 +71,7 @@ void sgd_step(int starpu_worker_hint, Index num_iter, Scalar momentum, Scalar lr
                const Tile<T> &p)
 {
     sgd_step_async<T>(starpu_worker_hint, num_iter, momentum, lr, weight_decay, dampening, nesterov, grad, velocity, p);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

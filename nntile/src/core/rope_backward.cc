@@ -95,7 +95,7 @@ void rope_backward(int starpu_worker_hint, const Tile<T> &sin, const Tile<T> &co
         const Tile<T> &dx, Index sin_pair0)
 {
     rope_backward_async<T>(starpu_worker_hint, sin, cos, dy, dx, sin_pair0);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation of template

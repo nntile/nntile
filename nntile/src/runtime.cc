@@ -17,6 +17,7 @@
 
 #include "nntile/core/execution_schedule.hh"
 #include "nntile/core/execution_worker.hh"
+#include "nntile/starpu/sync_defer.hh"
 
 // TileGraph::get_tensor_descriptor is inline in graph.hh; this TU must see
 // the definition when calling it on const TileGraph&.
@@ -134,8 +135,10 @@ void Runtime::compile()
 
 void Runtime::sync_tile_marks_from_logical()
 {
-    // Sync only descriptors reachable from allocated tiles or the pending
-    // op slice — do not walk every historical TensorDescriptor.
+    // Sync descriptors for the pending op slice and for any allocated tile
+    // whose logical mark flipped to unmarked (held-across-compile outputs
+    // that NodeRefs later dropped). Avoid a full historical TensorDescriptor
+    // walk; tile_map_ is bounded by live allocations.
     std::unordered_set<const TileGraph::TensorDescriptor *> synced;
 
     auto sync_tile = [&](const TileGraph::TileNode *tile_key)
@@ -172,12 +175,6 @@ void Runtime::sync_tile_marks_from_logical()
         }
     };
 
-    for (const auto &[tile, tile_ptr] : tile_map_)
-    {
-        (void)tile_ptr;
-        sync_tile(tile);
-    }
-
     const size_t n = execution_order_.size();
     const size_t begin =
         executed_op_end_ < n ? executed_op_end_ : n;
@@ -191,6 +188,35 @@ void Runtime::sync_tile_marks_from_logical()
         {
             sync_tile(out);
         }
+    }
+
+    // Refresh marks on allocated tiles not touched by the pending slice so
+    // last-consumer reclaim sees mark_output(false) after Python drops refs.
+    for (const auto &[tile, tile_ptr] : tile_map_)
+    {
+        (void)tile_ptr;
+        if (tile == nullptr)
+        {
+            continue;
+        }
+        auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile);
+        const TileGraph::TensorDescriptor *desc =
+            mutable_tile->tensor_descriptor();
+        if (desc == nullptr || desc->source_node == nullptr)
+        {
+            continue;
+        }
+        if (synced.count(desc) != 0)
+        {
+            continue;
+        }
+        // Only sync when the logical is unmarked — carried/live marks were
+        // refreshed by append_tensor_graph_phase for the current phase.
+        if (desc->source_node->is_input() || desc->source_node->is_output())
+        {
+            continue;
+        }
+        sync_tile(tile);
     }
 }
 
@@ -759,6 +785,9 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
     {
         throw std::out_of_range("Runtime::execute_range: bad range");
     }
+    // Submit only: core sync wrappers skip wait_for_all while deferred so
+    // torch_nntile run() can return before StarPU finishes the phase.
+    StarpuSyncDefer defer_waits;
     bool const use_static_schedule = has_execution_schedule();
     for (size_t i = op_begin; i < op_end; ++i)
     {
@@ -774,7 +803,7 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
             starpu_worker_hint_ = -1;
         }
         execution_order_[i]->execute(*this);
-        release_dead_tiles_after_op(i);
+        queue_dead_tiles_after_op(i);
     }
     if (op_end > executed_op_end_)
     {
@@ -791,24 +820,8 @@ void Runtime::execute()
     // compile may have skipped (pending slice was empty after a previous run).
     executed_op_end_ = 0;
     allocate_missing_tiles();
-    bool const use_static_schedule = has_execution_schedule();
-    for (size_t i = 0; i < execution_order_.size(); ++i)
-    {
-        if (use_static_schedule)
-        {
-            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
-                execution_schedule_.worker_for_op(i),
-                execution_schedule_.use_cuda_workers,
-                execution_order_[i]->op_name());
-        }
-        else
-        {
-            starpu_worker_hint_ = -1;
-        }
-        execution_order_[i]->execute(*this);
-        release_dead_tiles_after_op(i);
-    }
-    executed_op_end_ = execution_order_.size();
+    execute_range(0, execution_order_.size());
+    wait();
 }
 
 void Runtime::build_tile_last_consumer_map()
@@ -887,9 +900,16 @@ void Runtime::invalidate_tile_buffer(
 
 void Runtime::release_dead_tiles_after_op(size_t op_idx)
 {
-    starpu_task_wait_for_all();
-    std::vector<const TileGraph::TileNode *> to_release;
-    to_release.reserve(tile_last_consumer_op_.size());
+    queue_dead_tiles_after_op(op_idx);
+    if (g_starpu_sync_defer_depth == 0)
+    {
+        starpu_task_wait_for_all();
+        flush_queued_dead_tiles();
+    }
+}
+
+void Runtime::queue_dead_tiles_after_op(size_t op_idx)
+{
     for (const auto &[tile, last_op] : tile_last_consumer_op_)
     {
         if (last_op != op_idx)
@@ -900,9 +920,17 @@ void Runtime::release_dead_tiles_after_op(size_t op_idx)
         {
             continue;
         }
-        to_release.push_back(tile);
+        queued_dead_tiles_.push_back(tile);
     }
-    for (const TileGraph::TileNode *tile : to_release)
+}
+
+void Runtime::flush_queued_dead_tiles()
+{
+    if (queued_dead_tiles_.empty())
+    {
+        return;
+    }
+    for (const TileGraph::TileNode *tile : queued_dead_tiles_)
     {
         auto it = tile_map_.find(tile);
         if (it == tile_map_.end())
@@ -912,6 +940,7 @@ void Runtime::release_dead_tiles_after_op(size_t op_idx)
         invalidate_tile_buffer(tile, it->second);
         tile_map_.erase(it);
     }
+    queued_dead_tiles_.clear();
 }
 
 void Runtime::eliminate_dead_ops()
@@ -1036,23 +1065,34 @@ void Runtime::eliminate_dead_ops()
         }
     }
 
-    std::vector<std::shared_ptr<OpNode>> filtered;
-    filtered.reserve(pending_begin + live_ops.size());
-    for (size_t i = 0; i < pending_begin; ++i)
+    // Keep the executed prefix in place. Rebuilding the full vector every
+    // compile recopied O(history) shared_ptrs and made step time grow.
+    if (live_ops.size() == n - pending_begin)
     {
-        filtered.push_back(execution_order_[i]);
+        live_tile_nodes_ = std::move(live_data);
+        return;
     }
+    size_t write = pending_begin;
     for (size_t i = pending_begin; i < n; ++i)
     {
-        if (live_ops.count(i))
+        if (live_ops.count(i) == 0)
         {
-            filtered.push_back(execution_order_[i]);
+            continue;
         }
+        if (write != i)
+        {
+            execution_order_[write] = std::move(execution_order_[i]);
+        }
+        ++write;
     }
-    execution_order_ = std::move(filtered);
+    execution_order_.resize(write);
     live_tile_nodes_ = std::move(live_data);
 }
 
-void Runtime::wait() { starpu_task_wait_for_all(); }
+void Runtime::wait()
+{
+    starpu_task_wait_for_all();
+    flush_queued_dead_tiles();
+}
 
 } // namespace nntile

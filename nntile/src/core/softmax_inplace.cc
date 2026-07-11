@@ -84,7 +84,7 @@ void softmax_inplace(int starpu_worker_hint, const Tile<T> &maxsumexp, Scalar al
         Index axis)
 {
     softmax_inplace_async<T>(starpu_worker_hint, maxsumexp, alpha, dst, axis);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

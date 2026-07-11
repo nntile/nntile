@@ -25,6 +25,14 @@ Supports ``--device cpu`` / ``cuda`` (PyTorch Adam) and ``--device nntile``
 (``torch_nntile.training.Adam`` + ``cross_entropy``, graph compile/run per
 step). Layers use ``nn.Linear`` with bias (nntile ``aten::linear`` bias path).
 
+Train loss logging is **double-buffered on the host**: after ``run()``
+submits the current step (asynchronous), the script prints the previous
+step's train metrics so host I/O can overlap StarPU compute, then
+``wait()`` synchronizes. Current metrics are snapshotted to host scalars
+when needed; the final current loss is printed after the loop. Nntile
+step tensors (``logits`` / ``loss``) are ``del``'d every iteration so
+``pending_output_reclaim`` can run.
+
 On ``cpu`` / ``cuda`` / ``nntile``, all train/test batches (images + labels)
 are moved onto the training device **before** training. The script prints
 data-preparation time separately from train/eval compute time.
@@ -54,7 +62,6 @@ run is slower on CPU workers than pure torch).
 from __future__ import annotations
 
 import argparse
-import gc
 import math
 import sys
 import time
@@ -167,23 +174,22 @@ def evaluate_torch(
     batches: list[tuple[torch.Tensor, torch.Tensor]],
     device: torch.device,
 ) -> tuple[float, float, float]:
-    """Evaluate on preloaded device batches; return loss, acc, compute seconds."""
+    """Evaluate on preloaded device batches; return loss, acc, wall seconds."""
     model.eval()
     total_loss = 0.0
     total_correct = 0
     total = 0
-    compute_s = 0.0
+    t0 = time.perf_counter()
     for images, labels in batches:
-        t0 = time.perf_counter()
         logits = model(images)
         loss = F.cross_entropy(logits, labels, reduction="sum")
         synchronize_device(device)
-        compute_s += time.perf_counter() - t0
         total_loss += float(loss.item())
         total_correct += int((logits.argmax(dim=1) == labels).sum().item())
         total += labels.numel()
+    wall_s = time.perf_counter() - t0
     model.train()
-    return total_loss / total, total_correct / total, compute_s
+    return total_loss / total, total_correct / total, wall_s
 
 
 @torch.no_grad()
@@ -191,7 +197,7 @@ def evaluate_nntile(
     model: nn.Module,
     nntile_batches: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
 ) -> tuple[float, float, float]:
-    """Evaluate on preloaded nntile batches; return loss, acc, compute seconds."""
+    """Evaluate on preloaded nntile batches; return loss, acc, wall seconds."""
     import torch_nntile
     from torch_nntile.training import cross_entropy
 
@@ -199,29 +205,26 @@ def evaluate_nntile(
     total_loss = 0.0
     total_correct = 0
     total = 0
-    compute_s = 0.0
+    t0 = time.perf_counter()
     for images, labels, labels_cpu in nntile_batches:
-        t0 = time.perf_counter()
         logits = model(images)
         loss = cross_entropy(logits, labels, reduction="sum")
         torch_nntile.compile_graph()
         torch_nntile.run()
         torch_nntile.wait()
-        compute_s += time.perf_counter() - t0
-
         with torch.no_grad():
             logits_cpu = logits.to("cpu")
             loss_cpu = float(loss.to("cpu").item())
         del logits
         del loss
-        gc.collect()
         total_loss += loss_cpu
         total_correct += int(
             (logits_cpu.argmax(dim=1) == labels_cpu).sum().item()
         )
         total += labels_cpu.numel()
+    wall_s = time.perf_counter() - t0
     model.train()
-    return total_loss / total, total_correct / total, compute_s
+    return total_loss / total, total_correct / total, wall_s
 
 
 def parse_args() -> argparse.Namespace:
@@ -303,17 +306,22 @@ def train_torch(
 
     Returns
     -------
-    max_test_acc, last_test_acc, last_test_loss, train_compute_s, eval_compute_s
+    max_test_acc, last_test_acc, last_test_loss, train_wall_s, eval_wall_s
     """
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate(0))
     batches = cycle_batches(train_batches)
     max_test_acc = 0.0
     last_test_loss = float("nan")
     last_test_acc = float("nan")
-    train_compute_s = 0.0
-    eval_compute_s = 0.0
+    train_step_s = 0.0
+    eval_wall_s = 0.0
+    # Host-side previous log: (step, accuracy, loss, lr). Printed only after
+    # the next step has been ordered.
+    pending_log: tuple[int, float, float, float] | None = None
+    final_log: tuple[int, float, float, float] | None = None
     model.train()
 
+    t_wall0 = time.perf_counter()
     for step in range(steps + 1):
         lr = learning_rate(step)
         for group in optimizer.param_groups:
@@ -321,30 +329,42 @@ def train_torch(
 
         images, labels = next(batches)
 
-        t0 = time.perf_counter()
+        t_step0 = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
-        loss = F.cross_entropy(logits, labels)
-        loss.backward()
+        loss_current = F.cross_entropy(logits, labels)
+        loss_current.backward()
         optimizer.step()
         synchronize_device(device)
-        train_compute_s += time.perf_counter() - t0
 
-        if step % train_log_every == 0:
+        # Current step ordered: emit previous train log if any.
+        if pending_log is not None:
+            prev_step, prev_acc, prev_loss, prev_lr = pending_log
+            print(
+                f"{prev_step}: train accuracy={prev_acc:.4f} "
+                f"loss={prev_loss:.4f} (lr={prev_lr:.6f})"
+            )
+            pending_log = None
+
+        is_last = step == steps
+        if step % train_log_every == 0 or is_last:
             with torch.no_grad():
                 train_acc = float(
                     (logits.argmax(dim=1) == labels).float().mean().item()
                 )
-            print(
-                f"{step}: train accuracy={train_acc:.4f} "
-                f"loss={float(loss.detach()):.4f} (lr={lr:.6f})"
-            )
+                loss_val = float(loss_current.detach())
+            snapshot = (step, train_acc, loss_val, lr)
+            if is_last:
+                final_log = snapshot
+            else:
+                pending_log = snapshot
+        train_step_s += time.perf_counter() - t_step0
 
         if step % test_every == 0:
             test_loss, test_acc, eval_s = evaluate_torch(
                 model, test_batches, device
             )
-            eval_compute_s += eval_s
+            eval_wall_s += eval_s
             last_test_loss = test_loss
             last_test_acc = test_acc
             max_test_acc = max(max_test_acc, test_acc)
@@ -354,22 +374,31 @@ def train_torch(
                 f"test accuracy={test_acc:.4f} test loss={test_loss:.4f}"
             )
 
+    wall_s = time.perf_counter() - t_wall0
+
+    assert final_log is not None
+    _, final_acc, final_loss, final_lr = final_log
     print(
-        f"timing torch train compute: {train_compute_s:.3f}s "
-        f"({steps + 1} steps, {train_compute_s / (steps + 1) * 1e3:.2f} "
-        f"ms/step)"
+        f"final: train accuracy={final_acc:.4f} "
+        f"loss={final_loss:.4f} (lr={final_lr:.6f})"
     )
-    print(f"timing torch eval compute: {eval_compute_s:.3f}s")
+
     print(
-        f"timing torch compute total "
-        f"(train+eval): {train_compute_s + eval_compute_s:.3f}s"
+        f"timing torch train wall: {wall_s:.3f}s "
+        f"(steps+eval+logging over {steps + 1} steps)"
     )
+    print(
+        f"timing torch train steps: {train_step_s:.3f}s "
+        f"({train_step_s / (steps + 1) * 1e3:.2f} ms/step, "
+        f"excludes eval)"
+    )
+    print(f"timing torch eval wall: {eval_wall_s:.3f}s")
     return (
         max_test_acc,
         last_test_acc,
         last_test_loss,
-        train_compute_s,
-        eval_compute_s,
+        wall_s,
+        eval_wall_s,
     )
 
 
@@ -388,7 +417,7 @@ def train_nntile(
 
     Returns
     -------
-    max_test_acc, last_test_acc, last_test_loss, train_compute_s, eval_compute_s
+    max_test_acc, last_test_acc, last_test_loss, train_wall_s, eval_wall_s
     """
     import torch_nntile
     from torch_nntile.training import Adam, cross_entropy
@@ -401,11 +430,21 @@ def train_nntile(
     max_test_acc = 0.0
     last_test_loss = float("nan")
     last_test_acc = float("nan")
-    train_compute_s = 0.0
-    eval_compute_s = 0.0
-    host_readout_s = 0.0
+    train_step_s = 0.0
+    eval_wall_s = 0.0
+    record_s = 0.0
+    compile_s = 0.0
+    run_s = 0.0
+    wait_s = 0.0
+    readout_s = 0.0
+    # Host-side previous log: (step, accuracy, loss, lr). Printed only after
+    # the next step has been ordered. Do not keep nntile logits/loss across
+    # the next compile_graph() — that blocks pending_output_reclaim.
+    pending_log: tuple[int, float, float, float] | None = None
+    final_log: tuple[int, float, float, float] | None = None
     model.train()
 
+    t_wall0 = time.perf_counter()
     for step in range(steps + 1):
         lr = learning_rate(step)
         for group in optimizer.param_groups:
@@ -413,45 +452,69 @@ def train_nntile(
 
         images, labels, labels_cpu = next(batches)
 
+        t_step0 = time.perf_counter()
         t0 = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
-        loss = cross_entropy(logits, labels)
-        loss.backward()
+        loss_current = cross_entropy(logits, labels)
+        loss_current.backward()
         optimizer.step()
-        torch_nntile.compile_graph()
-        torch_nntile.run()
-        torch_nntile.wait()
-        train_compute_s += time.perf_counter() - t0
+        record_s += time.perf_counter() - t0
 
-        if step % train_log_every == 0:
-            t1 = time.perf_counter()
+        t0 = time.perf_counter()
+        torch_nntile.compile_graph()
+        compile_s += time.perf_counter() - t0
+
+        t0 = time.perf_counter()
+        torch_nntile.run()
+        run_s += time.perf_counter() - t0
+
+        # Current step is submitted asynchronously. Print the previous host
+        # log here so it overlaps with StarPU compute; wait() syncs below.
+        if pending_log is not None:
+            prev_step, prev_acc, prev_loss, prev_lr = pending_log
+            print(
+                f"{prev_step}: train accuracy={prev_acc:.4f} "
+                f"loss={prev_loss:.4f} (lr={prev_lr:.6f})"
+            )
+            pending_log = None
+
+        t0 = time.perf_counter()
+        torch_nntile.wait()
+        wait_s += time.perf_counter() - t0
+
+        is_last = step == steps
+        if step % train_log_every == 0 or is_last:
+            t0 = time.perf_counter()
             with torch.no_grad():
                 logits_cpu = logits.to("cpu")
-                loss_cpu = float(loss.to("cpu").item())
+                loss_val = float(loss_current.to("cpu").item())
                 train_acc = float(
                     (logits_cpu.argmax(dim=1) == labels_cpu)
                     .float()
                     .mean()
                     .item()
                 )
-            host_readout_s += time.perf_counter() - t1
-            print(
-                f"{step}: train accuracy={train_acc:.4f} "
-                f"loss={loss_cpu:.4f} (lr={lr:.6f})"
-            )
+            readout_s += time.perf_counter() - t0
+            snapshot = (step, train_acc, loss_val, lr)
+            if is_last:
+                final_log = snapshot
+            else:
+                pending_log = snapshot
 
         # Drop step temporaries so mark_output(false) is visible to the
         # pending_output_reclaim pass (end of this run / start of next compile).
+        # Refcount drop via del is enough — do not gc.collect() in the step
+        # loop (full/gen0 collections scale with session size).
         del logits
-        del loss
-        gc.collect()
+        del loss_current
+        train_step_s += time.perf_counter() - t_step0
 
         if step % test_every == 0:
             test_loss, test_acc, eval_s = evaluate_nntile(
                 model, test_batches
             )
-            eval_compute_s += eval_s
+            eval_wall_s += eval_s
             last_test_loss = test_loss
             last_test_acc = test_acc
             max_test_acc = max(max_test_acc, test_acc)
@@ -461,23 +524,38 @@ def train_nntile(
                 f"test accuracy={test_acc:.4f} test loss={test_loss:.4f}"
             )
 
+    wall_s = time.perf_counter() - t_wall0
+
+    assert final_log is not None
+    _, final_acc, final_loss, final_lr = final_log
     print(
-        f"timing nntile train compute: {train_compute_s:.3f}s "
-        f"({steps + 1} steps, {train_compute_s / (steps + 1) * 1e3:.2f} "
-        f"ms/step)"
+        f"final: train accuracy={final_acc:.4f} "
+        f"loss={final_loss:.4f} (lr={final_lr:.6f})"
     )
-    print(f"timing nntile eval compute: {eval_compute_s:.3f}s")
-    print(f"timing nntile host readout (logs): {host_readout_s:.3f}s")
+
+    n_steps = steps + 1
     print(
-        f"timing nntile compute total "
-        f"(train+eval): {train_compute_s + eval_compute_s:.3f}s"
+        f"timing nntile train wall: {wall_s:.3f}s "
+        f"(steps+eval+logging over {n_steps} steps)"
     )
+    print(
+        f"timing nntile train steps: {train_step_s:.3f}s "
+        f"({train_step_s / n_steps * 1e3:.2f} ms/step, excludes eval)"
+    )
+    print(
+        f"timing nntile step breakdown: "
+        f"record={record_s:.3f}s compile={compile_s:.3f}s "
+        f"run={run_s:.3f}s wait={wait_s:.3f}s "
+        f"readout={readout_s:.3f}s"
+    )
+    print(f"timing nntile eval wall: {eval_wall_s:.3f}s")
+    torch_nntile.print_info()
     return (
         max_test_acc,
         last_test_acc,
         last_test_loss,
-        train_compute_s,
-        eval_compute_s,
+        wall_s,
+        eval_wall_s,
     )
 
 

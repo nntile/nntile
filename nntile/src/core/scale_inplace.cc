@@ -37,7 +37,7 @@ template<typename T>
 void scale_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> &data)
 {
     scale_inplace_async<T>(starpu_worker_hint, alpha, data);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

@@ -53,7 +53,7 @@ template<typename T>
 void relu_backward(int starpu_worker_hint, const Tile<T> &x, const Tile<T> &dy, const Tile<T> &dx)
 {
     relu_backward_async<T>(starpu_worker_hint, x, dy, dx);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

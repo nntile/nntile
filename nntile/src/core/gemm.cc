@@ -417,7 +417,7 @@ void gemm(int starpu_worker_hint, Scalar alpha, const TransOp &transA, const Til
 {
     gemm_async<T>(starpu_worker_hint, alpha, transA, A, transB, B, beta, C, ndim, batch_ndim,
             redux);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

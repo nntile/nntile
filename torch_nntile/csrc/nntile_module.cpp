@@ -222,7 +222,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "run",
         &torch_nntile::run_graph,
-        "Execute the compiled graph session (no data transfer)");
+        "Submit the compiled graph to StarPU (asynchronous; does not wait)");
     m.def(
         "reset_graph_session",
         &torch_nntile::reset_graph_session,
@@ -251,6 +251,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "print_axis_groups",
         &torch_nntile::print_axis_groups,
         "Print pending TensorGraph axis groups to stdout");
+    m.def(
+        "print_info",
+        &torch_nntile::print_info,
+        "Print cumulative compile/run/wait/host-readout timing stats");
     m.def(
         "gemm_forward",
         &torch_nntile::gemm_forward,

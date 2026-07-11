@@ -50,7 +50,7 @@ void subtract_indexed_outputs(int starpu_worker_hint, Scalar val, const Tile<int
         const Tile<T> &dst, Index ignore_index)
 {
     subtract_indexed_outputs_async<T>(starpu_worker_hint, val, labels, dst, ignore_index);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

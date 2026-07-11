@@ -53,7 +53,7 @@ template<typename T>
 void hypot(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2, const Tile<T> &dst)
 {
     hypot_async<T>(starpu_worker_hint, alpha, src1, beta, src2, dst);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation of template

@@ -52,7 +52,7 @@ void conv2d_bwd_input_inplace(int starpu_worker_hint, Index src1_m, Index src1_n
             src1_channels, batch, src2_m, src2_n, dilation_m, dilation_n,
             dst_channels, offset_m, offset_n, alpha, src1, src2, dst_m, dst_n,
             beta, dst);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

@@ -137,12 +137,8 @@ void restore_where()
 
 void wait_for_all()
 {
-    std::lock_guard<std::mutex> lock(g_context_mutex);
-    if (g_context == nullptr || !starpu_is_initialized())
-    {
-        return;
-    }
-    starpu_task_wait_for_all();
+    // Finish async run() post-work (pin_hold / reclaim) then drain StarPU.
+    wait_graph_session();
 }
 
 void shutdown_context()

@@ -76,7 +76,7 @@ void sumprod_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, co
         const Tile<T> &dst, Index axis, int redux)
 {
     sumprod_fiber_async<T>(starpu_worker_hint, alpha, src1, src2, beta, dst, axis, redux);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

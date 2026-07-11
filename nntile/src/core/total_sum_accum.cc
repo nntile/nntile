@@ -73,7 +73,7 @@ void total_sum_accum(int starpu_worker_hint, Scalar alpha, const Tile<T> &logsum
 {
     total_sum_accum_async<T>(starpu_worker_hint, alpha, logsumexp, src, class_labels, val,
                              ignore_index);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

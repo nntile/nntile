@@ -128,7 +128,7 @@ def compile_graph() -> None:
 
 
 def run() -> None:
-    """Execute the compiled graph session (no host data transfer)."""
+    """Submit the compiled graph to StarPU (asynchronous; does not wait)."""
     _C.run()
 
 
@@ -165,10 +165,12 @@ def restore_where() -> None:
 
 
 def wait() -> None:
-    """Block until all submitted StarPU tasks finish (``starpu_task_wait_for_all``).
+    """Block until tasks submitted by :func:`run` finish.
 
-    Call before host readout (``.to("cpu")``) or :func:`shutdown_context`.
-    Required for clean CUDA teardown when ``ncuda > 0``.
+    Also runs post-run reclaim (scatter staging invalidate, pin_hold release,
+    ``pending_output_reclaim``). Call before host readout (``.to("cpu")``) or
+    :func:`shutdown_context`. Required for clean CUDA teardown when
+    ``ncuda > 0``.
     """
     _C.wait_for_all()
 
@@ -218,6 +220,18 @@ def print_axis_groups() -> None:
     _C.print_axis_groups()
 
 
+def print_info() -> None:
+    """Print cumulative ``compile_graph`` / ``run`` / ``wait`` / host-readout timing.
+
+    Useful for comparing nntile overhead against a torch CPU baseline.
+    """
+    import sys
+
+    sys.stdout.flush()
+    _C.print_info()
+    sys.stdout.flush()
+
+
 __all__ = [
     "device",
     "_C",
@@ -239,5 +253,6 @@ __all__ = [
     "set_axis_group_tiling",
     "format_axis_groups",
     "print_axis_groups",
+    "print_info",
     "nn",
 ]

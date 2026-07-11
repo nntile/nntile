@@ -54,7 +54,8 @@ class Runtime
 
     void compile();
 
-    //! Run ops [op_begin, op_end) in the post-dead-code elimination order.
+    //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
+    //! Call ``wait()`` before reading outputs or reclaiming tiles.
     void execute_range(size_t op_begin, size_t op_end);
 
     size_t execution_op_count() const { return execution_order_.size(); }
@@ -84,17 +85,18 @@ class Runtime
     template <typename T>
     void bind_data(TileNode const *tile, const std::vector<T> &data);
 
-    //! Submit all compiled ops to StarPU (asynchronous). Call ``wait()`` before
-    //! reading outputs or relying on computed tile values.
+    //! Submit all compiled ops then ``wait()`` (convenience for tests).
+    //! Prefer ``execute_range`` + ``wait()`` for incremental async sessions.
     void execute();
 
     //! StarPU worker for ``STARPU_EXECUTE_ON_WORKER`` during tile op execution,
-    //! or -1 for default StarPU placement. Set by ``execute()`` from the static
-    //! execution schedule when one is installed.
+    //! or -1 for default StarPU placement. Set by ``execute()`` /
+    //! ``execute_range()`` from the static execution schedule when one is
+    //! installed.
     int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
 
-    //! Block until all tasks submitted by ``execute()`` / ``execute_range()``
-    //! have finished.
+    //! Block until all tasks submitted by ``execute_range()`` have finished,
+    //! then flush queued last-consumer tile reclaim.
     void wait();
 
     //! Read a logical tensor or tile buffer marked for host I/O (input or
@@ -211,6 +213,8 @@ class Runtime
     void build_tile_last_consumer_map();
     void sync_tile_marks_from_logical();
     void release_dead_tiles_after_op(size_t op_idx);
+    void queue_dead_tiles_after_op(size_t op_idx);
+    void flush_queued_dead_tiles();
     void invalidate_tile_buffer(
         const TileNode *node,
         const std::shared_ptr<void> &tile_ptr);
@@ -236,6 +240,9 @@ class Runtime
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
     std::unordered_set<const TileNode *> live_tile_nodes_;
     std::unordered_map<const TileNode *, size_t> tile_last_consumer_op_;
+    //! Tiles whose last consumer ran during async execute_range; flushed in
+    //! ``wait()`` after ``starpu_task_wait_for_all``.
+    std::vector<const TileNode *> queued_dead_tiles_;
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;
     //! How many ``graph_.ops()`` entries have been appended into

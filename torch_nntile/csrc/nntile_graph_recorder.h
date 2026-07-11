@@ -31,6 +31,10 @@ void compile_graph();
 
 void run_graph();
 
+//! Block until submitted run() tasks finish; then reclaim / release pin holds.
+//! Prefer ``torch_nntile.wait()`` / ``wait_for_all()`` which call this.
+void wait_graph_session();
+
 void reset_graph_session();
 
 void shutdown_recorder();
@@ -52,6 +56,8 @@ void set_axis_group_tiling(
 std::string format_axis_groups();
 
 void print_axis_groups();
+
+void print_info();
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 

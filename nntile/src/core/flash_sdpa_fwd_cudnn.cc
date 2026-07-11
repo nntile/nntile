@@ -209,7 +209,7 @@ void flash_sdpa_fwd_cudnn(int starpu_worker_hint, const Tile<T> &K, const Tile<T
         const Tile<T> &A)
 {
     flash_sdpa_fwd_cudnn_async<T>(starpu_worker_hint, K, Q, mask, logsumexp, V, A);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

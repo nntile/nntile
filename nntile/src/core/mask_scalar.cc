@@ -77,7 +77,7 @@ void mask_scalar(int starpu_worker_hint, const Tile<bool_t> &mask, Scalar val, c
         Index batch_ndim)
 {
     mask_scalar_async<T>(starpu_worker_hint, mask, val, A, batch_ndim);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

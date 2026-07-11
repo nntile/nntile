@@ -42,7 +42,7 @@ template<typename T>
 void sqrt(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst)
 {
     sqrt_async<T>(starpu_worker_hint, src, dst);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

@@ -95,7 +95,7 @@ std::vector<TileGraph::TileNode *> build_tile_nodes(
 void lower_staging_tensor_immediate(
     TensorGraph const &tg,
     TensorGraph::TensorNode const *staging,
-    TensorGraphTiling const &tiling,
+    std::shared_ptr<TensorGraphTiling const> tiling,
     TileGraph &tile_graph,
     TileGraphIncrementalState &state,
     TensorNodeToTileMap &tile_map)
@@ -106,7 +106,12 @@ void lower_staging_tensor_immediate(
         throw std::invalid_argument(
             "lower_staging_tensor_immediate: staging must be non-null");
     }
-    const TensorAxisLayout *lay = tiling.find(staging);
+    if (tiling == nullptr)
+    {
+        throw std::invalid_argument(
+            "lower_staging_tensor_immediate: tiling must be non-null");
+    }
+    const TensorAxisLayout *lay = tiling->find(staging);
     if (lay == nullptr)
     {
         throw std::runtime_error(
@@ -119,10 +124,9 @@ void lower_staging_tensor_immediate(
             "lower_staging_tensor_immediate: staging must be single-tile");
     }
 
-    tile_graph.set_tiling_scheme(
-        std::make_shared<TensorGraphTiling>(tiling));
+    tile_graph.set_tiling_scheme(tiling);
 
-    const std::string fp = lay->layout_fingerprint();
+    std::string const &fp = lay->layout_fingerprint();
     auto fp_it = state.tensor_layout_fp.find(staging);
     const bool have_tiles =
         state.tensor_to_tiles.count(staging) != 0 &&

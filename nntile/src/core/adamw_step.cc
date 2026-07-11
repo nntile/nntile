@@ -79,7 +79,7 @@ void adamw_step(int starpu_worker_hint, Index num_iter, Scalar beta_1, Scalar be
                const Tile<T> &p)
 {
     adamw_step_async<T>(starpu_worker_hint, num_iter, beta_1, beta_2, eps, lr, weight_decay, grad, first_moment, second_moment, p);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

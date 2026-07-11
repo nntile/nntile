@@ -81,7 +81,7 @@ void multiply_fiber_inplace(int starpu_worker_hint, Scalar alpha, const Tile<T> 
  * */
 {
     multiply_fiber_inplace_async<T>(starpu_worker_hint, alpha, src, dst, axis);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation of template

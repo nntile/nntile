@@ -41,7 +41,7 @@ template<typename T>
 void pow(int starpu_worker_hint, Scalar alpha, Scalar exp, const Tile<T> &A)
 {
     pow_async<T>(starpu_worker_hint, alpha, exp, A);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation

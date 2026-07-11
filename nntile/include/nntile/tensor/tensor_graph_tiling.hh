@@ -67,8 +67,8 @@ public:
     Index tile_index_containing(Index dim, Index global_index) const;
 
     //! Stable string for comparing tiling of the same logical tensor across
-    //! phases (grid shape + segment lengths per axis).
-    std::string layout_fingerprint() const;
+    //! phases (grid shape + segment lengths per axis). Cached after first call.
+    std::string const &layout_fingerprint() const;
 
 private:
     std::vector<Index> shape_;
@@ -78,6 +78,7 @@ private:
     std::vector<std::vector<Index>> axis_origin_;
     std::vector<Index> grid_shape_;
     Index grid_volume_ = 1;
+    mutable std::string fingerprint_;
 };
 
 //! Maps each tensor data node to its axis layout (from merged AxisDescriptors).
@@ -91,6 +92,18 @@ public:
     static TensorGraphTiling from_phase(
         const TensorGraph& tg,
         const TensorGraph::PhaseSnapshot& phase);
+
+    //! Insert layouts for tensors touched by ``phase`` that are not already
+    //! present. Use with a session-scoped tiling shared_ptr so incremental
+    //! compile does not rebuild/copy layouts for stable carried tensors.
+    void ensure_phase_layouts(
+        const TensorGraph& tg,
+        const TensorGraph::PhaseSnapshot& phase);
+
+    void clear()
+    {
+        layouts_.clear();
+    }
 
     const TensorAxisLayout* find(const TensorGraph::TensorNode* node) const;
 

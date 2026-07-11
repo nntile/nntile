@@ -59,7 +59,7 @@ void transpose(int starpu_worker_hint, Scalar alpha, const Tile<T> &src, const T
         Index ndim)
 {
     transpose_async<T>(starpu_worker_hint, alpha, src, dst, ndim);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation of template

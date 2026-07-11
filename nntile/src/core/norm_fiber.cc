@@ -83,7 +83,7 @@ void norm_fiber(int starpu_worker_hint, Scalar alpha, const Tile<T> &src1, Scala
         Index axis, Index batch_ndim, int redux)
 {
     norm_fiber_async<T>(starpu_worker_hint, alpha, src1, beta, src2, dst, axis, batch_ndim, redux);
-    starpu_task_wait_for_all();
+    nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation
