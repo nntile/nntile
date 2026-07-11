@@ -128,6 +128,11 @@ class Runtime
 
     void invalidate_initialized(NNGraph::TensorNode const *tensor);
 
+    //! Drop StarPU buffers for a logical tensor that is no longer marked
+    //! input/output. No-op if still marked, unknown, or never allocated.
+    void invalidate_logical_tiles(
+        TensorGraph::TensorNode const *logical);
+
     //! Mark logical tensor tiles as host-populated (after acquire write I/O).
     void mark_initialized(TensorGraph::TensorNode const *tensor);
 
@@ -205,7 +210,6 @@ class Runtime
     void eliminate_dead_ops();
     void build_tile_last_consumer_map();
     void sync_tile_marks_from_logical();
-    void invalidate_non_output_tiles();
     void release_dead_tiles_after_op(size_t op_idx);
     void invalidate_tile_buffer(
         const TileNode *node,
@@ -234,6 +238,14 @@ class Runtime
     std::unordered_map<const TileNode *, size_t> tile_last_consumer_op_;
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;
+    //! How many ``graph_.ops()`` entries have been appended into
+    //! ``execution_order_``. Incremental ``compile()`` only pulls ops beyond
+    //! this watermark so cost stays O(pending) rather than O(history).
+    size_t compiled_graph_op_count_ = 0;
+    //! How many ``graph_.tile_nodes()`` have been considered for allocation.
+    //! Ingress may lower marked staging tiles before any new op is appended;
+    //! those nodes must still be allocated without scanning full history.
+    size_t compiled_tile_node_count_ = 0;
 };
 
 } // namespace nntile

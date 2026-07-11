@@ -86,10 +86,69 @@ struct RecorderExecState
     std::size_t pending_exec_op_end = 0;
     //! Scatter staging tensors in the pending phase (invalidate after run).
     std::vector<nntile::TensorGraph::TensorNode *> pending_scatter_stagings;
+    //! Logical tensors that were mark_output(true) when the pending slice
+    //! was compiled. After run() drops step temps (pin_hold / NodeRef), any
+    //! entry that is no longer marked is invalidated once.
+    std::vector<nntile::TensorGraph::TensorNode *> pending_output_reclaim;
 };
 
 std::unique_ptr<RecorderExecState> g_exec;
 bool g_defer_pending_clear_after_run = false;
+
+void reclaim_pending_outputs_locked()
+{
+    if (g_exec == nullptr || g_exec->runtime == nullptr)
+    {
+        return;
+    }
+    if (g_exec->pending_output_reclaim.empty())
+    {
+        return;
+    }
+    nntile::Runtime &runtime = *g_exec->runtime;
+    // Temps are often del'd after run(); keep still-marked entries so the
+    // next compile/run can invalidate them once NodeRefs drop.
+    std::vector<nntile::TensorGraph::TensorNode *> still_marked;
+    still_marked.reserve(g_exec->pending_output_reclaim.size());
+    for (nntile::TensorGraph::TensorNode *logical :
+        g_exec->pending_output_reclaim)
+    {
+        if (logical == nullptr)
+        {
+            continue;
+        }
+        if (logical->is_output() || logical->is_input())
+        {
+            still_marked.push_back(logical);
+            continue;
+        }
+        runtime.invalidate_logical_tiles(logical);
+    }
+    g_exec->pending_output_reclaim = std::move(still_marked);
+}
+
+void collect_pending_output_reclaim_locked(
+    const nntile::TensorGraph::PhaseSnapshot &phase)
+{
+    if (g_exec == nullptr)
+    {
+        return;
+    }
+    // Drain any unreclaimed candidates from a prior compile that never ran
+    // (or whose temps were dropped early) before replacing the list.
+    reclaim_pending_outputs_locked();
+    g_exec->pending_output_reclaim.clear();
+    g_exec->pending_output_reclaim.reserve(phase.carried_tensors.size());
+    for (nntile::TensorGraph::TensorNode const *t : phase.carried_tensors)
+    {
+        if (t == nullptr || !t->is_output())
+        {
+            continue;
+        }
+        g_exec->pending_output_reclaim.push_back(
+            const_cast<nntile::TensorGraph::TensorNode *>(t));
+    }
+}
 
 void sync_param_grad_aliases_locked();
 
@@ -271,8 +330,12 @@ void lower_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
         return;
     }
     ensure_recorder_exec_state_locked();
+    nntile::TensorGraph::PhaseSnapshot staging_phase;
+    staging_phase.op_begin = g_graph->num_ops();
+    staging_phase.op_end = staging_phase.op_begin;
+    staging_phase.carried_tensors = {staging};
     const nntile::TensorGraphTiling tiling =
-        nntile::TensorGraphTiling::from_tensor_graph(*g_graph);
+        nntile::TensorGraphTiling::from_phase(*g_graph, staging_phase);
     nntile::lower_staging_tensor_immediate(
         *g_graph,
         staging,
@@ -704,8 +767,11 @@ void compile_graph_locked(
     const nntile::TensorGraph::PhaseSnapshot phase = g_graph->seal_phase();
     std::vector<nntile::TensorGraph::TensorNode *> scatter_stagings;
     collect_scatter_stagings_from_phase_locked(phase, scatter_stagings);
+    collect_pending_output_reclaim_locked(phase);
+    // Phase-scoped tiling: full-graph from_tensor_graph rebuilt layouts for
+    // every historical tensor node and made compile O(session length).
     const nntile::TensorGraphTiling tiling =
-        nntile::TensorGraphTiling::from_tensor_graph(*g_graph);
+        nntile::TensorGraphTiling::from_phase(*g_graph, phase);
 
     try
     {
@@ -775,6 +841,10 @@ void run_graph_locked()
         clear_pending_graph_after_compile_locked(pin_drop);
         g_defer_pending_clear_after_run = false;
     }
+    // Drop compile-time pin_hold inside the locked section so mark_output
+    // flips are visible before reclaim.
+    g_exec->pin_hold.clear();
+    reclaim_pending_outputs_locked();
 }
 
 void reset_recorder_locked(
@@ -919,10 +989,6 @@ void run_graph()
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     run_graph_locked();
-    if (g_exec != nullptr)
-    {
-        g_exec->pin_hold.clear();
-    }
 }
 
 void reset_graph_session()

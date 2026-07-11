@@ -149,7 +149,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "Runtime compile invalidates tiles after mark_output false",
+    "Runtime invalidate_logical_tiles after mark_output false",
     "[graph][tile]")
 {
     TensorGraph tg("reclaim");
@@ -187,9 +187,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(before.count(y) == 1);
     REQUIRE(before.count(z) == 1);
 
-    // Drop output mark on y only: next compile must invalidate y's buffer.
+    // Drop output mark on y only: reclaim buffers explicitly (torch_nntile
+    // does this at end of run() via pending_output_reclaim).
     y->mark_output(false);
-    rt.compile();
+    rt.invalidate_logical_tiles(y);
 
     std::unordered_map<TensorGraph::TensorNode const *,
         std::vector<std::shared_ptr<void>>>

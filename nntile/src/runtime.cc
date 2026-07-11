@@ -93,21 +93,37 @@ DataType Runtime::get_dtype(
 
 void Runtime::compile()
 {
-    execution_order_.clear();
-    execution_order_.reserve(graph_.ops().size());
-    for (const auto &op : graph_.ops())
+    const auto &graph_ops = graph_.ops();
+    // TileGraph is append-only. Rebuilding execution_order_ from the full
+    // op list every compile made each training step pay DCE / last-consumer
+    // cost over all prior phases (ms/step grew with step count). Append only
+    // newly lowered ops; keep already-executed prefix for full execute().
+    if (compiled_graph_op_count_ > graph_ops.size())
     {
-        execution_order_.push_back(op);
+        compiled_graph_op_count_ = 0;
+        compiled_tile_node_count_ = 0;
+        execution_order_.clear();
+        executed_op_end_ = 0;
+    }
+    if (compiled_graph_op_count_ < graph_ops.size())
+    {
+        execution_order_.reserve(
+            execution_order_.size() +
+            (graph_ops.size() - compiled_graph_op_count_));
+        for (size_t i = compiled_graph_op_count_; i < graph_ops.size(); ++i)
+        {
+            execution_order_.push_back(graph_ops[i]);
+        }
+        compiled_graph_op_count_ = graph_ops.size();
     }
 
-    // Refresh tile marks from logical TensorNodes before DCE / reclaim so
+    // Refresh tile marks from logical TensorNodes before DCE so
     // incremental sessions see mark_output(false) after Python drops refs.
+    // StarPU reclaim of unmarked phase outputs is deferred to run() via an
+    // explicit pending list (see torch_nntile pending_output_reclaim).
     sync_tile_marks_from_logical();
     eliminate_dead_ops();
     build_tile_last_consumer_map();
-    // Free StarPU buffers for unmarked tiles not used by the pending
-    // (not-yet-executed) op slice.
-    invalidate_non_output_tiles();
     allocate_missing_tiles();
     tile_adoption_.clear();
 
@@ -118,36 +134,50 @@ void Runtime::compile()
 
 void Runtime::sync_tile_marks_from_logical()
 {
-    for (const auto &uptr : graph_.tensor_descriptors())
+    // Sync only descriptors reachable from allocated tiles or the pending
+    // op slice — do not walk every historical TensorDescriptor.
+    std::unordered_set<const TileGraph::TensorDescriptor *> synced;
+
+    auto sync_tile = [&](const TileGraph::TileNode *tile_key)
     {
-        const TileGraph::TensorDescriptor &desc = *uptr;
-        if (desc.source_node == nullptr)
+        if (tile_key == nullptr)
         {
-            continue;
+            return;
         }
-        const bool is_in = desc.source_node->is_input();
-        const bool is_out = desc.source_node->is_output();
-        for (TileGraph::TileNode *tile : desc.tiles)
+        // tensor_descriptor() is non-const on the node API via const TileNode*
+        auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile_key);
+        const TileGraph::TensorDescriptor *desc =
+            mutable_tile->tensor_descriptor();
+        if (desc == nullptr || desc->source_node == nullptr)
+        {
+            return;
+        }
+        if (!synced.insert(desc).second)
+        {
+            return;
+        }
+        const bool is_in = desc->source_node->is_input();
+        const bool is_out = desc->source_node->is_output();
+        for (TileGraph::TileNode *tile : desc->tiles)
         {
             if (tile == nullptr)
             {
                 continue;
             }
-            // Propagate input mark only when logical is marked input; never
-            // clear tile is_input from a false logical (torch_nntile drives
-            // persistence via mark_output only).
             if (is_in)
             {
                 tile->mark_input(true);
             }
             tile->mark_output(is_out);
         }
-    }
-}
+    };
 
-void Runtime::invalidate_non_output_tiles()
-{
-    std::unordered_set<const TileGraph::TileNode *> needed_by_pending;
+    for (const auto &[tile, tile_ptr] : tile_map_)
+    {
+        (void)tile_ptr;
+        sync_tile(tile);
+    }
+
     const size_t n = execution_order_.size();
     const size_t begin =
         executed_op_end_ < n ? executed_op_end_ : n;
@@ -155,41 +185,58 @@ void Runtime::invalidate_non_output_tiles()
     {
         for (const auto *in : execution_order_[i]->inputs())
         {
-            if (in != nullptr)
-            {
-                needed_by_pending.insert(in);
-            }
+            sync_tile(in);
         }
         for (const auto *out : execution_order_[i]->outputs())
         {
-            if (out != nullptr)
-            {
-                needed_by_pending.insert(out);
-            }
+            sync_tile(out);
         }
     }
+}
 
-    std::vector<const TileGraph::TileNode *> to_release;
-    to_release.reserve(tile_map_.size());
-    for (const auto &[tile, tile_ptr] : tile_map_)
+void Runtime::invalidate_logical_tiles(
+    TensorGraph::TensorNode const *logical)
+{
+    if (logical == nullptr)
     {
-        (void)tile_ptr;
+        return;
+    }
+    // Persistence is driven by marks: still-marked tensors stay allocated.
+    if (logical->is_output() || logical->is_input())
+    {
+        return;
+    }
+    const TileGraph::TensorDescriptor *desc =
+        graph_.get_tensor_descriptor(logical);
+    if (desc == nullptr)
+    {
+        return;
+    }
+    for (TileGraph::TileNode *tile : desc->tiles)
+    {
         if (tile == nullptr)
         {
             continue;
         }
-        if (tile->is_output() || tile->is_input())
+        tile->mark_output(false);
+    }
+
+    std::vector<const TileGraph::TileNode *> to_release;
+    to_release.reserve(desc->tiles.size());
+    for (TileGraph::TileNode *tile : desc->tiles)
+    {
+        if (tile == nullptr || tile->is_input())
         {
             continue;
         }
-        if (needed_by_pending.count(tile) != 0)
+        if (tile_map_.count(tile) != 0)
         {
-            continue;
+            to_release.push_back(tile);
         }
-        to_release.push_back(tile);
     }
     if (to_release.empty())
     {
+        init_state_.erase(logical);
         return;
     }
     if (starpu_is_initialized())
@@ -206,6 +253,7 @@ void Runtime::invalidate_non_output_tiles()
         invalidate_tile_buffer(tile, it->second);
         tile_map_.erase(it);
     }
+    init_state_.erase(logical);
 }
 
 void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
@@ -600,13 +648,11 @@ void Runtime::allocate_missing_tiles()
         }
     }
 
-    for (const auto &node : graph_.tile_nodes())
+    auto try_allocate = [&](const TileGraph::TileNode *tile_key)
     {
-        const TileGraph::TileNode *tile_key = node.get();
-        if (!live_tile_nodes_.empty() &&
-            live_tile_nodes_.count(tile_key) == 0)
+        if (tile_key == nullptr)
         {
-            continue;
+            return;
         }
         // Full-graph DCE may keep historical unmarked tiles "live"; do not
         // reallocate them unless a pending op needs them (or they are
@@ -614,64 +660,96 @@ void Runtime::allocate_missing_tiles()
         if (!tile_key->is_output() && !tile_key->is_input() &&
             needed_by_pending.count(tile_key) == 0)
         {
-            continue;
+            return;
         }
         auto adopt_it = tile_adoption_.find(tile_key);
         if (adopt_it != tile_adoption_.end())
         {
             tile_map_[tile_key] = adopt_it->second;
-            continue;
+            return;
         }
         if (tile_map_.count(tile_key) != 0)
         {
-            continue;
+            return;
         }
-        DataType dtype = node->dtype();
-        std::vector<Index> shape = node->shape();
+        // graph_.tile_nodes() owns the unique_ptr; tile_key is non-owning.
+        // Reconstruct mutable node for dtype/shape accessors that are const.
+        DataType dtype = tile_key->dtype();
+        std::vector<Index> shape = tile_key->shape();
+        // allocate_tile_and_register needs non-const TileNode* matching map
+        // keys used elsewhere; const_cast is safe (nodes owned by graph_).
+        auto *node = const_cast<TileGraph::TileNode *>(tile_key);
 
         switch (dtype)
         {
         case DataType::FP32:
             allocate_tile_and_register<nntile::fp32_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP32_FAST_TF32:
             allocate_tile_and_register<nntile::fp32_fast_tf32_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP32_FAST_FP16:
             allocate_tile_and_register<nntile::fp32_fast_fp16_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP32_FAST_BF16:
             allocate_tile_and_register<nntile::fp32_fast_bf16_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP64:
             allocate_tile_and_register<nntile::fp64_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::FP16:
             allocate_tile_and_register<nntile::fp16_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::BF16:
             allocate_tile_and_register<nntile::bf16_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::INT64:
             allocate_tile_and_register<nntile::int64_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         case DataType::BOOL:
             allocate_tile_and_register<nntile::bool_t>(
-                node.get(), shape, tile_map_);
+                node, shape, tile_map_);
             break;
         default:
             throw std::runtime_error(
                 "Unsupported data type for tile allocation");
         }
+    };
+
+    // Only touch pending I/O, DCE-live tiles, and newly lowered tile nodes —
+    // never scan the full historical tile_nodes() list (that made compile
+    // O(session length)). New nodes cover ingress staging lowered before any
+    // scatter op is appended to execution_order_.
+    for (const auto *tile : needed_by_pending)
+    {
+        try_allocate(tile);
     }
+    for (const auto *tile : live_tile_nodes_)
+    {
+        if (needed_by_pending.count(tile) != 0)
+        {
+            continue;
+        }
+        try_allocate(tile);
+    }
+    const auto &all_tiles = graph_.tile_nodes();
+    if (compiled_tile_node_count_ > all_tiles.size())
+    {
+        compiled_tile_node_count_ = 0;
+    }
+    for (size_t i = compiled_tile_node_count_; i < all_tiles.size(); ++i)
+    {
+        try_allocate(all_tiles[i].get());
+    }
+    compiled_tile_node_count_ = all_tiles.size();
 }
 
 void Runtime::execute_range(size_t op_begin, size_t op_end)
@@ -735,8 +813,13 @@ void Runtime::execute()
 
 void Runtime::build_tile_last_consumer_map()
 {
+    // Only pending ops run next; historical last-consumer edges are unused
+    // by release_dead_tiles_after_op during execute_range.
     tile_last_consumer_op_.clear();
-    for (size_t i = 0; i < execution_order_.size(); ++i)
+    const size_t n = execution_order_.size();
+    const size_t begin =
+        executed_op_end_ < n ? executed_op_end_ : n;
+    for (size_t i = begin; i < n; ++i)
     {
         for (const auto *in : execution_order_[i]->inputs())
         {
@@ -839,13 +922,21 @@ void Runtime::eliminate_dead_ops()
     {
         return;
     }
+    // Already-executed prefix is immutable for incremental sessions; DCE only
+    // the pending suffix so compile stays O(new phase), not O(history).
+    const size_t pending_begin =
+        executed_op_end_ < n ? executed_op_end_ : n;
+    if (pending_begin >= n)
+    {
+        return;
+    }
 
     using TNode = const TileGraph::TileNode *;
     std::unordered_map<TNode, std::unordered_set<size_t>> producer;
     std::unordered_map<TNode, std::unordered_set<size_t>> consumer;
     std::unordered_set<TNode> consumed;
 
-    for (size_t i = 0; i < n; ++i)
+    for (size_t i = pending_begin; i < n; ++i)
     {
         const auto &op = execution_order_[i];
         for (const auto *out : op->outputs())
@@ -866,30 +957,30 @@ void Runtime::eliminate_dead_ops()
     }
 
     std::unordered_set<TNode> live_data;
-    for (const auto &node : graph_.tile_nodes())
+    // Seed from marked tiles touched by the pending slice only — scanning
+    // every historical tile_node made compile O(session length).
+    for (size_t i = pending_begin; i < n; ++i)
     {
-        if (node->is_output())
+        const auto &op = execution_order_[i];
+        for (const auto *out : op->outputs())
         {
-            live_data.insert(node.get());
+            if (out != nullptr &&
+                (out->is_output() || out->is_input()))
+            {
+                live_data.insert(out);
+            }
         }
-    }
-    for (const auto &node : graph_.tile_nodes())
-    {
-        if (node->is_input())
+        for (const auto *in : op->inputs())
         {
-            live_data.insert(node.get());
+            if (in != nullptr &&
+                (in->is_output() || in->is_input()))
+            {
+                live_data.insert(in);
+            }
         }
     }
 
-    bool any_marked_output = false;
-    for (const auto &node : graph_.tile_nodes())
-    {
-        if (node->is_output())
-        {
-            any_marked_output = true;
-            break;
-        }
-    }
+    const bool any_marked_output = !live_data.empty();
     if (!any_marked_output)
     {
         for (const auto &p : producer)
@@ -946,8 +1037,12 @@ void Runtime::eliminate_dead_ops()
     }
 
     std::vector<std::shared_ptr<OpNode>> filtered;
-    filtered.reserve(live_ops.size());
-    for (size_t i = 0; i < n; ++i)
+    filtered.reserve(pending_begin + live_ops.size());
+    for (size_t i = 0; i < pending_begin; ++i)
+    {
+        filtered.push_back(execution_order_[i]);
+    }
+    for (size_t i = pending_begin; i < n; ++i)
     {
         if (live_ops.count(i))
         {

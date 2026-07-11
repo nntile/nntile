@@ -23,8 +23,7 @@ with this recipe.
 
 Supports ``--device cpu`` / ``cuda`` (PyTorch Adam) and ``--device nntile``
 (``torch_nntile.training.Adam`` + ``cross_entropy``, graph compile/run per
-step). ``nn.Linear`` bias is unsupported on nntile, so layers use
-``F.linear(x, weight, None) + bias``.
+step). Layers use ``nn.Linear`` with bias (nntile ``aten::linear`` bias path).
 
 On ``cpu`` / ``cuda`` / ``nntile``, all train/test batches (images + labels)
 are moved onto the training device **before** training. The script prints
@@ -55,6 +54,7 @@ run is slower on CPU workers than pure torch).
 from __future__ import annotations
 
 import argparse
+import gc
 import math
 import sys
 import time
@@ -76,29 +76,15 @@ if str(_TORCH_NNTILE_ROOT) not in sys.path:
 HIDDEN_WIDTHS = (200, 100, 60, 30)
 
 
-class LinearBias(nn.Module):
-    """Linear + bias via gemm then add (nntile rejects ``nn.Linear`` bias)."""
-
-    def __init__(self, in_features: int, out_features: int) -> None:
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.weight = nn.Parameter(torch.empty(out_features, in_features))
-        self.bias = nn.Parameter(torch.empty(out_features))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.linear(x, self.weight, None) + self.bias
-
-
 class FiveLayerReLU(nn.Module):
     """Bias-aware MLP matching the Google five-layer ReLU tutorial."""
 
     def __init__(self) -> None:
         super().__init__()
         widths = (28 * 28, *HIDDEN_WIDTHS, 10)
-        layers: list[LinearBias] = []
+        layers: list[nn.Linear] = []
         for in_features, out_features in zip(widths[:-1], widths[1:]):
-            layers.append(LinearBias(in_features, out_features))
+            layers.append(nn.Linear(in_features, out_features, bias=True))
         self.layers = nn.ModuleList(layers)
         self._init_google_()
 
@@ -223,8 +209,12 @@ def evaluate_nntile(
         torch_nntile.wait()
         compute_s += time.perf_counter() - t0
 
-        logits_cpu = logits.to("cpu")
-        loss_cpu = float(loss.to("cpu").item())
+        with torch.no_grad():
+            logits_cpu = logits.to("cpu")
+            loss_cpu = float(loss.to("cpu").item())
+        del logits
+        del loss
+        gc.collect()
         total_loss += loss_cpu
         total_correct += int(
             (logits_cpu.argmax(dim=1) == labels_cpu).sum().item()
@@ -382,6 +372,7 @@ def train_torch(
         eval_compute_s,
     )
 
+
 def train_nntile(
     model: nn.Module,
     train_batches: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
@@ -449,6 +440,12 @@ def train_nntile(
                 f"{step}: train accuracy={train_acc:.4f} "
                 f"loss={loss_cpu:.4f} (lr={lr:.6f})"
             )
+
+        # Drop step temporaries so mark_output(false) is visible to the
+        # pending_output_reclaim pass (end of this run / start of next compile).
+        del logits
+        del loss
+        gc.collect()
 
         if step % test_every == 0:
             test_loss, test_acc, eval_s = evaluate_nntile(

@@ -261,11 +261,12 @@ Architecture reference:
 - During ``run()``, intermediate StarPU tile buffers may be released after
   their last consumer when not marked as inputs/outputs.
 - On each ``compile_graph()``, ``Runtime`` refreshes tile marks from logical
-  ``mark_output`` / ``mark_input`` and ``invalidate_submit``s allocated tiles
-  that are neither input nor output (incremental session reclaim).
-- **Reduce footprint:** ``del`` step temporaries after ``run()`` so the next
-  compile sees cleared ``mark_output`` and can reclaim buffers.
-  ``train_full_batch_step`` already drops logits after each step.
+  ``mark_output`` / ``mark_input`` for the pending slice. torch_nntile snapshots
+  phase outputs and, after ``run()`` (and again at the next compile), calls
+  ``invalidate_logical_tiles`` on snapshot entries that are no longer marked.
+- **Reduce footprint:** ``del`` step temporaries after ``run()`` so reclaim
+  sees cleared ``mark_output``. ``train_full_batch_step`` already drops logits
+  after each step.
 
 ### Axis-group naming and tiling
 
