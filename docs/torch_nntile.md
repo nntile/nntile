@@ -235,6 +235,8 @@ python torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py \
   --steps 10000
 ```
 
+### Full-batch nntile DeepReLU (parity smoke)
+
 Default model: **5 linear layers** (`--depth 5`), **4 hidden blocks** with output
 width `--hidden-dim 256` (784→256, then three 256→256, then 256→10 logits).
 
