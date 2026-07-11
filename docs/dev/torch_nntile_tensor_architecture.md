@@ -41,8 +41,10 @@ by marks, with an explicit pending list in torch_nntile:
 Training loops should ``del`` step temporaries (e.g. logits) **after**
 ``wait()`` and any host readout of the loss so reclaim sees
 ``mark_output(false)``; keep parameters, optimizer state, and persistent
-inputs marked via live bindings. ``train_full_batch_step`` drops logits
-after the step runs.
+inputs marked via live bindings. Prefer ``gc.collect(0)`` over a full
+``gc.collect()`` — a full collection scans the growing session heap and can
+dominate step time. ``train_full_batch_step`` drops logits after the step
+runs.
 
 ## I/O
 

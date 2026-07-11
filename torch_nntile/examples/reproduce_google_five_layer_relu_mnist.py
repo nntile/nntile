@@ -218,7 +218,10 @@ def evaluate_nntile(
             loss_cpu = float(loss.to("cpu").item())
         del logits
         del loss
-        gc.collect()
+        # Full gc.collect() scans the whole heap and dominates step time as the
+        # session graph grows; generation-0 is enough to drop young cycles so
+        # ~NNTileBinding can mark_output(false) for reclaim.
+        gc.collect(0)
         total_loss += loss_cpu
         total_correct += int(
             (logits_cpu.argmax(dim=1) == labels_cpu).sum().item()
@@ -434,6 +437,12 @@ def train_nntile(
     last_test_acc = float("nan")
     train_step_s = 0.0
     eval_wall_s = 0.0
+    record_s = 0.0
+    compile_s = 0.0
+    run_s = 0.0
+    wait_s = 0.0
+    readout_s = 0.0
+    gc_s = 0.0
     # Host-side previous log: (step, accuracy, loss, lr). Printed only after
     # the next step has been ordered. Do not keep nntile logits/loss across
     # the next compile_graph() — that blocks pending_output_reclaim.
@@ -450,13 +459,22 @@ def train_nntile(
         images, labels, labels_cpu = next(batches)
 
         t_step0 = time.perf_counter()
+        t0 = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
         loss_current = cross_entropy(logits, labels)
         loss_current.backward()
         optimizer.step()
+        record_s += time.perf_counter() - t0
+
+        t0 = time.perf_counter()
         torch_nntile.compile_graph()
+        compile_s += time.perf_counter() - t0
+
+        t0 = time.perf_counter()
         torch_nntile.run()
+        run_s += time.perf_counter() - t0
+
         # Current step is submitted asynchronously. Print the previous host
         # log here so it overlaps with StarPU compute; wait() syncs below.
         if pending_log is not None:
@@ -466,10 +484,14 @@ def train_nntile(
                 f"loss={prev_loss:.4f} (lr={prev_lr:.6f})"
             )
             pending_log = None
+
+        t0 = time.perf_counter()
         torch_nntile.wait()
+        wait_s += time.perf_counter() - t0
 
         is_last = step == steps
         if step % train_log_every == 0 or is_last:
+            t0 = time.perf_counter()
             with torch.no_grad():
                 logits_cpu = logits.to("cpu")
                 loss_val = float(loss_current.to("cpu").item())
@@ -479,6 +501,7 @@ def train_nntile(
                     .mean()
                     .item()
                 )
+            readout_s += time.perf_counter() - t0
             snapshot = (step, train_acc, loss_val, lr)
             if is_last:
                 final_log = snapshot
@@ -489,7 +512,11 @@ def train_nntile(
         # pending_output_reclaim pass (end of this run / start of next compile).
         del logits
         del loss_current
-        gc.collect()
+        t0 = time.perf_counter()
+        # Full gc.collect() dominates step time on long sessions; gen0 is enough
+        # for young autograd cycles so bindings can mark_output(false).
+        gc.collect(0)
+        gc_s += time.perf_counter() - t0
         train_step_s += time.perf_counter() - t_step0
 
         if step % test_every == 0:
@@ -515,14 +542,20 @@ def train_nntile(
         f"loss={final_loss:.4f} (lr={final_lr:.6f})"
     )
 
+    n_steps = steps + 1
     print(
         f"timing nntile train wall: {wall_s:.3f}s "
-        f"(steps+eval+logging over {steps + 1} steps)"
+        f"(steps+eval+logging over {n_steps} steps)"
     )
     print(
         f"timing nntile train steps: {train_step_s:.3f}s "
-        f"({train_step_s / (steps + 1) * 1e3:.2f} ms/step, "
-        f"includes compile/run/wait, host readout, gc; excludes eval)"
+        f"({train_step_s / n_steps * 1e3:.2f} ms/step, excludes eval)"
+    )
+    print(
+        f"timing nntile step breakdown: "
+        f"record={record_s:.3f}s compile={compile_s:.3f}s "
+        f"run={run_s:.3f}s wait={wait_s:.3f}s "
+        f"readout={readout_s:.3f}s gc={gc_s:.3f}s"
     )
     print(f"timing nntile eval wall: {eval_wall_s:.3f}s")
     torch_nntile.print_info()

@@ -556,7 +556,9 @@ def train_full_batch_step(
             loss_cpu = loss.to("cpu")
         del logits
         del loss
-        gc.collect()
+        # Avoid full gc.collect() — it scales with session size and dominates
+        # step time. Generation-0 clears young cycles for mark_output(false).
+        gc.collect(0)
         return float(loss_cpu.item())
 
     loss = F.cross_entropy(logits, targets)
