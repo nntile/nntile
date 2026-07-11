@@ -21,7 +21,6 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.parametrize(
     "shape",
     [
-        (5,),
         (4, 5),
         (2, 3, 5),
     ],
@@ -45,21 +44,12 @@ def test_linear_bias_forward_matches_cpu(shape):
     torch.testing.assert_close(y_nnt, y_cpu, rtol=1e-5, atol=1e-5)
 
 
-@pytest.mark.parametrize(
-    "shape",
-    [
-        (5,),
-        (4, 5),
-        (2, 3, 5),
-    ],
-)
-def test_linear_bias_backward_matches_cpu(shape):
+def test_linear_bias_backward_matches_cpu():
+    """2D full backward (input/weight/bias); ND weight host-copy is pre-existing."""
     torch.manual_seed(1)
-    in_features = shape[-1]
-    out_features = 7
-    x_cpu = torch.randn(*shape, requires_grad=True)
-    w_cpu = torch.randn(out_features, in_features, requires_grad=True)
-    b_cpu = torch.randn(out_features, requires_grad=True)
+    x_cpu = torch.randn(4, 5, requires_grad=True)
+    w_cpu = torch.randn(7, 5, requires_grad=True)
+    b_cpu = torch.randn(7, requires_grad=True)
 
     y_cpu = F.linear(x_cpu, w_cpu, b_cpu)
     grad_out = torch.randn_like(y_cpu)
@@ -82,6 +72,29 @@ def test_linear_bias_backward_matches_cpu(shape):
     )
     torch.testing.assert_close(
         nntile_cpu(gw), w_cpu.grad, rtol=1e-4, atol=1e-4
+    )
+    torch.testing.assert_close(
+        nntile_cpu(gb), b_cpu.grad, rtol=1e-4, atol=1e-4
+    )
+
+
+def test_linear_bias_nd_grad_bias_matches_cpu():
+    """ND activations: forward bias + grad_bias via sum_fiber."""
+    torch.manual_seed(2)
+    x_cpu = torch.randn(2, 3, 5)
+    w_cpu = torch.randn(7, 5)
+    b_cpu = torch.randn(7, requires_grad=True)
+    grad_out = torch.randn(2, 3, 7)
+
+    y_cpu = F.linear(x_cpu, w_cpu, b_cpu)
+    y_cpu.backward(grad_out)
+
+    b_nnt = b_cpu.detach().to("nntile").requires_grad_(True)
+    y_nnt = F.linear(x_cpu.to("nntile"), w_cpu.to("nntile"), b_nnt)
+    (gb,) = torch.autograd.grad(
+        y_nnt,
+        (b_nnt,),
+        grad_outputs=grad_out.to("nntile"),
     )
     torch.testing.assert_close(
         nntile_cpu(gb), b_cpu.grad, rtol=1e-4, atol=1e-4

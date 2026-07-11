@@ -154,10 +154,14 @@ Add `torch_nntile/tests/test_linear_bias_parity.py` (mirror existing
 |------|--------|
 | 2-D forward | `F.linear(x, w, b)` vs CPU |
 | ND forward (`[B,S,H]`) | same |
-| 1-D input | same |
-| Backward | `grad_input`, `grad_weight`, `grad_bias` vs CPU |
+| 2-D full backward | `grad_input`, `grad_weight`, `grad_bias` vs CPU |
+| ND `grad_bias` only | `sum_fiber` path (ND weight host-copy is a separate issue) |
 | `bias=None` | still works (regression) |
 | Bad bias shape | raises |
+
+**Out of scope for this change:** 1-D input already returns `[1, out]` from the
+existing gemm layout (pre-existing); full ND weight-grad host copy also has a
+pre-existing crash without bias.
 
 Tolerances: start with `rtol=1e-5, atol=1e-5` (float32 gemm).
 
