@@ -25,6 +25,12 @@ Supports ``--device cpu`` / ``cuda`` (PyTorch Adam) and ``--device nntile``
 (``torch_nntile.training.Adam`` + ``cross_entropy``, graph compile/run per
 step). Layers use ``nn.Linear`` with bias (nntile ``aten::linear`` bias path).
 
+Train loss logging is **double-buffered**: each step keeps ``loss_previous``
+and only prints it after the next step has ordered ``loss_current`` (forward +
+backward). The final ``loss_current`` is printed separately after the loop.
+Under nntile this defers host readout so a compiled graph can keep computing
+while previous loss data is consumed.
+
 On ``cpu`` / ``cuda`` / ``nntile``, all train/test batches (images + labels)
 are moved onto the training device **before** training. The script prints
 data-preparation time separately from train/eval compute time.
@@ -312,6 +318,11 @@ def train_torch(
     last_test_acc = float("nan")
     train_compute_s = 0.0
     eval_compute_s = 0.0
+    loss_previous: torch.Tensor | None = None
+    logits_previous: torch.Tensor | None = None
+    labels_previous: torch.Tensor | None = None
+    prev_step: int | None = None
+    prev_lr: float | None = None
     model.train()
 
     for step in range(steps + 1):
@@ -324,21 +335,39 @@ def train_torch(
         t0 = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
-        loss = F.cross_entropy(logits, labels)
-        loss.backward()
+        loss_current = F.cross_entropy(logits, labels)
+        loss_current.backward()
         optimizer.step()
         synchronize_device(device)
         train_compute_s += time.perf_counter() - t0
 
-        if step % train_log_every == 0:
+        # Print previous only after current forward/backward is ordered.
+        if (
+            loss_previous is not None
+            and logits_previous is not None
+            and labels_previous is not None
+            and prev_step is not None
+            and prev_lr is not None
+            and prev_step % train_log_every == 0
+        ):
             with torch.no_grad():
                 train_acc = float(
-                    (logits.argmax(dim=1) == labels).float().mean().item()
+                    (logits_previous.argmax(dim=1) == labels_previous)
+                    .float()
+                    .mean()
+                    .item()
                 )
             print(
-                f"{step}: train accuracy={train_acc:.4f} "
-                f"loss={float(loss.detach()):.4f} (lr={lr:.6f})"
+                f"{prev_step}: train accuracy={train_acc:.4f} "
+                f"loss={float(loss_previous.detach()):.4f} "
+                f"(lr={prev_lr:.6f})"
             )
+
+        loss_previous = loss_current
+        logits_previous = logits
+        labels_previous = labels
+        prev_step = step
+        prev_lr = lr
 
         if step % test_every == 0:
             test_loss, test_acc, eval_s = evaluate_torch(
@@ -353,6 +382,24 @@ def train_torch(
                 f"{step}: ********* epoch {epoch} ********* "
                 f"test accuracy={test_acc:.4f} test loss={test_loss:.4f}"
             )
+
+    # Final current loss (held in the previous buffer after the last shift).
+    assert loss_previous is not None
+    assert logits_previous is not None
+    assert labels_previous is not None
+    assert prev_lr is not None
+    with torch.no_grad():
+        final_train_acc = float(
+            (logits_previous.argmax(dim=1) == labels_previous)
+            .float()
+            .mean()
+            .item()
+        )
+    print(
+        f"final: train accuracy={final_train_acc:.4f} "
+        f"loss={float(loss_previous.detach()):.4f} "
+        f"(lr={prev_lr:.6f})"
+    )
 
     print(
         f"timing torch train compute: {train_compute_s:.3f}s "
@@ -404,6 +451,11 @@ def train_nntile(
     train_compute_s = 0.0
     eval_compute_s = 0.0
     host_readout_s = 0.0
+    loss_previous: torch.Tensor | None = None
+    logits_previous: torch.Tensor | None = None
+    labels_cpu_previous: torch.Tensor | None = None
+    prev_step: int | None = None
+    prev_lr: float | None = None
     model.train()
 
     for step in range(steps + 1):
@@ -416,36 +468,54 @@ def train_nntile(
         t0 = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
-        loss = cross_entropy(logits, labels)
-        loss.backward()
+        loss_current = cross_entropy(logits, labels)
+        loss_current.backward()
         optimizer.step()
         torch_nntile.compile_graph()
         torch_nntile.run()
-        torch_nntile.wait()
-        train_compute_s += time.perf_counter() - t0
+        # Current step is ordered; read previous while the graph can run.
+        order_s = time.perf_counter() - t0
 
-        if step % train_log_every == 0:
+        if (
+            loss_previous is not None
+            and logits_previous is not None
+            and prev_step is not None
+            and prev_lr is not None
+            and labels_cpu_previous is not None
+            and prev_step % train_log_every == 0
+        ):
             t1 = time.perf_counter()
             with torch.no_grad():
-                logits_cpu = logits.to("cpu")
-                loss_cpu = float(loss.to("cpu").item())
+                logits_cpu = logits_previous.to("cpu")
+                loss_cpu = float(loss_previous.to("cpu").item())
                 train_acc = float(
-                    (logits_cpu.argmax(dim=1) == labels_cpu)
+                    (logits_cpu.argmax(dim=1) == labels_cpu_previous)
                     .float()
                     .mean()
                     .item()
                 )
             host_readout_s += time.perf_counter() - t1
             print(
-                f"{step}: train accuracy={train_acc:.4f} "
-                f"loss={loss_cpu:.4f} (lr={lr:.6f})"
+                f"{prev_step}: train accuracy={train_acc:.4f} "
+                f"loss={loss_cpu:.4f} (lr={prev_lr:.6f})"
             )
 
-        # Drop step temporaries so mark_output(false) is visible to the
-        # pending_output_reclaim pass (end of this run / start of next compile).
-        del logits
-        del loss
-        gc.collect()
+        t_wait0 = time.perf_counter()
+        torch_nntile.wait()
+        train_compute_s += order_s + (time.perf_counter() - t_wait0)
+
+        # Drop previous-step temporaries so mark_output(false) is visible to
+        # pending_output_reclaim (end of this run / start of next compile).
+        if loss_previous is not None:
+            del loss_previous
+            del logits_previous
+            gc.collect()
+
+        loss_previous = loss_current
+        logits_previous = logits
+        labels_cpu_previous = labels_cpu
+        prev_step = step
+        prev_lr = lr
 
         if step % test_every == 0:
             test_loss, test_acc, eval_s = evaluate_nntile(
@@ -460,6 +530,30 @@ def train_nntile(
                 f"{step}: ********* epoch {epoch} ********* "
                 f"test accuracy={test_acc:.4f} test loss={test_loss:.4f}"
             )
+
+    # Final current loss (held in the previous buffer after the last shift).
+    assert loss_previous is not None
+    assert logits_previous is not None
+    assert labels_cpu_previous is not None
+    assert prev_lr is not None
+    t1 = time.perf_counter()
+    with torch.no_grad():
+        logits_cpu = logits_previous.to("cpu")
+        loss_cpu = float(loss_previous.to("cpu").item())
+        final_train_acc = float(
+            (logits_cpu.argmax(dim=1) == labels_cpu_previous)
+            .float()
+            .mean()
+            .item()
+        )
+    host_readout_s += time.perf_counter() - t1
+    print(
+        f"final: train accuracy={final_train_acc:.4f} "
+        f"loss={loss_cpu:.4f} (lr={prev_lr:.6f})"
+    )
+    del logits_previous
+    del loss_previous
+    gc.collect()
 
     print(
         f"timing nntile train compute: {train_compute_s:.3f}s "
