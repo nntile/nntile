@@ -220,6 +220,18 @@ def print_axis_groups() -> None:
     _C.print_axis_groups()
 
 
+def print_info() -> None:
+    """Print cumulative ``compile_graph`` / ``run`` / ``wait`` / host-readout timing.
+
+    Useful for comparing nntile overhead against a torch CPU baseline.
+    """
+    import sys
+
+    sys.stdout.flush()
+    _C.print_info()
+    sys.stdout.flush()
+
+
 __all__ = [
     "device",
     "_C",
@@ -241,5 +253,6 @@ __all__ = [
     "set_axis_group_tiling",
     "format_axis_groups",
     "print_axis_groups",
+    "print_info",
     "nn",
 ]

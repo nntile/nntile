@@ -57,6 +57,8 @@ std::string format_axis_groups();
 
 void print_axis_groups();
 
+void print_info();
+
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 
 } // namespace torch_nntile

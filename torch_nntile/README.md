@@ -285,6 +285,7 @@ then set tile sizes by group name before ``compile_graph()``.
 | `set_axis_group_tiling(name, tile_sizes)` | Uniform `int` or heterogeneous `list` |
 | `format_axis_groups()` | String summary of pending axis groups |
 | `print_axis_groups()` | Print summary (includes `pending_tile=` before compile) |
+| `print_info()` | Print cumulative `compile_graph` / `run` / `wait` / host-readout timing |
 
 ```python
 torch_nntile.init_context(

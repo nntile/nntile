@@ -43,6 +43,9 @@ std::vector<Index> tile_sizes_for_axis_extent(
     Index extent);
 } // namespace nntile
 
+#include <chrono>
+#include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -96,6 +99,29 @@ std::unique_ptr<RecorderExecState> g_exec;
 bool g_defer_pending_clear_after_run = false;
 //! True after run_graph() until wait_graph_session() finishes post-run work.
 bool g_run_cleanup_pending = false;
+
+struct GraphApiTimingStats
+{
+    std::uint64_t compile_calls = 0;
+    double compile_s = 0.0;
+    std::uint64_t compile_ops = 0;
+    std::uint64_t run_calls = 0;
+    double run_s = 0.0;
+    std::uint64_t run_ops = 0;
+    std::uint64_t wait_calls = 0;
+    double wait_s = 0.0;
+    std::uint64_t host_readout_calls = 0;
+    double host_readout_s = 0.0;
+};
+
+GraphApiTimingStats g_timing;
+
+using SteadyClock = std::chrono::steady_clock;
+
+double seconds_since(SteadyClock::time_point const start)
+{
+    return std::chrono::duration<double>(SteadyClock::now() - start).count();
+}
 
 void reclaim_pending_outputs_locked()
 {
@@ -768,6 +794,8 @@ void compile_graph_locked(
         return;
     }
 
+    SteadyClock::time_point const t0 = SteadyClock::now();
+
     ensure_nntile_context();
     ensure_recorder_exec_state_locked();
 
@@ -819,6 +847,12 @@ void compile_graph_locked(
         transfer_pinned_tensors_locked(pin_drop);
         g_defer_pending_clear_after_run = true;
     }
+
+    std::uint64_t const phase_ops = static_cast<std::uint64_t>(
+        g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
+    g_timing.compile_s += seconds_since(t0);
+    ++g_timing.compile_calls;
+    g_timing.compile_ops += phase_ops;
 }
 
 void run_graph_locked()
@@ -831,9 +865,15 @@ void run_graph_locked()
     // torch_nntile.wait() for synchronization and post-run reclaim.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
+        std::uint64_t const phase_ops = static_cast<std::uint64_t>(
+            g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
+        SteadyClock::time_point const t0 = SteadyClock::now();
         g_exec->runtime->execute_range(
             g_exec->pending_exec_op_begin,
             g_exec->pending_exec_op_end);
+        g_timing.run_s += seconds_since(t0);
+        ++g_timing.run_calls;
+        g_timing.run_ops += phase_ops;
         g_exec->executed_op_end = g_exec->pending_exec_op_end;
         g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
         g_run_cleanup_pending = true;
@@ -847,9 +887,12 @@ void finish_run_locked()
         g_run_cleanup_pending = false;
         return;
     }
+    SteadyClock::time_point const t0 = SteadyClock::now();
     g_exec->runtime->wait();
     if (!g_run_cleanup_pending)
     {
+        g_timing.wait_s += seconds_since(t0);
+        ++g_timing.wait_calls;
         return;
     }
     for (nntile::TensorGraph::TensorNode *staging :
@@ -869,6 +912,8 @@ void finish_run_locked()
     g_exec->pin_hold.clear();
     reclaim_pending_outputs_locked();
     g_run_cleanup_pending = false;
+    g_timing.wait_s += seconds_since(t0);
+    ++g_timing.wait_calls;
 }
 
 void reset_recorder_locked(
@@ -1085,6 +1130,7 @@ void gather_logical_to_staging_and_read_locked(
         throw std::runtime_error(
             "torch_nntile: gather readout requires an active TensorGraph");
     }
+    SteadyClock::time_point const t0 = SteadyClock::now();
     nntile::TensorGraph::TensorNode *staging =
         new_ephemeral_staging_node_locked(logical, "readout");
     if (staging == nullptr)
@@ -1105,6 +1151,8 @@ void gather_logical_to_staging_and_read_locked(
     read_staging_to_host_locked(staging, host_ptr, dtype, count);
     invalidate_staging_tile_submit_locked(staging);
     staging->mark_output(false);
+    g_timing.host_readout_s += seconds_since(t0);
+    ++g_timing.host_readout_calls;
 }
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
@@ -1558,6 +1606,64 @@ void print_axis_groups()
     }
 }
 
+std::string format_info_locked()
+{
+    auto avg_ms = [](double seconds, std::uint64_t calls) -> double
+    {
+        if (calls == 0)
+        {
+            return 0.0;
+        }
+        return 1.0e3 * seconds / static_cast<double>(calls);
+    };
+
+    std::ostringstream ss;
+    ss << "torch_nntile graph API timing (cumulative):\n";
+    ss << "  compile_graph: " << g_timing.compile_calls << " calls, "
+       << g_timing.compile_s << "s"
+       << " (avg " << avg_ms(g_timing.compile_s, g_timing.compile_calls)
+       << " ms), tile-ops lowered=" << g_timing.compile_ops << '\n';
+    ss << "  run (submit):  " << g_timing.run_calls << " calls, "
+       << g_timing.run_s << "s"
+       << " (avg " << avg_ms(g_timing.run_s, g_timing.run_calls)
+       << " ms), tile-ops submitted=" << g_timing.run_ops << '\n';
+    ss << "  wait:          " << g_timing.wait_calls << " calls, "
+       << g_timing.wait_s << "s"
+       << " (avg " << avg_ms(g_timing.wait_s, g_timing.wait_calls)
+       << " ms)\n";
+    ss << "  host_readout:  " << g_timing.host_readout_calls << " calls, "
+       << g_timing.host_readout_s << "s"
+       << " (avg "
+       << avg_ms(g_timing.host_readout_s, g_timing.host_readout_calls)
+       << " ms; .to(\"cpu\") gather wall, includes nested "
+       << "compile/run/wait)\n";
+    ss << "  sum compile+run+wait: "
+       << (g_timing.compile_s + g_timing.run_s + g_timing.wait_s) << "s\n";
+
+    if (g_graph != nullptr)
+    {
+        ss << "  session tensor_graph_ops: " << g_graph->num_ops()
+           << " (seal_cursor=" << g_graph->phase_seal_cursor() << ")\n";
+    }
+    if (g_exec != nullptr && g_exec->runtime != nullptr)
+    {
+        ss << "  session executed_tile_ops: " << g_exec->executed_op_end
+           << " / " << g_exec->runtime->execution_op_count() << '\n';
+    }
+    return ss.str();
+}
+
+void print_info()
+{
+    std::string text;
+    {
+        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+        text = format_info_locked();
+    }
+    std::fputs(text.c_str(), stdout);
+    std::fflush(stdout);
+}
+
 } // namespace torch_nntile
 
 #else
@@ -1696,6 +1802,10 @@ std::string format_axis_groups()
 void print_axis_groups()
 {
     require_libnntile();
+}
+
+void print_info()
+{
 }
 
 void shutdown_recorder()

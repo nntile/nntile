@@ -419,7 +419,7 @@ def train_nntile(
 
     Returns
     -------
-    max_test_acc, last_test_acc, last_test_loss, train_compute_s, eval_compute_s
+    max_test_acc, last_test_acc, last_test_loss, train_wall_s, eval_wall_s
     """
     import torch_nntile
     from torch_nntile.training import Adam, cross_entropy
@@ -525,6 +525,7 @@ def train_nntile(
         f"includes compile/run/wait, host readout, gc; excludes eval)"
     )
     print(f"timing nntile eval wall: {eval_wall_s:.3f}s")
+    torch_nntile.print_info()
     return (
         max_test_acc,
         last_test_acc,
