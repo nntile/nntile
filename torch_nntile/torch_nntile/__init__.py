@@ -123,12 +123,21 @@ def execute() -> None:
 
 
 def compile_graph() -> None:
-    """Lower and compile the pending TensorGraph into a persistent session."""
+    """Enqueue lowering/compile of the pending TensorGraph (non-blocking).
+
+    Heavy seal/tiling/append/``Runtime::compile`` work runs on a background
+    thread. Call :func:`run` to request StarPU submit (also non-blocking) and
+    :func:`wait` to join the pipeline and drain StarPU. Only ``wait`` blocks.
+    """
     _C.compile_graph()
 
 
 def run() -> None:
-    """Submit the compiled graph to StarPU (asynchronous; does not wait)."""
+    """Request StarPU submit for the compiled phase (non-blocking).
+
+    If :func:`compile_graph` is still in flight, submit runs when compile
+    finishes. Does not wait for StarPU; call :func:`wait` to synchronize.
+    """
     _C.run()
 
 
@@ -165,10 +174,12 @@ def restore_where() -> None:
 
 
 def wait() -> None:
-    """Block until tasks submitted by :func:`run` finish.
+    """Block until async :func:`compile_graph` / :func:`run` finish.
 
-    Also runs post-run reclaim (scatter staging invalidate, pin_hold release,
-    ``pending_output_reclaim``). Call before host readout (``.to("cpu")``) or
+    Joins the background compile/submit pipeline, drains StarPU, then runs
+    post-run reclaim (scatter staging invalidate, pin_hold release,
+    ``pending_output_reclaim``). This is the only graph API call that may
+    block. Call before host readout (``.to("cpu")``) or
     :func:`shutdown_context`. Required for clean CUDA teardown when
     ``ncuda > 0``.
     """

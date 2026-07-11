@@ -27,12 +27,16 @@ void require_no_pending_graph(const char *op_name);
 
 void execute_pending_graph();
 
+//! Enqueue seal/tiling/append/Runtime::compile on a background thread
+//! (non-blocking). Prefer ``torch_nntile.compile_graph()``.
 void compile_graph();
 
+//! Request StarPU submit (non-blocking). Chains after in-flight compile.
 void run_graph();
 
-//! Block until submitted run() tasks finish; then reclaim / release pin holds.
+//! Join async compile/run, drain StarPU, then reclaim / release pin holds.
 //! Prefer ``torch_nntile.wait()`` / ``wait_for_all()`` which call this.
+//! Only this path may block on compile completion and StarPU.
 void wait_graph_session();
 
 void reset_graph_session();

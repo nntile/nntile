@@ -437,3 +437,45 @@ def test_clean_exit_with_live_nntile_tensors_after_atexit():
         assert y.device.type == "nntile"
         """
     )
+
+
+def test_compile_and_run_are_nonblocking_wait_joins():
+    """compile_graph/run return quickly; only wait() drains work."""
+    _run_graph_subprocess(
+        """
+        import time
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(64, 128).to("nntile")
+        w = torch.randn(64, 128).to("nntile")
+        y = torch.nn.functional.linear(x, w, None)
+        z = torch.randn(64, 64).to("nntile")
+        for _ in range(8):
+            y = torch.nn.functional.relu(y)
+            y = y + z
+
+        t0 = time.perf_counter()
+        torch_nntile.compile_graph()
+        compile_ms = (time.perf_counter() - t0) * 1e3
+        t0 = time.perf_counter()
+        torch_nntile.run()
+        run_ms = (time.perf_counter() - t0) * 1e3
+        t0 = time.perf_counter()
+        torch_nntile.wait()
+        wait_ms = (time.perf_counter() - t0) * 1e3
+
+        # Python-visible compile/run must not do the heavy work inline.
+        assert compile_ms < 5.0, compile_ms
+        assert run_ms < 5.0, run_ms
+        # wait joins background compile + StarPU; should dominate.
+        assert wait_ms > compile_ms, (wait_ms, compile_ms)
+        out = y.cpu()
+        assert out.shape[0] == 64
+        assert torch.isfinite(out).all()
+        """
+    )
