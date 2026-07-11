@@ -114,10 +114,10 @@ def init_context(
 
 
 def execute() -> None:
-    """Compile and run the pending TensorGraph in one call (legacy helper).
+    """Compile and submit the pending TensorGraph (does **not** wait).
 
-    Prefer :func:`compile_graph` and :func:`run` for training loops that reuse
-    tile memory across steps. Does not reset the compiled session.
+    Equivalent to :func:`compile_graph` then :func:`run`. Call :func:`wait`
+    to synchronize and reclaim. Prefer the split API in training loops.
     """
     _C.execute()
 

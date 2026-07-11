@@ -214,7 +214,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "execute",
         &torch_nntile::execute_pending_graph,
-        "Compile, run, and reset the pending TensorGraph (legacy graph mode)");
+        "Compile and submit the pending TensorGraph (does not wait; call wait())");
     m.def(
         "compile_graph",
         &torch_nntile::compile_graph,

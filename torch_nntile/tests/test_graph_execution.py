@@ -192,6 +192,68 @@ def test_execute_idempotent_on_empty():
     )
 
 
+def test_execute_does_not_wait():
+    """execute() is compile+run only; wait() alone synchronizes."""
+    _run_graph_subprocess(
+        """
+        import os
+
+        import torch
+        import torch_nntile
+
+        def capture_print_info():
+            # C++ print_info writes to C stdout (bypasses sys.stdout redirect).
+            r, w = os.pipe()
+            old = os.dup(1)
+            try:
+                os.dup2(w, 1)
+                os.close(w)
+                w = -1
+                torch_nntile.print_info()
+                os.fsync(1)
+            finally:
+                os.dup2(old, 1)
+                os.close(old)
+                if w >= 0:
+                    os.close(w)
+            chunks = []
+            while True:
+                part = os.read(r, 65536)
+                if not part:
+                    break
+                chunks.append(part)
+                if len(part) < 65536:
+                    break
+            os.close(r)
+            return b"".join(chunks).decode()
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(2, 3).to("nntile")
+        w = torch.randn(4, 3).to("nntile")
+        y = torch.nn.functional.relu(
+            torch.nn.functional.linear(x, w, None)
+        )
+        torch_nntile.execute()
+        assert not torch_nntile.has_pending_graph()
+
+        info = capture_print_info()
+        assert "wait:          0 calls" in info, info
+        assert "run (submit):  1 calls" in info, info
+
+        torch_nntile.wait()
+        info = capture_print_info()
+        assert "wait:          1 calls" in info, info
+        y_ref = torch.nn.functional.relu(
+            torch.nn.functional.linear(x.cpu(), w.cpu(), None)
+        )
+        assert torch.allclose(y.cpu(), y_ref, rtol=1e-4, atol=1e-4)
+        """
+    )
+
+
 def test_graph_cross_entropy_backward_and_sgd():
     _run_graph_subprocess(
         """

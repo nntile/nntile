@@ -1068,12 +1068,10 @@ void sync_param_grad_aliases_locked()
 
 void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
 {
-    compile_graph_locked(false, pin_drop);
+    // compile + run only. Never wait here — callers must use wait() /
+    // wait_graph_session() (same contract as compile_graph + run).
+    compile_graph_locked(true, pin_drop);
     run_graph_locked();
-    // Legacy execute() flushes then clears recorder pins; wait first so
-    // scatter staging is done before host buffers are released.
-    finish_run_locked();
-    clear_pending_graph_after_compile_locked(pin_drop);
 }
 
 void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
@@ -1111,6 +1109,10 @@ void execute_pending_graph()
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         execute_pending_graph_locked(pin_drop);
+        if (g_exec != nullptr && !pin_drop.empty())
+        {
+            g_exec->pin_hold = std::move(pin_drop);
+        }
     }
 }
 
@@ -1200,6 +1202,13 @@ void gather_logical_to_staging_and_read_locked(
             "torch_nntile: gather readout requires an active TensorGraph");
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
+    // Finish a prior async run() before recording gather ops. Otherwise
+    // compile_graph_locked() would wait+compact and drop_all_ops() would
+    // wipe the clear/gather we are about to append.
+    if (g_run_cleanup_pending)
+    {
+        finish_run_locked();
+    }
     nntile::TensorGraph::TensorNode *staging =
         new_ephemeral_staging_node_locked(logical, "readout");
     if (staging == nullptr)
@@ -1239,6 +1248,13 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     const std::size_t count =
         static_cast<std::size_t>(logical->nelems());
     void *host_ptr = dst.storage().data_ptr().get();
+
+    // Sync a prior async execute()/run() even when no ops are pending so
+    // subsequent gather recording is not wiped by wait-side drop_all_ops().
+    if (g_run_cleanup_pending)
+    {
+        finish_run_locked();
+    }
 
     if (g_graph != nullptr &&
         g_graph->num_ops() > g_graph->phase_seal_cursor())

@@ -170,7 +170,8 @@ on `device="nntile"` (use `.to("nntile")` explicitly).
   on `device="nntile"` (dim0 = query, dim1 = key).
 
 Ops record into a shared ``TensorGraph``; flush with ``compile_graph()`` /
-``run()`` (or legacy ``execute()``) before host readout. Use
+``run()`` (or ``execute()``, which is compile+run and does **not** wait)
+before host readout; call ``wait()`` to synchronize. Use
 `torch_nntile.nn.weight_layout` to convert HF/PyTorch attention weights before
 NNTile-layout projection GEMMs.
 
@@ -216,10 +217,10 @@ Use this to verify that a model forward uses only nntile kernels.
 ### TensorGraph execution
 
 All ops record into a shared ``TensorGraph``. Flush with ``compile_graph()`` and
-``run()`` (or the legacy one-shot ``execute()``) before relying on tile side
-effects other than host readout. ``run()`` **submits asynchronously** and does
-not wait; call ``wait()`` before host readout or the next dependent phase
-(``.to("cpu")`` also waits).
+``run()`` (or ``execute()`` = compile+run) before relying on tile side
+effects other than host readout. ``compile_graph()`` / ``run()`` /
+``execute()`` do **not** wait; call ``wait()`` before host readout or the next
+dependent phase (``.to("cpu")`` also waits).
 
 ```python
 torch_nntile.init_context(ncpu=1, ncuda=0, cpu_fallback=False)

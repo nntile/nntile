@@ -57,6 +57,23 @@ Session growth is gone: 500-step ms/step no longer climbs past ~4.8.
 `append_phase` stays ~1.1 ms/call (still lowers ~75 tensor ops every step).
 That is the remaining gap vs PyTorch (~1.6 ms/step total for real compute).
 
+## Async API contract
+
+`compile_graph()` / `run()` / `execute()` / `wait()`:
+
+- **`compile_graph()` / `run()` / `execute()`** — host work on the calling
+  thread (may enqueue StarPU tasks). They do **not** join StarPU.
+  `execute()` is compile+run only (same as the split API).
+- **`wait()`** — the only API that blocks on StarPU completion and runs
+  post-run reclaim / session compact.
+
+Do **not** treat “async compile” as moving host CPU work onto a background
+thread and joining in `wait()` — that only renames timers.
+
+Note: a later `compile_graph()` / `execute()` still finishes a prior async
+`run()` before sealing the next phase (correctness). That is not a wait
+hidden inside a standalone `execute()` of a fresh phase.
+
 ## Remaining work to approach PyTorch
 
 - Activation buffer pool / stable logical nodes (skip `build_tile_nodes` + layout
