@@ -441,8 +441,8 @@ def train_nntile(
                 f"loss={loss_cpu:.4f} (lr={lr:.6f})"
             )
 
-        # Drop step temporaries so the next compile sees mark_output(false)
-        # and can reclaim StarPU tiles (see torch_nntile tensor architecture).
+        # Drop step temporaries so mark_output(false) is visible to the
+        # pending_output_reclaim pass (end of this run / start of next compile).
         del logits
         del loss
         gc.collect()

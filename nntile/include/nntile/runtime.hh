@@ -128,6 +128,11 @@ class Runtime
 
     void invalidate_initialized(NNGraph::TensorNode const *tensor);
 
+    //! Drop StarPU buffers for a logical tensor that is no longer marked
+    //! input/output. No-op if still marked, unknown, or never allocated.
+    void invalidate_logical_tiles(
+        TensorGraph::TensorNode const *logical);
+
     //! Mark logical tensor tiles as host-populated (after acquire write I/O).
     void mark_initialized(TensorGraph::TensorNode const *tensor);
 
@@ -205,7 +210,6 @@ class Runtime
     void eliminate_dead_ops();
     void build_tile_last_consumer_map();
     void sync_tile_marks_from_logical();
-    void invalidate_non_output_tiles();
     void release_dead_tiles_after_op(size_t op_idx);
     void invalidate_tile_buffer(
         const TileNode *node,

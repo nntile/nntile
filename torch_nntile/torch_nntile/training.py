@@ -546,8 +546,8 @@ def train_full_batch_step(
         if print_axis_groups:
             torch_nntile.print_axis_groups()
         # Keep logits marked through compile/run and loss readout so this
-        # phase (and gather) can execute. Drop afterward so the next compile
-        # can invalidate_submit the buffer via mark_output(false).
+        # phase (and gather) can execute. Drop afterward so pending_output
+        # reclaim can invalidate_submit via mark_output(false).
         torch_nntile.compile_graph()
         torch_nntile.run()
 

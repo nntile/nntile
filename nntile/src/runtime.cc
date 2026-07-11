@@ -117,14 +117,13 @@ void Runtime::compile()
         compiled_graph_op_count_ = graph_ops.size();
     }
 
-    // Refresh tile marks from logical TensorNodes before DCE / reclaim so
+    // Refresh tile marks from logical TensorNodes before DCE so
     // incremental sessions see mark_output(false) after Python drops refs.
+    // StarPU reclaim of unmarked phase outputs is deferred to run() via an
+    // explicit pending list (see torch_nntile pending_output_reclaim).
     sync_tile_marks_from_logical();
     eliminate_dead_ops();
     build_tile_last_consumer_map();
-    // Free StarPU buffers for unmarked tiles not used by the pending
-    // (not-yet-executed) op slice.
-    invalidate_non_output_tiles();
     allocate_missing_tiles();
     tile_adoption_.clear();
 
@@ -195,51 +194,49 @@ void Runtime::sync_tile_marks_from_logical()
     }
 }
 
-void Runtime::invalidate_non_output_tiles()
+void Runtime::invalidate_logical_tiles(
+    TensorGraph::TensorNode const *logical)
 {
-    std::unordered_set<const TileGraph::TileNode *> needed_by_pending;
-    const size_t n = execution_order_.size();
-    const size_t begin =
-        executed_op_end_ < n ? executed_op_end_ : n;
-    for (size_t i = begin; i < n; ++i)
+    if (logical == nullptr)
     {
-        for (const auto *in : execution_order_[i]->inputs())
-        {
-            if (in != nullptr)
-            {
-                needed_by_pending.insert(in);
-            }
-        }
-        for (const auto *out : execution_order_[i]->outputs())
-        {
-            if (out != nullptr)
-            {
-                needed_by_pending.insert(out);
-            }
-        }
+        return;
     }
-
-    std::vector<const TileGraph::TileNode *> to_release;
-    to_release.reserve(tile_map_.size());
-    for (const auto &[tile, tile_ptr] : tile_map_)
+    // Persistence is driven by marks: still-marked tensors stay allocated.
+    if (logical->is_output() || logical->is_input())
     {
-        (void)tile_ptr;
+        return;
+    }
+    const TileGraph::TensorDescriptor *desc =
+        graph_.get_tensor_descriptor(logical);
+    if (desc == nullptr)
+    {
+        return;
+    }
+    for (TileGraph::TileNode *tile : desc->tiles)
+    {
         if (tile == nullptr)
         {
             continue;
         }
-        if (tile->is_output() || tile->is_input())
+        tile->mark_output(false);
+    }
+
+    std::vector<const TileGraph::TileNode *> to_release;
+    to_release.reserve(desc->tiles.size());
+    for (TileGraph::TileNode *tile : desc->tiles)
+    {
+        if (tile == nullptr || tile->is_input())
         {
             continue;
         }
-        if (needed_by_pending.count(tile) != 0)
+        if (tile_map_.count(tile) != 0)
         {
-            continue;
+            to_release.push_back(tile);
         }
-        to_release.push_back(tile);
     }
     if (to_release.empty())
     {
+        init_state_.erase(logical);
         return;
     }
     if (starpu_is_initialized())
@@ -256,6 +253,7 @@ void Runtime::invalidate_non_output_tiles()
         invalidate_tile_buffer(tile, it->second);
         tile_map_.erase(it);
     }
+    init_state_.erase(logical);
 }
 
 void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
