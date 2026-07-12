@@ -872,10 +872,10 @@ void compact_tensor_graph_session_locked()
         return;
     }
     g_graph->drop_all_ops();
-    if (g_exec != nullptr)
-    {
-        g_exec->pending_output_reclaim.clear();
-    }
+    // Keep pending_output_reclaim. Step temps are often still mark_output
+    // at wait() (Python dels them after wait); reclaim parks them as
+    // still_marked. Clearing here dropped that list and leaked their
+    // StarPU tiles every iteration (VRAM grew without CE).
 }
 
 void compile_graph_locked(
