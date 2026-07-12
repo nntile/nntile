@@ -19,6 +19,7 @@
 
 // Standard library headers
 #include <set>
+#include <unordered_set>
 
 // NNTile headers
 #include <nntile/tensor/graph_decl.hh>
@@ -65,6 +66,10 @@ inline void TensorGraph::add_op(
                                         "' does not belong to this graph");
         }
         output->note_produced();
+        if (op_node->op_name() != "FILL")
+        {
+            output->clear_constant_value();
+        }
     }
 
     op_node->id_ = next_op_id_++;
@@ -103,6 +108,10 @@ inline void TensorGraph::prepend_ops(
                     output->name() + "' does not belong to this graph");
             }
             output->note_produced();
+            if (op_node->op_name() != "FILL")
+            {
+                output->clear_constant_value();
+            }
         }
         op_node->id_ = next_op_id_++;
     }
@@ -114,17 +123,40 @@ inline void TensorGraph::prepend_ops(
 
 inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase()
 {
-    std::vector<TensorNode const *> carried;
-    carried.reserve(marked_io_.size());
-    for (TensorNode const *t : marked_io_)
+    // Carry only tensors touched by this phase's ops. Do not walk
+    // marked_io_: every historical mark_input (e.g. preloaded batches)
+    // lives there, and scanning it made seal O(session) each compile.
+    // Live outputs used later appear as op inputs/outputs in that phase.
+    std::unordered_set<TensorNode const *> touched;
+    const size_t phase_ops = ops_.size() - phase_seal_cursor_;
+    touched.reserve(phase_ops * 4 + 8);
+    for (size_t i = phase_seal_cursor_; i < ops_.size(); ++i)
     {
-        if (t != nullptr && (t->is_input() || t->is_output()))
+        std::shared_ptr<OpNode> const &op = ops_[i];
+        if (op == nullptr)
         {
-            carried.push_back(t);
+            continue;
+        }
+        for (TensorNode const *in : op->inputs())
+        {
+            if (in != nullptr)
+            {
+                touched.insert(in);
+            }
+        }
+        for (TensorNode *ot : op->outputs())
+        {
+            if (ot != nullptr)
+            {
+                touched.insert(ot);
+            }
         }
     }
-    // Stable order by node id (insertion order) so pending-compile equality
-    // checks compare carried lists by index deterministically.
+    std::vector<TensorNode const *> carried(
+        touched.begin(),
+        touched.end());
+    // Stable order by node id so pending-compile equality checks compare
+    // carried lists by index deterministically.
     std::sort(
         carried.begin(),
         carried.end(),
@@ -188,7 +220,11 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase(
     return snap;
 }
 
-inline void TensorGraph::reset_phase_seal_cursor() { phase_seal_cursor_ = 0; }
+inline void TensorGraph::reset_phase_seal_cursor()
+{
+    phase_seal_cursor_ = 0;
+    scatter_prefix_end_ = 0;
+}
 
 inline void TensorGraph::drop_all_ops()
 {
@@ -201,6 +237,34 @@ inline void TensorGraph::drop_all_ops()
     {
         return;
     }
+    // Extend the known SCATTER prefix without rescanning prior scatters.
+    // After the first compact this loop is O(1); during the initial preload
+    // seal it walks new SCATTERs once.
+    while (scatter_prefix_end_ < phase_seal_cursor_ &&
+           ops_[scatter_prefix_end_] != nullptr &&
+           ops_[scatter_prefix_end_]->op_name() == "SCATTER")
+    {
+        ++scatter_prefix_end_;
+    }
+    bool sealed_middle_clean = true;
+    for (size_t i = scatter_prefix_end_; i < phase_seal_cursor_; ++i)
+    {
+        if (ops_[i] != nullptr && ops_[i]->op_name() == "SCATTER")
+        {
+            sealed_middle_clean = false;
+            break;
+        }
+    }
+    if (sealed_middle_clean)
+    {
+        // [SCATTERs | sealed step ops | unsealed] -> drop sealed step ops.
+        ops_.erase(
+            ops_.begin() + static_cast<std::ptrdiff_t>(scatter_prefix_end_),
+            ops_.begin() + static_cast<std::ptrdiff_t>(phase_seal_cursor_));
+        phase_seal_cursor_ = scatter_prefix_end_;
+        return;
+    }
+    // SCATTERs were not a clean prefix; fall back to a full rebuild.
     std::vector<std::shared_ptr<OpNode>> kept;
     kept.reserve(ops_.size());
     size_t sealed_kept = 0;
@@ -220,6 +284,7 @@ inline void TensorGraph::drop_all_ops()
     }
     ops_ = std::move(kept);
     phase_seal_cursor_ = sealed_kept;
+    scatter_prefix_end_ = sealed_kept;
 }
 
 inline void TensorGraph::gc_unmarked_data_nodes()

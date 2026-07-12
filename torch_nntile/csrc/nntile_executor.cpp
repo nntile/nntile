@@ -982,7 +982,8 @@ void tensor_cross_entropy_forward_fp32(
     const at::Tensor &labels,
     std::int64_t ignore_index,
     bool mean_reduction,
-    at::Tensor &loss)
+    at::Tensor &loss,
+    at::Tensor &maxsumexp)
 {
     const std::vector<nntile::Index> logits_graph =
         pytorch_shape_to_graph(logits.sizes());
@@ -1008,11 +1009,13 @@ void tensor_cross_entropy_forward_fp32(
         {},
         nntile::DataType::FP32,
         false);
+    auto *maxsumexp_node = get_or_create_data_node(
+        maxsumexp,
+        maxsumexp_graph,
+        nntile::DataType::FP32,
+        false);
 
     auto &graph = *logits_node->graph();
-    auto *maxsumexp_node =
-        graph.data(maxsumexp_graph, nntile::DataType::FP32)
-            ->set_name("maxsumexp");
     auto *logsumexp_node =
         graph.data(labels_graph, nntile::DataType::FP32)->set_name("logsumexp");
 
@@ -1033,12 +1036,14 @@ void tensor_cross_entropy_forward_fp32(
         static_cast<nntile::Index>(ignore_index));
 
     register_data_node(loss, loss_node);
+    register_data_node(maxsumexp, maxsumexp_node);
 }
 
 void tensor_cross_entropy_backward_fp32(
     const at::Tensor &logits,
     const at::Tensor &labels,
     const at::Tensor &grad_output,
+    const at::Tensor &maxsumexp,
     at::Tensor &grad_row,
     at::Tensor &grad_logits,
     std::int64_t ignore_index,
@@ -1049,37 +1054,7 @@ void tensor_cross_entropy_backward_fp32(
     const std::vector<nntile::Index> labels_graph =
         pytorch_shape_to_graph(labels.sizes());
     const nntile::Index class_axis = class_graph_axis(logits.sizes());
-    const std::vector<nntile::Index> maxsumexp_graph =
-        maxsumexp_graph_shape(logits_graph, class_axis);
     const float ce_scale = cross_entropy_scale(labels.sizes(), mean_reduction);
-
-    auto broadcast_grad_output_to_row = [&](
-        nntile::TensorGraph::TensorNode *grad_output_node,
-        nntile::TensorGraph::TensorNode *grad_row_node,
-        nntile::TensorGraph &graph,
-        const std::vector<nntile::Index> &labels_graph_shape)
-    {
-        nntile::TensorGraph::TensorNode *src_node = grad_output_node;
-        for (std::size_t dim = 0; dim < labels_graph_shape.size(); ++dim)
-        {
-            nntile::TensorGraph::TensorNode *dst_node = grad_row_node;
-            if (dim + 1 < labels_graph_shape.size())
-            {
-                std::vector<nntile::Index> dst_shape(
-                    labels_graph_shape.begin(),
-                    labels_graph_shape.begin() +
-                        static_cast<std::ptrdiff_t>(dim) + 1);
-                dst_node = graph.data(dst_shape, nntile::DataType::FP32)
-                               ->set_name("grad_output_broadcast");
-            }
-            nntile::tensor::scale_slice(
-                static_cast<nntile::Scalar>(1.0),
-                src_node,
-                dst_node,
-                static_cast<nntile::Index>(dim));
-            src_node = dst_node;
-        }
-    };
 
     auto *logits_node = get_or_create_data_node(
         logits,
@@ -1097,13 +1072,18 @@ void tensor_cross_entropy_backward_fp32(
         nntile::DataType::FP32,
         !is_metadata_only_tensor(grad_output) &&
             mark_as_input_for_operand(grad_output));
-    if (is_metadata_only_tensor(grad_output))
+    // ones_like(loss) may mark a constant without FILL; only fill if needed.
+    if (is_metadata_only_tensor(grad_output) &&
+        !grad_output_node->has_producer() &&
+        !grad_output_node->has_constant_value())
     {
-        nntile::tensor::fill(static_cast<nntile::Scalar>(1.0), grad_output_node);
+        nntile::tensor::fill(
+            static_cast<nntile::Scalar>(1.0),
+            grad_output_node);
     }
-    auto *grad_row_node = get_or_create_data_node(
-        grad_row,
-        labels_graph,
+    auto *maxsumexp_node = get_or_create_data_node(
+        maxsumexp,
+        maxsumexp_graph_shape(logits_graph, class_axis),
         nntile::DataType::FP32,
         false);
     auto *grad_logits_node = get_or_create_data_node(
@@ -1112,41 +1092,62 @@ void tensor_cross_entropy_backward_fp32(
         nntile::DataType::FP32,
         false);
 
-    auto &graph = *logits_node->graph();
-    auto *maxsumexp_node =
-        graph.data(maxsumexp_graph, nntile::DataType::FP32)
-            ->set_name("maxsumexp");
+    // Unit / constant scalar grad_output: fold into softmax/subtract scale and
+    // skip broadcast + multiply_slice (autograd ones_like path).
+    const bool fold_constant_grad = grad_output_node->has_constant_value();
+    const float grad_scale = fold_constant_grad
+        ? static_cast<float>(grad_output_node->constant_value())
+        : 1.0f;
+    const float effective_scale = ce_scale * grad_scale;
 
-    // Broadcast scalar grad_output to labels shape via chained scale_slice.
-    broadcast_grad_output_to_row(
-        grad_output_node,
-        grad_row_node,
-        graph,
-        labels_graph);
-
-    nntile::tensor::clear(maxsumexp_node);
-    nntile::tensor::maxsumexp(
-        logits_node,
-        maxsumexp_node,
-        class_axis,
-        kRedux);
     nntile::tensor::clear(grad_logits_node);
     nntile::tensor::softmax(
         maxsumexp_node,
         logits_node,
         grad_logits_node,
-        static_cast<nntile::Scalar>(ce_scale),
+        static_cast<nntile::Scalar>(effective_scale),
         class_axis);
     nntile::tensor::subtract_indexed_outputs(
-        static_cast<nntile::Scalar>(ce_scale),
+        static_cast<nntile::Scalar>(effective_scale),
         labels_node,
         grad_logits_node,
         static_cast<nntile::Index>(ignore_index));
-    nntile::tensor::multiply_slice(
-        static_cast<nntile::Scalar>(1.0),
-        grad_row_node,
-        grad_logits_node,
-        class_axis);
+
+    if (!fold_constant_grad)
+    {
+        auto *grad_row_node = get_or_create_data_node(
+            grad_row,
+            labels_graph,
+            nntile::DataType::FP32,
+            false);
+        auto &graph = *logits_node->graph();
+        nntile::TensorGraph::TensorNode *src_node = grad_output_node;
+        for (std::size_t dim = 0; dim < labels_graph.size(); ++dim)
+        {
+            nntile::TensorGraph::TensorNode *dst_node = grad_row_node;
+            if (dim + 1 < labels_graph.size())
+            {
+                std::vector<nntile::Index> dst_shape(
+                    labels_graph.begin(),
+                    labels_graph.begin() +
+                        static_cast<std::ptrdiff_t>(dim) + 1);
+                dst_node = graph.data(dst_shape, nntile::DataType::FP32)
+                               ->set_name("grad_output_broadcast");
+            }
+            nntile::tensor::scale_slice(
+                static_cast<nntile::Scalar>(1.0),
+                src_node,
+                dst_node,
+                static_cast<nntile::Index>(dim));
+            src_node = dst_node;
+        }
+        nntile::tensor::multiply_slice(
+            static_cast<nntile::Scalar>(1.0),
+            grad_row_node,
+            grad_logits_node,
+            class_axis);
+        register_data_node(grad_row, grad_row_node);
+    }
 
     register_data_node(grad_logits, grad_logits_node);
 }
@@ -3000,7 +3001,8 @@ void tensor_cross_entropy_forward_fp32(
     const at::Tensor & /*labels*/,
     std::int64_t /*ignore_index*/,
     bool /*mean_reduction*/,
-    at::Tensor & /*loss*/)
+    at::Tensor & /*loss*/,
+    at::Tensor & /*maxsumexp*/)
 {
     require_libnntile("cross_entropy_forward");
 }
@@ -3009,6 +3011,7 @@ void tensor_cross_entropy_backward_fp32(
     const at::Tensor & /*logits*/,
     const at::Tensor & /*labels*/,
     const at::Tensor & /*grad_output*/,
+    const at::Tensor & /*maxsumexp*/,
     at::Tensor & /*grad_row*/,
     at::Tensor & /*grad_logits*/,
     std::int64_t /*ignore_index*/,

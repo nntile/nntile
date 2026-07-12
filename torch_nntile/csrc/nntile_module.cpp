@@ -276,7 +276,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "cross_entropy_forward",
         &torch_nntile::cross_entropy_forward,
-        "NNTile cross-entropy forward (logits on nntile)",
+        "NNTile cross-entropy forward; returns (loss, maxsumexp)",
         py::arg("logits"),
         py::arg("target"),
         py::arg("reduction") = 1,
@@ -284,10 +284,11 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "cross_entropy_backward",
         &torch_nntile::cross_entropy_backward,
-        "NNTile cross-entropy backward w.r.t. logits",
+        "NNTile cross-entropy backward w.r.t. logits (reuses maxsumexp)",
         py::arg("logits"),
         py::arg("target"),
         py::arg("grad_output"),
+        py::arg("maxsumexp"),
         py::arg("reduction") = 1,
         py::arg("ignore_index") = -100);
     m.def(

@@ -33,6 +33,7 @@ void fill(Scalar val, TensorGraph::TensorNode* x)
         throw std::invalid_argument("fill: input tensor must be non-null");
     }
 
+    x->set_constant_value(val);
     auto op = std::make_shared<TensorFillOp>(x, val);
     x->graph()->add_op(op);
 }

@@ -9,8 +9,10 @@
 Cross-entropy uses libnntile tensor ops (``maxsumexp``, ``logsumexp``,
 ``total_sum_accum``, ``softmax``, ``subtract_indexed_outputs``). Logits must
 have the class dimension last (``[..., C]``); labels match logits without that
-axis. Backward broadcasts scalar ``grad_output`` with chained ``scale_slice``
-(one per label dimension), then ``multiply_slice`` along the class axis.
+axis. Forward returns ``maxsumexp`` for reuse in backward. When
+``grad_output`` is a constant unit scalar (autograd ``ones_like(loss)``),
+backward folds that scale into softmax/subtract and skips broadcast
+``scale_slice`` / ``multiply_slice``.
 
 SGD uses the fused ``tensor::sgd_step`` kernel (momentum, weight decay,
 Nesterov), mirroring ``nntile::optim::SGD`` in the main package.
@@ -44,19 +46,22 @@ class _NntileCrossEntropy(torch.autograd.Function):
         reduction: int,
         ignore_index: int,
     ) -> torch.Tensor:
-        loss = _C.cross_entropy_forward(logits, target, reduction, ignore_index)
-        ctx.save_for_backward(logits, target)
+        loss, maxsumexp = _C.cross_entropy_forward(
+            logits, target, reduction, ignore_index
+        )
+        ctx.save_for_backward(logits, target, maxsumexp)
         ctx.reduction = int(reduction)
         ctx.ignore_index = int(ignore_index)
         return loss
 
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
-        logits, target = ctx.saved_tensors
+        logits, target, maxsumexp = ctx.saved_tensors
         grad_logits = _C.cross_entropy_backward(
             logits,
             target,
             grad_output,
+            maxsumexp,
             ctx.reduction,
             ctx.ignore_index,
         )

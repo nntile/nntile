@@ -86,6 +86,30 @@ Root causes and fixes:
 | gemm record avg | 0.0100 ms | **0.0025 ms** |
 | linear_backward avg | 0.061 ms (grew w/ steps) | **0.014 ms** (flat) |
 
+### Second session-scaling fix (seal / drop / CE)
+
+After the capture fixes above, **compile** still grew with preloaded
+batches. Two host-side causes:
+
+1. **`seal_phase()`** carried every historical `mark_input` (all MNIST
+   ingress tensors) into each phase, so append refreshed marks on
+   O(session) tiles every step. It now carries only tensors referenced by
+   the sealed op slice.
+2. **`drop_all_ops()`** rebuilt the full `ops_` vector (all retained
+   `SCATTER`s) every wait. It now keeps a SCATTER prefix length and erases
+   only the sealed non-SCATTER middle (O(phase) after the first compact).
+
+On the **record** path:
+
+1. **Cross-entropy** reuses forward `maxsumexp` in backward and folds a
+   constant unit `ones_like(loss)` scale (skips broadcast + `multiply_slice`).
+2. **`set_axes`** unifies via `merge_axis` (union-by-size) instead of a
+   linear erase from `AxisDescriptor::members`.
+
+Residual compile growth vs preload size still comes from the retained
+tile-graph history of ingress `SCATTER`s (runtime DCE / last-consumer over
+`execution_order_`). Record ms/step stays flat with session length.
+
 ## Async API contract
 
 ### `torch_nntile` (Python)
