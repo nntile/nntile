@@ -190,8 +190,34 @@ inline void TensorGraph::reset_phase_seal_cursor() { phase_seal_cursor_ = 0; }
 
 inline void TensorGraph::drop_all_ops()
 {
-    ops_.clear();
-    phase_seal_cursor_ = 0;
+    // Compact sealed history, but keep SCATTER ops for live ingress tensors.
+    // Dropping those edges while TileGraph/Runtime still hold the lowered
+    // copies left host-ingressed inputs corrupt on the next compile/run
+    // (torch_nntile bmm two-epoch). Unsealed ops past the seal cursor are
+    // always preserved (next phase recorded during a prior async run).
+    if (phase_seal_cursor_ == 0)
+    {
+        return;
+    }
+    std::vector<std::shared_ptr<OpNode>> kept;
+    kept.reserve(ops_.size());
+    size_t sealed_kept = 0;
+    for (size_t i = 0; i < ops_.size(); ++i)
+    {
+        std::shared_ptr<OpNode> const &op = ops_[i];
+        if (i < phase_seal_cursor_)
+        {
+            if (op != nullptr && op->op_name() == "SCATTER")
+            {
+                kept.push_back(op);
+                ++sealed_kept;
+            }
+            continue;
+        }
+        kept.push_back(op);
+    }
+    ops_ = std::move(kept);
+    phase_seal_cursor_ = sealed_kept;
 }
 
 inline void TensorGraph::gc_unmarked_data_nodes()

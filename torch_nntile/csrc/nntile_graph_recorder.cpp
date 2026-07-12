@@ -314,6 +314,9 @@ void apply_pending_axis_tiling_locked()
     {
         g_exec->session_tiling->clear();
     }
+    // Pending tiling is one-shot: applied at this compile, do not re-apply
+    // (and clear session layouts) on every subsequent compile.
+    g_axis_tiling_by_name.clear();
 }
 
 
@@ -814,8 +817,8 @@ void collect_scatter_stagings_from_phase_locked(
 void compact_tensor_graph_session_locked()
 {
     // Drop sealed TensorGraph ops so the next record/compile is O(phase).
-    // Keep data nodes and session_tiling layouts (TileGraph still references
-    // logical nodes; clearing layouts forced a full rebuild every step).
+    // Unsealed ops recorded after the last seal (next phase already in
+    // flight while a prior run() completes) are preserved.
     if (g_graph == nullptr)
     {
         return;
@@ -966,6 +969,19 @@ void finish_run_locked()
         g_exec->pending_scatter_stagings)
     {
         invalidate_staging_tile_submit_locked(staging);
+        // .to("nntile") marks ingress staging as input; clear marks after
+        // scatter completes so later seals do not keep carrying stagings.
+        // Drop incremental tile state so the next compile cannot reuse the
+        // invalidated staging tile nodes and allocate empty replacements.
+        staging->mark_input(false);
+        staging->mark_output(false);
+        g_exec->inc_state.tensor_to_tiles.erase(staging);
+        g_exec->inc_state.tensor_layout_fp.erase(staging);
+        g_exec->tile_map.erase(staging);
+        if (g_exec->session_tiling != nullptr)
+        {
+            g_exec->session_tiling->erase(staging);
+        }
     }
     g_exec->pending_scatter_stagings.clear();
     if (g_defer_pending_clear_after_run)
@@ -1318,6 +1334,8 @@ void init_nntile_input_from_cpu(
 
     auto *logical = g_graph->data(shape, dtype);
     apply_axis_name_hints_locked(impl_key, logical);
+    // Host-ingressed tensors are persistent inputs for the session.
+    logical->mark_input(true);
 
     auto binding = std::make_shared<NNTileBinding>(logical);
     attach_binding(nntile_dst, binding);

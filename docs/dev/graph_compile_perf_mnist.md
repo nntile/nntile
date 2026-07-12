@@ -20,8 +20,10 @@ Script: `torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py`.
 
 Not a timer rename. Changes that cut CPU:
 
-1. **`TensorGraph::drop_all_ops()` after each `wait()`** — sealed op history no
-   longer accumulates (`session tensor_graph_ops` returns to 0).
+1. **`TensorGraph::drop_all_ops()` after each `wait()`** — drops sealed
+   non-`SCATTER` ops (keeps ingress scatters + any unsealed next-phase ops)
+   so compile stays O(phase) without wiping a pending step or corrupting
+   host-ingressed inputs on the next run.
 2. **Remove full `tile_map_` scan in `Runtime::sync_tile_marks_from_logical`**
    — reclaim uses `invalidate_logical_tiles` / pending_output_reclaim instead.
 3. Reverted the earlier fake “async compile = move work into wait” approach.

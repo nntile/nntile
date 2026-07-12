@@ -112,8 +112,11 @@ class TensorGraph
 
     size_t phase_seal_cursor() const { return phase_seal_cursor_; }
 
-    //! Drop all recorded ops and rewind the seal cursor. Persistent data
-    //! nodes remain; used by incremental training to keep compile O(phase).
+    //! Drop sealed non-ingress ops and rewind the seal cursor.
+    //! Sealed ``SCATTER`` ops are kept so host-ingressed inputs remain
+    //! valid across ``wait()`` compaction. Unsealed ops past the seal
+    //! cursor are always preserved (next phase recorded during a prior
+    //! async ``run()``). Persistent data nodes remain.
     void drop_all_ops();
 
     //! Destroy data nodes that are not marked input/output. Call only after
