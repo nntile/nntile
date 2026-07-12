@@ -21,6 +21,9 @@ training time.
 
 Pass ``--compare-torch`` with ``--device nntile`` to also train a CPU
 PyTorch reference and print per-epoch loss / final weight parity.
+Nntile-only flags (``--ncpu``, ``--ncuda``, ``--restrict-*``,
+``--axis-tiling``, ``--print-axis-groups``, ``--compare-torch``) are
+accepted on ``--device cpu`` / ``cuda`` but ignored (reported in output).
 
 Axis-group naming and tiling (optional) are configured in this script:
 
@@ -299,20 +302,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--ncpu",
         type=int,
         default=-1,
-        help="StarPU CPU workers for nntile (-1 = env default)",
+        help=(
+            "StarPU CPU workers for nntile (-1 = env default; "
+            "ignored on --device cpu/cuda)"
+        ),
     )
     parser.add_argument(
         "--ncuda",
         type=int,
         default=-1,
-        help="StarPU CUDA workers for nntile (-1 = env default)",
+        help=(
+            "StarPU CUDA workers for nntile (-1 = env default; "
+            "ignored on --device cpu/cuda)"
+        ),
     )
     parser.add_argument(
         "--compare-torch",
         action="store_true",
         help=(
             "With --device nntile: also train a CPU PyTorch reference and "
-            "print loss/weight parity"
+            "print loss/weight parity (ignored on --device cpu/cuda)"
         ),
     )
     parser.add_argument(
@@ -322,23 +331,33 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="NAME=SIZES",
         help=(
             "Axis-group tiling for nntile, e.g. batch=15000,15000,15000,15000 "
-            "or features=392,392 or hidden=128,128. Repeat for multiple groups."
+            "or features=392,392 or hidden=128,128. Repeat for multiple "
+            "groups (ignored on --device cpu/cuda)."
         ),
     )
     parser.add_argument(
         "--print-axis-groups",
         action="store_true",
-        help="Print axis groups after the first nntile training step",
+        help=(
+            "Print axis groups after the first nntile training step "
+            "(ignored on --device cpu/cuda)"
+        ),
     )
     parser.add_argument(
         "--restrict-cuda",
         action="store_true",
-        help="Pin nntile kernels to CUDA workers (requires ncuda > 0)",
+        help=(
+            "Pin nntile kernels to CUDA workers (requires ncuda > 0; "
+            "ignored on --device cpu/cuda)"
+        ),
     )
     parser.add_argument(
         "--restrict-cpu",
         action="store_true",
-        help="Pin nntile kernels to CPU workers",
+        help=(
+            "Pin nntile kernels to CPU workers "
+            "(ignored on --device cpu/cuda)"
+        ),
     )
     parser.add_argument(
         "--verbose",
@@ -352,31 +371,55 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _nntile_only_args_set(args: argparse.Namespace) -> list[str]:
+    """Return nntile-only CLI flags that were explicitly set."""
+    ignored: list[str] = []
+    if args.ncpu != -1:
+        ignored.append(f"--ncpu={args.ncpu}")
+    if args.ncuda != -1:
+        ignored.append(f"--ncuda={args.ncuda}")
+    if args.restrict_cuda:
+        ignored.append("--restrict-cuda")
+    if args.restrict_cpu:
+        ignored.append("--restrict-cpu")
+    if args.axis_tiling:
+        ignored.append("--axis-tiling")
+    if args.print_axis_groups:
+        ignored.append("--print-axis-groups")
+    if args.compare_torch:
+        ignored.append("--compare-torch")
+    return ignored
+
+
 def main() -> None:
     args = _build_parser().parse_args()
     axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
     compare_torch = bool(args.compare_torch)
     use_nntile = args.device == "nntile"
 
-    if compare_torch and not use_nntile:
-        raise SystemExit("--compare-torch requires --device nntile")
-    if args.restrict_cuda and args.restrict_cpu:
+    if use_nntile and args.restrict_cuda and args.restrict_cpu:
         raise SystemExit("Pass only one of --restrict-cuda / --restrict-cpu")
-    if (args.restrict_cuda or args.restrict_cpu) and not use_nntile:
-        raise SystemExit(
-            "--restrict-cuda / --restrict-cpu require --device nntile"
-        )
-    if axis_group_tiling and not use_nntile:
-        raise SystemExit("--axis-tiling requires --device nntile")
 
     if use_nntile and compare_torch:
         print("Mode: nntile + CPU torch parity")
     else:
         print(f"Mode: {args.device}-only")
+
     if use_nntile:
         print(f"StarPU workers: ncpu={args.ncpu} ncuda={args.ncuda}")
-    if axis_group_tiling:
-        print(f"Axis-group tiling: {axis_group_tiling}")
+        if axis_group_tiling:
+            print(f"Axis-group tiling: {axis_group_tiling}")
+    else:
+        # Accept nntile-only flags on torch paths; report and ignore them.
+        ignored = _nntile_only_args_set(args)
+        if ignored:
+            print(
+                "Ignoring nntile-only arguments on "
+                f"--device {args.device}: {', '.join(ignored)}"
+            )
+        compare_torch = False
+        axis_group_tiling = {}
+
     print(
         f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth} "
         f"epochs={args.epochs} device={args.device}"
