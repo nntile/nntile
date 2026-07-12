@@ -43,6 +43,7 @@ std::vector<Index> tile_sizes_for_axis_extent(
     Index extent);
 } // namespace nntile
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -566,34 +567,96 @@ void write_cpu_bytes_to_staging_locked(
     runtime.mark_initialized(staging);
 }
 
-void invalidate_staging_tile_submit_locked(
-    nntile::TensorGraph::TensorNode *staging)
+void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
 {
     if (staging == nullptr || g_exec == nullptr || g_exec->runtime == nullptr)
     {
         return;
     }
-    nntile::Runtime &runtime = *g_exec->runtime;
-    // Keep map reclaim even when SKIP_STARPU disables submit/acquire.
-    runtime.wait();
-    nntile::TileGraph::TileNode *tile =
-        require_single_staging_tile_locked(staging);
-    switch (staging->dtype())
+    // Clear logical marks, then drop StarPU tile buffers from
+    // Runtime::tile_map_ (invalidate_submit alone left handles live).
+    staging->mark_input(false);
+    staging->mark_output(false);
+    g_exec->runtime->invalidate_logical_tiles(staging);
+    g_exec->inc_state.tensor_to_tiles.erase(staging);
+    g_exec->inc_state.tensor_layout_fp.erase(staging);
+    g_exec->tile_map.erase(staging);
+    if (g_exec->session_tiling != nullptr)
     {
-    case nntile::DataType::FP32:
-        runtime.get_tile<nntile::fp32_t>(tile).invalidate_submit();
-        break;
-    case nntile::DataType::INT64:
-        runtime.get_tile<nntile::int64_t>(tile).invalidate_submit();
-        break;
-    case nntile::DataType::BOOL:
-        runtime.get_tile<nntile::bool_t>(tile).invalidate_submit();
-        break;
-    default:
-        throw std::runtime_error(
-            "torch_nntile: unsupported staging invalidate dtype");
+        g_exec->session_tiling->erase(staging);
     }
-    runtime.invalidate_initialized(staging);
+}
+
+//! Run pending tile ops, releasing each ingress ``S`` right after its
+//! scatter consumers finish.
+//!
+//! Batched ``.to("nntile")`` creates every ephemeral ``S`` first, then
+//! compile lowers every logical ``L``. Submitting all scatters before any
+//! ``S`` unregister leaves StarPU holding CUDA replicates of every ``S``
+//! beside every ``L``; unregister only parks those buffers in the
+//! allocation cache (``nvidia-smi`` stays ≈2×). Drain + destroy each
+//! ``S`` before the next scatter so the next ``L`` reuses the cached
+//! chunk instead of allocating another full working set.
+void run_pending_with_scatter_staging_release_locked(
+    std::size_t op_begin,
+    std::size_t op_end,
+    bool submit_tasks)
+{
+    struct ReleasePoint
+    {
+        std::size_t after_op_end = 0;
+        nntile::TensorGraph::TensorNode *staging = nullptr;
+    };
+    std::vector<ReleasePoint> points;
+    points.reserve(g_exec->pending_scatter_stagings.size());
+    for (nntile::TensorGraph::TensorNode *staging :
+        g_exec->pending_scatter_stagings)
+    {
+        if (staging == nullptr)
+        {
+            continue;
+        }
+        std::size_t after = op_begin;
+        auto const found = g_exec->tile_map.find(staging);
+        if (found != g_exec->tile_map.end() && found->second.size() == 1 &&
+            found->second[0] != nullptr)
+        {
+            after = g_exec->runtime->last_input_consumer_end(
+                found->second[0],
+                op_begin,
+                op_end);
+        }
+        points.push_back(ReleasePoint{after, staging});
+    }
+    std::stable_sort(
+        points.begin(),
+        points.end(),
+        [](ReleasePoint const &a, ReleasePoint const &b)
+        {
+            return a.after_op_end < b.after_op_end;
+        });
+
+    std::size_t cursor = op_begin;
+    for (ReleasePoint const &pt : points)
+    {
+        if (pt.after_op_end > cursor)
+        {
+            g_exec->runtime->execute_range(
+                cursor,
+                pt.after_op_end,
+                submit_tasks);
+            cursor = pt.after_op_end;
+        }
+        // Join before destroying S so its CUDA replicate can enter the
+        // allocation cache for the next L allocate.
+        g_exec->runtime->wait();
+        release_io_staging_locked(pt.staging);
+    }
+    if (cursor < op_end)
+    {
+        g_exec->runtime->execute_range(cursor, op_end, submit_tasks);
+    }
+    g_exec->pending_scatter_stagings.clear();
 }
 
 void read_staging_to_host_locked(
@@ -882,10 +945,10 @@ void compact_tensor_graph_session_locked()
         return;
     }
     g_graph->drop_all_ops();
-    if (g_exec != nullptr)
-    {
-        g_exec->pending_output_reclaim.clear();
-    }
+    // Keep pending_output_reclaim. Step temps are often still mark_output
+    // at wait() (Python dels them after wait); reclaim parks them as
+    // still_marked. Clearing here dropped that list and leaked their
+    // StarPU tiles every iteration (VRAM grew without CE).
 }
 
 void compile_graph_locked(
@@ -986,20 +1049,33 @@ void run_graph_locked()
     {
         return;
     }
-    // Submit only. Never wait here — callers use wait_graph_session() /
-    // torch_nntile.wait() for synchronization and post-run reclaim.
+    // Submit only (except ingress scatters — see below). Callers use
+    // wait_graph_session() / torch_nntile.wait() for post-run reclaim.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
         std::uint64_t const phase_ops = static_cast<std::uint64_t>(
             g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
         SteadyClock::time_point const t0 = SteadyClock::now();
+        bool const submit = !skip_starpu_submit_and_acquire();
         // Always call execute_range so Runtime::executed_op_end_ advances and
-        // last-consumer tiles are queued for wait()-time flush. SKIP_STARPU
+        // last-consumer tiles get invalidate_submit during submit. SKIP_STARPU
         // only disables OpNode::execute (StarPU task insert).
-        g_exec->runtime->execute_range(
-            g_exec->pending_exec_op_begin,
-            g_exec->pending_exec_op_end,
-            !skip_starpu_submit_and_acquire());
+        if (!g_exec->pending_scatter_stagings.empty())
+        {
+            // Per-S release so StarPU's allocation cache can reuse each
+            // ephemeral CUDA chunk for the next logical L (avoids ≈2×).
+            run_pending_with_scatter_staging_release_locked(
+                g_exec->pending_exec_op_begin,
+                g_exec->pending_exec_op_end,
+                submit);
+        }
+        else
+        {
+            g_exec->runtime->execute_range(
+                g_exec->pending_exec_op_begin,
+                g_exec->pending_exec_op_end,
+                submit);
+        }
         g_timing.run_s += seconds_since(t0);
         ++g_timing.run_calls;
         g_timing.run_ops += phase_ops;
@@ -1007,8 +1083,7 @@ void run_graph_locked()
         g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
     }
     // Always require wait() for compile-side cleanup (pin_hold, reclaim,
-    // scatter stagings, deferred pending clear) — including empty post-DCE
-    // phases that submit no StarPU tasks.
+    // deferred pending clear) — including empty post-DCE phases.
     g_run_cleanup_pending = true;
 }
 
@@ -1029,23 +1104,12 @@ void finish_run_locked()
     // Always join + reclaim so tile_map_ stays O(live). SKIP_STARPU only
     // skips compute submit and host↔tile acquire/memcpy.
     g_exec->runtime->wait();
+    // Ingress S is normally released during run() (per-scatter). Any
+    // leftover (e.g. empty execute range) is cleaned here.
     for (nntile::TensorGraph::TensorNode *staging :
         g_exec->pending_scatter_stagings)
     {
-        invalidate_staging_tile_submit_locked(staging);
-        // .to("nntile") marks ingress staging as input; clear marks after
-        // scatter completes so later seals do not keep carrying stagings.
-        // Drop incremental tile state so the next compile cannot reuse the
-        // invalidated staging tile nodes and allocate empty replacements.
-        staging->mark_input(false);
-        staging->mark_output(false);
-        g_exec->inc_state.tensor_to_tiles.erase(staging);
-        g_exec->inc_state.tensor_layout_fp.erase(staging);
-        g_exec->tile_map.erase(staging);
-        if (g_exec->session_tiling != nullptr)
-        {
-            g_exec->session_tiling->erase(staging);
-        }
+        release_io_staging_locked(staging);
     }
     g_exec->pending_scatter_stagings.clear();
     if (g_defer_pending_clear_after_run)
@@ -1307,8 +1371,7 @@ void gather_logical_to_staging_and_read_locked(
     finish_run_locked();
 
     read_staging_to_host_locked(staging, host_ptr, dtype, count);
-    invalidate_staging_tile_submit_locked(staging);
-    staging->mark_output(false);
+    release_io_staging_locked(staging);
     g_timing.host_readout_s += seconds_since(t0);
     ++g_timing.host_readout_calls;
 }

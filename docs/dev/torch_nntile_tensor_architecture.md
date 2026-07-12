@@ -16,7 +16,8 @@ TensorImpl → NNTileBackendMeta → NodeRef → NNTileBinding { logical L }
 - **`L` (logical):** the graph/compute node. `NodeRef` ctor/dtor drive
   `mark_output(true/false)` on `L`.
 - **`S` (staging):** **ephemeral**, not stored in `NNTileBinding`. Created per
-  I/O event, invalidated after scatter/gather run.
+  I/O event; after scatter/gather `wait()`, marks are cleared and StarPU
+  tile buffers are dropped from the runtime map (not left live).
 
 There is no side map (`g_tensor_nodes`) and no eager per-op flush. All ops
 record into a shared `TensorGraph`; the caller flushes with `compile_graph()`
@@ -37,10 +38,14 @@ by marks, with an explicit pending list in torch_nntile:
 3. After `wait()` (following `run()`), pin holds are cleared (temps drop their
    NodeRefs). Any snapshot entry that is no longer marked input/output is
    passed to `Runtime::invalidate_logical_tiles` once — no full tile-map scan.
-4. Mid-phase, ``execute_range`` queues unmarked tiles after their last
-   consumer; ``Runtime::wait()`` invalidates them after StarPU drains.
-   Core ``*`` wrappers skip ``starpu_task_wait_for_all`` while submit is
-   deferred so ``run()`` stays asynchronous.
+   Entries still marked at `wait()` stay on `pending_output_reclaim` across
+   graph compaction so the **next** `compile_graph()` can reclaim them after
+   Python `del`s the tensors (do not clear that list in `drop_all_ops`
+   compaction — that leaked one step of activation tiles per iteration).
+4. Mid-phase, ``execute_range`` / ``run()`` issues ``invalidate_submit`` for
+   unmarked tiles as soon as their last consumer is submitted (not deferred
+   to ``wait()``). Core ``*`` wrappers skip ``starpu_task_wait_for_all``
+   while submit is deferred so ``run()`` stays asynchronous.
 
 Training loops should ``del`` step temporaries (e.g. logits) **after**
 ``wait()`` and any host readout of the loss so reclaim sees
@@ -54,8 +59,8 @@ collection scans the growing session heap and can dominate step time.
 
 | Direction | API | Behavior |
 |-----------|-----|----------|
-| Ingress | `.to("nntile")` / CPU→nntile `copy_` | Create `L`, attach `NodeRef`, create ephemeral single-tile `S`, write host bytes into `S`, record `scatter(S→L)`. Ingress is **once per tensor**; a second CPU copy into an already-bound tensor raises. After the scatter phase runs, ingress `S` is invalidated. |
-| Egress | `.cpu()` / `.to("cpu")` / nntile→CPU `copy_` | Create ephemeral `S`, record `clear(S)` + `gather(L→S)`, **auto-compile and run** any pending ops plus the gather phase, StarPU-read `S`, invalidate `S`. |
+| Ingress | `.to("nntile")` / CPU→nntile `copy_` | Create `L`, attach `NodeRef`, create ephemeral single-tile `S` on StarPU immediately, write host bytes into `S`, record `scatter(S→L)`. Ingress is **once per tensor**. Batched prefetch keeps every `S` until the scatter phase runs; `run()` executes each scatter, waits, and destroys that `S` before the next so StarPU's allocation cache can reuse the CUDA chunk for the next `L` (submitting all scatters then unregistering all `S` left cached buffers → settled ≈2×). |
+| Egress | `.cpu()` / `.to("cpu")` / nntile→CPU `copy_` | Create ephemeral `S`, record `clear(S)` + `gather(L→S)`, **auto-compile and run** any pending ops plus the gather phase, StarPU-read `S`, fully release `S`. |
 
 ### `.cpu()` auto-flush (by design)
 
@@ -105,7 +110,7 @@ run backward (or ingress a real grad tensor via `.to("nntile")`) first.
 | # | Topic | Current behavior | Planned follow-up |
 |---|--------|------------------|-------------------|
 | D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows). Phase outputs cleared after `wait()` are reclaimed via `pending_output_reclaim` (O(phase outputs), not a full tile-map scan). Historical TileGraph/TensorGraph nodes still accumulate in memory. | Phase GC / compaction; reuse readout staging per session. |
-| D2 | Incremental tile-map growth | Every ingress/egress lowers a fresh ephemeral `S` into `inc_state.tensor_to_tiles`; entries are never removed. | Reclaim staging descriptors after invalidate; or pool single-tile `S` per `L`. |
+| D2 | Ingress `S` + StarPU alloc cache | Batched `.to("nntile")` keeps every ephemeral `S` until scatters run. Submitting all scatters before any `S` unregister leaves CUDA replicates of every `S` beside every `L`; unregister parks them in StarPU's allocation cache (`STARPU_USE_ALLOCATION_CACHE`) → settled ≈2×. `starpu_memchunk_tidy` only writebacks dirty chunks — it does **not** flush that cache. | During `run()`, execute each ingress scatter, `wait()`, then destroy that `S` before the next scatter so the next `L` reuses the cached chunk. |
 | D3 | Pin bookkeeping | Dedup uses `unordered_set<TensorImplKey>` while pinning; pins still clear on phase transfer. | Optional: trim earlier than phase seal if pin lists grow mid-phase. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |
 | D5 | `vector_norm` backward | Forward-only by design. | Add autograd when product needs it. |

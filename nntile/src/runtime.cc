@@ -216,12 +216,17 @@ void Runtime::invalidate_logical_tiles(
     {
         return;
     }
+    // Clear tile marks to match the unmarked logical. Ingress staging
+    // tiles are built with mark_input(true); leaving that set made
+    // reclaim a no-op and kept a full-size StarPU buffer beside L
+    // (≈2× VRAM with untiled single-tile layouts).
     for (TileGraph::TileNode *tile : desc->tiles)
     {
         if (tile == nullptr)
         {
             continue;
         }
+        tile->mark_input(false);
         tile->mark_output(false);
     }
 
@@ -229,7 +234,7 @@ void Runtime::invalidate_logical_tiles(
     to_release.reserve(desc->tiles.size());
     for (TileGraph::TileNode *tile : desc->tiles)
     {
-        if (tile == nullptr || tile->is_input())
+        if (tile == nullptr)
         {
             continue;
         }
@@ -756,6 +761,35 @@ void Runtime::allocate_missing_tiles()
     compiled_tile_node_count_ = all_tiles.size();
 }
 
+size_t Runtime::last_input_consumer_end(
+    TileNode const *tile,
+    size_t op_begin,
+    size_t op_end) const
+{
+    if (tile == nullptr || op_begin >= op_end)
+    {
+        return op_begin;
+    }
+    if (op_end > execution_order_.size())
+    {
+        throw std::out_of_range(
+            "Runtime::last_input_consumer_end: bad range");
+    }
+    size_t last = op_begin;
+    for (size_t i = op_begin; i < op_end; ++i)
+    {
+        for (TileNode const *in : execution_order_[i]->inputs())
+        {
+            if (in == tile)
+            {
+                last = i + 1;
+                break;
+            }
+        }
+    }
+    return last;
+}
+
 void Runtime::execute_range(
     size_t op_begin,
     size_t op_end,
@@ -789,10 +823,12 @@ void Runtime::execute_range(
             }
             execution_order_[i]->execute(*this);
         }
-        // Always queue last-consumer reclaim. Skipping this (and skipping
-        // the executed_op_end_ update below) makes the next compile treat
-        // the full history as pending — O(session) DCE/allocate.
+        // Last-consumer reclaim during run()/submit: invalidate_submit is
+        // ordered after the consumer task already inserted above. Do not
+        // defer to wait() — that kept pre-ReLU activations resident for the
+        // whole forward+backward phase (~2× activation VRAM).
         queue_dead_tiles_after_op(i);
+        flush_queued_dead_tiles();
     }
     if (op_end > executed_op_end_)
     {
@@ -810,7 +846,7 @@ void Runtime::execute()
     executed_op_end_ = 0;
     allocate_missing_tiles();
     // Submit only — same contract as execute_range. Call wait() to join
-    // StarPU and flush queued last-consumer reclaim.
+    // StarPU. Last-consumer invalidate_submit runs inside execute_range.
     execute_range(0, execution_order_.size());
 }
 
@@ -1082,6 +1118,8 @@ void Runtime::eliminate_dead_ops()
 void Runtime::wait()
 {
     starpu_task_wait_for_all();
+    // Last-consumer invalidate_submit already ran in execute_range / run().
+    // Drain any stragglers if a path queued without flushing.
     flush_queued_dead_tiles();
 }
 

@@ -3,22 +3,32 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/examples/train_deep_relu_mnist.py
-# Train DeepReLU on the full MNIST training set (60k batch) on nntile.
+# Train DeepReLU on the full MNIST training set (60k batch).
 
-"""Full-batch MNIST training with DeepReLU on device=\"nntile\".
+"""Full-batch MNIST training with DeepReLU (nntile parallelization demo).
 
-By default this script trains only on nntile (useful for larger tiled /
-multi-worker runs). Pass ``--compare-torch`` to also train a CPU PyTorch
-reference and print per-epoch loss / final weight parity.
+Trains ``DeepReLU.mnist()`` on the entire MNIST training set as one batch
+(60 000 images). Primary goal: show how well nntile parallelizes a large
+DeepReLU across StarPU CPU/CUDA workers.
 
-Cross-entropy is evaluated on nntile via ``torch_nntile.training.cross_entropy``
-(same tensor-op chain as ``NNCrossEntropyOp`` in libnntile). Logits are
-``[batch, classes]`` (class dim last). The scalar loss lives on
-``device="nntile"``; read it with ``loss.to("cpu")`` after ``compile_graph()`` and
-``run()`` in graph mode.
+Supports ``--device cpu`` / ``cuda`` (PyTorch SGD) and ``--device nntile``
+(``train_full_batch_step`` + StarPU). Pass ``--ncpu`` / ``--ncuda`` to set
+StarPU workers for the nntile path (``-1`` = env default).
 
-StarPU may use CUDA workers for the nntile path via ``STARPU_NCUDA`` and
-``--restrict-cuda``.
+Torch cannot use CUDA and the PrivateUse1 ``nntile`` device in one process
+(PyTorch >= 2.8). This script imports ``torch_nntile`` only for
+``--device nntile``; CUDA/CPU runs load ``DeepReLU`` without registering
+nntile. Use separate processes to compare cuda vs nntile.
+
+Before training, the full MNIST batch (images + labels) and the model are
+moved onto the training device; the script prints prefetch time and wall
+training time.
+
+Pass ``--compare-torch`` with ``--device nntile`` to also train a CPU
+PyTorch reference and print per-epoch loss / final weight parity.
+Nntile-only flags (``--ncpu``, ``--ncuda``, ``--restrict-*``,
+``--axis-tiling``, ``--print-axis-groups``, ``--compare-torch``) are
+accepted on ``--device cpu`` / ``cuda`` but ignored (reported in output).
 
 Axis-group naming and tiling (optional) are configured in this script:
 
@@ -28,22 +38,30 @@ Axis-group naming and tiling (optional) are configured in this script:
   weight/grad/velocity matrix row or column of that size
 - ``classes`` — output logits dimension (10)
 
-Nntile-only (tiled CUDA workers)::
+Nntile (tiled CUDA workers)::
 
     export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib
-    STARPU_NCPU=0 STARPU_NCUDA=2 \\
     python torch_nntile/examples/train_deep_relu_mnist.py \\
-        --restrict-cuda \\
+        --device nntile --ncpu 0 --ncuda 2 --restrict-cuda \\
         --epochs 5 \\
         --axis-tiling batch=15000,15000,15000,15000 \\
         --axis-tiling features=392,392 \\
         --axis-tiling hidden=128,128
 
-CPU torch parity check::
+CPU torch reference::
 
-    STARPU_NCPU=4 STARPU_NCUDA=0 \\
     python torch_nntile/examples/train_deep_relu_mnist.py \\
-        --compare-torch --epochs 5
+        --device cpu --epochs 5
+
+CUDA torch reference (separate process from any nntile run)::
+
+    python torch_nntile/examples/train_deep_relu_mnist.py \\
+        --device cuda --epochs 5
+
+Nntile + CPU torch parity::
+
+    python torch_nntile/examples/train_deep_relu_mnist.py \\
+        --device nntile --ncpu 4 --ncuda 0 --compare-torch --epochs 5
 
 Run instructions and expected output:
 ``docs/torch_nntile.md`` (DeepReLU MNIST example section).
@@ -52,16 +70,40 @@ Run instructions and expected output:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import sys
+import time
 from pathlib import Path
+from typing import Type
 
 import torch
+import torch.nn as nn
 from torchvision import datasets
 
 _REPO = Path(__file__).resolve().parents[2]
 _TORCH_NNTILE_ROOT = _REPO / "torch_nntile"
 if str(_TORCH_NNTILE_ROOT) not in sys.path:
     sys.path.insert(0, str(_TORCH_NNTILE_ROOT))
+
+_DeepReLU: Type[nn.Module] | None = None
+
+
+def _deep_relu_class() -> Type[nn.Module]:
+    """Load DeepReLU without importing ``torch_nntile`` (no PrivateUse1)."""
+    global _DeepReLU
+    if _DeepReLU is not None:
+        return _DeepReLU
+    path = _TORCH_NNTILE_ROOT / "torch_nntile" / "models" / "deep_relu.py"
+    spec = importlib.util.spec_from_file_location(
+        "torch_nntile_deep_relu_standalone",
+        path,
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load DeepReLU from {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _DeepReLU = module.DeepReLU
+    return _DeepReLU
 
 
 def load_mnist_full_batch(
@@ -112,6 +154,11 @@ def build_axis_group_tiling(
     return tiling
 
 
+def synchronize_device(device: torch.device) -> None:
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
+
 def _clone_state_dict_cpu(model: torch.nn.Module) -> dict[str, torch.Tensor]:
     return {
         name: tensor.detach().cpu().clone()
@@ -139,9 +186,8 @@ def build_torch_model(
     hidden_dim: int,
     depth: int,
 ) -> torch.nn.Module:
-    """Build DeepReLU on CPU with Kaiming init."""
-    from torch_nntile.models import DeepReLU
-
+    """Build DeepReLU on CPU with Kaiming init (no torch_nntile import)."""
+    DeepReLU = _deep_relu_class()
     torch.manual_seed(seed)
     model = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
     model.init_kaiming_uniform_(seed=seed)
@@ -155,8 +201,9 @@ def train_torch_reference(
     *,
     epochs: int,
     learning_rate: float,
+    device: torch.device | None = None,
 ) -> list[float]:
-    """Pure-PyTorch full-batch SGD on CPU."""
+    """Pure-PyTorch full-batch SGD on preloaded device tensors."""
     losses: list[float] = []
     for epoch in range(epochs):
         for param in model.parameters():
@@ -168,9 +215,11 @@ def train_torch_reference(
             for param in model.parameters():
                 if param.grad is not None:
                     param.add_(param.grad, alpha=-learning_rate)
+        if device is not None:
+            synchronize_device(device)
         value = float(loss.detach().item())
         losses.append(value)
-        print(f"[cpu] epoch {epoch + 1}/{epochs}  loss={value:.6f}")
+        print(f"[torch] epoch {epoch + 1}/{epochs}  loss={value:.6f}")
     return losses
 
 
@@ -219,9 +268,11 @@ def build_nntile_model(
     depth: int,
     state_dict: dict[str, torch.Tensor],
 ) -> torch.nn.Module:
-    """Clone CPU ``state_dict`` onto ``device='nntile'`` (requires init_context)."""
-    from torch_nntile.models import DeepReLU
+    """Clone CPU ``state_dict`` onto ``device='nntile'`` (requires init_context).
 
+    Call only after ``import torch_nntile`` has registered the device.
+    """
+    DeepReLU = _deep_relu_class()
     model = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
     with torch.no_grad():
         model.load_state_dict(state_dict)
@@ -240,12 +291,10 @@ def train_on_nntile(
     axis_group_tiling: dict[str, list[int]] | None = None,
     print_axis_groups: bool = False,
 ) -> list[float]:
+    """Train on preloaded nntile tensors (images/labels already on device)."""
     import torch_nntile
     from torch_nntile.training import train_full_batch_step
 
-    with torch.no_grad():
-        x = images.to("nntile")
-        y = labels.to("nntile")
     if axis_group_tiling is not None:
         for name, tile_sizes in axis_group_tiling.items():
             torch_nntile.set_axis_group_tiling(name, tile_sizes)
@@ -257,8 +306,8 @@ def train_on_nntile(
     for epoch in range(epochs):
         loss = train_full_batch_step(
             model,
-            x,
-            y,
+            images,
+            labels,
             learning_rate,
             name_axis_groups=name_axis_groups,
             axis_group_tiling=axis_group_tiling,
@@ -278,11 +327,35 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--depth", type=int, default=5)
     parser.add_argument(
+        "--device",
+        default="nntile",
+        choices=("cpu", "cuda", "nntile"),
+        help="Training device (default: nntile)",
+    )
+    parser.add_argument(
+        "--ncpu",
+        type=int,
+        default=-1,
+        help=(
+            "StarPU CPU workers for nntile (-1 = env default; "
+            "ignored on --device cpu/cuda)"
+        ),
+    )
+    parser.add_argument(
+        "--ncuda",
+        type=int,
+        default=-1,
+        help=(
+            "StarPU CUDA workers for nntile (-1 = env default; "
+            "ignored on --device cpu/cuda)"
+        ),
+    )
+    parser.add_argument(
         "--compare-torch",
         action="store_true",
         help=(
-            "Also train a CPU PyTorch reference and print loss/weight "
-            "parity (default: nntile-only)"
+            "With --device nntile: also train a CPU PyTorch reference and "
+            "print loss/weight parity (ignored on --device cpu/cuda)"
         ),
     )
     parser.add_argument(
@@ -292,18 +365,33 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="NAME=SIZES",
         help=(
             "Axis-group tiling for nntile, e.g. batch=15000,15000,15000,15000 "
-            "or features=392,392 or hidden=128,128. Repeat for multiple groups."
+            "or features=392,392 or hidden=128,128. Repeat for multiple "
+            "groups (ignored on --device cpu/cuda)."
         ),
     )
     parser.add_argument(
         "--print-axis-groups",
         action="store_true",
-        help="Print axis groups after the first nntile training step",
+        help=(
+            "Print axis groups after the first nntile training step "
+            "(ignored on --device cpu/cuda)"
+        ),
     )
     parser.add_argument(
         "--restrict-cuda",
         action="store_true",
-        help="Pin nntile kernels to CUDA workers (requires ncuda > 0)",
+        help=(
+            "Pin nntile kernels to CUDA workers (requires ncuda > 0; "
+            "ignored on --device cpu/cuda)"
+        ),
+    )
+    parser.add_argument(
+        "--restrict-cpu",
+        action="store_true",
+        help=(
+            "Pin nntile kernels to CPU workers "
+            "(ignored on --device cpu/cuda)"
+        ),
     )
     parser.add_argument(
         "--verbose",
@@ -317,35 +405,69 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _nntile_only_args_set(args: argparse.Namespace) -> list[str]:
+    """Return nntile-only CLI flags that were explicitly set."""
+    ignored: list[str] = []
+    if args.ncpu != -1:
+        ignored.append(f"--ncpu={args.ncpu}")
+    if args.ncuda != -1:
+        ignored.append(f"--ncuda={args.ncuda}")
+    if args.restrict_cuda:
+        ignored.append("--restrict-cuda")
+    if args.restrict_cpu:
+        ignored.append("--restrict-cpu")
+    if args.axis_tiling:
+        ignored.append("--axis-tiling")
+    if args.print_axis_groups:
+        ignored.append("--print-axis-groups")
+    if args.compare_torch:
+        ignored.append("--compare-torch")
+    return ignored
+
+
 def main() -> None:
     args = _build_parser().parse_args()
     axis_group_tiling = build_axis_group_tiling(args.axis_tiling)
     compare_torch = bool(args.compare_torch)
+    use_nntile = args.device == "nntile"
 
-    if compare_torch:
+    if use_nntile and args.restrict_cuda and args.restrict_cpu:
+        raise SystemExit("Pass only one of --restrict-cuda / --restrict-cpu")
+
+    if use_nntile and compare_torch:
         print("Mode: nntile + CPU torch parity")
     else:
-        print("Mode: nntile-only (pass --compare-torch for CPU parity)")
-    if axis_group_tiling:
-        print(f"Axis-group tiling: {axis_group_tiling}")
-    print(f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth}")
+        print(f"Mode: {args.device}-only")
+
+    if use_nntile:
+        print(f"StarPU workers: ncpu={args.ncpu} ncuda={args.ncuda}")
+        if axis_group_tiling:
+            print(f"Axis-group tiling: {axis_group_tiling}")
+    else:
+        # Accept nntile-only flags on torch paths; report and ignore them.
+        ignored = _nntile_only_args_set(args)
+        if ignored:
+            print(
+                "Ignoring nntile-only arguments on "
+                f"--device {args.device}: {', '.join(ignored)}"
+            )
+        compare_torch = False
+        axis_group_tiling = {}
+
+    print(
+        f"DeepReLU hidden_dim={args.hidden_dim} depth={args.depth} "
+        f"epochs={args.epochs} device={args.device}"
+    )
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print("Loading MNIST training set (60 000 images, single batch)...")
-    images, labels = load_mnist_full_batch(args.data_dir)
-    print(f"  images {tuple(images.shape)}, labels {tuple(labels.shape)}")
-
-    import torch_nntile
-    from torch_nntile import _C
-    from torch_nntile.training import clone_model_weights, max_weight_delta
-
-    if not _C.has_libnntile():
-        raise SystemExit(
-            "torch_nntile was built without libnntile. "
-            "Set NNTILE_BUILD_DIR and reinstall."
-        )
+    images_cpu, labels_cpu = load_mnist_full_batch(args.data_dir)
+    print(
+        f"  images {tuple(images_cpu.shape)}, "
+        f"labels {tuple(labels_cpu.shape)}"
+    )
 
     model_init = build_torch_model(
         seed=args.seed,
@@ -359,86 +481,163 @@ def main() -> None:
     torch_losses: list[float] | None = None
     final_torch: dict[str, torch.Tensor] | None = None
     if compare_torch:
-        print("\nTraining on torch (cpu)...")
+        print("\nTraining CPU torch reference (parity)...")
         torch_losses = train_torch_reference(
             model_init,
-            images,
-            labels,
+            images_cpu,
+            labels_cpu,
             epochs=args.epochs,
             learning_rate=args.lr,
+            device=torch.device("cpu"),
         )
         final_torch = _clone_state_dict_cpu(model_init)
         if args.verbose:
             print_state_dict_norms("torch/final", final_torch)
     del model_init
 
-    torch_nntile.init_context(
-        ncpu=-1,
-        ncuda=-1,
-        verbose=int(args.verbose),
-        cpu_fallback=False,
-    )
-    if args.restrict_cuda:
-        torch_nntile.restrict_cuda()
-        print("Worker placement: CUDA only (restrict_cuda)")
+    if use_nntile:
+        import torch_nntile
+        from torch_nntile import _C
+        from torch_nntile.training import clone_model_weights, max_weight_delta
 
-    try:
-        model_nnt = build_nntile_model(
-            hidden_dim=args.hidden_dim,
-            depth=args.depth,
-            state_dict=init_weights,
+        if not _C.has_libnntile():
+            raise SystemExit(
+                "torch_nntile was built without libnntile. "
+                "Set NNTILE_BUILD_DIR and reinstall."
+            )
+
+        torch_nntile.init_context(
+            ncpu=args.ncpu,
+            ncuda=args.ncuda,
+            verbose=int(args.verbose),
+            cpu_fallback=False,
         )
-        # Do not .cpu() / clone_model_weights before the first tiled compile:
-        # that seals untiled layouts into the TileGraph and later
-        # --axis-tiling hits layout_fingerprint mismatch.
+        if args.restrict_cuda:
+            torch_nntile.restrict_cuda()
+            print("Worker placement: CUDA only (restrict_cuda)")
+        elif args.restrict_cpu:
+            torch_nntile.restrict_cpu()
+            print("Worker placement: CPU only (restrict_cpu)")
+
+        try:
+            print("Prefetching MNIST + model to nntile...")
+            t_pre0 = time.perf_counter()
+            with torch.no_grad():
+                images = images_cpu.to("nntile")
+                labels = labels_cpu.to("nntile")
+                model_nnt = build_nntile_model(
+                    hidden_dim=args.hidden_dim,
+                    depth=args.depth,
+                    state_dict=init_weights,
+                )
+            # Ensure transfers are complete before stopping the clock.
+            torch_nntile.wait()
+            prefetch_s = time.perf_counter() - t_pre0
+            print(
+                f"timing host→nntile prefetch: {prefetch_s:.3f}s "
+                f"(MNIST images {images_cpu.numel()}, "
+                f"labels {labels_cpu.numel()}, + model)"
+            )
+            # Do not .cpu() / clone_model_weights before the first tiled
+            # compile: that seals untiled layouts into the TileGraph and
+            # later --axis-tiling hits layout_fingerprint mismatch.
+
+            print("\nTraining on nntile...")
+            t_train0 = time.perf_counter()
+            nnt_losses = train_on_nntile(
+                model_nnt,
+                images,
+                labels,
+                epochs=args.epochs,
+                learning_rate=args.lr,
+                hidden_dim=args.hidden_dim,
+                axis_group_tiling=axis_group_tiling or None,
+                print_axis_groups=args.print_axis_groups,
+            )
+            train_wall_s = time.perf_counter() - t_train0
+            print(
+                f"timing nntile train wall: {train_wall_s:.3f}s "
+                f"({args.epochs} epochs)"
+            )
+
+            nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
+            # Host gather only after training (safe with --axis-tiling).
+            final_nnt = clone_model_weights(model_nnt)
+            torch.save(final_nnt, nnt_path)
+            print(f"\nSaved nntile model (CPU tensors) to {nnt_path}")
+            if args.verbose:
+                print_state_dict_norms("nntile/final", final_nnt)
+
+            if compare_torch:
+                assert torch_losses is not None and final_torch is not None
+                torch_path = output_dir / "deep_relu_mnist_torch_cpu.pt"
+                torch.save(final_torch, torch_path)
+                weight_delta = max_weight_delta(final_torch, final_nnt)
+
+                print("\nLoss comparison (torch/cpu vs nntile):")
+                for epoch, (loss_torch, loss_nnt) in enumerate(
+                    zip(torch_losses, nnt_losses), start=1
+                ):
+                    print(
+                        f"  epoch {epoch}: torch={loss_torch:.6f}  "
+                        f"nntile={loss_nnt:.6f}  "
+                        f"diff={abs(loss_torch - loss_nnt):.3e}"
+                    )
+
+                print(
+                    f"\nFinal weight max |torch - nntile| = "
+                    f"{weight_delta:.3e}"
+                )
+                print(f"Saved torch model (CPU tensors) to {torch_path}")
+        finally:
+            torch_nntile.wait()
+            torch_nntile.shutdown_context()
+    else:
+        # Do not import torch_nntile here: PrivateUse1 registration breaks
+        # CUDA autograd in the same process (PyTorch >= 2.8).
+        device = torch.device(args.device)
+        if device.type == "cuda" and not torch.cuda.is_available():
+            raise SystemExit("CUDA is not available")
+
+        DeepReLU = _deep_relu_class()
+        print(f"Prefetching MNIST + model to {device}...")
+        t_pre0 = time.perf_counter()
+        with torch.no_grad():
+            images = images_cpu.to(device, non_blocking=True)
+            labels = labels_cpu.to(device, non_blocking=True)
+            model = DeepReLU.mnist(
+                hidden_dim=args.hidden_dim,
+                depth=args.depth,
+            )
+            model.load_state_dict(init_weights)
+            model = model.to(device)
+            synchronize_device(device)
+        prefetch_s = time.perf_counter() - t_pre0
         print(
-            "Initial weights loaded from torch state_dict onto nntile "
-            "(host round-trip deferred until after training)"
+            f"timing host→{device} prefetch: {prefetch_s:.3f}s "
+            f"(MNIST images {images_cpu.numel()}, "
+            f"labels {labels_cpu.numel()}, + model)"
         )
 
-        print("\nTraining on nntile...")
-        nnt_losses = train_on_nntile(
-            model_nnt,
+        print(f"\nTraining on torch ({device})...")
+        t_train0 = time.perf_counter()
+        train_torch_reference(
+            model,
             images,
             labels,
             epochs=args.epochs,
             learning_rate=args.lr,
-            hidden_dim=args.hidden_dim,
-            axis_group_tiling=axis_group_tiling or None,
-            print_axis_groups=args.print_axis_groups,
+            device=device,
+        )
+        train_wall_s = time.perf_counter() - t_train0
+        print(
+            f"timing torch train wall: {train_wall_s:.3f}s "
+            f"({args.epochs} epochs)"
         )
 
-        nnt_path = output_dir / "deep_relu_mnist_nntile.pt"
-        # Host gather only after training (safe with --axis-tiling).
-        final_nnt = clone_model_weights(model_nnt)
-        torch.save(final_nnt, nnt_path)
-        print(f"\nSaved nntile model (CPU tensors) to {nnt_path}")
-        if args.verbose:
-            print_state_dict_norms("nntile/final", final_nnt)
-
-        if compare_torch:
-            assert torch_losses is not None and final_torch is not None
-            torch_path = output_dir / "deep_relu_mnist_torch_cpu.pt"
-            torch.save(final_torch, torch_path)
-            weight_delta = max_weight_delta(final_torch, final_nnt)
-
-            print("\nLoss comparison (torch/cpu vs nntile):")
-            for epoch, (loss_torch, loss_nnt) in enumerate(
-                zip(torch_losses, nnt_losses), start=1
-            ):
-                print(
-                    f"  epoch {epoch}: torch={loss_torch:.6f}  "
-                    f"nntile={loss_nnt:.6f}  "
-                    f"diff={abs(loss_torch - loss_nnt):.3e}"
-                )
-
-            print(
-                f"\nFinal weight max |torch - nntile| = {weight_delta:.3e}"
-            )
-            print(f"Saved torch model (CPU tensors) to {torch_path}")
-    finally:
-        torch_nntile.wait()
-        torch_nntile.shutdown_context()
+        torch_path = output_dir / f"deep_relu_mnist_torch_{device.type}.pt"
+        torch.save(_clone_state_dict_cpu(model), torch_path)
+        print(f"\nSaved torch model (CPU tensors) to {torch_path}")
 
 
 if __name__ == "__main__":

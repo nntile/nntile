@@ -254,16 +254,21 @@ Architecture reference:
 
 - Every ``device=nntile`` tensor uses **0-byte** ``Storage``. Payload lives in
   StarPU tiles behind ``NodeRef`` → ``NNTileBinding { logical L }``.
-- **Staging ``S`` is ephemeral** (not stored in the binding): created for each
-  ``.to("nntile")`` scatter or ``.cpu()`` gather, then invalidated after run.
+- **Staging ``S`` is ephemeral** (not stored in the binding): created on StarPU
+  for each ``.to("nntile")`` scatter or ``.cpu()`` gather. During ``run()`` of
+  an ingress scatter phase, each ``S`` is destroyed right after its scatter
+  finishes so StarPU's allocation cache can reuse that CUDA chunk for the next
+  logical ``L`` (batching all scatters then unregistering all ``S`` left
+  cached buffers and settled at ≈2× VRAM).
 - Ingress is **one-shot** per tensor via ``.to("nntile")``; CPU→bound-nntile
   copy raises.
 - **Views / reshape / contiguous-preserving permute** share ``NodeRef`` (no
   data copy). **nntile→nntile ``copy_``** with matching shape/dtype also
   **aliases** ``NodeRef`` (no tile copy).
 - ``Tensor.contiguous()`` is unsupported on non-contiguous nntile tensors.
-- During ``run()``, intermediate StarPU tile buffers may be released after
-  their last consumer when not marked as inputs/outputs.
+- During ``run()`` / ``execute_range``, intermediate StarPU tile buffers are
+  released after their last consumer is submitted (``invalidate_submit``), when
+  not marked as inputs/outputs — not deferred until ``wait()``.
 - On each ``compile_graph()``, ``Runtime`` refreshes tile marks from logical
   ``mark_output`` / ``mark_input`` for the pending slice. torch_nntile snapshots
   phase outputs and, after ``wait()`` (and again at the next compile), calls
