@@ -266,8 +266,9 @@ Architecture reference:
   data copy). **nntile→nntile ``copy_``** with matching shape/dtype also
   **aliases** ``NodeRef`` (no tile copy).
 - ``Tensor.contiguous()`` is unsupported on non-contiguous nntile tensors.
-- During ``run()``, intermediate StarPU tile buffers may be released after
-  their last consumer when not marked as inputs/outputs.
+- During ``run()`` / ``execute_range``, intermediate StarPU tile buffers are
+  released after their last consumer is submitted (``invalidate_submit``), when
+  not marked as inputs/outputs — not deferred until ``wait()``.
 - On each ``compile_graph()``, ``Runtime`` refreshes tile marks from logical
   ``mark_output`` / ``mark_input`` for the pending slice. torch_nntile snapshots
   phase outputs and, after ``wait()`` (and again at the next compile), calls

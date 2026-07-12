@@ -42,10 +42,10 @@ by marks, with an explicit pending list in torch_nntile:
    graph compaction so the **next** `compile_graph()` can reclaim them after
    Python `del`s the tensors (do not clear that list in `drop_all_ops`
    compaction — that leaked one step of activation tiles per iteration).
-4. Mid-phase, ``execute_range`` queues unmarked tiles after their last
-   consumer; ``Runtime::wait()`` invalidates them after StarPU drains.
-   Core ``*`` wrappers skip ``starpu_task_wait_for_all`` while submit is
-   deferred so ``run()`` stays asynchronous.
+4. Mid-phase, ``execute_range`` / ``run()`` issues ``invalidate_submit`` for
+   unmarked tiles as soon as their last consumer is submitted (not deferred
+   to ``wait()``). Core ``*`` wrappers skip ``starpu_task_wait_for_all``
+   while submit is deferred so ``run()`` stays asynchronous.
 
 Training loops should ``del`` step temporaries (e.g. logits) **after**
 ``wait()`` and any host readout of the loss so reclaim sees

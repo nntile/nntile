@@ -823,10 +823,12 @@ void Runtime::execute_range(
             }
             execution_order_[i]->execute(*this);
         }
-        // Always queue last-consumer reclaim. Skipping this (and skipping
-        // the executed_op_end_ update below) makes the next compile treat
-        // the full history as pending — O(session) DCE/allocate.
+        // Last-consumer reclaim during run()/submit: invalidate_submit is
+        // ordered after the consumer task already inserted above. Do not
+        // defer to wait() — that kept pre-ReLU activations resident for the
+        // whole forward+backward phase (~2× activation VRAM).
         queue_dead_tiles_after_op(i);
+        flush_queued_dead_tiles();
     }
     if (op_end > executed_op_end_)
     {
@@ -844,7 +846,7 @@ void Runtime::execute()
     executed_op_end_ = 0;
     allocate_missing_tiles();
     // Submit only — same contract as execute_range. Call wait() to join
-    // StarPU and flush queued last-consumer reclaim.
+    // StarPU. Last-consumer invalidate_submit runs inside execute_range.
     execute_range(0, execution_order_.size());
 }
 
@@ -1116,6 +1118,8 @@ void Runtime::eliminate_dead_ops()
 void Runtime::wait()
 {
     starpu_task_wait_for_all();
+    // Last-consumer invalidate_submit already ran in execute_range / run().
+    // Drain any stragglers if a path queued without flushing.
     flush_queued_dead_tiles();
 }
 

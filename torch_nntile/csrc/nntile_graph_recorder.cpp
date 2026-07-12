@@ -1058,7 +1058,7 @@ void run_graph_locked()
         SteadyClock::time_point const t0 = SteadyClock::now();
         bool const submit = !skip_starpu_submit_and_acquire();
         // Always call execute_range so Runtime::executed_op_end_ advances and
-        // last-consumer tiles are queued for wait()-time flush. SKIP_STARPU
+        // last-consumer tiles get invalidate_submit during submit. SKIP_STARPU
         // only disables OpNode::execute (StarPU task insert).
         if (!g_exec->pending_scatter_stagings.empty())
         {

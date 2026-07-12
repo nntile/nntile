@@ -54,11 +54,14 @@ class Runtime
     void compile();
 
     //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
-    //! Call ``wait()`` before reading outputs or reclaiming tiles.
+    //! After each submitted op, last-consumer tiles are invalidated via
+    //! ``invalidate_submit`` and dropped from ``tile_map_`` (async w.r.t.
+    //! already-submitted consumers). Call ``wait()`` to join StarPU before
+    //! host readout.
     //! If ``submit_tasks`` is false, skip ``OpNode::execute`` (no StarPU
-    //! inserts) but still advance the executed watermark and queue
-    //! last-consumer tile reclaim — required so incremental ``compile()``
-    //! stays O(pending) under dry-run profiling.
+    //! inserts) but still advance the executed watermark and last-consumer
+    //! reclaim — required so incremental ``compile()`` stays O(pending)
+    //! under dry-run profiling.
     void execute_range(
         size_t op_begin,
         size_t op_end,
@@ -99,8 +102,9 @@ class Runtime
     void bind_data(TileNode const *tile, const std::vector<T> &data);
 
     //! Submit all compiled ops asynchronously (no StarPU drain).
-    //! Call ``wait()`` to join and flush last-consumer reclaim. Same
-    //! submit contract as ``execute_range(0, execution_op_count())``.
+    //! Last-consumer ``invalidate_submit`` runs during submit (see
+    //! ``execute_range``). Call ``wait()`` to join StarPU. Same submit
+    //! contract as ``execute_range(0, execution_op_count())``.
     void execute();
 
     //! StarPU worker for ``STARPU_EXECUTE_ON_WORKER`` during tile op execution,
@@ -110,7 +114,8 @@ class Runtime
     int starpu_worker_hint() const noexcept { return starpu_worker_hint_; }
 
     //! Block until all tasks submitted by ``execute()`` / ``execute_range()``
-    //! have finished, then flush queued last-consumer tile reclaim.
+    //! have finished. Last-consumer tile invalidation already ran during
+    //! submit; this only drains StarPU.
     void wait();
 
     //! Read a logical tensor or tile buffer marked for host I/O (input or
@@ -256,8 +261,8 @@ class Runtime
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
     std::unordered_set<const TileNode *> live_tile_nodes_;
     std::unordered_map<const TileNode *, size_t> tile_last_consumer_op_;
-    //! Tiles whose last consumer ran during async execute_range; flushed in
-    //! ``wait()`` after ``starpu_task_wait_for_all``.
+    //! Scratch for last-consumer tiles; flushed via invalidate_submit during
+    //! ``execute_range`` (not deferred to ``wait()``).
     std::vector<const TileNode *> queued_dead_tiles_;
     //! Highest exclusive op index already run via execute / execute_range.
     size_t executed_op_end_ = 0;
