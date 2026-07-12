@@ -566,34 +566,24 @@ void write_cpu_bytes_to_staging_locked(
     runtime.mark_initialized(staging);
 }
 
-void invalidate_staging_tile_submit_locked(
-    nntile::TensorGraph::TensorNode *staging)
+void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
 {
     if (staging == nullptr || g_exec == nullptr || g_exec->runtime == nullptr)
     {
         return;
     }
-    nntile::Runtime &runtime = *g_exec->runtime;
-    // Keep map reclaim even when SKIP_STARPU disables submit/acquire.
-    runtime.wait();
-    nntile::TileGraph::TileNode *tile =
-        require_single_staging_tile_locked(staging);
-    switch (staging->dtype())
+    // Clear logical marks, then drop StarPU tile buffers from
+    // Runtime::tile_map_ (invalidate_submit alone left handles live).
+    staging->mark_input(false);
+    staging->mark_output(false);
+    g_exec->runtime->invalidate_logical_tiles(staging);
+    g_exec->inc_state.tensor_to_tiles.erase(staging);
+    g_exec->inc_state.tensor_layout_fp.erase(staging);
+    g_exec->tile_map.erase(staging);
+    if (g_exec->session_tiling != nullptr)
     {
-    case nntile::DataType::FP32:
-        runtime.get_tile<nntile::fp32_t>(tile).invalidate_submit();
-        break;
-    case nntile::DataType::INT64:
-        runtime.get_tile<nntile::int64_t>(tile).invalidate_submit();
-        break;
-    case nntile::DataType::BOOL:
-        runtime.get_tile<nntile::bool_t>(tile).invalidate_submit();
-        break;
-    default:
-        throw std::runtime_error(
-            "torch_nntile: unsupported staging invalidate dtype");
+        g_exec->session_tiling->erase(staging);
     }
-    runtime.invalidate_initialized(staging);
 }
 
 void read_staging_to_host_locked(
@@ -1032,20 +1022,7 @@ void finish_run_locked()
     for (nntile::TensorGraph::TensorNode *staging :
         g_exec->pending_scatter_stagings)
     {
-        invalidate_staging_tile_submit_locked(staging);
-        // .to("nntile") marks ingress staging as input; clear marks after
-        // scatter completes so later seals do not keep carrying stagings.
-        // Drop incremental tile state so the next compile cannot reuse the
-        // invalidated staging tile nodes and allocate empty replacements.
-        staging->mark_input(false);
-        staging->mark_output(false);
-        g_exec->inc_state.tensor_to_tiles.erase(staging);
-        g_exec->inc_state.tensor_layout_fp.erase(staging);
-        g_exec->tile_map.erase(staging);
-        if (g_exec->session_tiling != nullptr)
-        {
-            g_exec->session_tiling->erase(staging);
-        }
+        release_io_staging_locked(staging);
     }
     g_exec->pending_scatter_stagings.clear();
     if (g_defer_pending_clear_after_run)
@@ -1307,8 +1284,7 @@ void gather_logical_to_staging_and_read_locked(
     finish_run_locked();
 
     read_staging_to_host_locked(staging, host_ptr, dtype, count);
-    invalidate_staging_tile_submit_locked(staging);
-    staging->mark_output(false);
+    release_io_staging_locked(staging);
     g_timing.host_readout_s += seconds_since(t0);
     ++g_timing.host_readout_calls;
 }
