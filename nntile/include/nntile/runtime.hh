@@ -16,7 +16,6 @@
 
 // Standard library headers
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -56,7 +55,14 @@ class Runtime
 
     //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
     //! Call ``wait()`` before reading outputs or reclaiming tiles.
-    void execute_range(size_t op_begin, size_t op_end);
+    //! If ``submit_tasks`` is false, skip ``OpNode::execute`` (no StarPU
+    //! inserts) but still advance the executed watermark and queue
+    //! last-consumer tile reclaim — required so incremental ``compile()``
+    //! stays O(pending) under dry-run profiling.
+    void execute_range(
+        size_t op_begin,
+        size_t op_end,
+        bool submit_tasks = true);
 
     size_t execution_op_count() const { return execution_order_.size(); }
 
@@ -230,7 +236,9 @@ class Runtime
     void get_output_impl(const TileNode *node, std::vector<T> &result);
 
     const TileGraph &graph_;
-    std::map<const TileNode *, std::shared_ptr<void>> tile_map_;
+    //! Pointer keys: unordered_map keeps allocate/lookup O(1) as live tiles
+    //! grow; reclaim keeps size O(live), not O(session).
+    std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_map_;
     std::vector<std::shared_ptr<OpNode>> execution_order_;
     ExecutionSchedule execution_schedule_;
     std::optional<ExecutionSchedule> execution_schedule_file_cache_;

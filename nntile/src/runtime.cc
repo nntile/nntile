@@ -45,9 +45,11 @@ namespace
 {
 
 template <typename T>
-void allocate_tile_and_register(const TileGraph::TileNode *node,
+void allocate_tile_and_register(
+    const TileGraph::TileNode *node,
     const std::vector<Index> &shape,
-    std::map<const TileGraph::TileNode *, std::shared_ptr<void>> &tile_map)
+    std::unordered_map<const TileGraph::TileNode *, std::shared_ptr<void>> &
+        tile_map)
 {
     auto t = std::make_shared<nntile::core::Tile<T>>(shape);
     tile_map[node] = t;
@@ -754,7 +756,10 @@ void Runtime::allocate_missing_tiles()
     compiled_tile_node_count_ = all_tiles.size();
 }
 
-void Runtime::execute_range(size_t op_begin, size_t op_end)
+void Runtime::execute_range(
+    size_t op_begin,
+    size_t op_end,
+    bool submit_tasks)
 {
     require_compiled();
     if (op_begin > op_end || op_end > execution_order_.size())
@@ -764,21 +769,29 @@ void Runtime::execute_range(size_t op_begin, size_t op_end)
     // Submit only: core sync wrappers skip wait_for_all while deferred so
     // torch_nntile run() can return before StarPU finishes the phase.
     StarpuSyncDefer defer_waits;
-    bool const use_static_schedule = has_execution_schedule();
+    bool const use_static_schedule =
+        submit_tasks && has_execution_schedule();
     for (size_t i = op_begin; i < op_end; ++i)
     {
-        if (use_static_schedule)
+        if (submit_tasks)
         {
-            starpu_worker_hint_ = sched::starpu_worker_id_for_scheduled_op(
-                execution_schedule_.worker_for_op(i),
-                execution_schedule_.use_cuda_workers,
-                execution_order_[i]->op_name());
+            if (use_static_schedule)
+            {
+                starpu_worker_hint_ =
+                    sched::starpu_worker_id_for_scheduled_op(
+                        execution_schedule_.worker_for_op(i),
+                        execution_schedule_.use_cuda_workers,
+                        execution_order_[i]->op_name());
+            }
+            else
+            {
+                starpu_worker_hint_ = -1;
+            }
+            execution_order_[i]->execute(*this);
         }
-        else
-        {
-            starpu_worker_hint_ = -1;
-        }
-        execution_order_[i]->execute(*this);
+        // Always queue last-consumer reclaim. Skipping this (and skipping
+        // the executed_op_end_ update below) makes the next compile treat
+        // the full history as pending — O(session) DCE/allocate.
         queue_dead_tiles_after_op(i);
     }
     if (op_end > executed_op_end_)
