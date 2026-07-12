@@ -151,12 +151,14 @@ void tensor_cross_entropy_forward_fp32(
     const at::Tensor &labels,
     std::int64_t ignore_index,
     bool mean_reduction,
-    at::Tensor &loss);
+    at::Tensor &loss,
+    at::Tensor &maxsumexp);
 
 void tensor_cross_entropy_backward_fp32(
     const at::Tensor &logits,
     const at::Tensor &labels,
     const at::Tensor &grad_output,
+    const at::Tensor &maxsumexp,
     at::Tensor &grad_row,
     at::Tensor &grad_logits,
     std::int64_t ignore_index,

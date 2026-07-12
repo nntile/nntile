@@ -83,6 +83,20 @@ class TensorGraph::TensorNode
     void mark_input(bool v = true);
     void mark_output(bool v = true);
 
+    //! True after any op lists this node as an output (O(1) producer check).
+    bool has_producer() const { return has_producer_; }
+    void note_produced() { has_producer_ = true; }
+
+    //! Constant value when the only producer is FILL (common for ones_like).
+    bool has_constant_value() const { return has_constant_value_; }
+    Scalar constant_value() const { return constant_value_; }
+    void set_constant_value(Scalar v)
+    {
+        has_constant_value_ = true;
+        constant_value_ = v;
+    }
+    void clear_constant_value() { has_constant_value_ = false; }
+
     // Host-side parameter bytes (checkpoint I/O); not applied until bind_data.
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t> *get_bind_hint() const;
@@ -102,6 +116,9 @@ class TensorGraph::TensorNode
     std::string name_;
     bool is_input_ = false;
     bool is_output_ = false;
+    bool has_producer_ = false;
+    bool has_constant_value_ = false;
+    Scalar constant_value_ = 0;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
 
     friend class TensorGraph;

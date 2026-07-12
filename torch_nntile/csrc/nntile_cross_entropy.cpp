@@ -12,6 +12,7 @@
 #include <ATen/TensorUtils.h>
 
 #include <chrono>
+#include <vector>
 
 namespace torch_nntile
 {
@@ -61,9 +62,25 @@ bool reduction_is_mean(int64_t reduction)
     return reduction == 1;
 }
 
+std::vector<int64_t> maxsumexp_pytorch_shape(c10::IntArrayRef logits_sizes)
+{
+    std::vector<int64_t> shape;
+    shape.reserve(static_cast<std::size_t>(logits_sizes.size()));
+    const int64_t class_axis = logits_sizes.size() - 1;
+    for (int64_t i = 0; i < logits_sizes.size(); ++i)
+    {
+        if (i != class_axis)
+        {
+            shape.push_back(logits_sizes[i]);
+        }
+    }
+    shape.push_back(2);
+    return shape;
+}
+
 } // namespace
 
-at::Tensor cross_entropy_forward(
+std::tuple<at::Tensor, at::Tensor> cross_entropy_forward(
     const at::Tensor &logits,
     const at::Tensor &target,
     int64_t reduction,
@@ -75,24 +92,32 @@ at::Tensor cross_entropy_forward(
         "nntile cross_entropy supports reduction mean (1) or sum (2) only");
 
     at::Tensor loss = empty_metadata_tensor({}, at::kFloat, logits.device());
+    at::Tensor maxsumexp = empty_metadata_tensor(
+        maxsumexp_pytorch_shape(logits.sizes()),
+        at::kFloat,
+        logits.device());
 #ifndef TORCH_NNTILE_USE_LIBNNTILE
     ensure_host_staging(loss);
+    ensure_host_staging(maxsumexp);
 #endif
     pin_graph_op_inputs({logits, target});
     pin_graph_op_output(loss, true);
+    pin_graph_op_output(maxsumexp, false);
     tensor_cross_entropy_forward_fp32(
         logits,
         target,
         ignore_index,
         reduction_is_mean(reduction),
-        loss);
-    return loss;
+        loss,
+        maxsumexp);
+    return {loss, maxsumexp};
 }
 
 at::Tensor cross_entropy_backward(
     const at::Tensor &logits,
     const at::Tensor &target,
     const at::Tensor &grad_output,
+    const at::Tensor &maxsumexp,
     int64_t reduction,
     int64_t ignore_index)
 {
@@ -107,6 +132,9 @@ at::Tensor cross_entropy_backward(
     TORCH_CHECK(
         is_nntile_device(grad_output.device()),
         "nntile cross_entropy_backward: grad_output must be on device nntile");
+    TORCH_CHECK(
+        is_nntile_device(maxsumexp.device()),
+        "nntile cross_entropy_backward: maxsumexp must be on device nntile");
     at::Tensor grad_out = grad_output;
 #ifndef TORCH_NNTILE_USE_LIBNNTILE
     ensure_host_staging(grad_out);
@@ -123,12 +151,13 @@ at::Tensor cross_entropy_backward(
         target.sizes(),
         logits.scalar_type(),
         logits.device());
-    pin_graph_op_inputs({logits, target, grad_out});
+    pin_graph_op_inputs({logits, target, grad_out, maxsumexp});
     pin_graph_op_output(grad_logits, false);
     tensor_cross_entropy_backward_fp32(
         logits,
         target,
         grad_out,
+        maxsumexp,
         grad_row,
         grad_logits,
         ignore_index,

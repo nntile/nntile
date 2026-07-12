@@ -8,11 +8,13 @@
 
 #include <ATen/Tensor.h>
 #include <cstdint>
+#include <tuple>
 
 namespace torch_nntile
 {
 
-at::Tensor cross_entropy_forward(
+//! Returns (loss, maxsumexp) so backward can reuse maxsumexp.
+std::tuple<at::Tensor, at::Tensor> cross_entropy_forward(
     const at::Tensor &logits,
     const at::Tensor &target,
     int64_t reduction,
@@ -22,6 +24,7 @@ at::Tensor cross_entropy_backward(
     const at::Tensor &logits,
     const at::Tensor &target,
     const at::Tensor &grad_output,
+    const at::Tensor &maxsumexp,
     int64_t reduction,
     int64_t ignore_index);
 

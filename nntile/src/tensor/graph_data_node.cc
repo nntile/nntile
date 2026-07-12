@@ -15,7 +15,6 @@
 
 #include "nntile/tensor/graph.hh"
 
-#include <algorithm>
 #include <numeric>
 #include <stdexcept>
 
@@ -70,15 +69,11 @@ void TensorGraph::TensorNode::set_axes(
                 "TensorNode::set_axes: extent mismatch at axis " +
                 std::to_string(i));
         }
-        auto& old_members = axes_[i]->members;
-        void* self = static_cast<void*>(this);
-        int idx = static_cast<int>(i);
-        old_members.erase(
-            std::remove(old_members.begin(), old_members.end(),
-                        std::make_pair(self, idx)),
-            old_members.end());
-        axes_[i] = axes[i];
-        axes[i]->members.push_back({self, idx});
+        // Unify via merge_axis (union-by-size) instead of erasing this node
+        // from old_members with a linear scan. Joining a fresh singleton into
+        // a large shared group stays O(1); the old erase was O(|members|).
+        std::shared_ptr<AxisDescriptor> other = axes[i];
+        merge_axis(axes_[i], other);
     }
 }
 

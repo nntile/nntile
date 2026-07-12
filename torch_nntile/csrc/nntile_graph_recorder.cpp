@@ -70,6 +70,7 @@ struct ParamGradEntry
 std::unordered_map<TensorImplKey, ParamGradEntry> g_param_grad_registry;
 std::vector<nntile::TensorGraph::TensorNode *> g_relu_preactivation_stack;
 std::vector<at::Tensor> g_pinned_tensors;
+std::unordered_set<TensorImplKey> g_pinned_tensor_keys;
 std::unordered_map<TensorImplKey, std::unordered_map<int, std::string>>
     g_axis_name_hints;
 std::unordered_map<std::string, std::vector<nntile::Index>> g_axis_tiling_by_name;
@@ -664,12 +665,9 @@ void pin_tensor_for_graph(const at::Tensor &tensor)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     TensorImplKey const key = tensor_impl_key(tensor);
-    for (at::Tensor const &pinned : g_pinned_tensors)
+    if (!g_pinned_tensor_keys.insert(key).second)
     {
-        if (tensor_impl_key(pinned) == key)
-        {
-            return;
-        }
+        return;
     }
     g_pinned_tensors.push_back(tensor);
 }
@@ -778,6 +776,7 @@ void transfer_pinned_tensors_locked(std::vector<at::Tensor> &pin_drop)
         std::make_move_iterator(g_pinned_tensors.begin()),
         std::make_move_iterator(g_pinned_tensors.end()));
     g_pinned_tensors.clear();
+    g_pinned_tensor_keys.clear();
 }
 
 void clear_pending_graph_after_compile_locked(
@@ -1372,7 +1371,11 @@ void init_nntile_input_from_cpu(
 
     nntile::tensor::scatter(staging, logical);
 
-    g_pinned_tensors.push_back(nntile_dst);
+    TensorImplKey const key = tensor_impl_key(nntile_dst);
+    if (g_pinned_tensor_keys.insert(key).second)
+    {
+        g_pinned_tensors.push_back(nntile_dst);
+    }
 }
 
 

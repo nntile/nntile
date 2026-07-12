@@ -92,17 +92,18 @@ class TensorGraph
     {
         size_t op_begin = 0;
         size_t op_end = 0;
-        //! Persistent tensors at seal time (input/output marks), unioned with
-        //! op inputs/outputs when lowering (see ``collect_phase_tensors``).
+        //! Tensors needed for this phase: op inputs/outputs plus live
+        //! ``mark_output`` nodes (see ``collect_phase_tensors``). Historical
+        //! ``mark_input`` nodes that are unused this phase are omitted so
+        //! incremental compile stays O(phase), not O(session).
         std::vector<TensorNode const *> carried_tensors;
 
         bool empty() const { return op_begin >= op_end; }
     };
 
     //! Seal ops [phase_seal_cursor_, num_ops()) into a snapshot and advance
-    //! the cursor.  Carries every data node marked ``mark_input`` or
-    //! ``mark_output`` (persistent across phases); phase temporaries are only
-    //! those touched by ops in this phase and need no marks.
+    //! the cursor. Carries tensors referenced by those ops plus live
+    //! ``mark_output`` nodes (not every historical ``mark_input``).
     PhaseSnapshot seal_phase();
 
     //! Same with an explicit carried list (overrides automatic marks).
@@ -136,6 +137,9 @@ class TensorGraph
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;
     size_t phase_seal_cursor_ = 0;
+    //! Contiguous SCATTER prefix length after compact; avoids O(session)
+    //! rescans in ``drop_all_ops``.
+    size_t scatter_prefix_end_ = 0;
 };
 
 //! One sealed slice of a ``TensorGraph``, ready for optional transforms and

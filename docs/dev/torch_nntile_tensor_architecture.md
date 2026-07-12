@@ -106,7 +106,7 @@ run backward (or ingress a real grad tensor via `.to("nntile")`) first.
 |---|--------|------------------|-------------------|
 | D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows). Phase outputs cleared after `wait()` are reclaimed via `pending_output_reclaim` (O(phase outputs), not a full tile-map scan). Historical TileGraph/TensorGraph nodes still accumulate in memory. | Phase GC / compaction; reuse readout staging per session. |
 | D2 | Incremental tile-map growth | Every ingress/egress lowers a fresh ephemeral `S` into `inc_state.tensor_to_tiles`; entries are never removed. | Reclaim staging descriptors after invalidate; or pool single-tile `S` per `L`. |
-| D3 | Pin bookkeeping | `pin_tensor_for_graph` / ingress may append duplicate `at::Tensor` refs until the next graph clear. | Dedup by `TensorImpl*`; trim on phase seal. |
+| D3 | Pin bookkeeping | Dedup uses `unordered_set<TensorImplKey>` while pinning; pins still clear on phase transfer. | Optional: trim earlier than phase seal if pin lists grow mid-phase. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |
 | D5 | `vector_norm` backward | Forward-only by design. | Add autograd when product needs it. |
 | D6 | Stub vs libnntile | Builds without libnntile still use host `Storage` staging. | Keep stub path minimal; do not reintroduce host tiers on the libnntile path. |

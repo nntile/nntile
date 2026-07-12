@@ -36,7 +36,8 @@ struct AxisDescriptor
     std::string name;
 
     //! (tensor_node, axis_index) pairs for all members of this group.
-    //! Updated during merge_axis().
+    //! Updated during merge_axis(). Prefer union-by-size there so merging a
+    //! fresh tensor into a large group stays O(1) in the small side.
     std::vector<std::pair<void*, int>> members;
 
     //! Tile sizes along this axis. Empty means not tiled (single tile
