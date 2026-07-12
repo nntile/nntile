@@ -761,6 +761,35 @@ void Runtime::allocate_missing_tiles()
     compiled_tile_node_count_ = all_tiles.size();
 }
 
+size_t Runtime::last_input_consumer_end(
+    TileNode const *tile,
+    size_t op_begin,
+    size_t op_end) const
+{
+    if (tile == nullptr || op_begin >= op_end)
+    {
+        return op_begin;
+    }
+    if (op_end > execution_order_.size())
+    {
+        throw std::out_of_range(
+            "Runtime::last_input_consumer_end: bad range");
+    }
+    size_t last = op_begin;
+    for (size_t i = op_begin; i < op_end; ++i)
+    {
+        for (TileNode const *in : execution_order_[i]->inputs())
+        {
+            if (in == tile)
+            {
+                last = i + 1;
+                break;
+            }
+        }
+    }
+    return last;
+}
+
 void Runtime::execute_range(
     size_t op_begin,
     size_t op_end,

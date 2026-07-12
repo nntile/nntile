@@ -43,6 +43,7 @@ std::vector<Index> tile_sizes_for_axis_extent(
     Index extent);
 } // namespace nntile
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -586,6 +587,78 @@ void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
     }
 }
 
+//! Run pending tile ops, releasing each ingress ``S`` right after its
+//! scatter consumers finish.
+//!
+//! Batched ``.to("nntile")`` creates every ephemeral ``S`` first, then
+//! compile lowers every logical ``L``. Submitting all scatters before any
+//! ``S`` unregister leaves StarPU holding CUDA replicates of every ``S``
+//! beside every ``L``; unregister only parks those buffers in the
+//! allocation cache (``nvidia-smi`` stays ≈2×). Drain + destroy each
+//! ``S`` before the next scatter so the next ``L`` reuses the cached
+//! chunk instead of allocating another full working set.
+void run_pending_with_scatter_staging_release_locked(
+    std::size_t op_begin,
+    std::size_t op_end,
+    bool submit_tasks)
+{
+    struct ReleasePoint
+    {
+        std::size_t after_op_end = 0;
+        nntile::TensorGraph::TensorNode *staging = nullptr;
+    };
+    std::vector<ReleasePoint> points;
+    points.reserve(g_exec->pending_scatter_stagings.size());
+    for (nntile::TensorGraph::TensorNode *staging :
+        g_exec->pending_scatter_stagings)
+    {
+        if (staging == nullptr)
+        {
+            continue;
+        }
+        std::size_t after = op_begin;
+        auto const found = g_exec->tile_map.find(staging);
+        if (found != g_exec->tile_map.end() && found->second.size() == 1 &&
+            found->second[0] != nullptr)
+        {
+            after = g_exec->runtime->last_input_consumer_end(
+                found->second[0],
+                op_begin,
+                op_end);
+        }
+        points.push_back(ReleasePoint{after, staging});
+    }
+    std::stable_sort(
+        points.begin(),
+        points.end(),
+        [](ReleasePoint const &a, ReleasePoint const &b)
+        {
+            return a.after_op_end < b.after_op_end;
+        });
+
+    std::size_t cursor = op_begin;
+    for (ReleasePoint const &pt : points)
+    {
+        if (pt.after_op_end > cursor)
+        {
+            g_exec->runtime->execute_range(
+                cursor,
+                pt.after_op_end,
+                submit_tasks);
+            cursor = pt.after_op_end;
+        }
+        // Join before destroying S so its CUDA replicate can enter the
+        // allocation cache for the next L allocate.
+        g_exec->runtime->wait();
+        release_io_staging_locked(pt.staging);
+    }
+    if (cursor < op_end)
+    {
+        g_exec->runtime->execute_range(cursor, op_end, submit_tasks);
+    }
+    g_exec->pending_scatter_stagings.clear();
+}
+
 void read_staging_to_host_locked(
     nntile::TensorGraph::TensorNode *staging,
     void *host_ptr,
@@ -976,20 +1049,33 @@ void run_graph_locked()
     {
         return;
     }
-    // Submit only. Never wait here — callers use wait_graph_session() /
-    // torch_nntile.wait() for synchronization and post-run reclaim.
+    // Submit only (except ingress scatters — see below). Callers use
+    // wait_graph_session() / torch_nntile.wait() for post-run reclaim.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
         std::uint64_t const phase_ops = static_cast<std::uint64_t>(
             g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
         SteadyClock::time_point const t0 = SteadyClock::now();
+        bool const submit = !skip_starpu_submit_and_acquire();
         // Always call execute_range so Runtime::executed_op_end_ advances and
         // last-consumer tiles are queued for wait()-time flush. SKIP_STARPU
         // only disables OpNode::execute (StarPU task insert).
-        g_exec->runtime->execute_range(
-            g_exec->pending_exec_op_begin,
-            g_exec->pending_exec_op_end,
-            !skip_starpu_submit_and_acquire());
+        if (!g_exec->pending_scatter_stagings.empty())
+        {
+            // Per-S release so StarPU's allocation cache can reuse each
+            // ephemeral CUDA chunk for the next logical L (avoids ≈2×).
+            run_pending_with_scatter_staging_release_locked(
+                g_exec->pending_exec_op_begin,
+                g_exec->pending_exec_op_end,
+                submit);
+        }
+        else
+        {
+            g_exec->runtime->execute_range(
+                g_exec->pending_exec_op_begin,
+                g_exec->pending_exec_op_end,
+                submit);
+        }
         g_timing.run_s += seconds_since(t0);
         ++g_timing.run_calls;
         g_timing.run_ops += phase_ops;
@@ -997,8 +1083,7 @@ void run_graph_locked()
         g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
     }
     // Always require wait() for compile-side cleanup (pin_hold, reclaim,
-    // scatter stagings, deferred pending clear) — including empty post-DCE
-    // phases that submit no StarPU tasks.
+    // deferred pending clear) — including empty post-DCE phases.
     g_run_cleanup_pending = true;
 }
 
@@ -1019,6 +1104,8 @@ void finish_run_locked()
     // Always join + reclaim so tile_map_ stays O(live). SKIP_STARPU only
     // skips compute submit and host↔tile acquire/memcpy.
     g_exec->runtime->wait();
+    // Ingress S is normally released during run() (per-scatter). Any
+    // leftover (e.g. empty execute range) is cleaned here.
     for (nntile::TensorGraph::TensorNode *staging :
         g_exec->pending_scatter_stagings)
     {

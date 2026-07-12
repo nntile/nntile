@@ -254,11 +254,12 @@ Architecture reference:
 
 - Every ``device=nntile`` tensor uses **0-byte** ``Storage``. Payload lives in
   StarPU tiles behind ``NodeRef`` → ``NNTileBinding { logical L }``.
-- **Staging ``S`` is ephemeral** (not stored in the binding): created for each
-  ``.to("nntile")`` scatter or ``.cpu()`` gather, then **fully released** after
-  ``wait()`` (StarPU tile buffers dropped from the runtime map; not merely
-  ``invalidate_submit``). Ingress ``S`` tiles are built with ``mark_input``;
-  reclaim clears those marks so untiled ``L``+``S`` do not stay at ≈2× VRAM.
+- **Staging ``S`` is ephemeral** (not stored in the binding): created on StarPU
+  for each ``.to("nntile")`` scatter or ``.cpu()`` gather. During ``run()`` of
+  an ingress scatter phase, each ``S`` is destroyed right after its scatter
+  finishes so StarPU's allocation cache can reuse that CUDA chunk for the next
+  logical ``L`` (batching all scatters then unregistering all ``S`` left
+  cached buffers and settled at ≈2× VRAM).
 - Ingress is **one-shot** per tensor via ``.to("nntile")``; CPU→bound-nntile
   copy raises.
 - **Views / reshape / contiguous-preserving permute** share ``NodeRef`` (no

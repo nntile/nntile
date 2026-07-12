@@ -66,6 +66,13 @@ class Runtime
 
     size_t execution_op_count() const { return execution_order_.size(); }
 
+    //! Exclusive end index of the last op in ``[op_begin, op_end)`` that
+    //! lists ``tile`` as an input. Returns ``op_begin`` if none.
+    size_t last_input_consumer_end(
+        TileNode const *tile,
+        size_t op_begin,
+        size_t op_end) const;
+
     //! Bind host data to a logical tensor or scatter to its tiles.
     template <typename T>
     void bind_data(
