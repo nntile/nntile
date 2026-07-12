@@ -15,6 +15,11 @@ Supports ``--device cpu`` / ``cuda`` (PyTorch SGD) and ``--device nntile``
 (``train_full_batch_step`` + StarPU). Pass ``--ncpu`` / ``--ncuda`` to set
 StarPU workers for the nntile path (``-1`` = env default).
 
+Torch cannot use CUDA and the PrivateUse1 ``nntile`` device in one process
+(PyTorch >= 2.8). This script imports ``torch_nntile`` only for
+``--device nntile``; CUDA/CPU runs load ``DeepReLU`` without registering
+nntile. Use separate processes to compare cuda vs nntile.
+
 Before training, the full MNIST batch (images + labels) and the model are
 moved onto the training device; the script prints prefetch time and wall
 training time.
@@ -48,6 +53,11 @@ CPU torch reference::
     python torch_nntile/examples/train_deep_relu_mnist.py \\
         --device cpu --epochs 5
 
+CUDA torch reference (separate process from any nntile run)::
+
+    python torch_nntile/examples/train_deep_relu_mnist.py \\
+        --device cuda --epochs 5
+
 Nntile + CPU torch parity::
 
     python torch_nntile/examples/train_deep_relu_mnist.py \\
@@ -60,17 +70,40 @@ Run instructions and expected output:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import sys
 import time
 from pathlib import Path
+from typing import Type
 
 import torch
+import torch.nn as nn
 from torchvision import datasets
 
 _REPO = Path(__file__).resolve().parents[2]
 _TORCH_NNTILE_ROOT = _REPO / "torch_nntile"
 if str(_TORCH_NNTILE_ROOT) not in sys.path:
     sys.path.insert(0, str(_TORCH_NNTILE_ROOT))
+
+_DeepReLU: Type[nn.Module] | None = None
+
+
+def _deep_relu_class() -> Type[nn.Module]:
+    """Load DeepReLU without importing ``torch_nntile`` (no PrivateUse1)."""
+    global _DeepReLU
+    if _DeepReLU is not None:
+        return _DeepReLU
+    path = _TORCH_NNTILE_ROOT / "torch_nntile" / "models" / "deep_relu.py"
+    spec = importlib.util.spec_from_file_location(
+        "torch_nntile_deep_relu_standalone",
+        path,
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load DeepReLU from {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _DeepReLU = module.DeepReLU
+    return _DeepReLU
 
 
 def load_mnist_full_batch(
@@ -153,9 +186,8 @@ def build_torch_model(
     hidden_dim: int,
     depth: int,
 ) -> torch.nn.Module:
-    """Build DeepReLU on CPU with Kaiming init."""
-    from torch_nntile.models import DeepReLU
-
+    """Build DeepReLU on CPU with Kaiming init (no torch_nntile import)."""
+    DeepReLU = _deep_relu_class()
     torch.manual_seed(seed)
     model = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
     model.init_kaiming_uniform_(seed=seed)
@@ -236,9 +268,11 @@ def build_nntile_model(
     depth: int,
     state_dict: dict[str, torch.Tensor],
 ) -> torch.nn.Module:
-    """Clone CPU ``state_dict`` onto ``device='nntile'`` (requires init_context)."""
-    from torch_nntile.models import DeepReLU
+    """Clone CPU ``state_dict`` onto ``device='nntile'`` (requires init_context).
 
+    Call only after ``import torch_nntile`` has registered the device.
+    """
+    DeepReLU = _deep_relu_class()
     model = DeepReLU.mnist(hidden_dim=hidden_dim, depth=depth)
     with torch.no_grad():
         model.load_state_dict(state_dict)
@@ -559,12 +593,13 @@ def main() -> None:
             torch_nntile.wait()
             torch_nntile.shutdown_context()
     else:
+        # Do not import torch_nntile here: PrivateUse1 registration breaks
+        # CUDA autograd in the same process (PyTorch >= 2.8).
         device = torch.device(args.device)
         if device.type == "cuda" and not torch.cuda.is_available():
             raise SystemExit("CUDA is not available")
 
-        from torch_nntile.models import DeepReLU
-
+        DeepReLU = _deep_relu_class()
         print(f"Prefetching MNIST + model to {device}...")
         t_pre0 = time.perf_counter()
         with torch.no_grad():
