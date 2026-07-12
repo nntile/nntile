@@ -260,8 +260,14 @@ static void bind_runtime_methods(py::class_<PyRuntimeView> &cls)
             [](PyRuntimeView &s, TensorGraph::TensorNode const *t)
             { s.runtime->invalidate_initialized(t); },
             "tensor"_a)
-        .def("execute", [](PyRuntimeView &s) { s.runtime->execute(); })
-        .def("wait", [](PyRuntimeView &s) { s.runtime->wait(); })
+        .def(
+            "execute",
+            [](PyRuntimeView &s) { s.runtime->execute(); },
+            "Submit all compiled ops asynchronously (call wait() to join)")
+        .def(
+            "wait",
+            [](PyRuntimeView &s) { s.runtime->wait(); },
+            "Block until submitted tasks finish; flush dead-tile reclaim")
         .def(
             "get_output",
             [](PyRuntimeView &s, NNGraph::TensorNode const *t)
@@ -456,8 +462,14 @@ PYBIND11_MODULE(nntile, m)
             [](PyGraphRuntime &s, NNGraph::TensorNode const *t)
             { s.runtime.invalidate_initialized(t); },
             "tensor"_a)
-        .def("execute", [](PyGraphRuntime &s) { s.runtime.execute(); })
-        .def("wait", [](PyGraphRuntime &s) { s.runtime.wait(); })
+        .def(
+            "execute",
+            [](PyGraphRuntime &s) { s.runtime.execute(); },
+            "Submit all compiled ops asynchronously (call wait() to join)")
+        .def(
+            "wait",
+            [](PyGraphRuntime &s) { s.runtime.wait(); },
+            "Block until submitted tasks finish; flush dead-tile reclaim")
         .def(
             "get_output",
             [](PyGraphRuntime &s, TensorGraph::TensorNode const *t)

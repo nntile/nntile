@@ -11,6 +11,8 @@
 #include <ATen/TensorUtils.h>
 #include <torch/library.h>
 
+#include <chrono>
+
 namespace torch_nntile
 {
 
@@ -52,6 +54,7 @@ at::Tensor threshold_backward(
     const at::Tensor &self,
     const at::Scalar &threshold)
 {
+    const auto t0 = std::chrono::steady_clock::now();
     check_threshold_backward(grad_output, self);
     TORCH_CHECK(
         threshold.to<double>() == 0.0,
@@ -60,6 +63,12 @@ at::Tensor threshold_backward(
     pin_graph_op_inputs({self, grad_output});
     pin_graph_op_output(grad_input, false);
     tensor_relu_backward_fp32(self, grad_output, grad_input);
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    note_record_relu_bwd(
+        std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - t0)
+            .count());
+#endif
     return grad_input;
 }
 

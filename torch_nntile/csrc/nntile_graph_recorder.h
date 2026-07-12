@@ -27,11 +27,14 @@ void require_no_pending_graph(const char *op_name);
 
 void execute_pending_graph();
 
+//! Lower and compile the pending TensorGraph (synchronous CPU work).
 void compile_graph();
 
+//! Submit the compiled graph to StarPU (asynchronous; does not wait).
 void run_graph();
 
-//! Block until submitted run() tasks finish; then reclaim / release pin holds.
+//! Block until submitted run() tasks finish; then reclaim / release pin holds
+//! and compact the incremental session (tile reset + drop sealed ops).
 //! Prefer ``torch_nntile.wait()`` / ``wait_for_all()`` which call this.
 void wait_graph_session();
 

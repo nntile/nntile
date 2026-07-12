@@ -112,6 +112,17 @@ class TensorGraph
 
     size_t phase_seal_cursor() const { return phase_seal_cursor_; }
 
+    //! Drop sealed non-ingress ops and rewind the seal cursor.
+    //! Sealed ``SCATTER`` ops are kept so host-ingressed inputs remain
+    //! valid across ``wait()`` compaction. Unsealed ops past the seal
+    //! cursor are always preserved (next phase recorded during a prior
+    //! async ``run()``). Persistent data nodes remain.
+    void drop_all_ops();
+
+    //! Destroy data nodes that are not marked input/output. Call only after
+    //! ``drop_all_ops()`` and after live NodeRefs have cleared unmarked temps.
+    void gc_unmarked_data_nodes();
+
     //! Keep ``marked_io_`` in sync with ``mark_input`` / ``mark_output``.
     void refresh_marked_io_(TensorNode const *node);
 

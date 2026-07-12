@@ -20,8 +20,10 @@ TensorImpl → NNTileBackendMeta → NodeRef → NNTileBinding { logical L }
 
 There is no side map (`g_tensor_nodes`) and no eager per-op flush. All ops
 record into a shared `TensorGraph`; the caller flushes with `compile_graph()`
-+ `run()` (or legacy `execute()` = compile+run+wait). `run()` submits
-StarPU tasks asynchronously; `wait()` synchronizes and runs post-run reclaim.
++ `run()` (or legacy `execute()` = compile+run). `run()` / `execute()` submit
+asynchronously; call `wait()` to join StarPU. Host readout (`.to("cpu")`) also
+waits. C++ `nntile::Runtime::execute()` is likewise submit-only; call
+`Runtime::wait()`.
 
 ## Incremental session memory (`mark_output`)
 

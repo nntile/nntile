@@ -188,6 +188,61 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase(
 
 inline void TensorGraph::reset_phase_seal_cursor() { phase_seal_cursor_ = 0; }
 
+inline void TensorGraph::drop_all_ops()
+{
+    // Compact sealed history, but keep SCATTER ops for live ingress tensors.
+    // Dropping those edges while TileGraph/Runtime still hold the lowered
+    // copies left host-ingressed inputs corrupt on the next compile/run
+    // (torch_nntile bmm two-epoch). Unsealed ops past the seal cursor are
+    // always preserved (next phase recorded during a prior async run).
+    if (phase_seal_cursor_ == 0)
+    {
+        return;
+    }
+    std::vector<std::shared_ptr<OpNode>> kept;
+    kept.reserve(ops_.size());
+    size_t sealed_kept = 0;
+    for (size_t i = 0; i < ops_.size(); ++i)
+    {
+        std::shared_ptr<OpNode> const &op = ops_[i];
+        if (i < phase_seal_cursor_)
+        {
+            if (op != nullptr && op->op_name() == "SCATTER")
+            {
+                kept.push_back(op);
+                ++sealed_kept;
+            }
+            continue;
+        }
+        kept.push_back(op);
+    }
+    ops_ = std::move(kept);
+    phase_seal_cursor_ = sealed_kept;
+}
+
+inline void TensorGraph::gc_unmarked_data_nodes()
+{
+    std::vector<std::unique_ptr<TensorNode>> kept;
+    kept.reserve(data_.size());
+    for (std::unique_ptr<TensorNode> &node : data_)
+    {
+        if (node == nullptr)
+        {
+            continue;
+        }
+        if (node->is_input() || node->is_output())
+        {
+            kept.push_back(std::move(node));
+        }
+    }
+    data_ = std::move(kept);
+    marked_io_.clear();
+    for (std::unique_ptr<TensorNode> const &node : data_)
+    {
+        refresh_marked_io_(node.get());
+    }
+}
+
 inline void TensorGraph::rename_data_node(
     TensorNode *node, std::string new_name)
 {

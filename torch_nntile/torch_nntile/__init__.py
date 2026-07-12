@@ -114,16 +114,16 @@ def init_context(
 
 
 def execute() -> None:
-    """Compile and run the pending TensorGraph in one call (legacy helper).
+    """Compile and submit the pending TensorGraph (does **not** wait).
 
-    Prefer :func:`compile_graph` and :func:`run` for training loops that reuse
-    tile memory across steps. Does not reset the compiled session.
+    Equivalent to :func:`compile_graph` then :func:`run`. Call :func:`wait`
+    to synchronize and reclaim. Prefer the split API in training loops.
     """
     _C.execute()
 
 
 def compile_graph() -> None:
-    """Lower and compile the pending TensorGraph into a persistent session."""
+    """Lower and compile the pending TensorGraph into the session Runtime."""
     _C.compile_graph()
 
 
@@ -168,9 +168,10 @@ def wait() -> None:
     """Block until tasks submitted by :func:`run` finish.
 
     Also runs post-run reclaim (scatter staging invalidate, pin_hold release,
-    ``pending_output_reclaim``). Call before host readout (``.to("cpu")``) or
-    :func:`shutdown_context`. Required for clean CUDA teardown when
-    ``ncuda > 0``.
+    ``pending_output_reclaim``) and compacts the incremental session so the
+    next :func:`compile_graph` stays O(phase) rather than O(history). Call
+    before host readout (``.to("cpu")``) or :func:`shutdown_context`.
+    Required for clean CUDA teardown when ``ncuda > 0``.
     """
     _C.wait_for_all()
 

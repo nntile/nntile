@@ -51,6 +51,7 @@ std::vector<Index> tile_sizes_for_axis_extent(
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace torch_nntile
@@ -118,6 +119,22 @@ struct GraphApiTimingStats
     double wait_s = 0.0;
     std::uint64_t host_readout_calls = 0;
     double host_readout_s = 0.0;
+    // Record-path attribution (op capture into TensorGraph).
+    std::uint64_t record_get_node_calls = 0;
+    double record_get_node_s = 0.0;
+    std::uint64_t record_new_nodes = 0;
+    std::uint64_t record_pin_calls = 0;
+    double record_pin_s = 0.0;
+    std::uint64_t record_register_calls = 0;
+    double record_register_s = 0.0;
+    std::uint64_t record_linear_bwd_calls = 0;
+    double record_linear_bwd_s = 0.0;
+    std::uint64_t record_ce_bwd_calls = 0;
+    double record_ce_bwd_s = 0.0;
+    std::uint64_t record_relu_bwd_calls = 0;
+    double record_relu_bwd_s = 0.0;
+    std::uint64_t record_gemm_calls = 0;
+    double record_gemm_s = 0.0;
 };
 
 GraphApiTimingStats g_timing;
@@ -172,17 +189,9 @@ void collect_pending_output_reclaim_locked(
     // are still marked (held across compile) so a later wait() can reclaim.
     reclaim_pending_outputs_locked();
     auto &reclaim = g_exec->pending_output_reclaim;
-    auto already = [&](nntile::TensorGraph::TensorNode *node) -> bool
-    {
-        for (nntile::TensorGraph::TensorNode *existing : reclaim)
-        {
-            if (existing == node)
-            {
-                return true;
-            }
-        }
-        return false;
-    };
+    std::unordered_set<nntile::TensorGraph::TensorNode *> seen(
+        reclaim.begin(),
+        reclaim.end());
     reclaim.reserve(reclaim.size() + phase.carried_tensors.size());
     for (nntile::TensorGraph::TensorNode const *t : phase.carried_tensors)
     {
@@ -191,7 +200,7 @@ void collect_pending_output_reclaim_locked(
             continue;
         }
         auto *mutable_t = const_cast<nntile::TensorGraph::TensorNode *>(t);
-        if (!already(mutable_t))
+        if (seen.insert(mutable_t).second)
         {
             reclaim.push_back(mutable_t);
         }
@@ -321,6 +330,9 @@ void apply_pending_axis_tiling_locked()
     {
         g_exec->session_tiling->clear();
     }
+    // Pending tiling is one-shot: applied at this compile, do not re-apply
+    // (and clear session layouts) on every subsequent compile.
+    g_axis_tiling_by_name.clear();
 }
 
 
@@ -818,11 +830,27 @@ void collect_scatter_stagings_from_phase_locked(
     }
 }
 
+void compact_tensor_graph_session_locked()
+{
+    // Drop sealed TensorGraph ops so the next record/compile is O(phase).
+    // Unsealed ops recorded after the last seal (next phase already in
+    // flight while a prior run() completes) are preserved.
+    if (g_graph == nullptr)
+    {
+        return;
+    }
+    g_graph->drop_all_ops();
+    if (g_exec != nullptr)
+    {
+        g_exec->pending_output_reclaim.clear();
+    }
+}
+
 void compile_graph_locked(
     bool clear_pending_after,
     std::vector<at::Tensor> &pin_drop)
 {
-    // A prior async run() must finish before sealing the next phase.
+    // Prior async run() must finish before sealing the next phase.
     if (g_run_cleanup_pending)
     {
         finish_run_locked();
@@ -957,6 +985,19 @@ void finish_run_locked()
         g_exec->pending_scatter_stagings)
     {
         invalidate_staging_tile_submit_locked(staging);
+        // .to("nntile") marks ingress staging as input; clear marks after
+        // scatter completes so later seals do not keep carrying stagings.
+        // Drop incremental tile state so the next compile cannot reuse the
+        // invalidated staging tile nodes and allocate empty replacements.
+        staging->mark_input(false);
+        staging->mark_output(false);
+        g_exec->inc_state.tensor_to_tiles.erase(staging);
+        g_exec->inc_state.tensor_layout_fp.erase(staging);
+        g_exec->tile_map.erase(staging);
+        if (g_exec->session_tiling != nullptr)
+        {
+            g_exec->session_tiling->erase(staging);
+        }
     }
     g_exec->pending_scatter_stagings.clear();
     if (g_defer_pending_clear_after_run)
@@ -969,6 +1010,8 @@ void finish_run_locked()
     // flips are visible before reclaim.
     g_exec->pin_hold.clear();
     reclaim_pending_outputs_locked();
+    // Compact TensorGraph history so the next record/compile is O(phase).
+    compact_tensor_graph_session_locked();
     g_run_cleanup_pending = false;
     g_timing.wait_s += seconds_since(t0);
     ++g_timing.wait_calls;
@@ -1057,12 +1100,10 @@ void sync_param_grad_aliases_locked()
 
 void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
 {
-    compile_graph_locked(false, pin_drop);
+    // compile + run only. Never wait here — callers must use wait() /
+    // wait_graph_session() (same contract as compile_graph + run).
+    compile_graph_locked(true, pin_drop);
     run_graph_locked();
-    // Legacy execute() flushes then clears recorder pins; wait first so
-    // scatter staging is done before host buffers are released.
-    finish_run_locked();
-    clear_pending_graph_after_compile_locked(pin_drop);
 }
 
 void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
@@ -1100,6 +1141,10 @@ void execute_pending_graph()
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         execute_pending_graph_locked(pin_drop);
+        if (g_exec != nullptr && !pin_drop.empty())
+        {
+            g_exec->pin_hold = std::move(pin_drop);
+        }
     }
 }
 
@@ -1189,6 +1234,13 @@ void gather_logical_to_staging_and_read_locked(
             "torch_nntile: gather readout requires an active TensorGraph");
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
+    // Finish a prior async run() before recording gather ops. Otherwise
+    // compile_graph_locked() would wait+compact and drop_all_ops() would
+    // wipe the clear/gather we are about to append.
+    if (g_run_cleanup_pending)
+    {
+        finish_run_locked();
+    }
     nntile::TensorGraph::TensorNode *staging =
         new_ephemeral_staging_node_locked(logical, "readout");
     if (staging == nullptr)
@@ -1228,6 +1280,13 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     const std::size_t count =
         static_cast<std::size_t>(logical->nelems());
     void *host_ptr = dst.storage().data_ptr().get();
+
+    // Sync a prior async execute()/run() even when no ops are pending so
+    // subsequent gather recording is not wiped by wait-side drop_all_ops().
+    if (g_run_cleanup_pending)
+    {
+        finish_run_locked();
+    }
 
     if (g_graph != nullptr &&
         g_graph->num_ops() > g_graph->phase_seal_cursor())
@@ -1291,6 +1350,8 @@ void init_nntile_input_from_cpu(
 
     auto *logical = g_graph->data(shape, dtype);
     apply_axis_name_hints_locked(impl_key, logical);
+    // Host-ingressed tensors are persistent inputs for the session.
+    logical->mark_input(true);
 
     auto binding = std::make_shared<NNTileBinding>(logical);
     attach_binding(nntile_dst, binding);
@@ -1321,6 +1382,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     nntile::DataType dtype,
     bool mark_as_input)
 {
+    const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_graph == nullptr)
     {
@@ -1328,6 +1390,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
         set_logical_tensor_nodes_alive(true);
     }
 
+    const std::size_t data_before = g_graph->num_data();
     const TensorImplKey impl_key = tensor_impl_key(tensor);
     at::Tensor mutable_tensor = const_cast<at::Tensor &>(tensor);
     nntile::TensorGraph::TensorNode *node = logical_node_for_tensor_locked(
@@ -1337,6 +1400,13 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
         dtype,
         mark_as_input);
     assert_has_node_ref(tensor, "get_or_create_data_node");
+    if (g_graph->num_data() > data_before)
+    {
+        g_timing.record_new_nodes +=
+            static_cast<std::uint64_t>(g_graph->num_data() - data_before);
+    }
+    ++g_timing.record_get_node_calls;
+    g_timing.record_get_node_s += seconds_since(t0);
     return node;
 }
 
@@ -1344,6 +1414,7 @@ void register_data_node(
     const at::Tensor &tensor,
     nntile::TensorGraph::TensorNode *node)
 {
+    const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     at::Tensor mutable_tensor = tensor;
     if (nntile_binding(mutable_tensor) == nullptr)
@@ -1353,6 +1424,32 @@ void register_data_node(
             std::make_shared<NNTileBinding>(node));
     }
     assert_has_node_ref(tensor, "register_data_node");
+    ++g_timing.record_register_calls;
+    g_timing.record_register_s += seconds_since(t0);
+}
+
+void note_record_linear_bwd(double seconds)
+{
+    ++g_timing.record_linear_bwd_calls;
+    g_timing.record_linear_bwd_s += seconds;
+}
+
+void note_record_ce_bwd(double seconds)
+{
+    ++g_timing.record_ce_bwd_calls;
+    g_timing.record_ce_bwd_s += seconds;
+}
+
+void note_record_relu_bwd(double seconds)
+{
+    ++g_timing.record_relu_bwd_calls;
+    g_timing.record_relu_bwd_s += seconds;
+}
+
+void note_record_gemm(double seconds)
+{
+    ++g_timing.record_gemm_calls;
+    g_timing.record_gemm_s += seconds;
 }
 
 nntile::TensorGraph::TensorNode *lookup_data_node(
@@ -1465,6 +1562,7 @@ void record_view_alias(const at::Tensor &self, const at::Tensor &view)
 
 void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
 {
+    const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     for (const at::Tensor &tensor : inputs)
     {
@@ -1473,6 +1571,8 @@ void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
             pin_tensor_for_graph(tensor);
         }
     }
+    ++g_timing.record_pin_calls;
+    g_timing.record_pin_s += seconds_since(t0);
 }
 
 void pin_graph_op_output(const at::Tensor &output, bool pin_output)
@@ -1716,6 +1816,45 @@ std::string format_info_locked()
        << "compile/run/wait)\n";
     ss << "  sum compile+run+wait: "
        << (g_timing.compile_s + g_timing.run_s + g_timing.wait_s) << "s\n";
+    if (g_timing.record_get_node_calls > 0 ||
+        g_timing.record_linear_bwd_calls > 0)
+    {
+        ss << "  record path (TensorGraph capture):\n";
+        ss << "    get_or_create_node: " << g_timing.record_get_node_calls
+           << " calls, " << g_timing.record_get_node_s << "s (avg "
+           << avg_ms(
+                  g_timing.record_get_node_s,
+                  g_timing.record_get_node_calls)
+           << " ms), new_nodes=" << g_timing.record_new_nodes << '\n';
+        ss << "    pin_inputs: " << g_timing.record_pin_calls
+           << " calls, " << g_timing.record_pin_s << "s (avg "
+           << avg_ms(g_timing.record_pin_s, g_timing.record_pin_calls)
+           << " ms)\n";
+        ss << "    register_data_node: " << g_timing.record_register_calls
+           << " calls, " << g_timing.record_register_s << "s\n";
+        ss << "    gemm record: " << g_timing.record_gemm_calls
+           << " calls, " << g_timing.record_gemm_s << "s (avg "
+           << avg_ms(g_timing.record_gemm_s, g_timing.record_gemm_calls)
+           << " ms)\n";
+        ss << "    linear_backward: " << g_timing.record_linear_bwd_calls
+           << " calls, " << g_timing.record_linear_bwd_s << "s (avg "
+           << avg_ms(
+                  g_timing.record_linear_bwd_s,
+                  g_timing.record_linear_bwd_calls)
+           << " ms)\n";
+        ss << "    ce_backward: " << g_timing.record_ce_bwd_calls
+           << " calls, " << g_timing.record_ce_bwd_s << "s (avg "
+           << avg_ms(
+                  g_timing.record_ce_bwd_s, g_timing.record_ce_bwd_calls)
+           << " ms)\n";
+        ss << "    relu/threshold_backward: "
+           << g_timing.record_relu_bwd_calls << " calls, "
+           << g_timing.record_relu_bwd_s << "s (avg "
+           << avg_ms(
+                  g_timing.record_relu_bwd_s,
+                  g_timing.record_relu_bwd_calls)
+           << " ms)\n";
+    }
     if (g_timing.run_calls > 0)
     {
         ss << "  note: wait_calls should be ≈ run_calls when callers avoid "

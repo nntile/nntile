@@ -561,6 +561,12 @@ def train_nntile(
 
 def main() -> None:
     args = parse_args()
+    # Single-threaded host compute for compile-overhead comparisons.
+    torch.set_num_threads(1)
+    try:
+        torch.set_num_interop_threads(1)
+    except RuntimeError:
+        pass
     torch.manual_seed(args.seed)
     use_nntile = args.device == "nntile"
 

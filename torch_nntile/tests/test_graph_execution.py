@@ -25,6 +25,9 @@ _PKG_ROOT = Path(__file__).resolve().parent.parent
 
 def _run_graph_subprocess(script: str) -> None:
     env = dict(**__import__("os").environ)
+    # Bench scripts may leave STARPU_DISABLE_KERNELS=1 in the parent env;
+    # that skips kernels and makes host readout look like garbage.
+    env.pop("STARPU_DISABLE_KERNELS", None)
     repo = Path(__file__).resolve().parents[2]
     build_lib = repo / "build" / "nntile"
     starpu_lib = "/opt/starpu/lib"
@@ -188,6 +191,69 @@ def test_execute_idempotent_on_empty():
         assert not torch_nntile.has_pending_graph()
         torch_nntile.execute()
         torch_nntile.execute()
+        """
+    )
+
+
+def test_execute_does_not_wait():
+    """execute() is compile+run only; wait() alone synchronizes."""
+    _run_graph_subprocess(
+        """
+        import os
+
+        import torch
+        import torch_nntile
+
+        def capture_print_info():
+            # C++ print_info writes to C stdout (bypasses sys.stdout redirect).
+            r, w = os.pipe()
+            old = os.dup(1)
+            try:
+                os.dup2(w, 1)
+                os.close(w)
+                w = -1
+                torch_nntile.print_info()
+                import ctypes
+                ctypes.CDLL(None).fflush(None)
+            finally:
+                os.dup2(old, 1)
+                os.close(old)
+                if w >= 0:
+                    os.close(w)
+            chunks = []
+            while True:
+                part = os.read(r, 65536)
+                if not part:
+                    break
+                chunks.append(part)
+                if len(part) < 65536:
+                    break
+            os.close(r)
+            return b"".join(chunks).decode()
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(2, 3).to("nntile")
+        w = torch.randn(4, 3).to("nntile")
+        y = torch.nn.functional.relu(
+            torch.nn.functional.linear(x, w, None)
+        )
+        torch_nntile.execute()
+        assert not torch_nntile.has_pending_graph()
+
+        info = capture_print_info()
+        assert "wait:          0 calls" in info, info
+        assert "run (submit):  1 calls" in info, info
+
+        torch_nntile.wait()
+        info = capture_print_info()
+        assert "wait:          1 calls" in info, info
+        y_ref = torch.nn.functional.relu(
+            torch.nn.functional.linear(x.cpu(), w.cpu(), None)
+        )
+        assert torch.allclose(y.cpu(), y_ref, rtol=1e-4, atol=1e-4)
         """
     )
 
@@ -435,5 +501,62 @@ def test_clean_exit_with_live_nntile_tensors_after_atexit():
         # Intentionally leave x/y alive until interpreter teardown.
         assert x.device.type == "nntile"
         assert y.device.type == "nntile"
+        """
+    )
+
+
+def test_compile_cost_stays_flat_across_steps():
+    """Session compaction: late-step compile must not grow with history."""
+    _run_graph_subprocess(
+        """
+        import time
+        import torch
+        import torch_nntile
+        from torch_nntile.training import Adam, cross_entropy
+
+        torch.set_num_threads(1)
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+
+        model = torch.nn.Sequential(
+            torch.nn.Linear(64, 32),
+            torch.nn.ReLU(),
+            torch.nn.Linear(32, 10),
+        ).to("nntile")
+        for p in model.parameters():
+            p.requires_grad_(True)
+        opt = Adam(
+            [p for p in model.parameters() if p.requires_grad],
+            lr=1e-3,
+        )
+        x = torch.randn(16, 64).to("nntile")
+        y = torch.randint(0, 10, (16,)).to("nntile")
+
+        def one_step():
+            opt.zero_grad(set_to_none=True)
+            logits = model(x)
+            loss = cross_entropy(logits, y)
+            loss.backward()
+            opt.step()
+            t0 = time.perf_counter()
+            torch_nntile.compile_graph()
+            compile_s = time.perf_counter() - t0
+            torch_nntile.run()
+            torch_nntile.wait()
+            del logits, loss
+            return compile_s
+
+        for _ in range(5):
+            one_step()
+        early = [one_step() for _ in range(10)]
+        for _ in range(40):
+            one_step()
+        late = [one_step() for _ in range(10)]
+        early_ms = sum(early) / len(early) * 1e3
+        late_ms = sum(late) / len(late) * 1e3
+        # Without compaction, late compile grows with session length.
+        assert late_ms < early_ms * 2.5, (early_ms, late_ms)
         """
     )

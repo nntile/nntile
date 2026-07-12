@@ -105,6 +105,11 @@ public:
         layouts_.clear();
     }
 
+    void erase(const TensorGraph::TensorNode *node)
+    {
+        layouts_.erase(node);
+    }
+
     const TensorAxisLayout* find(const TensorGraph::TensorNode* node) const;
 
     bool contains(const TensorGraph::TensorNode* node) const
