@@ -119,6 +119,22 @@ struct GraphApiTimingStats
     double wait_s = 0.0;
     std::uint64_t host_readout_calls = 0;
     double host_readout_s = 0.0;
+    // Record-path attribution (op capture into TensorGraph).
+    std::uint64_t record_get_node_calls = 0;
+    double record_get_node_s = 0.0;
+    std::uint64_t record_new_nodes = 0;
+    std::uint64_t record_pin_calls = 0;
+    double record_pin_s = 0.0;
+    std::uint64_t record_register_calls = 0;
+    double record_register_s = 0.0;
+    std::uint64_t record_linear_bwd_calls = 0;
+    double record_linear_bwd_s = 0.0;
+    std::uint64_t record_ce_bwd_calls = 0;
+    double record_ce_bwd_s = 0.0;
+    std::uint64_t record_relu_bwd_calls = 0;
+    double record_relu_bwd_s = 0.0;
+    std::uint64_t record_gemm_calls = 0;
+    double record_gemm_s = 0.0;
 };
 
 GraphApiTimingStats g_timing;
@@ -1366,6 +1382,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
     nntile::DataType dtype,
     bool mark_as_input)
 {
+    const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     if (g_graph == nullptr)
     {
@@ -1373,6 +1390,7 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
         set_logical_tensor_nodes_alive(true);
     }
 
+    const std::size_t data_before = g_graph->num_data();
     const TensorImplKey impl_key = tensor_impl_key(tensor);
     at::Tensor mutable_tensor = const_cast<at::Tensor &>(tensor);
     nntile::TensorGraph::TensorNode *node = logical_node_for_tensor_locked(
@@ -1382,6 +1400,13 @@ nntile::TensorGraph::TensorNode *get_or_create_data_node(
         dtype,
         mark_as_input);
     assert_has_node_ref(tensor, "get_or_create_data_node");
+    if (g_graph->num_data() > data_before)
+    {
+        g_timing.record_new_nodes +=
+            static_cast<std::uint64_t>(g_graph->num_data() - data_before);
+    }
+    ++g_timing.record_get_node_calls;
+    g_timing.record_get_node_s += seconds_since(t0);
     return node;
 }
 
@@ -1389,6 +1414,7 @@ void register_data_node(
     const at::Tensor &tensor,
     nntile::TensorGraph::TensorNode *node)
 {
+    const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     at::Tensor mutable_tensor = tensor;
     if (nntile_binding(mutable_tensor) == nullptr)
@@ -1398,6 +1424,32 @@ void register_data_node(
             std::make_shared<NNTileBinding>(node));
     }
     assert_has_node_ref(tensor, "register_data_node");
+    ++g_timing.record_register_calls;
+    g_timing.record_register_s += seconds_since(t0);
+}
+
+void note_record_linear_bwd(double seconds)
+{
+    ++g_timing.record_linear_bwd_calls;
+    g_timing.record_linear_bwd_s += seconds;
+}
+
+void note_record_ce_bwd(double seconds)
+{
+    ++g_timing.record_ce_bwd_calls;
+    g_timing.record_ce_bwd_s += seconds;
+}
+
+void note_record_relu_bwd(double seconds)
+{
+    ++g_timing.record_relu_bwd_calls;
+    g_timing.record_relu_bwd_s += seconds;
+}
+
+void note_record_gemm(double seconds)
+{
+    ++g_timing.record_gemm_calls;
+    g_timing.record_gemm_s += seconds;
 }
 
 nntile::TensorGraph::TensorNode *lookup_data_node(
@@ -1510,6 +1562,7 @@ void record_view_alias(const at::Tensor &self, const at::Tensor &view)
 
 void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
 {
+    const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     for (const at::Tensor &tensor : inputs)
     {
@@ -1518,6 +1571,8 @@ void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
             pin_tensor_for_graph(tensor);
         }
     }
+    ++g_timing.record_pin_calls;
+    g_timing.record_pin_s += seconds_since(t0);
 }
 
 void pin_graph_op_output(const at::Tensor &output, bool pin_output)
@@ -1761,6 +1816,45 @@ std::string format_info_locked()
        << "compile/run/wait)\n";
     ss << "  sum compile+run+wait: "
        << (g_timing.compile_s + g_timing.run_s + g_timing.wait_s) << "s\n";
+    if (g_timing.record_get_node_calls > 0 ||
+        g_timing.record_linear_bwd_calls > 0)
+    {
+        ss << "  record path (TensorGraph capture):\n";
+        ss << "    get_or_create_node: " << g_timing.record_get_node_calls
+           << " calls, " << g_timing.record_get_node_s << "s (avg "
+           << avg_ms(
+                  g_timing.record_get_node_s,
+                  g_timing.record_get_node_calls)
+           << " ms), new_nodes=" << g_timing.record_new_nodes << '\n';
+        ss << "    pin_inputs: " << g_timing.record_pin_calls
+           << " calls, " << g_timing.record_pin_s << "s (avg "
+           << avg_ms(g_timing.record_pin_s, g_timing.record_pin_calls)
+           << " ms)\n";
+        ss << "    register_data_node: " << g_timing.record_register_calls
+           << " calls, " << g_timing.record_register_s << "s\n";
+        ss << "    gemm record: " << g_timing.record_gemm_calls
+           << " calls, " << g_timing.record_gemm_s << "s (avg "
+           << avg_ms(g_timing.record_gemm_s, g_timing.record_gemm_calls)
+           << " ms)\n";
+        ss << "    linear_backward: " << g_timing.record_linear_bwd_calls
+           << " calls, " << g_timing.record_linear_bwd_s << "s (avg "
+           << avg_ms(
+                  g_timing.record_linear_bwd_s,
+                  g_timing.record_linear_bwd_calls)
+           << " ms)\n";
+        ss << "    ce_backward: " << g_timing.record_ce_bwd_calls
+           << " calls, " << g_timing.record_ce_bwd_s << "s (avg "
+           << avg_ms(
+                  g_timing.record_ce_bwd_s, g_timing.record_ce_bwd_calls)
+           << " ms)\n";
+        ss << "    relu/threshold_backward: "
+           << g_timing.record_relu_bwd_calls << " calls, "
+           << g_timing.record_relu_bwd_s << "s (avg "
+           << avg_ms(
+                  g_timing.record_relu_bwd_s,
+                  g_timing.record_relu_bwd_calls)
+           << " ms)\n";
+    }
     if (g_timing.run_calls > 0)
     {
         ss << "  note: wait_calls should be ≈ run_calls when callers avoid "

@@ -13,6 +13,7 @@
 #include <torch/library.h>
 
 #include <array>
+#include <chrono>
 
 namespace torch_nntile
 {
@@ -182,6 +183,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
     const at::Tensor &weight,
     std::array<bool, 3> output_mask)
 {
+    const auto t0 = std::chrono::steady_clock::now();
     TORCH_CHECK(
         is_nntile_device(input.device()) &&
             is_nntile_device(grad_output.device()) &&
@@ -325,6 +327,12 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         }
 #endif
     }
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    note_record_linear_bwd(
+        std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - t0)
+            .count());
+#endif
     return {grad_input, grad_weight, grad_bias};
 }
 

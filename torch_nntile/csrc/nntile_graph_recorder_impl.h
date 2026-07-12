@@ -75,6 +75,12 @@ nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
 
 void record_view_alias(const at::Tensor &self, const at::Tensor &view);
 
+//! Record-path timing buckets (printed by print_info).
+void note_record_linear_bwd(double seconds);
+void note_record_ce_bwd(double seconds);
+void note_record_relu_bwd(double seconds);
+void note_record_gemm(double seconds);
+
 #endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile

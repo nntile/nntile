@@ -11,6 +11,8 @@
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
 
+#include <chrono>
+
 namespace torch_nntile
 {
 
@@ -94,6 +96,7 @@ at::Tensor cross_entropy_backward(
     int64_t reduction,
     int64_t ignore_index)
 {
+    const auto t0 = std::chrono::steady_clock::now();
     check_cross_entropy_inputs(logits, target);
     TORCH_CHECK(
         reduction == 1 || reduction == 2,
@@ -130,6 +133,12 @@ at::Tensor cross_entropy_backward(
         grad_logits,
         ignore_index,
         reduction_is_mean(reduction));
+#ifdef TORCH_NNTILE_USE_LIBNNTILE
+    note_record_ce_bwd(
+        std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - t0)
+            .count());
+#endif
     return grad_logits;
 }
 

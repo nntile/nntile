@@ -73,6 +73,7 @@
 #include <nntile/core/swap_two_axes_decompose.hh>
 
 #include <cmath>
+#include <chrono>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -170,6 +171,8 @@ bool tensor_node_has_graph_producer(
     {
         return false;
     }
+    // Linear scan of all TensorGraph ops — called from gemm recording for
+    // metadata-only operands. Cost grows with sealed+pending op count.
     for (const auto &op : node->graph()->ops())
     {
         for (nntile::TensorGraph::TensorNode *out : op->outputs())
@@ -231,6 +234,7 @@ void tensor_gemm_fp32(
     at::Tensor &out,
     c10::IntArrayRef /*out_shape*/)
 {
+    const auto t0 = std::chrono::steady_clock::now();
     const std::vector<nntile::Index> a_graph =
         pytorch_shape_to_graph(a_gemm_shape);
     const std::vector<nntile::Index> b_graph =
@@ -257,6 +261,10 @@ void tensor_gemm_fp32(
         static_cast<nntile::Index>(params.ndim),
         static_cast<nntile::Index>(params.batch_ndim))->set_name("out");
     register_data_node(out, out_node);
+    note_record_gemm(
+        std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - t0)
+            .count());
 }
 
 void tensor_gemm_accumulate_fp32(
