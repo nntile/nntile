@@ -167,23 +167,18 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
 bool tensor_node_has_graph_producer(
     nntile::TensorGraph::TensorNode *node)
 {
-    if (node == nullptr || node->graph() == nullptr)
+    if (node == nullptr)
     {
         return false;
     }
-    // Linear scan of all TensorGraph ops — called from gemm recording for
-    // metadata-only operands. Cost grows with sealed+pending op count.
-    for (const auto &op : node->graph()->ops())
+    // Ingress / explicit inputs are populated without a fill op. Other nodes
+    // use TensorNode::has_producer() (set in TensorGraph::add_op) — O(1)
+    // instead of scanning retained SCATTER ops every gemm record.
+    if (node->is_input())
     {
-        for (nntile::TensorGraph::TensorNode *out : op->outputs())
-        {
-            if (out == node)
-            {
-                return true;
-            }
-        }
+        return true;
     }
-    return false;
+    return node->has_producer();
 }
 
 void ensure_metadata_fill_if_unproduced(

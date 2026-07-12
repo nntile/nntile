@@ -59,6 +59,33 @@ Session growth is gone: 500-step ms/step no longer climbs past ~4.8.
 `append_phase` stays ~1.1 ms/call (still lowers ~75 tensor ops every step).
 That is the remaining gap vs PyTorch (~1.6 ms/step total for real compute).
 
+## Record-path follow-up (graph capture)
+
+After the compile fixes above, **record** was still high and
+`linear_backward` / gemm capture avg ms grew with session length on the
+Google five-layer ReLU script (all MNIST batches preloaded → ~1230 retained
+`SCATTER` ops).
+
+Root causes and fixes:
+
+1. **`ensure_metadata_fill_if_unproduced` scanned every TensorGraph op**
+   (including all retained scatters) on each gemm record. Replaced with
+   O(1) `TensorNode::has_producer()` (set in `TensorGraph::add_op`) plus
+   `is_input()` short-circuit.
+2. **`merge_axis(fresh, huge_persistent_group)` walked the large group**
+   when the first argument was the smaller side. `merge_axis` now uses
+   union-by-size so capture stays O(small) as historical members accumulate.
+3. **Pin dedup** uses an `unordered_set<TensorImplKey>` instead of a linear
+   scan of `g_pinned_tensors`.
+
+### Record bucket at 500 steps (`STARPU_DISABLE_KERNELS=1`)
+
+| metric | before record fix | after |
+|--------|------------------:|------:|
+| record total | 0.506 s | **0.280 s** |
+| gemm record avg | 0.0100 ms | **0.0025 ms** |
+| linear_backward avg | 0.061 ms (grew w/ steps) | **0.014 ms** (flat) |
+
 ## Async API contract
 
 ### `torch_nntile` (Python)
@@ -87,6 +114,8 @@ hidden inside a standalone `execute()` of a fresh phase.
 
 - Activation buffer pool / stable logical nodes (skip `build_tile_nodes` + layout
   rebuild for identical shapes).
+- Prune or avoid retaining unmarked tensors in `AxisDescriptor::members`
+  (memory; capture cost is already union-by-size).
 - Single-tile fast-path in `lower_to_tile` (GEMM etc.).
 - True “compile once, replay” needs scalar lifting for Adam `lr` / `num_iter`.
 
@@ -94,3 +123,4 @@ hidden inside a standalone `execute()` of a fresh phase.
 
 - Baseline: `/opt/cursor/artifacts/mnist_compile_bench/baseline_logs/`
 - Final: `/opt/cursor/artifacts/mnist_compile_bench/final_logs/`
+- Record-path: `/opt/cursor/artifacts/mnist_record_bench/`

@@ -18,6 +18,7 @@
 
 #include <numeric>
 #include <stdexcept>
+#include <utility>
 
 namespace nntile
 {
@@ -109,41 +110,54 @@ std::string AxisDescriptor::tile_sizes_to_string() const
     return result;
 }
 
-void merge_axis(std::shared_ptr<AxisDescriptor>& keep,
-                std::shared_ptr<AxisDescriptor>& replace)
+void merge_axis(std::shared_ptr<AxisDescriptor>& lhs,
+                std::shared_ptr<AxisDescriptor>& rhs)
 {
-    if(keep == replace)
+    if(lhs == rhs)
     {
         return;
     }
-    if(keep->extent != replace->extent)
+    if(lhs->extent != rhs->extent)
     {
         throw std::invalid_argument(
             "merge_axis: cannot merge axes with different extents (" +
-            std::to_string(keep->extent) + " vs " +
-            std::to_string(replace->extent) + ")");
+            std::to_string(lhs->extent) + " vs " +
+            std::to_string(rhs->extent) + ")");
     }
 
-    if(keep->name.empty() && !replace->name.empty())
+    // Union-by-size: merge the smaller membership list into the larger one.
+    // Callers pass (a, b) meaning "unify these groups", not "always keep a".
+    // Without this, gemm's merge_axis(fresh_activation, huge_weight_group)
+    // walked every historical member every step (O(session) graph capture).
+    std::shared_ptr<AxisDescriptor> *keep_slot = &lhs;
+    std::shared_ptr<AxisDescriptor> *replace_slot = &rhs;
+    if(lhs->members.size() < rhs->members.size())
     {
-        keep->name = replace->name;
+        keep_slot = &rhs;
+        replace_slot = &lhs;
     }
-    if(keep->is_tiled() && replace->is_tiled())
+
+    std::shared_ptr<AxisDescriptor> keep = *keep_slot;
+    // Save the descriptor being replaced — `*replace_slot` may alias one of
+    // the tensor slots we reassign inside the loop.
+    std::shared_ptr<AxisDescriptor> old_desc = *replace_slot;
+
+    if(keep->name.empty() && !old_desc->name.empty())
     {
-        if(keep->tile_sizes != replace->tile_sizes)
+        keep->name = old_desc->name;
+    }
+    if(keep->is_tiled() && old_desc->is_tiled())
+    {
+        if(keep->tile_sizes != old_desc->tile_sizes)
         {
             throw std::invalid_argument(
                 "merge_axis: cannot merge axes with different tile sizes");
         }
     }
-    else if(!keep->is_tiled() && replace->is_tiled())
+    else if(!keep->is_tiled() && old_desc->is_tiled())
     {
-        keep->tile_sizes = replace->tile_sizes;
+        keep->tile_sizes = old_desc->tile_sizes;
     }
-
-    // Save the descriptor being replaced — the `replace` reference may
-    // alias one of the tensor slots we reassign inside the loop.
-    std::shared_ptr<AxisDescriptor> old_desc = replace;
 
     for(auto [node_ptr, axis_idx] : old_desc->members)
     {

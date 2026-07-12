@@ -83,6 +83,10 @@ class TensorGraph::TensorNode
     void mark_input(bool v = true);
     void mark_output(bool v = true);
 
+    //! True after any op lists this node as an output (O(1) producer check).
+    bool has_producer() const { return has_producer_; }
+    void note_produced() { has_producer_ = true; }
+
     // Host-side parameter bytes (checkpoint I/O); not applied until bind_data.
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t> *get_bind_hint() const;
@@ -102,6 +106,7 @@ class TensorGraph::TensorNode
     std::string name_;
     bool is_input_ = false;
     bool is_output_ = false;
+    bool has_producer_ = false;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
 
     friend class TensorGraph;

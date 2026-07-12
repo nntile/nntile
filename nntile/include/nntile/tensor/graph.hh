@@ -56,7 +56,7 @@ inline void TensorGraph::add_op(
         }
     }
 
-    for (const auto *output : op_node->outputs())
+    for (auto *output : op_node->outputs())
     {
         if (output->graph() != this)
         {
@@ -64,6 +64,7 @@ inline void TensorGraph::add_op(
                                         output->name() +
                                         "' does not belong to this graph");
         }
+        output->note_produced();
     }
 
     op_node->id_ = next_op_id_++;
@@ -93,7 +94,7 @@ inline void TensorGraph::prepend_ops(
                     input->name() + "' does not belong to this graph");
             }
         }
-        for (const TensorGraph::TensorNode *output : op_node->outputs())
+        for (TensorGraph::TensorNode *output : op_node->outputs())
         {
             if (output->graph() != this)
             {
@@ -101,6 +102,7 @@ inline void TensorGraph::prepend_ops(
                     "TensorGraph::prepend_ops: output data '" +
                     output->name() + "' does not belong to this graph");
             }
+            output->note_produced();
         }
         op_node->id_ = next_op_id_++;
     }

@@ -160,6 +160,30 @@ TEST_CASE("Axis merge preserves name from replaced group", "[graph][axis]")
     REQUIRE(x->axis(0)->name == "my_axis");
 }
 
+TEST_CASE("merge_axis unions by size into the larger group", "[graph][axis]")
+{
+    // Capture cost: merging a fresh 1-member axis into a large group must not
+    // walk every historical member (union-by-size keeps the large descriptor).
+    TensorGraph graph("union_by_size");
+    auto *hub = graph.data({8})->set_name("hub");
+    for (int i = 0; i < 16; ++i)
+    {
+        auto *leaf = graph.data({8});
+        // Prefer the large group as the first arg once it outgrows the leaf.
+        merge_axis(hub->mutable_axes()[0], leaf->mutable_axes()[0]);
+        REQUIRE(leaf->axis(0) == hub->axis(0));
+    }
+    AxisDescriptor *hub_axis = hub->axis(0);
+    REQUIRE(hub_axis->members.size() == 17);
+
+    auto *fresh = graph.data({8})->set_name("fresh");
+    // First arg is the small side (as gemm often does for activations).
+    merge_axis(fresh->mutable_axes()[0], hub->mutable_axes()[0]);
+    REQUIRE(fresh->axis(0) == hub_axis);
+    REQUIRE(hub->axis(0) == hub_axis);
+    REQUIRE(hub_axis->members.size() == 18);
+}
+
 TEST_CASE("Self-add (x == y) is rejected", "[graph][axis]")
 {
     TensorGraph graph("self_add");
