@@ -38,6 +38,10 @@ by marks, with an explicit pending list in torch_nntile:
 3. After `wait()` (following `run()`), pin holds are cleared (temps drop their
    NodeRefs). Any snapshot entry that is no longer marked input/output is
    passed to `Runtime::invalidate_logical_tiles` once — no full tile-map scan.
+   Entries still marked at `wait()` stay on `pending_output_reclaim` across
+   graph compaction so the **next** `compile_graph()` can reclaim them after
+   Python `del`s the tensors (do not clear that list in `drop_all_ops`
+   compaction — that leaked one step of activation tiles per iteration).
 4. Mid-phase, ``execute_range`` queues unmarked tiles after their last
    consumer; ``Runtime::wait()`` invalidates them after StarPU drains.
    Core ``*`` wrappers skip ``starpu_task_wait_for_all`` while submit is
