@@ -46,6 +46,8 @@ std::vector<Index> tile_sizes_for_axis_extent(
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -59,6 +61,25 @@ namespace torch_nntile
 
 namespace
 {
+
+//! Temporary profiling knob: skip StarPU *compute* submit and host↔tile
+//! acquire/memcpy so record+compile wall time can be measured alone.
+//! ``execute_range`` still runs (watermark + last-consumer reclaim) so
+//! incremental compile stays O(pending). Set ``TORCH_NNTILE_SKIP_STARPU=1``.
+//! Results / accuracy are meaningless.
+bool skip_starpu_submit_and_acquire()
+{
+    static int const cached = []() -> int
+    {
+        char const *env = std::getenv("TORCH_NNTILE_SKIP_STARPU");
+        if (env == nullptr || env[0] == '\0' || std::strcmp(env, "0") == 0)
+        {
+            return 0;
+        }
+        return 1;
+    }();
+    return cached != 0;
+}
 
 std::recursive_mutex g_recorder_mutex;
 std::unique_ptr<nntile::TensorGraph> g_graph;
@@ -160,6 +181,8 @@ void reclaim_pending_outputs_locked()
     nntile::Runtime &runtime = *g_exec->runtime;
     // Temps are often del'd after wait(); keep still-marked entries so the
     // next compile/run can invalidate them once NodeRefs drop.
+    // Always reclaim into tile_map_ even under TORCH_NNTILE_SKIP_STARPU —
+    // otherwise registrations accumulate and runtime.compile grows O(session).
     std::vector<nntile::TensorGraph::TensorNode *> still_marked;
     still_marked.reserve(g_exec->pending_output_reclaim.size());
     for (nntile::TensorGraph::TensorNode *logical :
@@ -469,6 +492,7 @@ void write_cpu_bytes_to_staging_locked(
     nntile::Runtime &runtime = *g_exec->runtime;
     nntile::TileGraph::TileNode *tile =
         require_single_staging_tile_locked(staging);
+    bool const skip_starpu = skip_starpu_submit_and_acquire();
     switch (dtype)
     {
     case nntile::DataType::FP32:
@@ -479,13 +503,17 @@ void write_cpu_bytes_to_staging_locked(
             throw std::runtime_error(
                 "torch_nntile: staging write size mismatch");
         }
-        auto local = buf.acquire(STARPU_W);
-        const auto *src = static_cast<const float *>(host_ptr);
-        for (std::size_t i = 0; i < count; ++i)
+        if (!skip_starpu)
         {
-            local[static_cast<nntile::Index>(i)] = nntile::fp32_t(src[i]);
+            auto local = buf.acquire(STARPU_W);
+            const auto *src = static_cast<const float *>(host_ptr);
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                local[static_cast<nntile::Index>(i)] =
+                    nntile::fp32_t(src[i]);
+            }
+            local.release();
         }
-        local.release();
         break;
     }
     case nntile::DataType::INT64:
@@ -496,14 +524,18 @@ void write_cpu_bytes_to_staging_locked(
             throw std::runtime_error(
                 "torch_nntile: staging write size mismatch");
         }
-        auto local = buf.acquire(STARPU_W);
-        const auto *src = static_cast<const std::int64_t *>(host_ptr);
-        for (std::size_t i = 0; i < count; ++i)
+        if (!skip_starpu)
         {
-            local[static_cast<nntile::Index>(i)] =
-                nntile::int64_t(src[i]);
+            auto local = buf.acquire(STARPU_W);
+            const auto *src =
+                static_cast<const std::int64_t *>(host_ptr);
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                local[static_cast<nntile::Index>(i)] =
+                    nntile::int64_t(src[i]);
+            }
+            local.release();
         }
-        local.release();
         break;
     }
     case nntile::DataType::BOOL:
@@ -514,13 +546,17 @@ void write_cpu_bytes_to_staging_locked(
             throw std::runtime_error(
                 "torch_nntile: staging write size mismatch");
         }
-        auto local = buf.acquire(STARPU_W);
-        const auto *src = static_cast<const bool *>(host_ptr);
-        for (std::size_t i = 0; i < count; ++i)
+        if (!skip_starpu)
         {
-            local[static_cast<nntile::Index>(i)] = nntile::bool_t(src[i]);
+            auto local = buf.acquire(STARPU_W);
+            const auto *src = static_cast<const bool *>(host_ptr);
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                local[static_cast<nntile::Index>(i)] =
+                    nntile::bool_t(src[i]);
+            }
+            local.release();
         }
-        local.release();
         break;
     }
     default:
@@ -538,6 +574,7 @@ void invalidate_staging_tile_submit_locked(
         return;
     }
     nntile::Runtime &runtime = *g_exec->runtime;
+    // Keep map reclaim even when SKIP_STARPU disables submit/acquire.
     runtime.wait();
     nntile::TileGraph::TileNode *tile =
         require_single_staging_tile_locked(staging);
@@ -574,6 +611,10 @@ void read_staging_to_host_locked(
         throw std::runtime_error(
             "torch_nntile: no runtime for staging readout");
     }
+    if (skip_starpu_submit_and_acquire())
+    {
+        return;
+    }
     nntile::Runtime &runtime = *g_exec->runtime;
     runtime.wait();
     nntile::TileGraph::TileNode *tile =
@@ -592,7 +633,8 @@ void read_staging_to_host_locked(
         auto *dst = static_cast<float *>(host_ptr);
         for (std::size_t i = 0; i < count; ++i)
         {
-            dst[i] = static_cast<float>(local[static_cast<nntile::Index>(i)]);
+            dst[i] = static_cast<float>(
+                local[static_cast<nntile::Index>(i)]);
         }
         local.release();
         break;
@@ -627,7 +669,8 @@ void read_staging_to_host_locked(
         auto *dst = static_cast<bool *>(host_ptr);
         for (std::size_t i = 0; i < count; ++i)
         {
-            dst[i] = static_cast<bool>(local[static_cast<nntile::Index>(i)]);
+            dst[i] = static_cast<bool>(
+                local[static_cast<nntile::Index>(i)]);
         }
         local.release();
         break;
@@ -950,9 +993,13 @@ void run_graph_locked()
         std::uint64_t const phase_ops = static_cast<std::uint64_t>(
             g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
         SteadyClock::time_point const t0 = SteadyClock::now();
+        // Always call execute_range so Runtime::executed_op_end_ advances and
+        // last-consumer tiles are queued for wait()-time flush. SKIP_STARPU
+        // only disables OpNode::execute (StarPU task insert).
         g_exec->runtime->execute_range(
             g_exec->pending_exec_op_begin,
-            g_exec->pending_exec_op_end);
+            g_exec->pending_exec_op_end,
+            !skip_starpu_submit_and_acquire());
         g_timing.run_s += seconds_since(t0);
         ++g_timing.run_calls;
         g_timing.run_ops += phase_ops;
@@ -979,6 +1026,8 @@ void finish_run_locked()
         return;
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
+    // Always join + reclaim so tile_map_ stays O(live). SKIP_STARPU only
+    // skips compute submit and host↔tile acquire/memcpy.
     g_exec->runtime->wait();
     for (nntile::TensorGraph::TensorNode *staging :
         g_exec->pending_scatter_stagings)
@@ -1780,6 +1829,11 @@ std::string format_info_locked()
 
     std::ostringstream ss;
     ss << "torch_nntile graph API timing (cumulative):\n";
+    if (skip_starpu_submit_and_acquire())
+    {
+        ss << "  NOTE: TORCH_NNTILE_SKIP_STARPU=1 "
+              "(no compute submit / staging acquire; reclaim on)\n";
+    }
     ss << "  compile_graph: " << g_timing.compile_calls << " calls, "
        << g_timing.compile_s << "s"
        << " (avg " << avg_ms(g_timing.compile_s, g_timing.compile_calls)

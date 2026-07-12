@@ -87,6 +87,26 @@ tensors (and their graph dependencies) stay marked. During `run()`,
 `Runtime::execute()` releases intermediate StarPU tiles after their last
 consumer when those tiles are not graph inputs/outputs.
 
+### Profiling: host path vs StarPU
+
+`torch_nntile.print_info()` prints cumulative `compile_graph` / `run` / `wait` /
+host-readout timing (and record-path sub-buckets).
+
+| Env | Purpose |
+|-----|---------|
+| `STARPU_DISABLE_KERNELS=1` | StarPU submits tasks but skips kernel bodies. Shows submit overhead; often inflates `run`. |
+| `TORCH_NNTILE_SKIP_STARPU=1` | Dry-run in torch_nntile: no StarPU task insert, no staging acquire/memcpy. Still advances the `Runtime` execute watermark and last-consumer reclaim so incremental compile stays O(pending). Isolates record + compile cost. **Results are not numerically meaningful.** |
+
+```bash
+STARPU_WORKERS_NOBIND=1 TORCH_NNTILE_SKIP_STARPU=1 \
+  python torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py \
+    --steps 500 --device nntile --ncpu 1 --skip-accuracy-floor
+```
+
+More context: [dev/graph_compile_perf_mnist.md](dev/graph_compile_perf_mnist.md)
+and the package README
+[Profiling knobs](../torch_nntile/README.md#profiling-knobs-host-vs-starpu).
+
 ## Axis-group naming and tiling
 
 Tiling in NNTile is defined on **shared axis groups** (`AxisDescriptor` in C++),

@@ -26,6 +26,7 @@ def _run_subprocess(script: str) -> None:
     env = dict(**__import__("os").environ)
     # Bench scripts may leave STARPU_DISABLE_KERNELS=1 in the parent env.
     env.pop("STARPU_DISABLE_KERNELS", None)
+    env.pop("TORCH_NNTILE_SKIP_STARPU", None)
     repo = Path(__file__).resolve().parents[2]
     build_lib = repo / "build" / "nntile"
     starpu_lib = "/opt/starpu/lib"

@@ -289,6 +289,29 @@ then set tile sizes by group name before ``compile_graph()``.
 | `print_axis_groups()` | Print summary (includes `pending_tile=` before compile) |
 | `print_info()` | Print cumulative `compile_graph` / `run` / `wait` / host-readout timing |
 
+### Profiling knobs (host vs StarPU)
+
+Use these only to attribute step time. Accuracy and loss are meaningless when
+kernels or submits are disabled.
+
+| Env | Effect |
+|-----|--------|
+| `STARPU_DISABLE_KERNELS=1` | StarPU still **submits** tasks but skips kernel bodies. Often makes `run` *slower* (queue overhead without useful work). |
+| `TORCH_NNTILE_SKIP_STARPU=1` | torch_nntile dry-run: skip StarPU **task insert** and staging **acquire/memcpy**. Still calls `Runtime::execute_range(..., submit_tasks=false)` so the executed watermark and last-consumer tile reclaim advance — incremental `compile()` stays O(pending). `print_info()` prints a NOTE when this is set. |
+
+Example (Google five-layer ReLU MNIST, host-only path):
+
+```bash
+STARPU_WORKERS_NOBIND=1 TORCH_NNTILE_SKIP_STARPU=1 \
+  python torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py \
+    --steps 500 --batch-size 100 --device nntile --ncpu 1 \
+    --train-log-every 50 --test-every 50 --skip-accuracy-floor
+```
+
+Then compare step breakdown / `print_info()` buckets (`record`, `compile_graph`
+sub-phases, `run`, `wait`) to a normal run without the env var. See
+[docs/dev/graph_compile_perf_mnist.md](../docs/dev/graph_compile_perf_mnist.md).
+
 ```python
 torch_nntile.init_context(
     ncpu=4, ncuda=0, cpu_fallback=False

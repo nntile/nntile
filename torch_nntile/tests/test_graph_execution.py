@@ -28,6 +28,7 @@ def _run_graph_subprocess(script: str) -> None:
     # Bench scripts may leave STARPU_DISABLE_KERNELS=1 in the parent env;
     # that skips kernels and makes host readout look like garbage.
     env.pop("STARPU_DISABLE_KERNELS", None)
+    env.pop("TORCH_NNTILE_SKIP_STARPU", None)
     repo = Path(__file__).resolve().parents[2]
     build_lib = repo / "build" / "nntile"
     starpu_lib = "/opt/starpu/lib"

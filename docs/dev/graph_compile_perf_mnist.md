@@ -10,11 +10,42 @@ Measured on the Cloud Agent VM (CPU-only), `torch==2.9.1+cpu`,
 |------|-------|
 | StarPU workers | `--ncpu 1 --ncuda 0 --restrict-cpu` |
 | Host threads | `torch.set_num_threads(1)`, `OMP/MKL/OPENBLAS_NUM_THREADS=1` |
-| Kernels | `STARPU_DISABLE_KERNELS=1` (nntile only) |
+| Kernels | `STARPU_DISABLE_KERNELS=1` (nntile only; still submits tasks) |
+| No submit / I/O | `TORCH_NNTILE_SKIP_STARPU=1` (skip StarPU task insert + staging acquire/memcpy; still advances execute watermark + last-consumer reclaim so compile stays O(pending); accuracy meaningless) |
 | Logging | `--train-log-every 50 --test-every 50` |
 | Seed | `0` |
 
 Script: `torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py`.
+
+## `TORCH_NNTILE_SKIP_STARPU` dry-run
+
+Set `TORCH_NNTILE_SKIP_STARPU=1` to measure **record + compile** without StarPU
+compute or host↔tile copies.
+
+| Still runs | Skipped |
+|------------|---------|
+| TensorGraph capture (record) | `OpNode::execute` (StarPU task insert) |
+| Seal / lower / `Runtime::compile` (incl. allocate) | Staging `acquire` + memcpy |
+| `execute_range(..., submit_tasks=false)` — advances `executed_op_end_` and queues last-consumer reclaim | Kernel work / meaningful numerics |
+| `wait()` reclaim / `invalidate_logical_tiles` | |
+
+**Do not** skip `execute_range` entirely: leaving `Runtime::executed_op_end_`
+unchanged makes every later `compile()` treat full history as pending
+(O(session) DCE/allocate — tens of seconds on this script).
+
+`STARPU_DISABLE_KERNELS=1` is different: tasks are still submitted, so `run`
+can grow even though kernels are empty.
+
+```bash
+STARPU_WORKERS_NOBIND=1 TORCH_NNTILE_SKIP_STARPU=1 \
+  python torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py \
+    --steps 500 --batch-size 100 --seed 42 --device nntile \
+    --train-log-every 50 --test-every 50 --ncpu 1 --skip-accuracy-floor
+```
+
+`print_info()` prints
+`NOTE: TORCH_NNTILE_SKIP_STARPU=1 (no compute submit / staging acquire; reclaim on)`
+when the knob is active.
 
 ## Before vs after (real compile reductions)
 
