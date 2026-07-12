@@ -16,7 +16,8 @@ TensorImpl → NNTileBackendMeta → NodeRef → NNTileBinding { logical L }
 - **`L` (logical):** the graph/compute node. `NodeRef` ctor/dtor drive
   `mark_output(true/false)` on `L`.
 - **`S` (staging):** **ephemeral**, not stored in `NNTileBinding`. Created per
-  I/O event, invalidated after scatter/gather run.
+  I/O event; after scatter/gather `wait()`, marks are cleared and StarPU
+  tile buffers are dropped from the runtime map (not left live).
 
 There is no side map (`g_tensor_nodes`) and no eager per-op flush. All ops
 record into a shared `TensorGraph`; the caller flushes with `compile_graph()`
@@ -54,8 +55,8 @@ collection scans the growing session heap and can dominate step time.
 
 | Direction | API | Behavior |
 |-----------|-----|----------|
-| Ingress | `.to("nntile")` / CPU→nntile `copy_` | Create `L`, attach `NodeRef`, create ephemeral single-tile `S`, write host bytes into `S`, record `scatter(S→L)`. Ingress is **once per tensor**; a second CPU copy into an already-bound tensor raises. After the scatter phase runs, ingress `S` is invalidated. |
-| Egress | `.cpu()` / `.to("cpu")` / nntile→CPU `copy_` | Create ephemeral `S`, record `clear(S)` + `gather(L→S)`, **auto-compile and run** any pending ops plus the gather phase, StarPU-read `S`, invalidate `S`. |
+| Ingress | `.to("nntile")` / CPU→nntile `copy_` | Create `L`, attach `NodeRef`, create ephemeral single-tile `S`, write host bytes into `S`, record `scatter(S→L)`. Ingress is **once per tensor**; a second CPU copy into an already-bound tensor raises. After the scatter phase `run()`/`wait()`, ingress `S` marks are cleared and StarPU tile buffers are **removed** from the runtime map (not left live after `invalidate_submit`). |
+| Egress | `.cpu()` / `.to("cpu")` / nntile→CPU `copy_` | Create ephemeral `S`, record `clear(S)` + `gather(L→S)`, **auto-compile and run** any pending ops plus the gather phase, StarPU-read `S`, then fully release `S` the same way. |
 
 ### `.cpu()` auto-flush (by design)
 
@@ -105,7 +106,7 @@ run backward (or ingress a real grad tensor via `.to("nntile")`) first.
 | # | Topic | Current behavior | Planned follow-up |
 |---|--------|------------------|-------------------|
 | D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows). Phase outputs cleared after `wait()` are reclaimed via `pending_output_reclaim` (O(phase outputs), not a full tile-map scan). Historical TileGraph/TensorGraph nodes still accumulate in memory. | Phase GC / compaction; reuse readout staging per session. |
-| D2 | Incremental tile-map growth | Every ingress/egress lowers a fresh ephemeral `S` into `inc_state.tensor_to_tiles`; entries are never removed. | Reclaim staging descriptors after invalidate; or pool single-tile `S` per `L`. |
+| D2 | Incremental tile-map growth | Every ingress/egress lowers a fresh ephemeral `S`. After scatter/gather `wait()`, logical marks are cleared and `Runtime::invalidate_logical_tiles` drops StarPU buffers (tile `mark_input` must be cleared too — ingress `S` was built with `mark_input(true)`, which previously skipped reclaim and left ≈2× VRAM next to untiled `L`). TensorGraph/TileGraph node metadata still accumulates. | Optional: pool single-tile `S` per `L`; compact historical tile nodes. |
 | D3 | Pin bookkeeping | Dedup uses `unordered_set<TensorImplKey>` while pinning; pins still clear on phase transfer. | Optional: trim earlier than phase seal if pin lists grow mid-phase. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |
 | D5 | `vector_norm` backward | Forward-only by design. | Add autograd when product needs it. |

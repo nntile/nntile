@@ -216,12 +216,17 @@ void Runtime::invalidate_logical_tiles(
     {
         return;
     }
+    // Clear tile marks to match the unmarked logical. Ingress staging
+    // tiles are built with mark_input(true); leaving that set made
+    // reclaim a no-op and kept a full-size StarPU buffer beside L
+    // (≈2× VRAM with untiled single-tile layouts).
     for (TileGraph::TileNode *tile : desc->tiles)
     {
         if (tile == nullptr)
         {
             continue;
         }
+        tile->mark_input(false);
         tile->mark_output(false);
     }
 
@@ -229,7 +234,7 @@ void Runtime::invalidate_logical_tiles(
     to_release.reserve(desc->tiles.size());
     for (TileGraph::TileNode *tile : desc->tiles)
     {
-        if (tile == nullptr || tile->is_input())
+        if (tile == nullptr)
         {
             continue;
         }
