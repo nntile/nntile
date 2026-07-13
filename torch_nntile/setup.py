@@ -232,7 +232,7 @@ def _nntile_extension_kwargs() -> dict:
 
 ext_kwargs = _nntile_extension_kwargs()
 
-_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.2")
+_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.3")
 _torch_requires = "torch==2.9.1"
 _linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'
 _linux_nvidia_requires = [
