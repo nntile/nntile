@@ -98,6 +98,10 @@ Rules:
   alone made `runtime.compile` grow linearly with session tile-op count.
 - Sparse last-consumer map over pending inputs only (not
   `vector[max_tile_id]` — tile ids are session-monotonic).
+- After a full `wait()`, torch_nntile may drop `execution_order_` and
+  `TileGraph::ops` (`drop_fully_executed_history` + `clear_ops`) so
+  retained tile-op history does not grow with step count. Tile nodes and
+  payloads stay.
 
 ## Out of scope (later)
 

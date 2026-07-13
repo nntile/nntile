@@ -48,32 +48,48 @@ Hot-path `std::map` / `std::set` bridges replaced with dense `NodeId` tables;
 `TileNode::payload_` replaces `Runtime::tile_map_`; last-consumer reclaim is
 O(#dying) per op. Fully tiled `lower_to_tile` paths unchanged.
 
-### Wall ms/step (nntile dry-run, batch=100, seed=42)
+Later: pending-window last-consumer map, then TileGraph/`execution_order_`
+history drop after `wait()` (mirror of TensorGraph `drop_all_ops`).
+
+### Wall ms/step comparison (`TORCH_NNTILE_SKIP_STARPU=1`, batch=100, seed=42)
+
+| steps | before history fixes¹ | + last-consumer fix² | + history drop³ |
+|------:|----------------------:|---------------------:|----------------:|
+| 100 | 1.09 | 1.04 | 1.05 |
+| 1000 | 1.20 | 0.96 | **0.90** |
+| 10000 | **2.44** | 1.33 | **0.86** |
+
+¹ Dense `NodeId` maps only (`after_skip_*.log`).
+² Pending-window last-consumer (`28d12e4f`, `after_fix_skip_*.log`).
+³ `drop_fully_executed_history` + `TileGraph::clear_ops` (`c006e0b3`,
+`after_hist_skip_*.log`).
+
+`runtime.compile` avg (ms/call) at 10k steps: 1.40 → 0.42 → **0.069**
+(flat across 100→10000 after history drop). Session `executed_tile_ops`
+reports `0 / 0` after each `wait()` once history is cleared.
+
+### Wall ms/step (nntile dry-run after history drop, batch=100, seed=42)
 
 | steps | ms/step | PyTorch CPU eager (500 steps) |
 |------:|--------:|------------------------------:|
-| 100 | 1.12 | — |
-| 200 | 1.05 | — |
-| 500 | 1.11 | **1.52** |
-| 1000 | 1.18 | — |
+| 100 | 1.05 | — |
+| 1000 | 0.90 | — |
+| 10000 | 0.86 | — |
+| 500 (earlier dense-map run) | ~1.1 | **1.52** |
 
-Session growth is gone; dry-run is **faster than** single-threaded PyTorch CPU
-eager on this script (~1.1 vs ~1.5 ms/step). Prior baseline after earlier
-fixes was ~4.8 ms/step at 500 steps.
+Dry-run is **faster than** single-threaded PyTorch CPU eager on this script
+and **flat** with step count. Prior baseline after earlier fixes was
+~4.8 ms/step at 500 steps.
 
-### `print_info()` compile avg (ms/call), dry-run
+### `print_info()` compile avg (ms/call), dry-run (after history drop)
 
-| steps | compile avg | append_phase avg | runtime.compile avg |
-|------:|------------:|-----------------:|--------------------:|
-| 100 | 0.30 | 0.037 | 0.12 |
-| 500 | 0.34 | 0.034 | 0.17 |
-| 1000 | 0.41 | 0.035 | 0.23 |
+| steps | runtime.compile avg |
+|------:|--------------------:|
+| 100 | 0.081 |
+| 1000 | 0.069 |
+| 10000 | 0.069 |
 
-`append_phase` is flat (~0.035 ms/call; previously ~1.1 ms/call). Mild growth
-in `runtime.compile` avg with step count is residual SCATTER-history work in
-the tile execution order, not map lookups.
-
-### Batch-size sensitivity (300 steps, dry-run)
+### Batch-size sensitivity (300 steps, dry-run, dense-map era)
 
 | batch | ms/step |
 |------:|--------:|
@@ -87,7 +103,7 @@ the tile execution order, not map lookups.
 |--------|------:|
 | max / final test accuracy | **0.9706** |
 | floor (≥0.97) | met |
-| train ms/step (real compute) | 3.67 |
+| train ms/step (real compute, after history drop) | 3.42 |
 
 ## Historical notes (pre-dense redesign)
 
@@ -100,8 +116,6 @@ artifact logs under `/opt/cursor/artifacts/mnist_compile_bench/`.
 - Further constant-factor cuts inside individual `lower_to_tile` bodies /
   buffer pooling (only if dry-run gap grows again under multi-tile workloads).
 - True “compile once, replay” needs scalar lifting for Adam `lr` / `num_iter`.
-- Residual `runtime.compile` growth from retained ingress `SCATTER` tile-op
-  history when all MNIST batches are preloaded.
 
 ## Logs (this redesign)
 
