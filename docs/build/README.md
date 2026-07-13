@@ -180,7 +180,7 @@ workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/
 | **Skipped when** | PR closed without merge |
 | **Job guard** | open/sync PR, merged close, or `workflow_dispatch` |
 | **Tooling** | [cibuildwheel](https://cibuildwheel.pypa.io/) 4.1.0 |
-| **Version** | `0.0.3` (`TORCH_NNTILE_WHEEL_VERSION`) |
+| **Version** | `0.0.4` (`TORCH_NNTILE_WHEEL_VERSION`) |
 
 Workflow definition:
 
