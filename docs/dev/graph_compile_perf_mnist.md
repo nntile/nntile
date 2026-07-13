@@ -65,8 +65,10 @@ history drop after `wait()` (mirror of TensorGraph `drop_all_ops`).
 `after_hist_skip_*.log`).
 
 `runtime.compile` avg (ms/call) at 10k steps: 1.40 → 0.42 → **0.069**
-(flat across 100→10000 after history drop). Session `executed_tile_ops`
-reports `0 / 0` after each `wait()` once history is cleared.
+(flat across 100→10000 after history drop). After treating sealed ingress
+`SCATTER` as ordinary droppable history, session `tensor_graph_ops` and
+`executed_tile_ops` both report `0` after each `wait()` (previously
+`tensor_graph_ops` stayed ≈1230 from the retained SCATTER prefix).
 
 ### Wall ms/step (nntile dry-run after history drop, batch=100, seed=42)
 
