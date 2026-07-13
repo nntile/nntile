@@ -81,9 +81,11 @@ Rules:
 
 1. `data()` / `add_op()` only append.
 2. Seal + append + `compile()` only touch `[cursor, end)`.
-3. After `wait()`, `drop_all_ops()` keeps the SCATTER prefix (O(phase)); do
-   not re-lower compacted history. When every compiled tile op has finished,
-   also `Runtime::drop_fully_executed_history()` + `TileGraph::clear_ops()`
+3. After `wait()`, `drop_all_ops()` drops **all** sealed tensor ops
+   (ingress `SCATTER` included). Persistence is `mark_input` + tile
+   payloads, not retained SCATTER edges. Do not re-lower compacted
+   history. When every compiled tile op has finished, also
+   `Runtime::drop_fully_executed_history()` + `TileGraph::clear_ops()`
    so `execution_order_` does not retain session history.
 4. Under `TORCH_NNTILE_SKIP_STARPU=1`, still call `execute_range` so the
    execute watermark advances (otherwise compile becomes O(session)).

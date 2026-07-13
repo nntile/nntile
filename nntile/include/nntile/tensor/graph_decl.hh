@@ -113,9 +113,9 @@ class TensorGraph
 
     size_t phase_seal_cursor() const { return phase_seal_cursor_; }
 
-    //! Drop sealed non-ingress ops and rewind the seal cursor.
-    //! Sealed ``SCATTER`` ops are kept so host-ingressed inputs remain
-    //! valid across ``wait()`` compaction. Unsealed ops past the seal
+    //! Drop all sealed ops and rewind the seal cursor to 0.
+    //! Ingress ``SCATTER`` is not special: once sealed and executed, values
+    //! live in ``mark_input`` tile payloads. Unsealed ops past the seal
     //! cursor are always preserved (next phase recorded during a prior
     //! async ``run()``). Persistent data nodes remain.
     void drop_all_ops();
@@ -137,9 +137,6 @@ class TensorGraph
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;
     size_t phase_seal_cursor_ = 0;
-    //! Contiguous SCATTER prefix length after compact; avoids O(session)
-    //! rescans in ``drop_all_ops``.
-    size_t scatter_prefix_end_ = 0;
 };
 
 //! One sealed slice of a ``TensorGraph``, ready for optional transforms and

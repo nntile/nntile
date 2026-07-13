@@ -223,68 +223,23 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase(
 inline void TensorGraph::reset_phase_seal_cursor()
 {
     phase_seal_cursor_ = 0;
-    scatter_prefix_end_ = 0;
 }
 
 inline void TensorGraph::drop_all_ops()
 {
-    // Compact sealed history, but keep SCATTER ops for live ingress tensors.
-    // Dropping those edges while TileGraph/Runtime still hold the lowered
-    // copies left host-ingressed inputs corrupt on the next compile/run
-    // (torch_nntile bmm two-epoch). Unsealed ops past the seal cursor are
-    // always preserved (next phase recorded during a prior async run).
+    // Drop every sealed op, including ingress SCATTER. Host-ingressed
+    // values persist via mark_input + tile payloads after execute/wait;
+    // retaining SCATTER edges made TensorGraph history O(#preloaded
+    // batches). Unsealed ops past the seal cursor stay (next phase
+    // recorded during a prior async run).
     if (phase_seal_cursor_ == 0)
     {
         return;
     }
-    // Extend the known SCATTER prefix without rescanning prior scatters.
-    // After the first compact this loop is O(1); during the initial preload
-    // seal it walks new SCATTERs once.
-    while (scatter_prefix_end_ < phase_seal_cursor_ &&
-           ops_[scatter_prefix_end_] != nullptr &&
-           ops_[scatter_prefix_end_]->op_name() == "SCATTER")
-    {
-        ++scatter_prefix_end_;
-    }
-    bool sealed_middle_clean = true;
-    for (size_t i = scatter_prefix_end_; i < phase_seal_cursor_; ++i)
-    {
-        if (ops_[i] != nullptr && ops_[i]->op_name() == "SCATTER")
-        {
-            sealed_middle_clean = false;
-            break;
-        }
-    }
-    if (sealed_middle_clean)
-    {
-        // [SCATTERs | sealed step ops | unsealed] -> drop sealed step ops.
-        ops_.erase(
-            ops_.begin() + static_cast<std::ptrdiff_t>(scatter_prefix_end_),
-            ops_.begin() + static_cast<std::ptrdiff_t>(phase_seal_cursor_));
-        phase_seal_cursor_ = scatter_prefix_end_;
-        return;
-    }
-    // SCATTERs were not a clean prefix; fall back to a full rebuild.
-    std::vector<std::shared_ptr<OpNode>> kept;
-    kept.reserve(ops_.size());
-    size_t sealed_kept = 0;
-    for (size_t i = 0; i < ops_.size(); ++i)
-    {
-        std::shared_ptr<OpNode> const &op = ops_[i];
-        if (i < phase_seal_cursor_)
-        {
-            if (op != nullptr && op->op_name() == "SCATTER")
-            {
-                kept.push_back(op);
-                ++sealed_kept;
-            }
-            continue;
-        }
-        kept.push_back(op);
-    }
-    ops_ = std::move(kept);
-    phase_seal_cursor_ = sealed_kept;
-    scatter_prefix_end_ = sealed_kept;
+    ops_.erase(
+        ops_.begin(),
+        ops_.begin() + static_cast<std::ptrdiff_t>(phase_seal_cursor_));
+    phase_seal_cursor_ = 0;
 }
 
 inline void TensorGraph::gc_unmarked_data_nodes()
