@@ -118,6 +118,15 @@ class Runtime
     //! submit; this only drains StarPU.
     void wait();
 
+    //! When every compiled op has already run (``executed_op_end_ ==
+    //! execution_order_.size()``), clear ``execution_order_`` and reset
+    //! compile/execute watermarks so the next ``compile()`` is O(pending)
+    //! without retaining session tile-op history. Returns true if cleared.
+    //! Caller must also ``TileGraph::clear_ops()`` when true — otherwise the
+    //! next ``compile()`` would re-append the entire historical op list.
+    //! Does not drop tile nodes or ``compiled_tile_node_count_``.
+    bool drop_fully_executed_history();
+
     //! Read a logical tensor or tile buffer marked for host I/O (input or
     //! output), same visibility rules as ``bind_data``.
     template <typename T>

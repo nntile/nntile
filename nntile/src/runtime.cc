@@ -94,10 +94,10 @@ DataType Runtime::get_dtype(
 void Runtime::compile()
 {
     const auto &graph_ops = graph_.ops();
-    // TileGraph is append-only. Rebuilding execution_order_ from the full
-    // op list every compile made each training step pay DCE / last-consumer
-    // cost over all prior phases (ms/step grew with step count). Append only
-    // newly lowered ops; keep already-executed prefix for full execute().
+    // Prefer appending only newly lowered ops. After a full wait(),
+    // torch_nntile may clear TileGraph ops + reset compiled_graph_op_count_
+    // via drop_fully_executed_history(); the size mismatch branch below
+    // handles that. Keep already-executed prefix for NNGraph::execute().
     if (compiled_graph_op_count_ > graph_ops.size())
     {
         compiled_graph_op_count_ = 0;
@@ -1131,6 +1131,28 @@ void Runtime::wait()
     // Last-consumer invalidate_submit already ran in execute_range / run().
     // Drain any stragglers if a path queued without flushing.
     flush_queued_dead_tiles();
+}
+
+bool Runtime::drop_fully_executed_history()
+{
+    // Only safe when every compiled op has already run. Partial clears would
+    // desync compiled_graph_op_count_ from TileGraph::ops() and force a
+    // full re-append on the next compile().
+    if (executed_op_end_ != execution_order_.size())
+    {
+        return false;
+    }
+    execution_order_.clear();
+    executed_op_end_ = 0;
+    compiled_graph_op_count_ = 0;
+    tiles_dying_after_op_.clear();
+    tiles_dying_op_base_ = 0;
+    live_tile_nodes_.clear();
+    queued_dead_tiles_.clear();
+    execution_schedule_ = ExecutionSchedule{};
+    // Keep compiled_tile_node_count_: tile nodes / payloads persist across
+    // session compaction (same as TensorGraph data nodes).
+    return true;
 }
 
 } // namespace nntile

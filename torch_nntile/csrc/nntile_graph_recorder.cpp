@@ -945,6 +945,22 @@ void compact_tensor_graph_session_locked()
         return;
     }
     g_graph->drop_all_ops();
+    // Mirror TensorGraph compact on the tile side: when every compiled tile
+    // op has finished, drop TileGraph ops + Runtime execution_order_ so
+    // session history does not grow with step count. Tile nodes / payloads
+    // stay (weights, live activations). Must clear TileGraph::ops whenever
+    // Runtime resets compiled_graph_op_count_, or the next compile() would
+    // re-append the entire historical list.
+    if (g_exec != nullptr &&
+        g_exec->runtime != nullptr &&
+        g_exec->tile_graph != nullptr &&
+        g_exec->runtime->drop_fully_executed_history())
+    {
+        g_exec->tile_graph->clear_ops();
+        g_exec->executed_op_end = 0;
+        g_exec->pending_exec_op_begin = 0;
+        g_exec->pending_exec_op_end = 0;
+    }
     // Keep pending_output_reclaim. Step temps are often still mark_output
     // at wait() (Python dels them after wait); reclaim parks them as
     // still_marked. Clearing here dropped that list and leaked their

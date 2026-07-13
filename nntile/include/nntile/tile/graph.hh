@@ -81,6 +81,12 @@ inline void TileGraph::add_op(
     ops_.push_back(std::move(op_node));
 }
 
+inline void TileGraph::clear_ops()
+{
+    ops_.clear();
+    next_op_id_ = 0;
+}
+
 inline TileGraph::TensorDescriptor *TileGraph::add_tensor_descriptor(
     TensorDescriptor desc)
 {

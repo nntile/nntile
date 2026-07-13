@@ -122,6 +122,12 @@ class TileGraph
         return ops_;
     }
 
+    //! Drop all tile ops and reset the op id counter. Tile / tensor
+    //! descriptor nodes are kept. Call only after Runtime has finished
+    //! executing every previously compiled op (see
+    //! ``Runtime::drop_fully_executed_history``).
+    void clear_ops();
+
     std::string to_string() const;
     std::string to_mermaid() const;
 
