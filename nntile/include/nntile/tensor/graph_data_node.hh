@@ -107,6 +107,16 @@ class TensorGraph::TensorNode
     //! Label for debugging/export only (tensor identity is this pointer).
     TensorNode *set_name(std::string new_name);
 
+    //! Generation stamp for O(1) phase touch dedup (mutable / non-identity).
+    std::uint32_t touch_gen() const
+    {
+        return touch_gen_;
+    }
+    void set_touch_gen(std::uint32_t gen) const
+    {
+        touch_gen_ = gen;
+    }
+
   private:
     NodeId id_;
     TensorGraph *graph_;
@@ -120,6 +130,7 @@ class TensorGraph::TensorNode
     bool has_constant_value_ = false;
     Scalar constant_value_ = 0;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
+    mutable std::uint32_t touch_gen_ = 0;
 
     friend class TensorGraph;
 };

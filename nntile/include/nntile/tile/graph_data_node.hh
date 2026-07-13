@@ -17,6 +17,7 @@
 // Standard library headers
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <stdexcept>
@@ -85,6 +86,24 @@ class TileGraph::TileNode
 
     std::string to_string() const;
 
+    //! StarPU payload (set by Runtime::allocate / adopt). O(1) get_tile.
+    void set_payload(std::shared_ptr<void> payload)
+    {
+        payload_ = std::move(payload);
+    }
+    std::shared_ptr<void> const &payload() const
+    {
+        return payload_;
+    }
+    void clear_payload()
+    {
+        payload_.reset();
+    }
+    bool has_payload() const
+    {
+        return payload_ != nullptr;
+    }
+
   private:
     NodeId id_;
     TileGraph *graph_;
@@ -96,6 +115,7 @@ class TileGraph::TileNode
     std::optional<std::vector<std::uint8_t>> bind_hint_;
     TileGraph::TensorDescriptor *tensor_desc_ = nullptr;
     std::vector<Index> tile_coord_;
+    std::shared_ptr<void> payload_;
 
     friend class TileGraph;
 };

@@ -15,8 +15,9 @@
 
 #include "nntile/tile/append_tensor_graph_phase.hh"
 
-#include <set>
+#include <cstdint>
 #include <stdexcept>
+#include <vector>
 
 #include "nntile/tensor/graph.hh"
 #include "nntile/tile/graph.hh"
@@ -47,25 +48,32 @@ std::string tile_node_name(
 void collect_phase_tensors(
     TensorGraph const& tg,
     TensorGraph::PhaseSnapshot const& phase,
-    std::set<TensorGraph::TensorNode const*>& out)
+    std::vector<TensorGraph::TensorNode const*>& out,
+    std::uint32_t gen)
 {
+    auto note = [&](TensorGraph::TensorNode const* t)
+    {
+        if(t == nullptr || t->touch_gen() == gen)
+        {
+            return;
+        }
+        t->set_touch_gen(gen);
+        out.push_back(t);
+    };
     for(TensorGraph::TensorNode const* t : phase.carried_tensors)
     {
-        if(t != nullptr)
-        {
-            out.insert(t);
-        }
+        note(t);
     }
     const auto& ops = tg.ops();
     for(size_t i = phase.op_begin; i < phase.op_end; ++i)
     {
         for(TensorGraph::TensorNode* in : ops[i]->inputs())
         {
-            out.insert(in);
+            note(in);
         }
         for(TensorGraph::TensorNode* ot : ops[i]->outputs())
         {
-            out.insert(ot);
+            note(ot);
         }
     }
 }
@@ -172,8 +180,14 @@ void append_tensor_graph_phase(
 
     tile_graph.set_tiling_scheme(tiling);
 
-    std::set<TensorGraph::TensorNode const*> touched;
-    collect_phase_tensors(tg, phase, touched);
+    std::vector<TensorGraph::TensorNode const*> touched;
+    static std::uint32_t next_gen = 1;
+    std::uint32_t const gen = next_gen++;
+    if(next_gen == 0)
+    {
+        next_gen = 1;
+    }
+    collect_phase_tensors(tg, phase, touched, gen);
 
     for(TensorGraph::TensorNode const* t : touched)
     {
@@ -184,11 +198,10 @@ void append_tensor_graph_phase(
                 "append_tensor_graph_phase: missing tiling for tensor '" +
                 t->name() + "'");
         }
-        std::string const& fp = lay->layout_fingerprint();
-        auto fp_it = state.tensor_layout_fp.find(t);
+        std::uint64_t const fp = lay->layout_fingerprint_hash();
+        std::uint64_t const *fp_ptr = state.tensor_layout_fp.try_get(t);
         const bool have_tiles =
-            state.tensor_to_tiles.count(t) != 0 &&
-            fp_it != state.tensor_layout_fp.end();
+            state.tensor_to_tiles.contains(t) && fp_ptr != nullptr;
 
         if(!have_tiles)
         {
@@ -201,7 +214,7 @@ void append_tensor_graph_phase(
             continue;
         }
 
-        if(fp_it->second != fp)
+        if(*fp_ptr != fp)
         {
             throw std::runtime_error(
                 "append_tensor_graph_phase: tensor '" + t->name() +

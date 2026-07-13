@@ -55,7 +55,7 @@ class Runtime
 
     //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
     //! After each submitted op, last-consumer tiles are invalidated via
-    //! ``invalidate_submit`` and dropped from ``tile_map_`` (async w.r.t.
+    //! ``invalidate_submit`` and payload cleared (async w.r.t.
     //! already-submitted consumers). Call ``wait()`` to join StarPU before
     //! host readout.
     //! If ``submit_tasks`` is false, skip ``OpNode::execute`` (no StarPU
@@ -248,9 +248,7 @@ class Runtime
     void get_output_impl(const TileNode *node, std::vector<T> &result);
 
     const TileGraph &graph_;
-    //! Pointer keys: unordered_map keeps allocate/lookup O(1) as live tiles
-    //! grow; reclaim keeps size O(live), not O(session).
-    std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_map_;
+    //! Payloads live on ``TileNode::payload_`` (O(1) field access).
     std::vector<std::shared_ptr<OpNode>> execution_order_;
     ExecutionSchedule execution_schedule_;
     std::optional<ExecutionSchedule> execution_schedule_file_cache_;
@@ -260,7 +258,9 @@ class Runtime
     std::unordered_map<TensorGraph::TensorNode const *, bool> init_state_;
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
     std::unordered_set<const TileNode *> live_tile_nodes_;
-    std::unordered_map<const TileNode *, size_t> tile_last_consumer_op_;
+    //! ``tiles_dying_after_op_[i]`` = tiles whose last consumer is op ``i``.
+    //! Built in O(pending); reclaim is O(#dying at i), not O(#all tiles).
+    std::vector<std::vector<const TileNode *>> tiles_dying_after_op_;
     //! Scratch for last-consumer tiles; flushed via invalidate_submit during
     //! ``execute_range`` (not deferred to ``wait()``).
     std::vector<const TileNode *> queued_dead_tiles_;
@@ -546,8 +546,7 @@ void gather_logical_tensor(const TensorAxisLayout &lay,
 template <typename T>
 nntile::core::Tile<T> &Runtime::get_tile(const TileNode *node)
 {
-    auto it = tile_map_.find(node);
-    if (it == tile_map_.end())
+    if (node == nullptr || !node->has_payload())
     {
         throw std::runtime_error(
             "Runtime::get_tile: node not found");
@@ -558,7 +557,8 @@ nntile::core::Tile<T> &Runtime::get_tile(const TileNode *node)
             "Runtime::get_tile: wrong type (requested type does "
             "not match tile dtype)");
     }
-    auto ptr = std::static_pointer_cast<nntile::core::Tile<T>>(it->second);
+    auto ptr = std::static_pointer_cast<nntile::core::Tile<T>>(
+        node->payload());
     return *ptr;
 }
 
@@ -661,7 +661,7 @@ void Runtime::bind_data(
             "Runtime::bind_data: descriptor has no tiles");
     }
     TileNode const *tnode = desc->tiles[0];
-    if (tile_map_.count(tnode) == 0)
+    if (tnode == nullptr || !tnode->has_payload())
     {
         throw std::runtime_error(
             "Runtime::bind_data: tile storage not allocated");
@@ -748,7 +748,7 @@ void Runtime::bind_data(
         throw std::invalid_argument(
             "Runtime::bind_data: tile must be non-null");
     }
-    if (tile_map_.count(tile) == 0)
+    if (!tile->has_payload())
     {
         throw std::runtime_error(
             "Runtime::bind_data: tile storage not allocated");
@@ -919,7 +919,7 @@ std::vector<T> Runtime::get_output(
             "Runtime::get_output: descriptor has no tiles");
     }
     TileNode const *tnode = desc->tiles[0];
-    if (tile_map_.count(tnode) == 0)
+    if (tnode == nullptr || !tnode->has_payload())
     {
         throw std::runtime_error(
             "Runtime::get_output: tile storage not allocated");
@@ -992,7 +992,7 @@ std::vector<T> Runtime::get_output(TileNode const *tile)
         throw std::runtime_error(
             "get_output: tile must be marked input or output on the data node");
     }
-    if (tile_map_.count(tile) == 0)
+    if (!tile->has_payload())
     {
         throw std::runtime_error(
             "Runtime::get_output: tile storage not allocated");

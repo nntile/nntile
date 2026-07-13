@@ -72,6 +72,7 @@ Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 
 ### Graph API work (`graph_api` branch)
 
+- **O(N) compiler design:** [docs/dev/graph_compiler_on_design.md](docs/dev/graph_compiler_on_design.md)
 - **Agent checklist (actionable):** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)
 - **Roadmap:** [docs/dev/graph_static_execution_plan.md](docs/dev/graph_static_execution_plan.md)
 - **Per-task steps:** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)

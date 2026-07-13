@@ -50,13 +50,13 @@ const std::vector<TileGraph::TileNode*>& tiles_of(
     const TensorNodeToTileMap& m,
     const TensorGraph::TensorNode* n)
 {
-    auto it = m.find(n);
-    if(it == m.end())
+    auto const *tiles = m.try_get(n);
+    if(tiles == nullptr)
     {
         throw std::runtime_error(
             "lower_to_tile: missing tile map for tensor '" + n->name() + "'");
     }
-    return it->second;
+    return *tiles;
 }
 
 std::vector<TileGraph::TileNode*> copy_tiles(

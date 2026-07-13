@@ -17,7 +17,6 @@
 #pragma once
 
 // Standard library headers
-#include <map>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -132,8 +131,8 @@ class TileGraph
     std::vector<std::unique_ptr<TileNode>> data_;
     std::vector<std::shared_ptr<TileGraph::OpNode>> ops_;
     std::vector<std::unique_ptr<TensorDescriptor>> tensors_;
-    std::map<TensorGraph::TensorNode const *, TensorDescriptor *>
-        tensors_by_source_;
+    //! Dense by ``TensorNode::id()``; holes allowed after GC.
+    std::vector<TensorDescriptor *> desc_by_source_id_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

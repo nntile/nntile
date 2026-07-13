@@ -88,7 +88,13 @@ inline TileGraph::TensorDescriptor *TileGraph::add_tensor_descriptor(
     TensorDescriptor *raw = ptr.get();
     if (raw->source_node != nullptr)
     {
-        tensors_by_source_[raw->source_node] = raw;
+        auto const id =
+            static_cast<size_t>(raw->source_node->id());
+        if (id >= desc_by_source_id_.size())
+        {
+            desc_by_source_id_.resize(id + 1, nullptr);
+        }
+        desc_by_source_id_[id] = raw;
     }
     tensors_.push_back(std::move(ptr));
     return raw;
@@ -126,8 +132,12 @@ inline TileGraph::TensorDescriptor *TileGraph::get_tensor_descriptor(
     {
         return nullptr;
     }
-    auto it = tensors_by_source_.find(source);
-    return it != tensors_by_source_.end() ? it->second : nullptr;
+    auto const id = static_cast<size_t>(source->id());
+    if (id >= desc_by_source_id_.size())
+    {
+        return nullptr;
+    }
+    return desc_by_source_id_[id];
 }
 
 inline const TileGraph::TensorDescriptor *TileGraph::get_tensor_descriptor(
@@ -137,8 +147,12 @@ inline const TileGraph::TensorDescriptor *TileGraph::get_tensor_descriptor(
     {
         return nullptr;
     }
-    auto it = tensors_by_source_.find(source);
-    return it != tensors_by_source_.end() ? it->second : nullptr;
+    auto const id = static_cast<size_t>(source->id());
+    if (id >= desc_by_source_id_.size())
+    {
+        return nullptr;
+    }
+    return desc_by_source_id_[id];
 }
 
 inline std::string TileGraph::to_string() const
