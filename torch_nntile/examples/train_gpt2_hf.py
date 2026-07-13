@@ -130,6 +130,18 @@ def build_sequences(
     return token_ids[:usable].view(n_seq, seq_len)
 
 
+def ensure_seq_len_fits_positions(config: GPT2Config, seq_len: int) -> None:
+    """Causal LM uses positions ``0 .. seq_len-2`` after the next-token split."""
+    n_positions = int(config.n_positions)
+    # After split_causal_batch, input length is seq_len - 1.
+    if seq_len - 1 > n_positions:
+        raise SystemExit(
+            f"--seq-len={seq_len} needs positions up to {seq_len - 2}, but "
+            f"config n_positions={n_positions}. Use --seq-len <= "
+            f"{n_positions + 1}."
+        )
+
+
 def make_batches(
     sequences: torch.Tensor,
     *,
@@ -261,10 +273,15 @@ def compare_checkpoints(path_a: Path, path_b: Path) -> int:
 def split_causal_batch(
     batch: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Split ``[B, T]`` into inputs ``[:, :-1]`` and labels ``[:, 1:]`` on CPU."""
+    """Split ``[B, T]`` into inputs ``[:, :-1]`` and labels ``[:, 1:]`` on CPU.
+
+    Uses ``clone()`` (not only ``contiguous()``): with ``B=1``,
+    ``batch[:, 1:]`` can report ``is_contiguous()`` while keeping
+    ``storage_offset != 0``, so ``contiguous()`` is a no-op.
+    """
     if batch.ndim != 2 or batch.shape[1] < 2:
         raise ValueError("batch must be [B, T] with T >= 2")
-    return batch[:, :-1].contiguous(), batch[:, 1:].contiguous()
+    return batch[:, :-1].clone(), batch[:, 1:].clone()
 
 
 def causal_lm_loss_torch(
@@ -329,6 +346,7 @@ def train_cuda(args: argparse.Namespace) -> int:
         else (ckpt.get("seed", 0) if ckpt else 0)
     )
     # Pack sequences after config is final (checkpoint vocab_size on resume).
+    ensure_seq_len_fits_positions(config, args.seq_len)
     data_seed = int(
         args.data_seed if args.data_seed is not None else seed
     )
@@ -446,6 +464,7 @@ def train_nntile(args: argparse.Namespace) -> int:
         else (ckpt.get("seed", 0) if ckpt else 0)
     )
     # Pack sequences after config is final (checkpoint vocab_size on resume).
+    ensure_seq_len_fits_positions(config, args.seq_len)
     data_seed = int(
         args.data_seed if args.data_seed is not None else seed
     )

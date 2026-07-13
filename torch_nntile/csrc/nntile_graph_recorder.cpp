@@ -1406,7 +1406,8 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     const nntile::DataType dtype = logical->dtype();
     const std::size_t count =
         static_cast<std::size_t>(logical->nelems());
-    void *host_ptr = dst.storage().data_ptr().get();
+    // Respect dst storage_offset (matches CPU→nntile ingress via data_ptr()).
+    void *host_ptr = dst.data_ptr();
 
     // Sync a prior async execute()/run() even when no ops are pending so
     // subsequent gather recording is not wiped by wait-side drop_all_ops().
@@ -1491,9 +1492,11 @@ void init_nntile_input_from_cpu(
     }
     staging->mark_input(true);
     lower_io_staging_locked(staging);
+    // Use data_ptr() (not storage().data_ptr()): size-1 dims can be
+    // is_contiguous() with storage_offset != 0 (e.g. batch[:, 1:] at B=1).
     write_cpu_bytes_to_staging_locked(
         staging,
-        cpu_src.storage().data_ptr().get(),
+        cpu_src.data_ptr(),
         dtype,
         static_cast<std::size_t>(cpu_src.numel()));
 
