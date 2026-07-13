@@ -32,6 +32,7 @@ void cuda_kernel(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_ind
         {
             block_val = 0;
         }
+        __syncthreads();
         Y val1 = static_cast<Y>(logsumexp[i]);
         Y val2 = val1;
         if (labels[i] != ignore_index)

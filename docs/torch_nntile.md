@@ -8,7 +8,7 @@ Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 
 ## Prebuilt wheels
 
-CI builds `torch_nntile` 0.0.3 wheels via the **`torch_nntile wheels`** workflow
+CI builds `torch_nntile` 0.0.4 wheels via the **`torch_nntile wheels`** workflow
 (`.github/workflows/torch-nntile-wheels.yml`).
 
 | Trigger | When wheels build |
