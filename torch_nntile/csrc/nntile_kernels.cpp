@@ -69,10 +69,8 @@ void memcpy_tensors(const at::Tensor &src, at::Tensor &dst)
     {
         return;
     }
-    std::memcpy(
-        dst.storage().data_ptr().get(),
-        src.storage().data_ptr().get(),
-        nbytes);
+    // data_ptr() includes storage_offset; storage().data_ptr() does not.
+    std::memcpy(dst.data_ptr(), src.data_ptr(), nbytes);
 }
 
 at::Scalar tensor_to_scalar(const at::Tensor &self)
