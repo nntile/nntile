@@ -32,7 +32,7 @@
 #pragma once
 
 // Standard library headers
-#include <map>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -54,7 +54,8 @@ namespace nntile
 struct TileGraphIncrementalState
 {
     TensorNodeToTileMap tensor_to_tiles;
-    std::map<TensorGraph::TensorNode const*, std::string> tensor_layout_fp;
+    //! Dense layout fingerprint hashes (O(1) reuse checks).
+    TensorNodeIdMap<std::uint64_t> tensor_layout_fp;
     Index next_tile_group_id = 0;
 };
 

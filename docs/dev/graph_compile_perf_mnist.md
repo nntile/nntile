@@ -1,6 +1,6 @@
 # Graph compilation performance: MNIST investigation (VM)
 
-Measured on the Cloud Agent VM (CPU-only), `torch==2.9.1+cpu`,
+Measured on the Cloud Agent VM (CPU-only), `torch==2.12.0+cpu`,
 `torch_nntile` built with `--no-build-isolation` against libnntile
 (`-DUSE_CUDA=OFF`).
 
@@ -13,9 +13,11 @@ Measured on the Cloud Agent VM (CPU-only), `torch==2.9.1+cpu`,
 | Kernels | `STARPU_DISABLE_KERNELS=1` (nntile only; still submits tasks) |
 | No submit / I/O | `TORCH_NNTILE_SKIP_STARPU=1` (skip StarPU task insert + staging acquire/memcpy; still advances execute watermark + last-consumer reclaim so compile stays O(pending); accuracy meaningless) |
 | Logging | `--train-log-every 50 --test-every 50` |
-| Seed | `0` |
+| Seed | `0` (accuracy) / `42` (dry-run scaling) |
 
 Script: `torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py`.
+
+Design: [graph_compiler_on_design.md](graph_compiler_on_design.md).
 
 ## `TORCH_NNTILE_SKIP_STARPU` dry-run
 
@@ -33,9 +35,6 @@ compute or host↔tile copies.
 unchanged makes every later `compile()` treat full history as pending
 (O(session) DCE/allocate — tens of seconds on this script).
 
-`STARPU_DISABLE_KERNELS=1` is different: tasks are still submitted, so `run`
-can grow even though kernels are empty.
-
 ```bash
 STARPU_WORKERS_NOBIND=1 TORCH_NNTILE_SKIP_STARPU=1 \
   python torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py \
@@ -43,139 +42,83 @@ STARPU_WORKERS_NOBIND=1 TORCH_NNTILE_SKIP_STARPU=1 \
     --train-log-every 50 --test-every 50 --ncpu 1 --skip-accuracy-floor
 ```
 
-`print_info()` prints
-`NOTE: TORCH_NNTILE_SKIP_STARPU=1 (no compute submit / staging acquire; reclaim on)`
-when the knob is active.
+## After O(N) dense mapping redesign (2026-07)
 
-## Before vs after (real compile reductions)
+Hot-path `std::map` / `std::set` bridges replaced with dense `NodeId` tables;
+`TileNode::payload_` replaces `Runtime::tile_map_`; last-consumer reclaim is
+O(#dying) per op. Fully tiled `lower_to_tile` paths unchanged.
 
-Not a timer rename. Changes that cut CPU:
+Later: pending-window last-consumer map, then TileGraph/`execution_order_`
+history drop after `wait()` (mirror of TensorGraph `drop_all_ops`).
 
-1. **`TensorGraph::drop_all_ops()` after each `wait()`** — drops sealed
-   non-`SCATTER` ops (keeps ingress scatters + any unsealed next-phase ops)
-   so compile stays O(phase) without wiping a pending step or corrupting
-   host-ingressed inputs on the next run.
-2. **Remove full `tile_map_` scan in `Runtime::sync_tile_marks_from_logical`**
-   — reclaim uses `invalidate_logical_tiles` / pending_output_reclaim instead.
-3. Reverted the earlier fake “async compile = move work into wait” approach.
+### Wall ms/step comparison (`TORCH_NNTILE_SKIP_STARPU=1`, batch=100, seed=42)
 
-### Wall ms/step (nntile, no-compute)
+| steps | before history fixes¹ | + last-consumer fix² | + history drop³ |
+|------:|----------------------:|---------------------:|----------------:|
+| 100 | 1.09 | 1.04 | 1.05 |
+| 1000 | 1.20 | 0.96 | **0.90** |
+| 10000 | **2.44** | 1.33 | **0.86** |
 
-| steps | before | after | change | cpu eager |
-|------:|-------:|------:|-------:|----------:|
-| 100 | 4.52 | 4.63 | +2% | 1.61 |
-| 200 | 4.96 | 4.71 | **-5%** | 1.57 |
-| 300 | 5.45 | 4.53 | **-17%** | 1.54 |
-| 500 | 6.34 | 4.78 | **-25%** | 1.62 |
+¹ Dense `NodeId` maps only (`after_skip_*.log`).
+² Pending-window last-consumer (`28d12e4f`, `after_fix_skip_*.log`).
+³ `drop_fully_executed_history` + `TileGraph::clear_ops` (`c006e0b3`,
+`after_hist_skip_*.log`).
 
-Session growth is gone: 500-step ms/step no longer climbs past ~4.8.
+`runtime.compile` avg (ms/call) at 10k steps: 1.40 → 0.42 → **0.069**
+(flat across 100→10000 after history drop). After treating sealed ingress
+`SCATTER` as ordinary droppable history, session `tensor_graph_ops` and
+`executed_tile_ops` both report `0` after each `wait()` (previously
+`tensor_graph_ops` stayed ≈1230 from the retained SCATTER prefix).
 
-### Bucket totals at 500 steps (seconds)
+### Wall ms/step (nntile dry-run after history drop, batch=100, seed=42)
 
-| bucket | before | after |
-|--------|-------:|------:|
-| record | 1.492 | 0.561 |
-| compile | 1.294 | 1.180 |
-| run | 0.229 | 0.440 |
-| wait | 0.095 | 0.154 |
-| readout | 0.059 | 0.048 |
+| steps | ms/step | PyTorch CPU eager (500 steps) |
+|------:|--------:|------------------------------:|
+| 100 | 1.05 | — |
+| 1000 | 0.90 | — |
+| 10000 | 0.86 | — |
+| 500 (earlier dense-map run) | ~1.1 | **1.52** |
 
-### `print_info()` compile avg (ms/call)
+Dry-run is **faster than** single-threaded PyTorch CPU eager on this script
+and **flat** with step count. Prior baseline after earlier fixes was
+~4.8 ms/step at 500 steps.
 
-| steps | before compile avg | after | before runtime.compile | after |
-|------:|-------------------:|------:|-----------------------:|------:|
-| 100 | 2.26 | 2.07 | 0.30 | 0.16 |
-| 500 | 2.42 | 2.20 | 0.31 | 0.17 |
+### `print_info()` compile avg (ms/call), dry-run (after history drop)
 
-`append_phase` stays ~1.1 ms/call (still lowers ~75 tensor ops every step).
-That is the remaining gap vs PyTorch (~1.6 ms/step total for real compute).
+| steps | runtime.compile avg |
+|------:|--------------------:|
+| 100 | 0.081 |
+| 1000 | 0.069 |
+| 10000 | 0.069 |
 
-## Record-path follow-up (graph capture)
+### Batch-size sensitivity (300 steps, dry-run, dense-map era)
 
-After the compile fixes above, **record** was still high and
-`linear_backward` / gemm capture avg ms grew with session length on the
-Google five-layer ReLU script (all MNIST batches preloaded → ~1230 retained
-`SCATTER` ops).
+| batch | ms/step |
+|------:|--------:|
+| 50 | 1.28 |
+| 100 | ~1.1 |
+| 200 | 0.94 |
 
-Root causes and fixes:
+### StarPU accuracy (seed=0, 1000 steps, `--ncpu 1 --restrict-cpu`)
 
-1. **`ensure_metadata_fill_if_unproduced` scanned every TensorGraph op**
-   (including all retained scatters) on each gemm record. Replaced with
-   O(1) `TensorNode::has_producer()` (set in `TensorGraph::add_op`) plus
-   `is_input()` short-circuit.
-2. **`merge_axis(fresh, huge_persistent_group)` walked the large group**
-   when the first argument was the smaller side. `merge_axis` now uses
-   union-by-size so capture stays O(small) as historical members accumulate.
-3. **Pin dedup** uses an `unordered_set<TensorImplKey>` instead of a linear
-   scan of `g_pinned_tensors`.
+| metric | value |
+|--------|------:|
+| max / final test accuracy | **0.9706** |
+| floor (≥0.97) | met |
+| train ms/step (real compute, after history drop) | 3.42 |
 
-### Record bucket at 500 steps (`STARPU_DISABLE_KERNELS=1`)
+## Historical notes (pre-dense redesign)
 
-| metric | before record fix | after |
-|--------|------------------:|------:|
-| record total | 0.506 s | **0.280 s** |
-| gemm record avg | 0.0100 ms | **0.0025 ms** |
-| linear_backward avg | 0.061 ms (grew w/ steps) | **0.014 ms** (flat) |
+Earlier work removed O(session) scans (`drop_all_ops` compact, seal carry,
+`has_producer`, union-by-size `merge_axis`, etc.). See git history and older
+artifact logs under `/opt/cursor/artifacts/mnist_compile_bench/`.
 
-### Second session-scaling fix (seal / drop / CE)
+## Remaining work
 
-After the capture fixes above, **compile** still grew with preloaded
-batches. Two host-side causes:
-
-1. **`seal_phase()`** carried every historical `mark_input` (all MNIST
-   ingress tensors) into each phase, so append refreshed marks on
-   O(session) tiles every step. It now carries only tensors referenced by
-   the sealed op slice.
-2. **`drop_all_ops()`** rebuilt the full `ops_` vector (all retained
-   `SCATTER`s) every wait. It now keeps a SCATTER prefix length and erases
-   only the sealed non-SCATTER middle (O(phase) after the first compact).
-
-On the **record** path:
-
-1. **Cross-entropy** reuses forward `maxsumexp` in backward and folds a
-   constant unit `ones_like(loss)` scale (skips broadcast + `multiply_slice`).
-2. **`set_axes`** unifies via `merge_axis` (union-by-size) instead of a
-   linear erase from `AxisDescriptor::members`.
-
-Residual compile growth vs preload size still comes from the retained
-tile-graph history of ingress `SCATTER`s (runtime DCE / last-consumer over
-`execution_order_`). Record ms/step stays flat with session length.
-
-## Async API contract
-
-### `torch_nntile` (Python)
-
-`compile_graph()` / `run()` / `execute()` / `wait()`:
-
-- **`compile_graph()` / `run()` / `execute()`** — host work on the calling
-  thread (may enqueue StarPU tasks). They do **not** join StarPU.
-  `execute()` is compile+run only (same as the split API).
-- **`wait()`** — the only API that blocks on StarPU completion and runs
-  post-run reclaim / session compact.
-
-### C++ `nntile::Runtime`
-
-- **`execute()` / `execute_range()`** — submit compiled tile ops only (async).
-- **`wait()`** — `starpu_task_wait_for_all` + flush last-consumer reclaim.
-
-Do **not** treat “async compile” as moving host CPU work onto a background
-thread and joining in `wait()` — that only renames timers.
-
-Note: a later `compile_graph()` / `execute()` still finishes a prior async
-`run()` before sealing the next phase (correctness). That is not a wait
-hidden inside a standalone `execute()` of a fresh phase.
-
-## Remaining work to approach PyTorch
-
-- Activation buffer pool / stable logical nodes (skip `build_tile_nodes` + layout
-  rebuild for identical shapes).
-- Prune or avoid retaining unmarked tensors in `AxisDescriptor::members`
-  (memory; capture cost is already union-by-size).
-- Single-tile fast-path in `lower_to_tile` (GEMM etc.).
+- Further constant-factor cuts inside individual `lower_to_tile` bodies /
+  buffer pooling (only if dry-run gap grows again under multi-tile workloads).
 - True “compile once, replay” needs scalar lifting for Adam `lr` / `num_iter`.
 
-## Logs
+## Logs (this redesign)
 
-- Baseline: `/opt/cursor/artifacts/mnist_compile_bench/baseline_logs/`
-- Final: `/opt/cursor/artifacts/mnist_compile_bench/final_logs/`
-- Record-path: `/opt/cursor/artifacts/mnist_record_bench/`
+- `/opt/cursor/artifacts/mnist_on_bench/`

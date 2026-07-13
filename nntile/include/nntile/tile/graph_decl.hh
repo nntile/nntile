@@ -17,7 +17,6 @@
 #pragma once
 
 // Standard library headers
-#include <map>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -123,6 +122,12 @@ class TileGraph
         return ops_;
     }
 
+    //! Drop all tile ops and reset the op id counter. Tile / tensor
+    //! descriptor nodes are kept. Call only after Runtime has finished
+    //! executing every previously compiled op (see
+    //! ``Runtime::drop_fully_executed_history``).
+    void clear_ops();
+
     std::string to_string() const;
     std::string to_mermaid() const;
 
@@ -132,8 +137,8 @@ class TileGraph
     std::vector<std::unique_ptr<TileNode>> data_;
     std::vector<std::shared_ptr<TileGraph::OpNode>> ops_;
     std::vector<std::unique_ptr<TensorDescriptor>> tensors_;
-    std::map<TensorGraph::TensorNode const *, TensorDescriptor *>
-        tensors_by_source_;
+    //! Dense by ``TensorNode::id()``; holes allowed after GC.
+    std::vector<TensorDescriptor *> desc_by_source_id_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

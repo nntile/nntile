@@ -46,13 +46,10 @@ namespace
 
 template <typename T>
 void allocate_tile_and_register(
-    const TileGraph::TileNode *node,
-    const std::vector<Index> &shape,
-    std::unordered_map<const TileGraph::TileNode *, std::shared_ptr<void>> &
-        tile_map)
+    TileGraph::TileNode *node, const std::vector<Index> &shape)
 {
     auto t = std::make_shared<nntile::core::Tile<T>>(shape);
-    tile_map[node] = t;
+    node->set_payload(std::move(t));
 }
 
 //! Track both inputs and outputs when an op is needed: many kernels read
@@ -97,10 +94,10 @@ DataType Runtime::get_dtype(
 void Runtime::compile()
 {
     const auto &graph_ops = graph_.ops();
-    // TileGraph is append-only. Rebuilding execution_order_ from the full
-    // op list every compile made each training step pay DCE / last-consumer
-    // cost over all prior phases (ms/step grew with step count). Append only
-    // newly lowered ops; keep already-executed prefix for full execute().
+    // Prefer appending only newly lowered ops. After a full wait(),
+    // torch_nntile may clear TileGraph ops + reset compiled_graph_op_count_
+    // via drop_fully_executed_history(); the size mismatch branch below
+    // handles that. Keep already-executed prefix for NNGraph::execute().
     if (compiled_graph_op_count_ > graph_ops.size())
     {
         compiled_graph_op_count_ = 0;
@@ -238,7 +235,7 @@ void Runtime::invalidate_logical_tiles(
         {
             continue;
         }
-        if (tile_map_.count(tile) != 0)
+        if (tile->has_payload())
         {
             to_release.push_back(tile);
         }
@@ -254,13 +251,13 @@ void Runtime::invalidate_logical_tiles(
     }
     for (const TileGraph::TileNode *tile : to_release)
     {
-        auto it = tile_map_.find(tile);
-        if (it == tile_map_.end())
+        if (tile == nullptr || !tile->has_payload())
         {
             continue;
         }
-        invalidate_tile_buffer(tile, it->second);
-        tile_map_.erase(it);
+        auto payload = tile->payload();
+        invalidate_tile_buffer(tile, payload);
+        const_cast<TileGraph::TileNode *>(tile)->clear_payload();
     }
     init_state_.erase(logical);
 }
@@ -367,13 +364,12 @@ void Runtime::export_initialized_tiles(
         ptrs.reserve(desc->tiles.size());
         for (TileGraph::TileNode *tile : desc->tiles)
         {
-            auto it = tile_map_.find(tile);
-            if (it == tile_map_.end())
+            if (tile == nullptr || !tile->has_payload())
             {
                 ptrs.clear();
                 break;
             }
-            ptrs.push_back(it->second);
+            ptrs.push_back(tile->payload());
         }
         if (!ptrs.empty())
         {
@@ -398,13 +394,12 @@ void Runtime::export_all_tiles(
         ptrs.reserve(desc.tiles.size());
         for (TileGraph::TileNode *tile : desc.tiles)
         {
-            auto it = tile_map_.find(tile);
-            if (it == tile_map_.end())
+            if (tile == nullptr || !tile->has_payload())
             {
                 ptrs.clear();
                 break;
             }
-            ptrs.push_back(it->second);
+            ptrs.push_back(tile->payload());
         }
         if (!ptrs.empty())
         {
@@ -422,12 +417,12 @@ std::vector<TensorGraph::TensorNode const *> Runtime::stage_persisted_tiles(
     tile_adoption_.clear();
     for (const auto &[tensor, saved_ptrs] : persisted)
     {
-        auto tm_it = tile_map.find(tensor);
-        if (tm_it == tile_map.end())
+        auto const *new_tiles_ptr = tile_map.try_get(tensor);
+        if (new_tiles_ptr == nullptr)
         {
             continue;
         }
-        const std::vector<TileGraph::TileNode *> &new_tiles = tm_it->second;
+        const std::vector<TileGraph::TileNode *> &new_tiles = *new_tiles_ptr;
         if (new_tiles.size() != saved_ptrs.size())
         {
             continue;
@@ -674,58 +669,50 @@ void Runtime::allocate_missing_tiles()
         auto adopt_it = tile_adoption_.find(tile_key);
         if (adopt_it != tile_adoption_.end())
         {
-            tile_map_[tile_key] = adopt_it->second;
+            const_cast<TileGraph::TileNode *>(tile_key)->set_payload(
+                adopt_it->second);
             return;
         }
-        if (tile_map_.count(tile_key) != 0)
+        if (tile_key->has_payload())
         {
             return;
         }
         // graph_.tile_nodes() owns the unique_ptr; tile_key is non-owning.
-        // Reconstruct mutable node for dtype/shape accessors that are const.
         DataType dtype = tile_key->dtype();
         std::vector<Index> shape = tile_key->shape();
-        // allocate_tile_and_register needs non-const TileNode* matching map
-        // keys used elsewhere; const_cast is safe (nodes owned by graph_).
         auto *node = const_cast<TileGraph::TileNode *>(tile_key);
 
         switch (dtype)
         {
         case DataType::FP32:
-            allocate_tile_and_register<nntile::fp32_t>(
-                node, shape, tile_map_);
+            allocate_tile_and_register<nntile::fp32_t>(node, shape);
             break;
         case DataType::FP32_FAST_TF32:
             allocate_tile_and_register<nntile::fp32_fast_tf32_t>(
-                node, shape, tile_map_);
+                node, shape);
             break;
         case DataType::FP32_FAST_FP16:
             allocate_tile_and_register<nntile::fp32_fast_fp16_t>(
-                node, shape, tile_map_);
+                node, shape);
             break;
         case DataType::FP32_FAST_BF16:
             allocate_tile_and_register<nntile::fp32_fast_bf16_t>(
-                node, shape, tile_map_);
+                node, shape);
             break;
         case DataType::FP64:
-            allocate_tile_and_register<nntile::fp64_t>(
-                node, shape, tile_map_);
+            allocate_tile_and_register<nntile::fp64_t>(node, shape);
             break;
         case DataType::FP16:
-            allocate_tile_and_register<nntile::fp16_t>(
-                node, shape, tile_map_);
+            allocate_tile_and_register<nntile::fp16_t>(node, shape);
             break;
         case DataType::BF16:
-            allocate_tile_and_register<nntile::bf16_t>(
-                node, shape, tile_map_);
+            allocate_tile_and_register<nntile::bf16_t>(node, shape);
             break;
         case DataType::INT64:
-            allocate_tile_and_register<nntile::int64_t>(
-                node, shape, tile_map_);
+            allocate_tile_and_register<nntile::int64_t>(node, shape);
             break;
         case DataType::BOOL:
-            allocate_tile_and_register<nntile::bool_t>(
-                node, shape, tile_map_);
+            allocate_tile_and_register<nntile::bool_t>(node, shape);
             break;
         default:
             throw std::runtime_error(
@@ -852,21 +839,39 @@ void Runtime::execute()
 
 void Runtime::build_tile_last_consumer_map()
 {
-    // Only pending ops run next; historical last-consumer edges are unused
-    // by release_dead_tiles_after_op during execute_range.
-    tile_last_consumer_op_.clear();
+    // Pending suffix only: size dying lists and last-consumer scratch to
+    // O(pending), never O(|execution_order_|). Absolute op indices are
+    // recovered via tiles_dying_op_base_.
     const size_t n = execution_order_.size();
     const size_t begin =
         executed_op_end_ < n ? executed_op_end_ : n;
+    tiles_dying_op_base_ = begin;
+    tiles_dying_after_op_.clear();
+    if (begin >= n)
+    {
+        return;
+    }
+    const size_t pending = n - begin;
+    tiles_dying_after_op_.assign(pending, {});
+
+    // Sparse last-consumer over tiles touched by the pending suffix only.
+    // Dense last_op_by_id[max_id+1] was O(session tile nodes) every compile
+    // because TileNode ids are monotonic and append-only.
+    std::unordered_map<const TileGraph::TileNode *, size_t> last_op;
+    last_op.reserve(pending * 4);
     for (size_t i = begin; i < n; ++i)
     {
         for (const auto *in : execution_order_[i]->inputs())
         {
             if (in != nullptr)
             {
-                tile_last_consumer_op_[in] = i;
+                last_op[in] = i;
             }
         }
+    }
+    for (const auto &[tile, last] : last_op)
+    {
+        tiles_dying_after_op_[last - begin].push_back(tile);
     }
 }
 
@@ -936,13 +941,18 @@ void Runtime::release_dead_tiles_after_op(size_t op_idx)
 
 void Runtime::queue_dead_tiles_after_op(size_t op_idx)
 {
-    for (const auto &[tile, last_op] : tile_last_consumer_op_)
+    if (op_idx < tiles_dying_op_base_)
     {
-        if (last_op != op_idx)
-        {
-            continue;
-        }
-        if (tile->is_input() || tile->is_output())
+        return;
+    }
+    size_t const local = op_idx - tiles_dying_op_base_;
+    if (local >= tiles_dying_after_op_.size())
+    {
+        return;
+    }
+    for (const TileGraph::TileNode *tile : tiles_dying_after_op_[local])
+    {
+        if (tile == nullptr || tile->is_input() || tile->is_output())
         {
             continue;
         }
@@ -958,13 +968,13 @@ void Runtime::flush_queued_dead_tiles()
     }
     for (const TileGraph::TileNode *tile : queued_dead_tiles_)
     {
-        auto it = tile_map_.find(tile);
-        if (it == tile_map_.end())
+        if (tile == nullptr || !tile->has_payload())
         {
             continue;
         }
-        invalidate_tile_buffer(tile, it->second);
-        tile_map_.erase(it);
+        auto payload = tile->payload();
+        invalidate_tile_buffer(tile, payload);
+        const_cast<TileGraph::TileNode *>(tile)->clear_payload();
     }
     queued_dead_tiles_.clear();
 }
@@ -1121,6 +1131,28 @@ void Runtime::wait()
     // Last-consumer invalidate_submit already ran in execute_range / run().
     // Drain any stragglers if a path queued without flushing.
     flush_queued_dead_tiles();
+}
+
+bool Runtime::drop_fully_executed_history()
+{
+    // Only safe when every compiled op has already run. Partial clears would
+    // desync compiled_graph_op_count_ from TileGraph::ops() and force a
+    // full re-append on the next compile().
+    if (executed_op_end_ != execution_order_.size())
+    {
+        return false;
+    }
+    execution_order_.clear();
+    executed_op_end_ = 0;
+    compiled_graph_op_count_ = 0;
+    tiles_dying_after_op_.clear();
+    tiles_dying_op_base_ = 0;
+    live_tile_nodes_.clear();
+    queued_dead_tiles_.clear();
+    execution_schedule_ = ExecutionSchedule{};
+    // Keep compiled_tile_node_count_: tile nodes / payloads persist across
+    // session compaction (same as TensorGraph data nodes).
+    return true;
 }
 
 } // namespace nntile

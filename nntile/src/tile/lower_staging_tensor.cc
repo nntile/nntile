@@ -126,11 +126,10 @@ void lower_staging_tensor_immediate(
 
     tile_graph.set_tiling_scheme(tiling);
 
-    std::string const &fp = lay->layout_fingerprint();
-    auto fp_it = state.tensor_layout_fp.find(staging);
+    std::uint64_t const fp = lay->layout_fingerprint_hash();
+    std::uint64_t const *fp_ptr = state.tensor_layout_fp.try_get(staging);
     const bool have_tiles =
-        state.tensor_to_tiles.count(staging) != 0 &&
-        fp_it != state.tensor_layout_fp.end();
+        state.tensor_to_tiles.contains(staging) && fp_ptr != nullptr;
 
     if (!have_tiles)
     {
@@ -143,7 +142,7 @@ void lower_staging_tensor_immediate(
         return;
     }
 
-    if (fp_it->second != fp)
+    if (*fp_ptr != fp)
     {
         throw std::runtime_error(
             "lower_staging_tensor_immediate: staging '" + staging->name()

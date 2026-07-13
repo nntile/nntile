@@ -182,7 +182,7 @@ void reclaim_pending_outputs_locked()
     nntile::Runtime &runtime = *g_exec->runtime;
     // Temps are often del'd after wait(); keep still-marked entries so the
     // next compile/run can invalidate them once NodeRefs drop.
-    // Always reclaim into tile_map_ even under TORCH_NNTILE_SKIP_STARPU —
+    // Always reclaim payloads even under TORCH_NNTILE_SKIP_STARPU —
     // otherwise registrations accumulate and runtime.compile grows O(session).
     std::vector<nntile::TensorGraph::TensorNode *> still_marked;
     still_marked.reserve(g_exec->pending_output_reclaim.size());
@@ -453,13 +453,13 @@ nntile::TileGraph::TileNode *require_single_staging_tile_locked(
         throw std::runtime_error(
             "torch_nntile: no runtime for io_staging tile lookup");
     }
-    const auto found = g_exec->tile_map.find(staging);
-    if (found == g_exec->tile_map.end() || found->second.size() != 1)
+    const auto *tiles = g_exec->tile_map.try_get(staging);
+    if (tiles == nullptr || tiles->size() != 1)
     {
         throw std::runtime_error(
             "torch_nntile: io_staging must be single-tile");
     }
-    nntile::TileGraph::TileNode *tile = found->second[0];
+    nntile::TileGraph::TileNode *tile = (*tiles)[0];
     if (tile == nullptr)
     {
         throw std::runtime_error(
@@ -573,8 +573,8 @@ void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
     {
         return;
     }
-    // Clear logical marks, then drop StarPU tile buffers from
-    // Runtime::tile_map_ (invalidate_submit alone left handles live).
+    // Clear logical marks, then drop StarPU tile payloads
+    // (invalidate_submit alone left handles live).
     staging->mark_input(false);
     staging->mark_output(false);
     g_exec->runtime->invalidate_logical_tiles(staging);
@@ -617,12 +617,12 @@ void run_pending_with_scatter_staging_release_locked(
             continue;
         }
         std::size_t after = op_begin;
-        auto const found = g_exec->tile_map.find(staging);
-        if (found != g_exec->tile_map.end() && found->second.size() == 1 &&
-            found->second[0] != nullptr)
+        auto const *tiles = g_exec->tile_map.try_get(staging);
+        if (tiles != nullptr && tiles->size() == 1 &&
+            (*tiles)[0] != nullptr)
         {
             after = g_exec->runtime->last_input_consumer_end(
-                found->second[0],
+                (*tiles)[0],
                 op_begin,
                 op_end);
         }
@@ -945,6 +945,22 @@ void compact_tensor_graph_session_locked()
         return;
     }
     g_graph->drop_all_ops();
+    // Mirror TensorGraph compact on the tile side: when every compiled tile
+    // op has finished, drop TileGraph ops + Runtime execution_order_ so
+    // session history does not grow with step count. Tile nodes / payloads
+    // stay (weights, live activations). Must clear TileGraph::ops whenever
+    // Runtime resets compiled_graph_op_count_, or the next compile() would
+    // re-append the entire historical list.
+    if (g_exec != nullptr &&
+        g_exec->runtime != nullptr &&
+        g_exec->tile_graph != nullptr &&
+        g_exec->runtime->drop_fully_executed_history())
+    {
+        g_exec->tile_graph->clear_ops();
+        g_exec->executed_op_end = 0;
+        g_exec->pending_exec_op_begin = 0;
+        g_exec->pending_exec_op_end = 0;
+    }
     // Keep pending_output_reclaim. Step temps are often still mark_output
     // at wait() (Python dels them after wait); reclaim parks them as
     // still_marked. Clearing here dropped that list and leaked their
@@ -1101,7 +1117,7 @@ void finish_run_locked()
         return;
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
-    // Always join + reclaim so tile_map_ stays O(live). SKIP_STARPU only
+    // Always join + reclaim so payloads stay O(live). SKIP_STARPU only
     // skips compute submit and host↔tile acquire/memcpy.
     g_exec->runtime->wait();
     // Ingress S is normally released during run() (per-scatter). Any

@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <sstream>
-#include <unordered_set>
 
 #include "nntile/tensor/axis_descriptor.hh"
 #include "nntile/tensor/graph.hh"
@@ -228,6 +227,38 @@ std::string const &TensorAxisLayout::layout_fingerprint() const
     return fingerprint_;
 }
 
+std::uint64_t TensorAxisLayout::layout_fingerprint_hash() const
+{
+    if(fingerprint_hash_ready_)
+    {
+        return fingerprint_hash_;
+    }
+    // FNV-1a 64-bit over grid shape + segment lengths (same info as string fp).
+    std::uint64_t h = 14695981039346656037ull;
+    auto mix = [&h](std::uint64_t x)
+    {
+        h ^= x;
+        h *= 1099511628211ull;
+    };
+    mix(static_cast<std::uint64_t>(grid_shape_.size()));
+    for(Index g : grid_shape_)
+    {
+        mix(static_cast<std::uint64_t>(g));
+    }
+    mix(static_cast<std::uint64_t>(segments_.size()));
+    for(const auto &seg : segments_)
+    {
+        mix(static_cast<std::uint64_t>(seg.size()));
+        for(Index s : seg)
+        {
+            mix(static_cast<std::uint64_t>(s));
+        }
+    }
+    fingerprint_hash_ = h;
+    fingerprint_hash_ready_ = true;
+    return fingerprint_hash_;
+}
+
 void TensorAxisLayout::tile_axis_global_range(
     const std::vector<Index>& grid_coord,
     Index dim,
@@ -245,12 +276,27 @@ void TensorAxisLayout::tile_axis_global_range(
         1;
 }
 
+void TensorGraphTiling::set_layout(
+    const TensorGraph::TensorNode *node, TensorAxisLayout layout)
+{
+    if(node == nullptr)
+    {
+        return;
+    }
+    auto const id = static_cast<size_t>(node->id());
+    if(id >= layouts_by_id_.size())
+    {
+        layouts_by_id_.resize(id + 1);
+    }
+    layouts_by_id_[id] = std::move(layout);
+}
+
 TensorGraphTiling TensorGraphTiling::from_tensor_graph(const TensorGraph& tg)
 {
     TensorGraphTiling out;
     for(const auto& tn : tg.tensor_nodes())
     {
-        out.layouts_.emplace(tn.get(), TensorAxisLayout(tn.get()));
+        out.set_layout(tn.get(), TensorAxisLayout(tn.get()));
     }
     return out;
 }
@@ -261,14 +307,21 @@ namespace
 void collect_phase_touched(
     const TensorGraph& tg,
     const TensorGraph::PhaseSnapshot& phase,
-    std::unordered_set<const TensorGraph::TensorNode*>& touched)
+    std::vector<const TensorGraph::TensorNode*>& touched,
+    std::uint32_t gen)
 {
+    auto note = [&](const TensorGraph::TensorNode* t)
+    {
+        if(t == nullptr || t->touch_gen() == gen)
+        {
+            return;
+        }
+        t->set_touch_gen(gen);
+        touched.push_back(t);
+    };
     for(const TensorGraph::TensorNode* t : phase.carried_tensors)
     {
-        if(t != nullptr)
-        {
-            touched.insert(t);
-        }
+        note(t);
     }
     const auto& ops = tg.ops();
     for(size_t i = phase.op_begin; i < phase.op_end; ++i)
@@ -279,17 +332,11 @@ void collect_phase_touched(
         }
         for(TensorGraph::TensorNode* in : ops[i]->inputs())
         {
-            if(in != nullptr)
-            {
-                touched.insert(in);
-            }
+            note(in);
         }
         for(TensorGraph::TensorNode* ot : ops[i]->outputs())
         {
-            if(ot != nullptr)
-            {
-                touched.insert(ot);
-            }
+            note(ot);
         }
     }
 }
@@ -309,23 +356,38 @@ void TensorGraphTiling::ensure_phase_layouts(
     const TensorGraph& tg,
     const TensorGraph::PhaseSnapshot& phase)
 {
-    std::unordered_set<const TensorGraph::TensorNode*> touched;
-    collect_phase_touched(tg, phase, touched);
+    std::vector<const TensorGraph::TensorNode*> touched;
+    // Local generation counter: touch_gen is only compared within this call.
+    static std::uint32_t next_gen = 1;
+    std::uint32_t const gen = next_gen++;
+    if(next_gen == 0)
+    {
+        next_gen = 1;
+    }
+    collect_phase_touched(tg, phase, touched, gen);
     for(const TensorGraph::TensorNode* t : touched)
     {
-        if(layouts_.count(t) != 0)
+        if(find(t) != nullptr)
         {
             continue;
         }
-        layouts_.emplace(t, TensorAxisLayout(t));
+        set_layout(t, TensorAxisLayout(t));
     }
 }
 
 const TensorAxisLayout* TensorGraphTiling::find(
     const TensorGraph::TensorNode* node) const
 {
-    auto it = layouts_.find(node);
-    return it == layouts_.end() ? nullptr : &it->second;
+    if(node == nullptr)
+    {
+        return nullptr;
+    }
+    auto const id = static_cast<size_t>(node->id());
+    if(id >= layouts_by_id_.size() || !layouts_by_id_[id].has_value())
+    {
+        return nullptr;
+    }
+    return &(*layouts_by_id_[id]);
 }
 
 } // namespace nntile
