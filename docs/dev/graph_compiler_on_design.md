@@ -90,8 +90,12 @@ Rules:
 
 - Allocate into `TileNode::payload_` (null until first allocate / adopt).
 - `get_tile<T>(node)` is a typed cast of `payload_` (no hash lookup).
-- Last-consumer reclaim uses a dense `vector` indexed by `TileNode::id()`,
-  filled in one pass over the pending suffix.
+- Last-consumer reclaim builds dying lists **only for the pending suffix**
+  (`tiles_dying_after_op_.size() == pending`, indexed via
+  `tiles_dying_op_base_`). Never `assign(|execution_order_|, {})` — that
+  alone made `runtime.compile` grow linearly with session tile-op count.
+- Sparse last-consumer map over pending inputs only (not
+  `vector[max_tile_id]` — tile ids are session-monotonic).
 
 ## Out of scope (later)
 

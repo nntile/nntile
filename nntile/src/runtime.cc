@@ -839,52 +839,39 @@ void Runtime::execute()
 
 void Runtime::build_tile_last_consumer_map()
 {
-    // Only pending ops run next; build dying lists in O(pending edges).
+    // Pending suffix only: size dying lists and last-consumer scratch to
+    // O(pending), never O(|execution_order_|). Absolute op indices are
+    // recovered via tiles_dying_op_base_.
     const size_t n = execution_order_.size();
     const size_t begin =
         executed_op_end_ < n ? executed_op_end_ : n;
-    tiles_dying_after_op_.assign(n, {});
+    tiles_dying_op_base_ = begin;
+    tiles_dying_after_op_.clear();
     if (begin >= n)
     {
         return;
     }
+    const size_t pending = n - begin;
+    tiles_dying_after_op_.assign(pending, {});
 
-    // last_op_by_id[id] = last consumer op index; tile_by_id[id] = pointer.
-    size_t max_id = 0;
+    // Sparse last-consumer over tiles touched by the pending suffix only.
+    // Dense last_op_by_id[max_id+1] was O(session tile nodes) every compile
+    // because TileNode ids are monotonic and append-only.
+    std::unordered_map<const TileGraph::TileNode *, size_t> last_op;
+    last_op.reserve(pending * 4);
     for (size_t i = begin; i < n; ++i)
     {
         for (const auto *in : execution_order_[i]->inputs())
         {
-            if (in != nullptr && static_cast<size_t>(in->id()) > max_id)
+            if (in != nullptr)
             {
-                max_id = static_cast<size_t>(in->id());
+                last_op[in] = i;
             }
         }
     }
-    std::vector<size_t> last_op_by_id(max_id + 1, static_cast<size_t>(-1));
-    std::vector<const TileGraph::TileNode *> tile_by_id(
-        max_id + 1, nullptr);
-    for (size_t i = begin; i < n; ++i)
+    for (const auto &[tile, last] : last_op)
     {
-        for (const auto *in : execution_order_[i]->inputs())
-        {
-            if (in == nullptr)
-            {
-                continue;
-            }
-            auto const id = static_cast<size_t>(in->id());
-            last_op_by_id[id] = i;
-            tile_by_id[id] = in;
-        }
-    }
-    for (size_t id = 0; id <= max_id; ++id)
-    {
-        size_t const last = last_op_by_id[id];
-        if (last == static_cast<size_t>(-1) || tile_by_id[id] == nullptr)
-        {
-            continue;
-        }
-        tiles_dying_after_op_[last].push_back(tile_by_id[id]);
+        tiles_dying_after_op_[last - begin].push_back(tile);
     }
 }
 
@@ -954,11 +941,16 @@ void Runtime::release_dead_tiles_after_op(size_t op_idx)
 
 void Runtime::queue_dead_tiles_after_op(size_t op_idx)
 {
-    if (op_idx >= tiles_dying_after_op_.size())
+    if (op_idx < tiles_dying_op_base_)
     {
         return;
     }
-    for (const TileGraph::TileNode *tile : tiles_dying_after_op_[op_idx])
+    size_t const local = op_idx - tiles_dying_op_base_;
+    if (local >= tiles_dying_after_op_.size())
+    {
+        return;
+    }
+    for (const TileGraph::TileNode *tile : tiles_dying_after_op_[local])
     {
         if (tile == nullptr || tile->is_input() || tile->is_output())
         {

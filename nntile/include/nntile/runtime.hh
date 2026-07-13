@@ -258,9 +258,10 @@ class Runtime
     std::unordered_map<TensorGraph::TensorNode const *, bool> init_state_;
     std::unordered_map<const TileNode *, std::shared_ptr<void>> tile_adoption_;
     std::unordered_set<const TileNode *> live_tile_nodes_;
-    //! ``tiles_dying_after_op_[i]`` = tiles whose last consumer is op ``i``.
-    //! Built in O(pending); reclaim is O(#dying at i), not O(#all tiles).
+    //! ``tiles_dying_after_op_[i]`` = tiles whose last consumer is
+    //! absolute op index ``tiles_dying_op_base_ + i`` (pending window only).
     std::vector<std::vector<const TileNode *>> tiles_dying_after_op_;
+    size_t tiles_dying_op_base_ = 0;
     //! Scratch for last-consumer tiles; flushed via invalidate_submit during
     //! ``execute_range`` (not deferred to ``wait()``).
     std::vector<const TileNode *> queued_dead_tiles_;
