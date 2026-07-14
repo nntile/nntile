@@ -348,6 +348,7 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/tensor_graph_tiling.cc"
     "tensor/graph_data_node.cc"
     "tensor/graph_op_node.cc"
+    "tensor/tensor_ref.cc"
     "tensor/tile_lowering_helpers.cc"
     "tensor/ops/add.cc"
     "tensor/ops/add_fiber.cc"
@@ -542,10 +543,12 @@ set(GRAPH_OPTIM_SRC
 )
 
 set(GRAPH_RUNTIME_SRC
-    "bind_parameters.cc"
     "core/execution_schedule.cc"
     "runtime.cc"
     )
+if(BUILD_NNTILE_NNGRAPH)
+    list(APPEND GRAPH_RUNTIME_SRC "bind_parameters.cc")
+endif()
 
 set(GRAPH_TILE_LAYER_SRC
     "tile/append_tensor_graph_phase.cc"
@@ -701,15 +704,30 @@ if(KERNEL_CPU_SRC)
 endif()
 nntile_add_objs(nntile_objs_starpu ${STARPU_BASE_SRC} ${STARPU_CODELET_SRC})
 nntile_add_objs(nntile_objs_core ${CORE_BASE_SRC} ${CORE_OPERATION_SRC})
-nntile_add_objs(nntile_objs_graph_base dtype.cc kv_cache.cc)
+nntile_add_objs(nntile_objs_graph_base dtype.cc)
+if(BUILD_NNTILE_NNGRAPH)
+    nntile_add_objs(nntile_objs_kv_cache kv_cache.cc)
+endif()
 nntile_add_objs(nntile_objs_tile ${GRAPH_TILE_LAYER_SRC})
 nntile_add_objs(nntile_objs_tensor ${GRAPH_TENSOR_LAYER_SRC})
-nntile_add_objs(nntile_objs_nn ${GRAPH_NN_LAYER_SRC})
+if(BUILD_NNTILE_NNGRAPH)
+    nntile_add_objs(nntile_objs_nn ${GRAPH_NN_LAYER_SRC})
+endif()
 nntile_add_objs(nntile_objs_runtime ${GRAPH_RUNTIME_SRC})
-nntile_add_objs(nntile_objs_module ${GRAPH_MODULE_SRC})
-nntile_add_objs(nntile_objs_model ${GRAPH_MODEL_SRC})
-nntile_add_objs(nntile_objs_optim ${GRAPH_OPTIM_SRC})
-nntile_add_objs(nntile_objs_io ${GRAPH_IO_SRC})
-nntile_add_objs(nntile_objs_dataset ${GRAPH_DATASET_SRC})
+if(BUILD_NNTILE_MODULES)
+    nntile_add_objs(nntile_objs_module ${GRAPH_MODULE_SRC})
+endif()
+if(BUILD_NNTILE_MODELS)
+    nntile_add_objs(nntile_objs_model ${GRAPH_MODEL_SRC})
+endif()
+if(BUILD_NNTILE_OPTIM)
+    nntile_add_objs(nntile_objs_optim ${GRAPH_OPTIM_SRC})
+endif()
+if(BUILD_NNTILE_IO)
+    nntile_add_objs(nntile_objs_io ${GRAPH_IO_SRC})
+endif()
+if(BUILD_NNTILE_DATASET)
+    nntile_add_objs(nntile_objs_dataset ${GRAPH_DATASET_SRC})
+endif()
 target_sources(nntile PRIVATE ${LOGGER_SRC})
 target_sources(nntile PRIVATE context.cc)

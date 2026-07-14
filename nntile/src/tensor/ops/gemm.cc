@@ -222,7 +222,7 @@ TensorGraph::TensorNode *gemm(TensorGraph::TensorNode *a,
         a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
 
     TensorGraph::TensorNode *output =
-        a->graph()->data(std::move(output_shape), a->dtype());
+        a->graph()->emplace_data(std::move(output_shape), a->dtype());
 
     gemm(a,
         b,

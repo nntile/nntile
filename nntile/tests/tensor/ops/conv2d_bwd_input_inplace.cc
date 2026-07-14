@@ -61,9 +61,12 @@ TEST_CASE("TensorGraph conv2d_bwd_input_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *dy = graph.data({3, 3, 2, 2})->set_name("dy");
-    auto *kernel = graph.data({2, 2, 2, 2})->set_name("kernel");
-    auto *dx = graph.data({4, 4, 2, 2})->set_name("dx");
+    nntile::TensorRef dy = graph.data({3, 3, 2, 2});
+    dy->set_name("dy");
+    nntile::TensorRef kernel = graph.data({2, 2, 2, 2});
+    kernel->set_name("kernel");
+    nntile::TensorRef dx = graph.data({4, 4, 2, 2});
+    dx->set_name("dx");
 
     gt::conv2d_bwd_input_inplace(
         1.0, dy, kernel, 0.0, dx, {0, 0}, {1, 1}, {1, 1});
@@ -82,9 +85,12 @@ TEST_CASE("TensorGraph conv2d_bwd_input_inplace rejects null tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *dy = graph.data({3, 3, 2, 2})->set_name("dy");
-    auto *kernel = graph.data({2, 2, 2, 2})->set_name("kernel");
-    auto *dx = graph.data({4, 4, 2, 2})->set_name("dx");
+    nntile::TensorRef dy = graph.data({3, 3, 2, 2});
+    dy->set_name("dy");
+    nntile::TensorRef kernel = graph.data({2, 2, 2, 2});
+    kernel->set_name("kernel");
+    nntile::TensorRef dx = graph.data({4, 4, 2, 2});
+    dx->set_name("dx");
 
     REQUIRE_THROWS_AS(
         gt::conv2d_bwd_input_inplace(

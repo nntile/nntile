@@ -40,7 +40,7 @@ TensorGraph::TensorNode *relu_backward(
         throw std::invalid_argument(
             "relu_backward: x and dy must be distinct tensors");
     validate_same_shape_and_merge(x, dy, "relu_backward");
-    TensorGraph::TensorNode *output = x->graph()->data(x->shape(), x->dtype());
+    TensorGraph::TensorNode *output = x->graph()->emplace_data(x->shape(), x->dtype());
     output->set_axes(x->axes());
     relu_backward(x, dy, output);
     return output;

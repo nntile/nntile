@@ -125,7 +125,7 @@ nntile::TensorGraph::TensorNode *bridge_node_to_shape(
     }
     nntile::TensorGraph &graph = *node->graph();
     nntile::TensorGraph::TensorNode *view_node =
-        graph.data(target_shape, node->dtype());
+        graph.emplace_data(target_shape, node->dtype());
     nntile::tensor::contiguous_view(node, view_node);
     return view_node;
 }
@@ -1097,7 +1097,7 @@ void tensor_cross_entropy_forward_fp32(
 
     auto &graph = *logits_node->graph();
     auto *logsumexp_node =
-        graph.data(labels_graph, nntile::DataType::FP32)->set_name("logsumexp");
+        graph.emplace_data(labels_graph, nntile::DataType::FP32)->set_name("logsumexp");
 
     nntile::tensor::clear(maxsumexp_node);
     nntile::tensor::maxsumexp(
@@ -1211,7 +1211,7 @@ void tensor_cross_entropy_backward_fp32(
                     labels_graph.begin(),
                     labels_graph.begin() +
                         static_cast<std::ptrdiff_t>(dim) + 1);
-                dst_node = graph.data(dst_shape, nntile::DataType::FP32)
+                dst_node = graph.emplace_data(dst_shape, nntile::DataType::FP32)
                                ->set_name("grad_output_broadcast");
             }
             nntile::tensor::scale_slice(
@@ -1256,7 +1256,7 @@ void tensor_softmax_fp32(
 
     auto &graph = *src_node->graph();
     auto *maxsumexp_node =
-        graph.data(maxsumexp_graph, nntile::DataType::FP32)
+        graph.emplace_data(maxsumexp_graph, nntile::DataType::FP32)
             ->set_name("maxsumexp");
 
     nntile::tensor::clear(maxsumexp_node);
@@ -1355,7 +1355,7 @@ nntile::TensorGraph::TensorNode *make_graph_tensor(
     const std::vector<nntile::Index> &shape,
     const char *name)
 {
-    auto *node = graph.data(shape, nntile::DataType::FP32)->set_name(name);
+    auto *node = graph.emplace_data(shape, nntile::DataType::FP32)->set_name(name);
     return node;
 }
 
@@ -2493,7 +2493,7 @@ nntile::TensorGraph::TensorNode *make_sdpa_temp_tensor(
     const std::vector<nntile::Index> &shape,
     const char *name)
 {
-    auto *node = graph.data(shape, nntile::DataType::FP32)->set_name(name);
+    auto *node = graph.emplace_data(shape, nntile::DataType::FP32)->set_name(name);
     return node;
 }
 

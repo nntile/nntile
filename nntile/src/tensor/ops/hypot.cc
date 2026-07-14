@@ -75,7 +75,7 @@ TensorGraph::TensorNode *hypot(Scalar alpha,
 
     std::vector<Index> output_shape = src1->shape();
     TensorGraph::TensorNode *dst =
-        src1->graph()->data(std::move(output_shape), src1->dtype());
+        src1->graph()->emplace_data(std::move(output_shape), src1->dtype());
     dst->set_axes(src1->axes());
 
     hypot(alpha, src1, beta, src2, dst);

@@ -52,9 +52,12 @@ TEST_CASE("TensorGraph embedding_backward structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *embed = graph.data({5, 4, 100})->set_name("embed");
-    auto *vocab = graph.data({10, 100})->set_name("vocab");
+    nntile::TensorRef index = graph.data({5, 4}, DataType::INT64);
+    index->set_name("index");
+    nntile::TensorRef embed = graph.data({5, 4, 100});
+    embed->set_name("embed");
+    nntile::TensorRef vocab = graph.data({10, 100});
+    vocab->set_name("vocab");
 
     gt::embedding_backward(index, embed, vocab, 2, 0);
 
@@ -72,9 +75,12 @@ TEST_CASE(
     "TensorGraph embedding_backward rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *embed = graph.data({5, 4, 100})->set_name("embed");
-    auto *vocab = graph.data({10, 100})->set_name("vocab");
+    nntile::TensorRef index = graph.data({5, 4}, DataType::INT64);
+    index->set_name("index");
+    nntile::TensorRef embed = graph.data({5, 4, 100});
+    embed->set_name("embed");
+    nntile::TensorRef vocab = graph.data({10, 100});
+    vocab->set_name("vocab");
 
     REQUIRE_THROWS_AS(gt::embedding_backward(nullptr, embed, vocab, 2, 0),
         std::invalid_argument);
@@ -121,16 +127,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("embedding_backward_untiled");
-        auto *index_node =
-            graph.data(index_shape, DataType::INT64)->set_name("index");
-        auto *embed_node =
-            graph.data(embed_shape, DataType::FP32)->set_name("embed");
-        auto *vocab_node =
-            graph.data(vocab_shape, DataType::FP32)->set_name("vocab");
-        index_node->mark_input(true);
-        embed_node->mark_input(true);
-        vocab_node->mark_input(true);
-        vocab_node->mark_output(true);
+        nntile::TensorRef index_node = graph.data(index_shape, DataType::INT64);
+    index_node->set_name("index");
+        nntile::TensorRef embed_node = graph.data(embed_shape, DataType::FP32);
+    embed_node->set_name("embed");
+        nntile::TensorRef vocab_node = graph.data(vocab_shape, DataType::FP32);
+    vocab_node->set_name("vocab");
 
         gt::embedding_backward(
             index_node, embed_node, vocab_node, axis, redux);
@@ -153,16 +155,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("embedding_backward_tiled");
-        auto *index_node =
-            graph.data(index_shape, DataType::INT64)->set_name("index");
-        auto *embed_node =
-            graph.data(embed_shape, DataType::FP32)->set_name("embed");
-        auto *vocab_node =
-            graph.data(vocab_shape, DataType::FP32)->set_name("vocab");
-        index_node->mark_input(true);
-        embed_node->mark_input(true);
-        vocab_node->mark_input(true);
-        vocab_node->mark_output(true);
+        nntile::TensorRef index_node = graph.data(index_shape, DataType::INT64);
+    index_node->set_name("index");
+        nntile::TensorRef embed_node = graph.data(embed_shape, DataType::FP32);
+    embed_node->set_name("embed");
+        nntile::TensorRef vocab_node = graph.data(vocab_shape, DataType::FP32);
+    vocab_node->set_name("vocab");
 
         gt::embedding_backward(
             index_node, embed_node, vocab_node, axis, redux);

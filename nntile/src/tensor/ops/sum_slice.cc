@@ -69,7 +69,7 @@ TensorGraph::TensorNode *sum_slice(TensorGraph::TensorNode *src,
     std::vector<Index> output_shape =
         sum_slice_output_shape(src->shape(), axis);
     TensorGraph::TensorNode *output =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
 
     validate_slice_shape_and_merge(output, src, axis, "sum_slice");
 

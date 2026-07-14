@@ -20,6 +20,13 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(BUILD_NNTILE "Build unified nntile library" ON)
+# High-level C++ stack (temporarily gated; focus is TensorGraph + torch_nntile).
+option(BUILD_NNTILE_NNGRAPH "Build nn/* (NNGraph autograd)" OFF)
+option(BUILD_NNTILE_MODULES "Build module/*" OFF)
+option(BUILD_NNTILE_MODELS "Build model/*" OFF)
+option(BUILD_NNTILE_OPTIM "Build optim/*" OFF)
+option(BUILD_NNTILE_DATASET "Build dataset/*" OFF)
+option(BUILD_NNTILE_IO "Build io/* (safetensors)" OFF)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
@@ -198,10 +205,26 @@ if(BUILD_TESTS_PYTORCH AND BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMG
     endif()
 endif()
 
+# High-level stack requires NNGraph.
+if(NOT BUILD_NNTILE_NNGRAPH)
+    set(BUILD_NNTILE_MODULES OFF)
+    set(BUILD_NNTILE_MODELS OFF)
+    set(BUILD_NNTILE_OPTIM OFF)
+    set(BUILD_PYTHON_WRAPPERS OFF)
+endif()
+if(NOT BUILD_NNTILE_MODULES)
+    set(BUILD_NNTILE_MODELS OFF)
+endif()
+
+set(NNTILE_USE_NNGRAPH OFF)
+if(BUILD_NNTILE_NNGRAPH)
+    set(NNTILE_USE_NNGRAPH ON)
+endif()
+
 if(BUILD_NNTILE)
     add_subdirectory(nntile)
 endif()
 
-if(BUILD_PYTHON_WRAPPERS AND BUILD_NNTILE)
+if(BUILD_PYTHON_WRAPPERS AND BUILD_NNTILE AND BUILD_NNTILE_NNGRAPH)
     add_subdirectory(python)
 endif()

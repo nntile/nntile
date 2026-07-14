@@ -47,8 +47,10 @@ TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
-    auto *dst = graph.data({})->set_name("dst");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
+    nntile::TensorRef dst = graph.data({});
+    dst->set_name("dst");
 
     gt::sum(src, dst, alpha_one, beta_zero);
 
@@ -66,7 +68,8 @@ TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sum rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({5, 4})->set_name("t");
+    nntile::TensorRef t = graph.data({5, 4});
+    t->set_name("t");
 
     REQUIRE_THROWS_AS(
         gt::sum(t, t, alpha_one, beta_zero), std::invalid_argument);
@@ -97,12 +100,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("sum_untiled");
-        auto *src_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data({}, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(src_shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data({}, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::sum(src_node, dst_node, alpha, beta);
 
@@ -123,12 +124,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("sum_tiled");
-        auto *src_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data({}, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(src_shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data({}, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::sum(src_node, dst_node, alpha, beta);
         for (auto *ag : graph.axis_groups())

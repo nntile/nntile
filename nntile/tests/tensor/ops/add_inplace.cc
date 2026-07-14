@@ -44,8 +44,10 @@ TEST_CASE("TensorGraph add_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim0, dim1})->set_name("x");
-    auto *y = graph.data({dim0, dim1})->set_name("y");
+    nntile::TensorRef x = graph.data({dim0, dim1});
+    x->set_name("x");
+    nntile::TensorRef y = graph.data({dim0, dim1});
+    y->set_name("y");
 
     gt::add_inplace(alpha, x, beta, y);
 
@@ -63,7 +65,8 @@ TEST_CASE(
     "TensorGraph add_inplace rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({5, 4})->set_name("t");
+    nntile::TensorRef t = graph.data({5, 4});
+    t->set_name("t");
 
     REQUIRE_THROWS_AS(
         gt::add_inplace(alpha, t, beta, t), std::invalid_argument);
@@ -95,11 +98,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("add_inplace_untiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
-        y_node->mark_output(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(shape, DataType::FP32);
+    y_node->set_name("y");
 
         gt::add_inplace(alpha, x_node, beta, y_node);
 
@@ -120,11 +122,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("add_inplace_tiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
-        y_node->mark_output(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(shape, DataType::FP32);
+    y_node->set_name("y");
 
         gt::add_inplace(alpha, x_node, beta, y_node);
         for (auto *ag : graph.axis_groups())

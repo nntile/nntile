@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -28,11 +29,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outpu
     const Scalar v = 0.5;
     const Index ign = -1;
     TileGraph g("g");
-    auto* lab = g.data(lh, "labels", DataType::INT64);
-    auto* d = g.data(dh, "d", DataType::FP32);
-    lab->mark_input(true);
-    d->mark_input(true);
-    d->mark_output(true);
+    auto *lab = g.data(lh, "labels", DataType::INT64);
+    auto *d = g.data(dh, "d", DataType::FP32);
     tg::subtract_indexed_outputs(v, lab, d, ign);
     Runtime r(g);
     r.compile();

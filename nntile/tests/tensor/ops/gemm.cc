@@ -58,19 +58,18 @@ std::vector<float> run_gemm_graph(const std::vector<Index> &a_shape,
     bool tiled)
 {
     TensorGraph graph(tiled ? "gemm_tiled" : "gemm_untiled");
-    auto *a_node = graph.data(a_shape, DataType::FP32)->set_name("a");
-    auto *b_node = graph.data(b_shape, DataType::FP32)->set_name("b");
-    a_node->mark_input(true);
-    b_node->mark_input(true);
+    nntile::TensorRef a_node = graph.data(a_shape, DataType::FP32);
+    a_node->set_name("a");
+    nntile::TensorRef b_node = graph.data(b_shape, DataType::FP32);
+    b_node->set_name("b");
 
-    auto *c_node = gt::gemm(a_node,
+    nntile::TensorRef c_node = nntile::TensorRef::adopt(gt::gemm(a_node,
         b_node,
         alpha,
         trans_a_flag,
         trans_b_flag,
         ndim_flag,
-        batch_ndim_flag);
-    c_node->mark_output(true);
+        batch_ndim_flag));
 
     if (tiled)
     {
@@ -102,9 +101,11 @@ TEST_CASE("TensorGraph gemm structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *a = graph.data({5, 4})->set_name("a");
-    auto *b = graph.data({4, 6})->set_name("b");
-    auto *c = gt::gemm(a, b, alpha_one, trans_a, trans_b, ndim, batch_ndim);
+    nntile::TensorRef a = graph.data({5, 4});
+    a->set_name("a");
+    nntile::TensorRef b = graph.data({4, 6});
+    b->set_name("b");
+    nntile::TensorRef c = nntile::TensorRef::adopt(gt::gemm(a, b, alpha_one, trans_a, trans_b, ndim, batch_ndim));
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -122,8 +123,10 @@ TEST_CASE("TensorGraph gemm structure", "[graph][tensor]")
 TEST_CASE("TensorGraph gemm rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *a = graph.data({5, 4})->set_name("a");
-    auto *b = graph.data({5, 6})->set_name("b");
+    nntile::TensorRef a = graph.data({5, 4});
+    a->set_name("a");
+    nntile::TensorRef b = graph.data({5, 6});
+    b->set_name("b");
 
     REQUIRE_THROWS_AS(
         gt::gemm(nullptr, b, alpha_one, trans_a, trans_b, ndim, batch_ndim),

@@ -24,6 +24,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
 #include "nntile/tensor/graph_data_node.hh"
+#include "nntile/tensor/tensor_ref.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tile/graph.hh"
 #include "nntile/tile/graph_data_node.hh"
@@ -43,6 +44,19 @@ namespace nntile
 
 namespace
 {
+
+//! True if the tile's logical tensor still has a live ``TensorRef``.
+bool tile_logical_is_live(TileGraph::TileNode const *tile)
+{
+    if (tile == nullptr)
+    {
+        return false;
+    }
+    auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile);
+    TileGraph::TensorDescriptor const *desc =
+        mutable_tile->tensor_descriptor();
+    return desc != nullptr && tensor_ref_is_live(desc->source_node);
+}
 
 template <typename T>
 void allocate_tile_and_register(
@@ -117,11 +131,6 @@ void Runtime::compile()
         compiled_graph_op_count_ = graph_ops.size();
     }
 
-    // Refresh tile marks from logical TensorNodes before DCE so
-    // incremental sessions see mark_output(false) after Python drops refs.
-    // Unmarked phase temps are reclaimed via TensorGraph INVALIDATE ops
-    // appended at compile (see append_invalidates_for_unmarked_unsealed).
-    sync_tile_marks_from_logical();
     eliminate_dead_ops();
     allocate_missing_tiles();
     tile_adoption_.clear();
@@ -129,69 +138,6 @@ void Runtime::compile()
     execution_schedule_ = ExecutionSchedule{};
 
     compiled_ = true;
-}
-
-void Runtime::sync_tile_marks_from_logical()
-{
-    // Sync descriptors for the pending op slice and for any allocated tile
-    // whose logical mark flipped to unmarked (held-across-compile outputs
-    // that NodeRefs later dropped). Avoid a full historical TensorDescriptor
-    // walk; tile_map_ is bounded by live allocations.
-    std::unordered_set<const TileGraph::TensorDescriptor *> synced;
-
-    auto sync_tile = [&](const TileGraph::TileNode *tile_key)
-    {
-        if (tile_key == nullptr)
-        {
-            return;
-        }
-        // tensor_descriptor() is non-const on the node API via const TileNode*
-        auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile_key);
-        const TileGraph::TensorDescriptor *desc =
-            mutable_tile->tensor_descriptor();
-        if (desc == nullptr || desc->source_node == nullptr)
-        {
-            return;
-        }
-        if (!synced.insert(desc).second)
-        {
-            return;
-        }
-        const bool is_in = desc->source_node->is_input();
-        const bool is_out = desc->source_node->is_output();
-        for (TileGraph::TileNode *tile : desc->tiles)
-        {
-            if (tile == nullptr)
-            {
-                continue;
-            }
-            // Always copy both marks: a sticky mark_input(true) that was
-            // never cleared blocked last-consumer reclaim after Python
-            // dropped the logical input mark (used batches, etc.).
-            tile->mark_input(is_in);
-            tile->mark_output(is_out);
-        }
-    };
-
-    const size_t n = execution_order_.size();
-    const size_t begin =
-        executed_op_end_ < n ? executed_op_end_ : n;
-    for (size_t i = begin; i < n; ++i)
-    {
-        for (const auto *in : execution_order_[i]->inputs())
-        {
-            sync_tile(in);
-        }
-        for (const auto *out : execution_order_[i]->outputs())
-        {
-            sync_tile(out);
-        }
-    }
-
-    // Do not walk the full tile_map_ here: that scan grew O(session) for
-    // incremental training. Unmarked outputs dropped by the host are
-    // reclaimed via Runtime::invalidate_logical_tiles /
-    // pending_output_reclaim instead.
 }
 
 void Runtime::invalidate_logical_tiles(
@@ -202,7 +148,7 @@ void Runtime::invalidate_logical_tiles(
         return;
     }
     // Persistence is driven by marks: still-marked tensors stay allocated.
-    if (logical->is_output() || logical->is_input())
+    if (tensor_ref_is_live(logical))
     {
         return;
     }
@@ -212,18 +158,13 @@ void Runtime::invalidate_logical_tiles(
     {
         return;
     }
-    // Clear tile marks to match the unmarked logical. Ingress staging
-    // tiles are built with mark_input(true); leaving that set made
-    // reclaim a no-op and kept a full-size StarPU buffer beside L
-    // (≈2× VRAM with untiled single-tile layouts).
+    // Clear tile association; reclaim is driven by TensorRef lifetime.
     for (TileGraph::TileNode *tile : desc->tiles)
     {
         if (tile == nullptr)
         {
             continue;
         }
-        tile->mark_input(false);
-        tile->mark_output(false);
     }
 
     std::vector<const TileGraph::TileNode *> to_release;
@@ -286,7 +227,7 @@ bool Runtime::tensor_requires_init_at_execute(
     {
         return false;
     }
-    if (!tile_bind_detail::tensor_desc_has_input_tile(desc))
+    if (!tile_bind_detail::tensor_desc_logical_is_live(desc))
     {
         return false;
     }
@@ -304,7 +245,7 @@ bool Runtime::tensor_requires_init_at_execute(
     bool consumed = false;
     for (TileGraph::TileNode *tile : desc.tiles)
     {
-        if (tile == nullptr || !tile->is_input())
+        if (tile == nullptr || !tile_logical_is_live(tile))
         {
             continue;
         }
@@ -667,10 +608,9 @@ void Runtime::allocate_missing_tiles()
         {
             return;
         }
-        // Full-graph DCE may keep historical unmarked tiles "live"; do not
-        // reallocate them unless a pending op needs them (or they are
-        // marked input/output).
-        if (!tile_key->is_output() && !tile_key->is_input() &&
+        // Do not reallocate temps without a live TensorRef unless a pending
+        // op still needs them.
+        if (!tile_logical_is_live(tile_key) &&
             needed_by_pending.count(tile_key) == 0)
         {
             return;
@@ -957,11 +897,8 @@ void Runtime::queue_dead_tiles_after_op(size_t op_idx)
     }
     for (const TileGraph::TileNode *tile : tiles_dying_after_op_[local])
     {
-        // Skip persistent / still-referenced tensors. Temps must be unmarked
-        // before execute_range (drop pin_hold + free autograd) so this path
-        // can invalidate_submit after each last consumer; otherwise StarPU
-        // keeps the full activation union for the step.
-        if (tile == nullptr || tile->is_input() || tile->is_output())
+        // Skip tensors that still have a live TensorRef.
+        if (tile == nullptr || tile_logical_is_live(tile))
         {
             continue;
         }
@@ -1031,31 +968,28 @@ void Runtime::eliminate_dead_ops()
     }
 
     std::unordered_set<TNode> live_data;
-    // Seed from marked tiles touched by the pending slice only — scanning
-    // every historical tile_node made compile O(session length).
+    // Seed from tiles whose logical still has a live TensorRef.
     for (size_t i = pending_begin; i < n; ++i)
     {
         const auto &op = execution_order_[i];
         for (const auto *out : op->outputs())
         {
-            if (out != nullptr &&
-                (out->is_output() || out->is_input()))
+            if (out != nullptr && tile_logical_is_live(out))
             {
                 live_data.insert(out);
             }
         }
         for (const auto *in : op->inputs())
         {
-            if (in != nullptr &&
-                (in->is_output() || in->is_input()))
+            if (in != nullptr && tile_logical_is_live(in))
             {
                 live_data.insert(in);
             }
         }
     }
 
-    const bool any_marked_output = !live_data.empty();
-    if (!any_marked_output)
+    const bool any_live_output = !live_data.empty();
+    if (!any_live_output)
     {
         for (const auto &p : producer)
         {

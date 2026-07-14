@@ -56,7 +56,7 @@ TensorGraph::TensorNode *norm_slice(Scalar alpha,
 
     std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode *dst =
-        src1->graph()->data(std::move(output_shape), src1->dtype());
+        src1->graph()->emplace_data(std::move(output_shape), src1->dtype());
 
     validate_slice_shape_and_merge(dst, src1, axis, "norm_slice");
     validate_same_shape_and_merge(src2, dst, "norm_slice");

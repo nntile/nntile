@@ -9,23 +9,6 @@
  * @file include/nntile/tile/append_tensor_graph_phase.hh
  * Incrementally lower sealed TensorGraph phases into one TileGraph.
  *
- * Intended workflow (dynamic graph fill-in): record on ``NNGraph``, call
- * ``finish_phase()`` (seal + stash slice for compile), optionally edit
- * ``tensor_graph()``, then ``NNGraph::lower_and_compile`` (append + ``compile``
- * + archive + auto suffix bump).  Advanced users may call
- * ``compile_incremental_nn_phase`` or ``append_tensor_graph_phase`` +
- * ``compile()`` directly instead.
- *
- * ``TensorGraph::seal_phase()`` seeds lowering with every node marked
- * ``mark_input`` or ``mark_output``; op inputs/outputs add the rest of each
- * phase's tensors.  Those persistent buffers must keep the same
- * tiling across phases: if ``layout_fingerprint()`` differs from an earlier
- * phase, ``append_tensor_graph_phase`` throws (switching tiling on an
- * existing logical tensor will be supported later).  When the fingerprint
- * matches, existing tile nodes
- * and tensor descriptors are reused so StarPU buffers stay wired across
- * compiles.
- *
  * @version 1.1.0
  * */
 
@@ -40,11 +23,15 @@
 
 // NNTile headers
 #include <nntile/base_types.hh>
-#include <nntile/nn/graph.hh>
+#include <nntile/defs.h>
 #include <nntile/tensor/tensor_graph_phase_transform.hh>
 #include <nntile/tensor/tensor_graph_tiling.hh>
 #include <nntile/tile/graph_decl.hh>
 #include <nntile/tile/lowering_context.hh>
+
+#ifdef NNTILE_USE_NNGRAPH
+#include <nntile/nn/graph.hh>
+#endif
 
 namespace nntile
 {
@@ -88,6 +75,7 @@ inline void append_tensor_graph_phase(
         tile_map);
 }
 
+#ifdef NNTILE_USE_NNGRAPH
 //! Lower \p exec_phase into ``tile_graph``, ``compile()`` \p runtime, optionally
 //! ``push_tensor_phase_archive`` on ``nn_graph_for_suffix``, then bump auto
 //! module suffix tags when ``NNGraph::enable_auto_tensor_name_phase_suffix`` is
@@ -105,5 +93,6 @@ void compile_incremental_nn_phase(
         std::vector<std::shared_ptr<void>>> const *persisted_tiles = nullptr,
     std::unordered_map<TensorGraph::TensorNode const *, bool> const
         *persisted_init = nullptr);
+#endif
 
 } // namespace nntile

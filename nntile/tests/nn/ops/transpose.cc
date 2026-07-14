@@ -56,7 +56,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     // Raw tensor transpose with the same literal ndim would differ.
     TensorGraph tg("tensor_transpose_compare");
-    auto *tg_src = tg.data(q_proj_shape)->set_name("tg_src");
+    nntile::TensorRef tg_src = tg.data(q_proj_shape);
+        tg_src->set_name("tg_src");
     auto *tg_dst = gt::transpose(1.0, tg_src, 1);
     REQUIRE(tg_dst->shape() == cyclic_shift(q_proj_shape, 1));
     REQUIRE(tg_dst->shape() != q->shape());

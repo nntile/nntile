@@ -7,17 +7,21 @@ Canonical description of `device=nntile` tensors as implemented on the
 
 A nntile tensor is a PyTorch `at::Tensor` shell (shape, dtype, autograd) with
 **0-byte** `Storage`. Compute state lives in StarPU tiles behind a refcounted
-`NodeRef` on the `TensorImpl`:
+`TensorRef` on the `TensorImpl`:
 
 ```text
-TensorImpl → NNTileBackendMeta → NodeRef → NNTileBinding { logical L }
+TensorImpl → NNTileBackendMeta → TensorRef → Hold → TensorNode (graph-owned)
 ```
 
-- **`L` (logical):** the graph/compute node. `NodeRef` ctor/dtor drive
-  `mark_output(true/false)` on `L`.
-- **`S` (staging):** **ephemeral**, not stored in `NNTileBinding`. Created per
-  I/O event; after scatter/gather `wait()`, marks are cleared and StarPU
-  tile buffers are dropped from the runtime map (not left live).
+- **`L` (logical):** the graph/compute `TensorNode`, owned by `TensorGraph`
+  (`unique_ptr`). Ops hold raw `TensorNode*`.
+- **`TensorRef`:** shared hold on `L`. Last hold drop records async
+  `tensor::invalidate` into the graph. `TensorGraph::data()` returns a
+  `TensorRef`; op factories that create temps use `emplace_data()` (no hold)
+  so callers must `TensorRef::adopt` outputs they keep.
+- **`S` (staging):** **ephemeral**, not stored on the meta. Created per I/O
+  event; after scatter/gather `wait()`, StarPU tile buffers are dropped from
+  the runtime map (not left live).
 
 There is no side map (`g_tensor_nodes`) and no eager per-op flush. All ops
 record into a shared `TensorGraph`; the caller flushes with `compile_graph()`
@@ -26,38 +30,39 @@ asynchronously; call `wait()` to join StarPU. Host readout (`.to("cpu")`) also
 waits. C++ `nntile::Runtime::execute()` is likewise submit-only; call
 `Runtime::wait()`.
 
-## Incremental session memory (`mark_output` + `INVALIDATE`)
+## Incremental session memory (`TensorRef` + `INVALIDATE`)
 
 The session is **one incremental** `TensorGraph` / `TileGraph` (phases append;
 do not reset the session to free memory). StarPU payload reclaim is an ordinary
 async graph op:
 
-1. Dropping a Python nntile tensor runs `~NNTileBinding` → `L.mark_output(false)`
-   (and `mark_input(false)`), and enqueues `L` for payload flush. Persistent
-   params / batches keep marks via live bindings (`mark_input` / `mark_output`).
+1. Dropping a Python nntile tensor drops its `TensorRef` (last hold → enqueue
+   `tensor::invalidate` on `L`). Persistent params / batches stay live via
+   remaining refs on those tensors.
 2. On `compile_graph()`, after dropping compile pin holds:
-   - **immediately** `invalidate_logical_tiles` for every released unmarked
-     logical (covers `param.grad` from the next `zero_grad`, deleted batches,
-     …) so the next phase does not stack on unreclaimed payloads;
-   - for every tensor **touched by the unsealed phase** with
-     `!is_input && !is_output`, append `tensor::INVALIDATE` (O(phase)).
+   - **immediately** `invalidate_logical_tiles` for every released logical
+     without a live `TensorRef` (covers `param.grad` from the next
+     `zero_grad`, deleted batches, …) so the next phase does not stack on
+     unreclaimed payloads;
+   - for every tensor **touched by the unsealed phase** without a live
+     `TensorRef`, append `tensor::INVALIDATE` (O(phase)).
    Then `seal_phase` + lower to `tile::INVALIDATE` → `invalidate_submit` +
    clear payload. `wait()` also flushes any logicals released after submit.
 3. `run()` only submits the execution stream (compute + INVALIDATE). StarPU
    orders each invalidate after the handle’s last prior use. Only `wait()`
    joins StarPU.
 4. Training loops must `del` the step loss (free autograd) **before**
-   `compile_graph` so temps are unmarked when INVALIDATE ops are selected.
-   Keep parameters, optimizer state, and persistent inputs marked.
+   `compile_graph` so temps have no live `TensorRef` when INVALIDATE ops are
+   selected. Keep parameters, optimizer state, and persistent inputs referenced.
 
 Do **not** call `gc.collect()` in the step loop — refcount drop from `del` is
-enough for bindings. `train_full_batch_step` drops logits after the step runs.
+enough. `train_full_batch_step` drops logits after the step runs.
 
 ## I/O
 
 | Direction | API | Behavior |
 |-----------|-----|----------|
-| Ingress | `.to("nntile")` / CPU→nntile `copy_` | Create `L`, attach `NodeRef`, create ephemeral single-tile `S` on StarPU immediately, write host bytes into `S`, record `scatter(S→L)`. Ingress is **once per tensor**. Batched prefetch keeps every `S` until the scatter phase runs; `run()` executes each scatter, waits, and destroys that `S` before the next so StarPU's allocation cache can reuse the CUDA chunk for the next `L` (submitting all scatters then unregistering all `S` left cached buffers → settled ≈2×). |
+| Ingress | `.to("nntile")` / CPU→nntile `copy_` | Create `L`, attach `TensorRef`, create ephemeral single-tile `S` on StarPU immediately, write host bytes into `S`, record `scatter(S→L)`. Ingress is **once per tensor**. Batched prefetch keeps every `S` until the scatter phase runs; `run()` executes each scatter, waits, and destroys that `S` before the next so StarPU's allocation cache can reuse the CUDA chunk for the next `L` (submitting all scatters then unregistering all `S` left cached buffers → settled ≈2×). |
 | Egress | `.cpu()` / `.to("cpu")` / nntile→CPU `copy_` | Create ephemeral `S`, record `clear(S)` + `gather(L→S)`, **auto-compile and run** any pending ops plus the gather phase, StarPU-read `S`, fully release `S`. |
 
 ### `.cpu()` auto-flush (by design)
@@ -75,13 +80,13 @@ Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
 ## Views, reshape, and nntile→nntile `copy_`
 
 - Same-numel `view` / contiguous `as_strided` / contiguous-preserving `permute`
-  **share** the same `NodeRef` (no tile copy, no graph op). Non-contiguous
+  **share** the same `TensorRef` (no tile copy, no graph op). Non-contiguous
   `permute` and `Tensor.contiguous()` on non-contiguous nntile tensors error.
 - At op-record time, a PyTorch shape that differs from `L`'s graph shape (same
   numel) may insert a `contiguous_view` **shape bridge**.
-- **nntile→nntile `copy_`** with matching shape/dtype **aliases** `NodeRef`
-  (same binding, no data copy). Distinct metadata tensors that cannot share a
-  binding raise. There is no graph `tensor::copy` for this path.
+- **nntile→nntile `copy_`** with matching shape/dtype **aliases** `TensorRef`
+  (same hold, no data copy). Distinct metadata tensors that cannot share a
+  hold raise. There is no graph `tensor::copy` for this path.
 
 ## Autograd and norms
 
@@ -96,7 +101,7 @@ Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
 
 SGD / Adam / AdamW resolve the grad graph node from (in order):
 
-1. `nntile_node(grad)` (binding on the grad tensor),
+1. `nntile_node(grad)` (`TensorRef` on the grad tensor),
 2. param-grad registry,
 3. `lookup_data_node(grad)`.
 

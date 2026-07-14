@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -32,10 +33,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_fiber matches tile
     const Scalar alpha = 1.0, beta = 0.0;
     const Index axis = 0, batch_ndim = 0, redux = 0;
     TileGraph g("g");
-    auto* s = g.data(sh, "s", DataType::FP32);
-    auto* d = g.data(dh, "d", DataType::FP32);
-    s->mark_input(true);
-    d->mark_output(true);
+    auto *s = g.data(sh, "s", DataType::FP32);
+    auto *d = g.data(dh, "d", DataType::FP32);
     tg::sum_fiber(alpha, s, beta, d, axis, batch_ndim, redux);
     Runtime runtime(g);
     runtime.compile();

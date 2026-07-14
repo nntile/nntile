@@ -90,7 +90,7 @@ TensorGraph::TensorNode *gather(TensorGraph::TensorNode *src)
 
     std::vector<Index> output_shape = src->shape();
     TensorGraph::TensorNode *dst =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
 
     gather(src, dst);
 

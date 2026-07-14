@@ -70,9 +70,12 @@ TEST_CASE("TensorGraph sumprod_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src1 = graph.data({dim_2, dim_4})->set_name("src1");
-    auto *src2 = graph.data({dim_2, dim_4})->set_name("src2");
-    auto *dst = graph.data({dim_4})->set_name("dst"); // axis=0: sum over dim_2
+    nntile::TensorRef src1 = graph.data({dim_2, dim_4});
+    src1->set_name("src1");
+    nntile::TensorRef src2 = graph.data({dim_2, dim_4});
+    src2->set_name("src2");
+    nntile::TensorRef dst = graph.data({dim_4});
+    dst->set_name("dst"); // axis=0: sum over dim_2
 
     gt::sumprod_slice(
         src1, src2, dst, axis_0, redux_none, alpha_one, beta_zero);
@@ -92,9 +95,12 @@ TEST_CASE(
     "TensorGraph sumprod_slice rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src1 = graph.data({dim_2, dim_4})->set_name("src1");
-    auto *src2 = graph.data({dim_2, dim_4})->set_name("src2");
-    auto *dst = graph.data({dim_4})->set_name("dst");
+    nntile::TensorRef src1 = graph.data({dim_2, dim_4});
+    src1->set_name("src1");
+    nntile::TensorRef src2 = graph.data({dim_2, dim_4});
+    src2->set_name("src2");
+    nntile::TensorRef dst = graph.data({dim_4});
+    dst->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::sumprod_slice(
@@ -146,16 +152,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("sumprod_slice_untiled");
-        auto *src1_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src1");
-        auto *src2_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src2");
-        auto *dst_node =
-            graph.data(dst_shape, DataType::FP32)->set_name("dst");
-        src1_node->mark_input(true);
-        src2_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src1_node = graph.data(src_shape, DataType::FP32);
+    src1_node->set_name("src1");
+        nntile::TensorRef src2_node = graph.data(src_shape, DataType::FP32);
+    src2_node->set_name("src2");
+        nntile::TensorRef dst_node = graph.data(dst_shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::sumprod_slice(
             src1_node, src2_node, dst_node, axis, redux, alpha, beta);
@@ -178,16 +180,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("sumprod_slice_tiled");
-        auto *src1_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src1");
-        auto *src2_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src2");
-        auto *dst_node =
-            graph.data(dst_shape, DataType::FP32)->set_name("dst");
-        src1_node->mark_input(true);
-        src2_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src1_node = graph.data(src_shape, DataType::FP32);
+    src1_node->set_name("src1");
+        nntile::TensorRef src2_node = graph.data(src_shape, DataType::FP32);
+    src2_node->set_name("src2");
+        nntile::TensorRef dst_node = graph.data(dst_shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::sumprod_slice(
             src1_node, src2_node, dst_node, axis, redux, alpha, beta);

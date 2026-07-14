@@ -43,8 +43,10 @@ TEST_CASE("TensorGraph multiply_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
-    auto *dst = graph.data({dim0, dim1})->set_name("dst");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
+    nntile::TensorRef dst = graph.data({dim0, dim1});
+    dst->set_name("dst");
 
     gt::multiply_inplace(alpha, src, dst);
 
@@ -62,7 +64,8 @@ TEST_CASE("TensorGraph multiply_inplace rejects duplicate tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({5, 4})->set_name("src");
+    nntile::TensorRef src = graph.data({5, 4});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::multiply_inplace(alpha, src, src), std::invalid_argument);
@@ -93,11 +96,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("multiply_inplace_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::multiply_inplace(alpha, src_node, dst_node);
 
@@ -118,11 +120,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("multiply_inplace_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::multiply_inplace(alpha, src_node, dst_node);
         for (auto *ag : graph.axis_groups())

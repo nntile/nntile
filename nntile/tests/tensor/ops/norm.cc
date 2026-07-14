@@ -47,8 +47,10 @@ TEST_CASE("TensorGraph norm structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim0, dim1})->set_name("x");
-    auto *y = graph.data({})->set_name("y");
+    nntile::TensorRef x = graph.data({dim0, dim1});
+    x->set_name("x");
+    nntile::TensorRef y = graph.data({});
+    y->set_name("y");
 
     gt::norm(x, y, alpha_one, beta_zero);
 
@@ -66,7 +68,8 @@ TEST_CASE("TensorGraph norm structure", "[graph][tensor]")
 TEST_CASE("TensorGraph norm rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({5, 4})->set_name("t");
+    nntile::TensorRef t = graph.data({5, 4});
+    t->set_name("t");
 
     REQUIRE_THROWS_AS(
         gt::norm(t, t, alpha_one, beta_zero), std::invalid_argument);
@@ -97,11 +100,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("norm_untiled");
-        auto *x_node = graph.data(x_shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data({}, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
-        y_node->mark_output(true);
+        nntile::TensorRef x_node = graph.data(x_shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data({}, DataType::FP32);
+    y_node->set_name("y");
 
         gt::norm(x_node, y_node, alpha, beta);
 
@@ -122,11 +124,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("norm_tiled");
-        auto *x_node = graph.data(x_shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data({}, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
-        y_node->mark_output(true);
+        nntile::TensorRef x_node = graph.data(x_shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data({}, DataType::FP32);
+    y_node->set_name("y");
 
         gt::norm(x_node, y_node, alpha, beta);
         for (auto *ag : graph.axis_groups())

@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -47,10 +48,6 @@ std::vector<float> run_tile_graph_gemm(const std::vector<Index> &a_shape,
     auto *a = graph.data(a_shape, "a", DataType::FP32);
     auto *b = graph.data(b_shape, "b", DataType::FP32);
     auto *c = graph.data(c_shape, "c", DataType::FP32);
-    a->mark_input(true);
-    b->mark_input(true);
-    c->mark_input(true);
-    c->mark_output(true);
 
     tg::gemm(a,
         b,

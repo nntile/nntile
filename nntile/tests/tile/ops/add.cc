@@ -41,11 +41,8 @@ void check_tile_add_vs_tile_api(
     TileGraph graph("tile_add_test");
     auto *x_node = graph.data(shape, "x", DataType::FP32);
     auto *y_node = graph.data(shape, "y", DataType::FP32);
-    x_node->mark_input(true);
-    y_node->mark_input(true);
 
     auto *z_node = tg::add(alpha, x_node, beta, y_node)->set_name("z");
-    z_node->mark_output(true);
 
     Runtime runtime(graph);
     runtime.compile();

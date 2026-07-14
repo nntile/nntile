@@ -37,7 +37,7 @@ TensorGraph::TensorNode *sqrt(TensorGraph::TensorNode *src)
 
     std::vector<Index> output_shape = src->shape();
     TensorGraph::TensorNode *output =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
     output->set_axes(src->axes());
 
     auto op = std::make_shared<TensorSqrtOp>(src, output);

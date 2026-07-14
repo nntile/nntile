@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -26,10 +27,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_inplace", "[gra
     const std::vector<Index> xh={3,3,1,1}, ch={2,2,1,1}, yh={2,2,1,1};
     const Index nx=9, nc=4, ny=4;
     TileGraph g("g");
-    auto* X = g.data(xh, "X", DataType::FP32);
-    auto* C = g.data(ch, "C", DataType::FP32);
-    auto* Y = g.data(yh, "Y", DataType::FP32);
-    X->mark_input(true); C->mark_input(true); Y->mark_input(true); Y->mark_output(true);
+    auto *X = g.data(xh, "X", DataType::FP32);
+    auto *C = g.data(ch, "C", DataType::FP32);
+    auto *Y = g.data(yh, "Y", DataType::FP32);
     tg::conv2d_inplace(3,3,1,1,2,2,1,1,1,0,0,1.0,X,C,2,2,1,1,0.0,Y);
     Runtime r(g);
     r.compile();

@@ -38,7 +38,8 @@ TEST_CASE("TensorGraph log_scalar structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *value = graph.data({})->set_name("value");
+    nntile::TensorRef value = graph.data({});
+    value->set_name("value");
     gt::log_scalar("test_scalar", value);
 
     REQUIRE(graph.num_data() == 1);
@@ -64,9 +65,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // log_scalar logs the value to the logger; we verify the tensor
     // is unchanged after execution (log_scalar is read-only on the tensor)
     TensorGraph graph("log_scalar_test");
-    auto *value_node = graph.data({}, DataType::FP32)->set_name("value");
-    value_node->mark_input(true);
-    value_node->mark_output(true);
+    nntile::TensorRef value_node = graph.data({}, DataType::FP32);
+    value_node->set_name("value");
 
     gt::log_scalar("test_value", value_node);
 

@@ -96,7 +96,8 @@ TEST_CASE("TileGraph to_string", "[graph][tile]")
 TEST_CASE("TileGraph add_tensor_descriptor manual")
 {
     TensorGraph tg_src("src_for_desc");
-    auto *t_src = tg_src.data({4}, DataType::FP32)->set_name("T");
+    nntile::TensorRef t_src = tg_src.data({4}, DataType::FP32);
+        t_src->set_name("T");
 
     TileGraph graph("manual_desc_test");
     auto *t0 = graph.data({4}, "t0");
@@ -116,7 +117,8 @@ TEST_CASE("TileGraph add_tensor_descriptor manual")
     REQUIRE(graph.num_tensors() == 1);
     REQUIRE(graph.get_tensor_descriptor(t_src) == dp);
     REQUIRE(graph.get_tensor_descriptor(nullptr) == nullptr);
-    auto *other = tg_src.data({1}, DataType::FP32)->set_name("other");
+    nntile::TensorRef other = tg_src.data({1}, DataType::FP32);
+        other->set_name("other");
     REQUIRE(graph.get_tensor_descriptor(other) == nullptr);
     REQUIRE(t0->tensor_descriptor() == dp);
     REQUIRE(t0->tile_coord() == std::vector<Index>{0});
@@ -139,13 +141,13 @@ TEST_CASE("TileGraph to_mermaid", "[graph][tile]")
 TEST_CASE("TileGraph from_tensor_graph structure")
 {
     TensorGraph tg_graph("tensor_test");
-    auto *x = tg_graph.data({3, 2}, DataType::FP32)->set_name("x");
-    auto *y = tg_graph.data({3, 2}, DataType::FP32)->set_name("y");
-    x->mark_input(true);
-    y->mark_input(true);
+    nntile::TensorRef x = tg_graph.data({3, 2}, DataType::FP32);
+        x->set_name("x");
+    nntile::TensorRef y = tg_graph.data({3, 2}, DataType::FP32);
+        y->set_name("y");
 
-    auto *z = gt::add(1.0, x, 1.0, y)->set_name("z");
-    z->mark_output(true);
+    nntile::TensorRef z = nntile::TensorRef::adopt(gt::add(1.0, x, 1.0, y));
+    z->set_name("z");
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
 
@@ -160,9 +162,6 @@ TEST_CASE("TileGraph from_tensor_graph structure")
     REQUIRE(ty != nullptr);
     REQUIRE(tz != nullptr);
 
-    REQUIRE(tx->is_input());
-    REQUIRE(ty->is_input());
-    REQUIRE(tz->is_output());
 
     REQUIRE(tx->shape() == std::vector<Index>{3, 2});
     REQUIRE(ty->shape() == std::vector<Index>{3, 2});
@@ -192,8 +191,8 @@ TEST_CASE(
     "TileGraph from_tensor_graph links source TensorNode", "[graph][tile]")
 {
     TensorGraph tg_graph("hint_test");
-    auto *x = tg_graph.data({2}, DataType::FP32)->set_name("x");
-    x->mark_input(true);
+    nntile::TensorRef x = tg_graph.data({2}, DataType::FP32);
+        x->set_name("x");
 
     std::vector<std::uint8_t> hint(2 * sizeof(float), 0x42);
     x->set_bind_hint(hint);
@@ -217,11 +216,10 @@ TEST_CASE(
     "TileGraph from_tensor_graph with add_inplace and fill", "[graph][tile]")
 {
     TensorGraph tg_graph("complex_test");
-    auto *x = tg_graph.data({4}, DataType::FP32)->set_name("x");
-    auto *y = tg_graph.data({4}, DataType::FP32)->set_name("y");
-    x->mark_input(true);
-    y->mark_input(true);
-    y->mark_output(true);
+    nntile::TensorRef x = tg_graph.data({4}, DataType::FP32);
+        x->set_name("x");
+    nntile::TensorRef y = tg_graph.data({4}, DataType::FP32);
+        y->set_name("y");
 
     gt::fill(Scalar(1.0), x);
     gt::add_inplace(Scalar(2.0), x, Scalar(1.0), y);
@@ -244,13 +242,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index nelems = 12;
 
     TensorGraph tensor_graph("tensor_exec");
-    auto *tx = tensor_graph.data(shape, DataType::FP32)->set_name("x");
-    auto *ty = tensor_graph.data(shape, DataType::FP32)->set_name("y");
-    tx->mark_input(true);
-    ty->mark_input(true);
+    nntile::TensorRef tx = tensor_graph.data(shape, DataType::FP32);
+        tx->set_name("x");
+    nntile::TensorRef ty = tensor_graph.data(shape, DataType::FP32);
+        ty->set_name("y");
 
-    auto *tz = gt::add(alpha, tx, beta, ty)->set_name("z");
-    tz->mark_output(true);
+    nntile::TensorRef tz = nntile::TensorRef::adopt(gt::add(alpha, tx, beta, ty));
+    tz->set_name("z");
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tensor_graph);
 
@@ -292,9 +290,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph graph("inplace_exec");
     auto *x = graph.data(shape, "x", DataType::FP32);
     auto *y = graph.data(shape, "y", DataType::FP32);
-    x->mark_input(true);
-    y->mark_input(true);
-    y->mark_output(true);
 
     tg::add_inplace(Scalar(2.0), x, Scalar(1.0), y);
 
@@ -320,13 +315,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     std::vector<Index> shape = {2};
     TensorGraph tg_graph("bind_via_source");
-    auto *tx = tg_graph.data(shape, DataType::FP32)->set_name("x");
-    auto *ty = tg_graph.data(shape, DataType::FP32)->set_name("y");
-    tx->mark_input(true);
-    ty->mark_input(true);
+    nntile::TensorRef tx = tg_graph.data(shape, DataType::FP32);
+        tx->set_name("x");
+    nntile::TensorRef ty = tg_graph.data(shape, DataType::FP32);
+        ty->set_name("y");
 
-    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
-    tz->mark_output(true);
+    nntile::TensorRef tz = nntile::TensorRef::adopt(gt::add(1.0, tx, 1.0, ty));
+    tz->set_name("z");
 
     std::vector<float> x_data = {10.0f, 20.0f};
 
@@ -351,12 +346,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg_graph("unbound");
-    auto *tx = tg_graph.data({2}, DataType::FP32)->set_name("x");
-    auto *ty = tg_graph.data({2}, DataType::FP32)->set_name("y");
-    tx->mark_input(true);
-    ty->mark_input(true);
-    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
-    tz->mark_output(true);
+    nntile::TensorRef tx = tg_graph.data({2}, DataType::FP32);
+        tx->set_name("x");
+    nntile::TensorRef ty = tg_graph.data({2}, DataType::FP32);
+        ty->set_name("y");
+    nntile::TensorRef tz = nntile::TensorRef::adopt(gt::add(1.0, tx, 1.0, ty));
+    tz->set_name("z");
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
     Runtime rt(tile_graph);
@@ -371,17 +366,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg_graph("hint_only");
-    auto *tx = tg_graph.data({2}, DataType::FP32)->set_name("x");
-    auto *ty = tg_graph.data({2}, DataType::FP32)->set_name("y");
-    tx->mark_input(true);
-    ty->mark_input(true);
+    nntile::TensorRef tx = tg_graph.data({2}, DataType::FP32);
+        tx->set_name("x");
+    nntile::TensorRef ty = tg_graph.data({2}, DataType::FP32);
+        ty->set_name("y");
     float x_vals[2] = {1.0f, 2.0f};
     std::vector<std::uint8_t> x_hint(sizeof(x_vals));
     std::memcpy(x_hint.data(), x_vals, sizeof(x_vals));
     tx->set_bind_hint(x_hint);
 
-    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
-    tz->mark_output(true);
+    nntile::TensorRef tz = nntile::TensorRef::adopt(gt::add(1.0, tx, 1.0, ty));
+    tz->set_name("z");
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
     Runtime rt(tile_graph);
@@ -397,12 +392,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg_graph("reuse");
-    auto *tx = tg_graph.data({2}, DataType::FP32)->set_name("x");
-    auto *ty = tg_graph.data({2}, DataType::FP32)->set_name("y");
-    tx->mark_input(true);
-    ty->mark_input(true);
-    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
-    tz->mark_output(true);
+    nntile::TensorRef tx = tg_graph.data({2}, DataType::FP32);
+        tx->set_name("x");
+    nntile::TensorRef ty = tg_graph.data({2}, DataType::FP32);
+        ty->set_name("y");
+    nntile::TensorRef tz = nntile::TensorRef::adopt(gt::add(1.0, tx, 1.0, ty));
+    tz->set_name("z");
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
     Runtime rt(tile_graph);
@@ -427,12 +422,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg_graph("rebind");
-    auto *tx = tg_graph.data({2}, DataType::FP32)->set_name("x");
-    auto *ty = tg_graph.data({2}, DataType::FP32)->set_name("y");
-    tx->mark_input(true);
-    ty->mark_input(true);
-    auto *tz = gt::add(1.0, tx, 1.0, ty)->set_name("z");
-    tz->mark_output(true);
+    nntile::TensorRef tx = tg_graph.data({2}, DataType::FP32);
+        tx->set_name("x");
+    nntile::TensorRef ty = tg_graph.data({2}, DataType::FP32);
+        ty->set_name("y");
+    nntile::TensorRef tz = nntile::TensorRef::adopt(gt::add(1.0, tx, 1.0, ty));
+    tz->set_name("z");
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
     Runtime rt(tile_graph);
@@ -458,8 +453,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph graph("fill_clear_test");
     auto *x = graph.data(shape, "x", DataType::FP32);
-    x->mark_input(true);
-    x->mark_output(true);
 
     tg::fill(Scalar(42.0), x);
     tg::clear(x);
@@ -488,18 +481,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index nelems = 30;
 
     TensorGraph tensor_graph("mixed_tile_tg");
-    auto *tx = tensor_graph.data(shape, DataType::FP32)->set_name("x");
-    auto *ty = tensor_graph.data(shape, DataType::FP32)->set_name("y");
-    tx->mark_input(true);
-    ty->mark_input(true);
+    nntile::TensorRef tx = tensor_graph.data(shape, DataType::FP32);
+        tx->set_name("x");
+    nntile::TensorRef ty = tensor_graph.data(shape, DataType::FP32);
+        ty->set_name("y");
 
     // 2x2 tile grid: dim0 uniform (3+3), dim1 base+remainder (3+2) so
     // Lowering uses axis tiling; tile sizes may differ per grid position.
     tx->axis(0)->set_tiling(Index{3});
     tx->axis(1)->set_tiling(std::vector<Index>{3, 2});
 
-    auto *tz = gt::add(alpha, tx, beta, ty)->set_name("z");
-    tz->mark_output(true);
+    nntile::TensorRef tz = nntile::TensorRef::adopt(gt::add(alpha, tx, beta, ty));
+    tz->set_name("z");
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tensor_graph);
     REQUIRE(tile_graph.tiling_scheme() != nullptr);
@@ -574,23 +567,23 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tensor_graph("tiled_gemm_reuse");
-    auto *ta = tensor_graph.data({4, 6}, DataType::FP32)->set_name("a");
-    auto *tb = tensor_graph.data({6, 5}, DataType::FP32)->set_name("b");
-    ta->mark_input(true);
-    tb->mark_input(true);
+    nntile::TensorRef ta = tensor_graph.data({4, 6}, DataType::FP32);
+        ta->set_name("a");
+    nntile::TensorRef tb = tensor_graph.data({6, 5}, DataType::FP32);
+        tb->set_name("b");
 
     ta->axis(0)->set_tiling(Index{2});
     ta->axis(1)->set_tiling(Index{3});
     tb->axis(1)->set_tiling(Index{3});
 
-    auto *tc = gt::gemm(ta,
+    nntile::TensorRef tc = nntile::TensorRef::adopt(gt::gemm(ta,
         tb,
         Scalar(1.0),
         false,
         false,
         Index(1),
-        Index(0))->set_name("c");
-    tc->mark_output(true);
+        Index(0)));
+    tc->set_name("c");
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tensor_graph);
     REQUIRE(tile_graph.tiling_scheme() != nullptr);

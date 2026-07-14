@@ -30,19 +30,15 @@ TEST_CASE("pow mixed tile parity", "[graph][tile]")
     test::ContextFixture fx;
 
     TensorGraph g_ref("ref");
-    TensorGraph::TensorNode *x_ref =
-        g_ref.data({10, 12}, DataType::FP32)->set_name("x");
-    x_ref->mark_input(true);
+    nntile::TensorRef x_ref = g_ref.data({10, 12}, DataType::FP32);
+        x_ref->set_name("x");
     gt::pow(Scalar{0.5f}, Scalar{2.f}, x_ref);
-    x_ref->mark_output(true);
 
     TensorGraph g_tile("tile");
-    TensorGraph::TensorNode *x_tile =
-        g_tile.data({10, 12}, DataType::FP32)->set_name("x");
-    x_tile->mark_input(true);
+    nntile::TensorRef x_tile = g_tile.data({10, 12}, DataType::FP32);
+        x_tile->set_name("x");
     tt::apply_mixed_tile_sizes_2d(x_tile);
     gt::pow(Scalar{0.5f}, Scalar{2.f}, x_tile);
-    x_tile->mark_output(true);
 
     std::vector<float> x_data(10 * 12, 0.25f);
 

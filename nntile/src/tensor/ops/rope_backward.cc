@@ -64,7 +64,7 @@ TensorGraph::TensorNode *rope_backward(TensorGraph::TensorNode *sin,
             "rope_backward: input tensors must have the same dtype");
     }
 
-    TensorGraph::TensorNode *dx = dy->graph()->data(dy->shape(), dy->dtype());
+    TensorGraph::TensorNode *dx = dy->graph()->emplace_data(dy->shape(), dy->dtype());
     dx->set_axes(dy->axes());
 
     rope_backward(sin, cos, dy, dx);

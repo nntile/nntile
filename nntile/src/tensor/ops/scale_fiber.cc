@@ -43,7 +43,7 @@ TensorGraph::TensorNode *scale_fiber(Scalar alpha,
             "scale_fiber: input tensor must be non-null");
     }
 
-    TensorGraph::TensorNode *dst = src->graph()->data(dst_shape, src->dtype());
+    TensorGraph::TensorNode *dst = src->graph()->emplace_data(dst_shape, src->dtype());
 
     scale_fiber(alpha, src, dst, axis, batch_ndim);
 

@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -31,12 +32,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
     const Index m = 2, n = 2, k = 3, k0 = 0, ks = 3;
     const std::vector<Index> ih = {m, n}, vh = {ks, 5}, eh = {m, k, n};
     TileGraph g("g");
-    auto* index = g.data(ih, "index", DataType::INT64);
-    auto* vocab = g.data(vh, "vocab", DataType::FP32);
-    auto* embed = g.data(eh, "embed", DataType::FP32);
-    index->mark_input(true);
-    vocab->mark_input(true);
-    embed->mark_output(true);
+    auto *index = g.data(ih, "index", DataType::INT64);
+    auto *vocab = g.data(vh, "vocab", DataType::FP32);
+    auto *embed = g.data(eh, "embed", DataType::FP32);
     tg::embedding(m, n, k, k0, ks, index, vocab, embed);
     Runtime r(g);
     r.compile();

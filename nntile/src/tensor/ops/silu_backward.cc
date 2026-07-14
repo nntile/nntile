@@ -51,7 +51,7 @@ TensorGraph::TensorNode *silu_backward(
     }
     validate_same_shape_and_merge(x, dy, "silu_backward");
 
-    TensorGraph::TensorNode *dx = x->graph()->data(x->shape(), x->dtype());
+    TensorGraph::TensorNode *dx = x->graph()->emplace_data(x->shape(), x->dtype());
     dx->set_axes(x->axes());
 
     silu_backward(x, dy, dx);

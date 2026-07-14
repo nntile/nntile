@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -27,9 +28,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax_inplace axis0"
     const std::vector<Index> mh = {4,5,2}, dh = {3,4,5};
     const Index nms=40, n=60; const Scalar al=1.0; const Index axis=0;
     TileGraph g("g");
-    auto* m = g.data(mh, "m", DataType::FP32);
-    auto* d = g.data(dh, "d", DataType::FP32);
-    m->mark_input(true); d->mark_input(true); d->mark_output(true);
+    auto *m = g.data(mh, "m", DataType::FP32);
+    auto *d = g.data(dh, "d", DataType::FP32);
     tg::softmax_inplace(m, al, d, axis);
     Runtime r(g);
     r.compile();

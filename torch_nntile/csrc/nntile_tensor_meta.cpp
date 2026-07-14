@@ -12,21 +12,13 @@
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
-#include <atomic>
 #include <cstdlib>
-#include <mutex>
-#include <unordered_set>
-#include <vector>
 
 namespace torch_nntile
 {
 
 namespace
 {
-
-std::atomic<bool> g_logical_tensor_nodes_alive{false};
-std::mutex g_released_logicals_mutex;
-std::unordered_set<nntile::TensorGraph::TensorNode *> g_released_logicals;
 
 bool trace_assert_enabled()
 {
@@ -51,77 +43,26 @@ NNTileBackendMeta *backend_meta_ptr(const at::Tensor &tensor)
 
 bool logical_tensor_nodes_alive()
 {
-    return g_logical_tensor_nodes_alive.load(std::memory_order_acquire);
+    return nntile::tensor_nodes_alive();
 }
 
 void set_logical_tensor_nodes_alive(bool alive)
 {
-    g_logical_tensor_nodes_alive.store(alive, std::memory_order_release);
-    if (!alive)
-    {
-        std::lock_guard<std::mutex> lock(g_released_logicals_mutex);
-        g_released_logicals.clear();
-    }
+    nntile::set_tensor_nodes_alive(alive);
 }
 
 void note_logical_released(nntile::TensorGraph::TensorNode *logical)
 {
-    if (logical == nullptr || !logical_tensor_nodes_alive())
-    {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(g_released_logicals_mutex);
-    g_released_logicals.insert(logical);
+    nntile::note_tensor_ref_released(logical);
 }
 
 std::vector<nntile::TensorGraph::TensorNode *> take_released_logicals()
 {
-    std::lock_guard<std::mutex> lock(g_released_logicals_mutex);
-    std::vector<nntile::TensorGraph::TensorNode *> out;
-    out.reserve(g_released_logicals.size());
-    for (nntile::TensorGraph::TensorNode *n : g_released_logicals)
-    {
-        out.push_back(n);
-    }
-    g_released_logicals.clear();
-    return out;
+    return nntile::take_released_tensor_refs();
 }
 
-NNTileBinding::NNTileBinding(nntile::TensorGraph::TensorNode *logical_in)
-    : logical(logical_in)
-{
-    if (logical != nullptr && logical_tensor_nodes_alive())
-    {
-        logical->mark_output(true);
-    }
-}
-
-NNTileBinding::~NNTileBinding()
-{
-    // TensorGraph may already be destroyed (atexit / reset_graph_session).
-    // Skip mark_* on a stale node pointer.
-    //
-    // Clear both marks: ingress sets mark_input(true) for host→nntile copies
-    // (weights, batches, ephemeral arange/mask). Leaving mark_input sticky
-    // after the Python tensor dies made last-consumer reclaim and
-    // pending_output_reclaim skip those tiles, so VRAM grew every step
-    // (cache_position, causal masks, used batches, …). Live parameters keep
-    // a binding so marks stay set for the whole session.
-    //
-    // Also enqueue for compile-time INVALIDATE: phase-touched-only selection
-    // misses tensors that die after their producer phase was sealed (grads
-    // on the next zero_grad, replaced last_loss, deleted batches, …).
-    if (logical != nullptr && logical_tensor_nodes_alive())
-    {
-        logical->mark_output(false);
-        logical->mark_input(false);
-        note_logical_released(logical);
-    }
-    logical = nullptr;
-}
-
-NNTileBackendMeta::NNTileBackendMeta(NodeRef binding_in)
-    : binding(std::move(binding_in))
+NNTileBackendMeta::NNTileBackendMeta(nntile::TensorRef ref_in)
+    : ref(std::move(ref_in))
 {
 }
 
@@ -129,59 +70,54 @@ c10::intrusive_ptr<c10::BackendMeta> NNTileBackendMeta::clone(
     const c10::intrusive_ptr<c10::BackendMeta> &ptr) const
 {
     const auto *other = static_cast<const NNTileBackendMeta *>(ptr.get());
-    return c10::make_intrusive<NNTileBackendMeta>(other->binding);
+    return c10::make_intrusive<NNTileBackendMeta>(other->ref);
 }
 
-void assert_has_node_ref(const at::Tensor &tensor, const char *site)
+void assert_has_tensor_ref(const at::Tensor &tensor, const char *site)
 {
     if (!trace_assert_enabled())
     {
         return;
     }
     TORCH_CHECK(
-        nntile_binding(tensor) != nullptr,
-        "TORCH_NNTILE_ASSERT_NODE_REF: missing NodeRef at ",
+        static_cast<bool>(tensor_ref(tensor)),
+        "TORCH_NNTILE_ASSERT_NODE_REF: missing TensorRef at ",
         site);
 }
 
-NodeRef nntile_binding(const at::Tensor &tensor)
+nntile::TensorRef tensor_ref(const at::Tensor &tensor)
 {
     NNTileBackendMeta *meta = backend_meta_ptr(tensor);
     if (meta == nullptr)
     {
-        return nullptr;
+        return nntile::TensorRef{};
     }
-    return meta->binding;
+    return meta->ref;
 }
 
 nntile::TensorGraph::TensorNode *nntile_node(const at::Tensor &tensor)
 {
-    NodeRef binding = nntile_binding(tensor);
-    if (binding == nullptr)
-    {
-        return nullptr;
-    }
-    return binding->logical;
+    return tensor_ref(tensor).get();
 }
 
-void attach_binding(at::Tensor &tensor, NodeRef binding)
+void attach_tensor_ref(at::Tensor &tensor, nntile::TensorRef ref)
 {
     TORCH_CHECK(
         tensor.device().type() == c10::DeviceType::PrivateUse1,
-        "attach_binding: expected nntile tensor");
-    auto meta = c10::make_intrusive<NNTileBackendMeta>(std::move(binding));
+        "attach_tensor_ref: expected nntile tensor");
+    auto meta = c10::make_intrusive<NNTileBackendMeta>(std::move(ref));
     c10::TensorImpl *impl = tensor.unsafeGetTensorImpl();
     impl->set_backend_meta(std::move(meta));
 }
 
-void share_node_ref_for_reshape(const at::Tensor &base, at::Tensor &view)
+void share_tensor_ref_for_reshape(const at::Tensor &base, at::Tensor &view)
 {
-    NodeRef binding = nntile_binding(base);
-    if (binding == nullptr)
+    nntile::TensorRef ref = tensor_ref(base);
+    if (!ref)
     {
         return;
     }
-    attach_binding(view, binding);
+    attach_tensor_ref(view, std::move(ref));
 }
 
 } // namespace torch_nntile

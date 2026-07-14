@@ -52,17 +52,26 @@ TEST_CASE(
     std::vector<Index> logsumexp_shape{64, 2, 1, 1};
     std::vector<Index> mask_shape{64, 64};
 
-    auto *K = graph.data(kv_shape, DataType::FP16)->set_name("K");
-    auto *Q = graph.data(kv_shape, DataType::FP16)->set_name("Q");
-    auto *V = graph.data(kv_shape, DataType::FP16)->set_name("V");
-    auto *A = graph.data(kv_shape, DataType::FP16)->set_name("A");
-    auto *dA = graph.data(kv_shape, DataType::FP16)->set_name("dA");
-    auto *mask = graph.data(mask_shape, DataType::FP16)->set_name("mask");
-    auto *logsumexp =
-        graph.data(logsumexp_shape, DataType::FP32)->set_name("logsumexp");
-    auto *dK = graph.data(kv_shape, DataType::FP16)->set_name("dK");
-    auto *dQ = graph.data(kv_shape, DataType::FP16)->set_name("dQ");
-    auto *dV = graph.data(kv_shape, DataType::FP16)->set_name("dV");
+    nntile::TensorRef K = graph.data(kv_shape, DataType::FP16);
+    K->set_name("K");
+    nntile::TensorRef Q = graph.data(kv_shape, DataType::FP16);
+    Q->set_name("Q");
+    nntile::TensorRef V = graph.data(kv_shape, DataType::FP16);
+    V->set_name("V");
+    nntile::TensorRef A = graph.data(kv_shape, DataType::FP16);
+    A->set_name("A");
+    nntile::TensorRef dA = graph.data(kv_shape, DataType::FP16);
+    dA->set_name("dA");
+    nntile::TensorRef mask = graph.data(mask_shape, DataType::FP16);
+    mask->set_name("mask");
+    nntile::TensorRef logsumexp = graph.data(logsumexp_shape, DataType::FP32);
+    logsumexp->set_name("logsumexp");
+    nntile::TensorRef dK = graph.data(kv_shape, DataType::FP16);
+    dK->set_name("dK");
+    nntile::TensorRef dQ = graph.data(kv_shape, DataType::FP16);
+    dQ->set_name("dQ");
+    nntile::TensorRef dV = graph.data(kv_shape, DataType::FP16);
+    dV->set_name("dV");
 
     gt::flash_sdpa_bwd_cudnn(K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
 
@@ -83,17 +92,26 @@ TEST_CASE("TensorGraph flash_sdpa_bwd_cudnn rejects null tensors",
     std::vector<Index> logsumexp_shape{64, 2, 1, 1};
     std::vector<Index> mask_shape{64, 64};
 
-    auto *K = graph.data(kv_shape, DataType::FP16)->set_name("K");
-    auto *Q = graph.data(kv_shape, DataType::FP16)->set_name("Q");
-    auto *V = graph.data(kv_shape, DataType::FP16)->set_name("V");
-    auto *A = graph.data(kv_shape, DataType::FP16)->set_name("A");
-    auto *dA = graph.data(kv_shape, DataType::FP16)->set_name("dA");
-    auto *mask = graph.data(mask_shape, DataType::FP16)->set_name("mask");
-    auto *logsumexp =
-        graph.data(logsumexp_shape, DataType::FP32)->set_name("logsumexp");
-    auto *dK = graph.data(kv_shape, DataType::FP16)->set_name("dK");
-    auto *dQ = graph.data(kv_shape, DataType::FP16)->set_name("dQ");
-    auto *dV = graph.data(kv_shape, DataType::FP16)->set_name("dV");
+    nntile::TensorRef K = graph.data(kv_shape, DataType::FP16);
+    K->set_name("K");
+    nntile::TensorRef Q = graph.data(kv_shape, DataType::FP16);
+    Q->set_name("Q");
+    nntile::TensorRef V = graph.data(kv_shape, DataType::FP16);
+    V->set_name("V");
+    nntile::TensorRef A = graph.data(kv_shape, DataType::FP16);
+    A->set_name("A");
+    nntile::TensorRef dA = graph.data(kv_shape, DataType::FP16);
+    dA->set_name("dA");
+    nntile::TensorRef mask = graph.data(mask_shape, DataType::FP16);
+    mask->set_name("mask");
+    nntile::TensorRef logsumexp = graph.data(logsumexp_shape, DataType::FP32);
+    logsumexp->set_name("logsumexp");
+    nntile::TensorRef dK = graph.data(kv_shape, DataType::FP16);
+    dK->set_name("dK");
+    nntile::TensorRef dQ = graph.data(kv_shape, DataType::FP16);
+    dQ->set_name("dQ");
+    nntile::TensorRef dV = graph.data(kv_shape, DataType::FP16);
+    dV->set_name("dV");
 
     REQUIRE_THROWS_AS(gt::flash_sdpa_bwd_cudnn(
                           nullptr, Q, V, A, dA, mask, logsumexp, dK, dQ, dV),
@@ -169,32 +187,27 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
                                          std::vector<float>>
     {
         TensorGraph graph(tiled ? "bwd_tiled" : "bwd_untiled");
-        auto *K_node = graph.data(kv_shape, DataType::FP16)->set_name("K");
-        auto *Q_node = graph.data(kv_shape, DataType::FP16)->set_name("Q");
-        auto *V_node = graph.data(kv_shape, DataType::FP16)->set_name("V");
-        auto *A_node = graph.data(kv_shape, DataType::FP16)->set_name("A");
-        auto *dA_node = graph.data(kv_shape, DataType::FP16)->set_name("dA");
-        auto *mask_node =
-            graph.data(mask_shape, DataType::FP16)->set_name("mask");
-        auto *logsumexp_node =
-            graph.data(logsumexp_shape, DataType::FP32)->set_name("logsumexp");
-        auto *dK_node = graph.data(kv_shape, DataType::FP16)->set_name("dK");
-        auto *dQ_node = graph.data(kv_shape, DataType::FP16)->set_name("dQ");
-        auto *dV_node = graph.data(kv_shape, DataType::FP16)->set_name("dV");
+        nntile::TensorRef K_node = graph.data(kv_shape, DataType::FP16);
+    K_node->set_name("K");
+        nntile::TensorRef Q_node = graph.data(kv_shape, DataType::FP16);
+    Q_node->set_name("Q");
+        nntile::TensorRef V_node = graph.data(kv_shape, DataType::FP16);
+    V_node->set_name("V");
+        nntile::TensorRef A_node = graph.data(kv_shape, DataType::FP16);
+    A_node->set_name("A");
+        nntile::TensorRef dA_node = graph.data(kv_shape, DataType::FP16);
+    dA_node->set_name("dA");
+        nntile::TensorRef mask_node = graph.data(mask_shape, DataType::FP16);
+    mask_node->set_name("mask");
+        nntile::TensorRef logsumexp_node = graph.data(logsumexp_shape, DataType::FP32);
+    logsumexp_node->set_name("logsumexp");
+        nntile::TensorRef dK_node = graph.data(kv_shape, DataType::FP16);
+    dK_node->set_name("dK");
+        nntile::TensorRef dQ_node = graph.data(kv_shape, DataType::FP16);
+    dQ_node->set_name("dQ");
+        nntile::TensorRef dV_node = graph.data(kv_shape, DataType::FP16);
+    dV_node->set_name("dV");
 
-        K_node->mark_input(true);
-        Q_node->mark_input(true);
-        V_node->mark_input(true);
-        A_node->mark_input(true);
-        dA_node->mark_input(true);
-        mask_node->mark_input(true);
-        logsumexp_node->mark_input(true);
-        dK_node->mark_input(true);
-        dQ_node->mark_input(true);
-        dV_node->mark_input(true);
-        dK_node->mark_output(true);
-        dQ_node->mark_output(true);
-        dV_node->mark_output(true);
 
         gt::flash_sdpa_bwd_cudnn(K_node,
             Q_node,

@@ -81,9 +81,11 @@ TEST_CASE("TensorGraph concat structure", "[graph][tensor]")
     constexpr Index axis = 1;
 
     TensorGraph graph("concat_struct");
-    auto *a = graph.data({d0, d1a}, DataType::FP32)->set_name("a");
-    auto *b = graph.data({d0, d1b}, DataType::FP32)->set_name("b");
-    auto *out = gt::concat(a, b, axis);
+    nntile::TensorRef a = graph.data({d0, d1a}, DataType::FP32);
+    a->set_name("a");
+    nntile::TensorRef b = graph.data({d0, d1b}, DataType::FP32);
+    b->set_name("b");
+    nntile::TensorRef out = nntile::TensorRef::adopt(gt::concat(a, b, axis));
 
     REQUIRE(out->shape()[0] == d0);
     REQUIRE(out->shape()[1] == d1a + d1b);
@@ -102,25 +104,31 @@ TEST_CASE("TensorGraph concat structure", "[graph][tensor]")
 TEST_CASE("TensorGraph concat rejects invalid arguments")
 {
     TensorGraph graph("concat_bad");
-    auto *a = graph.data({2, 3}, DataType::FP32)->set_name("a");
-    auto *b = graph.data({2, 3}, DataType::FP32)->set_name("b");
+    nntile::TensorRef a = graph.data({2, 3}, DataType::FP32);
+    a->set_name("a");
+    nntile::TensorRef b = graph.data({2, 3}, DataType::FP32);
+    b->set_name("b");
 
     REQUIRE_THROWS_AS(gt::concat(nullptr, b, 0), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::concat(a, nullptr, 0), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::concat(a, b, -1), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::concat(a, b, 2), std::invalid_argument);
 
-    auto *b_bad = graph.data({3, 3}, DataType::FP32)->set_name("b2");
+    nntile::TensorRef b_bad = graph.data({3, 3}, DataType::FP32);
+    b_bad->set_name("b2");
     REQUIRE_THROWS_AS(gt::concat(a, b_bad, 1), std::invalid_argument);
 
     TensorGraph other("other");
-    auto *b_other = other.data({2, 3}, DataType::FP32)->set_name("bo");
+    nntile::TensorRef b_other = other.data({2, 3}, DataType::FP32);
+    b_other->set_name("bo");
     REQUIRE_THROWS_AS(gt::concat(a, b_other, 1), std::invalid_argument);
 
-    auto *b_fp64 = graph.data({2, 3}, DataType::FP64)->set_name("bf64");
+    nntile::TensorRef b_fp64 = graph.data({2, 3}, DataType::FP64);
+    b_fp64->set_name("bf64");
     REQUIRE_THROWS_AS(gt::concat(a, b_fp64, 1), std::invalid_argument);
 
-    auto *b_1d = graph.data({6}, DataType::FP32)->set_name("b1d");
+    nntile::TensorRef b_1d = graph.data({6}, DataType::FP32);
+    b_1d->set_name("b1d");
     REQUIRE_THROWS_AS(gt::concat(a, b_1d, 0), std::invalid_argument);
 }
 
@@ -140,12 +148,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index axis = std::get<2>(c);
 
     TensorGraph graph("concat_ref");
-    auto *a_node = graph.data(a_shape, DataType::FP32)->set_name("a");
-    auto *b_node = graph.data(b_shape, DataType::FP32)->set_name("b");
-    a_node->mark_input(true);
-    b_node->mark_input(true);
-    auto *out_node = gt::concat(a_node, b_node, axis);
-    out_node->mark_output(true);
+    nntile::TensorRef a_node = graph.data(a_shape, DataType::FP32);
+    a_node->set_name("a");
+    nntile::TensorRef b_node = graph.data(b_shape, DataType::FP32);
+    b_node->set_name("b");
+    nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::concat(a_node, b_node, axis));
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
     Runtime runtime(tile_graph);
@@ -203,12 +210,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("concat_untiled");
-        auto *a_node = graph.data(a_shape, DataType::FP32)->set_name("a");
-        auto *b_node = graph.data(b_shape, DataType::FP32)->set_name("b");
-        a_node->mark_input(true);
-        b_node->mark_input(true);
-        auto *out_node = gt::concat(a_node, b_node, axis);
-        out_node->mark_output(true);
+        nntile::TensorRef a_node = graph.data(a_shape, DataType::FP32);
+    a_node->set_name("a");
+        nntile::TensorRef b_node = graph.data(b_shape, DataType::FP32);
+    b_node->set_name("b");
+        nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::concat(a_node, b_node, axis));
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
         Runtime runtime(tile_graph);
@@ -223,12 +229,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("concat_tiled");
-        auto *a_node = graph.data(a_shape, DataType::FP32)->set_name("a");
-        auto *b_node = graph.data(b_shape, DataType::FP32)->set_name("b");
-        a_node->mark_input(true);
-        b_node->mark_input(true);
-        auto *out_node = gt::concat(a_node, b_node, axis);
-        out_node->mark_output(true);
+        nntile::TensorRef a_node = graph.data(a_shape, DataType::FP32);
+    a_node->set_name("a");
+        nntile::TensorRef b_node = graph.data(b_shape, DataType::FP32);
+    b_node->set_name("b");
+        nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::concat(a_node, b_node, axis));
 
         for (auto *ag : graph.axis_groups())
         {

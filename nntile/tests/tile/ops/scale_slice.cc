@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -31,10 +32,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_slice", "[graph]
     const Scalar a = 0.75;
     const Index axis = 1;
     TileGraph g("g");
-    auto* t1 = g.data(t1s, "t1", DataType::FP32);
-    auto* t2 = g.data(t2s, "t2", DataType::FP32);
-    t1->mark_input(true);
-    t2->mark_output(true);
+    auto *t1 = g.data(t1s, "t1", DataType::FP32);
+    auto *t2 = g.data(t2s, "t2", DataType::FP32);
     tg::scale_slice(a, t1, t2, axis);
     Runtime rt(g);
     rt.compile();

@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -33,12 +34,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_slice (axis=0)
     const Index ax = 0;
     const int redux = 0;
     TileGraph g("g");
-    auto* s1 = g.data(sh, "s1", DataType::FP32);
-    auto* s2 = g.data(sh, "s2", DataType::FP32);
-    auto* d = g.data(dh, "d", DataType::FP32);
-    s1->mark_input(true);
-    s2->mark_input(true);
-    d->mark_output(true);
+    auto *s1 = g.data(sh, "s1", DataType::FP32);
+    auto *s2 = g.data(sh, "s2", DataType::FP32);
+    auto *d = g.data(dh, "d", DataType::FP32);
     tg::sumprod_slice(a, s1, s2, b, d, ax, redux);
     Runtime runtime(g);
     runtime.compile();

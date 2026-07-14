@@ -51,7 +51,7 @@ TensorGraph::TensorNode *gelutanh_backward(
     }
     validate_same_shape_and_merge(x, dy, "gelutanh_backward");
 
-    TensorGraph::TensorNode *dx = x->graph()->data(x->shape(), x->dtype());
+    TensorGraph::TensorNode *dx = x->graph()->emplace_data(x->shape(), x->dtype());
     dx->set_axes(x->axes());
 
     gelutanh_backward(x, dy, dx);

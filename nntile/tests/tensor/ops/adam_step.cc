@@ -43,11 +43,14 @@ TEST_CASE("TensorGraph adam_step structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *grad = graph.data({dim_4, dim_5})->set_name("grad");
-    auto *first_moment = graph.data({dim_4, dim_5})->set_name("first_moment");
-    auto *second_moment =
-        graph.data({dim_4, dim_5})->set_name("second_moment");
-    auto *p = graph.data({dim_4, dim_5})->set_name("p");
+    nntile::TensorRef grad = graph.data({dim_4, dim_5});
+    grad->set_name("grad");
+    nntile::TensorRef first_moment = graph.data({dim_4, dim_5});
+    first_moment->set_name("first_moment");
+    nntile::TensorRef second_moment = graph.data({dim_4, dim_5});
+    second_moment->set_name("second_moment");
+    nntile::TensorRef p = graph.data({dim_4, dim_5});
+    p->set_name("p");
 
     gt::adam_step(
         1, 0.9, 0.999, 1e-8, 0.001, 0.0, grad, first_moment, second_moment, p);
@@ -64,10 +67,14 @@ TEST_CASE("TensorGraph adam_step structure", "[graph][tensor]")
 TEST_CASE("TensorGraph adam_step rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *grad = graph.data({5, 4})->set_name("grad");
-    auto *first_moment = graph.data({5, 4})->set_name("first_moment");
-    auto *second_moment = graph.data({5, 4})->set_name("second_moment");
-    auto *p = graph.data({5, 4})->set_name("p");
+    nntile::TensorRef grad = graph.data({5, 4});
+    grad->set_name("grad");
+    nntile::TensorRef first_moment = graph.data({5, 4});
+    first_moment->set_name("first_moment");
+    nntile::TensorRef second_moment = graph.data({5, 4});
+    second_moment->set_name("second_moment");
+    nntile::TensorRef p = graph.data({5, 4});
+    p->set_name("p");
 
     REQUIRE_THROWS_AS(gt::adam_step(1,
                           0.9,
@@ -125,19 +132,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_first, untiled_second, untiled_p;
     {
         TensorGraph graph("adam_step_untiled");
-        auto *grad_node = graph.data(shape, DataType::FP32)->set_name("grad");
-        auto *first_moment_node =
-            graph.data(shape, DataType::FP32)->set_name("first_moment");
-        auto *second_moment_node =
-            graph.data(shape, DataType::FP32)->set_name("second_moment");
-        auto *p_node = graph.data(shape, DataType::FP32)->set_name("p");
-        grad_node->mark_input(true);
-        first_moment_node->mark_input(true);
-        second_moment_node->mark_input(true);
-        p_node->mark_input(true);
-        first_moment_node->mark_output(true);
-        second_moment_node->mark_output(true);
-        p_node->mark_output(true);
+        nntile::TensorRef grad_node = graph.data(shape, DataType::FP32);
+    grad_node->set_name("grad");
+        nntile::TensorRef first_moment_node = graph.data(shape, DataType::FP32);
+    first_moment_node->set_name("first_moment");
+        nntile::TensorRef second_moment_node = graph.data(shape, DataType::FP32);
+    second_moment_node->set_name("second_moment");
+        nntile::TensorRef p_node = graph.data(shape, DataType::FP32);
+    p_node->set_name("p");
 
         gt::adam_step(num_iter,
             beta_1,
@@ -171,19 +173,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_first, tiled_second, tiled_p;
     {
         TensorGraph graph("adam_step_tiled");
-        auto *grad_node = graph.data(shape, DataType::FP32)->set_name("grad");
-        auto *first_moment_node =
-            graph.data(shape, DataType::FP32)->set_name("first_moment");
-        auto *second_moment_node =
-            graph.data(shape, DataType::FP32)->set_name("second_moment");
-        auto *p_node = graph.data(shape, DataType::FP32)->set_name("p");
-        grad_node->mark_input(true);
-        first_moment_node->mark_input(true);
-        second_moment_node->mark_input(true);
-        p_node->mark_input(true);
-        first_moment_node->mark_output(true);
-        second_moment_node->mark_output(true);
-        p_node->mark_output(true);
+        nntile::TensorRef grad_node = graph.data(shape, DataType::FP32);
+    grad_node->set_name("grad");
+        nntile::TensorRef first_moment_node = graph.data(shape, DataType::FP32);
+    first_moment_node->set_name("first_moment");
+        nntile::TensorRef second_moment_node = graph.data(shape, DataType::FP32);
+    second_moment_node->set_name("second_moment");
+        nntile::TensorRef p_node = graph.data(shape, DataType::FP32);
+    p_node->set_name("p");
 
         gt::adam_step(num_iter,
             beta_1,

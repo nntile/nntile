@@ -70,11 +70,13 @@ TEST_CASE("TensorGraph add_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src1 = graph.data({dim_2})->set_name(
+    nntile::TensorRef src1 = graph.data({dim_2});
+    src1->set_name(
         "src1"); // slice for axis=1: {2,4} without dim 1 = {2}
-    auto *src2 = graph.data({dim_2, dim_4})->set_name("src2");
+    nntile::TensorRef src2 = graph.data({dim_2, dim_4});
+    src2->set_name("src2");
 
-    auto *out = gt::add_slice(alpha_one, src1, beta_one, src2, axis_1);
+    nntile::TensorRef out = nntile::TensorRef::adopt(gt::add_slice(alpha_one, src1, beta_one, src2, axis_1));
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -90,8 +92,10 @@ TEST_CASE("TensorGraph add_slice structure", "[graph][tensor]")
 TEST_CASE("TensorGraph add_slice rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src1 = graph.data({dim_2})->set_name("src1");
-    auto *src2 = graph.data({dim_2, dim_4})->set_name("src2");
+    nntile::TensorRef src1 = graph.data({dim_2});
+    src1->set_name("src1");
+    nntile::TensorRef src2 = graph.data({dim_2, dim_4});
+    src2->set_name("src2");
 
     REQUIRE_THROWS_AS(
         gt::add_slice(alpha_one, src1, beta_one, src2, src2, axis_1),
@@ -124,15 +128,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("add_slice_untiled");
-        auto *src1_node =
-            graph.data(src1_sh, DataType::FP32)->set_name("src1");
-        auto *src2_node =
-            graph.data(dst_shape, DataType::FP32)->set_name("src2");
-        src1_node->mark_input(true);
-        src2_node->mark_input(true);
-        auto *out_node =
-            gt::add_slice(alpha, src1_node, beta, src2_node, axis);
-        out_node->mark_output(true);
+        nntile::TensorRef src1_node = graph.data(src1_sh, DataType::FP32);
+    src1_node->set_name("src1");
+        nntile::TensorRef src2_node = graph.data(dst_shape, DataType::FP32);
+    src2_node->set_name("src2");
+        nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::add_slice(alpha, src1_node, beta, src2_node, axis));
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
         Runtime runtime(tile_graph);
@@ -147,15 +147,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("add_slice_tiled");
-        auto *src1_node =
-            graph.data(src1_sh, DataType::FP32)->set_name("src1");
-        auto *src2_node =
-            graph.data(dst_shape, DataType::FP32)->set_name("src2");
-        src1_node->mark_input(true);
-        src2_node->mark_input(true);
-        auto *out_node =
-            gt::add_slice(alpha, src1_node, beta, src2_node, axis);
-        out_node->mark_output(true);
+        nntile::TensorRef src1_node = graph.data(src1_sh, DataType::FP32);
+    src1_node->set_name("src1");
+        nntile::TensorRef src2_node = graph.data(dst_shape, DataType::FP32);
+    src2_node->set_name("src2");
+        nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::add_slice(alpha, src1_node, beta, src2_node, axis));
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

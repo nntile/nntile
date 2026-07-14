@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -29,13 +30,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph relu_backward matches 
     const std::vector<Index> sh = {3, 2};
     const Index nelems = 6;
     TileGraph g("g");
-    auto* x = g.data(sh, "x", DataType::FP32);
-    auto* dy = g.data(sh, "dy", DataType::FP32);
-    auto* dx = g.data(sh, "dx", DataType::FP32);
-    x->mark_input(true);
-    dy->mark_input(true);
-    dx->mark_input(true);
-    dx->mark_output(true);
+    auto *x = g.data(sh, "x", DataType::FP32);
+    auto *dy = g.data(sh, "dy", DataType::FP32);
+    auto *dx = g.data(sh, "dx", DataType::FP32);
     tg::relu_backward(x, dy, dx);
     Runtime runtime(g);
     runtime.compile();

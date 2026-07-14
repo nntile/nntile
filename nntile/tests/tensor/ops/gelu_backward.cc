@@ -36,9 +36,12 @@ TEST_CASE("TensorGraph gelu_backward structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim0, dim1})->set_name("x");
-    auto *dy = graph.data({dim0, dim1})->set_name("dy");
-    auto *dx = graph.data({dim0, dim1})->set_name("dx");
+    nntile::TensorRef x = graph.data({dim0, dim1});
+    x->set_name("x");
+    nntile::TensorRef dy = graph.data({dim0, dim1});
+    dy->set_name("dy");
+    nntile::TensorRef dx = graph.data({dim0, dim1});
+    dx->set_name("dx");
 
     gt::gelu_backward(x, dy, dx);
 
@@ -56,8 +59,10 @@ TEST_CASE(
     "TensorGraph gelu_backward rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({5, 4})->set_name("x");
-    auto *dy = graph.data({5, 4})->set_name("dy");
+    nntile::TensorRef x = graph.data({5, 4});
+    x->set_name("x");
+    nntile::TensorRef dy = graph.data({5, 4});
+    dy->set_name("dy");
 
     REQUIRE_THROWS_AS(gt::gelu_backward(x, x, dy), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::gelu_backward(x, dy, x), std::invalid_argument);
@@ -88,13 +93,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("gelu_backward_untiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *dy_node = graph.data(shape, DataType::FP32)->set_name("dy");
-        auto *dx_node = graph.data(shape, DataType::FP32)->set_name("dx");
-        x_node->mark_input(true);
-        dy_node->mark_input(true);
-        dx_node->mark_input(true);
-        dx_node->mark_output(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef dy_node = graph.data(shape, DataType::FP32);
+    dy_node->set_name("dy");
+        nntile::TensorRef dx_node = graph.data(shape, DataType::FP32);
+    dx_node->set_name("dx");
         gt::gelu_backward(x_node, dy_node, dx_node);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
@@ -112,13 +116,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("gelu_backward_tiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *dy_node = graph.data(shape, DataType::FP32)->set_name("dy");
-        auto *dx_node = graph.data(shape, DataType::FP32)->set_name("dx");
-        x_node->mark_input(true);
-        dy_node->mark_input(true);
-        dx_node->mark_input(true);
-        dx_node->mark_output(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef dy_node = graph.data(shape, DataType::FP32);
+    dy_node->set_name("dy");
+        nntile::TensorRef dx_node = graph.data(shape, DataType::FP32);
+    dx_node->set_name("dx");
         gt::gelu_backward(x_node, dy_node, dx_node);
 
         for (auto *ag : graph.axis_groups())

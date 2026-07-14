@@ -45,8 +45,10 @@ TEST_CASE("TensorGraph subtract_indexed_outputs structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
-    auto *dst = graph.data({4, 5})->set_name("dst");
+    nntile::TensorRef labels = graph.data({4}, DataType::INT64);
+    labels->set_name("labels");
+    nntile::TensorRef dst = graph.data({4, 5});
+    dst->set_name("dst");
 
     gt::subtract_indexed_outputs(val, labels, dst, ignore_index);
 
@@ -64,8 +66,10 @@ TEST_CASE(
     "TensorGraph subtract_indexed_outputs rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
-    auto *dst = graph.data({4, 5})->set_name("dst");
+    nntile::TensorRef labels = graph.data({4}, DataType::INT64);
+    labels->set_name("labels");
+    nntile::TensorRef dst = graph.data({4, 5});
+    dst->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::subtract_indexed_outputs(val, nullptr, dst, ignore_index),
@@ -79,8 +83,10 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects non-INT64 labels",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *labels = graph.data({4})->set_name("labels"); // FP32 default
-    auto *dst = graph.data({5, 4})->set_name("dst");
+    nntile::TensorRef labels = graph.data({4});
+    labels->set_name("labels"); // FP32 default
+    nntile::TensorRef dst = graph.data({5, 4});
+    dst->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::subtract_indexed_outputs(val, labels, dst, ignore_index),
@@ -91,9 +97,11 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects ndim mismatch",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
+    nntile::TensorRef labels = graph.data({4}, DataType::INT64);
+    labels->set_name("labels");
     // dst has ndim=3 (labels.ndim+2), but must be labels.ndim+1
-    auto *dst = graph.data({5, 4, 3})->set_name("dst");
+    nntile::TensorRef dst = graph.data({5, 4, 3});
+    dst->set_name("dst");
 
     REQUIRE_THROWS_AS(
         gt::subtract_indexed_outputs(val, labels, dst, ignore_index),
@@ -132,13 +140,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("subtract_indexed_outputs_untiled");
-        auto *labels_node =
-            graph.data(labels_shape, DataType::INT64)->set_name("labels");
-        auto *dst_node =
-            graph.data(dst_shape, DataType::FP32)->set_name("dst");
-        labels_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef labels_node = graph.data(labels_shape, DataType::INT64);
+    labels_node->set_name("labels");
+        nntile::TensorRef dst_node = graph.data(dst_shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
 
@@ -159,13 +164,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("subtract_indexed_outputs_tiled");
-        auto *labels_node =
-            graph.data(labels_shape, DataType::INT64)->set_name("labels");
-        auto *dst_node =
-            graph.data(dst_shape, DataType::FP32)->set_name("dst");
-        labels_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef labels_node = graph.data(labels_shape, DataType::INT64);
+    labels_node->set_name("labels");
+        nntile::TensorRef dst_node = graph.data(dst_shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
         auto *nclass_axis = dst_node->axis(dst_node->ndim() - 1);

@@ -70,9 +70,11 @@ TEST_CASE("TensorGraph add_slice_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim_2})->set_name(
+    nntile::TensorRef src = graph.data({dim_2});
+    src->set_name(
         "src"); // slice for axis=1: {2,4} without dim 1 = {2}
-    auto *dst = graph.data({dim_2, dim_4})->set_name("dst");
+    nntile::TensorRef dst = graph.data({dim_2, dim_4});
+    dst->set_name("dst");
 
     gt::add_slice_inplace(alpha_one, src, beta_one, dst, axis_1);
 
@@ -91,7 +93,8 @@ TEST_CASE("TensorGraph add_slice_inplace rejects duplicate tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({dim_4})->set_name("src");
+    nntile::TensorRef src = graph.data({dim_4});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::add_slice_inplace(alpha_one, src, beta_one, src, axis_0),
@@ -124,12 +127,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("add_slice_inplace_untiled");
-        auto *src_node = graph.data(src_sh, DataType::FP32)->set_name("src");
-        auto *dst_node =
-            graph.data(dst_shape, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(src_sh, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(dst_shape, DataType::FP32);
+    dst_node->set_name("dst");
         gt::add_slice_inplace(alpha, src_node, beta, dst_node, axis);
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -145,12 +146,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("add_slice_inplace_tiled");
-        auto *src_node = graph.data(src_sh, DataType::FP32)->set_name("src");
-        auto *dst_node =
-            graph.data(dst_shape, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(src_sh, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(dst_shape, DataType::FP32);
+    dst_node->set_name("dst");
         gt::add_slice_inplace(alpha, src_node, beta, dst_node, axis);
         for (auto *ag : graph.axis_groups())
         {

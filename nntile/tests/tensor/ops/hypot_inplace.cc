@@ -46,8 +46,10 @@ TEST_CASE("TensorGraph hypot_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
-    auto *dst = graph.data({dim0, dim1})->set_name("dst");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
+    nntile::TensorRef dst = graph.data({dim0, dim1});
+    dst->set_name("dst");
 
     gt::hypot_inplace(alpha_one, src, beta_one, dst);
 
@@ -65,7 +67,8 @@ TEST_CASE(
     "TensorGraph hypot_inplace rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({5, 4})->set_name("t");
+    nntile::TensorRef t = graph.data({5, 4});
+    t->set_name("t");
 
     REQUIRE_THROWS_AS(
         gt::hypot_inplace(alpha_one, t, beta_one, t), std::invalid_argument);
@@ -96,11 +99,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("hypot_inplace_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::hypot_inplace(alpha, src_node, beta, dst_node);
 
@@ -121,11 +123,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("hypot_inplace_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::hypot_inplace(alpha, src_node, beta, dst_node);
         for (auto *ag : graph.axis_groups())

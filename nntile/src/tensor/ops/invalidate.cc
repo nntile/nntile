@@ -18,6 +18,7 @@
 #include <unordered_set>
 
 #include "nntile/tensor.hh"
+#include "nntile/tensor/tensor_ref.hh"
 #include "nntile/tile/graph_ops.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
 
@@ -76,7 +77,7 @@ std::size_t append_invalidates_for_unmarked_unsealed(TensorGraph &graph)
     std::size_t n_added = 0;
     for (TensorGraph::TensorNode *t : touched)
     {
-        if (t == nullptr || t->is_input() || t->is_output())
+        if (t == nullptr || tensor_ref_is_live(t))
         {
             continue;
         }

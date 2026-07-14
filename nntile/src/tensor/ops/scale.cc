@@ -36,7 +36,7 @@ TensorGraph::TensorNode *scale(Scalar alpha, TensorGraph::TensorNode *src)
         throw std::invalid_argument("scale: input tensor must be non-null");
     std::vector<Index> output_shape = src->shape();
     TensorGraph::TensorNode *output =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
     output->set_axes(src->axes());
     scale(alpha, src, output);
     return output;

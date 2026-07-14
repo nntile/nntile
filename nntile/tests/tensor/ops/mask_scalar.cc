@@ -46,8 +46,10 @@ TEST_CASE("TensorGraph mask_scalar structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *mask = graph.data({dim0, dim1}, DataType::BOOL)->set_name("mask");
-    auto *A = graph.data({dim0, dim1})->set_name("A");
+    nntile::TensorRef mask = graph.data({dim0, dim1}, DataType::BOOL);
+    mask->set_name("mask");
+    nntile::TensorRef A = graph.data({dim0, dim1});
+    A->set_name("A");
 
     gt::mask_scalar(mask, val, A, batch_ndim);
 
@@ -65,8 +67,10 @@ TEST_CASE("TensorGraph mask_scalar rejects null tensors", "[graph][tensor]")
 {
     constexpr Index batch_ndim = 0;
     TensorGraph graph("test");
-    auto *mask = graph.data({5, 4}, DataType::BOOL)->set_name("mask");
-    auto *A = graph.data({5, 4})->set_name("A");
+    nntile::TensorRef mask = graph.data({5, 4}, DataType::BOOL);
+    mask->set_name("mask");
+    nntile::TensorRef A = graph.data({5, 4});
+    A->set_name("A");
 
     REQUIRE_THROWS_AS(
         gt::mask_scalar(nullptr, val, A, batch_ndim), std::invalid_argument);
@@ -78,8 +82,10 @@ TEST_CASE("TensorGraph mask_scalar rejects non-BOOL mask", "[graph][tensor]")
 {
     constexpr Index batch_ndim = 0;
     TensorGraph graph("test");
-    auto *mask = graph.data({5, 4})->set_name("mask"); // FP32 by default
-    auto *A = graph.data({5, 4})->set_name("A");
+    nntile::TensorRef mask = graph.data({5, 4});
+    mask->set_name("mask"); // FP32 by default
+    nntile::TensorRef A = graph.data({5, 4});
+    A->set_name("A");
 
     REQUIRE_THROWS_AS(
         gt::mask_scalar(mask, val, A, batch_ndim), std::invalid_argument);
@@ -90,15 +96,18 @@ TEST_CASE(
 {
     TensorGraph graph("test");
     // A is seq x seq x batch (3D), mask must be seq x seq (2D)
-    auto *mask =
-        graph.data({4, 5, 8}, DataType::BOOL)->set_name("mask"); // wrong: 3D
-    auto *A = graph.data({4, 5, 8})->set_name("A");
+    nntile::TensorRef mask = graph.data({4, 5, 8}, DataType::BOOL);
+    mask->set_name("mask"); // wrong: 3D
+    nntile::TensorRef A = graph.data({4, 5, 8});
+    A->set_name("A");
     REQUIRE_THROWS_AS(gt::mask_scalar(mask, val, A, 1), std::invalid_argument);
 
     // mask 1D when A_data is 2D
     TensorGraph graph2("test2");
-    auto *mask2 = graph2.data({4}, DataType::BOOL)->set_name("mask");
-    auto *A2 = graph2.data({5, 4})->set_name("A");
+    nntile::TensorRef mask2 = graph2.data({4}, DataType::BOOL);
+    mask2->set_name("mask");
+    nntile::TensorRef A2 = graph2.data({5, 4});
+    A2->set_name("A");
     REQUIRE_THROWS_AS(
         gt::mask_scalar(mask2, val, A2, 0), std::invalid_argument);
 }
@@ -138,12 +147,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("mask_scalar_untiled");
-        auto *mask_node =
-            graph.data(mask_shape, DataType::BOOL)->set_name("mask");
-        auto *A_node = graph.data(A_shape, DataType::FP32)->set_name("A");
-        mask_node->mark_input(true);
-        A_node->mark_input(true);
-        A_node->mark_output(true);
+        nntile::TensorRef mask_node = graph.data(mask_shape, DataType::BOOL);
+    mask_node->set_name("mask");
+        nntile::TensorRef A_node = graph.data(A_shape, DataType::FP32);
+    A_node->set_name("A");
 
         gt::mask_scalar(mask_node, val, A_node, batch_ndim);
 
@@ -164,12 +171,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("mask_scalar_tiled");
-        auto *mask_node =
-            graph.data(mask_shape, DataType::BOOL)->set_name("mask");
-        auto *A_node = graph.data(A_shape, DataType::FP32)->set_name("A");
-        mask_node->mark_input(true);
-        A_node->mark_input(true);
-        A_node->mark_output(true);
+        nntile::TensorRef mask_node = graph.data(mask_shape, DataType::BOOL);
+    mask_node->set_name("mask");
+        nntile::TensorRef A_node = graph.data(A_shape, DataType::FP32);
+    A_node->set_name("A");
 
         gt::mask_scalar(mask_node, val, A_node, batch_ndim);
         for (auto *ag : graph.axis_groups())

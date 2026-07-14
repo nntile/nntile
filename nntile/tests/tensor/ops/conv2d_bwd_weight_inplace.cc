@@ -61,9 +61,12 @@ TEST_CASE("TensorGraph conv2d_bwd_weight_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *x = graph.data({4, 4, 2, 2})->set_name("x");
-    auto *dy = graph.data({3, 3, 2, 2})->set_name("dy");
-    auto *dc = graph.data({2, 2, 2, 2})->set_name("dc");
+    nntile::TensorRef x = graph.data({4, 4, 2, 2});
+    x->set_name("x");
+    nntile::TensorRef dy = graph.data({3, 3, 2, 2});
+    dy->set_name("dy");
+    nntile::TensorRef dc = graph.data({2, 2, 2, 2});
+    dc->set_name("dc");
 
     gt::conv2d_bwd_weight_inplace(1.0, x, dy, 0.0, dc, {0, 0}, {1, 1}, {1, 1});
 
@@ -81,9 +84,12 @@ TEST_CASE("TensorGraph conv2d_bwd_weight_inplace rejects null tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({4, 4, 2, 2})->set_name("x");
-    auto *dy = graph.data({3, 3, 2, 2})->set_name("dy");
-    auto *dc = graph.data({2, 2, 2, 2})->set_name("dc");
+    nntile::TensorRef x = graph.data({4, 4, 2, 2});
+    x->set_name("x");
+    nntile::TensorRef dy = graph.data({3, 3, 2, 2});
+    dy->set_name("dy");
+    nntile::TensorRef dc = graph.data({2, 2, 2, 2});
+    dc->set_name("dc");
 
     REQUIRE_THROWS_AS(gt::conv2d_bwd_weight_inplace(
                           1.0, nullptr, dy, 0.0, dc, {0, 0}, {1, 1}, {1, 1}),

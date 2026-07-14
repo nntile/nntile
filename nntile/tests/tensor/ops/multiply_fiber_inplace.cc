@@ -59,8 +59,10 @@ TEST_CASE("TensorGraph multiply_fiber_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
+    nntile::TensorRef fiber = graph.data({dim_4});
+    fiber->set_name("fiber");
+    nntile::TensorRef tensor = graph.data({dim_2, dim_4});
+    tensor->set_name("tensor");
 
     gt::multiply_fiber_inplace(alpha_one, fiber, tensor, axis_1);
 
@@ -78,7 +80,8 @@ TEST_CASE("TensorGraph multiply_fiber_inplace rejects duplicate tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *fiber = graph.data({dim_4})->set_name("fiber");
+    nntile::TensorRef fiber = graph.data({dim_4});
+    fiber->set_name("fiber");
 
     REQUIRE_THROWS_AS(
         gt::multiply_fiber_inplace(alpha_one, fiber, fiber, axis_0),
@@ -89,11 +92,14 @@ TEST_CASE("TensorGraph multiply_fiber_inplace rejects mismatched shapes",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
+    nntile::TensorRef fiber = graph.data({dim_4});
+    fiber->set_name("fiber");
+    nntile::TensorRef tensor = graph.data({dim_2, dim_4});
+    tensor->set_name("tensor");
 
     // Fiber length must match tensor dim along axis
-    auto *wrong_fiber = graph.data({dim_5})->set_name("wrong_fiber");
+    nntile::TensorRef wrong_fiber = graph.data({dim_5});
+    wrong_fiber->set_name("wrong_fiber");
     REQUIRE_THROWS_AS(
         gt::multiply_fiber_inplace(alpha_one, wrong_fiber, tensor, axis_1),
         std::invalid_argument);
@@ -127,13 +133,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("multiply_fiber_inplace_untiled");
-        auto *fiber_node =
-            graph.data(fiber_sh, DataType::FP32)->set_name("fiber");
-        auto *tensor_node =
-            graph.data(tensor_shape, DataType::FP32)->set_name("tensor");
-        fiber_node->mark_input(true);
-        tensor_node->mark_input(true);
-        tensor_node->mark_output(true);
+        nntile::TensorRef fiber_node = graph.data(fiber_sh, DataType::FP32);
+    fiber_node->set_name("fiber");
+        nntile::TensorRef tensor_node = graph.data(tensor_shape, DataType::FP32);
+    tensor_node->set_name("tensor");
         gt::multiply_fiber_inplace(alpha, fiber_node, tensor_node, axis);
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -149,13 +152,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("multiply_fiber_inplace_tiled");
-        auto *fiber_node =
-            graph.data(fiber_sh, DataType::FP32)->set_name("fiber");
-        auto *tensor_node =
-            graph.data(tensor_shape, DataType::FP32)->set_name("tensor");
-        fiber_node->mark_input(true);
-        tensor_node->mark_input(true);
-        tensor_node->mark_output(true);
+        nntile::TensorRef fiber_node = graph.data(fiber_sh, DataType::FP32);
+    fiber_node->set_name("fiber");
+        nntile::TensorRef tensor_node = graph.data(tensor_shape, DataType::FP32);
+    tensor_node->set_name("tensor");
         gt::multiply_fiber_inplace(alpha, fiber_node, tensor_node, axis);
         for (auto *ag : graph.axis_groups())
         {

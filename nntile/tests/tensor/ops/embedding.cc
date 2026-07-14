@@ -52,9 +52,12 @@ TEST_CASE("TensorGraph embedding structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *vocab = graph.data({10, 100})->set_name("vocab");
-    auto *embed = graph.data({5, 4, 100})->set_name("embed");
+    nntile::TensorRef index = graph.data({5, 4}, DataType::INT64);
+    index->set_name("index");
+    nntile::TensorRef vocab = graph.data({10, 100});
+    vocab->set_name("vocab");
+    nntile::TensorRef embed = graph.data({5, 4, 100});
+    embed->set_name("embed");
 
     gt::embedding(index, vocab, embed, 2);
 
@@ -71,9 +74,12 @@ TEST_CASE("TensorGraph embedding structure", "[graph][tensor]")
 TEST_CASE("TensorGraph embedding rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *vocab = graph.data({10, 100})->set_name("vocab");
-    auto *embed = graph.data({5, 4, 100})->set_name("embed");
+    nntile::TensorRef index = graph.data({5, 4}, DataType::INT64);
+    index->set_name("index");
+    nntile::TensorRef vocab = graph.data({10, 100});
+    vocab->set_name("vocab");
+    nntile::TensorRef embed = graph.data({5, 4, 100});
+    embed->set_name("embed");
 
     REQUIRE_THROWS_AS(
         gt::embedding(nullptr, vocab, embed, 2), std::invalid_argument);
@@ -86,10 +92,13 @@ TEST_CASE("TensorGraph embedding rejects null tensors", "[graph][tensor]")
 TEST_CASE("TensorGraph embedding with output_name", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *index = graph.data({5, 4}, DataType::INT64)->set_name("index");
-    auto *vocab = graph.data({10, 100})->set_name("vocab");
+    nntile::TensorRef index = graph.data({5, 4}, DataType::INT64);
+    index->set_name("index");
+    nntile::TensorRef vocab = graph.data({10, 100});
+    vocab->set_name("vocab");
 
-    auto *embed = gt::embedding(index, vocab, 2)->set_name("embed");
+    nntile::TensorRef embed = nntile::TensorRef::adopt(gt::embedding(index, vocab, 2));
+    embed->set_name("embed");
 
     REQUIRE(embed != nullptr);
     // C-order vocab: [num_embeddings, embed_dim]; embed.shape[axis] ==
@@ -129,16 +138,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("embedding_untiled");
-        auto *index_node =
-            graph.data(index_shape, DataType::INT64)->set_name("index");
-        auto *vocab_node =
-            graph.data(vocab_shape, DataType::FP32)->set_name("vocab");
-        index_node->mark_input(true);
-        vocab_node->mark_input(true);
+        nntile::TensorRef index_node = graph.data(index_shape, DataType::INT64);
+    index_node->set_name("index");
+        nntile::TensorRef vocab_node = graph.data(vocab_shape, DataType::FP32);
+    vocab_node->set_name("vocab");
 
-        auto *embed_node =
-            gt::embedding(index_node, vocab_node, axis)->set_name("embed");
-        embed_node->mark_output(true);
+        nntile::TensorRef embed_node = nntile::TensorRef::adopt(gt::embedding(index_node, vocab_node, axis));
+    embed_node->set_name("embed");
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -157,16 +163,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("embedding_tiled");
-        auto *index_node =
-            graph.data(index_shape, DataType::INT64)->set_name("index");
-        auto *vocab_node =
-            graph.data(vocab_shape, DataType::FP32)->set_name("vocab");
-        index_node->mark_input(true);
-        vocab_node->mark_input(true);
+        nntile::TensorRef index_node = graph.data(index_shape, DataType::INT64);
+    index_node->set_name("index");
+        nntile::TensorRef vocab_node = graph.data(vocab_shape, DataType::FP32);
+    vocab_node->set_name("vocab");
 
-        auto *embed_node =
-            gt::embedding(index_node, vocab_node, axis)->set_name("embed");
-        embed_node->mark_output(true);
+        nntile::TensorRef embed_node = nntile::TensorRef::adopt(gt::embedding(index_node, vocab_node, axis));
+    embed_node->set_name("embed");
         auto *embed_dim_axis = vocab_node->axis(1);
         auto *num_embeddings_axis = vocab_node->axis(0);
         for (auto *ag : graph.axis_groups())

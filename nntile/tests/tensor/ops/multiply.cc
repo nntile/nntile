@@ -37,10 +37,12 @@ TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim0, dim1})->set_name("x");
-    auto *y = graph.data({dim0, dim1})->set_name("y");
+    nntile::TensorRef x = graph.data({dim0, dim1});
+    x->set_name("x");
+    nntile::TensorRef y = graph.data({dim0, dim1});
+    y->set_name("y");
 
-    auto *z = gt::multiply(x, y, alpha);
+    nntile::TensorRef z = nntile::TensorRef::adopt(gt::multiply(x, y, alpha));
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -57,7 +59,8 @@ TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
 TEST_CASE("TensorGraph multiply rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({5, 4})->set_name("x");
+    nntile::TensorRef x = graph.data({5, 4});
+    x->set_name("x");
 
     REQUIRE_THROWS_AS(gt::multiply(x, x, 1.0), std::invalid_argument);
 }
@@ -87,13 +90,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("multiply_untiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(shape, DataType::FP32);
+    y_node->set_name("y");
 
-        auto *z_node = gt::multiply(x_node, y_node, alpha);
-        z_node->mark_output(true);
+        nntile::TensorRef z_node = nntile::TensorRef::adopt(gt::multiply(x_node, y_node, alpha));
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -112,13 +114,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("multiply_tiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(shape, DataType::FP32);
+    y_node->set_name("y");
 
-        auto *z_node = gt::multiply(x_node, y_node, alpha);
-        z_node->mark_output(true);
+        nntile::TensorRef z_node = nntile::TensorRef::adopt(gt::multiply(x_node, y_node, alpha));
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

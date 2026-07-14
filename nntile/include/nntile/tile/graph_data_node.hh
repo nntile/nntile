@@ -58,11 +58,6 @@ class TileGraph::TileNode
     TileGraph *graph();
     const TileGraph *graph() const;
 
-    bool is_input() const { return is_input_; }
-    bool is_output() const { return is_output_; }
-    void mark_input(bool v = true) { is_input_ = v; }
-    void mark_output(bool v = true) { is_output_ = v; }
-
     //! Parent tensor descriptor (nullptr if not part of a tensor tiling)
     const TileGraph::TensorDescriptor *tensor_descriptor() const
     {
@@ -110,8 +105,6 @@ class TileGraph::TileNode
     std::vector<Index> shape_;
     DataType dtype_;
     std::string name_;
-    bool is_input_ = false;
-    bool is_output_ = false;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
     TileGraph::TensorDescriptor *tensor_desc_ = nullptr;
     std::vector<Index> tile_coord_;

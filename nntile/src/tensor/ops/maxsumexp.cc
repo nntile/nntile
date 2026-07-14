@@ -53,7 +53,7 @@ TensorGraph::TensorNode *maxsumexp(
     output_shape.push_back(2);
 
     TensorGraph::TensorNode *dst =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
 
     validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
 

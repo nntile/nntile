@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -30,9 +31,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot_scalar_inverse m
     const Index nelems = 6;
     const Scalar eps = 0.1, alpha = 2.0;
     TileGraph g("g");
-    auto* d = g.data(sh, "d", DataType::FP32);
-    d->mark_input(true);
-    d->mark_output(true);
+    auto *d = g.data(sh, "d", DataType::FP32);
     tg::hypot_scalar_inverse(eps, alpha, d);
     Runtime runtime(g);
     runtime.compile();

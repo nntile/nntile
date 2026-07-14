@@ -36,9 +36,10 @@ TEST_CASE("TensorGraph relu structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
 
-    auto *dst = gt::relu(src);
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::relu(src));
 
     dst->set_name("dst");
 
@@ -57,7 +58,8 @@ TEST_CASE("TensorGraph relu structure", "[graph][tensor]")
 TEST_CASE("TensorGraph relu rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({5, 4})->set_name("t");
+    nntile::TensorRef t = graph.data({5, 4});
+    t->set_name("t");
 
     REQUIRE_THROWS_AS(gt::relu(t, t), std::invalid_argument);
 }
@@ -84,12 +86,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("relu_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
-        auto *dst_node = gt::relu(src_node);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::relu(src_node));
 
         dst_node->set_name("dst");
-        dst_node->mark_output(true);
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
         Runtime runtime(tile_graph);
@@ -103,12 +104,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("relu_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
-        auto *dst_node = gt::relu(src_node);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::relu(src_node));
 
         dst_node->set_name("dst");
-        dst_node->mark_output(true);
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

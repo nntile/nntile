@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -31,20 +32,16 @@ TEST_CASE("TileGraph flash_sdpa_bwd_cudnn structure", "[graph][tile][cuda]")
     std::vector<Index> lse{64, 2, 1, 1};
     std::vector<Index> msk{64, 64};
     TileGraph g("flash_bwd");
-    auto* K = g.data(kv, "K", DataType::FP16);
-    auto* Q = g.data(kv, "Q", DataType::FP16);
-    auto* V = g.data(kv, "V", DataType::FP16);
-    auto* A = g.data(kv, "A", DataType::FP16);
-    auto* dA = g.data(kv, "dA", DataType::FP16);
-    auto* M = g.data(msk, "mask", DataType::FP16);
-    auto* L = g.data(lse, "logsumexp", DataType::FP32);
-    auto* dK = g.data(kv, "dK", DataType::FP16);
-    auto* dQ = g.data(kv, "dQ", DataType::FP16);
-    auto* dV = g.data(kv, "dV", DataType::FP16);
-    for(auto* t : {K, Q, V, A, dA, M, L}) t->mark_input(true);
-    dK->mark_output(true);
-    dQ->mark_output(true);
-    dV->mark_output(true);
+    auto *K = g.data(kv, "K", DataType::FP16);
+    auto *Q = g.data(kv, "Q", DataType::FP16);
+    auto *V = g.data(kv, "V", DataType::FP16);
+    auto *A = g.data(kv, "A", DataType::FP16);
+    auto *dA = g.data(kv, "dA", DataType::FP16);
+    auto *M = g.data(msk, "mask", DataType::FP16);
+    auto *L = g.data(lse, "logsumexp", DataType::FP32);
+    auto *dK = g.data(kv, "dK", DataType::FP16);
+    auto *dQ = g.data(kv, "dQ", DataType::FP16);
+    auto *dV = g.data(kv, "dV", DataType::FP16);
     tg::flash_sdpa_bwd_cudnn(K, Q, V, A, dA, M, L, dK, dQ, dV);
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.ops()[0]->op_name() == "TILE_FLASH_SDPA_BWD_CUDNN");

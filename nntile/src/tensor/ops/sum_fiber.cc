@@ -65,7 +65,7 @@ TensorGraph::TensorNode *sum_fiber(TensorGraph::TensorNode *x,
     std::vector<Index> output_shape =
         sum_fiber_output_shape(x->shape(), axis, batch_ndim);
     TensorGraph::TensorNode *output =
-        x->graph()->data(std::move(output_shape), x->dtype());
+        x->graph()->emplace_data(std::move(output_shape), x->dtype());
 
     // Merge output fiber axes with x axes
     for (Index i = 0; i < batch_ndim; ++i)

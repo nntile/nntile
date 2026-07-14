@@ -29,22 +29,27 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
 {
     test::ContextFixture fx;
 
-    auto build = [](TensorGraph &g, bool tile_inputs)
+    struct Nodes
     {
-        TensorGraph::TensorNode *grad =
-            g.data({10, 12}, DataType::FP32)->set_name("grad");
-        TensorGraph::TensorNode *vel =
-            g.data({10, 12}, DataType::FP32)->set_name("vel");
-        TensorGraph::TensorNode *p =
-            g.data({10, 12}, DataType::FP32)->set_name("p");
-        grad->mark_input(true);
-        vel->mark_input(true);
-        p->mark_input(true);
+        nntile::TensorRef grad;
+        nntile::TensorRef vel;
+        nntile::TensorRef p;
+    };
+
+    auto build = [](TensorGraph &g, bool tile_inputs) -> Nodes
+    {
+        Nodes nodes;
+        nodes.grad = g.data({10, 12}, DataType::FP32);
+        nodes.grad->set_name("grad");
+        nodes.vel = g.data({10, 12}, DataType::FP32);
+        nodes.vel->set_name("vel");
+        nodes.p = g.data({10, 12}, DataType::FP32);
+        nodes.p->set_name("p");
         if (tile_inputs)
         {
-            tt::apply_mixed_tile_sizes_2d(grad);
-            tt::apply_mixed_tile_sizes_2d(vel);
-            tt::apply_mixed_tile_sizes_2d(p);
+            tt::apply_mixed_tile_sizes_2d(nodes.grad);
+            tt::apply_mixed_tile_sizes_2d(nodes.vel);
+            tt::apply_mixed_tile_sizes_2d(nodes.p);
         }
         gt::sgd_step(0,
             Scalar{0.9f},
@@ -52,17 +57,16 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
             Scalar{0.f},
             Scalar{0.f},
             false,
-            grad,
-            vel,
-            p);
-        p->mark_output(true);
-        vel->mark_output(true);
+            nodes.grad,
+            nodes.vel,
+            nodes.p);
+        return nodes;
     };
 
     TensorGraph g_ref("ref");
-    build(g_ref, false);
+    Nodes ref_nodes = build(g_ref, false);
     TensorGraph g_tile("tile");
-    build(g_tile, true);
+    Nodes tile_nodes = build(g_tile, true);
 
     std::vector<float> grad_h(10 * 12), vel_h(10 * 12), p_h(10 * 12);
     for (size_t i = 0; i < grad_h.size(); ++i)
@@ -76,24 +80,22 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
 
     Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
-    rt_ref.bind_data(tt::tensor_node_named(g_ref, "grad"), grad_h);
-    rt_ref.bind_data(tt::tensor_node_named(g_ref, "vel"), vel_h);
-    rt_ref.bind_data(tt::tensor_node_named(g_ref, "p"), p_h);
+    rt_ref.bind_data(ref_nodes.grad, grad_h);
+    rt_ref.bind_data(ref_nodes.vel, vel_h);
+    rt_ref.bind_data(ref_nodes.p, p_h);
     rt_ref.execute();
     rt_ref.wait();
-    const std::vector<float> p_ref =
-        rt_ref.get_output<float>(tt::tensor_node_named(g_ref, "p"));
+    const std::vector<float> p_ref = rt_ref.get_output<float>(ref_nodes.p);
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile);
     Runtime rt_tile(tile_g);
     rt_tile.compile();
-    rt_tile.bind_data(tt::tensor_node_named(g_tile, "grad"), grad_h);
-    rt_tile.bind_data(tt::tensor_node_named(g_tile, "vel"), vel_h);
-    rt_tile.bind_data(tt::tensor_node_named(g_tile, "p"), p_h);
+    rt_tile.bind_data(tile_nodes.grad, grad_h);
+    rt_tile.bind_data(tile_nodes.vel, vel_h);
+    rt_tile.bind_data(tile_nodes.p, p_h);
     rt_tile.execute();
     rt_tile.wait();
-    const std::vector<float> p_tile =
-        rt_tile.get_output<float>(tt::tensor_node_named(g_tile, "p"));
+    const std::vector<float> p_tile = rt_tile.get_output<float>(tile_nodes.p);
 
     nntile::test::require_relative_element_error(p_ref, p_tile);
 }

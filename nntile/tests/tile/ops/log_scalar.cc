@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -27,9 +28,7 @@ namespace tg = nntile::tile;
 TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph log_scalar runs", "[graph][tile]")
 {
     TileGraph g("g");
-    auto* v = g.data(std::vector<Index>{1}, "v", DataType::FP32);
-    v->mark_input(true);
-    v->mark_output(true);
+    auto *v = g.data(std::vector<Index>{1}, "v", DataType::FP32);
     tg::log_scalar("test", v);
     Runtime r(g);
     r.compile();

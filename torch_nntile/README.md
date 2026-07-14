@@ -253,8 +253,8 @@ Architecture reference:
 [docs/dev/torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md).
 
 - Every ``device=nntile`` tensor uses **0-byte** ``Storage``. Payload lives in
-  StarPU tiles behind ``NodeRef`` → ``NNTileBinding { logical L }``.
-- **Staging ``S`` is ephemeral** (not stored in the binding): created on StarPU
+  StarPU tiles behind ``TensorRef`` → graph-owned ``TensorNode`` (logical ``L``).
+- **Staging ``S`` is ephemeral** (not stored on the meta): created on StarPU
   for each ``.to("nntile")`` scatter or ``.cpu()`` gather. During ``run()`` of
   an ingress scatter phase, each ``S`` is destroyed right after its scatter
   finishes so StarPU's allocation cache can reuse that CUDA chunk for the next
@@ -262,20 +262,20 @@ Architecture reference:
   cached buffers and settled at ≈2× VRAM).
 - Ingress is **one-shot** per tensor via ``.to("nntile")``; CPU→bound-nntile
   copy raises.
-- **Views / reshape / contiguous-preserving permute** share ``NodeRef`` (no
+- **Views / reshape / contiguous-preserving permute** share ``TensorRef`` (no
   data copy). **nntile→nntile ``copy_``** with matching shape/dtype also
-  **aliases** ``NodeRef`` (no tile copy).
+  **aliases** ``TensorRef`` (no tile copy).
 - ``Tensor.contiguous()`` is unsupported on non-contiguous nntile tensors.
 - During ``run()`` / ``execute_range``, intermediate StarPU tile buffers are
   released after their last consumer is submitted (``invalidate_submit``), when
-  not marked as inputs/outputs — not deferred until ``wait()``.
-- On each ``compile_graph()``, ``Runtime`` refreshes tile marks from logical
-  ``mark_output`` / ``mark_input`` for the pending slice. torch_nntile snapshots
-  phase outputs and, after ``wait()`` (and again at the next compile), calls
-  ``invalidate_logical_tiles`` on snapshot entries that are no longer marked.
-- **Reduce footprint:** ``del`` step temporaries after ``wait()`` so reclaim
-  sees cleared ``mark_output``. Do not call ``gc.collect()`` in the training
-  step loop (it scales with session size and can dominate step time).
+  they have no live ``TensorRef`` — not deferred until ``wait()``.
+- On each ``compile_graph()``, tensors touched in the unsealed phase without a
+  live ``TensorRef`` get ``tensor::INVALIDATE``. torch_nntile also calls
+  ``invalidate_logical_tiles`` on released logicals after ``wait()`` / next
+  compile.
+- **Reduce footprint:** ``del`` step temporaries after ``wait()`` so the last
+  ``TensorRef`` drop records invalidate. Do not call ``gc.collect()`` in the
+  training step loop (it scales with session size and can dominate step time).
   ``train_full_batch_step`` already drops logits after each step.
 
 ### Axis-group naming and tiling

@@ -72,9 +72,10 @@ TEST_CASE("TensorGraph norm_fiber_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim_2, dim_4})->set_name("src");
-    auto *dst =
-        graph.data({dim_4})->set_name("dst"); // axis=1: norm over dim_2
+    nntile::TensorRef src = graph.data({dim_2, dim_4});
+    src->set_name("src");
+    nntile::TensorRef dst = graph.data({dim_4});
+    dst->set_name("dst"); // axis=1: norm over dim_2
 
     gt::norm_fiber_inplace(
         alpha_one, src, beta_one, dst, axis_1, batch_ndim_none, redux_none);
@@ -93,7 +94,8 @@ TEST_CASE("TensorGraph norm_fiber_inplace rejects duplicate tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({dim_2, dim_4})->set_name("src");
+    nntile::TensorRef src = graph.data({dim_2, dim_4});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(gt::norm_fiber_inplace(alpha_one,
                           src,
@@ -150,12 +152,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("norm_fiber_inplace_untiled");
-        auto *src_node =
-            graph.data(tensor_shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data(fiber_sh, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(tensor_shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(fiber_sh, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::norm_fiber_inplace(
             alpha, src_node, beta, dst_node, axis, batch_ndim, redux);
@@ -177,12 +177,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("norm_fiber_inplace_tiled");
-        auto *src_node =
-            graph.data(tensor_shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data(fiber_sh, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(tensor_shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(fiber_sh, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::norm_fiber_inplace(
             alpha, src_node, beta, dst_node, axis, batch_ndim, redux);

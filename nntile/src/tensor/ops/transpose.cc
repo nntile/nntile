@@ -75,7 +75,7 @@ TensorGraph::TensorNode *transpose(
     for (Index i = 0; i < n; ++i)
         output_shape[i] = src_shape[(i + ndim) % n];
     TensorGraph::TensorNode *output =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
     for (Index i = 0; i < n; ++i)
     {
         merge_axis(

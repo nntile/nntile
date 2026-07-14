@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -29,10 +30,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[g
     const std::vector<Index> sh = {4, 3, 2};
     const Index nelems = 2 * 3 * 4;
     TileGraph g("g");
-    auto* s = g.data(sh, "s", DataType::FP32);
-    auto* d = g.data(std::vector<Index>{}, "d", DataType::FP32);
-    s->mark_input(true);
-    d->mark_output(true);
+    auto *s = g.data(sh, "s", DataType::FP32);
+    auto *d = g.data(std::vector<Index>{}, "d", DataType::FP32);
     const Scalar alpha = 0.5;
     const Scalar beta = 0.0;
     tg::sum(alpha, s, beta, d);

@@ -84,7 +84,7 @@ TensorGraph::TensorNode *embedding(
         throw std::invalid_argument("embedding: vocab must be 2D");
     embed_shape.push_back(vocab->dim(1));
     TensorGraph::TensorNode *embed =
-        vocab->graph()->data(std::move(embed_shape), vocab->dtype());
+        vocab->graph()->emplace_data(std::move(embed_shape), vocab->dtype());
 
     embedding(index, vocab, embed, axis);
     return embed;

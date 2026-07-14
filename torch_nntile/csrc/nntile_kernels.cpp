@@ -448,12 +448,12 @@ at::Tensor copy_from(
         is_nntile_device(mutable_dst.device()))
     {
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
-        NodeRef src_binding = nntile_binding(self);
+        nntile::TensorRef src_binding = tensor_ref(self);
         if (src_binding != nullptr &&
             self.sizes() == mutable_dst.sizes() &&
             self.scalar_type() == mutable_dst.scalar_type())
         {
-            attach_binding(mutable_dst, src_binding);
+            attach_tensor_ref(mutable_dst, src_binding);
             return dst;
         }
         TORCH_CHECK(

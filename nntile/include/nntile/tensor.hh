@@ -16,4 +16,5 @@
 
 // NNTile headers
 #include <nntile/tensor/graph.hh>
+#include <nntile/tensor/tensor_ref.hh>
 #include <nntile/tensor/graph_ops.hh>

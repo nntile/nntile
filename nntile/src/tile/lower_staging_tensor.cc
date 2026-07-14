@@ -57,14 +57,6 @@ std::vector<TileGraph::TileNode *> build_tile_nodes(
             tile_shape,
             tname,
             tensor_node->dtype());
-        if (tensor_node->is_input())
-        {
-            tile_node_ptr->mark_input(true);
-        }
-        if (tensor_node->is_output())
-        {
-            tile_node_ptr->mark_output(true);
-        }
         tiles.push_back(tile_node_ptr);
     }
 

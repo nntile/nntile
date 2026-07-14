@@ -31,23 +31,19 @@ TEST_CASE("GeLU mixed tile parity", "[graph][tile]")
     test::ContextFixture fx;
 
     TensorGraph g_ref("ref");
-    TensorGraph::TensorNode *x_ref =
-        g_ref.data({10, 12}, DataType::FP32)->set_name("x");
-    x_ref->mark_input(true);
-    TensorGraph::TensorNode *y_ref_node = gt::gelu(x_ref);
+    nntile::TensorRef x_ref = g_ref.data({10, 12}, DataType::FP32);
+    x_ref->set_name("x");
+    nntile::TensorRef y_ref_node = nntile::TensorRef::adopt(gt::gelu(x_ref));
 
     y_ref_node->set_name("y");
-    y_ref_node->mark_output(true);
 
     TensorGraph g_tile("tile");
-    TensorGraph::TensorNode *x_tile =
-        g_tile.data({10, 12}, DataType::FP32)->set_name("x");
-    x_tile->mark_input(true);
+    nntile::TensorRef x_tile = g_tile.data({10, 12}, DataType::FP32);
+    x_tile->set_name("x");
     tt::apply_mixed_tile_sizes_2d(x_tile);
-    TensorGraph::TensorNode *y_tile_node = gt::gelu(x_tile);
+    nntile::TensorRef y_tile_node = nntile::TensorRef::adopt(gt::gelu(x_tile));
 
     y_tile_node->set_name("y");
-    y_tile_node->mark_output(true);
 
     std::mt19937 gen(7);
     std::normal_distribution<float> dist(0.f, 0.5f);

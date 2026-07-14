@@ -9,10 +9,8 @@
 
 #include <c10/core/TensorImpl.h>
 
-#include <memory>
-
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
-#include <nntile/tensor/graph.hh>
+#include <nntile/tensor/tensor_ref.hh>
 #endif
 
 namespace at
@@ -25,39 +23,25 @@ namespace torch_nntile
 
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
-//! Graph binding for one at::Tensor: logical node L only (staging S is ephemeral).
-struct NNTileBinding
-{
-    nntile::TensorGraph::TensorNode *logical = nullptr;
-
-    explicit NNTileBinding(nntile::TensorGraph::TensorNode *logical_in);
-    ~NNTileBinding();
-
-    NNTileBinding(const NNTileBinding &) = delete;
-    NNTileBinding &operator=(const NNTileBinding &) = delete;
-};
-
-using NodeRef = std::shared_ptr<NNTileBinding>;
-
 struct NNTileBackendMeta final : c10::BackendMeta
 {
-    NodeRef binding;
+    nntile::TensorRef ref;
 
-    explicit NNTileBackendMeta(NodeRef binding_in);
+    explicit NNTileBackendMeta(nntile::TensorRef ref_in);
 
     c10::intrusive_ptr<c10::BackendMeta> clone(
         const c10::intrusive_ptr<c10::BackendMeta> &ptr) const override;
 };
 
-void assert_has_node_ref(const at::Tensor &tensor, const char *site);
+void assert_has_tensor_ref(const at::Tensor &tensor, const char *site);
 
-NodeRef nntile_binding(const at::Tensor &tensor);
+nntile::TensorRef tensor_ref(const at::Tensor &tensor);
 
 nntile::TensorGraph::TensorNode *nntile_node(const at::Tensor &tensor);
 
-void attach_binding(at::Tensor &tensor, NodeRef binding);
+void attach_tensor_ref(at::Tensor &tensor, nntile::TensorRef ref);
 
-void share_node_ref_for_reshape(const at::Tensor &base, at::Tensor &view);
+void share_tensor_ref_for_reshape(const at::Tensor &base, at::Tensor &view);
 
 //! True while the recorder TensorGraph (and its TensorNodes) are alive.
 bool logical_tensor_nodes_alive();
@@ -65,10 +49,8 @@ bool logical_tensor_nodes_alive();
 //! Called by the graph recorder around TensorGraph create/destroy.
 void set_logical_tensor_nodes_alive(bool alive);
 
-//! Queue a logical whose last ``NodeRef`` died for ``INVALIDATE`` on the
-//! next ``compile_graph``. Needed for tensors that unmark *after* their
-//! producer phase was sealed (e.g. ``param.grad`` on the next
-//! ``zero_grad(set_to_none=True)``) — phase-touched-only INVALIDATE misses them.
+//! Queue a logical whose last TensorRef died for invalidate flush at compile
+//! when the producer phase was already sealed.
 void note_logical_released(nntile::TensorGraph::TensorNode *logical);
 
 //! Drain ``note_logical_released`` queue (call under recorder lock at compile).
