@@ -34,6 +34,7 @@ CSRC = [
     "csrc/nntile_gemm.cpp",
     "csrc/nntile_executor.cpp",
     "csrc/nntile_add.cpp",
+    "csrc/nntile_add_fiber.cpp",
     "csrc/nntile_mul.cpp",
     "csrc/nntile_cat.cpp",
     "csrc/nntile_narrow.cpp",

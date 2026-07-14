@@ -69,11 +69,13 @@ at::Tensor gemm_forward(
     const at::Tensor &a,
     const at::Tensor &b,
     int64_t ndim,
-    int64_t batch_ndim)
+    int64_t batch_ndim,
+    bool trans_a,
+    bool trans_b)
 {
     check_gemm_tensors(a, b);
     const PreparedGemmOperands prepared =
-        prepare_gemm_operands(a, b, ndim, batch_ndim);
+        prepare_gemm_operands(a, b, ndim, batch_ndim, trans_a, trans_b);
     at::Tensor out = make_gemm_output(prepared.out_shape, a);
     run_gemm(prepared, out);
     return out;
@@ -85,7 +87,9 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
     const at::Tensor &grad_out,
     int64_t ndim,
     int64_t batch_ndim,
-    std::array<bool, 2> output_mask)
+    std::array<bool, 2> output_mask,
+    bool trans_a,
+    bool trans_b)
 {
     check_gemm_tensors(a, b);
     TORCH_CHECK(
@@ -96,48 +100,93 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         "nntile gemm_backward supports float32 only");
 
     const PreparedGemmOperands forward =
-        prepare_gemm_operands(a, b, ndim, batch_ndim);
+        prepare_gemm_operands(a, b, ndim, batch_ndim, trans_a, trans_b);
     const GemmMatrixLayout grad_out_layout = layout_from_nd_contiguous(grad_out);
     TORCH_CHECK(
         !grad_out_layout.needs_copy,
         "nntile gemm_backward: grad_out must be contiguous");
     const at::Tensor &grad_out_prepared = grad_out;
 
+    // Match ``nntile::NNGemmOp::backward`` operand order / transpose flags.
     at::Tensor grad_a;
     at::Tensor grad_b;
     if (output_mask[0])
     {
-        const GemmParams params = infer_gemm_backward_grad_a_params(
-            forward.params,
-            static_cast<int64_t>(forward.b_gemm_shape.size()));
+        const int64_t b_rank =
+            static_cast<int64_t>(forward.b_gemm_shape.size());
+        GemmParams params;
+        params.ndim = b_rank - forward.params.batch_ndim - forward.params.ndim;
+        params.batch_ndim = forward.params.batch_ndim;
         grad_a = at::empty_like(a);
-        pin_graph_op_inputs({grad_out_prepared, forward.b});
-        pin_graph_op_output(grad_a, false);
-        tensor_gemm_fp32(
-            params,
-            grad_out_prepared,
-            grad_out_layout.gemm_shape,
-            forward.b,
-            forward.b_gemm_shape,
-            grad_a,
-            pytorch_sizes_vector(grad_a.sizes()));
+        if (!forward.params.trans_a)
+        {
+            params.trans_a = false;
+            params.trans_b = !forward.params.trans_b;
+            pin_graph_op_inputs({grad_out_prepared, forward.b});
+            pin_graph_op_output(grad_a, false);
+            tensor_gemm_fp32(
+                params,
+                grad_out_prepared,
+                grad_out_layout.gemm_shape,
+                forward.b,
+                forward.b_gemm_shape,
+                grad_a,
+                pytorch_sizes_vector(grad_a.sizes()));
+        }
+        else
+        {
+            params.trans_a = forward.params.trans_b;
+            params.trans_b = true;
+            pin_graph_op_inputs({forward.b, grad_out_prepared});
+            pin_graph_op_output(grad_a, false);
+            tensor_gemm_fp32(
+                params,
+                forward.b,
+                forward.b_gemm_shape,
+                grad_out_prepared,
+                grad_out_layout.gemm_shape,
+                grad_a,
+                pytorch_sizes_vector(grad_a.sizes()));
+        }
     }
     if (output_mask[1])
     {
-        const GemmParams params = infer_gemm_backward_grad_b_params(
-            forward.params,
-            static_cast<int64_t>(forward.a_gemm_shape.size()));
+        const int64_t a_rank =
+            static_cast<int64_t>(forward.a_gemm_shape.size());
+        GemmParams params;
+        params.ndim = a_rank - forward.params.batch_ndim - forward.params.ndim;
+        params.batch_ndim = forward.params.batch_ndim;
         grad_b = at::empty_like(b);
-        pin_graph_op_inputs({forward.a, grad_out_prepared});
-        pin_graph_op_output(grad_b, false);
-        tensor_gemm_fp32(
-            params,
-            forward.a,
-            forward.a_gemm_shape,
-            grad_out_prepared,
-            grad_out_layout.gemm_shape,
-            grad_b,
-            pytorch_sizes_vector(grad_b.sizes()));
+        if (!forward.params.trans_b)
+        {
+            params.trans_a = !forward.params.trans_a;
+            params.trans_b = false;
+            pin_graph_op_inputs({forward.a, grad_out_prepared});
+            pin_graph_op_output(grad_b, false);
+            tensor_gemm_fp32(
+                params,
+                forward.a,
+                forward.a_gemm_shape,
+                grad_out_prepared,
+                grad_out_layout.gemm_shape,
+                grad_b,
+                pytorch_sizes_vector(grad_b.sizes()));
+        }
+        else
+        {
+            params.trans_a = true;
+            params.trans_b = forward.params.trans_a;
+            pin_graph_op_inputs({grad_out_prepared, forward.a});
+            pin_graph_op_output(grad_b, false);
+            tensor_gemm_fp32(
+                params,
+                grad_out_prepared,
+                grad_out_layout.gemm_shape,
+                forward.a,
+                forward.a_gemm_shape,
+                grad_b,
+                pytorch_sizes_vector(grad_b.sizes()));
+        }
     }
     return {grad_a, grad_b};
 }

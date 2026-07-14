@@ -65,6 +65,15 @@ bool logical_tensor_nodes_alive();
 //! Called by the graph recorder around TensorGraph create/destroy.
 void set_logical_tensor_nodes_alive(bool alive);
 
+//! Queue a logical whose last ``NodeRef`` died for ``INVALIDATE`` on the
+//! next ``compile_graph``. Needed for tensors that unmark *after* their
+//! producer phase was sealed (e.g. ``param.grad`` on the next
+//! ``zero_grad(set_to_none=True)``) — phase-touched-only INVALIDATE misses them.
+void note_logical_released(nntile::TensorGraph::TensorNode *logical);
+
+//! Drain ``note_logical_released`` queue (call under recorder lock at compile).
+std::vector<nntile::TensorGraph::TensorNode *> take_released_logicals();
+
 #endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile

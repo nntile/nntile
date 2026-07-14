@@ -72,7 +72,9 @@ PreparedGemmOperands prepare_gemm_operands(
     const at::Tensor &a,
     const at::Tensor &b,
     int64_t ndim,
-    int64_t batch_ndim);
+    int64_t batch_ndim,
+    bool trans_a = false,
+    bool trans_b = false);
 
 PreparedGemmOperands prepare_gemm_operands_inferred(
     const at::Tensor &a,

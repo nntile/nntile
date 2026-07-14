@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "nntile_add_fiber.h"
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
 #include "nntile_gemm.h"
@@ -256,13 +257,37 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::print_info,
         "Print cumulative compile/run/wait/host-readout timing stats");
     m.def(
+        "add_fiber_forward",
+        &torch_nntile::add_fiber_forward,
+        "NNTile add_fiber forward (no broadcast expand)",
+        py::arg("fiber"),
+        py::arg("tensor"),
+        py::arg("axis"),
+        py::arg("batch_ndim"),
+        py::arg("alpha") = 1.0,
+        py::arg("beta") = 1.0);
+    m.def(
+        "add_fiber_backward",
+        &torch_nntile::add_fiber_backward,
+        "NNTile add_fiber backward (sum_fiber for fiber grad)",
+        py::arg("grad_out"),
+        py::arg("fiber"),
+        py::arg("tensor"),
+        py::arg("axis"),
+        py::arg("batch_ndim"),
+        py::arg("output_mask"),
+        py::arg("alpha") = 1.0,
+        py::arg("beta") = 1.0);
+    m.def(
         "gemm_forward",
         &torch_nntile::gemm_forward,
         "NNTile GEMM forward (N-D contraction, C++ graph API semantics)",
         py::arg("a"),
         py::arg("b"),
         py::arg("ndim"),
-        py::arg("batch_ndim") = 0);
+        py::arg("batch_ndim") = 0,
+        py::arg("trans_a") = false,
+        py::arg("trans_b") = false);
     m.def(
         "gemm_backward",
         &torch_nntile::gemm_backward,
@@ -272,7 +297,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("grad_out"),
         py::arg("ndim"),
         py::arg("batch_ndim"),
-        py::arg("output_mask"));
+        py::arg("output_mask"),
+        py::arg("trans_a") = false,
+        py::arg("trans_b") = false);
     m.def(
         "cross_entropy_forward",
         &torch_nntile::cross_entropy_forward,

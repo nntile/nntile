@@ -119,11 +119,10 @@ void Runtime::compile()
 
     // Refresh tile marks from logical TensorNodes before DCE so
     // incremental sessions see mark_output(false) after Python drops refs.
-    // StarPU reclaim of unmarked phase outputs is deferred to run() via an
-    // explicit pending list (see torch_nntile pending_output_reclaim).
+    // Unmarked phase temps are reclaimed via TensorGraph INVALIDATE ops
+    // appended at compile (see append_invalidates_for_unmarked_unsealed).
     sync_tile_marks_from_logical();
     eliminate_dead_ops();
-    build_tile_last_consumer_map();
     allocate_missing_tiles();
     tile_adoption_.clear();
 
@@ -166,10 +165,10 @@ void Runtime::sync_tile_marks_from_logical()
             {
                 continue;
             }
-            if (is_in)
-            {
-                tile->mark_input(true);
-            }
+            // Always copy both marks: a sticky mark_input(true) that was
+            // never cleared blocked last-consumer reclaim after Python
+            // dropped the logical input mark (used batches, etc.).
+            tile->mark_input(is_in);
             tile->mark_output(is_out);
         }
     };
@@ -245,10 +244,9 @@ void Runtime::invalidate_logical_tiles(
         init_state_.erase(logical);
         return;
     }
-    if (starpu_is_initialized())
-    {
-        starpu_task_wait_for_all();
-    }
+    // Async reclaim only. StarPU orders invalidate_submit /
+    // unregister_submit after the handle's last submitted use, so this is
+    // safe during overlapping compile/run phases (no wait_for_all).
     for (const TileGraph::TileNode *tile : to_release)
     {
         if (tile == nullptr || !tile->has_payload())
@@ -260,6 +258,17 @@ void Runtime::invalidate_logical_tiles(
         const_cast<TileGraph::TileNode *>(tile)->clear_payload();
     }
     init_state_.erase(logical);
+}
+
+void Runtime::invalidate_tile(TileGraph::TileNode *tile)
+{
+    if (tile == nullptr || !tile->has_payload())
+    {
+        return;
+    }
+    auto payload = tile->payload();
+    invalidate_tile_buffer(tile, payload);
+    tile->clear_payload();
 }
 
 void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
@@ -789,6 +798,8 @@ void Runtime::execute_range(
     }
     // Submit only: core sync wrappers skip wait_for_all while deferred so
     // torch_nntile run() can return before StarPU finishes the phase.
+    // Unmarked-temp reclaim is ordinary TILE_INVALIDATE ops in this stream
+    // (appended at compile), not a side-channel flush.
     StarpuSyncDefer defer_waits;
     bool const use_static_schedule =
         submit_tasks && has_execution_schedule();
@@ -810,12 +821,6 @@ void Runtime::execute_range(
             }
             execution_order_[i]->execute(*this);
         }
-        // Last-consumer reclaim during run()/submit: invalidate_submit is
-        // ordered after the consumer task already inserted above. Do not
-        // defer to wait() — that kept pre-ReLU activations resident for the
-        // whole forward+backward phase (~2× activation VRAM).
-        queue_dead_tiles_after_op(i);
-        flush_queued_dead_tiles();
     }
     if (op_end > executed_op_end_)
     {
@@ -934,7 +939,7 @@ void Runtime::release_dead_tiles_after_op(size_t op_idx)
     queue_dead_tiles_after_op(op_idx);
     if (g_starpu_sync_defer_depth == 0)
     {
-        starpu_task_wait_for_all();
+        starpu_task_wait_for_all_counted();
         flush_queued_dead_tiles();
     }
 }
@@ -952,6 +957,10 @@ void Runtime::queue_dead_tiles_after_op(size_t op_idx)
     }
     for (const TileGraph::TileNode *tile : tiles_dying_after_op_[local])
     {
+        // Skip persistent / still-referenced tensors. Temps must be unmarked
+        // before execute_range (drop pin_hold + free autograd) so this path
+        // can invalidate_submit after each last consumer; otherwise StarPU
+        // keeps the full activation union for the step.
         if (tile == nullptr || tile->is_input() || tile->is_output())
         {
             continue;
@@ -1127,10 +1136,7 @@ void Runtime::eliminate_dead_ops()
 
 void Runtime::wait()
 {
-    starpu_task_wait_for_all();
-    // Last-consumer invalidate_submit already ran in execute_range / run().
-    // Drain any stragglers if a path queued without flushing.
-    flush_queued_dead_tiles();
+    starpu_task_wait_for_all_counted();
 }
 
 bool Runtime::drop_fully_executed_history()
@@ -1145,10 +1151,7 @@ bool Runtime::drop_fully_executed_history()
     execution_order_.clear();
     executed_op_end_ = 0;
     compiled_graph_op_count_ = 0;
-    tiles_dying_after_op_.clear();
-    tiles_dying_op_base_ = 0;
     live_tile_nodes_.clear();
-    queued_dead_tiles_.clear();
     execution_schedule_ = ExecutionSchedule{};
     // Keep compiled_tile_node_count_: tile nodes / payloads persist across
     // session compaction (same as TensorGraph data nodes).

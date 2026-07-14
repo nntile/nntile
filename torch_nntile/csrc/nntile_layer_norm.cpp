@@ -61,12 +61,19 @@ int64_t resolve_norm_axis(
     return axis;
 }
 
-std::vector<int64_t> keepdim_sizes(
+std::vector<int64_t> reduced_sizes(
     c10::IntArrayRef input_shape,
     int64_t axis)
 {
-    auto sizes = input_shape.vec();
-    sizes[static_cast<std::size_t>(axis)] = 1;
+    std::vector<int64_t> sizes;
+    sizes.reserve(static_cast<std::size_t>(input_shape.size()));
+    for (int64_t i = 0; i < static_cast<int64_t>(input_shape.size()); ++i)
+    {
+        if (i != axis)
+        {
+            sizes.push_back(input_shape[static_cast<std::size_t>(i)]);
+        }
+    }
     return sizes;
 }
 
@@ -143,7 +150,9 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm(
     check_optional_affine(input, weight, bias, norm_axis);
 
     at::Tensor output = at::empty_like(input);
-    const auto stats_sizes = keepdim_sizes(input.sizes(), norm_axis);
+    // Reduced (non-keepdim) stats — matches C++ ``NNLayerNormOp`` buffers and
+    // avoids ``scale_slice`` broadcast of mean/rstd.
+    const auto stats_sizes = reduced_sizes(input.sizes(), norm_axis);
     at::Tensor mean = at::empty(
         stats_sizes,
         input.options().memory_format(at::MemoryFormat::Contiguous));
@@ -172,8 +181,17 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm_backward(
     const int64_t norm_axis = resolve_norm_axis(input.sizes(), normalized_shape);
     check_optional_affine(input, weight, bias, norm_axis);
 
-    at::Tensor mean_reduced = mean.squeeze(norm_axis);
-    at::Tensor rstd_reduced = rstd.squeeze(norm_axis);
+    // Forward now saves reduced stats; accept legacy keepdim tensors too.
+    at::Tensor mean_reduced = mean;
+    at::Tensor rstd_reduced = rstd;
+    if (mean.dim() == input.dim() && mean.size(norm_axis) == 1)
+    {
+        mean_reduced = mean.squeeze(norm_axis);
+    }
+    if (rstd.dim() == input.dim() && rstd.size(norm_axis) == 1)
+    {
+        rstd_reduced = rstd.squeeze(norm_axis);
+    }
 
     at::Tensor grad_input;
     at::Tensor grad_weight;

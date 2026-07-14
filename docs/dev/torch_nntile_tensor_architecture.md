@@ -26,34 +26,32 @@ asynchronously; call `wait()` to join StarPU. Host readout (`.to("cpu")`) also
 waits. C++ `nntile::Runtime::execute()` is likewise submit-only; call
 `Runtime::wait()`.
 
-## Incremental session memory (`mark_output`)
+## Incremental session memory (`mark_output` + `INVALIDATE`)
 
 The session is **one incremental** `TensorGraph` / `TileGraph` (phases append;
-do not reset the session to free memory). StarPU payload reclaim is controlled
-by marks, with an explicit pending list in torch_nntile:
+do not reset the session to free memory). StarPU payload reclaim is an ordinary
+async graph op:
 
-1. Dropping a Python nntile tensor runs `~NNTileBinding` → `L.mark_output(false)`.
-2. On `compile_graph()`, torch_nntile snapshots logical tensors that are
-   `mark_output(true)` in the sealed phase (`pending_output_reclaim`).
-3. After `wait()` (following `run()`), pin holds are cleared (temps drop their
-   NodeRefs). Any snapshot entry that is no longer marked input/output is
-   passed to `Runtime::invalidate_logical_tiles` once — no full tile-map scan.
-   Entries still marked at `wait()` stay on `pending_output_reclaim` across
-   graph compaction so the **next** `compile_graph()` can reclaim them after
-   Python `del`s the tensors (do not clear that list in `drop_all_ops`
-   compaction — that leaked one step of activation tiles per iteration).
-4. Mid-phase, ``execute_range`` / ``run()`` issues ``invalidate_submit`` for
-   unmarked tiles as soon as their last consumer is submitted (not deferred
-   to ``wait()``). Core ``*`` wrappers skip ``starpu_task_wait_for_all``
-   while submit is deferred so ``run()`` stays asynchronous.
+1. Dropping a Python nntile tensor runs `~NNTileBinding` → `L.mark_output(false)`
+   (and `mark_input(false)`), and enqueues `L` for payload flush. Persistent
+   params / batches keep marks via live bindings (`mark_input` / `mark_output`).
+2. On `compile_graph()`, after dropping compile pin holds:
+   - **immediately** `invalidate_logical_tiles` for every released unmarked
+     logical (covers `param.grad` from the next `zero_grad`, deleted batches,
+     …) so the next phase does not stack on unreclaimed payloads;
+   - for every tensor **touched by the unsealed phase** with
+     `!is_input && !is_output`, append `tensor::INVALIDATE` (O(phase)).
+   Then `seal_phase` + lower to `tile::INVALIDATE` → `invalidate_submit` +
+   clear payload. `wait()` also flushes any logicals released after submit.
+3. `run()` only submits the execution stream (compute + INVALIDATE). StarPU
+   orders each invalidate after the handle’s last prior use. Only `wait()`
+   joins StarPU.
+4. Training loops must `del` the step loss (free autograd) **before**
+   `compile_graph` so temps are unmarked when INVALIDATE ops are selected.
+   Keep parameters, optimizer state, and persistent inputs marked.
 
-Training loops should ``del`` step temporaries (e.g. logits) **after**
-``wait()`` and any host readout of the loss so reclaim sees
-``mark_output(false)``; keep parameters, optimizer state, and persistent
-inputs marked via live bindings. Do **not** call ``gc.collect()`` in the
-step loop — refcount drop from ``del`` is enough for bindings, and a full
-collection scans the growing session heap and can dominate step time.
-``train_full_batch_step`` drops logits after the step runs.
+Do **not** call `gc.collect()` in the step loop — refcount drop from `del` is
+enough for bindings. `train_full_batch_step` drops logits after the step runs.
 
 ## I/O
 

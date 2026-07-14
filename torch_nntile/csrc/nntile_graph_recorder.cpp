@@ -19,10 +19,12 @@
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 #include <nntile/runtime.hh>
+#include <nntile/starpu/sync_defer.hh>
 #include <nntile/dtype.hh>
 #include <nntile/tensor/axis_descriptor.hh>
 #include <nntile/tensor/graph.hh>
 #include <nntile/tensor/ops/clear.hh>
+#include <nntile/tensor/ops/invalidate.hh>
 #include <nntile/tensor/ops/gather.hh>
 #include <nntile/tensor/ops/scatter.hh>
 #include <nntile/tensor/ops/contiguous_view.hh>
@@ -106,7 +108,9 @@ struct RecorderExecState
     nntile::TensorNodeToTileMap tile_map;
     //! Session-scoped layouts; ensure_phase_layouts only adds new tensors.
     std::shared_ptr<nntile::TensorGraphTiling> session_tiling;
-    //! Pins transferred at compile; kept alive until wait_graph_session().
+    //! Pins transferred at compile so NodeRefs stay alive through lower.
+    //! Cleared at the start of the next compile_graph (before seal) so
+    //! unmarked temps get TensorGraph INVALIDATE ops. Not held across run().
     std::vector<at::Tensor> pin_hold;
     //! Post-DCE execution_order index already submitted via execute_range.
     std::size_t executed_op_end = 0;
@@ -115,10 +119,6 @@ struct RecorderExecState
     std::size_t pending_exec_op_end = 0;
     //! Scatter staging tensors in the pending phase (invalidate after wait).
     std::vector<nntile::TensorGraph::TensorNode *> pending_scatter_stagings;
-    //! Logical tensors that were mark_output(true) when the pending slice
-    //! was compiled. After wait() drops step temps (pin_hold / NodeRef), any
-    //! entry that is no longer marked is invalidated once.
-    std::vector<nntile::TensorGraph::TensorNode *> pending_output_reclaim;
 };
 
 std::unique_ptr<RecorderExecState> g_exec;
@@ -171,65 +171,12 @@ double seconds_since(SteadyClock::time_point const start)
 
 void reclaim_pending_outputs_locked()
 {
-    if (g_exec == nullptr || g_exec->runtime == nullptr)
-    {
-        return;
-    }
-    if (g_exec->pending_output_reclaim.empty())
-    {
-        return;
-    }
-    nntile::Runtime &runtime = *g_exec->runtime;
-    // Temps are often del'd after wait(); keep still-marked entries so the
-    // next compile/run can invalidate them once NodeRefs drop.
-    // Always reclaim payloads even under TORCH_NNTILE_SKIP_STARPU —
-    // otherwise registrations accumulate and runtime.compile grows O(session).
-    std::vector<nntile::TensorGraph::TensorNode *> still_marked;
-    still_marked.reserve(g_exec->pending_output_reclaim.size());
-    for (nntile::TensorGraph::TensorNode *logical :
-        g_exec->pending_output_reclaim)
-    {
-        if (logical == nullptr)
-        {
-            continue;
-        }
-        if (logical->is_output() || logical->is_input())
-        {
-            still_marked.push_back(logical);
-            continue;
-        }
-        runtime.invalidate_logical_tiles(logical);
-    }
-    g_exec->pending_output_reclaim = std::move(still_marked);
+    // Replaced by TensorGraph INVALIDATE ops appended at compile.
 }
 
 void collect_pending_output_reclaim_locked(
-    const nntile::TensorGraph::PhaseSnapshot &phase)
+    const nntile::TensorGraph::PhaseSnapshot & /*phase*/)
 {
-    if (g_exec == nullptr)
-    {
-        return;
-    }
-    // Invalidate unmarked leftovers from a prior phase, but keep entries that
-    // are still marked (held across compile) so a later wait() can reclaim.
-    reclaim_pending_outputs_locked();
-    auto &reclaim = g_exec->pending_output_reclaim;
-    std::unordered_set<nntile::TensorGraph::TensorNode *> seen(
-        reclaim.begin(),
-        reclaim.end());
-    reclaim.reserve(reclaim.size() + phase.carried_tensors.size());
-    for (nntile::TensorGraph::TensorNode const *t : phase.carried_tensors)
-    {
-        if (t == nullptr || !t->is_output())
-        {
-            continue;
-        }
-        auto *mutable_t = const_cast<nntile::TensorGraph::TensorNode *>(t);
-        if (seen.insert(mutable_t).second)
-        {
-            reclaim.push_back(mutable_t);
-        }
-    }
 }
 
 void sync_param_grad_aliases_locked();
@@ -961,21 +908,79 @@ void compact_tensor_graph_session_locked()
         g_exec->pending_exec_op_begin = 0;
         g_exec->pending_exec_op_end = 0;
     }
-    // Keep pending_output_reclaim. Step temps are often still mark_output
-    // at wait() (Python dels them after wait); reclaim parks them as
-    // still_marked. Clearing here dropped that list and leaked their
-    // StarPU tiles every iteration (VRAM grew without CE).
+}
+
+void append_pin_hold_locked(std::vector<at::Tensor> &pin_drop)
+{
+    if (g_exec == nullptr || pin_drop.empty())
+    {
+        return;
+    }
+    // Hold until the matching run() returns (not until wait()).
+    g_exec->pin_hold.insert(
+        g_exec->pin_hold.end(),
+        std::make_move_iterator(pin_drop.begin()),
+        std::make_move_iterator(pin_drop.end()));
+    pin_drop.clear();
+}
+
+//! Drop pin holds so ephemeral logicals unmark before seal/INVALIDATE.
+//! Does not wait on StarPU.
+void drop_compile_pins_before_seal_locked()
+{
+    if (g_exec == nullptr)
+    {
+        return;
+    }
+    if (g_defer_pending_clear_after_run)
+    {
+        std::vector<at::Tensor> pin_drop;
+        clear_pending_graph_after_compile_locked(pin_drop);
+        g_defer_pending_clear_after_run = false;
+    }
+    g_exec->pin_hold.clear();
+    {
+        // Current-phase record pins: destroy so only Python-held refs
+        // (params, caches, last_loss) keep marks for INVALIDATE selection.
+        std::vector<at::Tensor> doomed;
+        clear_pending_graph_after_compile_locked(doomed);
+    }
+}
+
+//! Free StarPU payloads for logicals whose NodeRef already died.
+//! Must run before allocate_missing_tiles for the next phase so VRAM does
+//! not stack "previous step grads/temps" on top of the new step.
+void flush_released_logicals_locked()
+{
+    if (g_exec == nullptr || g_exec->runtime == nullptr)
+    {
+        // Still drain the queue so pointers do not outlive a reset graph.
+        (void) take_released_logicals();
+        return;
+    }
+    for (nntile::TensorGraph::TensorNode *t : take_released_logicals())
+    {
+        if (t == nullptr || t->is_input() || t->is_output())
+        {
+            continue;
+        }
+        // Async invalidate_submit ordered after the handle's last use.
+        g_exec->runtime->invalidate_logical_tiles(t);
+    }
+}
+
+void compact_after_submit_locked()
+{
+    compact_tensor_graph_session_locked();
 }
 
 void compile_graph_locked(
     bool clear_pending_after,
     std::vector<at::Tensor> &pin_drop)
 {
-    // Prior async run() must finish before sealing the next phase.
-    if (g_run_cleanup_pending)
-    {
-        finish_run_locked();
-    }
+    // Do not wait for a prior async run(): sealing / lowering the next
+    // phase while StarPU still executes the previous one is allowed.
+    // Unmarked phase temps become TensorGraph INVALIDATE ops (async submit).
 
     if (g_graph == nullptr ||
         g_graph->num_ops() <= g_graph->phase_seal_cursor())
@@ -991,11 +996,20 @@ void compile_graph_locked(
     sync_param_grad_aliases_locked();
     apply_pending_axis_tiling_locked();
 
+    // Marks must reflect live Python refs before INVALIDATE selection.
+    drop_compile_pins_before_seal_locked();
+    // Free payloads for NodeRefs that died after the previous seal
+    // (param.grad on zero_grad, deleted batches, …) *before* this compile
+    // allocates the next step. Graph INVALIDATE alone (during run) still
+    // plateaus in theory, but sticky tile marks / allocate_missing could
+    // resurrect buffers — flush here so 3+ iters cannot accumulate.
+    flush_released_logicals_locked();
+    nntile::tensor::append_invalidates_for_unmarked_unsealed(*g_graph);
+
     SteadyClock::time_point t_part = SteadyClock::now();
     const nntile::TensorGraph::PhaseSnapshot phase = g_graph->seal_phase();
     std::vector<nntile::TensorGraph::TensorNode *> scatter_stagings;
     collect_scatter_stagings_from_phase_locked(phase, scatter_stagings);
-    collect_pending_output_reclaim_locked(phase);
     g_timing.compile_seal_s += seconds_since(t_part);
 
     // Phase-scoped tiling: full-graph from_tensor_graph rebuilt layouts for
@@ -1048,8 +1062,9 @@ void compile_graph_locked(
 
     if (clear_pending_after)
     {
-        transfer_pinned_tensors_locked(pin_drop);
-        g_defer_pending_clear_after_run = true;
+        // Pins already dropped before seal; nothing to defer to run().
+        g_defer_pending_clear_after_run = false;
+        pin_drop.clear();
     }
 
     std::uint64_t const phase_ops = static_cast<std::uint64_t>(
@@ -1065,17 +1080,16 @@ void run_graph_locked()
     {
         return;
     }
-    // Submit only (except ingress scatters — see below). Callers use
-    // wait_graph_session() / torch_nntile.wait() for post-run reclaim.
+    // Submit only (except ingress scatters — see below). INVALIDATE ops are
+    // already in the execution stream. Join StarPU via wait() for readout.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
         std::uint64_t const phase_ops = static_cast<std::uint64_t>(
             g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
         SteadyClock::time_point const t0 = SteadyClock::now();
         bool const submit = !skip_starpu_submit_and_acquire();
-        // Always call execute_range so Runtime::executed_op_end_ advances and
-        // last-consumer tiles get invalidate_submit during submit. SKIP_STARPU
-        // only disables OpNode::execute (StarPU task insert).
+        // Always call execute_range so Runtime::executed_op_end_ advances.
+        // SKIP_STARPU only disables OpNode::execute (StarPU task insert).
         if (!g_exec->pending_scatter_stagings.empty())
         {
             // Per-S release so StarPU's allocation cache can reuse each
@@ -1098,9 +1112,8 @@ void run_graph_locked()
         g_exec->executed_op_end = g_exec->pending_exec_op_end;
         g_exec->pending_exec_op_begin = g_exec->pending_exec_op_end;
     }
-    // Always require wait() for compile-side cleanup (pin_hold, reclaim,
-    // deferred pending clear) — including empty post-DCE phases.
     g_run_cleanup_pending = true;
+    compact_after_submit_locked();
 }
 
 void finish_run_locked()
@@ -1117,8 +1130,8 @@ void finish_run_locked()
         return;
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
-    // Always join + reclaim so payloads stay O(live). SKIP_STARPU only
-    // skips compute submit and host↔tile acquire/memcpy.
+    // Join StarPU for host-visible completion. Session compact already ran
+    // at the end of run(); INVALIDATE ops were submitted with the phase.
     g_exec->runtime->wait();
     // Ingress S is normally released during run() (per-scatter). Any
     // leftover (e.g. empty execute range) is cleaned here.
@@ -1134,12 +1147,11 @@ void finish_run_locked()
         clear_pending_graph_after_compile_locked(pin_drop);
         g_defer_pending_clear_after_run = false;
     }
-    // Drop compile-time pin_hold inside the locked section so mark_output
-    // flips are visible before reclaim.
     g_exec->pin_hold.clear();
-    reclaim_pending_outputs_locked();
-    // Compact TensorGraph history so the next record/compile is O(phase).
     compact_tensor_graph_session_locked();
+    // Batches / last_loss may die right after wait(); free them now so the
+    // next record/compile does not start from a higher watermark.
+    flush_released_logicals_locked();
     g_run_cleanup_pending = false;
     g_timing.wait_s += seconds_since(t0);
     ++g_timing.wait_calls;
@@ -1269,10 +1281,7 @@ void execute_pending_graph()
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         execute_pending_graph_locked(pin_drop);
-        if (g_exec != nullptr && !pin_drop.empty())
-        {
-            g_exec->pin_hold = std::move(pin_drop);
-        }
+        append_pin_hold_locked(pin_drop);
     }
 }
 
@@ -1282,10 +1291,7 @@ void compile_graph()
     {
         std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
         compile_graph_locked(true, pin_drop);
-        if (g_exec != nullptr && !pin_drop.empty())
-        {
-            g_exec->pin_hold = std::move(pin_drop);
-        }
+        append_pin_hold_locked(pin_drop);
     }
 }
 
@@ -1298,11 +1304,8 @@ void run_graph()
 void wait_graph_session()
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    // finish_run_locked() already joins StarPU when a run is pending.
     finish_run_locked();
-    if (starpu_is_initialized())
-    {
-        starpu_task_wait_for_all();
-    }
 }
 
 void reset_graph_session()
@@ -1362,9 +1365,9 @@ void gather_logical_to_staging_and_read_locked(
             "torch_nntile: gather readout requires an active TensorGraph");
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
-    // Finish a prior async run() before recording gather ops. Otherwise
-    // compile_graph_locked() would wait+compact and drop_all_ops() would
-    // wipe the clear/gather we are about to append.
+    // Host readout must join a prior async run() before recording gather:
+    // wait() compacts sealed history; without it, drop_all_ops on a later
+    // wait could race with an in-flight phase that still owns these nodes.
     if (g_run_cleanup_pending)
     {
         finish_run_locked();
@@ -1779,6 +1782,14 @@ void stage_tensor_for_axis_group_compile(const at::Tensor &tensor)
 void mark_persistent_graph_tensor(const at::Tensor &tensor)
 {
     pin_tensor_for_graph(tensor);
+    // Last-consumer reclaim skips mark_input only. Parameters / optimizer
+    // state must be inputs so their tiles are not invalidate_submit'd after
+    // the in-phase SGD consumer (momentum would be lost next step).
+    if (nntile::TensorGraph::TensorNode *node = nntile_node(tensor);
+        node != nullptr)
+    {
+        node->mark_input(true);
+    }
 }
 
 void set_axis_group_tiling(
@@ -1947,6 +1958,9 @@ std::string format_info_locked()
        << g_timing.wait_s << "s"
        << " (avg " << avg_ms(g_timing.wait_s, g_timing.wait_calls)
        << " ms; finishes a pending run() only)\n";
+    ss << "  starpu_task_wait_for_all: "
+       << nntile::g_starpu_wait_for_all_count.load()
+       << " calls (all sources; should stay flat between run()s if async)\n";
     ss << "  host_readout:  " << g_timing.host_readout_calls << " calls, "
        << g_timing.host_readout_s << "s"
        << " (avg "

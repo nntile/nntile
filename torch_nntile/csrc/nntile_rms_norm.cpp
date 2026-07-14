@@ -63,12 +63,19 @@ int64_t resolve_norm_axis(
     return axis;
 }
 
-std::vector<int64_t> keepdim_sizes(
+std::vector<int64_t> reduced_sizes(
     c10::IntArrayRef input_shape,
     int64_t axis)
 {
-    auto sizes = input_shape.vec();
-    sizes[static_cast<std::size_t>(axis)] = 1;
+    std::vector<int64_t> sizes;
+    sizes.reserve(static_cast<std::size_t>(input_shape.size()));
+    for (int64_t i = 0; i < static_cast<int64_t>(input_shape.size()); ++i)
+    {
+        if (i != axis)
+        {
+            sizes.push_back(input_shape[static_cast<std::size_t>(i)]);
+        }
+    }
     return sizes;
 }
 
@@ -102,7 +109,7 @@ std::tuple<at::Tensor, at::Tensor> rms_norm_forward(
 
     at::Tensor output = at::empty_like(input);
     at::Tensor rstd = at::empty(
-        keepdim_sizes(input.sizes(), norm_axis),
+        reduced_sizes(input.sizes(), norm_axis),
         input.options().memory_format(at::MemoryFormat::Contiguous));
 
     std::vector<at::Tensor> inputs = {input};
@@ -141,7 +148,11 @@ std::tuple<at::Tensor, at::Tensor> rms_norm_backward(
         check_norm_tensor(*weight, "weight");
     }
 
-    at::Tensor rstd_reduced = rstd.squeeze(norm_axis);
+    at::Tensor rstd_reduced = rstd;
+    if (rstd.dim() == input.dim() && rstd.size(norm_axis) == 1)
+    {
+        rstd_reduced = rstd.squeeze(norm_axis);
+    }
 
     at::Tensor grad_input;
     at::Tensor grad_weight;

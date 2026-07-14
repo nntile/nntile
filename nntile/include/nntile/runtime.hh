@@ -54,10 +54,9 @@ class Runtime
     void compile();
 
     //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
-    //! After each submitted op, last-consumer tiles are invalidated via
-    //! ``invalidate_submit`` and payload cleared (async w.r.t.
-    //! already-submitted consumers). Call ``wait()`` to join StarPU before
-    //! host readout.
+    //! Unmarked-temp reclaim is ordinary ``TILE_INVALIDATE`` ops already in
+    //! ``execution_order_`` (appended at compile from phase-touched unmarked
+    //! logicals). Call ``wait()`` to join StarPU before host readout.
     //! If ``submit_tasks`` is false, skip ``OpNode::execute`` (no StarPU
     //! inserts) but still advance the executed watermark and last-consumer
     //! reclaim — required so incremental ``compile()`` stays O(pending)
@@ -159,9 +158,16 @@ class Runtime
     void invalidate_initialized(NNGraph::TensorNode const *tensor);
 
     //! Drop StarPU buffers for a logical tensor that is no longer marked
-    //! input/output. No-op if still marked, unknown, or never allocated.
+    //! input/output. Uses ``invalidate_submit`` / async unregister only —
+    //! safe while earlier submitted tasks still reference the handle; StarPU
+    //! defers free until last use. No-op if still marked, unknown, or never
+    //! allocated.
     void invalidate_logical_tiles(
         TensorGraph::TensorNode const *logical);
+
+    //! Async invalidate one tile payload (``invalidate_submit`` + clear).
+    //! Used by ``TileInvalidateOp``; StarPU orders free after last use.
+    void invalidate_tile(TileGraph::TileNode *tile);
 
     //! Mark logical tensor tiles as host-populated (after acquire write I/O).
     void mark_initialized(TensorGraph::TensorNode const *tensor);

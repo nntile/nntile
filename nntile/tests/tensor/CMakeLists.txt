@@ -48,6 +48,7 @@ set(TESTS_TENSOR_CATCH2
     "hypot"
     "hypot_inplace"
     "hypot_scalar_inverse"
+    "invalidate"
     "multiply"
     "multiply_fiber"
     "multiply_fiber_inplace"

@@ -14,6 +14,9 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <mutex>
+#include <unordered_set>
+#include <vector>
 
 namespace torch_nntile
 {
@@ -22,6 +25,8 @@ namespace
 {
 
 std::atomic<bool> g_logical_tensor_nodes_alive{false};
+std::mutex g_released_logicals_mutex;
+std::unordered_set<nntile::TensorGraph::TensorNode *> g_released_logicals;
 
 bool trace_assert_enabled()
 {
@@ -52,6 +57,34 @@ bool logical_tensor_nodes_alive()
 void set_logical_tensor_nodes_alive(bool alive)
 {
     g_logical_tensor_nodes_alive.store(alive, std::memory_order_release);
+    if (!alive)
+    {
+        std::lock_guard<std::mutex> lock(g_released_logicals_mutex);
+        g_released_logicals.clear();
+    }
+}
+
+void note_logical_released(nntile::TensorGraph::TensorNode *logical)
+{
+    if (logical == nullptr || !logical_tensor_nodes_alive())
+    {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(g_released_logicals_mutex);
+    g_released_logicals.insert(logical);
+}
+
+std::vector<nntile::TensorGraph::TensorNode *> take_released_logicals()
+{
+    std::lock_guard<std::mutex> lock(g_released_logicals_mutex);
+    std::vector<nntile::TensorGraph::TensorNode *> out;
+    out.reserve(g_released_logicals.size());
+    for (nntile::TensorGraph::TensorNode *n : g_released_logicals)
+    {
+        out.push_back(n);
+    }
+    g_released_logicals.clear();
+    return out;
 }
 
 NNTileBinding::NNTileBinding(nntile::TensorGraph::TensorNode *logical_in)
@@ -66,10 +99,23 @@ NNTileBinding::NNTileBinding(nntile::TensorGraph::TensorNode *logical_in)
 NNTileBinding::~NNTileBinding()
 {
     // TensorGraph may already be destroyed (atexit / reset_graph_session).
-    // Skip mark_output on a stale node pointer.
+    // Skip mark_* on a stale node pointer.
+    //
+    // Clear both marks: ingress sets mark_input(true) for host→nntile copies
+    // (weights, batches, ephemeral arange/mask). Leaving mark_input sticky
+    // after the Python tensor dies made last-consumer reclaim and
+    // pending_output_reclaim skip those tiles, so VRAM grew every step
+    // (cache_position, causal masks, used batches, …). Live parameters keep
+    // a binding so marks stay set for the whole session.
+    //
+    // Also enqueue for compile-time INVALIDATE: phase-touched-only selection
+    // misses tensors that die after their producer phase was sealed (grads
+    // on the next zero_grad, replaced last_loss, deleted batches, …).
     if (logical != nullptr && logical_tensor_nodes_alive())
     {
         logical->mark_output(false);
+        logical->mark_input(false);
+        note_logical_released(logical);
     }
     logical = nullptr;
 }

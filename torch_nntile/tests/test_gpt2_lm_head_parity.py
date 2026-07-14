@@ -400,3 +400,23 @@ def test_gpt2_lm_head_forward_deferred(tiny_gpt2_config):
             f"graph forward subprocess failed ({proc.returncode})\n"
             f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
         )
+
+
+def test_position_ids_and_mask_are_cached(tiny_gpt2_config):
+    model = GPT2LMHead(tiny_gpt2_config).eval().float().to("nntile")
+    model.warm_sequence_caches(
+        batch_sizes=[2],
+        seq_len=8,
+        device="nntile",
+    )
+    tr = model.transformer
+    pos0 = tr._position_ids_cache[(2, 8)]
+    mask0 = tr._causal_mask_cache[8]
+    ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
+    with torch.no_grad():
+        _ = model(ids)
+        _ = model(ids)
+    assert tr._position_ids_cache[(2, 8)] is pos0
+    assert tr._causal_mask_cache[8] is mask0
+    assert pos0.device.type == "nntile"
+    assert mask0.device.type == "nntile"

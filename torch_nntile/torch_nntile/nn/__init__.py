@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from torch_nntile.nn.sdpa import SDPA, sdpa_eager
+from torch_nntile.nn.sdpa import SDPA, sdpa_eager, sdpa_kernel
 from torch_nntile.nn.weight_layout import (
     convert_attn_weights,
     nntile_to_torch_o_weight,
@@ -23,6 +23,7 @@ __all__ = [
     "nntile_to_torch_o_weight",
     "nntile_to_torch_qkv_weight",
     "sdpa_eager",
+    "sdpa_kernel",
     "torch_to_nntile_o_weight",
     "torch_to_nntile_qkv_weight",
 ]

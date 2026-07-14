@@ -176,6 +176,7 @@ endif(NOT HAVE_STARPU_SIMGRID)
 # Basic StarPU-related sources
 set(STARPU_BASE_SRC
     "starpu/handle.cc"
+    "starpu/sync_defer.cc"
     "starpu/codelet.cc"
 )
 
@@ -357,6 +358,7 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/ops/adam_step.cc"
     "tensor/ops/adamw_step.cc"
     "tensor/ops/clear.cc"
+    "tensor/ops/invalidate.cc"
     "tensor/ops/concat.cc"
     "tensor/ops/contiguous_view.cc"
     "tensor/ops/conv2d_bwd_input_inplace.cc"
@@ -560,6 +562,7 @@ set(GRAPH_TILE_LAYER_SRC
     "tile/ops/add_slice.cc"
     "tile/ops/add_slice_inplace.cc"
     "tile/ops/clear.cc"
+    "tile/ops/invalidate.cc"
     "tile/ops/conv2d_bwd_input_inplace.cc"
     "tile/ops/conv2d_bwd_weight_inplace.cc"
     "tile/ops/conv2d_inplace.cc"

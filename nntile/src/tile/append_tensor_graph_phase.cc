@@ -223,8 +223,9 @@ void append_tensor_graph_phase(
                 "under a new tiling is not supported yet.");
         }
 
-        // Refresh marks on reused tiles: logical mark_output may have flipped
-        // since the tiles were first created (e.g. Python dropped a NodeRef).
+        // Always sync both marks from the logical. A sticky mark_input(true)
+        // on reused tiles made allocate_missing_tiles resurrect payloads after
+        // INVALIDATE, so VRAM grew every step even with per-iter wait().
         std::vector<TileGraph::TileNode*>& reused =
             state.tensor_to_tiles[t];
         for(TileGraph::TileNode* tile_node_ptr : reused)
@@ -233,10 +234,7 @@ void append_tensor_graph_phase(
             {
                 continue;
             }
-            if(t->is_input())
-            {
-                tile_node_ptr->mark_input(true);
-            }
+            tile_node_ptr->mark_input(t->is_input());
             tile_node_ptr->mark_output(t->is_output());
         }
         tile_map[t] = reused;

@@ -145,20 +145,14 @@ at::Tensor broadcastable_attn_bias_to_2d(
         "nntile sdpa: attn_bias trailing shape must be [q_seq, k_seq]");
 
     const at::Tensor canonical = canonical_leading_slice(bias);
-    const at::Tensor expanded = canonical.expand(bias.sizes());
-    if (bias.scalar_type() == at::ScalarType::Bool)
+    // Size-based broadcast check only. Never .cpu() here — that gathers
+    // through StarPU and syncs during graph recording.
+    for (int64_t d = 0; d < bias.dim() - 2; ++d)
     {
         TORCH_CHECK(
-            at::equal(bias.cpu(), expanded.cpu()),
-            "nntile sdpa: bool attn_bias must broadcast to [q_seq, k_seq]");
-    }
-    else
-    {
-        TORCH_CHECK(
-            at::allclose(
-                bias.to(at::kFloat).cpu(),
-                expanded.to(at::kFloat).cpu()),
-            "nntile sdpa: float attn_bias must broadcast to [q_seq, k_seq]");
+            bias.size(d) == 1,
+            "nntile sdpa: attn_bias leading dims must be size 1 to "
+            "broadcast to [q_seq, k_seq] without host materialization");
     }
     TORCH_CHECK(
         canonical.is_contiguous(),
@@ -174,6 +168,10 @@ at::Tensor float_attn_bias_to_bool(const at::Tensor &attn_bias)
 
 at::Tensor logsumexp_placeholder(const at::Tensor &query)
 {
+    // OpenReg / PyTorch SDPA API requires a logsumexp tensor in the forward
+    // return tuple. Nntile softmax uses maxsumexp internally; backward ignores
+    // this placeholder. Allocate on CPU (not nntile) so we do not create
+    // PrivateUse1 empties every attention call that could later bind or pin.
     std::vector<int64_t> shape;
     shape.reserve(static_cast<std::size_t>(query.dim() - 1));
     for (int64_t i = 0; i < query.dim() - 1; ++i)
@@ -182,7 +180,9 @@ at::Tensor logsumexp_placeholder(const at::Tensor &query)
     }
     return at::empty(
         shape,
-        query.options().dtype(at::ScalarType::Float));
+        at::TensorOptions()
+            .dtype(at::ScalarType::Float)
+            .device(at::kCPU));
 }
 
 std::optional<at::Tensor> convert_attn_bias_to_mask(
@@ -317,10 +317,13 @@ sdpa_overrideable_forward(
     const at::Tensor logsumexp = logsumexp_placeholder(query);
     // PyTorch SDPA API requires logsumexp; nntile softmax uses maxsumexp internally.
     // Backward ignores this tensor and uses maxsumexp buffers in sdpa_backward.
-    const at::Tensor philox_seed =
-        at::empty({}, query.options().dtype(at::ScalarType::Long));
-    const at::Tensor philox_offset =
-        at::empty({}, query.options().dtype(at::ScalarType::Long));
+    // Keep philox tensors on CPU — they are unused API placeholders only.
+    const at::Tensor philox_seed = at::empty(
+        {},
+        at::TensorOptions().dtype(at::ScalarType::Long).device(at::kCPU));
+    const at::Tensor philox_offset = at::empty(
+        {},
+        at::TensorOptions().dtype(at::ScalarType::Long).device(at::kCPU));
 
     at::Tensor debug_attn_mask;
     if (return_debug_mask)

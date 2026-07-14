@@ -137,7 +137,8 @@ void restore_where()
 
 void wait_for_all()
 {
-    // Finish async run() post-work (pin_hold / reclaim) then drain StarPU.
+    // Join StarPU for host-visible completion (pin_hold / reclaim already
+    // ran at the end of run()).
     wait_graph_session();
 }
 
