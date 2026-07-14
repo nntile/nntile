@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <nntile/tensor/graph_decl.hh>
+#include <nntile/tensor/graph_data_node.hh>
 
 namespace nntile
 {

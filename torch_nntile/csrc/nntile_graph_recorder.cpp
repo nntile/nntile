@@ -952,7 +952,7 @@ void flush_released_logicals_locked()
     }
     for (nntile::TensorGraph::TensorNode *t : take_released_logicals())
     {
-        if (t == nullptr || t->is_input() || t->is_output())
+        if (t == nullptr || nntile::tensor_ref_is_live(t))
         {
             continue;
         }
@@ -1371,6 +1371,9 @@ void gather_logical_to_staging_and_read_locked(
         throw std::runtime_error(
             "torch_nntile: gather readout failed to create staging tensor");
     }
+    // Keep a TensorRef so compile's unmarked-INVALIDATE pass does not free
+    // staging in the same phase as gather (before the host read below).
+    nntile::TensorRef staging_hold = nntile::TensorRef::adopt(staging);
     // Output S: single-tile only; lowered during compile after gather is recorded.
     nntile::tensor::clear(staging);
     nntile::tensor::gather(logical, staging);
@@ -1381,6 +1384,10 @@ void gather_logical_to_staging_and_read_locked(
     finish_run_locked();
 
     read_staging_to_host_locked(staging, host_ptr, dtype, count);
+    // Drop hold without recording graph INVALIDATE (manual reclaim below).
+    nntile::set_tensor_nodes_alive(false);
+    staging_hold = nntile::TensorRef{};
+    nntile::set_tensor_nodes_alive(true);
     release_io_staging_locked(staging);
     g_timing.host_readout_s += seconds_since(t0);
     ++g_timing.host_readout_calls;
@@ -1750,12 +1757,9 @@ void set_axis_group_name(
 bool is_tensor_graph_output(const at::Tensor &tensor)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    if (nntile::TensorGraph::TensorNode *node = nntile_node(tensor);
-        node != nullptr)
-    {
-        return node->is_output();
-    }
-    return false;
+    // Accessibility is TensorRef-based; a bound nntile tensor is already
+    // kept alive by its BackendMeta hold — no need to pin for axis compile.
+    return static_cast<bool>(tensor_ref(tensor));
 }
 
 void stage_tensor_for_axis_group_compile(const at::Tensor &tensor)
@@ -1769,14 +1773,10 @@ void stage_tensor_for_axis_group_compile(const at::Tensor &tensor)
 
 void mark_persistent_graph_tensor(const at::Tensor &tensor)
 {
+    // Keep the TensorImpl (and its TensorRef) alive across compile/run.
+    // Last-consumer reclaim skips live TensorRefs; params/optimizer state
+    // stay resident as long as the Python tensors hold their refs.
     pin_tensor_for_graph(tensor);
-    // Last-consumer reclaim skips mark_input only. Parameters / optimizer
-    // state must be inputs so their tiles are not invalidate_submit'd after
-    // the in-phase SGD consumer (momentum would be lost next step).
-    if (nntile::TensorGraph::TensorNode *node = nntile_node(tensor);
-        node != nullptr)
-    {
-    }
 }
 
 void set_axis_group_tiling(

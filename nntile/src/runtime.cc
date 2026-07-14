@@ -602,15 +602,17 @@ void Runtime::allocate_missing_tiles()
         }
     }
 
-    auto try_allocate = [&](const TileGraph::TileNode *tile_key)
+    auto try_allocate = [&](const TileGraph::TileNode *tile_key,
+        bool require_live_or_needed)
     {
         if (tile_key == nullptr)
         {
             return;
         }
-        // Do not reallocate temps without a live TensorRef unless a pending
-        // op still needs them.
-        if (!tile_logical_is_live(tile_key) &&
+        // Skip dead temps that no pending op needs. Newly lowered tiles
+        // (ingress staging lowered before any scatter is appended) pass
+        // require_live_or_needed=false so they still get buffers.
+        if (require_live_or_needed && !tile_logical_is_live(tile_key) &&
             needed_by_pending.count(tile_key) == 0)
         {
             return;
@@ -675,7 +677,7 @@ void Runtime::allocate_missing_tiles()
     // scatter op is appended to execution_order_.
     for (const auto *tile : needed_by_pending)
     {
-        try_allocate(tile);
+        try_allocate(tile, true);
     }
     for (const auto *tile : live_tile_nodes_)
     {
@@ -683,7 +685,7 @@ void Runtime::allocate_missing_tiles()
         {
             continue;
         }
-        try_allocate(tile);
+        try_allocate(tile, true);
     }
     const auto &all_tiles = graph_.tile_nodes();
     if (compiled_tile_node_count_ > all_tiles.size())
@@ -692,7 +694,7 @@ void Runtime::allocate_missing_tiles()
     }
     for (size_t i = compiled_tile_node_count_; i < all_tiles.size(); ++i)
     {
-        try_allocate(all_tiles[i].get());
+        try_allocate(all_tiles[i].get(), false);
     }
     compiled_tile_node_count_ = all_tiles.size();
 }

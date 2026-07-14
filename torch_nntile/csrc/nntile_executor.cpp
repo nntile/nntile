@@ -172,13 +172,9 @@ bool tensor_node_has_graph_producer(
     {
         return false;
     }
-    // Ingress / explicit inputs are populated without a fill op. Other nodes
-    // use TensorNode::has_producer() (set in TensorGraph::add_op) — O(1)
-    // instead of scanning graph history for SCATTER producers every gemm.
-    if (node->is_input())
-    {
-        return true;
-    }
+    // Ingress / explicit inputs are populated via SCATTER (sets has_producer).
+    // Other nodes use TensorNode::has_producer() (set in TensorGraph::add_op) —
+    // O(1) instead of scanning graph history for producers every gemm.
     return node->has_producer();
 }
 
