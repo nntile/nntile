@@ -145,7 +145,7 @@ foreach(test IN LISTS TESTS_TENSOR_CUDA)
         EXEC_NAME test_${test}
         SOURCES ops/${test}.cc
         LINK_LIBRARIES
-            nntile
+            nntile_tensorgraph
             Catch2::Catch2WithMain
             $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}

@@ -117,10 +117,16 @@ foreach(test IN LISTS TESTS_TILE_CATCH2)
 endforeach()
 
 foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
+    # mlp / gpt2_block_schedule need libnntile (NNGraph / models).
+    if(test STREQUAL "mlp" OR test STREQUAL "gpt2_block_schedule")
+        set(_tile_root_lib nntile)
+    else()
+        set(_tile_root_lib nntile_tensorgraph)
+    endif()
     add_test_set(TARGET_NAME tests_tile_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile_tensorgraph Catch2::Catch2WithMain
+        LINK_LIBRARIES ${_tile_root_lib} Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tile_${test}
         COV_GLOBAL coverage_tile coverage
@@ -137,7 +143,7 @@ if(NNTILE_USE_CUDA AND NNTILE_USE_FLASH_SDPA)
             EXEC_NAME test_${test}
             SOURCES ops/${test}.cc
             LINK_LIBRARIES
-                nntile
+                nntile_tensorgraph
                 Catch2::Catch2WithMain
                 $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
             COV_ENABLE ${BUILD_COVERAGE}
