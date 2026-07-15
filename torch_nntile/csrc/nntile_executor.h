@@ -277,6 +277,32 @@ void tensor_rms_norm_backward_fp32(
     bool grad_weight_needed,
     int64_t norm_axis);
 
+//! ``dst = rope(sin, cos, src)``.
+void tensor_rope_fp32(
+    const at::Tensor &sin,
+    const at::Tensor &cos,
+    const at::Tensor &src,
+    at::Tensor &dst);
+
+//! ``dx = rope_backward(sin, cos, dy)``.
+void tensor_rope_backward_fp32(
+    const at::Tensor &sin,
+    const at::Tensor &cos,
+    const at::Tensor &dy,
+    at::Tensor &dx);
+
+//! ``loss = scale * ||x||^2`` (scalar).
+void tensor_mse_loss_fp32(
+    const at::Tensor &x,
+    float scale,
+    at::Tensor &loss_out);
+
+//! ``grad_x = 2 * scale * x`` (overwrite).
+void tensor_mse_loss_backward_fp32(
+    const at::Tensor &x,
+    float scale,
+    at::Tensor &grad_x);
+
 void tensor_norm_fp32(
     const at::Tensor &x,
     at::Tensor &out);

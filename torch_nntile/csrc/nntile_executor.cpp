@@ -55,6 +55,8 @@
 #include <nntile/tensor/ops/relu_backward.hh>
 #include <nntile/tensor/ops/adam_step.hh>
 #include <nntile/tensor/ops/adamw_step.hh>
+#include <nntile/tensor/ops/rope.hh>
+#include <nntile/tensor/ops/rope_backward.hh>
 #include <nntile/tensor/ops/silu.hh>
 #include <nntile/tensor/ops/silu_backward.hh>
 #include <nntile/tensor/ops/silu_inplace.hh>
@@ -1947,6 +1949,153 @@ void tensor_rms_norm_backward_fp32(
 
 }
 
+void tensor_rope_fp32(
+    const at::Tensor &sin,
+    const at::Tensor &cos,
+    const at::Tensor &src,
+    at::Tensor &dst)
+{
+    TORCH_CHECK(
+        dst.sizes().equals(src.sizes()),
+        "nntile rope: dst shape must match src");
+    const std::vector<nntile::Index> sin_graph =
+        pytorch_shape_to_graph(sin.sizes());
+    const std::vector<nntile::Index> cos_graph =
+        pytorch_shape_to_graph(cos.sizes());
+    const std::vector<nntile::Index> src_graph =
+        pytorch_shape_to_graph(src.sizes());
+    const std::vector<nntile::Index> dst_graph =
+        pytorch_shape_to_graph(dst.sizes());
+
+    auto *sin_node = get_or_create_data_node(
+        sin,
+        sin_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(sin));
+    auto *cos_node = get_or_create_data_node(
+        cos,
+        cos_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(cos));
+    auto *src_node = get_or_create_data_node(
+        src,
+        src_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    auto *dst_node = get_or_create_data_node(
+        dst,
+        dst_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::rope(sin_node, cos_node, src_node, dst_node);
+    register_data_node(dst, dst_node);
+}
+
+void tensor_rope_backward_fp32(
+    const at::Tensor &sin,
+    const at::Tensor &cos,
+    const at::Tensor &dy,
+    at::Tensor &dx)
+{
+    TORCH_CHECK(
+        dx.sizes().equals(dy.sizes()),
+        "nntile rope_backward: dx shape must match dy");
+    const std::vector<nntile::Index> sin_graph =
+        pytorch_shape_to_graph(sin.sizes());
+    const std::vector<nntile::Index> cos_graph =
+        pytorch_shape_to_graph(cos.sizes());
+    const std::vector<nntile::Index> dy_graph =
+        pytorch_shape_to_graph(dy.sizes());
+    const std::vector<nntile::Index> dx_graph =
+        pytorch_shape_to_graph(dx.sizes());
+
+    auto *sin_node = get_or_create_data_node(
+        sin,
+        sin_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(sin));
+    auto *cos_node = get_or_create_data_node(
+        cos,
+        cos_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(cos));
+    auto *dy_node = get_or_create_data_node(
+        dy,
+        dy_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dy));
+    auto *dx_node = get_or_create_data_node(
+        dx,
+        dx_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::rope_backward(sin_node, cos_node, dy_node, dx_node);
+    register_data_node(dx, dx_node);
+}
+
+void tensor_mse_loss_fp32(
+    const at::Tensor &x,
+    float scale,
+    at::Tensor &loss_out)
+{
+    const std::vector<nntile::Index> x_graph =
+        pytorch_shape_to_graph(x.sizes());
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        x_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+
+    nntile::TensorGraph &graph = *x_node->graph();
+    auto *norm_node = make_graph_tensor(graph, {}, "mse_norm");
+    // beta=0: overwrite norm (STARPU_W), no separate clear().
+    nntile::tensor::norm(
+        x_node,
+        norm_node,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0));
+    // multiply requires distinct tensors for squaring.
+    auto *norm_copy = nntile::tensor::copy(norm_node);
+    auto *loss_node = nntile::tensor::multiply(
+        norm_node,
+        norm_copy,
+        static_cast<nntile::Scalar>(scale));
+    register_data_node(loss_out, loss_node);
+}
+
+void tensor_mse_loss_backward_fp32(
+    const at::Tensor &x,
+    float scale,
+    at::Tensor &grad_x)
+{
+    TORCH_CHECK(
+        grad_x.sizes().equals(x.sizes()),
+        "nntile mse_loss_backward: grad_x shape must match x");
+    const std::vector<nntile::Index> x_graph =
+        pytorch_shape_to_graph(x.sizes());
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        x_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+    auto *grad_x_node = get_or_create_data_node(
+        grad_x,
+        x_graph,
+        nntile::DataType::FP32,
+        false);
+
+    // grad_x = 2*scale*x (overwrite).
+    nntile::tensor::scale(
+        static_cast<nntile::Scalar>(2.0f * scale),
+        x_node,
+        grad_x_node);
+    register_data_node(grad_x, grad_x_node);
+}
+
 void tensor_adam_step_fp32(
     int64_t num_iter,
     float beta_1,
@@ -3234,6 +3383,40 @@ void tensor_rms_norm_backward_fp32(
     int64_t /*norm_axis*/)
 {
     require_libnntile("rms_norm_backward");
+}
+
+void tensor_rope_fp32(
+    const at::Tensor & /*sin*/,
+    const at::Tensor & /*cos*/,
+    const at::Tensor & /*src*/,
+    at::Tensor & /*dst*/)
+{
+    require_libnntile("rope");
+}
+
+void tensor_rope_backward_fp32(
+    const at::Tensor & /*sin*/,
+    const at::Tensor & /*cos*/,
+    const at::Tensor & /*dy*/,
+    at::Tensor & /*dx*/)
+{
+    require_libnntile("rope_backward");
+}
+
+void tensor_mse_loss_fp32(
+    const at::Tensor & /*x*/,
+    float /*scale*/,
+    at::Tensor & /*loss_out*/)
+{
+    require_libnntile("mse_loss");
+}
+
+void tensor_mse_loss_backward_fp32(
+    const at::Tensor & /*x*/,
+    float /*scale*/,
+    at::Tensor & /*grad_x*/)
+{
+    require_libnntile("mse_loss_backward");
 }
 
 void tensor_adam_step_fp32(

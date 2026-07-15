@@ -59,6 +59,8 @@ CSRC = [
     "csrc/nntile_adam_step.cpp",
     "csrc/nntile_layer_norm.cpp",
     "csrc/nntile_rms_norm.cpp",
+    "csrc/nntile_rope.cpp",
+    "csrc/nntile_mse_loss.cpp",
     "csrc/nntile_norm.cpp",
     "csrc/nntile_broadcast.cpp",
     "csrc/nntile_repeat.cpp",

@@ -72,6 +72,46 @@ class _NntileCrossEntropy(torch.autograd.Function):
         return grad_logits, None, None, None
 
 
+class _NntileMseLoss(torch.autograd.Function):
+    """``loss = scale * ||x||^2`` via ``_C.mse_loss_forward/backward``."""
+
+    @staticmethod
+    def forward(ctx, x: torch.Tensor, scale: float) -> torch.Tensor:
+        loss = _C.mse_loss_forward(x, float(scale))
+        ctx.save_for_backward(x)
+        ctx.scale = float(scale)
+        return loss
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        (x,) = ctx.saved_tensors
+        # grad_loss is implicitly 1.0 for loss outputs (ignore grad_output).
+        del grad_output
+        needs_grad = ctx.needs_input_grad[0]
+        grad_x = _C.mse_loss_backward(x, ctx.scale, needs_grad)
+        return grad_x if needs_grad else None, None
+
+
+def mse_loss(x: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
+    """Mean-square energy loss: ``scale * sum(x**2)`` (scalar).
+
+    Matches ``nntile::mse_loss``. ``scale=1.0`` is total sum of squares;
+    ``scale=1/numel`` gives the mean. On ``device='nntile'`` uses
+    ``_C.mse_loss_forward`` / ``_C.mse_loss_backward``. On other devices
+    uses an equivalent differentiable PyTorch expression.
+    """
+    if x.device.type != "nntile":
+        return float(scale) * (x * x).sum()
+    if not hasattr(_C, "mse_loss_forward"):
+        raise RuntimeError(
+            "mse_loss requires _C.mse_loss_forward/backward "
+            "(not yet bound in this build)"
+        )
+    if not torch.is_grad_enabled() or not x.requires_grad:
+        return _C.mse_loss_forward(x, float(scale))
+    return _NntileMseLoss.apply(x, float(scale))
+
+
 def cross_entropy(
     logits: torch.Tensor,
     target: torch.Tensor,

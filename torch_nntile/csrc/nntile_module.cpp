@@ -22,7 +22,9 @@
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
 #include "nntile_gemm.h"
+#include "nntile_mse_loss.h"
 #include "nntile_rms_norm.h"
+#include "nntile_rope.h"
 #include "nntile_sdpa.h"
 #include "nntile_transpose.h"
 #include "nntile_norm.h"
@@ -377,6 +379,34 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("rstd"),
         py::arg("weight") = py::none(),
         py::arg("output_mask"));
+    m.def(
+        "rope_forward",
+        &torch_nntile::rope_forward,
+        "NNTile RoPE forward",
+        py::arg("sin"),
+        py::arg("cos"),
+        py::arg("x"));
+    m.def(
+        "rope_backward",
+        &torch_nntile::rope_backward,
+        "NNTile RoPE backward (grad w.r.t. x)",
+        py::arg("sin"),
+        py::arg("cos"),
+        py::arg("grad_out"),
+        py::arg("output_mask"));
+    m.def(
+        "mse_loss_forward",
+        &torch_nntile::mse_loss_forward,
+        "NNTile MSE loss forward: scale * ||x||^2",
+        py::arg("x"),
+        py::arg("scale") = 1.0);
+    m.def(
+        "mse_loss_backward",
+        &torch_nntile::mse_loss_backward,
+        "NNTile MSE loss backward: grad_x = 2*scale*x",
+        py::arg("x"),
+        py::arg("scale"),
+        py::arg("needs_grad"));
     m.def(
         "sdpa_forward",
         &torch_nntile::sdpa_forward,
