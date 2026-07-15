@@ -157,8 +157,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         RobertaModel model(&g, "model", fx.config);
         model.load(full_path);
         auto *output = model.forward(input_ids, position_ids, nullptr);
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_position_input(position_ids);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

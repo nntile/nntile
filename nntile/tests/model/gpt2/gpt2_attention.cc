@@ -158,8 +158,6 @@ void gpt2_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
         attn.load(full_path);
 
         auto *output = attn.forward(input, mask);
-        input->mark_input(true);
-        output->mark_output(true);
         mark_mask_input(mask);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -212,15 +210,11 @@ void gpt2_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
 
         auto *output = attn.forward(input, mask);
 
-        input->mark_input(true);
-        output->mark_output(true);
         mark_mask_input(mask);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        input->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -243,8 +237,6 @@ void gpt2_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
     require_relative_frobenius_error(
         grad_input_result, grad_input_ref, fx.backward_tol);
 }
-
-
 
 } // namespace
 

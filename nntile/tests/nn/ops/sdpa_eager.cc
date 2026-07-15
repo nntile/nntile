@@ -170,21 +170,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     if (mask)
         nn_pytorch_tile_mask_nn(mask);
 
-    q->mark_input(true);
-    k->mark_input(true);
-    v->mark_input(true);
     if (mask)
-        mask->mark_input(true);
-    output->mark_output(true);
 
     // Build backward graph
     auto [out_grad, is_first] = g.get_or_create_grad(output, "out_grad");
     fill(grad_fill_val, out_grad);
     output->backward();
-
-    q->grad()->mark_output(true);
-    k->grad()->mark_output(true);
-    v->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);

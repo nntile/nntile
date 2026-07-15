@@ -131,8 +131,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         RobertaEmbeddings emb(&g, "embeddings", fx.config);
         emb.load(full_path);
         auto *output = emb.forward(input_ids, position_ids);
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_position_input(position_ids);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

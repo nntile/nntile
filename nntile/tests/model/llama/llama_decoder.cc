@@ -182,8 +182,6 @@ void decoder_forward_compare_ref(const DecoderFixtureSpec &fx)
             load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope));
         LlamaDecoder decoder(&g, "decoder", config);
         auto *output = decoder.forward(input, rope.sin, rope.cos, nullptr);
-        input->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
 
         decoder.load(full_path);
@@ -244,15 +242,11 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec &fx)
         LlamaDecoder decoder(&g, "decoder", config);
         auto *output = decoder.forward(input, rope.sin, rope.cos, nullptr);
 
-        input->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        input->grad()->mark_output(true);
 
         decoder.load(full_path);
 

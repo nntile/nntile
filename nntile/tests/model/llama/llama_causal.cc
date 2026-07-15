@@ -187,8 +187,6 @@ void causal_forward_compare_ref(const CausalFixtureSpec &fx)
 
         LlamaCausal model(&g, "model", config);
         auto *output = model.forward(input_ids, rope.sin, rope.cos, mask);
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
         mark_mask_input(mask);
 

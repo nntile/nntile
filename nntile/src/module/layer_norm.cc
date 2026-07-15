@@ -85,7 +85,6 @@ void LayerNorm::import_hf(const io::SafeTensorsReader& reader,
     }
     auto gamma_data = reader.read_tensor(gamma_key);
     gamma_tensor_->data()->set_bind_hint(std::move(gamma_data));
-    gamma_tensor_->mark_input(true);
 
     if(!reader.has_tensor(beta_key))
     {
@@ -101,7 +100,6 @@ void LayerNorm::import_hf(const io::SafeTensorsReader& reader,
     }
     auto beta_data = reader.read_tensor(beta_key);
     beta_tensor_->data()->set_bind_hint(std::move(beta_data));
-    beta_tensor_->mark_input(true);
 }
 
 void LayerNorm::export_hf(io::SafeTensorsWriter& writer,

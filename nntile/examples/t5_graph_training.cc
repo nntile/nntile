@@ -447,13 +447,9 @@ int main(int argc, char **argv)
     auto *decoder_attn_mask =
         graph.tensor({n_dec, n_dec}, DataType::BOOL, false)
             ->set_name("decoder_attn_mask");
-    encoder_input_ids->mark_input(true);
-    decoder_input_ids->mark_input(true);
-    decoder_attn_mask->mark_input(true);
 
     auto *labels = graph.tensor({n_batch, n_dec}, DataType::INT64, false)
                        ->set_name("labels");
-    labels->mark_input(true);
 
     if (!args.load_weights.empty())
     {
@@ -556,7 +552,6 @@ int main(int argc, char **argv)
             auto *loss = cross_entropy(
                 logits, labels, 0, ce_scale, CE_IGNORE_INDEX)
                              ->set_name(loss_name);
-            loss->mark_output(true);
 
             std::string const loss_grad_name = loss_name + "_grad";
             auto [loss_grad, loss_grad_first] =

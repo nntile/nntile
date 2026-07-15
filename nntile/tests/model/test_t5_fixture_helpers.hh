@@ -162,10 +162,6 @@ inline bool load_attn_mask_bool(nntile::NNGraph &g,
 
 inline void mark_mask_input(nntile::NNGraph::TensorNode *mask)
 {
-    if (mask != nullptr)
-    {
-        mask->mark_input(true);
-    }
 }
 
 inline void bind_mask_input(nntile::Runtime &runtime,

@@ -154,7 +154,6 @@ static std::vector<std::int64_t> parse_ids(const std::string& s)
     return ids;
 }
 
-
 using nntile::examples::load_gpt2_config_json;
 
 // ── Weight cache ─────────────────────────────────────────────────────────
@@ -183,7 +182,6 @@ static void apply_weight_cache(
         {
             auto copy = it->second;
             tensor->data()->set_bind_hint(std::move(copy));
-            tensor->mark_input(true);
         }
     }
 }
@@ -339,7 +337,6 @@ int main(int argc, char** argv)
         auto *input_ids =
             graph.tensor({1, seq_len}, DataType::INT64, false)
                 ->set_name("input_ids");
-        input_ids->mark_input(true);
 
         std::vector<std::int64_t> pos_ids(
             static_cast<std::size_t>(seq_len));
@@ -351,17 +348,14 @@ int main(int argc, char** argv)
         auto *position_ids =
             graph.tensor({1, seq_len}, DataType::INT64, false)
                 ->set_name("position_ids");
-        position_ids->mark_input(true);
 
         auto *attn_mask =
             graph.tensor({seq_len, seq_len}, DataType::BOOL, false)
                 ->set_name("attn_mask");
-        attn_mask->mark_input(true);
 
         Gpt2Causal model(&graph, "model", config);
         auto *output =
             model.forward(input_ids, position_ids, attn_mask);
-        output->mark_output(true);
 
         apply_weight_cache(model, weights);
 

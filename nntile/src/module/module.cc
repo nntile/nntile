@@ -449,13 +449,7 @@ void Module::load(const std::string& path, bool strict)
 
 void Module::mark_parameters_input_recursive()
 {
-    for(NNGraph::TensorNode* param : parameters_recursive())
-    {
-        if(param != nullptr)
-        {
-            param->mark_input(true);
-        }
-    }
+    // TensorRef on each NNGraph::TensorNode keeps parameters live for I/O.
 }
 
 void Module::bind_parameters(Runtime &rt) const

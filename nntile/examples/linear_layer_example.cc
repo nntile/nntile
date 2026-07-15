@@ -47,11 +47,9 @@ int main(int argc, char **argv)
     auto *input_tensor =
         graph.tensor({4, 8}, nntile::DataType::FP32, true)
             ->set_name("external_input");
-    input_tensor->mark_input(true); // bind_data() requires input marking
 
     // Build forward operation and get output tensor
     auto *output_tensor = linear.forward(input_tensor);
-    output_tensor->mark_output(true); // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
     auto [grad_output_tensor, _] =
@@ -68,17 +66,10 @@ int main(int argc, char **argv)
     {
         val = dist2(gen);
     }
-    linear.bind_weight(weight_data); // mark_input(true) done by bind_weight
+    linear.bind_weight(weight_data);
 
     // Build backward via autograd (output.backward())
     output_tensor->backward();
-
-    // Mark gradient tensors for get_output (created during backward)
-    linear.weight_tensor()->grad()->mark_output(true);
-    if (input_tensor->has_grad())
-    {
-        input_tensor->grad()->mark_output(true);
-    }
 
     // Print graph structure for debugging
     std::cout << "Graph structure:" << std::endl;

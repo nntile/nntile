@@ -224,29 +224,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         &g, "gated_mlp", gate_proj, up_proj, down_proj, activation);
     auto *output = gated_mlp.forward(input);
 
-    input->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
     output->backward();
-
-    gated_mlp.gate_proj().weight_tensor()->grad()->mark_output(true);
-    gated_mlp.up_proj().weight_tensor()->grad()->mark_output(true);
-    gated_mlp.down_proj().weight_tensor()->grad()->mark_output(true);
-    if (gated_mlp.gate_proj().bias_tensor())
-    {
-        gated_mlp.gate_proj().bias_tensor()->grad()->mark_output(true);
-    }
-    if (gated_mlp.up_proj().bias_tensor())
-    {
-        gated_mlp.up_proj().bias_tensor()->grad()->mark_output(true);
-    }
-    if (gated_mlp.down_proj().bias_tensor())
-    {
-        gated_mlp.down_proj().bias_tensor()->grad()->mark_output(true);
-    }
-    input->grad()->mark_output(true);
 
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
@@ -337,32 +317,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         &g, "gated_mlp", gate_proj, up_proj, down_proj, ActivationType::SILU);
     auto *output = gated_mlp.forward(input);
 
-    input->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(1.0f), grad_output_tensor->data());
     output->backward();
-
-    gated_mlp.gate_proj().weight_tensor()->grad()->mark_output(true);
-    gated_mlp.up_proj().weight_tensor()->grad()->mark_output(true);
-    gated_mlp.down_proj().weight_tensor()->grad()->mark_output(true);
-    if (gated_mlp.gate_proj().bias_tensor())
-    {
-        gated_mlp.gate_proj().bias_tensor()->grad()->mark_output(true);
-    }
-    if (gated_mlp.up_proj().bias_tensor())
-    {
-        gated_mlp.up_proj().bias_tensor()->grad()->mark_output(true);
-    }
-    if (gated_mlp.down_proj().bias_tensor())
-    {
-        gated_mlp.down_proj().bias_tensor()->grad()->mark_output(true);
-    }
-    if (input->has_grad())
-    {
-        input->grad()->mark_output(true);
-    }
 
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());

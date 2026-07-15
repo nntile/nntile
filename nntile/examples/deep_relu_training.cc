@@ -207,12 +207,10 @@ int main(int argc, char **argv)
 
     auto *input = graph.tensor({batch_size, input_dim}, DataType::FP32, false)
                       ->set_name("input");
-    input->mark_input(true);
 
     auto *target =
         graph.tensor({batch_size, output_dim}, DataType::FP32, false)
             ->set_name("target");
-    target->mark_input(true);
 
     auto *output = model.forward(input);
 
@@ -220,7 +218,6 @@ int main(int argc, char **argv)
 
     Scalar loss_scale = 1.0 / static_cast<Scalar>(batch_size * output_dim);
     auto *loss = mse_loss(residual, loss_scale)->set_name("loss");
-    loss->mark_output(true);
 
     auto [loss_grad, loss_grad_first] =
         graph.get_or_create_grad(loss, "loss_grad");

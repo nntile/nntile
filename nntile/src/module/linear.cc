@@ -236,7 +236,6 @@ void Linear::bind_weight(std::vector<std::uint8_t> data)
                                  "(external weight mode)");
     }
     weight_tensor_->data()->set_bind_hint(std::move(data));
-    weight_tensor_->mark_input(true);
 }
 
 void Linear::bind_weight(const std::vector<float> &data)
@@ -262,7 +261,6 @@ void Linear::bind_bias(std::vector<std::uint8_t> data)
             "Linear::bind_bias: bias tensor is null (no bias)");
     }
     bias_tensor_->data()->set_bind_hint(std::move(data));
-    bias_tensor_->mark_input(true);
 }
 
 void Linear::bind_bias(const std::vector<float> &data)

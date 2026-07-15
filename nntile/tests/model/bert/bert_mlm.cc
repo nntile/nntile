@@ -164,15 +164,11 @@ void mlm_backward_compare_ref(const MlmFixtureSpec &fx)
         auto *output = model.forward(
             input_ids, token_type_ids, position_ids, nullptr);
 
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_ids_inputs(position_ids, token_type_ids);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        model.model()->word_vocab_tensor()->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -280,8 +276,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         auto *output = model.forward(
             input_ids, token_type_ids, position_ids, nullptr);
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_ids_inputs(position_ids, token_type_ids);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

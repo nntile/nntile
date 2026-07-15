@@ -136,9 +136,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     else
         nn_pytorch_tile_heterogeneous_1d_len6(src);
 
-    src->mark_input(true);
-    out->mark_output(true);
-
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
     runtime.compile();
@@ -200,13 +197,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     else
         nn_pytorch_tile_heterogeneous_1d_len6(src);
 
-    src->mark_input(true);
-
     auto [out_grad, _] = g.get_or_create_grad(out, "out_grad");
     gt::fill(grad_fill_val, out_grad->data());
     out->backward();
-
-    src->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);

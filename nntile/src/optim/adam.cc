@@ -51,17 +51,10 @@ void Adam::step_lr(std::optional<Scalar> lr_override)
         auto *first_moment =
             graph_->tensor(ps.param->shape(), ps.param->dtype(), false)
                 ->set_name(m1_name);
-        first_moment->mark_input(true);
-        first_moment->mark_output(true);
 
         auto *second_moment =
             graph_->tensor(ps.param->shape(), ps.param->dtype(), false)
                 ->set_name(m2_name);
-        second_moment->mark_input(true);
-        second_moment->mark_output(true);
-
-        ps.param->mark_input(true);
-        ps.param->mark_output(true);
 
         adam_step(ps.param,
             ps.grad,

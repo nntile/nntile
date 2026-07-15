@@ -118,8 +118,6 @@ void gptneox_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
         GptneoxAttention attn(&g, "attn", fx.config);
         attn.load(full_path);
         auto* output = run_attention_forward(attn, input, ctx);
-        input->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(ctx.rope);
         mark_mask_input(ctx.mask);
 
@@ -169,16 +167,12 @@ void gptneox_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
         attn.load(full_path);
         auto* output = run_attention_forward(attn, input, ctx);
 
-        input->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(ctx.rope);
         mark_mask_input(ctx.mask);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        input->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);

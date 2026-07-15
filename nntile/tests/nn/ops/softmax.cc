@@ -130,9 +130,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         nn_pytorch_tile_softmax_axis1_6x7(x);
     }
 
-    x->mark_input(true);
-    y->mark_output(true);
-
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
     runtime.compile();
@@ -182,13 +179,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         nn_pytorch_tile_softmax_axis1_6x7(x);
     }
 
-    x->mark_input(true);
-
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
     fill(grad_fill_val, y_grad);
     y->backward();
-
-    x->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);

@@ -177,8 +177,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         T5LayerFF ff(&g, "ff", fx.config);
         ff.load(full_path);
         auto *output = ff.forward(input);
-        input->mark_input(true);
-        output->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -232,14 +230,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         ff.load(full_path);
         auto *output = ff.forward(input);
 
-        input->mark_input(true);
-        output->mark_output(true);
-
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        input->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);

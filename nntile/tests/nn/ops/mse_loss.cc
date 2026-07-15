@@ -116,15 +116,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
-    x->mark_input(true);
-    loss->mark_output(true);
-
     // grad_loss implicitly 1.0 for loss outputs
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
     gt::fill(1.0, loss_grad->data());
     loss->backward();
-
-    x->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);

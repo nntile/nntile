@@ -75,7 +75,7 @@ NNGraph::TensorNode *NNEmbeddingOp::forward()
         index->shape(), embed_dim, axis);
 
     TensorGraph *tensor_graph = vocab->data()->graph();
-    TensorGraph::TensorNode *embed_data = tensor_graph->data(
+    TensorGraph::TensorNode *embed_data = tensor_graph->emplace_data(
         out_shape, vocab->data()->dtype());
     tensor::embedding(
         index->data(), vocab->data(), embed_data, axis);
