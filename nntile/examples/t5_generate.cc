@@ -164,7 +164,6 @@ static void apply_weight_cache(
         {
             auto copy = it->second;
             tensor->data()->set_bind_hint(std::move(copy));
-            tensor->mark_input(true);
         }
     }
 }
@@ -326,22 +325,18 @@ int main(int argc, char** argv)
         auto *encoder_ids =
             graph.tensor({1, enc_seq}, DataType::INT64, false)
                 ->set_name("encoder_input_ids");
-        encoder_ids->mark_input(true);
 
         auto *decoder_ids =
             graph.tensor({1, dec_seq}, DataType::INT64, false)
                 ->set_name("decoder_input_ids");
-        decoder_ids->mark_input(true);
 
         auto *decoder_attn_mask =
             graph.tensor({dec_seq, dec_seq}, DataType::BOOL, false)
                 ->set_name("decoder_attn_mask");
-        decoder_attn_mask->mark_input(true);
 
         T5ForConditionalGeneration model(&graph, "model", config);
         auto *output = model.forward(
             encoder_ids, decoder_ids, nullptr, decoder_attn_mask, nullptr);
-        output->mark_output(true);
 
         apply_weight_cache(model, weights);
 

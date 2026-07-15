@@ -52,31 +52,17 @@ int main(int argc, char **argv)
     auto *input_tensor =
         graph.tensor({4, 8}, nntile::DataType::FP32, true)
             ->set_name("external_input");
-    input_tensor->mark_input(true); // bind_data() requires input marking
 
     // Build forward operation and get output tensor
     auto *output_tensor = mlp.forward(input_tensor);
-    output_tensor->mark_output(true); // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
     auto [grad_output_tensor, _] =
         graph.get_or_create_grad(output_tensor, "external_grad_output");
     gt::fill(nntile::Scalar(1.0f), grad_output_tensor->data());
 
-    // Mark parameter tensors for bind_data (weights)
-    mlp.fc1().weight_tensor()->mark_input(true);
-    mlp.fc2().weight_tensor()->mark_input(true);
-
     // Build backward via autograd (output.backward())
     output_tensor->backward();
-
-    // Mark gradient tensors for get_output (created during backward)
-    mlp.fc1().weight_tensor()->grad()->mark_output(true);
-    mlp.fc2().weight_tensor()->grad()->mark_output(true);
-    if (input_tensor->has_grad())
-    {
-        input_tensor->grad()->mark_output(true);
-    }
 
     // Print graph structure for debugging
     std::cout << "Graph structure:" << std::endl;

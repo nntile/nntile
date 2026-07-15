@@ -228,9 +228,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             nullptr,
             decoder_mask,
             cross_mask);
-        encoder_input_ids->mark_input(true);
-        decoder_input_ids->mark_input(true);
-        output->mark_output(true);
         mark_mask_input(decoder_mask);
         mark_mask_input(cross_mask);
 

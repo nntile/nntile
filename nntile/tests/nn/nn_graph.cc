@@ -167,7 +167,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(
-    nntile::test::ContextFixture, "NNGraph MarkInputOutput", "[graph]")
+    nntile::test::ContextFixture, "NNGraph TensorRef Liveness", "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
     const bool trans_a = GENERATE(false);
@@ -181,13 +181,10 @@ TEST_CASE_METHOD(
     auto *w = g.tensor({3, 2}, DataType::FP32)->set_name("w");
     auto *y = gemm(x, w, gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
-    x->mark_input(true);
-    y->mark_output(true);
-
-    REQUIRE(x->is_input());
-    REQUIRE(y->is_output());
-    REQUIRE(x->data()->is_input());
-    REQUIRE(y->data()->is_output());
+    // NNGraph::TensorNode holds TensorRef for bind_data / get_output.
+    REQUIRE(tensor_ref_is_live(x->data()));
+    REQUIRE(tensor_ref_is_live(w->data()));
+    REQUIRE(tensor_ref_is_live(y->data()));
 }
 
 TEST_CASE_METHOD(

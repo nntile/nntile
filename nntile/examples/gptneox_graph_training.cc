@@ -100,8 +100,6 @@ struct Args
     int warmup_steps = 0;
 };
 
-
-
 using nntile::examples::load_gptneox_config_json;
 using nntile::examples::save_gptneox_config_json;
 
@@ -440,14 +438,9 @@ int main(int argc, char **argv)
             ->set_name("rope_cos");
     auto *attn_mask = graph.tensor({n_seq, n_seq}, DataType::BOOL, false)
                           ->set_name("attn_mask");
-    input_ids->mark_input(true);
-    rope_sin->mark_input(true);
-    rope_cos->mark_input(true);
-    attn_mask->mark_input(true);
 
     auto *labels = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                        ->set_name("labels");
-    labels->mark_input(true);
 
     if (!args.load_weights.empty())
     {
@@ -554,7 +547,6 @@ int main(int argc, char **argv)
                 std::string("loss_s") + std::to_string(train_step);
             auto *loss = cross_entropy(logits, labels, 0, ce_scale, -100)
                              ->set_name(loss_name);
-            loss->mark_output(true);
 
             std::string const loss_grad_name = loss_name + "_grad";
             auto [loss_grad, loss_grad_first] =

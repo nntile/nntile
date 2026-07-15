@@ -94,11 +94,6 @@ int main(int argc, char **argv)
     std::cout << "\n=== TensorGraph structure ===" << std::endl;
     std::cout << g.tensor_graph().to_string() << std::endl;
 
-    // --- Mark inputs and outputs on TensorGraph for execution ---
-    x->data()->mark_input(true);
-    y->data()->mark_input(true);
-    z->data()->mark_output(true);
-
     // --- Convert TensorGraph to TileGraph ---
     std::cout << "=== Converting TensorGraph -> TileGraph ===" << std::endl;
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());

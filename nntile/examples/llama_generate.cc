@@ -179,7 +179,6 @@ static std::vector<std::int64_t> parse_ids(const std::string &s)
 
 // ── Config loader ────────────────────────────────────────────────────────
 
-
 static LlamaConfig load_config(const std::string &path)
 {
     std::ifstream f(path);
@@ -234,7 +233,6 @@ static void apply_weight_cache(
         {
             auto copy = it->second;
             tensor->data()->set_bind_hint(std::move(copy));
-            tensor->mark_input(true);
         }
     }
 }
@@ -407,14 +405,12 @@ int main(int argc, char **argv)
         auto *input_ids =
             graph.tensor({BATCH_SIZE, seq_len}, DataType::INT64, false)
                 ->set_name("input_ids");
-        input_ids->mark_input(true);
 
         kv_cache.create_tensors(&graph, "kv_cache");
 
         LlamaCausal model(&graph, "model", config);
         auto *output =
             model.forward(input_ids, nullptr, nullptr, nullptr, &kv_cache);
-        output->mark_output(true);
 
         apply_weight_cache(model, weights);
 

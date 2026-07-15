@@ -471,10 +471,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_gemm_operands_6_7_6(w, x);
 
-    x->mark_input(true);
-    w->mark_input(true);
-    c->mark_output(true);
-
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
     runtime.compile();
@@ -536,15 +532,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_gemm_operands_6_7_6(w, x);
 
-    x->mark_input(true);
-    w->mark_input(true);
-
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
     gt::fill(grad_fill_val, c_grad->data());
     c->backward();
-
-    x->grad()->mark_output(true);
-    w->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
@@ -622,10 +612,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_gemm_4d_operands(w, x, M1, M2, K1, K2, N1, N2);
 
-    x->mark_input(true);
-    w->mark_input(true);
-    c->mark_output(true);
-
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
     runtime.compile();
@@ -684,10 +670,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         batch_ndim_one);
 
     nn_pytorch_tile_gemm_batched_operands(w, x, M, K, N, B);
-
-    x->mark_input(true);
-    w->mark_input(true);
-    c->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
@@ -758,15 +740,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_gemm_4d_operands(w, x, M1, M2, K1, K2, N1, N2);
 
-    x->mark_input(true);
-    w->mark_input(true);
-
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
     gt::fill(grad_fill_val, c_grad->data());
     c->backward();
-
-    x->grad()->mark_output(true);
-    w->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
@@ -840,15 +816,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_gemm_batched_operands(w, x, M, K, N, B);
 
-    x->mark_input(true);
-    w->mark_input(true);
-
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
     gt::fill(grad_fill_val, c_grad->data());
     c->backward();
-
-    x->grad()->mark_output(true);
-    w->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);

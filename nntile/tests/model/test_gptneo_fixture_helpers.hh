@@ -23,7 +23,6 @@
 
 #include <nntile/model/gptneo/gptneo_config.hh>
 
-
 namespace nntile::test::gptneo_fixture
 {
 
@@ -69,10 +68,6 @@ inline bool load_position_ids(nntile::NNGraph &g,
 inline void mark_position_ids_input(
     nntile::NNGraph::TensorNode *position_ids)
 {
-    if (position_ids != nullptr)
-    {
-        position_ids->mark_input(true);
-    }
 }
 
 inline void bind_position_ids(nntile::Runtime &runtime,
@@ -141,10 +136,6 @@ inline bool load_attn_mask_bool(nntile::NNGraph &g,
 
 inline void mark_mask_input(nntile::NNGraph::TensorNode *mask)
 {
-    if (mask != nullptr)
-    {
-        mask->mark_input(true);
-    }
 }
 
 inline void bind_mask_input(nntile::Runtime &runtime,

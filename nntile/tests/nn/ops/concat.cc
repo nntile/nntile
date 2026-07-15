@@ -150,10 +150,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     NNGraph g("nn_concat_ref");
     auto *a = g.tensor(a_shape, DataType::FP32)->set_name("a");
     auto *b = g.tensor(b_shape, DataType::FP32)->set_name("b");
-    a->mark_input(true);
-    b->mark_input(true);
     auto *out = concat(a, b, axis);
-    out->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
@@ -213,10 +210,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         NNGraph g("nn_concat_untiled");
         auto *a = g.tensor(a_shape, DataType::FP32)->set_name("a");
         auto *b = g.tensor(b_shape, DataType::FP32)->set_name("b");
-        a->mark_input(true);
-        b->mark_input(true);
         auto *out = concat(a, b, axis);
-        out->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -233,10 +227,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         NNGraph g("nn_concat_tiled");
         auto *a = g.tensor(a_shape, DataType::FP32)->set_name("a");
         auto *b = g.tensor(b_shape, DataType::FP32)->set_name("b");
-        a->mark_input(true);
-        b->mark_input(true);
         auto *out = concat(a, b, axis);
-        out->mark_output(true);
 
         for (auto *ag : g.tensor_graph().axis_groups())
         {

@@ -170,10 +170,8 @@ int main(int argc, char **argv)
 
     auto *input = graph.tensor({batch_size, input_dim}, DataType::FP32, false)
                       ->set_name("input");
-    input->mark_input(true);
 
     auto *output = model.forward(input);
-    output->mark_output(true);
 
     std::cout << "Model structure:\n" << model.to_string() << "\n";
 

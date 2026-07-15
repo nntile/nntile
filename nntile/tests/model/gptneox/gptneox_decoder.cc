@@ -181,8 +181,6 @@ void decoder_forward_compare_ref(const DecoderFixtureSpec &fx)
         decoder.load(full_path);
 
         auto *output = decoder.forward(input, rope.sin, rope.cos, mask);
-        input->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
         mark_mask_input(mask);
 
@@ -247,16 +245,12 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec &fx)
         decoder.load(full_path);
         auto *output = decoder.forward(input, rope.sin, rope.cos, mask);
 
-        input->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
         mark_mask_input(mask);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        input->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -296,8 +290,6 @@ void decoder_run_and_compare_ref(
         SKIP(std::string("Fixture missing intermediate tensor ") + ref_tensor);
     }
 
-    input->mark_input(true);
-    out->mark_output(true);
     if(rope != nullptr)
     {
         mark_rope_inputs(*rope);
@@ -469,7 +461,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
     decoder_forward_compare_ref(fx);
 }
-
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "GptneoxDecoder backward matches PyTorch reference",

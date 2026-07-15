@@ -186,8 +186,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Linear linear(&g, "linear", 3, 4, false);
 
     auto *output = linear.forward(input);
-    input->mark_input(true);
-    output->mark_output(true);
 
     // Bind weight before compile; data in [out, in] contiguous layout
     std::vector<float> weight_data(4 * 3);
@@ -230,8 +228,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Linear linear(&g, "linear", 3, 4, true);
 
     auto *output = linear.forward(input);
-    input->mark_input(true);
-    output->mark_output(true);
 
     std::vector<float> weight_data(4 * 3, 0.0f);
     weight_data[0] = 1.0f; // weight[0,0] = 1
@@ -285,9 +281,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         g.tensor({batch, in_dim}, DataType::FP32, true)->set_name("input");
     Linear linear(&g, "linear", linear_pt); // constructor binds automatically
     auto *output = linear.forward(input);
-
-    input->mark_input(true);
-    output->mark_output(true);
 
     std::vector<float> input_data(batch * in_dim);
     for (Index i = 0; i < batch * in_dim; ++i)
@@ -343,15 +336,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Linear linear(&g, "linear", linear_pt);
     auto *output = linear.forward(input);
 
-    input->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
     output->backward();
-
-    linear.weight_tensor()->grad()->mark_output(true);
-    input->grad()->mark_output(true);
 
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
@@ -409,16 +396,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Linear linear(&g, "linear", linear_pt);
     auto *output = linear.forward(input);
 
-    input->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
     output->backward();
-
-    linear.weight_tensor()->grad()->mark_output(true);
-    linear.bias_tensor()->grad()->mark_output(true);
-    input->grad()->mark_output(true);
 
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
@@ -473,23 +453,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Linear linear(&g, "linear", linear_pt);
     auto *output = linear.forward(input);
 
-    input->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(1.0f), grad_output_tensor->data());
 
     output->backward();
-
-    linear.weight_tensor()->grad()->mark_output(true);
-    if (linear.bias_tensor())
-    {
-        linear.bias_tensor()->grad()->mark_output(true);
-    }
-    if (input->has_grad())
-    {
-        input->grad()->mark_output(true);
-    }
 
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());

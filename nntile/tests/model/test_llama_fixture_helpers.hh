@@ -80,8 +80,6 @@ inline void mark_rope_inputs(const LlamaRopeInputs &rope)
     {
         return;
     }
-    rope.sin->mark_input(true);
-    rope.cos->mark_input(true);
 }
 
 inline void bind_rope_inputs(
@@ -151,10 +149,6 @@ inline bool load_attn_mask_bool(nntile::NNGraph &g,
 
 inline void mark_mask_input(nntile::NNGraph::TensorNode *mask)
 {
-    if (mask != nullptr)
-    {
-        mask->mark_input(true);
-    }
 }
 
 inline void bind_mask_input(nntile::Runtime &runtime,

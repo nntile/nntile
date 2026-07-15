@@ -230,11 +230,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = g.tensor(src_shape, DataType::FP32, true)->set_name("x");
     auto *y = rope(sin, cos, x)->set_name("y");
 
-    sin->mark_input(true);
-    cos->mark_input(true);
-    x->mark_input(true);
-    y->mark_output(true);
-
     set_rope_heterogeneous_tiling(sin, cos, x);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -295,15 +290,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = g.tensor(src_shape, DataType::FP32, true)->set_name("x");
     auto *y = rope(sin, cos, x)->set_name("y");
 
-    sin->mark_input(true);
-    cos->mark_input(true);
-    x->mark_input(true);
-
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
     fill(grad_fill_val, y_grad);
     y->backward();
-
-    x->grad()->mark_output(true);
 
     set_rope_heterogeneous_tiling(sin, cos, x);
 

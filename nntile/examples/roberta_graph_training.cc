@@ -96,7 +96,6 @@ static float run_forward_loss(
     auto *logits = model.forward(input_ids, position_ids, nullptr);
     auto *loss = cross_entropy(logits, labels, 0, ce_scale, -100)
                      ->set_name("eval_loss");
-    loss->mark_output(true);
 
     graph.finish_phase();
     graph.lower_and_compile();
@@ -141,9 +140,6 @@ int main(int argc, char **argv)
             ->set_name("position_ids");
     auto *labels = graph.tensor({n_batch, n_seq}, DataType::INT64, false)
                        ->set_name("labels");
-    input_ids->mark_input(true);
-    position_ids->mark_input(true);
-    labels->mark_input(true);
 
     std::mt19937 gen(42);
     init_random_roberta_parameter_hints(model, gen);
@@ -191,7 +187,6 @@ int main(int argc, char **argv)
         auto *logits = model.forward(input_ids, position_ids, nullptr);
         auto *loss = cross_entropy(logits, labels, 0, ce_scale, -100)
                          ->set_name("loss");
-        loss->mark_output(true);
 
         auto [loss_grad, loss_grad_first] =
             graph.get_or_create_grad(loss, "loss_grad");
@@ -278,9 +273,6 @@ int main(int argc, char **argv)
     auto *labels2 =
         graph_loaded.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("labels");
-    input_ids2->mark_input(true);
-    position_ids2->mark_input(true);
-    labels2->mark_input(true);
 
     float const loaded_loss = run_forward_loss(
         model_loaded,

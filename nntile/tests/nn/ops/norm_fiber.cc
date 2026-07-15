@@ -75,9 +75,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     else
         y->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
 
-    x->mark_input(true);
-    y->mark_output(true);
-
     std::vector<float> x_data(6 * 7);
     for (Index i = 0; i < 6 * 7; ++i)
         x_data[i] = static_cast<float>(i + 1);

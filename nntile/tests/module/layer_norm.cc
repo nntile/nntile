@@ -137,11 +137,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     LayerNorm ln(&g, "ln", normalized, axis, 1e-5f);
     auto *output = ln.forward(input);
 
-    input->mark_input(true);
-    ln.gamma_tensor()->mark_input(true);
-    ln.beta_tensor()->mark_input(true);
-    output->mark_output(true);
-
     module_tile_all_untiled_axis_groups_heterogeneous(g.tensor_graph());
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -210,17 +205,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     LayerNorm ln(&g, "ln", normalized, axis, 1e-5f);
     auto *output = ln.forward(input);
 
-    input->mark_input(true);
-    ln.gamma_tensor()->mark_input(true);
-    ln.beta_tensor()->mark_input(true);
-
     auto [output_grad, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(grad_fill_val, output_grad->data());
     output->backward();
-
-    ln.gamma_tensor()->grad()->mark_output(true);
-    ln.beta_tensor()->grad()->mark_output(true);
-    input->grad()->mark_output(true);
 
     module_tile_all_untiled_axis_groups_heterogeneous(g.tensor_graph());
 

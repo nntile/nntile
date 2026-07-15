@@ -183,16 +183,12 @@ void causal_backward_compare_ref(const CausalFixtureSpec &fx)
         causal.load(full_path);
         auto *output = causal.forward(input_ids, rope.sin, rope.cos, mask);
 
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
         mark_mask_input(mask);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        causal.model()->embed_vocab_tensor()->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -213,7 +209,6 @@ void causal_backward_compare_ref(const CausalFixtureSpec &fx)
     require_relative_frobenius_error(
         grad_embed_result, grad_embed_ref, fx.backward_tol);
 }
-
 
 } // namespace
 
@@ -294,8 +289,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         causal.load(full_path);
 
         auto *output = causal.forward(input_ids, rope.sin, rope.cos, mask);
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
         mark_mask_input(mask);
 
@@ -319,7 +312,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(result.size() == ref_data.size());
     require_relative_frobenius_error(result, ref_data, fx.forward_tol);
 }
-
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "GptneoxCausal backward matches PyTorch reference",

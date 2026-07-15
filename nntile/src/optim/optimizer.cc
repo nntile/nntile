@@ -122,7 +122,6 @@ void Optimizer::load(const std::string& path)
             }
             auto data = reader.read_tensor(buf_name);
             buf_tensor->data()->set_bind_hint(std::move(data));
-            buf_tensor->mark_input(true);
         }
     }
 }

@@ -84,8 +84,6 @@ inline void mark_rope_inputs(const GptneoxRopeInputs &rope)
     {
         return;
     }
-    rope.sin->mark_input(true);
-    rope.cos->mark_input(true);
 }
 
 inline void bind_rope_inputs(
@@ -165,7 +163,6 @@ inline void mark_mask_input(nntile::NNGraph::TensorNode *mask)
 {
     if(mask != nullptr)
     {
-        mask->mark_input(true);
     }
 }
 

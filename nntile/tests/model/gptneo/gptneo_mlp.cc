@@ -212,8 +212,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                           ->set_name("input");
         GptneoMLP mlp(&g, "mlp", fx.config);
         auto *output = mlp.forward(input);
-        input->mark_input(true);
-        output->mark_output(true);
 
         mlp.load(full_path);
 
@@ -270,14 +268,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         GptneoMLP mlp(&g, "mlp", fx.config);
         auto *output = mlp.forward(input);
 
-        input->mark_input(true);
-        output->mark_output(true);
-
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        input->grad()->mark_output(true);
 
         mlp.load(full_path);
 

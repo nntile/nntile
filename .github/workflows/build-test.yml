@@ -159,40 +159,8 @@ jobs:
           path: /tmp/ccache
           key: ccache-test-install-${{ github.sha }}
 
-  build-python:
-    name: build and test python package
-    needs: build-lib
-    runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates git python3-dev python3-pip
-        working-directory: /
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
-      - uses: actions/download-artifact@v4
-        with:
-          name: nntile-build
-          path: build
-      - run: rm -rf build/_deps
-      - run: |
-          cmake -S . -B build ${CMAKE_COMMON} \
-            -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc \
-            -DBUILD_PYTHON_WRAPPERS=ON \
-            -DBUILD_TESTS=ON -DBUILD_EXAMPLES=OFF -DBUILD_TESTS_PYTORCH=OFF
-          cmake --build build --target nntile_py -j"$(nproc)"
-      - run: |
-          python3 -m pip install --break-system-packages \
-            'pytest>=8.2' 'numpy>=1.21'
-          export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
-          export PYTHONPATH="${PWD}/build/python"
-          python3 -m pytest python/tests -vv
+  # python/ nntile package testing is temporarily disabled: BUILD_NNTILE_NNGRAPH
+  # (and thus BUILD_PYTHON_WRAPPERS) is OFF while focus is torch_nntile.
 
   build-examples:
     name: build examples
@@ -222,8 +190,12 @@ jobs:
           key: ccache-build-examples-${{ github.sha }}
           restore-keys: ccache-build-examples-
       - run: |
+          # Examples still use the C++ NNGraph/module/model/io/dataset stack.
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON
+            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON \
+            -DBUILD_NNTILE_NNGRAPH=ON -DBUILD_NNTILE_MODULES=ON \
+            -DBUILD_NNTILE_MODELS=ON -DBUILD_NNTILE_OPTIM=ON \
+            -DBUILD_NNTILE_IO=ON -DBUILD_NNTILE_DATASET=ON
           cmake --build build --target nntile_all_examples -j"$(nproc)"
       - run: |
           chmod +x nntile/examples/run_gpt2_graph_training_demo.sh
