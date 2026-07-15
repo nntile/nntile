@@ -36,24 +36,27 @@ The session is **one incremental** `TensorGraph` / `TileGraph` (phases append;
 do not reset the session to free memory). StarPU payload reclaim is an ordinary
 async graph op:
 
-1. Dropping a Python nntile tensor drops its `TensorRef` (last hold → enqueue
-   `tensor::invalidate` on `L`). Persistent params / batches stay live via
-   remaining refs on those tensors.
-2. On `compile_graph()`, after dropping compile pin holds:
-   - **immediately** `invalidate_logical_tiles` for every released logical
-     without a live `TensorRef` (covers `param.grad` from the next
-     `zero_grad`, deleted batches, …) so the next phase does not stack on
-     unreclaimed payloads;
-   - for every tensor **touched by the unsealed phase** without a live
-     `TensorRef`, append `tensor::INVALIDATE` (O(phase)).
+1. Dropping a Python nntile tensor drops its `TensorRef` (last hold → append
+   ordinary `tensor::invalidate` on `L` into the **current** TensorGraph).
+   Persistent params / batches stay live via remaining refs on those tensors.
+   `del` after the last use is recorded is therefore safe: invalidate is just
+   another op after those uses; StarPU orders `invalidate_submit` after them.
+2. On `compile_graph()`, after dropping compile pin holds, for every tensor
+   **touched by the unsealed phase** without a live `TensorRef`, append
+   `tensor::INVALIDATE` if needed (O(phase); covers `emplace_data` temps that
+   never held a `TensorRef`). Do **not** side-channel
+   `invalidate_logical_tiles` before submit — that freed payloads before the
+   phase’s consumer tasks were inserted (e.g. `del inputs` before compile →
+   StarPU “handle is not initialized” on embedding).
    Then `seal_phase` + lower to `tile::INVALIDATE` → `invalidate_submit` +
-   clear payload. `wait()` also flushes any logicals released after submit.
+   clear payload.
 3. `run()` only submits the execution stream (compute + INVALIDATE). StarPU
    orders each invalidate after the handle’s last prior use. Only `wait()`
    joins StarPU.
 4. Training loops must `del` the step loss (free autograd) **before**
    `compile_graph` so temps have no live `TensorRef` when INVALIDATE ops are
-   selected. Keep parameters, optimizer state, and persistent inputs referenced.
+   selected. Inputs/labels may be `del`’d as soon as their last use is
+   recorded; keep parameters and optimizer state referenced.
 
 Do **not** call `gc.collect()` in the step loop — refcount drop from `del` is
 enough. `train_full_batch_step` drops logits after the step runs.
@@ -108,6 +111,35 @@ SGD / Adam / AdamW resolve the grad graph node from (in order):
 They **do not** invent a fresh empty grad node. Missing registration raises;
 run backward (or ingress a real grad tensor via `.to("nntile")`) first.
 
+## `STARPU_W`-only clears and async multi-step VRAM (D7)
+
+Many kernels record a destination `tensor::clear` (StarPU `clear` codelet with
+**only** `STARPU_W` on the handle) before an accumulating write. That clear has
+**no** `STARPU_R` / `STARPU_RW` edge onto weights or other step-carried state.
+
+Weight updates still serialize real compute across training steps (RAW/WAW on
+parameter handles). The clears do **not**: as soon as the host
+`compile_graph()`/`run()`-submits step \(N+1\) while step \(N\) is still in
+flight, every clear of step \(N+1\) is already **ready**. StarPU therefore
+allocates CUDA buffers for those destinations immediately — before the step’s
+gemms become ready. Submitting \(N\) steps without a host sync therefore makes
+VRAM jump to roughly **\(N\) activation/grad working sets at once** (observed
+on `train_gpt2.py` when raising `--max-sequences` with `--batch-size 1`), not
+grow gradually as the GPU finishes steps.
+
+This is mostly a **StarPU scheduling heuristic** gap for neural nets: a smarter
+graph scheduler would keep each `STARPU_W` clear next to the first
+`STARPU_RW`/`STARPU_R` consumer producer of that tensor so the clear is not
+runnable far ahead of the step that needs it. Until that exists:
+
+- **Avoid pure `STARPU_W` dependencies** with no `STARPU_R` or `STARPU_RW` on
+  the same handle in the same step’s ready cone when multi-step async submit
+  is desired (prefer folding the zero into the first write, or attaching a
+  fictitious / real read edge that ties the clear to prior step state).
+- **Mitigate in examples** by syncing once per step after `optimizer.zero_grad`
+  (so grad `INVALIDATE`s land in the **same** compile phase as the step) via
+  host loss readout (`.to("cpu")`), not a bare `wait()`.
+
 ## Technical debt (future fixes)
 
 | # | Topic | Current behavior | Planned follow-up |
@@ -118,3 +150,4 @@ run backward (or ingress a real grad tensor via `.to("nntile")`) first.
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |
 | D5 | `vector_norm` backward | Forward-only by design. | Add autograd when product needs it. |
 | D6 | Stub vs libnntile | Builds without libnntile still use host `Storage` staging. | Keep stub path minimal; do not reintroduce host tiers on the libnntile path. |
+| D7 | `STARPU_W`-only clear vs async steps | Destination `clear` tasks use only `STARPU_W`, so they are ready as soon as submitted and allocate VRAM for every in-flight step at once under async multi-step `run()` (see section above). StarPU’s heuristics do not delay those clears until related `STARPU_RW` work. | Graph-aware scheduler that colocates clears with first real use; and/or stop emitting standalone `STARPU_W` clears (fold into first write / add a tying read). Examples sync per step via loss `.to("cpu")` after `zero_grad`. |

@@ -270,13 +270,29 @@ Architecture reference:
   released after their last consumer is submitted (``invalidate_submit``), when
   they have no live ``TensorRef`` — not deferred until ``wait()``.
 - On each ``compile_graph()``, tensors touched in the unsealed phase without a
-  live ``TensorRef`` get ``tensor::INVALIDATE``. torch_nntile also calls
-  ``invalidate_logical_tiles`` on released logicals after ``wait()`` / next
-  compile.
-- **Reduce footprint:** ``del`` step temporaries after ``wait()`` so the last
-  ``TensorRef`` drop records invalidate. Do not call ``gc.collect()`` in the
-  training step loop (it scales with session size and can dominate step time).
+  live ``TensorRef`` get ``tensor::INVALIDATE``. Last ``TensorRef`` drop also
+  appends ``tensor::invalidate`` into the graph as an ordinary op (StarPU
+  orders it after prior uses). Do **not** rely on a pre-submit
+  ``invalidate_logical_tiles`` side channel — that could free tiles before
+  this phase’s consumers were submitted.
+- **Reduce footprint:** ``del`` step temporaries (including inputs/labels once
+  their last use is recorded) before or at ``compile_graph`` so INVALIDATE
+  ops are selected; host sync (e.g. loss ``.to("cpu")``) joins StarPU.
+  Do not call ``gc.collect()`` in the training step loop (it scales with
+  session size and can dominate step time).
   ``train_full_batch_step`` already drops logits after each step.
+- **Async multi-step VRAM (D7):** destination ``clear`` ops are StarPU tasks
+  with **only** ``STARPU_W`` (no ``STARPU_R`` / ``STARPU_RW``). They become
+  ready as soon as each step is ``run()``-submitted, so submitting many steps
+  without a host sync allocates about one activation/grad working set **per
+  in-flight step immediately** (weight deps still serialize the gemms). Avoid
+  pure ``STARPU_W``-only dependencies when overlapping steps; a future
+  graph scheduler should keep clears next to the first real use of each
+  tensor. Until then, GPT-2 examples sync each step by printing loss via
+  ``.to("cpu")`` **after** ``optimizer.zero_grad(...)`` so grad invalidates
+  share that step’s compile phase. Details:
+  [torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)
+  (section *STARPU_W-only clears*, debt D7).
 
 ### Axis-group naming and tiling
 

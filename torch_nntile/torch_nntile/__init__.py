@@ -135,11 +135,13 @@ def compile_graph() -> None:
 def run() -> None:
     """Submit the compiled graph to StarPU (asynchronous; does not wait).
 
-    Unmarked temps are reclaimed by ``INVALIDATE`` ops already appended at
-    :func:`compile_graph` (async ``invalidate_submit``). Free the step
-    autograd graph (``del loss`` after ``loss.detach()``) before
-    :func:`compile_graph` so those temps are unmarked at compile. Only
-    :func:`wait` joins StarPU (host readout / shutdown).
+    Reclaim is ordinary ``INVALIDATE`` ops in the submitted stream: last
+    ``TensorRef`` drop records ``tensor::invalidate``, and
+    :func:`compile_graph` also appends INVALIDATE for unmarked phase temps.
+    Free the step autograd graph (``del loss`` after ``loss.detach()``) before
+    :func:`compile_graph` so those temps are unmarked. ``del`` of inputs after
+    their last recorded use is safe (invalidate is ordered after that use).
+    Only :func:`wait` joins StarPU (host readout / shutdown).
     """
     _C.run()
 

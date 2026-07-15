@@ -939,26 +939,18 @@ void drop_compile_pins_before_seal_locked()
     }
 }
 
-//! Free StarPU payloads for logicals whose nntile::TensorRef already died.
-//! Must run before allocate_missing_tiles for the next phase so VRAM does
-//! not stack "previous step grads/temps" on top of the new step.
+//! Drain the TensorRef-release queue without touching StarPU.
+//!
+//! Reclaim is **only** via ordinary ``tensor::INVALIDATE`` graph ops:
+//! ``TensorRef`` last-drop already records ``tensor::invalidate``, and
+//! ``append_invalidates_for_unmarked_unsealed`` covers emplace_data temps.
+//! A side-channel ``invalidate_logical_tiles`` here ran *before* the phase
+//! was submitted, so ``del inputs`` after record (but before compile) could
+//! free ingress tiles before embedding tasks were inserted — StarPU then
+//! saw "handle is not initialized".
 void flush_released_logicals_locked()
 {
-    if (g_exec == nullptr || g_exec->runtime == nullptr)
-    {
-        // Still drain the queue so pointers do not outlive a reset graph.
-        (void) take_released_logicals();
-        return;
-    }
-    for (nntile::TensorGraph::TensorNode *t : take_released_logicals())
-    {
-        if (t == nullptr || nntile::tensor_ref_is_live(t))
-        {
-            continue;
-        }
-        // Async invalidate_submit ordered after the handle's last use.
-        g_exec->runtime->invalidate_logical_tiles(t);
-    }
+    (void) take_released_logicals();
 }
 
 void compact_after_submit_locked()
@@ -990,11 +982,9 @@ void compile_graph_locked(
 
     // Marks must reflect live Python refs before INVALIDATE selection.
     drop_compile_pins_before_seal_locked();
-    // Free payloads for NodeRefs that died after the previous seal
-    // (param.grad on zero_grad, deleted batches, …) *before* this compile
-    // allocates the next step. Graph INVALIDATE alone (during run) still
-    // plateaus in theory, but sticky tile marks / allocate_missing could
-    // resurrect buffers — flush here so 3+ iters cannot accumulate.
+    // Drain release notes only; do not invalidate_logical_tiles here.
+    // Payload reclaim is append_invalidates + TensorRef-recorded INVALIDATE
+    // ops in this phase (submitted with compute so StarPU orders them).
     flush_released_logicals_locked();
     nntile::tensor::append_invalidates_for_unmarked_unsealed(*g_graph);
 
@@ -1141,8 +1131,8 @@ void finish_run_locked()
     }
     g_exec->pin_hold.clear();
     compact_tensor_graph_session_locked();
-    // Batches / last_loss may die right after wait(); free them now so the
-    // next record/compile does not start from a higher watermark.
+    // Drain release notes; INVALIDATE ops were already submitted with the
+    // phase (or recorded into the next unsealed phase on TensorRef drop).
     flush_released_logicals_locked();
     g_run_cleanup_pending = false;
     g_timing.wait_s += seconds_since(t0);

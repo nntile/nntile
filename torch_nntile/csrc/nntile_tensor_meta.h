@@ -49,11 +49,13 @@ bool logical_tensor_nodes_alive();
 //! Called by the graph recorder around TensorGraph create/destroy.
 void set_logical_tensor_nodes_alive(bool alive);
 
-//! Queue a logical whose last TensorRef died for invalidate flush at compile
-//! when the producer phase was already sealed.
+//! Legacy release note (drained at compile/wait; reclaim is graph INVALIDATE
+//! from ``TensorRef`` last-drop, not a side-channel flush).
 void note_logical_released(nntile::TensorGraph::TensorNode *logical);
 
-//! Drain ``note_logical_released`` queue (call under recorder lock at compile).
+//! Drain ``note_logical_released`` / ``note_tensor_ref_released`` queue
+//! (call under recorder lock). Does not ``invalidate_logical_tiles`` —
+//! reclaim is ordinary graph ``INVALIDATE`` only.
 std::vector<nntile::TensorGraph::TensorNode *> take_released_logicals();
 
 #endif // TORCH_NNTILE_USE_LIBNNTILE

@@ -22,9 +22,12 @@ when comparing numerically against nntile.
 
 Before training, all epoch batches (inputs + labels) and the model are moved
 onto the training device; the script prints prefetch time and wall training
-time. On ``nntile``, per-iter ``compile_graph``/``run`` then ``wait`` so
-StarPU finishes the step before the next iteration. On CUDA, the loop avoids
-``synchronize``/``.item()`` and synchronizes once at the end.
+time. On ``nntile``, each iter ``compile_graph``/``run``s after
+``optimizer.zero_grad``, then prints loss via ``.to("cpu")`` (host sync) so
+grad ``INVALIDATE``s share that step’s compile phase (avoids ``STARPU_W``-only
+clear VRAM blowup under multi-step async submit; debt D7). On ``cuda``/``cpu``,
+each iter prints loss via ``.item()`` after ``zero_grad`` (device sync), and
+``synchronize_device`` runs again before the final wall-time measurement.
 
 Modes:
 
@@ -621,11 +624,12 @@ def train_torch(args: argparse.Namespace) -> int:
     end_epoch = start_epoch + args.epochs
 
     print(f"\nTraining on torch ({device})...")
-    print("Async device work: no synchronize()/loss item() between iters")
+    print(
+        "Per-iter loss .item() after zero_grad (device sync); "
+        "synchronize_device before final wall time"
+    )
     t_train0 = time.perf_counter()
-    last_loss = None
-    # Clear grads before the loop; clear again at the end of each iter so
-    # grads remain readable after step(), then drop before the next forward.
+    # Clear grads before the loop; clear again each iter before loss readout.
     optimizer.zero_grad(set_to_none=True)
     for epoch_idx, epoch_data in enumerate(epoch_batches):
         epoch = start_epoch + epoch_idx
@@ -635,28 +639,25 @@ def train_torch(args: argparse.Namespace) -> int:
             loss = causal_lm_loss_torch(model, inputs, labels)
             loss.backward()
             optimizer.step()
-            # Do not synchronize_device / .item() here — keep CUDA async.
-            submit_s = time.perf_counter() - t_submit0
-            if last_loss is not None:
-                del last_loss
-            last_loss = loss.detach()
+            step_loss = loss.detach()
             del loss
             optimizer.zero_grad(set_to_none=True)
+            # .item() synchronizes the device (fair vs nntile loss readout).
+            loss_value = float(step_loss.item())
+            del step_loss
+            t_done = time.perf_counter()
             global_step += 1
             print(
                 f"[{device.type}] epoch {epoch + 1}/{end_epoch}  "
                 f"iter {batch_idx + 1}/{n_batches}  "
-                f"submitted  submit_time={submit_s:.3f}s  "
+                f"loss={loss_value:.6f}  "
+                f"wall={t_done - t_submit0:.3f}s  "
                 f"steps={global_step}"
             )
     synchronize_device(device)
     train_wall_s = time.perf_counter() - t_train0
-    if last_loss is not None:
-        final_loss = float(last_loss.item())
-        del last_loss
-        print(f"[{device.type}] final loss={final_loss:.6f}")
     print(
-        f"timing torch train wall (incl. final sync): {train_wall_s:.3f}s "
+        f"timing torch train wall (incl. per-iter sync): {train_wall_s:.3f}s "
         f"({args.epochs} epochs)"
     )
 
@@ -737,8 +738,6 @@ def train_nntile(args: argparse.Namespace) -> int:
         with torch.no_grad():
             epoch_batches = preload_batches_to_nntile(epoch_batches_cpu)
             model = cpu_model.to("nntile")
-        # Ensure transfers are complete before stopping the clock.
-        torch_nntile.wait()
         prefetch_s = time.perf_counter() - t_pre0
         print(
             f"timing host→nntile prefetch: {prefetch_s:.3f}s "
@@ -770,11 +769,13 @@ def train_nntile(args: argparse.Namespace) -> int:
         end_epoch = start_epoch + args.epochs
 
         print("\nTraining on nntile...")
-        print("Per-iter compile_graph/run + wait() (no host loss readout)")
+        print(
+            "Per-iter compile_graph/run; loss .to('cpu') after zero_grad "
+            "(sync; grad INVALIDATE in same phase)"
+        )
         t_train0 = time.perf_counter()
-        last_loss = None
-        # Clear grads before the loop; clear again at the end of each iter so
-        # grads remain readable after step()/wait(), then drop for reclaim.
+        # Clear grads before the loop; clear again each iter before compile so
+        # grad INVALIDATEs share that step’s sealed phase with the train ops.
         optimizer.zero_grad(set_to_none=True)
         for epoch_idx, epoch_data in enumerate(epoch_batches):
             epoch = start_epoch + epoch_idx
@@ -787,47 +788,52 @@ def train_nntile(args: argparse.Namespace) -> int:
                 loss = causal_lm_loss_nntile(model, inputs, labels)
                 loss.backward()
                 optimizer.step()
-                # Free autograd before compile/run so activation tiles unmark.
-                if last_loss is not None:
-                    del last_loss
-                last_loss = loss.detach()
+                # Free autograd before compile so activation tiles unmark;
+                # keep a detached scalar for host readout after zero_grad.
+                # del inputs/labels is safe once their last use is recorded:
+                # TensorRef drop appends ordinary graph INVALIDATE (ordered
+                # after embedding); no pre-submit invalidate side channel.
+                step_loss = loss.detach()
                 del loss
+                del inputs
+                del labels
+                optimizer.zero_grad(set_to_none=True)
                 t_record = time.perf_counter()
                 torch_nntile.compile_graph()
                 t_compile = time.perf_counter()
                 torch_nntile.run()
                 t_run = time.perf_counter()
-                # Join before the next iter so WPE / activation tiles from this
-                # step are not piled on top of the next step's submit.
-                torch_nntile.wait()
-                t_wait = time.perf_counter()
-                submit_s = t_run - t_submit0
-                record_s = t_record - t_submit0
-                compile_s = t_compile - t_record
-                run_s = t_run - t_compile
-                wait_s = t_wait - t_run
-                del inputs
-                del labels
-                optimizer.zero_grad(set_to_none=True)
+                # Host loss readout joins StarPU (sync point; not bare wait()).
+                with torch.no_grad():
+                    loss_value = float(step_loss.to("cpu").item())
+                del step_loss
+                t_readout = time.perf_counter()
                 global_step += 1
-                print(
+                wall_s = t_readout - t_submit0
+                line = (
                     f"[nntile] epoch {epoch + 1}/{end_epoch}  "
                     f"iter {batch_idx + 1}/{n_batches}  "
-                    f"done  wall={t_wait - t_submit0:.3f}s  "
-                    f"(record={record_s:.3f}s compile={compile_s:.3f}s "
-                    f"run={run_s:.3f}s wait={wait_s:.3f}s)  "
-                    f"steps={global_step}"
+                    f"loss={loss_value:.6f}  "
+                    f"wall={wall_s:.3f}s  "
                 )
+                if args.verbose:
+                    record_s = t_record - t_submit0
+                    compile_s = t_compile - t_record
+                    run_s = t_run - t_compile
+                    readout_s = t_readout - t_run
+                    line += (
+                        f"(record={record_s:.3f}s compile={compile_s:.3f}s "
+                        f"run={run_s:.3f}s readout={readout_s:.3f}s)  "
+                    )
+                line += f"steps={global_step}"
+                print(line)
         torch_nntile.wait()
         train_wall_s = time.perf_counter() - t_train0
-        if last_loss is not None:
-            with torch.no_grad():
-                final_loss = float(last_loss.to("cpu").item())
-            del last_loss
-            print(f"[nntile] final loss={final_loss:.6f}")
+        if args.verbose:
+            torch_nntile.print_info()
         print(
-            f"timing nntile train wall (incl. final wait): {train_wall_s:.3f}s "
-            f"({args.epochs} epochs)"
+            f"timing nntile train wall (incl. per-iter loss sync): "
+            f"{train_wall_s:.3f}s ({args.epochs} epochs)"
         )
 
         weights = clone_model_weights(model)
@@ -845,7 +851,6 @@ def train_nntile(args: argparse.Namespace) -> int:
         torch.save(payload, path)
         print(f"Saved checkpoint to {path}")
     finally:
-        torch_nntile.wait()
         torch_nntile.shutdown_context()
     return 0
 
@@ -964,7 +969,10 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument(
         "--verbose",
         action="store_true",
-        help="Verbose StarPU / NNTile context logging (nntile only)",
+        help=(
+            "Verbose StarPU / NNTile context logging (nntile only); also "
+            "print per-iter record/compile/run/readout and print_info()"
+        ),
     )
 
     compare = sub.add_parser(
