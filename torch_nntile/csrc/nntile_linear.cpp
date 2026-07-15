@@ -103,15 +103,6 @@ void run_linear(
     const std::optional<at::Tensor> &bias)
 {
     const bool has_bias = bias.has_value() && bias->defined();
-    if (has_bias)
-    {
-        pin_graph_op_inputs({prepared.a, prepared.b, *bias});
-    }
-    else
-    {
-        pin_graph_op_inputs({prepared.a, prepared.b});
-    }
-    pin_graph_op_output(output, false);
     tensor_gemm_fp32(
         prepared.params,
         prepared.a,
@@ -222,8 +213,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         const at::Tensor &weight_prepared = forward.b;
 
         grad_input = at::empty_like(input);
-        pin_graph_op_inputs({grad_out_prepared, weight_prepared});
-        pin_graph_op_output(grad_input, false);
         tensor_gemm_fp32(
             grad_input_params,
             grad_out_prepared,
@@ -261,12 +250,10 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         const at::Tensor &input_prepared = forward.a;
 
         grad_weight = at::empty_like(weight);
-        pin_graph_op_output(grad_weight, true);
         if (weight_layout.trans)
         {
             GemmParams grad_weight_params =
                 infer_linear_backward_grad_weight_params(forward.params);
-            pin_graph_op_inputs({input_prepared, grad_out_prepared});
             tensor_gemm_fp32(
                 grad_weight_params,
                 input_prepared,
@@ -280,7 +267,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         {
             GemmParams grad_weight_params =
                 infer_linear_backward_grad_weight_params(forward.params);
-            pin_graph_op_inputs({grad_out_prepared, input_prepared});
             tensor_gemm_fp32(
                 grad_weight_params,
                 grad_out_prepared,
@@ -311,8 +297,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             {weight.size(0)},
             grad_output.options().memory_format(
                 at::MemoryFormat::Contiguous));
-        pin_graph_op_inputs({grad_output});
-        pin_graph_op_output(grad_bias, true);
         tensor_linear_grad_bias_fp32(grad_output, grad_bias);
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
         nntile::TensorGraph::TensorNode *grad_bias_node = lookup_data_node(

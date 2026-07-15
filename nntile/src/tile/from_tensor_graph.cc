@@ -82,15 +82,6 @@ TileGraph TileGraph::from_tensor_graph(
                 tname,
                 tensor_node->dtype());
 
-            if(tensor_node->is_input())
-            {
-                tile_node->mark_input(true);
-            }
-            if(tensor_node->is_output())
-            {
-                tile_node->mark_output(true);
-            }
-
             tiles.push_back(tile_node);
         }
 

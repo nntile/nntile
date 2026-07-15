@@ -44,10 +44,13 @@ TEST_CASE("TensorGraph hypot structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src1 = graph.data({dim0, dim1})->set_name("src1");
-    auto *src2 = graph.data({dim0, dim1})->set_name("src2");
+    nntile::TensorRef src1 = graph.data({dim0, dim1});
+    src1->set_name("src1");
+    nntile::TensorRef src2 = graph.data({dim0, dim1});
+    src2->set_name("src2");
 
-    auto *dst = gt::hypot(alpha, src1, beta, src2)->set_name("dst");
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::hypot(alpha, src1, beta, src2));
+    dst->set_name("dst");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -64,7 +67,8 @@ TEST_CASE("TensorGraph hypot structure", "[graph][tensor]")
 TEST_CASE("TensorGraph hypot rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src1 = graph.data({5, 4})->set_name("src1");
+    nntile::TensorRef src1 = graph.data({5, 4});
+    src1->set_name("src1");
 
     REQUIRE_THROWS_AS(
         gt::hypot(alpha, src1, beta, src1), std::invalid_argument);
@@ -95,14 +99,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("hypot_untiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(shape, DataType::FP32);
+    y_node->set_name("y");
 
-        auto *dst_node =
-            gt::hypot(alpha, x_node, beta, y_node)->set_name("dst");
-        dst_node->mark_output(true);
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::hypot(alpha, x_node, beta, y_node));
+    dst_node->set_name("dst");
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -121,14 +124,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("hypot_tiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(shape, DataType::FP32);
+    y_node->set_name("y");
 
-        auto *dst_node =
-            gt::hypot(alpha, x_node, beta, y_node)->set_name("dst");
-        dst_node->mark_output(true);
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::hypot(alpha, x_node, beta, y_node));
+    dst_node->set_name("dst");
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

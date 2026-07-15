@@ -123,12 +123,26 @@ def execute() -> None:
 
 
 def compile_graph() -> None:
-    """Lower and compile the pending TensorGraph into the session Runtime."""
+    """Lower and compile the pending TensorGraph into the session Runtime.
+
+    Does **not** wait for a prior :func:`run`. The next phase may be sealed
+    and submitted while StarPU is still executing an earlier phase; call
+    :func:`wait` when host-side results or reclaim are required.
+    """
     _C.compile_graph()
 
 
 def run() -> None:
-    """Submit the compiled graph to StarPU (asynchronous; does not wait)."""
+    """Submit the compiled graph to StarPU (asynchronous; does not wait).
+
+    Reclaim is ordinary ``INVALIDATE`` ops in the submitted stream: last
+    ``TensorRef`` drop records ``tensor::invalidate``, and
+    :func:`compile_graph` also appends INVALIDATE for unmarked phase temps.
+    Free the step autograd graph (``del loss`` after ``loss.detach()``) before
+    :func:`compile_graph` so those temps are unmarked. ``del`` of inputs after
+    their last recorded use is safe (invalidate is ordered after that use).
+    Only :func:`wait` joins StarPU (host readout / shutdown).
+    """
     _C.run()
 
 
@@ -165,13 +179,13 @@ def restore_where() -> None:
 
 
 def wait() -> None:
-    """Block until tasks submitted by :func:`run` finish.
+    """Join StarPU after :func:`run` for host-visible completion.
 
-    Also runs post-run reclaim (scatter staging invalidate, pin_hold release,
-    ``pending_output_reclaim``) and compacts the incremental session so the
-    next :func:`compile_graph` stays O(phase) rather than O(history). Call
-    before host readout (``.to("cpu")``) or :func:`shutdown_context`.
-    Required for clean CUDA teardown when ``ncuda > 0``.
+    Pin release / async tile reclaim already ran at the end of :func:`run`.
+    Compacts TensorGraph history so the next :func:`compile_graph` stays
+    O(phase). Call before host readout (``.to("cpu")``) or
+    :func:`shutdown_context`. Required for clean CUDA teardown when
+    ``ncuda > 0``.
     """
     _C.wait_for_all()
 

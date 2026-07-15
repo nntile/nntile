@@ -37,6 +37,19 @@ def test_cross_entropy_forward_mean_matches_cpu():
     )
 
 
+def test_cross_entropy_no_grad_skips_autograd_fn():
+    """Inference must not attach grad_fn or retain maxsumexp via Function."""
+    torch.manual_seed(2)
+    logits = torch.randn(4, 3, dtype=torch.float32, requires_grad=True).to(
+        "nntile"
+    )
+    target = torch.randint(0, 3, (4,)).to("nntile")
+    with torch.no_grad():
+        loss = cross_entropy(logits, target, reduction="mean")
+    assert loss.grad_fn is None
+    assert not loss.requires_grad
+
+
 def test_cross_entropy_forward_sum_matches_cpu():
     torch.manual_seed(1)
     batch, classes = 4, 3

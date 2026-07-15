@@ -7,28 +7,32 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tile/ops/embedding_backward.hh
- * TileGraph embedding_backward operation: vocab += scatter(embed, index)
+ * TileGraph embedding_backward: vocab = beta*vocab + alpha*scatter(embed)
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/tile/graph.hh>
 
 namespace nntile::tile
 {
 
-//! Embedding backward: vocab += scatter(embed, index)
 struct TileEmbeddingBackwardOp : TileGraph::OpNode
 {
     Index m = 0, n = 0, k = 0, k_start = 0, k_size = 0;
+    Scalar alpha = 1.0;
+    Scalar beta = 1.0;
     int redux = 0;
     TileGraph::TileNode* index = nullptr, * embed = nullptr, * vocab = nullptr;
     TileEmbeddingBackwardOp() = default;
-    TileEmbeddingBackwardOp(Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* i, TileGraph::TileNode* e, TileGraph::TileNode* v, int r = 0) : m(a), n(b), k(c), k_start(ks), k_size(kz), redux(r), index(i), embed(e), vocab(v)
+    TileEmbeddingBackwardOp(Index a, Index b, Index c, Index ks, Index kz,
+            Scalar al, Scalar be, TileGraph::TileNode* i,
+            TileGraph::TileNode* e, TileGraph::TileNode* v, int r = 0) :
+        m(a), n(b), k(c), k_start(ks), k_size(kz), alpha(al), beta(be),
+        redux(r), index(i), embed(e), vocab(v)
     {
         inputs_ = {index, embed, vocab};
         outputs_ = {vocab};
@@ -40,7 +44,10 @@ struct TileEmbeddingBackwardOp : TileGraph::OpNode
         return std::make_shared<TileEmbeddingBackwardOp>(*this);
     }
 };
-//! Embedding backward: vocab += scatter(embed, index)
+
 void embedding_backward(
-    Index m, Index n, Index k, Index k_start, Index k_size, TileGraph::TileNode* index, TileGraph::TileNode* embed, TileGraph::TileNode* vocab, int redux = 0);
+    Index m, Index n, Index k, Index k_start, Index k_size, Scalar alpha,
+    Scalar beta, TileGraph::TileNode* index, TileGraph::TileNode* embed,
+    TileGraph::TileNode* vocab, int redux = 0);
+
 } // namespace nntile::tile

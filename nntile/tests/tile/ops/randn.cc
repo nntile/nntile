@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -28,9 +29,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]
     const unsigned long long seed = static_cast<unsigned long long>(-1);
     const Scalar mean = 1.0, std = 2.0;
     TileGraph g("g");
-    auto* d = g.data(sh, "d", DataType::FP32);
-    d->mark_input(true);
-    d->mark_output(true);
+    auto *d = g.data(sh, "d", DataType::FP32);
     tg::randn(d, st, us, seed, mean, std);
     Runtime r(g);
     r.compile();

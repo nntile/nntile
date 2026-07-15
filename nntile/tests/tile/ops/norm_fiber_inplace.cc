@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -33,11 +34,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber_inplace", "
     const Index ax = 0, bd = 0;
     const int redux = 0;
     TileGraph g("g");
-    auto* s = g.data(sh, "s", DataType::FP32);
-    auto* d = g.data(dh, "d", DataType::FP32);
-    s->mark_input(true);
-    d->mark_input(true);
-    d->mark_output(true);
+    auto *s = g.data(sh, "s", DataType::FP32);
+    auto *d = g.data(dh, "d", DataType::FP32);
     tg::norm_fiber_inplace(a, s, b, d, ax, bd, redux);
     Runtime rt(g);
     rt.compile();

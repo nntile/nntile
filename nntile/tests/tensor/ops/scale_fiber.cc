@@ -64,11 +64,12 @@ TEST_CASE("TensorGraph scale_fiber structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim_4})->set_name("src");
+    nntile::TensorRef src = graph.data({dim_4});
+    src->set_name("src");
 
-    auto *dst =
-        gt::scale_fiber(alpha, src, {dim_2, dim_4}, axis_1, batch_ndim_none)
-            ->set_name("dst");
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::scale_fiber(alpha, src, {dim_2, dim_4}, axis_1, batch_ndim_none)
+            );
+    dst->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -85,7 +86,8 @@ TEST_CASE(
     "TensorGraph scale_fiber rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({dim_4})->set_name("src");
+    nntile::TensorRef src = graph.data({dim_4});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::scale_fiber(alpha, src, src, axis_1, batch_ndim_none),
@@ -113,12 +115,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("scale_fiber_untiled");
-        auto *src_node = graph.data(fiber_sh, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
-        auto *dst_node =
-            gt::scale_fiber(alpha_val, src_node, dst_shape, axis, batch_ndim)
-                ->set_name("dst");
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(fiber_sh, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::scale_fiber(alpha_val, src_node, dst_shape, axis, batch_ndim)
+                );
+    dst_node->set_name("dst");
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
         Runtime runtime(tile_graph);
@@ -132,12 +133,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("scale_fiber_tiled");
-        auto *src_node = graph.data(fiber_sh, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
-        auto *dst_node =
-            gt::scale_fiber(alpha_val, src_node, dst_shape, axis, batch_ndim)
-                ->set_name("dst");
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(fiber_sh, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::scale_fiber(alpha_val, src_node, dst_shape, axis, batch_ndim)
+                );
+    dst_node->set_name("dst");
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

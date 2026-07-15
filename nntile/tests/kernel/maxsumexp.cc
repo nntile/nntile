@@ -292,6 +292,7 @@ void run_cpu_test(TestData<T>& data)
                 data.n,
                 data.k,
                 &src_cpu[0],
+                Scalar{1.0},
                 &maxsumexp_cpu[0]
             );
         };
@@ -303,6 +304,7 @@ void run_cpu_test(TestData<T>& data)
             data.n,
             data.k,
             &src_cpu[0],
+            Scalar{1.0},
             &maxsumexp_cpu[0]
         );
         verify_results(data, src_cpu, maxsumexp_cpu);
@@ -374,6 +376,7 @@ void run_cuda_test(TestData<T>& data)
                 data.n,
                 data.k,
                 dev_src,
+                Scalar{1.0},
                 dev_maxsumexp
             );
             cudaStreamSynchronize(stream);
@@ -387,6 +390,7 @@ void run_cuda_test(TestData<T>& data)
             data.n,
             data.k,
             dev_src,
+            Scalar{1.0},
             dev_maxsumexp
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");

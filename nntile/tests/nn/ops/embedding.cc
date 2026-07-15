@@ -175,10 +175,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     nn_pytorch_tile_vocab_10x10(vocab);
 
-    index->mark_input(true);
-    vocab->mark_input(true);
-    embed->mark_output(true);
-
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);
     runtime.compile();
@@ -245,14 +241,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     else
         nn_pytorch_tile_vocab_8x8(vocab);
 
-    index->mark_input(true);
-    vocab->mark_input(true);
-
     auto [embed_grad, _] = g.get_or_create_grad(embed, "embed_grad");
     fill(grad_fill_val, embed_grad);
     embed->backward();
-
-    vocab->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);

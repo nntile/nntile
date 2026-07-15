@@ -30,19 +30,17 @@ TEST_CASE("sqrt mixed tile parity", "[graph][tile]")
     test::ContextFixture fx;
 
     TensorGraph g_ref("ref");
-    TensorGraph::TensorNode *x_ref =
-        g_ref.data({10, 12}, DataType::FP32)->set_name("x");
-    x_ref->mark_input(true);
-    TensorGraph::TensorNode *s_ref = gt::sqrt(x_ref)->set_name("s");
-    s_ref->mark_output(true);
+    nntile::TensorRef x_ref = g_ref.data({10, 12}, DataType::FP32);
+    x_ref->set_name("x");
+    nntile::TensorRef s_ref = nntile::TensorRef::adopt(gt::sqrt(x_ref));
+    s_ref->set_name("s");
 
     TensorGraph g_tile("tile");
-    TensorGraph::TensorNode *x_tile =
-        g_tile.data({10, 12}, DataType::FP32)->set_name("x");
-    x_tile->mark_input(true);
+    nntile::TensorRef x_tile = g_tile.data({10, 12}, DataType::FP32);
+    x_tile->set_name("x");
     tt::apply_mixed_tile_sizes_2d(x_tile);
-    TensorGraph::TensorNode *s_tile = gt::sqrt(x_tile)->set_name("s");
-    s_tile->mark_output(true);
+    nntile::TensorRef s_tile = nntile::TensorRef::adopt(gt::sqrt(x_tile));
+    s_tile->set_name("s");
 
     std::vector<float> x_data(10 * 12, 0.25f);
 

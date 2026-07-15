@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -33,12 +34,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches
     const Index axis = 2;
     const Scalar alpha = 1.0;
     TileGraph g("g");
-    auto* s1 = g.data(fib, "s1", DataType::FP32);
-    auto* s2 = g.data(full, "s2", DataType::FP32);
-    auto* d = g.data(full, "d", DataType::FP32);
-    s1->mark_input(true);
-    s2->mark_input(true);
-    d->mark_output(true);
+    auto *s1 = g.data(fib, "s1", DataType::FP32);
+    auto *s2 = g.data(full, "s2", DataType::FP32);
+    auto *d = g.data(full, "d", DataType::FP32);
     tg::multiply_fiber(alpha, s1, s2, d, axis);
     Runtime runtime(g);
     runtime.compile();

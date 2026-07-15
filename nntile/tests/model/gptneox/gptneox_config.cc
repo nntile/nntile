@@ -85,7 +85,6 @@ TEST_CASE(
     }
 }
 
-
 TEST_CASE(
     "GptneoxConfig parse HF default attention_types produces 24 layers",
     "[model][gptneox]")

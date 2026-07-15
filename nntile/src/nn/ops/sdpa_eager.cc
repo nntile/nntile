@@ -17,7 +17,6 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/nn_grad_slot_name.hh"
-#include "nntile/nn/ops/clear.hh"
 #include "nntile/tensor/ops/add_inplace.hh"
 #include "nntile/tensor/ops/add_slice.hh"
 #include "nntile/tensor/ops/add_slice_inplace.hh"
@@ -87,9 +86,9 @@ NNGraph::TensorNode *NNSdpaEagerOp::forward()
     attn_max_shape.push_back(2);
     NNGraph::TensorNode *maxsumexp_buf =
         graph->tensor(attn_max_shape, q->dtype(), false);
-    clear(maxsumexp_buf);
     const Index attn_axis = q_ndim - 1;
-    tensor::maxsumexp(attn->data(), maxsumexp_buf->data(), attn_axis, redux);
+    tensor::maxsumexp(attn->data(), maxsumexp_buf->data(), attn_axis,
+            Scalar{0.0}, redux);
     tensor::softmax_inplace(
         maxsumexp_buf->data(), attn->data(), 1.0, attn_axis);
 

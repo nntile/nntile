@@ -16,7 +16,7 @@
 #   SEED            Init seed (default: 42)
 #   EPOCHS          Epochs per device run (default: 2)
 #   OUTPUT_ROOT     Run directory (default: /tmp/gpt2_hf_cuda_vs_nntile)
-#   SEQ_LEN         Sequence length (default: 32)
+#   SEQ_LEN         Input/label length after causal split (default: 32)
 #   BATCH_SIZE      Batch size (default: 4)
 #   MAX_SEQUENCES   Cap packed sequences (default: 64)
 #   LR              Learning rate (default: 1e-3)
@@ -78,6 +78,7 @@ COMMON_ARGS=(
 echo "--- Train device=cuda from scratch ---"
 "${PYTHON}" "${TRAIN_PY}" train \
     --device cuda \
+    --disable-tf32 \
     --output-dir "${CUDA_DIR}" \
     "${COMMON_ARGS[@]}"
 echo ""

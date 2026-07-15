@@ -59,9 +59,10 @@ void validate()
     constexpr Index n = index_m * index_n;
     constexpr Index k = embed_dim;
     starpu::embedding_backward.submit<std::tuple<T>>(-1, m, n, k, k_start, k_size,
-            index, embed_grad, vocab_grad_ref, 0);
-    embedding_backward<T>(-1, m, n, k, k_start, k_size, index, embed_grad,
-            vocab_grad, 0);
+            vocab_grad_ref.nelems, Scalar{1.0}, Scalar{1.0}, index, embed_grad,
+            vocab_grad_ref, 0);
+    embedding_backward<T>(-1, m, n, k, k_start, k_size, Scalar{1.0}, Scalar{1.0},
+            index, embed_grad, vocab_grad, 0);
 
     vocab_grad_ref_local.acquire(STARPU_R);
     vocab_grad_local.acquire(STARPU_R);

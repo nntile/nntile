@@ -80,10 +80,13 @@ TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *sin = graph.data({2})->set_name("sin");
-    auto *cos = graph.data({2})->set_name("cos");
-    auto *src = graph.data({4})->set_name("src");
-    auto *dst = gt::rope(sin, cos, src);
+    nntile::TensorRef sin = graph.data({2});
+    sin->set_name("sin");
+    nntile::TensorRef cos = graph.data({2});
+    cos->set_name("cos");
+    nntile::TensorRef src = graph.data({4});
+    src->set_name("src");
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::rope(sin, cos, src));
 
     REQUIRE(graph.num_data() == 4);
     REQUIRE(graph.num_ops() == 1);
@@ -99,9 +102,12 @@ TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
 TEST_CASE("TensorGraph rope rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *sin = graph.data({2})->set_name("sin");
-    auto *cos = graph.data({2})->set_name("cos");
-    auto *src = graph.data({4})->set_name("src");
+    nntile::TensorRef sin = graph.data({2});
+    sin->set_name("sin");
+    nntile::TensorRef cos = graph.data({2});
+    cos->set_name("cos");
+    nntile::TensorRef src = graph.data({4});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(gt::rope(nullptr, cos, src), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::rope(sin, nullptr, src), std::invalid_argument);
@@ -138,18 +144,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("rope_untiled");
-        auto *sin_node =
-            graph.data(sin_shape, DataType::FP32)->set_name("sin");
-        auto *cos_node =
-            graph.data(sin_shape, DataType::FP32)->set_name("cos");
-        auto *src_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src");
-        sin_node->mark_input(true);
-        cos_node->mark_input(true);
-        src_node->mark_input(true);
+        nntile::TensorRef sin_node = graph.data(sin_shape, DataType::FP32);
+    sin_node->set_name("sin");
+        nntile::TensorRef cos_node = graph.data(sin_shape, DataType::FP32);
+    cos_node->set_name("cos");
+        nntile::TensorRef src_node = graph.data(src_shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *dst_node = gt::rope(sin_node, cos_node, src_node);
-        dst_node->mark_output(true);
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::rope(sin_node, cos_node, src_node));
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -169,18 +171,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("rope_tiled");
-        auto *sin_node =
-            graph.data(sin_shape, DataType::FP32)->set_name("sin");
-        auto *cos_node =
-            graph.data(sin_shape, DataType::FP32)->set_name("cos");
-        auto *src_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src");
-        sin_node->mark_input(true);
-        cos_node->mark_input(true);
-        src_node->mark_input(true);
+        nntile::TensorRef sin_node = graph.data(sin_shape, DataType::FP32);
+    sin_node->set_name("sin");
+        nntile::TensorRef cos_node = graph.data(sin_shape, DataType::FP32);
+    cos_node->set_name("cos");
+        nntile::TensorRef src_node = graph.data(src_shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *dst_node = gt::rope(sin_node, cos_node, src_node);
-        dst_node->mark_output(true);
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::rope(sin_node, cos_node, src_node));
         tile_rope_sin_cos_src(sin_node, cos_node, src_node);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);

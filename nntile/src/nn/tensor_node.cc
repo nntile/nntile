@@ -25,15 +25,15 @@ namespace nntile
 {
 
 NNGraph::TensorNode::TensorNode(
-    NNGraph* graph,
-    TensorGraph::TensorNode* data,
+    NNGraph *graph,
+    TensorRef data,
     bool requires_grad
 )
     : graph_(graph)
-    , data_(data)
+    , data_ref_(std::move(data))
     , requires_grad_(requires_grad)
 {
-    if(data == nullptr)
+    if (!data_ref_)
     {
         throw std::invalid_argument(
             "NNGraph::TensorNode: data tensor is nullptr");
@@ -42,12 +42,12 @@ NNGraph::TensorNode::TensorNode(
 
 void NNGraph::TensorNode::set_bind_hint(std::vector<std::uint8_t> data)
 {
-    data_->set_bind_hint(std::move(data));
+    data_ref_->set_bind_hint(std::move(data));
 }
 
-const std::vector<std::uint8_t>* NNGraph::TensorNode::get_bind_hint() const
+const std::vector<std::uint8_t> *NNGraph::TensorNode::get_bind_hint() const
 {
-    return data_->get_bind_hint();
+    return data_ref_->get_bind_hint();
 }
 
 std::string NNGraph::TensorNode::to_string() const

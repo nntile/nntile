@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -30,12 +31,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot matches tile", "
     const Index nelems = 6;
     const Scalar alpha = 1.0, beta = 1.0;
     TileGraph g("g");
-    auto* s1 = g.data(sh, "s1", DataType::FP32);
-    auto* s2 = g.data(sh, "s2", DataType::FP32);
-    auto* d = g.data(sh, "d", DataType::FP32);
-    s1->mark_input(true);
-    s2->mark_input(true);
-    d->mark_output(true);
+    auto *s1 = g.data(sh, "s1", DataType::FP32);
+    auto *s2 = g.data(sh, "s2", DataType::FP32);
+    auto *d = g.data(sh, "d", DataType::FP32);
     tg::hypot(alpha, s1, beta, s2, d);
     Runtime runtime(g);
     runtime.compile();

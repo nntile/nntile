@@ -99,7 +99,6 @@ Leave weight/input checks as they are.
 
 1. Keep existing `prepare_linear_operands` + `tensor_gemm_fp32` into `output`.
 2. If bias is set:
-   - `pin_graph_op_inputs` must include bias (extend the pin set used for gemm).
    - After gemm, call a small executor helper, e.g.
      `tensor_linear_add_bias_fp32(output, bias)`, that:
      - resolves graph nodes for `output` and `bias`
@@ -120,14 +119,13 @@ When `output_mask[2]`:
 
 1. `grad_bias = at::empty({weight.size(0)}, grad_output.options())` (or
    `empty({out_features}, ...)`).
-2. `pin_graph_op_output(grad_bias, /*param-like*/ true)` as appropriate.
-3. Executor helper `tensor_linear_grad_bias_fp32(grad_output, grad_bias)`:
+2. Executor helper `tensor_linear_grad_bias_fp32(grad_output, grad_bias)`:
    - `clear(grad_bias_node)` then
    - `sum_fiber(grad_out_node, grad_bias_node, axis, batch_ndim=0, redux=0, 1, 0)`
-4. Register param grad for autograd / host copy the same way weight grads do
+3. Register param grad for autograd / host copy the same way weight grads do
    (`register_param_grad_node` + `register_grad_alias_for_host_copy`) when a
    graph node exists.
-5. Return `{grad_input, grad_weight, grad_bias}` instead of an undefined third
+4. Return `{grad_input, grad_weight, grad_bias}` instead of an undefined third
    tensor.
 
 ### 4. Executor API surface

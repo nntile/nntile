@@ -61,9 +61,12 @@ TEST_CASE("TensorGraph conv2d_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *x = graph.data({4, 4, 2, 2})->set_name("x");
-    auto *c = graph.data({2, 2, 2, 2})->set_name("c");
-    auto *y = graph.data({3, 3, 2, 2})->set_name("y");
+    nntile::TensorRef x = graph.data({4, 4, 2, 2});
+    x->set_name("x");
+    nntile::TensorRef c = graph.data({2, 2, 2, 2});
+    c->set_name("c");
+    nntile::TensorRef y = graph.data({3, 3, 2, 2});
+    y->set_name("y");
 
     gt::conv2d_inplace(1.0, x, c, 0.0, y, {0, 0}, {1, 1}, {1, 1});
 
@@ -80,9 +83,12 @@ TEST_CASE("TensorGraph conv2d_inplace structure", "[graph][tensor]")
 TEST_CASE("TensorGraph conv2d_inplace rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({4, 4, 2, 2})->set_name("x");
-    auto *c = graph.data({2, 2, 2, 2})->set_name("c");
-    auto *y = graph.data({3, 3, 2, 2})->set_name("y");
+    nntile::TensorRef x = graph.data({4, 4, 2, 2});
+    x->set_name("x");
+    nntile::TensorRef c = graph.data({2, 2, 2, 2});
+    c->set_name("c");
+    nntile::TensorRef y = graph.data({3, 3, 2, 2});
+    y->set_name("y");
 
     REQUIRE_THROWS_AS(
         gt::conv2d_inplace(1.0, nullptr, c, 0.0, y, {0, 0}, {1, 1}, {1, 1}),

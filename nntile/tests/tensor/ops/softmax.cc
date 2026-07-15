@@ -66,9 +66,11 @@ TEST_CASE("TensorGraph softmax structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     // maxsumexp shape for axis 0: src.shape without axis 0 + [2] = [dim1, 2]
-    auto *maxsumexp_node = graph.data({dim1, 2})->set_name("maxsumexp");
-    auto *src = graph.data({dim0, dim1})->set_name("src");
-    auto *dst = gt::softmax(maxsumexp_node, src, alpha_one, axis_0);
+    nntile::TensorRef maxsumexp_node = graph.data({dim1, 2});
+    maxsumexp_node->set_name("maxsumexp");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::softmax(maxsumexp_node, src, alpha_one, axis_0));
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -87,8 +89,10 @@ TEST_CASE("TensorGraph softmax rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
     // maxsumexp shape for axis 0, src [4,5]: [5, 2]
-    auto *mse = graph.data({5, 2})->set_name("mse");
-    auto *src = graph.data({5, 4})->set_name("src");
+    nntile::TensorRef mse = graph.data({5, 2});
+    mse->set_name("mse");
+    nntile::TensorRef src = graph.data({5, 4});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::softmax(nullptr, src, alpha_one, axis_0), std::invalid_argument);
@@ -118,13 +122,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("softmax_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *maxsumexp_node =
-            gt::maxsumexp(src_node, axis, redux)->set_name("maxsumexp");
-        auto *dst_node = gt::softmax(maxsumexp_node, src_node, alpha, axis);
-        dst_node->mark_output(true);
+        nntile::TensorRef maxsumexp_node = nntile::TensorRef::adopt(gt::maxsumexp(src_node, axis, redux));
+    maxsumexp_node->set_name("maxsumexp");
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::softmax(maxsumexp_node, src_node, alpha, axis));
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -142,13 +145,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("softmax_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *maxsumexp_node =
-            gt::maxsumexp(src_node, axis, redux)->set_name("maxsumexp");
-        auto *dst_node = gt::softmax(maxsumexp_node, src_node, alpha, axis);
-        dst_node->mark_output(true);
+        nntile::TensorRef maxsumexp_node = nntile::TensorRef::adopt(gt::maxsumexp(src_node, axis, redux));
+    maxsumexp_node->set_name("maxsumexp");
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::softmax(maxsumexp_node, src_node, alpha, axis));
         auto *maxsumexp_dim0 = maxsumexp_node->axis(0);
         auto *maxsumexp_pair = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())

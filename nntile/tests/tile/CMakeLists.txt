@@ -93,10 +93,14 @@ set(TESTS_TILE_ROOT_CATCH2
     "append_tensor_graph_phase"
     "add_mixed_tile"
     "execution_schedule"
-    "gpt2_block_schedule"
-    "mlp"
     "tile_graph"
 )
+if(BUILD_NNTILE_NNGRAPH)
+    list(APPEND TESTS_TILE_ROOT_CATCH2 "mlp")
+endif()
+if(BUILD_NNTILE_MODELS)
+    list(APPEND TESTS_TILE_ROOT_CATCH2 "gpt2_block_schedule")
+endif()
 
 foreach(test IN LISTS TESTS_TILE_CATCH2)
     add_test_set(TARGET_NAME tests_tile_ops_${test}

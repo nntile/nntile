@@ -44,9 +44,10 @@ TEST_CASE("TensorGraph transpose structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
 
-    auto *dst = gt::transpose(alpha, src, ndim);
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::transpose(alpha, src, ndim));
 
     dst->set_name("dst");
 
@@ -67,7 +68,8 @@ TEST_CASE("TensorGraph transpose rejects duplicate tensors", "[graph][tensor]")
     constexpr Index dim0 = 4;
     constexpr Index dim1 = 5;
     TensorGraph graph("test");
-    auto *src = graph.data({dim0, dim1})->set_name("src");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::transpose(alpha, src, src, Index(1)), std::invalid_argument);
@@ -95,13 +97,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("transpose_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *dst_node = gt::transpose(alpha, src_node, ndim_val);
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::transpose(alpha, src_node, ndim_val));
 
         dst_node->set_name("dst");
-        dst_node->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -119,13 +120,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("transpose_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *dst_node = gt::transpose(alpha, src_node, ndim_val);
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::transpose(alpha, src_node, ndim_val));
 
         dst_node->set_name("dst");
-        dst_node->mark_output(true);
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

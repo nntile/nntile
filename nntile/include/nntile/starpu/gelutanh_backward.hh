@@ -46,6 +46,8 @@ public:
     struct args_t
     {
         Index nelems;
+        Scalar alpha;
+        Scalar beta;
     };
 
     //! Footprint function for the current operation
@@ -78,8 +80,10 @@ public:
     void submit(
         int starpu_worker_hint,
         Index nelems,
+        Scalar alpha,
         Handle x,
         Handle dy,
+        Scalar beta,
         Handle dx
     );
 };

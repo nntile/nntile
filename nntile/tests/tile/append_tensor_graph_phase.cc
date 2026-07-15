@@ -10,7 +10,14 @@
 #include "nntile/tile/append_tensor_graph_phase.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph.hh"
+#include <nntile/defs.h>
+#include <nntile/tensor.hh>
+#include <nntile/tile.hh>
+#include <nntile/runtime.hh>
+#include <nntile/tile/append_tensor_graph_phase.hh>
+#ifdef NNTILE_USE_NNGRAPH
+#include <nntile/nn.hh>
+#endif
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
@@ -27,11 +34,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg("inc_add");
-    TensorGraph::TensorNode *a = tg.data({3}, DataType::FP32)->set_name("a");
-    TensorGraph::TensorNode *b = tg.data({3}, DataType::FP32)->set_name("b");
-    a->mark_input(true);
-    b->mark_input(true);
-    TensorGraph::TensorNode *c = gt::add(1.0f, a, 1.0f, b)->set_name("c");
+    nntile::TensorRef a = tg.data({3}, DataType::FP32);
+        a->set_name("a");
+    nntile::TensorRef b = tg.data({3}, DataType::FP32);
+        b->set_name("b");
+    nntile::TensorRef c = nntile::TensorRef::adopt(gt::add(1.0f, a, 1.0f, b));
+    c->set_name("c");
 
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TensorGraphTiling til1 = TensorGraphTiling::from_tensor_graph(tg);
@@ -42,9 +50,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     append_tensor_graph_phase(tg, p1, til1, tile, st, tm);
 
     REQUIRE(c != nullptr);
-    TensorGraph::TensorNode *d = gt::add(1.0f, c, 1.0f, a)->set_name("d");
+    nntile::TensorRef d = nntile::TensorRef::adopt(gt::add(1.0f, c, 1.0f, a));
+    d->set_name("d");
     REQUIRE(d != nullptr);
-    d->mark_output(true);
 
     TensorGraph::PhaseSnapshot p2 = tg.seal_phase();
     TensorGraphTiling til2 = TensorGraphTiling::from_tensor_graph(tg);
@@ -72,12 +80,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg("rt_inc");
-    TensorGraph::TensorNode *x = tg.data({2}, DataType::FP32)->set_name("x");
-    x->mark_input(true);
-    TensorGraph::TensorNode *y = gt::scale(2.0f, x)->set_name("y");
+    nntile::TensorRef x = tg.data({2}, DataType::FP32);
+        x->set_name("x");
+    nntile::TensorRef y = nntile::TensorRef::adopt(gt::scale(2.0f, x));
+    y->set_name("y");
     // Carry y across phases: must stay marked or compile reclaim frees it
     // before a later full execute() can rewrite it.
-    y->mark_output(true);
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TileGraph tile("t2");
     TileGraphIncrementalState st;
@@ -91,8 +99,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(n1 > 0);
 
     REQUIRE(y != nullptr);
-    TensorGraph::TensorNode *z = gt::add(1.0f, y, 1.0f, x)->set_name("z");
-    z->mark_output(true);
+    nntile::TensorRef z = nntile::TensorRef::adopt(gt::add(1.0f, y, 1.0f, x));
+    z->set_name("z");
     TensorGraph::PhaseSnapshot p2 = tg.seal_phase();
     append_tensor_graph_phase(
         tg, p2, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
@@ -116,11 +124,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // Unmarked intermediate: freed after first execute / next compile, but
     // a subsequent full execute() must still be able to re-run from op 0.
     TensorGraph tg("reexec");
-    TensorGraph::TensorNode *x = tg.data({2}, DataType::FP32)->set_name("x");
-    x->mark_input(true);
-    TensorGraph::TensorNode *y = gt::scale(2.0f, x)->set_name("y");
-    TensorGraph::TensorNode *z = gt::add(1.0f, y, 1.0f, x)->set_name("z");
-    z->mark_output(true);
+    nntile::TensorRef x = tg.data({2}, DataType::FP32);
+        x->set_name("x");
+    nntile::TensorRef y = nntile::TensorRef::adopt(gt::scale(2.0f, x));
+    y->set_name("y");
+    nntile::TensorRef z = nntile::TensorRef::adopt(gt::add(1.0f, y, 1.0f, x));
+    z->set_name("z");
 
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TileGraph tile("t_reexec");
@@ -149,17 +158,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "Runtime invalidate_logical_tiles after mark_output false",
+    "Runtime invalidate_logical_tiles after TensorRef release",
     "[graph][tile]")
 {
     TensorGraph tg("reclaim");
-    TensorGraph::TensorNode *x = tg.data({4}, DataType::FP32)->set_name("x");
-    x->mark_input(true);
+    nntile::TensorRef x = tg.data({4}, DataType::FP32);
+        x->set_name("x");
     // Two outputs so clearing one does not hit the no-output DCE fallback.
-    TensorGraph::TensorNode *y = gt::scale(2.0f, x)->set_name("y");
-    y->mark_output(true);
-    TensorGraph::TensorNode *z = gt::scale(3.0f, x)->set_name("z");
-    z->mark_output(true);
+    nntile::TensorRef y = nntile::TensorRef::adopt(gt::scale(2.0f, x));
+    y->set_name("y");
+    nntile::TensorRef z = nntile::TensorRef::adopt(gt::scale(3.0f, x));
+    z->set_name("z");
 
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TileGraph tile("t_reclaim");
@@ -187,23 +196,34 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(before.count(y) == 1);
     REQUIRE(before.count(z) == 1);
 
-    // Drop output mark on y only: reclaim buffers explicitly (torch_nntile
-    // does this at end of run() via pending_output_reclaim).
-    y->mark_output(false);
-    rt.invalidate_logical_tiles(y);
+    // While live, reclaim is a no-op.
+    rt.invalidate_logical_tiles(y.get());
+    {
+        std::unordered_map<TensorGraph::TensorNode const *,
+            std::vector<std::shared_ptr<void>>>
+            still;
+        rt.export_all_tiles(still);
+        REQUIRE(still.count(y) == 1);
+    }
+
+    // Release without recording graph INVALIDATE (re-adopt below).
+    TensorGraph::TensorNode *y_raw = y.get();
+    nntile::set_tensor_nodes_alive(false);
+    y = nntile::TensorRef{};
+    nntile::set_tensor_nodes_alive(true);
+    rt.invalidate_logical_tiles(y_raw);
 
     std::unordered_map<TensorGraph::TensorNode const *,
         std::vector<std::shared_ptr<void>>>
         after;
     rt.export_all_tiles(after);
-    REQUIRE(after.count(y) == 0);
+    REQUIRE(after.count(y_raw) == 0);
     REQUIRE(after.count(z) == 1);
     REQUIRE(after.count(x) == 1);
 
-    // Re-mark y and use it in a new phase; buffer is reallocated.
-    y->mark_output(true);
-    TensorGraph::TensorNode *w = gt::add(1.0f, y, 1.0f, x)->set_name("w");
-    w->mark_output(true);
+    y = nntile::TensorRef::adopt(y_raw);
+    nntile::TensorRef w = nntile::TensorRef::adopt(gt::add(1.0f, y, 1.0f, x));
+    w->set_name("w");
     TensorGraph::PhaseSnapshot p2 = tg.seal_phase();
     append_tensor_graph_phase(
         tg, p2, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
@@ -223,11 +243,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg("tiling_change");
-    TensorGraph::TensorNode *a = tg.data({6}, DataType::FP32)->set_name("a");
-    TensorGraph::TensorNode *b = tg.data({6}, DataType::FP32)->set_name("b");
-    a->mark_input(true);
-    b->mark_input(true);
-    TensorGraph::TensorNode *c = gt::add(1.0f, a, 1.0f, b)->set_name("c");
+    nntile::TensorRef a = tg.data({6}, DataType::FP32);
+        a->set_name("a");
+    nntile::TensorRef b = tg.data({6}, DataType::FP32);
+        b->set_name("b");
+    nntile::TensorRef c = nntile::TensorRef::adopt(gt::add(1.0f, a, 1.0f, b));
+    c->set_name("c");
 
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TileGraph tile("tile_tc");
@@ -248,16 +269,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::runtime_error);
 }
 
+#ifdef NNTILE_USE_NNGRAPH
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "compile_incremental_nn_phase pushes tensor_phase_archive",
     "[graph][tile]")
 {
     NNGraph nn("phase_arch");
     TensorGraph &tg = nn.tensor_graph();
-    TensorGraph::TensorNode *a = tg.data({3}, DataType::FP32)->set_name("a");
-    TensorGraph::TensorNode *b = tg.data({3}, DataType::FP32)->set_name("b");
-    a->mark_input(true);
-    b->mark_input(true);
+    nntile::TensorRef a = tg.data({3}, DataType::FP32);
+        a->set_name("a");
+    nntile::TensorRef b = tg.data({3}, DataType::FP32);
+        b->set_name("b");
     gt::add(1.0f, a, 1.0f, b)->set_name("c");
 
     FinishedTensorPhase fp = nn.finish_phase(false);
@@ -280,3 +302,4 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(nn.tensor_phase_archives()[0].tile_op_end >
             nn.tensor_phase_archives()[0].tile_op_begin);
 }
+#endif // NNTILE_USE_NNGRAPH

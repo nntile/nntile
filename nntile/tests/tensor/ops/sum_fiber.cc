@@ -74,8 +74,10 @@ TEST_CASE("TensorGraph sum_fiber structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim_4, dim_5})->set_name("x");
-    auto *y = graph.data({dim_4})->set_name(
+    nntile::TensorRef x = graph.data({dim_4, dim_5});
+    x->set_name("x");
+    nntile::TensorRef y = graph.data({dim_4});
+    y->set_name(
         "y"); // axis=0: sum over dim_5, keep dim_4
 
     gt::sum_fiber(
@@ -96,7 +98,8 @@ TEST_CASE("TensorGraph sum_fiber structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sum_fiber rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({dim_4, dim_5})->set_name("x");
+    nntile::TensorRef x = graph.data({dim_4, dim_5});
+    x->set_name("x");
 
     REQUIRE_THROWS_AS(
         gt::sum_fiber(
@@ -147,11 +150,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("sum_fiber_untiled");
-        auto *x_node = graph.data(x_shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(y_shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
-        y_node->mark_output(true);
+        nntile::TensorRef x_node = graph.data(x_shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(y_shape, DataType::FP32);
+    y_node->set_name("y");
 
         gt::sum_fiber(x_node, y_node, axis, batch_ndim, redux, alpha, beta);
 
@@ -172,11 +174,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("sum_fiber_tiled");
-        auto *x_node = graph.data(x_shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(y_shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
-        y_node->mark_output(true);
+        nntile::TensorRef x_node = graph.data(x_shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(y_shape, DataType::FP32);
+    y_node->set_name("y");
 
         gt::sum_fiber(x_node, y_node, axis, batch_ndim, redux, alpha, beta);
         for (auto *ag : graph.axis_groups())

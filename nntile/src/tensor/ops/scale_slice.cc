@@ -56,7 +56,7 @@ TensorGraph::TensorNode *scale_slice(
     }
 
     TensorGraph::TensorNode *dst =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
 
     scale_slice(alpha, src, dst, axis);
 

@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -30,11 +31,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_inplace match
     const Index nelems = 6;
     const Scalar alpha = 0.5;
     TileGraph g("g");
-    auto* s = g.data(sh, "s", DataType::FP32);
-    auto* d = g.data(sh, "d", DataType::FP32);
-    s->mark_input(true);
-    d->mark_input(true);
-    d->mark_output(true);
+    auto *s = g.data(sh, "s", DataType::FP32);
+    auto *d = g.data(sh, "d", DataType::FP32);
     tg::multiply_inplace(alpha, s, d);
     Runtime runtime(g);
     runtime.compile();

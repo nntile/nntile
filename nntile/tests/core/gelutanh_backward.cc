@@ -41,8 +41,8 @@ void validate()
     dxl.release();
     dxrl.release();
 
-    starpu::gelutanh_backward.submit<std::tuple<T>>(-1, x.nelems, x, dy, dx);
-    gelutanh_backward<T>(-1, x, dy, dxr);
+    starpu::gelutanh_backward.submit<std::tuple<T>>(-1, x.nelems, 1.0f, x, dy, 1.0f, dx);
+    gelutanh_backward<T>(-1, 1.0f, x, dy, 1.0f, dxr);
 
     dxl.acquire(STARPU_R);
     dxrl.acquire(STARPU_R);

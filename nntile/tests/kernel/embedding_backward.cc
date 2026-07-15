@@ -64,9 +64,9 @@ struct TestData
     std::vector<T> vocab_ref;
 };
 
-// Reference implementation of the embedding_backward operation
+// Reference implementation of the embedding_backward operation (beta=1)
 template<typename T>
-void reference_embedding_backward(TestData<T>& data)
+void reference_embedding_backward(TestData<T>& data, Scalar beta = Scalar{1.0})
 {
     using Y = typename T::repr_t;
     if (data.m == 0 || data.n == 0 || data.k_size == 0)
@@ -74,8 +74,14 @@ void reference_embedding_backward(TestData<T>& data)
         return;
     }
 
-    // Initialize vocab_ref with vocab_init
-    data.vocab_ref = data.vocab_init;
+    if(beta == Scalar{0.0})
+    {
+        data.vocab_ref.assign(data.k_size * data.vocab_size, static_cast<T>(Y{0}));
+    }
+    else
+    {
+        data.vocab_ref = data.vocab_init;
+    }
 
     for(Index i2 = 0; i2 < data.n; ++i2)
     {
@@ -268,6 +274,9 @@ void run_cpu_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
+                data.k_size * data.vocab_size,
+                Scalar{1.0},
+                Scalar{1.0},
                 &index_cpu[0],
                 &embed_cpu[0],
                 &vocab_cpu[0]
@@ -282,6 +291,9 @@ void run_cpu_test(TestData<T>& data)
             data.k,
             data.k_start,
             data.k_size,
+            data.k_size * data.vocab_size,
+            Scalar{1.0},
+            Scalar{1.0},
             &index_cpu[0],
             &embed_cpu[0],
             &vocab_cpu[0]
@@ -377,6 +389,9 @@ void run_cuda_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
+                data.k_size * data.vocab_size,
+                Scalar{1.0},
+                Scalar{1.0},
                 dev_index,
                 dev_embed,
                 dev_vocab
@@ -393,6 +408,9 @@ void run_cuda_test(TestData<T>& data)
             data.k,
             data.k_start,
             data.k_size,
+            data.k_size * data.vocab_size,
+            Scalar{1.0},
+            Scalar{1.0},
             dev_index,
             dev_embed,
             dev_vocab

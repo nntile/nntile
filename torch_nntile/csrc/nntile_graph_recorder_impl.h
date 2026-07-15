@@ -27,15 +27,7 @@ class Tensor;
 namespace torch_nntile
 {
 
-//! Pin graph inputs and persistent params for the current capture.
-void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs);
-
-//! Pin output when it is user-visible across compile/run.
-void pin_graph_op_output(const at::Tensor &output, bool is_user_visible);
-
 void on_tensor_impl_released(TensorImplKey key);
-
-void mark_persistent_graph_tensor(const at::Tensor &tensor);
 
 void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
@@ -67,11 +59,6 @@ nntile::TensorGraph::TensorNode *lookup_param_grad_node(
 void register_grad_alias_for_host_copy(
     at::Tensor &grad,
     nntile::TensorGraph::TensorNode *grad_node);
-
-void push_relu_preactivation_node(nntile::TensorGraph::TensorNode *node);
-
-nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
-    const std::vector<nntile::Index> &shape);
 
 void record_view_alias(const at::Tensor &self, const at::Tensor &view);
 

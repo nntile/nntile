@@ -47,7 +47,8 @@ TEST_CASE("TensorGraph hypot_scalar_inverse structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *dst = graph.data({dim0, dim1})->set_name("dst");
+    nntile::TensorRef dst = graph.data({dim0, dim1});
+    dst->set_name("dst");
 
     gt::hypot_scalar_inverse(eps_default, alpha_one, dst);
 
@@ -87,9 +88,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("hypot_scalar_inverse_untiled");
-        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef dst_node = graph.data(shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::hypot_scalar_inverse(eps, alpha, dst_node);
 
@@ -109,9 +109,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("hypot_scalar_inverse_tiled");
-        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef dst_node = graph.data(shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::hypot_scalar_inverse(eps, alpha, dst_node);
         for (auto *ag : graph.axis_groups())

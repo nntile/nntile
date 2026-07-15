@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -26,11 +27,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     const std::vector<Index> leh = {2,2}, srh = {2,2,3}, clh = {2,2}, vh = std::vector<Index>{};
     const Scalar a = 1.0; const Index ign = -1;
     TileGraph g("g");
-    auto* l = g.data(leh, "lse", DataType::FP32);
-    auto* s = g.data(srh, "src", DataType::FP32);
-    auto* c = g.data(clh, "cl", DataType::INT64);
-    auto* v = g.data(vh, "val", DataType::FP32);
-    l->mark_input(true); s->mark_input(true); c->mark_input(true); v->mark_input(true); v->mark_output(true);
+    auto *l = g.data(leh, "lse", DataType::FP32);
+    auto *s = g.data(srh, "src", DataType::FP32);
+    auto *c = g.data(clh, "cl", DataType::INT64);
+    auto *v = g.data(vh, "val", DataType::FP32);
     tg::total_sum_accum(a, l, s, c, v, ign);
     Runtime r(g);
     r.compile();

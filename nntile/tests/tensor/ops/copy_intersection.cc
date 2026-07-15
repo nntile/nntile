@@ -46,8 +46,10 @@ TEST_CASE("TensorGraph copy_intersection structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
-    auto *dst = graph.data({dim0, dim1})->set_name("dst");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
+    nntile::TensorRef dst = graph.data({dim0, dim1});
+    dst->set_name("dst");
     std::vector<Index> src_offset{0, 0};
     std::vector<Index> dst_offset{0, 0};
 
@@ -67,7 +69,8 @@ TEST_CASE(
     "TensorGraph copy_intersection rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *t = graph.data({5, 4})->set_name("t");
+    nntile::TensorRef t = graph.data({5, 4});
+    t->set_name("t");
     std::vector<Index> offset{0, 0};
 
     REQUIRE_THROWS_AS(gt::copy_intersection(nullptr, offset, t, offset),
@@ -103,11 +106,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("copy_intersection_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::copy_intersection(src_node, src_off, dst_node, dst_off);
 
@@ -128,11 +130,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("copy_intersection_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::FP32);
+    dst_node->set_name("dst");
 
         gt::copy_intersection(src_node, src_off, dst_node, dst_off);
         for (auto *ag : graph.axis_groups())
@@ -181,13 +182,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<std::int64_t> untiled_result;
     {
         TensorGraph graph("copy_intersection_int64_untiled");
-        auto *src_node =
-            graph.data(shape, DataType::INT64)->set_name("src");
-        auto *dst_node =
-            graph.data(shape, DataType::INT64)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::INT64);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::INT64);
+    dst_node->set_name("dst");
         gt::copy_intersection(src_node, src_off, dst_node, dst_off);
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
         Runtime runtime(tile_graph);
@@ -202,13 +200,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<std::int64_t> tiled_result;
     {
         TensorGraph graph("copy_intersection_int64_tiled");
-        auto *src_node =
-            graph.data(shape, DataType::INT64)->set_name("src");
-        auto *dst_node =
-            graph.data(shape, DataType::INT64)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::INT64);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::INT64);
+    dst_node->set_name("dst");
         gt::copy_intersection(src_node, src_off, dst_node, dst_off);
         for (auto *ag : graph.axis_groups())
         {
@@ -252,13 +247,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<bool> untiled_result;
     {
         TensorGraph graph("copy_intersection_bool_untiled");
-        auto *src_node =
-            graph.data(shape, DataType::BOOL)->set_name("src");
-        auto *dst_node =
-            graph.data(shape, DataType::BOOL)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::BOOL);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::BOOL);
+    dst_node->set_name("dst");
         gt::copy_intersection(src_node, src_off, dst_node, dst_off);
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
         Runtime runtime(tile_graph);
@@ -280,13 +272,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<bool> tiled_result;
     {
         TensorGraph graph("copy_intersection_bool_tiled");
-        auto *src_node =
-            graph.data(shape, DataType::BOOL)->set_name("src");
-        auto *dst_node =
-            graph.data(shape, DataType::BOOL)->set_name("dst");
-        src_node->mark_input(true);
-        dst_node->mark_input(true);
-        dst_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::BOOL);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = graph.data(shape, DataType::BOOL);
+    dst_node->set_name("dst");
         gt::copy_intersection(src_node, src_off, dst_node, dst_off);
         for (auto *ag : graph.axis_groups())
         {
@@ -325,10 +314,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     TensorGraph graph("scatter_int64_tiled");
-    auto *staging = graph.data(shape, DataType::INT64)->set_name("staging");
-    auto *logical = graph.data(shape, DataType::INT64)->set_name("logical");
-    staging->mark_input(true);
-    logical->mark_output(true);
+    nntile::TensorRef staging = graph.data(shape, DataType::INT64);
+    staging->set_name("staging");
+    nntile::TensorRef logical = graph.data(shape, DataType::INT64);
+    logical->set_name("logical");
     gt::scatter(staging, logical);
     // Tile only the logical axis group; staging stays single-tile.
     logical->axis(0)->set_tiling(std::vector<Index>{4, 4});

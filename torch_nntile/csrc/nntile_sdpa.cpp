@@ -84,33 +84,26 @@ void check_sdpa_mask(
         "nntile sdpa: mask shape must be [q_seq, k_seq]");
 }
 
-at::Tensor mask_to_uint8_nntile(const at::Tensor &mask)
+//! Prepare attention mask for graph SDPA (BOOL on nntile).
+//!
+//! The executor records the mask as ``DataType::BOOL``. Do **not** round-trip
+//! through ``mask.cpu()`` — that gathers through StarPU and syncs every
+//! attention layer during graph recording.
+at::Tensor mask_for_nntile_sdpa(const at::Tensor &mask)
 {
-    if (mask.scalar_type() == at::ScalarType::Byte)
-    {
-        TORCH_CHECK(
-            mask.is_contiguous(),
-            "nntile sdpa: mask must be contiguous");
-        return mask;
-    }
     TORCH_CHECK(
-        mask.scalar_type() == at::ScalarType::Bool,
+        mask.scalar_type() == at::ScalarType::Bool ||
+            mask.scalar_type() == at::ScalarType::Byte,
         "nntile sdpa: mask must be bool or uint8");
-    if (is_nntile_device(mask.device()))
-    {
-        at::Tensor mask_cpu = mask.cpu();
-        if (mask_cpu.scalar_type() != at::ScalarType::Byte)
-        {
-            mask_cpu = mask_cpu.to(at::ScalarType::Byte);
-        }
-        at::Tensor mask_u8 = empty_metadata_tensor(
-            mask.sizes(),
-            at::ScalarType::Byte,
-            mask.device());
-        init_nntile_input_from_cpu(mask_cpu.contiguous(), mask_u8);
-        return mask_u8;
-    }
-    return mask.cpu().to(at::kByte).contiguous();
+    TORCH_CHECK(
+        mask.is_contiguous(),
+        "nntile sdpa: mask must be contiguous");
+    TORCH_CHECK(
+        is_nntile_device(mask.device()),
+        "nntile sdpa: mask must be on device nntile");
+    // Byte masks are accepted at the API boundary; the executor binds them
+    // as BOOL logical nodes (same 1-byte element size).
+    return mask;
 }
 
 } // namespace
@@ -140,11 +133,9 @@ at::Tensor sdpa_forward(
     std::vector<at::Tensor> inputs = {q, k, v};
     if (mask.has_value())
     {
-        mask_u8 = mask_to_uint8_nntile(*mask);
+        mask_u8 = mask_for_nntile_sdpa(*mask);
         inputs.push_back(mask_u8);
     }
-    pin_graph_op_inputs(inputs);
-    pin_graph_op_output(out, true);
 
     const at::Tensor *mask_ptr = nullptr;
     if (mask.has_value())
@@ -189,13 +180,9 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     std::vector<at::Tensor> inputs = {q, k, v, grad_out};
     if (mask.has_value())
     {
-        mask_u8 = mask_to_uint8_nntile(*mask);
+        mask_u8 = mask_for_nntile_sdpa(*mask);
         inputs.push_back(mask_u8);
     }
-    pin_graph_op_inputs(inputs);
-    pin_graph_op_output(grad_q, true);
-    pin_graph_op_output(grad_k, true);
-    pin_graph_op_output(grad_v, true);
 
     const at::Tensor *mask_ptr = nullptr;
     if (mask.has_value())

@@ -106,7 +106,7 @@ TensorGraph::TensorNode *softmax(TensorGraph::TensorNode *maxsumexp,
     // maxsumexp has shape with 2 at axis, src has full shape
 
     TensorGraph::TensorNode *dst =
-        src->graph()->data(src->shape(), src->dtype());
+        src->graph()->emplace_data(src->shape(), src->dtype());
     dst->set_axes(src->axes());
 
     softmax(maxsumexp, src, dst, alpha, axis);

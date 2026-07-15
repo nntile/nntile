@@ -16,7 +16,6 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/nn_grad_slot_name.hh"
-#include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/gelu.hh"
 #include "nntile/tensor/ops/gelu_backward.hh"
 
@@ -56,12 +55,10 @@ void NNGeluOp::backward() const
     {
         auto [grad_x, is_first] =
             graph->get_or_create_grad(x, nn_grad_slot_name(x));
-        if (is_first)
-        {
-            tensor::clear(grad_x->data());
-        }
         tensor::gelu_backward(
-            x->data(), grad_out->data(), grad_x->data());
+            Scalar{1.0}, x->data(), grad_out->data(),
+            is_first ? Scalar{0.0} : Scalar{1.0},
+            grad_x->data());
     }
 }
 

@@ -19,9 +19,11 @@
 namespace nntile::kernel::maxsumexp
 {
 
-// Compute max and sums of exponents along middle axis
+//! Compute max and sums of exponents along middle axis
+/*! beta=0: overwrite maxsumexp; beta=1: accumulate into maxsumexp.
+ */
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
+void cpu(Index m, Index n, Index k, const T *src, Scalar beta, T *maxsumexp)
     noexcept;
 
 } // namespace nntile::kernel::maxsumexp

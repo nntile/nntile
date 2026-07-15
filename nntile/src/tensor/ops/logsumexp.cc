@@ -73,7 +73,7 @@ TensorGraph::TensorNode *logsumexp(TensorGraph::TensorNode *src)
     }
 
     TensorGraph::TensorNode *dst =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
 
     logsumexp(src, dst);
 

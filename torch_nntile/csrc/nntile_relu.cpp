@@ -5,7 +5,6 @@
  */
 
 #include "nntile_executor.h"
-#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -48,8 +47,7 @@ void check_relu_input(
 
 void run_relu(const at::Tensor &self, at::Tensor &out)
 {
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(out, false);
+    // Lifetimes: PyTorch ReluBackward0 saves the output; do not pin ``self``.
     tensor_relu_fp32(self, out);
 }
 

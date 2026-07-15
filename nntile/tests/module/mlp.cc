@@ -251,24 +251,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Mlp mlp(&g, "mlp", fc1, fc2, activation);
     auto *output = mlp.forward(input);
 
-    input->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
     output->backward();
-
-    mlp.fc1().weight_tensor()->grad()->mark_output(true);
-    mlp.fc2().weight_tensor()->grad()->mark_output(true);
-    if (mlp.fc1().bias_tensor())
-    {
-        mlp.fc1().bias_tensor()->grad()->mark_output(true);
-    }
-    if (mlp.fc2().bias_tensor())
-    {
-        mlp.fc2().bias_tensor()->grad()->mark_output(true);
-    }
-    input->grad()->mark_output(true);
 
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());
@@ -343,27 +328,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Mlp mlp(&g, "mlp", fc1, fc2, ActivationType::GELU);
     auto *output = mlp.forward(input);
 
-    input->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(1.0f), grad_output_tensor->data());
     output->backward();
-
-    mlp.fc1().weight_tensor()->grad()->mark_output(true);
-    mlp.fc2().weight_tensor()->grad()->mark_output(true);
-    if (mlp.fc1().bias_tensor())
-    {
-        mlp.fc1().bias_tensor()->grad()->mark_output(true);
-    }
-    if (mlp.fc2().bias_tensor())
-    {
-        mlp.fc2().bias_tensor()->grad()->mark_output(true);
-    }
-    if (input->has_grad())
-    {
-        input->grad()->mark_output(true);
-    }
 
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());

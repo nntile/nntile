@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -25,12 +26,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[grap
 {
     const std::vector<Index> sh = {2}, tsh = {5, 4};
     TileGraph g("g");
-    auto* si = g.data(sh, "si", DataType::FP32);
-    auto* co = g.data(sh, "co", DataType::FP32);
-    auto* dy = g.data(tsh, "dy", DataType::FP32);
-    auto* dx = g.data(tsh, "dx", DataType::FP32);
-    si->mark_input(true); co->mark_input(true); dy->mark_input(true);
-    dx->mark_input(true); dx->mark_output(true);
+    auto *si = g.data(sh, "si", DataType::FP32);
+    auto *co = g.data(sh, "co", DataType::FP32);
+    auto *dy = g.data(tsh, "dy", DataType::FP32);
+    auto *dx = g.data(tsh, "dx", DataType::FP32);
     tg::rope_backward(si, co, dy, dx);
     Runtime r(g);
     r.compile();

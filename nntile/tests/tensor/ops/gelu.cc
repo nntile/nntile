@@ -36,9 +36,10 @@ TEST_CASE("TensorGraph gelu structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
 
-    auto *dst = gt::gelu(src);
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::gelu(src));
 
     dst->set_name("dst");
 
@@ -57,7 +58,8 @@ TEST_CASE("TensorGraph gelu structure", "[graph][tensor]")
 TEST_CASE("TensorGraph gelu rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({5, 4})->set_name("src");
+    nntile::TensorRef src = graph.data({5, 4});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(gt::gelu(src, src), std::invalid_argument);
 }
@@ -84,12 +86,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("gelu_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
-        auto *dst_node = gt::gelu(src_node);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::gelu(src_node));
 
         dst_node->set_name("dst");
-        dst_node->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -104,12 +105,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("gelu_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
-        auto *dst_node = gt::gelu(src_node);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::gelu(src_node));
 
         dst_node->set_name("dst");
-        dst_node->mark_output(true);
 
         for (auto *ag : graph.axis_groups())
         {

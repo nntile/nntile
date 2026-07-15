@@ -73,12 +73,15 @@ TEST_CASE("TensorGraph norm_fiber structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim_4, dim_5})->set_name("x");
-    auto *y = graph.data({dim_4})->set_name("y");
+    nntile::TensorRef x = graph.data({dim_4, dim_5});
+    x->set_name("x");
+    nntile::TensorRef y = graph.data({dim_4});
+    y->set_name("y");
 
-    auto *out = gt::norm_fiber(
+    nntile::TensorRef out = nntile::TensorRef::adopt(gt::norm_fiber(
         alpha_one, x, beta_zero, y, axis_0, batch_ndim_none, redux_none)
-                    ->set_name("out");
+                    );
+    out->set_name("out");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -96,8 +99,10 @@ TEST_CASE(
     "TensorGraph norm_fiber rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({dim_4, dim_5})->set_name("x");
-    auto *y = graph.data({dim_4})->set_name("y");
+    nntile::TensorRef x = graph.data({dim_4, dim_5});
+    x->set_name("x");
+    nntile::TensorRef y = graph.data({dim_4});
+    y->set_name("y");
 
     REQUIRE_THROWS_AS(gt::norm_fiber(alpha_one,
                           x,
@@ -153,15 +158,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("norm_fiber_untiled");
-        auto *x_node = graph.data(x_shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(y_shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
+        nntile::TensorRef x_node = graph.data(x_shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(y_shape, DataType::FP32);
+    y_node->set_name("y");
 
-        auto *out_node = gt::norm_fiber(
+        nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::norm_fiber(
             alpha, x_node, beta, y_node, axis, batch_ndim, redux)
-                             ->set_name("out");
-        out_node->mark_output(true);
+                             );
+    out_node->set_name("out");
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -180,15 +185,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("norm_fiber_tiled");
-        auto *x_node = graph.data(x_shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(y_shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
+        nntile::TensorRef x_node = graph.data(x_shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(y_shape, DataType::FP32);
+    y_node->set_name("y");
 
-        auto *out_node = gt::norm_fiber(
+        nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::norm_fiber(
             alpha, x_node, beta, y_node, axis, batch_ndim, redux)
-                             ->set_name("out");
-        out_node->mark_output(true);
+                             );
+    out_node->set_name("out");
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

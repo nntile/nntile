@@ -21,7 +21,7 @@ namespace nntile::kernel::silu_backward
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *x, const T *dy, T *dx)
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *x, const T *dy, Scalar beta, T *dx)
     noexcept;
 
 } // namespace nntile::kernel::silu_backward

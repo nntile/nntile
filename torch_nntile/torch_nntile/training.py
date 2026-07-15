@@ -9,10 +9,11 @@
 Cross-entropy uses libnntile tensor ops (``maxsumexp``, ``logsumexp``,
 ``total_sum_accum``, ``softmax``, ``subtract_indexed_outputs``). Logits must
 have the class dimension last (``[..., C]``); labels match logits without that
-axis. Forward returns ``maxsumexp`` for reuse in backward. When
-``grad_output`` is a constant unit scalar (autograd ``ones_like(loss)``),
-backward folds that scale into softmax/subtract and skips broadcast
-``scale_slice`` / ``multiply_slice``.
+axis. Forward returns ``maxsumexp`` for reuse in backward. Inference /
+``no_grad`` bypasses the autograd ``Function`` and drops ``maxsumexp``
+immediately. When ``grad_output`` is a constant unit scalar (autograd
+``ones_like(loss)``), backward folds that scale into softmax/subtract and
+skips broadcast ``scale_slice`` / ``multiply_slice``.
 
 SGD uses the fused ``tensor::sgd_step`` kernel (momentum, weight decay,
 Nesterov), mirroring ``nntile::optim::SGD`` in the main package.
@@ -49,6 +50,9 @@ class _NntileCrossEntropy(torch.autograd.Function):
         loss, maxsumexp = _C.cross_entropy_forward(
             logits, target, reduction, ignore_index
         )
+        # Always save here: PyTorch disables grad mode inside Function.forward,
+        # so do not gate on ``is_grad_enabled()``. The inference path bypasses
+        # this Function entirely (see ``cross_entropy``).
         ctx.save_for_backward(logits, target, maxsumexp)
         ctx.reduction = int(reduction)
         ctx.ignore_index = int(ignore_index)
@@ -81,6 +85,11 @@ def cross_entropy(
     ``logits`` shape ``[..., C]`` (class dim last). ``target`` is int64 with
     shape matching logits without ``C``. Supports ``reduction='mean'`` or
     ``'sum'`` and ``ignore_index`` (default ``-100``).
+
+    Under ``torch.no_grad()`` (or when ``logits`` does not require grad),
+    skips the autograd ``Function`` and drops ``maxsumexp`` immediately.
+    (``ctx.save_for_backward`` under ``no_grad`` already does not retain
+    tensors after ``apply`` returns; bypassing avoids creating it at all.)
     """
     if logits.device.type != "nntile":
         raise ValueError("cross_entropy expects nntile logits")
@@ -92,6 +101,12 @@ def cross_entropy(
         raise ValueError("nntile cross_entropy supports reduction 'mean' or 'sum'")
     if target.device.type != "nntile":
         raise ValueError("cross_entropy expects nntile target")
+    if not torch.is_grad_enabled() or not logits.requires_grad:
+        loss, maxsumexp = _C.cross_entropy_forward(
+            logits, target, reduction_enum, ignore_index
+        )
+        del maxsumexp
+        return loss
     return _NntileCrossEntropy.apply(
         logits, target, reduction_enum, ignore_index
     )
@@ -531,17 +546,19 @@ def train_full_batch_step(
 
     When the model runs on ``device='nntile'``, ``inputs`` and ``targets`` must
     already be on nntile (use ``.to('nntile')`` explicitly).
-    """
-    for param in model.parameters():
-        param.grad = None
 
+    On nntile, free the autograd graph and ``zero_grad`` **before**
+    ``compile_graph`` so activation/grad ``INVALIDATE`` ops land in the same
+    sealed phase (same pattern as GPT-2 / Google five-layer examples; debt D7).
+    """
     logits = model(inputs)
     if hasattr(logits, "logits"):
         logits = logits.logits
     if logits.device.type == "nntile":
         loss = cross_entropy(logits, targets)
         loss.backward()
-        _nntile_optimizer_for(model, learning_rate).step()
+        optimizer = _nntile_optimizer_for(model, learning_rate)
+        optimizer.step()
         if name_axis_groups is not None:
             name_axis_groups(inputs, logits)
         if axis_group_tiling is not None:
@@ -549,21 +566,21 @@ def train_full_batch_step(
                 torch_nntile.set_axis_group_tiling(name, tile_sizes)
         if print_axis_groups:
             torch_nntile.print_axis_groups()
-        # Keep logits marked through compile/run and loss readout so this
-        # phase (and gather) can execute. Drop afterward so pending_output
-        # reclaim can invalidate_submit via mark_output(false).
-        torch_nntile.compile_graph()
-        torch_nntile.run()
-
-        torch_nntile.wait()
-        with torch.no_grad():
-            loss_cpu = loss.to("cpu")
-        # Drop step temps so pending_output reclaim sees mark_output(false).
-        # Do not gc.collect() here — it scales with session size.
+        # Detached scalar stays marked for host readout; drop autograd + grads
+        # before compile so TensorRef INVALIDATEs share this sealed phase.
+        step_loss = loss.detach()
         del logits
         del loss
+        optimizer.zero_grad(set_to_none=True)
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        with torch.no_grad():
+            loss_cpu = step_loss.to("cpu")
+        del step_loss
         return float(loss_cpu.item())
 
+    for param in model.parameters():
+        param.grad = None
     loss = F.cross_entropy(logits, targets)
     loss.backward()
     fused_sgd_step(list(model.parameters()), learning_rate)

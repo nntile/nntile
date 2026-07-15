@@ -46,7 +46,7 @@ void MaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::maxsumexp::cpu<T>(args->m, args->n, args->k, src, dst);
+    kernel::maxsumexp::cpu<T>(args->m, args->n, args->k, src, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -91,7 +91,8 @@ void MaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::maxsumexp::cuda<T>(stream, args->m, args->n, args->k, src, dst);
+    kernel::maxsumexp::cuda<T>(stream, args->m, args->n, args->k, src,
+            args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -131,32 +132,47 @@ uint32_t MaxSumExp<std::tuple<T>>::footprint(struct starpu_task *task)
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
+    hash = starpu_hash_crc32c_be_n(&args->beta, sizeof(args->beta), hash);
     return hash;
 }
 
 template<typename T>
-void MaxSumExp<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Handle src, Handle dst, int redux)
+void MaxSumExp<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n,
+        Index k, Handle src, Handle dst, Scalar beta, int redux)
 //! Insert maxsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
+    constexpr Scalar zero = 0, one = 1;
+    // Access mode for the dst handle
+    enum starpu_data_access_mode dst_mode;
+    if(beta == zero)
+    {
+        dst_mode = STARPU_W;
+    }
+    else if(beta == one)
+    {
+        if(redux != 0)
+        {
+            dst_mode = STARPU_REDUX;
+        }
+        else
+        {
+            dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
+        }
+    }
+    else
+    {
+        throw std::runtime_error("maxsumexp: beta must be 0.0 or 1.0");
+    }
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->m = m;
     args->n = n;
     args->k = k;
-    // Access mode for the dst handle
-    enum starpu_data_access_mode dst_mode;
-    if(redux != 0)
-    {
-        dst_mode = STARPU_REDUX;
-    }
-    else
-    {
-        dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
-    }
+    args->beta = beta;
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * m * (k+2) * n;
     // Submit task

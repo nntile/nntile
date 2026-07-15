@@ -62,9 +62,10 @@ TEST_CASE("TensorGraph logsumexp structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src =
-        graph.data({4, 5, 2})->set_name("src"); // maxsumexp output shape
-    auto *dst = gt::logsumexp(src)->set_name("dst");
+    nntile::TensorRef src = graph.data({4, 5, 2});
+    src->set_name("src"); // maxsumexp output shape
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::logsumexp(src));
+    dst->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -107,14 +108,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("logsumexp_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *maxsumexp_node =
-            gt::maxsumexp(src_node, axis, 0)->set_name("maxsumexp");
-        auto *logsumexp_node =
-            gt::logsumexp(maxsumexp_node)->set_name("logsumexp");
-        logsumexp_node->mark_output(true);
+        nntile::TensorRef maxsumexp_node = nntile::TensorRef::adopt(gt::maxsumexp(src_node, axis, 0));
+    maxsumexp_node->set_name("maxsumexp");
+        nntile::TensorRef logsumexp_node = nntile::TensorRef::adopt(gt::logsumexp(maxsumexp_node));
+    logsumexp_node->set_name("logsumexp");
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -132,14 +132,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("logsumexp_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *maxsumexp_node =
-            gt::maxsumexp(src_node, axis, 0)->set_name("maxsumexp");
-        auto *logsumexp_node =
-            gt::logsumexp(maxsumexp_node)->set_name("logsumexp");
-        logsumexp_node->mark_output(true);
+        nntile::TensorRef maxsumexp_node = nntile::TensorRef::adopt(gt::maxsumexp(src_node, axis, 0));
+    maxsumexp_node->set_name("maxsumexp");
+        nntile::TensorRef logsumexp_node = nntile::TensorRef::adopt(gt::logsumexp(maxsumexp_node));
+    logsumexp_node->set_name("logsumexp");
         auto *maxsumexp_dim0 = maxsumexp_node->axis(0);
         auto *maxsumexp_pair = maxsumexp_node->axis(maxsumexp_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())

@@ -100,9 +100,6 @@ std::tuple<at::Tensor, at::Tensor> cross_entropy_forward(
     ensure_host_staging(loss);
     ensure_host_staging(maxsumexp);
 #endif
-    pin_graph_op_inputs({logits, target});
-    pin_graph_op_output(loss, true);
-    pin_graph_op_output(maxsumexp, false);
     tensor_cross_entropy_forward_fp32(
         logits,
         target,
@@ -151,8 +148,6 @@ at::Tensor cross_entropy_backward(
         target.sizes(),
         logits.scalar_type(),
         logits.device());
-    pin_graph_op_inputs({logits, target, grad_out, maxsumexp});
-    pin_graph_op_output(grad_logits, false);
     tensor_cross_entropy_backward_fp32(
         logits,
         target,

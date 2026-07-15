@@ -68,10 +68,11 @@ TEST_CASE("TensorGraph scale_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim_4})->set_name(
+    nntile::TensorRef src = graph.data({dim_4});
+    src->set_name(
         "src"); // slice for dst shape [dim_2, dim_4]
-    auto *out =
-        gt::scale_slice(alpha_one, src, axis_0, dim_2)->set_name("out");
+    nntile::TensorRef out = nntile::TensorRef::adopt(gt::scale_slice(alpha_one, src, axis_0, dim_2));
+    out->set_name("out");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -88,7 +89,8 @@ TEST_CASE(
     "TensorGraph scale_slice rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({dim_4})->set_name("src");
+    nntile::TensorRef src = graph.data({dim_4});
+    src->set_name("src");
 
     REQUIRE_THROWS_AS(
         gt::scale_slice(alpha_one, src, src, axis_0), std::invalid_argument);
@@ -116,11 +118,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("scale_slice_untiled");
-        auto *src_node = graph.data(src_sh, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
-        auto *out_node =
-            gt::scale_slice(alpha, src_node, axis, axis_size)->set_name("out");
-        out_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(src_sh, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::scale_slice(alpha, src_node, axis, axis_size));
+    out_node->set_name("out");
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
         Runtime runtime(tile_graph);
@@ -134,11 +135,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("scale_slice_tiled");
-        auto *src_node = graph.data(src_sh, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
-        auto *out_node =
-            gt::scale_slice(alpha, src_node, axis, axis_size)->set_name("out");
-        out_node->mark_output(true);
+        nntile::TensorRef src_node = graph.data(src_sh, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef out_node = nntile::TensorRef::adopt(gt::scale_slice(alpha, src_node, axis, axis_size));
+    out_node->set_name("out");
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

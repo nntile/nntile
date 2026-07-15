@@ -70,10 +70,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
     x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
 
-    x->mark_input(true);
-    y->mark_input(true);
-    z->mark_output(true);
-
     std::vector<float> x_data(6 * 7);
     std::vector<float> y_data(6 * 7);
     for (Index i = 0; i < 6 * 7; ++i)
@@ -149,10 +145,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *z = hypot(x, y, alpha, beta);
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
-
-    x->mark_input(true);
-    y->mark_input(true);
-    z->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     Runtime runtime(tile_graph);

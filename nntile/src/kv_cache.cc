@@ -127,10 +127,6 @@ KVCache::create_tensors(NNGraph *graph, const std::string &prefix)
             graph->tensor(shape, config_.dtype, false)->set_name(k_name);
         auto *v_cache =
             graph->tensor(shape, config_.dtype, false)->set_name(v_name);
-        k_cache->mark_input(true);
-        k_cache->mark_output(true);
-        v_cache->mark_input(true);
-        v_cache->mark_output(true);
         tensors_.emplace_back(k_cache, v_cache);
     }
 

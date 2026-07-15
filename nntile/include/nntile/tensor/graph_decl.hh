@@ -32,6 +32,7 @@ namespace nntile
 {
 
 struct AxisDescriptor;
+class TensorRef;
 
 //! Tensor graph - defines computation at tensor level (simple tensor ops).
 class TensorGraph
@@ -44,8 +45,13 @@ class TensorGraph
     explicit TensorGraph(const std::string &name = "") : name_(name) {}
 
     //! Create a data node with fresh axis descriptors and empty label.
-    //! Call ``TensorNode::set_name`` for a debugging label.
-    TensorNode *data(
+    //! Does not create a ``TensorRef`` (for ephemeral staging / internal use).
+    TensorNode *emplace_data(
+        std::vector<Index> shape, DataType dtype = DataType::FP32);
+
+    //! Create a data node and return a ``TensorRef``; keep it alive while the
+    //! tensor is accessible. Call ``TensorNode::set_name`` for a debugging label.
+    TensorRef data(
         std::vector<Index> shape, DataType dtype = DataType::FP32);
 
     //! Add an operation to the graph
@@ -117,22 +123,13 @@ class TensorGraph
     //! Ingress ``SCATTER`` is not special: once sealed and executed, values
     //! live in ``mark_input`` tile payloads. Unsealed ops past the seal
     //! cursor are always preserved (next phase recorded during a prior
-    //! async ``run()``). Persistent data nodes remain.
+    //! Async ``run()``). Persistent data nodes remain.
     void drop_all_ops();
-
-    //! Destroy data nodes that are not marked input/output. Call only after
-    //! ``drop_all_ops()`` and after live NodeRefs have cleared unmarked temps.
-    void gc_unmarked_data_nodes();
-
-    //! Keep ``marked_io_`` in sync with ``mark_input`` / ``mark_output``.
-    void refresh_marked_io_(TensorNode const *node);
 
   private:
     std::string name_;
     std::vector<std::unique_ptr<TensorNode>> data_;
     std::vector<std::shared_ptr<TensorGraph::OpNode>> ops_;
-    //! Nodes with ``is_input || is_output`` for O(1) ``seal_phase`` carry.
-    std::unordered_set<TensorNode const *> marked_io_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

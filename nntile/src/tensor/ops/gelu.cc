@@ -37,7 +37,7 @@ TensorGraph::TensorNode *gelu(TensorGraph::TensorNode *x)
 
     std::vector<Index> output_shape = x->shape();
     TensorGraph::TensorNode *output =
-        x->graph()->data(std::move(output_shape), x->dtype());
+        x->graph()->emplace_data(std::move(output_shape), x->dtype());
     output->set_axes(x->axes());
 
     auto op = std::make_shared<TensorGeluOp>(x, output);

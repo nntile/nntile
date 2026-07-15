@@ -169,7 +169,6 @@ void Embedding::bind_weight(std::vector<std::uint8_t> data)
                                  "null (external vocab mode)");
     }
     vocab_tensor_->data()->set_bind_hint(std::move(data));
-    vocab_tensor_->mark_input(true);
 }
 
 void Embedding::bind_weight(const std::vector<float> &data)

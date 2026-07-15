@@ -147,14 +147,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Activation activation(&g, "activation", act_type);
     auto *output = activation.forward(input);
 
-    input->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
     output->backward();
-
-    input->grad()->mark_output(true);
 
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
         g.tensor_graph());

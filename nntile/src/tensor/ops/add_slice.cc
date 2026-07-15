@@ -55,7 +55,7 @@ TensorGraph::TensorNode *add_slice(Scalar alpha,
     // Output shape matches src2
     std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode *output =
-        src2->graph()->data(std::move(output_shape), src2->dtype());
+        src2->graph()->emplace_data(std::move(output_shape), src2->dtype());
     output->set_axes(src2->axes());
 
     auto op = std::make_shared<TensorAddSliceOp>(

@@ -53,13 +53,17 @@ TEST_CASE(
     std::vector<Index> logsumexp_shape{64, 2, 1, 1};
     std::vector<Index> mask_shape{64, 64};
 
-    auto *K = graph.data(kv_shape, DataType::FP16)->set_name("K");
-    auto *Q = graph.data(kv_shape, DataType::FP16)->set_name("Q");
-    auto *mask = graph.data(mask_shape, DataType::FP16)->set_name("mask");
-    auto *V = graph.data(kv_shape, DataType::FP16)->set_name("V");
+    nntile::TensorRef K = graph.data(kv_shape, DataType::FP16);
+    K->set_name("K");
+    nntile::TensorRef Q = graph.data(kv_shape, DataType::FP16);
+    Q->set_name("Q");
+    nntile::TensorRef mask = graph.data(mask_shape, DataType::FP16);
+    mask->set_name("mask");
+    nntile::TensorRef V = graph.data(kv_shape, DataType::FP16);
+    V->set_name("V");
 
-    auto *A =
-        gt::flash_sdpa_fwd_cudnn(K, Q, mask, V, "logsumexp")->set_name("A");
+    nntile::TensorRef A = nntile::TensorRef::adopt(gt::flash_sdpa_fwd_cudnn(K, Q, mask, V, "logsumexp"));
+    A->set_name("A");
 
     REQUIRE(graph.num_data() == 6);
     REQUIRE(graph.num_ops() == 1);
@@ -79,10 +83,14 @@ TEST_CASE("TensorGraph flash_sdpa_fwd_cudnn rejects null tensors",
     std::vector<Index> kv_shape{32, 64, 2, 1, 1};
     std::vector<Index> mask_shape{64, 64};
 
-    auto *K = graph.data(kv_shape, DataType::FP16)->set_name("K");
-    auto *Q = graph.data(kv_shape, DataType::FP16)->set_name("Q");
-    auto *mask = graph.data(mask_shape, DataType::FP16)->set_name("mask");
-    auto *V = graph.data(kv_shape, DataType::FP16)->set_name("V");
+    nntile::TensorRef K = graph.data(kv_shape, DataType::FP16);
+    K->set_name("K");
+    nntile::TensorRef Q = graph.data(kv_shape, DataType::FP16);
+    Q->set_name("Q");
+    nntile::TensorRef mask = graph.data(mask_shape, DataType::FP16);
+    mask->set_name("mask");
+    nntile::TensorRef V = graph.data(kv_shape, DataType::FP16);
+    V->set_name("V");
 
     REQUIRE_THROWS_AS(
         gt::flash_sdpa_fwd_cudnn(nullptr, Q, mask, V, "logsumexp"),
@@ -137,20 +145,19 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     auto run_graph = [&](bool tiled) -> std::vector<float>
     {
         TensorGraph graph(tiled ? "fwd_tiled" : "fwd_untiled");
-        auto *K_node = graph.data(K_shape, DataType::FP16)->set_name("K");
-        auto *Q_node = graph.data(K_shape, DataType::FP16)->set_name("Q");
-        auto *mask_node =
-            graph.data(mask_shape, DataType::FP16)->set_name("mask");
-        auto *V_node = graph.data(K_shape, DataType::FP16)->set_name("V");
-        K_node->mark_input(true);
-        Q_node->mark_input(true);
-        mask_node->mark_input(true);
-        V_node->mark_input(true);
+        nntile::TensorRef K_node = graph.data(K_shape, DataType::FP16);
+    K_node->set_name("K");
+        nntile::TensorRef Q_node = graph.data(K_shape, DataType::FP16);
+    Q_node->set_name("Q");
+        nntile::TensorRef mask_node = graph.data(mask_shape, DataType::FP16);
+    mask_node->set_name("mask");
+        nntile::TensorRef V_node = graph.data(K_shape, DataType::FP16);
+    V_node->set_name("V");
 
-        auto *A_node = gt::flash_sdpa_fwd_cudnn(
+        nntile::TensorRef A_node = nntile::TensorRef::adopt(gt::flash_sdpa_fwd_cudnn(
             K_node, Q_node, mask_node, V_node, "logsumexp")
-                           ->set_name("A");
-        A_node->mark_output(true);
+                           );
+    A_node->set_name("A");
 
         if (tiled)
         {

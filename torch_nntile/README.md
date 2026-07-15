@@ -2,7 +2,7 @@
 
 PyTorch **PrivateUse1** device registered as `device="nntile"`.
 
-## Prebuilt wheels (0.0.4)
+## Prebuilt wheels (0.0.5)
 
 Wheels are built in CI, not published to PyPI. Install from a downloaded
 `.whl` file after installing the matching `torch` build.
@@ -65,7 +65,7 @@ dependencies on Linux x86_64), not from the wheel itself.
 
 ```bash
 pip install torch==2.9.1
-pip install /path/to/torch_nntile-0.0.4-cp312-cp312-manylinux_2_28_x86_64.whl
+pip install /path/to/torch_nntile-0.0.5-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
 `pip install` of the wheel pulls the NVIDIA packages on Linux automatically.
@@ -84,7 +84,7 @@ The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing),
 
 ```bash
 pip install torch==2.9.1
-pip install /path/to/torch_nntile-0.0.4-cp312-cp312-macosx_14_0_arm64.whl
+pip install /path/to/torch_nntile-0.0.5-cp312-cp312-macosx_14_0_arm64.whl
 ```
 
 StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
@@ -126,17 +126,17 @@ remains a separate custom API for NNTile-layout SDPA.
 | `torch.split` backward | `tensor::concat` (PyTorch `SplitWithSizesBackward`) |
 | `F.linear` / `nn.Linear` | `tensor::gemm` (+ `add_fiber_inplace` / `sum_fiber` when bias is set) |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
-| ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
+| ReLU backward | `tensor::relu_backward(alpha, x, dy, beta, dx)` (`beta=0` → `STARPU_W`) |
 | `F.layer_norm` / `nn.LayerNorm` | `native_layer_norm` / `native_layer_norm_backward` |
 | `F.rms_norm` / `nn.RMSNorm` | custom autograd + `rms_norm_forward` / `rms_norm_backward` |
 | `torch.linalg.vector_norm` (ord=2) | forward only via `norm_forward`; errors if `requires_grad` and grad mode is on; use under `torch.no_grad()` |
 | `F.silu` / `nn.SiLU` | `tensor::silu` |
 | SiLU in-place (`silu_`) | `tensor::silu_inplace` |
-| SiLU backward | `tensor::silu_backward` (+ `tensor::clear` on output) |
+| SiLU backward | `tensor::silu_backward(alpha, x, dy, beta, dx)` (`beta=0` → `STARPU_W`) |
 | `F.gelu` / `nn.GELU` (`approximate='none'`) | `tensor::gelu` |
 | `F.gelu` (`approximate='tanh'`) | `tensor::gelutanh` |
 | GELU in-place (`gelu_`) | `tensor::gelu_inplace` / `tensor::gelutanh_inplace` |
-| GELU backward | `tensor::gelu_backward` or `tensor::gelutanh_backward` |
+| GELU backward | `tensor::gelu_backward` / `gelutanh_backward` (`alpha`/`beta`; `beta=0` → `STARPU_W`) |
 | `F.softmax` / `nn.Softmax` | `tensor::maxsumexp` + `tensor::softmax` |
 | Softmax backward | `tensor::sumprod_slice`, `tensor::add_slice`, `tensor::multiply_inplace` |
 | `linear` backward / `mm` | `tensor::gemm` |
@@ -190,9 +190,10 @@ Backward ATen ops (`linear_backward`, `silu_backward`, …) always **overwrite**
 fresh grad buffers (`beta=0`). Accumulation is delegated to PyTorch; do not fold
 `beta=1` into backward kernels unless profiling proves a fusion win.
 
-**Grad buffer stealing:** backward return tensors must not be pinned for graph
-recording (`pin_graph_op_output(..., false)`), so PyTorch can move the first
-grad into `param.grad` without an extra copy.
+**Grad buffer stealing:** the recorder does not retain backward return
+tensors, so PyTorch can move the first grad into `param.grad` without an
+extra copy. Tensor lifetimes follow ordinary PyTorch refs /
+``save_for_backward``.
 
 **Training microbatches:** use the standard PyTorch pattern — scale loss, call
 `loss.backward()` multiple times, then `optimizer.step()`. No special
@@ -253,8 +254,8 @@ Architecture reference:
 [docs/dev/torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md).
 
 - Every ``device=nntile`` tensor uses **0-byte** ``Storage``. Payload lives in
-  StarPU tiles behind ``NodeRef`` → ``NNTileBinding { logical L }``.
-- **Staging ``S`` is ephemeral** (not stored in the binding): created on StarPU
+  StarPU tiles behind ``TensorRef`` → graph-owned ``TensorNode`` (logical ``L``).
+- **Staging ``S`` is ephemeral** (not stored on the meta): created on StarPU
   for each ``.to("nntile")`` scatter or ``.cpu()`` gather. During ``run()`` of
   an ingress scatter phase, each ``S`` is destroyed right after its scatter
   finishes so StarPU's allocation cache can reuse that CUDA chunk for the next
@@ -262,21 +263,37 @@ Architecture reference:
   cached buffers and settled at ≈2× VRAM).
 - Ingress is **one-shot** per tensor via ``.to("nntile")``; CPU→bound-nntile
   copy raises.
-- **Views / reshape / contiguous-preserving permute** share ``NodeRef`` (no
+- **Views / reshape / contiguous-preserving permute** share ``TensorRef`` (no
   data copy). **nntile→nntile ``copy_``** with matching shape/dtype also
-  **aliases** ``NodeRef`` (no tile copy).
+  **aliases** ``TensorRef`` (no tile copy).
 - ``Tensor.contiguous()`` is unsupported on non-contiguous nntile tensors.
 - During ``run()`` / ``execute_range``, intermediate StarPU tile buffers are
   released after their last consumer is submitted (``invalidate_submit``), when
-  not marked as inputs/outputs — not deferred until ``wait()``.
-- On each ``compile_graph()``, ``Runtime`` refreshes tile marks from logical
-  ``mark_output`` / ``mark_input`` for the pending slice. torch_nntile snapshots
-  phase outputs and, after ``wait()`` (and again at the next compile), calls
-  ``invalidate_logical_tiles`` on snapshot entries that are no longer marked.
-- **Reduce footprint:** ``del`` step temporaries after ``wait()`` so reclaim
-  sees cleared ``mark_output``. Do not call ``gc.collect()`` in the training
-  step loop (it scales with session size and can dominate step time).
+  they have no live ``TensorRef`` — not deferred until ``wait()``.
+- On each ``compile_graph()``, tensors touched in the unsealed phase without a
+  live ``TensorRef`` get ``tensor::INVALIDATE``. Last ``TensorRef`` drop also
+  appends ``tensor::invalidate`` into the graph as an ordinary op (StarPU
+  orders it after prior uses). Do **not** rely on a pre-submit
+  ``invalidate_logical_tiles`` side channel — that could free tiles before
+  this phase’s consumers were submitted.
+- **Reduce footprint:** ``del`` step temporaries (including inputs/labels once
+  their last use is recorded) before or at ``compile_graph`` so INVALIDATE
+  ops are selected; host sync (e.g. loss ``.to("cpu")``) joins StarPU.
+  Do not call ``gc.collect()`` in the training step loop (it scales with
+  session size and can dominate step time).
   ``train_full_batch_step`` already drops logits after each step.
+- **Async multi-step VRAM (D7):** destination ``clear`` ops are StarPU tasks
+  with **only** ``STARPU_W`` (no ``STARPU_R`` / ``STARPU_RW``). They become
+  ready as soon as each step is ``run()``-submitted, so submitting many steps
+  without a host sync allocates about one activation/grad working set **per
+  in-flight step immediately** (weight deps still serialize the gemms). Avoid
+  pure ``STARPU_W``-only dependencies when overlapping steps; a future
+  graph scheduler should keep clears next to the first real use of each
+  tensor. Until then, GPT-2 examples sync each step by printing loss via
+  ``.to("cpu")`` **after** ``optimizer.zero_grad(...)`` so grad invalidates
+  share that step’s compile phase. Details:
+  [torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)
+  (section *STARPU_W-only clears*, debt D7).
 
 ### Axis-group naming and tiling
 

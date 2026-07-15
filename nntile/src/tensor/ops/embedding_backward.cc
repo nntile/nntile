@@ -66,6 +66,8 @@ void embedding_backward(TensorGraph::TensorNode* index,
                         TensorGraph::TensorNode* embed,
                         TensorGraph::TensorNode* vocab,
                         Index axis,
+                        Scalar alpha,
+                        Scalar beta,
                         int redux)
 {
     if(index == nullptr || embed == nullptr || vocab == nullptr)
@@ -76,11 +78,13 @@ void embedding_backward(TensorGraph::TensorNode* index,
         throw std::invalid_argument("embedding_backward: index must have INT64 dtype");
     if(embed->dtype() != vocab->dtype())
         throw std::invalid_argument("embedding_backward: embed and vocab must have same dtype");
+    if(beta != Scalar{0.0} && beta != Scalar{1.0})
+        throw std::invalid_argument("embedding_backward: beta must be 0.0 or 1.0");
     validate_embedding_shape_and_merge(embed, index, vocab,
                                       "embedding_backward");
 
     auto op = std::make_shared<TensorEmbeddingBackwardOp>(
-        index, embed, vocab, axis, redux);
+        index, embed, vocab, axis, alpha, beta, redux);
     vocab->graph()->add_op(op);
 }
 
@@ -94,6 +98,14 @@ void TensorEmbeddingBackwardOp::lower_to_tile(const LoweringContext& ctx) const
         throw std::runtime_error(
             "lower_to_tile EMBEDDING_BACKWARD: missing tiling for "
             "index/embed/vocab");
+    }
+
+    // Random scatter into vocab rows: cannot tile across vocab_size (axis 0).
+    if(lay_v->grid_shape().empty() || lay_v->grid_shape()[0] != 1)
+    {
+        throw std::runtime_error(
+            "lower_to_tile EMBEDDING_BACKWARD: tiling across vocab_size "
+            "(vocab axis 0) is not supported");
     }
 
     const Index vocab_b1 =
@@ -117,11 +129,16 @@ void TensorEmbeddingBackwardOp::lower_to_tile(const LoweringContext& ctx) const
             "lower_to_tile EMBEDDING_BACKWARD: embed tile count mismatch");
     }
 
-    std::vector<Index> embed_coord;
-    std::vector<Index> index_coord;
-    const Index g0_vocab = lay_v->grid_shape()[0];
     const Index g1_vocab =
         lay_v->grid_shape().size() > 1 ? lay_v->grid_shape()[1] : 1;
+
+    // beta=0: first tile op on each vocab tile overwrites (kernel clear);
+    // later ops on the same tile accumulate.
+    std::vector<char> vocab_written(static_cast<size_t>(lay_v->grid_volume()),
+            0);
+
+    std::vector<Index> embed_coord;
+    std::vector<Index> index_coord;
 
     for(Index lin_e = 0; lin_e < lay_e->grid_volume(); ++lin_e)
     {
@@ -155,32 +172,46 @@ void TensorEmbeddingBackwardOp::lower_to_tile(const LoweringContext& ctx) const
         const Index n = embed_traits.matrix_shape[static_cast<size_t>(axis)][0];
         const Index k = embed_traits.shape[axis];
 
-        for(Index tv0 = 0; tv0 < g0_vocab; ++tv0)
+        // vocab axis 0 is untiled (single tile at tv0=0).
+        constexpr Index tv0 = 0;
+        for(Index tv1 = vocab_tile1_start;
+            tv1 < vocab_tile1_start + vocab_span && tv1 < g1_vocab;
+            ++tv1)
         {
-            for(Index tv1 = vocab_tile1_start;
-                tv1 < vocab_tile1_start + vocab_span && tv1 < g1_vocab;
-                ++tv1)
-            {
-                std::vector<Index> vocab_coord = {tv0, tv1};
-                const Index lin_v = lay_v->grid_linear(vocab_coord);
-                TileGraph::TileNode* vocab_tile =
-                    tiles_v[static_cast<size_t>(lin_v)];
-                const auto vocab_ts = lay_v->tile_shape_at(vocab_coord);
-                nntile::core::TileTraits vocab_traits(vocab_ts);
+            std::vector<Index> vocab_coord = {tv0, tv1};
+            const Index lin_v = lay_v->grid_linear(vocab_coord);
+            TileGraph::TileNode* vocab_tile =
+                tiles_v[static_cast<size_t>(lin_v)];
+            const auto vocab_ts = lay_v->tile_shape_at(vocab_coord);
+            nntile::core::TileTraits vocab_traits(vocab_ts);
 
-                const Index k_start = (tv1 - vocab_tile1_start) * vocab_b1;
-                const Index k_size = vocab_traits.shape[1];
-                tile::embedding_backward(
-                    m,
-                    n,
-                    k,
-                    k_start,
-                    k_size,
-                    index_tile,
-                    tiles_e[static_cast<size_t>(lin_e)],
-                    vocab_tile,
-                    redux);
+            const Index k_start = (tv1 - vocab_tile1_start) * vocab_b1;
+            const Index k_size = vocab_traits.shape[1];
+            Scalar tile_beta = beta;
+            if(beta == Scalar{0.0})
+            {
+                if(vocab_written[static_cast<size_t>(lin_v)] == 0)
+                {
+                    tile_beta = Scalar{0.0};
+                    vocab_written[static_cast<size_t>(lin_v)] = 1;
+                }
+                else
+                {
+                    tile_beta = Scalar{1.0};
+                }
             }
+            tile::embedding_backward(
+                m,
+                n,
+                k,
+                k_start,
+                k_size,
+                alpha,
+                tile_beta,
+                index_tile,
+                tiles_e[static_cast<size_t>(lin_e)],
+                vocab_tile,
+                redux);
         }
     }
 }

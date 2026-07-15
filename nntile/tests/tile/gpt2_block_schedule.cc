@@ -105,10 +105,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // until 3D GEMM tile execution is fixed (3D forward yields NaN).
     auto *input = graph.tensor({n_seq * n_batch, cfg.hidden_size}, DataType::FP32)
                       ->set_name("input");
-    input->mark_input(true);
     auto *output = mlp.forward(input);
     REQUIRE(output != nullptr);
-    output->mark_output(true);
 
     init_random_parameter_hints(mlp, 11u);
 

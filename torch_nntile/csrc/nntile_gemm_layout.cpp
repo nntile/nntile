@@ -304,7 +304,9 @@ PreparedGemmOperands prepare_gemm_operands(
     const at::Tensor &a,
     const at::Tensor &b,
     int64_t ndim,
-    int64_t batch_ndim)
+    int64_t batch_ndim,
+    bool trans_a,
+    bool trans_b)
 {
     GemmMatrixLayout a_layout = layout_from_nd_contiguous(a);
     GemmMatrixLayout b_layout = layout_from_nd_contiguous(b);
@@ -317,8 +319,9 @@ PreparedGemmOperands prepare_gemm_operands(
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;
-    prepared.params.trans_a = a_layout.trans;
-    prepared.params.trans_b = b_layout.trans;
+    // Explicit transpose flags override stride-inferred layout.trans.
+    prepared.params.trans_a = trans_a;
+    prepared.params.trans_b = trans_b;
     prepared.params.ndim = ndim;
     prepared.params.batch_ndim = batch_ndim;
     validate_gemm_contraction(

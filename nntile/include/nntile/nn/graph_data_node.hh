@@ -33,29 +33,33 @@
 namespace nntile
 {
 
-//! Tensor node in NNGraph. Holds data_ (TensorGraph::TensorNode) for ops;
-//! adds grad_, requires_grad_, producer_. Shape/dtype/name delegate to data_.
+//! Tensor node in NNGraph. Holds a ``TensorRef`` on the TensorGraph data
+//! node (liveness for bind_data / get_output); adds grad_, requires_grad_,
+//! producer_. Shape/dtype/name delegate to the data node.
 class NNGraph::TensorNode
 {
     friend class NNGraph;
 
   private:
     NNGraph *graph_ = nullptr;
-    TensorGraph::TensorNode *data_ = nullptr;
+    TensorRef data_ref_;
     TensorNode *grad_ = nullptr;
     bool requires_grad_ = true;
     OpNode *producer_ = nullptr;
 
   public:
     TensorNode(NNGraph *graph,
-        TensorGraph::TensorNode *data,
+        TensorRef data,
         bool requires_grad = true);
 
     // Shape/dtype/name delegate to underlying data node
-    const std::vector<Index> &shape() const { return data_->shape(); }
-    Index ndim() const { return static_cast<Index>(data_->shape().size()); }
-    DataType dtype() const { return data_->dtype(); }
-    const std::string &name() const { return data_->name(); }
+    const std::vector<Index> &shape() const { return data_ref_->shape(); }
+    Index ndim() const
+    {
+        return static_cast<Index>(data_ref_->shape().size());
+    }
+    DataType dtype() const { return data_ref_->dtype(); }
+    const std::string &name() const { return data_ref_->name(); }
 
     //! Label for debugging/bind keys (delegates to underlying tensor node).
     TensorNode *set_name(std::string new_name);
@@ -66,8 +70,9 @@ class NNGraph::TensorNode
         Scalar beta = Scalar{1.0f}) const;
 
     // Accessors for underlying data node
-    TensorGraph::TensorNode *data() { return data_; }
-    const TensorGraph::TensorNode *data() const { return data_; }
+    TensorGraph::TensorNode *data() { return data_ref_.get(); }
+    const TensorGraph::TensorNode *data() const { return data_ref_.get(); }
+    TensorRef const &data_ref() const { return data_ref_; }
 
     TensorNode *grad() { return grad_; }
     const TensorNode *grad() const { return grad_; }
@@ -99,20 +104,6 @@ class NNGraph::TensorNode
     // Graph access (for operations that deduce graph from tensor)
     NNGraph *graph();
 
-    // Input/output marking (forwarded to data tensor for TensorGraph ops)
-    bool is_input() const { return data_ ? data_->is_input() : false; }
-    void mark_input(bool v = true)
-    {
-        if (data_)
-            data_->mark_input(v);
-    }
-    bool is_output() const { return data_ ? data_->is_output() : false; }
-    void mark_output(bool v = true)
-    {
-        if (data_)
-            data_->mark_output(v);
-    }
-
     //! Host bytes for load/save and compile-time tile init (delegates to data
     //! node).
     void set_bind_hint(std::vector<std::uint8_t> data);
@@ -127,7 +118,8 @@ class NNGraph::TensorNode
 
 inline NNGraph::TensorNode *NNGraph::TensorNode::set_name(std::string new_name)
 {
-    graph_->tensor_graph().rename_data_node(data_, std::move(new_name));
+    graph_->tensor_graph().rename_data_node(data_ref_.get(),
+        std::move(new_name));
     return this;
 }
 

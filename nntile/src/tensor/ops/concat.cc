@@ -81,7 +81,8 @@ TensorGraph::TensorNode *concat(
     }
 
     TensorGraph *graph = a->graph();
-    TensorGraph::TensorNode *output = graph->data(output_shape, a->dtype());
+    TensorGraph::TensorNode *output =
+        graph->emplace_data(output_shape, a->dtype());
 
     auto op = std::make_shared<TensorConcatOp>(a, b, output, axis);
     graph->add_op(op);

@@ -164,8 +164,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Embedding emb(&g, "emb", num_embeddings, embed_dim);
 
     auto *output = emb.forward(index);
-    index->mark_input(true);
-    output->mark_output(true);
 
     // Bind vocab before compile; data in [num_embeddings, embed_dim] layout
     // vocab shape [num_embeddings, embed_dim]
@@ -225,9 +223,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Embedding emb(&g, "emb", emb_pt);
     auto *output = emb.forward(index);
 
-    index->mark_input(true);
-    output->mark_output(true);
-
     std::vector<std::int64_t> index_data(batch * seq_len);
     for (Index i = 0; i < batch * seq_len; ++i)
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
@@ -275,14 +270,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     Embedding emb(&g, "emb", emb_pt);
     auto *output = emb.forward(index);
 
-    index->mark_input(true);
-    output->mark_output(true);
-
     auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     fill(Scalar(1.0f), grad_output_tensor);
     output->backward();
-
-    emb.vocab_tensor()->grad()->mark_output(true);
 
     nntile::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
     nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(

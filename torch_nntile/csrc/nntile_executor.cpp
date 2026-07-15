@@ -19,6 +19,7 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/tensor/ops/add.hh>
+#include <nntile/tensor/ops/add_fiber.hh>
 #include <nntile/tensor/ops/add_fiber_inplace.hh>
 #include <nntile/tensor/ops/add_inplace.hh>
 #include <nntile/tensor/ops/add_slice.hh>
@@ -124,7 +125,7 @@ nntile::TensorGraph::TensorNode *bridge_node_to_shape(
     }
     nntile::TensorGraph &graph = *node->graph();
     nntile::TensorGraph::TensorNode *view_node =
-        graph.data(target_shape, node->dtype());
+        graph.emplace_data(target_shape, node->dtype());
     nntile::tensor::contiguous_view(node, view_node);
     return view_node;
 }
@@ -171,13 +172,9 @@ bool tensor_node_has_graph_producer(
     {
         return false;
     }
-    // Ingress / explicit inputs are populated without a fill op. Other nodes
-    // use TensorNode::has_producer() (set in TensorGraph::add_op) — O(1)
-    // instead of scanning graph history for SCATTER producers every gemm.
-    if (node->is_input())
-    {
-        return true;
-    }
+    // Ingress / explicit inputs are populated via SCATTER (sets has_producer).
+    // Other nodes use TensorNode::has_producer() (set in TensorGraph::add_op) —
+    // O(1) instead of scanning graph history for producers every gemm.
     return node->has_producer();
 }
 
@@ -596,8 +593,8 @@ void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out)
         nntile::DataType::FP32,
         mark_as_input_for_operand(input));
 
+    // Autograd saves the ReLU output for the mask (like PyTorch ReluBackward0).
     auto *dst_node = nntile::tensor::relu(src_node)->set_name("dst");
-    push_relu_preactivation_node(src_node);
     register_data_node(out, dst_node);
 }
 
@@ -606,23 +603,15 @@ void tensor_relu_backward_fp32(
     const at::Tensor &dy,
     at::Tensor &dx)
 {
+    // ``x`` is the saved ReLU output; ``x > 0`` matches the preactivation mask.
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(x.sizes());
 
-    nntile::TensorGraph::TensorNode *x_node =
-        lookup_data_node(x, graph_shape);
-    if (x_node == nullptr)
-    {
-        x_node = pop_relu_preactivation_node(graph_shape);
-    }
-    if (x_node == nullptr)
-    {
-        x_node = get_or_create_data_node(
-            x,
-            graph_shape,
-            nntile::DataType::FP32,
-            mark_as_input_for_operand(x));
-    }
+    auto *x_node = get_or_create_data_node(
+        x,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
     auto *dy_node = get_or_create_data_node(
         dy,
         graph_shape,
@@ -634,8 +623,9 @@ void tensor_relu_backward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(dx));
 
-    nntile::tensor::clear(dx_node);
-    nntile::tensor::relu_backward(x_node, dy_node, dx_node);
+    // alpha=1, beta=0: overwrite dx (STARPU_W), no separate clear().
+    nntile::tensor::relu_backward(
+        nntile::Scalar{1.0}, x_node, dy_node, nntile::Scalar{0.0}, dx_node);
     register_data_node(dx, dx_node);
 }
 
@@ -693,8 +683,9 @@ void tensor_silu_backward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(dx));
 
-    nntile::tensor::clear(dx_node);
-    nntile::tensor::silu_backward(x_node, dy_node, dx_node);
+    // alpha=1, beta=0: overwrite dx (STARPU_W), no separate clear().
+    nntile::tensor::silu_backward(
+        nntile::Scalar{1.0}, x_node, dy_node, nntile::Scalar{0.0}, dx_node);
     register_data_node(dx, dx_node);
 }
 
@@ -771,14 +762,24 @@ void tensor_gelu_backward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(dx));
 
-    nntile::tensor::clear(dx_node);
+    // alpha=1, beta=0: overwrite dx (STARPU_W), no separate clear().
     if (approximate_tanh)
     {
-        nntile::tensor::gelutanh_backward(x_node, dy_node, dx_node);
+        nntile::tensor::gelutanh_backward(
+            nntile::Scalar{1.0},
+            x_node,
+            dy_node,
+            nntile::Scalar{0.0},
+            dx_node);
     }
     else
     {
-        nntile::tensor::gelu_backward(x_node, dy_node, dx_node);
+        nntile::tensor::gelu_backward(
+            nntile::Scalar{1.0},
+            x_node,
+            dy_node,
+            nntile::Scalar{0.0},
+            dx_node);
     }
     register_data_node(dx, dx_node);
 }
@@ -915,7 +916,7 @@ void tensor_linear_grad_bias_fp32(
         {out_features},
         nntile::DataType::FP32,
         mark_as_input_for_operand(grad_bias));
-    nntile::tensor::clear(grad_bias_node);
+    // beta=0: overwrite grad_bias (STARPU_W), no separate clear().
     nntile::tensor::sum_fiber(
         grad_out_node,
         grad_bias_node,
@@ -925,6 +926,85 @@ void tensor_linear_grad_bias_fp32(
         static_cast<nntile::Scalar>(1.0),
         static_cast<nntile::Scalar>(0.0));
     register_data_node(grad_bias, grad_bias_node);
+}
+
+void tensor_add_fiber_fp32(
+    float alpha,
+    const at::Tensor &fiber,
+    float beta,
+    const at::Tensor &tensor,
+    at::Tensor &out,
+    int64_t axis,
+    int64_t batch_ndim)
+{
+    TORCH_CHECK(out.sizes().equals(tensor.sizes()),
+        "nntile add_fiber: out shape must match tensor");
+    const std::vector<nntile::Index> tensor_graph =
+        pytorch_shape_to_graph(tensor.sizes());
+    const std::vector<nntile::Index> fiber_graph =
+        pytorch_shape_to_graph(fiber.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *fiber_node = get_or_create_data_node(
+        fiber,
+        fiber_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(fiber));
+    auto *tensor_node = get_or_create_data_node(
+        tensor,
+        tensor_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(tensor));
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::tensor::add_fiber(
+        static_cast<nntile::Scalar>(alpha),
+        fiber_node,
+        static_cast<nntile::Scalar>(beta),
+        tensor_node,
+        out_node,
+        static_cast<nntile::Index>(axis),
+        static_cast<nntile::Index>(batch_ndim));
+    register_data_node(out, out_node);
+}
+
+void tensor_sum_fiber_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst,
+    int64_t axis,
+    int64_t batch_ndim,
+    float alpha)
+{
+    const std::vector<nntile::Index> src_graph =
+        pytorch_shape_to_graph(src.sizes());
+    const std::vector<nntile::Index> dst_graph =
+        pytorch_shape_to_graph(dst.sizes());
+
+    auto *src_node = get_or_create_data_node(
+        src,
+        src_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    auto *dst_node = get_or_create_data_node(
+        dst,
+        dst_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dst));
+    // beta=0: overwrite dst (STARPU_W), no separate clear().
+    nntile::tensor::sum_fiber(
+        src_node,
+        dst_node,
+        static_cast<nntile::Index>(axis),
+        static_cast<nntile::Index>(batch_ndim),
+        0,
+        static_cast<nntile::Scalar>(alpha),
+        static_cast<nntile::Scalar>(0.0));
+    register_data_node(dst, dst_node);
 }
 
 namespace
@@ -1017,13 +1097,14 @@ void tensor_cross_entropy_forward_fp32(
 
     auto &graph = *logits_node->graph();
     auto *logsumexp_node =
-        graph.data(labels_graph, nntile::DataType::FP32)->set_name("logsumexp");
+        graph.emplace_data(labels_graph, nntile::DataType::FP32)->set_name("logsumexp");
 
-    nntile::tensor::clear(maxsumexp_node);
+    // beta=0: overwrite maxsumexp (STARPU_W), no separate clear().
     nntile::tensor::maxsumexp(
         logits_node,
         maxsumexp_node,
         class_axis,
+        static_cast<nntile::Scalar>(0.0),
         kRedux);
     nntile::tensor::logsumexp(maxsumexp_node, logsumexp_node);
     nntile::tensor::clear(loss_node);
@@ -1100,7 +1181,7 @@ void tensor_cross_entropy_backward_fp32(
         : 1.0f;
     const float effective_scale = ce_scale * grad_scale;
 
-    nntile::tensor::clear(grad_logits_node);
+    // softmax writes grad_logits with STARPU_W; no separate clear().
     nntile::tensor::softmax(
         maxsumexp_node,
         logits_node,
@@ -1131,7 +1212,7 @@ void tensor_cross_entropy_backward_fp32(
                     labels_graph.begin(),
                     labels_graph.begin() +
                         static_cast<std::ptrdiff_t>(dim) + 1);
-                dst_node = graph.data(dst_shape, nntile::DataType::FP32)
+                dst_node = graph.emplace_data(dst_shape, nntile::DataType::FP32)
                                ->set_name("grad_output_broadcast");
             }
             nntile::tensor::scale_slice(
@@ -1176,14 +1257,15 @@ void tensor_softmax_fp32(
 
     auto &graph = *src_node->graph();
     auto *maxsumexp_node =
-        graph.data(maxsumexp_graph, nntile::DataType::FP32)
+        graph.emplace_data(maxsumexp_graph, nntile::DataType::FP32)
             ->set_name("maxsumexp");
 
-    nntile::tensor::clear(maxsumexp_node);
+    // beta=0: overwrite maxsumexp (STARPU_W), no separate clear().
     nntile::tensor::maxsumexp(
         src_node,
         maxsumexp_node,
         axis,
+        static_cast<nntile::Scalar>(0.0),
         kRedux);
     nntile::tensor::softmax(
         maxsumexp_node,
@@ -1234,8 +1316,6 @@ void tensor_sgd_step_fp32(
 
     register_data_node(velocity, velocity_node);
     register_data_node(param, param_node);
-    mark_persistent_graph_tensor(velocity);
-    mark_persistent_graph_tensor(param);
 }
 
 namespace
@@ -1275,7 +1355,7 @@ nntile::TensorGraph::TensorNode *make_graph_tensor(
     const std::vector<nntile::Index> &shape,
     const char *name)
 {
-    auto *node = graph.data(shape, nntile::DataType::FP32)->set_name(name);
+    auto *node = graph.emplace_data(shape, nntile::DataType::FP32)->set_name(name);
     return node;
 }
 
@@ -1284,7 +1364,7 @@ void broadcast_slice_to_keepdim(
     nntile::TensorGraph::TensorNode *keepdim_node,
     nntile::Index axis)
 {
-    nntile::tensor::clear(keepdim_node);
+    // scale_slice writes keepdim with STARPU_W; no separate clear().
     nntile::tensor::scale_slice(
         static_cast<nntile::Scalar>(1.0),
         slice_node,
@@ -1373,65 +1453,77 @@ void tensor_layer_norm_forward_fp32(
     const float eps_sqrt = std::sqrt(eps);
     const std::vector<nntile::Index> reduced_graph =
         reduced_shape_along_axis(input_graph, axis);
-    const std::vector<nntile::Index> keepdim_graph =
-        keepdim_shape_along_axis(input_graph, axis);
+
+    // Match C++ ``NNLayerNormOp``: keep reduced mean/rstd (no ``scale_slice``
+    // keepdim broadcast). PyTorch aten still accepts these as saved stats.
+    TORCH_CHECK(
+        static_cast<std::size_t>(mean.dim()) == reduced_graph.size(),
+        "nntile layer_norm: mean rank must match reduced stats");
+    TORCH_CHECK(
+        static_cast<std::size_t>(rstd.dim()) == reduced_graph.size(),
+        "nntile layer_norm: rstd rank must match reduced stats");
+    for (std::size_t i = 0; i < reduced_graph.size(); ++i)
+    {
+        TORCH_CHECK(
+            mean.size(static_cast<int64_t>(i)) ==
+                static_cast<int64_t>(reduced_graph[i]),
+            "nntile layer_norm: mean shape mismatch");
+        TORCH_CHECK(
+            rstd.size(static_cast<int64_t>(i)) ==
+                static_cast<int64_t>(reduced_graph[i]),
+            "nntile layer_norm: rstd shape mismatch");
+    }
 
     auto *input_node = get_or_create_data_node(
         input,
         input_graph,
         nntile::DataType::FP32,
         mark_as_input_for_operand(input));
-    nntile::TensorGraph &graph = *input_node->graph();
 
-    auto *mean_reduced = make_graph_tensor(graph, reduced_graph, "mean_red");
+    auto *mean_node = get_or_create_data_node(
+        mean,
+        reduced_graph,
+        nntile::DataType::FP32,
+        false);
     nntile::tensor::sum_slice(
         input_node,
-        mean_reduced,
+        mean_node,
         axis,
         kNormRedux,
         static_cast<nntile::Scalar>(inv_l),
         static_cast<nntile::Scalar>(0.0));
 
-    auto *mean_node = get_or_create_data_node(
-        mean,
-        keepdim_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(mean));
-    broadcast_slice_to_keepdim(mean_reduced, mean_node, axis);
-
     auto *centered = nntile::tensor::add_slice(
         static_cast<nntile::Scalar>(-1.0),
-        mean_reduced,
+        mean_node,
         static_cast<nntile::Scalar>(1.0),
         input_node,
         axis);
 
-    auto *rstd_reduced = make_graph_tensor(graph, reduced_graph, "rstd_red");
+    auto *rstd_node = get_or_create_data_node(
+        rstd,
+        reduced_graph,
+        nntile::DataType::FP32,
+        false);
     nntile::tensor::norm_slice_inplace(
         static_cast<nntile::Scalar>(inv_sqrt_l),
         centered,
         static_cast<nntile::Scalar>(0.0),
-        rstd_reduced,
+        rstd_node,
         axis,
         kNormRedux);
     nntile::tensor::hypot_scalar_inverse(
         static_cast<nntile::Scalar>(eps_sqrt),
         static_cast<nntile::Scalar>(1.0),
-        rstd_reduced);
-
-    auto *rstd_node = get_or_create_data_node(
-        rstd,
-        keepdim_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(rstd));
-    broadcast_slice_to_keepdim(rstd_reduced, rstd_node, axis);
+        rstd_node);
 
     nntile::tensor::multiply_slice(
         static_cast<nntile::Scalar>(1.0),
-        rstd_reduced,
+        rstd_node,
         centered,
         axis);
 
+    // C++: y = multiply_fiber(gamma, x_hat); add_fiber_inplace(beta, y).
     nntile::TensorGraph::TensorNode *scaled = centered;
     if (has_weight)
     {
@@ -1451,7 +1543,7 @@ void tensor_layer_norm_forward_fp32(
         output,
         input_graph,
         nntile::DataType::FP32,
-        mark_as_input_for_operand(output));
+        false);
     if (has_bias)
     {
         auto *bias_node = get_or_create_data_node(
@@ -1544,7 +1636,7 @@ void tensor_layer_norm_backward_fp32(
             {norm_len},
             nntile::DataType::FP32,
             mark_as_input_for_operand(*grad_bias));
-        nntile::tensor::clear(grad_bias_node);
+        // beta=0: overwrite grad_bias (STARPU_W), no separate clear().
         nntile::tensor::sum_fiber(
             grad_out_node,
             grad_bias_node,
@@ -1578,7 +1670,7 @@ void tensor_layer_norm_backward_fp32(
             {norm_len},
             nntile::DataType::FP32,
             mark_as_input_for_operand(*grad_weight));
-        nntile::tensor::clear(grad_weight_node);
+        // beta=0: overwrite grad_weight (STARPU_W), no separate clear().
         nntile::tensor::sumprod_fiber(
             grad_out_node,
             x_hat,
@@ -1661,40 +1753,45 @@ void tensor_rms_norm_forward_fp32(
     const float eps_sqrt = std::sqrt(eps);
     const std::vector<nntile::Index> reduced_graph =
         reduced_shape_along_axis(input_graph, axis);
-    const std::vector<nntile::Index> keepdim_graph =
-        keepdim_shape_along_axis(input_graph, axis);
+
+    TORCH_CHECK(
+        static_cast<std::size_t>(rstd.dim()) == reduced_graph.size(),
+        "nntile rms_norm: rstd rank must match reduced stats");
+    for (std::size_t i = 0; i < reduced_graph.size(); ++i)
+    {
+        TORCH_CHECK(
+            rstd.size(static_cast<int64_t>(i)) ==
+                static_cast<int64_t>(reduced_graph[i]),
+            "nntile rms_norm: rstd shape mismatch");
+    }
 
     auto *input_node = get_or_create_data_node(
         input,
         input_graph,
         nntile::DataType::FP32,
         mark_as_input_for_operand(input));
-    nntile::TensorGraph &graph = *input_node->graph();
 
-    auto *rstd_reduced = make_graph_tensor(graph, reduced_graph, "rstd_red");
+    auto *rstd_node = get_or_create_data_node(
+        rstd,
+        reduced_graph,
+        nntile::DataType::FP32,
+        false);
     nntile::tensor::norm_slice_inplace(
         static_cast<nntile::Scalar>(inv_sqrt_l),
         input_node,
         static_cast<nntile::Scalar>(0.0),
-        rstd_reduced,
+        rstd_node,
         axis,
         kNormRedux);
     nntile::tensor::hypot_scalar_inverse(
         static_cast<nntile::Scalar>(eps_sqrt),
         static_cast<nntile::Scalar>(1.0),
-        rstd_reduced);
-
-    auto *rstd_node = get_or_create_data_node(
-        rstd,
-        keepdim_graph,
-        nntile::DataType::FP32,
-        mark_as_input_for_operand(rstd));
-    broadcast_slice_to_keepdim(rstd_reduced, rstd_node, axis);
+        rstd_node);
 
     auto *normalized = nntile::tensor::copy(input_node);
     nntile::tensor::multiply_slice(
         static_cast<nntile::Scalar>(1.0),
-        rstd_reduced,
+        rstd_node,
         normalized,
         axis);
 
@@ -1778,7 +1875,7 @@ void tensor_rms_norm_backward_fp32(
             {norm_len},
             nntile::DataType::FP32,
             mark_as_input_for_operand(*grad_weight));
-        nntile::tensor::clear(grad_weight_node);
+        // beta=0: overwrite grad_weight (STARPU_W), no separate clear().
         nntile::tensor::sumprod_fiber(
             grad_out_node,
             normalized,
@@ -1958,7 +2055,7 @@ void tensor_norm_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(out));
 
-    nntile::tensor::clear(out_node);
+    // beta=0: overwrite out (STARPU_W), no separate clear().
     nntile::tensor::norm(
         x_node,
         out_node,
@@ -1997,6 +2094,7 @@ void tensor_norm_slice_fp32(
         nntile::TensorGraph &graph = *x_node->graph();
         auto *reduced = make_graph_tensor(graph, reduced_graph, "norm_red");
         auto *base = make_graph_tensor(graph, reduced_graph, "norm_base");
+        // Dummy src2 for hypot(beta*src2, ...); still STARPU_R even when beta=0.
         nntile::tensor::clear(base);
         nntile::tensor::norm_slice(
             static_cast<nntile::Scalar>(1.0),
@@ -2018,6 +2116,7 @@ void tensor_norm_slice_fp32(
             mark_as_input_for_operand(out));
         nntile::TensorGraph &graph = *x_node->graph();
         auto *base = make_graph_tensor(graph, reduced_graph, "norm_base");
+        // Dummy src2 for hypot(beta*src2, ...); still STARPU_R even when beta=0.
         nntile::tensor::clear(base);
         nntile::tensor::norm_slice(
             static_cast<nntile::Scalar>(1.0),
@@ -2094,7 +2193,7 @@ void tensor_sum_dimlist_fp32(
                     mark_as_input_for_operand(out));
                 auto *reduced_node =
                     make_graph_tensor(graph, reduced, "sum_red");
-                nntile::tensor::clear(reduced_node);
+                // beta=0: overwrite reduced (STARPU_W), no separate clear().
                 nntile::tensor::sum_slice(
                     cur_node,
                     reduced_node,
@@ -2115,7 +2214,7 @@ void tensor_sum_dimlist_fp32(
                     reduced,
                     nntile::DataType::FP32,
                     mark_as_input_for_operand(out));
-                nntile::tensor::clear(out_node);
+                // beta=0: overwrite out (STARPU_W), no separate clear().
                 nntile::tensor::sum_slice(
                     cur_node,
                     out_node,
@@ -2136,7 +2235,7 @@ void tensor_sum_dimlist_fp32(
                 make_graph_tensor(graph, keepdim_shape, "sum_tmp");
             auto *reduced_node =
                 make_graph_tensor(graph, reduced, "sum_red");
-            nntile::tensor::clear(reduced_node);
+            // beta=0: overwrite reduced (STARPU_W), no separate clear().
             nntile::tensor::sum_slice(
                 cur_node,
                 reduced_node,
@@ -2154,7 +2253,7 @@ void tensor_sum_dimlist_fp32(
         }
 
         auto *next = make_graph_tensor(graph, reduced, "sum_tmp");
-        nntile::tensor::clear(next);
+        // beta=0: overwrite next (STARPU_W), no separate clear().
         nntile::tensor::sum_slice(
             cur_node,
             next,
@@ -2374,12 +2473,14 @@ void tensor_embedding_backward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(grad_weight));
 
-    nntile::tensor::clear(grad_weight_node);
+    // beta=0: clear vocab tiles in lowering, then accumulate (no tensor clear).
     nntile::tensor::embedding_backward(
         index_node,
         grad_out_node,
         grad_weight_node,
         axis,
+        static_cast<nntile::Scalar>(1.0),
+        static_cast<nntile::Scalar>(0.0),
         redux);
     register_data_node(grad_weight, grad_weight_node);
 }
@@ -2396,7 +2497,7 @@ nntile::TensorGraph::TensorNode *make_sdpa_temp_tensor(
     const std::vector<nntile::Index> &shape,
     const char *name)
 {
-    auto *node = graph.data(shape, nntile::DataType::FP32)->set_name(name);
+    auto *node = graph.emplace_data(shape, nntile::DataType::FP32)->set_name(name);
     return node;
 }
 
@@ -2448,13 +2549,14 @@ nntile::TensorGraph::TensorNode *compute_sdpa_attn(
     maxsumexp_shape.push_back(static_cast<nntile::Index>(2));
     auto *maxsumexp_node =
         make_sdpa_temp_tensor(graph, maxsumexp_shape, "sdpa_maxsumexp");
-    nntile::tensor::clear(maxsumexp_node);
 
     const nntile::Index attn_axis = q_ndim - 1;
+    // beta=0: overwrite maxsumexp (STARPU_W), no separate clear().
     nntile::tensor::maxsumexp(
         attn_node,
         maxsumexp_node,
         attn_axis,
+        static_cast<nntile::Scalar>(0.0),
         kSdpaRedux);
     nntile::tensor::softmax_inplace(
         maxsumexp_node,
@@ -2994,6 +3096,28 @@ void tensor_linear_grad_bias_fp32(
     at::Tensor & /*grad_bias*/)
 {
     require_libnntile("linear_grad_bias");
+}
+
+void tensor_add_fiber_fp32(
+    float /*alpha*/,
+    const at::Tensor & /*fiber*/,
+    float /*beta*/,
+    const at::Tensor & /*tensor*/,
+    at::Tensor & /*out*/,
+    int64_t /*axis*/,
+    int64_t /*batch_ndim*/)
+{
+    require_libnntile("add_fiber");
+}
+
+void tensor_sum_fiber_fp32(
+    const at::Tensor & /*src*/,
+    at::Tensor & /*dst*/,
+    int64_t /*axis*/,
+    int64_t /*batch_ndim*/,
+    float /*alpha*/)
+{
+    require_libnntile("sum_fiber");
 }
 
 void tensor_cross_entropy_forward_fp32(

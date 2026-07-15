@@ -89,8 +89,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
         at::Tensor x_flat = x.view({numel});
         at::Tensor norm_values = at::empty({}, x.options());
 
-        pin_graph_op_inputs({x_flat});
-        pin_graph_op_output(norm_values, true);
         tensor_norm_fp32(x_flat, norm_values);
 
         if (keepdim)
@@ -113,7 +111,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
             {
                 output = at::empty(sizes, x.options());
             }
-            pin_graph_op_output(output, true);
             tensor_broadcast_scalar_fp32(norm_values, output);
             return {output, norm_values};
         }
@@ -182,9 +179,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
     }
     at::Tensor norm_values = at::empty(reduced_sizes_ref, x.options());
 
-    pin_graph_op_inputs({x});
-    pin_graph_op_output(output, true);
-    pin_graph_op_output(norm_values, true);
     tensor_norm_slice_fp32(x, output, axis, keepdim);
     tensor_norm_slice_fp32(x, norm_values, axis, false);
     return {output, norm_values};

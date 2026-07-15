@@ -20,9 +20,7 @@
 #include "nntile/tensor.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tensor/tile_lowering_helpers.hh"
-#include "nntile/tile/ops/clear.hh"
 #include "nntile/tile/ops/maxsumexp.hh"
-#include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/maxsumexp.hh"
 
 #include <stdexcept>
@@ -53,11 +51,13 @@ TensorGraph::TensorNode *maxsumexp(
     output_shape.push_back(2);
 
     TensorGraph::TensorNode *dst =
-        src->graph()->data(std::move(output_shape), src->dtype());
+        src->graph()->emplace_data(std::move(output_shape), src->dtype());
 
     validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
 
-    auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, redux);
+    // New dst: overwrite (beta=0); lowering uses beta=1 for later axis segments
+    auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis,
+            Scalar{0.0}, redux);
     src->graph()->add_op(op);
 
     return dst;
@@ -66,6 +66,7 @@ TensorGraph::TensorNode *maxsumexp(
 void maxsumexp(TensorGraph::TensorNode *src,
     TensorGraph::TensorNode *dst,
     Index axis,
+    Scalar beta,
     int redux)
 {
     if (src == nullptr || dst == nullptr)
@@ -83,17 +84,22 @@ void maxsumexp(TensorGraph::TensorNode *src,
         throw std::invalid_argument(
             "maxsumexp: input tensors must have the same dtype");
     }
+    if (beta != Scalar{0.0} && beta != Scalar{1.0})
+    {
+        throw std::invalid_argument(
+            "maxsumexp: beta must be 0.0 or 1.0");
+    }
     validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
 
-    auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, redux);
+    auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, beta, redux);
     src->graph()->add_op(op);
 }
 
 void TensorMaxsumexpOp::lower_to_tile(const LoweringContext &ctx) const
 {
     // Match nntile::tensor::maxsumexp_async: iterate dst tiles, aggregate
-    // all src tiles along `axis` into each dst tile (see
-    // src/tensor/maxsumexp.cc).
+    // all src tiles along `axis` into each dst tile.
+    // First segment: use this->beta; later segments accumulate (beta=1).
     const TensorAxisLayout *lay_src = ctx.tiling.find(src);
     const TensorAxisLayout *lay_dst = ctx.tiling.find(dst);
     if (lay_src == nullptr || lay_dst == nullptr)
@@ -126,8 +132,6 @@ void TensorMaxsumexpOp::lower_to_tile(const LoweringContext &ctx) const
             ++d;
         }
 
-        tile::clear(dst_tile);
-
         const Index nseg_along_axis =
             lay_src->grid_shape()[static_cast<size_t>(axis)];
         for (Index j = 0; j < nseg_along_axis; ++j)
@@ -136,7 +140,8 @@ void TensorMaxsumexpOp::lower_to_tile(const LoweringContext &ctx) const
             const Index lin_src = lay_src->grid_linear(src_coord);
             TileGraph::TileNode *src_tile =
                 tiles_src[static_cast<size_t>(lin_src)];
-            tile::maxsumexp(src_tile, dst_tile, axis, redux);
+            const Scalar tile_beta = (j == 0) ? beta : Scalar{1.0};
+            tile::maxsumexp(src_tile, dst_tile, axis, tile_beta, redux);
         }
     }
 }

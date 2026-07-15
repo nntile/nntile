@@ -124,9 +124,9 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.attn.k_weight", (H, head_size, n_head)))
         specs.append((f"{p}.attn.v_weight", (H, head_size, n_head)))
         specs.append((f"{p}.attn.o_weight", (head_size, n_head, H)))
-        specs.append((f"{p}.attn.q_bias", (head_size, n_head)))
-        specs.append((f"{p}.attn.k_bias", (head_size, n_head)))
-        specs.append((f"{p}.attn.v_bias", (head_size, n_head)))
+        specs.append((f"{p}.attn.q_bias", (n_head, head_size)))
+        specs.append((f"{p}.attn.k_bias", (n_head, head_size)))
+        specs.append((f"{p}.attn.v_bias", (n_head, head_size)))
         specs.append((f"{p}.attn.o_bias", (H,)))
 
         # MLP Linear weights: [out_features, in_features] (PyTorch / C-order)
@@ -206,15 +206,15 @@ def _make_converter(
             return as_float32(o)
         if rest == "attn.q_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            b_q = c_bias[:H].reshape(n_head, head_size).transpose(1, 0)
+            b_q = c_bias[:H].reshape(n_head, head_size)
             return as_float32(b_q)
         if rest == "attn.k_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            b_k = c_bias[H:2 * H].reshape(n_head, head_size).transpose(1, 0)
+            b_k = c_bias[H:2 * H].reshape(n_head, head_size)
             return as_float32(b_k)
         if rest == "attn.v_bias":
             c_bias = hf_get(f"{hp}.attn.c_attn.bias")
-            b_v = c_bias[2 * H:3 * H].reshape(n_head, head_size).transpose(1, 0)
+            b_v = c_bias[2 * H:3 * H].reshape(n_head, head_size)
             return as_float32(b_v)
         if rest == "attn.o_bias":
             return as_float32(hf_get(f"{hp}.attn.c_proj.bias"))

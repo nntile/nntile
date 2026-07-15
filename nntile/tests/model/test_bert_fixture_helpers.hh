@@ -88,14 +88,6 @@ inline void mark_ids_inputs(
     nntile::NNGraph::TensorNode *position_ids,
     nntile::NNGraph::TensorNode *token_type_ids)
 {
-    if (position_ids != nullptr)
-    {
-        position_ids->mark_input(true);
-    }
-    if (token_type_ids != nullptr)
-    {
-        token_type_ids->mark_input(true);
-    }
 }
 
 inline void bind_ids_inputs(nntile::Runtime &runtime,
@@ -146,10 +138,6 @@ inline bool load_attn_mask_bool(nntile::NNGraph &g,
 
 inline void mark_mask_input(nntile::NNGraph::TensorNode *mask)
 {
-    if (mask != nullptr)
-    {
-        mask->mark_input(true);
-    }
 }
 
 inline void bind_mask_input(nntile::Runtime &runtime,

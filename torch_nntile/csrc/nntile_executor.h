@@ -146,6 +146,24 @@ void tensor_linear_grad_bias_fp32(
     const at::Tensor &grad_output,
     at::Tensor &grad_bias);
 
+//! ``out = alpha * fiber + beta * tensor`` (NNTile ``add_fiber``, no broadcast).
+void tensor_add_fiber_fp32(
+    float alpha,
+    const at::Tensor &fiber,
+    float beta,
+    const at::Tensor &tensor,
+    at::Tensor &out,
+    int64_t axis,
+    int64_t batch_ndim);
+
+//! ``dst = alpha * sum_fiber(src)`` along ``axis`` (fiber grad for ``add_fiber``).
+void tensor_sum_fiber_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst,
+    int64_t axis,
+    int64_t batch_ndim,
+    float alpha);
+
 void tensor_cross_entropy_forward_fp32(
     const at::Tensor &logits,
     const at::Tensor &labels,

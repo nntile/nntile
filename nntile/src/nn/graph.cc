@@ -288,9 +288,9 @@ void NNGraph::reset_phase_seal_cursor()
 NNGraph::TensorNode *NNGraph::tensor(
     std::vector<Index> shape, DataType dtype, bool requires_grad)
 {
-    TensorGraph::TensorNode *data =
-        tensor_graph_.data(std::move(shape), dtype);
-    auto node = std::make_unique<TensorNode>(this, data, requires_grad);
+    TensorRef data = tensor_graph_.data(std::move(shape), dtype);
+    auto node = std::make_unique<TensorNode>(
+        this, std::move(data), requires_grad);
     TensorNode *node_ptr = node.get();
 
     tensors_.push_back(std::move(node));
@@ -311,7 +311,8 @@ NNGraph::TensorNode *NNGraph::tensor(
         throw std::invalid_argument("NNGraph::tensor: tensor must belong to "
                                     "this graph's tensor graph");
     }
-    auto node = std::make_unique<TensorNode>(this, data, requires_grad);
+    auto node = std::make_unique<TensorNode>(
+        this, TensorRef::adopt(data), requires_grad);
     TensorNode *node_ptr = node.get();
     tensors_.push_back(std::move(node));
     return node_ptr;
@@ -494,13 +495,14 @@ std::pair<NNGraph::TensorNode *, bool> NNGraph::get_or_create_grad(
         return {tensor->grad(), false};
     }
 
-    TensorGraph::TensorNode *grad_data =
+    TensorRef grad_data =
         tensor_graph_.data(tensor->shape(), tensor->dtype());
     grad_data->set_name(grad_name);
     // Grad axes must match the tensor's axes (same tiling, same dimension
     // groups)
     grad_data->set_axes(tensor->data()->axes());
-    auto grad_node = std::make_unique<TensorNode>(this, grad_data, false);
+    auto grad_node =
+        std::make_unique<TensorNode>(this, std::move(grad_data), false);
     TensorNode *grad_ptr = grad_node.get();
     tensors_.push_back(std::move(grad_node));
     tensor->set_grad(grad_ptr);

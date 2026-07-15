@@ -26,7 +26,7 @@ namespace nntile::tensor
 {
 
 TensorGraph::TensorNode *relu_backward(
-    TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy)
+    Scalar alpha, TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy)
 {
     if (x == nullptr || dy == nullptr)
         throw std::invalid_argument("relu_backward: inputs must be non-null");
@@ -40,15 +40,15 @@ TensorGraph::TensorNode *relu_backward(
         throw std::invalid_argument(
             "relu_backward: x and dy must be distinct tensors");
     validate_same_shape_and_merge(x, dy, "relu_backward");
-    TensorGraph::TensorNode *output = x->graph()->data(x->shape(), x->dtype());
+    TensorGraph::TensorNode *output = x->graph()->emplace_data(x->shape(), x->dtype());
     output->set_axes(x->axes());
-    relu_backward(x, dy, output);
+    relu_backward(alpha, x, dy, Scalar{0.0}, output);
     return output;
 }
 
-void relu_backward(TensorGraph::TensorNode *x,
+void relu_backward(Scalar alpha, TensorGraph::TensorNode *x,
     TensorGraph::TensorNode *dy,
-    TensorGraph::TensorNode *dx)
+    Scalar beta, TensorGraph::TensorNode *dx)
 {
     if (x == nullptr || dy == nullptr || dx == nullptr)
         throw std::invalid_argument("relu_backward: tensors must be non-null");
@@ -63,7 +63,7 @@ void relu_backward(TensorGraph::TensorNode *x,
             "relu_backward: x, dy, and dx must be distinct tensors");
     validate_same_shape_and_merge(x, dy, "relu_backward");
     validate_same_shape_and_merge(x, dx, "relu_backward");
-    auto op = std::make_shared<TensorReluBackwardOp>(x, dy, dx);
+    auto op = std::make_shared<TensorReluBackwardOp>(x, dy, dx, alpha, beta);
     x->graph()->add_op(op);
 }
 
@@ -82,7 +82,7 @@ void TensorReluBackwardOp::lower_to_tile(const LoweringContext &ctx) const
     tile_lower::assert_same_elementwise_layout(x, dx, "RELU_BACKWARD x/dx");
     for (size_t i = 0; i < vx.size(); ++i)
     {
-        tile::relu_backward(vx[i], vdy[i], vdx[i]);
+        tile::relu_backward(alpha, vx[i], vdy[i], beta, vdx[i]);
     }
 }
 

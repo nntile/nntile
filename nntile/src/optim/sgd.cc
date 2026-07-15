@@ -49,11 +49,6 @@ void SGD::step_lr(std::optional<Scalar> lr_override)
         auto *velocity =
             graph_->tensor(ps.param->shape(), ps.param->dtype(), false)
                 ->set_name(vel_name);
-        velocity->mark_input(true);
-        velocity->mark_output(true);
-
-        ps.param->mark_input(true);
-        ps.param->mark_output(true);
 
         sgd_step(ps.param,
             ps.grad,

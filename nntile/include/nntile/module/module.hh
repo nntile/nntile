@@ -197,7 +197,9 @@ public:
     //!        missing from the file. If false, missing tensors are skipped.
     void load(const std::string& path, bool strict = true);
 
-    //! Mark every recursive parameter as an NNGraph input (runtime bind slot).
+    //! No-op retained for API compatibility. Parameter liveness for
+    //! ``bind_data`` / ``get_output`` comes from ``TensorRef`` held by each
+    //! ``NNGraph::TensorNode``.
     void mark_parameters_input_recursive();
 
     //! Copy staged host parameter bytes into ``rt`` via ``bind_data``.

@@ -54,8 +54,6 @@ void run_narrow(
     int64_t length,
     at::Tensor &out)
 {
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(out, true);
     tensor_narrow_fp32(self, dim, start, length, out);
 }
 

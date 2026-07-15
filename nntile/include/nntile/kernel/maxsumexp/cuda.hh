@@ -31,16 +31,19 @@ namespace nntile::kernel::maxsumexp
  *      maxsumexp[1,i,j] = old[1,i,j]*exp(old[0,i,j]-maxsumexp[0,i,j])
  *          + sum(exp(src[i,:,j]-maxsumexp[0,i,j])))
  *
+ * With beta=0, old is ignored and maxsumexp is overwritten (STARPU_W).
+ * With beta=1, results accumulate into maxsumexp (STARPU_RW).
+ *
  * @param[in] m: Size of the first mode of src and the second mode of maxsumexp
  * arrays.
  * @param[in] n: Size of the last mode of src and maxsumexp arrays
  * @param[in] k: Size of the middle mode of src array
  * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array, that
- * accumulates sums and norms of slices along middle axis.
+ * @param[in] beta: 0.0 overwrite, 1.0 accumulate
+ * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array
  */
 template <typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
-          T *maxsumexp) noexcept;
+          Scalar beta, T *maxsumexp) noexcept;
 
 } // namespace nntile::kernel::maxsumexp

@@ -36,10 +36,13 @@ TEST_CASE("TensorGraph add structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *x = graph.data({dim0, dim1})->set_name("x");
-    auto *y = graph.data({dim0, dim1})->set_name("y");
+    nntile::TensorRef x = graph.data({dim0, dim1});
+    x->set_name("x");
+    nntile::TensorRef y = graph.data({dim0, dim1});
+    y->set_name("y");
 
-    auto *z = gt::add(alpha, x, beta, y)->set_name("z");
+    nntile::TensorRef z = nntile::TensorRef::adopt(gt::add(alpha, x, beta, y));
+    z->set_name("z");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -56,8 +59,10 @@ TEST_CASE("TensorGraph add structure", "[graph][tensor]")
 TEST_CASE("TensorGraph add rejects duplicate tensors")
 {
     TensorGraph graph("test");
-    auto *x = graph.data({5, 4})->set_name("x");
-    auto *y = graph.data({5, 4})->set_name("y");
+    nntile::TensorRef x = graph.data({5, 4});
+    x->set_name("x");
+    nntile::TensorRef y = graph.data({5, 4});
+    y->set_name("y");
 
     REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, x), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, y, x), std::invalid_argument);
@@ -89,13 +94,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("add_untiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(shape, DataType::FP32);
+    y_node->set_name("y");
 
-        auto *z_node = gt::add(alpha, x_node, beta, y_node)->set_name("z");
-        z_node->mark_output(true);
+        nntile::TensorRef z_node = nntile::TensorRef::adopt(gt::add(alpha, x_node, beta, y_node));
+    z_node->set_name("z");
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -114,13 +119,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("add_tiled");
-        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
-        auto *y_node = graph.data(shape, DataType::FP32)->set_name("y");
-        x_node->mark_input(true);
-        y_node->mark_input(true);
+        nntile::TensorRef x_node = graph.data(shape, DataType::FP32);
+    x_node->set_name("x");
+        nntile::TensorRef y_node = graph.data(shape, DataType::FP32);
+    y_node->set_name("y");
 
-        auto *z_node = gt::add(alpha, x_node, beta, y_node)->set_name("z");
-        z_node->mark_output(true);
+        nntile::TensorRef z_node = nntile::TensorRef::adopt(gt::add(alpha, x_node, beta, y_node));
+    z_node->set_name("z");
         for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);

@@ -103,8 +103,6 @@ void llama_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
         load_attn_mask_bool(g, reader, n_seq, mask, mask_bytes);
         LlamaAttention attn(&g, "attn", config);
         auto *output = attn.forward(input, rope.sin, rope.cos, mask);
-        input->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
         mark_mask_input(mask);
 
@@ -169,16 +167,12 @@ void llama_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
         LlamaAttention attn(&g, "attn", config);
         auto *output = attn.forward(input, rope.sin, rope.cos, mask);
 
-        input->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
         mark_mask_input(mask);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        input->grad()->mark_output(true);
 
         attn.load(full_path);
 

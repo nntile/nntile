@@ -87,18 +87,18 @@ NNGraph::TensorNode *NNCrossEntropyOp::forward()
         }
     }
     maxsumexp_shape.push_back(2);
-    maxsumexp_data_ = tg.data(maxsumexp_shape, x->dtype());
+    maxsumexp_data_ = tg.emplace_data(maxsumexp_shape, x->dtype());
 
     // logsumexp shape: labels shape
     TensorGraph::TensorNode *logsumexp_data =
-        tg.data(labels_shape, x->dtype());
+        tg.emplace_data(labels_shape, x->dtype());
 
     // val: scalar
-    TensorGraph::TensorNode *val_data = tg.data({}, x->dtype());
+    TensorGraph::TensorNode *val_data = tg.emplace_data({}, x->dtype());
 
-    // Forward: clear maxsumexp, maxsumexp, logsumexp, total_sum_accum
-    tensor::clear(maxsumexp_data_);
-    tensor::maxsumexp(x->data(), maxsumexp_data_, class_axis, redux);
+    // Forward: maxsumexp (beta=0 overwrite), logsumexp, total_sum_accum
+    tensor::maxsumexp(x->data(), maxsumexp_data_, class_axis, Scalar{0.0},
+            redux);
     tensor::logsumexp(maxsumexp_data_, logsumexp_data);
     tensor::clear(val_data);
     tensor::total_sum_accum(scale,
@@ -153,8 +153,8 @@ void NNCrossEntropyOp::backward() const
         graph->get_or_create_grad(x, nn_grad_slot_name(x));
 
     // Recompute maxsumexp for backward (needed for softmax)
-    tensor::clear(maxsumexp_data_);
-    tensor::maxsumexp(x->data(), maxsumexp_data_, class_axis, redux);
+    tensor::maxsumexp(x->data(), maxsumexp_data_, class_axis, Scalar{0.0},
+            redux);
 
     // grad_temp = scale * (softmax(x) - one_hot(labels))
     tensor::softmax(

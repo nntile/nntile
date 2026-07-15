@@ -77,15 +77,20 @@ class TensorGraph::TensorNode
     //! joining their groups. Sizes must match shape.
     void set_axes(const std::vector<std::shared_ptr<AxisDescriptor>> &axes);
 
-    // Graph structure
-    bool is_input() const { return is_input_; }
-    bool is_output() const { return is_output_; }
-    void mark_input(bool v = true);
-    void mark_output(bool v = true);
-
     //! True after any op lists this node as an output (O(1) producer check).
     bool has_producer() const { return has_producer_; }
     void note_produced() { has_producer_ = true; }
+
+    //! External ``TensorRef`` hold count (accessibility, not IR ownership).
+    int external_hold_count() const { return external_hold_count_; }
+    void note_external_hold_() { ++external_hold_count_; }
+    void note_external_release_()
+    {
+        if (external_hold_count_ > 0)
+        {
+            --external_hold_count_;
+        }
+    }
 
     //! Constant value when the only producer is FILL (common for ones_like).
     bool has_constant_value() const { return has_constant_value_; }
@@ -124,15 +129,17 @@ class TensorGraph::TensorNode
     std::vector<std::shared_ptr<AxisDescriptor>> axes_;
     DataType dtype_;
     std::string name_;
-    bool is_input_ = false;
-    bool is_output_ = false;
     bool has_producer_ = false;
     bool has_constant_value_ = false;
     Scalar constant_value_ = 0;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
     mutable std::uint32_t touch_gen_ = 0;
+    mutable int external_hold_count_ = 0;
+    //! Shared with ``TensorRef`` so all refs to this node share one hold.
+    mutable std::weak_ptr<void> external_hold_;
 
     friend class TensorGraph;
+    friend class TensorRef;
 };
 
 //! Validate same shape and merge axes for two tensors (single loop).

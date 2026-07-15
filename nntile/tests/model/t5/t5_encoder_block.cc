@@ -123,8 +123,6 @@ void encoder_block_forward_compare_ref(const EncoderBlockFixtureSpec &fx)
         encoder.load(full_path);
 
         auto *output = encoder.forward(input, nullptr);
-        input->mark_input(true);
-        output->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -176,14 +174,9 @@ void encoder_block_backward_compare_ref(const EncoderBlockFixtureSpec &fx)
         encoder.load(full_path);
         auto *output = encoder.forward(input, nullptr);
 
-        input->mark_input(true);
-        output->mark_output(true);
-
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        input->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);

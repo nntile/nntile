@@ -65,8 +65,6 @@ void check_repeat_input(const at::Tensor &self)
 
 void run_repeat(const at::Tensor &self, at::Tensor &out, c10::IntArrayRef repeats)
 {
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(out, true);
     tensor_repeat_fp32(self, out, repeats);
 }
 

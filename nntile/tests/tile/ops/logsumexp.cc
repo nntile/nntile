@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -31,10 +32,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile
     const std::vector<Index> sh_dst = {3, 2};
     const Index n_src = 12, n_dst = 6;
     TileGraph g("g");
-    auto* s = g.data(sh_src, "s", DataType::FP32);
-    auto* d = g.data(sh_dst, "d", DataType::FP32);
-    s->mark_input(true);
-    d->mark_output(true);
+    auto *s = g.data(sh_src, "s", DataType::FP32);
+    auto *d = g.data(sh_dst, "d", DataType::FP32);
     tg::logsumexp(s, d);
     Runtime runtime(g);
     runtime.compile();

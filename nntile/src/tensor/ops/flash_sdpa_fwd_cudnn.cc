@@ -59,10 +59,10 @@ TensorGraph::TensorNode *flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
     std::vector<Index> logsumexp_shape(Q_shape.begin() + 1, Q_shape.end());
     std::vector<Index> A_shape = Q_shape;
     TensorGraph::TensorNode *logsumexp_node =
-        K->graph()->data(std::move(logsumexp_shape), DataType::FP32);
+        K->graph()->emplace_data(std::move(logsumexp_shape), DataType::FP32);
     logsumexp_node->set_name(logsumexp_name);
     TensorGraph::TensorNode *A_node =
-        K->graph()->data(std::move(A_shape), K->dtype());
+        K->graph()->emplace_data(std::move(A_shape), K->dtype());
 
     // A has same shape as Q
     A_node->set_axes(Q->axes());

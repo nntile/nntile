@@ -24,6 +24,7 @@
 #include <nntile/tile/ops/add_slice.hh>
 #include <nntile/tile/ops/add_slice_inplace.hh>
 #include <nntile/tile/ops/clear.hh>
+#include <nntile/tile/ops/invalidate.hh>
 #include <nntile/tile/ops/conv2d_bwd_input_inplace.hh>
 #include <nntile/tile/ops/conv2d_bwd_weight_inplace.hh>
 #include <nntile/tile/ops/conv2d_inplace.hh>

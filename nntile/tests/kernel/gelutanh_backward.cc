@@ -52,6 +52,9 @@ struct TestData
 
     Y eps_check;
 
+    Scalar alpha = 1.0f;
+    Scalar beta = 1.0f;
+
     std::vector<T> x;
     std::vector<T> dy;
     std::vector<T> dx_init;
@@ -85,13 +88,33 @@ void reference_gelutanh_backward(TestData<T>& data)
         {
             ref_t inv_expy1p1 = one / (expy1 + one);
             ref_t dy = static_cast<Y>(data.dy[i]);
-            ref_t dx = static_cast<Y>(data.dx_init[i]);
-            dx += (one-y2*(one-inv_expy1p1)) * inv_expy1p1 * dy;
-            data.dx_ref[i] = static_cast<T>(static_cast<Y>(dx));
+            ref_t g = (one-y2*(one-inv_expy1p1)) * inv_expy1p1;
+            ref_t contrib = data.alpha * g * dy;
+            if(data.beta == 0.0)
+            {
+                data.dx_ref[i] = static_cast<T>(static_cast<Y>(contrib));
+            }
+            else
+            {
+                ref_t dx = static_cast<Y>(data.dx_init[i]);
+                data.dx_ref[i] = static_cast<T>(static_cast<Y>(contrib + data.beta * dx));
+            }
         }
         else
         {
-            data.dx_ref[i] = data.dx_init[i];
+            if(data.beta == 0.0)
+            {
+                data.dx_ref[i] = static_cast<T>(static_cast<Y>(zero));
+            }
+            else if(data.beta != 1.0)
+            {
+                ref_t dx = static_cast<Y>(data.dx_init[i]);
+                data.dx_ref[i] = static_cast<T>(static_cast<Y>(data.beta * dx));
+            }
+            else
+            {
+                data.dx_ref[i] = data.dx_init[i];
+            }
         }
     }
 }
@@ -138,12 +161,16 @@ void generate_data(TestData<T>& data, DataGen strategy)
 template<typename T>
 TestData<T> get_test_input_data(
     Index nelems,
-    DataGen strategy
+    DataGen strategy,
+    Scalar alpha = 1.0f,
+    Scalar beta = 1.0f
 )
 {
     TestData<T> data;
     // Generate data by a provided strategy
     data.nelems = nelems;
+    data.alpha = alpha;
+    data.beta = beta;
     data.x.resize(nelems);
     data.dy.resize(nelems);
     data.dx_init.resize(nelems);
@@ -209,8 +236,10 @@ void run_cpu_test(TestData<T>& data)
         {
             cpu<T>(
                 data.nelems,
+                data.alpha,
                 &data.x[0],
                 &data.dy[0],
+                data.beta,
                 &dx_cpu[0]
             );
         };
@@ -219,8 +248,10 @@ void run_cpu_test(TestData<T>& data)
     {
         cpu<T>(
             data.nelems,
+            data.alpha,
             &data.x[0],
             &data.dy[0],
+            data.beta,
             &dx_cpu[0]
         );
         verify_results(data, dx_cpu);
@@ -264,8 +295,10 @@ void run_cuda_test(TestData<T>& data)
             cuda<T>(
                 stream,
                 data.nelems,
+                data.alpha,
                 dev_x,
                 dev_dy,
+                data.beta,
                 dev_dx
             );
             cudaStreamSynchronize(stream);
@@ -276,8 +309,10 @@ void run_cuda_test(TestData<T>& data)
         cuda<T>(
             stream,
             data.nelems,
+            data.alpha,
             dev_x,
             dev_dy,
+            data.beta,
             dev_dx
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
@@ -308,10 +343,17 @@ TEMPLATE_TEST_CASE(
     using T = TestType;
     const Index nelems = GENERATE(5, 129);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
+    const auto ab = GENERATE(
+        std::make_pair(Scalar{1.0f}, Scalar{1.0f}),
+        std::make_pair(Scalar{1.0f}, Scalar{0.0f}),
+        std::make_pair(Scalar{2.0f}, Scalar{0.5f})
+    );
 
     auto data = get_test_input_data<T>(
         nelems,
-        strategy
+        strategy,
+        ab.first,
+        ab.second
     );
 
     // Compute reference outputs for verification

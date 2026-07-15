@@ -66,7 +66,7 @@ TensorGraph::TensorNode *rope(TensorGraph::TensorNode *sin,
     }
 
     TensorGraph::TensorNode *dst =
-        src->graph()->data(src->shape(), src->dtype());
+        src->graph()->emplace_data(src->shape(), src->dtype());
     dst->set_axes(src->axes());
 
     rope(sin, cos, src, dst);

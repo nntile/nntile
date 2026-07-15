@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tile/ops/gelutanh_backward.hh
- * TileGraph GeLU-tanh backward
+ * TileGraph GeLU-tanh backward: dx = alpha * grad_func(x) * dy + beta * dx
  *
  * @version 1.1.0
  * */
@@ -15,24 +15,35 @@
 #pragma once
 
 // NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/tile/graph.hh>
 
 namespace nntile::tile
 {
 
-//! GeLUTanh backward operation: dx = gelutanh_backward(x, dy)
+//! GeLUTanh backward operation: dx = alpha * grad_func(x) * dy + beta * dx
 struct TileGelutanhBackwardOp : TileGraph::OpNode
 {
+    Scalar alpha;
+    Scalar beta;
     TileGraph::TileNode* x = nullptr;
     TileGraph::TileNode* dy = nullptr;
     TileGraph::TileNode* dx = nullptr;
 
     TileGelutanhBackwardOp() = default;
     TileGelutanhBackwardOp(
-        TileGraph::TileNode* x_, TileGraph::TileNode* dy_, TileGraph::TileNode* dx_)
-        : x(x_), dy(dy_), dx(dx_)
+        TileGraph::TileNode* x_, TileGraph::TileNode* dy_, TileGraph::TileNode* dx_,
+        Scalar alpha_, Scalar beta_)
+        : alpha(alpha_), beta(beta_), x(x_), dy(dy_), dx(dx_)
     {
-        inputs_ = {x, dy, dx};
+        if(beta == Scalar{0.0})
+        {
+            inputs_ = {x, dy};
+        }
+        else
+        {
+            inputs_ = {x, dy, dx};
+        }
         outputs_ = {dx};
     }
 
@@ -46,7 +57,8 @@ struct TileGelutanhBackwardOp : TileGraph::OpNode
     }
 };
 
-void gelutanh_backward(
-    TileGraph::TileNode* x, TileGraph::TileNode* dy, TileGraph::TileNode* dx);
+//! GeLUTanh backward: dx = alpha * grad_func(x) * dy + beta * dx
+void gelutanh_backward(Scalar alpha, TileGraph::TileNode* x, TileGraph::TileNode* dy,
+    Scalar beta, TileGraph::TileNode* dx);
 
 } // namespace nntile::tile

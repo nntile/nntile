@@ -68,8 +68,10 @@ TEST_CASE("HF alias normalizes hidden_size", "[tiling][json]")
 TEST_CASE("apply per-layer override on named axes", "[tiling][json]")
 {
     TensorGraph tg("apply");
-    auto *t0 = tg.data({128})->set_name("model_transformer_h_0_mlp_w");
-    auto *t1 = tg.data({128})->set_name("model_transformer_h_1_mlp_w");
+    nntile::TensorRef t0 = tg.data({128});
+    t0->set_name("model_transformer_h_0_mlp_w");
+    nntile::TensorRef t1 = tg.data({128});
+    t1->set_name("model_transformer_h_1_mlp_w");
     t0->axis(0)->name = "layer.0.intermediate_size";
     t1->axis(0)->name = "layer.1.intermediate_size";
 
@@ -97,9 +99,10 @@ TEST_CASE(
     cfg.validate();
 
     TensorGraph tg("naming");
-    auto *heads =
-        tg.data({4, 16, 64})->set_name("model_transformer_h_0_attn_q_weight");
-    auto *batch_in = tg.data({8, 4})->set_name("input_ids");
+    nntile::TensorRef heads = tg.data({4, 16, 64});
+    heads->set_name("model_transformer_h_0_attn_q_weight");
+    nntile::TensorRef batch_in = tg.data({8, 4});
+    batch_in->set_name("input_ids");
 
     name_gpt2_training_axis_groups(tg, cfg, 8, 4);
 
@@ -119,7 +122,8 @@ TEST_CASE(
     cfg.validate();
 
     TensorGraph tg("naming");
-    auto *batch_in = tg.data({8, 8})->set_name("input_ids");
+    nntile::TensorRef batch_in = tg.data({8, 8});
+    batch_in->set_name("input_ids");
 
     name_gpt2_training_axis_groups(tg, cfg, 8, 8);
 
@@ -141,7 +145,8 @@ TEST_CASE(
     cfg.validate();
 
     TensorGraph tg("naming");
-    auto *wpe = tg.data({128, 64})->set_name("model_transformer_wpe_vocab");
+    nntile::TensorRef wpe = tg.data({128, 64});
+    wpe->set_name("model_transformer_wpe_vocab");
 
     name_gpt2_training_axis_groups(tg, cfg, 8, 4);
 
@@ -162,7 +167,8 @@ TEST_CASE(
     cfg.validate();
 
     TensorGraph tg("naming");
-    auto *wpe = tg.data({128, 128})->set_name("model_transformer_wpe_vocab");
+    nntile::TensorRef wpe = tg.data({128, 128});
+    wpe->set_name("model_transformer_wpe_vocab");
 
     name_gpt2_training_axis_groups(tg, cfg, 8, 4);
 
@@ -182,10 +188,12 @@ TEST_CASE(
     cfg.validate();
 
     TensorGraph tg("naming");
-    auto *fc1 = tg.data({128, 128})
-                    ->set_name("model_transformer_h_0_mlp_fc1_weight");
-    auto *fc2 = tg.data({128, 128})
-                    ->set_name("model_transformer_h_0_mlp_fc2_weight");
+    nntile::TensorRef fc1 = tg.data({128, 128})
+                    ;
+    fc1->set_name("model_transformer_h_0_mlp_fc1_weight");
+    nntile::TensorRef fc2 = tg.data({128, 128})
+                    ;
+    fc2->set_name("model_transformer_h_0_mlp_fc2_weight");
 
     name_gpt2_training_axis_groups(tg, cfg, 8, 4);
 
@@ -207,7 +215,8 @@ TEST_CASE(
     cfg.validate();
 
     TensorGraph tg("naming");
-    auto *batch_in = tg.data({64, 4})->set_name("input_ids");
+    nntile::TensorRef batch_in = tg.data({64, 4});
+    batch_in->set_name("input_ids");
 
     name_gpt2_training_axis_groups(tg, cfg, 64, 4);
 
@@ -228,7 +237,8 @@ TEST_CASE(
     cfg.validate();
 
     TensorGraph tg("naming");
-    auto *wte = tg.data({256})->set_name("model_transformer_wte_weight");
+    nntile::TensorRef wte = tg.data({256});
+    wte->set_name("model_transformer_wte_weight");
 
     name_gpt2_training_axis_groups(tg, cfg, 8, 256);
 
@@ -247,7 +257,8 @@ TEST_CASE(
     cfg.validate();
 
     TensorGraph tg("naming");
-    auto *hidden = tg.data({64})->set_name("model_transformer_h_0_ln_1");
+    nntile::TensorRef hidden = tg.data({64});
+    hidden->set_name("model_transformer_h_0_ln_1");
 
     name_gpt2_training_axis_groups(tg, cfg, 64, 4);
 
@@ -265,8 +276,9 @@ TEST_CASE("apply tiling on embedding weight axis", "[tiling][gpt2][embedding]")
     cfg.validate();
 
     TensorGraph tg("embed");
-    auto *wte = tg.data({cfg.vocab_size, cfg.hidden_size})
-                   ->set_name("model_transformer_wte_weight");
+    nntile::TensorRef wte = tg.data({cfg.vocab_size, cfg.hidden_size})
+                   ;
+    wte->set_name("model_transformer_wte_weight");
     name_gpt2_training_axis_groups(tg, cfg, 8, 2);
 
     FlatTilingSpec spec;
@@ -287,8 +299,9 @@ TEST_CASE("apply tiling on attention QKV axis groups", "[tiling][gpt2][sdpa]")
     cfg.validate();
 
     TensorGraph tg("sdpa");
-    auto *q = tg.data({cfg.hidden_size, 8, 2})
-                  ->set_name("model_transformer_h_0_attn_q_proj_weight");
+    nntile::TensorRef q = tg.data({cfg.hidden_size, 8, 2})
+                  ;
+    q->set_name("model_transformer_h_0_attn_q_proj_weight");
     name_gpt2_training_axis_groups(tg, cfg, 8, 2);
 
     FlatTilingSpec spec;

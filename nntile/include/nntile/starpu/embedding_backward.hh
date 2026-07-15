@@ -50,6 +50,9 @@ public:
         Index k;
         Index k_start;
         Index k_size;
+        Index vocab_nelems;
+        Scalar alpha;
+        Scalar beta;
     };
 
     //! Footprint function for the current operation
@@ -78,7 +81,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit embedding backward task
+    //! Submit embedding backward: vocab = beta*vocab + alpha*scatter(embed)
     void submit(
         int starpu_worker_hint,
         Index m,
@@ -86,6 +89,9 @@ public:
         Index k,
         Index k_start,
         Index k_size,
+        Index vocab_nelems,
+        Scalar alpha,
+        Scalar beta,
         Handle index,
         Handle embed,
         Handle vocab,

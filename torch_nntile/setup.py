@@ -34,6 +34,7 @@ CSRC = [
     "csrc/nntile_gemm.cpp",
     "csrc/nntile_executor.cpp",
     "csrc/nntile_add.cpp",
+    "csrc/nntile_add_fiber.cpp",
     "csrc/nntile_mul.cpp",
     "csrc/nntile_cat.cpp",
     "csrc/nntile_narrow.cpp",
@@ -232,7 +233,7 @@ def _nntile_extension_kwargs() -> dict:
 
 ext_kwargs = _nntile_extension_kwargs()
 
-_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.4")
+_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.5")
 _torch_requires = "torch==2.9.1"
 _linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'
 _linux_nvidia_requires = [

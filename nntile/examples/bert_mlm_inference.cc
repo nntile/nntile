@@ -41,9 +41,6 @@ int main()
     auto *position_ids =
         graph.tensor({n_batch, n_seq}, DataType::INT64, false)
             ->set_name("position_ids");
-    input_ids->mark_input(true);
-    token_type_ids->mark_input(true);
-    position_ids->mark_input(true);
 
     std::mt19937 gen(7);
     init_random_bert_parameter_hints(
@@ -51,7 +48,6 @@ int main()
 
     auto *logits = model.forward(
         input_ids, token_type_ids, position_ids, nullptr);
-    logits->mark_output(true);
 
     graph.finish_phase();
     graph.lower_and_compile();

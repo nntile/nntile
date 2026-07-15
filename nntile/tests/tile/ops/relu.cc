@@ -41,8 +41,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph g("g");
     auto *s = g.data(sh, "s", DataType::FP32);
     auto *d = g.data(sh, "d", DataType::FP32);
-    s->mark_input(true);
-    d->mark_output(true);
     tg::relu(s, d);
     Runtime runtime(g);
     runtime.compile();
@@ -87,21 +85,19 @@ TEST_CASE("ReLU mixed tile parity (TensorGraph ref vs TileGraph tile)",
     test::ContextFixture fx;
     (void) fx;
     TensorGraph g_ref("ref");
-    auto *x_ref = g_ref.data({10, 12}, DataType::FP32)->set_name("x");
-    x_ref->mark_input(true);
-    auto *y_ref_node = gt::relu(x_ref);
+    nntile::TensorRef x_ref = g_ref.data({10, 12}, DataType::FP32);
+    x_ref->set_name("x");
+    nntile::TensorRef y_ref_node = nntile::TensorRef::adopt(gt::relu(x_ref));
 
     y_ref_node->set_name("y");
-    y_ref_node->mark_output(true);
 
     TensorGraph g_tile("tile");
-    auto *x_tile = g_tile.data({10, 12}, DataType::FP32)->set_name("x");
-    x_tile->mark_input(true);
+    nntile::TensorRef x_tile = g_tile.data({10, 12}, DataType::FP32);
+    x_tile->set_name("x");
     tt::apply_mixed_tile_sizes_2d(x_tile);
-    auto *y_tile_node = gt::relu(x_tile);
+    nntile::TensorRef y_tile_node = nntile::TensorRef::adopt(gt::relu(x_tile));
 
     y_tile_node->set_name("y");
-    y_tile_node->mark_output(true);
 
     std::mt19937 gen(11);
     std::uniform_real_distribution<float> dist(-1.0f, 1.0f);

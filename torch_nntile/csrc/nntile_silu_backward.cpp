@@ -47,8 +47,6 @@ void run_silu_backward(
     const at::Tensor &self,
     at::Tensor &grad_input)
 {
-    pin_graph_op_inputs({self, grad_output});
-    pin_graph_op_output(grad_input, false);
     tensor_silu_backward_fp32(self, grad_output, grad_input);
 }
 

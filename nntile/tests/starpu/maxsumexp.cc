@@ -47,13 +47,14 @@ void validate_cpu(Index m, Index n, Index k)
     std::vector<T> dst2(dst);
     // Launch low-level kernel
     std::cout << "Run kernel::maxsumexp::cpu<" << T::short_name << ">\n";
-    kernel::maxsumexp::cpu<T>(m, n, k, &src[0], &dst[0]);
+    kernel::maxsumexp::cpu<T>(m, n, k, &src[0], Scalar{1.0}, &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
         dst2_handle(&dst2[0], sizeof(T)*2*m*n);
     maxsumexp.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::maxsumexp::submit<" << T::short_name << "> restricted to CPU\n";
-    maxsumexp.submit<std::tuple<T>>(-1, m, n, k, src_handle, dst2_handle);
+    maxsumexp.submit<std::tuple<T>>(-1, m, n, k, src_handle, dst2_handle,
+            Scalar{1.0});
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -106,7 +107,8 @@ void validate_cuda(Index m, Index n, Index k)
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run kernel::maxsumexp::cuda<" << T::short_name << ">\n";
-    kernel::maxsumexp::cuda<T>(stream, m, n, k, dev_src, dev_dst);
+    kernel::maxsumexp::cuda<T>(stream, m, n, k, dev_src, Scalar{1.0},
+            dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -126,7 +128,8 @@ void validate_cuda(Index m, Index n, Index k)
         dst2_handle(&dst2[0], sizeof(T)*2*m*n);
     maxsumexp.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::maxsumexp::submit<" << T::short_name << "> restricted to CUDA\n";
-    maxsumexp.submit<std::tuple<T>>(-1, m, n, k, src_handle, dst2_handle);
+    maxsumexp.submit<std::tuple<T>>(-1, m, n, k, src_handle, dst2_handle,
+            Scalar{1.0});
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result

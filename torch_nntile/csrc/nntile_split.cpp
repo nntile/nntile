@@ -117,10 +117,8 @@ void run_split_with_sizes(
     const std::vector<int64_t> &split_sizes,
     std::vector<at::Tensor> &outputs)
 {
-    pin_graph_op_inputs({self});
     for (at::Tensor &out : outputs)
     {
-        pin_graph_op_output(out, true);
     }
 
     tensor_split_with_sizes_fp32(self, dim, split_sizes, outputs);

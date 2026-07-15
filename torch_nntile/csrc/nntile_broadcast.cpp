@@ -18,7 +18,6 @@
 
 #include <ATen/Tensor.h>
 #include <nntile/tensor/ops/scale_slice.hh>
-#include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/copy.hh>
 
 #include <cstring>
@@ -89,7 +88,7 @@ nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
             std::vector<nntile::Index> partial_shape(
                 dst_shape.begin(),
                 dst_shape.begin() + static_cast<std::ptrdiff_t>(dim) + 1);
-            dst_node = graph.data(partial_shape, src->dtype())
+            dst_node = graph.emplace_data(partial_shape, src->dtype())
                            ->set_name("broadcast_scale_slice");
         }
         nntile::tensor::scale_slice(
@@ -169,7 +168,7 @@ nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
         }
         else
         {
-            dst_node = graph.data(next_graph_shape, dtype)
+            dst_node = graph.emplace_data(next_graph_shape, dtype)
                            ->set_name("repeat_scale_slice");
         }
 
@@ -270,7 +269,7 @@ void tensor_broadcast_scalar_fp32(
         dst_graph,
         nntile::DataType::FP32,
         false);
-    nntile::tensor::clear(dst_node);
+    // scale_slice writes dst with STARPU_W; no separate clear().
     broadcast_scale_slice_chain(
         src_node,
         dst_node,

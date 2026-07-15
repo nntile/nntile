@@ -20,7 +20,7 @@ namespace nntile::kernel::maxsumexp
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
+void cpu(Index m, Index n, Index k, const T *src, Scalar beta, T *maxsumexp)
     noexcept
 //! Max and sum of exponents along middle axis
 /*! For a provided m-by-k-by-n input array src compute maximums and sums of
@@ -34,19 +34,22 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
  *      maxsumexp[1,i,j] = old[1,i,j]*exp(old[0,i,j]-maxsumexp[0,i,j])
  *          + sum(exp(src[i,:,j]-maxsumexp[0,i,j])))
  *
+ * beta=0 overwrites maxsumexp (old ignored). beta=1 accumulates.
+ *
  * @param[in] m: Size of the first mode of src and the second mode of sumexp
  *      arrays.
  * @param[in] n: Size of the last mode of src and sumexp arrays
  * @param[in] k: Size of the middle mode of src array
  * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array, that
- *      accumulates maximums and sums of exponents of slices along middle axis.
+ * @param[in] beta: 0.0 overwrite, 1.0 accumulate
+ * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array
  * */
 {
     using Y = typename T::repr_t;
     const Index mk = m * k;
     Index dst_offset = 0;
     constexpr Y zero{0.0}, one{1.0};
+    const bool overwrite = (beta == 0.0);
     // Cycle over row of output buffer
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -89,38 +92,48 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
                     sum = t;
                 }
             }
-            // Save result, do nothing if all elements are masked out
+            // Save result
             if(not std::isinf(max))
             {
-                Y sum_old = static_cast<Y>(maxsumexp[dst_offset+1]);
-                // If old sum is zero then just overwrite it with current sum
-                if(sum_old == zero)
+                if(overwrite)
                 {
                     maxsumexp[dst_offset] = static_cast<T>(max);
                     maxsumexp[dst_offset+1] = static_cast<T>(sum);
                 }
-                // Update non-zero initial sum
                 else
                 {
-                    Y max_old = static_cast<Y>(maxsumexp[dst_offset]);
-                    if(max_old < max)
+                    Y sum_old = static_cast<Y>(maxsumexp[dst_offset+1]);
+                    // If old sum is zero then just overwrite it with current sum
+                    if(sum_old == zero)
                     {
                         maxsumexp[dst_offset] = static_cast<T>(max);
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum_old*std::exp(max_old-max)
-                            + sum);
-                        y = sum_old*std::exp(max_old-max) - c;
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum + y);
+                        maxsumexp[dst_offset+1] = static_cast<T>(sum);
                     }
+                    // Update non-zero initial sum
                     else
                     {
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum*std::exp(max-max_old)
-                            + sum_old);
-                        Y tmp = std::exp(max-max_old);
-                        y = sum_old - c*tmp;
-                        sum *= tmp;
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum + y);
+                        Y max_old = static_cast<Y>(maxsumexp[dst_offset]);
+                        if(max_old < max)
+                        {
+                            maxsumexp[dst_offset] = static_cast<T>(max);
+                            y = sum_old*std::exp(max_old-max) - c;
+                            maxsumexp[dst_offset+1] = static_cast<T>(sum + y);
+                        }
+                        else
+                        {
+                            Y tmp = std::exp(max-max_old);
+                            y = sum_old - c*tmp;
+                            sum *= tmp;
+                            maxsumexp[dst_offset+1] = static_cast<T>(sum + y);
+                        }
                     }
                 }
+            }
+            else if(overwrite)
+            {
+                // All-masked fiber: write zeros so STARPU_W leaves no garbage
+                maxsumexp[dst_offset] = static_cast<T>(zero);
+                maxsumexp[dst_offset+1] = static_cast<T>(zero);
             }
             dst_offset += 2;
         }
@@ -129,22 +142,22 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *src,
+void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *src, Scalar beta,
         fp32_t *maxsumexp)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *src,
+void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *src, Scalar beta,
         fp64_t *maxsumexp)
     noexcept;
 
 template
-void cpu<bf16_t>(Index m, Index n, Index k, const bf16_t *src,
+void cpu<bf16_t>(Index m, Index n, Index k, const bf16_t *src, Scalar beta,
         bf16_t *maxsumexp)
     noexcept;
 
 template
-void cpu<fp16_t>(Index m, Index n, Index k, const fp16_t *src,
+void cpu<fp16_t>(Index m, Index n, Index k, const fp16_t *src, Scalar beta,
         fp16_t *maxsumexp)
     noexcept;
 

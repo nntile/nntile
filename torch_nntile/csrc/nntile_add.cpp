@@ -143,8 +143,6 @@ at::Tensor broadcast_to_shape(
             target_size,
             tensor.options().memory_format(
                 at::MemoryFormat::Contiguous));
-        pin_graph_op_inputs({tensor});
-        pin_graph_op_output(out, true);
         tensor_repeat_fp32(tensor, out, repeats);
         return out;
 #else
@@ -174,8 +172,6 @@ void run_add_kernel(
 {
     const float self_scale = 1.0f;
     const float other_scale = alpha.to<float>();
-    pin_graph_op_inputs({self, other});
-    pin_graph_op_output(out, false);
     tensor_add_fp32(self_scale, self, other_scale, other, out);
 }
 
@@ -230,8 +226,6 @@ at::Tensor &add_inplace_tensor(
         broadcast_to_shape(other, self.sizes());
     const float other_scale = alpha.to<float>();
     const float self_scale = 1.0f;
-    pin_graph_op_inputs({self, other_broadcast});
-    pin_graph_op_output(self, true);
     tensor_add_inplace_fp32(
         other_scale,
         other_broadcast,

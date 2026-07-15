@@ -81,22 +81,15 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
         mod::ActivationType::RELU,
         DataType::FP32);
 
-    auto *inp_ref =
-        g_ref.tensor({batch, in_dim}, DataType::FP32, true)->set_name("in");
-    inp_ref->mark_input(true);
+    nntile::TensorRef inp_ref = nntile::TensorRef::adopt(g_ref.tensor({batch, in_dim}, DataType::FP32, true));
+    inp_ref->set_name("in");
     auto *out_ref = mlp_ref.forward(inp_ref);
-    out_ref->mark_output(true);
 
     auto [g_out_ref, _] = g_ref.get_or_create_grad(out_ref, "dloss");
     gt::fill(nntile::Scalar(1.0f), g_out_ref->data());
 
-    mlp_ref.fc1().weight_tensor()->mark_input(true);
-    mlp_ref.fc2().weight_tensor()->mark_input(true);
     out_ref->backward();
 
-    mlp_ref.fc1().weight_tensor()->grad()->mark_output(true);
-    mlp_ref.fc2().weight_tensor()->grad()->mark_output(true);
-    inp_ref->grad()->mark_output(true);
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref.tensor_graph());
 
@@ -126,22 +119,15 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
         mod::ActivationType::RELU,
         DataType::FP32);
 
-    auto *inp_tile =
-        g_tile.tensor({batch, in_dim}, DataType::FP32, true)->set_name("in");
-    inp_tile->mark_input(true);
+    nntile::TensorRef inp_tile = nntile::TensorRef::adopt(g_tile.tensor({batch, in_dim}, DataType::FP32, true));
+    inp_tile->set_name("in");
     auto *out_tile = mlp_tile.forward(inp_tile);
-    out_tile->mark_output(true);
 
     auto [g_out_tile, __] = g_tile.get_or_create_grad(out_tile, "dloss");
     gt::fill(nntile::Scalar(1.0f), g_out_tile->data());
 
-    mlp_tile.fc1().weight_tensor()->mark_input(true);
-    mlp_tile.fc2().weight_tensor()->mark_input(true);
     out_tile->backward();
 
-    mlp_tile.fc1().weight_tensor()->grad()->mark_output(true);
-    mlp_tile.fc2().weight_tensor()->grad()->mark_output(true);
-    inp_tile->grad()->mark_output(true);
 
     inp_tile->data()->axis(0)->set_tiling(std::vector<Index>{2, 1, 1});
 

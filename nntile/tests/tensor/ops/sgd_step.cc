@@ -43,9 +43,12 @@ TEST_CASE("TensorGraph sgd_step structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *grad = graph.data({dim_4, dim_5})->set_name("grad");
-    auto *velocity = graph.data({dim_4, dim_5})->set_name("velocity");
-    auto *p = graph.data({dim_4, dim_5})->set_name("p");
+    nntile::TensorRef grad = graph.data({dim_4, dim_5});
+    grad->set_name("grad");
+    nntile::TensorRef velocity = graph.data({dim_4, dim_5});
+    velocity->set_name("velocity");
+    nntile::TensorRef p = graph.data({dim_4, dim_5});
+    p->set_name("p");
 
     gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false, grad, velocity, p);
 
@@ -61,9 +64,12 @@ TEST_CASE("TensorGraph sgd_step structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sgd_step rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *grad = graph.data({5, 4})->set_name("grad");
-    auto *velocity = graph.data({5, 4})->set_name("velocity");
-    auto *p = graph.data({5, 4})->set_name("p");
+    nntile::TensorRef grad = graph.data({5, 4});
+    grad->set_name("grad");
+    nntile::TensorRef velocity = graph.data({5, 4});
+    velocity->set_name("velocity");
+    nntile::TensorRef p = graph.data({5, 4});
+    p->set_name("p");
 
     REQUIRE_THROWS_AS(
         gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false, nullptr, velocity, p),
@@ -110,15 +116,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_velocity, untiled_p;
     {
         TensorGraph graph("sgd_step_untiled");
-        auto *grad_node = graph.data(shape, DataType::FP32)->set_name("grad");
-        auto *velocity_node =
-            graph.data(shape, DataType::FP32)->set_name("velocity");
-        auto *p_node = graph.data(shape, DataType::FP32)->set_name("p");
-        grad_node->mark_input(true);
-        velocity_node->mark_input(true);
-        p_node->mark_input(true);
-        velocity_node->mark_output(true);
-        p_node->mark_output(true);
+        nntile::TensorRef grad_node = graph.data(shape, DataType::FP32);
+    grad_node->set_name("grad");
+        nntile::TensorRef velocity_node = graph.data(shape, DataType::FP32);
+    velocity_node->set_name("velocity");
+        nntile::TensorRef p_node = graph.data(shape, DataType::FP32);
+    p_node->set_name("p");
 
         gt::sgd_step(num_iter,
             momentum,
@@ -149,15 +152,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_velocity, tiled_p;
     {
         TensorGraph graph("sgd_step_tiled");
-        auto *grad_node = graph.data(shape, DataType::FP32)->set_name("grad");
-        auto *velocity_node =
-            graph.data(shape, DataType::FP32)->set_name("velocity");
-        auto *p_node = graph.data(shape, DataType::FP32)->set_name("p");
-        grad_node->mark_input(true);
-        velocity_node->mark_input(true);
-        p_node->mark_input(true);
-        velocity_node->mark_output(true);
-        p_node->mark_output(true);
+        nntile::TensorRef grad_node = graph.data(shape, DataType::FP32);
+    grad_node->set_name("grad");
+        nntile::TensorRef velocity_node = graph.data(shape, DataType::FP32);
+    velocity_node->set_name("velocity");
+        nntile::TensorRef p_node = graph.data(shape, DataType::FP32);
+    p_node->set_name("p");
 
         gt::sgd_step(num_iter,
             momentum,

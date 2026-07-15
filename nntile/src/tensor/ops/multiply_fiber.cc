@@ -63,7 +63,7 @@ TensorGraph::TensorNode *multiply_fiber(Scalar alpha,
 
     std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode *dst =
-        src1->graph()->data(std::move(output_shape), src1->dtype());
+        src1->graph()->emplace_data(std::move(output_shape), src1->dtype());
     dst->set_axes(src2->axes());
 
     auto op =

@@ -30,9 +30,13 @@
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/core/execution_schedule.hh>
+#include <nntile/defs.h>
 #include <nntile/dtype.hh>
+#ifdef NNTILE_USE_NNGRAPH
 #include <nntile/nn/graph_decl.hh>
+#endif
 #include <nntile/tensor/graph_data_node.hh>
+#include <nntile/tensor/tensor_ref.hh>
 #include <nntile/tensor/tensor_graph_tiling.hh>
 #include <nntile/tile/graph_data_node.hh>
 #include <nntile/tile/graph_decl.hh>
@@ -54,10 +58,9 @@ class Runtime
     void compile();
 
     //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
-    //! After each submitted op, last-consumer tiles are invalidated via
-    //! ``invalidate_submit`` and payload cleared (async w.r.t.
-    //! already-submitted consumers). Call ``wait()`` to join StarPU before
-    //! host readout.
+    //! Unmarked-temp reclaim is ordinary ``TILE_INVALIDATE`` ops already in
+    //! ``execution_order_`` (appended at compile from phase-touched unmarked
+    //! logicals). Call ``wait()`` to join StarPU before host readout.
     //! If ``submit_tasks`` is false, skip ``OpNode::execute`` (no StarPU
     //! inserts) but still advance the executed watermark and last-consumer
     //! reclaim — required so incremental ``compile()`` stays O(pending)
@@ -85,6 +88,7 @@ class Runtime
     void bind_data(
         TensorGraph::TensorNode const *tensor, const std::vector<T> &data);
 
+#ifdef NNTILE_USE_NNGRAPH
     //! Bind via ``NNGraph::TensorNode`` (same as ``tensor->data()``).
     template <typename T>
     void bind_data(
@@ -93,6 +97,7 @@ class Runtime
     template <typename T>
     void bind_data(
         NNGraph::TensorNode const *tensor, const std::vector<T> &data);
+#endif
 
     //! Bind host data to a standalone tile (no tensor descriptor).
     template <typename T>
@@ -132,8 +137,10 @@ class Runtime
     template <typename T>
     std::vector<T> get_output(TensorGraph::TensorNode const *tensor);
 
+#ifdef NNTILE_USE_NNGRAPH
     template <typename T>
     std::vector<T> get_output(NNGraph::TensorNode const *tensor);
+#endif
 
     template <typename T> std::vector<T> get_output(TileNode const *tile);
 
@@ -142,7 +149,9 @@ class Runtime
 
     DataType get_dtype(TensorGraph::TensorNode const *tensor) const;
 
+#ifdef NNTILE_USE_NNGRAPH
     DataType get_dtype(NNGraph::TensorNode const *tensor) const;
+#endif
 
     DataType get_dtype(const TileNode *node) const { return node->dtype(); }
 
@@ -151,17 +160,28 @@ class Runtime
     //! Whether host data was copied into tiles for this logical tensor.
     bool is_initialized(TensorGraph::TensorNode const *tensor) const;
 
+#ifdef NNTILE_USE_NNGRAPH
     bool is_initialized(NNGraph::TensorNode const *tensor) const;
+#endif
 
     //! Clear initialized flag after staging readout (tile handle stays live).
     void invalidate_initialized(TensorGraph::TensorNode const *tensor);
 
+#ifdef NNTILE_USE_NNGRAPH
     void invalidate_initialized(NNGraph::TensorNode const *tensor);
+#endif
 
     //! Drop StarPU buffers for a logical tensor that is no longer marked
-    //! input/output. No-op if still marked, unknown, or never allocated.
+    //! input/output. Uses ``invalidate_submit`` / async unregister only —
+    //! safe while earlier submitted tasks still reference the handle; StarPU
+    //! defers free until last use. No-op if still marked, unknown, or never
+    //! allocated.
     void invalidate_logical_tiles(
         TensorGraph::TensorNode const *logical);
+
+    //! Async invalidate one tile payload (``invalidate_submit`` + clear).
+    //! Used by ``TileInvalidateOp``; StarPU orders free after last use.
+    void invalidate_tile(TileGraph::TileNode *tile);
 
     //! Mark logical tensor tiles as host-populated (after acquire write I/O).
     void mark_initialized(TensorGraph::TensorNode const *tensor);
@@ -222,6 +242,7 @@ class Runtime
     void write_execution_schedule_json(std::string const &path) const;
 
   private:
+#ifdef NNTILE_USE_NNGRAPH
     friend class NNGraph;
     friend void compile_incremental_nn_phase(
         FinishedTensorPhase const &,
@@ -235,11 +256,11 @@ class Runtime
         std::unordered_map<TensorGraph::TensorNode const *,
             std::vector<std::shared_ptr<void>>> const *,
         std::unordered_map<TensorGraph::TensorNode const *, bool> const *);
+#endif
 
     void allocate_missing_tiles();
     void eliminate_dead_ops();
     void build_tile_last_consumer_map();
-    void sync_tile_marks_from_logical();
     void release_dead_tiles_after_op(size_t op_idx);
     void queue_dead_tiles_after_op(size_t op_idx);
     void flush_queued_dead_tiles();
@@ -288,7 +309,9 @@ class Runtime
 
 } // namespace nntile
 
+#ifdef NNTILE_USE_NNGRAPH
 #include <nntile/nn/graph_data_node.hh>
+#endif
 
 namespace nntile
 {
@@ -300,28 +323,9 @@ namespace nntile
 namespace tile_bind_detail
 {
 
-inline bool tensor_desc_has_input_tile(TileGraph::TensorDescriptor const &d)
+inline bool tensor_desc_logical_is_live(TileGraph::TensorDescriptor const &d)
 {
-    for (TileGraph::TileNode *t : d.tiles)
-    {
-        if (t != nullptr && t->is_input())
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-inline bool tensor_desc_has_output_tile(TileGraph::TensorDescriptor const &d)
-{
-    for (TileGraph::TileNode *t : d.tiles)
-    {
-        if (t != nullptr && t->is_output())
-        {
-            return true;
-        }
-    }
-    return false;
+    return d.source_node != nullptr && tensor_ref_is_live(d.source_node);
 }
 
 inline bool use_logical_layout(TileGraph::TensorDescriptor const *desc,
@@ -602,13 +606,6 @@ void Runtime::bind_data(
                 "Runtime::bind_data: missing tiling for tensor '" +
                 tensor->name() + "'");
         }
-        if (!tile_bind_detail::tensor_desc_has_input_tile(*desc) &&
-            !tile_bind_detail::tensor_desc_has_output_tile(*desc))
-        {
-            throw std::runtime_error("bind_data: mark_input(true) or "
-                                     "mark_output(true) on tensor '" +
-                                     tensor->name() + "'");
-        }
         switch (desc->dtype)
         {
         case DataType::FP32:
@@ -676,12 +673,6 @@ void Runtime::bind_data(
         throw std::runtime_error(
             "Runtime::bind_data: tile storage not allocated");
     }
-    if (!tnode->is_input() && !tnode->is_output())
-    {
-        throw std::runtime_error(
-            "bind_data: tile '" + tnode->name() +
-            "' must be marked as input or output on the data node");
-    }
     DataType dtype = tnode->dtype();
     switch (dtype)
     {
@@ -725,6 +716,7 @@ void Runtime::bind_data(
     bind_data(tensor, data.data(), data.size());
 }
 
+#ifdef NNTILE_USE_NNGRAPH
 template <typename T>
 void Runtime::bind_data(
     NNGraph::TensorNode const *tensor, const T *data, size_t count)
@@ -748,6 +740,7 @@ void Runtime::bind_data(
     }
     bind_data(tensor->data(), data);
 }
+#endif
 
 template <typename T>
 void Runtime::bind_data(
@@ -762,12 +755,6 @@ void Runtime::bind_data(
     {
         throw std::runtime_error(
             "Runtime::bind_data: tile storage not allocated");
-    }
-    if (!tile->is_input() && !tile->is_output())
-    {
-        throw std::runtime_error(
-            "bind_data: tile '" + tile->name() +
-            "' must be marked as input or output on the data node");
     }
     DataType dtype = tile->dtype();
     switch (dtype)
@@ -846,6 +833,13 @@ std::vector<T> Runtime::get_output(
             "Runtime::get_output: tensor has no TileGraph "
             "descriptor (lower with source_node set)");
     }
+    if (!tile_bind_detail::tensor_desc_logical_is_live(*desc))
+    {
+        throw std::runtime_error(
+            "get_output: tensor '" + tensor->name() +
+            "' has no live TensorRef; keep a TensorRef (e.g. "
+            "TensorRef::adopt) until after get_output");
+    }
     const TensorGraphTiling *tsch = graph_.tiling_scheme();
     const bool use_logical =
         tsch != nullptr &&
@@ -858,14 +852,6 @@ std::vector<T> Runtime::get_output(
             throw std::runtime_error(
                 "Runtime::get_output: missing tiling for tensor '" +
                 tensor->name() + "'");
-        }
-        if (!tile_bind_detail::tensor_desc_has_output_tile(*desc) &&
-            !tile_bind_detail::tensor_desc_has_input_tile(*desc))
-        {
-            throw std::runtime_error(
-                "get_output: tensor '" + tensor->name() +
-                "' has no input/output tiles; call mark_input(true) or "
-                "mark_output(true) on the tensor data node");
         }
         std::vector<T> result;
         switch (desc->dtype)
@@ -934,13 +920,6 @@ std::vector<T> Runtime::get_output(
         throw std::runtime_error(
             "Runtime::get_output: tile storage not allocated");
     }
-    if (!tnode->is_output() && !tnode->is_input())
-    {
-        throw std::runtime_error(
-            "get_output: tile '" + tnode->name() +
-            "' is not marked as input or output; call mark_input(true) or "
-            "mark_output(true) on the data node");
-    }
     DataType dtype = tnode->dtype();
     std::vector<T> result;
     switch (dtype)
@@ -978,6 +957,7 @@ std::vector<T> Runtime::get_output(
     return result;
 }
 
+#ifdef NNTILE_USE_NNGRAPH
 template <typename T>
 std::vector<T> Runtime::get_output(NNGraph::TensorNode const *tensor)
 {
@@ -988,6 +968,7 @@ std::vector<T> Runtime::get_output(NNGraph::TensorNode const *tensor)
     }
     return get_output<T>(tensor->data());
 }
+#endif
 
 template <typename T>
 std::vector<T> Runtime::get_output(TileNode const *tile)
@@ -996,11 +977,6 @@ std::vector<T> Runtime::get_output(TileNode const *tile)
     {
         throw std::invalid_argument(
             "Runtime::get_output: tile must be non-null");
-    }
-    if (!tile->is_output() && !tile->is_input())
-    {
-        throw std::runtime_error(
-            "get_output: tile must be marked input or output on the data node");
     }
     if (!tile->has_payload())
     {
@@ -1058,6 +1034,7 @@ void Runtime::get_output_impl(
     tile_local.release();
 }
 
+#ifdef NNTILE_USE_NNGRAPH
 inline DataType Runtime::get_dtype(
     NNGraph::TensorNode const *tensor) const
 {
@@ -1068,6 +1045,7 @@ inline DataType Runtime::get_dtype(
     }
     return get_dtype(tensor->data());
 }
+#endif
 
 inline bool Runtime::is_initialized(
     TensorGraph::TensorNode const *tensor) const
@@ -1080,6 +1058,7 @@ inline bool Runtime::is_initialized(
     return it != init_state_.end() && it->second;
 }
 
+#ifdef NNTILE_USE_NNGRAPH
 inline bool Runtime::is_initialized(NNGraph::TensorNode const *tensor) const
 {
     if (tensor == nullptr)
@@ -1088,6 +1067,7 @@ inline bool Runtime::is_initialized(NNGraph::TensorNode const *tensor) const
     }
     return is_initialized(tensor->data());
 }
+#endif
 
 inline void Runtime::invalidate_initialized(
     TensorGraph::TensorNode const *tensor)
@@ -1100,6 +1080,7 @@ inline void Runtime::invalidate_initialized(
     init_state_[tensor] = false;
 }
 
+#ifdef NNTILE_USE_NNGRAPH
 inline void Runtime::invalidate_initialized(NNGraph::TensorNode const *tensor)
 {
     if (tensor == nullptr)
@@ -1109,5 +1090,6 @@ inline void Runtime::invalidate_initialized(NNGraph::TensorNode const *tensor)
     }
     invalidate_initialized(tensor->data());
 }
+#endif
 
 } // namespace nntile

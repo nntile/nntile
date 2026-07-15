@@ -99,14 +99,6 @@ std::vector<TileGraph::TileNode*> create_tile_nodes_only(
             tile_shape,
             tname,
             tensor_node->dtype());
-        if(tensor_node->is_input())
-        {
-            tile_node_ptr->mark_input(true);
-        }
-        if(tensor_node->is_output())
-        {
-            tile_node_ptr->mark_output(true);
-        }
         tiles.push_back(tile_node_ptr);
     }
     return tiles;
@@ -223,23 +215,7 @@ void append_tensor_graph_phase(
                 "under a new tiling is not supported yet.");
         }
 
-        // Refresh marks on reused tiles: logical mark_output may have flipped
-        // since the tiles were first created (e.g. Python dropped a NodeRef).
-        std::vector<TileGraph::TileNode*>& reused =
-            state.tensor_to_tiles[t];
-        for(TileGraph::TileNode* tile_node_ptr : reused)
-        {
-            if(tile_node_ptr == nullptr)
-            {
-                continue;
-            }
-            if(t->is_input())
-            {
-                tile_node_ptr->mark_input(true);
-            }
-            tile_node_ptr->mark_output(t->is_output());
-        }
-        tile_map[t] = reused;
+        tile_map[t] = state.tensor_to_tiles[t];
     }
 
     lower_tensor_ops_to_tile_graph(
@@ -250,6 +226,7 @@ void append_tensor_graph_phase(
         phase.op_end);
 }
 
+#ifdef NNTILE_USE_NNGRAPH
 void compile_incremental_nn_phase(
     FinishedTensorPhase const& exec_phase,
     NNGraph& nn_graph_for_suffix,
@@ -297,5 +274,6 @@ void compile_incremental_nn_phase(
     nn_graph_for_suffix.bump_auto_tensor_name_phase_suffix_after_compile();
     nn_graph_for_suffix.clear_pending_compile_if_same(exec_phase);
 }
+#endif
 
 } // namespace nntile

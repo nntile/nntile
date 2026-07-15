@@ -20,9 +20,10 @@ namespace nntile::core
 {
 
 template<typename T>
-void embedding_backward_async(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<T> &embed,
-        const Tile<T> &vocab, int redux)
+void embedding_backward_async(int starpu_worker_hint, Index m, Index n,
+        Index k, Index k_start, Index k_size, Scalar alpha, Scalar beta,
+        const Tile<int64_t> &index, const Tile<T> &embed, const Tile<T> &vocab,
+        int redux)
 {
     int mpi_rank = starpu_mpi_world_rank();
     int vocab_rank = vocab.mpi_get_rank();
@@ -30,97 +31,39 @@ void embedding_backward_async(int starpu_worker_hint, Index m, Index n, Index k,
     embed.mpi_transfer(vocab_rank, mpi_rank);
     if(mpi_rank == vocab_rank)
     {
-        starpu::embedding_backward.submit<std::tuple<T>>(starpu_worker_hint, m, n, k, k_start,
-                k_size, index, embed, vocab, 0);  // redux ignored for now
+        starpu::embedding_backward.submit<std::tuple<T>>(starpu_worker_hint,
+                m, n, k, k_start, k_size, vocab.nelems, alpha, beta, index,
+                embed, vocab, redux);
     }
 }
 
 template<typename T>
-void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
-        const Tile<int64_t> &index, const Tile<T> &embed,
-        const Tile<T> &vocab, int redux)
+void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k,
+        Index k_start, Index k_size, Scalar alpha, Scalar beta,
+        const Tile<int64_t> &index, const Tile<T> &embed, const Tile<T> &vocab,
+        int redux)
 {
-    embedding_backward_async<T>(starpu_worker_hint, m, n, k, k_start, k_size, index, embed, vocab,
-            redux);
+    embedding_backward_async<T>(starpu_worker_hint, m, n, k, k_start, k_size,
+            alpha, beta, index, embed, vocab, redux);
     nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
-// Explicit instantiation
-template
-void embedding_backward_async<fp32_t>(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<fp32_t> &embed,
-        const Tile<fp32_t> &vocab, int redux);
+#define NNTILE_EMBEDDING_BACKWARD_EXPLICIT(T) \
+template void embedding_backward_async<T>(int, Index, Index, Index, Index, \
+        Index, Scalar, Scalar, const Tile<int64_t> &, const Tile<T> &, \
+        const Tile<T> &, int); \
+template void embedding_backward<T>(int, Index, Index, Index, Index, Index, \
+        Scalar, Scalar, const Tile<int64_t> &, const Tile<T> &, \
+        const Tile<T> &, int);
 
-template
-void embedding_backward_async<fp32_fast_tf32_t>(int starpu_worker_hint, Index m, Index n, Index k,
-        Index k_start, Index k_size, const Tile<int64_t> &index,
-        const Tile<fp32_fast_tf32_t> &embed,
-        const Tile<fp32_fast_tf32_t> &vocab, int redux);
+NNTILE_EMBEDDING_BACKWARD_EXPLICIT(fp32_t)
+NNTILE_EMBEDDING_BACKWARD_EXPLICIT(fp32_fast_tf32_t)
+NNTILE_EMBEDDING_BACKWARD_EXPLICIT(fp32_fast_fp16_t)
+NNTILE_EMBEDDING_BACKWARD_EXPLICIT(fp32_fast_bf16_t)
+NNTILE_EMBEDDING_BACKWARD_EXPLICIT(fp64_t)
+NNTILE_EMBEDDING_BACKWARD_EXPLICIT(bf16_t)
+NNTILE_EMBEDDING_BACKWARD_EXPLICIT(fp16_t)
 
-template
-void embedding_backward_async<fp32_fast_fp16_t>(int starpu_worker_hint, Index m, Index n, Index k,
-        Index k_start, Index k_size, const Tile<int64_t> &index,
-        const Tile<fp32_fast_fp16_t> &embed,
-        const Tile<fp32_fast_fp16_t> &vocab, int redux);
-
-template
-void embedding_backward_async<fp32_fast_bf16_t>(int starpu_worker_hint, Index m, Index n, Index k,
-        Index k_start, Index k_size, const Tile<int64_t> &index,
-        const Tile<fp32_fast_bf16_t> &embed,
-        const Tile<fp32_fast_bf16_t> &vocab, int redux);
-
-template
-void embedding_backward_async<fp64_t>(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<fp64_t> &embed,
-        const Tile<fp64_t> &vocab, int redux);
-
-template
-void embedding_backward_async<bf16_t>(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<bf16_t> &embed,
-        const Tile<bf16_t> &vocab, int redux);
-
-template
-void embedding_backward_async<fp16_t>(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<fp16_t> &embed,
-        const Tile<fp16_t> &vocab, int redux);
-
-// Explicit instantiation
-template
-void embedding_backward<fp32_t>(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<fp32_t> &embed,
-        const Tile<fp32_t> &vocab, int redux);
-
-template
-void embedding_backward<fp32_fast_tf32_t>(int starpu_worker_hint, Index m, Index n, Index k,
-        Index k_start, Index k_size, const Tile<int64_t> &index,
-        const Tile<fp32_fast_tf32_t> &embed,
-        const Tile<fp32_fast_tf32_t> &vocab, int redux);
-
-template
-void embedding_backward<fp32_fast_fp16_t>(int starpu_worker_hint, Index m, Index n, Index k,
-        Index k_start, Index k_size, const Tile<int64_t> &index,
-        const Tile<fp32_fast_fp16_t> &embed,
-        const Tile<fp32_fast_fp16_t> &vocab, int redux);
-
-template
-void embedding_backward<fp32_fast_bf16_t>(int starpu_worker_hint, Index m, Index n, Index k,
-        Index k_start, Index k_size, const Tile<int64_t> &index,
-        const Tile<fp32_fast_bf16_t> &embed,
-        const Tile<fp32_fast_bf16_t> &vocab, int redux);
-
-template
-void embedding_backward<fp64_t>(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<fp64_t> &embed,
-        const Tile<fp64_t> &vocab, int redux);
-
-template
-void embedding_backward<bf16_t>(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<bf16_t> &embed,
-        const Tile<bf16_t> &vocab, int redux);
-
-template
-void embedding_backward<fp16_t>(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<fp16_t> &embed,
-        const Tile<fp16_t> &vocab, int redux);
+#undef NNTILE_EMBEDDING_BACKWARD_EXPLICIT
 
 } // namespace nntile::core

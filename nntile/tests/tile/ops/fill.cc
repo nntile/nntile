@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -30,9 +31,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph fill matches tile", "[
     const Index nelems = 6;
     const Scalar v = 3.25;
     TileGraph g("g");
-    auto* x = g.data(sh, "x", DataType::FP32);
-    x->mark_input(true);
-    x->mark_output(true);
+    auto *x = g.data(sh, "x", DataType::FP32);
     tg::fill(v, x);
     Runtime runtime(g);
     runtime.compile();

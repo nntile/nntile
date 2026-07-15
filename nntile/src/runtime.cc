@@ -24,6 +24,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/dtype.hh"
 #include "nntile/tensor/graph_data_node.hh"
+#include "nntile/tensor/tensor_ref.hh"
 #include "nntile/tensor/tensor_graph_tiling.hh"
 #include "nntile/tile/graph.hh"
 #include "nntile/tile/graph_data_node.hh"
@@ -43,6 +44,19 @@ namespace nntile
 
 namespace
 {
+
+//! True if the tile's logical tensor still has a live ``TensorRef``.
+bool tile_logical_is_live(TileGraph::TileNode const *tile)
+{
+    if (tile == nullptr)
+    {
+        return false;
+    }
+    auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile);
+    TileGraph::TensorDescriptor const *desc =
+        mutable_tile->tensor_descriptor();
+    return desc != nullptr && tensor_ref_is_live(desc->source_node);
+}
 
 template <typename T>
 void allocate_tile_and_register(
@@ -117,82 +131,13 @@ void Runtime::compile()
         compiled_graph_op_count_ = graph_ops.size();
     }
 
-    // Refresh tile marks from logical TensorNodes before DCE so
-    // incremental sessions see mark_output(false) after Python drops refs.
-    // StarPU reclaim of unmarked phase outputs is deferred to run() via an
-    // explicit pending list (see torch_nntile pending_output_reclaim).
-    sync_tile_marks_from_logical();
     eliminate_dead_ops();
-    build_tile_last_consumer_map();
     allocate_missing_tiles();
     tile_adoption_.clear();
 
     execution_schedule_ = ExecutionSchedule{};
 
     compiled_ = true;
-}
-
-void Runtime::sync_tile_marks_from_logical()
-{
-    // Sync descriptors for the pending op slice and for any allocated tile
-    // whose logical mark flipped to unmarked (held-across-compile outputs
-    // that NodeRefs later dropped). Avoid a full historical TensorDescriptor
-    // walk; tile_map_ is bounded by live allocations.
-    std::unordered_set<const TileGraph::TensorDescriptor *> synced;
-
-    auto sync_tile = [&](const TileGraph::TileNode *tile_key)
-    {
-        if (tile_key == nullptr)
-        {
-            return;
-        }
-        // tensor_descriptor() is non-const on the node API via const TileNode*
-        auto *mutable_tile = const_cast<TileGraph::TileNode *>(tile_key);
-        const TileGraph::TensorDescriptor *desc =
-            mutable_tile->tensor_descriptor();
-        if (desc == nullptr || desc->source_node == nullptr)
-        {
-            return;
-        }
-        if (!synced.insert(desc).second)
-        {
-            return;
-        }
-        const bool is_in = desc->source_node->is_input();
-        const bool is_out = desc->source_node->is_output();
-        for (TileGraph::TileNode *tile : desc->tiles)
-        {
-            if (tile == nullptr)
-            {
-                continue;
-            }
-            if (is_in)
-            {
-                tile->mark_input(true);
-            }
-            tile->mark_output(is_out);
-        }
-    };
-
-    const size_t n = execution_order_.size();
-    const size_t begin =
-        executed_op_end_ < n ? executed_op_end_ : n;
-    for (size_t i = begin; i < n; ++i)
-    {
-        for (const auto *in : execution_order_[i]->inputs())
-        {
-            sync_tile(in);
-        }
-        for (const auto *out : execution_order_[i]->outputs())
-        {
-            sync_tile(out);
-        }
-    }
-
-    // Do not walk the full tile_map_ here: that scan grew O(session) for
-    // incremental training. Unmarked outputs dropped by the host are
-    // reclaimed via Runtime::invalidate_logical_tiles /
-    // pending_output_reclaim instead.
 }
 
 void Runtime::invalidate_logical_tiles(
@@ -203,7 +148,7 @@ void Runtime::invalidate_logical_tiles(
         return;
     }
     // Persistence is driven by marks: still-marked tensors stay allocated.
-    if (logical->is_output() || logical->is_input())
+    if (tensor_ref_is_live(logical))
     {
         return;
     }
@@ -213,18 +158,13 @@ void Runtime::invalidate_logical_tiles(
     {
         return;
     }
-    // Clear tile marks to match the unmarked logical. Ingress staging
-    // tiles are built with mark_input(true); leaving that set made
-    // reclaim a no-op and kept a full-size StarPU buffer beside L
-    // (≈2× VRAM with untiled single-tile layouts).
+    // Clear tile association; reclaim is driven by TensorRef lifetime.
     for (TileGraph::TileNode *tile : desc->tiles)
     {
         if (tile == nullptr)
         {
             continue;
         }
-        tile->mark_input(false);
-        tile->mark_output(false);
     }
 
     std::vector<const TileGraph::TileNode *> to_release;
@@ -245,10 +185,9 @@ void Runtime::invalidate_logical_tiles(
         init_state_.erase(logical);
         return;
     }
-    if (starpu_is_initialized())
-    {
-        starpu_task_wait_for_all();
-    }
+    // Async reclaim only. StarPU orders invalidate_submit /
+    // unregister_submit after the handle's last submitted use, so this is
+    // safe during overlapping compile/run phases (no wait_for_all).
     for (const TileGraph::TileNode *tile : to_release)
     {
         if (tile == nullptr || !tile->has_payload())
@@ -260,6 +199,17 @@ void Runtime::invalidate_logical_tiles(
         const_cast<TileGraph::TileNode *>(tile)->clear_payload();
     }
     init_state_.erase(logical);
+}
+
+void Runtime::invalidate_tile(TileGraph::TileNode *tile)
+{
+    if (tile == nullptr || !tile->has_payload())
+    {
+        return;
+    }
+    auto payload = tile->payload();
+    invalidate_tile_buffer(tile, payload);
+    tile->clear_payload();
 }
 
 void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
@@ -277,7 +227,7 @@ bool Runtime::tensor_requires_init_at_execute(
     {
         return false;
     }
-    if (!tile_bind_detail::tensor_desc_has_input_tile(desc))
+    if (!tile_bind_detail::tensor_desc_logical_is_live(desc))
     {
         return false;
     }
@@ -295,7 +245,7 @@ bool Runtime::tensor_requires_init_at_execute(
     bool consumed = false;
     for (TileGraph::TileNode *tile : desc.tiles)
     {
-        if (tile == nullptr || !tile->is_input())
+        if (tile == nullptr || !tile_logical_is_live(tile))
         {
             continue;
         }
@@ -652,16 +602,17 @@ void Runtime::allocate_missing_tiles()
         }
     }
 
-    auto try_allocate = [&](const TileGraph::TileNode *tile_key)
+    auto try_allocate = [&](const TileGraph::TileNode *tile_key,
+        bool require_live_or_needed)
     {
         if (tile_key == nullptr)
         {
             return;
         }
-        // Full-graph DCE may keep historical unmarked tiles "live"; do not
-        // reallocate them unless a pending op needs them (or they are
-        // marked input/output).
-        if (!tile_key->is_output() && !tile_key->is_input() &&
+        // Skip dead temps that no pending op needs. Newly lowered tiles
+        // (ingress staging lowered before any scatter is appended) pass
+        // require_live_or_needed=false so they still get buffers.
+        if (require_live_or_needed && !tile_logical_is_live(tile_key) &&
             needed_by_pending.count(tile_key) == 0)
         {
             return;
@@ -726,7 +677,7 @@ void Runtime::allocate_missing_tiles()
     // scatter op is appended to execution_order_.
     for (const auto *tile : needed_by_pending)
     {
-        try_allocate(tile);
+        try_allocate(tile, true);
     }
     for (const auto *tile : live_tile_nodes_)
     {
@@ -734,7 +685,7 @@ void Runtime::allocate_missing_tiles()
         {
             continue;
         }
-        try_allocate(tile);
+        try_allocate(tile, true);
     }
     const auto &all_tiles = graph_.tile_nodes();
     if (compiled_tile_node_count_ > all_tiles.size())
@@ -743,7 +694,7 @@ void Runtime::allocate_missing_tiles()
     }
     for (size_t i = compiled_tile_node_count_; i < all_tiles.size(); ++i)
     {
-        try_allocate(all_tiles[i].get());
+        try_allocate(all_tiles[i].get(), false);
     }
     compiled_tile_node_count_ = all_tiles.size();
 }
@@ -789,6 +740,8 @@ void Runtime::execute_range(
     }
     // Submit only: core sync wrappers skip wait_for_all while deferred so
     // torch_nntile run() can return before StarPU finishes the phase.
+    // Unmarked-temp reclaim is ordinary TILE_INVALIDATE ops in this stream
+    // (appended at compile), not a side-channel flush.
     StarpuSyncDefer defer_waits;
     bool const use_static_schedule =
         submit_tasks && has_execution_schedule();
@@ -810,12 +763,6 @@ void Runtime::execute_range(
             }
             execution_order_[i]->execute(*this);
         }
-        // Last-consumer reclaim during run()/submit: invalidate_submit is
-        // ordered after the consumer task already inserted above. Do not
-        // defer to wait() — that kept pre-ReLU activations resident for the
-        // whole forward+backward phase (~2× activation VRAM).
-        queue_dead_tiles_after_op(i);
-        flush_queued_dead_tiles();
     }
     if (op_end > executed_op_end_)
     {
@@ -934,7 +881,7 @@ void Runtime::release_dead_tiles_after_op(size_t op_idx)
     queue_dead_tiles_after_op(op_idx);
     if (g_starpu_sync_defer_depth == 0)
     {
-        starpu_task_wait_for_all();
+        starpu_task_wait_for_all_counted();
         flush_queued_dead_tiles();
     }
 }
@@ -952,7 +899,8 @@ void Runtime::queue_dead_tiles_after_op(size_t op_idx)
     }
     for (const TileGraph::TileNode *tile : tiles_dying_after_op_[local])
     {
-        if (tile == nullptr || tile->is_input() || tile->is_output())
+        // Skip tensors that still have a live TensorRef.
+        if (tile == nullptr || tile_logical_is_live(tile))
         {
             continue;
         }
@@ -1022,31 +970,28 @@ void Runtime::eliminate_dead_ops()
     }
 
     std::unordered_set<TNode> live_data;
-    // Seed from marked tiles touched by the pending slice only — scanning
-    // every historical tile_node made compile O(session length).
+    // Seed from tiles whose logical still has a live TensorRef.
     for (size_t i = pending_begin; i < n; ++i)
     {
         const auto &op = execution_order_[i];
         for (const auto *out : op->outputs())
         {
-            if (out != nullptr &&
-                (out->is_output() || out->is_input()))
+            if (out != nullptr && tile_logical_is_live(out))
             {
                 live_data.insert(out);
             }
         }
         for (const auto *in : op->inputs())
         {
-            if (in != nullptr &&
-                (in->is_output() || in->is_input()))
+            if (in != nullptr && tile_logical_is_live(in))
             {
                 live_data.insert(in);
             }
         }
     }
 
-    const bool any_marked_output = !live_data.empty();
-    if (!any_marked_output)
+    const bool any_live_output = !live_data.empty();
+    if (!any_live_output)
     {
         for (const auto &p : producer)
         {
@@ -1127,10 +1072,7 @@ void Runtime::eliminate_dead_ops()
 
 void Runtime::wait()
 {
-    starpu_task_wait_for_all();
-    // Last-consumer invalidate_submit already ran in execute_range / run().
-    // Drain any stragglers if a path queued without flushing.
-    flush_queued_dead_tiles();
+    starpu_task_wait_for_all_counted();
 }
 
 bool Runtime::drop_fully_executed_history()
@@ -1145,10 +1087,7 @@ bool Runtime::drop_fully_executed_history()
     execution_order_.clear();
     executed_op_end_ = 0;
     compiled_graph_op_count_ = 0;
-    tiles_dying_after_op_.clear();
-    tiles_dying_op_base_ = 0;
     live_tile_nodes_.clear();
-    queued_dead_tiles_.clear();
     execution_schedule_ = ExecutionSchedule{};
     // Keep compiled_tile_node_count_: tile nodes / payloads persist across
     // session compaction (same as TensorGraph data nodes).

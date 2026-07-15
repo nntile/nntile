@@ -31,28 +31,22 @@ TEST_CASE("add mixed tile parity", "[graph][tile]")
     test::ContextFixture fx;
 
     TensorGraph g_ref("ref");
-    TensorGraph::TensorNode *a =
-        g_ref.data({10, 12}, DataType::FP32)->set_name("a");
-    TensorGraph::TensorNode *b =
-        g_ref.data({10, 12}, DataType::FP32)->set_name("b");
-    a->mark_input(true);
-    b->mark_input(true);
-    TensorGraph::TensorNode *out =
-        gt::add(Scalar{1.f}, a, Scalar{1.f}, b)->set_name("out");
-    out->mark_output(true);
+    nntile::TensorRef a = g_ref.data({10, 12}, DataType::FP32);
+        a->set_name("a");
+    nntile::TensorRef b = g_ref.data({10, 12}, DataType::FP32);
+        b->set_name("b");
+    nntile::TensorRef out = nntile::TensorRef::adopt(gt::add(Scalar{1.f}, a, Scalar{1.f}, b));
+    out->set_name("out");
 
     TensorGraph g_tile("tile");
-    TensorGraph::TensorNode *at =
-        g_tile.data({10, 12}, DataType::FP32)->set_name("a");
-    TensorGraph::TensorNode *bt =
-        g_tile.data({10, 12}, DataType::FP32)->set_name("b");
-    at->mark_input(true);
-    bt->mark_input(true);
+    nntile::TensorRef at = g_tile.data({10, 12}, DataType::FP32);
+        at->set_name("a");
+    nntile::TensorRef bt = g_tile.data({10, 12}, DataType::FP32);
+        bt->set_name("b");
     tt::apply_mixed_tile_sizes_2d(at);
     tt::apply_mixed_tile_sizes_2d(bt);
-    TensorGraph::TensorNode *outt =
-        gt::add(Scalar{1.f}, at, Scalar{1.f}, bt)->set_name("out");
-    outt->mark_output(true);
+    nntile::TensorRef outt = nntile::TensorRef::adopt(gt::add(Scalar{1.f}, at, Scalar{1.f}, bt));
+    outt->set_name("out");
 
     std::vector<float> ad(10 * 12), bd(10 * 12);
     std::mt19937 gen(2);

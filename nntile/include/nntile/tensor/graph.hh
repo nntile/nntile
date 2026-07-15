@@ -25,13 +25,14 @@
 #include <nntile/tensor/graph_decl.hh>
 #include <nntile/tensor/graph_data_node.hh>
 #include <nntile/tensor/graph_op_node.hh>
+#include <nntile/tensor/tensor_ref.hh>
 
 #include <algorithm>
 
 namespace nntile
 {
 
-inline TensorGraph::TensorNode *TensorGraph::data(
+inline TensorGraph::TensorNode *TensorGraph::emplace_data(
     std::vector<Index> shape, DataType dtype)
 {
     auto node = std::make_unique<TensorNode>(
@@ -42,6 +43,12 @@ inline TensorGraph::TensorNode *TensorGraph::data(
     data_.push_back(std::move(node));
 
     return node_ptr;
+}
+
+inline TensorRef TensorGraph::data(
+    std::vector<Index> shape, DataType dtype)
+{
+    return TensorRef::adopt(emplace_data(std::move(shape), dtype));
 }
 
 inline void TensorGraph::add_op(
@@ -167,48 +174,6 @@ inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase()
     return seal_phase(std::move(carried));
 }
 
-inline void TensorGraph::refresh_marked_io_(TensorNode const *node)
-{
-    if (node == nullptr)
-    {
-        return;
-    }
-    if (node->is_input() || node->is_output())
-    {
-        marked_io_.insert(node);
-    }
-    else
-    {
-        marked_io_.erase(node);
-    }
-}
-
-inline void TensorGraph::TensorNode::mark_input(bool v)
-{
-    if (is_input_ == v)
-    {
-        return;
-    }
-    is_input_ = v;
-    if (graph_ != nullptr)
-    {
-        graph_->refresh_marked_io_(this);
-    }
-}
-
-inline void TensorGraph::TensorNode::mark_output(bool v)
-{
-    if (is_output_ == v)
-    {
-        return;
-    }
-    is_output_ = v;
-    if (graph_ != nullptr)
-    {
-        graph_->refresh_marked_io_(this);
-    }
-}
-
 inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase(
     std::vector<TensorNode const *> carried)
 {
@@ -240,29 +205,6 @@ inline void TensorGraph::drop_all_ops()
         ops_.begin(),
         ops_.begin() + static_cast<std::ptrdiff_t>(phase_seal_cursor_));
     phase_seal_cursor_ = 0;
-}
-
-inline void TensorGraph::gc_unmarked_data_nodes()
-{
-    std::vector<std::unique_ptr<TensorNode>> kept;
-    kept.reserve(data_.size());
-    for (std::unique_ptr<TensorNode> &node : data_)
-    {
-        if (node == nullptr)
-        {
-            continue;
-        }
-        if (node->is_input() || node->is_output())
-        {
-            kept.push_back(std::move(node));
-        }
-    }
-    data_ = std::move(kept);
-    marked_io_.clear();
-    for (std::unique_ptr<TensorNode> const &node : data_)
-    {
-        refresh_marked_io_(node.get());
-    }
 }
 
 inline void TensorGraph::rename_data_node(

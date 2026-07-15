@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -26,11 +27,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     const Index m=2,n=2,k=3,k0=0,ks=3; const int redux=0;
     const std::vector<Index> ih={m,n}, egh={m,k,n}, vh={ks,5};
     TileGraph g("g");
-    auto* index = g.data(ih, "index", DataType::INT64);
-    auto* eg = g.data(egh, "eg", DataType::FP32);
-    auto* vg = g.data(vh, "vg", DataType::FP32);
-    index->mark_input(true); eg->mark_input(true); vg->mark_input(true); vg->mark_output(true);
-    tg::embedding_backward(m,n,k,k0,ks,index,eg,vg,redux);
+    auto *index = g.data(ih, "index", DataType::INT64);
+    auto *eg = g.data(egh, "eg", DataType::FP32);
+    auto *vg = g.data(vh, "vg", DataType::FP32);
+    tg::embedding_backward(m,n,k,k0,ks,Scalar{1.0},Scalar{1.0},index,eg,vg,redux);
     Runtime r(g);
     r.compile();
     std::vector<std::int64_t> iv(4);
@@ -53,7 +53,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     { auto c=Vg.acquire(STARPU_W);
       for(int j=0;j<15;++j) c[j]=Y(vga[static_cast<size_t>(j)]);
       c.release(); }
-    nntile::core::embedding_backward<fp32_t>(-1, m,n,k,k0,ks,I,Eg,Vg,redux);
+    nntile::core::embedding_backward<fp32_t>(-1, m,n,k,k0,ks,Scalar{1.0},Scalar{1.0},I,Eg,Vg,redux);
     starpu_task_wait_for_all();
     std::vector<float> tr(15);
     { auto L=Vg.acquire(STARPU_R);

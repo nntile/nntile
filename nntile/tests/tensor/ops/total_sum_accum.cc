@@ -44,10 +44,14 @@ TEST_CASE("TensorGraph total_sum_accum structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *logsumexp = graph.data({4})->set_name("logsumexp");
-    auto *src = graph.data({4, 3})->set_name("src");
-    auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
-    auto *val = graph.data({}, DataType::FP32)->set_name("val");
+    nntile::TensorRef logsumexp = graph.data({4});
+    logsumexp->set_name("logsumexp");
+    nntile::TensorRef src = graph.data({4, 3});
+    src->set_name("src");
+    nntile::TensorRef labels = graph.data({4}, DataType::INT64);
+    labels->set_name("labels");
+    nntile::TensorRef val = graph.data({}, DataType::FP32);
+    val->set_name("val");
 
     gt::total_sum_accum(alpha_one, logsumexp, src, labels, val, ignore_index);
 
@@ -64,10 +68,14 @@ TEST_CASE("TensorGraph total_sum_accum structure", "[graph][tensor]")
 TEST_CASE("TensorGraph total_sum_accum rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *logsumexp = graph.data({4})->set_name("logsumexp");
-    auto *src = graph.data({4, 3})->set_name("src");
-    auto *labels = graph.data({4}, DataType::INT64)->set_name("labels");
-    auto *val = graph.data({}, DataType::FP32)->set_name("val");
+    nntile::TensorRef logsumexp = graph.data({4});
+    logsumexp->set_name("logsumexp");
+    nntile::TensorRef src = graph.data({4, 3});
+    src->set_name("src");
+    nntile::TensorRef labels = graph.data({4}, DataType::INT64);
+    labels->set_name("labels");
+    nntile::TensorRef val = graph.data({}, DataType::FP32);
+    val->set_name("val");
 
     REQUIRE_THROWS_AS(gt::total_sum_accum(
                           alpha_one, nullptr, src, labels, val, ignore_index),
@@ -90,10 +98,14 @@ TEST_CASE(
     "TensorGraph total_sum_accum rejects wrong dtypes", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *logsumexp = graph.data({4})->set_name("logsumexp");
-    auto *src = graph.data({4, 3})->set_name("src");
-    auto *labels = graph.data({4})->set_name("labels"); // FP32 default
-    auto *val = graph.data({}, DataType::FP32)->set_name("val");
+    nntile::TensorRef logsumexp = graph.data({4});
+    logsumexp->set_name("logsumexp");
+    nntile::TensorRef src = graph.data({4, 3});
+    src->set_name("src");
+    nntile::TensorRef labels = graph.data({4});
+    labels->set_name("labels"); // FP32 default
+    nntile::TensorRef val = graph.data({}, DataType::FP32);
+    val->set_name("val");
 
     REQUIRE_THROWS_AS(
         gt::total_sum_accum(
@@ -138,18 +150,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("total_sum_accum_untiled");
-        auto *logsumexp_node =
-            graph.data(labels_shape, DataType::FP32)->set_name("logsumexp");
-        auto *src_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src");
-        auto *labels_node =
-            graph.data(labels_shape, DataType::INT64)->set_name("labels");
-        auto *val_node = graph.data({}, DataType::FP32)->set_name("val");
-        logsumexp_node->mark_input(true);
-        src_node->mark_input(true);
-        labels_node->mark_input(true);
-        val_node->mark_input(true);
-        val_node->mark_output(true);
+        nntile::TensorRef logsumexp_node = graph.data(labels_shape, DataType::FP32);
+    logsumexp_node->set_name("logsumexp");
+        nntile::TensorRef src_node = graph.data(src_shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef labels_node = graph.data(labels_shape, DataType::INT64);
+    labels_node->set_name("labels");
+        nntile::TensorRef val_node = graph.data({}, DataType::FP32);
+    val_node->set_name("val");
 
         gt::total_sum_accum(alpha_one,
             logsumexp_node,
@@ -177,18 +185,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("total_sum_accum_tiled");
-        auto *logsumexp_node =
-            graph.data(labels_shape, DataType::FP32)->set_name("logsumexp");
-        auto *src_node =
-            graph.data(src_shape, DataType::FP32)->set_name("src");
-        auto *labels_node =
-            graph.data(labels_shape, DataType::INT64)->set_name("labels");
-        auto *val_node = graph.data({}, DataType::FP32)->set_name("val");
-        logsumexp_node->mark_input(true);
-        src_node->mark_input(true);
-        labels_node->mark_input(true);
-        val_node->mark_input(true);
-        val_node->mark_output(true);
+        nntile::TensorRef logsumexp_node = graph.data(labels_shape, DataType::FP32);
+    logsumexp_node->set_name("logsumexp");
+        nntile::TensorRef src_node = graph.data(src_shape, DataType::FP32);
+    src_node->set_name("src");
+        nntile::TensorRef labels_node = graph.data(labels_shape, DataType::INT64);
+    labels_node->set_name("labels");
+        nntile::TensorRef val_node = graph.data({}, DataType::FP32);
+    val_node->set_name("val");
 
         gt::total_sum_accum(alpha_one,
             logsumexp_node,

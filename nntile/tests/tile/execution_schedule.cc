@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -123,10 +124,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto *x = tg.data({4}, "x", DataType::FP32);
     auto *y = tg.data({4}, "y", DataType::FP32);
     auto *z = tg.data({4}, "z", DataType::FP32);
-    x->mark_input(true);
-    y->mark_input(true);
     add(1.0, x, 1.0, y, z);
-    z->mark_output(true);
 
     Runtime rt(tg);
     rt.compile();

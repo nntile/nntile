@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tile/ops/maxsumexp.hh
- * TileGraph maxsumexp operation: (src, dst, axis)
+ * TileGraph maxsumexp operation: (src, dst, axis, beta)
  *
  * @version 1.1.0
  * */
@@ -21,15 +21,18 @@
 namespace nntile::tile
 {
 
-//! MaxSumExp operation: dst = maxsumexp(src, axis)
+//! MaxSumExp operation: beta=0 overwrite dst; beta=1 accumulate
 struct TileMaxsumexpOp : TileGraph::OpNode
 {
     Index axis = 0;
+    Scalar beta = 0.0;
     int redux = 0;
     TileGraph::TileNode* src = nullptr;
     TileGraph::TileNode* dst = nullptr;
     TileMaxsumexpOp() = default;
-    TileMaxsumexpOp(TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, int r = 0) : axis(ax), redux(r), src(s), dst(d)
+    TileMaxsumexpOp(TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax,
+            Scalar b, int r = 0) :
+        axis(ax), beta(b), redux(r), src(s), dst(d)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -41,5 +44,6 @@ struct TileMaxsumexpOp : TileGraph::OpNode
         return std::make_shared<TileMaxsumexpOp>(*this);
     }
 };
-void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, int redux = 0);
+void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis,
+        Scalar beta, int redux = 0);
 } // namespace nntile::tile

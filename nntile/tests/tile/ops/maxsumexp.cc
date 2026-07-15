@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -28,10 +29,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
     const Index n1 = 60, n2 = 4*5*2;
     const Index axis = 0; const int redux = 0;
     TileGraph g("g");
-    auto* s = g.data(sh, "s", DataType::FP32);
-    auto* d = g.data(dh, "d", DataType::FP32);
-    s->mark_input(true); d->mark_output(true);
-    tg::maxsumexp(s, d, axis, redux);
+    auto *s = g.data(sh, "s", DataType::FP32);
+    auto *d = g.data(dh, "d", DataType::FP32);
+    tg::maxsumexp(s, d, axis, Scalar{0.0}, redux);
     Runtime r(g);
     r.compile();
     std::vector<float> a(n1); std::vector<float> b(n2, 0.f);
@@ -45,7 +45,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
       for(Index i=0;i<n1;++i) p[i]=Y(a[static_cast<size_t>(i)]);
       for(Index j=0;j<n2;++j) q[j]=Y(0);
       p.release(); q.release(); }
-    nntile::core::maxsumexp<fp32_t>(-1, S, D, axis, redux);
+    nntile::core::maxsumexp<fp32_t>(-1, S, D, axis, Scalar{0.0}, redux);
     starpu_task_wait_for_all();
     std::vector<float> tr(n2);
     { auto L=D.acquire(STARPU_R);

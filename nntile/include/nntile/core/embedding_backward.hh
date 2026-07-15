@@ -20,13 +20,15 @@ namespace nntile::core
 {
 
 template<typename T>
-void embedding_backward_async(int starpu_worker_hint, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Tile<int64_t> &index, const Tile<T> &embed,
-        const Tile<T> &vocab, int redux=0);
+void embedding_backward_async(int starpu_worker_hint, Index m, Index n,
+        Index k, Index k_start, Index k_size, Scalar alpha, Scalar beta,
+        const Tile<int64_t> &index, const Tile<T> &embed, const Tile<T> &vocab,
+        int redux=0);
 
 template<typename T>
-void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
-        const Tile<int64_t> &index, const Tile<T> &embed,
-        const Tile<T> &vocab, int redux=0);
+void embedding_backward(int starpu_worker_hint, Index m, Index n, Index k,
+        Index k_start, Index k_size, Scalar alpha, Scalar beta,
+        const Tile<int64_t> &index, const Tile<T> &embed, const Tile<T> &vocab,
+        int redux=0);
 
 } // namespace nntile::core

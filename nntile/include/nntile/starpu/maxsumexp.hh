@@ -48,6 +48,7 @@ public:
         Index m;
         Index n;
         Index k;
+        Scalar beta;
     };
 
     //! Footprint function for the current operation
@@ -76,7 +77,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit maxsumexp task
+    //! Submit maxsumexp task (beta=0 overwrite / STARPU_W; beta=1 accumulate)
     void submit(
         int starpu_worker_hint,
         Index m,
@@ -84,6 +85,7 @@ public:
         Index k,
         Handle src,
         Handle dst,
+        Scalar beta,
         int redux=0
     );
 };

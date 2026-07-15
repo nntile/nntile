@@ -201,8 +201,6 @@ inline void mark_rope_inputs(const LlamaRopeInputs &rope)
     {
         return;
     }
-    rope.sin->mark_input(true);
-    rope.cos->mark_input(true);
 }
 
 inline void bind_rope_inputs(
@@ -271,10 +269,6 @@ inline bool load_attn_mask_bool(NNGraph &g,
 
 inline void mark_mask_input(NNGraph::TensorNode *mask)
 {
-    if (mask != nullptr)
-    {
-        mask->mark_input(true);
-    }
 }
 
 inline void bind_mask_input(Runtime &runtime,
@@ -324,8 +318,6 @@ void model_forward_compare_ref(const ModelFixtureSpec &fx)
 
         LlamaModel model(&g, "model", config);
         auto *output = model.forward(input_ids, rope.sin, rope.cos, mask);
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_rope_inputs(rope);
         mark_mask_input(mask);
 

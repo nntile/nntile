@@ -23,8 +23,8 @@ namespace nntile::core
 /*! @param[inout] A: Tile for the element-wise backward approximate GeLU operation
  * */
 template<typename T>
-void gelutanh_backward_async(int starpu_worker_hint, const Tile<T> &x, const Tile<T> &dy,
-        const Tile<T> &dx)
+void gelutanh_backward_async(int starpu_worker_hint, Scalar alpha, const Tile<T> &x, const Tile<T> &dy,
+        Scalar beta, const Tile<T> &dx)
 {
     // Check shapes
     if(x.shape != dy.shape)
@@ -42,7 +42,7 @@ void gelutanh_backward_async(int starpu_worker_hint, const Tile<T> &x, const Til
     if(mpi_rank == dx_rank)
     {
         // Submit task without any arguments checked
-        starpu::gelutanh_backward.submit<std::tuple<T>>(starpu_worker_hint, x.nelems, x, dy, dx);
+        starpu::gelutanh_backward.submit<std::tuple<T>>(starpu_worker_hint, x.nelems, alpha, x, dy, beta, dx);
     }
 }
 
@@ -50,68 +50,69 @@ void gelutanh_backward_async(int starpu_worker_hint, const Tile<T> &x, const Til
 /*! @param[inout] A: Tile for the element-wise backward approximate GeLU operation
  * */
 template<typename T>
-void gelutanh_backward(int starpu_worker_hint, const Tile<T> &x, const Tile<T> &dy, const Tile<T> &dx)
+void gelutanh_backward(int starpu_worker_hint, Scalar alpha, const Tile<T> &x, const Tile<T> &dy,
+        Scalar beta, const Tile<T> &dx)
 {
-    gelutanh_backward_async<T>(starpu_worker_hint, x, dy, dx);
+    gelutanh_backward_async<T>(starpu_worker_hint, alpha, x, dy, beta, dx);
     nntile::starpu_task_wait_for_all_unless_deferred();
 }
 
 // Explicit instantiation
 template
-void gelutanh_backward_async<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
-        const Tile<fp32_t> &dx);
+void gelutanh_backward_async<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
+        Scalar beta, const Tile<fp32_t> &dx);
 
 template
-void gelutanh_backward_async<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &x, const Tile<fp32_fast_tf32_t> &dy,
-        const Tile<fp32_fast_tf32_t> &dx);
+void gelutanh_backward_async<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &x, const Tile<fp32_fast_tf32_t> &dy,
+        Scalar beta, const Tile<fp32_fast_tf32_t> &dx);
 
 template
-void gelutanh_backward_async<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &x, const Tile<fp32_fast_fp16_t> &dy,
-        const Tile<fp32_fast_fp16_t> &dx);
+void gelutanh_backward_async<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &x, const Tile<fp32_fast_fp16_t> &dy,
+        Scalar beta, const Tile<fp32_fast_fp16_t> &dx);
 
 template
-void gelutanh_backward_async<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &x, const Tile<fp32_fast_bf16_t> &dy,
-        const Tile<fp32_fast_bf16_t> &dx);
+void gelutanh_backward_async<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &x, const Tile<fp32_fast_bf16_t> &dy,
+        Scalar beta, const Tile<fp32_fast_bf16_t> &dx);
 
 template
-void gelutanh_backward_async<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
-        const Tile<fp64_t> &dx);
+void gelutanh_backward_async<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
+        Scalar beta, const Tile<fp64_t> &dx);
 
 template
-void gelutanh_backward_async<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
-        const Tile<bf16_t> &dx);
+void gelutanh_backward_async<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
+        Scalar beta, const Tile<bf16_t> &dx);
 
 template
-void gelutanh_backward_async<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &x, const Tile<fp16_t> &dy,
-        const Tile<fp16_t> &dx);
+void gelutanh_backward_async<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &x, const Tile<fp16_t> &dy,
+        Scalar beta, const Tile<fp16_t> &dx);
 
 // Explicit instantiation
 template
-void gelutanh_backward<fp32_t>(int starpu_worker_hint, const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
-        const Tile<fp32_t> &dx);
+void gelutanh_backward<fp32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
+        Scalar beta, const Tile<fp32_t> &dx);
 
 template
-void gelutanh_backward<fp32_fast_tf32_t>(int starpu_worker_hint, const Tile<fp32_fast_tf32_t> &x, const Tile<fp32_fast_tf32_t> &dy,
-        const Tile<fp32_fast_tf32_t> &dx);
+void gelutanh_backward<fp32_fast_tf32_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_tf32_t> &x, const Tile<fp32_fast_tf32_t> &dy,
+        Scalar beta, const Tile<fp32_fast_tf32_t> &dx);
 
 template
-void gelutanh_backward<fp32_fast_fp16_t>(int starpu_worker_hint, const Tile<fp32_fast_fp16_t> &x, const Tile<fp32_fast_fp16_t> &dy,
-        const Tile<fp32_fast_fp16_t> &dx);
+void gelutanh_backward<fp32_fast_fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_fp16_t> &x, const Tile<fp32_fast_fp16_t> &dy,
+        Scalar beta, const Tile<fp32_fast_fp16_t> &dx);
 
 template
-void gelutanh_backward<fp32_fast_bf16_t>(int starpu_worker_hint, const Tile<fp32_fast_bf16_t> &x, const Tile<fp32_fast_bf16_t> &dy,
-        const Tile<fp32_fast_bf16_t> &dx);
+void gelutanh_backward<fp32_fast_bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp32_fast_bf16_t> &x, const Tile<fp32_fast_bf16_t> &dy,
+        Scalar beta, const Tile<fp32_fast_bf16_t> &dx);
 
 template
-void gelutanh_backward<fp64_t>(int starpu_worker_hint, const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
-        const Tile<fp64_t> &dx);
+void gelutanh_backward<fp64_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
+        Scalar beta, const Tile<fp64_t> &dx);
 
 template
-void gelutanh_backward<bf16_t>(int starpu_worker_hint, const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
-        const Tile<bf16_t> &dx);
+void gelutanh_backward<bf16_t>(int starpu_worker_hint, Scalar alpha, const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
+        Scalar beta, const Tile<bf16_t> &dx);
 
 template
-void gelutanh_backward<fp16_t>(int starpu_worker_hint, const Tile<fp16_t> &x, const Tile<fp16_t> &dy,
-        const Tile<fp16_t> &dx);
+void gelutanh_backward<fp16_t>(int starpu_worker_hint, Scalar alpha, const Tile<fp16_t> &x, const Tile<fp16_t> &dy,
+        Scalar beta, const Tile<fp16_t> &dx);
 
 } // namespace nntile::core

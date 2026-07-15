@@ -1,3 +1,4 @@
+#include <nntile/tensor/tensor_ref.hh>
 /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
@@ -28,13 +29,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     const std::vector<Index> sc = {6};
     const Index n = 12;
     TileGraph g("g");
-    auto* s = g.data(sh, "s", DataType::FP32);
-    auto* d = g.data(sh, "d", DataType::FP32);
-    auto* scra = g.data(sc, "scratch", DataType::INT64);
-    s->mark_input(true);
-    d->mark_input(true);
-    d->mark_output(true);
-    scra->mark_input(true);
+    auto *s = g.data(sh, "s", DataType::FP32);
+    auto *d = g.data(sh, "d", DataType::FP32);
+    auto *scra = g.data(sc, "scratch", DataType::INT64);
     tg::copy_intersection(s, {0,0,0}, d, {0,0,0}, scra);
     Runtime r(g);
     r.compile();
@@ -74,10 +71,6 @@ TEST_CASE_METHOD(
     auto *s = g.data(sh, "s", DataType::INT64);
     auto *d = g.data(sh, "d", DataType::INT64);
     auto *scra = g.data(sc, "scratch", DataType::INT64);
-    s->mark_input(true);
-    d->mark_input(true);
-    d->mark_output(true);
-    scra->mark_input(true);
     // Partial overlap: copy src[1:, :] into dst[0:, :] starting at dst offset 0.
     tg::copy_intersection(s, {1, 0}, d, {0, 0}, scra);
     Runtime r(g);
@@ -147,10 +140,6 @@ TEST_CASE_METHOD(
     auto *s = g.data(sh, "s", DataType::BOOL);
     auto *d = g.data(sh, "d", DataType::BOOL);
     auto *scra = g.data(sc, "scratch", DataType::INT64);
-    s->mark_input(true);
-    d->mark_input(true);
-    d->mark_output(true);
-    scra->mark_input(true);
     // Partial overlap: copy src[1:, :] into dst[0:, :] starting at dst offset 0.
     tg::copy_intersection(s, {1, 0}, d, {0, 0}, scra);
     Runtime r(g);

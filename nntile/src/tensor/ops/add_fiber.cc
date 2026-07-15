@@ -58,7 +58,7 @@ TensorGraph::TensorNode *add_fiber(Scalar alpha,
     // Output shape matches tensor (fiber is broadcast)
     std::vector<Index> output_shape = tensor->shape();
     TensorGraph::TensorNode *output =
-        tensor->graph()->data(std::move(output_shape), tensor->dtype());
+        tensor->graph()->emplace_data(std::move(output_shape), tensor->dtype());
     output->set_axes(tensor->axes());
 
     auto op = std::make_shared<TensorAddFiberOp>(

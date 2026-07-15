@@ -63,8 +63,10 @@ TEST_CASE("TensorGraph maxsumexp structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto *src = graph.data({dim0, dim1})->set_name("src");
-    auto *dst = gt::maxsumexp(src, axis_0, redux)->set_name("dst");
+    nntile::TensorRef src = graph.data({dim0, dim1});
+    src->set_name("src");
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::maxsumexp(src, axis_0, redux));
+    dst->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -108,11 +110,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("maxsumexp_untiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *dst_node = gt::maxsumexp(src_node, axis, 0)->set_name("dst");
-        dst_node->mark_output(true);
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::maxsumexp(src_node, axis, 0));
+    dst_node->set_name("dst");
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -130,11 +132,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("maxsumexp_tiled");
-        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
-        src_node->mark_input(true);
+        nntile::TensorRef src_node = graph.data(shape, DataType::FP32);
+    src_node->set_name("src");
 
-        auto *dst_node = gt::maxsumexp(src_node, axis, 0)->set_name("dst");
-        dst_node->mark_output(true);
+        nntile::TensorRef dst_node = nntile::TensorRef::adopt(gt::maxsumexp(src_node, axis, 0));
+    dst_node->set_name("dst");
         auto *maxsumexp_dim0 = dst_node->axis(0);
         auto *maxsumexp_pair = dst_node->axis(dst_node->ndim() - 1);
         for (auto *ag : graph.axis_groups())

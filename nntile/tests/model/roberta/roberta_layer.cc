@@ -127,8 +127,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         BertLayer layer(&g, "layer", fx.config);
         layer.load(full_path);
         auto *output = layer.forward(input, nullptr);
-        input->mark_input(true);
-        output->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);

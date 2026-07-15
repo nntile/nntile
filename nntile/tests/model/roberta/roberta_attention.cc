@@ -139,8 +139,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         BertAttention attn(&g, "attn", fx.config);
         attn.load(full_path);
         auto *output = attn.forward(input, nullptr);
-        input->mark_input(true);
-        output->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);

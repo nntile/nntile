@@ -41,8 +41,10 @@ TEST_CASE("TensorGraph scatter structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({5, 4})->set_name("src");
-    auto *dst = graph.data({5, 4})->set_name("dst");
+    nntile::TensorRef src = graph.data({5, 4});
+    src->set_name("src");
+    nntile::TensorRef dst = graph.data({5, 4});
+    dst->set_name("dst");
     gt::scatter(src, dst);
 
     REQUIRE(graph.num_data() == 2);
@@ -58,8 +60,10 @@ TEST_CASE("TensorGraph scatter structure", "[graph][tensor]")
 TEST_CASE("TensorGraph scatter rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({5, 4})->set_name("src");
-    auto *dst = graph.data({5, 4})->set_name("dst");
+    nntile::TensorRef src = graph.data({5, 4});
+    src->set_name("src");
+    nntile::TensorRef dst = graph.data({5, 4});
+    dst->set_name("dst");
 
     REQUIRE_THROWS_AS(gt::scatter(nullptr, dst), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::scatter(src, nullptr), std::invalid_argument);
@@ -68,8 +72,10 @@ TEST_CASE("TensorGraph scatter rejects null", "[graph][tensor]")
 TEST_CASE("TensorGraph scatter rejects shape mismatch", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *src = graph.data({5, 4})->set_name("src");
-    auto *dst = graph.data({3, 4})->set_name("dst");
+    nntile::TensorRef src = graph.data({5, 4});
+    src->set_name("src");
+    nntile::TensorRef dst = graph.data({3, 4});
+    dst->set_name("dst");
 
     REQUIRE_THROWS_AS(gt::scatter(src, dst), std::invalid_argument);
 }

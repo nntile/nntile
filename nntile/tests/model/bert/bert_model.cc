@@ -166,15 +166,11 @@ void model_backward_compare_ref(const ModelFixtureSpec &fx)
         auto *output = model.forward(
             input_ids, token_type_ids, position_ids, nullptr);
 
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_ids_inputs(position_ids, token_type_ids);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
         output->backward();
-        model.word_vocab_tensor()->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -194,7 +190,6 @@ void model_backward_compare_ref(const ModelFixtureSpec &fx)
     require_relative_frobenius_error(
         grad_wte_result, grad_wte_ref, fx.backward_tol);
 }
-
 
 } // namespace
 
@@ -283,8 +278,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         auto *output = model.forward(
             input_ids, token_type_ids, position_ids, nullptr);
-        input_ids->mark_input(true);
-        output->mark_output(true);
         mark_ids_inputs(position_ids, token_type_ids);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
@@ -306,7 +299,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(result.size() == ref_data.size());
     require_relative_frobenius_error(result, ref_data, fx.forward_tol);
 }
-
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "BertModel backward matches PyTorch reference",

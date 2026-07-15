@@ -194,7 +194,6 @@ static void apply_weight_cache(
         {
             auto copy = it->second;
             tensor->data()->set_bind_hint(std::move(copy));
-            tensor->mark_input(true);
         }
     }
 }
@@ -356,7 +355,6 @@ int main(int argc, char** argv)
 
         auto* input_ids = graph.tensor({n_batch, seq_len}, DataType::INT64, false)
                               ->set_name("input_ids");
-        input_ids->mark_input(true);
 
         auto* rope_sin =
             graph.tensor({n_batch, seq_len, rope_half}, DataType::FP32, false)
@@ -367,14 +365,10 @@ int main(int argc, char** argv)
         auto* attn_mask =
             graph.tensor({seq_len, seq_len}, DataType::BOOL, false)
                 ->set_name("attn_mask");
-        rope_sin->mark_input(true);
-        rope_cos->mark_input(true);
-        attn_mask->mark_input(true);
 
         GptneoxCausal model(&graph, "model", config);
         auto* output = model.forward(
             input_ids, rope_sin, rope_cos, attn_mask);
-        output->mark_output(true);
 
         apply_weight_cache(model, weights);
 

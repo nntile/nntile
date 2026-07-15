@@ -76,9 +76,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     else
         y->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
 
-    x->mark_input(true);
-    y->mark_output(true);
-
     Index x_nelems = 1;
     for (Index d : x_shape)
         x_nelems *= d;

@@ -221,20 +221,12 @@ int main()
 
     auto *inp =
         nn.tensor({batch, in_dim}, DataType::FP32, true)->set_name("in");
-    inp->mark_input(true);
     auto *out = mlp.forward(inp);
-    out->mark_output(true);
 
     auto [g_out, _] = nn.get_or_create_grad(out, "dloss");
     gt::fill(nntile::Scalar(1.0f), g_out->data());
 
-    mlp.fc1().weight_tensor()->mark_input(true);
-    mlp.fc2().weight_tensor()->mark_input(true);
     out->backward();
-
-    mlp.fc1().weight_tensor()->grad()->mark_output(true);
-    mlp.fc2().weight_tensor()->grad()->mark_output(true);
-    inp->grad()->mark_output(true);
 
     TensorGraph &tensor_g = nn.tensor_graph();
     name_mlp_axis_groups_from_extents(

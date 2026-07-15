@@ -19,12 +19,13 @@
 namespace nntile::core
 {
 
+//! beta=0 overwrite dst; beta=1 accumulate into dst
 template<typename T>
-void maxsumexp_async(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst, Index axis,
-        int redux=0);
+void maxsumexp_async(int starpu_worker_hint, const Tile<T> &src,
+        const Tile<T> &dst, Index axis, Scalar beta, int redux=0);
 
 template<typename T>
-void maxsumexp(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst, Index axis,
-        int redux=0);
+void maxsumexp(int starpu_worker_hint, const Tile<T> &src, const Tile<T> &dst,
+        Index axis, Scalar beta, int redux=0);
 
 } // namespace nntile::core

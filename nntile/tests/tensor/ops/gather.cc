@@ -41,8 +41,10 @@ TEST_CASE("TensorGraph gather structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *src = graph.data({5, 4})->set_name("src");
-    auto *dst = gt::gather(src)->set_name("dst");
+    nntile::TensorRef src = graph.data({5, 4});
+    src->set_name("src");
+    nntile::TensorRef dst = nntile::TensorRef::adopt(gt::gather(src));
+    dst->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);

@@ -65,8 +65,10 @@ TEST_CASE("TensorGraph add_fiber_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto *fiber = graph.data({dim_4})->set_name("fiber");
-    auto *tensor = graph.data({dim_2, dim_4})->set_name("tensor");
+    nntile::TensorRef fiber = graph.data({dim_4});
+    fiber->set_name("fiber");
+    nntile::TensorRef tensor = graph.data({dim_2, dim_4});
+    tensor->set_name("tensor");
 
     gt::add_fiber_inplace(
         alpha_one, fiber, beta_one, tensor, axis_1, batch_ndim_none);
@@ -85,7 +87,8 @@ TEST_CASE("TensorGraph add_fiber_inplace rejects duplicate tensors",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto *fiber = graph.data({dim_4})->set_name("fiber");
+    nntile::TensorRef fiber = graph.data({dim_4});
+    fiber->set_name("fiber");
 
     REQUIRE_THROWS_AS(
         gt::add_fiber_inplace(
@@ -121,13 +124,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("add_fiber_inplace_untiled");
-        auto *fiber_node =
-            graph.data(fiber_sh, DataType::FP32)->set_name("fiber");
-        auto *tensor_node =
-            graph.data(tensor_shape, DataType::FP32)->set_name("tensor");
-        fiber_node->mark_input(true);
-        tensor_node->mark_input(true);
-        tensor_node->mark_output(true);
+        nntile::TensorRef fiber_node = graph.data(fiber_sh, DataType::FP32);
+    fiber_node->set_name("fiber");
+        nntile::TensorRef tensor_node = graph.data(tensor_shape, DataType::FP32);
+    tensor_node->set_name("tensor");
         gt::add_fiber_inplace(
             alpha, fiber_node, beta, tensor_node, axis, batch_ndim);
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
@@ -144,13 +144,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("add_fiber_inplace_tiled");
-        auto *fiber_node =
-            graph.data(fiber_sh, DataType::FP32)->set_name("fiber");
-        auto *tensor_node =
-            graph.data(tensor_shape, DataType::FP32)->set_name("tensor");
-        fiber_node->mark_input(true);
-        tensor_node->mark_input(true);
-        tensor_node->mark_output(true);
+        nntile::TensorRef fiber_node = graph.data(fiber_sh, DataType::FP32);
+    fiber_node->set_name("fiber");
+        nntile::TensorRef tensor_node = graph.data(tensor_shape, DataType::FP32);
+    tensor_node->set_name("tensor");
         gt::add_fiber_inplace(
             alpha, fiber_node, beta, tensor_node, axis, batch_ndim);
         for (auto *ag : graph.axis_groups())

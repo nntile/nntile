@@ -59,8 +59,6 @@ at::Tensor make_bmm_output(
 
 void run_bmm(const PreparedGemmOperands &prepared, at::Tensor &out)
 {
-    pin_graph_op_inputs({prepared.a, prepared.b});
-    pin_graph_op_output(out, true);
     tensor_gemm_fp32(
         prepared.params,
         prepared.a,

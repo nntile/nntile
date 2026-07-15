@@ -65,8 +65,6 @@ void run_softmax(
     at::Tensor &out)
 {
     const int64_t wrapped_dim = at::maybe_wrap_dim(dim, self.dim());
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(out, true);
     tensor_softmax_fp32(self, out, wrapped_dim);
 }
 
