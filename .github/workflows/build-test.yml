@@ -116,9 +116,10 @@ jobs:
       - name: Run C++ tests (ctest)
         run: |
           export LD_LIBRARY_PATH="${PWD}/build/nntile:${PWD}/build/_deps/catch2-build/src:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           .github/scripts/list-not-implemented-tests.sh build || true
-          ctest --test-dir build -E wrappers -LE NotImplemented \
-            -j"$(nproc)" --output-on-failure
+          ctest --test-dir build -E wrappers -LE NotImplemented --output-on-failure
 
   test-cmake-install:
     name: test cmake install
