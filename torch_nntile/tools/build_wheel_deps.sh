@@ -190,7 +190,7 @@ build_nntile() {
     fi
 
     cmake "${cmake_args[@]}"
-    cmake --build "${build_dir}" --target nntile -j "${jobs}"
+    cmake --build "${build_dir}" --target nntile_tensorgraph -j "${jobs}"
 }
 
 case "${os_name}" in

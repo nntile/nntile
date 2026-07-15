@@ -115,7 +115,7 @@ foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_core_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile
+        LINK_LIBRARIES nntile_tensorgraph
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_core_${test}
         COV_GLOBAL coverage_core coverage
@@ -146,7 +146,7 @@ foreach(test IN LISTS TESTS_CATCH2)
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES
-            nntile
+            nntile_tensorgraph
             $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
             Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}

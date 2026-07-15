@@ -141,7 +141,7 @@ if(BUILD_TESTS)
     add_test_set(TARGET_NAME tests_nntile_constants
         EXEC_NAME test_constants
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/constants.cc
-        LINK_LIBRARIES nntile
+        LINK_LIBRARIES nntile_tensorgraph
         LABELS "SUBSYSTEM_KERNEL;smoke"
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_nntile_constants
