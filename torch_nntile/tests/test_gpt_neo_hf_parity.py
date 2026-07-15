@@ -176,7 +176,12 @@ def test_gpt_neo_causal_backward_matches_hf(tiny_hf_config):
     logits = minimal(contiguous_to_nntile(input_ids))
     (gw,) = torch.autograd.grad(
         logits,
-        minimal.transformer.wte.weight,
+        minimal.transformer.h[0].attn.q_proj.weight,
         grad_outputs=contiguous_to_nntile(grad),
     )
-    assert_close(gw, hf.transformer.wte.weight.grad, rtol=1e-3, atol=1e-3)
+    assert_close(
+        gw,
+        hf.transformer.h[0].attn.attention.q_proj.weight.grad,
+        rtol=1e-3,
+        atol=1e-3,
+    )

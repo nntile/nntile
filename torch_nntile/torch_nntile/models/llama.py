@@ -37,6 +37,41 @@ except ImportError:  # pragma: no cover - stub if rope.py missing
         return z, torch.ones_like(z)
 
 
+class _RepeatKV(torch.autograd.Function):
+    """``repeat_interleave`` for GQA; CPU round-trip on ``device=nntile``."""
+
+    @staticmethod
+    def forward(ctx, x: Tensor, n_rep: int) -> Tensor:  # type: ignore[override]
+        ctx.n_rep = int(n_rep)
+        if n_rep == 1:
+            return x
+        if x.device.type != "nntile":
+            return x.repeat_interleave(n_rep, dim=1)
+        y = (
+            x.detach()
+            .to("cpu")
+            .repeat_interleave(n_rep, dim=1)
+            .contiguous()
+        )
+        return y.to(x.device)
+
+    @staticmethod
+    def backward(ctx, grad_y: Tensor):  # type: ignore[override]
+        n_rep = ctx.n_rep
+        if n_rep == 1:
+            return grad_y, None
+        g = grad_y.detach().to("cpu")
+        b, h, s, d = g.shape
+        g = g.view(b, h // n_rep, n_rep, s, d).sum(dim=2).contiguous()
+        if grad_y.device.type != "cpu":
+            g = g.to(grad_y.device)
+        return g, None
+
+
+def _repeat_kv(x: Tensor, n_rep: int) -> Tensor:
+    return _RepeatKV.apply(x, n_rep)
+
+
 @dataclass
 class LlamaConfig:
     vocab_size: int = 32000
@@ -173,8 +208,8 @@ class LlamaAttention(nn.Module):
             q = self._apply_rope(q, sin, cos)
             k = self._apply_rope(k, sin, cos)
         if self.n_rep > 1:
-            k = k.repeat_interleave(self.n_rep, dim=1)
-            v = v.repeat_interleave(self.n_rep, dim=1)
+            k = _repeat_kv(k, self.n_rep)
+            v = _repeat_kv(v, self.n_rep)
         out = F.scaled_dot_product_attention(
             q,
             k,

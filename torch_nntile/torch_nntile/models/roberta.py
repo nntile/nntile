@@ -62,7 +62,7 @@ class RobertaConfig:
 
 
 class RobertaEmbeddings(nn.Module):
-    """Word + position embeddings (positions start at ``pad_token_id + 1``)."""
+    """Word + position (+ token-type) embeddings; pad-aware positions."""
 
     def __init__(self, config: RobertaConfig) -> None:
         super().__init__()
@@ -70,12 +70,12 @@ class RobertaEmbeddings(nn.Module):
         self.word_embeddings = nn.Embedding(
             config.vocab_size,
             config.hidden_size,
-            padding_idx=(
-                config.pad_token_id if config.pad_token_id >= 0 else None
-            ),
         )
         self.position_embeddings = nn.Embedding(
             config.max_position_embeddings, config.hidden_size
+        )
+        self.token_type_embeddings = nn.Embedding(
+            config.type_vocab_size, config.hidden_size
         )
         self.LayerNorm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
@@ -85,6 +85,7 @@ class RobertaEmbeddings(nn.Module):
         self,
         input_ids: Tensor,
         position_ids: Tensor | None = None,
+        token_type_ids: Tensor | None = None,
     ) -> Tensor:
         b, s = input_ids.shape
         if position_ids is None:
@@ -105,8 +106,16 @@ class RobertaEmbeddings(nn.Module):
                 )
             if input_ids.device.type != "cpu":
                 position_ids = position_ids.contiguous().to(input_ids.device)
-        x = self.word_embeddings(input_ids) + self.position_embeddings(
-            position_ids
+        if token_type_ids is None:
+            token_type_ids = torch.zeros(
+                b, s, dtype=torch.long, device="cpu"
+            )
+            if input_ids.device.type != "cpu":
+                token_type_ids = token_type_ids.to(input_ids.device)
+        x = (
+            self.word_embeddings(input_ids)
+            + self.position_embeddings(position_ids)
+            + self.token_type_embeddings(token_type_ids)
         )
         return self.LayerNorm(x)
 

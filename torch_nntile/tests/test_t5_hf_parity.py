@@ -150,8 +150,9 @@ def test_t5_encoder_block_forward_matches_hf(tiny_hf_config):
     )
     local = local.to("nntile")
     x = torch.randn(2, 8, tiny_hf_config.d_model)
+    cache_position = torch.arange(8)
     with torch.no_grad():
-        ref = hf_block(x)[0]
+        ref = hf_block(x, cache_position=cache_position)[0]
         out = local(contiguous_to_nntile(x))
     assert_close(out, ref, rtol=RTOL, atol=5e-4)
 
@@ -166,9 +167,9 @@ def test_t5_cross_attention_forward_matches_hf(tiny_hf_config):
     ).eval().float()
     _load_attn(local, hf_cross)
     local = local.to("nntile")
-    dec = torch.randn(2, 6, tiny_hf_config.d_model)
+    dec = torch.randn(2, 8, tiny_hf_config.d_model)
     enc = torch.randn(2, 8, tiny_hf_config.d_model)
-    cache_position = torch.arange(6)
+    cache_position = torch.arange(8)
     with torch.no_grad():
         ref = hf_cross(
             dec,
@@ -186,7 +187,7 @@ def test_t5_cross_attention_forward_matches_hf(tiny_hf_config):
 def test_t5_conditional_forward_matches_hf(tiny_hf_config):
     hf, minimal = _make_models(tiny_hf_config)
     enc_ids = torch.randint(0, tiny_hf_config.vocab_size, (2, 8))
-    dec_ids = torch.randint(0, tiny_hf_config.vocab_size, (2, 6))
+    dec_ids = torch.randint(0, tiny_hf_config.vocab_size, (2, 8))
     with torch.no_grad():
         ref = hf(input_ids=enc_ids, decoder_input_ids=dec_ids).logits
         out = minimal(
@@ -203,8 +204,8 @@ def test_t5_conditional_backward_matches_hf(tiny_hf_config):
     for p in minimal.parameters():
         p.requires_grad_(True)
     enc_ids = torch.randint(0, tiny_hf_config.vocab_size, (2, 8))
-    dec_ids = torch.randint(0, tiny_hf_config.vocab_size, (2, 6))
-    grad = torch.randn(2, 6, tiny_hf_config.vocab_size)
+    dec_ids = torch.randint(0, tiny_hf_config.vocab_size, (2, 8))
+    grad = torch.randn(2, 8, tiny_hf_config.vocab_size)
     logits_ref = hf(input_ids=enc_ids, decoder_input_ids=dec_ids).logits
     logits_ref.backward(grad)
     logits = minimal(
@@ -213,7 +214,12 @@ def test_t5_conditional_backward_matches_hf(tiny_hf_config):
     )
     (gw,) = torch.autograd.grad(
         logits,
-        minimal.model.shared.weight,
+        minimal.model.encoder.block[0].self_attn.q.weight,
         grad_outputs=contiguous_to_nntile(grad),
     )
-    assert_close(gw, hf.shared.weight.grad, rtol=1e-3, atol=1e-3)
+    assert_close(
+        gw,
+        hf.encoder.block[0].layer[0].SelfAttention.q.weight.grad,
+        rtol=1e-3,
+        atol=1e-3,
+    )

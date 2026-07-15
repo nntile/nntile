@@ -112,6 +112,14 @@ class T5Attention(nn.Module):
         kv_input = hidden if key_value_states is None else key_value_states
         k = self._shape(self.k(kv_input))
         v = self._shape(self.v(kv_input))
+        # HF T5 scores are unscaled matmuls; cancel NNTile SDPA's 1/sqrt(d).
+        scale = float(self.key_value_proj_dim) ** 0.5
+        if q.device.type == "nntile":
+            q = q * torch.full(
+                q.shape, scale, dtype=torch.float32, device="cpu"
+            ).to(q.device)
+        else:
+            q = q * scale
         out = F.scaled_dot_product_attention(
             q,
             k,

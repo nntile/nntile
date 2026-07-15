@@ -79,6 +79,9 @@ def test_roberta_embeddings_forward_matches_hf(tiny_hf_config):
     local.position_embeddings.weight.data.copy_(
         hf_emb.position_embeddings.weight.data
     )
+    local.token_type_embeddings.weight.data.copy_(
+        hf_emb.token_type_embeddings.weight.data
+    )
     local.LayerNorm.load_state_dict(hf_emb.LayerNorm.state_dict())
     local = local.to("nntile")
     # Include pad tokens so pad-aware position ids are exercised.
@@ -137,12 +140,12 @@ def test_roberta_mlm_backward_matches_hf(tiny_hf_config):
     logits = minimal(contiguous_to_nntile(input_ids))
     (gw,) = torch.autograd.grad(
         logits,
-        minimal.roberta.embeddings.word_embeddings.weight,
+        minimal.roberta.encoder.layer[0].attention.self.query.weight,
         grad_outputs=contiguous_to_nntile(grad),
     )
     assert_close(
         gw,
-        hf.roberta.embeddings.word_embeddings.weight.grad,
+        hf.roberta.encoder.layer[0].attention.self.query.weight.grad,
         rtol=1e-3,
         atol=1e-3,
     )

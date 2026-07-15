@@ -86,6 +86,15 @@ class GPTNeoAttention(nn.Module):
         q = self._shape(self.q_proj(x))
         k = self._shape(self.k_proj(x))
         v = self._shape(self.v_proj(x))
+        # HF GPT-Neo ``_attn`` does not divide by ``sqrt(head_dim)``. NNTile
+        # SDPA always scales; cancel it by pre-scaling Q.
+        scale = float(self.head_dim) ** 0.5
+        if q.device.type == "nntile":
+            q = q * torch.full(
+                q.shape, scale, dtype=torch.float32, device="cpu"
+            ).to(q.device)
+        else:
+            q = q * scale
         is_causal = attn_mask is None
         out = F.scaled_dot_product_attention(
             q,

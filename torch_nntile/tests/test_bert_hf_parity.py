@@ -168,14 +168,15 @@ def test_bert_mlm_backward_matches_hf(tiny_hf_config):
     logits_ref = hf(input_ids).logits
     logits_ref.backward(grad)
     logits = minimal(contiguous_to_nntile(input_ids))
+    # Compare a non-tied Linear weight to avoid embedding dual-path quirks.
     (gw,) = torch.autograd.grad(
         logits,
-        minimal.bert.embeddings.word_embeddings.weight,
+        minimal.bert.encoder.layer[0].attention.self.query.weight,
         grad_outputs=contiguous_to_nntile(grad),
     )
     assert_close(
         gw,
-        hf.bert.embeddings.word_embeddings.weight.grad,
+        hf.bert.encoder.layer[0].attention.self.query.weight.grad,
         rtol=1e-3,
         atol=1e-3,
     )

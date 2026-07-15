@@ -38,6 +38,12 @@ def _load_embeddings(dst, src) -> None:
     dst.position_embeddings.weight.data.copy_(
         src.position_embeddings.weight.data
     )
+    if hasattr(dst, "token_type_embeddings") and hasattr(
+        src, "token_type_embeddings"
+    ):
+        dst.token_type_embeddings.weight.data.copy_(
+            src.token_type_embeddings.weight.data
+        )
     dst.LayerNorm.weight.data.copy_(src.LayerNorm.weight.data)
     dst.LayerNorm.bias.data.copy_(src.LayerNorm.bias.data)
 
