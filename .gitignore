@@ -11,3 +11,4 @@ __pycache__
 
 # Binary test data (generated at test time via CTest fixture)
 *.safetensors
+wheelhouse/

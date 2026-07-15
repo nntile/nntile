@@ -16,6 +16,7 @@ python="$("${script_dir}/wheel_python.sh")"
 # Index is cu128-only; pin torch==X.Y.Z without a +cu128 local tag.
 "${python}" -m pip install \
     "torch==${torch_version}" \
+    "torchvision==0.24.1" \
     --index-url "${torch_cuda_index}"
 
 "${python}" -m pip install nvidia-cudnn-cu12

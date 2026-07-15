@@ -295,7 +295,9 @@ class T5ForConditionalGeneration(nn.Module):
             cross_attention_mask=cross_attention_mask,
         )
         if self.config.tie_word_embeddings:
-            hidden = hidden * (self.config.d_model ** -0.5)
+            # Prefer mul.Scalar path; avoid 0-d broadcast issues on nntile.
+            scale = float(self.config.d_model ** -0.5)
+            hidden = hidden * scale
         return self.lm_head(hidden)
 
 

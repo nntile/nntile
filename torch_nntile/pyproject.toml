@@ -5,11 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "torch_nntile"
 version = "0.0.5"
-description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnntile_tensorgraph)"
+description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnntile)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "torch==2.9.1",
+    "torchvision==0.24.1",
     'nvidia-cublas-cu12>=12.8.4.1; platform_system == "Linux" and platform_machine == "x86_64"',
     'nvidia-cudnn-cu12>=9.10.2.21; platform_system == "Linux" and platform_machine == "x86_64"',
     'nvidia-cusparse-cu12>=12.5.8.93; platform_system == "Linux" and platform_machine == "x86_64"',
@@ -42,7 +43,7 @@ before-all = "bash {package}/tools/build_wheel_deps.sh \"$NNTILE_SOURCE_DIR\""
 before-build = [
     "python -m pip install --upgrade pip",
     "python -m pip install 'setuptools>=61,<82' wheel ninja numpy",
-    "python -m pip install 'torch==2.9.1'",
+    "python -m pip install 'torch==2.9.1' 'torchvision==0.24.1'",
 ]
 test-command = "python {package}/tools/smoke_test_wheel.py"
 
@@ -69,18 +70,18 @@ manylinux-x86_64-image = "manylinux_2_28"
 before-build = [
     "python -m pip install --upgrade pip",
     "python -m pip install 'setuptools>=61,<82' wheel ninja numpy",
-    "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1'",
+    "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1' 'torchvision==0.24.1'",
     "python -m pip install nvidia-cudnn-cu12",
 ]
 before-test = [
-    "python -m pip install 'torch==2.9.1'",
+    "python -m pip install 'torch==2.9.1' 'torchvision==0.24.1'",
     "python -m pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 nvidia-cusolver-cu12 nvidia-nvjitlink-cu12 nvidia-cuda-runtime-cu12",
 ]
 repair-wheel-command = "bash {package}/tools/repair_wheel_linux.sh {wheel} {dest_dir}"
 
 [tool.cibuildwheel.macos]
 archs = ["arm64"]
-before-test = "python -m pip install 'torch==2.9.1'"
+before-test = "python -m pip install 'torch==2.9.1' 'torchvision==0.24.1'"
 repair-wheel-command = "bash {package}/tools/repair_wheel_macos.sh {wheel} {dest_dir} {delocate_archs}"
 
 [[tool.cibuildwheel.overrides]]

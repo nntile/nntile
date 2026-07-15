@@ -132,9 +132,28 @@ class LlamaAttention(nn.Module):
         return x.view(b, s, n_heads, self.head_dim).transpose(1, 2)
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # x: [B, H, S, D]; sin/cos: [B, S, D/2] -> broadcast over heads.
-        sin_h = sin.unsqueeze(1)
-        cos_h = cos.unsqueeze(1)
+        # x: [B, H, S, D]; sin/cos: [B, S, D/2] or already [B, H, S, D/2].
+        # Expand on CPU — nntile rejects non-contiguous expand views.
+        n_heads = x.size(1)
+        if sin.dim() == 3:
+            sin_c = sin.detach().to("cpu")
+            cos_c = cos.detach().to("cpu")
+            sin_h = (
+                sin_c.unsqueeze(1)
+                .expand(-1, n_heads, -1, -1)
+                .contiguous()
+            )
+            cos_h = (
+                cos_c.unsqueeze(1)
+                .expand(-1, n_heads, -1, -1)
+                .contiguous()
+            )
+            if x.device.type != "cpu":
+                sin_h = sin_h.to(x.device)
+                cos_h = cos_h.to(x.device)
+        else:
+            sin_h = sin
+            cos_h = cos
         return rope(sin_h, cos_h, x)
 
     def forward(
@@ -225,12 +244,15 @@ class LlamaModel(nn.Module):
                 torch.arange(s, dtype=torch.long, device="cpu")
                 .unsqueeze(0)
                 .expand(b, s)
+                .contiguous()
             )
             if input_ids.device.type != "cpu":
                 position_ids = position_ids.to(input_ids.device)
         if sin is None or cos is None:
+            # Keep RoPE tables on CPU; attention expands/moves per head count.
+            pos_cpu = position_ids.detach().to("cpu").contiguous()
             sin, cos = rope_sin_cos_from_position_ids(
-                position_ids,
+                pos_cpu,
                 self.config.head_dim,
                 rope_theta=self.config.rope_theta,
             )

@@ -238,6 +238,7 @@ ext_kwargs = _nntile_extension_kwargs()
 
 _wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.5")
 _torch_requires = "torch==2.9.1"
+_torchvision_requires = "torchvision==0.24.1"
 _linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'
 _linux_nvidia_requires = [
     f"nvidia-cublas-cu12>=12.8.4.1; {_linux_marker}",
@@ -260,5 +261,9 @@ setup(
         )
     ],
     cmdclass={"build_ext": BuildExtension.with_options(no_python_abi_suffix=True)},
-    install_requires=[_torch_requires, *_linux_nvidia_requires],
+    install_requires=[
+        _torch_requires,
+        _torchvision_requires,
+        *_linux_nvidia_requires,
+    ],
 )

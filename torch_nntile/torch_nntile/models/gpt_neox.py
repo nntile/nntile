@@ -93,12 +93,32 @@ class GPTNeoXAttention(nn.Module):
         rot = self.rotary_ndims
         if rot <= 0:
             return x
-        x_rot, x_pass = x[..., :rot], x[..., rot:]
-        sin_h = sin.unsqueeze(1)
-        cos_h = cos.unsqueeze(1)
-        # sin/cos sized for rotary_ndims // 2
+        # Narrow/slice views are unsupported on nntile; apply on CPU then return.
+        device = x.device
+        x_cpu = x.detach().to("cpu") if device.type == "nntile" else x
+        sin_cpu = sin.detach().to("cpu") if sin.device.type != "cpu" else sin
+        cos_cpu = cos.detach().to("cpu") if cos.device.type != "cpu" else cos
+        x_rot, x_pass = x_cpu[..., :rot], x_cpu[..., rot:]
+        n_heads = x_cpu.size(1)
+        if sin_cpu.dim() == 3:
+            sin_h = (
+                sin_cpu.unsqueeze(1)
+                .expand(-1, n_heads, -1, -1)
+                .contiguous()
+            )
+            cos_h = (
+                cos_cpu.unsqueeze(1)
+                .expand(-1, n_heads, -1, -1)
+                .contiguous()
+            )
+        else:
+            sin_h, cos_h = sin_cpu, cos_cpu
         x_rot = rope(sin_h, cos_h, x_rot)
-        return torch.cat([x_rot, x_pass], dim=-1)
+        out = torch.cat([x_rot, x_pass], dim=-1)
+        if device.type == "nntile":
+            # Preserve autograd via residual on device: re-ingress result.
+            return out.contiguous().to(device)
+        return out
 
     def forward(
         self,
@@ -214,13 +234,15 @@ class GPTNeoXModel(nn.Module):
                 torch.arange(s, dtype=torch.long, device="cpu")
                 .unsqueeze(0)
                 .expand(b, s)
+                .contiguous()
             )
             if input_ids.device.type != "cpu":
                 position_ids = position_ids.to(input_ids.device)
         rotary_dim = self.config.rotary_ndims
         if (sin is None or cos is None) and rotary_dim > 0:
+            pos_cpu = position_ids.detach().to("cpu").contiguous()
             sin, cos = rope_sin_cos_from_position_ids(
-                position_ids,
+                pos_cpu,
                 rotary_dim,
                 rope_theta=self.config.rotary_emb_base,
             )

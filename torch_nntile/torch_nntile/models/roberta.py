@@ -70,7 +70,9 @@ class RobertaEmbeddings(nn.Module):
         self.word_embeddings = nn.Embedding(
             config.vocab_size,
             config.hidden_size,
-            padding_idx=config.pad_token_id,
+            padding_idx=(
+                config.pad_token_id if config.pad_token_id >= 0 else None
+            ),
         )
         self.position_embeddings = nn.Embedding(
             config.max_position_embeddings, config.hidden_size
@@ -87,9 +89,22 @@ class RobertaEmbeddings(nn.Module):
         b, s = input_ids.shape
         if position_ids is None:
             # HF RoBERTa: positions are pad_token_id + 1 .. for non-pad tokens.
-            mask = (input_ids != self.pad_token_id).to(torch.long)
-            incremental = mask.cumsum(dim=1) * mask
-            position_ids = incremental + self.pad_token_id
+            # Compare on CPU — nntile lacks aten::ne for integer tensors.
+            ids_cpu = input_ids.detach().to("cpu")
+            pad = self.pad_token_id if self.pad_token_id >= 0 else -1
+            if pad >= 0:
+                mask = (ids_cpu != pad).to(torch.long)
+                incremental = mask.cumsum(dim=1) * mask
+                position_ids = incremental + pad
+            else:
+                position_ids = (
+                    torch.arange(s, dtype=torch.long)
+                    .unsqueeze(0)
+                    .expand(b, s)
+                    .contiguous()
+                )
+            if input_ids.device.type != "cpu":
+                position_ids = position_ids.contiguous().to(input_ids.device)
         x = self.word_embeddings(input_ids) + self.position_embeddings(
             position_ids
         )

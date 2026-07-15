@@ -42,7 +42,7 @@ def tiny_config() -> T5Config:
         num_layers=1,
         num_decoder_layers=1,
         num_heads=4,
-        tie_word_embeddings=True,
+        tie_word_embeddings=False,
     )
 
 

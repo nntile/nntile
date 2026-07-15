@@ -64,7 +64,7 @@ libraries come from `nvidia-*-cu12` pip packages (declared as `torch_nntile`
 dependencies on Linux x86_64), not from the wheel itself.
 
 ```bash
-pip install torch==2.9.1
+pip install torch==2.9.1 torchvision==0.24.1
 pip install /path/to/torch_nntile-0.0.5-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
@@ -83,7 +83,7 @@ The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing),
 ### macOS arm64 (CPU-only, torch 2.9.1)
 
 ```bash
-pip install torch==2.9.1
+pip install torch==2.9.1 torchvision==0.24.1
 pip install /path/to/torch_nntile-0.0.5-cp312-cp312-macosx_14_0_arm64.whl
 ```
 
@@ -146,6 +146,8 @@ remains a separate custom API for NNTile-layout SDPA.
 | `F.scaled_dot_product_attention` on `device="nntile"` | Same ATen overrideable backend as above (PyTorch/HF layout `[..., seq, head_size]`, e.g. `(batch, n_heads, seq, head_size)`) |
 | `torch_nntile.nn.weight_layout` | Pure PyTorch permutes for HF ↔ NNTile attention weights (no kernel) |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
+| `torch_nntile.training.mse_loss` | `scale * ||x||^2` via `norm` + `multiply`; backward `2*scale*x` |
+| `torch_nntile.rope` | `tensor::rope` / `rope_backward` (custom autograd) |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
 
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
@@ -464,10 +466,11 @@ pytest -vv torch_nntile/tests/test_attn_weight_layout.py
 
 ## Install from source (stub only)
 
-Install `torch==2.9.1` first (same ABI as `install_requires`), then:
+Install `torch==2.9.1` and `torchvision==0.24.1` first (same ABI as
+`install_requires`; torch 2.12 is incompatible), then:
 
 ```bash
-pip install 'torch==2.9.1'
+pip install 'torch==2.9.1' 'torchvision==0.24.1'
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation
 ```
 
@@ -488,11 +491,37 @@ Then install the extension against that build (use the same `torch` version you
 built NNTile against):
 
 ```bash
-pip install 'torch==2.9.1'
+pip install 'torch==2.9.1' 'torchvision==0.24.1'
 export NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
+```
+
+### Build a wheel (same layout as CI)
+
+Mirrors [`.github/workflows/torch-nntile-wheels.yml`](../.github/workflows/torch-nntile-wheels.yml)
+and [`tools/build_wheel_deps.sh`](tools/build_wheel_deps.sh) (CPU example):
+
+```bash
+export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+export STARPU_PREFIX=/opt/starpu
+export NNTILE_SOURCE_DIR=$PWD
+export NNTILE_BUILD_DIR=$PWD/build/torch_nntile_wheel
+export TORCH_NNTILE_REQUIRE_LIBNNTILE=1
+export TORCH_NNTILE_WHEEL=1
+export TORCH_NNTILE_USE_CUDA=0
+export TORCH_VERSION=2.9.1
+
+pip install 'torch==2.9.1' 'torchvision==0.24.1' 'setuptools>=61' wheel ninja
+# Or: bash torch_nntile/tools/build_wheel_deps.sh "$PWD"  # builds StarPU+libnntile
+cmake -S . -B "$NNTILE_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=OFF \
+  -DBUILD_TESTS=OFF -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -GNinja
+cmake --build "$NNTILE_BUILD_DIR" --target nntile -j"$(nproc)"
+
+mkdir -p wheelhouse
+CXX=g++ pip wheel ./torch_nntile -w wheelhouse --no-build-isolation --no-deps
+# → wheelhouse/torch_nntile-*.whl
 ```
 
 ## Usage

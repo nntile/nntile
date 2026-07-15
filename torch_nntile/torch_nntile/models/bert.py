@@ -81,13 +81,14 @@ class BertEmbeddings(nn.Module):
                 torch.arange(s, dtype=torch.long, device="cpu")
                 .unsqueeze(0)
                 .expand(b, s)
+                .contiguous()
             )
             if input_ids.device.type != "cpu":
                 position_ids = position_ids.to(input_ids.device)
         if token_type_ids is None:
-            token_type_ids = torch.zeros(
-                b, s, dtype=torch.long, device=input_ids.device
-            )
+            token_type_ids = torch.zeros(b, s, dtype=torch.long, device="cpu")
+            if input_ids.device.type != "cpu":
+                token_type_ids = token_type_ids.to(input_ids.device)
         x = (
             self.word_embeddings(input_ids)
             + self.position_embeddings(position_ids)

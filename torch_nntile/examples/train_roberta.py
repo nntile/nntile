@@ -41,7 +41,8 @@ def tiny_config() -> RobertaConfig:
         num_attention_heads=4,
         max_position_embeddings=34,
         type_vocab_size=1,
-        pad_token_id=1,
+        # nntile Embedding requires padding_idx == -1.
+        pad_token_id=-1,
     )
 
 

@@ -158,6 +158,7 @@ class GPTNeoModel(nn.Module):
                 torch.arange(s, dtype=torch.long, device="cpu")
                 .unsqueeze(0)
                 .expand(b, s)
+                .contiguous()
             )
             if input_ids.device.type != "cpu":
                 position_ids = position_ids.to(input_ids.device)

@@ -19,8 +19,9 @@ Libraries:
   `LD_LIBRARY_PATH=/opt/starpu/lib` is needed at runtime.
 - **System packages**: autoconf, automake, libtool, ninja-build, cmake, ccache,
   libhwloc-dev, libopenblas-dev, libfxt-dev, pkg-config, python3.12-dev, g++.
-- **Python packages**: torch (CPU-only via `https://download.pytorch.org/whl/cpu`),
-  torchvision (CPU), numpy, scipy, transformers, pytest, ruff, isort, mypy, pre-commit, etc.
+- **Python packages**: `torch==2.9.1` and `torchvision==0.24.1` (matching
+  torch_nntile ABI; do **not** use torch 2.12 — incompatible ABI),
+  numpy, scipy, transformers, pytest, ruff, isort, mypy, pre-commit, etc.
 - The default `c++` is clang which lacks C++ stdlib headers in this image.
   Always pass `-DCMAKE_CXX_COMPILER=g++` to CMake.
 - A symlink `/usr/lib/x86_64-linux-gnu/libstdc++.so` must point to
