@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/loss.py
-# Cross-entropy loss support for device="nntile".
+# Loss support for device="nntile".
 
 """Loss helpers for the nntile device."""
 
@@ -64,6 +64,13 @@ def cross_entropy(
     )
 
 
+def mse_loss(x: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
+    """``scale * ||x||^2`` (see :func:`torch_nntile.training.mse_loss`)."""
+    from torch_nntile.training import mse_loss as _nntile_mse_loss
+
+    return _nntile_mse_loss(x, scale=scale)
+
+
 def patch_cross_entropy() -> None:
     """Route ``torch.nn.functional.cross_entropy`` to the nntile implementation."""
     F.cross_entropy = cross_entropy  # type: ignore[assignment]
@@ -71,4 +78,4 @@ def patch_cross_entropy() -> None:
 
 patch_cross_entropy()
 
-__all__ = ["cross_entropy", "patch_cross_entropy"]
+__all__ = ["cross_entropy", "mse_loss", "patch_cross_entropy"]
