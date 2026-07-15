@@ -68,8 +68,7 @@ docker run -it --gpus all nntile:latest
 ```
 
 - Working directory: `/workspace/nntile`
-- `PYTHONPATH=/workspace/nntile/build/wrappers/python`
-- Jupyter Lab: see [python/training.md](../python/training.md) (notebooks section)
+- Jupyter / training examples: see [torch_nntile](../torch_nntile.md)
 
 SGOC library path and env vars: [sgoc/README.md](../sgoc/README.md).
 
@@ -86,7 +85,7 @@ cmake -S . -B build -GNinja \
   -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90"
 
 cmake --build build -j$(nproc)
-export PYTHONPATH="$(pwd)/build/wrappers/python:${PYTHONPATH}"
+# Optional: install torch_nntile against the build tree
 ```
 
 CPU-only development:
@@ -102,7 +101,8 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `BUILD_SHARED_LIBS` | ON | Shared vs static `nntile` library |
+| `BUILD_SHARED_LIBS` | ON | Shared vs static **libnntile** |
+| `BUILD_NNTILE` | ON | Build **libnntile** (TensorGraph stack) |
 | `USE_CUDA` | ON | CUDA, cuBLAS, cuDNN; OFF for CPU-only |
 | `USE_CUDA_FP16` | ON | FP16 kernels (`NNTILE_USE_CUDA_FP16`) |
 | `USE_CUDA_TF32` | ON | TF32 fast paths |
@@ -110,11 +110,11 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `USE_CUDA_FP8` | ON | FP8 if CUDA ≥ 11.8 |
 | `USE_CBLAS` | ON | CPU BLAS kernels |
 | `BUILD_TESTS` | ON | CTest suite (off in SimGrid mode) |
-| `BUILD_TESTS_PYTORCH` | ON | Build WIP graph/NNGraph tests that compare against LibTorch (needs Torch; see below) |
+| `BUILD_TESTS_PYTORCH` | ON | Optional LibTorch lookup for test helpers |
 | `BUILD_DOCS` | OFF | Doxygen documentation |
-| `BUILD_EXAMPLES` | ON | C++ examples in `examples/` |
+| `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile** (requires LibTorch) |
+| `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
 | `BUILD_COVERAGE` | OFF | LCOV coverage; enables tests; `make coverage` |
-| `BUILD_PYTHON_WRAPPERS` | ON | pybind11 modules + Python package under `build/wrappers/python` |
 
 ### Common cache variables
 
@@ -126,41 +126,28 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `CMAKE_DISABLE_FIND_PACKAGE_pybind11` | Pin in-tree pybind11 (Docker default) |
 | `CMAKE_EXPORT_COMPILE_COMMANDS` | ON by default → `compile_commands.json` |
 
-### LibTorch and graph API tests (work in progress)
+### LibTorch / torch_nntile
 
-The [**NNTile Graph API**](../graph-wip.md) (`include/nntile/graph/`, `tests/graph/`,
-`nntile_graph` Python bindings) is still under development. To **build and run the
-graph test suite** that checks NNGraph results against PyTorch’s C++ frontend,
-all of the following are required:
-
-| Requirement | Notes |
-|-------------|--------|
-| `BUILD_TESTS=ON` | Default; graph tests live under `tests/graph/` |
-| `BUILD_TESTS_PYTORCH=ON` | Default; enables LibTorch lookup at configure time |
-| **LibTorch** on `CMAKE_PREFIX_PATH` | Usually from a PyTorch install in the same environment |
-| StarPU **not** in SimGrid mode | Graph tests are disabled when `HAVE_STARPU_SIMGRID` is set |
-| CUDA build (typical) | Graph tests are not built in CPU-only `USE_CUDA=OFF` CI configs |
-
-If LibTorch is missing, CMake still configures but emits a warning and skips
-Torch-linked graph targets (`NNTILE_HAVE_TORCH=OFF`). The rest of the C++ and
-Python tests can still run.
-
-Configure with PyTorch’s CMake prefix (merge with your Conda/StarPU prefix if needed):
+Optional **libtorch_nntile** builds need LibTorch on `CMAKE_PREFIX_PATH`:
 
 ```bash
 TORCH_PREFIX="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
 cmake -S . -B build -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_PREFIX_PATH="${CONDA_PREFIX};${TORCH_PREFIX}" \
-  -DBUILD_TESTS=ON \
-  -DBUILD_TESTS_PYTORCH=ON
+  -DBUILD_TORCH_NNTILE=ON
 
 cmake --build build -j$(nproc)
-ctest --test-dir build -R 'tests_(tile|tensor|nn|module|model|io)_' --output-on-failure
 ```
 
-Graph API usage and architecture are **not** documented here; see
-[graph-wip.md](../graph-wip.md) and [graph.md](../../graph.md).
+C++ TensorGraph tests (no LibTorch required):
+
+```bash
+ctest --test-dir build -R 'tests_(tile|tensor|core|kernel|starpu)_' \
+  --output-on-failure
+```
+
+See [torch_nntile.md](../torch_nntile.md) and [graph-wip.md](../graph-wip.md).
 
 ## Build outputs
 
@@ -228,11 +215,11 @@ Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
 
 | Script | Role |
 |--------|------|
-| `build_wheel_deps.sh` | StarPU (nntile fork, CUDA max 8 devices, no FXT), libnntile_tensorgraph; Linux CUDA / macOS CPU split |
+| `build_wheel_deps.sh` | StarPU (nntile fork, CUDA max 8 devices, no FXT), libnntile; Linux CUDA / macOS CPU split |
 | `install_linux_cuda_toolkit.sh` | manylinux: dnf CUDA 12.8 toolkit (nvcc, headers, libcuda stubs; no GPU) |
 | `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index + pip cuDNN; export `CUDA_HOME` |
 | `wheel_python.sh` | Select cp312 interpreter in manylinux `before-all` hooks |
-| `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile_tensorgraph`; exclude NVIDIA driver and math libs; `patchelf` RPATH to `nvidia-*-cu12` pip libs |
+| `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver and math libs; `patchelf` RPATH to `nvidia-*-cu12` pip libs |
 | `repair_wheel_macos.sh` | `delocate-wheel`; macOS 14+ arm64 |
 | `smoke_test_wheel.py` | cibuildwheel `test-command` |
 
@@ -356,7 +343,7 @@ Fixtures in [`conftest.py`](../../wrappers/python/tests/conftest.py): `context`,
 **Correctness:**
 
 ```bash
-export PYTHONPATH="$(pwd)/build/wrappers/python:${PYTHONPATH}"
+# Optional: install torch_nntile against the build tree
 cd build/wrappers/python/tests
 
 pytest -vv

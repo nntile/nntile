@@ -23,7 +23,6 @@ env:
   CMAKE_COMMON: >-
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
     -DUSE_CUDA=OFF
-    -DBUILD_PYTHON_WRAPPERS=OFF
     -DCMAKE_C_COMPILER=gcc
     -DCMAKE_CXX_COMPILER=g++
     -DCMAKE_C_COMPILER_LAUNCHER=ccache
@@ -31,7 +30,7 @@ env:
 
 jobs:
   build-lib:
-    name: build libnntile_tensorgraph
+    name: build libnntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -54,8 +53,8 @@ jobs:
           restore-keys: ccache-build-lib-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
-          cmake --build build --target nntile_tensorgraph -j"$(nproc)"
+            -DBUILD_TESTS=OFF
+          cmake --build build --target nntile -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
           .github/scripts/ccache-print-stats.sh build-lib
@@ -85,7 +84,6 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
-      - uses: ./.github/actions/nntile-model-test-python
       - uses: actions/download-artifact@v4
         with:
           name: nntile-build
@@ -98,8 +96,7 @@ jobs:
           restore-keys: ccache-build-tests-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF \
-            -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}"
+            -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF
           cmake --build build -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
@@ -147,69 +144,18 @@ jobs:
           restore-keys: ccache-test-install-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
-          cmake --build build --target nntile_tensorgraph -j"$(nproc)"
+            -DBUILD_TESTS=OFF
+          cmake --build build --target nntile -j"$(nproc)"
           cmake \
             -DBUILD_DIR="${PWD}/build" \
             -DCMAKE_INSTALL_PREFIX="${PWD}/build/nntile-install-test-prefix" \
             -DCMAKE_INSTALL_LIBDIR=lib \
-            -DNNTILE_INSTALL_LIB_BASENAME=libnntile_tensorgraph.so \
+            -DNNTILE_INSTALL_LIB_BASENAME=libnntile.so \
             -P nntile/tests/verify_install.cmake
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
           key: ccache-test-install-${{ github.sha }}
-
-  # python/ nntile package testing is temporarily disabled: BUILD_NNTILE_NNGRAPH
-  # (and thus BUILD_PYTHON_WRAPPERS) is OFF while focus is torch_nntile.
-
-  build-examples:
-    name: build examples
-    needs: build-lib
-    runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates git python3 python3-numpy
-        working-directory: /
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
-      - uses: actions/download-artifact@v4
-        with:
-          name: nntile-build
-          path: build
-      - run: rm -rf build/_deps
-      - uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-build-examples-${{ github.sha }}
-          restore-keys: ccache-build-examples-
-      - run: |
-          # Examples still use the C++ NNGraph/module/model/io/dataset stack.
-          cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON \
-            -DBUILD_NNTILE_NNGRAPH=ON -DBUILD_NNTILE_MODULES=ON \
-            -DBUILD_NNTILE_MODELS=ON -DBUILD_NNTILE_OPTIM=ON \
-            -DBUILD_NNTILE_IO=ON -DBUILD_NNTILE_DATASET=ON
-          cmake --build build --target nntile_all_examples -j"$(nproc)"
-      - run: |
-          chmod +x nntile/examples/run_gpt2_graph_training_demo.sh
-          export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
-          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-          ./nntile/examples/run_gpt2_graph_training_demo.sh
-      - run: |
-          chmod +x .github/scripts/ccache-print-stats.sh
-          .github/scripts/ccache-print-stats.sh build-examples
-      - uses: actions/cache/save@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-build-examples-${{ github.sha }}
 
   torch-nntile-device-stub:
     name: torch nntile device stub

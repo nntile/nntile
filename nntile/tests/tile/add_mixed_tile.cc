@@ -17,7 +17,8 @@
 #include "test_frobenius.hh"
 
 #include <catch2/catch_test_macros.hpp>
-#include <nntile/graph.hh>
+#include <nntile/tile.hh>
+#include <nntile/tensor.hh>
 #include <random>
 #include <vector>
 

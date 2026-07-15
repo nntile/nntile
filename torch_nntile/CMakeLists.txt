@@ -11,17 +11,11 @@ if(NOT BUILD_TORCH_NNTILE)
     return()
 endif()
 
-if(NOT TARGET nntile_tensorgraph AND NOT TARGET nntile)
-    message(FATAL_ERROR
-        "BUILD_TORCH_NNTILE requires libnntile / nntile_tensorgraph")
+if(NOT TARGET nntile)
+    message(FATAL_ERROR "BUILD_TORCH_NNTILE requires libnntile")
 endif()
 
 find_package(Torch REQUIRED)
-
-set(_torch_nntile_backend_lib nntile_tensorgraph)
-if(TARGET nntile AND NOT TARGET nntile_tensorgraph)
-    set(_torch_nntile_backend_lib nntile)
-endif()
 
 set(TORCH_NNTILE_CSRC
     csrc/nntile_allocator.cpp
@@ -92,12 +86,12 @@ target_include_directories(torch_nntile
 )
 target_link_libraries(torch_nntile
     PUBLIC
-        ${_torch_nntile_backend_lib}
+        nntile
         ${TORCH_LIBRARIES}
 )
 set_property(TARGET torch_nntile PROPERTY CXX_STANDARD 17)
 
-if(BUILD_EXAMPLES OR BUILD_TORCH_NNTILE_EXAMPLES)
+if(BUILD_TORCH_NNTILE_EXAMPLES)
     add_subdirectory(examples/cpp)
 endif()
 

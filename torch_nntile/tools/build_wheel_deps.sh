@@ -142,9 +142,7 @@ build_nntile() {
         -S "${repo_root}"
         -B "${build_dir}"
         -DCMAKE_BUILD_TYPE=Release
-        -DBUILD_PYTHON_WRAPPERS=OFF
         -DBUILD_TESTS=OFF
-        -DBUILD_EXAMPLES=OFF
         -GNinja
     )
 
@@ -190,7 +188,7 @@ build_nntile() {
     fi
 
     cmake "${cmake_args[@]}"
-    cmake --build "${build_dir}" --target nntile_tensorgraph -j "${jobs}"
+    cmake --build "${build_dir}" --target nntile -j "${jobs}"
 }
 
 case "${os_name}" in

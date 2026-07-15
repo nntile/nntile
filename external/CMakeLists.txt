@@ -13,11 +13,6 @@
 
 include(FetchContent)
 
-if(BUILD_PYTHON_WRAPPERS)
-    add_subdirectory(pybind11)
-    FetchContent_MakeAvailable(pybind11)
-endif()
-
 if(BUILD_TESTS)
     FetchContent_Declare(
         Catch2

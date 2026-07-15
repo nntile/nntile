@@ -96,7 +96,6 @@ set(TESTS_TENSOR_CATCH2
 
 set(TESTS_TENSOR_ROOT_CATCH2
     "axis_descriptor"
-    "tiling_config_json"
 )
 
 # CUDA-only tests (flash_* operations require n_cuda=1)
@@ -116,7 +115,7 @@ foreach(test IN LISTS TESTS_TENSOR_CATCH2)
     add_test_set(TARGET_NAME tests_tensor_ops_${test}
         EXEC_NAME test_${test}
         SOURCES ops/${test}.cc
-        LINK_LIBRARIES nntile_tensorgraph Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tensor_ops_${test}
         COV_GLOBAL coverage_tensor coverage
@@ -130,14 +129,13 @@ foreach(test IN LISTS TESTS_TENSOR_ROOT_CATCH2)
     add_test_set(TARGET_NAME tests_tensor_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile_tensorgraph Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tensor_${test}
         COV_GLOBAL coverage_tensor coverage
     )
     target_include_directories(tests_tensor_${test} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/..
-        ${CMAKE_SOURCE_DIR}/nntile/examples)
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endforeach()
 
 foreach(test IN LISTS TESTS_TENSOR_CUDA)
@@ -145,7 +143,7 @@ foreach(test IN LISTS TESTS_TENSOR_CUDA)
         EXEC_NAME test_${test}
         SOURCES ops/${test}.cc
         LINK_LIBRARIES
-            nntile_tensorgraph
+            nntile
             Catch2::Catch2WithMain
             $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}

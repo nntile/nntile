@@ -1,7 +1,7 @@
 # torch_nntile
 
 PyTorch **PrivateUse1** backend registered as `device="nntile"`. When built
-against `libnntile_tensorgraph`, selected ops record into a shared `TensorGraph`, lower to
+against **libnntile**, selected ops record into a shared `TensorGraph`, lower to
 `TileGraph`, and run through `Runtime` (StarPU).
 
 Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).

@@ -199,8 +199,8 @@ def _nntile_extension_kwargs() -> dict:
             str(nntile_build / "include"),
         ])
         library_dirs.append(str(nntile_lib_dir))
-        # torch_nntile links only libnntile_tensorgraph (not libnntile/NNGraph).
-        libraries.append("nntile_tensorgraph")
+        # torch_nntile links libnntile (TensorGraph stack).
+        libraries.append("nntile")
         if os.environ.get("TORCH_NNTILE_WHEEL") != "1":
             if sys.platform == "darwin":
                 extra_link_args.append(

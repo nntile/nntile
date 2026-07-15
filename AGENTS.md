@@ -7,6 +7,11 @@
 NNTile is a C++17/Python framework for distributed neural network training built on the StarPU runtime.
 The Cloud Agent VM builds **CPU-only** (`-DUSE_CUDA=OFF`) since no GPU is available.
 
+Libraries:
+
+- **libnntile** — TensorGraph stack (kernel → StarPU → core → tile → tensor → Runtime)
+- **libtorch_nntile** — LibTorch PrivateUse1 (`device=nntile`) + models (optional)
+
 ### Pre-installed dependencies
 
 - **StarPU 1.4.8** is installed at `/opt/starpu` (built from source).
@@ -27,7 +32,7 @@ The Cloud Agent VM builds **CPU-only** (`-DUSE_CUDA=OFF`) since no GPU is availa
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-  -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PYTHON_WRAPPERS=OFF \
+  -DBUILD_TESTS=OFF \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" -GNinja
@@ -47,19 +52,15 @@ export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 # C++ tests (excluding MPI and NotImplemented)
 ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
 
-# Python tests
-export PYTHONPATH=$PWD/build/wrappers/python:$PWD/wrappers/python:$PYTHONPATH
-pytest -vv
+# torch_nntile Python tests (requires libnntile built + extension install)
+export NNTILE_BUILD_DIR=$PWD/build NNTILE_SOURCE_DIR=$PWD
+export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib:$LD_LIBRARY_PATH
+pytest -vv torch_nntile/tests/
 ```
 
 ### Known issues in CPU-only builds
 
-- `tests_model_llama_*_data_setup` tests fail due to a torch/torchvision
-  CPU registration incompatibility. These are not caused by NNTile code and are
-  skipped in practice.
-- Many Python tests are skipped (`no cuda` marker) because CUDA is not available.
-- The `nntile_init()` function referenced in older examples has been replaced by
-  `nntile.Context(ncpu=..., ncuda=..., ooc=..., logger=..., verbose=...)`.
+- Many torch_nntile tests are skipped (`no cuda` marker) because CUDA is not available.
 
 ### Lint
 
@@ -75,5 +76,5 @@ Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 - **O(N) compiler design:** [docs/dev/graph_compiler_on_design.md](docs/dev/graph_compiler_on_design.md)
 - **Agent checklist (actionable):** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)
 - **Roadmap:** [docs/dev/graph_static_execution_plan.md](docs/dev/graph_static_execution_plan.md)
-- **Per-task steps:** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)
+- **Migration:** [docs/dev/libtorch_nntile_migration.md](docs/dev/libtorch_nntile_migration.md)
 - **`torch_nntile` wheels:** built on PRs to `graph_api` and `workflow_dispatch`; see [torch_nntile/README.md](torch_nntile/README.md#prebuilt-wheels-001)

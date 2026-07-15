@@ -1,6 +1,6 @@
 # Migrate to libtorch_nntile (remove NNGraph)
 
-**Status:** in progress  
+**Status:** Phase 4 complete (NNGraph removed; `libnntile_tensorgraph` → `libnntile`)  
 **Branch:** `cursor/libtorch-nntile-migration-160b`  
 **Related:** [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md),
 [graph_compiler_on_design.md](graph_compiler_on_design.md)
@@ -12,7 +12,7 @@
   binds the same backend.
 - **Remove:** NNGraph autograd, `nntile::module` / `model` / `optim`,
   `python/nntile` graph bindings, and NNGraph C++ examples.
-- **Rename:** `libnntile_tensorgraph` → **`libnntile`** (TensorGraph stack
+- **Rename:** `libnntile` → **`libnntile`** (TensorGraph stack
   only). No separate high-level `libnntile` remains.
 
 ```text
@@ -20,7 +20,7 @@ C++ / Python apps
        │
  libtorch_nntile  (ATen PrivateUse1 + custom autograd + models)
        │
- libnntile        (former libnntile_tensorgraph)
+ libnntile        (former libnntile)
        │
  TensorGraph → TileGraph → Runtime → StarPU → kernels
 ```
@@ -65,7 +65,7 @@ used inside ATen/custom implementations.
 
 | Library | Role |
 |---------|------|
-| **libnntile** | TensorGraph stack (renamed from libnntile_tensorgraph) |
+| **libnntile** | TensorGraph stack (renamed from libnntile) |
 | **libtorch_nntile** | PrivateUse1 + models + custom ops |
 
 ## Model parity checklist

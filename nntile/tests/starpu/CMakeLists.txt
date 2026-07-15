@@ -159,7 +159,7 @@ endif()
 #add_test_set(TARGET_NAME tests_starpu_config
 #    EXEC_NAME test_config
 #    SOURCES config.cc
-#    LINK_LIBRARIES nntile_tensorgraph
+#    LINK_LIBRARIES nntile
 #    ARGS "1" "2" "3" "4" "5"
 #    COV_ENABLE ${BUILD_COVERAGE}
 #    COV_NAME coverage_starpu_config
@@ -177,7 +177,7 @@ foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_starpu_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile_tensorgraph $<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cudart>
+        LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_starpu_${test}
         COV_GLOBAL coverage_starpu coverage
@@ -200,7 +200,7 @@ foreach(test IN LISTS TESTS_CATCH2)
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES
-            nntile_tensorgraph
+            nntile
             $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
             Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
