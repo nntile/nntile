@@ -63,15 +63,11 @@ void run_mul_kernel(
     const at::Tensor &other,
     at::Tensor &out)
 {
-    pin_graph_op_inputs({self, other});
-    pin_graph_op_output(out, true);
     tensor_mul_fp32(self, other, out);
 }
 
 void run_mul_inplace_kernel(at::Tensor &self, const at::Tensor &other)
 {
-    pin_graph_op_inputs({self, other});
-    pin_graph_op_output(self, true);
     tensor_mul_inplace_fp32(other, self);
 }
 

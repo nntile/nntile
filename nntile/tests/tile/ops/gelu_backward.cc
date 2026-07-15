@@ -33,7 +33,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelu_backward matches 
     auto *x = g.data(sh, "x", DataType::FP32);
     auto *dy = g.data(sh, "dy", DataType::FP32);
     auto *dx = g.data(sh, "dx", DataType::FP32);
-    tg::gelu_backward(x, dy, dx);
+    tg::gelu_backward(Scalar{1.0}, x, dy, Scalar{0.0}, dx);
     Runtime runtime(g);
     runtime.compile();
     std::vector<float> xv(nelems), dyv(nelems), dxv(nelems, 0.f);
@@ -64,7 +64,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelu_backward matches 
         l2.release();
         l3.release();
     }
-    nntile::core::gelu_backward<fp32_t>(-1, tx, tdy, tdx);
+    nntile::core::gelu_backward<fp32_t>(-1, Scalar{1.0}, tx, tdy, Scalar{0.0}, tdx);
     starpu_task_wait_for_all();
     std::vector<float> tref(nelems);
     {

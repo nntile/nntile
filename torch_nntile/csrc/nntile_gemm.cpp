@@ -51,8 +51,6 @@ at::Tensor make_gemm_output(
 
 void run_gemm(const PreparedGemmOperands &prepared, at::Tensor &out)
 {
-    pin_graph_op_inputs({prepared.a, prepared.b});
-    pin_graph_op_output(out, true);
     tensor_gemm_fp32(
         prepared.params,
         prepared.a,
@@ -122,8 +120,6 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = false;
             params.trans_b = !forward.params.trans_b;
-            pin_graph_op_inputs({grad_out_prepared, forward.b});
-            pin_graph_op_output(grad_a, false);
             tensor_gemm_fp32(
                 params,
                 grad_out_prepared,
@@ -137,8 +133,6 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = forward.params.trans_b;
             params.trans_b = true;
-            pin_graph_op_inputs({forward.b, grad_out_prepared});
-            pin_graph_op_output(grad_a, false);
             tensor_gemm_fp32(
                 params,
                 forward.b,
@@ -161,8 +155,6 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = !forward.params.trans_a;
             params.trans_b = false;
-            pin_graph_op_inputs({forward.a, grad_out_prepared});
-            pin_graph_op_output(grad_b, false);
             tensor_gemm_fp32(
                 params,
                 forward.a,
@@ -176,8 +168,6 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = true;
             params.trans_b = forward.params.trans_a;
-            pin_graph_op_inputs({grad_out_prepared, forward.a});
-            pin_graph_op_output(grad_b, false);
             tensor_gemm_fp32(
                 params,
                 grad_out_prepared,

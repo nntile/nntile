@@ -27,12 +27,15 @@ namespace
 {
 template<typename T>
 void run_me(
-    Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, int r)
+    Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax,
+    Scalar beta, int r)
 {
-    nntile::core::maxsumexp<T>(runtime.starpu_worker_hint(), runtime.get_tile<T>(s), runtime.get_tile<T>(d), ax, r);
+    nntile::core::maxsumexp<T>(runtime.starpu_worker_hint(),
+            runtime.get_tile<T>(s), runtime.get_tile<T>(d), ax, beta, r);
 }
 } // namespace
-void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, int redux)
+void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis,
+        Scalar beta, int redux)
 {
     if(!src || !dst)
         throw std::invalid_argument("tile maxsumexp: null");
@@ -42,7 +45,8 @@ void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, i
         throw std::invalid_argument("tile maxsumexp: dtype");
     if(src == dst)
         throw std::invalid_argument("tile maxsumexp: distinct");
-    src->graph()->add_op(std::make_shared<TileMaxsumexpOp>(src, dst, axis, redux));
+    src->graph()->add_op(std::make_shared<TileMaxsumexpOp>(src, dst, axis,
+                beta, redux));
 }
 void TileMaxsumexpOp::execute(Runtime& runtime) const
 {
@@ -50,25 +54,28 @@ void TileMaxsumexpOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_me<nntile::fp32_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::fp32_t>(runtime, src, dst, axis, beta, redux);
             break;
         case DataType::FP32_FAST_TF32:
-            run_me<nntile::fp32_fast_tf32_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::fp32_fast_tf32_t>(runtime, src, dst, axis, beta,
+                    redux);
             break;
         case DataType::FP32_FAST_FP16:
-            run_me<nntile::fp32_fast_fp16_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::fp32_fast_fp16_t>(runtime, src, dst, axis, beta,
+                    redux);
             break;
         case DataType::FP32_FAST_BF16:
-            run_me<nntile::fp32_fast_bf16_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::fp32_fast_bf16_t>(runtime, src, dst, axis, beta,
+                    redux);
             break;
         case DataType::FP64:
-            run_me<nntile::fp64_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::fp64_t>(runtime, src, dst, axis, beta, redux);
             break;
         case DataType::FP16:
-            run_me<nntile::fp16_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::fp16_t>(runtime, src, dst, axis, beta, redux);
             break;
         case DataType::BF16:
-            run_me<nntile::bf16_t>(runtime, src, dst, axis, redux);
+            run_me<nntile::bf16_t>(runtime, src, dst, axis, beta, redux);
             break;
         case DataType::INT64:
         case DataType::BOOL:

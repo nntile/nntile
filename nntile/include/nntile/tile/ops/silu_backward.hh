@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tile/ops/silu_backward.hh
- * TileGraph SiLU backward
+ * TileGraph SiLU backward: dx = alpha * grad_func(x) * dy + beta * dx
  *
  * @version 1.1.0
  * */
@@ -15,24 +15,35 @@
 #pragma once
 
 // NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/tile/graph.hh>
 
 namespace nntile::tile
 {
 
-//! SiLU backward operation: dx = silu_backward(x, dy)
+//! SiLU backward operation: dx = alpha * grad_func(x) * dy + beta * dx
 struct TileSiluBackwardOp : TileGraph::OpNode
 {
+    Scalar alpha;
+    Scalar beta;
     TileGraph::TileNode* x = nullptr;
     TileGraph::TileNode* dy = nullptr;
     TileGraph::TileNode* dx = nullptr;
 
     TileSiluBackwardOp() = default;
     TileSiluBackwardOp(
-        TileGraph::TileNode* x_, TileGraph::TileNode* dy_, TileGraph::TileNode* dx_)
-        : x(x_), dy(dy_), dx(dx_)
+        TileGraph::TileNode* x_, TileGraph::TileNode* dy_, TileGraph::TileNode* dx_,
+        Scalar alpha_, Scalar beta_)
+        : alpha(alpha_), beta(beta_), x(x_), dy(dy_), dx(dx_)
     {
-        inputs_ = {x, dy, dx};
+        if(beta == Scalar{0.0})
+        {
+            inputs_ = {x, dy};
+        }
+        else
+        {
+            inputs_ = {x, dy, dx};
+        }
         outputs_ = {dx};
     }
 
@@ -46,7 +57,8 @@ struct TileSiluBackwardOp : TileGraph::OpNode
     }
 };
 
-void silu_backward(
-    TileGraph::TileNode* x, TileGraph::TileNode* dy, TileGraph::TileNode* dx);
+//! SiLU backward: dx = alpha * grad_func(x) * dy + beta * dx
+void silu_backward(Scalar alpha, TileGraph::TileNode* x, TileGraph::TileNode* dy,
+    Scalar beta, TileGraph::TileNode* dx);
 
 } // namespace nntile::tile

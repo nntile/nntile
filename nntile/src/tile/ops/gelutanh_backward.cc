@@ -32,6 +32,7 @@ namespace
 template<typename T>
 void run_gelutanh_backward(
     Runtime& runtime,
+    Scalar alpha, Scalar beta,
     TileGraph::TileNode* x,
     TileGraph::TileNode* dy,
     TileGraph::TileNode* dx)
@@ -39,13 +40,14 @@ void run_gelutanh_backward(
     auto& x_t = runtime.get_tile<T>(x);
     auto& dy_t = runtime.get_tile<T>(dy);
     auto& dx_t = runtime.get_tile<T>(dx);
-    nntile::core::gelutanh_backward<T>(runtime.starpu_worker_hint(), x_t, dy_t, dx_t);
+    nntile::core::gelutanh_backward<T>(
+        runtime.starpu_worker_hint(), alpha, x_t, dy_t, beta, dx_t);
 }
 
 } // namespace
 
-void gelutanh_backward(
-    TileGraph::TileNode* x, TileGraph::TileNode* dy, TileGraph::TileNode* dx)
+void gelutanh_backward(Scalar alpha, TileGraph::TileNode* x, TileGraph::TileNode* dy,
+    Scalar beta, TileGraph::TileNode* dx)
 {
     if(x == nullptr || dy == nullptr || dx == nullptr)
     {
@@ -66,7 +68,7 @@ void gelutanh_backward(
         throw std::invalid_argument("tile gelutanh_backward: shape mismatch");
     }
 
-    auto op = std::make_shared<TileGelutanhBackwardOp>(x, dy, dx);
+    auto op = std::make_shared<TileGelutanhBackwardOp>(x, dy, dx, alpha, beta);
     x->graph()->add_op(op);
 }
 
@@ -77,25 +79,25 @@ void TileGelutanhBackwardOp::execute(Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_gelutanh_backward<nntile::fp32_t>(runtime, x, dy, dx);
+            run_gelutanh_backward<nntile::fp32_t>(runtime, alpha, beta, x, dy, dx);
             break;
         case DataType::FP32_FAST_TF32:
-            run_gelutanh_backward<nntile::fp32_fast_tf32_t>(runtime, x, dy, dx);
+            run_gelutanh_backward<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, x, dy, dx);
             break;
         case DataType::FP32_FAST_FP16:
-            run_gelutanh_backward<nntile::fp32_fast_fp16_t>(runtime, x, dy, dx);
+            run_gelutanh_backward<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, x, dy, dx);
             break;
         case DataType::FP32_FAST_BF16:
-            run_gelutanh_backward<nntile::fp32_fast_bf16_t>(runtime, x, dy, dx);
+            run_gelutanh_backward<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, x, dy, dx);
             break;
         case DataType::FP64:
-            run_gelutanh_backward<nntile::fp64_t>(runtime, x, dy, dx);
+            run_gelutanh_backward<nntile::fp64_t>(runtime, alpha, beta, x, dy, dx);
             break;
         case DataType::FP16:
-            run_gelutanh_backward<nntile::fp16_t>(runtime, x, dy, dx);
+            run_gelutanh_backward<nntile::fp16_t>(runtime, alpha, beta, x, dy, dx);
             break;
         case DataType::BF16:
-            run_gelutanh_backward<nntile::bf16_t>(runtime, x, dy, dx);
+            run_gelutanh_backward<nntile::bf16_t>(runtime, alpha, beta, x, dy, dx);
             break;
         case DataType::INT64:
         case DataType::BOOL:

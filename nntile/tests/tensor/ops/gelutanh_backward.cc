@@ -41,7 +41,7 @@ TEST_CASE("TensorGraph gelutanh_backward structure", "[graph][tensor]")
     nntile::TensorRef dy = graph.data({dim0, dim1});
     dy->set_name("dy");
 
-    nntile::TensorRef dx = nntile::TensorRef::adopt(gt::gelutanh_backward(x, dy));
+    nntile::TensorRef dx = nntile::TensorRef::adopt(gt::gelutanh_backward(Scalar{1.0}, x, dy));
     dx->set_name("dx");
 
     REQUIRE(graph.num_data() == 3);
@@ -51,7 +51,7 @@ TEST_CASE("TensorGraph gelutanh_backward structure", "[graph][tensor]")
 
     const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "GELUTANH_BACKWARD");
-    REQUIRE(ops[0]->inputs().size() == 3);
+    REQUIRE(ops[0]->inputs().size() == 2);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == dx);
 }
@@ -65,9 +65,9 @@ TEST_CASE("TensorGraph gelutanh_backward rejects duplicate tensors",
     nntile::TensorRef dy = graph.data({5, 4});
     dy->set_name("dy");
 
-    REQUIRE_THROWS_AS(gt::gelutanh_backward(x, x), std::invalid_argument);
-    REQUIRE_THROWS_AS(gt::gelutanh_backward(x, dy, x), std::invalid_argument);
-    REQUIRE_THROWS_AS(gt::gelutanh_backward(x, dy, dy), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::gelutanh_backward(Scalar{1.0}, x, x), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::gelutanh_backward(Scalar{1.0}, x, dy, Scalar{0.0}, x), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::gelutanh_backward(Scalar{1.0}, x, dy, Scalar{0.0}, dy), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -100,7 +100,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     dy_node->set_name("dy");
         nntile::TensorRef dx_node = graph.data(shape, DataType::FP32);
     dx_node->set_name("dx");
-        gt::gelutanh_backward(x_node, dy_node, dx_node);
+        gt::gelutanh_backward(Scalar{1.0}, x_node, dy_node, Scalar{0.0}, dx_node);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -123,7 +123,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     dy_node->set_name("dy");
         nntile::TensorRef dx_node = graph.data(shape, DataType::FP32);
     dx_node->set_name("dx");
-        gt::gelutanh_backward(x_node, dy_node, dx_node);
+        gt::gelutanh_backward(Scalar{1.0}, x_node, dy_node, Scalar{0.0}, dx_node);
 
         for (auto *ag : graph.axis_groups())
         {

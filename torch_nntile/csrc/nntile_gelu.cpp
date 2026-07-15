@@ -62,8 +62,6 @@ void run_gelu(
     at::Tensor &out,
     bool approximate_tanh)
 {
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(out, false);
     if (self.is_same(out))
     {
         tensor_gelu_inplace_fp32(out, approximate_tanh);

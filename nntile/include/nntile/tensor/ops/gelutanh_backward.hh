@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/ops/gelutanh_backward.hh
- * TensorGraph gelutanh_backward operation: dx = gelutanh_backward(x, dy)
+ * TensorGraph gelutanh_backward operation: dx = alpha * grad_func(x) * dy + beta * dx
  *
  * @version 1.1.0
  * */
@@ -15,6 +15,7 @@
 #pragma once
 
 // NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/tensor/graph.hh>
 
 namespace nntile
@@ -25,9 +26,11 @@ struct LoweringContext;
 namespace nntile::tensor
 {
 
-//! GeLUTanh backward operation: dx = gelutanh_backward(x, dy)
+//! GeLUTanh backward operation: dx = alpha * grad_func(x) * dy + beta * dx
 struct TensorGelutanhBackwardOp : TensorGraph::OpNode
 {
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode *x = nullptr;
     TensorGraph::TensorNode *dy = nullptr;
     TensorGraph::TensorNode *dx = nullptr;
@@ -35,10 +38,18 @@ struct TensorGelutanhBackwardOp : TensorGraph::OpNode
     TensorGelutanhBackwardOp() = default;
     TensorGelutanhBackwardOp(TensorGraph::TensorNode *x_,
         TensorGraph::TensorNode *dy_,
-        TensorGraph::TensorNode *dx_) :
-        x(x_), dy(dy_), dx(dx_)
+        TensorGraph::TensorNode *dx_,
+        Scalar alpha_, Scalar beta_) :
+        alpha(alpha_), beta(beta_), x(x_), dy(dy_), dx(dx_)
     {
-        inputs_ = {x, dy, dx};
+        if(beta == Scalar{0.0})
+        {
+            inputs_ = {x, dy};
+        }
+        else
+        {
+            inputs_ = {x, dy, dx};
+        }
         outputs_ = {dx};
     }
 
@@ -52,11 +63,13 @@ struct TensorGelutanhBackwardOp : TensorGraph::OpNode
     void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
+//! GeLUTanh backward: dx = alpha * grad_func(x) * dy + beta * dx (creates output, beta=0)
 TensorGraph::TensorNode *gelutanh_backward(
-    TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy);
+    Scalar alpha, TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy);
 
-void gelutanh_backward(TensorGraph::TensorNode *x,
+//! GeLUTanh backward: dx = alpha * grad_func(x) * dy + beta * dx (uses existing output)
+void gelutanh_backward(Scalar alpha, TensorGraph::TensorNode *x,
     TensorGraph::TensorNode *dy,
-    TensorGraph::TensorNode *dx);
+    Scalar beta, TensorGraph::TensorNode *dx);
 
 } // namespace nntile::tensor

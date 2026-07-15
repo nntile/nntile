@@ -21,17 +21,18 @@ Default schedule: batch size 100, 10 000 steps (~16.7 epochs over 60 000
 training images). The Google script documents **final test accuracy ≈ 0.9824**
 with this recipe.
 
-Supports ``--device cpu`` / ``cuda`` (PyTorch Adam) and ``--device nntile``
-(``torch_nntile.training.Adam`` + ``cross_entropy``, graph compile/run per
-step). Layers use ``nn.Linear`` with bias (nntile ``aten::linear`` bias path).
+Supports ``--device cpu`` / ``cuda`` (PyTorch Adam; ``fused=True`` on CUDA)
+and ``--device nntile`` (``torch_nntile.training.Adam`` + ``cross_entropy``,
+graph compile/run per step). Layers use ``nn.Linear`` with bias (nntile
+``aten::linear`` bias path).
 
 Train loss logging is **double-buffered on the host**: after ``run()``
 submits the current step (asynchronous), the script prints the previous
 step's train metrics so host I/O can overlap StarPU compute, then
-``wait()`` synchronizes. Current metrics are snapshotted to host scalars
-when needed; the final current loss is printed after the loop. Nntile
-step tensors (``logits`` / ``loss``) are ``del``'d every iteration so
-``pending_output_reclaim`` can run.
+``wait()`` / loss readout synchronizes. Each step ``del``s the autograd
+graph (and ``zero_grad``) **before** ``compile_graph`` so activation/grad
+``INVALIDATE`` ops land in the same sealed phase (see GPT-2 examples and
+debt D7). Detached logits/loss are kept only on log steps for host readout.
 
 On ``cpu`` / ``cuda`` / ``nntile``, all train/test batches (images + labels)
 are moved onto the training device **before** training. The script prints
@@ -197,7 +198,12 @@ def evaluate_nntile(
     model: nn.Module,
     nntile_batches: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
 ) -> tuple[float, float, float]:
-    """Evaluate on preloaded nntile batches; return loss, acc, wall seconds."""
+    """Evaluate on preloaded nntile batches; return loss, acc, wall seconds.
+
+    Drop logits before ``compile_graph`` so their ``INVALIDATE`` lands in the
+    same phase (``cross_entropy`` under ``no_grad`` no longer retains
+    ``maxsumexp`` via ``save_for_backward``).
+    """
     import torch_nntile
     from torch_nntile.training import cross_entropy
 
@@ -209,14 +215,17 @@ def evaluate_nntile(
     for images, labels, labels_cpu in nntile_batches:
         logits = model(images)
         loss = cross_entropy(logits, labels, reduction="sum")
-        torch_nntile.compile_graph()
-        torch_nntile.run()
-        torch_nntile.wait()
-        with torch.no_grad():
-            logits_cpu = logits.to("cpu")
-            loss_cpu = float(loss.to("cpu").item())
+        # Keep only detached readout handles; free CE ctx before compile.
+        step_logits = logits.detach()
+        step_loss = loss.detach()
         del logits
         del loss
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        logits_cpu = step_logits.to("cpu")
+        loss_cpu = float(step_loss.to("cpu").item())
+        del step_logits
+        del step_loss
         total_loss += loss_cpu
         total_correct += int(
             (logits_cpu.argmax(dim=1) == labels_cpu).sum().item()
@@ -280,7 +289,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--verbose",
         action="store_true",
-        help="Verbose StarPU / NNTile context logging",
+        help=(
+            "Verbose StarPU / NNTile context logging; also print nntile "
+            "step-timing breakdown and print_info() after training"
+        ),
     )
     parser.add_argument(
         "--skip-accuracy-floor",
@@ -308,7 +320,16 @@ def train_torch(
     -------
     max_test_acc, last_test_acc, last_test_loss, train_wall_s, eval_wall_s
     """
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate(0))
+    # Prefer fused Adam on CUDA (single kernel per param); fall back if
+    # unsupported (older torch / non-floating params).
+    adam_kwargs: dict = {"lr": learning_rate(0)}
+    if device.type == "cuda":
+        adam_kwargs["fused"] = True
+    try:
+        optimizer = torch.optim.Adam(model.parameters(), **adam_kwargs)
+    except RuntimeError:
+        adam_kwargs.pop("fused", None)
+        optimizer = torch.optim.Adam(model.parameters(), **adam_kwargs)
     batches = cycle_batches(train_batches)
     max_test_acc = 0.0
     last_test_loss = float("nan")
@@ -412,6 +433,7 @@ def train_nntile(
     test_every: int,
     n_train: int,
     batch_size: int,
+    verbose: bool = False,
 ) -> tuple[float, float, float, float, float]:
     """Train on preloaded nntile batches.
 
@@ -438,11 +460,13 @@ def train_nntile(
     wait_s = 0.0
     readout_s = 0.0
     # Host-side previous log: (step, accuracy, loss, lr). Printed only after
-    # the next step has been ordered. Do not keep nntile logits/loss across
-    # the next compile_graph() — that blocks pending_output_reclaim.
+    # the next step has been ordered.
     pending_log: tuple[int, float, float, float] | None = None
     final_log: tuple[int, float, float, float] | None = None
     model.train()
+    # Clear grads before the loop; clear again each iter before compile so
+    # grad INVALIDATEs share that step’s sealed phase with the train ops.
+    optimizer.zero_grad(set_to_none=True)
 
     t_wall0 = time.perf_counter()
     for step in range(steps + 1):
@@ -451,14 +475,22 @@ def train_nntile(
             group["lr"] = lr
 
         images, labels, labels_cpu = next(batches)
+        is_last = step == steps
+        need_log = step % train_log_every == 0 or is_last
 
         t_step0 = time.perf_counter()
         t0 = time.perf_counter()
-        optimizer.zero_grad(set_to_none=True)
         logits = model(images)
         loss_current = cross_entropy(logits, labels)
         loss_current.backward()
         optimizer.step()
+        # Free autograd before compile so activation tiles unmark;
+        # keep detached copies only when host readout is needed.
+        step_logits = logits.detach() if need_log else None
+        step_loss = loss_current.detach() if need_log else None
+        del logits
+        del loss_current
+        optimizer.zero_grad(set_to_none=True)
         record_s += time.perf_counter() - t0
 
         t0 = time.perf_counter()
@@ -470,7 +502,7 @@ def train_nntile(
         run_s += time.perf_counter() - t0
 
         # Current step is submitted asynchronously. Print the previous host
-        # log here so it overlaps with StarPU compute; wait() syncs below.
+        # log here so it overlaps with StarPU compute; sync below.
         if pending_log is not None:
             prev_step, prev_acc, prev_loss, prev_lr = pending_log
             print(
@@ -479,35 +511,32 @@ def train_nntile(
             )
             pending_log = None
 
-        t0 = time.perf_counter()
-        torch_nntile.wait()
-        wait_s += time.perf_counter() - t0
-
-        is_last = step == steps
-        if step % train_log_every == 0 or is_last:
+        if need_log:
+            assert step_logits is not None and step_loss is not None
             t0 = time.perf_counter()
+            # Host readout joins StarPU (sync; not bare wait alone).
             with torch.no_grad():
-                logits_cpu = logits.to("cpu")
-                loss_val = float(loss_current.to("cpu").item())
+                logits_cpu = step_logits.to("cpu")
+                loss_val = float(step_loss.to("cpu").item())
                 train_acc = float(
                     (logits_cpu.argmax(dim=1) == labels_cpu)
                     .float()
                     .mean()
                     .item()
                 )
+            del step_logits
+            del step_loss
             readout_s += time.perf_counter() - t0
             snapshot = (step, train_acc, loss_val, lr)
             if is_last:
                 final_log = snapshot
             else:
                 pending_log = snapshot
+        else:
+            t0 = time.perf_counter()
+            torch_nntile.wait()
+            wait_s += time.perf_counter() - t0
 
-        # Drop step temporaries so mark_output(false) is visible to the
-        # pending_output_reclaim pass (end of this run / start of next compile).
-        # Refcount drop via del is enough — do not gc.collect() in the step
-        # loop (full/gen0 collections scale with session size).
-        del logits
-        del loss_current
         train_step_s += time.perf_counter() - t_step0
 
         if step % test_every == 0:
@@ -542,14 +571,15 @@ def train_nntile(
         f"timing nntile train steps: {train_step_s:.3f}s "
         f"({train_step_s / n_steps * 1e3:.2f} ms/step, excludes eval)"
     )
-    print(
-        f"timing nntile step breakdown: "
-        f"record={record_s:.3f}s compile={compile_s:.3f}s "
-        f"run={run_s:.3f}s wait={wait_s:.3f}s "
-        f"readout={readout_s:.3f}s"
-    )
+    if verbose:
+        print(
+            f"timing nntile step breakdown: "
+            f"record={record_s:.3f}s compile={compile_s:.3f}s "
+            f"run={run_s:.3f}s wait={wait_s:.3f}s "
+            f"readout={readout_s:.3f}s"
+        )
+        torch_nntile.print_info()
     print(f"timing nntile eval wall: {eval_wall_s:.3f}s")
-    torch_nntile.print_info()
     return (
         max_test_acc,
         last_test_acc,
@@ -670,6 +700,7 @@ def main() -> None:
                 test_every=args.test_every,
                 n_train=len(train_set),
                 batch_size=args.batch_size,
+                verbose=args.verbose,
             )
         finally:
             torch_nntile.wait()

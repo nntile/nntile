@@ -59,7 +59,7 @@ TEST_CASE("TensorGraph embedding_backward structure", "[graph][tensor]")
     nntile::TensorRef vocab = graph.data({10, 100});
     vocab->set_name("vocab");
 
-    gt::embedding_backward(index, embed, vocab, 2, 0);
+    gt::embedding_backward(index, embed, vocab, 2, Scalar{1.0}, Scalar{1.0}, 0);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -82,11 +82,14 @@ TEST_CASE(
     nntile::TensorRef vocab = graph.data({10, 100});
     vocab->set_name("vocab");
 
-    REQUIRE_THROWS_AS(gt::embedding_backward(nullptr, embed, vocab, 2, 0),
+    REQUIRE_THROWS_AS(gt::embedding_backward(nullptr, embed, vocab, 2,
+            Scalar{1.0}, Scalar{1.0}, 0),
         std::invalid_argument);
-    REQUIRE_THROWS_AS(gt::embedding_backward(index, nullptr, vocab, 2, 0),
+    REQUIRE_THROWS_AS(gt::embedding_backward(index, nullptr, vocab, 2,
+            Scalar{1.0}, Scalar{1.0}, 0),
         std::invalid_argument);
-    REQUIRE_THROWS_AS(gt::embedding_backward(index, embed, nullptr, 2, 0),
+    REQUIRE_THROWS_AS(gt::embedding_backward(index, embed, nullptr, 2,
+            Scalar{1.0}, Scalar{1.0}, 0),
         std::invalid_argument);
 }
 
@@ -135,7 +138,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     vocab_node->set_name("vocab");
 
         gt::embedding_backward(
-            index_node, embed_node, vocab_node, axis, redux);
+            index_node, embed_node, vocab_node, axis, Scalar{1.0},
+            Scalar{1.0}, redux);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
@@ -163,7 +167,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     vocab_node->set_name("vocab");
 
         gt::embedding_backward(
-            index_node, embed_node, vocab_node, axis, redux);
+            index_node, embed_node, vocab_node, axis, Scalar{1.0},
+            Scalar{1.0}, redux);
         auto *embed_dim_axis = vocab_node->axis(1);
         auto *num_embeddings_axis = vocab_node->axis(0);
         for (auto *ag : graph.axis_groups())

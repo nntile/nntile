@@ -103,8 +103,6 @@ at::Tensor sum_dimlist(
     at::Tensor out = at::empty(
         out_sizes,
         self.options().memory_format(at::MemoryFormat::Contiguous));
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(out, true);
     tensor_sum_dimlist_fp32(self, out, dim, keepdim);
     return out;
 }
@@ -126,8 +124,6 @@ at::Tensor &sum_dimlist_out(
         out.sizes().vec() == out_sizes,
         "nntile sum.out: output shape mismatch");
     TORCH_CHECK(out.is_contiguous(), "nntile sum.out requires contiguous out");
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(out, true);
     tensor_sum_dimlist_fp32(self, out, dim, keepdim);
     return out;
 }

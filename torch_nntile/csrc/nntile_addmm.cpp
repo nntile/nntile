@@ -106,8 +106,6 @@ at::Tensor broadcast_addmm_self(
     at::Tensor out = at::empty(
         target_size,
         self.options().memory_format(at::MemoryFormat::Contiguous));
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(out, true);
     tensor_repeat_fp32(self, out, repeats);
     return out;
 }
@@ -119,8 +117,6 @@ void run_addmm(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
-    pin_graph_op_inputs({prepared.a, prepared.b});
-    pin_graph_op_output(out, false);
 
     GemmParams params = prepared.params;
     params.alpha = alpha.to<float>();
@@ -151,7 +147,6 @@ void run_addmm(
         return;
     }
 
-    pin_graph_op_inputs({self_expanded});
     tensor_gemm_accumulate_fp32(
         params,
         prepared.a,

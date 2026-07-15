@@ -112,7 +112,6 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
         TORCH_CHECK(
             self.scalar_type() == at::ScalarType::Float,
             "fill_: metadata-only nntile tensors support float32 in graph mode");
-        pin_graph_op_output(self, true);
         tensor_fill_fp32(self, value.to<float>());
         return;
     }
@@ -590,8 +589,6 @@ at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
         return result;
     }
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
-    pin_graph_op_inputs({self});
-    pin_graph_op_output(result, true);
     tensor_swap_two_axes_fp32(self, result, dim0, dim1);
     return result;
 #endif

@@ -137,8 +137,7 @@ void restore_where()
 
 void wait_for_all()
 {
-    // Join StarPU for host-visible completion (pin_hold / reclaim already
-    // ran at the end of run()).
+    // Join StarPU for host-visible completion (reclaim already ran at run()).
     wait_graph_session();
 }
 

@@ -136,8 +136,6 @@ at::Tensor sdpa_forward(
         mask_u8 = mask_for_nntile_sdpa(*mask);
         inputs.push_back(mask_u8);
     }
-    pin_graph_op_inputs(inputs);
-    pin_graph_op_output(out, true);
 
     const at::Tensor *mask_ptr = nullptr;
     if (mask.has_value())
@@ -185,10 +183,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
         mask_u8 = mask_for_nntile_sdpa(*mask);
         inputs.push_back(mask_u8);
     }
-    pin_graph_op_inputs(inputs);
-    pin_graph_op_output(grad_q, true);
-    pin_graph_op_output(grad_k, true);
-    pin_graph_op_output(grad_v, true);
 
     const at::Tensor *mask_ptr = nullptr;
     if (mask.has_value())

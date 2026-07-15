@@ -78,8 +78,6 @@ at::Tensor add_fiber_forward(
     at::Tensor out = at::empty(
         tensor.sizes(),
         tensor.options().memory_format(at::MemoryFormat::Contiguous));
-    pin_graph_op_inputs({fiber, tensor});
-    pin_graph_op_output(out, true);
     tensor_add_fiber_fp32(
         static_cast<float>(alpha),
         fiber,
@@ -125,8 +123,6 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
         grad_fiber = at::empty(
             fiber.sizes(),
             fiber.options().memory_format(at::MemoryFormat::Contiguous));
-        pin_graph_op_inputs({grad_out});
-        pin_graph_op_output(grad_fiber, false);
         tensor_sum_fiber_fp32(
             grad_out,
             grad_fiber,

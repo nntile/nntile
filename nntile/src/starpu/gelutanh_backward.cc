@@ -45,7 +45,7 @@ void GeluTanhBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexce
     const T *dy = interfaces[1]->get_ptr<T>();
     T *dx = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::gelutanh_backward::cpu<T>(args->nelems, x, dy, dx);
+    kernel::gelutanh_backward::cpu<T>(args->nelems, args->alpha, x, dy, args->beta, dx);
 #endif // STARPU_SIMGRID
 }
 
@@ -89,7 +89,7 @@ void GeluTanhBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexc
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::gelutanh_backward::cuda<T>(stream, args->nelems, x, dy, dx);
+    kernel::gelutanh_backward::cuda<T>(stream, args->nelems, args->alpha, x, dy, args->beta, dx);
 #endif // STARPU_SIMGRID
 }
 
@@ -127,24 +127,38 @@ uint32_t GeluTanhBackward<std::tuple<T>>::footprint(struct starpu_task *task)
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    hash = starpu_hash_crc32c_be_n(&args->alpha, sizeof(args->alpha), hash);
+    hash = starpu_hash_crc32c_be_n(&args->beta, sizeof(args->beta), hash);
     return hash;
 }
 
 template<typename T>
-void GeluTanhBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Handle x, Handle dy, Handle dx)
+void GeluTanhBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index nelems, Scalar alpha,
+        Handle x, Handle dy, Scalar beta, Handle dx)
 //! Insert gelutanh_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
+    starpu_data_access_mode dx_mode;
+    if(beta == 0.0)
+    {
+        dx_mode = STARPU_W;
+    }
+    else
+    {
+        dx_mode = STARPU_RW;
+    }
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
+    args->alpha = alpha;
+    args->beta = beta;
     int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, x.get(),
             STARPU_R, dy.get(),
-            STARPU_RW, dx.get(),
+            dx_mode, dx.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission

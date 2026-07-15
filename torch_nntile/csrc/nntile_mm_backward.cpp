@@ -26,8 +26,6 @@ void run_mm_backward_grad_a(
 {
     const PreparedGemmOperands prepared = prepare_mm_operands(grad_out, b);
     GemmParams params = infer_mm_backward_grad_a_params(forward_params);
-    pin_graph_op_inputs({prepared.a, prepared.b});
-    pin_graph_op_output(grad_a, false);
     tensor_gemm_fp32(
         params,
         prepared.a,
@@ -46,8 +44,6 @@ void run_mm_backward_grad_b(
 {
     const PreparedGemmOperands prepared = prepare_mm_operands(a, grad_out);
     GemmParams params = infer_mm_backward_grad_b_params(forward_params);
-    pin_graph_op_inputs({prepared.a, prepared.b});
-    pin_graph_op_output(grad_b, false);
     tensor_gemm_fp32(
         params,
         prepared.a,

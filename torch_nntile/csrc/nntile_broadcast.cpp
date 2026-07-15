@@ -18,7 +18,6 @@
 
 #include <ATen/Tensor.h>
 #include <nntile/tensor/ops/scale_slice.hh>
-#include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/copy.hh>
 
 #include <cstring>
@@ -270,7 +269,7 @@ void tensor_broadcast_scalar_fp32(
         dst_graph,
         nntile::DataType::FP32,
         false);
-    nntile::tensor::clear(dst_node);
+    // scale_slice writes dst with STARPU_W; no separate clear().
     broadcast_scale_slice_chain(
         src_node,
         dst_node,

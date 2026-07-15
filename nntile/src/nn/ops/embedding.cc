@@ -17,7 +17,6 @@
 
 #include "nntile/nn/graph_data_node.hh"
 #include "nntile/nn/nn_grad_slot_name.hh"
-#include "nntile/tensor/ops/clear.hh"
 #include "nntile/tensor/ops/embedding.hh"
 #include "nntile/tensor/ops/embedding_backward.hh"
 
@@ -105,12 +104,10 @@ void NNEmbeddingOp::backward() const
 
     auto [grad_vocab, is_first] =
         graph->get_or_create_grad(vocab, nn_grad_slot_name(vocab));
-    if (is_first)
-    {
-        tensor::clear(grad_vocab->data());
-    }
+    const Scalar beta = is_first ? Scalar{0.0} : Scalar{1.0};
     tensor::embedding_backward(
-        index->data(), grad_out->data(), grad_vocab->data(), axis, redux);
+        index->data(), grad_out->data(), grad_vocab->data(), axis,
+        Scalar{1.0}, beta, redux);
 }
 
 NNGraph::TensorNode *embedding(NNGraph::TensorNode *index,

@@ -20,50 +20,60 @@ namespace nntile::kernel::relu_backward
 {
 
 template<typename T>
-void cpu(Index nelems, const T *x, const T *dy, T *dx)
+void cpu(Index nelems, Scalar alpha, const T *x, const T *dy, Scalar beta, T *dx)
     noexcept
 //! Backward ReLU operation on CPU
 /*! Does the following per-element operation:
- * dx[i] = dx[i] + dy[i]*ReLU'(x[i])
+ * dx[i] = alpha * dy[i]*ReLU'(x[i]) + beta * dx[i]
  *
  * @params[in] nelems: Number of elements in a buffer
+ * @params[in] alpha: Scalar multiplier for the gradient contribution
  * @params[in] x: Input value for forward ReLU
  * @params[in] dy: Gradient over output of forward ReLU
+ * @params[in] beta: Scalar multiplier for the existing dx value
  * @params[inout] dx: Gradient over input of forward ReLU
  * */
 {
     using Y = typename T::repr_t;
-    Y x_val{0.0};
-    Y dx_val{0.0};
-    Y dy_val{0.0};
+    const Y alpha_{alpha}, beta_{beta};
     constexpr Y zero{0.0};
+    Y x_val{0.0};
+    Y dy_val{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
         x_val = static_cast<Y>(x[i]);
-        if(x_val > zero)
+        dy_val = static_cast<Y>(dy[i]);
+        Y contrib = (x_val > zero) ? alpha_ * dy_val : Y{0.0};
+        if(beta == 0.0)
         {
-            dx_val = static_cast<Y>(dx[i]);
-            dy_val = static_cast<Y>(dy[i]);
-            dx[i] = static_cast<T>(dx_val + dy_val);
+            dx[i] = static_cast<T>(contrib);
+        }
+        else
+        {
+            dx[i] = static_cast<T>(contrib + beta_ * static_cast<Y>(dx[i]));
         }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, const fp32_t *x, const fp32_t *dy, fp32_t *dx)
+void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t *x, const fp32_t *dy,
+        Scalar beta, fp32_t *dx)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, const fp64_t *x, const fp64_t *dy, fp64_t *dx)
+void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t *x, const fp64_t *dy,
+        Scalar beta, fp64_t *dx)
     noexcept;
 
 template
-void cpu<bf16_t>(Index nelems, const bf16_t *x, const bf16_t *dy, bf16_t *dx)
+void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t *x, const bf16_t *dy,
+        Scalar beta, bf16_t *dx)
     noexcept;
 
 template
-void cpu<fp16_t>(Index nelems, const fp16_t *x, const fp16_t *dy, fp16_t *dx)
+void cpu<fp16_t>(Index nelems, Scalar alpha, const fp16_t *x, const fp16_t *dy,
+        Scalar beta, fp16_t *dx)
     noexcept;
 
 } // namespace nntile::kernel::relu_backward

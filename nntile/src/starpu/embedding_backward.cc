@@ -53,6 +53,9 @@ void EmbeddingBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
         args->k,
         args->k_start,
         args->k_size,
+        args->vocab_nelems,
+        args->alpha,
+        args->beta,
         index,
         embed,
         vocab
@@ -109,6 +112,9 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->k,
         args->k_start,
         args->k_size,
+        args->vocab_nelems,
+        args->alpha,
+        args->beta,
         index,
         embed,
         vocab
@@ -154,18 +160,47 @@ uint32_t EmbeddingBackward<std::tuple<T>>::footprint(struct starpu_task *task)
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
     hash = starpu_hash_crc32c_be_n(&args->k_size, sizeof(args->k_size), hash);
+    hash = starpu_hash_crc32c_be_n(&args->vocab_nelems, sizeof(args->vocab_nelems),
+            hash);
+    hash = starpu_hash_crc32c_be_n(&args->alpha, sizeof(args->alpha), hash);
+    hash = starpu_hash_crc32c_be_n(&args->beta, sizeof(args->beta), hash);
     return hash;
 }
 
 template<typename T>
-void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab, int redux)
+void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m,
+        Index n, Index k, Index k_start, Index k_size, Index vocab_nelems,
+        Scalar alpha, Scalar beta, Handle index, Handle embed, Handle vocab,
+        int redux)
 //! Insert embedding_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * nntile_starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
+    constexpr Scalar zero = 0, one = 1;
+    // Access mode for the output vocab handle
+    enum starpu_data_access_mode vocab_mode;
+    if(beta == zero)
+    {
+        vocab_mode = STARPU_W;
+    }
+    else if(beta == one)
+    {
+        if(redux != 0)
+        {
+            vocab_mode = STARPU_REDUX;
+        }
+        else
+        {
+            vocab_mode = static_cast<starpu_data_access_mode>(
+                    STARPU_RW | STARPU_COMMUTE);
+        }
+    }
+    else
+    {
+        throw std::runtime_error("embedding_backward: beta must be 0.0 or 1.0");
+    }
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->m = m;
@@ -173,17 +208,10 @@ void EmbeddingBackward<std::tuple<T>>::submit(int starpu_worker_hint, Index m, I
     args->k = k;
     args->k_start = k_start;
     args->k_size = k_size;
+    args->vocab_nelems = vocab_nelems;
+    args->alpha = alpha;
+    args->beta = beta;
     double nflops = m * n * k_size;
-    // Access mode for the output vocab handle
-    enum starpu_data_access_mode vocab_mode;
-    if(redux != 0)
-    {
-        vocab_mode = STARPU_REDUX;
-    }
-    else
-    {
-        vocab_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
-    }
     // Submit task
     int ret = nntile_starpu_task_insert(&codelet, starpu_worker_hint,
             STARPU_R, index.get(),

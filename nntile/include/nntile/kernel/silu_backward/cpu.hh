@@ -21,7 +21,7 @@ namespace nntile::kernel::silu_backward
 
 // Backward SiLU operation on a buffer
 template<typename T>
-void cpu(Index nelems, const T *x, const T *dy, T *dx)
+void cpu(Index nelems, Scalar alpha, const T *x, const T *dy, Scalar beta, T *dx)
     noexcept;
 
 } // namespace nntile::kernel::silu_backward

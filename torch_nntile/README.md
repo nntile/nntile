@@ -126,17 +126,17 @@ remains a separate custom API for NNTile-layout SDPA.
 | `torch.split` backward | `tensor::concat` (PyTorch `SplitWithSizesBackward`) |
 | `F.linear` / `nn.Linear` | `tensor::gemm` (+ `add_fiber_inplace` / `sum_fiber` when bias is set) |
 | `F.relu` / `nn.ReLU` | `tensor::relu` |
-| ReLU backward | `tensor::relu_backward` (+ `tensor::clear` on output) |
+| ReLU backward | `tensor::relu_backward(alpha, x, dy, beta, dx)` (`beta=0` → `STARPU_W`) |
 | `F.layer_norm` / `nn.LayerNorm` | `native_layer_norm` / `native_layer_norm_backward` |
 | `F.rms_norm` / `nn.RMSNorm` | custom autograd + `rms_norm_forward` / `rms_norm_backward` |
 | `torch.linalg.vector_norm` (ord=2) | forward only via `norm_forward`; errors if `requires_grad` and grad mode is on; use under `torch.no_grad()` |
 | `F.silu` / `nn.SiLU` | `tensor::silu` |
 | SiLU in-place (`silu_`) | `tensor::silu_inplace` |
-| SiLU backward | `tensor::silu_backward` (+ `tensor::clear` on output) |
+| SiLU backward | `tensor::silu_backward(alpha, x, dy, beta, dx)` (`beta=0` → `STARPU_W`) |
 | `F.gelu` / `nn.GELU` (`approximate='none'`) | `tensor::gelu` |
 | `F.gelu` (`approximate='tanh'`) | `tensor::gelutanh` |
 | GELU in-place (`gelu_`) | `tensor::gelu_inplace` / `tensor::gelutanh_inplace` |
-| GELU backward | `tensor::gelu_backward` or `tensor::gelutanh_backward` |
+| GELU backward | `tensor::gelu_backward` / `gelutanh_backward` (`alpha`/`beta`; `beta=0` → `STARPU_W`) |
 | `F.softmax` / `nn.Softmax` | `tensor::maxsumexp` + `tensor::softmax` |
 | Softmax backward | `tensor::sumprod_slice`, `tensor::add_slice`, `tensor::multiply_inplace` |
 | `linear` backward / `mm` | `tensor::gemm` |
@@ -190,9 +190,10 @@ Backward ATen ops (`linear_backward`, `silu_backward`, …) always **overwrite**
 fresh grad buffers (`beta=0`). Accumulation is delegated to PyTorch; do not fold
 `beta=1` into backward kernels unless profiling proves a fusion win.
 
-**Grad buffer stealing:** backward return tensors must not be pinned for graph
-recording (`pin_graph_op_output(..., false)`), so PyTorch can move the first
-grad into `param.grad` without an extra copy.
+**Grad buffer stealing:** the recorder does not retain backward return
+tensors, so PyTorch can move the first grad into `param.grad` without an
+extra copy. Tensor lifetimes follow ordinary PyTorch refs /
+``save_for_backward``.
 
 **Training microbatches:** use the standard PyTorch pattern — scale loss, call
 `loss.backward()` multiple times, then `optimizer.step()`. No special

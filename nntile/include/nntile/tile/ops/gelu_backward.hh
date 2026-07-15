@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tile/ops/gelu_backward.hh
- * TileGraph GeLU backward
+ * TileGraph GeLU backward: dx = alpha * grad_func(x) * dy + beta * dx
  *
  * @version 1.1.0
  * */
@@ -15,24 +15,35 @@
 #pragma once
 
 // NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/tile/graph.hh>
 
 namespace nntile::tile
 {
 
-//! GeLU backward operation at tile level: dx += gelu_backward(x, dy)
+//! GeLU backward operation: dx = alpha * grad_func(x) * dy + beta * dx
 struct TileGeluBackwardOp : TileGraph::OpNode
 {
+    Scalar alpha;
+    Scalar beta;
     TileGraph::TileNode* x = nullptr;
     TileGraph::TileNode* dy = nullptr;
     TileGraph::TileNode* dx = nullptr;
 
     TileGeluBackwardOp() = default;
     TileGeluBackwardOp(
-        TileGraph::TileNode* x_, TileGraph::TileNode* dy_, TileGraph::TileNode* dx_)
-        : x(x_), dy(dy_), dx(dx_)
+        TileGraph::TileNode* x_, TileGraph::TileNode* dy_, TileGraph::TileNode* dx_,
+        Scalar alpha_, Scalar beta_)
+        : alpha(alpha_), beta(beta_), x(x_), dy(dy_), dx(dx_)
     {
-        inputs_ = {x, dy, dx};
+        if(beta == Scalar{0.0})
+        {
+            inputs_ = {x, dy};
+        }
+        else
+        {
+            inputs_ = {x, dy, dx};
+        }
         outputs_ = {dx};
     }
 
@@ -46,11 +57,8 @@ struct TileGeluBackwardOp : TileGraph::OpNode
     }
 };
 
-//! GeLU backward: dx += gelu_backward(x, dy)
-//! @param x Input tile (forward pass activation)
-//! @param dy Gradient of output (upstream gradient)
-//! @param dx Gradient tensor to accumulate into (gradient of input)
-void gelu_backward(
-    TileGraph::TileNode* x, TileGraph::TileNode* dy, TileGraph::TileNode* dx);
+//! GeLU backward: dx = alpha * grad_func(x) * dy + beta * dx
+void gelu_backward(Scalar alpha, TileGraph::TileNode* x, TileGraph::TileNode* dy,
+    Scalar beta, TileGraph::TileNode* dx);
 
 } // namespace nntile::tile

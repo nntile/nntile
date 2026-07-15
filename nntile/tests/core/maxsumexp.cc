@@ -49,8 +49,9 @@ void check()
     }
     // Check axis=0
     {
-        starpu::maxsumexp.submit<std::tuple<T>>(-1, 12, 1, 5, src, dst[0]);
-        maxsumexp<T>(-1, src, dst2[0], 0);
+        starpu::maxsumexp.submit<std::tuple<T>>(-1, 12, 1, 5, src, dst[0],
+                Scalar{1.0});
+        maxsumexp<T>(-1, src, dst2[0], 0, Scalar{1.0});
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
         for(Index i = 0; i < dst[0].nelems; ++i)
@@ -62,8 +63,9 @@ void check()
     }
     // Check axis=1
     {
-        starpu::maxsumexp.submit<std::tuple<T>>(-1, 3, 5, 4, src, dst[1]);
-        maxsumexp<T>(-1, src, dst2[1], 1);
+        starpu::maxsumexp.submit<std::tuple<T>>(-1, 3, 5, 4, src, dst[1],
+                Scalar{1.0});
+        maxsumexp<T>(-1, src, dst2[1], 1, Scalar{1.0});
         auto dst_local = dst[1].acquire(STARPU_R);
         auto dst2_local = dst2[1].acquire(STARPU_R);
         for(Index i = 0; i < dst[1].nelems; ++i)
@@ -75,8 +77,9 @@ void check()
     }
     // Check axis=2
     {
-        starpu::maxsumexp.submit<std::tuple<T>>(-1, 1, 20, 3, src, dst[2]);
-        maxsumexp<T>(-1, src, dst2[2], 2);
+        starpu::maxsumexp.submit<std::tuple<T>>(-1, 1, 20, 3, src, dst[2],
+                Scalar{1.0});
+        maxsumexp<T>(-1, src, dst2[2], 2, Scalar{1.0});
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
         for(Index i = 0; i < dst[2].nelems; ++i)
@@ -97,13 +100,13 @@ void validate()
     Tile<T> src({5, 4, 3});
     Tile<T> dst[3] = {Tile<T>({4, 3, 2}), Tile<T>({5, 3, 2}), Tile<T>({5, 4, 2})};
     Tile<T> empty({});
-    TEST_THROW(maxsumexp<T>(-1, src, empty, 0));
-    TEST_THROW(maxsumexp<T>(-1, empty, empty, 0));
-    TEST_THROW(maxsumexp<T>(-1, src, dst[0], -1));
-    TEST_THROW(maxsumexp<T>(-1, src, dst[0], 3));
-    TEST_THROW(maxsumexp<T>(-1, src, src, 0));
-    TEST_THROW(maxsumexp<T>(-1, src, dst[0], 1));
-    TEST_THROW(maxsumexp<T>(-1, src, dst[2], 1));
+    TEST_THROW(maxsumexp<T>(-1, src, empty, 0, Scalar{0.0}));
+    TEST_THROW(maxsumexp<T>(-1, empty, empty, 0, Scalar{0.0}));
+    TEST_THROW(maxsumexp<T>(-1, src, dst[0], -1, Scalar{0.0}));
+    TEST_THROW(maxsumexp<T>(-1, src, dst[0], 3, Scalar{0.0}));
+    TEST_THROW(maxsumexp<T>(-1, src, src, 0, Scalar{0.0}));
+    TEST_THROW(maxsumexp<T>(-1, src, dst[0], 1, Scalar{0.0}));
+    TEST_THROW(maxsumexp<T>(-1, src, dst[2], 1, Scalar{0.0}));
 }
 
 int main(int argc, char **argv)

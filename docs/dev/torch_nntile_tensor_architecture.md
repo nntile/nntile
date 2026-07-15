@@ -41,13 +41,12 @@ async graph op:
    Persistent params / batches stay live via remaining refs on those tensors.
    `del` after the last use is recorded is therefore safe: invalidate is just
    another op after those uses; StarPU orders `invalidate_submit` after them.
-2. On `compile_graph()`, after dropping compile pin holds, for every tensor
-   **touched by the unsealed phase** without a live `TensorRef`, append
-   `tensor::INVALIDATE` if needed (O(phase); covers `emplace_data` temps that
-   never held a `TensorRef`). Do **not** side-channel
-   `invalidate_logical_tiles` before submit — that freed payloads before the
-   phase’s consumer tasks were inserted (e.g. `del inputs` before compile →
-   StarPU “handle is not initialized” on embedding).
+2. On `compile_graph()`, for every tensor **touched by the unsealed phase**
+   without a live `TensorRef`, append `tensor::INVALIDATE` if needed (O(phase);
+   covers `emplace_data` temps that never held a `TensorRef`). Do **not**
+   side-channel `invalidate_logical_tiles` before submit — that freed payloads
+   before the phase’s consumer tasks were inserted (e.g. `del inputs` before
+   compile → StarPU “handle is not initialized” on embedding).
    Then `seal_phase` + lower to `tile::INVALIDATE` → `invalidate_submit` +
    clear payload.
 3. `run()` only submits the execution stream (compute + INVALIDATE). StarPU
@@ -146,7 +145,6 @@ runnable far ahead of the step that needs it. Until that exists:
 |---|--------|------------------|-------------------|
 | D1 | TensorGraph metadata growth | Each `.cpu()` permanently appends `clear`, `gather`, and a new `io_staging_*` node (op list grows). Phase outputs cleared after `wait()` are reclaimed via `pending_output_reclaim` (O(phase outputs), not a full tile-map scan). Historical TileGraph/TensorGraph nodes still accumulate in memory. | Phase GC / compaction; reuse readout staging per session. |
 | D2 | Ingress `S` + StarPU alloc cache | Batched `.to("nntile")` keeps every ephemeral `S` until scatters run. Submitting all scatters before any `S` unregister leaves CUDA replicates of every `S` beside every `L`; unregister parks them in StarPU's allocation cache (`STARPU_USE_ALLOCATION_CACHE`) → settled ≈2×. `starpu_memchunk_tidy` only writebacks dirty chunks — it does **not** flush that cache. | During `run()`, execute each ingress scatter, `wait()`, then destroy that `S` before the next scatter so the next `L` reuses the cached chunk. |
-| D3 | Pin bookkeeping | Dedup uses `unordered_set<TensorImplKey>` while pinning; pins still clear on phase transfer. | Optional: trim earlier than phase seal if pin lists grow mid-phase. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |
 | D5 | `vector_norm` backward | Forward-only by design. | Add autograd when product needs it. |
 | D6 | Stub vs libnntile | Builds without libnntile still use host `Storage` staging. | Keep stub path minimal; do not reintroduce host tiers on the libnntile path. |

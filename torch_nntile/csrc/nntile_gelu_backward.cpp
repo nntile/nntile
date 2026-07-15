@@ -57,8 +57,6 @@ void run_gelu_backward(
     at::Tensor &grad_input,
     bool approximate_tanh)
 {
-    pin_graph_op_inputs({self, grad_output});
-    pin_graph_op_output(grad_input, false);
     tensor_gelu_backward_fp32(
         self,
         grad_output,

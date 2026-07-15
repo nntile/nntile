@@ -325,7 +325,10 @@ Do not call ``.cpu()`` / ``clone_model_weights()`` on nntile parameters
 **before** the first ``compile_graph()`` that applies ``--axis-tiling``:
 that seals the default (untiled) layout and later tiling raises
 ``layout_fingerprint mismatch``. The example gathers weights only after
-training.
+training. With ``--grad-accum-steps N>1``, all microbatches are prefetched;
+the first compile also seals every pending ingress scatter, so the example
+names **all** microbatch inputs (and weights) before that first tiled
+compile.
 
 ### CPU torch parity (`--compare-torch`)
 

@@ -140,8 +140,6 @@ at::Tensor embedding(
 
     const nntile::Index axis =
         static_cast<nntile::Index>(indices_contig.dim());
-    pin_graph_op_inputs({weight, indices_contig});
-    pin_graph_op_output(output, true);
     tensor_embedding_forward_fp32(indices_contig, weight, output, axis);
     return output;
 }
@@ -168,8 +166,6 @@ at::Tensor embedding_dense_backward(
 
     const nntile::Index axis =
         static_cast<nntile::Index>(indices_contig.dim());
-    pin_graph_op_inputs({grad_output, indices_contig});
-    pin_graph_op_output(grad_weight, false);
     tensor_embedding_backward_fp32(
         indices_contig,
         grad_output,

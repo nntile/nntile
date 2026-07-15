@@ -27,7 +27,7 @@ namespace nntile::tensor
 {
 
 TensorGraph::TensorNode *gelutanh_backward(
-    TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy)
+    Scalar alpha, TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy)
 {
     if (x == nullptr || dy == nullptr)
     {
@@ -54,14 +54,14 @@ TensorGraph::TensorNode *gelutanh_backward(
     TensorGraph::TensorNode *dx = x->graph()->emplace_data(x->shape(), x->dtype());
     dx->set_axes(x->axes());
 
-    gelutanh_backward(x, dy, dx);
+    gelutanh_backward(alpha, x, dy, Scalar{0.0}, dx);
 
     return dx;
 }
 
-void gelutanh_backward(TensorGraph::TensorNode *x,
+void gelutanh_backward(Scalar alpha, TensorGraph::TensorNode *x,
     TensorGraph::TensorNode *dy,
-    TensorGraph::TensorNode *dx)
+    Scalar beta, TensorGraph::TensorNode *dx)
 {
     if (x == nullptr || dy == nullptr || dx == nullptr)
     {
@@ -86,18 +86,27 @@ void gelutanh_backward(TensorGraph::TensorNode *x,
     validate_same_shape_and_merge(x, dy, "gelutanh_backward");
     validate_same_shape_and_merge(x, dx, "gelutanh_backward");
 
-    auto op = std::make_shared<TensorGelutanhBackwardOp>(x, dy, dx);
+    auto op = std::make_shared<TensorGelutanhBackwardOp>(x, dy, dx, alpha, beta);
     x->graph()->add_op(op);
 }
 
 void TensorGelutanhBackwardOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    tile_lower::lower_backward3(x,
-        dy,
-        dx,
-        ctx.tile_map,
-        "GELUTANH_BACKWARD",
-        tile::gelutanh_backward);
+    const auto &m = ctx.tile_map;
+    const auto &vx = tile_lower::tiles_of(m, x);
+    const auto &vdy = tile_lower::tiles_of(m, dy);
+    const auto &vdx = tile_lower::tiles_of(m, dx);
+    if (vx.size() != vdy.size() || vx.size() != vdx.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile GELUTANH_BACKWARD: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(x, dy, "GELUTANH_BACKWARD x/dy");
+    tile_lower::assert_same_elementwise_layout(x, dx, "GELUTANH_BACKWARD x/dx");
+    for (size_t i = 0; i < vx.size(); ++i)
+    {
+        tile::gelutanh_backward(alpha, vx[i], vdy[i], beta, vdx[i]);
+    }
 }
 
 } // namespace nntile::tensor

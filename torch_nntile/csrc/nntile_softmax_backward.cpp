@@ -58,8 +58,6 @@ void run_softmax_backward(
     at::Tensor &grad_input)
 {
     const int64_t wrapped_dim = at::maybe_wrap_dim(dim, output.dim());
-    pin_graph_op_inputs({output, grad_output});
-    pin_graph_op_output(grad_input, true);
     tensor_softmax_backward_fp32(
         grad_output,
         output,

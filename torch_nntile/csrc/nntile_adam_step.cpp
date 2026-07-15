@@ -99,7 +99,6 @@ void adam_step(
     ensure_optimizer_state_staging(first_moment);
     ensure_optimizer_state_staging(second_moment);
 #endif
-    pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adam_step_fp32(
         num_iter,
         static_cast<float>(beta_1),
@@ -132,7 +131,6 @@ void adamw_step(
     ensure_optimizer_state_staging(first_moment);
     ensure_optimizer_state_staging(second_moment);
 #endif
-    pin_graph_op_inputs({param, first_moment, second_moment});
     tensor_adamw_step_fp32(
         num_iter,
         static_cast<float>(beta_1),

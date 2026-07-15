@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/ops/relu_backward.hh
- * TensorGraph relu_backward operation: dx = relu_backward(x, dy)
+ * TensorGraph relu_backward operation: dx = alpha * grad_func(x) * dy + beta * dx
  *
  * @version 1.1.0
  * */
@@ -18,6 +18,7 @@
 #include <string>
 
 // NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/tensor/graph.hh>
 
 namespace nntile
@@ -28,9 +29,11 @@ struct LoweringContext;
 namespace nntile::tensor
 {
 
-//! ReLU backward operation: dx = relu_backward(x, dy)
+//! ReLU backward operation: dx = alpha * grad_func(x) * dy + beta * dx
 struct TensorReluBackwardOp : TensorGraph::OpNode
 {
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode *x = nullptr;
     TensorGraph::TensorNode *dy = nullptr;
     TensorGraph::TensorNode *dx = nullptr;
@@ -38,10 +41,18 @@ struct TensorReluBackwardOp : TensorGraph::OpNode
     TensorReluBackwardOp() = default;
     TensorReluBackwardOp(TensorGraph::TensorNode *x_,
         TensorGraph::TensorNode *dy_,
-        TensorGraph::TensorNode *dx_) :
-        x(x_), dy(dy_), dx(dx_)
+        TensorGraph::TensorNode *dx_,
+        Scalar alpha_, Scalar beta_) :
+        alpha(alpha_), beta(beta_), x(x_), dy(dy_), dx(dx_)
     {
-        inputs_ = {x, dy, dx};
+        if(beta == Scalar{0.0})
+        {
+            inputs_ = {x, dy};
+        }
+        else
+        {
+            inputs_ = {x, dy, dx};
+        }
         outputs_ = {dx};
     }
 
@@ -55,13 +66,13 @@ struct TensorReluBackwardOp : TensorGraph::OpNode
     void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-//! ReLU backward: dx = relu_backward(x, dy) (creates output)
+//! ReLU backward: dx = alpha * grad_func(x) * dy + beta * dx (creates output, beta=0)
 TensorGraph::TensorNode *relu_backward(
-    TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy);
+    Scalar alpha, TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy);
 
-//! ReLU backward: dx = relu_backward(x, dy) (uses existing output)
-void relu_backward(TensorGraph::TensorNode *x,
+//! ReLU backward: dx = alpha * grad_func(x) * dy + beta * dx (uses existing output)
+void relu_backward(Scalar alpha, TensorGraph::TensorNode *x,
     TensorGraph::TensorNode *dy,
-    TensorGraph::TensorNode *dx);
+    Scalar beta, TensorGraph::TensorNode *dx);
 
 } // namespace nntile::tensor

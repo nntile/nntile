@@ -119,10 +119,6 @@ void run_layer_norm_forward(
     {
         inputs.push_back(*bias);
     }
-    pin_graph_op_inputs(inputs);
-    pin_graph_op_output(output, false);
-    pin_graph_op_output(mean, false);
-    pin_graph_op_output(rstd, false);
     tensor_layer_norm_forward_fp32(
         input,
         weight.has_value() ? &*weight : nullptr,
@@ -201,22 +197,18 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm_backward(
     {
         inputs.push_back(*weight);
     }
-    pin_graph_op_inputs(inputs);
 
     if (output_mask[0])
     {
         grad_input = at::empty_like(input);
-        pin_graph_op_output(grad_input, false);
     }
     if (output_mask[1] && weight.has_value())
     {
         grad_weight = at::empty_like(*weight);
-        pin_graph_op_output(grad_weight, false);
     }
     if (output_mask[2] && bias.has_value())
     {
         grad_bias = at::empty_like(*bias);
-        pin_graph_op_output(grad_bias, false);
     }
 
     tensor_layer_norm_backward_fp32(

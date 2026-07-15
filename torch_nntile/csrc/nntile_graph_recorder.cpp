@@ -56,7 +56,6 @@ std::vector<Index> tile_sizes_for_axis_extent(
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace torch_nntile
@@ -92,9 +91,6 @@ struct ParamGradEntry
     at::Tensor param;
 };
 std::unordered_map<TensorImplKey, ParamGradEntry> g_param_grad_registry;
-std::vector<nntile::TensorGraph::TensorNode *> g_relu_preactivation_stack;
-std::vector<at::Tensor> g_pinned_tensors;
-std::unordered_set<TensorImplKey> g_pinned_tensor_keys;
 std::unordered_map<TensorImplKey, std::unordered_map<int, std::string>>
     g_axis_name_hints;
 std::unordered_map<std::string, std::vector<nntile::Index>> g_axis_tiling_by_name;
@@ -108,10 +104,6 @@ struct RecorderExecState
     nntile::TensorNodeToTileMap tile_map;
     //! Session-scoped layouts; ensure_phase_layouts only adds new tensors.
     std::shared_ptr<nntile::TensorGraphTiling> session_tiling;
-    //! Pins transferred at compile so NodeRefs stay alive through lower.
-    //! Cleared at the start of the next compile_graph (before seal) so
-    //! unmarked temps get TensorGraph INVALIDATE ops. Not held across run().
-    std::vector<at::Tensor> pin_hold;
     //! Post-DCE execution_order index already submitted via execute_range.
     std::size_t executed_op_end = 0;
     //! Slice scheduled by the latest compile_graph_locked call.
@@ -122,7 +114,6 @@ struct RecorderExecState
 };
 
 std::unique_ptr<RecorderExecState> g_exec;
-bool g_defer_pending_clear_after_run = false;
 //! True after run_graph() until wait_graph_session() finishes post-run work.
 bool g_run_cleanup_pending = false;
 
@@ -146,8 +137,6 @@ struct GraphApiTimingStats
     std::uint64_t record_get_node_calls = 0;
     double record_get_node_s = 0.0;
     std::uint64_t record_new_nodes = 0;
-    std::uint64_t record_pin_calls = 0;
-    double record_pin_s = 0.0;
     std::uint64_t record_register_calls = 0;
     double record_register_s = 0.0;
     std::uint64_t record_linear_bwd_calls = 0;
@@ -181,9 +170,7 @@ void collect_pending_output_reclaim_locked(
 
 void sync_param_grad_aliases_locked();
 
-void compile_graph_locked(
-    bool clear_pending_after,
-    std::vector<at::Tensor> &pin_drop);
+void compile_graph_locked();
 
 void run_graph_locked();
 
@@ -222,28 +209,6 @@ void assign_axis_group_name(nntile::AxisDescriptor *axis, const std::string &nam
             axis->name + "', cannot rename to '" + name + "'");
     }
     axis->name = name;
-}
-
-bool graph_shape_matches_node(
-    const std::vector<nntile::Index> &shape,
-    nntile::TensorGraph::TensorNode *node)
-{
-    if (node == nullptr)
-    {
-        return false;
-    }
-    if (static_cast<std::size_t>(node->ndim()) != shape.size())
-    {
-        return false;
-    }
-    for (std::size_t i = 0; i < shape.size(); ++i)
-    {
-        if (node->shape()[i] != shape[i])
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 void apply_axis_name_hints_locked(
@@ -306,7 +271,6 @@ void apply_pending_axis_tiling_locked()
     // (and clear session layouts) on every subsequent compile.
     g_axis_tiling_by_name.clear();
 }
-
 
 nntile::DataType aten_scalar_to_nntile_dtype(at::ScalarType dtype)
 {
@@ -704,23 +668,6 @@ nntile::TensorGraph::TensorNode *new_ephemeral_staging_node_locked(
     return staging;
 }
 
-bool should_pin_tensor_for_graph_locked(const at::Tensor &tensor)
-{
-    return is_metadata_only_tensor(tensor) &&
-        static_cast<bool>(tensor_ref(tensor));
-}
-
-void pin_tensor_for_graph(const at::Tensor &tensor)
-{
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    TensorImplKey const key = tensor_impl_key(tensor);
-    if (!g_pinned_tensor_keys.insert(key).second)
-    {
-        return;
-    }
-    g_pinned_tensors.push_back(tensor);
-}
-
 nntile::Index graph_numel(const std::vector<nntile::Index> &graph_shape)
 {
     nntile::Index nelems = 1;
@@ -809,27 +756,9 @@ nntile::TensorGraph::TensorNode *logical_node_for_tensor_locked(
     return node;
 }
 
-
-void transfer_pinned_tensors_locked(std::vector<at::Tensor> &pin_drop)
-{
-    if (g_pinned_tensors.empty())
-    {
-        return;
-    }
-    pin_drop.insert(
-        pin_drop.end(),
-        std::make_move_iterator(g_pinned_tensors.begin()),
-        std::make_move_iterator(g_pinned_tensors.end()));
-    g_pinned_tensors.clear();
-    g_pinned_tensor_keys.clear();
-}
-
-void clear_pending_graph_after_compile_locked(
-    std::vector<at::Tensor> &pin_drop)
+void clear_pending_recorder_state_locked()
 {
     clear_param_grad_registry_locked();
-    g_relu_preactivation_stack.clear();
-    transfer_pinned_tensors_locked(pin_drop);
     g_axis_name_hints.clear();
     g_axis_tiling_by_name.clear();
 }
@@ -843,7 +772,6 @@ void drain_starpu_after_session_teardown()
     starpu_task_wait_for_all();
     starpu_task_wait_for_all();
 }
-
 
 void collect_scatter_stagings_from_phase_locked(
     const nntile::TensorGraph::PhaseSnapshot &phase,
@@ -902,41 +830,11 @@ void compact_tensor_graph_session_locked()
     }
 }
 
-void append_pin_hold_locked(std::vector<at::Tensor> &pin_drop)
+//! Clear recorder side state so only Python-held TensorRefs remain live
+//! for INVALIDATE selection. Does not wait on StarPU.
+void prepare_invalidate_selection_locked()
 {
-    if (g_exec == nullptr || pin_drop.empty())
-    {
-        return;
-    }
-    // Hold until the matching run() returns (not until wait()).
-    g_exec->pin_hold.insert(
-        g_exec->pin_hold.end(),
-        std::make_move_iterator(pin_drop.begin()),
-        std::make_move_iterator(pin_drop.end()));
-    pin_drop.clear();
-}
-
-//! Drop pin holds so ephemeral logicals unmark before seal/INVALIDATE.
-//! Does not wait on StarPU.
-void drop_compile_pins_before_seal_locked()
-{
-    if (g_exec == nullptr)
-    {
-        return;
-    }
-    if (g_defer_pending_clear_after_run)
-    {
-        std::vector<at::Tensor> pin_drop;
-        clear_pending_graph_after_compile_locked(pin_drop);
-        g_defer_pending_clear_after_run = false;
-    }
-    g_exec->pin_hold.clear();
-    {
-        // Current-phase record pins: destroy so only Python-held refs
-        // (params, caches, last_loss) keep marks for INVALIDATE selection.
-        std::vector<at::Tensor> doomed;
-        clear_pending_graph_after_compile_locked(doomed);
-    }
+    clear_pending_recorder_state_locked();
 }
 
 //! Drain the TensorRef-release queue without touching StarPU.
@@ -958,9 +856,7 @@ void compact_after_submit_locked()
     compact_tensor_graph_session_locked();
 }
 
-void compile_graph_locked(
-    bool clear_pending_after,
-    std::vector<at::Tensor> &pin_drop)
+void compile_graph_locked()
 {
     // Do not wait for a prior async run(): sealing / lowering the next
     // phase while StarPU still executes the previous one is allowed.
@@ -981,7 +877,7 @@ void compile_graph_locked(
     apply_pending_axis_tiling_locked();
 
     // Marks must reflect live Python refs before INVALIDATE selection.
-    drop_compile_pins_before_seal_locked();
+    prepare_invalidate_selection_locked();
     // Drain release notes only; do not invalidate_logical_tiles here.
     // Payload reclaim is append_invalidates + TensorRef-recorded INVALIDATE
     // ops in this phase (submitted with compute so StarPU orders them).
@@ -1041,13 +937,6 @@ void compile_graph_locked(
     g_exec->pending_exec_op_end =
         g_exec->runtime->execution_op_count();
     g_exec->pending_scatter_stagings = std::move(scatter_stagings);
-
-    if (clear_pending_after)
-    {
-        // Pins already dropped before seal; nothing to defer to run().
-        g_defer_pending_clear_after_run = false;
-        pin_drop.clear();
-    }
 
     std::uint64_t const phase_ops = static_cast<std::uint64_t>(
         g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
@@ -1123,13 +1012,6 @@ void finish_run_locked()
         release_io_staging_locked(staging);
     }
     g_exec->pending_scatter_stagings.clear();
-    if (g_defer_pending_clear_after_run)
-    {
-        std::vector<at::Tensor> pin_drop;
-        clear_pending_graph_after_compile_locked(pin_drop);
-        g_defer_pending_clear_after_run = false;
-    }
-    g_exec->pin_hold.clear();
     compact_tensor_graph_session_locked();
     // Drain release notes; INVALIDATE ops were already submitted with the
     // phase (or recorded into the next unsealed phase on TensorRef drop).
@@ -1139,31 +1021,14 @@ void finish_run_locked()
     ++g_timing.wait_calls;
 }
 
-void reset_recorder_locked(
-    bool clear_tensor_gc,
-    std::vector<at::Tensor> &pin_drop)
+void reset_recorder_locked(bool clear_tensor_gc)
 {
-    // Destroy tensors that hold NodeRefs while TensorGraph nodes are still
-    // alive so ~NNTileBinding can safely call mark_output(false).
     if (g_exec != nullptr && g_exec->runtime != nullptr)
     {
         g_exec->runtime->wait();
     }
     g_run_cleanup_pending = false;
-    if (g_exec != nullptr)
-    {
-        g_exec->pin_hold.clear();
-    }
-    {
-        std::vector<at::Tensor> pins;
-        transfer_pinned_tensors_locked(pins);
-        // pins destroyed here, before g_graph.reset().
-    }
-    clear_param_grad_registry_locked();
-    g_relu_preactivation_stack.clear();
-    g_defer_pending_clear_after_run = false;
-    g_axis_name_hints.clear();
-    g_axis_tiling_by_name.clear();
+    clear_pending_recorder_state_locked();
     g_ephemeral_staging_serial = 0;
     g_exec.reset();
     set_logical_tensor_nodes_alive(false);
@@ -1173,9 +1038,6 @@ void reset_recorder_locked(
     {
         clear_tensor_gc_state();
     }
-    // Callers historically destroyed pin_drop after unlock; pins are now
-    // released above while the graph is alive.
-    pin_drop.clear();
 }
 
 void register_grad_alias_for_host_copy_locked(
@@ -1220,18 +1082,17 @@ void sync_param_grad_aliases_locked()
     }
 }
 
-void execute_pending_graph_locked(std::vector<at::Tensor> &pin_drop)
+void execute_pending_graph_locked()
 {
     // compile + run only. Never wait here — callers must use wait() /
     // wait_graph_session() (same contract as compile_graph + run).
-    compile_graph_locked(true, pin_drop);
+    compile_graph_locked();
     run_graph_locked();
 }
 
-void shutdown_recorder_locked(std::vector<at::Tensor> &pin_drop)
+void shutdown_recorder_locked()
 {
-    g_defer_pending_clear_after_run = false;
-    reset_recorder_locked(true, pin_drop);
+    reset_recorder_locked(true);
 }
 
 } // namespace
@@ -1259,22 +1120,14 @@ void require_no_pending_graph(const char *op_name)
 
 void execute_pending_graph()
 {
-    std::vector<at::Tensor> pin_drop;
-    {
-        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        execute_pending_graph_locked(pin_drop);
-        append_pin_hold_locked(pin_drop);
-    }
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    execute_pending_graph_locked();
 }
 
 void compile_graph()
 {
-    std::vector<at::Tensor> pin_drop;
-    {
-        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        compile_graph_locked(true, pin_drop);
-        append_pin_hold_locked(pin_drop);
-    }
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    compile_graph_locked();
 }
 
 void run_graph()
@@ -1292,43 +1145,20 @@ void wait_graph_session()
 
 void reset_graph_session()
 {
-    std::vector<at::Tensor> pin_drop;
-    {
-        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        reset_recorder_locked(true, pin_drop);
-    }
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    reset_recorder_locked(true);
 }
 
 void shutdown_recorder()
 {
-    std::vector<at::Tensor> pin_drop;
-    {
-        std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-        shutdown_recorder_locked(pin_drop);
-    }
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    shutdown_recorder_locked();
 }
 
 bool has_graph_session()
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     return g_exec != nullptr && g_exec->runtime != nullptr;
-}
-
-nntile::TensorGraph::TensorNode *node_for_impl_locked(TensorImplKey impl_key)
-{
-    for (const at::Tensor &tensor : g_pinned_tensors)
-    {
-        if (tensor_impl_key(tensor) != impl_key)
-        {
-            continue;
-        }
-        if (nntile::TensorGraph::TensorNode *node = nntile_node(tensor);
-            node != nullptr)
-        {
-            return node;
-        }
-    }
-    return nullptr;
 }
 
 void gather_logical_to_staging_and_read_locked(
@@ -1368,8 +1198,7 @@ void gather_logical_to_staging_and_read_locked(
     nntile::tensor::clear(staging);
     nntile::tensor::gather(logical, staging);
 
-    std::vector<at::Tensor> pin_drop;
-    compile_graph_locked(false, pin_drop);
+    compile_graph_locked();
     run_graph_locked();
     finish_run_locked();
 
@@ -1410,8 +1239,7 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     if (g_graph != nullptr &&
         g_graph->num_ops() > g_graph->phase_seal_cursor())
     {
-        std::vector<at::Tensor> pin_drop;
-        compile_graph_locked(false, pin_drop);
+        compile_graph_locked();
         run_graph_locked();
         finish_run_locked();
     }
@@ -1489,14 +1317,7 @@ void init_nntile_input_from_cpu(
         static_cast<std::size_t>(cpu_src.numel()));
 
     nntile::tensor::scatter(staging, logical);
-
-    TensorImplKey const key = tensor_impl_key(nntile_dst);
-    if (g_pinned_tensor_keys.insert(key).second)
-    {
-        g_pinned_tensors.push_back(nntile_dst);
-    }
 }
-
 
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
     const at::Tensor &tensor,
@@ -1620,32 +1441,8 @@ void register_grad_alias_for_host_copy(
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
     register_grad_alias_for_host_copy_locked(grad, grad_node);
-    pin_tensor_for_graph(grad);
-}
-
-void push_relu_preactivation_node(nntile::TensorGraph::TensorNode *node)
-{
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    g_relu_preactivation_stack.push_back(node);
-}
-
-nntile::TensorGraph::TensorNode *pop_relu_preactivation_node(
-    const std::vector<nntile::Index> &shape)
-{
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    for (auto it = g_relu_preactivation_stack.rbegin();
-         it != g_relu_preactivation_stack.rend();
-         ++it)
-    {
-        if (!graph_shape_matches_node(shape, *it))
-        {
-            continue;
-        }
-        nntile::TensorGraph::TensorNode *node = *it;
-        g_relu_preactivation_stack.erase(std::next(it).base());
-        return node;
-    }
-    return nullptr;
+    // Do not pin: ``param.grad`` is Python-reachable; pinning would fight
+    // ``zero_grad(set_to_none=True)`` until compile.
 }
 
 void on_tensor_impl_released(TensorImplKey key)
@@ -1682,30 +1479,6 @@ void record_view_alias(const at::Tensor &self, const at::Tensor &view)
     assert_has_tensor_ref(view, "record_view_alias");
 }
 
-void pin_graph_op_inputs(const std::vector<at::Tensor> &inputs)
-{
-    const SteadyClock::time_point t0 = SteadyClock::now();
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    for (const at::Tensor &tensor : inputs)
-    {
-        if (should_pin_tensor_for_graph_locked(tensor))
-        {
-            pin_tensor_for_graph(tensor);
-        }
-    }
-    ++g_timing.record_pin_calls;
-    g_timing.record_pin_s += seconds_since(t0);
-}
-
-void pin_graph_op_output(const at::Tensor &output, bool pin_output)
-{
-    if (!pin_output)
-    {
-        return;
-    }
-    pin_tensor_for_graph(output);
-}
-
 void set_axis_group_name(
     const at::Tensor &tensor,
     const std::unordered_map<int, std::string> &names)
@@ -1729,10 +1502,6 @@ void set_axis_group_name(
         }
 
         nntile::TensorGraph::TensorNode *node = bound_node;
-        if (node == nullptr)
-        {
-            node = node_for_impl_locked(impl_key);
-        }
         if (node != nullptr)
         {
             assign_axis_group_name(node->axis(dim), name);
@@ -1747,26 +1516,12 @@ void set_axis_group_name(
 bool is_tensor_graph_output(const at::Tensor &tensor)
 {
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    // Accessibility is TensorRef-based; a bound nntile tensor is already
-    // kept alive by its BackendMeta hold — no need to pin for axis compile.
     return static_cast<bool>(tensor_ref(tensor));
 }
 
 void stage_tensor_for_axis_group_compile(const at::Tensor &tensor)
 {
-    if (is_tensor_graph_output(tensor))
-    {
-        return;
-    }
-    pin_tensor_for_graph(tensor);
-}
-
-void mark_persistent_graph_tensor(const at::Tensor &tensor)
-{
-    // Keep the TensorImpl (and its TensorRef) alive across compile/run.
-    // Last-consumer reclaim skips live TensorRefs; params/optimizer state
-    // stay resident as long as the Python tensors hold their refs.
-    pin_tensor_for_graph(tensor);
+    (void)tensor;
 }
 
 void set_axis_group_tiling(
@@ -1956,10 +1711,6 @@ std::string format_info_locked()
                   g_timing.record_get_node_s,
                   g_timing.record_get_node_calls)
            << " ms), new_nodes=" << g_timing.record_new_nodes << '\n';
-        ss << "    pin_inputs: " << g_timing.record_pin_calls
-           << " calls, " << g_timing.record_pin_s << "s (avg "
-           << avg_ms(g_timing.record_pin_s, g_timing.record_pin_calls)
-           << " ms)\n";
         ss << "    register_data_node: " << g_timing.record_register_calls
            << " calls, " << g_timing.record_register_s << "s\n";
         ss << "    gemm record: " << g_timing.record_gemm_calls
@@ -2074,14 +1825,6 @@ bool has_graph_session()
     return false;
 }
 
-void pin_graph_op_inputs(const std::vector<at::Tensor> & /*inputs*/)
-{
-}
-
-void pin_graph_op_output(const at::Tensor & /*output*/, bool /*pin_output*/)
-{
-}
-
 void on_tensor_impl_released(TensorImplKey /*key*/)
 {
 }
@@ -2106,10 +1849,6 @@ bool is_tensor_graph_output(const at::Tensor & /*tensor*/)
 void stage_tensor_for_axis_group_compile(const at::Tensor & /*tensor*/)
 {
     require_libnntile();
-}
-
-void mark_persistent_graph_tensor(const at::Tensor & /*tensor*/)
-{
 }
 
 void init_nntile_input_from_cpu(

@@ -75,7 +75,6 @@ void sgd_step(
         velocity.zero_();
     }
 #endif
-    pin_graph_op_inputs({param, grad, velocity});
     tensor_sgd_step_fp32(
         num_iter,
         static_cast<float>(momentum),

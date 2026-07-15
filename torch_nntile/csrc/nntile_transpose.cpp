@@ -72,8 +72,6 @@ at::Tensor model_transpose_forward(
     at::Tensor out = at::empty(
         permuted_sizes(x.sizes(), tensor_ndim),
         x.options().memory_format(at::MemoryFormat::Contiguous));
-    pin_graph_op_inputs({x});
-    pin_graph_op_output(out, true);
     tensor_model_transpose_forward_fp32(x, out, model_ndim);
     return out;
 }
@@ -88,8 +86,6 @@ at::Tensor model_transpose_backward(
         permuted_sizes(grad_out.sizes(), model_ndim),
         grad_out.scalar_type(),
         grad_out.device());
-    pin_graph_op_inputs({grad_out});
-    pin_graph_op_output(grad_x, true);
     tensor_model_transpose_backward_fp32(grad_out, grad_x, model_ndim);
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
     if (x.defined())

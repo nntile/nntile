@@ -145,8 +145,6 @@ void run_cat(
     int64_t dim,
     at::Tensor &out)
 {
-    pin_graph_op_inputs(tensors);
-    pin_graph_op_output(out, true);
     tensor_cat_fp32(tensors, out, dim);
 }
 

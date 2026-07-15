@@ -10,7 +10,7 @@
  * NNGraph GELU autograd operation.
  *
  * Forward: y = gelu(x)
- * Backward: grad_x += gelu_backward(x, grad_y)
+ * Backward: grad_x = gelu_backward(1, x, grad_y, beta, grad_x) with beta=0 on first use
  *
  * @version 1.1.0
  * */
