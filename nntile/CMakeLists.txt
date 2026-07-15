@@ -38,7 +38,7 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-if(BUILD_EXAMPLES AND BUILD_NNTILE_NNGRAPH)
+if(BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
