@@ -250,11 +250,8 @@ class BertMlmHead(nn.Module):
     ) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.transform_act_fn = _bert_activation(
-            "gelu_pytorch_tanh"
-            if config.hidden_act == "gelu"
-            else config.hidden_act
-        )
+        # Match HF ``BertPredictionHeadTransform`` (ACT2FN[hidden_act]).
+        self.transform_act_fn = _bert_activation(config.hidden_act)
         self.LayerNorm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )

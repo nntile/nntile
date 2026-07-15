@@ -140,11 +140,8 @@ class RobertaMlmHead(nn.Module):
         self.decoder = nn.Linear(
             config.hidden_size, config.vocab_size, bias=True
         )
-        self.act = _bert_activation(
-            "gelu_pytorch_tanh"
-            if config.hidden_act == "gelu"
-            else config.hidden_act
-        )
+        # Match HF ``RobertaLMHead`` (ACT2FN[hidden_act]).
+        self.act = _bert_activation(config.hidden_act)
 
     def forward(self, hidden: Tensor) -> Tensor:
         x = self.layer_norm(self.act(self.dense(hidden)))
