@@ -2,7 +2,8 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_gpt_neo_hf_parity.py
-# GPT-Neo layer + full-model parity vs HuggingFace GPTNeoForCausalLM.
+# Thorough GPT-Neo submodule parity vs HuggingFace (mirrors deleted NNGraph
+# gpt_neo_{config,mlp,attention,decoder,model,causal} matrix).
 
 from __future__ import annotations
 
@@ -20,7 +21,6 @@ from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoMLP as HfMLP,
 )
 
-import torch_nntile
 from torch_nntile import _C
 from torch_nntile.models.gpt_neo import (
     GPTNeoAttention,
@@ -34,7 +34,12 @@ from torch_nntile.models.gpt_neo_hf_loader import (
     load_hf_into_gpt_neo_causal,
 )
 from torch_nntile.models.hf_rope_layout import copy_linear
-from parity_helpers import assert_close, contiguous_to_nntile
+from parity_helpers import (
+    additive_causal_mask,
+    additive_local_causal_mask,
+    assert_close,
+    contiguous_to_nntile,
+)
 
 
 pytestmark = pytest.mark.skipif(
@@ -44,41 +49,92 @@ pytestmark = pytest.mark.skipif(
 
 RTOL = 1e-4
 ATOL = 1e-4
+ATTN_ATOL = 5e-4
+BWD_ATOL = 1e-3
 
 
-@pytest.fixture
-def tiny_hf_config() -> HfGPTNeoConfig:
-    # All-global: local window masks are not auto-built in torch_nntile yet.
-    n_layer = 2
+# ---------------------------------------------------------------------------
+# Config (was gpt_neo_config.cc)
+# ---------------------------------------------------------------------------
+
+
+def test_gpt_neo_config_defaults_validate_and_attention_layers():
+    cfg = GPTNeoConfig(num_hidden_layers=4)
+    assert cfg.head_dim == cfg.hidden_size // cfg.num_attention_heads
+    assert cfg.attention_layers == ["global", "local", "global", "local"]
+    cfg.validate()
+
+    bad_hidden = GPTNeoConfig(hidden_size=66, num_attention_heads=4)
+    with pytest.raises(ValueError):
+        bad_hidden.validate()
+
+    bad_layers = GPTNeoConfig(
+        num_hidden_layers=2,
+        attention_layers=["global"],
+    )
+    with pytest.raises(ValueError):
+        bad_layers.validate()
+
+
+def test_gpt_neo_config_from_hf_allows_alternating_layers():
+    hf = _hf_cfg(attention_layers=["global", "local", "global", "local"])
+    local = gpt_neo_config_from_hf(hf)
+    assert local.attention_layers == ["global", "local", "global", "local"]
+    assert local.head_dim == 16
+    local.validate()
+
+
+# ---------------------------------------------------------------------------
+# Tiny HF fixtures
+# ---------------------------------------------------------------------------
+
+
+def _attention_types(layers: list[str]) -> list[list[object]]:
+    grouped: list[list[object]] = []
+    start = 0
+    while start < len(layers):
+        kind = layers[start]
+        length = 1
+        while start + length < len(layers) and layers[start + length] == kind:
+            length += 1
+        grouped.append([[kind], length])
+        start += length
+    return grouped
+
+
+def _hf_cfg(
+    *,
+    attention_layers: list[str] | None = None,
+    window_size: int = 4,
+) -> HfGPTNeoConfig:
+    layers = attention_layers or ["global", "global"]
     cfg = HfGPTNeoConfig(
         vocab_size=128,
         hidden_size=64,
-        num_layers=n_layer,
+        num_layers=len(layers),
         num_heads=4,
         max_position_embeddings=32,
         intermediate_size=128,
-        window_size=256,
-        attention_layers=["global"] * n_layer,
-        attention_types=[[["global"], n_layer]],
+        window_size=window_size,
+        attention_layers=list(layers),
+        attention_types=_attention_types(list(layers)),
         layer_norm_epsilon=1e-5,
         activation_function="gelu_new",
         attention_dropout=0.0,
         embed_dropout=0.0,
         resid_dropout=0.0,
-        tie_word_embeddings=True,
+        tie_word_embeddings=False,
     )
     cfg._attn_implementation = "eager"
     return cfg
 
 
-def _make_models(hf_cfg: HfGPTNeoConfig):
+def _make_causal(hf_cfg: HfGPTNeoConfig):
     torch.manual_seed(0)
     hf = GPTNeoForCausalLM(hf_cfg).eval().float()
-    local_cfg = gpt_neo_config_from_hf(hf_cfg)
-    minimal = GPTNeoCausal(local_cfg).eval().float()
-    load_hf_into_gpt_neo_causal(minimal, hf)
-    minimal = minimal.to("nntile")
-    return hf, minimal
+    local = GPTNeoCausal(gpt_neo_config_from_hf(hf_cfg)).eval().float()
+    load_hf_into_gpt_neo_causal(local, hf)
+    return hf, local.to("nntile")
 
 
 def _load_attn(local: GPTNeoAttention, hf_attn: HfAttention) -> None:
@@ -89,99 +145,179 @@ def _load_attn(local: GPTNeoAttention, hf_attn: HfAttention) -> None:
     copy_linear(local.out_proj, inner.out_proj)
 
 
-def test_gpt_neo_mlp_forward_matches_hf(tiny_hf_config):
-    torch.manual_seed(1)
-    hf_mlp = HfMLP(tiny_hf_config.intermediate_size, tiny_hf_config).eval().float()
-    local = GPTNeoMLP(gpt_neo_config_from_hf(tiny_hf_config)).eval().float()
-    copy_linear(local.c_fc, hf_mlp.c_fc)
-    copy_linear(local.c_proj, hf_mlp.c_proj)
-    local = local.to("nntile")
-    x = torch.randn(2, 8, tiny_hf_config.hidden_size)
-    with torch.no_grad():
-        ref = hf_mlp(x)
-        out = local(contiguous_to_nntile(x))
-    assert_close(out, ref, rtol=RTOL, atol=ATOL)
-
-
-def test_gpt_neo_mlp_backward_matches_hf(tiny_hf_config):
-    torch.manual_seed(2)
-    hf_mlp = HfMLP(tiny_hf_config.intermediate_size, tiny_hf_config).eval().float()
-    local = GPTNeoMLP(gpt_neo_config_from_hf(tiny_hf_config)).eval().float()
-    copy_linear(local.c_fc, hf_mlp.c_fc)
-    copy_linear(local.c_proj, hf_mlp.c_proj)
-    local = local.to("nntile")
-    x = torch.randn(2, 8, tiny_hf_config.hidden_size, requires_grad=True)
-    grad = torch.randn_like(x)
-    y_ref = hf_mlp(x)
-    y_ref.backward(grad)
-    x_nnt = contiguous_to_nntile(x.detach()).requires_grad_(True)
-    y = local(x_nnt)
-    (gx,) = torch.autograd.grad(
-        y, x_nnt, grad_outputs=contiguous_to_nntile(grad)
-    )
-    assert_close(gx, x.grad, rtol=RTOL, atol=ATOL)
-
-
-def test_gpt_neo_attention_forward_matches_hf(tiny_hf_config):
-    torch.manual_seed(3)
-    hf_attn = HfAttention(tiny_hf_config, layer_id=0).eval().float()
-    local = GPTNeoAttention(
-        gpt_neo_config_from_hf(tiny_hf_config), local=False
-    ).eval().float()
-    _load_attn(local, hf_attn)
-    local = local.to("nntile")
-    x = torch.randn(2, 8, tiny_hf_config.hidden_size)
-    with torch.no_grad():
-        ref = hf_attn(x)[0]
-        out = local(contiguous_to_nntile(x), attn_mask=None)
-    assert_close(out, ref, rtol=RTOL, atol=5e-4)
-
-
-def test_gpt_neo_block_forward_matches_hf(tiny_hf_config):
-    torch.manual_seed(4)
-    hf_block = HfBlock(tiny_hf_config, layer_id=0).eval().float()
-    local = GPTNeoBlock(gpt_neo_config_from_hf(tiny_hf_config), 0).eval().float()
+def _load_block(local: GPTNeoBlock, hf_block: HfBlock) -> None:
     local.ln_1.load_state_dict(hf_block.ln_1.state_dict())
     local.ln_2.load_state_dict(hf_block.ln_2.state_dict())
     _load_attn(local.attn, hf_block.attn)
     copy_linear(local.mlp.c_fc, hf_block.mlp.c_fc)
     copy_linear(local.mlp.c_proj, hf_block.mlp.c_proj)
-    local = local.to("nntile")
-    x = torch.randn(2, 8, tiny_hf_config.hidden_size)
+
+
+def _hf_attention_reference(
+    hf_attn: HfAttention,
+    x: torch.Tensor,
+    *,
+    mode: str,
+    mask: torch.Tensor | None,
+) -> torch.Tensor:
+    if mode != "nomask":
+        return hf_attn(x, attention_mask=mask)[0]
+
+    inner = hf_attn.attention
+    orig_bias = inner.bias
+    inner.bias = torch.ones_like(orig_bias)
+    try:
+        return hf_attn(x, attention_mask=mask)[0]
+    finally:
+        inner.bias = orig_bias
+
+
+# ---------------------------------------------------------------------------
+# MLP (was gpt_neo_mlp.cc)
+# ---------------------------------------------------------------------------
+
+
+def test_gpt_neo_mlp_forward_backward_matches_hf():
+    torch.manual_seed(1)
+    hf_cfg = _hf_cfg()
+    hf_mlp = HfMLP(hf_cfg.intermediate_size, hf_cfg).eval().float()
+    local = GPTNeoMLP(gpt_neo_config_from_hf(hf_cfg)).eval().float()
+    copy_linear(local.c_fc, hf_mlp.c_fc)
+    copy_linear(local.c_proj, hf_mlp.c_proj)
+    local_n = local.to("nntile")
+
+    x = torch.randn(2, 8, hf_cfg.hidden_size, requires_grad=True)
+    y_ref = hf_mlp(x)
+    grad = torch.randn_like(y_ref)
+    y_ref.backward(grad)
+
+    x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
+    y = local_n(x_n)
+    assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATOL)
+    (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
+    assert_close(gx, x.grad, rtol=1e-3, atol=BWD_ATOL)
+    assert_close(
+        torch.autograd.grad(
+            y,
+            local_n.c_fc.weight,
+            contiguous_to_nntile(grad),
+        )[0],
+        hf_mlp.c_fc.weight.grad,
+        rtol=1e-3,
+        atol=BWD_ATOL,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Attention matrix: nomask, global causal, local causal window
+# (was gpt_neo_attention.cc)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("mode", ["nomask", "causal", "local"])
+def test_gpt_neo_attention_forward_backward_matrix(mode):
+    torch.manual_seed(10 + ["nomask", "causal", "local"].index(mode))
+    layers = ["global", "local"] if mode == "local" else ["global", "global"]
+    layer_id = 1 if mode == "local" else 0
+    hf_cfg = _hf_cfg(attention_layers=layers, window_size=4)
+    hf_attn = HfAttention(hf_cfg, layer_id=layer_id).eval().float()
+    local_cfg = gpt_neo_config_from_hf(hf_cfg)
+    local = GPTNeoAttention(local_cfg, local=(mode == "local")).eval().float()
+    _load_attn(local, hf_attn)
+    local_n = local.to("nntile")
+
+    b, s, h = 2, 8, hf_cfg.hidden_size
+    x = torch.randn(b, s, h, requires_grad=True)
+    if mode == "nomask":
+        mask = torch.zeros(b, 1, s, s)
+    elif mode == "causal":
+        mask = additive_causal_mask(b, s)
+    else:
+        mask = additive_local_causal_mask(b, s, hf_cfg.window_size)
+
+    y_ref = _hf_attention_reference(hf_attn, x, mode=mode, mask=mask)
+    grad = torch.randn_like(y_ref)
+    y_ref.backward(grad)
+
+    x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
+    y = local_n(x_n, attn_mask=contiguous_to_nntile(mask))
+    assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
+    (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
+    assert_close(gx, x.grad, rtol=1e-3, atol=BWD_ATOL)
+
+
+# ---------------------------------------------------------------------------
+# Decoder block (was gpt_neo_decoder.cc)
+# ---------------------------------------------------------------------------
+
+
+def test_gpt_neo_block_forward_backward_matches_hf():
+    torch.manual_seed(20)
+    hf_cfg = _hf_cfg()
+    hf_block = HfBlock(hf_cfg, layer_id=0).eval().float()
+    local = GPTNeoBlock(gpt_neo_config_from_hf(hf_cfg), 0).eval().float()
+    _load_block(local, hf_block)
+    local_n = local.to("nntile")
+
+    b, s, h = 2, 8, hf_cfg.hidden_size
+    x = torch.randn(b, s, h, requires_grad=True)
+    mask = additive_causal_mask(b, s)
+    y_ref = hf_block(x, attention_mask=mask)[0]
+    grad = torch.randn_like(y_ref)
+    y_ref.backward(grad)
+
+    x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
+    y = local_n(x_n, attn_mask=contiguous_to_nntile(mask))
+    assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
+    (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
+    assert_close(gx, x.grad, rtol=1e-3, atol=BWD_ATOL)
+
+
+# ---------------------------------------------------------------------------
+# Model + Causal LM (was gpt_neo_model.cc / gpt_neo_causal.cc)
+# ---------------------------------------------------------------------------
+
+
+def test_gpt_neo_model_hidden_forward_matches_hf():
+    hf_cfg = _hf_cfg(attention_layers=["global", "global"])
+    hf, local = _make_causal(hf_cfg)
+    ids = torch.randint(0, hf_cfg.vocab_size, (2, 8))
     with torch.no_grad():
-        ref = hf_block(x)[0]
-        out = local(contiguous_to_nntile(x), attn_mask=None)
-    assert_close(out, ref, rtol=RTOL, atol=5e-4)
+        ref = hf.transformer(ids).last_hidden_state
+        out = local.transformer(contiguous_to_nntile(ids))
+    assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
 
 
-def test_gpt_neo_causal_forward_matches_hf(tiny_hf_config):
-    hf, minimal = _make_models(tiny_hf_config)
-    input_ids = torch.randint(0, tiny_hf_config.vocab_size, (2, 8))
+def test_gpt_neo_causal_forward_matches_hf():
+    hf_cfg = _hf_cfg(attention_layers=["global", "global"])
+    hf, local = _make_causal(hf_cfg)
+    ids = torch.randint(0, hf_cfg.vocab_size, (2, 8))
     with torch.no_grad():
-        ref = hf(input_ids).logits
-        out = minimal(contiguous_to_nntile(input_ids))
-    assert_close(out, ref, rtol=RTOL, atol=5e-4)
+        ref = hf(ids).logits
+        out = local(contiguous_to_nntile(ids))
+    assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
 
 
-def test_gpt_neo_causal_backward_matches_hf(tiny_hf_config):
-    hf, minimal = _make_models(tiny_hf_config)
+def test_gpt_neo_causal_backward_matches_hf():
+    hf_cfg = _hf_cfg(attention_layers=["global", "global"])
+    hf, local = _make_causal(hf_cfg)
     for p in hf.parameters():
         p.requires_grad_(True)
-    for p in minimal.parameters():
+    for p in local.parameters():
         p.requires_grad_(True)
-    input_ids = torch.randint(0, tiny_hf_config.vocab_size, (2, 8))
-    grad = torch.randn(2, 8, tiny_hf_config.vocab_size)
-    logits_ref = hf(input_ids).logits
-    logits_ref.backward(grad)
-    logits = minimal(contiguous_to_nntile(input_ids))
+
+    ids = torch.randint(0, hf_cfg.vocab_size, (2, 8))
+    grad = torch.randn(2, 8, hf_cfg.vocab_size)
+    hf(ids).logits.backward(grad)
+    logits = local(contiguous_to_nntile(ids))
     (gw,) = torch.autograd.grad(
         logits,
-        minimal.transformer.h[0].attn.q_proj.weight,
-        grad_outputs=contiguous_to_nntile(grad),
+        local.transformer.h[0].attn.q_proj.weight,
+        contiguous_to_nntile(grad),
     )
     assert_close(
         gw,
         hf.transformer.h[0].attn.attention.q_proj.weight.grad,
         rtol=1e-3,
-        atol=1e-3,
+        atol=BWD_ATOL,
     )
