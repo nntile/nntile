@@ -1,5 +1,5 @@
 # @file nntile/src/CMakeLists.txt
-# Unified sources for target nntile (generated from legacy core/graph lists)
+# Sources for libnntile_tensorgraph and optional libnntile
 
 # @copyright (c) 2022-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
@@ -546,8 +546,9 @@ set(GRAPH_RUNTIME_SRC
     "core/execution_schedule.cc"
     "runtime.cc"
     )
+set(GRAPH_BIND_PARAMETERS_SRC "")
 if(BUILD_NNTILE_NNGRAPH)
-    list(APPEND GRAPH_RUNTIME_SRC "bind_parameters.cc")
+    set(GRAPH_BIND_PARAMETERS_SRC "bind_parameters.cc")
 endif()
 
 set(GRAPH_TILE_LAYER_SRC
@@ -684,7 +685,8 @@ set(NNTILE_CORE_SRC
 
 set(NNTILE_ALL_SRC ${NNTILE_CORE_SRC} ${NNTILE_GRAPH_STACK_SRC})
 
-function(nntile_add_objs name)
+# nntile_add_objs(<obj_target> <parent_lib> sources...)
+function(nntile_add_objs name parent_lib)
     set(_sources ${ARGN})
     if(NOT _sources)
         return()
@@ -696,38 +698,51 @@ function(nntile_add_objs name)
     if(name MATCHES "nntile_objs_(optim|io|tensor|runtime)$")
         target_link_libraries(${name} PUBLIC nlohmann_json::nlohmann_json)
     endif()
-    target_link_libraries(nntile PRIVATE ${name})
+    target_link_libraries(${parent_lib} PRIVATE ${name})
 endfunction()
 
+# libnntile_tensorgraph: kernel .. tensor (+ runtime, context, logger).
 if(KERNEL_CPU_SRC)
-    nntile_add_objs(nntile_objs_kernel ${KERNEL_CPU_SRC} ${KERNEL_CUDA_SRC})
+    nntile_add_objs(nntile_objs_kernel nntile_tensorgraph
+        ${KERNEL_CPU_SRC} ${KERNEL_CUDA_SRC})
 endif()
-nntile_add_objs(nntile_objs_starpu ${STARPU_BASE_SRC} ${STARPU_CODELET_SRC})
-nntile_add_objs(nntile_objs_core ${CORE_BASE_SRC} ${CORE_OPERATION_SRC})
-nntile_add_objs(nntile_objs_graph_base dtype.cc)
-if(BUILD_NNTILE_NNGRAPH)
-    nntile_add_objs(nntile_objs_kv_cache kv_cache.cc)
+nntile_add_objs(nntile_objs_starpu nntile_tensorgraph
+    ${STARPU_BASE_SRC} ${STARPU_CODELET_SRC})
+nntile_add_objs(nntile_objs_core nntile_tensorgraph
+    ${CORE_BASE_SRC} ${CORE_OPERATION_SRC})
+nntile_add_objs(nntile_objs_graph_base nntile_tensorgraph dtype.cc)
+nntile_add_objs(nntile_objs_tile nntile_tensorgraph
+    ${GRAPH_TILE_LAYER_SRC})
+nntile_add_objs(nntile_objs_tensor nntile_tensorgraph
+    ${GRAPH_TENSOR_LAYER_SRC})
+nntile_add_objs(nntile_objs_runtime nntile_tensorgraph
+    ${GRAPH_RUNTIME_SRC})
+target_sources(nntile_tensorgraph PRIVATE ${LOGGER_SRC})
+target_sources(nntile_tensorgraph PRIVATE context.cc)
+
+# libnntile: NNGraph and higher layers (optional).
+if(NNTILE_BUILD_HIGH_LEVEL)
+    if(BUILD_NNTILE_NNGRAPH)
+        nntile_add_objs(nntile_objs_kv_cache nntile kv_cache.cc)
+        nntile_add_objs(nntile_objs_nn nntile ${GRAPH_NN_LAYER_SRC})
+        if(GRAPH_BIND_PARAMETERS_SRC)
+            nntile_add_objs(nntile_objs_bind_parameters nntile
+                ${GRAPH_BIND_PARAMETERS_SRC})
+        endif()
+    endif()
+    if(BUILD_NNTILE_MODULES)
+        nntile_add_objs(nntile_objs_module nntile ${GRAPH_MODULE_SRC})
+    endif()
+    if(BUILD_NNTILE_MODELS)
+        nntile_add_objs(nntile_objs_model nntile ${GRAPH_MODEL_SRC})
+    endif()
+    if(BUILD_NNTILE_OPTIM)
+        nntile_add_objs(nntile_objs_optim nntile ${GRAPH_OPTIM_SRC})
+    endif()
+    if(BUILD_NNTILE_IO)
+        nntile_add_objs(nntile_objs_io nntile ${GRAPH_IO_SRC})
+    endif()
+    if(BUILD_NNTILE_DATASET)
+        nntile_add_objs(nntile_objs_dataset nntile ${GRAPH_DATASET_SRC})
+    endif()
 endif()
-nntile_add_objs(nntile_objs_tile ${GRAPH_TILE_LAYER_SRC})
-nntile_add_objs(nntile_objs_tensor ${GRAPH_TENSOR_LAYER_SRC})
-if(BUILD_NNTILE_NNGRAPH)
-    nntile_add_objs(nntile_objs_nn ${GRAPH_NN_LAYER_SRC})
-endif()
-nntile_add_objs(nntile_objs_runtime ${GRAPH_RUNTIME_SRC})
-if(BUILD_NNTILE_MODULES)
-    nntile_add_objs(nntile_objs_module ${GRAPH_MODULE_SRC})
-endif()
-if(BUILD_NNTILE_MODELS)
-    nntile_add_objs(nntile_objs_model ${GRAPH_MODEL_SRC})
-endif()
-if(BUILD_NNTILE_OPTIM)
-    nntile_add_objs(nntile_objs_optim ${GRAPH_OPTIM_SRC})
-endif()
-if(BUILD_NNTILE_IO)
-    nntile_add_objs(nntile_objs_io ${GRAPH_IO_SRC})
-endif()
-if(BUILD_NNTILE_DATASET)
-    nntile_add_objs(nntile_objs_dataset ${GRAPH_DATASET_SRC})
-endif()
-target_sources(nntile PRIVATE ${LOGGER_SRC})
-target_sources(nntile PRIVATE context.cc)

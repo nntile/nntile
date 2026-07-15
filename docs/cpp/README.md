@@ -1,39 +1,46 @@
 # C++ implementation overview
 
-NNTile is split into two CMake packages:
+NNTile is split into two libraries:
 
-| Package | Libraries | Umbrella headers |
-|---------|-----------|------------------|
-| **core** | `nntile` | [`nntile/include/nntile/core.hh`](../../nntile/include/nntile/core.hh) |
-| **graph** | `nntile` (links core) | [`nntile/include/nntile/graph.hh`](../../nntile/include/nntile/graph.hh) |
-| **full** | both | [`nntile/include/nntile.hh`](../../nntile/include/nntile.hh) |
+| Library | Contents | Umbrella headers |
+|---------|----------|------------------|
+| **libnntile_tensorgraph** | kernel → starpu → core → TileGraph → TensorGraph → Runtime | [`tensor.hh`](../../nntile/include/nntile/tensor.hh), [`tile.hh`](../../nntile/include/nntile/tile.hh), [`runtime.hh`](../../nntile/include/nntile/runtime.hh) |
+| **libnntile** | NNGraph, modules, models, optim, io, dataset (links tensorgraph) | [`graph.hh`](../../nntile/include/nntile/graph.hh), [`nn.hh`](../../nntile/include/nntile/nn.hh) |
+| **full** | both | [`nntile.hh`](../../nntile/include/nntile.hh) |
 
-Core code lives under `nntile/src/` and `include/nntile/` with namespace
-`nntile::{kernel,starpu,tile,tensor,...}`. Graph code lives under
-`nntile/src/` and `include/nntile/` with namespace `nntile::graph`.
+`torch_nntile` links **only** `libnntile_tensorgraph`. The Python
+`nntile` extension and C++ examples/models link `libnntile`.
+
+High-level sources are gated by `BUILD_NNTILE_NNGRAPH` and related options
+(default OFF on `graph_api`).
 
 ```mermaid
 flowchart TB
-  subgraph graph_pkg [graph]
-    TG[TensorGraph]
+  subgraph high [libnntile]
     NN[NNGraph]
-    RT[Runtime]
+    Mod[module / model / optim]
   end
-  subgraph core_pkg [core]
-    Tensor[nntile::tensor]
-    Tile[nntile::core]
+  subgraph tg [libnntile_tensorgraph]
+    TG[TensorGraph]
+    TileG[TileGraph]
+    RT[Runtime]
+    Core[nntile::core]
     StarPU[nntile::starpu]
     Kernel[nntile::kernel]
   end
-  graph_pkg --> core_pkg
+  high --> tg
+  TG --> TileG --> RT --> Core --> StarPU --> Kernel
 ```
 
-## Core layer headers
+## Layer headers
 
-- [`include/nntile/kernel.hh`](../../include/nntile/kernel.hh)
-- [`include/nntile/starpu.hh`](../../include/nntile/starpu.hh)
-- [`include/nntile/tile.hh`](../../include/nntile/tile.hh)
-- [`include/nntile/tensor.hh`](../../include/nntile/tensor.hh)
+- [`include/nntile/kernel.hh`](../../nntile/include/nntile/kernel.hh)
+- [`include/nntile/starpu.hh`](../../nntile/include/nntile/starpu.hh)
+- [`include/nntile/core.hh`](../../nntile/include/nntile/core.hh)
+- [`include/nntile/tile.hh`](../../nntile/include/nntile/tile.hh)
+- [`include/nntile/tensor.hh`](../../nntile/include/nntile/tensor.hh)
+- [`include/nntile/runtime.hh`](../../nntile/include/nntile/runtime.hh)
+- [`include/nntile/graph.hh`](../../nntile/include/nntile/graph.hh)
 
 Sources mirror tests: `nntile/src/<level>/<op>.cc` ↔ `nntile/tests/<level>/<op>.cc`.
 
@@ -50,21 +57,21 @@ Raw numerical kernels on contiguous buffers (CPU and CUDA translation units unde
 
 StarPU codelets wrapping kernel calls.
 
-## tile
+## core
 
 **Namespace:** `nntile::core`
 
 Single-tile operations (`Tile<T>`).
 
-## tensor
+## tensor / tile / runtime
 
-**Namespace:** `nntile::tensor`
+**Namespaces:** `nntile::tensor`, `nntile::tile`, `nntile::runtime`
 
-Distributed tensors (`Tensor<T>`).
+TensorGraph, TileGraph lowering, and Runtime execution.
 
-## graph
+## nn / module / model (libnntile)
 
-**Namespace:** `nntile::graph`
+**Namespace:** `nntile::nn` (and related)
 
-Symbolic graphs, lowering, runtime, modules, and optimizers. See
-[`include/nntile/graph.hh`](../../include/nntile/graph.hh).
+NNGraph autograd, modules, and models. See
+[`include/nntile/graph.hh`](../../nntile/include/nntile/graph.hh).

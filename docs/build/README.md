@@ -228,11 +228,11 @@ Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
 
 | Script | Role |
 |--------|------|
-| `build_wheel_deps.sh` | StarPU (nntile fork, CUDA max 8 devices, no FXT), libnntile; Linux CUDA / macOS CPU split |
+| `build_wheel_deps.sh` | StarPU (nntile fork, CUDA max 8 devices, no FXT), libnntile_tensorgraph; Linux CUDA / macOS CPU split |
 | `install_linux_cuda_toolkit.sh` | manylinux: dnf CUDA 12.8 toolkit (nvcc, headers, libcuda stubs; no GPU) |
 | `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index + pip cuDNN; export `CUDA_HOME` |
 | `wheel_python.sh` | Select cp312 interpreter in manylinux `before-all` hooks |
-| `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver and math libs; `patchelf` RPATH to `nvidia-*-cu12` pip libs |
+| `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile_tensorgraph`; exclude NVIDIA driver and math libs; `patchelf` RPATH to `nvidia-*-cu12` pip libs |
 | `repair_wheel_macos.sh` | `delocate-wheel`; macOS 14+ arm64 |
 | `smoke_test_wheel.py` | cibuildwheel `test-command` |
 

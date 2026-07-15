@@ -1,10 +1,12 @@
 # NNTile Python package (`python/`)
 
-Python bindings for the **libnntile** graph API (`NNGraph`, `Runtime`, models, optimizers).
+Python bindings for the **libnntile** graph API (`NNGraph`, models, optimizers).
+`libnntile` depends on **libnntile_tensorgraph** (kernel through TensorGraph/Runtime).
 
 ## Build (required)
 
-The extension links against `libnntile` and StarPU. Build from the repository root:
+The extension links against `libnntile` (and transitively `libnntile_tensorgraph`)
+and StarPU. Build from the repository root:
 
 ```bash
 cmake -S . -B build -GNinja \
@@ -45,7 +47,8 @@ After CMake build:
 pip install build/python
 ```
 
-You still need `LD_LIBRARY_PATH` for StarPU and `libnntile.so` unless installed system-wide.
+You still need `LD_LIBRARY_PATH` for StarPU, `libnntile.so`, and
+`libnntile_tensorgraph.so` unless installed system-wide.
 
 ## Future: `pip install` via scikit-build-core
 
