@@ -131,11 +131,16 @@ class RobertaModel(nn.Module):
         self,
         input_ids: Tensor,
         position_ids: Tensor | None = None,
+        token_type_ids: Tensor | None = None,
         attn_mask: Tensor | None = None,
         *,
         is_causal: bool = False,
     ) -> Tensor:
-        x = self.embeddings(input_ids, position_ids)
+        x = self.embeddings(
+            input_ids,
+            position_ids=position_ids,
+            token_type_ids=token_type_ids,
+        )
         return self.encoder(x, attn_mask, is_causal=is_causal)
 
 
@@ -171,6 +176,7 @@ class RobertaMlm(nn.Module):
         self,
         input_ids: Tensor,
         position_ids: Tensor | None = None,
+        token_type_ids: Tensor | None = None,
         attn_mask: Tensor | None = None,
         *,
         is_causal: bool = False,
@@ -178,6 +184,7 @@ class RobertaMlm(nn.Module):
         hidden = self.roberta(
             input_ids,
             position_ids=position_ids,
+            token_type_ids=token_type_ids,
             attn_mask=attn_mask,
             is_causal=is_causal,
         )

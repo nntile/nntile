@@ -20,6 +20,7 @@ from transformers.models.roberta.modeling_roberta import (
     RobertaEmbeddings as HfEmbeddings,
     RobertaIntermediate as HfIntermediate,
     RobertaLayer as HfLayer,
+    RobertaSelfAttention as HfSelfAttention,
 )
 
 from torch_nntile import _C
@@ -27,13 +28,16 @@ from torch_nntile.models.bert import (
     BertAttention,
     BertIntermediate,
     BertLayer,
+    BertSelfAttention,
 )
 from torch_nntile.models.roberta import (
     RobertaConfig,
     RobertaEmbeddings,
     RobertaMlm,
+    RobertaMlmHead,
 )
 from torch_nntile.models.roberta_hf_loader import (
+    export_roberta_mlm_to_hf_state_dict,
     load_hf_into_roberta_mlm,
     roberta_config_from_hf,
 )
@@ -94,10 +98,16 @@ def _load_embeddings(local: RobertaEmbeddings, hf_emb: HfEmbeddings) -> None:
     local.LayerNorm.load_state_dict(hf_emb.LayerNorm.state_dict())
 
 
+def _load_self_attention(
+    local: BertSelfAttention, hf_self: HfSelfAttention
+) -> None:
+    copy_linear(local.query, hf_self.query)
+    copy_linear(local.key, hf_self.key)
+    copy_linear(local.value, hf_self.value)
+
+
 def _load_attention(local: BertAttention, hf_attn: HfAttention) -> None:
-    copy_linear(local.self.query, hf_attn.self.query)
-    copy_linear(local.self.key, hf_attn.self.key)
-    copy_linear(local.self.value, hf_attn.self.value)
+    _load_self_attention(local.self, hf_attn.self)
     copy_linear(local.output.dense, hf_attn.output.dense)
     local.output.LayerNorm.load_state_dict(hf_attn.output.LayerNorm.state_dict())
 
@@ -119,6 +129,32 @@ def _make_models(
     return hf, local.to("nntile")
 
 
+def _assert_forward_backward(
+    *,
+    x: torch.Tensor,
+    ref_forward,
+    local_forward,
+    ref_weight: torch.Tensor,
+    local_weight: torch.Tensor,
+    atol: float = ATOL,
+) -> None:
+    x_ref = x.detach().clone().requires_grad_(True)
+    y_ref = ref_forward(x_ref)
+    grad = torch.randn_like(y_ref)
+    y_ref.backward(grad)
+
+    x_nnt = contiguous_to_nntile(x.detach()).requires_grad_(True)
+    y = local_forward(x_nnt)
+    assert_close(y, y_ref.detach(), rtol=RTOL, atol=atol)
+    gx, gw = torch.autograd.grad(
+        y,
+        (x_nnt, local_weight),
+        grad_outputs=contiguous_to_nntile(grad),
+    )
+    assert_close(gx, x_ref.grad, rtol=1e-3, atol=BWD_ATOL)
+    assert_close(gw, ref_weight.grad, rtol=1e-3, atol=BWD_ATOL)
+
+
 def test_roberta_config_validate_to_bert_config(tiny_hf_config):
     cfg = roberta_config_from_hf(tiny_hf_config)
     assert cfg.head_dim == 16
@@ -136,6 +172,26 @@ def test_roberta_config_validate_to_bert_config(tiny_hf_config):
 
     with pytest.raises(ValueError):
         RobertaConfig(hidden_size=65, num_attention_heads=4).validate()
+
+
+@pytest.mark.parametrize("hidden_act", ["gelu", "gelu_new", "relu"])
+def test_roberta_intermediate_activation_variants(hidden_act, tiny_hf_config):
+    tiny_hf_config.hidden_act = hidden_act
+    torch.manual_seed(2)
+    hf_inter = HfIntermediate(tiny_hf_config).eval().float()
+    local = BertIntermediate(
+        roberta_config_from_hf(tiny_hf_config).to_bert_config()
+    ).eval().float()
+    copy_linear(local.dense, hf_inter.dense)
+    local = local.to("nntile")
+    x = torch.randn(2, 8, tiny_hf_config.hidden_size)
+    with torch.no_grad():
+        assert_close(
+            local(contiguous_to_nntile(x)),
+            hf_inter(x),
+            rtol=RTOL,
+            atol=ATOL,
+        )
 
 
 def test_roberta_embeddings_forward_with_pads_matches_hf(tiny_hf_config):
@@ -162,57 +218,167 @@ def test_roberta_embeddings_forward_with_pads_matches_hf(tiny_hf_config):
     assert_close(out, ref, rtol=RTOL, atol=ATOL)
 
 
-def test_roberta_intermediate_forward_matches_hf(tiny_hf_config):
+def test_roberta_intermediate_forward_backward_matches_hf(tiny_hf_config):
     torch.manual_seed(2)
     hf_inter = HfIntermediate(tiny_hf_config).eval().float()
-    local_cfg = roberta_config_from_hf(tiny_hf_config).to_bert_config()
-    local = BertIntermediate(local_cfg).eval().float()
+    local = BertIntermediate(
+        roberta_config_from_hf(tiny_hf_config).to_bert_config()
+    ).eval().float()
     copy_linear(local.dense, hf_inter.dense)
     local = local.to("nntile")
 
     x = torch.randn(2, 8, tiny_hf_config.hidden_size)
-    with torch.no_grad():
-        ref = hf_inter(x)
-        out = local(contiguous_to_nntile(x))
-    assert_close(out, ref, rtol=RTOL, atol=ATOL)
+    _assert_forward_backward(
+        x=x,
+        ref_forward=hf_inter,
+        local_forward=local,
+        ref_weight=hf_inter.dense.weight,
+        local_weight=local.dense.weight,
+    )
 
 
-def test_roberta_attention_forward_matches_hf(tiny_hf_config):
+def test_roberta_self_attention_forward_backward_matches_hf(tiny_hf_config):
     torch.manual_seed(3)
+    hf_self = HfSelfAttention(tiny_hf_config).eval().float()
+    local = BertSelfAttention(
+        roberta_config_from_hf(tiny_hf_config).to_bert_config()
+    ).eval().float()
+    _load_self_attention(local, hf_self)
+    local = local.to("nntile")
+
+    x = torch.randn(2, 8, tiny_hf_config.hidden_size)
+
+    def _hf_self(t):
+        return hf_self(t)[0]
+
+    _assert_forward_backward(
+        x=x,
+        ref_forward=_hf_self,
+        local_forward=local,
+        ref_weight=hf_self.query.weight,
+        local_weight=local.query.weight,
+        atol=ATTN_ATOL,
+    )
+
+
+def test_roberta_attention_forward_backward_matches_hf(tiny_hf_config):
+    torch.manual_seed(4)
     hf_attn = HfAttention(tiny_hf_config).eval().float()
-    local_cfg = roberta_config_from_hf(tiny_hf_config).to_bert_config()
-    local = BertAttention(local_cfg).eval().float()
+    local = BertAttention(
+        roberta_config_from_hf(tiny_hf_config).to_bert_config()
+    ).eval().float()
     _load_attention(local, hf_attn)
     local = local.to("nntile")
 
     x = torch.randn(2, 8, tiny_hf_config.hidden_size)
-    with torch.no_grad():
-        ref = hf_attn(x)[0]
-        out = local(contiguous_to_nntile(x))
-    assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
+    _assert_forward_backward(
+        x=x,
+        ref_forward=lambda t: hf_attn(t)[0],
+        local_forward=local,
+        ref_weight=hf_attn.self.query.weight,
+        local_weight=local.self.query.weight,
+        atol=ATTN_ATOL,
+    )
 
 
-def test_roberta_layer_forward_matches_hf(tiny_hf_config):
-    torch.manual_seed(4)
+def test_roberta_layer_forward_backward_matches_hf(tiny_hf_config):
+    torch.manual_seed(5)
     hf_layer = HfLayer(tiny_hf_config).eval().float()
-    local_cfg = roberta_config_from_hf(tiny_hf_config).to_bert_config()
-    local = BertLayer(local_cfg).eval().float()
+    local = BertLayer(
+        roberta_config_from_hf(tiny_hf_config).to_bert_config()
+    ).eval().float()
     _load_layer(local, hf_layer)
     local = local.to("nntile")
 
     x = torch.randn(2, 8, tiny_hf_config.hidden_size)
-    with torch.no_grad():
-        ref = hf_layer(x)[0]
-        out = local(contiguous_to_nntile(x))
-    assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
+    _assert_forward_backward(
+        x=x,
+        ref_forward=lambda t: hf_layer(t)[0],
+        local_forward=local,
+        ref_weight=hf_layer.attention.self.query.weight,
+        local_weight=local.attention.self.query.weight,
+        atol=ATTN_ATOL,
+    )
 
 
-def test_roberta_model_hidden_forward_matches_hf(tiny_hf_config):
+def test_roberta_model_hidden_forward_backward_matches_hf(tiny_hf_config):
     hf, local = _make_models(tiny_hf_config)
     input_ids = _roberta_input_ids(tiny_hf_config)
+    token_type_ids = _roberta_token_type_ids(tiny_hf_config)
     with torch.no_grad():
-        ref = hf.roberta(input_ids=input_ids).last_hidden_state
-        out = local.roberta(contiguous_to_nntile(input_ids))
+        ref = hf.roberta(
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+        ).last_hidden_state
+        out = local.roberta(
+            contiguous_to_nntile(input_ids),
+            token_type_ids=contiguous_to_nntile(token_type_ids),
+        )
+    assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
+
+    for p in hf.parameters():
+        p.requires_grad_(True)
+    for p in local.parameters():
+        p.requires_grad_(True)
+    grad = torch.randn_like(ref)
+    y_ref = hf.roberta(
+        input_ids=input_ids, token_type_ids=token_type_ids
+    ).last_hidden_state
+    y_ref.backward(grad)
+    y = local.roberta(
+        contiguous_to_nntile(input_ids),
+        token_type_ids=contiguous_to_nntile(token_type_ids),
+    )
+    (gw,) = torch.autograd.grad(
+        y,
+        local.roberta.encoder.layer[0].attention.self.query.weight,
+        contiguous_to_nntile(grad),
+    )
+    assert_close(
+        gw,
+        hf.roberta.encoder.layer[0].attention.self.query.weight.grad,
+        rtol=1e-3,
+        atol=BWD_ATOL,
+    )
+
+
+def test_roberta_mlm_head_forward_backward_matches_hf(tiny_hf_config):
+    torch.manual_seed(6)
+    hf, _ = _make_models(tiny_hf_config)
+    cfg = roberta_config_from_hf(tiny_hf_config)
+    head = RobertaMlmHead(cfg).eval().float()
+    hf_head = hf.lm_head
+    head.dense.weight.data.copy_(hf_head.dense.weight.data)
+    head.dense.bias.data.copy_(hf_head.dense.bias.data)
+    head.layer_norm.load_state_dict(hf_head.layer_norm.state_dict())
+    head.decoder.weight.data.copy_(hf_head.decoder.weight.data)
+    if hf_head.bias is not None:
+        head.decoder.bias.data.copy_(hf_head.bias.data)
+    elif hf_head.decoder.bias is not None:
+        head.decoder.bias.data.copy_(hf_head.decoder.bias.data)
+    head = head.to("nntile")
+
+    x = torch.randn(2, 8, tiny_hf_config.hidden_size, requires_grad=True)
+    y_ref = hf_head(x)
+    grad = torch.randn_like(y_ref)
+    y_ref.backward(grad)
+    x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
+    y = head(x_n)
+    assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
+    (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
+    assert_close(gx, x.grad, rtol=1e-3, atol=BWD_ATOL)
+
+
+def test_roberta_mlm_loader_forward_matches_hf(tiny_hf_config):
+    hf, local = _make_models(tiny_hf_config)
+    input_ids = _roberta_input_ids(tiny_hf_config)
+    token_type_ids = _roberta_token_type_ids(tiny_hf_config)
+    with torch.no_grad():
+        ref = hf(input_ids=input_ids, token_type_ids=token_type_ids).logits
+        out = local(
+            contiguous_to_nntile(input_ids),
+            token_type_ids=contiguous_to_nntile(token_type_ids),
+        )
     assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
 
 
@@ -221,11 +387,17 @@ def test_roberta_mlm_logits_forward_backward_query_weight_matches_hf(
 ):
     hf, local = _make_models(tiny_hf_config)
     input_ids = _roberta_input_ids(tiny_hf_config)
+    token_type_ids = _roberta_token_type_ids(tiny_hf_config)
     grad = torch.randn(2, 8, tiny_hf_config.vocab_size)
 
-    logits_ref = hf(input_ids=input_ids).logits
+    logits_ref = hf(
+        input_ids=input_ids, token_type_ids=token_type_ids
+    ).logits
     logits_ref.backward(grad)
-    logits = local(contiguous_to_nntile(input_ids))
+    logits = local(
+        contiguous_to_nntile(input_ids),
+        token_type_ids=contiguous_to_nntile(token_type_ids),
+    )
     assert_close(logits, logits_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
 
     (gw,) = torch.autograd.grad(
@@ -239,3 +411,34 @@ def test_roberta_mlm_logits_forward_backward_query_weight_matches_hf(
         rtol=1e-3,
         atol=BWD_ATOL,
     )
+
+
+def test_roberta_export_roundtrip_state_dict_matches_hf_keys(tiny_hf_config):
+    torch.manual_seed(7)
+    hf = RobertaForMaskedLM(tiny_hf_config).eval().float()
+    local = RobertaMlm(roberta_config_from_hf(tiny_hf_config)).eval().float()
+    load_hf_into_roberta_mlm(local, hf)
+    exported = export_roberta_mlm_to_hf_state_dict(
+        local, config=tiny_hf_config
+    )
+    for key in (
+        "roberta.embeddings.word_embeddings.weight",
+        "roberta.encoder.layer.0.attention.self.query.weight",
+        "lm_head.dense.weight",
+    ):
+        assert key in exported
+        torch.testing.assert_close(
+            exported[key], hf.state_dict()[key], rtol=0, atol=0
+        )
+
+
+def test_roberta_vs_bert_default_special_tokens_differ():
+    """RoBERTa pad/bos/eos differ from Bert — configs must not be mixed."""
+    from transformers import BertConfig
+
+    r = HfRobertaConfig()
+    b = BertConfig()
+    assert r.pad_token_id == 1
+    assert b.pad_token_id == 0
+    assert r.bos_token_id == 0
+    assert r.eos_token_id == 2

@@ -20,6 +20,7 @@ from transformers.models.bert.modeling_bert import (
     BertEmbeddings as HfEmbeddings,
     BertIntermediate as HfIntermediate,
     BertLayer as HfLayer,
+    BertSelfAttention as HfSelfAttention,
 )
 
 from torch_nntile import _C
@@ -30,9 +31,12 @@ from torch_nntile.models.bert import (
     BertIntermediate,
     BertLayer,
     BertMlm,
+    BertMlmHead,
+    BertSelfAttention,
 )
 from torch_nntile.models.bert_hf_loader import (
     bert_config_from_hf,
+    export_bert_mlm_to_hf_state_dict,
     load_hf_into_bert_mlm,
 )
 from parity_helpers import assert_close, contiguous_to_nntile, copy_linear
@@ -90,10 +94,16 @@ def _load_embeddings(local: BertEmbeddings, hf_emb: HfEmbeddings) -> None:
     local.LayerNorm.load_state_dict(hf_emb.LayerNorm.state_dict())
 
 
+def _load_self_attention(
+    local: BertSelfAttention, hf_self: HfSelfAttention
+) -> None:
+    copy_linear(local.query, hf_self.query)
+    copy_linear(local.key, hf_self.key)
+    copy_linear(local.value, hf_self.value)
+
+
 def _load_attention(local: BertAttention, hf_attn: HfAttention) -> None:
-    copy_linear(local.self.query, hf_attn.self.query)
-    copy_linear(local.self.key, hf_attn.self.key)
-    copy_linear(local.self.value, hf_attn.self.value)
+    _load_self_attention(local.self, hf_attn.self)
     copy_linear(local.output.dense, hf_attn.output.dense)
     local.output.LayerNorm.load_state_dict(hf_attn.output.LayerNorm.state_dict())
 
@@ -151,6 +161,26 @@ def test_bert_config_validate_head_dim_hidden_act(tiny_hf_config):
         BertIntermediate(BertConfig(hidden_act="unsupported"))
 
 
+@pytest.mark.parametrize("hidden_act", ["gelu", "gelu_new", "relu"])
+def test_bert_intermediate_activation_variants(hidden_act, tiny_hf_config):
+    tiny_hf_config.hidden_act = hidden_act
+    torch.manual_seed(2)
+    hf_inter = HfIntermediate(tiny_hf_config).eval().float()
+    local = BertIntermediate(
+        bert_config_from_hf(tiny_hf_config)
+    ).eval().float()
+    copy_linear(local.dense, hf_inter.dense)
+    local = local.to("nntile")
+    x = torch.randn(2, 8, tiny_hf_config.hidden_size)
+    with torch.no_grad():
+        assert_close(
+            local(contiguous_to_nntile(x)),
+            hf_inter(x),
+            rtol=RTOL,
+            atol=ATOL,
+        )
+
+
 def test_bert_embeddings_forward_matches_hf(tiny_hf_config):
     torch.manual_seed(1)
     hf_emb = HfEmbeddings(tiny_hf_config).eval().float()
@@ -188,8 +218,33 @@ def test_bert_intermediate_forward_backward_matches_hf(tiny_hf_config):
     )
 
 
-def test_bert_attention_forward_backward_matches_hf(tiny_hf_config):
+def test_bert_self_attention_forward_backward_matches_hf(tiny_hf_config):
     torch.manual_seed(3)
+    hf_self = HfSelfAttention(tiny_hf_config).eval().float()
+    local = BertSelfAttention(
+        bert_config_from_hf(tiny_hf_config)
+    ).eval().float()
+    _load_self_attention(local, hf_self)
+    local = local.to("nntile")
+
+    x = torch.randn(2, 8, tiny_hf_config.hidden_size)
+
+    def _hf_self(t):
+        # HF SelfAttention returns (context, probs).
+        return hf_self(t)[0]
+
+    _assert_forward_backward(
+        x=x,
+        ref_forward=_hf_self,
+        local_forward=local,
+        ref_weight=hf_self.query.weight,
+        local_weight=local.query.weight,
+        atol=ATTN_ATOL,
+    )
+
+
+def test_bert_attention_forward_backward_matches_hf(tiny_hf_config):
+    torch.manual_seed(4)
     hf_attn = HfAttention(tiny_hf_config).eval().float()
     local = BertAttention(bert_config_from_hf(tiny_hf_config)).eval().float()
     _load_attention(local, hf_attn)
@@ -224,7 +279,7 @@ def test_bert_layer_forward_backward_matches_hf(tiny_hf_config):
     )
 
 
-def test_bert_model_hidden_forward_matches_hf(tiny_hf_config):
+def test_bert_model_hidden_forward_backward_matches_hf(tiny_hf_config):
     hf, local = _make_models(tiny_hf_config)
     input_ids = _bert_input_ids(tiny_hf_config)
     token_type_ids = _bert_token_type_ids(tiny_hf_config)
@@ -238,6 +293,60 @@ def test_bert_model_hidden_forward_matches_hf(tiny_hf_config):
             token_type_ids=contiguous_to_nntile(token_type_ids),
         )
     assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
+
+    for p in hf.parameters():
+        p.requires_grad_(True)
+    for p in local.parameters():
+        p.requires_grad_(True)
+    grad = torch.randn_like(ref)
+    y_ref = hf.bert(
+        input_ids=input_ids, token_type_ids=token_type_ids
+    ).last_hidden_state
+    y_ref.backward(grad)
+    y = local.bert(
+        contiguous_to_nntile(input_ids),
+        token_type_ids=contiguous_to_nntile(token_type_ids),
+    )
+    (gw,) = torch.autograd.grad(
+        y,
+        local.bert.encoder.layer[0].attention.self.query.weight,
+        contiguous_to_nntile(grad),
+    )
+    assert_close(
+        gw,
+        hf.bert.encoder.layer[0].attention.self.query.weight.grad,
+        rtol=1e-3,
+        atol=BWD_ATOL,
+    )
+
+
+def test_bert_mlm_head_forward_backward_matches_hf(tiny_hf_config):
+    torch.manual_seed(6)
+    hf, local_full = _make_models(tiny_hf_config)
+    # Rebuild head-only local module with tied embeddings from HF.
+    cfg = bert_config_from_hf(tiny_hf_config)
+    emb = BertEmbeddings(cfg).eval().float()
+    emb.word_embeddings.weight.data.copy_(
+        hf.bert.embeddings.word_embeddings.weight.data
+    )
+    head = BertMlmHead(cfg, emb.word_embeddings).eval().float()
+    pred = hf.cls.predictions
+    head.dense.weight.data.copy_(pred.transform.dense.weight.data)
+    head.dense.bias.data.copy_(pred.transform.dense.bias.data)
+    head.LayerNorm.load_state_dict(pred.transform.LayerNorm.state_dict())
+    if pred.decoder.bias is not None:
+        head.decoder.bias.data.copy_(pred.decoder.bias.data)
+    head = head.to("nntile")
+
+    x = torch.randn(2, 8, tiny_hf_config.hidden_size, requires_grad=True)
+    y_ref = pred(x)
+    grad = torch.randn_like(y_ref)
+    y_ref.backward(grad)
+    x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
+    y = head(x_n)
+    assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
+    (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
+    assert_close(gx, x.grad, rtol=1e-3, atol=BWD_ATOL)
 
 
 def test_bert_mlm_loader_forward_matches_hf(tiny_hf_config):
@@ -280,3 +389,21 @@ def test_bert_mlm_logits_forward_backward_query_weight_matches_hf(
         rtol=1e-3,
         atol=BWD_ATOL,
     )
+
+
+def test_bert_export_roundtrip_state_dict_matches_hf_keys(tiny_hf_config):
+    torch.manual_seed(7)
+    hf = BertForMaskedLM(tiny_hf_config).eval().float()
+    local = BertMlm(bert_config_from_hf(tiny_hf_config)).eval().float()
+    load_hf_into_bert_mlm(local, hf)
+    exported = export_bert_mlm_to_hf_state_dict(local, config=tiny_hf_config)
+    # Spot-check overlapping trainable keys.
+    for key in (
+        "bert.embeddings.word_embeddings.weight",
+        "bert.encoder.layer.0.attention.self.query.weight",
+        "cls.predictions.transform.dense.weight",
+    ):
+        assert key in exported
+        torch.testing.assert_close(
+            exported[key], hf.state_dict()[key], rtol=0, atol=0
+        )
