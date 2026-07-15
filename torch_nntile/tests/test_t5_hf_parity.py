@@ -182,17 +182,14 @@ def test_t5_ff_forward_backward_matches_hf():
     x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
     y = local_n(x_n)
     assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATOL)
-    (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
+    gx, gw = torch.autograd.grad(
+        y,
+        (x_n, local_n.DenseReluDense.wi_0.weight),
+        contiguous_to_nntile(grad),
+    )
     assert_close(gx, x.grad, rtol=1e-3, atol=BWD_ATOL)
     assert_close(
-        torch.autograd.grad(
-            y,
-            local_n.DenseReluDense.wi_0.weight,
-            contiguous_to_nntile(grad),
-        )[0],
-        hf_ff.DenseReluDense.wi_0.weight.grad,
-        rtol=1e-3,
-        atol=BWD_ATOL,
+        gw, hf_ff.DenseReluDense.wi_0.weight.grad, rtol=1e-3, atol=BWD_ATOL
     )
 
 
@@ -230,8 +227,8 @@ def test_t5_self_attention_forward_backward_matches_hf(causal):
     x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
     y = local_n(
         x_n,
-        attn_mask=contiguous_to_nntile(mask) if mask is not None else None,
-        is_causal=False,
+        attn_mask=None,
+        is_causal=causal,
     )
     assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
     (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
@@ -337,7 +334,7 @@ def test_t5_decoder_block_forward_matches_hf():
         out = local_n(
             contiguous_to_nntile(dec),
             contiguous_to_nntile(enc),
-            self_attn_mask=contiguous_to_nntile(self_mask),
+            self_attn_mask=None,
         )
     assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
 

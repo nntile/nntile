@@ -81,7 +81,13 @@ class GPTNeoAttention(nn.Module):
         b, s, _ = x.shape
         return x.view(b, s, self.n_heads, self.head_dim).transpose(1, 2)
 
-    def forward(self, x: Tensor, attn_mask: Tensor | None = None) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        attn_mask: Tensor | None = None,
+        *,
+        is_causal: bool | None = None,
+    ) -> Tensor:
         b, s, _ = x.shape
         q = self._shape(self.q_proj(x))
         k = self._shape(self.k_proj(x))
@@ -95,14 +101,15 @@ class GPTNeoAttention(nn.Module):
             ).to(q.device)
         else:
             q = q * scale
-        is_causal = attn_mask is None
+        if is_causal is None:
+            is_causal = attn_mask is None
         out = F.scaled_dot_product_attention(
             q,
             k,
             v,
             attn_mask=attn_mask,
             dropout_p=0.0,
-            is_causal=is_causal,
+            is_causal=bool(is_causal) and attn_mask is None,
         )
         out = out.transpose(1, 2).contiguous().view(b, s, self.hidden)
         return self.out_proj(out)
@@ -128,10 +135,16 @@ class GPTNeoBlock(nn.Module):
         self.ln_2 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.mlp = GPTNeoMLP(config)
 
-    def forward(self, x: Tensor, attn_mask: Tensor | None = None) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        attn_mask: Tensor | None = None,
+        *,
+        is_causal: bool | None = None,
+    ) -> Tensor:
         residual = x
         x = self.ln_1(x)
-        x = self.attn(x, attn_mask)
+        x = self.attn(x, attn_mask, is_causal=is_causal)
         x = residual + x
         residual = x
         x = self.ln_2(x)

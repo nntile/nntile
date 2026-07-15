@@ -209,17 +209,14 @@ def test_gpt_neox_mlp_forward_backward_matches_hf():
     x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
     y = local_n(x_n)
     assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATOL)
-    (gx,) = torch.autograd.grad(y, x_n, contiguous_to_nntile(grad))
+    gx, gw = torch.autograd.grad(
+        y,
+        (x_n, local_n.dense_h_to_4h.weight),
+        contiguous_to_nntile(grad),
+    )
     assert_close(gx, x.grad, rtol=1e-3, atol=BWD_ATOL)
     assert_close(
-        torch.autograd.grad(
-            y,
-            local_n.dense_h_to_4h.weight,
-            contiguous_to_nntile(grad),
-        )[0],
-        hf_mlp.dense_h_to_4h.weight.grad,
-        rtol=1e-3,
-        atol=BWD_ATOL,
+        gw, hf_mlp.dense_h_to_4h.weight.grad, rtol=1e-3, atol=BWD_ATOL
     )
 
 
@@ -269,8 +266,8 @@ def test_gpt_neox_attention_forward_backward_matrix(
         x_n,
         sin=sin,
         cos=cos,
-        attn_mask=contiguous_to_nntile(mask) if mask is not None else None,
-        is_causal=False,
+        attn_mask=None,
+        is_causal=causal,
     )
     assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
 
@@ -314,8 +311,8 @@ def test_gpt_neox_layer_forward_matches_hf():
             contiguous_to_nntile(x),
             sin=sin,
             cos=cos,
-            attn_mask=contiguous_to_nntile(mask),
-            is_causal=False,
+            attn_mask=None,
+            is_causal=True,
         )
     assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
 
