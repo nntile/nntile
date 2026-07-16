@@ -255,6 +255,8 @@ duplicate math libraries if the toolkit is thinned.
 - [x] One `pip install` of torch+cu128 per manylinux job (`ensure_torch_cuda.sh` skips redo)
 - [x] `pip cache purge` / `--no-cache-dir` around large installs
 - [x] `assert_pip_cuda_libs.sh` after libnntile build (`NNTILE_ASSERT_PIP_CUDA`)
+- [x] StarPU `--with-cublas-{include,lib}-dir` pointed at pip nvidia-cublas
+  (thin toolkit has no `cublas.h`; unversioned `.so` stubs under prefix)
 - [ ] `ldd` under smoke test resolves nvidia libs under `site-packages/nvidia`
 - [ ] Wheel smoke (`tools/smoke_test_wheel.py`) still passes on GHA
 - [ ] StarPU CUDA init works with stub at link and driver at run

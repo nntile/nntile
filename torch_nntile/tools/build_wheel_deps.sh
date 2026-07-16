@@ -133,11 +133,42 @@ build_starpu() {
     )
 
     if [ "${use_cuda}" = "1" ]; then
+        # Thin toolkit has nvcc + cudart + libcuda stub only. CUBLAS headers
+        # / libs come from pip nvidia-cublas (setup_torch_cuda_env.sh).
         configure_args+=(
             --enable-maxcudadev=8
             --without-fxt
             --with-cuda-dir="${CUDA_HOME}"
         )
+        if [ -n "${NVIDIA_CUBLAS_INCLUDE_PATH:-}" ] \
+            && [ -n "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
+            # Pip ships only libcublas.so.12; autoconf -lcublas needs an
+            # unversioned .so name. Symlink into a stable dir under prefix.
+            cublas_link_dir="${starpu_prefix}/lib/nntile-cublas-link"
+            mkdir -p "${cublas_link_dir}"
+            for base in cublas cublasLt; do
+                so="$(
+                    ls -1 "${NVIDIA_CUBLAS_LIBRARY_PATH}/lib${base}.so."* \
+                        2>/dev/null | head -1 || true
+                )"
+                if [ -z "${so}" ]; then
+                    echo "missing lib${base}.so.* under " \
+                        "${NVIDIA_CUBLAS_LIBRARY_PATH}" >&2
+                    exit 1
+                fi
+                ln -sfn "${so}" "${cublas_link_dir}/lib${base}.so"
+            done
+            configure_args+=(
+                --with-cublas-include-dir="${NVIDIA_CUBLAS_INCLUDE_PATH}"
+                --with-cublas-lib-dir="${cublas_link_dir}"
+            )
+            export LD_LIBRARY_PATH="${NVIDIA_CUBLAS_LIBRARY_PATH}:${LD_LIBRARY_PATH:-}"
+        elif [ ! -f "${CUDA_HOME}/include/cublas.h" ]; then
+            echo "StarPU CUDA build needs CUBLAS: set NVIDIA_CUBLAS_* " \
+                "from setup_torch_cuda_env.sh, or install cublas into " \
+                "${CUDA_HOME}" >&2
+            exit 1
+        fi
     else
         configure_args+=(
             --disable-cuda
