@@ -19,7 +19,7 @@ project(NNTile VERSION 1.1.0 LANGUAGES CXX C)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
-option(BUILD_NNTILE "Build libnntile (TensorGraph stack)" ON)
+option(BUILD_NNTILE "Build the core C++ libnntile library" ON)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
@@ -31,14 +31,19 @@ option(BUILD_TESTS
     "Build and run tests (links nntile; works with BUILD_NNTILE=OFF + prefix)"
     ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
+# LibTorch is optional and unavailable in some core-library configure
+# environments, so the LibTorch bridge and installable user-facing wheel
+# default OFF. End users should build the torch_nntile wheel with
+# BUILD_TORCH_NNTILE=ON + BUILD_TORCH_NNTILE_WHEEL=ON, cibuildwheel, or
+# torch_nntile/tools/build_wheel_deps.sh.
 option(BUILD_TORCH_NNTILE
-    "Build libtorch_nntile (requires LibTorch; off = libnntile-only)" OFF)
+    "Build LibTorch bridge libtorch_nntile (requires LibTorch)" OFF)
 option(BUILD_TORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
 option(BUILD_TORCH_NNTILE_TESTS
     "Build libtorch_nntile C++ tests (needs LibTorch + libtorch_nntile)"
     OFF)
 option(BUILD_TORCH_NNTILE_WHEEL
-    "Build torch_nntile Python wheel (in-tree libs or -DNNTILE_PREFIX)" OFF)
+    "Build installable torch_nntile pip wheel (user-facing product)" OFF)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 
 # In-tree wheel needs libtorch_nntile. Against an install prefix, keep
@@ -53,7 +58,7 @@ if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
     endif()
     if(NOT _wheel_has_prefix)
         set(BUILD_TORCH_NNTILE ON CACHE BOOL
-            "Build libtorch_nntile (requires LibTorch; off = libnntile-only)"
+            "Build LibTorch bridge libtorch_nntile (requires LibTorch)"
             FORCE)
         message(STATUS
             "BUILD_TORCH_NNTILE_WHEEL=ON -> enabling BUILD_TORCH_NNTILE")

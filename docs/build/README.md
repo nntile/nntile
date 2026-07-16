@@ -1,5 +1,24 @@
 # Building and testing NNTile
 
+**End users:** install the **torch_nntile** pip wheel (see
+[torch_nntile/README.md](../../torch_nntile/README.md)). That is the Python
+product; bare CMake is for C++ library developers.
+
+`BUILD_TORCH_NNTILE` and `BUILD_TORCH_NNTILE_WHEEL` default **OFF** so a plain
+`cmake` configure works without LibTorch (core **libnntile** CI and
+Torch-less machines). Turn them on to build the wheel:
+
+```bash
+cmake -S . -B build -GNinja \
+  -DBUILD_TORCH_NNTILE=ON -DBUILD_TORCH_NNTILE_WHEEL=ON \
+  -DCMAKE_PREFIX_PATH="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+cmake --build build --target torch_nntile_wheel
+# → build/wheelhouse/torch_nntile-*.whl
+```
+
+Release builds use cibuildwheel or
+[`torch_nntile/tools/build_wheel_deps.sh`](../../torch_nntile/tools/build_wheel_deps.sh).
+
 ## Prerequisites
 
 | Component | Requirement |
@@ -85,7 +104,6 @@ cmake -S . -B build -GNinja \
   -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90"
 
 cmake --build build -j$(nproc)
-# Install torch_nntile against the build tree (requires PyTorch + NNTILE_BUILD_DIR)
 ```
 
 CPU-only development:
@@ -102,7 +120,7 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | Option | Default | Effect |
 |--------|---------|--------|
 | `BUILD_SHARED_LIBS` | ON | Shared vs static **libnntile** |
-| `BUILD_NNTILE` | ON | Build **libnntile** (TensorGraph stack) |
+| `BUILD_NNTILE` | ON | Build the core C++ **libnntile** library |
 | `USE_CUDA` | ON | CUDA, cuBLAS, cuDNN; OFF for CPU-only |
 | `USE_CUDA_FP16` | ON | FP16 kernels (`NNTILE_USE_CUDA_FP16`) |
 | `USE_CUDA_TF32` | ON | TF32 fast paths |
@@ -111,10 +129,10 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `USE_CBLAS` | ON | CPU BLAS kernels |
 | `BUILD_TESTS` | ON | CTest suite; with `BUILD_NNTILE=OFF` links installed libnntile |
 | `BUILD_DOCS` | OFF | Doxygen documentation |
-| `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile** (requires LibTorch) |
+| `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile**, the LibTorch bridge (requires LibTorch) |
 | `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
 | `BUILD_TORCH_NNTILE_TESTS` | OFF | C++ libtorch_nntile tests (`torch_nntile/tests`; auto-ON with `BUILD_TORCH_NNTILE`+`BUILD_TESTS`) |
-| `BUILD_TORCH_NNTILE_WHEEL` | OFF | Build **torch_nntile** wheel (`torch_nntile_wheel`; use `-DNNTILE_PREFIX` to skip rebuilding libs) |
+| `BUILD_TORCH_NNTILE_WHEEL` | OFF | Build the installable **torch_nntile** pip wheel (`torch_nntile_wheel`; user-facing product; use `-DNNTILE_PREFIX` to skip rebuilding libs) |
 | `BUILD_COVERAGE` | OFF | LCOV coverage; enables tests; `make coverage` |
 
 ### Common cache variables
@@ -130,8 +148,9 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 ### LibTorch / torch_nntile
 
 **libnntile** and its C++ tests do **not** need PyTorch. LibTorch is required
-only when `-DBUILD_TORCH_NNTILE=ON` (and for the **torch_nntile** Python
-extension build via `setup.py` / `build-system.requires`).
+only when `-DBUILD_TORCH_NNTILE=ON` and for the installable **torch_nntile**
+wheel. End users should install that wheel; plain CMake defaults remain
+libnntile-centric for core library work.
 
 Put Torch on `CMAKE_PREFIX_PATH` (from `torch.utils.cmake_prefix_path`) when
 building libtorch_nntile. Both **libnntile** and **libtorch_nntile** install
@@ -195,10 +214,12 @@ See [torch_nntile.md](../torch_nntile.md) and [graph-wip.md](../graph-wip.md).
 
 ## Build outputs
 
-- `nntile` library and test binaries under `build/`
-- Python package: `build/wrappers/python/nntile/` (`nntile_core`, `nntile_graph` extensions)
-- Examples copied to `build/wrappers/python/examples/`
-- No `make install` required for development — set `PYTHONPATH` to the build tree
+- Core library and C++ test binaries under `build/`, including
+  `build/nntile/libnntile.*`
+- LibTorch bridge under `build/torch_nntile/libtorch_nntile.*` when
+  `BUILD_TORCH_NNTILE=ON`
+- Installable Python wheels under `build/wheelhouse/torch_nntile-*.whl` when
+  `BUILD_TORCH_NNTILE_WHEEL=ON`
 
 ## Build and test CI (layered)
 
@@ -327,16 +348,15 @@ StarPU uses SimGrid.
 ```bash
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 
-# C++ tests (same filter as CI: no wrappers, skip NotImplemented)
+# C++ tests (same filter as CI: skip NotImplemented)
 ctest --test-dir build -LE NotImplemented --output-on-failure
 
-# Everything registered (C++ + pytest per file)
+# Everything registered
 ctest --test-dir build --output-on-failure
 
 # By prefix
 ctest --test-dir build -R tests_kernel_add --output-on-failure
 ctest --test-dir build -R tests_tensor_ --output-on-failure
-ctest --test-dir build -R wrappers_python_tests_ --output-on-failure
 
 # Parallel
 ctest --test-dir build -j 8 --output-on-failure
@@ -371,10 +391,10 @@ reference checks, tags like `[add]`. Helpers: [`tests/testing.hh`](../../tests/t
 
 Tests labeled `NotImplemented` are excluded in CI (`-LE NotImplemented`).
 
-**Python tests** are registered in [`wrappers/python/CMakeLists.txt`](../../wrappers/python/CMakeLists.txt):
-each `test_*.py` under `wrappers/python/tests/` is copied to
-`build/wrappers/python/tests/` and run as
-`python -m pytest -rx` with name `wrappers_python_tests_<dir>_<test>`.
+**Python tests** live under [`torch_nntile/tests/`](../../torch_nntile/tests/)
+and are run directly with pytest. They require `libnntile`, `libtorch_nntile`,
+and StarPU on the runtime library path, plus `NNTILE_BUILD_DIR` (and
+`TORCH_NNTILE_BUILD_DIR` when using the in-tree extension build).
 
 ### Example: C++ kernel benchmark
 
@@ -395,48 +415,38 @@ ctest --test-dir build -R tests_kernel_add --output-on-failure
 `ctest` invokes the binary without Catch2 filters, so it runs verification tests,
 not `[!benchmark]` sections.
 
-### Example: Python tests and benchmarks
+### Example: torch_nntile Python tests
 
-Layout and conventions: [`wrappers/python/tests/README.md`](../../wrappers/python/tests/README.md).
-
-Fixtures in [`conftest.py`](../../wrappers/python/tests/conftest.py): `context`,
-`context_cuda`, `benchmark_operation`, `benchmark_model`.
+Layout and fixtures: [`torch_nntile/tests/conftest.py`](../../torch_nntile/tests/conftest.py).
 
 **Correctness:**
 
 ```bash
-# Install torch_nntile against the build tree (PyTorch required at build time)
-cd build/wrappers/python/tests
+# Requires libnntile + libtorch_nntile + StarPU.
+export NNTILE_BUILD_DIR=$PWD/build
+export TORCH_NNTILE_BUILD_DIR=$PWD/build
+export NNTILE_SOURCE_DIR=$PWD
+export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 
-pytest -vv
-pytest nntile_core/test_tensor_add_inplace.py
-pytest nntile_core/test_tensor_add_inplace.py::test_add_inplace
-pytest -k add_inplace --dtype=bf16
+pytest -vv torch_nntile/tests/
+pytest -vv torch_nntile/tests/test_add_inplace_parity.py
+pytest -vv torch_nntile/tests/test_add_inplace_parity.py::test_add_inplace_matches_cpu
 ```
 
-**One test via CTest:**
+**Installed wheel:**
 
 ```bash
-ctest --test-dir build -R wrappers_python_tests_nntile_core_tensor_add_inplace -V
+pip install build/wheelhouse/torch_nntile-*.whl
+export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+pytest -vv torch_nntile/tests/
 ```
-
-**Benchmarks** (require `-m benchmark`; skipped by default):
-
-```bash
-cd build/wrappers/python/tests
-pytest -m benchmark -vv
-pytest -m benchmark -k test_rms_norm --dtype=fp32
-```
-
-Example benchmark test: `layer/test_rms_norm.py` (`@pytest.mark.benchmark`,
-`context_cuda`, `benchmark_operation`).
 
 ### Python coverage (CI pattern)
 
-From repository root with a venv and built extensions:
+From repository root with a venv and built or installed `torch_nntile`:
 
 ```bash
-pytest -vv --cov=wrappers/python/nntile wrappers/python/tests
+pytest -vv --cov=torch_nntile torch_nntile/tests/
 ```
 
 ## See also

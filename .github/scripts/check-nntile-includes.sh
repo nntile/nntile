@@ -26,7 +26,6 @@ git grep -E '#include[[:space:]]*[<"]nntile/(core|graph)/' -- \
     ':(exclude).git' \
     ':(exclude)nntile/' \
     ':(exclude)scripts/' \
-    ':(exclude)wrappers/python' \
     ':(exclude)*.md' \
     >>"$bad" 2>/dev/null || true
 

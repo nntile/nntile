@@ -33,9 +33,10 @@ pre-check-style:
   stage: pre-check
   needs: ['image-sandbox']
   script:
-    - cd wrappers/python
-      #    - flake8 nntile examples tests
-      #    - isort -c nntile examples tests
+    - cd torch_nntile
+    - echo "Skipping torch_nntile style pre-check; GitHub pre-commit is canonical."
+      #    - flake8 torch_nntile examples tests
+      #    - isort -c torch_nntile examples tests
 
 build-clang:
   image: $CI_REGISTRY_IMAGE/sandbox:cuda
