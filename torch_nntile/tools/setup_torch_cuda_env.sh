@@ -46,6 +46,8 @@ if [ -z "${CUDA_HOME:-}" ]; then
 fi
 
 # Resolve pip nvidia package roots (include + lib) for cmake / LD_LIBRARY_PATH.
+# StarPU's CUDA headers pull in cusolver/cusparse even when those libs are not
+# linked; expose their pip include dirs for the StarPU build.
 nvidia_env="$("${python}" - <<'PY'
 from pathlib import Path
 import importlib
@@ -70,6 +72,8 @@ for key, modname in (
     ("CUDNN", "nvidia.cudnn"),
     ("NVIDIA_CUBLAS", "nvidia.cublas"),
     ("NVIDIA_CUDA_RUNTIME", "nvidia.cuda_runtime"),
+    ("NVIDIA_CUSOLVER", "nvidia.cusolver"),
+    ("NVIDIA_CUSPARSE", "nvidia.cusparse"),
 ):
     root, include, lib = pkg_paths(modname)
     print(f"{key}_PATH={root}")
@@ -82,13 +86,22 @@ export CUDNN_PATH CUDNN_INCLUDE_PATH CUDNN_LIBRARY_PATH
 export NVIDIA_CUBLAS_PATH NVIDIA_CUBLAS_INCLUDE_PATH NVIDIA_CUBLAS_LIBRARY_PATH
 export NVIDIA_CUDA_RUNTIME_PATH NVIDIA_CUDA_RUNTIME_INCLUDE_PATH
 export NVIDIA_CUDA_RUNTIME_LIBRARY_PATH
+export NVIDIA_CUSOLVER_PATH NVIDIA_CUSOLVER_INCLUDE_PATH
+export NVIDIA_CUSOLVER_LIBRARY_PATH
+export NVIDIA_CUSPARSE_PATH NVIDIA_CUSPARSE_INCLUDE_PATH
+export NVIDIA_CUSPARSE_LIBRARY_PATH
 export NNTILE_CUDA_FROM_PIP=1
 
 # Prefer pip math/runtime libs over any residual toolkit copies.
-pip_lib_path="${NVIDIA_CUBLAS_LIBRARY_PATH}:${CUDNN_LIBRARY_PATH}:${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH}"
+pip_lib_path="${NVIDIA_CUBLAS_LIBRARY_PATH}:${CUDNN_LIBRARY_PATH}:${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH}:${NVIDIA_CUSOLVER_LIBRARY_PATH}:${NVIDIA_CUSPARSE_LIBRARY_PATH}"
+pip_inc_path="${NVIDIA_CUBLAS_INCLUDE_PATH}:${CUDNN_INCLUDE_PATH}:${NVIDIA_CUDA_RUNTIME_INCLUDE_PATH}:${NVIDIA_CUSOLVER_INCLUDE_PATH}:${NVIDIA_CUSPARSE_INCLUDE_PATH}"
 export PATH="${CUDA_HOME}/bin:${PATH}"
 export CMAKE_PREFIX_PATH="${TORCH_PREFIX}:${CUDA_HOME}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
 export CMAKE_LIBRARY_PATH="${pip_lib_path}${CMAKE_LIBRARY_PATH:+:${CMAKE_LIBRARY_PATH}}"
+export CMAKE_INCLUDE_PATH="${pip_inc_path}${CMAKE_INCLUDE_PATH:+:${CMAKE_INCLUDE_PATH}}"
+export CPATH="${pip_inc_path}${CPATH:+:${CPATH}}"
+export C_INCLUDE_PATH="${pip_inc_path}${C_INCLUDE_PATH:+:${C_INCLUDE_PATH}}"
+export CPLUS_INCLUDE_PATH="${pip_inc_path}${CPLUS_INCLUDE_PATH:+:${CPLUS_INCLUDE_PATH}}"
 export LD_LIBRARY_PATH="${pip_lib_path}:${CUDA_HOME}/lib64/stubs:${TORCH_LIB_DIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 # Toolkit lib64 last (stubs + any residual cudart); never ahead of pip nvidia.
 if [ -d "${CUDA_HOME}/lib64" ]; then

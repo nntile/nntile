@@ -163,6 +163,37 @@ build_starpu() {
                 --with-cublas-lib-dir="${cublas_link_dir}"
             )
             export LD_LIBRARY_PATH="${NVIDIA_CUBLAS_LIBRARY_PATH}:${LD_LIBRARY_PATH:-}"
+            # starpu_cusolver.h includes cusolverDn.h whenever CUDA is on,
+            # even if StarPU does not link cusolver. Headers come from pip.
+            if [ -z "${NVIDIA_CUSOLVER_INCLUDE_PATH:-}" ] \
+                || [ ! -f "${NVIDIA_CUSOLVER_INCLUDE_PATH}/cusolverDn.h" ]; then
+                echo "StarPU CUDA build needs cusolverDn.h from pip " \
+                    "nvidia-cusolver (NVIDIA_CUSOLVER_INCLUDE_PATH)" >&2
+                exit 1
+            fi
+            starpu_cuda_includes=()
+            for inc in \
+                "${NVIDIA_CUSOLVER_INCLUDE_PATH:-}" \
+                "${NVIDIA_CUSPARSE_INCLUDE_PATH:-}" \
+                "${NVIDIA_CUBLAS_INCLUDE_PATH:-}" \
+                "${NVIDIA_CUDA_RUNTIME_INCLUDE_PATH:-}"; do
+                if [ -n "${inc}" ] && [ -d "${inc}" ]; then
+                    starpu_cuda_includes+=("-I${inc}")
+                fi
+            done
+            if [ "${#starpu_cuda_includes[@]}" -gt 0 ]; then
+                starpu_cppflags="${starpu_cuda_includes[*]}"
+                export CPPFLAGS="${starpu_cppflags}${CPPFLAGS:+ ${CPPFLAGS}}"
+                export CFLAGS="${starpu_cppflags}${CFLAGS:+ ${CFLAGS}}"
+                export CXXFLAGS="${starpu_cppflags}${CXXFLAGS:+ ${CXXFLAGS}}"
+                # Pass on the configure cmdline so autoconf does not drop
+                # env-only CPPFLAGS across its SAVE/restore checks.
+                configure_args+=(
+                    "CPPFLAGS=${CPPFLAGS}"
+                    "CFLAGS=${CFLAGS}"
+                    "CXXFLAGS=${CXXFLAGS}"
+                )
+            fi
         elif [ ! -f "${CUDA_HOME}/include/cublas.h" ]; then
             echo "StarPU CUDA build needs CUBLAS: set NVIDIA_CUBLAS_* " \
                 "from setup_torch_cuda_env.sh, or install cublas into " \

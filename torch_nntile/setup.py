@@ -79,21 +79,22 @@ def _apply_pkg_config(
             extra_link_args.append(flag)
 
 
-def _cudnn_include_dir() -> str | None:
-    if os.environ.get("TORCH_NNTILE_USE_CUDA") != "1":
-        return None
-    if path := os.environ.get("CUDNN_INCLUDE_PATH"):
-        return path
+def _nvidia_pkg_include_dir(env_var: str, modname: str, header: str) -> str | None:
+    """Resolve include dir from env or pip nvidia-* package."""
+    if path := os.environ.get(env_var):
+        include = Path(path)
+        if (include / header).exists():
+            return str(include)
     try:
         import importlib
 
-        mod = importlib.import_module("nvidia.cudnn")
+        mod = importlib.import_module(modname)
         if getattr(mod, "__file__", None):
             root = Path(mod.__file__).resolve().parent
         else:
             root = Path(next(iter(mod.__path__)))
         include = root / "include"
-        if (include / "cudnn.h").exists():
+        if (include / header).exists():
             return str(include)
     except ImportError:
         return None
@@ -108,8 +109,17 @@ def _cuda_include_dirs() -> list[str]:
         cuda_include = Path(cuda_home) / "include"
         if cuda_include.is_dir():
             dirs.append(str(cuda_include))
-    if cudnn_include := _cudnn_include_dir():
-        dirs.append(cudnn_include)
+    # Thin toolkit is nvcc + stubs only; math headers come from pip nvidia-*.
+    for env_var, modname, header in (
+        ("CUDNN_INCLUDE_PATH", "nvidia.cudnn", "cudnn.h"),
+        ("NVIDIA_CUBLAS_INCLUDE_PATH", "nvidia.cublas", "cublas.h"),
+        ("NVIDIA_CUDA_RUNTIME_INCLUDE_PATH", "nvidia.cuda_runtime", "cuda_runtime.h"),
+        ("NVIDIA_CUSOLVER_INCLUDE_PATH", "nvidia.cusolver", "cusolverDn.h"),
+        ("NVIDIA_CUSPARSE_INCLUDE_PATH", "nvidia.cusparse", "cusparse.h"),
+    ):
+        if include := _nvidia_pkg_include_dir(env_var, modname, header):
+            if include not in dirs:
+                dirs.append(include)
     return dirs
 
 
