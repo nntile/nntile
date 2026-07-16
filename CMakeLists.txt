@@ -35,13 +35,30 @@ option(BUILD_TORCH_NNTILE
     "Build libtorch_nntile (requires LibTorch; off = libnntile-only)" OFF)
 option(BUILD_TORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
 option(BUILD_TORCH_NNTILE_WHEEL
-    "Build torch_nntile Python wheel (implies BUILD_TORCH_NNTILE)" OFF)
+    "Build torch_nntile Python wheel (in-tree libs or -DNNTILE_PREFIX)" OFF)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 
+# In-tree wheel needs libtorch_nntile. Against an install prefix, keep
+# BUILD_TORCH_NNTILE=OFF and pass -DNNTILE_PREFIX=... (and optionally
+# -DTORCH_NNTILE_PREFIX=...).
 if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
-    set(BUILD_TORCH_NNTILE ON CACHE BOOL
-        "Build libtorch_nntile (requires LibTorch; off = libnntile-only)" FORCE)
-    message(STATUS "BUILD_TORCH_NNTILE_WHEEL=ON → enabling BUILD_TORCH_NNTILE")
+    set(_wheel_has_prefix FALSE)
+    if(DEFINED NNTILE_PREFIX AND NOT NNTILE_PREFIX STREQUAL "")
+        set(_wheel_has_prefix TRUE)
+    elseif(DEFINED ENV{NNTILE_PREFIX} AND NOT "$ENV{NNTILE_PREFIX}" STREQUAL "")
+        set(_wheel_has_prefix TRUE)
+    endif()
+    if(NOT _wheel_has_prefix)
+        set(BUILD_TORCH_NNTILE ON CACHE BOOL
+            "Build libtorch_nntile (requires LibTorch; off = libnntile-only)"
+            FORCE)
+        message(STATUS
+            "BUILD_TORCH_NNTILE_WHEEL=ON → enabling BUILD_TORCH_NNTILE")
+    else()
+        message(STATUS
+            "BUILD_TORCH_NNTILE_WHEEL=ON with install prefix "
+            "(not building libtorch_nntile)")
+    endif()
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -221,6 +238,17 @@ if(BUILD_TORCH_NNTILE)
         find_package(nntile REQUIRED CONFIG)
     endif()
     add_subdirectory(torch_nntile)
+endif()
+
+# Wheel against installed libs only (no libtorch_nntile rebuild).
+if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
+    if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
+        find_package(nntile REQUIRED CONFIG)
+    endif()
+    if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
+        find_package(torch_nntile REQUIRED CONFIG)
+    endif()
+    include("${PROJECT_SOURCE_DIR}/torch_nntile/cmake/TorchNntileWheel.cmake")
 endif()
 
 # C++ tests can link an installed libnntile (BUILD_NNTILE=OFF) so CI does not

@@ -113,7 +113,7 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `BUILD_DOCS` | OFF | Doxygen documentation |
 | `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile** (requires LibTorch) |
 | `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
-| `BUILD_TORCH_NNTILE_WHEEL` | OFF | Build **torch_nntile** Python wheel (implies `BUILD_TORCH_NNTILE`) |
+| `BUILD_TORCH_NNTILE_WHEEL` | OFF | Build **torch_nntile** wheel (`torch_nntile_wheel`; use `-DNNTILE_PREFIX` to skip rebuilding libs) |
 | `BUILD_COVERAGE` | OFF | LCOV coverage; enables tests; `make coverage` |
 
 ### Common cache variables
@@ -160,6 +160,14 @@ cmake -S . -B build-torch -GNinja \
   -DCMAKE_PREFIX_PATH="$PWD/install;${TORCH_PREFIX}"
 cmake --build build-torch -j$(nproc)
 cmake --install build-torch --prefix "$PWD/install"
+
+# Wheel only (reuse install; do not rebuild libs)
+cmake -S . -B build-wheel -GNinja \
+  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF -DBUILD_TESTS=OFF \
+  -DBUILD_TORCH_NNTILE_WHEEL=ON -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
+  -DNNTILE_PREFIX="$PWD/install" -DTORCH_NNTILE_PREFIX="$PWD/install" \
+  -DCMAKE_PREFIX_PATH="$PWD/install;${TORCH_PREFIX}"
+cmake --build build-wheel --target torch_nntile_wheel
 ```
 
 Consumer:
@@ -201,7 +209,7 @@ runs on pushes/PRs to `main` and `graph_api`:
 | `build-libnntile` | — | Build + install libnntile (`BUILD_TORCH_NNTILE=OFF`) |
 | `test-libnntile` | prefix | Build **tests only** (`BUILD_NNTILE=OFF`) vs install; ctest |
 | `build-libtorch-nntile` | libnntile prefix | Build + install libtorch_nntile against prefix |
-| `build-torch-nntile-wheel` | torch prefix | `pip wheel` linking installed libs (no lib rebuild) |
+| `build-torch-nntile-wheel` | torch prefix | CMake `-DBUILD_TORCH_NNTILE_WHEEL=ON` + `-DNNTILE_PREFIX` (no lib rebuild) |
 | `test-torch-nntile` | CI wheel | Install wheel + pytest (libs from prefix) |
 
 Install packaging is exercised by the stepwise build → test consumers

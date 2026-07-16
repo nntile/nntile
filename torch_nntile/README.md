@@ -509,6 +509,19 @@ cmake --build build --target torch_nntile_wheel
 # → build/wheelhouse/*.whl
 ```
 
+Or build the wheel against an install prefix (no library rebuild):
+
+```bash
+cmake -S . -B build-wheel -GNinja -DUSE_CUDA=OFF -DBUILD_TESTS=OFF \
+  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF \
+  -DBUILD_TORCH_NNTILE_WHEEL=ON -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
+  -DNNTILE_PREFIX="$PWD/install" -DTORCH_NNTILE_PREFIX="$PWD/install" \
+  -DCMAKE_PREFIX_PATH="$PWD/install;$TORCH_PREFIX" \
+  -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+cmake --build build-wheel --target torch_nntile_wheel
+# → build-wheel/wheelhouse/*.whl (or -DTORCH_NNTILE_WHEELHOUSE=...)
+```
+
 Or the CI helper with CMake wheel packaging:
 
 ```bash

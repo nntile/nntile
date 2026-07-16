@@ -186,7 +186,7 @@ jobs:
           retention-days: 1
 
   # -------------------------------------------------------------------------
-  # Layer 3: wheel from installed libs, then Python tests (no lib rebuild)
+  # Layer 3: CMake wheel from installed libs, then Python tests
   # -------------------------------------------------------------------------
   build-torch-nntile-wheel:
     name: build torch_nntile wheel
@@ -210,25 +210,35 @@ jobs:
         with:
           name: nntile-torch-prefix
           path: prefix
-      - run: |
+      - name: Install LibTorch (CPU) for extension build
+        run: |
           set -euo pipefail
-          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
-            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
-              /usr/lib/x86_64-linux-gnu/libstdc++.so
-          fi
-          export NNTILE_PREFIX="${PWD}/prefix"
-          export TORCH_NNTILE_PREFIX="${PWD}/prefix"
-          export NNTILE_SOURCE_DIR="${PWD}"
-          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           pip3 install --break-system-packages \
             'torch==2.9.1' 'torchvision==0.24.1' \
             --index-url "${TORCH_PIP_INDEX}"
           pip3 install --break-system-packages \
             'setuptools>=61' wheel ninja
-          mkdir -p wheelhouse
-          CXX=g++ pip3 wheel ./torch_nntile \
-            -w wheelhouse --no-build-isolation --no-deps
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
+      - name: Build wheel via CMake (installed libs)
+        run: |
+          set -euo pipefail
+          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
+            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
+              /usr/lib/x86_64-linux-gnu/libstdc++.so
+          fi
+          cmake -S . -B build-wheel ${CMAKE_COMMON} \
+            -DBUILD_NNTILE=OFF \
+            -DBUILD_TORCH_NNTILE=OFF \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_TORCH_NNTILE_WHEEL=ON \
+            -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
+            -DNNTILE_PREFIX="${PWD}/prefix" \
+            -DTORCH_NNTILE_PREFIX="${PWD}/prefix" \
+            -DTORCH_NNTILE_WHEELHOUSE="${PWD}/wheelhouse" \
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}" \
+            -DPython3_EXECUTABLE="$(command -v python3)"
+          cmake --build build-wheel --target torch_nntile_wheel -j"$(nproc)"
           ls -la wheelhouse/*.whl
       - uses: actions/upload-artifact@v4
         with:
