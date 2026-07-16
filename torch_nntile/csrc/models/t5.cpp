@@ -12,8 +12,8 @@
 #include "nntile_sdpa.h"
 #include "nntile_transpose.h"
 
-#include <stdexcept>
 #include <optional>
+#include <stdexcept>
 #include <vector>
 
 namespace torch_nntile::models
@@ -51,212 +51,176 @@ torch::Tensor rms_norm(
     return std::get<0>(out_rstd);
 }
 
-struct T5AttentionImpl : torch::nn::Module
-{
-    bool is_cross = false;
-    int64_t n_heads = 0;
-    int64_t head_size = 0;
-    torch::Tensor q_weight;
-    torch::Tensor k_weight;
-    torch::Tensor v_weight;
-    torch::Tensor o_weight;
-
-    T5AttentionImpl(T5Config const &cfg, bool cross) :
-        is_cross(cross),
-        n_heads(cfg.num_heads),
-        head_size(cfg.d_kv)
-    {
-        int64_t const d = cfg.d_model;
-        int64_t const hs = head_size;
-        int64_t const nh = n_heads;
-        q_weight = register_parameter(
-            "q_weight",
-            torch::empty({d, hs, nh}));
-        k_weight = register_parameter(
-            "k_weight",
-            torch::empty({d, hs, nh}));
-        v_weight = register_parameter(
-            "v_weight",
-            torch::empty({d, hs, nh}));
-        o_weight = register_parameter(
-            "o_weight",
-            torch::empty({hs, nh, d}));
-        torch::nn::init::normal_(q_weight, 0.0, 0.02);
-        torch::nn::init::normal_(k_weight, 0.0, 0.02);
-        torch::nn::init::normal_(v_weight, 0.0, 0.02);
-        torch::nn::init::normal_(o_weight, 0.0, 0.02);
-    }
-
-    torch::Tensor forward(
-        torch::Tensor x,
-        torch::Tensor encoder_hidden,
-        torch::Tensor const &mask)
-    {
-        auto const &kv_src =
-            (is_cross && encoder_hidden.defined()) ? encoder_hidden : x;
-        auto q = model_transpose(
-            gemm(x, q_weight, /*ndim=*/1, /*batch_ndim=*/0),
-            /*model_ndim=*/1);
-        auto k = model_transpose(
-            gemm(kv_src, k_weight, /*ndim=*/1, /*batch_ndim=*/0),
-            /*model_ndim=*/1);
-        auto v = model_transpose(
-            gemm(kv_src, v_weight, /*ndim=*/1, /*batch_ndim=*/0),
-            /*model_ndim=*/1);
-        // HF T5 omits 1/sqrt(d) scale; nntile sdpa uses default scale.
-        // Match NNGraph path layout; scale parity is a known residual.
-        auto attn = sdpa_kernel(
-            q,
-            k,
-            v,
-            mask.defined() ? std::optional<torch::Tensor>(mask)
-                           : std::nullopt,
-            /*batch_ndim=*/2);
-        attn = model_transpose(attn, /*model_ndim=*/3);
-        return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
-    }
-};
-
-TORCH_MODULE(T5Attention);
-
-struct T5LayerFFImpl : torch::nn::Module
-{
-    torch::Tensor ln_weight;
-    torch::Tensor gate_weight;
-    torch::Tensor up_weight;
-    torch::Tensor down_weight;
-    double eps = 1e-6;
-
-    explicit T5LayerFFImpl(T5Config const &cfg) :
-        eps(cfg.layer_norm_epsilon)
-    {
-        // Deleted T5 FF uses RMSNorm + GatedMlp (GELUTANH).
-        ln_weight = register_parameter(
-            "ln_weight",
-            torch::ones({cfg.d_model}));
-        int64_t const d = cfg.d_model;
-        int64_t const ff = cfg.d_ff;
-        gate_weight = register_parameter(
-            "gate_weight",
-            torch::empty({ff, d}));
-        up_weight = register_parameter(
-            "up_weight",
-            torch::empty({ff, d}));
-        down_weight = register_parameter(
-            "down_weight",
-            torch::empty({d, ff}));
-        torch::nn::init::normal_(gate_weight, 0.0, 0.02);
-        torch::nn::init::normal_(up_weight, 0.0, 0.02);
-        torch::nn::init::normal_(down_weight, 0.0, 0.02);
-    }
-
-    torch::Tensor forward(torch::Tensor x)
-    {
-        auto x_norm = rms_norm(x, ln_weight, eps);
-        auto gate = gemm(
-            x_norm,
-            gate_weight,
-            /*ndim=*/1,
-            /*batch_ndim=*/0,
-            /*trans_a=*/false,
-            /*trans_b=*/true);
-        auto up = gemm(
-            x_norm,
-            up_weight,
-            /*ndim=*/1,
-            /*batch_ndim=*/0,
-            /*trans_a=*/false,
-            /*trans_b=*/true);
-        auto hidden = torch::gelu(gate, "tanh") * up;
-        auto ff = gemm(
-            hidden,
-            down_weight,
-            /*ndim=*/1,
-            /*batch_ndim=*/0,
-            /*trans_a=*/false,
-            /*trans_b=*/true);
-        return x + ff;
-    }
-};
-
-TORCH_MODULE(T5LayerFF);
-
-struct T5EncoderBlockImpl : torch::nn::Module
-{
-    torch::Tensor ln0_weight;
-    T5Attention self_attn{nullptr};
-    T5LayerFF ff{nullptr};
-    double eps = 1e-6;
-
-    explicit T5EncoderBlockImpl(T5Config const &cfg) :
-        eps(cfg.layer_norm_epsilon)
-    {
-        ln0_weight = register_parameter(
-            "ln0_weight",
-            torch::ones({cfg.d_model}));
-        self_attn = register_module(
-            "self_attn",
-            T5Attention(cfg, /*cross=*/false));
-        ff = register_module("ff", T5LayerFF(cfg));
-    }
-
-    torch::Tensor forward(torch::Tensor x)
-    {
-        auto x_norm = rms_norm(x, ln0_weight, eps);
-        auto attn = self_attn->forward(x_norm, {}, {});
-        return ff->forward(x + attn);
-    }
-};
-
-TORCH_MODULE(T5EncoderBlock);
-
-struct T5DecoderBlockImpl : torch::nn::Module
-{
-    torch::Tensor ln0_weight;
-    torch::Tensor ln1_weight;
-    T5Attention self_attn{nullptr};
-    T5Attention cross_attn{nullptr};
-    T5LayerFF ff{nullptr};
-    double eps = 1e-6;
-
-    explicit T5DecoderBlockImpl(T5Config const &cfg) :
-        eps(cfg.layer_norm_epsilon)
-    {
-        ln0_weight = register_parameter(
-            "ln0_weight",
-            torch::ones({cfg.d_model}));
-        ln1_weight = register_parameter(
-            "ln1_weight",
-            torch::ones({cfg.d_model}));
-        self_attn = register_module(
-            "self_attn",
-            T5Attention(cfg, /*cross=*/false));
-        cross_attn = register_module(
-            "cross_attn",
-            T5Attention(cfg, /*cross=*/true));
-        ff = register_module("ff", T5LayerFF(cfg));
-    }
-
-    torch::Tensor forward(
-        torch::Tensor x,
-        torch::Tensor encoder_hidden,
-        torch::Tensor const &self_mask)
-    {
-        auto x_norm = rms_norm(x, ln0_weight, eps);
-        auto self_out = self_attn->forward(x_norm, {}, self_mask);
-        auto post = x + self_out;
-        auto y_norm = rms_norm(post, ln1_weight, eps);
-        auto cross_out = cross_attn->forward(
-            y_norm,
-            encoder_hidden,
-            {});
-        return ff->forward(post + cross_out);
-    }
-};
-
-TORCH_MODULE(T5DecoderBlock);
-
 } // namespace
+
+// ── T5AttentionImpl ───────────────────────────────────────────────────────
+
+T5AttentionImpl::T5AttentionImpl(T5Config const &cfg, bool cross) :
+    is_cross(cross),
+    n_heads(cfg.num_heads),
+    head_size(cfg.d_kv)
+{
+    int64_t const d = cfg.d_model;
+    int64_t const hs = head_size;
+    int64_t const nh = n_heads;
+    q_weight = register_parameter(
+        "q_weight",
+        torch::empty({d, hs, nh}));
+    k_weight = register_parameter(
+        "k_weight",
+        torch::empty({d, hs, nh}));
+    v_weight = register_parameter(
+        "v_weight",
+        torch::empty({d, hs, nh}));
+    o_weight = register_parameter(
+        "o_weight",
+        torch::empty({hs, nh, d}));
+    torch::nn::init::normal_(q_weight, 0.0, 0.02);
+    torch::nn::init::normal_(k_weight, 0.0, 0.02);
+    torch::nn::init::normal_(v_weight, 0.0, 0.02);
+    torch::nn::init::normal_(o_weight, 0.0, 0.02);
+}
+
+torch::Tensor T5AttentionImpl::forward(
+    torch::Tensor x,
+    torch::Tensor encoder_hidden,
+    torch::Tensor const &mask)
+{
+    auto const &kv_src =
+        (is_cross && encoder_hidden.defined()) ? encoder_hidden : x;
+    auto q = model_transpose(
+        gemm(x, q_weight, /*ndim=*/1, /*batch_ndim=*/0),
+        /*model_ndim=*/1);
+    auto k = model_transpose(
+        gemm(kv_src, k_weight, /*ndim=*/1, /*batch_ndim=*/0),
+        /*model_ndim=*/1);
+    auto v = model_transpose(
+        gemm(kv_src, v_weight, /*ndim=*/1, /*batch_ndim=*/0),
+        /*model_ndim=*/1);
+    // HF T5 omits 1/sqrt(d) scale; nntile sdpa uses default scale.
+    // Match NNGraph path layout; scale parity is a known residual.
+    auto attn = sdpa_kernel(
+        q,
+        k,
+        v,
+        mask.defined() ? std::optional<torch::Tensor>(mask)
+                       : std::nullopt,
+        /*batch_ndim=*/2);
+    attn = model_transpose(attn, /*model_ndim=*/3);
+    return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
+}
+
+// ── T5LayerFFImpl ─────────────────────────────────────────────────────────
+
+T5LayerFFImpl::T5LayerFFImpl(T5Config const &cfg) :
+    eps(cfg.layer_norm_epsilon)
+{
+    // Deleted T5 FF uses RMSNorm + GatedMlp (GELUTANH).
+    ln_weight = register_parameter(
+        "ln_weight",
+        torch::ones({cfg.d_model}));
+    int64_t const d = cfg.d_model;
+    int64_t const ff = cfg.d_ff;
+    gate_weight = register_parameter(
+        "gate_weight",
+        torch::empty({ff, d}));
+    up_weight = register_parameter(
+        "up_weight",
+        torch::empty({ff, d}));
+    down_weight = register_parameter(
+        "down_weight",
+        torch::empty({d, ff}));
+    torch::nn::init::normal_(gate_weight, 0.0, 0.02);
+    torch::nn::init::normal_(up_weight, 0.0, 0.02);
+    torch::nn::init::normal_(down_weight, 0.0, 0.02);
+}
+
+torch::Tensor T5LayerFFImpl::forward(torch::Tensor x)
+{
+    auto x_norm = rms_norm(x, ln_weight, eps);
+    auto gate = gemm(
+        x_norm,
+        gate_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    auto up = gemm(
+        x_norm,
+        up_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    auto hidden = torch::gelu(gate, "tanh") * up;
+    auto ff_out = gemm(
+        hidden,
+        down_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    return x + ff_out;
+}
+
+// ── T5EncoderBlockImpl ────────────────────────────────────────────────────
+
+T5EncoderBlockImpl::T5EncoderBlockImpl(T5Config const &cfg) :
+    eps(cfg.layer_norm_epsilon)
+{
+    ln0_weight = register_parameter(
+        "ln0_weight",
+        torch::ones({cfg.d_model}));
+    self_attn = register_module(
+        "self_attn",
+        T5Attention(cfg, /*cross=*/false));
+    ff = register_module("ff", T5LayerFF(cfg));
+}
+
+torch::Tensor T5EncoderBlockImpl::forward(torch::Tensor x)
+{
+    auto x_norm = rms_norm(x, ln0_weight, eps);
+    auto attn = self_attn->forward(x_norm, {}, {});
+    return ff->forward(x + attn);
+}
+
+// ── T5DecoderBlockImpl ────────────────────────────────────────────────────
+
+T5DecoderBlockImpl::T5DecoderBlockImpl(T5Config const &cfg) :
+    eps(cfg.layer_norm_epsilon)
+{
+    ln0_weight = register_parameter(
+        "ln0_weight",
+        torch::ones({cfg.d_model}));
+    ln1_weight = register_parameter(
+        "ln1_weight",
+        torch::ones({cfg.d_model}));
+    self_attn = register_module(
+        "self_attn",
+        T5Attention(cfg, /*cross=*/false));
+    cross_attn = register_module(
+        "cross_attn",
+        T5Attention(cfg, /*cross=*/true));
+    ff = register_module("ff", T5LayerFF(cfg));
+}
+
+torch::Tensor T5DecoderBlockImpl::forward(
+    torch::Tensor x,
+    torch::Tensor encoder_hidden,
+    torch::Tensor const &self_mask)
+{
+    auto x_norm = rms_norm(x, ln0_weight, eps);
+    auto self_out = self_attn->forward(x_norm, {}, self_mask);
+    auto post = x + self_out;
+    auto y_norm = rms_norm(post, ln1_weight, eps);
+    auto cross_out = cross_attn->forward(
+        y_norm,
+        encoder_hidden,
+        {});
+    return ff->forward(post + cross_out);
+}
+
+// ── T5ForConditionalGenerationImpl ────────────────────────────────────────
 
 T5ForConditionalGenerationImpl::T5ForConditionalGenerationImpl(
     T5Config cfg) :

@@ -73,11 +73,14 @@ void rope_sin_cos_host(
     {
         double idx = static_cast<double>(2 * i);
         inv[static_cast<std::size_t>(i)] = static_cast<float>(
-            1.0 / std::pow(base, idx / static_cast<double>(rope_dim)));
+            1.0
+            / std::pow(base, idx / static_cast<double>(rope_dim)));
     }
     sin_out = torch::empty(
         {batch, seq, half},
-        torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCPU));
+        torch::TensorOptions()
+            .dtype(torch::kFloat32)
+            .device(torch::kCPU));
     cos_out = torch::empty_like(sin_out);
     auto sin_a = sin_out.accessor<float, 3>();
     auto cos_a = cos_out.accessor<float, 3>();
@@ -87,8 +90,9 @@ void rope_sin_cos_host(
         {
             for (int64_t h = 0; h < half; ++h)
             {
-                double angle = static_cast<double>(s) *
-                    static_cast<double>(inv[static_cast<std::size_t>(h)]);
+                double angle = static_cast<double>(s)
+                    * static_cast<double>(
+                        inv[static_cast<std::size_t>(h)]);
                 sin_a[b][s][h] = static_cast<float>(std::sin(angle));
                 cos_a[b][s][h] = static_cast<float>(std::cos(angle));
             }
@@ -117,7 +121,8 @@ torch::Tensor apply_partial_rope(
     {
         return rope(sin, cos, x);
     }
-    auto x_rot = x.narrow(/*dim=*/-1, /*start=*/0, /*length=*/rotary_ndims);
+    auto x_rot = x.narrow(
+        /*dim=*/-1, /*start=*/0, /*length=*/rotary_ndims);
     auto x_pass = x.narrow(
         /*dim=*/-1,
         /*start=*/rotary_ndims,
@@ -145,161 +150,134 @@ torch::Tensor linear_gemm(
         /*batch_ndim=*/0);
 }
 
-struct GptNeoXAttentionImpl : torch::nn::Module
-{
-    int64_t n_heads = 0;
-    int64_t head_size = 0;
-    int64_t hidden = 0;
-    int64_t rotary_ndims = 0;
-    torch::Tensor q_weight;
-    torch::Tensor k_weight;
-    torch::Tensor v_weight;
-    torch::Tensor o_weight;
-
-    explicit GptNeoXAttentionImpl(GptNeoXConfig const &cfg) :
-        n_heads(cfg.num_attention_heads),
-        head_size(cfg.hidden_size / cfg.num_attention_heads),
-        hidden(cfg.hidden_size),
-        rotary_ndims(gptneox_rope_dim(cfg, head_size))
-    {
-        if (cfg.hidden_size % cfg.num_attention_heads != 0)
-        {
-            throw std::invalid_argument(
-                "GptNeoXAttention: hidden_size % n_heads != 0");
-        }
-        int64_t const hs = head_size;
-        int64_t const nh = n_heads;
-        int64_t const h = hidden;
-        q_weight = register_parameter(
-            "q_weight",
-            torch::empty({h, hs, nh}));
-        k_weight = register_parameter(
-            "k_weight",
-            torch::empty({h, hs, nh}));
-        v_weight = register_parameter(
-            "v_weight",
-            torch::empty({h, hs, nh}));
-        o_weight = register_parameter(
-            "o_weight",
-            torch::empty({hs, nh, h}));
-        torch::nn::init::normal_(q_weight, 0.0, 0.02);
-        torch::nn::init::normal_(k_weight, 0.0, 0.02);
-        torch::nn::init::normal_(v_weight, 0.0, 0.02);
-        torch::nn::init::normal_(o_weight, 0.0, 0.02);
-    }
-
-    torch::Tensor forward(
-        torch::Tensor x,
-        torch::Tensor const &sin,
-        torch::Tensor const &cos,
-        torch::Tensor const &mask)
-    {
-        auto q = model_transpose(
-            gemm(x, q_weight, /*ndim=*/1, /*batch_ndim=*/0),
-            /*model_ndim=*/1);
-        auto k = model_transpose(
-            gemm(x, k_weight, /*ndim=*/1, /*batch_ndim=*/0),
-            /*model_ndim=*/1);
-        auto v = model_transpose(
-            gemm(x, v_weight, /*ndim=*/1, /*batch_ndim=*/0),
-            /*model_ndim=*/1);
-        q = apply_partial_rope(q, sin, cos, rotary_ndims, head_size);
-        k = apply_partial_rope(k, sin, cos, rotary_ndims, head_size);
-        auto attn = sdpa_kernel(
-            q,
-            k,
-            v,
-            mask,
-            /*batch_ndim=*/2);
-        attn = model_transpose(attn, /*model_ndim=*/3);
-        return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
-    }
-};
-
-TORCH_MODULE(GptNeoXAttention);
-
-struct GptNeoXMLPImpl : torch::nn::Module
-{
-    torch::Tensor fc1_weight;
-    torch::Tensor fc1_bias;
-    torch::Tensor fc2_weight;
-    torch::Tensor fc2_bias;
-
-    explicit GptNeoXMLPImpl(GptNeoXConfig const &cfg)
-    {
-        int64_t const h = cfg.hidden_size;
-        int64_t const inner = cfg.intermediate_size;
-        fc1_weight = register_parameter(
-            "fc1_weight",
-            torch::empty({inner, h}));
-        fc1_bias = register_parameter("fc1_bias", torch::zeros({inner}));
-        fc2_weight = register_parameter(
-            "fc2_weight",
-            torch::empty({h, inner}));
-        fc2_bias = register_parameter("fc2_bias", torch::zeros({h}));
-        torch::nn::init::normal_(fc1_weight, 0.0, 0.02);
-        torch::nn::init::normal_(fc2_weight, 0.0, 0.02);
-    }
-
-    torch::Tensor forward(torch::Tensor x)
-    {
-        x = linear_gemm(x, fc1_weight, fc1_bias);
-        x = torch::gelu(x);
-        return linear_gemm(x, fc2_weight, fc2_bias);
-    }
-};
-
-TORCH_MODULE(GptNeoXMLP);
-
-struct GptNeoXDecoderImpl : torch::nn::Module
-{
-    torch::nn::LayerNorm input_norm{nullptr};
-    GptNeoXAttention attn{nullptr};
-    torch::nn::LayerNorm post_attn_norm{nullptr};
-    GptNeoXMLP mlp{nullptr};
-    bool parallel_residual = true;
-
-    explicit GptNeoXDecoderImpl(GptNeoXConfig const &cfg) :
-        parallel_residual(cfg.use_parallel_residual)
-    {
-        input_norm = register_module(
-            "input_norm",
-            torch::nn::LayerNorm(
-                torch::nn::LayerNormOptions({cfg.hidden_size})
-                    .eps(cfg.layer_norm_eps)));
-        attn = register_module("attention", GptNeoXAttention(cfg));
-        post_attn_norm = register_module(
-            "post_attn_norm",
-            torch::nn::LayerNorm(
-                torch::nn::LayerNormOptions({cfg.hidden_size})
-                    .eps(cfg.layer_norm_eps)));
-        mlp = register_module("mlp", GptNeoXMLP(cfg));
-    }
-
-    torch::Tensor forward(
-        torch::Tensor x,
-        torch::Tensor const &sin,
-        torch::Tensor const &cos,
-        torch::Tensor const &mask)
-    {
-        auto attn_out = attn->forward(
-            input_norm->forward(x),
-            sin,
-            cos,
-            mask);
-        if (parallel_residual)
-        {
-            auto mlp_out = mlp->forward(post_attn_norm->forward(x));
-            return x + attn_out + mlp_out;
-        }
-        auto post = x + attn_out;
-        return post + mlp->forward(post_attn_norm->forward(post));
-    }
-};
-
-TORCH_MODULE(GptNeoXDecoder);
-
 } // namespace
+
+// ── GptNeoXAttentionImpl ──────────────────────────────────────────────────
+
+GptNeoXAttentionImpl::GptNeoXAttentionImpl(GptNeoXConfig const &cfg) :
+    n_heads(cfg.num_attention_heads),
+    head_size(cfg.hidden_size / cfg.num_attention_heads),
+    hidden(cfg.hidden_size),
+    rotary_ndims(gptneox_rope_dim(cfg, head_size))
+{
+    if (cfg.hidden_size % cfg.num_attention_heads != 0)
+    {
+        throw std::invalid_argument(
+            "GptNeoXAttention: hidden_size % n_heads != 0");
+    }
+    int64_t const hs = head_size;
+    int64_t const nh = n_heads;
+    int64_t const h = hidden;
+    q_weight = register_parameter(
+        "q_weight",
+        torch::empty({h, hs, nh}));
+    k_weight = register_parameter(
+        "k_weight",
+        torch::empty({h, hs, nh}));
+    v_weight = register_parameter(
+        "v_weight",
+        torch::empty({h, hs, nh}));
+    o_weight = register_parameter(
+        "o_weight",
+        torch::empty({hs, nh, h}));
+    torch::nn::init::normal_(q_weight, 0.0, 0.02);
+    torch::nn::init::normal_(k_weight, 0.0, 0.02);
+    torch::nn::init::normal_(v_weight, 0.0, 0.02);
+    torch::nn::init::normal_(o_weight, 0.0, 0.02);
+}
+
+torch::Tensor GptNeoXAttentionImpl::forward(
+    torch::Tensor x,
+    torch::Tensor const &sin,
+    torch::Tensor const &cos,
+    torch::Tensor const &mask)
+{
+    auto q = model_transpose(
+        gemm(x, q_weight, /*ndim=*/1, /*batch_ndim=*/0),
+        /*model_ndim=*/1);
+    auto k = model_transpose(
+        gemm(x, k_weight, /*ndim=*/1, /*batch_ndim=*/0),
+        /*model_ndim=*/1);
+    auto v = model_transpose(
+        gemm(x, v_weight, /*ndim=*/1, /*batch_ndim=*/0),
+        /*model_ndim=*/1);
+    q = apply_partial_rope(q, sin, cos, rotary_ndims, head_size);
+    k = apply_partial_rope(k, sin, cos, rotary_ndims, head_size);
+    auto attn = sdpa_kernel(
+        q,
+        k,
+        v,
+        mask,
+        /*batch_ndim=*/2);
+    attn = model_transpose(attn, /*model_ndim=*/3);
+    return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
+}
+
+// ── GptNeoXMLPImpl ────────────────────────────────────────────────────────
+
+GptNeoXMLPImpl::GptNeoXMLPImpl(GptNeoXConfig const &cfg)
+{
+    int64_t const h = cfg.hidden_size;
+    int64_t const inner = cfg.intermediate_size;
+    fc1_weight = register_parameter(
+        "fc1_weight",
+        torch::empty({inner, h}));
+    fc1_bias = register_parameter("fc1_bias", torch::zeros({inner}));
+    fc2_weight = register_parameter(
+        "fc2_weight",
+        torch::empty({h, inner}));
+    fc2_bias = register_parameter("fc2_bias", torch::zeros({h}));
+    torch::nn::init::normal_(fc1_weight, 0.0, 0.02);
+    torch::nn::init::normal_(fc2_weight, 0.0, 0.02);
+}
+
+torch::Tensor GptNeoXMLPImpl::forward(torch::Tensor x)
+{
+    x = linear_gemm(x, fc1_weight, fc1_bias);
+    x = torch::gelu(x);
+    return linear_gemm(x, fc2_weight, fc2_bias);
+}
+
+// ── GptNeoXDecoderImpl ────────────────────────────────────────────────────
+
+GptNeoXDecoderImpl::GptNeoXDecoderImpl(GptNeoXConfig const &cfg) :
+    parallel_residual(cfg.use_parallel_residual)
+{
+    input_norm = register_module(
+        "input_norm",
+        torch::nn::LayerNorm(
+            torch::nn::LayerNormOptions({cfg.hidden_size})
+                .eps(cfg.layer_norm_eps)));
+    attn = register_module("attention", GptNeoXAttention(cfg));
+    post_attn_norm = register_module(
+        "post_attn_norm",
+        torch::nn::LayerNorm(
+            torch::nn::LayerNormOptions({cfg.hidden_size})
+                .eps(cfg.layer_norm_eps)));
+    mlp = register_module("mlp", GptNeoXMLP(cfg));
+}
+
+torch::Tensor GptNeoXDecoderImpl::forward(
+    torch::Tensor x,
+    torch::Tensor const &sin,
+    torch::Tensor const &cos,
+    torch::Tensor const &mask)
+{
+    auto attn_out = attn->forward(
+        input_norm->forward(x),
+        sin,
+        cos,
+        mask);
+    if (parallel_residual)
+    {
+        auto mlp_out = mlp->forward(post_attn_norm->forward(x));
+        return x + attn_out + mlp_out;
+    }
+    auto post = x + attn_out;
+    return post + mlp->forward(post_attn_norm->forward(post));
+}
+
+// ── GptNeoXCausalImpl ─────────────────────────────────────────────────────
 
 GptNeoXCausalImpl::GptNeoXCausalImpl(GptNeoXConfig cfg) :
     config(std::move(cfg))
@@ -364,9 +342,9 @@ torch::Tensor GptNeoXCausalImpl::forward(torch::Tensor input_ids)
 {
     int64_t const b = input_ids.size(0);
     int64_t const s = input_ids.size(1);
-    if (!rope_sin_.defined() || rope_cache_batch_ != b ||
-        rope_cache_seq_ != s ||
-        rope_sin_.device() != input_ids.device())
+    if (!rope_sin_.defined() || rope_cache_batch_ != b
+        || rope_cache_seq_ != s
+        || rope_sin_.device() != input_ids.device())
     {
         warm_rope_cache(b, s, input_ids.device());
     }

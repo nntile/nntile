@@ -29,6 +29,58 @@ struct GptNeoXConfig
     bool attention_bias = true;
 };
 
+struct GptNeoXAttentionImpl : torch::nn::Module
+{
+    int64_t n_heads = 0;
+    int64_t head_size = 0;
+    int64_t hidden = 0;
+    int64_t rotary_ndims = 0;
+    torch::Tensor q_weight;
+    torch::Tensor k_weight;
+    torch::Tensor v_weight;
+    torch::Tensor o_weight;
+
+    explicit GptNeoXAttentionImpl(GptNeoXConfig const &cfg);
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor const &sin,
+        torch::Tensor const &cos,
+        torch::Tensor const &mask);
+};
+
+TORCH_MODULE(GptNeoXAttention);
+
+struct GptNeoXMLPImpl : torch::nn::Module
+{
+    torch::Tensor fc1_weight;
+    torch::Tensor fc1_bias;
+    torch::Tensor fc2_weight;
+    torch::Tensor fc2_bias;
+
+    explicit GptNeoXMLPImpl(GptNeoXConfig const &cfg);
+    torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(GptNeoXMLP);
+
+struct GptNeoXDecoderImpl : torch::nn::Module
+{
+    torch::nn::LayerNorm input_norm{nullptr};
+    GptNeoXAttention attn{nullptr};
+    torch::nn::LayerNorm post_attn_norm{nullptr};
+    GptNeoXMLP mlp{nullptr};
+    bool parallel_residual = true;
+
+    explicit GptNeoXDecoderImpl(GptNeoXConfig const &cfg);
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor const &sin,
+        torch::Tensor const &cos,
+        torch::Tensor const &mask);
+};
+
+TORCH_MODULE(GptNeoXDecoder);
+
 struct GptNeoXCausalImpl : torch::nn::Module
 {
     GptNeoXConfig config;

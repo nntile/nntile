@@ -40,6 +40,61 @@ struct GptNeoConfig
     }
 };
 
+struct GptNeoAttentionImpl : torch::nn::Module
+{
+    int64_t n_heads = 0;
+    int64_t head_size = 0;
+    int64_t hidden = 0;
+    bool local = false;
+    int64_t window_size = 0;
+    torch::Tensor q_weight;
+    torch::Tensor k_weight;
+    torch::Tensor v_weight;
+    torch::Tensor o_weight;
+    torch::Tensor o_bias;
+
+    GptNeoAttentionImpl(
+        GptNeoConfig const &cfg,
+        bool local_attn);
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor const &global_mask,
+        torch::Tensor const &local_mask);
+};
+
+TORCH_MODULE(GptNeoAttention);
+
+struct GptNeoMLPImpl : torch::nn::Module
+{
+    torch::Tensor fc1_weight;
+    torch::Tensor fc1_bias;
+    torch::Tensor fc2_weight;
+    torch::Tensor fc2_bias;
+
+    explicit GptNeoMLPImpl(GptNeoConfig const &cfg);
+    torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(GptNeoMLP);
+
+struct GptNeoDecoderImpl : torch::nn::Module
+{
+    torch::nn::LayerNorm input_norm{nullptr};
+    GptNeoAttention attn{nullptr};
+    torch::nn::LayerNorm post_attn_norm{nullptr};
+    GptNeoMLP mlp{nullptr};
+
+    GptNeoDecoderImpl(
+        GptNeoConfig const &cfg,
+        bool local_attn);
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor const &global_mask,
+        torch::Tensor const &local_mask);
+};
+
+TORCH_MODULE(GptNeoDecoder);
+
 struct GptNeoCausalImpl : torch::nn::Module
 {
     GptNeoConfig config;

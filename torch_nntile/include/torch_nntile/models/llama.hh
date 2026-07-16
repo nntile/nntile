@@ -27,6 +27,58 @@ struct LlamaConfig
     double rope_theta = 10000.0;
 };
 
+struct LlamaAttentionImpl : torch::nn::Module
+{
+    int64_t n_heads = 0;
+    int64_t n_kv = 0;
+    int64_t head_size = 0;
+    int64_t n_rep = 0;
+    bool use_gqa = false;
+    torch::Tensor q_weight;
+    torch::Tensor k_weight;
+    torch::Tensor v_weight;
+    torch::Tensor o_weight;
+
+    explicit LlamaAttentionImpl(LlamaConfig const &cfg);
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor const &sin,
+        torch::Tensor const &cos,
+        torch::Tensor const &mask);
+};
+
+TORCH_MODULE(LlamaAttention);
+
+struct LlamaMLPImpl : torch::nn::Module
+{
+    torch::Tensor gate_weight;
+    torch::Tensor up_weight;
+    torch::Tensor down_weight;
+
+    explicit LlamaMLPImpl(LlamaConfig const &cfg);
+    torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(LlamaMLP);
+
+struct LlamaDecoderImpl : torch::nn::Module
+{
+    torch::Tensor input_norm_w;
+    LlamaAttention attn{nullptr};
+    torch::Tensor post_attn_norm_w;
+    LlamaMLP mlp{nullptr};
+    double rms_eps = 1e-6;
+
+    explicit LlamaDecoderImpl(LlamaConfig const &cfg);
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor const &sin,
+        torch::Tensor const &cos,
+        torch::Tensor const &mask);
+};
+
+TORCH_MODULE(LlamaDecoder);
+
 struct LlamaCausalImpl : torch::nn::Module
 {
     LlamaConfig config;
