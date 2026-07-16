@@ -306,7 +306,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     verify_addition(dQ_starpu, dQ_delta, base_dQ, "starpu dQ");
     verify_addition(dV_starpu, dV_delta, base_dV, "starpu dV");
 
-    std::cout << "✓ StarPU matches kernel result\n";
+    std::cout << "OK StarPU matches kernel result\n";
 
     bwd_graph.reset();
     CUDNN_CHECK(cudnnDestroy(handle), "destroy handle");

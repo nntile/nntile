@@ -10,8 +10,6 @@
 #include <c10/core/DeviceType.h>
 #include <c10/util/Exception.h>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-
 #include <cstdlib>
 
 namespace torch_nntile
@@ -122,4 +120,3 @@ void share_tensor_ref_for_reshape(const at::Tensor &base, at::Tensor &view)
 
 } // namespace torch_nntile
 
-#endif // TORCH_NNTILE_USE_LIBNNTILE

@@ -32,8 +32,12 @@ def test_mm_backward_parity():
     out_cpu.backward(grad_out)
     out_nnt = torch.mm(a_nnt, b_nnt)
     out_nnt.backward(grad_out.to("nntile"))
-    torch.testing.assert_close(nntile_cpu(a_nnt.grad), a_cpu.grad, rtol=1e-5, atol=1e-5)
-    torch.testing.assert_close(nntile_cpu(b_nnt.grad), b_cpu.grad, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(
+        nntile_cpu(a_nnt.grad), a_cpu.grad, rtol=1e-5, atol=1e-5
+    )
+    torch.testing.assert_close(
+        nntile_cpu(b_nnt.grad), b_cpu.grad, rtol=1e-5, atol=1e-5
+    )
 
 
 def test_contiguous_permute_matmul_raises():
@@ -55,7 +59,9 @@ def test_linear_transpose_weight_backward_parity():
     out_cpu.backward(grad_out)
     out_nnt = torch.nn.functional.linear(x_nnt, w_nnt)
     out_nnt.backward(grad_out.to("nntile"))
-    torch.testing.assert_close(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-5, atol=1e-5
+    )
     torch.testing.assert_close(
         nntile_cpu(w_nnt.grad).contiguous(),
         w_cpu.grad,

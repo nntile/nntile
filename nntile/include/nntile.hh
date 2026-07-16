@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile.hh
- * Full NNTile framework (core + graph).
+ * Convenience header for the NNTile TensorGraph stack (libnntile).
  *
  * @version 1.1.0
  * */
@@ -16,4 +16,6 @@
 
 #include <nntile/context.hh>
 #include <nntile/core.hh>
-#include <nntile/graph.hh>
+#include <nntile/tensor.hh>
+#include <nntile/tile.hh>
+#include <nntile/runtime.hh>

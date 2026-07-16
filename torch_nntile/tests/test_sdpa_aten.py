@@ -11,17 +11,10 @@ import math
 import pytest
 import torch
 import torch.nn.functional as F
+from conftest import nntile_cpu
+from torch_nntile.nn import sdpa_eager
 
 import torch_nntile
-from torch_nntile import _C
-from torch_nntile.nn import sdpa_eager
-from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def _reference_sdpa_pytorch(
@@ -249,4 +242,6 @@ def test_sdpa_eager_uses_fsdpa_path():
         v_cpu.to("nntile"),
         batch_ndim=2,
     )
-    assert torch.allclose(nntile_cpu(out), ref.permute(1, 2, 3, 0), rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(out), ref.permute(1, 2, 3, 0), rtol=1e-4, atol=1e-4
+    )

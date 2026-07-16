@@ -14,14 +14,7 @@
 #include <cstdint>
 #include <vector>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
-#else
-namespace nntile
-{
-using Index = std::int64_t;
-} // namespace nntile
-#endif
 
 namespace torch_nntile
 {
@@ -164,6 +157,23 @@ void tensor_sum_fiber_fp32(
     int64_t batch_ndim,
     float alpha);
 
+//! ``out = alpha * sum_slice(src) + beta * out`` (NNTile ``sum_slice``).
+void tensor_sum_slice_fp32(
+    const at::Tensor &src,
+    at::Tensor &out,
+    int64_t axis,
+    float alpha,
+    float beta);
+
+//! ``out = alpha * broadcast(slice) + beta * tensor`` (NNTile ``add_slice``).
+void tensor_add_slice_fp32(
+    float alpha,
+    const at::Tensor &slice,
+    float beta,
+    const at::Tensor &tensor,
+    at::Tensor &out,
+    int64_t axis);
+
 void tensor_cross_entropy_forward_fp32(
     const at::Tensor &logits,
     const at::Tensor &labels,
@@ -276,6 +286,32 @@ void tensor_rms_norm_backward_fp32(
     bool grad_input_needed,
     bool grad_weight_needed,
     int64_t norm_axis);
+
+//! ``dst = rope(sin, cos, src)``.
+void tensor_rope_fp32(
+    const at::Tensor &sin,
+    const at::Tensor &cos,
+    const at::Tensor &src,
+    at::Tensor &dst);
+
+//! ``dx = rope_backward(sin, cos, dy)``.
+void tensor_rope_backward_fp32(
+    const at::Tensor &sin,
+    const at::Tensor &cos,
+    const at::Tensor &dy,
+    at::Tensor &dx);
+
+//! ``loss = scale * ||x||^2`` (scalar).
+void tensor_mse_loss_fp32(
+    const at::Tensor &x,
+    float scale,
+    at::Tensor &loss_out);
+
+//! ``grad_x = 2 * scale * x`` (overwrite).
+void tensor_mse_loss_backward_fp32(
+    const at::Tensor &x,
+    float scale,
+    at::Tensor &grad_x);
 
 void tensor_norm_fp32(
     const at::Tensor &x,

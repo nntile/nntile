@@ -7,8 +7,9 @@ import pytest
 import torch
 
 pytest.importorskip("torch_nntile")
-import torch_nntile  # noqa: E402
 from conftest import nntile_cpu
+
+import torch_nntile  # noqa: E402
 
 
 def test_bmm_parity():

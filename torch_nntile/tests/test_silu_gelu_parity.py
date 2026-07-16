@@ -4,18 +4,11 @@
 # @file torch_nntile/tests/test_silu_gelu_parity.py
 # SiLU and GELU forward/backward parity: CPU PyTorch vs nntile.
 
-import torch
 import pytest
-
-import torch_nntile
-from torch_nntile import _C
+import torch
 from conftest import nntile_cpu
 
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+import torch_nntile
 
 
 @pytest.fixture
@@ -30,7 +23,9 @@ def test_gelu_forward_matches_cpu(random_input, approximate):
     y_cpu = torch.nn.functional.gelu(x_cpu, approximate=approximate)
 
     x_nnt = x_cpu.to("nntile")
-    y_nnt = nntile_cpu(torch.nn.functional.gelu(x_nnt, approximate=approximate))
+    y_nnt = nntile_cpu(
+        torch.nn.functional.gelu(x_nnt, approximate=approximate)
+    )
 
     assert torch.allclose(y_nnt, y_cpu, rtol=1e-4, atol=1e-4)
 
@@ -45,7 +40,9 @@ def test_gelu_backward_matches_cpu(random_input, approximate):
     y_nnt = torch.nn.functional.gelu(x_nnt, approximate=approximate)
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_silu_forward_matches_cpu(random_input):
@@ -67,7 +64,9 @@ def test_silu_backward_matches_cpu(random_input):
     y_nnt = torch.nn.functional.silu(x_nnt)
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_silu_inplace_matches_cpu(random_input):
@@ -109,7 +108,9 @@ def test_linear_silu_layer_matches_cpu():
 
 
 def test_linear_silu_layer_backward_matches_cpu():
-    x_cpu = torch.tensor([[1.0, -2.0, 0.5], [0.0, 3.0, -1.0]], requires_grad=True)
+    x_cpu = torch.tensor(
+        [[1.0, -2.0, 0.5], [0.0, 3.0, -1.0]], requires_grad=True
+    )
     weight = torch.tensor(
         [[0.25, -0.5, 1.0], [2.0, 0.0, -1.0]],
         requires_grad=True,
@@ -131,11 +132,15 @@ def test_linear_silu_layer_backward_matches_cpu():
     )
 
     assert torch.allclose(nntile_cpu(gx_nnt), x_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_linear_gelu_layer_backward_matches_cpu():
-    x_cpu = torch.tensor([[1.0, -2.0, 0.5], [0.0, 3.0, -1.0]], requires_grad=True)
+    x_cpu = torch.tensor(
+        [[1.0, -2.0, 0.5], [0.0, 3.0, -1.0]], requires_grad=True
+    )
     weight = torch.tensor(
         [[0.25, -0.5, 1.0], [2.0, 0.0, -1.0]],
         requires_grad=True,
@@ -157,4 +162,6 @@ def test_linear_gelu_layer_backward_matches_cpu():
     )
 
     assert torch.allclose(nntile_cpu(gx_nnt), x_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4
+    )

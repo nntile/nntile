@@ -231,7 +231,7 @@ void validate_cuda(Index seq, Index head, Index batch)
         }
     }
 
-    std::cout << "✓ StarPU matches kernel result\n";
+    std::cout << "OK StarPU matches kernel result\n";
 
     // Cleanup
     cudaFree(dev_K);

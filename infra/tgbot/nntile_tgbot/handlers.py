@@ -2,7 +2,7 @@
 aiogram v3 router that delegates to the pure functions in nntile_tgbot.core.
 
 The router is built by `build_router(client, store, config)` so we can wire
-the shared dependencies via closure instead of aiogram's DI machinery — it
+the shared dependencies via closure instead of aiogram's DI machinery - it
 keeps the handlers easy to read and the testable logic lives in core.py.
 """
 

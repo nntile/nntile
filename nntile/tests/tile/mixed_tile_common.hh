@@ -24,7 +24,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 // NNTile headers
-#include <nntile/graph.hh>
+#include <nntile/tile.hh>
+#include <nntile/tensor.hh>
 
 namespace nntile::core_tests
 {

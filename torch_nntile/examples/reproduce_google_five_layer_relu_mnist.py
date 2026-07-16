@@ -11,14 +11,14 @@ Source of truth (TensorFlow)::
 
     https://github.com/GoogleCloudPlatform/tensorflow-without-a-phd/blob/master/tensorflow-mnist-tutorial/mnist_2.1_five_layers_relu_lrdecay.py
 
-Architecture: ``784 → 200 → 100 → 60 → 30 → 10`` with ReLU hidden layers and
+Architecture: ``784 -> 200 -> 100 -> 60 -> 30 -> 10`` with ReLU hidden layers and
 raw logits on the output. Loss is mean softmax cross-entropy. Optimizer is
 Adam with per-step learning rate::
 
     lr(step) = 0.0001 + 0.003 * exp(-step / 2000)
 
-Default schedule: batch size 100, 10 000 steps (~16.7 epochs over 60 000
-training images). The Google script documents **final test accuracy ≈ 0.9824**
+Default schedule: batch size 100, 10 000 steps (~16.7 epochs over 60 000
+training images). The Google script documents **final test accuracy ~ 0.9824**
 with this recipe.
 
 Supports ``--device cpu`` / ``cuda`` (PyTorch Adam; ``fused=True`` on CUDA)
@@ -50,13 +50,13 @@ Nntile (CPU StarPU workers)::
     python torch_nntile/examples/reproduce_google_five_layer_relu_mnist.py \\
         --device nntile --steps 10000
 
-Success floor: test accuracy ≥ 0.97 (prefer ~0.975–0.985).
+Success floor: test accuracy >= 0.97 (prefer ~0.975-0.985).
 
-Observed (``--device cpu``, seed=0, 10 000 steps): max test accuracy
-**0.9827**, final **0.9822** (Google source quotes ≈ 0.9824).
+Observed (``--device cpu``, seed=0, 10 000 steps): max test accuracy
+**0.9827**, final **0.9822** (Google source quotes ~ 0.9824).
 
 Observed (``--device nntile``, CPU StarPU workers, seed=0): test accuracy
-**0.9702** by step 1000 (meets the ≥0.97 floor; full 10 000-step nntile
+**0.9702** by step 1000 (meets the >=0.97 floor; full 10 000-step nntile
 run is slower on CPU workers than pure torch).
 """
 
@@ -97,7 +97,7 @@ class FiveLayerReLU(nn.Module):
         self._init_google_()
 
     def _init_google_(self) -> None:
-        """Match TF truncated_normal(σ=0.1) ≈ N(0, 0.1); ReLU biases 0.1."""
+        """Match TF truncated_normal(sigma=0.1) ~ N(0, 0.1); ReLU biases 0.1."""
         for index, layer in enumerate(self.layers):
             nn.init.normal_(layer.weight, mean=0.0, std=0.1)
             if index < len(self.layers) - 1:
@@ -465,7 +465,7 @@ def train_nntile(
     final_log: tuple[int, float, float, float] | None = None
     model.train()
     # Clear grads before the loop; clear again each iter before compile so
-    # grad INVALIDATEs share that step’s sealed phase with the train ops.
+    # grad INVALIDATEs share that step's sealed phase with the train ops.
     optimizer.zero_grad(set_to_none=True)
 
     t_wall0 = time.perf_counter()
@@ -631,8 +631,8 @@ def main() -> None:
         f"device={args.device})"
     )
     print(
-        "Source expected test accuracy ≈ 0.9824; "
-        "reproduction success floor ≥ 0.97"
+        "Source expected test accuracy ~ 0.9824; "
+        "reproduction success floor >= 0.97"
     )
 
     print("Materializing CPU train/test batches...")
@@ -649,14 +649,7 @@ def main() -> None:
 
     if use_nntile:
         import torch_nntile
-        from torch_nntile import _C
 
-        if not _C.has_libnntile():
-            raise SystemExit(
-                "torch_nntile was built without libnntile. "
-                "Set NNTILE_BUILD_DIR and reinstall with "
-                "--no-build-isolation --no-deps."
-            )
         torch_nntile.init_context(
             ncpu=args.ncpu,
             ncuda=args.ncuda,
@@ -682,7 +675,7 @@ def main() -> None:
             n_train_elems = sum(x.numel() for x, _ in train_cpu)
             n_test_elems = sum(x.numel() for x, _ in test_cpu)
             print(
-                f"timing host→nntile preprocess: {preprocess_s:.3f}s "
+                f"timing host->nntile preprocess: {preprocess_s:.3f}s "
                 f"(train images {n_train_elems}, "
                 f"test images {n_test_elems}, + labels + model)"
             )
@@ -718,7 +711,7 @@ def main() -> None:
         n_train_elems = sum(x.numel() for x, _ in train_cpu)
         n_test_elems = sum(x.numel() for x, _ in test_cpu)
         print(
-            f"timing host→{device} preprocess: {preprocess_s:.3f}s "
+            f"timing host->{device} preprocess: {preprocess_s:.3f}s "
             f"(train images {n_train_elems}, "
             f"test images {n_test_elems}, + labels + model)"
         )
@@ -745,7 +738,7 @@ def main() -> None:
     if last_test_acc < 0.97 and not args.skip_accuracy_floor:
         raise SystemExit(
             f"Reproduction failed: final test accuracy {last_test_acc:.4f} "
-            f"< 0.97 (Google source quotes ≈ 0.9824)"
+            f"< 0.97 (Google source quotes ~ 0.9824)"
         )
 
 

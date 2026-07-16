@@ -8,7 +8,7 @@
  *
  * @file include/nntile/tile/graph_decl.hh
  * TileGraph: symbolic tiled graph from a ``TensorGraph`` +
- * ``TensorGraphTiling``. Execution placement hints (device, worker, …) may
+ * ``TensorGraphTiling``. Execution placement hints (device, worker, ...) may
  * attach here later.
  *
  * @version 1.1.0

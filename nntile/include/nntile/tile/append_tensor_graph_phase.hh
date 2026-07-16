@@ -29,9 +29,6 @@
 #include <nntile/tile/graph_decl.hh>
 #include <nntile/tile/lowering_context.hh>
 
-#ifdef NNTILE_USE_NNGRAPH
-#include <nntile/nn/graph.hh>
-#endif
 
 namespace nntile
 {
@@ -75,24 +72,5 @@ inline void append_tensor_graph_phase(
         tile_map);
 }
 
-#ifdef NNTILE_USE_NNGRAPH
-//! Lower \p exec_phase into ``tile_graph``, ``compile()`` \p runtime, optionally
-//! ``push_tensor_phase_archive`` on ``nn_graph_for_suffix``, then bump auto
-//! module suffix tags when ``NNGraph::enable_auto_tensor_name_phase_suffix`` is
-//! on.  \p tiling must describe tensors in ``*exec_phase.tensor_graph``.
-void compile_incremental_nn_phase(
-    FinishedTensorPhase const& exec_phase,
-    NNGraph& nn_graph_for_suffix,
-    TensorGraphTiling const& tiling,
-    TileGraph& tile_graph,
-    Runtime& runtime,
-    TileGraphIncrementalState& state,
-    TensorNodeToTileMap& tile_map,
-    bool archive_phase = true,
-    std::unordered_map<TensorGraph::TensorNode const *,
-        std::vector<std::shared_ptr<void>>> const *persisted_tiles = nullptr,
-    std::unordered_map<TensorGraph::TensorNode const *, bool> const
-        *persisted_init = nullptr);
-#endif
 
 } // namespace nntile

@@ -440,7 +440,7 @@ void run_cuda_test(TestData<T>& data)
     );
     if(prepared_graph == nullptr)
     {
-        WARN("cuDNN Flash Attention graph preparation failed — skipping test "
+        WARN("cuDNN Flash Attention graph preparation failed - skipping test "
              "for this configuration (likely unsupported on this system).");
         CUDNN_CHECK(cudnnDestroy(handle), "cudnnDestroy (prepare_graph failed)");
         CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy (prepare_graph failed)");

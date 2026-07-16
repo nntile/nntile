@@ -15,9 +15,6 @@
 #include <nntile/tile.hh>
 #include <nntile/runtime.hh>
 #include <nntile/tile/append_tensor_graph_phase.hh>
-#ifdef NNTILE_USE_NNGRAPH
-#include <nntile/nn.hh>
-#endif
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
@@ -269,37 +266,3 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::runtime_error);
 }
 
-#ifdef NNTILE_USE_NNGRAPH
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "compile_incremental_nn_phase pushes tensor_phase_archive",
-    "[graph][tile]")
-{
-    NNGraph nn("phase_arch");
-    TensorGraph &tg = nn.tensor_graph();
-    nntile::TensorRef a = tg.data({3}, DataType::FP32);
-        a->set_name("a");
-    nntile::TensorRef b = tg.data({3}, DataType::FP32);
-        b->set_name("b");
-    gt::add(1.0f, a, 1.0f, b)->set_name("c");
-
-    FinishedTensorPhase fp = nn.finish_phase(false);
-    REQUIRE(fp.tensor_graph == &tg);
-    REQUIRE(nn.tensor_phase_archives().empty());
-
-    TileGraph tile("tile_phase_arch");
-    TileGraphIncrementalState st;
-    TensorNodeToTileMap tm;
-    Runtime rt(tile);
-    compile_incremental_nn_phase(fp,
-        nn,
-        TensorGraphTiling::from_tensor_graph(tg),
-        tile,
-        rt,
-        st,
-        tm,
-        true);
-    REQUIRE(nn.tensor_phase_archives().size() == 1);
-    REQUIRE(nn.tensor_phase_archives()[0].tile_op_end >
-            nn.tensor_phase_archives()[0].tile_op_begin);
-}
-#endif // NNTILE_USE_NNGRAPH

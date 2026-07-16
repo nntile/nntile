@@ -43,7 +43,7 @@ class TensorRef
 
     //! Convenience for op APIs that take ``TensorNode *``.
     //! Do not store the result of a temporary ``TensorRef`` in a raw pointer
-    //! variable — keep a ``TensorRef`` local instead.
+    //! variable - keep a ``TensorRef`` local instead.
     operator TensorGraph::TensorNode *() const noexcept { return get(); }
 
     explicit operator bool() const noexcept { return get() != nullptr; }

@@ -29,9 +29,17 @@ def _nvidia_lib_dir(lib_folder: str) -> Path | None:
     return None
 
 
-def ensure_linux_cuda_deps() -> None:
-    """Raise ImportError when required nvidia-*-cu12 packages are missing."""
-    if sys.platform != "linux":
+def ensure_linux_cuda_deps(*, required: bool | None = None) -> None:
+    """Raise ImportError when CUDA wheels lack nvidia-*-cu12 packages.
+
+    CPU-only builds skip this check. Pass ``required=True/False`` to
+    override; ``None`` reads ``_build_info.BUILT_WITH_CUDA``.
+    """
+    if required is None:
+        from ._build_info import BUILT_WITH_CUDA
+
+        required = bool(BUILT_WITH_CUDA)
+    if not required or sys.platform != "linux":
         return
 
     missing = [
@@ -44,7 +52,7 @@ def ensure_linux_cuda_deps() -> None:
 
     packages = " ".join(missing)
     raise ImportError(
-        "torch_nntile requires NVIDIA CUDA 12 libraries. Install: "
-        f"pip install {packages} "
+        "torch_nntile was built with CUDA and requires NVIDIA CUDA 12 "
+        f"libraries. Install: pip install {packages} "
         "(or reinstall torch_nntile so pip resolves its dependencies)"
     )

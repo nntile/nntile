@@ -6,18 +6,11 @@
 
 from __future__ import annotations
 
-import pytest
 import torch
+from conftest import nntile_cpu
+from torch_nntile.add_fiber import add_fiber
 
 import torch_nntile
-from torch_nntile import _C
-from torch_nntile.add_fiber import add_fiber
-from conftest import nntile_cpu
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def test_add_fiber_1d_bias_matches_broadcast_add():
@@ -70,7 +63,9 @@ def test_add_fiber_backward_matches_broadcast_add():
         (x_nnt, bias_nnt),
         grad_outputs=grad_out.to("nntile"),
     )
-    torch.testing.assert_close(nntile_cpu(gx), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(
+        nntile_cpu(gx), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )
     torch.testing.assert_close(
         nntile_cpu(gb), bias_cpu.grad, rtol=1e-4, atol=1e-4
     )

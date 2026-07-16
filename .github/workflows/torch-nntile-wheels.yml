@@ -1,5 +1,8 @@
 name: torch_nntile wheels
 
+# cibuildwheel packaging: before-all builds StarPU + libs, then builds the
+# Python wheel and runs tools/smoke_test_wheel.py.
+
 on:
   pull_request:
     branches:
@@ -22,6 +25,7 @@ env:
   STARPU_GIT_BRANCH: "master"
   CMAKE_CUDA_ARCHITECTURES: "70;75;80;86;89;90"
   TORCH_CUDA_ARCH_LIST: "7.0;7.5;8.0;8.6;8.9;9.0"
+  CMAKE_BUILD_PARALLEL_LEVEL: "4"
 
 jobs:
   build-wheels:
@@ -70,7 +74,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           echo "CIBW_CONTAINER_ENGINE=docker; create_args: --volume ${TORCH_NNTILE_HOST_WORKSPACE}:/nntile-repo:ro" >> "${GITHUB_ENV}"
-          echo "CIBW_ENVIRONMENT_PASS_LINUX=NNTILE_SOURCE_DIR NNTILE_BUILD_DIR STARPU_PREFIX TORCH_NNTILE_USE_CUDA TORCH_VERSION TORCH_CUDA_INDEX CMAKE_CUDA_ARCHITECTURES TORCH_CUDA_ARCH_LIST STARPU_GITHUB_REPO STARPU_GIT_BRANCH TORCH_NNTILE_WHEEL_VERSION CUDA_HOME CUDNN_PATH CUDNN_INCLUDE_PATH CUDNN_LIBRARY_PATH CMAKE_CUDA_COMPILER" >> "${GITHUB_ENV}"
+          echo "CIBW_ENVIRONMENT_PASS_LINUX=NNTILE_SOURCE_DIR NNTILE_BUILD_DIR STARPU_PREFIX TORCH_NNTILE_USE_CUDA TORCH_VERSION TORCH_CUDA_INDEX CMAKE_CUDA_ARCHITECTURES TORCH_CUDA_ARCH_LIST STARPU_GITHUB_REPO STARPU_GIT_BRANCH TORCH_NNTILE_WHEEL_VERSION CUDA_HOME CUDNN_PATH CUDNN_INCLUDE_PATH CUDNN_LIBRARY_PATH NVIDIA_CUBLAS_INCLUDE_PATH NVIDIA_CUBLAS_LIBRARY_PATH NVIDIA_CUDA_RUNTIME_INCLUDE_PATH NVIDIA_CUDA_RUNTIME_LIBRARY_PATH NVIDIA_CUDA_NVRTC_INCLUDE_PATH NVIDIA_CUDA_NVRTC_LIBRARY_PATH CUDA_nvrtc_LIBRARY NVIDIA_CUSOLVER_INCLUDE_PATH NVIDIA_CUSPARSE_INCLUDE_PATH NNTILE_CUDA_FROM_PIP NNTILE_ASSERT_PIP_CUDA CMAKE_LIBRARY_PATH CMAKE_INCLUDE_PATH CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH CMAKE_CUDA_COMPILER CMAKE_BUILD_PARALLEL_LEVEL TORCH_NNTILE_DISK_LOG" >> "${GITHUB_ENV}"
           echo "NNTILE_SOURCE_DIR=/nntile-repo" >> "${GITHUB_ENV}"
           echo "NNTILE_BUILD_DIR=/tmp/nntile-build/torch_nntile_wheel" >> "${GITHUB_ENV}"
           echo "STARPU_PREFIX=/opt/starpu" >> "${GITHUB_ENV}"
@@ -87,6 +91,11 @@ jobs:
           python3 -m venv "${RUNNER_TEMP}/cibw-venv"
           "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install --upgrade pip
           "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install "cibuildwheel==${CIBUILDWHEEL_VERSION}"
+          # macOS delocate resolves _C.so @rpath torch deps from this env.
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install \
+              "torch==${TORCH_VERSION}" "torchvision==0.24.1"
+          fi
           echo "${RUNNER_TEMP}/cibw-venv/bin" >> "${GITHUB_PATH}"
 
       - name: Build wheel

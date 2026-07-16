@@ -10,37 +10,19 @@ import textwrap
 from pathlib import Path
 
 import torch
-import pytest
-
-from torch_nntile import _C
-from conftest import nntile_cpu
+from conftest import nntile_cpu, subprocess_environ
 
 
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
-
-_PKG_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _grad_with_ones(output: torch.Tensor, inputs: tuple[torch.Tensor, ...]) -> tuple:
+def _grad_with_ones(
+    output: torch.Tensor, inputs: tuple[torch.Tensor, ...]
+) -> tuple:
     """Backward via grad_outputs; avoids ``sum`` (not on nntile)."""
     grad_out = torch.ones_like(output)
     return torch.autograd.grad(output, inputs, grad_outputs=grad_out)
 
 
 def _run_graph_subprocess(script: str) -> None:
-    env = dict(**__import__("os").environ)
-    repo = Path(__file__).resolve().parents[2]
-    build_lib = repo / "build" / "nntile"
-    starpu_lib = "/opt/starpu/lib"
-    ld = env.get("LD_LIBRARY_PATH", "")
-    for part in (str(build_lib), starpu_lib):
-        if part not in ld.split(":"):
-            ld = f"{part}:{ld}" if ld else part
-    env["LD_LIBRARY_PATH"] = ld
-    env["PYTHONPATH"] = f"{_PKG_ROOT}:{env.get('PYTHONPATH', '')}"
+    env = subprocess_environ()
     proc = subprocess.run(
         [sys.executable, "-c", textwrap.dedent(script)],
         capture_output=True,
@@ -109,12 +91,15 @@ def test_cat_backward_two_tensors():
 
 def test_cat_backward_many_tensors():
     tensors_cpu = [
-        torch.randn(2, 3, dtype=torch.float32, requires_grad=True) for _ in range(4)
+        torch.randn(2, 3, dtype=torch.float32, requires_grad=True)
+        for _ in range(4)
     ]
     y_cpu = torch.cat(tensors_cpu, dim=1)
     grads_cpu = _grad_with_ones(y_cpu, tuple(tensors_cpu))
 
-    tensors = [t.detach().to("nntile").requires_grad_(True) for t in tensors_cpu]
+    tensors = [
+        t.detach().to("nntile").requires_grad_(True) for t in tensors_cpu
+    ]
     y = torch.cat(tensors, dim=1)
     grads = _grad_with_ones(y, tuple(tensors))
 

@@ -123,7 +123,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
             TORCH_CHECK(
                 out->is_contiguous(),
                 "nntile norm: output tensor must be contiguous");
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
             nntile::TensorGraph::TensorNode *node = lookup_data_node(
                 norm_values,
                 {});
@@ -131,9 +130,6 @@ std::tuple<at::Tensor, at::Tensor> norm_forward(
                 node != nullptr,
                 "nntile norm: scalar norm output node is missing");
             register_data_node(*out, node);
-#else
-            TORCH_CHECK(false, "nntile norm requires libnntile");
-#endif
             return {*out, norm_values};
         }
 

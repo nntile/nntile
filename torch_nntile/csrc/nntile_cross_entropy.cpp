@@ -96,10 +96,6 @@ std::tuple<at::Tensor, at::Tensor> cross_entropy_forward(
         maxsumexp_pytorch_shape(logits.sizes()),
         at::kFloat,
         logits.device());
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-    ensure_host_staging(loss);
-    ensure_host_staging(maxsumexp);
-#endif
     tensor_cross_entropy_forward_fp32(
         logits,
         target,
@@ -133,13 +129,6 @@ at::Tensor cross_entropy_backward(
         is_nntile_device(maxsumexp.device()),
         "nntile cross_entropy_backward: maxsumexp must be on device nntile");
     at::Tensor grad_out = grad_output;
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-    ensure_host_staging(grad_out);
-    if (grad_out.numel() == 1)
-    {
-        grad_out.fill_(1.0f);
-    }
-#endif
     at::Tensor grad_logits = empty_metadata_tensor(
         logits.sizes(),
         logits.scalar_type(),
@@ -157,12 +146,10 @@ at::Tensor cross_entropy_backward(
         grad_logits,
         ignore_index,
         reduction_is_mean(reduction));
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     note_record_ce_bwd(
         std::chrono::duration<double>(
             std::chrono::steady_clock::now() - t0)
             .count());
-#endif
     return grad_logits;
 }
 

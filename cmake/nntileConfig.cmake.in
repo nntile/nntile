@@ -1,0 +1,46 @@
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#
+# @file cmake/nntileConfig.cmake.in
+# find_package(nntile) config for installed libnntile.
+
+@PACKAGE_INIT@
+
+# Re-entrant find_package / find_dependency must not re-announce or
+# re-import targets.
+if(TARGET nntile::nntile)
+    check_required_components(nntile)
+    return()
+endif()
+
+include(CMakeFindDependencyMacro)
+
+set(NNTILE_BUILT_WITH_CUDA "@NNTILE_LINK_CUDA@")
+set(NNTILE_BUILT_WITH_CBLAS "@NNTILE_LINK_CBLAS@")
+
+# StarPU (same helper used at build time).
+include("${CMAKE_CURRENT_LIST_DIR}/NNTileFindStarPU.cmake")
+
+find_dependency(nlohmann_json)
+
+if(NNTILE_BUILT_WITH_CUDA)
+    find_dependency(CUDAToolkit 11.0)
+    # CUDNN::cudnn_all is provided by the build's cuDNN helper; consumers that
+    # need CUDA must supply an equivalent imported target or link flags.
+endif()
+
+if(NNTILE_BUILT_WITH_CBLAS)
+    find_dependency(BLAS)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/nntileTargets.cmake")
+
+if(NOT TARGET nntile::nntile)
+    message(FATAL_ERROR "nntile::nntile target missing from nntileTargets.cmake")
+endif()
+
+if(NOT nntile_FIND_QUIETLY)
+    message(STATUS "libnntile found: ${PACKAGE_PREFIX_DIR}")
+endif()
+
+check_required_components(nntile)

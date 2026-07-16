@@ -15,11 +15,6 @@
 #include <mutex>
 #include <unordered_map>
 
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-#include "nntile_allocator.h"
-#include <c10/util/Exception.h>
-#endif
-
 namespace torch_nntile
 {
 
@@ -84,34 +79,5 @@ void register_metadata_tensor_storage(const at::Tensor &tensor)
     std::lock_guard<std::mutex> lock(g_tensor_gc_mutex);
     register_tensor_storage_ctx_locked(tensor);
 }
-
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-
-bool has_host_staging(const at::Tensor &tensor)
-{
-    return tensor.storage().nbytes() > 0;
-}
-
-void ensure_host_staging(at::Tensor &tensor)
-{
-    if (has_host_staging(tensor))
-    {
-        return;
-    }
-    const int64_t nbytes = tensor.numel() * tensor.element_size();
-    TORCH_CHECK(nbytes >= 0, "ensure_host_staging: invalid tensor size");
-    c10::Allocator *allocator = get_nntile_allocator();
-    c10::DataPtr data_ptr = allocator->allocate(static_cast<std::size_t>(nbytes));
-    auto storage = c10::make_intrusive<c10::StorageImpl>(
-        c10::StorageImpl::use_byte_size_t(),
-        static_cast<std::size_t>(nbytes),
-        std::move(data_ptr),
-        allocator,
-        /*resizable=*/true);
-    tensor.unsafeGetTensorImpl()->set_storage_keep_dtype(std::move(storage));
-    register_tensor_storage_ctx_locked(tensor);
-}
-
-#endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile

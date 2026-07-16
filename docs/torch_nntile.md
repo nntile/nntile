@@ -1,7 +1,7 @@
 # torch_nntile
 
-PyTorch **PrivateUse1** backend registered as `device="nntile"`. When built
-against `libnntile_tensorgraph`, selected ops record into a shared `TensorGraph`, lower to
+PyTorch **PrivateUse1** backend registered as `device="nntile"`. Builds always
+link **libnntile**; selected ops record into a shared `TensorGraph`, lower to
 `TileGraph`, and run through `Runtime` (StarPU).
 
 Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
@@ -42,6 +42,9 @@ gh workflow run torch-nntile-wheels.yml --ref graph_api
 Install the matching `torch` first, then the local wheel (see
 [`torch_nntile/README.md`](../torch_nntile/README.md#prebuilt-wheels-001) for
 full commands). Maintainer CI notes: [build/README.md](build/README.md#torch_nntile-wheels-ci).
+
+Embedding / LM-head **weight tying is deferred** (independent parameters for
+now). See [dev/libtorch_nntile_migration.md](dev/libtorch_nntile_migration.md#known-debt--deferred-work).
 
 ## Install from source
 

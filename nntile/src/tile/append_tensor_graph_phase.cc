@@ -226,54 +226,5 @@ void append_tensor_graph_phase(
         phase.op_end);
 }
 
-#ifdef NNTILE_USE_NNGRAPH
-void compile_incremental_nn_phase(
-    FinishedTensorPhase const& exec_phase,
-    NNGraph& nn_graph_for_suffix,
-    TensorGraphTiling const& tiling,
-    TileGraph& tile_graph,
-    Runtime& runtime,
-    TileGraphIncrementalState& state,
-    TensorNodeToTileMap& tile_map,
-    bool archive_phase,
-    std::unordered_map<TensorGraph::TensorNode const *,
-        std::vector<std::shared_ptr<void>>> const *persisted_tiles,
-    std::unordered_map<TensorGraph::TensorNode const *, bool> const
-        *persisted_init)
-{
-    if(exec_phase.tensor_graph == nullptr)
-    {
-        throw std::invalid_argument(
-            "compile_incremental_nn_phase: finished phase has null tensor_graph");
-    }
-    std::size_t const tile_op_begin = tile_graph.num_ops();
-    append_tensor_graph_phase(
-        *exec_phase.tensor_graph,
-        exec_phase.snapshot,
-        tiling,
-        tile_graph,
-        state,
-        tile_map);
-    std::size_t const tile_op_end = tile_graph.num_ops();
-    if(persisted_tiles != nullptr && !persisted_tiles->empty())
-    {
-        runtime.stage_persisted_tiles(*persisted_tiles, tile_map);
-    }
-    runtime.compile();
-    if(persisted_init != nullptr && !persisted_init->empty())
-    {
-        runtime.restore_persisted_init_state(*persisted_init);
-    }
-    if(archive_phase)
-    {
-        nn_graph_for_suffix.push_tensor_phase_archive(TensorPhaseArchiveEntry{
-            exec_phase.snapshot,
-            tile_op_begin,
-            tile_op_end});
-    }
-    nn_graph_for_suffix.bump_auto_tensor_name_phase_suffix_after_compile();
-    nn_graph_for_suffix.clear_pending_compile_if_same(exec_phase);
-}
-#endif
 
 } // namespace nntile

@@ -16,8 +16,6 @@
 #include <c10/util/Exception.h>
 #include <stdexcept>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-
 #include <nntile/runtime.hh>
 #include <nntile/starpu/sync_defer.hh>
 #include <nntile/dtype.hh>
@@ -64,7 +62,7 @@ namespace torch_nntile
 namespace
 {
 
-//! Temporary profiling knob: skip StarPU *compute* submit and host↔tile
+//! Temporary profiling knob: skip StarPU *compute* submit and host<->tile
 //! acquire/memcpy so record+compile wall time can be measured alone.
 //! ``execute_range`` still runs (watermark + last-consumer reclaim) so
 //! incremental compile stays O(pending). Set ``TORCH_NNTILE_SKIP_STARPU=1``.
@@ -461,11 +459,13 @@ void write_cpu_bytes_to_staging_locked(
         if (!skip_starpu)
         {
             auto local = buf.acquire(STARPU_W);
-            const auto *src = static_cast<const bool *>(host_ptr);
+            // Torch bool / uint8 storage is byte-addressed.
+            const auto *src =
+                static_cast<const std::uint8_t *>(host_ptr);
             for (std::size_t i = 0; i < count; ++i)
             {
                 local[static_cast<nntile::Index>(i)] =
-                    nntile::bool_t(src[i]);
+                    nntile::bool_t(src[i] != 0);
             }
             local.release();
         }
@@ -503,7 +503,7 @@ void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
 //! compile lowers every logical ``L``. Submitting all scatters before any
 //! ``S`` unregister leaves StarPU holding CUDA replicates of every ``S``
 //! beside every ``L``; unregister only parks those buffers in the
-//! allocation cache (``nvidia-smi`` stays ≈2×). Drain + destroy each
+//! allocation cache (``nvidia-smi`` stays ~2x). Drain + destroy each
 //! ``S`` before the next scatter so the next ``L`` reuses the cached
 //! chunk instead of allocating another full working set.
 void run_pending_with_scatter_staging_release_locked(
@@ -638,11 +638,13 @@ void read_staging_to_host_locked(
                 "torch_nntile: staging read size mismatch");
         }
         auto local = buf.acquire(STARPU_R);
-        auto *dst = static_cast<bool *>(host_ptr);
+        // Torch bool storage is 1 byte/elem; do not write through bool*
+        // (pointer arithmetic / aliasing). Treat host buffer as bytes.
+        auto *dst = static_cast<std::uint8_t *>(host_ptr);
         for (std::size_t i = 0; i < count; ++i)
         {
-            dst[i] = static_cast<bool>(
-                local[static_cast<nntile::Index>(i)]);
+            dst[i] = static_cast<std::uint8_t>(
+                static_cast<bool>(local[static_cast<nntile::Index>(i)]));
         }
         local.release();
         break;
@@ -676,6 +678,68 @@ nntile::Index graph_numel(const std::vector<nntile::Index> &graph_shape)
         nelems *= dim;
     }
     return nelems;
+}
+
+//! Bytes available in ``tensor`` storage from ``data_ptr()`` to the end.
+//!
+//! ``tensor.nbytes()`` is typically ``numel * itemsize`` and does **not**
+//! catch a contiguous view whose ``storage_offset`` leaves too little room
+//! (``batch[:, 1:]`` at B=1 is contiguous with offset != 0).
+std::size_t host_bytes_from_data_ptr(const at::Tensor &tensor)
+{
+    TORCH_CHECK(tensor.is_cpu(), "host_bytes_from_data_ptr: CPU tensor");
+    const int64_t itemsize = tensor.element_size();
+    TORCH_CHECK(itemsize > 0, "host_bytes_from_data_ptr: bad itemsize");
+    const int64_t offset = tensor.storage_offset();
+    TORCH_CHECK(offset >= 0, "host_bytes_from_data_ptr: negative offset");
+    const int64_t storage_bytes =
+        static_cast<int64_t>(tensor.storage().nbytes());
+    const int64_t offset_bytes = offset * itemsize;
+    TORCH_CHECK(
+        offset_bytes <= storage_bytes,
+        "host_bytes_from_data_ptr: storage_offset past end of storage "
+        "(offset=",
+        offset,
+        " storage_bytes=",
+        storage_bytes,
+        " itemsize=",
+        itemsize,
+        ")");
+    return static_cast<std::size_t>(storage_bytes - offset_bytes);
+}
+
+void check_host_buffer_for_transfer(
+    const at::Tensor &host,
+    std::size_t count,
+    std::size_t elem_bytes,
+    const char *what)
+{
+    TORCH_CHECK(host.is_cpu(), what, ": expected CPU tensor");
+    TORCH_CHECK(host.is_contiguous(), what, ": contiguous required");
+    TORCH_CHECK(
+        static_cast<std::size_t>(host.numel()) == count,
+        what,
+        ": numel mismatch (numel=",
+        host.numel(),
+        " count=",
+        count,
+        " storage_offset=",
+        host.storage_offset(),
+        ")");
+    const std::size_t need = count * elem_bytes;
+    const std::size_t avail = host_bytes_from_data_ptr(host);
+    TORCH_CHECK(
+        avail >= need,
+        what,
+        ": storage too small from data_ptr() (avail=",
+        avail,
+        " need=",
+        need,
+        " storage_offset=",
+        host.storage_offset(),
+        " storage.nbytes=",
+        host.storage().nbytes(),
+        ")");
 }
 
 bool shapes_equal(
@@ -844,7 +908,7 @@ void prepare_invalidate_selection_locked()
 //! ``append_invalidates_for_unmarked_unsealed`` covers emplace_data temps.
 //! A side-channel ``invalidate_logical_tiles`` here ran *before* the phase
 //! was submitted, so ``del inputs`` after record (but before compile) could
-//! free ingress tiles before embedding tasks were inserted — StarPU then
+//! free ingress tiles before embedding tasks were inserted - StarPU then
 //! saw "handle is not initialized".
 void flush_released_logicals_locked()
 {
@@ -951,7 +1015,7 @@ void run_graph_locked()
     {
         return;
     }
-    // Submit only (except ingress scatters — see below). INVALIDATE ops are
+    // Submit only (except ingress scatters - see below). INVALIDATE ops are
     // already in the execution stream. Join StarPU via wait() for readout.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
@@ -964,7 +1028,7 @@ void run_graph_locked()
         if (!g_exec->pending_scatter_stagings.empty())
         {
             // Per-S release so StarPU's allocation cache can reuse each
-            // ephemeral CUDA chunk for the next logical L (avoids ≈2×).
+            // ephemeral CUDA chunk for the next logical L (avoids ~2x).
             run_pending_with_scatter_staging_release_locked(
                 g_exec->pending_exec_op_begin,
                 g_exec->pending_exec_op_end,
@@ -1084,7 +1148,7 @@ void sync_param_grad_aliases_locked()
 
 void execute_pending_graph_locked()
 {
-    // compile + run only. Never wait here — callers must use wait() /
+    // compile + run only. Never wait here - callers must use wait() /
     // wait_graph_session() (same contract as compile_graph + run).
     compile_graph_locked();
     run_graph_locked();
@@ -1226,7 +1290,18 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     const nntile::DataType dtype = logical->dtype();
     const std::size_t count =
         static_cast<std::size_t>(logical->nelems());
-    // Respect dst storage_offset (matches CPU→nntile ingress via data_ptr()).
+    const std::size_t elem_bytes = nntile::dtype_size(dtype);
+    // Host buffer must match the logical payload size, including room
+    // after storage_offset (dst.nbytes() alone is not enough).
+    check_host_buffer_for_transfer(
+        dst,
+        count,
+        elem_bytes,
+        "torch_nntile: copy_nntile_tensor_to_cpu");
+    TORCH_CHECK(
+        aten_scalar_to_nntile_dtype(dst.scalar_type()) == dtype,
+        "torch_nntile: host readout dtype mismatch");
+    // Respect dst storage_offset (matches CPU->nntile ingress via data_ptr()).
     void *host_ptr = dst.data_ptr();
 
     // Sync a prior async execute()/run() even when no ops are pending so
@@ -1274,6 +1349,16 @@ void init_nntile_input_from_cpu(
     TORCH_CHECK(
         cpu_src.is_contiguous() && nntile_dst.is_contiguous(),
         "init_nntile_input_from_cpu: contiguous tensors required");
+    TORCH_CHECK(
+        cpu_src.scalar_type() == nntile_dst.scalar_type(),
+        "init_nntile_input_from_cpu: dtype mismatch");
+    const nntile::DataType dtype =
+        aten_scalar_to_nntile_dtype(cpu_src.scalar_type());
+    check_host_buffer_for_transfer(
+        cpu_src,
+        static_cast<std::size_t>(cpu_src.numel()),
+        nntile::dtype_size(dtype),
+        "init_nntile_input_from_cpu");
 
     if (g_graph == nullptr)
     {
@@ -1283,15 +1368,13 @@ void init_nntile_input_from_cpu(
 
     const std::vector<nntile::Index> shape =
         aten_sizes_to_graph_shape(cpu_src.sizes());
-    const nntile::DataType dtype =
-        aten_scalar_to_nntile_dtype(cpu_src.scalar_type());
     const TensorImplKey impl_key = tensor_impl_key(nntile_dst);
 
     if (nntile::TensorRef existing = tensor_ref(nntile_dst);
         existing)
     {
         throw std::runtime_error(
-            "torch_nntile: CPU→nntile copy into an already-bound tensor is "
+            "torch_nntile: CPU->nntile copy into an already-bound tensor is "
             "unsupported; ingress each tensor once via .to('nntile')");
     }
 
@@ -1359,6 +1442,16 @@ void register_data_node(
 {
     const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    TORCH_CHECK(node != nullptr, "register_data_node: null node");
+    TORCH_CHECK(
+        static_cast<std::size_t>(tensor.numel()) ==
+            static_cast<std::size_t>(node->nelems()),
+        "torch_nntile: register_data_node size mismatch: torch numel=",
+        tensor.numel(),
+        " logical nelems=",
+        node->nelems(),
+        " torch shape=",
+        tensor.sizes());
     at::Tensor mutable_tensor = tensor;
     if (!static_cast<bool>(tensor_ref(mutable_tensor)))
     {
@@ -1738,7 +1831,7 @@ std::string format_info_locked()
     }
     if (g_timing.run_calls > 0)
     {
-        ss << "  note: wait_calls should be ≈ run_calls when callers avoid "
+        ss << "  note: wait_calls should be ~ run_calls when callers avoid "
            << "redundant wait(); idle wait() is a no-op\n";
     }
 
@@ -1768,144 +1861,3 @@ void print_info()
 
 } // namespace torch_nntile
 
-#else
-
-#include <cstring>
-
-namespace torch_nntile
-{
-
-namespace
-{
-
-[[noreturn]] void require_libnntile()
-{
-    throw std::runtime_error(
-        "torch_nntile graph recorder requires libnntile "
-        "(rebuild with NNTILE_BUILD_DIR set)");
-}
-
-} // namespace
-
-bool has_pending_graph()
-{
-    return false;
-}
-
-void require_no_pending_graph(const char * /*op_name*/)
-{
-}
-
-void execute_pending_graph()
-{
-    require_libnntile();
-}
-
-void compile_graph()
-{
-    require_libnntile();
-}
-
-void run_graph()
-{
-    require_libnntile();
-}
-
-void wait_graph_session()
-{
-}
-
-void reset_graph_session()
-{
-    require_libnntile();
-}
-
-bool has_graph_session()
-{
-    return false;
-}
-
-void on_tensor_impl_released(TensorImplKey /*key*/)
-{
-}
-
-void record_view_alias(const at::Tensor & /*self*/, const at::Tensor & /*view*/)
-{
-}
-
-void set_axis_group_name(
-    const at::Tensor & /*tensor*/,
-    const std::unordered_map<int, std::string> & /*names*/)
-{
-    require_libnntile();
-}
-
-bool is_tensor_graph_output(const at::Tensor & /*tensor*/)
-{
-    require_libnntile();
-    return false;
-}
-
-void stage_tensor_for_axis_group_compile(const at::Tensor & /*tensor*/)
-{
-    require_libnntile();
-}
-
-void init_nntile_input_from_cpu(
-    const at::Tensor &cpu_src,
-    at::Tensor &nntile_dst)
-{
-    TORCH_CHECK(cpu_src.is_cpu(), "init_nntile_input_from_cpu: expected CPU src");
-    TORCH_CHECK(
-        nntile_dst.device().type() == c10::DeviceType::PrivateUse1,
-        "init_nntile_input_from_cpu: expected nntile dst");
-    TORCH_CHECK(
-        cpu_src.sizes() == nntile_dst.sizes(),
-        "init_nntile_input_from_cpu: shape mismatch");
-    TORCH_CHECK(
-        cpu_src.is_contiguous() && nntile_dst.is_contiguous(),
-        "init_nntile_input_from_cpu: contiguous tensors required");
-    ensure_host_staging(nntile_dst);
-    const int64_t nbytes = cpu_src.nbytes();
-    if (nbytes > 0)
-    {
-        std::memcpy(
-            nntile_dst.data_ptr(),
-            cpu_src.data_ptr(),
-            static_cast<std::size_t>(nbytes));
-    }
-}
-
-void set_axis_group_tiling(
-    const std::string & /*name*/,
-    const std::vector<std::int64_t> & /*tile_sizes*/)
-{
-    require_libnntile();
-}
-
-std::string format_axis_groups()
-{
-    require_libnntile();
-    return {};
-}
-
-void print_axis_groups()
-{
-    require_libnntile();
-}
-
-void print_info()
-{
-}
-
-void shutdown_recorder()
-{
-}
-
-void copy_nntile_tensor_to_cpu(const at::Tensor & /*src*/, at::Tensor & /*dst*/)
-{
-}
-
-} // namespace torch_nntile
-
-#endif

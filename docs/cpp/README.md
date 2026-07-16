@@ -1,26 +1,21 @@
 # C++ implementation overview
 
-NNTile is split into two libraries:
+NNTile ships two installable libraries:
 
 | Library | Contents | Umbrella headers |
 |---------|----------|------------------|
-| **libnntile_tensorgraph** | kernel → starpu → core → TileGraph → TensorGraph → Runtime | [`tensor.hh`](../../nntile/include/nntile/tensor.hh), [`tile.hh`](../../nntile/include/nntile/tile.hh), [`runtime.hh`](../../nntile/include/nntile/runtime.hh) |
-| **libnntile** | NNGraph, modules, models, optim, io, dataset (links tensorgraph) | [`graph.hh`](../../nntile/include/nntile/graph.hh), [`nn.hh`](../../nntile/include/nntile/nn.hh) |
-| **full** | both | [`nntile.hh`](../../nntile/include/nntile.hh) |
+| **libnntile** | kernel → starpu → core → TileGraph → TensorGraph → Runtime | [`nntile.hh`](../../nntile/include/nntile.hh), [`tensor.hh`](../../nntile/include/nntile/tensor.hh), [`tile.hh`](../../nntile/include/nntile/tile.hh), [`runtime.hh`](../../nntile/include/nntile/runtime.hh) |
+| **libtorch_nntile** | LibTorch PrivateUse1 (`device=nntile`) + models | [`torch_nntile`](../../torch_nntile/README.md) |
 
-`torch_nntile` links **only** `libnntile_tensorgraph`. The Python
-`nntile` extension and C++ examples/models link `libnntile`.
-
-High-level sources are gated by `BUILD_NNTILE_NNGRAPH` and related options
-(default OFF on `graph_api`).
+`torch_nntile` / **libtorch_nntile** link **libnntile** only.
 
 ```mermaid
 flowchart TB
-  subgraph high [libnntile]
-    NN[NNGraph]
-    Mod[module / model / optim]
+  subgraph torch [libtorch_nntile]
+    Aten[PrivateUse1 / ATen]
+    Models[torch::nn models]
   end
-  subgraph tg [libnntile_tensorgraph]
+  subgraph tg [libnntile]
     TG[TensorGraph]
     TileG[TileGraph]
     RT[Runtime]
@@ -28,7 +23,7 @@ flowchart TB
     StarPU[nntile::starpu]
     Kernel[nntile::kernel]
   end
-  high --> tg
+  torch --> tg
   TG --> TileG --> RT --> Core --> StarPU --> Kernel
 ```
 
@@ -40,7 +35,6 @@ flowchart TB
 - [`include/nntile/tile.hh`](../../nntile/include/nntile/tile.hh)
 - [`include/nntile/tensor.hh`](../../nntile/include/nntile/tensor.hh)
 - [`include/nntile/runtime.hh`](../../nntile/include/nntile/runtime.hh)
-- [`include/nntile/graph.hh`](../../nntile/include/nntile/graph.hh)
 
 Sources mirror tests: `nntile/src/<level>/<op>.cc` ↔ `nntile/tests/<level>/<op>.cc`.
 
@@ -68,10 +62,3 @@ Single-tile operations (`Tile<T>`).
 **Namespaces:** `nntile::tensor`, `nntile::tile`, `nntile::runtime`
 
 TensorGraph, TileGraph lowering, and Runtime execution.
-
-## nn / module / model (libnntile)
-
-**Namespace:** `nntile::nn` (and related)
-
-NNGraph autograd, modules, and models. See
-[`include/nntile/graph.hh`](../../nntile/include/nntile/graph.hh).

@@ -96,7 +96,6 @@ at::Tensor broadcast_to_shape(
     }
     if (tensor.device().type() == c10::DeviceType::PrivateUse1)
     {
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         if (tensor.sizes().equals(target_size))
         {
             TORCH_CHECK(
@@ -145,16 +144,6 @@ at::Tensor broadcast_to_shape(
                 at::MemoryFormat::Contiguous));
         tensor_repeat_fp32(tensor, out, repeats);
         return out;
-#else
-        const at::Tensor cpu_broadcast =
-            tensor.cpu().expand(target_size).contiguous();
-        at::Tensor out = at::empty(
-            target_size,
-            tensor.options().memory_format(at::MemoryFormat::Contiguous));
-        ensure_host_staging(out);
-        out.copy_(cpu_broadcast);
-        return out;
-#endif
     }
     at::Tensor expanded = tensor.expand(target_size);
     if (!expanded.is_contiguous())

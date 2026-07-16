@@ -129,7 +129,6 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
             axis,
             batch_ndim,
             static_cast<float>(alpha));
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         std::vector<nntile::Index> fiber_shape;
         fiber_shape.reserve(static_cast<std::size_t>(grad_fiber.dim()));
         for (const auto dim : grad_fiber.sizes())
@@ -145,12 +144,10 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
             register_grad_alias_for_host_copy(
                 grad_fiber_alias, grad_fiber_node);
         }
-#endif
     }
     if (output_mask[1])
     {
         grad_tensor = grad_out;
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         if (tensor.defined())
         {
             std::vector<nntile::Index> tensor_shape;
@@ -169,7 +166,6 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
                     grad_tensor_alias, grad_tensor_node);
             }
         }
-#endif
     }
     return {grad_fiber, grad_tensor};
 }

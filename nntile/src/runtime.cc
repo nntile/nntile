@@ -671,7 +671,7 @@ void Runtime::allocate_missing_tiles()
         }
     };
 
-    // Only touch pending I/O, DCE-live tiles, and newly lowered tile nodes —
+    // Only touch pending I/O, DCE-live tiles, and newly lowered tile nodes -
     // never scan the full historical tile_nodes() list (that made compile
     // O(session length)). New nodes cover ingress staging lowered before any
     // scatter op is appended to execution_order_.
@@ -779,7 +779,7 @@ void Runtime::execute()
     // compile may have skipped (pending slice was empty after a previous run).
     executed_op_end_ = 0;
     allocate_missing_tiles();
-    // Submit only — same contract as execute_range. Call wait() to join
+    // Submit only - same contract as execute_range. Call wait() to join
     // StarPU. Last-consumer invalidate_submit runs inside execute_range.
     execute_range(0, execution_order_.size());
 }

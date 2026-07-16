@@ -4,20 +4,13 @@
 # @file torch_nntile/tests/test_normalization_parity.py
 # LayerNorm / RMSNorm parity: CPU PyTorch vs nntile.
 
+import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pytest
-
-import torch_nntile
-from torch_nntile import _C
 from conftest import nntile_cpu
 
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+import torch_nntile
 
 
 @pytest.mark.parametrize("shape", [(4, 8), (2, 3, 8)])
@@ -64,7 +57,9 @@ def test_layer_norm_backward_matches_cpu(shape):
     y_nnt = ln_nnt(x_nnt)
     y_nnt.backward(torch.ones_like(y_nnt))
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )
     assert torch.allclose(
         nntile_cpu(ln_nnt.weight.grad), ln.weight.grad, rtol=1e-4, atol=1e-4
     )
@@ -115,7 +110,9 @@ def test_rms_norm_backward_matches_cpu(shape):
     y_nnt = rms_nnt(x_nnt)
     y_nnt.backward(torch.ones_like(y_nnt))
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )
     assert torch.allclose(
         nntile_cpu(rms_nnt.weight.grad), rms.weight.grad, rtol=1e-4, atol=1e-4
     )
@@ -166,4 +163,6 @@ def test_rms_norm_without_weight_backward_matches_cpu():
     y_nnt = F.rms_norm(x_nnt, (5,), None, 1e-6)
     y_nnt.backward(torch.ones_like(y_nnt))
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )

@@ -12,9 +12,7 @@
 #include <ATen/TensorUtils.h>
 #include <torch/library.h>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
-#endif
 
 #include <cstdint>
 #include <vector>

@@ -146,7 +146,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm(
     check_optional_affine(input, weight, bias, norm_axis);
 
     at::Tensor output = at::empty_like(input);
-    // Reduced (non-keepdim) stats — matches C++ ``NNLayerNormOp`` buffers and
+    // Reduced (non-keepdim) stats - matches C++ ``NNLayerNormOp`` buffers and
     // avoids ``scale_slice`` broadcast of mean/rstd.
     const auto stats_sizes = reduced_sizes(input.sizes(), norm_axis);
     at::Tensor mean = at::empty(

@@ -14,14 +14,16 @@
 
 #include "context_fixture.hh"
 #include "test_frobenius.hh"
-#include "nntile/graph.hh"
+#include <nntile/tile.hh>
+#include <nntile/tensor.hh>
 #include "nntile/tile.hh"
 #include "nntile/tile.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
-#include <nntile/graph.hh>
+#include <nntile/tile.hh>
+#include <nntile/tensor.hh>
 #include <cstring>
 #include <numeric>
 #include <unordered_map>

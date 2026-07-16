@@ -13,11 +13,9 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
 #include <nntile/dtype.hh>
 #include <nntile/tensor/graph.hh>
-#endif
 
 namespace at
 {
@@ -32,8 +30,6 @@ void on_tensor_impl_released(TensorImplKey key);
 void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst);
-
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
     const at::Tensor &tensor,
@@ -67,7 +63,5 @@ void note_record_linear_bwd(double seconds);
 void note_record_ce_bwd(double seconds);
 void note_record_relu_bwd(double seconds);
 void note_record_gemm(double seconds);
-
-#endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile

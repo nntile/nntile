@@ -4,7 +4,7 @@
 # @file torch_nntile/torch_nntile/__init__.py
 # Register the PyTorch nntile device (PrivateUse1).
 
-"""PyTorch nntile device stub (PrivateUse1 open registration)."""
+"""PyTorch nntile device (PrivateUse1; requires libnntile)."""
 
 from __future__ import annotations
 
@@ -12,11 +12,12 @@ import atexit
 
 import torch
 
+from ._build_info import BUILT_WITH_CUDA
 from ._cuda_deps import ensure_linux_cuda_deps
 
-ensure_linux_cuda_deps()
+ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 
-from . import _C  # noqa: E402, F401 — loads kernels and allocator
+from . import _C  # noqa: E402, F401 - loads kernels and allocator
 from . import loss as _loss  # noqa: E402, F401
 from . import compat as _compat  # noqa: E402, F401
 from . import nn as nn  # noqa: E402, F401
@@ -25,6 +26,11 @@ from . import norm as _norm  # noqa: E402, F401
 
 _registered = False
 _atexit_shutdown_registered = False
+
+
+def built_with_cuda() -> bool:
+    """Return whether this install was compiled with CUDA support."""
+    return bool(BUILT_WITH_CUDA)
 
 
 def _register_shutdown_atexit() -> None:
@@ -250,6 +256,8 @@ def print_info() -> None:
 __all__ = [
     "device",
     "_C",
+    "built_with_cuda",
+    "BUILT_WITH_CUDA",
     "init_context",
     "execute",
     "compile_graph",

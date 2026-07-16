@@ -1,5 +1,5 @@
 # @file nntile/src/CMakeLists.txt
-# Sources for libnntile_tensorgraph and optional libnntile
+# Sources for libnntile (TensorGraph stack)
 
 # @copyright (c) 2022-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
@@ -426,130 +426,10 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/ops/swap_two_axes.cc"
 )
 
-set(GRAPH_NN_LAYER_SRC
-    "nn/graph.cc"
-    "nn/tensor_node.cc"
-    "nn/ops/add.cc"
-    "nn/ops/add_fiber.cc"
-    "nn/ops/add_slice.cc"
-    "nn/ops/adam_step.cc"
-    "nn/ops/adamw_step.cc"
-    "nn/ops/concat.cc"
-    "nn/ops/cross_entropy.cc"
-    "nn/ops/embedding.cc"
-    "nn/ops/gemm.cc"
-    "nn/ops/gelu.cc"
-    "nn/ops/layer_norm.cc"
-    "nn/ops/gelutanh.cc"
-    "nn/ops/hypot.cc"
-    "nn/ops/mse_loss.cc"
-    "nn/ops/multiply.cc"
-    "nn/ops/multiply_fiber.cc"
-    "nn/ops/multiply_slice.cc"
-    "nn/ops/norm.cc"
-    "nn/ops/norm_fiber.cc"
-    "nn/ops/norm_slice.cc"
-    "nn/ops/relu.cc"
-    "nn/ops/rms_norm.cc"
-    "nn/ops/rope.cc"
-    "nn/ops/scale.cc"
-    "nn/ops/scale_fiber.cc"
-    "nn/ops/scale_slice.cc"
-    "nn/ops/sdpa_eager.cc"
-    "nn/ops/sdpa_causal_mask.cc"
-    "nn/ops/sgd_step.cc"
-    "nn/ops/silu.cc"
-    "nn/ops/softmax.cc"
-    "nn/ops/sum_fiber.cc"
-    "nn/ops/sum_slice.cc"
-    "nn/ops/transpose.cc"
-)
-
-set(GRAPH_IO_SRC
-    "io/safetensors.cc"
-)
-
-set(GRAPH_UTIL_SRC
-    "kv_cache.cc"
-)
-
-set(GRAPH_MODULE_SRC
-    "module/module.cc"
-    "module/activation.cc"
-    "module/gated_mlp.cc"
-    "module/mlp.cc"
-    "module/linear.cc"
-    "module/embedding.cc"
-    "module/rms_norm.cc"
-    "module/layer_norm.cc"
-)
-
-set(GRAPH_DATASET_SRC
-    "dataset/causal_lm_mmap.cc"
-    "dataset/seq2seq_lm_mmap.cc"
-    )
-
-set(GRAPH_MODEL_SRC
-    "model/llama/llama_mlp.cc"
-    "model/llama/llama_attention.cc"
-    "model/llama/llama_rope.cc"
-    "model/llama/llama_decoder.cc"
-    "model/llama/llama_model.cc"
-    "model/llama/llama_causal.cc"
-    "model/gptneo/gptneo_config.cc"
-    "model/gptneo/gptneo_attention.cc"
-    "model/gptneo/gptneo_mlp.cc"
-    "model/gptneo/gptneo_decoder.cc"
-    "model/gptneo/gptneo_model.cc"
-    "model/gptneo/gptneo_causal.cc"
-    "model/gpt2/gpt2_attention.cc"
-    "model/gpt2/gpt2_mlp.cc"
-    "model/gpt2/gpt2_block.cc"
-    "model/gpt2/gpt2_model.cc"
-    "model/gpt2/gpt2_causal.cc"
-    "model/gptneox/gptneox_config.cc"
-    "model/gptneox/gptneox_rope.cc"
-    "model/gptneox/gptneox_mlp.cc"
-    "model/gptneox/gptneox_attention.cc"
-    "model/gptneox/gptneox_decoder.cc"
-    "model/gptneox/gptneox_model.cc"
-    "model/gptneox/gptneox_causal.cc"
-    "model/t5/t5_attention.cc"
-    "model/t5/t5_ff.cc"
-    "model/t5/t5_block.cc"
-    "model/t5/t5_model.cc"
-    "model/t5/t5_for_conditional_generation.cc"
-    "model/bert/bert_self_attention.cc"
-    "model/bert/bert_self_output.cc"
-    "model/bert/bert_attention.cc"
-    "model/bert/bert_intermediate.cc"
-    "model/bert/bert_output.cc"
-    "model/bert/bert_layer.cc"
-    "model/bert/bert_embeddings.cc"
-    "model/bert/bert_model.cc"
-    "model/bert/bert_mlm_head.cc"
-    "model/bert/bert_mlm.cc"
-    "model/roberta/roberta_embeddings.cc"
-    "model/roberta/roberta_model.cc"
-    "model/roberta/roberta_mlm_head.cc"
-    "model/roberta/roberta_mlm.cc"
-    )
-
-set(GRAPH_OPTIM_SRC
-    "optim/optimizer.cc"
-    "optim/sgd.cc"
-    "optim/adam.cc"
-    "optim/adamw.cc"
-)
-
 set(GRAPH_RUNTIME_SRC
     "core/execution_schedule.cc"
     "runtime.cc"
     )
-set(GRAPH_BIND_PARAMETERS_SRC "")
-if(BUILD_NNTILE_NNGRAPH)
-    set(GRAPH_BIND_PARAMETERS_SRC "bind_parameters.cc")
-endif()
 
 set(GRAPH_TILE_LAYER_SRC
     "tile/append_tensor_graph_phase.cc"
@@ -631,13 +511,6 @@ set(GRAPH_TILE_LAYER_SRC
 
 set(NNTILE_GRAPH_STACK_SRC
     ${GRAPH_TENSOR_LAYER_SRC}
-    ${GRAPH_NN_LAYER_SRC}
-    ${GRAPH_IO_SRC}
-    ${GRAPH_UTIL_SRC}
-    ${GRAPH_MODULE_SRC}
-    ${GRAPH_DATASET_SRC}
-    ${GRAPH_MODEL_SRC}
-    ${GRAPH_OPTIM_SRC}
     ${GRAPH_RUNTIME_SRC}
     ${GRAPH_TILE_LAYER_SRC}
 )
@@ -661,13 +534,6 @@ if(NNTILE_USE_FLASH_SDPA)
     )
     set(NNTILE_GRAPH_STACK_SRC
         ${GRAPH_TENSOR_LAYER_SRC}
-        ${GRAPH_NN_LAYER_SRC}
-        ${GRAPH_IO_SRC}
-        ${GRAPH_UTIL_SRC}
-        ${GRAPH_MODULE_SRC}
-        ${GRAPH_DATASET_SRC}
-        ${GRAPH_MODEL_SRC}
-        ${GRAPH_OPTIM_SRC}
         ${GRAPH_RUNTIME_SRC}
         ${GRAPH_TILE_LAYER_SRC}
     )
@@ -695,54 +561,27 @@ function(nntile_add_objs name parent_lib)
     nntile_apply_common_includes(${name})
     nntile_apply_cuda(${name})
     nntile_apply_cblas(${name})
-    if(name MATCHES "nntile_objs_(optim|io|tensor|runtime)$")
+    if(name MATCHES "nntile_objs_(tensor|runtime)$")
         target_link_libraries(${name} PUBLIC nlohmann_json::nlohmann_json)
     endif()
     target_link_libraries(${parent_lib} PRIVATE ${name})
 endfunction()
 
-# libnntile_tensorgraph: kernel .. tensor (+ runtime, context, logger).
+# libnntile: kernel .. tensor (+ runtime, context, logger).
 if(KERNEL_CPU_SRC)
-    nntile_add_objs(nntile_objs_kernel nntile_tensorgraph
+    nntile_add_objs(nntile_objs_kernel nntile
         ${KERNEL_CPU_SRC} ${KERNEL_CUDA_SRC})
 endif()
-nntile_add_objs(nntile_objs_starpu nntile_tensorgraph
+nntile_add_objs(nntile_objs_starpu nntile
     ${STARPU_BASE_SRC} ${STARPU_CODELET_SRC})
-nntile_add_objs(nntile_objs_core nntile_tensorgraph
+nntile_add_objs(nntile_objs_core nntile
     ${CORE_BASE_SRC} ${CORE_OPERATION_SRC})
-nntile_add_objs(nntile_objs_graph_base nntile_tensorgraph dtype.cc)
-nntile_add_objs(nntile_objs_tile nntile_tensorgraph
+nntile_add_objs(nntile_objs_graph_base nntile dtype.cc)
+nntile_add_objs(nntile_objs_tile nntile
     ${GRAPH_TILE_LAYER_SRC})
-nntile_add_objs(nntile_objs_tensor nntile_tensorgraph
+nntile_add_objs(nntile_objs_tensor nntile
     ${GRAPH_TENSOR_LAYER_SRC})
-nntile_add_objs(nntile_objs_runtime nntile_tensorgraph
+nntile_add_objs(nntile_objs_runtime nntile
     ${GRAPH_RUNTIME_SRC})
-target_sources(nntile_tensorgraph PRIVATE ${LOGGER_SRC})
-target_sources(nntile_tensorgraph PRIVATE context.cc)
-
-# libnntile: NNGraph and higher layers (optional).
-if(NNTILE_BUILD_HIGH_LEVEL)
-    if(BUILD_NNTILE_NNGRAPH)
-        nntile_add_objs(nntile_objs_kv_cache nntile kv_cache.cc)
-        nntile_add_objs(nntile_objs_nn nntile ${GRAPH_NN_LAYER_SRC})
-        if(GRAPH_BIND_PARAMETERS_SRC)
-            nntile_add_objs(nntile_objs_bind_parameters nntile
-                ${GRAPH_BIND_PARAMETERS_SRC})
-        endif()
-    endif()
-    if(BUILD_NNTILE_MODULES)
-        nntile_add_objs(nntile_objs_module nntile ${GRAPH_MODULE_SRC})
-    endif()
-    if(BUILD_NNTILE_MODELS)
-        nntile_add_objs(nntile_objs_model nntile ${GRAPH_MODEL_SRC})
-    endif()
-    if(BUILD_NNTILE_OPTIM)
-        nntile_add_objs(nntile_objs_optim nntile ${GRAPH_OPTIM_SRC})
-    endif()
-    if(BUILD_NNTILE_IO)
-        nntile_add_objs(nntile_objs_io nntile ${GRAPH_IO_SRC})
-    endif()
-    if(BUILD_NNTILE_DATASET)
-        nntile_add_objs(nntile_objs_dataset nntile ${GRAPH_DATASET_SRC})
-    endif()
-endif()
+target_sources(nntile PRIVATE ${LOGGER_SRC})
+target_sources(nntile PRIVATE context.cc)

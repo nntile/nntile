@@ -1,6 +1,6 @@
 name: Lint
 
-# Disabled on graph_api while python/ bindings replace wrappers/python.
+# Disabled on graph_api while lint targets finish migrating to torch_nntile.
 # Re-enable push, pull_request, and schedule when lint targets are updated.
 on:
   workflow_dispatch:

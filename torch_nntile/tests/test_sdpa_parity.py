@@ -10,17 +10,11 @@ import math
 
 import pytest
 import torch
+from conftest import nntile_cpu, subprocess_environ
+from torch_nntile.nn import SDPA, sdpa_eager
 
 import torch_nntile
 from torch_nntile import _C
-from torch_nntile.nn import SDPA, sdpa_eager
-from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def _projection_to_kernel_layout(x: torch.Tensor) -> torch.Tensor:
@@ -187,7 +181,10 @@ def test_sdpa_mask_axis_order_matches_causal_layout():
         batch_ndim=2,
     )
     assert not torch.allclose(
-        nntile_cpu(out_sparse), nntile_cpu(out_transposed_mask), rtol=1e-4, atol=1e-4
+        nntile_cpu(out_sparse),
+        nntile_cpu(out_transposed_mask),
+        rtol=1e-4,
+        atol=1e-4,
     )
 
 
@@ -223,19 +220,8 @@ def test_sdpa_deferred_until_execute():
     import subprocess
     import sys
     import textwrap
-    from pathlib import Path
 
-    root = Path(__file__).resolve().parents[1]
-    repo = Path(__file__).resolve().parents[2]
-    env = dict(**__import__("os").environ)
-    build_lib = repo / "build" / "nntile"
-    starpu_lib = "/opt/starpu/lib"
-    ld = env.get("LD_LIBRARY_PATH", "")
-    for part in (str(build_lib), starpu_lib):
-        if part not in ld.split(":"):
-            ld = f"{part}:{ld}" if ld else part
-    env["LD_LIBRARY_PATH"] = ld
-    env["PYTHONPATH"] = f"{root}:{env.get('PYTHONPATH', '')}"
+    env = subprocess_environ()
 
     script = textwrap.dedent(
         """

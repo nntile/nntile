@@ -2,8 +2,10 @@
 
 NNTile inference spans three layers:
 
-1. **Library** — `nntile.model.generation` and `nntile.inference` engines on loaded models
-2. **Examples** — standalone generate scripts and small FastAPI servers
+1. **Library** — the installable [`torch_nntile`](../../torch_nntile/README.md)
+   wheel, which registers PyTorch `device="nntile"` and model helpers under
+   [`torch_nntile/models/`](../../torch_nntile/models/)
+2. **Examples** — [`torch_nntile/examples/`](../../torch_nntile/examples/)
 3. **Services** — production-style **HTTP gateway** and **Telegram bot** in [`infra/`](../../infra/)
 
 ```mermaid
@@ -22,59 +24,46 @@ The bot never loads weights or uses a GPU; only the gateway process needs CUDA.
 
 ## Python library
 
-### Generation on causal LMs
+The former Python bindings provided `nntile.model.generation` and
+`nntile.inference` helpers. Current Python work should use `torch_nntile` as
+the user-facing package and install it from a wheel built by the
+CMake/cibuildwheel flow documented in [build/README.md](../build/README.md).
 
-Models with `LLMGenerationMixin` ([`wrappers/python/nntile/model/generation/`](../../wrappers/python/nntile/model/generation/)) expose:
+### Model helpers
 
-- `generate` / `generate_async` on token tensors
-- `GenerationParams`, `GenerationMode` ([`llm_params.py`](../../wrappers/python/nntile/model/generation/llm_params.py))
-- Samplers: greedy, top-k, top-p ([`llm_samplers.py`](../../wrappers/python/nntile/model/generation/llm_samplers.py))
-- Beam / parallel sampling ([`llm_beamsearch.py`](../../wrappers/python/nntile/model/generation/llm_beamsearch.py))
+`torch_nntile.models` includes PyTorch modules and Hugging Face loaders for
+families such as BERT, RoBERTa, GPT-2, GPT-Neo, GPT-NeoX, Llama, T5, and
+MLP-Mixer. Tests under [`torch_nntile/tests/`](../../torch_nntile/tests/)
+cover model parity and supported `device="nntile"` operators.
 
-Supported model families for text generation include GPT-2, GPT-Neo, GPT-NeoX, Llama, and T5 (seq2seq), when loaded via `from_pretrained` — see [models.md](../python/models.md).
-
-### Inference engines
-
-[`wrappers/python/nntile/inference/`](../../wrappers/python/nntile/inference/):
-
-| Class | File | Description |
-|-------|------|-------------|
-| `LlmSyncInferenceEngine` | `llm_sync_engine.py` | Tokenize prompt → `model.generate` → decode text |
-| `LlmAsyncInferenceEngine` | `llm_async_engine.py` | Same via `generate_async` / `to_numpy_async` |
-| `SimpleLlmApiServer` | `llm_api_server.py` | Minimal FastAPI wrapper around an engine |
-| `SimpleApiServerBase` | `api_server_base.py` | Shared uvicorn startup helpers |
-
-Example (sync):
+Example:
 
 ```python
-import nntile
-from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
-from nntile.model.generation.llm import GenerationMode, GenerationParams
+import torch
+import torch_nntile
 
-context = nntile.Context(ncpu=1, ncuda=1, ooc=0, verbose=0)
-context.restrict_cuda()
+torch_nntile.init_context(ncpu=1, ncuda=1, verbose=0)
 
-# model, tokenizer from from_pretrained (see examples)
-engine = LlmSyncInferenceEngine(model, tokenizer, input_seq_size=1024)
-params = GenerationParams(max_tokens=64, use_cache=True)
-text = engine.generate("Hello", params, mode=GenerationMode.Greedy)
-nntile.starpu.wait_for_all()
+model = ...  # PyTorch or Hugging Face module using supported ops
+model = model.to("nntile")
+with torch.no_grad():
+    output = model(input_ids.to("nntile"))
+torch_nntile.wait()
 ```
-
-`GenerationParams.need_static_padding` controls fixed-length padding for static-shape forwards.
 
 ### Standalone example scripts
 
-Under [`wrappers/python/examples/`](../../wrappers/python/examples/):
+Under [`torch_nntile/examples/`](../../torch_nntile/examples/):
 
 | Script | Purpose |
 |--------|---------|
-| `gpt2_generate.py`, `gpt2_custom_generate.py` | GPT-2 text generation |
-| `llama_generate.py` | Llama generation |
-| `gpt_neo_generate.py`, `gpt_neox_generate.py` | GPT-Neo / NeoX generation |
-| `gpt2_inference_server.py`, `llama_inference_server.py` | Small HTTP servers (library-level, not the gateway) |
+| `train_gpt2_hf.py` | Tiny GPT-2 Hugging Face training/parity entrypoint |
+| `train_bert.py`, `train_roberta.py` | Encoder model training examples |
+| `train_gpt_neo.py`, `train_gpt_neox.py`, `train_llama.py`, `train_t5.py` | Decoder and seq2seq training examples |
+| `simple_matmul.py`, `train_deep_relu_mnist.py` | Small operator/model smoke examples |
 
-These scripts create `nntile.Context`, load a model, and run generation from the command line or expose a simple API.
+These scripts initialize `torch_nntile`, move tensors or modules to
+`device="nntile"`, and run through PyTorch dispatch.
 
 ---
 

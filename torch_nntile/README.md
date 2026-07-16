@@ -60,16 +60,17 @@ gh run download RUN_ID -D wheelhouse
 
 Linux CUDA wheels are built against `torch==2.9.1`. **PyTorch may be CPU-only**
 from default PyPI; a CUDA build of PyTorch is not required. NVIDIA math
-libraries come from `nvidia-*-cu12` pip packages (declared as `torch_nntile`
-dependencies on Linux x86_64), not from the wheel itself.
+libraries come from `nvidia-*-cu12` pip packages when the wheel was **compiled
+with CUDA** (`torch_nntile.built_with_cuda()` is `True`). CPU-only wheels skip
+that import-time check and do not declare those deps.
 
 ```bash
-pip install torch==2.9.1
+pip install torch==2.9.1 torchvision==0.24.1
 pip install /path/to/torch_nntile-0.0.5-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-`pip install` of the wheel pulls the NVIDIA packages on Linux automatically.
-You can also install them manually:
+`pip install` of a CUDA wheel pulls the NVIDIA packages on Linux automatically.
+You can also install them manually (or `pip install 'torch_nntile[cuda]'`):
 
 ```bash
 pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 \
@@ -83,7 +84,7 @@ The wheel bundles `libstarpu` (CUDA-enabled, up to 8 devices, no FXT tracing),
 ### macOS arm64 (CPU-only, torch 2.9.1)
 
 ```bash
-pip install torch==2.9.1
+pip install torch==2.9.1 torchvision==0.24.1
 pip install /path/to/torch_nntile-0.0.5-cp312-cp312-macosx_14_0_arm64.whl
 ```
 
@@ -92,16 +93,13 @@ StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
 Publishing to PyPI is manual: download CI artifacts and run `twine upload` locally.
 See [docs/build/README.md](../docs/build/README.md) for maintainer CI details.
 
-## Phase 1 (stub)
+## Backend (libnntile + libtorch_nntile required)
 
-Tensor storage is backed by a host `std::vector<uint8_t>` buffer. Supports
-allocation, `tensor.to("nntile")` / `.cpu()`, and a global CPU fallback for
-unsupported ATen ops. Does **not** require `libnntile`.
+`torch_nntile._C` is a thin pybind that links prebuilt **libtorch_nntile**
+(and **libnntile**). There is no host-only / stub extension build. Build both
+C++ libraries with CMake (`-DBUILD_LIBTORCH_NNTILE=ON`) before `pip install`.
 
-## Phase 2 (TensorGraph ops)
-
-When built with `NNTILE_BUILD_DIR` pointing at a CMake build tree, selected ops
-run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
+Selected ops run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 
 **HuggingFace compatibility (v1):** Standard eager HF modules can use ordinary
 PyTorch tensor ops on `device="nntile"` when the forward path sticks to
@@ -146,6 +144,8 @@ remains a separate custom API for NNTile-layout SDPA.
 | `F.scaled_dot_product_attention` on `device="nntile"` | Same ATen overrideable backend as above (PyTorch/HF layout `[..., seq, head_size]`, e.g. `(batch, n_heads, seq, head_size)`) |
 | `torch_nntile.nn.weight_layout` | Pure PyTorch permutes for HF ↔ NNTile attention weights (no kernel) |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
+| `torch_nntile.training.mse_loss` | `scale * ||x||^2` via `norm` + `multiply`; backward `2*scale*x` |
+| `torch_nntile.rope` | `tensor::rope` / `rope_backward` (custom autograd) |
 | `torch_nntile.training.SGD` | `tensor::sgd_step` (fused SGD with momentum) |
 
 PyTorch C-order shapes are converted to TensorGraph storage layout internally.
@@ -462,38 +462,77 @@ pytest -vv torch_nntile/tests/test_sdpa_parity.py
 pytest -vv torch_nntile/tests/test_attn_weight_layout.py
 ```
 
-## Install from source (stub only)
+## Install from source (requires libnntile + libtorch_nntile)
 
-Install `torch==2.9.1` first (same ABI as `install_requires`), then:
-
-```bash
-pip install 'torch==2.9.1'
-CXX=g++ pip install -e ./torch_nntile --no-build-isolation
-```
-
-## Install from source (with libnntile / phase 2)
-
-Build NNTile first (CPU-only example):
+Build both C++ libraries (CPU-only example):
 
 ```bash
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+  -DBUILD_LIBTORCH_NNTILE=ON \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" -GNinja
-cmake --build build -j$(nproc)
+cmake --build build --target nntile torch_nntile -j$(nproc)
 ```
 
-Then install the extension against that build (use the same `torch` version you
-built NNTile against):
+Then install the thin Python extension against that build:
 
 ```bash
-pip install 'torch==2.9.1'
+pip install 'torch==2.9.1' 'torchvision==0.24.1'
 export NNTILE_BUILD_DIR=$PWD/build
+export TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
+
+Prefer an install prefix (matches CI):
+
+```bash
+cmake --install build --prefix "$PWD/install"
+export NNTILE_PREFIX=$PWD/install TORCH_NNTILE_PREFIX=$PWD/install
+export NNTILE_SOURCE_DIR=$PWD
+export LD_LIBRARY_PATH=$PWD/install/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
+```
+
+### Build a wheel (CMake)
+
+```bash
+export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+cmake -S . -B build -GNinja -DUSE_CUDA=OFF -DBUILD_TESTING=OFF \
+  -DBUILD_TORCH_NNTILE=ON \
+  -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
+  -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+cmake --build build --target torch_nntile_wheel
+# → build/wheelhouse/*.whl  (linux_x86_64; REPAIR defaults OFF)
+```
+
+Or build the wheel against an install prefix (no library rebuild):
+
+```bash
+cmake -S . -B build-wheel -GNinja -DUSE_CUDA=OFF -DBUILD_TESTING=OFF \
+  -DBUILD_LIBNNTILE=OFF -DBUILD_LIBTORCH_NNTILE=OFF \
+  -DBUILD_TORCH_NNTILE=ON -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
+  -DNNTILE_PREFIX="$PWD/install" -DTORCH_NNTILE_PREFIX="$PWD/install" \
+  -DCMAKE_PREFIX_PATH="$PWD/install;$TORCH_PREFIX" \
+  -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+cmake --build build-wheel --target torch_nntile_wheel
+# → build-wheel/wheelhouse/*.whl (or -DTORCH_NNTILE_WHEELHOUSE=...)
+```
+
+Or the CI helper with CMake wheel packaging:
+
+```bash
+export TORCH_NNTILE_CMAKE_WHEEL=1
+bash torch_nntile/tools/build_wheel_deps.sh "$PWD"
+# → wheelhouse/*.whl
+```
+
+Release CI uses **cibuildwheel** (libs via `build_wheel_deps.sh`, then
+extension + `tools/smoke_test_wheel.py`).
 
 ## Usage
 
@@ -550,16 +589,17 @@ After upgrading PyTorch, reinstall the matching torch pin and rebuild:
 
 ```bash
 pip install 'torch==2.9.1'
+export NNTILE_BUILD_DIR=$PWD/build
+export NNTILE_SOURCE_DIR=$PWD
 CXX=clang++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
 
 ## Tests
 
 ```bash
-# Stub tests (no libnntile)
-pytest -vv torch_nntile/tests/test_device_stub.py
-
-# Full suite (requires libnntile build + LD_LIBRARY_PATH)
-export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+# Requires libnntile + libtorch_nntile + LD_LIBRARY_PATH
+export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
+export NNTILE_SOURCE_DIR=$PWD
+export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 pytest -vv torch_nntile/tests
 ```

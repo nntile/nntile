@@ -25,8 +25,6 @@ git grep -E '#include[[:space:]]*[<"]nntile/(core|graph)/' -- \
     ':(exclude)build' \
     ':(exclude).git' \
     ':(exclude)nntile/' \
-    ':(exclude)scripts/' \
-    ':(exclude)wrappers/python' \
     ':(exclude)*.md' \
     >>"$bad" 2>/dev/null || true
 
@@ -36,7 +34,6 @@ git grep -E "$legacy" -- \
     ':(exclude)build' \
     ':(exclude).git' \
     ':(exclude)nntile/' \
-    ':(exclude)scripts/' \
     >>"$bad" 2>/dev/null || true
 
 # Documentation may show legacy include examples.

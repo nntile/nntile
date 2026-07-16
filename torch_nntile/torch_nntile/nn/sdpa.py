@@ -10,67 +10,14 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
 from torch_nntile import _C
 
 
-class _NntileModelTranspose(torch.autograd.Function):
-    """``nntile::transpose(src, model_ndim)`` cyclic axis reordering.
-
-    Matches ``nntile/src/nn/ops/transpose.cc`` model-code axis semantics.
-    """
-
-    @staticmethod
-    def forward(ctx, x: Tensor, model_ndim: int) -> Tensor:
-        ctx.model_ndim = int(model_ndim)
-        ctx.save_for_backward(x)
-        return _C.model_transpose_forward(x, int(model_ndim))
-
-    @staticmethod
-    def backward(ctx, grad_out: Tensor) -> tuple[Tensor, None]:
-        x, = ctx.saved_tensors
-        grad_x = _C.model_transpose_backward(
-            grad_out,
-            ctx.model_ndim,
-            x,
-        )
-        return grad_x, None
-
-
 def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:
     """Apply model-code transpose axis (storage order) on nntile tensors."""
-    return _NntileModelTranspose.apply(x, model_ndim)
-
-
-class _NntileSdpaKernel(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx,
-        q: Tensor,
-        k: Tensor,
-        v: Tensor,
-        mask: Tensor,
-        batch_ndim: int,
-    ) -> Tensor:
-        out = _C.sdpa_forward(q, k, v, mask, int(batch_ndim))
-        ctx.save_for_backward(q, k, v, mask)
-        ctx.batch_ndim = int(batch_ndim)
-        return out
-
-    @staticmethod
-    def backward(ctx, grad_out: Tensor):
-        q, k, v, mask = ctx.saved_tensors
-        grad_q, grad_k, grad_v = _C.sdpa_backward(
-            q,
-            k,
-            v,
-            grad_out,
-            mask,
-            ctx.batch_ndim,
-        )
-        return grad_q, grad_k, grad_v, None, None
+    return _C.model_transpose(x, model_ndim)
 
 
 def _validate_sdpa_inputs(
@@ -81,13 +28,17 @@ def _validate_sdpa_inputs(
     *,
     batch_ndim: int,
 ) -> None:
-    if batch_ndim != 2:
-        raise ValueError("sdpa currently supports batch_ndim=2 only")
+    if batch_ndim not in (2, 3):
+        raise ValueError("sdpa currently supports batch_ndim=2 or 3")
     if q.device.type != "nntile":
         raise ValueError("sdpa expects nntile Q/K/V tensors")
     if k.device.type != "nntile" or v.device.type != "nntile":
         raise ValueError("sdpa expects nntile Q/K/V tensors")
-    if q.dtype != torch.float32 or k.dtype != torch.float32 or v.dtype != torch.float32:
+    if (
+        q.dtype != torch.float32
+        or k.dtype != torch.float32
+        or v.dtype != torch.float32
+    ):
         raise ValueError("nntile sdpa supports float32 only")
     if mask is not None and mask.dtype != torch.bool:
         raise ValueError("nntile sdpa: mask must be bool")
@@ -105,21 +56,15 @@ def sdpa_kernel(
 ) -> Tensor:
     """SDPA on kernel layout (matches ``nntile::sdpa_eager`` inputs).
 
-    Expects Q/K/V as ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``.
+    Expects ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``.
+    GQA callers may use ``batch_ndim=3`` with
+    ``[n_kv_heads, n_rep, batch, seq, head_size]``.
     Optional BOOL mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key).
+    ``mask=None`` means fully dense attention (still via libnntile, not
+    ``F.scaled_dot_product_attention``, so GQA 5-D layouts work).
     """
     _validate_sdpa_inputs(q, k, v, mask, batch_ndim=batch_ndim)
-    if mask is None:
-        return F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            dropout_p=0.0,
-            is_causal=False,
-            scale=None,
-        )
-    return _NntileSdpaKernel.apply(q, k, v, mask, batch_ndim)
+    return _C.sdpa_kernel(q, k, v, mask, batch_ndim)
 
 
 def sdpa_eager(
@@ -134,7 +79,7 @@ def sdpa_eager(
 
     Applies ``transpose(..., 1)`` to kernel layout, runs ``sdpa_kernel``, then
     ``transpose(..., 3)`` on the output. Q/K/V biases (C++ ``add_fiber`` after
-    transpose) belong in the caller — see ``GPT2Attention``.
+    transpose) belong in the caller - see ``GPT2Attention``.
     Optional BOOL mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key). Scale is
     ``1/sqrt(head_size)``.
     """

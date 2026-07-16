@@ -8,17 +8,17 @@
 """Full-batch MNIST training with DeepReLU (nntile parallelization demo).
 
 Trains ``DeepReLU.mnist()`` on the entire MNIST training set as one batch
-(60 000 images). Primary goal: show how well nntile parallelizes a large
+(60 000 images). Primary goal: show how well nntile parallelizes a large
 DeepReLU across StarPU CPU/CUDA workers.
 
 Supports ``--device cpu`` / ``cuda`` (PyTorch SGD) and ``--device nntile``
 (StarPU). Pass ``--ncpu`` / ``--ncuda`` to set StarPU workers for the
 nntile path (``-1`` = env default).
 
-Optional ``--grad-accum-steps N`` splits the 60 000-image batch into ``N``
+Optional ``--grad-accum-steps N`` splits the 60 000-image batch into ``N``
 equal microbatches, scales each microbatch loss by ``1/N``, accumulates
 gradients, then takes one SGD step per epoch (same effective update as
-full-batch when ``N`` divides 60 000). Default ``N=1`` is full-batch.
+full-batch when ``N`` divides 60 000). Default ``N=1`` is full-batch.
 On nntile, each microbatch compiles/runs before the next so activations
 can reclaim; grads stay live until the step.
 
@@ -39,11 +39,11 @@ accepted on ``--device cpu`` / ``cuda`` but ignored (reported in output).
 
 Axis-group naming and tiling (optional) are configured in this script:
 
-- ``batch`` — input/logits batch dimension
-- ``features`` — flattened image dimension (784)
-- ``hidden`` — hidden MLP width (``--hidden-dim``); named on each linear
+- ``batch`` - input/logits batch dimension
+- ``features`` - flattened image dimension (784)
+- ``hidden`` - hidden MLP width (``--hidden-dim``); named on each linear
   weight/grad/velocity matrix row or column of that size
-- ``classes`` — output logits dimension (10)
+- ``classes`` - output logits dimension (10)
 
 Nntile (tiled CUDA workers)::
 
@@ -55,7 +55,7 @@ Nntile (tiled CUDA workers)::
         --axis-tiling features=392,392 \\
         --axis-tiling hidden=128,128
 
-Gradient accumulation (4 microbatches of 15 000; lower peak activation memory)::
+Gradient accumulation (4 microbatches of 15 000; lower peak activation memory)::
 
     python torch_nntile/examples/train_deep_relu_mnist.py \\
         --device nntile --ncpu 0 --ncuda 1 --restrict-cuda \\
@@ -385,7 +385,7 @@ def train_on_nntile(
     Axis-group naming must run before ``set_axis_group_tiling`` on every
     microbatch (tiling is applied at ``compile_graph``; unknown names fail).
     With multiple prefetched microbatches, name *all* of them before the
-    first tiled compile — that compile also seals the other microbatches'
+    first tiled compile - that compile also seals the other microbatches'
     pending ingress scatters.
     """
     import torch_nntile
@@ -433,7 +433,7 @@ def train_on_nntile(
             if is_last:
                 optimizer.step()
 
-            # Name → tile → compile (same order as train_full_batch_step).
+            # Name -> tile -> compile (same order as train_full_batch_step).
             # New microbatch inputs/logits need names each time; weight/grad
             # names are reapplied safely. Do this while logits are alive.
             name_mnist_axis_groups(
@@ -670,14 +670,7 @@ def main() -> None:
 
     if use_nntile:
         import torch_nntile
-        from torch_nntile import _C
         from torch_nntile.training import clone_model_weights, max_weight_delta
-
-        if not _C.has_libnntile():
-            raise SystemExit(
-                "torch_nntile was built without libnntile. "
-                "Set NNTILE_BUILD_DIR and reinstall."
-            )
 
         torch_nntile.init_context(
             ncpu=args.ncpu,
@@ -711,7 +704,7 @@ def main() -> None:
             n_image_elems = sum(img.numel() for img, _ in cpu_microbatches)
             n_label_elems = sum(lab.numel() for _, lab in cpu_microbatches)
             print(
-                f"timing host→nntile prefetch: {prefetch_s:.3f}s "
+                f"timing host->nntile prefetch: {prefetch_s:.3f}s "
                 f"(MNIST images {n_image_elems}, "
                 f"labels {n_label_elems}, + model)"
             )
@@ -801,7 +794,7 @@ def main() -> None:
         n_image_elems = sum(img.numel() for img, _ in cpu_microbatches)
         n_label_elems = sum(lab.numel() for _, lab in cpu_microbatches)
         print(
-            f"timing host→{device} prefetch: {prefetch_s:.3f}s "
+            f"timing host->{device} prefetch: {prefetch_s:.3f}s "
             f"(MNIST images {n_image_elems}, "
             f"labels {n_label_elems}, + model)"
         )

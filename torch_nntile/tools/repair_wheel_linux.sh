@@ -8,11 +8,12 @@ repo_root="$(cd "${package_dir}/.." && pwd)"
 build_dir="${NNTILE_BUILD_DIR:-${repo_root}/build/torch_nntile_wheel}"
 starpu_prefix="${STARPU_PREFIX:-/opt/starpu}"
 
-export LD_LIBRARY_PATH="${build_dir}/nntile:${starpu_prefix}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export LD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
 mkdir -p "${dest_dir}"
 
-auditwheel repair \
+python="${PYTHON:-${Python3_EXECUTABLE:-python3}}"
+"${python}" -m auditwheel repair \
     --exclude libc10.so \
     --exclude libc10_cuda.so \
     --exclude libtorch.so \
@@ -37,7 +38,7 @@ auditwheel repair \
 
 repaired_wheel="$(ls -t "${dest_dir}"/*.whl | head -1)"
 if [ ! -f "${repaired_wheel}" ]; then
-    echo "auditwheel repair did not produce a wheel in ${dest_dir}" >&2
+    echo "python -m auditwheel repair did not produce a wheel in ${dest_dir}" >&2
     exit 1
 fi
 
@@ -66,7 +67,7 @@ patch_so_rpath() {
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
-python3 - "${repaired_wheel}" "${tmpdir}" <<'PY'
+"${python}" - "${repaired_wheel}" "${tmpdir}" <<'PY'
 import sys
 import zipfile
 from pathlib import Path
@@ -84,6 +85,7 @@ fi
 shopt -s nullglob
 for sofile in \
     "${tmpdir}"/torch_nntile.libs/libnntile*.so \
+    "${tmpdir}"/torch_nntile.libs/libtorch_nntile*.so \
     "${tmpdir}"/torch_nntile.libs/libstarpu*.so; do
     patch_so_rpath "${sofile}"
 done
@@ -92,7 +94,7 @@ shopt -u nullglob
 wheel_name="$(basename "${repaired_wheel}")"
 repacked_wheel="${dest_dir}/${wheel_name}"
 rm -f "${repacked_wheel}"
-python3 - "${repacked_wheel}" "${tmpdir}" <<'PY'
+"${python}" - "${repacked_wheel}" "${tmpdir}" <<'PY'
 import sys
 import zipfile
 from pathlib import Path

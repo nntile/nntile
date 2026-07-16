@@ -20,16 +20,16 @@ Before training, all epoch batches (inputs + labels) and the model are moved
 onto ``nntile``; the script prints prefetch time and wall training time.
 Each iter ``compile_graph``/``run``s after ``optimizer.zero_grad``, then
 prints loss via ``.to("cpu")`` (host sync) so grad ``INVALIDATE``s share that
-step’s compile phase. A bare multi-step async ``run()`` without sync would
+step's compile phase. A bare multi-step async ``run()`` without sync would
 let ``STARPU_W``-only clears allocate one working set per in-flight step
 (see debt D7 in ``docs/dev/torch_nntile_tensor_architecture.md``).
 
-No axis tiling yet — full tensors on nntile.
+No axis tiling yet - full tensors on nntile.
 
 Modes:
 
-* ``train`` — from scratch (``--seed`` required) or resume (``--checkpoint``).
-* ``compare`` — print relative Frobenius norms of weight differences.
+* ``train`` - from scratch (``--seed`` required) or resume (``--checkpoint``).
+* ``compare`` - print relative Frobenius norms of weight differences.
 
 Dataset: a deterministic synthetic token stream generated from
 ``--data-seed`` (defaults to ``--seed``). No external corpus is downloaded
@@ -58,7 +58,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 
@@ -93,7 +92,7 @@ def load_gpt2_config(path: Path) -> GPT2Config:
             fields.pop(src)
     for key in ("attn_pdrop", "resid_pdrop", "embd_pdrop"):
         fields.setdefault(key, 0.0)
-    fields.setdefault("tie_word_embeddings", True)
+    fields.setdefault("tie_word_embeddings", False)
     config = GPT2Config(**fields)
     config._attn_implementation = "sdpa"
     config.use_cache = False
@@ -438,8 +437,6 @@ def save_hf_checkpoint(
     weights = clone_model_weights(model)
     cpu_model = GPT2LMHead(config).float()
     cpu_model.load_state_dict(weights)
-    if config.tie_word_embeddings:
-        cpu_model.tie_weights()
     hf_state = export_gpt2_lm_head_to_hf_state_dict(cpu_model, config=config)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -457,14 +454,7 @@ def save_hf_checkpoint(
 
 
 def train_nntile(args: argparse.Namespace) -> int:
-    from torch_nntile import _C
     from torch_nntile.training import SGD
-
-    if not _C.has_libnntile():
-        raise SystemExit(
-            "torch_nntile was built without libnntile. "
-            "Set NNTILE_BUILD_DIR and reinstall."
-        )
 
     if args.restrict_cuda and args.restrict_cpu:
         raise SystemExit("Pass only one of --restrict-cuda / --restrict-cpu")
@@ -515,16 +505,14 @@ def train_nntile(args: argparse.Namespace) -> int:
         with torch.no_grad():
             epoch_batches = preload_batches_to_nntile(epoch_batches_cpu)
             model = cpu_model.to("nntile")
-            if config.tie_word_embeddings:
-                model.tie_weights()
         prefetch_s = time.perf_counter() - t_pre0
         print(
-            f"timing host→nntile prefetch: {prefetch_s:.3f}s "
+            f"timing host->nntile prefetch: {prefetch_s:.3f}s "
             f"(input elems {n_input_elems}, label elems {n_label_elems}, "
             f"+ model)"
         )
         # Seal ingress scatters now so the first train compile is O(step),
-        # not O(model+batches). Do not wait — overlap with setup.
+        # not O(model+batches). Do not wait - overlap with setup.
         torch_nntile.compile_graph()
         torch_nntile.run()
         del cpu_model
@@ -573,7 +561,7 @@ def train_nntile(args: argparse.Namespace) -> int:
         )
         t_train0 = time.perf_counter()
         # Clear grads before the loop; clear again each iter before compile so
-        # grad INVALIDATEs share that step’s sealed phase with the train ops.
+        # grad INVALIDATEs share that step's sealed phase with the train ops.
         optimizer.zero_grad(set_to_none=True)
         for epoch_idx, epoch_data in enumerate(epoch_batches):
             epoch = start_epoch + epoch_idx

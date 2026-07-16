@@ -11,6 +11,35 @@ task-based parallel programming paradigm that distributes computations across
 available hardware resources dynamically and moves data asynchronously, using
 the [StarPU](https://starpu.gitlabpages.inria.fr) runtime.
 
+## Install (Python product)
+
+Plain CMake defaults to building **libnntile**, **libtorch_nntile**, and the
+installable **torch_nntile** pip wheel (needs PyTorch on `CMAKE_PREFIX_PATH`).
+Prebuilt wheels: [torch_nntile/README.md](torch_nntile/README.md).
+
+```bash
+TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+cmake -S . -B build -GNinja -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
+cmake --build build -j$(nproc)
+# → build/wheelhouse/torch_nntile-*.whl  (linux_x86_64; no auditwheel by default)
+pip install build/wheelhouse/torch_nntile-*.whl
+```
+
+Local CMake leaves `TORCH_NNTILE_WHEEL_REPAIR=OFF`, so the wheel keeps a plain
+`linux_x86_64` tag. Host `auditwheel` on Ubuntu 24.04 would otherwise emit
+`manylinux_2_39_x86_64`, which many pip installs reject. Release CI still
+repairs inside the manylinux_2_28 image (`manylinux_2_28_x86_64`).
+
+Libnntile-only (no LibTorch), as in layered CI:
+
+```bash
+cmake -S . -B build -GNinja \
+  -DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF
+```
+
+Release CI also uses cibuildwheel /
+[`torch_nntile/tools/build_wheel_deps.sh`](torch_nntile/tools/build_wheel_deps.sh).
+
 ## Documentation
 
 Full documentation lives under **[docs/](docs/README.md)**. Start at
@@ -20,17 +49,11 @@ Full documentation lives under **[docs/](docs/README.md)**. Start at
 |-------|--------|
 | Build, Docker, CMake, testing | [docs/build/README.md](docs/build/README.md) |
 | C++ stack (kernel → tensor) | [docs/cpp/README.md](docs/cpp/README.md) |
-| Python API | [docs/python/README.md](docs/python/README.md) |
-| Training scripts and notebooks | [docs/python/training.md](docs/python/training.md) |
-| Data preparation | [docs/python/data-preparation.md](docs/python/data-preparation.md) |
+| torch_nntile (Python / LibTorch) | [torch_nntile/README.md](torch_nntile/README.md) |
 | Inference, HTTP gateway, Telegram bot | [docs/inference/README.md](docs/inference/README.md) |
 | Gateway + bot deployment | [infra/README.md](infra/README.md) |
 | SGOC scheduler (limited VRAM) | [docs/sgoc/README.md](docs/sgoc/README.md) |
 | Graph API (work in progress) | [docs/graph-wip.md](docs/graph-wip.md) |
-
-**Quick path:** build the image (`docker build . -t nntile:latest`), then follow
-[docs/build/README.md](docs/build/README.md) and the GPT-2 walkthrough in
-[docs/python/training.md](docs/python/training.md) (`gpt2_custom_training.py`).
 
 CUDA compute capability **8.0+** is required ([docs/README.md](docs/README.md)).
 

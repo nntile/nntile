@@ -87,7 +87,7 @@ void check_sdpa_mask(
 //! Prepare attention mask for graph SDPA (BOOL on nntile).
 //!
 //! The executor records the mask as ``DataType::BOOL``. Do **not** round-trip
-//! through ``mask.cpu()`` — that gathers through StarPU and syncs every
+//! through ``mask.cpu()`` - that gathers through StarPU and syncs every
 //! attention layer during graph recording.
 at::Tensor mask_for_nntile_sdpa(const at::Tensor &mask)
 {

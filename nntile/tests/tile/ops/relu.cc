@@ -24,7 +24,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
-#include <nntile/graph.hh>
+#include <nntile/tile.hh>
+#include <nntile/tensor.hh>
 #include <numeric>
 #include <random>
 using namespace nntile;

@@ -20,18 +20,53 @@ env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
+  TORCH_PIP_INDEX: https://download.pytorch.org/whl/cpu
+  CATCH2_GIT_TAG: v3.11.0
+  CATCH2_ARTIFACT: catch2-prefix-v3.11.0
   CMAKE_COMMON: >-
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
     -DUSE_CUDA=OFF
-    -DBUILD_PYTHON_WRAPPERS=OFF
     -DCMAKE_C_COMPILER=gcc
     -DCMAKE_CXX_COMPILER=g++
     -DCMAKE_C_COMPILER_LAUNCHER=ccache
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 jobs:
-  build-lib:
-    name: build libnntile_tensorgraph
+  # -------------------------------------------------------------------------
+  # Shared Catch2 (one compile per run; cache across runs)
+  # -------------------------------------------------------------------------
+  build-catch2:
+    name: build Catch2
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git cmake g++ ninja-build
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-catch2-setup
+        with:
+          git-tag: ${{ env.CATCH2_GIT_TAG }}
+          install-prefix: ${{ github.workspace }}/catch2-prefix
+          build-type: RelWithDebInfo
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.CATCH2_ARTIFACT }}
+          path: catch2-prefix/
+          retention-days: 1
+          if-no-files-found: error
+
+  # -------------------------------------------------------------------------
+  # Layer 1: libnntile (no LibTorch)
+  # -------------------------------------------------------------------------
+  build-libnntile:
+    name: build libnntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -47,33 +82,37 @@ jobs:
       - uses: ./.github/actions/nntile-starpu-setup
       - run: chmod +x .github/scripts/check-nntile-includes.sh
       - run: .github/scripts/check-nntile-includes.sh .
+      - run: chmod +x .github/scripts/check-model-no-swap-axes.sh
+      - run: .github/scripts/check-model-no-swap-axes.sh .
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-lib-${{ github.sha }}
-          restore-keys: ccache-build-lib-
+          key: ccache-build-libnntile-${{ github.sha }}
+          restore-keys: ccache-build-libnntile-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
-          cmake --build build --target nntile_tensorgraph -j"$(nproc)"
+            -DBUILD_TESTING=OFF \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
+            -DBUILD_TORCH_NNTILE=OFF \
+            -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
+          cmake --build build --target nntile -j"$(nproc)"
+          cmake --install build --prefix "${PWD}/prefix"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
-          .github/scripts/ccache-print-stats.sh build-lib
+          .github/scripts/ccache-print-stats.sh build-libnntile
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-lib-${{ github.sha }}
+          key: ccache-build-libnntile-${{ github.sha }}
       - uses: actions/upload-artifact@v4
         with:
-          name: nntile-build
-          path: |
-            build/
-            !build/_deps/**
+          name: nntile-prefix
+          path: prefix/
           retention-days: 1
 
-  build-and-run-tests:
-    name: build and run tests
-    needs: build-lib
+  test-libnntile:
+    name: test libnntile
+    needs: [build-libnntile, build-catch2]
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -85,87 +124,54 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
-      - uses: ./.github/actions/nntile-model-test-python
       - uses: actions/download-artifact@v4
         with:
-          name: nntile-build
-          path: build
-      - run: rm -rf build/_deps
+          name: nntile-prefix
+          path: prefix
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.CATCH2_ARTIFACT }}
+          path: catch2-prefix
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-tests-${{ github.sha }}
-          restore-keys: ccache-build-tests-
-      - run: |
-          cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF -DBUILD_EXAMPLES=OFF \
-            -DNNTILE_MODEL_PYTHON="${NNTILE_MODEL_PYTHON}"
-          cmake --build build -j"$(nproc)"
+          key: ccache-test-libnntile-${{ github.sha }}
+          restore-keys: ccache-test-libnntile-
+      - name: Build tests against installed libnntile
+        run: |
+          cmake -S . -B build-tests ${CMAKE_COMMON} \
+            -DBUILD_LIBNNTILE=OFF \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
+            -DBUILD_TORCH_NNTILE=OFF \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix"
+          cmake --build build-tests -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
-          .github/scripts/ccache-print-stats.sh build-tests
+          .github/scripts/ccache-print-stats.sh test-libnntile
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-tests-${{ github.sha }}
+          key: ccache-test-libnntile-${{ github.sha }}
       - name: Restore CTest execute bits
         run: |
           chmod +x .github/scripts/restore-ctest-execute-bits.sh
           chmod +x .github/scripts/list-not-implemented-tests.sh
-          .github/scripts/restore-ctest-execute-bits.sh build/nntile/tests
+          .github/scripts/restore-ctest-execute-bits.sh build-tests/nntile/tests
       - name: Run C++ tests (ctest)
         run: |
-          export LD_LIBRARY_PATH="${PWD}/build/nntile:${PWD}/build/_deps/catch2-build/src:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:${PWD}/catch2-prefix/lib:${LD_LIBRARY_PATH:-}"
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
-          .github/scripts/list-not-implemented-tests.sh build || true
-          ctest --test-dir build -E wrappers -LE NotImplemented --output-on-failure
+          .github/scripts/list-not-implemented-tests.sh build-tests || true
+          ctest --test-dir build-tests -LE NotImplemented --output-on-failure
 
-  test-cmake-install:
-    name: test cmake install
-    needs: build-lib
-    runs-on: ubuntu-24.04
-    container: {image: ubuntu:24.04}
-    defaults:
-      run:
-        shell: bash
-        working-directory: /__w/nntile/nntile
-    steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
-        working-directory: /
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/nntile-starpu-setup
-      - uses: actions/download-artifact@v4
-        with:
-          name: nntile-build
-          path: build
-      - run: rm -rf build/_deps
-      - uses: actions/cache/restore@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-test-install-${{ github.sha }}
-          restore-keys: ccache-test-install-
-      - run: |
-          cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
-          cmake --build build --target nntile_tensorgraph -j"$(nproc)"
-          cmake \
-            -DBUILD_DIR="${PWD}/build" \
-            -DCMAKE_INSTALL_PREFIX="${PWD}/build/nntile-install-test-prefix" \
-            -DCMAKE_INSTALL_LIBDIR=lib \
-            -DNNTILE_INSTALL_LIB_BASENAME=libnntile_tensorgraph.so \
-            -P nntile/tests/verify_install.cmake
-      - uses: actions/cache/save@v4
-        with:
-          path: /tmp/ccache
-          key: ccache-test-install-${{ github.sha }}
-
-  # python/ nntile package testing is temporarily disabled: BUILD_NNTILE_NNGRAPH
-  # (and thus BUILD_PYTHON_WRAPPERS) is OFF while focus is torch_nntile.
-
-  build-examples:
-    name: build examples
-    needs: build-lib
+  # -------------------------------------------------------------------------
+  # Layer 2: libtorch_nntile (links installed libnntile)
+  # -------------------------------------------------------------------------
+  build-libtorch-nntile:
+    name: build libtorch_nntile
+    needs: build-libnntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -176,43 +182,58 @@ jobs:
       - run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates git python3 python3-numpy
+            ca-certificates git python3 python3-dev python3-pip
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
       - uses: actions/download-artifact@v4
         with:
-          name: nntile-build
-          path: build
-      - run: rm -rf build/_deps
+          name: nntile-prefix
+          path: prefix
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-examples-${{ github.sha }}
-          restore-keys: ccache-build-examples-
+          key: ccache-build-libtorch-nntile-${{ github.sha }}
+          restore-keys: ccache-build-libtorch-nntile-
       - run: |
-          # Examples still use the C++ NNGraph/module/model/io/dataset stack.
-          cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON \
-            -DBUILD_NNTILE_NNGRAPH=ON -DBUILD_NNTILE_MODULES=ON \
-            -DBUILD_NNTILE_MODELS=ON -DBUILD_NNTILE_OPTIM=ON \
-            -DBUILD_NNTILE_IO=ON -DBUILD_NNTILE_DATASET=ON
-          cmake --build build --target nntile_all_examples -j"$(nproc)"
-      - run: |
-          chmod +x nntile/examples/run_gpt2_graph_training_demo.sh
-          export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
-          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-          ./nntile/examples/run_gpt2_graph_training_demo.sh
+          set -euo pipefail
+          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
+            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
+              /usr/lib/x86_64-linux-gnu/libstdc++.so
+          fi
+          cmake -S . -B build-torch ${CMAKE_COMMON} \
+            -DBUILD_LIBNNTILE=OFF \
+            -DBUILD_LIBTORCH_NNTILE=ON \
+            -DBUILD_TORCH_NNTILE=OFF \
+            -DBUILD_TESTING=OFF \
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}" \
+            -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
+          cmake --build build-torch --target torch_nntile -j"$(nproc)"
+          cmake --install build-torch --prefix "${PWD}/prefix"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
-          .github/scripts/ccache-print-stats.sh build-examples
+          .github/scripts/ccache-print-stats.sh build-libtorch-nntile
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-examples-${{ github.sha }}
+          key: ccache-build-libtorch-nntile-${{ github.sha }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nntile-torch-prefix
+          path: prefix/
+          retention-days: 1
 
-  torch-nntile-device-stub:
-    name: torch nntile device stub
+  test-libtorch-nntile:
+    name: test libtorch_nntile
+    needs: [build-libtorch-nntile, build-catch2]
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -223,18 +244,72 @@ jobs:
       - run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates git python3 python3-dev python3-pip g++ ninja-build
+            ca-certificates git python3 python3-dev python3-pip \
+            pkg-config
         working-directory: /
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntile-torch-prefix
+          path: prefix
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.CATCH2_ARTIFACT }}
+          path: catch2-prefix
+      - uses: actions/cache/restore@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-test-libtorch-nntile-${{ github.sha }}
+          restore-keys: ccache-test-libtorch-nntile-
+      - name: Build and run libtorch_nntile C++ tests
+        run: |
+          set -euo pipefail
+          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
+            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
+              /usr/lib/x86_64-linux-gnu/libstdc++.so
+          fi
+          # Needed during cmake --build: catch_discover_tests runs binaries
+          # to list Catch2 cases (DT_RUNPATH is not transitive to libnntile).
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:${PWD}/catch2-prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
+          cmake -S . -B build-torch-tests ${CMAKE_COMMON} \
+            -DBUILD_LIBNNTILE=OFF \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
+            -DBUILD_TORCH_NNTILE=OFF \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix;${TORCH_PREFIX}"
+          cmake --build build-torch-tests -j"$(nproc)" \
+            --target tests_libtorch_nntile_smoke \
+                    tests_libtorch_nntile_aten_ops
+          echo "Discovered libtorch_nntile CTest entries:"
+          ctest --test-dir build-torch-tests -N -L libtorch_nntile
+          # --no-tests=error: compiling alone must not green-pass.
+          ctest --test-dir build-torch-tests -L libtorch_nntile \
+            --output-on-failure --no-tests=error
       - run: |
-          pip install --break-system-packages 'torch==2.9.1' pytest
-          CXX=g++ pip install --break-system-packages \
-            -e ./torch_nntile --no-build-isolation
-          pytest -vv torch_nntile/tests/test_device_stub.py
+          chmod +x .github/scripts/ccache-print-stats.sh
+          .github/scripts/ccache-print-stats.sh test-libtorch-nntile
+      - uses: actions/cache/save@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-test-libtorch-nntile-${{ github.sha }}
 
-  torch-nntile-tensograph-add:
-    name: torch nntile TensorGraph add
-    needs: build-lib
+  # -------------------------------------------------------------------------
+  # Layer 3: torch_nntile product (wheel) from installed libs, then pytest
+  # -------------------------------------------------------------------------
+  build-torch-nntile:
+    name: build torch_nntile
+    needs: build-libtorch-nntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -252,23 +327,89 @@ jobs:
       - uses: ./.github/actions/nntile-starpu-setup
       - uses: actions/download-artifact@v4
         with:
-          name: nntile-build
-          path: build
-      - run: rm -rf build/_deps
-      - run: |
+          name: nntile-torch-prefix
+          path: prefix
+      - name: Install LibTorch (CPU) for extension build
+        run: |
+          set -euo pipefail
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          pip3 install --break-system-packages \
+            'setuptools>=61' wheel ninja
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
+      - name: Build wheel via CMake (installed libs)
+        run: |
           set -euo pipefail
           if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
             ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
               /usr/lib/x86_64-linux-gnu/libstdc++.so
           fi
-          export NNTILE_BUILD_DIR="${PWD}/build"
-          export NNTILE_SOURCE_DIR="${PWD}"
+          cmake -S . -B build-wheel ${CMAKE_COMMON} \
+            -DBUILD_LIBNNTILE=OFF \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
+            -DBUILD_TESTING=OFF \
+            -DBUILD_TORCH_NNTILE=ON \
+            -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
+            -DNNTILE_PREFIX="${PWD}/prefix" \
+            -DTORCH_NNTILE_PREFIX="${PWD}/prefix" \
+            -DTORCH_NNTILE_WHEELHOUSE="${PWD}/wheelhouse" \
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}" \
+            -DPython3_EXECUTABLE="$(command -v python3)"
+          cmake --build build-wheel --target torch_nntile_wheel -j"$(nproc)"
+          ls -la wheelhouse/*.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: torch-nntile-ci-wheel
+          path: wheelhouse/*.whl
+          retention-days: 1
+          if-no-files-found: error
+
+  test-torch-nntile:
+    name: test torch_nntile
+    needs: build-torch-nntile
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-dev python3-pip \
+            pkg-config
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntile-torch-prefix
+          path: prefix
+      - uses: actions/download-artifact@v4
+        with:
+          name: torch-nntile-ci-wheel
+          path: wheelhouse
+      - name: Install wheel and run torch_nntile model/extension tests
+        run: |
+          set -euo pipefail
           export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
-          pip install --break-system-packages \
-            'torch==2.9.1' pytest 'numpy>=1.21' 'transformers<4.53'
-          CXX=g++ pip install --break-system-packages \
-            -e ./torch_nntile --no-build-isolation --force-reinstall
-          pytest -vv --rootdir=. -m 'not slow' torch_nntile/tests/
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          pip3 install --break-system-packages \
+            pytest 'numpy>=1.21' 'transformers<4.53'
+          # --no-deps: avoid pulling extras; nvidia-*-cu12 are only required
+          # for CUDA-built wheels (gated at import via built_with_cuda()).
+          pip3 install --break-system-packages \
+            --force-reinstall --no-deps wheelhouse/*.whl
+          # Prefer the installed wheel over the source tree (no in-tree _C.so).
+          # Model/extension suite. ATen op fwd+bwd parity is C++ ctest in
+          # test-libtorch-nntile (not this job).
+          pytest -vv --override-ini='pythonpath=' -m 'not slow' \
+            torch_nntile/tests/

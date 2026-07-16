@@ -1,31 +1,40 @@
 [build-system]
-requires = ["setuptools>=61", "torch>=2.1"]
+# PyTorch is required to compile the native extension (not only for tests).
+requires = ["setuptools>=61", "wheel", "torch==2.9.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "torch_nntile"
 version = "0.0.5"
-description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnntile_tensorgraph)"
+description = "PyTorch PrivateUse1 device for nntile (TensorGraph ops via libnntile)"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-    "torch==2.9.1",
-    'nvidia-cublas-cu12>=12.8.4.1; platform_system == "Linux" and platform_machine == "x86_64"',
-    'nvidia-cudnn-cu12>=9.10.2.21; platform_system == "Linux" and platform_machine == "x86_64"',
-    'nvidia-cusparse-cu12>=12.5.8.93; platform_system == "Linux" and platform_machine == "x86_64"',
-    'nvidia-cusolver-cu12>=11.7.3.90; platform_system == "Linux" and platform_machine == "x86_64"',
-    'nvidia-nvjitlink-cu12>=12.8.93; platform_system == "Linux" and platform_machine == "x86_64"',
-    'nvidia-cuda-runtime-cu12>=12.8.90; platform_system == "Linux" and platform_machine == "x86_64"',
-]
+dynamic = ["dependencies"]
 
 [project.optional-dependencies]
+# For source installs / documentation. CUDA wheels already declare these as
+# install_requires when linked against a CUDA libnntile.
+cuda = [
+    "nvidia-cublas-cu12>=12.8.4.1; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "nvidia-cudnn-cu12>=9.10.2.21; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "nvidia-cusparse-cu12>=12.5.8.93; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "nvidia-cusolver-cu12>=11.7.3.90; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "nvidia-nvjitlink-cu12>=12.8.93; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "nvidia-cuda-runtime-cu12>=12.8.90; platform_system == 'Linux' and platform_machine == 'x86_64'",
+]
 test = [
     "pytest>=8.2",
+    "numpy>=1.21",
+    # Cap matches graph_api / CTest fixture generators: 4.53+ breaks Llama.
+    "transformers<4.53",
 ]
 
 [tool.pytest.ini_options]
 addopts = "-m 'not slow'"
-pythonpath = ["."]
+# Do not put the project root on sys.path by default: CI installs the wheel
+# (with _C.so) and the source tree has no extension. conftest.py prepends the
+# project root only when an in-tree _C.* is present (editable builds).
+pythonpath = []
 markers = [
     "slow: slow tests (deselect with '-m \"not slow\"')",
 ]
@@ -42,7 +51,7 @@ before-all = "bash {package}/tools/build_wheel_deps.sh \"$NNTILE_SOURCE_DIR\""
 before-build = [
     "python -m pip install --upgrade pip",
     "python -m pip install 'setuptools>=61,<82' wheel ninja numpy",
-    "python -m pip install 'torch==2.9.1'",
+    "python -m pip install 'torch==2.9.1' 'torchvision==0.24.1'",
 ]
 test-command = "python {package}/tools/smoke_test_wheel.py"
 
@@ -51,7 +60,6 @@ STARPU_SILENT = "1"
 STARPU_FXT_TRACE = "0"
 STARPU_WORKERS_NOBIND = "1"
 
-TORCH_NNTILE_REQUIRE_LIBNNTILE = "1"
 TORCH_NNTILE_WHEEL = "1"
 TORCH_NNTILE_CXX_STANDARD = "c++20"
 
@@ -66,30 +74,34 @@ OMP_NUM_THREADS = "1"
 [tool.cibuildwheel.linux]
 archs = ["x86_64"]
 manylinux-x86_64-image = "manylinux_2_28"
+# before-all already installed torch+cu128 (+ nvidia-*-cu12) into cp312.
+# Only reinstall if that stack is missing; never pull a second cudnn copy.
 before-build = [
     "python -m pip install --upgrade pip",
-    "python -m pip install 'setuptools>=61,<82' wheel ninja numpy",
-    "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1'",
-    "python -m pip install nvidia-cudnn-cu12",
+    "python -m pip install --no-cache-dir 'setuptools>=61,<82' wheel ninja numpy",
+    "bash {package}/tools/ensure_torch_cuda.sh",
 ]
+# Fresh test venv: one cu128 torch install (pulls nvidia-* transitively).
+# Wheel install_requires also declare nvidia-* for CUDA builds.
 before-test = [
-    "python -m pip install 'torch==2.9.1'",
-    "python -m pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 nvidia-cusolver-cu12 nvidia-nvjitlink-cu12 nvidia-cuda-runtime-cu12",
+    "bash {package}/tools/ensure_torch_cuda.sh",
 ]
 repair-wheel-command = "bash {package}/tools/repair_wheel_linux.sh {wheel} {dest_dir}"
 
 [tool.cibuildwheel.macos]
 archs = ["arm64"]
-before-test = "python -m pip install 'torch==2.9.1'"
+before-test = "python -m pip install 'torch==2.9.1' 'torchvision==0.24.1'"
 repair-wheel-command = "bash {package}/tools/repair_wheel_macos.sh {wheel} {dest_dir} {delocate_archs}"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-manylinux_*"
 inherit.environment = "append"
 environment.TORCH_NNTILE_USE_CUDA = "1"
+environment.NNTILE_CUDA_FROM_PIP = "1"
 environment.CUDA_HOME = "/usr/local/cuda"
 environment.PATH = "/usr/local/cuda/bin:$PATH"
-environment.LD_LIBRARY_PATH = "/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
+# Stubs for libcuda; pip nvidia libs come via RPATH / site-packages.
+environment.LD_LIBRARY_PATH = "/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macosx_arm64"

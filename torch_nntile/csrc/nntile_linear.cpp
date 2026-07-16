@@ -221,7 +221,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             forward.b_gemm_shape,
             grad_input,
             forward.a_gemm_shape);
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         nntile::TensorGraph::TensorNode *grad_input_node = lookup_data_node(
             grad_input,
             pytorch_shape_to_graph(grad_input.sizes()));
@@ -233,7 +232,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
                 grad_input_alias,
                 grad_input_node);
         }
-#endif
     }
     if (output_mask[1])
     {
@@ -276,7 +274,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
                 grad_weight,
                 forward.b_gemm_shape);
         }
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         nntile::TensorGraph::TensorNode *grad_node = lookup_data_node(
             grad_weight,
             pytorch_shape_to_graph(grad_weight.sizes()));
@@ -286,7 +283,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             at::Tensor grad_weight_alias = grad_weight;
             register_grad_alias_for_host_copy(grad_weight_alias, grad_node);
         }
-#endif
     }
     if (output_mask[2])
     {
@@ -298,7 +294,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             grad_output.options().memory_format(
                 at::MemoryFormat::Contiguous));
         tensor_linear_grad_bias_fp32(grad_output, grad_bias);
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         nntile::TensorGraph::TensorNode *grad_bias_node = lookup_data_node(
             grad_bias,
             pytorch_shape_to_graph(grad_bias.sizes()));
@@ -309,14 +304,11 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
                 grad_bias_alias,
                 grad_bias_node);
         }
-#endif
     }
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     note_record_linear_bwd(
         std::chrono::duration<double>(
             std::chrono::steady_clock::now() - t0)
             .count());
-#endif
     return {grad_input, grad_weight, grad_bias};
 }
 

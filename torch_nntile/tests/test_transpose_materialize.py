@@ -16,10 +16,7 @@ import torch
 
 pytest.importorskip("torch_nntile")
 
-from torch_nntile import _C
-from conftest import nntile_cpu
-
-_PKG_ROOT = Path(__file__).resolve().parent.parent
+from conftest import nntile_cpu, subprocess_environ
 
 
 def test_transpose_materialize_forward_parity():
@@ -47,14 +44,16 @@ def test_transpose_backward_parity():
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
     y_cpu = x_cpu.transpose(1, 2)
     grad = torch.randn_like(y_cpu)
-    gx_cpu, = torch.autograd.grad(y_cpu, x_cpu, grad_outputs=grad)
+    (gx_cpu,) = torch.autograd.grad(y_cpu, x_cpu, grad_outputs=grad)
     y_nnt = x_nnt.transpose(1, 2)
-    gx_nnt, = torch.autograd.grad(
+    (gx_nnt,) = torch.autograd.grad(
         y_nnt,
         x_nnt,
         grad_outputs=grad.contiguous().to("nntile"),
     )
-    torch.testing.assert_close(nntile_cpu(gx_nnt), gx_cpu, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(
+        nntile_cpu(gx_nnt), gx_cpu, rtol=1e-5, atol=1e-5
+    )
 
 
 def test_gpt2_view_transpose_head_layout_parity():
@@ -65,7 +64,9 @@ def test_gpt2_view_transpose_head_layout_parity():
     q_cpu = torch.randn(batch, seq, hidden)
     q_nnt = q_cpu.to("nntile")
     states_cpu = q_cpu.view(batch, seq, n_heads, head_dim).transpose(1, 2)
-    states_nnt = nntile_cpu(q_nnt.view(batch, seq, n_heads, head_dim).transpose(1, 2))
+    states_nnt = nntile_cpu(
+        q_nnt.view(batch, seq, n_heads, head_dim).transpose(1, 2)
+    )
     assert states_nnt.is_contiguous()
     torch.testing.assert_close(states_nnt, states_cpu, rtol=1e-5, atol=1e-5)
 
@@ -99,7 +100,9 @@ def test_llama_query_transpose_parity():
     q_cpu = torch.randn(bsz, q_len, hidden)
     q_nnt = q_cpu.to("nntile")
     query_cpu = q_cpu.view(bsz, q_len, n_heads, head_dim).transpose(1, 2)
-    query_nnt = nntile_cpu(q_nnt.view(bsz, q_len, n_heads, head_dim).transpose(1, 2))
+    query_nnt = nntile_cpu(
+        q_nnt.view(bsz, q_len, n_heads, head_dim).transpose(1, 2)
+    )
     torch.testing.assert_close(query_nnt, query_cpu, rtol=1e-5, atol=1e-5)
 
 
@@ -151,21 +154,8 @@ def test_contiguous_raises_on_noncontiguous_nntile():
         x_nnt.permute(0, 2, 1, 3)
 
 
-@pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 def test_transpose_deferred_until_execute():
-    repo = Path(__file__).resolve().parents[2]
-    build_lib = repo / "build" / "nntile"
-    starpu_lib = "/opt/starpu/lib"
-    env = dict(**__import__("os").environ)
-    ld = env.get("LD_LIBRARY_PATH", "")
-    for part in (str(build_lib), starpu_lib):
-        if part not in ld.split(":"):
-            ld = f"{part}:{ld}" if ld else part
-    env["LD_LIBRARY_PATH"] = ld
-    env["PYTHONPATH"] = f"{_PKG_ROOT}:{env.get('PYTHONPATH', '')}"
+    env = subprocess_environ()
     script = textwrap.dedent(
         """
         import torch

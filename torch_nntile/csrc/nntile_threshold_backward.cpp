@@ -61,12 +61,10 @@ at::Tensor threshold_backward(
         "nntile threshold_backward supports ReLU only (threshold=0)");
     at::Tensor grad_input = at::empty_like(self);
     tensor_relu_backward_fp32(self, grad_output, grad_input);
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     note_record_relu_bwd(
         std::chrono::duration<double>(
             std::chrono::steady_clock::now() - t0)
             .count());
-#endif
     return grad_input;
 }
 

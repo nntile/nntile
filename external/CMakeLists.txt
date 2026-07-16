@@ -1,30 +1,15 @@
-# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
-#                2023-present Artificial Intelligence Research Institute
-#                              (AIRI), Russia. All rights reserved.
-#
-# NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file external/CMakeLists.txt
-# External header libraires to be used
+# External header libraries to be used
 #
 # @version 1.1.0
 
 include(FetchContent)
 
-if(BUILD_PYTHON_WRAPPERS)
-    add_subdirectory(pybind11)
-    FetchContent_MakeAvailable(pybind11)
-endif()
-
-if(BUILD_TESTS)
-    FetchContent_Declare(
-        Catch2
-        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG v3.11.0
-    )
-    FetchContent_MakeAvailable(Catch2)
+if(BUILD_TESTING)
+    include(NntileCatch2)
 endif()
 
 FetchContent_Declare(

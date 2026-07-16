@@ -15,7 +15,7 @@ follow these steps to contribute code.
    ```bash
    git clone https://github.com/YOUR_USERNAME/nntile
    cd nntile
-   pip install -e wrapers/python  # Install NNTile in editable mode.
+   pip install -e ./torch_nntile  # Optional PrivateUse1 package
    ```
 
 4. Add the NNTile repo as an upstream remote, so you can use it to sync with
@@ -44,29 +44,26 @@ follow these steps to contribute code.
 
    See Linting and Type-Checking section for more details.
 
-7. Make sure the tests pass by running the following command from
-   `python/` directory (after building with `BUILD_PYTHON_WRAPPERS=ON`).
+7. Make sure the tests pass after building **libnntile** (no Torch required).
+   When using the PrivateUse1 stack, also build **libtorch_nntile** /
+   install `torch_nntile` (PyTorch required for those only):
 
    ```bash
-   export PYTHONPATH="$(pwd)/build/python"
-   export LD_LIBRARY_PATH="$(pwd)/build/nntile:${LD_LIBRARY_PATH}"
-   pytest python/tests
+   export LD_LIBRARY_PATH="$(pwd)/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH}"
+   export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+   ctest --test-dir build -LE "(MPI|NotImplemented)" --output-on-failure
    ```
 
-   NNTile's test suite is quite large, so if you know the specific test file
-   that covers your changes, you can limit the tests to that. For example, run
-   only `optimizer/test_adam.py`
+   For the PrivateUse1 Python package:
 
    ```bash
-   pytest optimizer/test_adam.py
+   export NNTILE_BUILD_DIR="$(pwd)/build" NNTILE_SOURCE_DIR="$(pwd)"
+   pip install -e ./torch_nntile --no-build-isolation
+   pytest -vv torch_nntile/tests/
    ```
 
    You can narrow the tests further by using the `pytest -k` flag to match
    particular test names.
-
-   ```bash
-   pytest optimizer/test_adam.py -k adam
-   ```
 
    NNTile also offers more fine-grained control over which particular tests are
    run; see Running Tests for more information.

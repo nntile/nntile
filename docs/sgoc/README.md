@@ -50,7 +50,7 @@ Example prefix for a training script:
 STARPU_LIMIT_CUDA_MEM=14000 \
 STARPU_SCHED_LIB=/usr/local/lib/libgraph_sgoc_sched.so \
 STARPU_SCHED=sgoc \
-python wrappers/python/examples/gpt2_lmhead_training.py ...
+python torch_nntile/examples/train_gpt2_hf.py train --device nntile ...
 ```
 
 With default `STARPU_SCHED=dmdasd`, training works unchanged; graph capture calls
@@ -58,19 +58,13 @@ are no-ops.
 
 ## NNTile integration
 
-### `graph_capture_sched`
+### Current Python integration status
 
-[`wrappers/python/nntile/graph_capture_sched/__init__.py`](../../wrappers/python/nntile/graph_capture_sched/__init__.py)
-loads `starpu_graph_sched_graph_recording_begin` / `_end` from the DSO when
-`STARPU_SCHED=sgoc` and `STARPU_SCHED_LIB` point at `libgraph_sgoc_sched.so`.
-Otherwise `graph_recording_begin()` / `graph_recording_end()` are no-ops.
-
-### `Pipeline.train_async`
-
-[`wrappers/python/nntile/pipeline.py`](../../wrappers/python/nntile/pipeline.py)
-brackets each batch with `graph_recording_begin()` / `graph_recording_end()` and
-uses `iteration_push` / `iteration_pop` so SGOC can label forward pass, backward
-pass, and optimizer step (`4_294_967_295` matches `UINT32_MAX` in the scheduler).
+The former Python bindings exposed graph-capture helpers and
+`Pipeline.train_async` hooks for SGOC. The current user-facing Python package is
+[`torch_nntile`](../../torch_nntile/README.md); SGOC is still selected through
+the StarPU environment variables above, but equivalent automatic graph-capture
+hooks have not yet been migrated into `torch_nntile`.
 
 ## Benchmarks in notebooks
 

@@ -2,24 +2,16 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_storage_offset_copy.py
-# CPU→nntile copy must honor storage_offset (B=1 causal label views).
+# CPU->nntile copy must honor storage_offset (B=1 causal label views).
 
 from __future__ import annotations
 
 import torch
 import torch.nn.functional as F
-import pytest
+from conftest import nntile_cpu
+from torch_nntile.training import cross_entropy
 
 import torch_nntile
-from torch_nntile import _C
-from torch_nntile.training import cross_entropy
-from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def test_to_nntile_preserves_storage_offset_view():
@@ -33,6 +25,25 @@ def test_to_nntile_preserves_storage_offset_view():
     roundtrip = nntile_cpu(labels_view.to("nntile"))
     assert torch.equal(roundtrip, labels_view)
     assert not torch.equal(roundtrip, batch[:, :31])
+
+
+def test_cpu_readout_into_storage_offset_dst():
+    """``.cpu()`` / copy into a contiguous dst view must honor offset."""
+    torch.manual_seed(0)
+    src = torch.randn(8, dtype=torch.float32)
+    nnt = src.to("nntile")
+    torch_nntile.compile_graph()
+    torch_nntile.run()
+
+    storage = torch.full((10,), -1.0, dtype=torch.float32)
+    dst = storage[1:9]
+    assert dst.is_contiguous()
+    assert dst.storage_offset() == 1
+    assert dst.shape == (8,)
+    dst.copy_(nnt)
+    assert torch.equal(dst, src)
+    assert storage[0].item() == -1.0
+    assert storage[9].item() == -1.0
 
 
 def test_cross_entropy_batch1_causal_label_view_matches_cpu():

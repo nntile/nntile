@@ -7,15 +7,9 @@
 import pytest
 import torch
 import torch.nn.functional as F
-
-import torch_nntile
-from torch_nntile import _C
 from conftest import nntile_cpu
 
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+import torch_nntile
 
 
 @pytest.mark.parametrize(
@@ -37,7 +31,9 @@ def test_linear_bias_forward_matches_cpu(shape):
 
     with torch.no_grad():
         y_nnt = nntile_cpu(
-            F.linear(x_cpu.to("nntile"), w_cpu.to("nntile"), b_cpu.to("nntile"))
+            F.linear(
+                x_cpu.to("nntile"), w_cpu.to("nntile"), b_cpu.to("nntile")
+            )
         )
 
     assert y_nnt.shape == y_cpu.shape

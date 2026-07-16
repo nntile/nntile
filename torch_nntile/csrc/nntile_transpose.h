@@ -2,22 +2,14 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_transpose.h
+ * Umbrella: cyclic ``model_transpose`` + HF ``swap_two_axes``.
+ *
+ * Prefer including the specific header:
+ * - ``nntile_model_transpose.h`` - native C++ models (cyclic)
+ * - ``nntile_swap_two_axes.h`` - HF ATen ``transpose`` bridge only
  */
 
 #pragma once
 
-#include <ATen/ATen.h>
-
-namespace torch_nntile
-{
-
-at::Tensor model_transpose_forward(
-    const at::Tensor &x,
-    int64_t model_ndim);
-
-at::Tensor model_transpose_backward(
-    const at::Tensor &grad_out,
-    int64_t model_ndim,
-    const at::Tensor &x = {});
-
-} // namespace torch_nntile
+#include "nntile_model_transpose.h"
+#include "nntile_swap_two_axes.h"

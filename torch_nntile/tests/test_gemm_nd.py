@@ -8,15 +8,8 @@ from __future__ import annotations
 
 import pytest
 import torch
-
-from torch_nntile import _C
+from conftest import nntile_cpu, subprocess_environ
 from torch_nntile.gemm import gemm
-from conftest import nntile_cpu
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -99,9 +92,7 @@ def test_gemm_qkv_backward():
     x_n = x.detach().to("nntile").requires_grad_(True)
     w_n = w.detach().to("nntile").requires_grad_(True)
     out = gemm(x_n, w_n, ndim=1, batch_ndim=0)
-    grad_cpu = torch.randn_like(
-        _cpu_ref_gemm(x, w, ndim=1, batch_ndim=0)
-    )
+    grad_cpu = torch.randn_like(_cpu_ref_gemm(x, w, ndim=1, batch_ndim=0))
     grad_out = grad_cpu.to("nntile")
     out.backward(grad_out)
     ref_out = _cpu_ref_gemm(x, w, ndim=1, batch_ndim=0)
@@ -114,10 +105,7 @@ def test_gemm_no_view():
     import subprocess
     import sys
     import textwrap
-    from pathlib import Path
 
-    pkg_root = Path(__file__).resolve().parent.parent
-    repo = Path(__file__).resolve().parents[2]
     script = textwrap.dedent(
         """
         import torch
@@ -145,17 +133,7 @@ def test_gemm_no_view():
         torch_nntile.execute()
         """
     )
-    import os
-
-    env = dict(os.environ)
-    build_lib = repo / "build" / "nntile"
-    starpu_lib = "/opt/starpu/lib"
-    ld = env.get("LD_LIBRARY_PATH", "")
-    for part in (str(build_lib), starpu_lib):
-        if part not in ld.split(":"):
-            ld = f"{part}:{ld}" if ld else part
-    env["LD_LIBRARY_PATH"] = ld
-    env["PYTHONPATH"] = f"{pkg_root}:{env.get('PYTHONPATH', '')}"
+    env = subprocess_environ()
     proc = subprocess.run(
         [sys.executable, "-c", script],
         capture_output=True,
