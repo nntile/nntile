@@ -41,6 +41,12 @@ torch::Tensor causal_mask_host(int64_t seq)
 
 int64_t gptneox_rope_dim(GptNeoXConfig const &cfg, int64_t head_dim)
 {
+    // Match Python GPTNeoXConfig.rotary_ndims: disabled pct => 0, else
+    // round and clamp to an even width in [2, head_dim].
+    if (cfg.rotary_pct <= 0.0)
+    {
+        return 0;
+    }
     int64_t dim = static_cast<int64_t>(
         std::lround(
             static_cast<double>(head_dim) * cfg.rotary_pct));
@@ -108,6 +114,10 @@ torch::Tensor apply_partial_rope(
     int64_t head_dim)
 {
     // x: [n_heads, batch, seq, head_dim]; sin/cos: [batch, seq, half].
+    if (rotary_ndims <= 0)
+    {
+        return x;
+    }
     int64_t const n_heads = x.size(0);
     if (sin.dim() == 3)
     {
@@ -139,7 +149,8 @@ GptNeoXAttentionImpl::GptNeoXAttentionImpl(GptNeoXConfig const &cfg) :
     n_heads(cfg.num_attention_heads),
     head_size(cfg.hidden_size / cfg.num_attention_heads),
     hidden(cfg.hidden_size),
-    rotary_ndims(gptneox_rope_dim(cfg, head_size))
+    rotary_ndims(gptneox_rope_dim(cfg, head_size)),
+    attention_bias(cfg.attention_bias)
 {
     if (cfg.hidden_size % cfg.num_attention_heads != 0)
     {
@@ -161,6 +172,20 @@ GptNeoXAttentionImpl::GptNeoXAttentionImpl(GptNeoXConfig const &cfg) :
     o_weight = register_parameter(
         "o_weight",
         torch::empty({hs, nh, h}));
+    if (attention_bias)
+    {
+        // ``(n_heads, head_dim)`` after transpose into SDPA layout.
+        q_bias = register_parameter(
+            "q_bias",
+            torch::zeros({nh, hs}));
+        k_bias = register_parameter(
+            "k_bias",
+            torch::zeros({nh, hs}));
+        v_bias = register_parameter(
+            "v_bias",
+            torch::zeros({nh, hs}));
+        o_bias = register_parameter("o_bias", torch::zeros({h}));
+    }
     torch::nn::init::normal_(q_weight, 0.0, 0.02);
     torch::nn::init::normal_(k_weight, 0.0, 0.02);
     torch::nn::init::normal_(v_weight, 0.0, 0.02);
@@ -182,8 +207,17 @@ torch::Tensor GptNeoXAttentionImpl::forward(
     auto v = model_transpose(
         gemm(x, v_weight, /*ndim=*/1, /*batch_ndim=*/0),
         /*model_ndim=*/1);
-    q = apply_partial_rope(q, sin, cos, rotary_ndims, head_size);
-    k = apply_partial_rope(k, sin, cos, rotary_ndims, head_size);
+    if (attention_bias)
+    {
+        q = add_fiber(q_bias, q, /*axis=*/3, /*batch_ndim=*/1);
+        k = add_fiber(k_bias, k, /*axis=*/3, /*batch_ndim=*/1);
+        v = add_fiber(v_bias, v, /*axis=*/3, /*batch_ndim=*/1);
+    }
+    if (rotary_ndims > 0)
+    {
+        q = apply_partial_rope(q, sin, cos, rotary_ndims, head_size);
+        k = apply_partial_rope(k, sin, cos, rotary_ndims, head_size);
+    }
     auto attn = sdpa_kernel(
         q,
         k,
@@ -191,7 +225,16 @@ torch::Tensor GptNeoXAttentionImpl::forward(
         mask,
         /*batch_ndim=*/2);
     attn = model_transpose(attn, /*model_ndim=*/3);
-    return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
+    auto out = gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
+    if (attention_bias)
+    {
+        out = add_fiber(
+            o_bias,
+            out,
+            /*axis=*/out.dim() - 1,
+            /*batch_ndim=*/0);
+    }
+    return out;
 }
 
 // -- GptNeoXMLPImpl --------------------------------------------------------
@@ -319,25 +362,36 @@ void GptNeoXCausalImpl::warm_rope_cache(
     int64_t const head_dim =
         config.hidden_size / config.num_attention_heads;
     int64_t const rope_dim = gptneox_rope_dim(config, head_dim);
-    torch::Tensor sin_h;
-    torch::Tensor cos_h;
-    rope_sin_cos_host(
-        batch,
-        seq,
-        rope_dim,
-        config.rotary_emb_base,
-        sin_h,
-        cos_h);
     auto mask = causal_mask_host(seq);
     if (!device.is_cpu())
     {
-        sin_h = sin_h.to(device);
-        cos_h = cos_h.to(device);
         mask = mask.to(device);
     }
-    rope_sin_ = sin_h;
-    rope_cos_ = cos_h;
     cached_mask_ = mask;
+    if (rope_dim > 0)
+    {
+        torch::Tensor sin_h;
+        torch::Tensor cos_h;
+        rope_sin_cos_host(
+            batch,
+            seq,
+            rope_dim,
+            config.rotary_emb_base,
+            sin_h,
+            cos_h);
+        if (!device.is_cpu())
+        {
+            sin_h = sin_h.to(device);
+            cos_h = cos_h.to(device);
+        }
+        rope_sin_ = sin_h;
+        rope_cos_ = cos_h;
+    }
+    else
+    {
+        rope_sin_ = torch::Tensor();
+        rope_cos_ = torch::Tensor();
+    }
     rope_cache_batch_ = batch;
     rope_cache_seq_ = seq;
 }
@@ -346,9 +400,18 @@ torch::Tensor GptNeoXCausalImpl::forward(torch::Tensor input_ids)
 {
     int64_t const b = input_ids.size(0);
     int64_t const s = input_ids.size(1);
-    if (!rope_sin_.defined() || rope_cache_batch_ != b
+    int64_t const rope_dim = gptneox_rope_dim(
+        config,
+        config.hidden_size / config.num_attention_heads);
+    bool const need_rope_refresh =
+        !cached_mask_.defined()
+        || rope_cache_batch_ != b
         || rope_cache_seq_ != s
-        || rope_sin_.device() != input_ids.device())
+        || cached_mask_.device() != input_ids.device()
+        || (rope_dim > 0
+            && (!rope_sin_.defined()
+                || rope_sin_.device() != input_ids.device()));
+    if (need_rope_refresh)
     {
         warm_rope_cache(b, s, input_ids.device());
     }

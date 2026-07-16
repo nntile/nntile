@@ -35,10 +35,15 @@ struct GptNeoXAttentionImpl : torch::nn::Module
     int64_t head_size = 0;
     int64_t hidden = 0;
     int64_t rotary_ndims = 0;
+    bool attention_bias = true;
     torch::Tensor q_weight;
     torch::Tensor k_weight;
     torch::Tensor v_weight;
     torch::Tensor o_weight;
+    torch::Tensor q_bias;
+    torch::Tensor k_bias;
+    torch::Tensor v_bias;
+    torch::Tensor o_bias;
 
     explicit GptNeoXAttentionImpl(GptNeoXConfig const &cfg);
     torch::Tensor forward(
