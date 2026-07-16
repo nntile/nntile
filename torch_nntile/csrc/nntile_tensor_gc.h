@@ -38,9 +38,4 @@ at::Tensor empty_metadata_tensor(
     c10::ScalarType dtype,
     c10::Device device);
 
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-void ensure_host_staging(at::Tensor &tensor);
-bool has_host_staging(const at::Tensor &tensor);
-#endif
-
 } // namespace torch_nntile

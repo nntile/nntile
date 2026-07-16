@@ -268,9 +268,7 @@ def _nntile_extension_kwargs() -> dict:
 
     cxx_standard = os.environ.get("TORCH_NNTILE_CXX_STANDARD", "c++17")
     extra_compile_args = [f"-std={cxx_standard}"]
-    define_macros: list[tuple[str, str | None]] = [
-        ("TORCH_NNTILE_USE_LIBNNTILE", "1"),
-    ]
+    define_macros: list[tuple[str, str | None]] = []
     if built_with_cuda:
         define_macros.append(("TORCH_NNTILE_BUILT_WITH_CUDA", "1"))
     # Public + private headers from this package source; nntile from prefix/build.

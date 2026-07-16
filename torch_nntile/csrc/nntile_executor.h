@@ -14,14 +14,7 @@
 #include <cstdint>
 #include <vector>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
-#else
-namespace nntile
-{
-using Index = std::int64_t;
-} // namespace nntile
-#endif
 
 namespace torch_nntile
 {

@@ -40,9 +40,6 @@ at::Tensor mse_loss_forward(const at::Tensor &x, double scale)
 {
     check_mse_loss_input(x);
     at::Tensor loss = empty_metadata_tensor({}, at::kFloat, x.device());
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-    ensure_host_staging(loss);
-#endif
     tensor_mse_loss_fp32(x, static_cast<float>(scale), loss);
     return loss;
 }

@@ -8,9 +8,7 @@
 
 #include <ATen/native/LinearAlgebraUtils.h>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/tensor/ops/gemm.hh>
-#endif
 
 #include <algorithm>
 #include <stdexcept>
@@ -170,7 +168,6 @@ std::vector<int64_t> gemm_output_shape_pytorch(
     const std::vector<int64_t> &b_shape,
     const GemmParams &params)
 {
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     std::vector<nntile::Index> a_graph(a_shape.begin(), a_shape.end());
     std::vector<nntile::Index> b_graph(b_shape.begin(), b_shape.end());
     const auto out_graph = nntile::tensor::gemm_output_shape(
@@ -181,34 +178,6 @@ std::vector<int64_t> gemm_output_shape_pytorch(
         static_cast<nntile::Index>(params.ndim),
         static_cast<nntile::Index>(params.batch_ndim));
     return std::vector<int64_t>(out_graph.begin(), out_graph.end());
-#else
-    const int64_t a_ndim = static_cast<int64_t>(a_shape.size());
-    const int64_t b_ndim = static_cast<int64_t>(b_shape.size());
-    const int64_t batch_ndim = params.batch_ndim;
-    const int64_t ndim = params.ndim;
-
-    const int64_t a_k_begin = params.trans_a ? batch_ndim : (a_ndim - ndim);
-    const int64_t a_k_end = params.trans_a ? (batch_ndim + ndim) : a_ndim;
-    const int64_t a_m_begin = params.trans_a ? (batch_ndim + ndim) : batch_ndim;
-    const int64_t a_m_end = params.trans_a ? a_ndim : (a_ndim - ndim);
-    const int64_t b_n_begin = params.trans_b ? batch_ndim : (batch_ndim + ndim);
-    const int64_t b_n_end = params.trans_b ? (b_ndim - ndim) : b_ndim;
-
-    std::vector<int64_t> output_shape;
-    output_shape.insert(
-        output_shape.end(),
-        a_shape.begin(),
-        a_shape.begin() + batch_ndim);
-    output_shape.insert(
-        output_shape.end(),
-        a_shape.begin() + a_m_begin,
-        a_shape.begin() + a_m_end);
-    output_shape.insert(
-        output_shape.end(),
-        b_shape.begin() + b_n_begin,
-        b_shape.begin() + b_n_end);
-    return output_shape;
-#endif
 }
 
 PreparedGemmOperands prepare_mm_operands(const at::Tensor &a, const at::Tensor &b)

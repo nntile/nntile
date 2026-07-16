@@ -10,11 +10,9 @@
 #include <ATen/Tensor.h>
 #include <c10/util/ArrayRef.h>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
 #include <nntile/tensor/graph.hh>
 #include <vector>
-#endif
 
 namespace torch_nntile
 {
@@ -28,12 +26,10 @@ void tensor_broadcast_scalar_fp32(
     const at::Tensor &scalar,
     at::Tensor &out);
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
     nntile::TensorGraph::TensorNode *src,
     nntile::TensorGraph::TensorNode *dst,
     nntile::TensorGraph &graph,
     const std::vector<nntile::Index> &dst_shape);
-#endif
 
 } // namespace torch_nntile

@@ -86,7 +86,6 @@ set(TORCH_NNTILE_CSRC
 add_library(torch_nntile SHARED ${TORCH_NNTILE_CSRC})
 add_library(torch_nntile::torch_nntile ALIAS torch_nntile)
 
-target_compile_definitions(torch_nntile PUBLIC TORCH_NNTILE_USE_LIBNNTILE=1)
 target_include_directories(torch_nntile
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

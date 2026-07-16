@@ -11,8 +11,6 @@
 #include <mutex>
 #include <stdexcept>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-
 #include <nntile/context.hh>
 #include <nntile/defs.h>
 
@@ -169,78 +167,3 @@ void shutdown_context()
 
 } // namespace torch_nntile
 
-#else
-
-namespace torch_nntile
-{
-
-namespace
-{
-
-[[noreturn]] void require_libnntile()
-{
-    throw std::runtime_error(
-        "torch_nntile context APIs require libnntile "
-        "(rebuild with NNTILE_BUILD_DIR set)");
-}
-
-} // namespace
-
-void init_context(
-    int /*ncpu*/,
-    int /*ncuda*/,
-    int /*ooc_enabled*/,
-    const char * /*ooc_path*/,
-    std::size_t /*ooc_size*/,
-    int /*logger*/,
-    int /*verbose*/,
-    bool /*cpu_fallback*/)
-{
-    require_libnntile();
-}
-
-bool built_with_cuda()
-{
-    return false;
-}
-
-bool is_cpu_fallback_enabled()
-{
-    return true;
-}
-
-bool is_context_initialized()
-{
-    return false;
-}
-
-void ensure_nntile_context()
-{
-}
-
-void restrict_cpu()
-{
-    require_libnntile();
-}
-
-void restrict_cuda()
-{
-    require_libnntile();
-}
-
-void restore_where()
-{
-    require_libnntile();
-}
-
-void wait_for_all()
-{
-}
-
-void shutdown_context()
-{
-}
-
-} // namespace torch_nntile
-
-#endif

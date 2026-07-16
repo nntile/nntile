@@ -107,10 +107,9 @@ Leave weight/input checks as they are.
    LayerNorm’s `copy` + `add_fiber_inplace` pattern — here gemm already wrote
    `output`, so only the in-place add is needed.
 
-libnntile is required for all builds (`TORCH_NNTILE_USE_LIBNNTILE` is always
-defined). Keep a clear hard error if TensorGraph helpers are missing at link
-time rather than a host-only fallback, consistent with other executor entry
-points.
+libnntile is required for all builds (no host-only stub). Keep a clear hard
+error if TensorGraph helpers are missing at link time rather than a host-only
+fallback, consistent with other executor entry points.
 
 ### 3. Backward (`linear_backward`)
 

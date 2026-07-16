@@ -9,9 +9,7 @@
 
 #include <c10/core/TensorImpl.h>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/tensor/tensor_ref.hh>
-#endif
 
 namespace at
 {
@@ -20,8 +18,6 @@ class Tensor;
 
 namespace torch_nntile
 {
-
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 struct NNTileBackendMeta final : c10::BackendMeta
 {
@@ -57,7 +53,5 @@ void note_logical_released(nntile::TensorGraph::TensorNode *logical);
 //! (call under recorder lock). Does not ``invalidate_logical_tiles`` -
 //! reclaim is ordinary graph ``INVALIDATE`` only.
 std::vector<nntile::TensorGraph::TensorNode *> take_released_logicals();
-
-#endif // TORCH_NNTILE_USE_LIBNNTILE
 
 } // namespace torch_nntile

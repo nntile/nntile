@@ -87,7 +87,6 @@ at::Tensor model_transpose_backward(
         grad_out.scalar_type(),
         grad_out.device());
     tensor_model_transpose_backward_fp32(grad_out, grad_x, model_ndim);
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     if (x.defined())
     {
         std::vector<nntile::Index> grad_shape;
@@ -106,7 +105,6 @@ at::Tensor model_transpose_backward(
             register_grad_alias_for_host_copy(grad_x_alias, grad_x_node);
         }
     }
-#endif
     return grad_x;
 }
 

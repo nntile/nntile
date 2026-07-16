@@ -14,8 +14,6 @@
 
 #include <stdexcept>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-
 #include <ATen/Tensor.h>
 #include <nntile/tensor/ops/scale_slice.hh>
 #include <nntile/tensor/ops/copy.hh>
@@ -280,27 +278,3 @@ void tensor_broadcast_scalar_fp32(
 
 } // namespace torch_nntile
 
-#else
-
-namespace torch_nntile
-{
-
-void tensor_repeat_fp32(
-    const at::Tensor & /*input*/,
-    at::Tensor & /*out*/,
-    c10::IntArrayRef /*repeats*/)
-{
-    throw std::runtime_error("tensor_repeat_fp32 requires libnntile");
-}
-
-void tensor_broadcast_scalar_fp32(
-    const at::Tensor & /*scalar*/,
-    at::Tensor & /*out*/)
-{
-    throw std::runtime_error(
-        "tensor_broadcast_scalar_fp32 requires libnntile");
-}
-
-} // namespace torch_nntile
-
-#endif // TORCH_NNTILE_USE_LIBNNTILE

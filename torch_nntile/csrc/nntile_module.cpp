@@ -45,9 +45,7 @@
 #include <torch_nntile/models/roberta.hh>
 #include <torch_nntile/models/t5.hh>
 
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
-#endif
 
 namespace torch_nntile
 {
@@ -59,11 +57,7 @@ bool is_registered()
 
 bool has_libnntile()
 {
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     return true;
-#else
-    return false;
-#endif
 }
 
 int64_t buffer_nbytes(const at::Tensor &tensor)

@@ -106,7 +106,6 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
     {
         return;
     }
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     if (is_metadata_only_tensor(self))
     {
         TORCH_CHECK(
@@ -115,7 +114,6 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
         tensor_fill_fp32(self, value.to<float>());
         return;
     }
-#endif
     switch (self.scalar_type())
     {
     case at::ScalarType::Float:
@@ -224,7 +222,6 @@ at::Tensor ones_like(
     {
         options = options.pinned_memory(*pin_memory_opt);
     }
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     if (is_nntile_device(options.device()))
     {
         const c10::ScalarType dtype = dtype_opt.has_value()
@@ -256,7 +253,6 @@ at::Tensor ones_like(
         fill_scalar(result, 1);
         return result;
     }
-#endif
     at::MemoryFormat format = at::MemoryFormat::Contiguous;
     if (memory_format_opt.has_value())
     {
@@ -268,12 +264,6 @@ at::Tensor ones_like(
     at::Tensor result = at::empty(
         self.sizes(),
         options.memory_format(format));
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-    if (is_nntile_device(result.device()) && is_metadata_only_tensor(result))
-    {
-        ensure_host_staging(result);
-    }
-#endif
     result.fill_(1);
     return result;
 }
@@ -297,9 +287,6 @@ at::Tensor empty_memory_format(
     const c10::DeviceGuard device_guard(device);
     const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
     at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-    ensure_host_staging(tensor);
-#endif
     return tensor;
 }
 
@@ -322,9 +309,6 @@ at::Tensor empty_strided(
     const c10::DeviceGuard device_guard(device);
     const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
     at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-    ensure_host_staging(tensor);
-#endif
     return tensor;
 }
 
@@ -347,9 +331,7 @@ at::Tensor as_strided(
     TORCH_CHECK(
         result.is_contiguous(),
         "as_strided: non-contiguous layout is not supported on nntile");
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     record_view_alias(self, result);
-#endif
     return result;
 }
 
@@ -383,9 +365,7 @@ at::Tensor view(const at::Tensor &self, at::IntArrayRef size)
         stride.has_value(),
         "view size is not compatible with input tensor's size and stride");
     at::Tensor result = reshape_alias(self, inferred, *stride);
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     record_view_alias(self, result);
-#endif
     return result;
 }
 
@@ -423,7 +403,6 @@ at::Tensor copy_from(
     at::Tensor mutable_dst = dst;
     if (dst.is_cpu() && is_nntile_device(self.device()))
     {
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         if (has_graph_session())
         {
             // run() is async; do not wait_for_all here. copy_nntile_tensor_to_cpu
@@ -431,22 +410,16 @@ at::Tensor copy_from(
             copy_nntile_tensor_to_cpu(self, mutable_dst);
             return dst;
         }
-#endif
     }
     if (is_nntile_device(mutable_dst.device()) && self.is_cpu())
     {
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         init_nntile_input_from_cpu(self, mutable_dst);
         return dst;
-#else
-        ensure_host_staging(mutable_dst);
-#endif
     }
     else if (
         is_nntile_device(self.device()) &&
         is_nntile_device(mutable_dst.device()))
     {
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
         nntile::TensorRef src_binding = tensor_ref(self);
         if (src_binding != nullptr &&
             self.sizes() == mutable_dst.sizes() &&
@@ -459,20 +432,7 @@ at::Tensor copy_from(
             false,
             "nntile-to-nntile copy between distinct metadata-only tensors "
             "is unsupported");
-#else
-        if (!has_host_staging(mutable_dst) && self.nbytes() > 0)
-        {
-            ensure_host_staging(mutable_dst);
-        }
-        memcpy_tensors(self, mutable_dst);
-#endif
     }
-#ifndef TORCH_NNTILE_USE_LIBNNTILE
-    if (has_host_staging(self) || has_host_staging(mutable_dst))
-    {
-        memcpy_tensors(self, mutable_dst);
-    }
-#endif
     return dst;
 }
 
@@ -588,10 +548,6 @@ at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
     {
         return result;
     }
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
-    tensor_swap_two_axes_fp32(self, result, dim0, dim1);
-    return result;
-#endif
     tensor_swap_two_axes_fp32(self, result, dim0, dim1);
     return result;
 }
@@ -634,9 +590,7 @@ at::Tensor permute(const at::Tensor &self, at::IntArrayRef dims)
         result.is_contiguous(),
         "permute: non-contiguous layout is not supported on nntile; "
         "use transpose for axis swaps");
-#ifdef TORCH_NNTILE_USE_LIBNNTILE
     record_view_alias(self, result);
-#endif
     return result;
 }
 
