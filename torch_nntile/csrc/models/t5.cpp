@@ -84,8 +84,8 @@ struct T5AttentionImpl : torch::nn::Module
             hidden;
         auto kk = shape(k->forward(kv_in));
         auto vv = shape(v->forward(kv_in));
-        // HF T5 scores are unscaled; cancel SDPA 1/sqrt(d).
-        qq = qq * std::sqrt(static_cast<double>(d_kv));
+        // HF T5 scores are unscaled; cancel SDPA 1/sqrt(d) on-device.
+        qq = at::mul(qq, std::sqrt(static_cast<double>(d_kv)));
         auto out = at::scaled_dot_product_attention(
             qq,
             kk,
@@ -272,7 +272,7 @@ torch::Tensor T5ForConditionalGenerationImpl::forward(
     if (config.tie_word_embeddings)
     {
         double scale = 1.0 / std::sqrt(static_cast<double>(config.d_model));
-        dec = dec * scale;
+        dec = at::mul(dec, scale);
     }
     return lm_head->forward(dec);
 }

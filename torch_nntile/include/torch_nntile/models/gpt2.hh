@@ -50,8 +50,17 @@ struct Gpt2CausalImpl : torch::nn::Module
     torch::nn::ModuleList blocks{nullptr};
     torch::nn::LayerNorm ln_f{nullptr};
     torch::nn::Linear lm_head{nullptr};
+    //! One-shot host aux tables uploaded for reuse (not activations).
+    torch::Tensor cached_pos_;
+    torch::Tensor cached_mask_;
+    int64_t cache_batch_ = -1;
+    int64_t cache_seq_ = -1;
 
     explicit Gpt2CausalImpl(Gpt2Config cfg);
+    void warm_sequence_cache(
+        int64_t batch,
+        int64_t seq,
+        torch::Device device);
     torch::Tensor forward(torch::Tensor input_ids);
 };
 

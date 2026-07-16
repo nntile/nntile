@@ -301,7 +301,7 @@ class T5ForConditionalGeneration(nn.Module):
         if self.config.tie_word_embeddings:
             # Prefer mul.Scalar path; avoid 0-d broadcast issues on nntile.
             scale = float(self.config.d_model ** -0.5)
-            hidden = hidden * scale
+            hidden = torch.ops.aten.mul.Scalar(hidden, scale)
         return self.lm_head(hidden)
 
 

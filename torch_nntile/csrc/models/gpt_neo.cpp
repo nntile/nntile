@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/gpt_neo.cpp
+ * GPT-Neo — activations on nntile; position / local masks are CPU aux tables.
  */
 
 #include <torch_nntile/models/gpt_neo.hh>
@@ -15,9 +16,8 @@ namespace torch_nntile::models
 namespace
 {
 
-//! BOOL local-causal mask on CPU — nntile SDPA converts host masks
-//! (same as Python ``make_local_causal_sdpa_mask``).
-torch::Tensor local_causal_mask(int64_t seq, int64_t window)
+//! BOOL local-causal mask on CPU — nntile SDPA converts host masks.
+torch::Tensor local_causal_mask_host(int64_t seq, int64_t window)
 {
     auto opts = torch::TensorOptions()
         .dtype(torch::kLong)
@@ -42,6 +42,9 @@ struct GptNeoBlockImpl : torch::nn::Module
     int64_t head_dim = 0;
     bool local = false;
     int64_t window_size = 256;
+    //! Cached host local mask (aux); not an activation.
+    torch::Tensor cached_local_mask_;
+    int64_t cached_mask_seq_ = -1;
 
     GptNeoBlockImpl(GptNeoConfig const& cfg, int64_t layer_id)
     {
@@ -88,6 +91,17 @@ struct GptNeoBlockImpl : torch::nn::Module
             torch::nn::Linear(cfg.intermediate_size, hidden));
     }
 
+    torch::Tensor local_mask(int64_t seq)
+    {
+        if (cached_local_mask_.defined() && cached_mask_seq_ == seq)
+        {
+            return cached_local_mask_;
+        }
+        cached_local_mask_ = local_causal_mask_host(seq, window_size);
+        cached_mask_seq_ = seq;
+        return cached_local_mask_;
+    }
+
     torch::Tensor forward(torch::Tensor x)
     {
         auto h = ln_1->forward(x);
@@ -99,13 +113,13 @@ struct GptNeoBlockImpl : torch::nn::Module
         auto q = reshape(q_proj->forward(h));
         auto k = reshape(k_proj->forward(h));
         auto v = reshape(v_proj->forward(h));
-        // HF GPT-Neo scores are unscaled; cancel SDPA 1/sqrt(d).
-        q = q * std::sqrt(static_cast<double>(head_dim));
+        // HF GPT-Neo scores are unscaled; cancel SDPA 1/sqrt(d) on-device.
+        q = at::mul(q, std::sqrt(static_cast<double>(head_dim)));
         c10::optional<at::Tensor> attn_mask = c10::nullopt;
         bool is_causal = false;
         if (local)
         {
-            attn_mask = local_causal_mask(s, window_size);
+            attn_mask = local_mask(s);
         }
         else
         {
@@ -161,19 +175,40 @@ GptNeoCausalImpl::GptNeoCausalImpl(GptNeoConfig cfg) :
                 .bias(false)));
 }
 
+void GptNeoCausalImpl::warm_position_cache(
+    int64_t batch,
+    int64_t seq,
+    torch::Device device)
+{
+    if (cached_pos_.defined() && cache_batch_ == batch &&
+        cache_seq_ == seq && cached_pos_.device() == device)
+    {
+        return;
+    }
+    auto pos = torch::arange(
+        seq,
+        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU));
+    pos = pos.unsqueeze(0).expand({batch, seq}).contiguous();
+    if (!device.is_cpu())
+    {
+        pos = pos.to(device);
+    }
+    torch::NoGradGuard guard;
+    cached_pos_ = pos;
+    cache_batch_ = batch;
+    cache_seq_ = seq;
+}
+
 torch::Tensor GptNeoCausalImpl::forward(torch::Tensor input_ids)
 {
     int64_t b = input_ids.size(0);
     int64_t s = input_ids.size(1);
-    auto pos = torch::arange(
-        s,
-        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU));
-    pos = pos.unsqueeze(0).expand({b, s}).contiguous();
-    if (!input_ids.device().is_cpu())
+    if (!cached_pos_.defined() || cache_batch_ != b || cache_seq_ != s ||
+        cached_pos_.device() != input_ids.device())
     {
-        pos = pos.to(input_ids.device());
+        warm_position_cache(b, s, input_ids.device());
     }
-    auto x = wte->forward(input_ids) + wpe->forward(pos);
+    auto x = wte->forward(input_ids) + wpe->forward(cached_pos_);
     for (auto& module : *blocks)
     {
         x = module->as<GptNeoBlockImpl>()->forward(x);

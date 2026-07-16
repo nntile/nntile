@@ -91,10 +91,20 @@ class GPTNeoAttention(nn.Module):
         self.k_proj = nn.Linear(self.hidden, self.hidden, bias=False)
         self.v_proj = nn.Linear(self.hidden, self.hidden, bias=False)
         self.out_proj = nn.Linear(self.hidden, self.hidden, bias=True)
+        # Host-built local masks (aux); keyed by seq_len.
+        self._local_mask_cache: dict[int, Tensor] = {}
 
     def _shape(self, x: Tensor) -> Tensor:
         b, s, _ = x.shape
         return x.view(b, s, self.n_heads, self.head_dim).transpose(1, 2)
+
+    def _cached_local_mask(self, seq_len: int) -> Tensor:
+        cached = self._local_mask_cache.get(seq_len)
+        if cached is not None:
+            return cached
+        mask = make_local_causal_sdpa_mask(seq_len, self.window_size)
+        self._local_mask_cache[seq_len] = mask
+        return mask
 
     def forward(
         self,
@@ -113,7 +123,7 @@ class GPTNeoAttention(nn.Module):
         # Local layers use a sliding causal window when the caller does not
         # supply an explicit mask (matches HF ``attention_layers`` / bias).
         if attn_mask is None and self.local:
-            attn_mask = make_local_causal_sdpa_mask(s, self.window_size)
+            attn_mask = self._cached_local_mask(s)
             is_causal = False
         elif is_causal is None:
             is_causal = attn_mask is None

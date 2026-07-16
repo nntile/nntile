@@ -25,6 +25,8 @@ def test_cpp_models_listed():
     assert "RobertaMlm" in names
     assert "GptNeoCausal" in names
     assert "GptNeoXCausal" in names
+    assert "Gpt2Causal" in names
+    assert "T5" in names
 
 
 def test_cpp_llama_causal_forward_on_nntile():
@@ -111,6 +113,44 @@ def test_cpp_gpt_neox_causal_forward_on_nntile():
         num_hidden_layers=1,
         num_attention_heads=4,
         rotary_pct=0.25,
+    )
+    assert out.device.type == "nntile"
+    assert tuple(out.shape) == (2, 8, 128)
+
+
+def test_cpp_gpt2_causal_forward_on_nntile():
+    ids = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
+        "nntile"
+    )
+    out = _C.cpp_gpt2_causal_forward(
+        ids,
+        vocab_size=128,
+        n_embd=64,
+        n_head=4,
+        n_layer=1,
+    )
+    assert out.device.type == "nntile"
+    assert tuple(out.shape) == (2, 8, 128)
+
+
+def test_cpp_t5_forward_on_nntile():
+    # Equal enc/dec seq: nntile SDPA currently requires Q/K/V same shape
+    # (cross-attn with unequal lengths is not supported yet).
+    enc = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
+        "nntile"
+    )
+    dec = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
+        "nntile"
+    )
+    out = _C.cpp_t5_forward(
+        enc,
+        dec,
+        vocab_size=128,
+        d_model=64,
+        d_kv=16,
+        d_ff=128,
+        num_layers=1,
+        num_heads=4,
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)

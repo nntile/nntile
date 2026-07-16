@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/gpt2.cpp
+ * GPT-2 causal LM — activations on nntile; position/mask tables are CPU aux.
  */
 
 #include <torch_nntile/models/gpt2.hh>
@@ -15,14 +16,15 @@ namespace torch_nntile::models
 namespace
 {
 
-torch::Tensor causal_mask(int64_t seq, torch::Device device)
+//! BOOL causal mask built on CPU (nntile lacks long arange / compare).
+torch::Tensor causal_mask_host(int64_t seq)
 {
     auto opts = torch::TensorOptions()
-        .dtype(torch::kBool)
-        .device(device);
-    auto q = torch::arange(seq, opts.dtype(torch::kLong).device(device));
-    auto k = torch::arange(seq, opts.dtype(torch::kLong).device(device));
-    return k.unsqueeze(0) <= q.unsqueeze(1);
+        .dtype(torch::kLong)
+        .device(torch::kCPU);
+    auto q = torch::arange(seq, opts).unsqueeze(1);
+    auto k = torch::arange(seq, opts).unsqueeze(0);
+    return (k <= q).contiguous();
 }
 
 } // namespace
@@ -115,21 +117,48 @@ Gpt2CausalImpl::Gpt2CausalImpl(Gpt2Config cfg) : config(std::move(cfg))
                 .bias(false)));
 }
 
+void Gpt2CausalImpl::warm_sequence_cache(
+    int64_t batch,
+    int64_t seq,
+    torch::Device device)
+{
+    if (cached_pos_.defined() && cache_batch_ == batch &&
+        cache_seq_ == seq && cached_pos_.device() == device)
+    {
+        return;
+    }
+    // Host aux tables (NNGraph bind_data), then upload once.
+    auto pos = torch::arange(
+        seq,
+        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU));
+    pos = pos.unsqueeze(0).expand({batch, seq}).contiguous();
+    auto mask = causal_mask_host(seq);
+    if (!device.is_cpu())
+    {
+        pos = pos.to(device);
+        // Keep BOOL mask on CPU — nntile SDPA converts host masks.
+        // (Matches Python make_causal_sdpa_mask when device is omitted.)
+    }
+    torch::NoGradGuard guard;
+    cached_pos_ = pos;
+    cached_mask_ = mask;
+    cache_batch_ = batch;
+    cache_seq_ = seq;
+}
+
 torch::Tensor Gpt2CausalImpl::forward(torch::Tensor input_ids)
 {
     int64_t b = input_ids.size(0);
     int64_t s = input_ids.size(1);
-    auto pos = torch::arange(
-        s,
-        torch::TensorOptions()
-            .dtype(torch::kLong)
-            .device(input_ids.device()));
-    auto h = wte->forward(input_ids) + wpe->forward(pos);
-    auto mask = causal_mask(s, input_ids.device());
+    if (!cached_pos_.defined() || cache_batch_ != b || cache_seq_ != s ||
+        cached_pos_.device() != input_ids.device())
+    {
+        warm_sequence_cache(b, s, input_ids.device());
+    }
+    auto h = wte->forward(input_ids) + wpe->forward(cached_pos_);
     for (auto& module : *blocks)
     {
-        h = module->as<Gpt2BlockImpl>()->forward(h, mask);
-        (void)b;
+        h = module->as<Gpt2BlockImpl>()->forward(h, cached_mask_);
     }
     h = ln_f->forward(h);
     return lm_head->forward(h);

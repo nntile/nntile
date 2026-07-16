@@ -666,4 +666,66 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("num_hidden_layers") = 1,
         py::arg("num_attention_heads") = 4,
         py::arg("rotary_pct") = 0.25);
+    m.def(
+        "cpp_gpt2_causal_forward",
+        [](const at::Tensor &input_ids,
+           int64_t vocab_size,
+           int64_t n_embd,
+           int64_t n_head,
+           int64_t n_layer) {
+            using torch_nntile::models::Gpt2Causal;
+            using torch_nntile::models::Gpt2Config;
+            Gpt2Config cfg;
+            cfg.vocab_size = vocab_size;
+            cfg.n_embd = n_embd;
+            cfg.n_head = n_head;
+            cfg.n_layer = n_layer;
+            cfg.n_positions = std::max<int64_t>(input_ids.size(1), 8);
+            auto model = Gpt2Causal(cfg);
+            torch_nntile::module_to_device(*model, input_ids.device());
+            model->warm_sequence_cache(
+                input_ids.size(0),
+                input_ids.size(1),
+                input_ids.device());
+            return model->forward(input_ids);
+        },
+        "Run C++ Gpt2Causal forward",
+        py::arg("input_ids"),
+        py::arg("vocab_size") = 128,
+        py::arg("n_embd") = 64,
+        py::arg("n_head") = 4,
+        py::arg("n_layer") = 1);
+    m.def(
+        "cpp_t5_forward",
+        [](const at::Tensor &encoder_ids,
+           const at::Tensor &decoder_ids,
+           int64_t vocab_size,
+           int64_t d_model,
+           int64_t d_kv,
+           int64_t d_ff,
+           int64_t num_layers,
+           int64_t num_heads) {
+            using torch_nntile::models::T5Config;
+            using torch_nntile::models::T5ForConditionalGeneration;
+            T5Config cfg;
+            cfg.vocab_size = vocab_size;
+            cfg.d_model = d_model;
+            cfg.d_kv = d_kv;
+            cfg.d_ff = d_ff;
+            cfg.num_layers = num_layers;
+            cfg.num_decoder_layers = num_layers;
+            cfg.num_heads = num_heads;
+            auto model = T5ForConditionalGeneration(cfg);
+            torch_nntile::module_to_device(*model, encoder_ids.device());
+            return model->forward(encoder_ids, decoder_ids);
+        },
+        "Run C++ T5ForConditionalGeneration forward",
+        py::arg("encoder_ids"),
+        py::arg("decoder_ids"),
+        py::arg("vocab_size") = 128,
+        py::arg("d_model") = 64,
+        py::arg("d_kv") = 16,
+        py::arg("d_ff") = 128,
+        py::arg("num_layers") = 1,
+        py::arg("num_heads") = 4);
 }
