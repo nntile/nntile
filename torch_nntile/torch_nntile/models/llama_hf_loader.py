@@ -143,13 +143,8 @@ def load_hf_into_llama_causal(
         copy_linear(dst_layer.mlp.up_proj, src_layer.mlp.up_proj)
         copy_linear(dst_layer.mlp.down_proj, src_layer.mlp.down_proj)
 
-    if cfg.tie_word_embeddings:
-        # Untied locally: copy shared embedding values into lm_head by value.
-        minimal.lm_head.weight.data.copy_(
-            minimal.model.embed_tokens.weight.data
-        )
-    else:
-        minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data)
+    # Always keep an independent lm_head (tying deferred; migration debt).
+    minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data)
 
 
 def export_llama_causal_to_hf_state_dict(
@@ -194,8 +189,7 @@ def export_llama_causal_to_hf_state_dict(
         copy_linear(dst_layer.mlp.down_proj, src_layer.mlp.down_proj)
 
     hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data)
-    if cfg.tie_word_embeddings:
-        hf.tie_weights()
+    # Keep lm_head untied (migration debt).
 
     with torch.no_grad():
         return {

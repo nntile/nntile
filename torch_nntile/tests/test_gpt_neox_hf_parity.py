@@ -344,7 +344,9 @@ def test_gpt_neox_causal_forward_matches_hf():
 
 def test_gpt_neox_causal_backward_matches_hf():
     hf_cfg = _hf_cfg()
+    assert hf_cfg.tie_word_embeddings is False
     hf, local = _make_causal(hf_cfg)
+    assert local.embed_out.weight is not local.gpt_neox.embed_in.weight
     for p in hf.parameters():
         p.requires_grad_(True)
     for p in local.parameters():
@@ -354,9 +356,11 @@ def test_gpt_neox_causal_backward_matches_hf():
     grad = torch.randn(2, 8, hf_cfg.vocab_size)
     hf(ids).logits.backward(grad)
     logits = local(contiguous_to_nntile(ids))
-    (gw,) = torch.autograd.grad(
+    # Only lm-head weight: full-graph bwd through partial RoPE ``narrow`` is
+    # not implemented on nntile yet.
+    (gw_out,) = torch.autograd.grad(
         logits,
         local.embed_out.weight,
         contiguous_to_nntile(grad),
     )
-    assert_close(gw, hf.embed_out.weight.grad, rtol=1e-3, atol=BWD_ATOL)
+    assert_close(gw_out, hf.embed_out.weight.grad, rtol=1e-3, atol=BWD_ATOL)

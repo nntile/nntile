@@ -196,8 +196,7 @@ def export_gpt2_lm_head_to_hf_state_dict(
         hf_block.mlp.c_proj.bias.data.copy_(block.mlp.c_proj.bias.data)
 
     hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data.contiguous())
-    if cfg.tie_word_embeddings:
-        hf.tie_weights()
+    # Keep lm_head untied (migration debt).
 
     with torch.no_grad():
         return {

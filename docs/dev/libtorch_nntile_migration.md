@@ -88,12 +88,12 @@ embedding and output-projection parameters. `tie_word_embeddings` (and
 BERT MLM decoder↔word-embedding sharing) is **not** implemented as shared
 `Parameter` storage.
 
-- HF loaders may still **copy values** from a tied HF checkpoint into both
-  tensors so forward parity holds at load time; gradients are not tied.
-- HF exporters may call `hf.tie_weights()` only to match HF state_dict
-  layout when the config flag is set.
-- T5 tied-embedding logit scaling (`hidden * d_model**-0.5`) is also
-  deferred with tying.
+- Parity tests construct **untied** HF references (clone decoder / set
+  `tie_word_embeddings=False`) so forward **and backward** grads match.
+- HF loaders always **copy** head weights by value into independent
+  tensors.
+- Exporters keep heads untied in the written state_dict (no
+  `hf.tie_weights()`).
 
 Revisit when PrivateUse1 parameter aliasing / shared storage is solid on
 `device=nntile` and training needs true tied grads.

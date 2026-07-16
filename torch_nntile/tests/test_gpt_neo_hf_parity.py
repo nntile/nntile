@@ -309,6 +309,7 @@ def test_gpt_neo_causal_forward_matches_hf():
 
 def test_gpt_neo_causal_backward_matches_hf():
     hf_cfg = _hf_cfg(attention_layers=["global", "global"])
+    assert hf_cfg.tie_word_embeddings is False
     hf, local = _make_causal(hf_cfg)
     for p in hf.parameters():
         p.requires_grad_(True)
@@ -319,14 +320,25 @@ def test_gpt_neo_causal_backward_matches_hf():
     grad = torch.randn(2, 8, hf_cfg.vocab_size)
     hf(ids).logits.backward(grad)
     logits = local(contiguous_to_nntile(ids))
-    (gw,) = torch.autograd.grad(
+    gw_q, gw_lm, gw_wte = torch.autograd.grad(
         logits,
-        local.transformer.h[0].attn.q_proj.weight,
+        (
+            local.transformer.h[0].attn.q_proj.weight,
+            local.lm_head.weight,
+            local.transformer.wte.weight,
+        ),
         contiguous_to_nntile(grad),
     )
     assert_close(
-        gw,
+        gw_q,
         hf.transformer.h[0].attn.attention.q_proj.weight.grad,
+        rtol=1e-3,
+        atol=BWD_ATOL,
+    )
+    assert_close(gw_lm, hf.lm_head.weight.grad, rtol=1e-3, atol=BWD_ATOL)
+    assert_close(
+        gw_wte,
+        hf.transformer.wte.weight.grad,
         rtol=1e-3,
         atol=BWD_ATOL,
     )

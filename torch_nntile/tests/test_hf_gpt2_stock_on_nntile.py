@@ -38,7 +38,7 @@ def tiny_gpt2_config() -> GPT2Config:
         attn_pdrop=0.0,
         resid_pdrop=0.0,
         embd_pdrop=0.0,
-        tie_word_embeddings=True,
+        tie_word_embeddings=False,
     )
     config._attn_implementation = "sdpa"
     return config

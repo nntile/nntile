@@ -119,11 +119,20 @@ def _load_layer(local: BertLayer, hf_layer: HfLayer) -> None:
     local.output.LayerNorm.load_state_dict(hf_layer.output.LayerNorm.state_dict())
 
 
+def _untie_hf_roberta_mlm(hf: RobertaForMaskedLM) -> None:
+    """Clone LM-head decoder so HF reference matches local untied grads."""
+    head = hf.lm_head
+    emb_w = hf.roberta.embeddings.word_embeddings.weight
+    if head.decoder.weight.data_ptr() == emb_w.data_ptr():
+        head.decoder.weight = torch.nn.Parameter(emb_w.detach().clone())
+
+
 def _make_models(
     hf_cfg: HfRobertaConfig,
 ) -> tuple[RobertaForMaskedLM, RobertaMlm]:
     torch.manual_seed(0)
     hf = RobertaForMaskedLM(hf_cfg).eval().float()
+    _untie_hf_roberta_mlm(hf)
     local = RobertaMlm(roberta_config_from_hf(hf_cfg)).eval().float()
     load_hf_into_roberta_mlm(local, hf)
     return hf, local.to("nntile")
@@ -416,6 +425,7 @@ def test_roberta_mlm_logits_forward_backward_query_weight_matches_hf(
 def test_roberta_export_roundtrip_state_dict_matches_hf_keys(tiny_hf_config):
     torch.manual_seed(7)
     hf = RobertaForMaskedLM(tiny_hf_config).eval().float()
+    _untie_hf_roberta_mlm(hf)
     local = RobertaMlm(roberta_config_from_hf(tiny_hf_config)).eval().float()
     load_hf_into_roberta_mlm(local, hf)
     exported = export_roberta_mlm_to_hf_state_dict(
@@ -425,6 +435,7 @@ def test_roberta_export_roundtrip_state_dict_matches_hf_keys(tiny_hf_config):
         "roberta.embeddings.word_embeddings.weight",
         "roberta.encoder.layer.0.attention.self.query.weight",
         "lm_head.dense.weight",
+        "lm_head.decoder.weight",
     ):
         assert key in exported
         torch.testing.assert_close(

@@ -46,7 +46,7 @@ def tiny_gpt2_config() -> GPT2Config:
         attn_pdrop=0.0,
         resid_pdrop=0.0,
         embd_pdrop=0.0,
-        tie_word_embeddings=True,
+        tie_word_embeddings=False,
     )
     config._attn_implementation = "eager"
     return config
@@ -54,6 +54,7 @@ def tiny_gpt2_config() -> GPT2Config:
 
 def _make_models(config: GPT2Config):
     torch.manual_seed(0)
+    config.tie_word_embeddings = False
     hf = GPT2LMHeadModel(config).eval().float()
     minimal = GPT2LMHead(config).eval().float()
     load_hf_into_gpt2_lm_head(minimal, hf)
@@ -87,18 +88,7 @@ def test_gpt2_lm_head_forward_shape(tiny_gpt2_config):
     assert logits.dtype == torch.float32
 
 
-def test_gpt2_lm_head_forward_matches_hf_tied(tiny_gpt2_config):
-    # HF may be tied; local stays untied but copies values at load (debt).
-    hf, minimal = _make_models(tiny_gpt2_config)
-    input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
-    with torch.no_grad():
-        ref = hf(nntile_cpu(input_ids)).logits
-        out = minimal(input_ids)
-    _assert_close(out, ref)
-
-
-def test_gpt2_lm_head_forward_matches_hf_untied(tiny_gpt2_config):
-    tiny_gpt2_config.tie_word_embeddings = False
+def test_gpt2_lm_head_forward_matches_hf(tiny_gpt2_config):
     hf, minimal = _make_models(tiny_gpt2_config)
     input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
     with torch.no_grad():
@@ -112,9 +102,8 @@ def test_gpt2_lm_head_weights_are_untied(tiny_gpt2_config):
     hf = GPT2LMHeadModel(tiny_gpt2_config).eval().float()
     minimal = GPT2LMHead(tiny_gpt2_config).eval().float()
     load_hf_into_gpt2_lm_head(minimal, hf)
-    # Values may match after HF tied load-by-copy; Parameter objects stay distinct.
     assert minimal.lm_head.weight is not minimal.transformer.wte.weight
-    assert id(minimal.lm_head.weight) != id(minimal.transformer.wte.weight)
+    assert hf.lm_head.weight is not hf.transformer.wte.weight
 
 
 def test_gpt2_block_forward_matches_hf(tiny_gpt2_config):
@@ -282,8 +271,7 @@ def test_gpt2_attention_backward_matches_hf(tiny_gpt2_config):
     _assert_close(gx_nnt, x_cpu.grad, atol=1e-3)
 
 
-def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
-    tiny_gpt2_config.tie_word_embeddings = False
+def test_gpt2_lm_head_backward_matches_hf(tiny_gpt2_config):
     hf, minimal = _make_models(tiny_gpt2_config)
     for p in hf.parameters():
         p.requires_grad_(True)
@@ -298,13 +286,18 @@ def test_gpt2_lm_head_backward_matches_hf_untied(tiny_gpt2_config):
 
     minimal.zero_grad(set_to_none=True)
     logits = minimal(input_ids)
-    glm_w, gwpe = torch.autograd.grad(
+    glm_w, gwte, gwpe = torch.autograd.grad(
         logits,
-        (minimal.lm_head.weight, minimal.transformer.wpe.weight),
+        (
+            minimal.lm_head.weight,
+            minimal.transformer.wte.weight,
+            minimal.transformer.wpe.weight,
+        ),
         grad_outputs=grad_out.to("nntile"),
     )
 
     _assert_close(glm_w, hf.lm_head.weight.grad, atol=1e-3)
+    _assert_close(gwte, hf.transformer.wte.weight.grad, atol=1e-3)
     _assert_close(gwpe, hf.transformer.wpe.weight.grad)
 
 
@@ -342,7 +335,7 @@ def test_gpt2_lm_head_forward_deferred(tiny_gpt2_config):
         config = GPT2Config(
             n_layer=1, n_head=2, n_embd=32, n_positions=16,
             vocab_size=64, n_inner=128, attn_pdrop=0.0, resid_pdrop=0.0,
-            tie_word_embeddings=True,
+            tie_word_embeddings=False,
         )
         config._attn_implementation = "eager"
         torch.manual_seed(0)

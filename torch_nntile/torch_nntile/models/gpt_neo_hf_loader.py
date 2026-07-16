@@ -74,13 +74,8 @@ def load_hf_into_gpt_neo_causal(
         copy_linear(dst_block.mlp.c_fc, src_block.mlp.c_fc)
         copy_linear(dst_block.mlp.c_proj, src_block.mlp.c_proj)
 
-    if minimal.config.tie_word_embeddings:
-        # Untied locally: copy shared embedding values into lm_head by value.
-        minimal.lm_head.weight.data.copy_(
-            minimal.transformer.wte.weight.data.contiguous()
-        )
-    else:
-        minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data)
+    # Always keep an independent lm_head (tying deferred; migration debt).
+    minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data)
 
 
 def export_gpt_neo_causal_to_hf_state_dict(
@@ -128,8 +123,7 @@ def export_gpt_neo_causal_to_hf_state_dict(
         copy_linear(dst_block.mlp.c_proj, src_block.mlp.c_proj)
 
     hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data)
-    if cfg.tie_word_embeddings:
-        hf.tie_weights()
+    # Keep lm_head untied (migration debt).
 
     with torch.no_grad():
         return {

@@ -121,8 +121,7 @@ def export_bert_mlm_to_hf_state_dict(
     pred.decoder.bias.data.copy_(minimal.cls.decoder.bias.data)
     if hasattr(pred, "bias") and pred.bias is not None:
         pred.bias.data.copy_(minimal.cls.decoder.bias.data)
-    # HF still expects tied embeddings in its state_dict layout.
-    hf.tie_weights()
+    # Keep decoder untied (migration debt: no shared Parameter storage).
 
     with torch.no_grad():
         return {

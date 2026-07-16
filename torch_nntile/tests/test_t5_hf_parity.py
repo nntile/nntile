@@ -378,6 +378,7 @@ def test_t5_conditional_generation_forward_matches_hf():
 
 def test_t5_conditional_generation_backward_matches_hf():
     hf_cfg = _hf_cfg()
+    assert hf_cfg.tie_word_embeddings is False
     hf, local = _make_models(hf_cfg)
     for p in hf.parameters():
         p.requires_grad_(True)
@@ -392,14 +393,20 @@ def test_t5_conditional_generation_backward_matches_hf():
         contiguous_to_nntile(enc_ids),
         contiguous_to_nntile(dec_ids),
     )
-    (gw,) = torch.autograd.grad(
+    gw_q, gw_lm, gw_shared = torch.autograd.grad(
         logits,
-        local.model.encoder.block[0].self_attn.q.weight,
+        (
+            local.model.encoder.block[0].self_attn.q.weight,
+            local.lm_head.weight,
+            local.model.shared.weight,
+        ),
         contiguous_to_nntile(grad),
     )
     assert_close(
-        gw,
+        gw_q,
         hf.encoder.block[0].layer[0].SelfAttention.q.weight.grad,
         rtol=1e-3,
         atol=BWD_ATOL,
     )
+    assert_close(gw_lm, hf.lm_head.weight.grad, rtol=1e-3, atol=BWD_ATOL)
+    assert_close(gw_shared, hf.shared.weight.grad, rtol=1e-3, atol=BWD_ATOL)

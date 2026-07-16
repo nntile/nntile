@@ -338,10 +338,9 @@ def test_llama_model_forward_matches_hf(gqa):
 
 
 @pytest.mark.parametrize("gqa", [False, True])
-@pytest.mark.parametrize("tied", [False])
-def test_llama_causal_forward_matches_hf(gqa, tied):
+def test_llama_causal_forward_matches_hf(gqa):
     hf_cfg = _hf_cfg(gqa=gqa)
-    hf_cfg.tie_word_embeddings = tied
+    assert hf_cfg.tie_word_embeddings is False
     hf, minimal = _make_causal(hf_cfg)
     ids = torch.randint(0, hf_cfg.vocab_size, (2, 8))
     with torch.no_grad():
@@ -352,6 +351,7 @@ def test_llama_causal_forward_matches_hf(gqa, tied):
 
 def test_llama_causal_backward_matches_hf():
     hf_cfg = _hf_cfg()
+    assert hf_cfg.tie_word_embeddings is False
     hf, minimal = _make_causal(hf_cfg)
     for p in hf.parameters():
         p.requires_grad_(True)
@@ -361,14 +361,15 @@ def test_llama_causal_backward_matches_hf():
     grad = torch.randn(2, 8, hf_cfg.vocab_size)
     hf(ids).logits.backward(grad)
     logits = minimal(contiguous_to_nntile(ids))
-    (gw,) = torch.autograd.grad(
+    gw_emb, gw_lm = torch.autograd.grad(
         logits,
-        minimal.model.embed_tokens.weight,
+        (minimal.model.embed_tokens.weight, minimal.lm_head.weight),
         contiguous_to_nntile(grad),
     )
     assert_close(
-        gw, hf.model.embed_tokens.weight.grad, rtol=1e-3, atol=BWD_ATOL
+        gw_emb, hf.model.embed_tokens.weight.grad, rtol=1e-3, atol=BWD_ATOL
     )
+    assert_close(gw_lm, hf.lm_head.weight.grad, rtol=1e-3, atol=BWD_ATOL)
 
 
 def test_llama_rms_norm_module_matches_cpu():

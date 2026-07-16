@@ -115,9 +115,18 @@ def _load_layer(local: BertLayer, hf_layer: HfLayer) -> None:
     local.output.LayerNorm.load_state_dict(hf_layer.output.LayerNorm.state_dict())
 
 
+def _untie_hf_bert_mlm(hf: BertForMaskedLM) -> None:
+    """Clone MLM decoder weights so HF reference matches local untied grads."""
+    pred = hf.cls.predictions
+    emb_w = hf.bert.embeddings.word_embeddings.weight
+    if pred.decoder.weight.data_ptr() == emb_w.data_ptr():
+        pred.decoder.weight = torch.nn.Parameter(emb_w.detach().clone())
+
+
 def _make_models(hf_cfg: HfBertConfig) -> tuple[BertForMaskedLM, BertMlm]:
     torch.manual_seed(0)
     hf = BertForMaskedLM(hf_cfg).eval().float()
+    _untie_hf_bert_mlm(hf)
     local = BertMlm(bert_config_from_hf(hf_cfg)).eval().float()
     load_hf_into_bert_mlm(local, hf)
     return hf, local.to("nntile")
@@ -389,17 +398,67 @@ def test_bert_mlm_logits_forward_backward_query_weight_matches_hf(
     )
 
 
+def test_bert_mlm_untied_embedding_and_decoder_backward_matches_hf(
+    tiny_hf_config,
+):
+    hf, local = _make_models(tiny_hf_config)
+    assert (
+        hf.cls.predictions.decoder.weight
+        is not hf.bert.embeddings.word_embeddings.weight
+    )
+    assert (
+        local.cls.decoder.weight
+        is not local.bert.embeddings.word_embeddings.weight
+    )
+    # Avoid pad id 0 — nntile embedding grad at index 0 is a known sharp edge.
+    input_ids = torch.randint(1, tiny_hf_config.vocab_size, (2, 8))
+    token_type_ids = _bert_token_type_ids(tiny_hf_config)
+    grad = torch.randn(2, 8, tiny_hf_config.vocab_size)
+
+    for p in hf.parameters():
+        p.requires_grad_(True)
+    logits_ref = hf(input_ids=input_ids, token_type_ids=token_type_ids).logits
+    logits_ref.backward(grad)
+
+    logits = local(
+        contiguous_to_nntile(input_ids),
+        token_type_ids=contiguous_to_nntile(token_type_ids),
+    )
+    gw_emb, gw_dec = torch.autograd.grad(
+        logits,
+        (
+            local.bert.embeddings.word_embeddings.weight,
+            local.cls.decoder.weight,
+        ),
+        grad_outputs=contiguous_to_nntile(grad),
+    )
+    assert_close(
+        gw_emb,
+        hf.bert.embeddings.word_embeddings.weight.grad,
+        rtol=1e-3,
+        atol=BWD_ATOL,
+    )
+    assert_close(
+        gw_dec,
+        hf.cls.predictions.decoder.weight.grad,
+        rtol=1e-3,
+        atol=BWD_ATOL,
+    )
+
+
 def test_bert_export_roundtrip_state_dict_matches_hf_keys(tiny_hf_config):
     torch.manual_seed(7)
     hf = BertForMaskedLM(tiny_hf_config).eval().float()
+    _untie_hf_bert_mlm(hf)
     local = BertMlm(bert_config_from_hf(tiny_hf_config)).eval().float()
     load_hf_into_bert_mlm(local, hf)
     exported = export_bert_mlm_to_hf_state_dict(local, config=tiny_hf_config)
-    # Spot-check overlapping trainable keys.
+    # Spot-check overlapping trainable keys (untied decoder included).
     for key in (
         "bert.embeddings.word_embeddings.weight",
         "bert.encoder.layer.0.attention.self.query.weight",
         "cls.predictions.transform.dense.weight",
+        "cls.predictions.decoder.weight",
     ):
         assert key in exported
         torch.testing.assert_close(
