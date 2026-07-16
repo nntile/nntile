@@ -20,6 +20,8 @@ env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
+  # LibTorch is required at CMake configure time (find_package(Torch REQUIRED)).
+  TORCH_PIP_INDEX: https://download.pytorch.org/whl/cpu
   CMAKE_COMMON: >-
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
     -DUSE_CUDA=OFF
@@ -44,6 +46,17 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            python3 python3-dev python3-pip
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
       - run: chmod +x .github/scripts/check-nntile-includes.sh
       - run: .github/scripts/check-nntile-includes.sh .
       - uses: actions/cache/restore@v4
@@ -53,7 +66,8 @@ jobs:
           restore-keys: ccache-build-lib-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF
+            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
+            -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=OFF
           cmake --build build --target nntile -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
@@ -84,6 +98,17 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            python3 python3-dev python3-pip
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
       - uses: actions/download-artifact@v4
         with:
           name: nntile-build
@@ -96,7 +121,8 @@ jobs:
           restore-keys: ccache-build-tests-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=ON -DBUILD_TESTS_PYTORCH=OFF
+            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
+            -DBUILD_TESTS=ON -DBUILD_TORCH_NNTILE=OFF
           cmake --build build -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
@@ -132,6 +158,17 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            python3 python3-dev python3-pip
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
       - uses: actions/download-artifact@v4
         with:
           name: nntile-build
@@ -144,7 +181,8 @@ jobs:
           restore-keys: ccache-test-install-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF
+            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
+            -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=OFF
           cmake --build build --target nntile -j"$(nproc)"
           cmake \
             -DBUILD_DIR="${PWD}/build" \
@@ -193,7 +231,10 @@ jobs:
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           pip install --break-system-packages \
-            'torch==2.9.1' 'torchvision==0.24.1' pytest 'numpy>=1.21' 'transformers<4.53'
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          pip install --break-system-packages \
+            pytest 'numpy>=1.21' 'transformers<4.53'
           CXX=g++ pip install --break-system-packages \
             -e ./torch_nntile --no-build-isolation --force-reinstall
           pytest -vv --rootdir=. -m 'not slow' torch_nntile/tests/

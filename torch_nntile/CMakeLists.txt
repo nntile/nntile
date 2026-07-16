@@ -2,10 +2,10 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/CMakeLists.txt
-# Optional libtorch_nntile (LibTorch PrivateUse1 + models).
+# libtorch_nntile (LibTorch PrivateUse1 + models).
 
 option(BUILD_TORCH_NNTILE
-    "Build libtorch_nntile (requires LibTorch)" OFF)
+    "Build libtorch_nntile (requires LibTorch)" ON)
 
 if(NOT BUILD_TORCH_NNTILE)
     return()
@@ -18,7 +18,11 @@ if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
     find_package(nntile REQUIRED CONFIG)
 endif()
 
-find_package(Torch REQUIRED)
+# Torch is found REQUIRED at the top level; keep a local check for
+# stand-alone / nested configures.
+if(NOT Torch_FOUND)
+    find_package(Torch REQUIRED)
+endif()
 
 set(TORCH_NNTILE_CSRC
     csrc/nntile_allocator.cpp

@@ -10,7 +10,7 @@ The Cloud Agent VM builds **CPU-only** (`-DUSE_CUDA=OFF`) since no GPU is availa
 Libraries:
 
 - **libnntile** — TensorGraph stack (kernel → StarPU → core → tile → tensor → Runtime)
-- **libtorch_nntile** — LibTorch PrivateUse1 (`device=nntile`) + models (optional)
+- **libtorch_nntile** — LibTorch PrivateUse1 (`device=nntile`) + models (**required**)
 
 ### Pre-installed dependencies
 

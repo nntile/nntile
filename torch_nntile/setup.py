@@ -13,6 +13,16 @@ from pathlib import Path
 os.environ.setdefault("CC", "gcc")
 os.environ.setdefault("CXX", "g++")
 
+try:
+    import torch
+except ImportError as exc:  # pragma: no cover - build-time guard
+    raise SystemExit(
+        "torch_nntile requires PyTorch to build the native extension.\n"
+        "Install the pinned ABI first, then retry:\n"
+        "  pip install 'torch==2.9.1' 'torchvision==0.24.1'\n"
+        "Or use a matching CPU/CUDA wheel index for your platform."
+    ) from exc
+
 from setuptools import find_packages, setup
 from torch.utils.cpp_extension import BuildExtension, CppExtension
 

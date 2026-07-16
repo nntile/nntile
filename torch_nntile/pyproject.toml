@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=61", "torch>=2.1"]
+# PyTorch is required to compile the native extension (not only for tests).
+requires = ["setuptools>=61", "wheel", "torch==2.9.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
