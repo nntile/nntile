@@ -220,7 +220,7 @@ jobs:
           path: /tmp/ccache
           key: ccache-test-libtorch-nntile-${{ github.sha }}
           restore-keys: ccache-test-libtorch-nntile-
-      - name: Build libtorch_nntile C++ tests against install prefix
+      - name: Build and run libtorch_nntile C++ tests
         run: |
           set -euo pipefail
           if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
@@ -233,7 +233,17 @@ jobs:
             -DBUILD_TESTS=OFF \
             -DBUILD_TORCH_NNTILE_TESTS=ON \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}"
-          cmake --build build-torch-tests -j"$(nproc)"
+          cmake --build build-torch-tests -j"$(nproc)" \
+            --target tests_libtorch_nntile_smoke \
+                    tests_libtorch_nntile_aten_ops
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
+          echo "Discovered libtorch_nntile CTest entries:"
+          ctest --test-dir build-torch-tests -N -L libtorch_nntile
+          # --no-tests=error: compiling alone must not green-pass.
+          ctest --test-dir build-torch-tests -L libtorch_nntile \
+            --output-on-failure --no-tests=error
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
           .github/scripts/ccache-print-stats.sh test-libtorch-nntile
@@ -241,13 +251,6 @@ jobs:
         with:
           path: /tmp/ccache
           key: ccache-test-libtorch-nntile-${{ github.sha }}
-      - name: Run libtorch_nntile C++ tests
-        run: |
-          set -euo pipefail
-          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
-          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
-          ctest --test-dir build-torch-tests -L libtorch_nntile --output-on-failure
 
   # -------------------------------------------------------------------------
   # Layer 3: CMake wheel from installed libs, then Python extension/model tests
@@ -356,7 +359,7 @@ jobs:
           pip3 install --break-system-packages \
             --force-reinstall --no-deps wheelhouse/*.whl
           # Prefer the installed wheel over the source tree (no in-tree _C.so).
-          # Extension + model suite (fwd+bwd ATen via Python). libtorch_nntile
-          # C++ smoke/forward lives in test-libtorch-nntile.
+          # Model/extension suite. ATen op fwd+bwd parity is C++ ctest in
+          # test-libtorch-nntile (not this job).
           pytest -vv --override-ini='pythonpath=' -m 'not slow' \
             torch_nntile/tests/

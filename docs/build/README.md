@@ -210,7 +210,7 @@ runs on pushes/PRs to `main` and `graph_api`:
 | `build-libnntile` | — | Build + install libnntile (`BUILD_TORCH_NNTILE=OFF`) |
 | `test-libnntile` | prefix | Build **tests only** (`BUILD_NNTILE=OFF`) vs install; ctest |
 | `build-libtorch-nntile` | libnntile prefix | Build + install libtorch_nntile against prefix |
-| `test-libtorch-nntile` | torch prefix | Build **libtorch_nntile C++ tests** vs install; ctest (`-L libtorch_nntile`) |
+| `test-libtorch-nntile` | torch prefix | Build **and run** libtorch_nntile C++ tests vs install (`ctest -L libtorch_nntile --no-tests=error`) |
 | `build-torch-nntile-wheel` | torch prefix | CMake `-DBUILD_TORCH_NNTILE_WHEEL=ON` + `-DNNTILE_PREFIX` (no lib rebuild) |
 | `test-torch-nntile` | CI wheel | Install wheel + pytest model/extension suite |
 

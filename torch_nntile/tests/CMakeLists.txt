@@ -16,6 +16,13 @@ if(NOT TARGET Catch2::Catch2WithMain)
     FetchContent_MakeAvailable(Catch2)
 endif()
 
+# catch_discover_tests() lives in Catch2's extras module.
+if(NOT COMMAND catch_discover_tests)
+    list(APPEND CMAKE_MODULE_PATH
+        "${Catch2_SOURCE_DIR}/extras")
+    include(Catch)
+endif()
+
 if(NOT TARGET torch_nntile::torch_nntile)
     find_package(torch_nntile REQUIRED CONFIG)
 endif()
@@ -30,9 +37,14 @@ set(_torch_nntile_test_include
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
+set(_torch_nntile_test_env
+    "STARPU_SILENT=1;STARPU_FXT_TRACE=0;STARPU_WORKERS_NOBIND=1;OPENBLAS_NUM_THREADS=1;OMP_NUM_THREADS=1"
+)
+
 function(torch_nntile_add_test name source)
     add_executable(${name} ${source})
-    target_include_directories(${name} PRIVATE ${_torch_nntile_test_include})
+    target_include_directories(${name} PRIVATE
+        ${_torch_nntile_test_include})
     target_link_libraries(${name} PRIVATE
         torch_nntile::torch_nntile
         Catch2::Catch2WithMain
@@ -42,13 +54,16 @@ function(torch_nntile_add_test name source)
     if(TORCH_CXX_FLAGS)
         target_compile_options(${name} PRIVATE ${TORCH_CXX_FLAGS})
     endif()
-    add_test(NAME ${name} COMMAND ${name})
-    set_tests_properties(${name} PROPERTIES
-        LABELS "libtorch_nntile"
-        ENVIRONMENT
-            "STARPU_SILENT=1;STARPU_FXT_TRACE=0;STARPU_WORKERS_NOBIND=1;OPENBLAS_NUM_THREADS=1;OMP_NUM_THREADS=1"
+    # One CTest entry per Catch2 TEST_CASE (not just the binary).
+    catch_discover_tests(${name}
+        TEST_PREFIX "${name}."
+        PROPERTIES
+            LABELS "libtorch_nntile"
+            ENVIRONMENT "${_torch_nntile_test_env}"
     )
 endfunction()
 
 torch_nntile_add_test(tests_libtorch_nntile_smoke smoke_add.cc)
-torch_nntile_add_test(tests_libtorch_nntile_aten_ops aten_ops_parity.cc)
+torch_nntile_add_test(
+    tests_libtorch_nntile_aten_ops
+    aten_ops_parity.cc)
