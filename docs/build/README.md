@@ -109,7 +109,7 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `USE_CUDA_BF16` | ON | BF16 support |
 | `USE_CUDA_FP8` | ON | FP8 if CUDA ≥ 11.8 |
 | `USE_CBLAS` | ON | CPU BLAS kernels |
-| `BUILD_TESTS` | ON | CTest suite (off in SimGrid mode) |
+| `BUILD_TESTS` | ON | CTest suite; with `BUILD_NNTILE=OFF` links installed libnntile |
 | `BUILD_DOCS` | OFF | Doxygen documentation |
 | `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile** (requires LibTorch) |
 | `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
@@ -194,12 +194,13 @@ runs on pushes/PRs to `main` and `graph_api`:
 | Job | Depends on | Role |
 |-----|------------|------|
 | `build-libnntile` | — | Build + install libnntile (`BUILD_TORCH_NNTILE=OFF`) |
-| `test-libnntile` | build | C++ ctest |
-| `test-cmake-install-libnntile` | build | `cmake --install` layout check |
+| `test-libnntile` | prefix | Build **tests only** (`BUILD_NNTILE=OFF`) vs install; ctest |
 | `build-libtorch-nntile` | libnntile prefix | Build + install libtorch_nntile against prefix |
-| `test-cmake-install-libtorch-nntile` | libtorch build | Re-install into a fresh prefix + `find_package` smoke |
-| `build-torch-nntile-wheel` | libtorch prefix | `pip wheel` linking installed libs (CI artifact) |
-| `test-torch-nntile` | CI wheel | Install wheel + pytest |
+| `build-torch-nntile-wheel` | torch prefix | `pip wheel` linking installed libs (no lib rebuild) |
+| `test-torch-nntile` | CI wheel | Install wheel + pytest (libs from prefix) |
+
+Install packaging is exercised by the stepwise build → test consumers
+(`find_package` / wheel / ctest), not by separate install-layout jobs.
 
 Python tests always consume the wheel from `build-torch-nntile-wheel`, not
 an editable install. This is separate from the release/manylinux wheel

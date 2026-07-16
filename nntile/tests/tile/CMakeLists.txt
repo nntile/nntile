@@ -100,7 +100,7 @@ foreach(test IN LISTS TESTS_TILE_CATCH2)
     add_test_set(TARGET_NAME tests_tile_ops_${test}
         EXEC_NAME test_${test}
         SOURCES ops/${test}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile::nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tile_ops_${test}
         COV_GLOBAL coverage_tile coverage
@@ -114,7 +114,7 @@ foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
     add_test_set(TARGET_NAME tests_tile_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        LINK_LIBRARIES nntile::nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tile_${test}
         COV_GLOBAL coverage_tile coverage

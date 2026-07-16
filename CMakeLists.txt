@@ -27,7 +27,9 @@ option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
 option(USE_FLASH_SDPA "Build cuDNN flash SDPA (disabled on graph_api until C-order migration)" OFF)
 option(USE_CBLAS "Use CPU CBLAS" ON)
-option(BUILD_TESTS "Build and run tests (requires linked nntile libs)" ON)
+option(BUILD_TESTS
+    "Build and run tests (links nntile; works with BUILD_NNTILE=OFF + prefix)"
+    ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_TORCH_NNTILE
     "Build libtorch_nntile (requires LibTorch; off = libnntile-only)" OFF)
@@ -185,7 +187,7 @@ elseif(USE_CBLAS)
     endif()
 endif()
 
-if(BUILD_TESTS AND BUILD_NNTILE AND NOT HAVE_STARPU_SIMGRID)
+if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
     include(CTest)
 endif()
 
@@ -215,8 +217,25 @@ if(BUILD_NNTILE)
 endif()
 
 if(BUILD_TORCH_NNTILE)
-    if(NOT TARGET nntile)
+    if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
         find_package(nntile REQUIRED CONFIG)
     endif()
     add_subdirectory(torch_nntile)
+endif()
+
+# C++ tests can link an installed libnntile (BUILD_NNTILE=OFF) so CI does not
+# recompile the library when running ctest.
+if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
+    if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
+        find_package(nntile REQUIRED CONFIG)
+    endif()
+    if(DEFINED NNTILE_BUILT_WITH_CUDA)
+        set(NNTILE_USE_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+        set(NNTILE_LINK_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+    endif()
+    if(NOT BUILD_NNTILE)
+        add_subdirectory(
+            "${PROJECT_SOURCE_DIR}/nntile/tests"
+            "${PROJECT_BINARY_DIR}/nntile/tests")
+    endif()
 endif()

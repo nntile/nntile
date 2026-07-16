@@ -81,8 +81,9 @@ Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 - **Roadmap:** [docs/dev/graph_static_execution_plan.md](docs/dev/graph_static_execution_plan.md)
 - **Migration:** [docs/dev/libtorch_nntile_migration.md](docs/dev/libtorch_nntile_migration.md)
 - **Build-and-test CI:** layered jobs in `.github/workflows/build-test.yml`
-  (libnntile → libtorch_nntile install test → CI wheel → Python tests on
-  that wheel). Separate from release wheels.
+  (build+install libnntile → ctest against prefix → build+install
+  libtorch_nntile → CI wheel → Python tests). No separate cmake-install
+  jobs; tests do not rebuild the libraries.
 - **`torch_nntile` wheels:** cibuildwheel on PRs to `graph_api` /
   `workflow_dispatch`, with `tools/smoke_test_wheel.py`; see
   [torch_nntile/README.md](torch_nntile/README.md#prebuilt-wheels-001)

@@ -141,7 +141,7 @@ if(BUILD_TESTS)
     add_test_set(TARGET_NAME tests_nntile_constants
         EXEC_NAME test_constants
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/constants.cc
-        LINK_LIBRARIES nntile
+        LINK_LIBRARIES nntile::nntile
         LABELS "SUBSYSTEM_KERNEL;smoke"
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_nntile_constants
@@ -172,15 +172,21 @@ else()
     set(_nntile_install_libdir "${CMAKE_INSTALL_LIBDIR}")
 endif()
 
-set(_nntile_install_prefix "${PROJECT_BINARY_DIR}/nntile-install-test-prefix")
-message(STATUS "Adding install verification test tests_nntile_install")
-add_test(
-    NAME tests_nntile_install
-    COMMAND ${CMAKE_COMMAND}
-        -DBUILD_DIR=${PROJECT_BINARY_DIR}
-        -DCMAKE_INSTALL_PREFIX=${_nntile_install_prefix}
-        -DCMAKE_INSTALL_LIBDIR=${_nntile_install_libdir}
-        -DNNTILE_INSTALL_LIB_BASENAME=${_nntile_install_lib_basename}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/verify_install.cmake
-)
-set_tests_properties(tests_nntile_install PROPERTIES LABELS "smoke")
+# Only when building libnntile in-tree: re-install from this build tree.
+# Against an installed prefix (BUILD_NNTILE=OFF), skip — stepwise CI already
+# validates the package by linking and running tests.
+if(BUILD_NNTILE)
+    set(_nntile_install_prefix
+        "${PROJECT_BINARY_DIR}/nntile-install-test-prefix")
+    message(STATUS "Adding install verification test tests_nntile_install")
+    add_test(
+        NAME tests_nntile_install
+        COMMAND ${CMAKE_COMMAND}
+            -DBUILD_DIR=${PROJECT_BINARY_DIR}
+            -DCMAKE_INSTALL_PREFIX=${_nntile_install_prefix}
+            -DCMAKE_INSTALL_LIBDIR=${_nntile_install_libdir}
+            -DNNTILE_INSTALL_LIB_BASENAME=${_nntile_install_lib_basename}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/verify_install.cmake
+    )
+    set_tests_properties(tests_nntile_install PROPERTIES LABELS "smoke")
+endif()

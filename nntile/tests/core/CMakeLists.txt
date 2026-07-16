@@ -115,7 +115,7 @@ foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_core_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile
+        LINK_LIBRARIES nntile::nntile
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_core_${test}
         COV_GLOBAL coverage_core coverage
