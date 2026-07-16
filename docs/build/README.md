@@ -113,6 +113,7 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `BUILD_DOCS` | OFF | Doxygen documentation |
 | `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile** (requires LibTorch) |
 | `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
+| `BUILD_TORCH_NNTILE_TESTS` | OFF | C++ libtorch_nntile tests (`torch_nntile/tests`; auto-ON with `BUILD_TORCH_NNTILE`+`BUILD_TESTS`) |
 | `BUILD_TORCH_NNTILE_WHEEL` | OFF | Build **torch_nntile** wheel (`torch_nntile_wheel`; use `-DNNTILE_PREFIX` to skip rebuilding libs) |
 | `BUILD_COVERAGE` | OFF | LCOV coverage; enables tests; `make coverage` |
 
@@ -209,8 +210,13 @@ runs on pushes/PRs to `main` and `graph_api`:
 | `build-libnntile` | — | Build + install libnntile (`BUILD_TORCH_NNTILE=OFF`) |
 | `test-libnntile` | prefix | Build **tests only** (`BUILD_NNTILE=OFF`) vs install; ctest |
 | `build-libtorch-nntile` | libnntile prefix | Build + install libtorch_nntile against prefix |
+| `test-libtorch-nntile` | torch prefix | Build **libtorch_nntile C++ tests** vs install; ctest (`-L libtorch_nntile`) |
 | `build-torch-nntile-wheel` | torch prefix | CMake `-DBUILD_TORCH_NNTILE_WHEEL=ON` + `-DNNTILE_PREFIX` (no lib rebuild) |
-| `test-torch-nntile` | CI wheel | Install wheel + pytest (libs from prefix) |
+| `test-torch-nntile` | CI wheel | Install wheel + pytest model/extension suite |
+
+`test-libtorch-nntile` does **not** depend on the Python wheel: it links
+`torch_nntile::torch_nntile` from the install prefix (`BUILD_TORCH_NNTILE_TESTS=ON`).
+`test-torch-nntile` covers the Python extension and HF/model parity tests.
 
 Install packaging is exercised by the stepwise build → test consumers
 (`find_package` / wheel / ctest), not by separate install-layout jobs.

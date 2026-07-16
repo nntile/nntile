@@ -17,9 +17,7 @@ import torch
 pytest.importorskip("torch_nntile")
 
 from torch_nntile import _C
-from conftest import nntile_cpu
-
-_PKG_ROOT = Path(__file__).resolve().parent.parent
+from conftest import nntile_cpu, subprocess_environ
 
 
 def test_transpose_materialize_forward_parity():
@@ -156,16 +154,7 @@ def test_contiguous_raises_on_noncontiguous_nntile():
     reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
 def test_transpose_deferred_until_execute():
-    repo = Path(__file__).resolve().parents[2]
-    build_lib = repo / "build" / "nntile"
-    starpu_lib = "/opt/starpu/lib"
-    env = dict(**__import__("os").environ)
-    ld = env.get("LD_LIBRARY_PATH", "")
-    for part in (str(build_lib), starpu_lib):
-        if part not in ld.split(":"):
-            ld = f"{part}:{ld}" if ld else part
-    env["LD_LIBRARY_PATH"] = ld
-    env["PYTHONPATH"] = f"{_PKG_ROOT}:{env.get('PYTHONPATH', '')}"
+    env = subprocess_environ()
     script = textwrap.dedent(
         """
         import torch

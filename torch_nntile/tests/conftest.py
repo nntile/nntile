@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from pathlib import Path
 # tree has no _C.so and must not shadow a pip-installed wheel (CI).
 _pkg_root = Path(__file__).resolve().parent.parent
 _pkg_dir = _pkg_root / "torch_nntile"
+_repo_root = _pkg_root.parent
 _has_local_ext = _pkg_root.name == "torch_nntile" and any(
     _pkg_dir.glob("_C.*")
 )
@@ -26,21 +28,24 @@ def _path_entry(path: Path) -> str | None:
         return None
 
 
+def _shadow_path_entries() -> set[str]:
+    """Path entries that make the source tree win over a wheel install."""
+    shadow: set[str] = set()
+    root = _path_entry(_pkg_root)
+    if root:
+        shadow.add(root)
+    repo = _path_entry(_repo_root)
+    if repo and (_pkg_root / "pyproject.toml").is_file():
+        shadow.add(repo)
+    return shadow
+
+
 if _has_local_ext:
     _root = _path_entry(_pkg_root)
     if _root and _root not in sys.path:
         sys.path.insert(0, _root)
 else:
-    # Drop path entries that make the source tree win over site-packages:
-    # 1) the project root (…/torch_nntile) itself
-    # 2) a repo root whose torch_nntile/ project has no built _C
-    _shadow: set[str] = set()
-    _root = _path_entry(_pkg_root)
-    if _root:
-        _shadow.add(_root)
-    _repo = _path_entry(_pkg_root.parent)
-    if _repo and (_pkg_root / "pyproject.toml").is_file():
-        _shadow.add(_repo)
+    _shadow = _shadow_path_entries()
     sys.path[:] = [
         p
         for p in sys.path
@@ -52,6 +57,45 @@ import torch
 
 import torch_nntile
 from torch_nntile import _C
+
+
+def subprocess_environ(**extra: str) -> dict[str, str]:
+    """Env for child processes that ``import torch_nntile``.
+
+    Prepends the in-tree project root to ``PYTHONPATH`` only when a local
+    ``_C`` extension exists. Otherwise keeps site-packages (installed wheel)
+    and strips source-tree entries that would shadow it.
+    """
+    env = dict(os.environ)
+    env.pop("STARPU_DISABLE_KERNELS", None)
+    env.pop("TORCH_NNTILE_SKIP_STARPU", None)
+
+    build_lib = _repo_root / "build" / "nntile"
+    starpu_lib = "/opt/starpu/lib"
+    ld = env.get("LD_LIBRARY_PATH", "")
+    for part in (str(build_lib), starpu_lib):
+        if part and part not in ld.split(":"):
+            ld = f"{part}:{ld}" if ld else part
+    # Installed libnntile / libtorch_nntile (CI prefix jobs).
+    prefix_lib = os.environ.get("NNTILE_PREFIX", "")
+    if prefix_lib:
+        candidate = str(Path(prefix_lib) / "lib")
+        if candidate not in ld.split(":"):
+            ld = f"{candidate}:{ld}" if ld else candidate
+    env["LD_LIBRARY_PATH"] = ld
+
+    pkg_root = _path_entry(_pkg_root) or str(_pkg_root)
+    existing = [p for p in env.get("PYTHONPATH", "").split(":") if p]
+    if _has_local_ext:
+        ordered = [pkg_root] + [p for p in existing if p != pkg_root]
+    else:
+        shadow = _shadow_path_entries()
+        ordered = [
+            p for p in existing if _path_entry(Path(p)) not in shadow
+        ]
+    env["PYTHONPATH"] = ":".join(ordered)
+    env.update(extra)
+    return env
 
 
 def ensure_nntile_context(

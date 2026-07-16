@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <torch_nntile/runtime.hh>
 #include <torch_nntile/models/bert.hh>
 #include <torch_nntile/models/deep_relu.hh>
 #include <torch_nntile/models/gpt2.hh>

@@ -30,7 +30,10 @@ test = [
 
 [tool.pytest.ini_options]
 addopts = "-m 'not slow'"
-pythonpath = ["."]
+# Do not put the project root on sys.path by default: CI installs the wheel
+# (with _C.so) and the source tree has no extension. conftest.py prepends the
+# project root only when an in-tree _C.* is present (editable builds).
+pythonpath = []
 markers = [
     "slow: slow tests (deselect with '-m \"not slow\"')",
 ]

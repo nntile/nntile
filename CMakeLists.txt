@@ -34,6 +34,9 @@ option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_TORCH_NNTILE
     "Build libtorch_nntile (requires LibTorch; off = libnntile-only)" OFF)
 option(BUILD_TORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
+option(BUILD_TORCH_NNTILE_TESTS
+    "Build libtorch_nntile C++ tests (needs LibTorch + libtorch_nntile)"
+    OFF)
 option(BUILD_TORCH_NNTILE_WHEEL
     "Build torch_nntile Python wheel (in-tree libs or -DNNTILE_PREFIX)" OFF)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
@@ -208,6 +211,10 @@ if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
     include(CTest)
 endif()
 
+if(BUILD_TORCH_NNTILE_TESTS AND NOT HAVE_STARPU_SIMGRID)
+    include(CTest)
+endif()
+
 if(BUILD_COVERAGE)
     set(BUILD_TESTS ON)
     include(CodeCoverage)
@@ -240,6 +247,11 @@ if(BUILD_TORCH_NNTILE)
     add_subdirectory(torch_nntile)
 endif()
 
+# In-tree libtorch_nntile tests follow BUILD_TESTS when the library is built.
+if(BUILD_TORCH_NNTILE AND BUILD_TESTS)
+    set(BUILD_TORCH_NNTILE_TESTS ON)
+endif()
+
 # Wheel against installed libs only (no libtorch_nntile rebuild).
 if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
     if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
@@ -263,4 +275,18 @@ if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
             "${PROJECT_SOURCE_DIR}/nntile/tests"
             "${PROJECT_BINARY_DIR}/nntile/tests")
     endif()
+endif()
+
+# libtorch_nntile C++ tests (in-tree or against an install prefix).
+if(BUILD_TORCH_NNTILE_TESTS AND NOT HAVE_STARPU_SIMGRID)
+    if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
+        find_package(torch_nntile REQUIRED CONFIG)
+    endif()
+    if(NOT Torch_FOUND)
+        find_package(Torch REQUIRED)
+        set(NNTILE_HAVE_TORCH ON)
+    endif()
+    add_subdirectory(
+        "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
+        "${PROJECT_BINARY_DIR}/torch_nntile/tests")
 endif()

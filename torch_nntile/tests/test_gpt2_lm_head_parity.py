@@ -16,7 +16,7 @@ from transformers import GPT2Config, GPT2LMHeadModel
 
 import torch_nntile
 from torch_nntile import _C
-from conftest import nntile_cpu
+from conftest import nntile_cpu, subprocess_environ
 from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
 from torch_nntile.models.gpt2_minimal import (
     GPT2Attention,
@@ -305,19 +305,8 @@ def test_gpt2_lm_head_forward_deferred(tiny_gpt2_config):
     import subprocess
     import sys
     import textwrap
-    from pathlib import Path
 
-    root = Path(__file__).resolve().parents[1]
-    repo = Path(__file__).resolve().parents[2]
-    env = dict(**__import__("os").environ)
-    build_lib = repo / "build" / "nntile"
-    starpu_lib = "/opt/starpu/lib"
-    ld = env.get("LD_LIBRARY_PATH", "")
-    for part in (str(build_lib), starpu_lib):
-        if part not in ld.split(":"):
-            ld = f"{part}:{ld}" if ld else part
-    env["LD_LIBRARY_PATH"] = ld
-    env["PYTHONPATH"] = f"{root}:{env.get('PYTHONPATH', '')}"
+    env = subprocess_environ()
 
     script = textwrap.dedent(
         """

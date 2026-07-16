@@ -11,7 +11,7 @@ import torch
 
 from torch_nntile import _C
 from torch_nntile.gemm import gemm
-from conftest import nntile_cpu
+from conftest import nntile_cpu, subprocess_environ
 
 pytestmark = pytest.mark.skipif(
     not _C.has_libnntile(),
@@ -114,10 +114,7 @@ def test_gemm_no_view():
     import subprocess
     import sys
     import textwrap
-    from pathlib import Path
 
-    pkg_root = Path(__file__).resolve().parent.parent
-    repo = Path(__file__).resolve().parents[2]
     script = textwrap.dedent(
         """
         import torch
@@ -145,17 +142,7 @@ def test_gemm_no_view():
         torch_nntile.execute()
         """
     )
-    import os
-
-    env = dict(os.environ)
-    build_lib = repo / "build" / "nntile"
-    starpu_lib = "/opt/starpu/lib"
-    ld = env.get("LD_LIBRARY_PATH", "")
-    for part in (str(build_lib), starpu_lib):
-        if part not in ld.split(":"):
-            ld = f"{part}:{ld}" if ld else part
-    env["LD_LIBRARY_PATH"] = ld
-    env["PYTHONPATH"] = f"{pkg_root}:{env.get('PYTHONPATH', '')}"
+    env = subprocess_environ()
     proc = subprocess.run(
         [sys.executable, "-c", script],
         capture_output=True,
