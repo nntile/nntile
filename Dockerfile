@@ -136,7 +136,9 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
         datasets \
         pytest \
         pytest-benchmark \
-        tokenizers
+        tokenizers \
+        patchelf \
+        auditwheel
 
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "nntile", "/bin/bash", "-c"]
