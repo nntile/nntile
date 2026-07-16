@@ -105,6 +105,16 @@ endif()
 target_link_libraries(torch_nntile PUBLIC ${TORCH_LIBRARIES})
 set_property(TARGET torch_nntile PROPERTY CXX_STANDARD 17)
 
+# Expose whether linked libnntile was built with CUDA (for consumers + wheels).
+if(DEFINED NNTILE_BUILT_WITH_CUDA)
+    set(TORCH_NNTILE_BUILT_WITH_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+elseif(NNTILE_USE_CUDA OR NNTILE_LINK_CUDA)
+    set(TORCH_NNTILE_BUILT_WITH_CUDA ON)
+else()
+    set(TORCH_NNTILE_BUILT_WITH_CUDA OFF)
+endif()
+message(STATUS "libtorch_nntile CUDA: ${TORCH_NNTILE_BUILT_WITH_CUDA}")
+
 if(BUILD_TORCH_NNTILE_EXAMPLES)
     add_subdirectory(examples/cpp)
 endif()

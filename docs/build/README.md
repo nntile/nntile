@@ -290,7 +290,8 @@ cmake --build build --target torch_nntile_wheel
 ```
 
 PyTorch is **not** bundled; wheels declare `torch==2.9.1` as a runtime
-dependency (plus `nvidia-*-cu12` on Linux x86_64).
+dependency. CUDA-built Linux wheels also declare `nvidia-*-cu12`; CPU wheels
+do not. Import checks NVIDIA libs only when `built_with_cuda()` is true.
 
 ### Download and publish
 

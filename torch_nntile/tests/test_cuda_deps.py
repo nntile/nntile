@@ -20,9 +20,14 @@ sys.modules["torch_nntile._cuda_deps"] = _cuda_deps
 _spec.loader.exec_module(_cuda_deps)
 
 
+def test_ensure_linux_cuda_deps_skips_when_not_required(monkeypatch):
+    monkeypatch.setattr(_cuda_deps.sys, "platform", "linux")
+    _cuda_deps.ensure_linux_cuda_deps(required=False)
+
+
 def test_ensure_linux_cuda_deps_skips_non_linux(monkeypatch):
     monkeypatch.setattr(_cuda_deps.sys, "platform", "darwin")
-    _cuda_deps.ensure_linux_cuda_deps()
+    _cuda_deps.ensure_linux_cuda_deps(required=True)
 
 
 def test_ensure_linux_cuda_deps_raises_when_missing(monkeypatch, tmp_path):
@@ -30,7 +35,7 @@ def test_ensure_linux_cuda_deps_raises_when_missing(monkeypatch, tmp_path):
     monkeypatch.setattr(_cuda_deps.sys, "path", [str(tmp_path)])
 
     with pytest.raises(ImportError, match="nvidia-cublas-cu12"):
-        _cuda_deps.ensure_linux_cuda_deps()
+        _cuda_deps.ensure_linux_cuda_deps(required=True)
 
 
 def test_ensure_linux_cuda_deps_passes_when_present(monkeypatch, tmp_path):
@@ -51,4 +56,4 @@ def test_ensure_linux_cuda_deps_passes_when_present(monkeypatch, tmp_path):
     monkeypatch.setattr(_cuda_deps.sys, "platform", "linux")
     monkeypatch.setattr(_cuda_deps.sys, "path", [str(tmp_path)])
 
-    _cuda_deps.ensure_linux_cuda_deps()
+    _cuda_deps.ensure_linux_cuda_deps(required=True)

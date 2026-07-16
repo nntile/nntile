@@ -16,6 +16,9 @@ include(CMakeFindDependencyMacro)
 find_dependency(nntile REQUIRED)
 find_dependency(Torch REQUIRED)
 
+# Propagate linked libnntile CUDA support (same as NNTILE_BUILT_WITH_CUDA).
+set(TORCH_NNTILE_BUILT_WITH_CUDA "@TORCH_NNTILE_BUILT_WITH_CUDA@")
+
 include("${CMAKE_CURRENT_LIST_DIR}/torch_nntileTargets.cmake")
 
 if(NOT TARGET torch_nntile::torch_nntile)
@@ -25,6 +28,11 @@ endif()
 
 if(NOT torch_nntile_FIND_QUIETLY)
     message(STATUS "libtorch_nntile found: ${PACKAGE_PREFIX_DIR}")
+    if(TORCH_NNTILE_BUILT_WITH_CUDA)
+        message(STATUS "libtorch_nntile CUDA: ON")
+    else()
+        message(STATUS "libtorch_nntile CUDA: OFF")
+    endif()
 endif()
 
 check_required_components(torch_nntile)

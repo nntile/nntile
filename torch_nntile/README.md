@@ -60,16 +60,17 @@ gh run download RUN_ID -D wheelhouse
 
 Linux CUDA wheels are built against `torch==2.9.1`. **PyTorch may be CPU-only**
 from default PyPI; a CUDA build of PyTorch is not required. NVIDIA math
-libraries come from `nvidia-*-cu12` pip packages (declared as `torch_nntile`
-dependencies on Linux x86_64), not from the wheel itself.
+libraries come from `nvidia-*-cu12` pip packages when the wheel was **compiled
+with CUDA** (`torch_nntile.built_with_cuda()` is `True`). CPU-only wheels skip
+that import-time check and do not declare those deps.
 
 ```bash
 pip install torch==2.9.1 torchvision==0.24.1
 pip install /path/to/torch_nntile-0.0.5-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-`pip install` of the wheel pulls the NVIDIA packages on Linux automatically.
-You can also install them manually:
+`pip install` of a CUDA wheel pulls the NVIDIA packages on Linux automatically.
+You can also install them manually (or `pip install 'torch_nntile[cuda]'`):
 
 ```bash
 pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 \

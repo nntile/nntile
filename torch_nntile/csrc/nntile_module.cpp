@@ -180,6 +180,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "has_libnntile",
         &torch_nntile::has_libnntile,
         "Whether libnntile TensorGraph add is linked");
+    m.def(
+        "built_with_cuda",
+        &torch_nntile::built_with_cuda,
+        "Whether linked libnntile was built with CUDA");
     m.def("buffer_nbytes", &torch_nntile::buffer_nbytes, "Storage nbytes");
     m.def(
         "buffer_equal_cpu",

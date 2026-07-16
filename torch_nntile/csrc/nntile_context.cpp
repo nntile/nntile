@@ -14,6 +14,7 @@
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 
 #include <nntile/context.hh>
+#include <nntile/defs.h>
 
 #include <starpu.h>
 
@@ -21,6 +22,15 @@
 
 namespace torch_nntile
 {
+
+bool built_with_cuda()
+{
+#ifdef NNTILE_USE_CUDA
+    return true;
+#else
+    return false;
+#endif
+}
 
 namespace
 {
@@ -187,6 +197,11 @@ void init_context(
     bool /*cpu_fallback*/)
 {
     require_libnntile();
+}
+
+bool built_with_cuda()
+{
+    return false;
 }
 
 bool is_cpu_fallback_enabled()

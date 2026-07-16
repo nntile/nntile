@@ -12,6 +12,9 @@
 namespace torch_nntile
 {
 
+//! Whether linked libnntile was compiled with ``NNTILE_USE_CUDA``.
+bool built_with_cuda();
+
 void init_context(
     int ncpu = -1,
     int ncuda = -1,

@@ -352,9 +352,8 @@ jobs:
             --index-url "${TORCH_PIP_INDEX}"
           pip3 install --break-system-packages \
             pytest 'numpy>=1.21' 'transformers<4.53'
-          # --no-deps: wheel METADATA lists nvidia-*-cu12 for CUDA release
-          # wheels; this job uses CPU libs (USE_CUDA=OFF) and does not need
-          # them. Install with deps only when testing a CUDA-linked wheel.
+          # --no-deps: avoid pulling extras; nvidia-*-cu12 are only required
+          # for CUDA-built wheels (gated at import via built_with_cuda()).
           pip3 install --break-system-packages \
             --force-reinstall --no-deps wheelhouse/*.whl
           # Prefer the installed wheel over the source tree (no in-tree _C.so).
