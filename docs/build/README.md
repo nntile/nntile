@@ -308,11 +308,14 @@ PyPI upload is manual (`twine upload` from downloaded artifacts).
 
 **CUDA without a GPU (Linux wheel CI):** GitHub-hosted runners have no NVIDIA
 device. StarPU and libnntile can still be built with CUDA enabled: the
-manylinux `before-all` hook installs a headless CUDA 12.8 toolkit via dnf
-(`cuda-minimal-build`, `cuda-driver-devel` for `lib64/stubs/libcuda.so`,
-`cuda-libraries-devel` for cublas/cusolver headers). Pip `nvidia-cuda-nvcc-cu12`
-`cuda.h`; pip `nvidia-cudnn-cu12` supplies cuDNN for cmake. A driver is only
-required at runtime when using CUDA StarPU workers (`ncuda > 0`).
+manylinux `before-all` hook installs a **thin** CUDA 12.8 toolkit via dnf
+(`cuda-minimal-build` for `nvcc`/`cuda.h`, `cuda-driver-devel` for
+`lib64/stubs/libcuda.so`). Math/runtime libs (`cudart`, `cublas`, `cudnn`)
+come from the same pip `nvidia-*-cu12` packages that `torch` (cu128) installs
+— see `cmake/NNTilePreferPipCuda.cmake` and
+[`docs/dev/cuda_wheel_single_nvidia_stack_plan.md`](../dev/cuda_wheel_single_nvidia_stack_plan.md).
+A driver is only required at runtime when using CUDA StarPU workers
+(`ncuda > 0`).
 
 ## Running tests
 

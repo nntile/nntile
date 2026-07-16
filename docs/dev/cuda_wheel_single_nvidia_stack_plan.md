@@ -6,7 +6,8 @@ manylinux CUDA wheel build, sourced from the same pip packages LibTorch
 already depends on. Keep only the **minimal system pieces LibTorch cannot
 provide** (`nvcc`, `libcuda` stub).
 
-This is a design plan only; no implementation in this document.
+Status: Phases 1–3 implemented in tree (scripts, cibuildwheel hooks,
+`cmake/NNTilePreferPipCuda.cmake`, docs). Phase 4 remains optional.
 
 ## Problem
 
@@ -251,13 +252,14 @@ duplicate math libraries if the toolkit is thinned.
 
 ## Validation checklist (when implementing)
 
-- [ ] One `pip install` of torch+cu128 per manylinux job  
-- [ ] `pip cache purge` / `--no-cache-dir` around large installs  
-- [ ] `readelf -d libnntile.so` → cublas/cudnn/cudart from pip paths  
-- [ ] `ldd` under smoke test resolves nvidia libs under `site-packages/nvidia`  
-- [ ] Wheel smoke (`tools/smoke_test_wheel.py`) still passes  
-- [ ] StarPU CUDA init works with stub at link and driver at run  
-- [ ] Disk: `df -h` after before-all stays comfortably under runner limit  
+- [x] One `pip install` of torch+cu128 per manylinux job (`ensure_torch_cuda.sh` skips redo)
+- [x] `pip cache purge` / `--no-cache-dir` around large installs
+- [x] `assert_pip_cuda_libs.sh` after libnntile build (`NNTILE_ASSERT_PIP_CUDA`)
+- [ ] `ldd` under smoke test resolves nvidia libs under `site-packages/nvidia`
+- [ ] Wheel smoke (`tools/smoke_test_wheel.py`) still passes on GHA
+- [ ] StarPU CUDA init works with stub at link and driver at run
+- [ ] Disk: `df -h` after before-all stays comfortably under runner limit
+  (set `TORCH_NNTILE_DISK_LOG=1` for checkpoints)
 
 ## Related files
 

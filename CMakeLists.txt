@@ -153,6 +153,9 @@ elseif(USE_CUDA)
         endif()
         enable_language(CUDA)
         find_package(CUDAToolkit 11.0 REQUIRED)
+        # Prefer pip nvidia-*-cu12 for cublas/cudart when wheel CI (or a
+        # local build) exports NVIDIA_* paths / NNTILE_CUDA_FROM_PIP.
+        include("${PROJECT_SOURCE_DIR}/cmake/NNTilePreferPipCuda.cmake")
         add_subdirectory("external/cudnn_frontend")
         include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
         set(NNTILE_USE_CUDA ON)

@@ -76,18 +76,18 @@ prepare_prefix() {
 install_python_wheel_tools() {
     local python="$1"
     "${python}" -m pip install --upgrade pip
-    "${python}" -m pip install "setuptools>=61" wheel ninja numpy
+    "${python}" -m pip install --no-cache-dir "setuptools>=61" wheel ninja numpy
     if [ "${os_name}" = "Darwin" ]; then
-        "${python}" -m pip install delocate
+        "${python}" -m pip install --no-cache-dir delocate
     else
-        "${python}" -m pip install auditwheel patchelf
+        "${python}" -m pip install --no-cache-dir auditwheel patchelf
     fi
 }
 
 install_torch_cpu() {
     local python="$("${script_dir}/wheel_python.sh")"
     install_python_wheel_tools "${python}"
-    "${python}" -m pip install \
+    "${python}" -m pip install --no-cache-dir \
         "torch==${TORCH_VERSION:-2.9.1}" \
         "torchvision==0.24.1"
     export TORCH_PREFIX="$("${python}" -c 'import torch; print(torch.utils.cmake_prefix_path)')"
@@ -210,6 +210,25 @@ configure_nntile_cmake() {
                 -DCUDNN_LIBRARY_PATH="${CUDNN_LIBRARY_PATH}"
             )
         fi
+        if [ "${NNTILE_CUDA_FROM_PIP:-0}" = "1" ] \
+            || [ -n "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
+            cmake_args+=(-DNNTILE_CUDA_FROM_PIP=ON)
+            if [ -n "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
+                cmake_args+=(
+                    -DNVIDIA_CUBLAS_INCLUDE_PATH="${NVIDIA_CUBLAS_INCLUDE_PATH}"
+                    -DNVIDIA_CUBLAS_LIBRARY_PATH="${NVIDIA_CUBLAS_LIBRARY_PATH}"
+                )
+            fi
+            if [ -n "${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH:-}" ]; then
+                cmake_args+=(
+                    -DNVIDIA_CUDA_RUNTIME_INCLUDE_PATH="${NVIDIA_CUDA_RUNTIME_INCLUDE_PATH}"
+                    -DNVIDIA_CUDA_RUNTIME_LIBRARY_PATH="${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH}"
+                )
+            fi
+            if [ -n "${CMAKE_LIBRARY_PATH:-}" ]; then
+                cmake_args+=(-DCMAKE_LIBRARY_PATH="${CMAKE_LIBRARY_PATH}")
+            fi
+        fi
         if [ -n "${CMAKE_CUDA_ARCHITECTURES:-}" ]; then
             cmake_args+=(-DCMAKE_CUDA_ARCHITECTURES="${CMAKE_CUDA_ARCHITECTURES}")
         fi
@@ -234,14 +253,49 @@ configure_nntile_cmake() {
     cmake "${cmake_args[@]}"
 }
 
+assert_pip_cuda_link() {
+    if [ "${use_cuda}" != "1" ]; then
+        return 0
+    fi
+    if [ "${NNTILE_ASSERT_PIP_CUDA:-1}" != "1" ]; then
+        return 0
+    fi
+    if [ "${NNTILE_CUDA_FROM_PIP:-0}" != "1" ] \
+        && [ -z "${NVIDIA_CUBLAS_LIBRARY_PATH:-}" ]; then
+        return 0
+    fi
+    local lib=""
+    shopt -s nullglob
+    for candidate in \
+        "${build_dir}/nntile/libnntile.so" \
+        "${build_dir}/nntile/libnntile.so."* \
+        "${build_dir}/libnntile.so" \
+        "${build_dir}/libnntile.so."*; do
+        if [ -f "${candidate}" ]; then
+            lib="${candidate}"
+            break
+        fi
+    done
+    shopt -u nullglob
+    if [ -z "${lib}" ]; then
+        echo "assert_pip_cuda_link: libnntile.so not found under ${build_dir}" >&2
+        return 1
+    fi
+    # Ensure ldd can see pip nvidia trees when asserting.
+    export LD_LIBRARY_PATH="${NVIDIA_CUBLAS_LIBRARY_PATH:-}:${CUDNN_LIBRARY_PATH:-}:${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH:-}:${LD_LIBRARY_PATH:-}"
+    bash "${script_dir}/assert_pip_cuda_libs.sh" "${lib}"
+}
+
 build_nntile_libs() {
     configure_nntile_cmake
     cmake --build "${build_dir}" --target nntile torch_nntile -j "${jobs}"
+    assert_pip_cuda_link
 }
 
 build_wheel_with_cmake() {
     configure_nntile_cmake
     cmake --build "${build_dir}" --target torch_nntile_wheel -j "${jobs}"
+    assert_pip_cuda_link
 
     shopt -s nullglob
     built_wheels=("${build_dir}/wheelhouse"/*.whl)

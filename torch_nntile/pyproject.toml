@@ -74,15 +74,17 @@ OMP_NUM_THREADS = "1"
 [tool.cibuildwheel.linux]
 archs = ["x86_64"]
 manylinux-x86_64-image = "manylinux_2_28"
+# before-all already installed torch+cu128 (+ nvidia-*-cu12) into cp312.
+# Only reinstall if that stack is missing; never pull a second cudnn copy.
 before-build = [
     "python -m pip install --upgrade pip",
-    "python -m pip install 'setuptools>=61,<82' wheel ninja numpy",
-    "python -m pip install --index-url https://download.pytorch.org/whl/cu128 'torch==2.9.1' 'torchvision==0.24.1'",
-    "python -m pip install nvidia-cudnn-cu12",
+    "python -m pip install --no-cache-dir 'setuptools>=61,<82' wheel ninja numpy",
+    "bash {package}/tools/ensure_torch_cuda.sh",
 ]
+# Fresh test venv: one cu128 torch install (pulls nvidia-* transitively).
+# Wheel install_requires also declare nvidia-* for CUDA builds.
 before-test = [
-    "python -m pip install 'torch==2.9.1' 'torchvision==0.24.1'",
-    "python -m pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 nvidia-cusolver-cu12 nvidia-nvjitlink-cu12 nvidia-cuda-runtime-cu12",
+    "bash {package}/tools/ensure_torch_cuda.sh",
 ]
 repair-wheel-command = "bash {package}/tools/repair_wheel_linux.sh {wheel} {dest_dir}"
 
@@ -95,9 +97,11 @@ repair-wheel-command = "bash {package}/tools/repair_wheel_macos.sh {wheel} {dest
 select = "*-manylinux_*"
 inherit.environment = "append"
 environment.TORCH_NNTILE_USE_CUDA = "1"
+environment.NNTILE_CUDA_FROM_PIP = "1"
 environment.CUDA_HOME = "/usr/local/cuda"
 environment.PATH = "/usr/local/cuda/bin:$PATH"
-environment.LD_LIBRARY_PATH = "/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
+# Stubs for libcuda; pip nvidia libs come via RPATH / site-packages.
+environment.LD_LIBRARY_PATH = "/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macosx_arm64"
