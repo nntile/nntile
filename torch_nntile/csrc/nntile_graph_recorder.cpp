@@ -682,6 +682,68 @@ nntile::Index graph_numel(const std::vector<nntile::Index> &graph_shape)
     return nelems;
 }
 
+//! Bytes available in ``tensor`` storage from ``data_ptr()`` to the end.
+//!
+//! ``tensor.nbytes()`` is typically ``numel * itemsize`` and does **not**
+//! catch a contiguous view whose ``storage_offset`` leaves too little room
+//! (``batch[:, 1:]`` at B=1 is contiguous with offset != 0).
+std::size_t host_bytes_from_data_ptr(const at::Tensor &tensor)
+{
+    TORCH_CHECK(tensor.is_cpu(), "host_bytes_from_data_ptr: CPU tensor");
+    const int64_t itemsize = tensor.element_size();
+    TORCH_CHECK(itemsize > 0, "host_bytes_from_data_ptr: bad itemsize");
+    const int64_t offset = tensor.storage_offset();
+    TORCH_CHECK(offset >= 0, "host_bytes_from_data_ptr: negative offset");
+    const int64_t storage_bytes =
+        static_cast<int64_t>(tensor.storage().nbytes());
+    const int64_t offset_bytes = offset * itemsize;
+    TORCH_CHECK(
+        offset_bytes <= storage_bytes,
+        "host_bytes_from_data_ptr: storage_offset past end of storage "
+        "(offset=",
+        offset,
+        " storage_bytes=",
+        storage_bytes,
+        " itemsize=",
+        itemsize,
+        ")");
+    return static_cast<std::size_t>(storage_bytes - offset_bytes);
+}
+
+void check_host_buffer_for_transfer(
+    const at::Tensor &host,
+    std::size_t count,
+    std::size_t elem_bytes,
+    const char *what)
+{
+    TORCH_CHECK(host.is_cpu(), what, ": expected CPU tensor");
+    TORCH_CHECK(host.is_contiguous(), what, ": contiguous required");
+    TORCH_CHECK(
+        static_cast<std::size_t>(host.numel()) == count,
+        what,
+        ": numel mismatch (numel=",
+        host.numel(),
+        " count=",
+        count,
+        " storage_offset=",
+        host.storage_offset(),
+        ")");
+    const std::size_t need = count * elem_bytes;
+    const std::size_t avail = host_bytes_from_data_ptr(host);
+    TORCH_CHECK(
+        avail >= need,
+        what,
+        ": storage too small from data_ptr() (avail=",
+        avail,
+        " need=",
+        need,
+        " storage_offset=",
+        host.storage_offset(),
+        " storage.nbytes=",
+        host.storage().nbytes(),
+        ")");
+}
+
 bool shapes_equal(
     const std::vector<nntile::Index> &lhs,
     const std::vector<nntile::Index> &rhs)
@@ -1230,31 +1292,14 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     const nntile::DataType dtype = logical->dtype();
     const std::size_t count =
         static_cast<std::size_t>(logical->nelems());
-    // Host buffer must match the logical payload size. A larger logical
-    // (stale TensorRef / shape drift) would write past dst and segfault.
-    TORCH_CHECK(
-        dst.is_cpu(),
-        "torch_nntile: copy_nntile_tensor_to_cpu expects a CPU dst");
-    TORCH_CHECK(
-        dst.is_contiguous(),
-        "torch_nntile: copy_nntile_tensor_to_cpu requires contiguous dst");
-    TORCH_CHECK(
-        static_cast<std::size_t>(dst.numel()) == count,
-        "torch_nntile: host readout size mismatch: torch numel=",
-        dst.numel(),
-        " logical nelems=",
-        count,
-        " torch shape=",
-        src.sizes(),
-        " logical shape rank=",
-        logical->ndim());
     const std::size_t elem_bytes = nntile::dtype_size(dtype);
-    TORCH_CHECK(
-        static_cast<std::size_t>(dst.nbytes()) >= count * elem_bytes,
-        "torch_nntile: host readout buffer too small: dst.nbytes=",
-        dst.nbytes(),
-        " need=",
-        count * elem_bytes);
+    // Host buffer must match the logical payload size, including room
+    // after storage_offset (dst.nbytes() alone is not enough).
+    check_host_buffer_for_transfer(
+        dst,
+        count,
+        elem_bytes,
+        "torch_nntile: copy_nntile_tensor_to_cpu");
     TORCH_CHECK(
         aten_scalar_to_nntile_dtype(dst.scalar_type()) == dtype,
         "torch_nntile: host readout dtype mismatch");
@@ -1309,6 +1354,13 @@ void init_nntile_input_from_cpu(
     TORCH_CHECK(
         cpu_src.scalar_type() == nntile_dst.scalar_type(),
         "init_nntile_input_from_cpu: dtype mismatch");
+    const nntile::DataType dtype =
+        aten_scalar_to_nntile_dtype(cpu_src.scalar_type());
+    check_host_buffer_for_transfer(
+        cpu_src,
+        static_cast<std::size_t>(cpu_src.numel()),
+        nntile::dtype_size(dtype),
+        "init_nntile_input_from_cpu");
 
     if (g_graph == nullptr)
     {
@@ -1318,8 +1370,6 @@ void init_nntile_input_from_cpu(
 
     const std::vector<nntile::Index> shape =
         aten_sizes_to_graph_shape(cpu_src.sizes());
-    const nntile::DataType dtype =
-        aten_scalar_to_nntile_dtype(cpu_src.scalar_type());
     const TensorImplKey impl_key = tensor_impl_key(nntile_dst);
 
     if (nntile::TensorRef existing = tensor_ref(nntile_dst);

@@ -27,6 +27,25 @@ def test_to_nntile_preserves_storage_offset_view():
     assert not torch.equal(roundtrip, batch[:, :31])
 
 
+def test_cpu_readout_into_storage_offset_dst():
+    """``.cpu()`` / copy into a contiguous dst view must honor offset."""
+    torch.manual_seed(0)
+    src = torch.randn(8, dtype=torch.float32)
+    nnt = src.to("nntile")
+    torch_nntile.compile_graph()
+    torch_nntile.run()
+
+    storage = torch.full((10,), -1.0, dtype=torch.float32)
+    dst = storage[1:9]
+    assert dst.is_contiguous()
+    assert dst.storage_offset() == 1
+    assert dst.shape == (8,)
+    dst.copy_(nnt)
+    assert torch.equal(dst, src)
+    assert storage[0].item() == -1.0
+    assert storage[9].item() == -1.0
+
+
 def test_cross_entropy_batch1_causal_label_view_matches_cpu():
     torch.manual_seed(0)
     batch = torch.randint(0, 256, (1, 32), dtype=torch.long)
