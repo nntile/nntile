@@ -11,7 +11,7 @@
 #include "nntile_rms_norm.h"
 #include "nntile_rope.h"
 #include "nntile_sdpa.h"
-#include "nntile_transpose.h"
+#include "nntile_model_transpose.h"
 
 #include <cmath>
 #include <stdexcept>

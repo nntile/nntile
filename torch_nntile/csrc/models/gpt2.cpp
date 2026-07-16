@@ -7,6 +7,9 @@
  * Attention matches ``gpt2_attention.cc`` / Python ``gpt2_minimal``:
  * ``gemm(ndim=1)`` -> ``model_transpose(1)`` -> ``add_fiber`` ->
  * ``sdpa_kernel`` -> ``model_transpose(3)`` -> ``gemm(ndim=2)``.
+ *
+ * Use cyclic ``model_transpose`` only - never the HF pairwise axis-swap
+ * bridge (slow; reserved for ATen HF layouts).
  */
 
 #include <torch_nntile/models/gpt2.hh>
@@ -14,7 +17,7 @@
 #include "nntile_add_fiber.h"
 #include "nntile_gemm.h"
 #include "nntile_sdpa.h"
-#include "nntile_transpose.h"
+#include "nntile_model_transpose.h"
 
 #include <cmath>
 #include <stdexcept>

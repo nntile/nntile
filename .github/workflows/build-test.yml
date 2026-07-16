@@ -50,6 +50,8 @@ jobs:
       - uses: ./.github/actions/nntile-starpu-setup
       - run: chmod +x .github/scripts/check-nntile-includes.sh
       - run: .github/scripts/check-nntile-includes.sh .
+      - run: chmod +x .github/scripts/check-model-no-swap-axes.sh
+      - run: .github/scripts/check-model-no-swap-axes.sh .
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache

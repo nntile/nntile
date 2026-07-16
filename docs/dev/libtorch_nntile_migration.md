@@ -31,7 +31,8 @@ C++ / Python apps
 
 `add`, `mul`, `hypot`, `sum`, `cat`, `split`/`chunk`, `narrow`,
 `mm`/`bmm`/`matmul`/`addmm`, `linear` (+ bias), `relu`/`silu`/`gelu`/
-`gelutanh`, softmax, `native_layer_norm`, `embedding`, `transpose`/`t`,
+`gelutanh`, softmax, `native_layer_norm`, `embedding`, `transpose`/`t`
+(HF layout via ``swap_two_axes`` only - not for native C++ models),
 contiguous-preserving `view`/`permute`, `scaled_dot_product_attention`
 (eager), `mse_loss` (via custom or ATen path using norm).
 
@@ -41,7 +42,7 @@ contiguous-preserving `view`/`permute`, `scaled_dot_product_attention`
 |-----|--------|
 | RoPE | No first-class ATen rotary |
 | `add_fiber` / selective fiber ops | Layout without broadcast expand |
-| `model_transpose` | Cyclic NNTile attention layout |
+| `model_transpose` | Cyclic NNTile attention layout (native models) |
 | Fused CE | Class-dim-last fused path |
 | Fused SGD / Adam / AdamW | StarPU fused steps |
 | RMSNorm | Until ATen path is complete |
@@ -69,6 +70,10 @@ used inside ATen/custom implementations.
 | **libtorch_nntile** | PrivateUse1 + models + custom ops |
 
 ## Model parity checklist
+
+Native C++ models use cyclic ``model_transpose`` for attention layout.
+They must **not** call ``swap_two_axes`` / ``aten::transpose`` (HF bridge
+only; low performance). See ``.github/scripts/check-model-no-swap-axes.sh``.
 
 | Model | Python | C++ torch::nn | Example |
 |-------|--------|---------------|---------|

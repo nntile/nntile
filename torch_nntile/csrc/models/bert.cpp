@@ -10,7 +10,7 @@
 #include "nntile_add_fiber.h"
 #include "nntile_gemm.h"
 #include "nntile_sdpa.h"
-#include "nntile_transpose.h"
+#include "nntile_model_transpose.h"
 
 #include <stdexcept>
 

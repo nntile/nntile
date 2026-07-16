@@ -4,7 +4,7 @@
  * @file torch_nntile/csrc/nntile_transpose.cpp
  */
 
-#include "nntile_transpose.h"
+#include "nntile_model_transpose.h"
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
