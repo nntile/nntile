@@ -5,7 +5,7 @@
 # then builds the Python extension and runs tools/smoke_test_wheel.py.
 #
 # Optional: TORCH_NNTILE_CMAKE_WHEEL=1 also builds the wheel via CMake target
-# torch_nntile_wheel (BUILD_TORCH_NNTILE_WHEEL) into TORCH_NNTILE_WHEELHOUSE.
+# torch_nntile_wheel (BUILD_TORCH_NNTILE) into TORCH_NNTILE_WHEELHOUSE.
 set -euo pipefail
 
 package_or_repo="${1:-$(pwd)}"
@@ -234,7 +234,7 @@ configure_nntile_cmake() {
         -B "${build_dir}"
         -DCMAKE_BUILD_TYPE=Release
         -DBUILD_TESTING=OFF
-        -DBUILD_TORCH_NNTILE=ON
+        -DBUILD_LIBTORCH_NNTILE=ON
         -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
         -DPython3_EXECUTABLE="${python}"
         -GNinja
@@ -243,7 +243,7 @@ configure_nntile_cmake() {
     if [ "${cmake_wheel}" = "1" ]; then
         mkdir -p "${wheelhouse_out}"
         cmake_args+=(
-            -DBUILD_TORCH_NNTILE_WHEEL=ON
+            -DBUILD_TORCH_NNTILE=ON
             -DTORCH_NNTILE_WHEEL_REPAIR=ON
             -DTORCH_NNTILE_WHEELHOUSE="${build_dir}/wheelhouse"
         )
@@ -251,7 +251,7 @@ configure_nntile_cmake() {
             cmake_args+=(-DTORCH_NNTILE_WHEEL_VERSION="${TORCH_NNTILE_WHEEL_VERSION}")
         fi
     else
-        cmake_args+=(-DBUILD_TORCH_NNTILE_WHEEL=OFF)
+        cmake_args+=(-DBUILD_TORCH_NNTILE=OFF)
     fi
 
     if [ "${use_cuda}" = "1" ]; then

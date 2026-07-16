@@ -5,7 +5,7 @@
 # Custom target: build torch_nntile Python wheel against in-tree libs or an
 # install prefix (-DNNTILE_PREFIX / -DTORCH_NNTILE_PREFIX).
 
-if(NOT BUILD_TORCH_NNTILE_WHEEL)
+if(NOT BUILD_TORCH_NNTILE)
     return()
 endif()
 
@@ -41,7 +41,7 @@ elseif(TARGET nntile::nntile AND DEFINED nntile_DIR)
         "${nntile_DIR}/../../.." ABSOLUTE)
 else()
     message(FATAL_ERROR
-        "BUILD_TORCH_NNTILE_WHEEL needs in-tree nntile or "
+        "BUILD_TORCH_NNTILE needs in-tree nntile or "
         "-DNNTILE_PREFIX=... (install prefix with libnntile)")
 endif()
 
@@ -62,7 +62,7 @@ elseif(TARGET torch_nntile::torch_nntile AND DEFINED torch_nntile_DIR)
         "${torch_nntile_DIR}/../../.." ABSOLUTE)
 else()
     message(FATAL_ERROR
-        "BUILD_TORCH_NNTILE_WHEEL needs in-tree torch_nntile or "
+        "BUILD_TORCH_NNTILE needs in-tree torch_nntile or "
         "-DTORCH_NNTILE_PREFIX=... / -DNNTILE_PREFIX=...")
 endif()
 

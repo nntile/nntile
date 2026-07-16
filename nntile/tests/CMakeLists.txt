@@ -175,9 +175,9 @@ else()
 endif()
 
 # Only when building libnntile in-tree: re-install from this build tree.
-# Against an installed prefix (BUILD_NNTILE=OFF), skip - stepwise CI already
+# Against an installed prefix (BUILD_LIBNNTILE=OFF), skip - stepwise CI already
 # validates the package by linking and running tests.
-if(BUILD_NNTILE)
+if(BUILD_LIBNNTILE)
     set(_nntile_install_prefix
         "${PROJECT_BINARY_DIR}/nntile-install-test-prefix")
     message(STATUS "Adding install verification test tests_nntile_install")

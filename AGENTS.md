@@ -12,7 +12,7 @@ Libraries:
 - **libnntile** — TensorGraph stack (kernel → StarPU → core → tile → tensor → Runtime)
 - **libtorch_nntile** — LibTorch PrivateUse1 (`device=nntile`) + models
   (default ON with the torch_nntile wheel; pass
-  `-DBUILD_TORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE_WHEEL=OFF` for libnntile-only)
+  `-DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF` for libnntile-only)
 
 ### Pre-installed dependencies
 

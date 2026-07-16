@@ -4,10 +4,10 @@
 # @file torch_nntile/CMakeLists.txt
 # libtorch_nntile (LibTorch PrivateUse1 + models).
 
-option(BUILD_TORCH_NNTILE
+option(BUILD_LIBTORCH_NNTILE
     "Build libtorch_nntile (requires LibTorch)" OFF)
 
-if(NOT BUILD_TORCH_NNTILE)
+if(NOT BUILD_LIBTORCH_NNTILE)
     return()
 endif()
 
@@ -117,7 +117,7 @@ else()
 endif()
 message(STATUS "libtorch_nntile CUDA: ${TORCH_NNTILE_BUILT_WITH_CUDA}")
 
-if(BUILD_TORCH_NNTILE_EXAMPLES)
+if(BUILD_LIBTORCH_NNTILE_EXAMPLES)
     add_subdirectory(examples/cpp)
 endif()
 

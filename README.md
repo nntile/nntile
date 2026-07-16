@@ -29,7 +29,7 @@ Libnntile-only (no LibTorch), as in layered CI:
 
 ```bash
 cmake -S . -B build -GNinja \
-  -DBUILD_TORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE_WHEEL=OFF
+  -DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF
 ```
 
 Release CI also uses cibuildwheel /

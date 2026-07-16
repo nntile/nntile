@@ -11,7 +11,7 @@
 #
 # @version 1.1.0
 
-if(NOT BUILD_NNTILE)
+if(NOT BUILD_LIBNNTILE)
     return()
 endif()
 

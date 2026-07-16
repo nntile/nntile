@@ -92,8 +92,8 @@ jobs:
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTING=OFF \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
-            -DBUILD_TORCH_NNTILE_WHEEL=OFF \
             -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
           cmake --build build --target nntile -j"$(nproc)"
           cmake --install build --prefix "${PWD}/prefix"
@@ -140,9 +140,9 @@ jobs:
       - name: Build tests against installed libnntile
         run: |
           cmake -S . -B build-tests ${CMAKE_COMMON} \
-            -DBUILD_NNTILE=OFF \
+            -DBUILD_LIBNNTILE=OFF \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
-            -DBUILD_TORCH_NNTILE_WHEEL=OFF \
             -DBUILD_TESTING=ON \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix"
           cmake --build build-tests -j"$(nproc)"
@@ -210,9 +210,9 @@ jobs:
               /usr/lib/x86_64-linux-gnu/libstdc++.so
           fi
           cmake -S . -B build-torch ${CMAKE_COMMON} \
-            -DBUILD_NNTILE=OFF \
-            -DBUILD_TORCH_NNTILE=ON \
-            -DBUILD_TORCH_NNTILE_WHEEL=OFF \
+            -DBUILD_LIBNNTILE=OFF \
+            -DBUILD_LIBTORCH_NNTILE=ON \
+            -DBUILD_TORCH_NNTILE=OFF \
             -DBUILD_TESTING=OFF \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}" \
             -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
@@ -283,9 +283,9 @@ jobs:
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           cmake -S . -B build-torch-tests ${CMAKE_COMMON} \
-            -DBUILD_NNTILE=OFF \
+            -DBUILD_LIBNNTILE=OFF \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
-            -DBUILD_TORCH_NNTILE_WHEEL=OFF \
             -DBUILD_TESTING=ON \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix;${TORCH_PREFIX}"
           cmake --build build-torch-tests -j"$(nproc)" \
@@ -305,10 +305,10 @@ jobs:
           key: ccache-test-libtorch-nntile-${{ github.sha }}
 
   # -------------------------------------------------------------------------
-  # Layer 3: CMake wheel from installed libs, then Python extension/model tests
+  # Layer 3: torch_nntile product (wheel) from installed libs, then pytest
   # -------------------------------------------------------------------------
-  build-torch-nntile-wheel:
-    name: build torch_nntile wheel
+  build-torch-nntile:
+    name: build torch_nntile
     needs: build-libtorch-nntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
@@ -347,10 +347,10 @@ jobs:
               /usr/lib/x86_64-linux-gnu/libstdc++.so
           fi
           cmake -S . -B build-wheel ${CMAKE_COMMON} \
-            -DBUILD_NNTILE=OFF \
-            -DBUILD_TORCH_NNTILE=OFF \
+            -DBUILD_LIBNNTILE=OFF \
+            -DBUILD_LIBTORCH_NNTILE=OFF \
             -DBUILD_TESTING=OFF \
-            -DBUILD_TORCH_NNTILE_WHEEL=ON \
+            -DBUILD_TORCH_NNTILE=ON \
             -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
             -DNNTILE_PREFIX="${PWD}/prefix" \
             -DTORCH_NNTILE_PREFIX="${PWD}/prefix" \
@@ -368,7 +368,7 @@ jobs:
 
   test-torch-nntile:
     name: test torch_nntile
-    needs: build-torch-nntile-wheel
+    needs: build-torch-nntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:

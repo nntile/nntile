@@ -97,7 +97,7 @@ See [docs/build/README.md](../docs/build/README.md) for maintainer CI details.
 
 `torch_nntile._C` is a thin pybind that links prebuilt **libtorch_nntile**
 (and **libnntile**). There is no host-only / stub extension build. Build both
-C++ libraries with CMake (`-DBUILD_TORCH_NNTILE=ON`) before `pip install`.
+C++ libraries with CMake (`-DBUILD_LIBTORCH_NNTILE=ON`) before `pip install`.
 
 Selected ops run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 
@@ -470,7 +470,7 @@ Build both C++ libraries (CPU-only example):
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-  -DBUILD_TORCH_NNTILE=ON \
+  -DBUILD_LIBTORCH_NNTILE=ON \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" -GNinja
 cmake --build build --target nntile torch_nntile -j$(nproc)
@@ -503,7 +503,7 @@ CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -GNinja -DUSE_CUDA=OFF -DBUILD_TESTING=OFF \
-  -DBUILD_TORCH_NNTILE_WHEEL=ON \
+  -DBUILD_TORCH_NNTILE=ON \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
 cmake --build build --target torch_nntile_wheel
@@ -514,8 +514,8 @@ Or build the wheel against an install prefix (no library rebuild):
 
 ```bash
 cmake -S . -B build-wheel -GNinja -DUSE_CUDA=OFF -DBUILD_TESTING=OFF \
-  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF \
-  -DBUILD_TORCH_NNTILE_WHEEL=ON -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
+  -DBUILD_LIBNNTILE=OFF -DBUILD_LIBTORCH_NNTILE=OFF \
+  -DBUILD_TORCH_NNTILE=ON -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
   -DNNTILE_PREFIX="$PWD/install" -DTORCH_NNTILE_PREFIX="$PWD/install" \
   -DCMAKE_PREFIX_PATH="$PWD/install;$TORCH_PREFIX" \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++

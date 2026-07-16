@@ -243,7 +243,7 @@ def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
         raise RuntimeError(
             f"TORCH_NNTILE_BUILD_DIR={torch_build!r} does not contain "
             f"libtorch_nntile under {torch_lib}. Build with "
-            "-DBUILD_TORCH_NNTILE=ON first."
+            "-DBUILD_LIBTORCH_NNTILE=ON first."
         )
     if not (nntile_inc / "nntile" / "defs.h").exists():
         raise RuntimeError(

@@ -19,7 +19,7 @@ project(NNTile VERSION 1.1.0 LANGUAGES CXX C)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
-option(BUILD_NNTILE "Build the core C++ libnntile library" ON)
+option(BUILD_LIBNNTILE "Build the core C++ libnntile library" ON)
 option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
 option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
@@ -30,26 +30,26 @@ option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 # Default ON: the user-facing product is the torch_nntile pip wheel (needs
 # LibTorch on CMAKE_PREFIX_PATH). Layered CI and Torch-less configures must
-# pass -DBUILD_TORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE_WHEEL=OFF.
-option(BUILD_TORCH_NNTILE
+# pass -DBUILD_LIBTORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF.
+option(BUILD_LIBTORCH_NNTILE
     "Build LibTorch bridge libtorch_nntile (requires LibTorch)" ON)
-option(BUILD_TORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
-option(BUILD_TORCH_NNTILE_WHEEL
-    "Build installable torch_nntile pip wheel (user-facing product)" ON)
+option(BUILD_LIBTORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
+option(BUILD_TORCH_NNTILE
+    "Build torch_nntile Python product (_C extension + pip wheel)" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 
 # Standard CMake testing switch (default ON). Tests are added only for
-# enabled components: BUILD_NNTILE, BUILD_TORCH_NNTILE, and/or
-# BUILD_TORCH_NNTILE_WHEEL. Pass -DBUILD_TESTING=OFF to skip all tests.
+# enabled components: BUILD_LIBNNTILE, BUILD_LIBTORCH_NNTILE, and/or
+# BUILD_TORCH_NNTILE. Pass -DBUILD_TESTING=OFF to skip all tests.
 include(CTest)
 if(BUILD_COVERAGE)
     set(BUILD_TESTING ON CACHE BOOL "Build the testing tree" FORCE)
 endif()
 
 # In-tree wheel needs libtorch_nntile. Against an install prefix, keep
-# BUILD_TORCH_NNTILE=OFF and pass -DNNTILE_PREFIX=... (and optionally
+# BUILD_LIBTORCH_NNTILE=OFF and pass -DNNTILE_PREFIX=... (and optionally
 # -DTORCH_NNTILE_PREFIX=...).
-if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
+if(BUILD_TORCH_NNTILE AND NOT BUILD_LIBTORCH_NNTILE)
     set(_wheel_has_prefix FALSE)
     if(DEFINED NNTILE_PREFIX AND NOT NNTILE_PREFIX STREQUAL "")
         set(_wheel_has_prefix TRUE)
@@ -57,14 +57,14 @@ if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
         set(_wheel_has_prefix TRUE)
     endif()
     if(NOT _wheel_has_prefix)
-        set(BUILD_TORCH_NNTILE ON CACHE BOOL
+        set(BUILD_LIBTORCH_NNTILE ON CACHE BOOL
             "Build LibTorch bridge libtorch_nntile (requires LibTorch)"
             FORCE)
         message(STATUS
-            "BUILD_TORCH_NNTILE_WHEEL=ON -> enabling BUILD_TORCH_NNTILE")
+            "BUILD_TORCH_NNTILE=ON -> enabling BUILD_LIBTORCH_NNTILE")
     else()
         message(STATUS
-            "BUILD_TORCH_NNTILE_WHEEL=ON with install prefix "
+            "BUILD_TORCH_NNTILE=ON with install prefix "
             "(not building libtorch_nntile)")
     endif()
 endif()
@@ -229,17 +229,17 @@ endif()
 # LibTorch is required only when building libtorch_nntile. libnntile and its
 # C++ tests configure and build without Torch.
 set(NNTILE_HAVE_TORCH OFF)
-if(BUILD_TORCH_NNTILE)
+if(BUILD_LIBTORCH_NNTILE)
     find_package(Torch REQUIRED)
     set(NNTILE_HAVE_TORCH ON)
     message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
 endif()
 
-if(BUILD_NNTILE)
+if(BUILD_LIBNNTILE)
     add_subdirectory(nntile)
 endif()
 
-if(BUILD_TORCH_NNTILE)
+if(BUILD_LIBTORCH_NNTILE)
     if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
         find_package(nntile REQUIRED CONFIG)
     endif()
@@ -247,7 +247,7 @@ if(BUILD_TORCH_NNTILE)
 endif()
 
 # Wheel against installed libs only (no libtorch_nntile rebuild).
-if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
+if(BUILD_TORCH_NNTILE AND NOT BUILD_LIBTORCH_NNTILE)
     if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
         find_package(torch_nntile REQUIRED CONFIG)
     endif()
@@ -255,13 +255,13 @@ if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
 endif()
 
 # C++ tests follow BUILD_TESTING and only for enabled components.
-# Layered CI can also pass all of BUILD_NNTILE / BUILD_TORCH_NNTILE /
-# BUILD_TORCH_NNTILE_WHEEL OFF and link tests against an install prefix:
+# Layered CI can also pass all of BUILD_LIBNNTILE / BUILD_LIBTORCH_NNTILE /
+# BUILD_TORCH_NNTILE OFF and link tests against an install prefix:
 # nntile suite if only libnntile is installed, torch suite if
 # libtorch_nntile is present.
 if(BUILD_TESTING AND NOT HAVE_STARPU_SIMGRID)
-    if(NOT BUILD_NNTILE AND NOT BUILD_TORCH_NNTILE
-            AND NOT BUILD_TORCH_NNTILE_WHEEL)
+    if(NOT BUILD_LIBNNTILE AND NOT BUILD_LIBTORCH_NNTILE
+            AND NOT BUILD_TORCH_NNTILE)
         if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
             find_package(torch_nntile QUIET CONFIG)
         endif()
@@ -288,7 +288,7 @@ if(BUILD_TESTING AND NOT HAVE_STARPU_SIMGRID)
         endif()
     endif()
 
-    if(BUILD_TORCH_NNTILE)
+    if(BUILD_LIBTORCH_NNTILE)
         add_subdirectory(
             "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
             "${PROJECT_BINARY_DIR}/torch_nntile/tests")

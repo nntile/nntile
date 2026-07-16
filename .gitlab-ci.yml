@@ -48,8 +48,8 @@ build-clang:
         cmake -B build/relwithdebinfo -S . -G Ninja \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DCMAKE_CXX_COMPILER=clang++ \
-          -DBUILD_TORCH_NNTILE=OFF \
-          -DBUILD_TORCH_NNTILE_WHEEL=OFF
+          -DBUILD_LIBTORCH_NNTILE=OFF \
+          -DBUILD_TORCH_NNTILE=OFF
     - cmake --build build/relwithdebinfo
 
 build-gcc:
@@ -61,8 +61,8 @@ build-gcc:
         cmake -B build/relwithdebinfo -S . -G Ninja \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DCMAKE_CXX_COMPILER=g++ \
-          -DBUILD_TORCH_NNTILE=OFF \
-          -DBUILD_TORCH_NNTILE_WHEEL=OFF
+          -DBUILD_LIBTORCH_NNTILE=OFF \
+          -DBUILD_TORCH_NNTILE=OFF
     - cmake --build build/relwithdebinfo
     - >-
         find build/relwithdebinfo \
