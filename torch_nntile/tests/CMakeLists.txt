@@ -49,7 +49,6 @@ foreach(_tgt IN ITEMS torch_nntile::torch_nntile nntile::nntile)
         IMPORTED_LOCATION_RELEASE
         IMPORTED_LOCATION_RELWITHDEBINFO
         IMPORTED_LOCATION_DEBUG
-        LOCATION
     )
         get_target_property(_loc ${_tgt} ${_prop})
         if(_loc AND NOT _loc STREQUAL "_loc-NOTFOUND")
@@ -58,6 +57,15 @@ foreach(_tgt IN ITEMS torch_nntile::torch_nntile nntile::nntile)
             break()
         endif()
     endforeach()
+    # In-tree SHARED target: use generator-safe LOCATION via TARGET_FILE_DIR
+    # after build; for discover-time DL_PATHS use BINARY_DIR.
+    get_target_property(_tgt_type ${_tgt} TYPE)
+    if(_tgt_type STREQUAL "SHARED_LIBRARY" OR _tgt_type STREQUAL "MODULE_LIBRARY")
+        get_target_property(_bin ${_tgt} BINARY_DIR)
+        if(_bin AND NOT _bin STREQUAL "_bin-NOTFOUND")
+            list(APPEND _torch_nntile_dl_paths "${_bin}")
+        endif()
+    endif()
 endforeach()
 if(DEFINED ENV{STARPU_PREFIX})
     list(APPEND _torch_nntile_dl_paths "$ENV{STARPU_PREFIX}/lib")
@@ -114,3 +122,6 @@ torch_nntile_add_test(tests_libtorch_nntile_smoke smoke_add.cc)
 torch_nntile_add_test(
     tests_libtorch_nntile_aten_ops
     aten_ops_parity.cc)
+torch_nntile_add_test(
+    tests_libtorch_nntile_models_smoke
+    models_fwd_bwd_smoke.cc)
