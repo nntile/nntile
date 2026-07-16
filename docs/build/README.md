@@ -170,10 +170,15 @@ find_package(torch_nntile REQUIRED CONFIG)
 target_link_libraries(my_app PRIVATE torch_nntile::torch_nntile)
 ```
 
-C++ TensorGraph tests:
+C++ TensorGraph tests (against an installed libnntile, no library rebuild):
 
 ```bash
-ctest --test-dir build -R 'tests_(tile|tensor|core|kernel|starpu)_' \
+cmake -S . -B build-tests -GNinja \
+  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF -DBUILD_TESTS=ON \
+  -DCMAKE_PREFIX_PATH="$PWD/install"
+cmake --build build-tests -j$(nproc)
+export LD_LIBRARY_PATH="$PWD/install/lib:${LD_LIBRARY_PATH:-}"
+ctest --test-dir build-tests -R 'tests_(tile|tensor|core|kernel|starpu)_' \
   --output-on-failure
 ```
 
