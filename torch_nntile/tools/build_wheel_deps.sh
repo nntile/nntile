@@ -287,8 +287,36 @@ configure_nntile_cmake() {
                     -DNVIDIA_CUDA_RUNTIME_LIBRARY_PATH="${NVIDIA_CUDA_RUNTIME_LIBRARY_PATH}"
                 )
             fi
+            # Thin toolkit has no libnvrtc; Torch links CUDA_nvrtc_LIBRARY.
+            if [ -n "${CUDA_nvrtc_LIBRARY:-}" ]; then
+                cmake_args+=(-DCUDA_nvrtc_LIBRARY="${CUDA_nvrtc_LIBRARY}")
+            elif [ -n "${NVIDIA_CUDA_NVRTC_LIBRARY_PATH:-}" ]; then
+                nvrtc_so="$(
+                    ls -1 "${NVIDIA_CUDA_NVRTC_LIBRARY_PATH}"/libnvrtc.so* \
+                        2>/dev/null | head -1 || true
+                )"
+                if [ -n "${nvrtc_so}" ]; then
+                    cmake_args+=(-DCUDA_nvrtc_LIBRARY="${nvrtc_so}")
+                fi
+            fi
             if [ -n "${CMAKE_LIBRARY_PATH:-}" ]; then
                 cmake_args+=(-DCMAKE_LIBRARY_PATH="${CMAKE_LIBRARY_PATH}")
+            fi
+            # Torch cuda.cmake looks for cublas_v2.h under CUDA_HOME only.
+            if [ -n "${NVIDIA_CUBLAS_INCLUDE_PATH:-}" ] \
+                && [ -n "${CUDA_HOME:-}" ] \
+                && [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_v2.h" ] \
+                && [ ! -e "${CUDA_HOME}/include/cublas_v2.h" ]; then
+                ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_v2.h" \
+                    "${CUDA_HOME}/include/cublas_v2.h"
+                if [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_api.h" ]; then
+                    ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas_api.h" \
+                        "${CUDA_HOME}/include/cublas_api.h"
+                fi
+                if [ -f "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas.h" ]; then
+                    ln -sfn "${NVIDIA_CUBLAS_INCLUDE_PATH}/cublas.h" \
+                        "${CUDA_HOME}/include/cublas.h"
+                fi
             fi
         fi
         if [ -n "${CMAKE_CUDA_ARCHITECTURES:-}" ]; then
