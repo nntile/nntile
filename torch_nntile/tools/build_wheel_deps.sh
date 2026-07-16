@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# Build StarPU + libnntile + libtorch_nntile + torch_nntile wheel via CMake.
-# No tests — compile/packaging only.
+# Build StarPU + libnntile + libtorch_nntile for torch_nntile wheel packaging.
+#
+# Default (cibuildwheel before-all): compile shared libs only; cibuildwheel
+# then builds the Python extension and runs tools/smoke_test_wheel.py.
+#
+# Optional: TORCH_NNTILE_CMAKE_WHEEL=1 also builds the wheel via CMake target
+# torch_nntile_wheel (BUILD_TORCH_NNTILE_WHEEL) into TORCH_NNTILE_WHEELHOUSE.
 set -euo pipefail
 
 package_or_repo="${1:-$(pwd)}"
@@ -20,6 +25,7 @@ wheelhouse_out="${TORCH_NNTILE_WHEELHOUSE:-${repo_root}/wheelhouse}"
 jobs="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
 os_name="$(uname -s)"
 use_cuda="${TORCH_NNTILE_USE_CUDA:-0}"
+cmake_wheel="${TORCH_NNTILE_CMAKE_WHEEL:-0}"
 starpu_github_repo="${STARPU_GITHUB_REPO:-nntile/starpu}"
 starpu_git_branch="${STARPU_GIT_BRANCH:-master}"
 
@@ -150,7 +156,7 @@ build_starpu() {
     trap - EXIT
 }
 
-build_wheel_with_cmake() {
+configure_nntile_cmake() {
     export PKG_CONFIG_PATH="${starpu_prefix}/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
     export LD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
     export DYLD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
@@ -160,7 +166,6 @@ build_wheel_with_cmake() {
         export TORCH_PREFIX="$("${python}" -c 'import torch; print(torch.utils.cmake_prefix_path)')"
     fi
     export CMAKE_PREFIX_PATH="${TORCH_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
-    mkdir -p "${wheelhouse_out}"
 
     cmake_args=(
         -S "${repo_root}"
@@ -168,16 +173,23 @@ build_wheel_with_cmake() {
         -DCMAKE_BUILD_TYPE=Release
         -DBUILD_TESTS=OFF
         -DBUILD_TORCH_NNTILE=ON
-        -DBUILD_TORCH_NNTILE_WHEEL=ON
-        -DTORCH_NNTILE_WHEEL_REPAIR=ON
-        -DTORCH_NNTILE_WHEELHOUSE="${build_dir}/wheelhouse"
-        -DPython3_EXECUTABLE="${python}"
         -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
+        -DPython3_EXECUTABLE="${python}"
         -GNinja
     )
 
-    if [ -n "${TORCH_NNTILE_WHEEL_VERSION:-}" ]; then
-        cmake_args+=(-DTORCH_NNTILE_WHEEL_VERSION="${TORCH_NNTILE_WHEEL_VERSION}")
+    if [ "${cmake_wheel}" = "1" ]; then
+        mkdir -p "${wheelhouse_out}"
+        cmake_args+=(
+            -DBUILD_TORCH_NNTILE_WHEEL=ON
+            -DTORCH_NNTILE_WHEEL_REPAIR=ON
+            -DTORCH_NNTILE_WHEELHOUSE="${build_dir}/wheelhouse"
+        )
+        if [ -n "${TORCH_NNTILE_WHEEL_VERSION:-}" ]; then
+            cmake_args+=(-DTORCH_NNTILE_WHEEL_VERSION="${TORCH_NNTILE_WHEEL_VERSION}")
+        fi
+    else
+        cmake_args+=(-DBUILD_TORCH_NNTILE_WHEEL=OFF)
     fi
 
     if [ "${use_cuda}" = "1" ]; then
@@ -220,6 +232,15 @@ build_wheel_with_cmake() {
     fi
 
     cmake "${cmake_args[@]}"
+}
+
+build_nntile_libs() {
+    configure_nntile_cmake
+    cmake --build "${build_dir}" --target nntile torch_nntile -j "${jobs}"
+}
+
+build_wheel_with_cmake() {
+    configure_nntile_cmake
     cmake --build "${build_dir}" --target torch_nntile_wheel -j "${jobs}"
 
     shopt -s nullglob
@@ -261,4 +282,8 @@ case "${os_name}" in
 esac
 
 build_starpu
-build_wheel_with_cmake
+if [ "${cmake_wheel}" = "1" ]; then
+    build_wheel_with_cmake
+else
+    build_nntile_libs
+fi

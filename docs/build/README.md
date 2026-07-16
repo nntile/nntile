@@ -208,16 +208,18 @@ workflow below.
 ## torch_nntile wheels (CI)
 
 Prebuilt `torch_nntile` wheels are built by the **`torch_nntile wheels`**
-workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/torch-nntile-wheels.yml)).
-Jobs are **compile-only** (no pytest / smoke tests): CMake
-`-DBUILD_TORCH_NNTILE_WHEEL=ON` builds libnntile, libtorch_nntile, and the
-wheel via target `torch_nntile_wheel`.
+workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/torch-nntile-wheels.yml))
+via **cibuildwheel**. `before-all` builds StarPU + libnntile + libtorch_nntile;
+cibuildwheel builds the Python extension, repairs the wheel, and runs
+[`tools/smoke_test_wheel.py`](../../torch_nntile/tools/smoke_test_wheel.py).
+Full pytest suites stay in **build-and-test**.
 
 | | |
 |-|-|
 | **Trigger** | Pull requests to `graph_api`, or `workflow_dispatch` |
 | **Skipped when** | PR closed without merge |
-| **Tooling** | [`tools/build_wheel_deps.sh`](../../torch_nntile/tools/build_wheel_deps.sh) + CMake |
+| **Tooling** | cibuildwheel + [`tools/build_wheel_deps.sh`](../../torch_nntile/tools/build_wheel_deps.sh) |
+| **Smoke** | `tools/smoke_test_wheel.py` (cibuildwheel `test-command`) |
 | **Version** | `0.0.5` (`TORCH_NNTILE_WHEEL_VERSION`) |
 
 ### Triggering
@@ -243,14 +245,16 @@ Artifacts: `torch-nntile-wheel-cp312-manylinux_x86_64`,
 
 | Script | Role |
 |--------|------|
-| `build_wheel_deps.sh` | StarPU + CMake `-DBUILD_TORCH_NNTILE_WHEEL=ON` (libs + wheel + repair) |
+| `build_wheel_deps.sh` | cibuildwheel `before-all`: StarPU + libnntile + libtorch_nntile |
+| `smoke_test_wheel.py` | cibuildwheel `test-command` (import + tiny add on `nntile`) |
 | `install_linux_cuda_toolkit.sh` | manylinux: dnf CUDA 12.8 toolkit |
 | `setup_torch_cuda_env.sh` | Linux CUDA: torch cu128 + pip cuDNN |
-| `repair_wheel_linux.sh` / `repair_wheel_macos.sh` | auditwheel / delocate (invoked by CMake when `TORCH_NNTILE_WHEEL_REPAIR=ON`) |
+| `repair_wheel_linux.sh` / `repair_wheel_macos.sh` | auditwheel / delocate |
 
-Local one-shot (same as CI helper):
+Optional CMake-only wheel (no cibuildwheel):
 
 ```bash
+export TORCH_NNTILE_CMAKE_WHEEL=1
 export TORCH_NNTILE_USE_CUDA=0   # or 1 on Linux with CUDA toolkit
 bash torch_nntile/tools/build_wheel_deps.sh "$PWD"
 # → wheelhouse/*.whl

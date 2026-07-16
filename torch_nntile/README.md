@@ -509,12 +509,16 @@ cmake --build build --target torch_nntile_wheel
 # → build/wheelhouse/*.whl
 ```
 
-Or the CI helper (StarPU + libs + wheel + repair):
+Or the CI helper with CMake wheel packaging:
 
 ```bash
+export TORCH_NNTILE_CMAKE_WHEEL=1
 bash torch_nntile/tools/build_wheel_deps.sh "$PWD"
 # → wheelhouse/*.whl
 ```
+
+Release CI uses **cibuildwheel** (libs via `build_wheel_deps.sh`, then
+extension + `tools/smoke_test_wheel.py`).
 
 ## Usage
 

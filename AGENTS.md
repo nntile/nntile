@@ -83,4 +83,6 @@ Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 - **Build-and-test CI:** layered jobs in `.github/workflows/build-test.yml`
   (libnntile → libtorch_nntile install test → CI wheel → Python tests on
   that wheel). Separate from release wheels.
-- **`torch_nntile` wheels:** built on PRs to `graph_api` and `workflow_dispatch`; see [torch_nntile/README.md](torch_nntile/README.md#prebuilt-wheels-001)
+- **`torch_nntile` wheels:** cibuildwheel on PRs to `graph_api` /
+  `workflow_dispatch`, with `tools/smoke_test_wheel.py`; see
+  [torch_nntile/README.md](torch_nntile/README.md#prebuilt-wheels-001)
