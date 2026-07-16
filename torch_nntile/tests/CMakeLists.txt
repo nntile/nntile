@@ -37,9 +37,55 @@ set(_torch_nntile_test_include
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
+# catch_discover_tests runs the binary at build time; DT_RUNPATH is not
+# transitive, so libnntile must be on LD_LIBRARY_PATH / DL_PATHS.
+set(_torch_nntile_dl_paths "")
+foreach(_tgt IN ITEMS torch_nntile::torch_nntile nntile::nntile)
+    if(NOT TARGET ${_tgt})
+        continue()
+    endif()
+    foreach(_prop IN ITEMS
+        IMPORTED_LOCATION
+        IMPORTED_LOCATION_RELEASE
+        IMPORTED_LOCATION_RELWITHDEBINFO
+        IMPORTED_LOCATION_DEBUG
+        LOCATION
+    )
+        get_target_property(_loc ${_tgt} ${_prop})
+        if(_loc AND NOT _loc STREQUAL "_loc-NOTFOUND")
+            get_filename_component(_dir "${_loc}" DIRECTORY)
+            list(APPEND _torch_nntile_dl_paths "${_dir}")
+            break()
+        endif()
+    endforeach()
+endforeach()
+if(DEFINED ENV{STARPU_PREFIX})
+    list(APPEND _torch_nntile_dl_paths "$ENV{STARPU_PREFIX}/lib")
+elseif(EXISTS "/opt/starpu/lib")
+    list(APPEND _torch_nntile_dl_paths "/opt/starpu/lib")
+endif()
+list(REMOVE_DUPLICATES _torch_nntile_dl_paths)
+
+set(_torch_nntile_ld_path "")
+if(_torch_nntile_dl_paths)
+    string(JOIN ":" _torch_nntile_ld_path ${_torch_nntile_dl_paths})
+endif()
+if(DEFINED ENV{LD_LIBRARY_PATH} AND NOT "$ENV{LD_LIBRARY_PATH}" STREQUAL "")
+    if(_torch_nntile_ld_path)
+        set(_torch_nntile_ld_path
+            "${_torch_nntile_ld_path}:$ENV{LD_LIBRARY_PATH}")
+    else()
+        set(_torch_nntile_ld_path "$ENV{LD_LIBRARY_PATH}")
+    endif()
+endif()
+
 set(_torch_nntile_test_env
     "STARPU_SILENT=1;STARPU_FXT_TRACE=0;STARPU_WORKERS_NOBIND=1;OPENBLAS_NUM_THREADS=1;OMP_NUM_THREADS=1"
 )
+if(_torch_nntile_ld_path)
+    string(APPEND _torch_nntile_test_env
+        ";LD_LIBRARY_PATH=${_torch_nntile_ld_path}")
+endif()
 
 function(torch_nntile_add_test name source)
     add_executable(${name} ${source})
@@ -57,6 +103,7 @@ function(torch_nntile_add_test name source)
     # One CTest entry per Catch2 TEST_CASE (not just the binary).
     catch_discover_tests(${name}
         TEST_PREFIX "${name}."
+        DL_PATHS ${_torch_nntile_dl_paths}
         PROPERTIES
             LABELS "libtorch_nntile"
             ENVIRONMENT "${_torch_nntile_test_env}"

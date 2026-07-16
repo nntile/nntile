@@ -227,6 +227,11 @@ jobs:
             ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
               /usr/lib/x86_64-linux-gnu/libstdc++.so
           fi
+          # Needed during cmake --build: catch_discover_tests runs binaries
+          # to list Catch2 cases (DT_RUNPATH is not transitive to libnntile).
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           cmake -S . -B build-torch-tests ${CMAKE_COMMON} \
             -DBUILD_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
@@ -236,9 +241,6 @@ jobs:
           cmake --build build-torch-tests -j"$(nproc)" \
             --target tests_libtorch_nntile_smoke \
                     tests_libtorch_nntile_aten_ops
-          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
-          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           echo "Discovered libtorch_nntile CTest entries:"
           ctest --test-dir build-torch-tests -N -L libtorch_nntile
           # --no-tests=error: compiling alone must not green-pass.
