@@ -2,11 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/tests/aten_ops_parity.cc
- * ATen forward parity on PrivateUse1 vs CPU (libtorch_nntile).
- *
- * Backward is covered by the torch_nntile Python extension suite: LibTorch
- * C++ autograd currently queries Accelerator streams for PrivateUse1 and
- * fails without the Python device-module registration.
+ * ATen ops on PrivateUse1 vs CPU with forward + backward (libtorch_nntile).
  */
 
 #include "parity_helpers.hh"
@@ -44,144 +40,147 @@ struct ContextGuard
 at::Tensor seeded(at::IntArrayRef shape)
 {
     torch::manual_seed(0);
-    return torch::randn(shape, torch::dtype(torch::kFloat32));
-}
-
-void assert_forward(
-    std::function<at::Tensor(std::vector<at::Tensor> const &)> op,
-    std::vector<at::Tensor> inputs_cpu)
-{
-    at::Tensor y_ref = op(inputs_cpu);
-    c10::Device const dev = torch_nntile::test::nntile_device();
-    std::vector<at::Tensor> nnt_inputs;
-    nnt_inputs.reserve(inputs_cpu.size());
-    for (at::Tensor const &t : inputs_cpu)
-    {
-        nnt_inputs.push_back(t.contiguous().to(dev));
-    }
-    at::Tensor y_nnt = op(nnt_inputs);
-    torch_nntile::test::assert_close(y_nnt, y_ref, 1e-4, 1e-4, "forward");
+    return torch::randn(shape, torch::dtype(torch::kFloat32))
+        .set_requires_grad(true);
 }
 
 } // namespace
 
-TEST_CASE("aten add forward matches CPU", "[aten][parity]")
+TEST_CASE("aten add fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto a = seeded({4, 6});
+    auto b = seeded({4, 6});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return xs[0] + xs[1];
         },
-        {seeded({4, 6}), seeded({4, 6})});
+        {a, b});
 }
 
-TEST_CASE("aten mul forward matches CPU", "[aten][parity]")
+TEST_CASE("aten mul fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto a = seeded({4, 6});
+    auto b = seeded({4, 6});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return xs[0] * xs[1];
         },
-        {seeded({4, 6}), seeded({4, 6})});
+        {a, b});
 }
 
-TEST_CASE("aten relu forward matches CPU", "[aten][parity]")
+TEST_CASE("aten relu fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto x = seeded({4, 8});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return torch::relu(xs[0]);
         },
-        {seeded({4, 8})});
+        {x});
 }
 
-TEST_CASE("aten silu forward matches CPU", "[aten][parity]")
+TEST_CASE("aten silu fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto x = seeded({4, 8});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return torch::silu(xs[0]);
         },
-        {seeded({4, 8})});
+        {x});
 }
 
-TEST_CASE("aten gelu forward matches CPU", "[aten][parity]")
+TEST_CASE("aten gelu fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto x = seeded({4, 8});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return torch::gelu(xs[0]);
         },
-        {seeded({4, 8})});
+        {x});
 }
 
-TEST_CASE("aten softmax forward matches CPU", "[aten][parity]")
+TEST_CASE("aten softmax fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto x = seeded({3, 8});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return torch::softmax(xs[0], /*dim=*/-1);
         },
-        {seeded({3, 8})});
+        {x});
 }
 
-TEST_CASE("aten mm forward matches CPU", "[aten][parity]")
+TEST_CASE("aten mm fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto a = seeded({5, 7});
+    auto b = seeded({7, 4});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return torch::mm(xs[0], xs[1]);
         },
-        {seeded({5, 7}), seeded({7, 4})});
+        {a, b});
 }
 
-TEST_CASE("aten bmm forward matches CPU", "[aten][parity]")
+TEST_CASE("aten bmm fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto a = seeded({2, 5, 7});
+    auto b = seeded({2, 7, 4});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return torch::bmm(xs[0], xs[1]);
         },
-        {seeded({2, 5, 7}), seeded({2, 7, 4})});
+        {a, b});
 }
 
-TEST_CASE("aten linear forward matches CPU", "[aten][parity]")
+TEST_CASE("aten linear fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto x = seeded({3, 8});
+    auto w = seeded({5, 8});
+    auto bias = seeded({5});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return torch::linear(xs[0], xs[1], xs[2]);
         },
-        {seeded({3, 8}), seeded({5, 8}), seeded({5})});
+        {x, w, bias});
 }
 
-TEST_CASE("aten cat forward matches CPU", "[aten][parity]")
+TEST_CASE("aten cat fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto a = seeded({2, 4});
+    auto b = seeded({3, 4});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return torch::cat({xs[0], xs[1]}, /*dim=*/0);
         },
-        {seeded({2, 4}), seeded({3, 4})});
+        {a, b});
 }
 
-TEST_CASE("aten transpose forward matches CPU", "[aten][parity]")
+TEST_CASE("aten transpose fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;
-    assert_forward(
+    auto x = seeded({3, 5});
+    torch_nntile::test::assert_op_forward_backward(
         [](std::vector<at::Tensor> const &xs)
         {
             return xs[0].transpose(0, 1).contiguous();
         },
-        {seeded({3, 5})});
+        {x});
 }

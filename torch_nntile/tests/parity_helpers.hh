@@ -102,8 +102,8 @@ void assert_op_forward_backward(
     at::Tensor y_nnt = op(nnt_inputs);
     assert_close(y_nnt, y_ref, rtol, atol, "forward");
 
-    // Prefer Tensor::backward over torch::autograd::grad: the latter queries
-    // Accelerator APIs that reject PrivateUse1 when no CUDA device exists.
+    // Gradients live on PrivateUse1; LibTorch autograd needs the nntile
+    // PrivateUse1 backend + DeviceGuard registered (see nntile_hooks.cpp).
     at::Tensor grad_nnt = grad.contiguous().to(dev);
     y_nnt.backward(grad_nnt, /*keep_graph=*/true, /*create_graph=*/false);
 
