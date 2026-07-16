@@ -216,7 +216,7 @@ ctest --test-dir build-tests -R 'tests_(tile|tensor|core|kernel|starpu)_' \
   --output-on-failure
 ```
 
-See [torch_nntile.md](../torch_nntile.md) and [graph-wip.md](../graph-wip.md).
+See [torch_nntile.md](../torch_nntile.md) and [graph.md](../graph.md).
 
 ## Build outputs
 

@@ -426,14 +426,17 @@ pytest -vv torch_nntile/tests/test_graph_execution.py
 pytest -vv torch_nntile/tests/test_deep_relu_parity.py
 ```
 
-## Relation to C++ graph API
+## Relation to C++ Graph API
 
-| C++ (GPT-2 graph training) | torch_nntile |
-|----------------------------|--------------|
-| `name_gpt2_training_axis_groups(...)` | `set_axis_group_name(tensor, {...})` per tensor |
-| `apply_flat_tiling_spec` / `tiling.json` | `set_axis_group_tiling(name, sizes)` |
-| `TensorGraph::to_string()` axis section | `format_axis_groups()` / `print_axis_groups()` |
-| `TileGraph::from_tensor_graph` + `Runtime` | `execute()` |
+torch_nntile is the product front end for the same stack described in
+[graph.md](graph.md): one session `TensorGraph` → `TileGraph` → `Runtime`.
 
-For full-model JSON tiling (GPT-2), use the Python `nntile` package and
-`apply_gpt2_tiling_json` — see [graph-wip.md](graph-wip.md).
+| libnntile / C++ | torch_nntile |
+|-----------------|--------------|
+| Axis-group names on tensors | `set_axis_group_name(tensor, {...})` |
+| `apply_flat_tiling_spec` / tiling JSON helpers | `set_axis_group_tiling(name, sizes)` |
+| `TensorGraph` axis / tiling debug | `format_axis_groups()` / `print_axis_groups()` |
+| `Runtime::compile` + `execute` + `wait` | `compile_graph()` / `run()` / `wait()` (legacy `execute()` = compile+run) |
+
+NNGraph and the old `python/nntile` package are removed. Training examples are
+under `torch_nntile/examples/`.

@@ -8,8 +8,8 @@
  *
  * @file include/nntile/tensor/graph_decl.hh
  * Tensor graph: symbolic computation built from simple tensor-wise operations
- * (data nodes + ops).  Autograd and ``backward()`` belong to ``NNGraph``,
- * which may record further tensor ops into this graph.
+ * (data nodes + ops). Autograd and ``backward()`` belong to PyTorch /
+ * libtorch_nntile, which record tensor ops into this graph.
  *
  * @version 1.1.0
  * */
@@ -137,8 +137,8 @@ class TensorGraph
 };
 
 //! One sealed slice of a ``TensorGraph``, ready for optional transforms and
-//! lowering.  ``tensor_graph`` points at the owning graph (typically the inner
-//! graph of an ``NNGraph``); ``snapshot`` indexes ``tensor_graph->ops()``.
+//! lowering. ``tensor_graph`` points at the owning session graph; ``snapshot``
+//! indexes ``tensor_graph->ops()``.
 struct FinishedTensorPhase
 {
     TensorGraph const *tensor_graph = nullptr;

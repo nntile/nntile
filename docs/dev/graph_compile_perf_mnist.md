@@ -1,6 +1,7 @@
 # Graph compilation performance: MNIST investigation (VM)
 
-Measured on the Cloud Agent VM (CPU-only), `torch==2.12.0+cpu`,
+Measured on the Cloud Agent VM (CPU-only). Prefer the tree’s supported
+`torch==2.9.1` ABI (`torch_nntile`); do not use torch 2.12.
 `torch_nntile` built with `--no-build-isolation` against libnntile
 (`-DUSE_CUDA=OFF`).
 

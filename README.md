@@ -47,13 +47,13 @@ Full documentation lives under **[docs/](docs/README.md)**. Start at
 
 | Topic | Guide |
 |-------|--------|
-| Build, Docker, CMake, testing | [docs/build/README.md](docs/build/README.md) |
-| C++ stack (kernel → tensor) | [docs/cpp/README.md](docs/cpp/README.md) |
+| Graph API (main, WIP) | [docs/graph.md](docs/graph.md) |
 | torch_nntile (Python / LibTorch) | [torch_nntile/README.md](torch_nntile/README.md) |
+| Build, Docker, CMake, testing | [docs/build/README.md](docs/build/README.md) |
+| C++ stack (kernel → TensorGraph → Runtime) | [docs/cpp/README.md](docs/cpp/README.md) |
 | Inference, HTTP gateway, Telegram bot | [docs/inference/README.md](docs/inference/README.md) |
 | Gateway + bot deployment | [infra/README.md](infra/README.md) |
 | SGOC scheduler (limited VRAM) | [docs/sgoc/README.md](docs/sgoc/README.md) |
-| Graph API (work in progress) | [docs/graph-wip.md](docs/graph-wip.md) |
 
 CUDA compute capability **8.0+** is required ([docs/README.md](docs/README.md)).
 

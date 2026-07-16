@@ -7,7 +7,7 @@ topological order. It targets **single-GPU training under a tight VRAM budget**.
 
 SGOC lives in the [**nntile/starpu**](https://github.com/nntile/starpu) fork
 (`new_sched/` → `libgraph_sgoc_sched.so`). It is **not** the NNTile Graph API
-(see [graph-wip.md](../graph-wip.md)).
+(see [graph.md](../graph.md)).
 
 ## Installation
 

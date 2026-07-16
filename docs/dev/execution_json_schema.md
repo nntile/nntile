@@ -1,20 +1,24 @@
 # execution.json schema
 
-Static **task schedule** for graph `Runtime::execute()`. This file describes
+Optional static **task schedule** for `Runtime::execute()`. This file describes
 which **logical worker** runs each tile op and how tiles are **virtually** split.
 It does **not** describe StarPU memory homes, NUMA placement, or MPI ownership.
 
+A schedule is **not required**. Without one, `execute_range` leaves
+`starpu_worker_hint_ = -1` and StarPU chooses workers.
+
 ## Workflow
 
-1. Build the graph and call `Runtime::compile()` (DCE only; StarPU may schedule
-   tasks at runtime if no static schedule is set).
+1. Build the graph and call `Runtime::compile()` (DCE / allocate; no schedule).
 2. **Optional — generate:** `generate_round_robin_execution_schedule()` or
-   `generate_round_robin_execution_json(...)`.
+   `generate_round_robin_execution_json(...)` (also
+   `generate_affinity_batch_execution_schedule()`).
 3. **Optional:** inspect or edit `execution.json`.
 4. **Load:** `load_execution_schedule_json(path)` then `set_execution_schedule()`.
 5. `execute()` — each op runs on the assigned worker (`STARPU_EXECUTE_ON_WORKER`).
 
-Regenerate the file when the compiled op list changes (graph edit, different tiling).
+Regenerate the file when the compiled op list changes (graph edit, different
+tiling). Fingerprint mismatch is rejected on load.
 
 ## Top-level fields
 
@@ -35,8 +39,8 @@ Regenerate the file when the compiled op list changes (graph edit, different til
 }
 ```
 
-`Runtime::set_execution_schedule` rejects loads when `op_count` or `op_names` do not
-match the current compiled execution order.
+`Runtime::set_execution_schedule` rejects loads when `op_count` or `op_names`
+do not match the current compiled execution order.
 
 ## `virtual_tile_workers[]`
 
@@ -88,5 +92,6 @@ Round-robin rule: tile grid index `lin` → `worker = lin % num_workers`.
 
 ## Related
 
-- [graph_static_execution_plan.md](graph_static_execution_plan.md)
+- Overview: [../graph.md](../graph.md)
 - API: `nntile/include/nntile/core/execution_schedule.hh`
+- Runtime: `nntile/include/nntile/runtime.hh`, `nntile/src/runtime.cc`

@@ -111,7 +111,7 @@ void Runtime::compile()
     // Prefer appending only newly lowered ops. After a full wait(),
     // torch_nntile may clear TileGraph ops + reset compiled_graph_op_count_
     // via drop_fully_executed_history(); the size mismatch branch below
-    // handles that. Keep already-executed prefix for NNGraph::execute().
+    // handles that. Keep already-executed prefix for Runtime::execute().
     if (compiled_graph_op_count_ > graph_ops.size())
     {
         compiled_graph_op_count_ = 0;

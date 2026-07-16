@@ -1,9 +1,10 @@
 # Graph compiler O(N) design
 
-**Status:** active redesign  
-**Branch:** `graph_api` / agent work on dense mapping  
+**Status:** implemented (maintain; keep compile cost O(pending work))  
+**Branch:** `graph_api`  
 **Related:** [graph_compile_perf_mnist.md](graph_compile_perf_mnist.md),
-[torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md)
+[torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md),
+[../graph.md](../graph.md)
 
 ## Goal
 
@@ -23,7 +24,7 @@ resolve TensorNode → tiles → handle (batch)  : O(#tiles)
 N / M / K always mean work touched **this call**, not full session history.
 
 Every op keeps the **general tiled** `lower_to_tile` path (arbitrary grid).
-Per-op constant-factor shortcuts are out of scope for this redesign.
+Per-op constant-factor shortcuts are out of scope here.
 
 ## Layers
 
@@ -60,7 +61,7 @@ TileNode       ──► payload_             → shared_ptr<core::Tile> (StarPU
 Hot-path bridges **must not** use `std::map` / `std::set` keyed by pointer.
 
 | Former structure | Replacement |
-|------------------|-------------|
+|------------------|------------|
 | `TensorNodeToTileMap` (`std::map`) | dense vector by `TensorNode::id()` |
 | `TileGraph::tensors_by_source_` | dense vector by source `id()` |
 | `TensorGraphTiling::layouts_` | dense vector by `id()` |
@@ -124,3 +125,6 @@ STARPU_WORKERS_NOBIND=1 TORCH_NNTILE_SKIP_STARPU=1 \
 
 Success: ms/step flat across 100→1000 steps (±5%); short StarPU accuracy
 run still meets the ≥0.97 floor.
+
+See [graph_compile_perf_mnist.md](graph_compile_perf_mnist.md) for measured
+numbers on the Cloud Agent VM.

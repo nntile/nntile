@@ -7,8 +7,8 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/tensor_graph_phase_transform.hh
- * Optional ``TensorGraph`` rewrite between ``NNGraph::finish_phase`` and tile
- * lowering (identity baseline today; future DDP/FSDP-style graphs).
+ * Optional ``TensorGraph`` rewrite between phase seal and tile lowering
+ * (identity baseline today; future DDP/FSDP-style graphs).
  *
  * @version 1.1.0
  * */
