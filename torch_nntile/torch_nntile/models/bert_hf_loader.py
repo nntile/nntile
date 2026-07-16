@@ -74,7 +74,8 @@ def load_hf_into_bert_mlm(minimal: BertMlm, hf: BertForMaskedLM) -> None:
     minimal.cls.dense.bias.data.copy_(transform.dense.bias.data)
     minimal.cls.LayerNorm.weight.data.copy_(transform.LayerNorm.weight.data)
     minimal.cls.LayerNorm.bias.data.copy_(transform.LayerNorm.bias.data)
-    # Decoder weight is tied to word embeddings locally.
+    # Untied locally: copy HF decoder (or tied embedding) values by value.
+    minimal.cls.decoder.weight.data.copy_(pred.decoder.weight.data)
     if pred.decoder.bias is not None:
         minimal.cls.decoder.bias.data.copy_(pred.decoder.bias.data)
     elif hasattr(pred, "bias") and pred.bias is not None:
@@ -116,12 +117,11 @@ def export_bert_mlm_to_hf_state_dict(
     transform.dense.bias.data.copy_(minimal.cls.dense.bias.data)
     transform.LayerNorm.weight.data.copy_(minimal.cls.LayerNorm.weight.data)
     transform.LayerNorm.bias.data.copy_(minimal.cls.LayerNorm.bias.data)
-    pred.decoder.weight.data.copy_(
-        minimal.bert.embeddings.word_embeddings.weight.data
-    )
+    pred.decoder.weight.data.copy_(minimal.cls.decoder.weight.data)
     pred.decoder.bias.data.copy_(minimal.cls.decoder.bias.data)
     if hasattr(pred, "bias") and pred.bias is not None:
         pred.bias.data.copy_(minimal.cls.decoder.bias.data)
+    # HF still expects tied embeddings in its state_dict layout.
     hf.tie_weights()
 
     with torch.no_grad():

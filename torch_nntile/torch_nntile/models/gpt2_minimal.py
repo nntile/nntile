@@ -282,16 +282,17 @@ class GPT2LMHead(nn.Module):
         self.post_init()
 
     def post_init(self) -> None:
-        if self.config.tie_word_embeddings:
-            self._tie_weights()
+        # Weight tying intentionally unsupported (independent lm_head).
+        # Config.tie_word_embeddings is ignored for now (migration debt).
+        return
 
     def _tie_weights(self) -> None:
-        self.lm_head.weight = self.transformer.wte.weight  # share storage
+        # Kept for API compatibility; does not share storage.
+        return
 
     def tie_weights(self) -> None:
-        """Re-apply word embedding tie (call after ``.to('nntile')``)."""
-        if self.config.tie_word_embeddings:
-            self._tie_weights()
+        """No-op: embedding/lm_head tying is deferred (migration debt)."""
+        return
 
     def clear_sequence_caches(self) -> None:
         self.transformer.clear_sequence_caches()

@@ -39,7 +39,7 @@ def llama_config_from_hf(hf: HfLlamaConfig) -> LlamaConfig:
         rope_theta=float(getattr(hf, "rope_theta", 10000.0)),
         attention_bias=bool(getattr(hf, "attention_bias", False)),
         mlp_bias=bool(getattr(hf, "mlp_bias", False)),
-        tie_word_embeddings=bool(getattr(hf, "tie_word_embeddings", False)),
+        tie_word_embeddings=False,  # local models stay untied (migration debt)
     )
 
 
@@ -144,7 +144,10 @@ def load_hf_into_llama_causal(
         copy_linear(dst_layer.mlp.down_proj, src_layer.mlp.down_proj)
 
     if cfg.tie_word_embeddings:
-        minimal.lm_head.weight = minimal.model.embed_tokens.weight
+        # Untied locally: copy shared embedding values into lm_head by value.
+        minimal.lm_head.weight.data.copy_(
+            minimal.model.embed_tokens.weight.data
+        )
     else:
         minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data)
 
@@ -190,10 +193,9 @@ def export_llama_causal_to_hf_state_dict(
         copy_linear(dst_layer.mlp.up_proj, src_layer.mlp.up_proj)
         copy_linear(dst_layer.mlp.down_proj, src_layer.mlp.down_proj)
 
+    hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data)
     if cfg.tie_word_embeddings:
         hf.tie_weights()
-    else:
-        hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data)
 
     with torch.no_grad():
         return {

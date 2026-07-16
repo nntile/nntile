@@ -348,8 +348,7 @@ class LlamaCausal(nn.Module):
         self.lm_head = nn.Linear(
             config.hidden_size, config.vocab_size, bias=False
         )
-        if config.tie_word_embeddings:
-            self.lm_head.weight = self.model.embed_tokens.weight
+        # Weight tying intentionally unsupported (independent lm_head).
 
     def forward(
         self,

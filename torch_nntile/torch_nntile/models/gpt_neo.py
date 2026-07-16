@@ -44,7 +44,7 @@ class GPTNeoConfig:
     head_dim: int = 128
     window_size: int = 256
     layer_norm_eps: float = 1e-5
-    tie_word_embeddings: bool = True
+    tie_word_embeddings: bool = False
     attention_layers: list[str] = field(default_factory=list)
     eos_token_id: int = 50256
     bos_token_id: int = 50256
@@ -238,8 +238,7 @@ class GPTNeoCausal(nn.Module):
         self.lm_head = nn.Linear(
             config.hidden_size, config.vocab_size, bias=False
         )
-        if config.tie_word_embeddings:
-            self.lm_head.weight = self.transformer.wte.weight
+        # Weight tying intentionally unsupported (independent lm_head).
 
     def forward(
         self,

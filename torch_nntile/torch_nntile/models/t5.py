@@ -32,7 +32,7 @@ class T5Config:
     dropout_rate: float = 0.0
     feed_forward_proj: str = "gated-gelu"
     is_gated_act: bool = True
-    tie_word_embeddings: bool = True
+    tie_word_embeddings: bool = False
     pad_token_id: int = 0
     eos_token_id: int = 1
     decoder_start_token_id: int = 0
@@ -280,8 +280,8 @@ class T5ForConditionalGeneration(nn.Module):
         self.config = config
         self.model = T5Model(config)
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
-        if config.tie_word_embeddings:
-            self.lm_head.weight = self.model.shared.weight
+        # Weight tying intentionally unsupported (independent lm_head).
+        # Config.tie_word_embeddings is ignored for now (migration debt).
 
     def forward(
         self,
@@ -298,10 +298,6 @@ class T5ForConditionalGeneration(nn.Module):
             decoder_attention_mask=decoder_attention_mask,
             cross_attention_mask=cross_attention_mask,
         )
-        if self.config.tie_word_embeddings:
-            # Prefer mul.Scalar path; avoid 0-d broadcast issues on nntile.
-            scale = float(self.config.d_model ** -0.5)
-            hidden = torch.ops.aten.mul.Scalar(hidden, scale)
         return self.lm_head(hidden)
 
 

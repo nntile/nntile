@@ -78,3 +78,22 @@ used inside ATen/custom implementations.
 | GPT-Neo / NeoX | yes | yes | train_gpt_neo* |
 | BERT / RoBERTa | yes | yes | train_bert / train_roberta |
 | T5 | yes | yes | train_t5 |
+
+## Known debt / deferred work
+
+### Untied embedding / LM-head weights
+
+**Status:** deferred. Local Python and C++ models keep **independent**
+embedding and output-projection parameters. `tie_word_embeddings` (and
+BERT MLM decoder↔word-embedding sharing) is **not** implemented as shared
+`Parameter` storage.
+
+- HF loaders may still **copy values** from a tied HF checkpoint into both
+  tensors so forward parity holds at load time; gradients are not tied.
+- HF exporters may call `hf.tie_weights()` only to match HF state_dict
+  layout when the config flag is set.
+- T5 tied-embedding logit scaling (`hidden * d_model**-0.5`) is also
+  deferred with tying.
+
+Revisit when PrivateUse1 parameter aliasing / shared storage is solid on
+`device=nntile` and training needs true tied grads.

@@ -144,10 +144,8 @@ def load_hf_into_gpt2_lm_head(
         )
         block.mlp.c_proj.bias.data.copy_(hf_block.mlp.c_proj.bias.data)
 
-    if minimal.config.tie_word_embeddings:
-        minimal.tie_weights()
-    else:
-        minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data.contiguous())
+    # Always keep an independent lm_head (tying deferred; migration debt).
+    minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data.contiguous())
 
 
 def export_gpt2_lm_head_to_hf_state_dict(
@@ -197,10 +195,9 @@ def export_gpt2_lm_head_to_hf_state_dict(
         )
         hf_block.mlp.c_proj.bias.data.copy_(block.mlp.c_proj.bias.data)
 
+    hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data.contiguous())
     if cfg.tie_word_embeddings:
         hf.tie_weights()
-    else:
-        hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data.contiguous())
 
     with torch.no_grad():
         return {

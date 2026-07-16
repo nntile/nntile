@@ -106,8 +106,6 @@ def main(argv: list[str] | None = None) -> int:
             dec = dec_cpu.to("nntile")
             labels = labels_cpu.to("nntile")
             model = model_cpu.to("nntile")
-            if cfg.tie_word_embeddings:
-                model.lm_head.weight = model.model.shared.weight
         del model_cpu, enc_cpu, dec_cpu, labels_cpu
         for p in model.parameters():
             p.requires_grad_(True)

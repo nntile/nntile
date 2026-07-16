@@ -24,7 +24,7 @@ struct T5Config
     int64_t num_decoder_layers = 1;
     int64_t num_heads = 2;
     double layer_norm_epsilon = 1e-6;
-    bool tie_word_embeddings = true;
+    bool tie_word_embeddings = false;
 };
 
 struct T5ForConditionalGenerationImpl : torch::nn::Module

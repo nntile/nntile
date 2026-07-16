@@ -323,17 +323,15 @@ def test_bert_model_hidden_forward_backward_matches_hf(tiny_hf_config):
 def test_bert_mlm_head_forward_backward_matches_hf(tiny_hf_config):
     torch.manual_seed(6)
     hf, local_full = _make_models(tiny_hf_config)
-    # Rebuild head-only local module with tied embeddings from HF.
+    del local_full
+    # Rebuild head-only local module (untied decoder; copy HF values).
     cfg = bert_config_from_hf(tiny_hf_config)
-    emb = BertEmbeddings(cfg).eval().float()
-    emb.word_embeddings.weight.data.copy_(
-        hf.bert.embeddings.word_embeddings.weight.data
-    )
-    head = BertMlmHead(cfg, emb.word_embeddings).eval().float()
+    head = BertMlmHead(cfg).eval().float()
     pred = hf.cls.predictions
     head.dense.weight.data.copy_(pred.transform.dense.weight.data)
     head.dense.bias.data.copy_(pred.transform.dense.bias.data)
     head.LayerNorm.load_state_dict(pred.transform.LayerNorm.state_dict())
+    head.decoder.weight.data.copy_(pred.decoder.weight.data)
     if pred.decoder.bias is not None:
         head.decoder.bias.data.copy_(pred.decoder.bias.data)
     head = head.to("nntile")

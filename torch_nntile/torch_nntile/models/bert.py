@@ -266,13 +266,9 @@ class BertModel(nn.Module):
 
 
 class BertMlmHead(nn.Module):
-    """Prediction transform + vocab decoder (tied embeddings)."""
+    """Prediction transform + vocab decoder (untied; see migration debt)."""
 
-    def __init__(
-        self,
-        config: BertConfig,
-        word_embeddings: nn.Embedding,
-    ) -> None:
+    def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         # Match HF ``BertPredictionHeadTransform`` (ACT2FN[hidden_act]).
@@ -283,7 +279,6 @@ class BertMlmHead(nn.Module):
         self.decoder = nn.Linear(
             config.hidden_size, config.vocab_size, bias=True
         )
-        self.decoder.weight = word_embeddings.weight
 
     def forward(self, hidden: Tensor) -> Tensor:
         x = self.LayerNorm(self.transform_act_fn(self.dense(hidden)))
@@ -298,7 +293,7 @@ class BertMlm(nn.Module):
         config.validate()
         self.config = config
         self.bert = BertModel(config)
-        self.cls = BertMlmHead(config, self.bert.embeddings.word_embeddings)
+        self.cls = BertMlmHead(config)
 
     def forward(
         self,

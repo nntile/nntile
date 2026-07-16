@@ -43,6 +43,9 @@ Install the matching `torch` first, then the local wheel (see
 [`torch_nntile/README.md`](../torch_nntile/README.md#prebuilt-wheels-001) for
 full commands). Maintainer CI notes: [build/README.md](build/README.md#torch_nntile-wheels-ci).
 
+Embedding / LM-head **weight tying is deferred** (independent parameters for
+now). See [dev/libtorch_nntile_migration.md](dev/libtorch_nntile_migration.md#known-debt--deferred-work).
+
 ## Install from source
 
 Build NNTile first (see [build/README.md](build/README.md)), then install a

@@ -36,7 +36,7 @@ def gpt_neox_config_from_hf(hf: HfGPTNeoXConfig) -> GPTNeoXConfig:
         rotary_emb_base=float(hf.rotary_emb_base),
         use_parallel_residual=bool(hf.use_parallel_residual),
         attention_bias=bool(getattr(hf, "attention_bias", True)),
-        tie_word_embeddings=bool(getattr(hf, "tie_word_embeddings", False)),
+        tie_word_embeddings=False,  # local models stay untied (migration debt)
     )
 
 
@@ -125,7 +125,10 @@ def load_hf_into_gpt_neox_causal(
         copy_linear(dst_layer.mlp.dense_4h_to_h, src_layer.mlp.dense_4h_to_h)
 
     if cfg.tie_word_embeddings:
-        minimal.embed_out.weight = minimal.gpt_neox.embed_in.weight
+        # Untied locally: copy shared embedding values into embed_out by value.
+        minimal.embed_out.weight.data.copy_(
+            minimal.gpt_neox.embed_in.weight.data
+        )
     else:
         minimal.embed_out.weight.data.copy_(hf.embed_out.weight.data)
 
@@ -180,10 +183,9 @@ def export_gpt_neox_causal_to_hf_state_dict(
         copy_linear(dst_layer.mlp.dense_h_to_4h, src_layer.mlp.dense_h_to_4h)
         copy_linear(dst_layer.mlp.dense_4h_to_h, src_layer.mlp.dense_4h_to_h)
 
+    hf.embed_out.weight.data.copy_(minimal.embed_out.weight.data)
     if cfg.tie_word_embeddings:
         hf.tie_weights()
-    else:
-        hf.embed_out.weight.data.copy_(minimal.embed_out.weight.data)
 
     with torch.no_grad():
         return {

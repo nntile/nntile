@@ -93,7 +93,7 @@ def load_gpt2_config(path: Path) -> GPT2Config:
             fields.pop(src)
     for key in ("attn_pdrop", "resid_pdrop", "embd_pdrop"):
         fields.setdefault(key, 0.0)
-    fields.setdefault("tie_word_embeddings", True)
+    fields.setdefault("tie_word_embeddings", False)
     config = GPT2Config(**fields)
     config._attn_implementation = "sdpa"
     config.use_cache = False
@@ -438,8 +438,6 @@ def save_hf_checkpoint(
     weights = clone_model_weights(model)
     cpu_model = GPT2LMHead(config).float()
     cpu_model.load_state_dict(weights)
-    if config.tie_word_embeddings:
-        cpu_model.tie_weights()
     hf_state = export_gpt2_lm_head_to_hf_state_dict(cpu_model, config=config)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -515,8 +513,6 @@ def train_nntile(args: argparse.Namespace) -> int:
         with torch.no_grad():
             epoch_batches = preload_batches_to_nntile(epoch_batches_cpu)
             model = cpu_model.to("nntile")
-            if config.tie_word_embeddings:
-                model.tie_weights()
         prefetch_s = time.perf_counter() - t_pre0
         print(
             f"timing host→nntile prefetch: {prefetch_s:.3f}s "

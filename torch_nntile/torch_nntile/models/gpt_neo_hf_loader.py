@@ -31,7 +31,7 @@ def gpt_neo_config_from_hf(hf: HfGPTNeoConfig) -> GPTNeoConfig:
         max_position_embeddings=int(hf.max_position_embeddings),
         window_size=int(getattr(hf, "window_size", 256)),
         layer_norm_eps=float(hf.layer_norm_epsilon),
-        tie_word_embeddings=bool(getattr(hf, "tie_word_embeddings", True)),
+        tie_word_embeddings=False,  # local models stay untied (migration debt)
         attention_layers=attention_layers,
     )
 
@@ -75,7 +75,10 @@ def load_hf_into_gpt_neo_causal(
         copy_linear(dst_block.mlp.c_proj, src_block.mlp.c_proj)
 
     if minimal.config.tie_word_embeddings:
-        minimal.lm_head.weight = minimal.transformer.wte.weight
+        # Untied locally: copy shared embedding values into lm_head by value.
+        minimal.lm_head.weight.data.copy_(
+            minimal.transformer.wte.weight.data.contiguous()
+        )
     else:
         minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data)
 
@@ -124,10 +127,9 @@ def export_gpt_neo_causal_to_hf_state_dict(
         copy_linear(dst_block.mlp.c_fc, src_block.mlp.c_fc)
         copy_linear(dst_block.mlp.c_proj, src_block.mlp.c_proj)
 
+    hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data)
     if cfg.tie_word_embeddings:
         hf.tie_weights()
-    else:
-        hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data)
 
     with torch.no_grad():
         return {

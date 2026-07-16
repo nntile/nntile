@@ -145,7 +145,7 @@ BertMlmImpl::BertMlmImpl(BertConfig cfg) : config(std::move(cfg))
         list->push_back(BertLayer(config));
     }
     layers = register_module("layers", list);
-    // BertMlmHead: dense → act → LN → decoder (tied to word embeddings).
+    // BertMlmHead: dense → act → LN → decoder (untied; migration debt).
     transform_dense = register_module(
         "transform_dense",
         torch::nn::Linear(config.hidden_size, config.hidden_size));
@@ -157,7 +157,6 @@ BertMlmImpl::BertMlmImpl(BertConfig cfg) : config(std::move(cfg))
     decoder = register_module(
         "decoder",
         torch::nn::Linear(config.hidden_size, config.vocab_size));
-    decoder->weight = word_embeddings->weight;
 }
 
 torch::Tensor BertMlmImpl::forward(

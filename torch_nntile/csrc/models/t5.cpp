@@ -246,10 +246,7 @@ T5ForConditionalGenerationImpl::T5ForConditionalGenerationImpl(
         torch::nn::Linear(
             torch::nn::LinearOptions(config.d_model, config.vocab_size)
                 .bias(false)));
-    if (config.tie_word_embeddings)
-    {
-        lm_head->weight = shared->weight;
-    }
+    // Weight tying intentionally unsupported (independent lm_head).
 }
 
 torch::Tensor T5ForConditionalGenerationImpl::forward(
@@ -269,11 +266,6 @@ torch::Tensor T5ForConditionalGenerationImpl::forward(
         dec = module->as<T5DecoderBlockImpl>()->forward(dec, enc);
     }
     dec = t5_rms_norm(dec, dec_final_w, config.layer_norm_epsilon);
-    if (config.tie_word_embeddings)
-    {
-        double scale = 1.0 / std::sqrt(static_cast<double>(config.d_model));
-        dec = at::mul(dec, scale);
-    }
     return lm_head->forward(dec);
 }
 

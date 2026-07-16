@@ -39,7 +39,7 @@ def tiny_config() -> GPTNeoConfig:
         num_attention_heads=4,
         max_position_embeddings=32,
         window_size=16,
-        tie_word_embeddings=True,
+        tie_word_embeddings=False,
         attention_layers=["global"],
     )
 
@@ -94,8 +94,6 @@ def main(argv: list[str] | None = None) -> int:
             inputs = inputs_cpu.to("nntile")
             labels = labels_cpu.to("nntile")
             model = model_cpu.to("nntile")
-            if cfg.tie_word_embeddings:
-                model.lm_head.weight = model.transformer.wte.weight
         del model_cpu, inputs_cpu, labels_cpu
         for p in model.parameters():
             p.requires_grad_(True)

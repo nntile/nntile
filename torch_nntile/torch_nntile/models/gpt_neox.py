@@ -315,8 +315,7 @@ class GPTNeoXCausal(nn.Module):
         self.embed_out = nn.Linear(
             config.hidden_size, config.vocab_size, bias=False
         )
-        if config.tie_word_embeddings:
-            self.embed_out.weight = self.gpt_neox.embed_in.weight
+        # Weight tying intentionally unsupported (independent embed_out).
 
     def forward(
         self,

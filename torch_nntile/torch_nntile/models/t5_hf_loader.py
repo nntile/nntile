@@ -40,7 +40,7 @@ def t5_config_from_hf(hf: HfT5Config) -> T5Config:
         dropout_rate=float(hf.dropout_rate),
         feed_forward_proj=str(hf.feed_forward_proj),
         is_gated_act=bool(getattr(hf, "is_gated_act", True)),
-        tie_word_embeddings=bool(hf.tie_word_embeddings),
+        tie_word_embeddings=False,  # local models stay untied (migration debt)
         pad_token_id=int(hf.pad_token_id),
         eos_token_id=int(hf.eos_token_id),
         decoder_start_token_id=int(
@@ -107,7 +107,8 @@ def load_hf_into_t5(
     )
 
     if cfg.tie_word_embeddings:
-        minimal.lm_head.weight = minimal.model.shared.weight
+        # Untied locally: copy shared embedding values into lm_head by value.
+        minimal.lm_head.weight.data.copy_(hf.shared.weight.data)
     else:
         minimal.lm_head.weight.data.copy_(hf.lm_head.weight.data)
 
@@ -168,10 +169,10 @@ def export_t5_to_hf_state_dict(
         src.decoder.final_layer_norm.weight.data
     )
 
+    # Always export an independent lm_head; HF may re-tie for its layout.
+    hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data)
     if cfg.tie_word_embeddings:
         hf.tie_weights()
-    else:
-        hf.lm_head.weight.data.copy_(minimal.lm_head.weight.data)
 
     with torch.no_grad():
         return {
