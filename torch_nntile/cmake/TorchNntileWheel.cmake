@@ -16,7 +16,8 @@ set(TORCH_NNTILE_WHEELHOUSE "${CMAKE_BINARY_DIR}/wheelhouse"
 set(TORCH_NNTILE_WHEEL_VERSION "0.0.5"
     CACHE STRING "torch_nntile wheel version (TORCH_NNTILE_WHEEL_VERSION)")
 option(TORCH_NNTILE_WHEEL_REPAIR
-    "Run auditwheel/delocate repair after pip wheel" ON)
+    "Run auditwheel/delocate after pip wheel (ON for manylinux CI; OFF for local)"
+    OFF)
 
 set(NNTILE_PREFIX "" CACHE PATH
     "Install prefix containing libnntile (wheel / tests)")

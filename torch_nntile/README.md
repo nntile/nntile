@@ -507,7 +507,7 @@ cmake -S . -B build -GNinja -DUSE_CUDA=OFF -DBUILD_TESTING=OFF \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
 cmake --build build --target torch_nntile_wheel
-# → build/wheelhouse/*.whl
+# → build/wheelhouse/*.whl  (linux_x86_64; REPAIR defaults OFF)
 ```
 
 Or build the wheel against an install prefix (no library rebuild):

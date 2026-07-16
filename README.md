@@ -21,9 +21,14 @@ Prebuilt wheels: [torch_nntile/README.md](torch_nntile/README.md).
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -GNinja -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
 cmake --build build -j$(nproc)
-# → build/wheelhouse/torch_nntile-*.whl
+# → build/wheelhouse/torch_nntile-*.whl  (linux_x86_64; no auditwheel by default)
 pip install build/wheelhouse/torch_nntile-*.whl
 ```
+
+Local CMake leaves `TORCH_NNTILE_WHEEL_REPAIR=OFF`, so the wheel keeps a plain
+`linux_x86_64` tag. Host `auditwheel` on Ubuntu 24.04 would otherwise emit
+`manylinux_2_39_x86_64`, which many pip installs reject. Release CI still
+repairs inside the manylinux_2_28 image (`manylinux_2_28_x86_64`).
 
 Libnntile-only (no LibTorch), as in layered CI:
 
