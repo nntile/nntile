@@ -66,13 +66,6 @@ else()
         "-DTORCH_NNTILE_PREFIX=... / -DNNTILE_PREFIX=...")
 endif()
 
-if(NOT _wheel_nntile_prefix STREQUAL "")
-    message(STATUS "libnntile found: ${_wheel_nntile_prefix}")
-endif()
-if(NOT _wheel_torch_prefix STREQUAL "")
-    message(STATUS "libtorch_nntile found: ${_wheel_torch_prefix}")
-endif()
-
 set(_wheel_env
     "TORCH_NNTILE_WHEEL=1"
     "TORCH_NNTILE_WHEEL_VERSION=${TORCH_NNTILE_WHEEL_VERSION}"

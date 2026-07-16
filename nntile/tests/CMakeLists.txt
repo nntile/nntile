@@ -66,9 +66,11 @@ function(add_test_set)
         set_target_properties(${_args_TARGET_NAME} PROPERTIES OUTPUT_NAME
             ${_args_EXEC_NAME})
     endif()
-    # Link to provided libraries
+    # Link to provided libraries (do not quote the list — that drops usage
+    # requirements such as INTERFACE include dirs from nntile::nntile when
+    # Catch2 is also linked).
     target_link_libraries(${_args_TARGET_NAME} PRIVATE
-        "${_args_LINK_LIBRARIES}")
+        ${_args_LINK_LIBRARIES})
     # Try to set environment for a test on Apple MacOS
     if(APPLE AND DEFINED ADD_RPATH)
         set_target_properties(${_args_TARGET_NAME} PROPERTIES BUILD_RPATH

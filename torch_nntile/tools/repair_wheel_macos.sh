@@ -20,7 +20,6 @@ delocate-wheel \
     --exclude /torch/ \
     --exclude libtorch \
     --exclude libc10 \
-    --ignore-missing-dependencies \
     --require-archs "${require_archs}" \
     -w "${dest_dir}" \
     -v \

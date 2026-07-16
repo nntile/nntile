@@ -6,6 +6,11 @@
 
 @PACKAGE_INIT@
 
+if(TARGET torch_nntile::torch_nntile)
+    check_required_components(torch_nntile)
+    return()
+endif()
+
 include(CMakeFindDependencyMacro)
 
 find_dependency(nntile REQUIRED)

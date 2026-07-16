@@ -98,7 +98,7 @@ macro(nntile_apply_cuda target)
         endif()
         target_link_libraries(${target} ${_scope} CUDA::cublas CUDNN::cudnn_all)
         target_include_directories(${target} ${_scope}
-            ${cudnn_frontend_SOURCE_DIR}/include)
+            "$<BUILD_INTERFACE:${cudnn_frontend_SOURCE_DIR}/include>")
     endif()
 endmacro()
 
@@ -242,9 +242,6 @@ endif()
 
 # Wheel against installed libs only (no libtorch_nntile rebuild).
 if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
-    if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
-        find_package(nntile REQUIRED CONFIG)
-    endif()
     if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
         find_package(torch_nntile REQUIRED CONFIG)
     endif()

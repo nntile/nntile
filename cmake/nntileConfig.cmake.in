@@ -6,6 +6,13 @@
 
 @PACKAGE_INIT@
 
+# Re-entrant find_package / find_dependency must not re-announce or
+# re-import targets.
+if(TARGET nntile::nntile)
+    check_required_components(nntile)
+    return()
+endif()
+
 include(CMakeFindDependencyMacro)
 
 set(NNTILE_BUILT_WITH_CUDA "@NNTILE_LINK_CUDA@")

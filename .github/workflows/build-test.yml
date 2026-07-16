@@ -284,6 +284,10 @@ jobs:
             --index-url "${TORCH_PIP_INDEX}"
           pip3 install --break-system-packages \
             pytest 'numpy>=1.21' 'transformers<4.53'
+          # pyproject declares nvidia-*-cu12 on Linux; --no-deps skips them.
+          pip3 install --break-system-packages \
+            nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 \
+            nvidia-cusolver-cu12 nvidia-nvjitlink-cu12 nvidia-cuda-runtime-cu12
           pip3 install --break-system-packages \
             --force-reinstall --no-deps wheelhouse/*.whl
           pytest -vv --rootdir=. -m 'not slow' torch_nntile/tests/
