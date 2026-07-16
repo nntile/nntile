@@ -32,6 +32,8 @@
 #include "nntile_sgd_step.h"
 #include "nntile_adam_step.h"
 
+#include "nntile_module_to.h"
+
 #include <torch_nntile/models/bert.hh>
 #include <torch_nntile/models/deep_relu.hh>
 #include <torch_nntile/models/gpt2.hh>
@@ -510,7 +512,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             cfg.max_position_embeddings =
                 std::max<int64_t>(input_ids.size(1), 8);
             auto model = LlamaCausal(cfg);
-            model->to(input_ids.device());
+            torch_nntile::module_to_device(*model, input_ids.device());
             model->warm_rope_cache(
                 input_ids.size(0),
                 input_ids.size(1),
@@ -545,7 +547,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             cfg.max_position_embeddings =
                 std::max<int64_t>(input_ids.size(1), 8);
             auto model = BertMlm(cfg);
-            model->to(input_ids.device());
+            torch_nntile::module_to_device(*model, input_ids.device());
             return model->forward(input_ids, token_type_ids);
         },
         "Run C++ BertMlm forward",
@@ -578,7 +580,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             cfg.max_position_embeddings =
                 std::max<int64_t>(input_ids.size(1) + 2, 16);
             auto model = RobertaMlm(cfg);
-            model->to(input_ids.device());
+            torch_nntile::module_to_device(*model, input_ids.device());
             return model->forward(input_ids, token_type_ids);
         },
         "Run C++ RobertaMlm forward (pad-aware positions)",
@@ -617,7 +619,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
                     (i % 2 == 1) ? "local" : "global");
             }
             auto model = GptNeoCausal(cfg);
-            model->to(input_ids.device());
+            torch_nntile::module_to_device(*model, input_ids.device());
             return model->forward(input_ids);
         },
         "Run C++ GptNeoCausal forward",
@@ -649,7 +651,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             cfg.max_position_embeddings =
                 std::max<int64_t>(input_ids.size(1), 8);
             auto model = GptNeoXCausal(cfg);
-            model->to(input_ids.device());
+            torch_nntile::module_to_device(*model, input_ids.device());
             model->warm_rope_cache(
                 input_ids.size(0),
                 input_ids.size(1),

@@ -7,8 +7,11 @@
 
 #include <torch_nntile/models/t5.hh>
 
+#include "nntile_rms_norm.h"
+
 #include <cmath>
 #include <stdexcept>
+#include <vector>
 
 namespace torch_nntile::models
 {
@@ -18,8 +21,12 @@ namespace
 
 torch::Tensor t5_rms_norm(torch::Tensor x, torch::Tensor w, double eps)
 {
-    auto var = x.pow(2).mean(-1, /*keepdim=*/true);
-    return x * torch::rsqrt(var + eps) * w;
+    auto out_rstd = torch_nntile::rms_norm_forward(
+        x,
+        /*normalized_shape=*/std::vector<int64_t>{x.size(-1)},
+        w,
+        eps);
+    return std::get<0>(out_rstd);
 }
 
 struct T5AttentionImpl : torch::nn::Module

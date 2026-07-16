@@ -8,6 +8,7 @@
 #include <torch_nntile/models/llama.hh>
 
 #include "nntile_rope.h"
+#include "nntile_rms_norm.h"
 
 #include <cmath>
 #include <stdexcept>
@@ -24,9 +25,13 @@ torch::Tensor rms_norm(
     torch::Tensor weight,
     double eps)
 {
-    auto var = x.pow(2).mean(-1, /*keepdim=*/true);
-    auto y = x * torch::rsqrt(var + eps);
-    return y * weight;
+    // Use nntile rms_norm kernel (aten::pow is not on nntile).
+    auto out_rstd = torch_nntile::rms_norm_forward(
+        x,
+        /*normalized_shape=*/std::vector<int64_t>{x.size(-1)},
+        weight,
+        eps);
+    return std::get<0>(out_rstd);
 }
 
 //! Host RoPE tables (NNGraph ``rope_sin_cos_from_position_ids``), then upload.
