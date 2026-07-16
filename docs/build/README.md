@@ -369,7 +369,7 @@ Fixtures in [`conftest.py`](../../wrappers/python/tests/conftest.py): `context`,
 **Correctness:**
 
 ```bash
-# Optional: install torch_nntile against the build tree
+# Install torch_nntile against the build tree (PyTorch required at build time)
 cd build/wrappers/python/tests
 
 pytest -vv
