@@ -92,16 +92,13 @@ StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
 Publishing to PyPI is manual: download CI artifacts and run `twine upload` locally.
 See [docs/build/README.md](../docs/build/README.md) for maintainer CI details.
 
-## Phase 1 (stub)
+## Backend (libnntile required)
 
-Tensor storage is backed by a host `std::vector<uint8_t>` buffer. Supports
-allocation, `tensor.to("nntile")` / `.cpu()`, and a global CPU fallback for
-unsupported ATen ops. Does **not** require `libnntile`.
+`torch_nntile` always links **libnntile**. There is no host-only / stub
+extension build: set `NNTILE_BUILD_DIR` to a CMake build tree that contains
+`libnntile` before `pip install`.
 
-## Phase 2 (TensorGraph ops)
-
-When built with `NNTILE_BUILD_DIR` pointing at a CMake build tree, selected ops
-run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
+Selected ops run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 
 **HuggingFace compatibility (v1):** Standard eager HF modules can use ordinary
 PyTorch tensor ops on `device="nntile"` when the forward path sticks to
@@ -464,17 +461,7 @@ pytest -vv torch_nntile/tests/test_sdpa_parity.py
 pytest -vv torch_nntile/tests/test_attn_weight_layout.py
 ```
 
-## Install from source (stub only)
-
-Install `torch==2.9.1` and `torchvision==0.24.1` first (same ABI as
-`install_requires`; torch 2.12 is incompatible), then:
-
-```bash
-pip install 'torch==2.9.1' 'torchvision==0.24.1'
-CXX=g++ pip install -e ./torch_nntile --no-build-isolation
-```
-
-## Install from source (with libnntile / phase 2)
+## Install from source (requires libnntile)
 
 Build NNTile first (CPU-only example):
 
@@ -508,7 +495,6 @@ export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 export STARPU_PREFIX=/opt/starpu
 export NNTILE_SOURCE_DIR=$PWD
 export NNTILE_BUILD_DIR=$PWD/build/torch_nntile_wheel
-export TORCH_NNTILE_REQUIRE_LIBNNTILE=1
 export TORCH_NNTILE_WHEEL=1
 export TORCH_NNTILE_USE_CUDA=0
 export TORCH_VERSION=2.9.1
@@ -579,16 +565,17 @@ After upgrading PyTorch, reinstall the matching torch pin and rebuild:
 
 ```bash
 pip install 'torch==2.9.1'
+export NNTILE_BUILD_DIR=$PWD/build
+export NNTILE_SOURCE_DIR=$PWD
 CXX=clang++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
 
 ## Tests
 
 ```bash
-# Stub tests (no libnntile)
-pytest -vv torch_nntile/tests/test_device_stub.py
-
-# Full suite (requires libnntile build + LD_LIBRARY_PATH)
+# Requires libnntile build + LD_LIBRARY_PATH
+export NNTILE_BUILD_DIR=$PWD/build
+export NNTILE_SOURCE_DIR=$PWD
 export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 pytest -vv torch_nntile/tests
 ```

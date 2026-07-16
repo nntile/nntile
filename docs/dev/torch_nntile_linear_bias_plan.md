@@ -107,8 +107,10 @@ Leave weight/input checks as they are.
    LayerNorm’s `copy` + `add_fiber_inplace` pattern — here gemm already wrote
    `output`, so only the in-place add is needed.
 
-Stub / no-libnntile builds: keep a clear `require_libnntile` (or no-op stub)
-consistent with other executor entry points.
+libnntile is required for all builds (`TORCH_NNTILE_USE_LIBNNTILE` is always
+defined). Keep a clear hard error if TensorGraph helpers are missing at link
+time rather than a host-only fallback, consistent with other executor entry
+points.
 
 ### 3. Backward (`linear_backward`)
 
@@ -130,7 +132,7 @@ When `output_mask[2]`:
 
 ### 4. Executor API surface
 
-Add to `nntile_executor.h` / `.cpp` (libnntile and stub):
+Add to `nntile_executor.h` / `.cpp`:
 
 ```text
 void tensor_linear_add_bias_fp32(at::Tensor &output, const at::Tensor &bias);
@@ -179,7 +181,7 @@ Tolerances: start with `rtol=1e-5, atol=1e-5` (float32 gemm).
 |------|--------|
 | `torch_nntile/csrc/nntile_linear.cpp` | Validate bias; forward add; backward `sum_fiber` |
 | `torch_nntile/csrc/nntile_executor.h` | Declare bias helpers |
-| `torch_nntile/csrc/nntile_executor.cpp` | Implement helpers (+ stub) |
+| `torch_nntile/csrc/nntile_executor.cpp` | Implement helpers |
 | `torch_nntile/tests/test_linear_bias_parity.py` | New parity tests |
 | `torch_nntile/README.md` | Document supported bias |
 

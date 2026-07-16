@@ -4,7 +4,7 @@
 # @file torch_nntile/torch_nntile/__init__.py
 # Register the PyTorch nntile device (PrivateUse1).
 
-"""PyTorch nntile device stub (PrivateUse1 open registration)."""
+"""PyTorch nntile device (PrivateUse1; requires libnntile)."""
 
 from __future__ import annotations
 

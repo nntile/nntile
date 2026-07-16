@@ -2,10 +2,9 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_device_stub.py
-# Tests for the PyTorch nntile device stub.
+# Tests for PyTorch nntile device registration and CPU <-> nntile copies.
 
 import torch
-import pytest
 
 import torch_nntile
 from torch_nntile import _C, device
@@ -17,6 +16,7 @@ def test_import_registers_device():
     assert _C.is_registered()
     assert torch.device("nntile").type == "nntile"
     assert hasattr(torch, "nntile")
+    assert _C.has_libnntile()
 
 
 def test_empty_on_device():
@@ -24,12 +24,8 @@ def test_empty_on_device():
     assert x.device.type == "nntile"
     assert x.shape == (2, 3)
     assert x.dtype == torch.float32
-    nbytes = _C.buffer_nbytes(x)
-    if _C.has_libnntile():
-        # Graph mode: empty tensors are metadata-only until host staging.
-        assert nbytes == 0
-    else:
-        assert nbytes == x.element_size() * x.numel()
+    # Graph mode: empty tensors are metadata-only until host staging.
+    assert _C.buffer_nbytes(x) == 0
 
 
 def test_cpu_to_nntile_copy():

@@ -160,6 +160,12 @@ def _cuda_include_dirs() -> list[str]:
 
 
 def _nntile_extension_kwargs() -> dict:
+    """Build kwargs for torch_nntile._C.
+
+    libnntile is required: there is no stub / host-only extension build.
+    Set NNTILE_BUILD_DIR to a CMake build tree that contains libnntile
+    (or rely on the cibuildwheel default under build/torch_nntile_wheel).
+    """
     ci_build_wheel = os.environ.get("CIBUILDWHEEL") == "1"
 
     if (var := os.environ.get("NNTILE_SOURCE_DIR")):
@@ -172,15 +178,20 @@ def _nntile_extension_kwargs() -> dict:
     elif ci_build_wheel:
         nntile_build = nntile_source / "build" / "torch_nntile_wheel"
     else:
-        nntile_build = None
-
-    require_libnntile = os.environ.get("TORCH_NNTILE_REQUIRE_LIBNNTILE") == "1"
-    if ci_build_wheel:
-        require_libnntile = True
+        raise RuntimeError(
+            "torch_nntile requires libnntile. Build libnntile first, then set "
+            "NNTILE_BUILD_DIR to the CMake build directory (and optionally "
+            "NNTILE_SOURCE_DIR to the repo root). Example:\n"
+            "  export NNTILE_BUILD_DIR=$PWD/build\n"
+            "  export NNTILE_SOURCE_DIR=$PWD\n"
+            "  CXX=g++ pip install -e ./torch_nntile --no-build-isolation"
+        )
 
     cxx_standard = os.environ.get("TORCH_NNTILE_CXX_STANDARD", "c++17")
     extra_compile_args = [f"-std={cxx_standard}"]
-    define_macros: list[tuple[str, str | None]] = []
+    define_macros: list[tuple[str, str | None]] = [
+        ("TORCH_NNTILE_USE_LIBNNTILE", "1"),
+    ]
     include_dirs: list[str] = [
         str(ROOT / "include"),
         str(ROOT / "csrc"),
@@ -191,49 +202,45 @@ def _nntile_extension_kwargs() -> dict:
     if sys.platform == "darwin":
         extra_link_args.append("-Wl,-rpath,@loader_path/../torch/lib")
 
-    if nntile_build is not None:
-        nntile_lib_dir = nntile_build / "nntile"
-        nntile_header_dir = nntile_build / "include" / "nntile" / "defs.h"
-        if require_libnntile and not nntile_lib_dir.exists():
-            raise RuntimeError(
-                f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
-                "the expected nntile library directory"
-            )
-        if require_libnntile and not nntile_header_dir.exists():
-            raise RuntimeError(
-                f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
-                "generated nntile headers"
-            )
-        define_macros.append(("TORCH_NNTILE_USE_LIBNNTILE", "1"))
-        include_dirs.extend([
-            str(nntile_source / "nntile" / "include"),
-            str(nntile_build / "include"),
-        ])
-        library_dirs.append(str(nntile_lib_dir))
-        # torch_nntile links libnntile (TensorGraph stack).
-        libraries.append("nntile")
-        if os.environ.get("TORCH_NNTILE_WHEEL") != "1":
-            if sys.platform == "darwin":
-                extra_link_args.append(
-                    "-Wl,-rpath,@loader_path/../../build/nntile"
-                )
-            else:
-                extra_link_args.append(
-                    "-Wl,-rpath,$ORIGIN/../../build/nntile"
-                )
-        _apply_pkg_config(
-            "starpu-1.4",
-            include_dirs,
-            library_dirs,
-            extra_compile_args,
-            extra_link_args,
-            libraries,
-        )
-        include_dirs.extend(_cuda_include_dirs())
-    elif require_libnntile:
+    nntile_lib_dir = nntile_build / "nntile"
+    nntile_header = nntile_build / "include" / "nntile" / "defs.h"
+    if not nntile_lib_dir.exists():
         raise RuntimeError(
-            "torch_nntile wheel builds require libnntile; set NNTILE_BUILD_DIR"
+            f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
+            "the expected nntile library directory "
+            f"({nntile_lib_dir})"
         )
+    if not nntile_header.exists():
+        raise RuntimeError(
+            f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
+            f"generated nntile headers ({nntile_header})"
+        )
+
+    include_dirs.extend([
+        str(nntile_source / "nntile" / "include"),
+        str(nntile_build / "include"),
+    ])
+    library_dirs.append(str(nntile_lib_dir))
+    # torch_nntile links libnntile (TensorGraph stack).
+    libraries.append("nntile")
+    if os.environ.get("TORCH_NNTILE_WHEEL") != "1":
+        if sys.platform == "darwin":
+            extra_link_args.append(
+                "-Wl,-rpath,@loader_path/../../build/nntile"
+            )
+        else:
+            extra_link_args.append(
+                "-Wl,-rpath,$ORIGIN/../../build/nntile"
+            )
+    _apply_pkg_config(
+        "starpu-1.4",
+        include_dirs,
+        library_dirs,
+        extra_compile_args,
+        extra_link_args,
+        libraries,
+    )
+    include_dirs.extend(_cuda_include_dirs())
 
     return {
         "define_macros": define_macros,
