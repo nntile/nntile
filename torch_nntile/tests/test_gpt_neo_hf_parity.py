@@ -34,6 +34,12 @@ from torch_nntile.models.gpt_neo_hf_loader import (
     load_hf_into_gpt_neo_causal,
 )
 from torch_nntile.models.hf_rope_layout import copy_linear
+from torch_nntile.nn.linear import (
+    linear_to_output_weight,
+    linear_to_qkv_weight,
+    qkv_to_linear_weight,
+)
+from conftest import nntile_cpu
 from parity_helpers import (
     additive_causal_mask,
     additive_local_causal_mask,
@@ -139,10 +145,35 @@ def _make_causal(hf_cfg: HfGPTNeoConfig):
 
 def _load_attn(local: GPTNeoAttention, hf_attn: HfAttention) -> None:
     inner = hf_attn.attention
-    copy_linear(local.q_proj, inner.q_proj)
-    copy_linear(local.k_proj, inner.k_proj)
-    copy_linear(local.v_proj, inner.v_proj)
-    copy_linear(local.out_proj, inner.out_proj)
+    local.q_weight.data.copy_(
+        linear_to_qkv_weight(
+            inner.q_proj.weight.data,
+            n_heads=local.n_heads,
+            head_size=local.head_dim,
+        )
+    )
+    local.k_weight.data.copy_(
+        linear_to_qkv_weight(
+            inner.k_proj.weight.data,
+            n_heads=local.n_heads,
+            head_size=local.head_dim,
+        )
+    )
+    local.v_weight.data.copy_(
+        linear_to_qkv_weight(
+            inner.v_proj.weight.data,
+            n_heads=local.n_heads,
+            head_size=local.head_dim,
+        )
+    )
+    local.o_weight.data.copy_(
+        linear_to_output_weight(
+            inner.out_proj.weight.data,
+            n_heads=local.n_heads,
+            head_size=local.head_dim,
+        )
+    )
+    local.o_bias.data.copy_(inner.out_proj.bias.data)
 
 
 def _load_block(local: GPTNeoBlock, hf_block: HfBlock) -> None:
@@ -323,14 +354,14 @@ def test_gpt_neo_causal_backward_matches_hf():
     gw_q, gw_lm, gw_wte = torch.autograd.grad(
         logits,
         (
-            local.transformer.h[0].attn.q_proj.weight,
+            local.transformer.h[0].attn.q_weight,
             local.lm_head.weight,
             local.transformer.wte.weight,
         ),
         contiguous_to_nntile(grad),
     )
     assert_close(
-        gw_q,
+        qkv_to_linear_weight(nntile_cpu(gw_q)),
         hf.transformer.h[0].attn.attention.q_proj.weight.grad,
         rtol=1e-3,
         atol=BWD_ATOL,

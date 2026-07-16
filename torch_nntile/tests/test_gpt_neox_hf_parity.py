@@ -36,9 +36,9 @@ from torch_nntile.models.gpt_neox_hf_loader import (
 )
 from torch_nntile.models.hf_rope_layout import (
     copy_linear,
-    hf_to_nntile_fused_qkv_bias,
     hf_to_nntile_fused_qkv_weight,
 )
+from torch_nntile.nn.linear import linear_to_output_weight
 from torch_nntile.rope import rope_sin_cos_from_position_ids
 from parity_helpers import (
     additive_causal_mask,
@@ -157,24 +157,33 @@ def _local_sin_cos(local_cfg: GPTNeoXConfig, position_ids):
 
 
 def _load_attn(local: GPTNeoXAttention, hf_attn, cfg: GPTNeoXConfig) -> None:
-    local.query_key_value.weight.data.copy_(
-        hf_to_nntile_fused_qkv_weight(
-            hf_attn.query_key_value.weight.data,
+    fused = hf_to_nntile_fused_qkv_weight(
+        hf_attn.query_key_value.weight.data,
+        n_heads=cfg.num_attention_heads,
+        head_dim=cfg.head_dim,
+        rotary_pct=cfg.rotary_pct,
+    )
+    fused = fused.reshape(cfg.num_attention_heads, 3 * cfg.head_dim, -1)
+    local.q_weight.data.copy_(
+        fused[:, : cfg.head_dim, :].permute(2, 1, 0).contiguous()
+    )
+    local.k_weight.data.copy_(
+        fused[:, cfg.head_dim : 2 * cfg.head_dim, :]
+        .permute(2, 1, 0)
+        .contiguous()
+    )
+    local.v_weight.data.copy_(
+        fused[:, 2 * cfg.head_dim : 3 * cfg.head_dim, :]
+        .permute(2, 1, 0)
+        .contiguous()
+    )
+    local.o_weight.data.copy_(
+        linear_to_output_weight(
+            hf_attn.dense.weight.data,
             n_heads=cfg.num_attention_heads,
-            head_dim=cfg.head_dim,
-            rotary_pct=cfg.rotary_pct,
+            head_size=cfg.head_dim,
         )
     )
-    copy_linear(local.dense, hf_attn.dense)
-    if local.query_key_value.bias is not None:
-        local.query_key_value.bias.data.copy_(
-            hf_to_nntile_fused_qkv_bias(
-                hf_attn.query_key_value.bias.data,
-                n_heads=cfg.num_attention_heads,
-                head_dim=cfg.head_dim,
-                rotary_pct=cfg.rotary_pct,
-            )
-        )
 
 
 def _load_layer(local: GPTNeoXLayer, hf_layer: HfLayer, cfg: GPTNeoXConfig):

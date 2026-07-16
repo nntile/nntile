@@ -22,7 +22,6 @@ from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
 )
 
-import torch_nntile
 from torch_nntile import _C
 from torch_nntile.models.hf_rope_layout import (
     copy_linear,
@@ -34,12 +33,17 @@ from torch_nntile.models.llama import (
     LlamaConfig,
     LlamaDecoder,
     LlamaMLP,
-    LlamaModel,
     LlamaRMSNorm,
 )
 from torch_nntile.models.llama_hf_loader import (
     llama_config_from_hf,
     load_hf_into_llama_causal,
+)
+from torch_nntile.nn.linear import (
+    linear_to_gqa_output_weight,
+    linear_to_gqa_q_weight,
+    linear_to_output_weight,
+    linear_to_qkv_weight,
 )
 from torch_nntile.rope import rope_sin_cos_from_position_ids
 from parity_helpers import (
@@ -136,22 +140,64 @@ def _hf_pos_emb(hf_cfg: HfLlamaConfig, position_ids: torch.Tensor):
 
 
 def _load_attn(local: LlamaAttention, hf_attn, cfg: LlamaConfig) -> None:
-    local.q_proj.weight.data.copy_(
-        hf_to_nntile_qkv_weight(
-            hf_attn.q_proj.weight.data,
-            n_heads=cfg.num_attention_heads,
-            head_dim=cfg.head_dim,
-        )
+    q_weight = hf_to_nntile_qkv_weight(
+        hf_attn.q_proj.weight.data,
+        n_heads=cfg.num_attention_heads,
+        head_dim=cfg.head_dim,
     )
-    local.k_proj.weight.data.copy_(
-        hf_to_nntile_qkv_weight(
-            hf_attn.k_proj.weight.data,
+    if local.use_gqa:
+        local.q_weight.data.copy_(
+            linear_to_gqa_q_weight(
+                q_weight,
+                n_kv_heads=cfg.num_key_value_heads,
+                n_rep=local.n_rep,
+                head_size=cfg.head_dim,
+            )
+        )
+    else:
+        local.q_weight.data.copy_(
+            linear_to_qkv_weight(
+                q_weight,
+                n_heads=cfg.num_attention_heads,
+                head_size=cfg.head_dim,
+            )
+        )
+    k_weight = hf_to_nntile_qkv_weight(
+        hf_attn.k_proj.weight.data,
+        n_heads=cfg.num_key_value_heads,
+        head_dim=cfg.head_dim,
+    )
+    local.k_weight.data.copy_(
+        linear_to_qkv_weight(
+            k_weight,
             n_heads=cfg.num_key_value_heads,
-            head_dim=cfg.head_dim,
+            head_size=cfg.head_dim,
         )
     )
-    copy_linear(local.v_proj, hf_attn.v_proj)
-    copy_linear(local.o_proj, hf_attn.o_proj)
+    local.v_weight.data.copy_(
+        linear_to_qkv_weight(
+            hf_attn.v_proj.weight.data,
+            n_heads=cfg.num_key_value_heads,
+            head_size=cfg.head_dim,
+        )
+    )
+    if local.use_gqa:
+        local.o_weight.data.copy_(
+            linear_to_gqa_output_weight(
+                hf_attn.o_proj.weight.data,
+                n_kv_heads=cfg.num_key_value_heads,
+                n_rep=local.n_rep,
+                head_size=cfg.head_dim,
+            )
+        )
+    else:
+        local.o_weight.data.copy_(
+            linear_to_output_weight(
+                hf_attn.o_proj.weight.data,
+                n_heads=cfg.num_attention_heads,
+                head_size=cfg.head_dim,
+            )
+        )
 
 
 def _make_causal(hf_cfg: HfLlamaConfig):

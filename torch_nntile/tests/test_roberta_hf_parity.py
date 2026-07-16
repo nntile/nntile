@@ -41,6 +41,13 @@ from torch_nntile.models.roberta_hf_loader import (
     load_hf_into_roberta_mlm,
     roberta_config_from_hf,
 )
+from torch_nntile.nn.linear import (
+    linear_to_output_weight,
+    linear_to_qkv_bias,
+    linear_to_qkv_weight,
+    qkv_to_linear_weight,
+)
+from conftest import nntile_cpu
 from parity_helpers import assert_close, contiguous_to_nntile, copy_linear
 
 
@@ -101,14 +108,62 @@ def _load_embeddings(local: RobertaEmbeddings, hf_emb: HfEmbeddings) -> None:
 def _load_self_attention(
     local: BertSelfAttention, hf_self: HfSelfAttention
 ) -> None:
-    copy_linear(local.query, hf_self.query)
-    copy_linear(local.key, hf_self.key)
-    copy_linear(local.value, hf_self.value)
+    n_heads = local.n_heads
+    head_size = local.head_dim
+    local.query.weight.data.copy_(
+        linear_to_qkv_weight(
+            hf_self.query.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    local.key.weight.data.copy_(
+        linear_to_qkv_weight(
+            hf_self.key.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    local.value.weight.data.copy_(
+        linear_to_qkv_weight(
+            hf_self.value.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    local.query.bias.data.copy_(
+        linear_to_qkv_bias(
+            hf_self.query.bias.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    local.key.bias.data.copy_(
+        linear_to_qkv_bias(
+            hf_self.key.bias.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    local.value.bias.data.copy_(
+        linear_to_qkv_bias(
+            hf_self.value.bias.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
 
 
 def _load_attention(local: BertAttention, hf_attn: HfAttention) -> None:
     _load_self_attention(local.self, hf_attn.self)
-    copy_linear(local.output.dense, hf_attn.output.dense)
+    local.output.dense.weight.data.copy_(
+        linear_to_output_weight(
+            hf_attn.output.dense.weight.data,
+            n_heads=local.self.n_heads,
+            head_size=local.self.head_dim,
+        )
+    )
+    local.output.dense.bias.data.copy_(hf_attn.output.dense.bias.data)
     local.output.LayerNorm.load_state_dict(hf_attn.output.LayerNorm.state_dict())
 
 
@@ -145,6 +200,7 @@ def _assert_forward_backward(
     local_forward,
     ref_weight: torch.Tensor,
     local_weight: torch.Tensor,
+    local_weight_grad_to_ref=None,
     atol: float = ATOL,
 ) -> None:
     x_ref = x.detach().clone().requires_grad_(True)
@@ -161,7 +217,13 @@ def _assert_forward_backward(
         grad_outputs=contiguous_to_nntile(grad),
     )
     assert_close(gx, x_ref.grad, rtol=1e-3, atol=BWD_ATOL)
+    if local_weight_grad_to_ref is not None:
+        gw = local_weight_grad_to_ref(gw)
     assert_close(gw, ref_weight.grad, rtol=1e-3, atol=BWD_ATOL)
+
+
+def _qkv_weight_grad_to_linear(grad: torch.Tensor) -> torch.Tensor:
+    return qkv_to_linear_weight(nntile_cpu(grad))
 
 
 def test_roberta_config_validate_to_bert_config(tiny_hf_config):
@@ -266,6 +328,7 @@ def test_roberta_self_attention_forward_backward_matches_hf(tiny_hf_config):
         local_forward=local,
         ref_weight=hf_self.query.weight,
         local_weight=local.query.weight,
+        local_weight_grad_to_ref=_qkv_weight_grad_to_linear,
         atol=ATTN_ATOL,
     )
 
@@ -286,6 +349,7 @@ def test_roberta_attention_forward_backward_matches_hf(tiny_hf_config):
         local_forward=local,
         ref_weight=hf_attn.self.query.weight,
         local_weight=local.self.query.weight,
+        local_weight_grad_to_ref=_qkv_weight_grad_to_linear,
         atol=ATTN_ATOL,
     )
 
@@ -306,6 +370,7 @@ def test_roberta_layer_forward_backward_matches_hf(tiny_hf_config):
         local_forward=local,
         ref_weight=hf_layer.attention.self.query.weight,
         local_weight=local.attention.self.query.weight,
+        local_weight_grad_to_ref=_qkv_weight_grad_to_linear,
         atol=ATTN_ATOL,
     )
 
@@ -344,7 +409,7 @@ def test_roberta_model_hidden_forward_backward_matches_hf(tiny_hf_config):
         contiguous_to_nntile(grad),
     )
     assert_close(
-        gw,
+        _qkv_weight_grad_to_linear(gw),
         hf.roberta.encoder.layer[0].attention.self.query.weight.grad,
         rtol=1e-3,
         atol=BWD_ATOL,
@@ -415,7 +480,7 @@ def test_roberta_mlm_logits_forward_backward_query_weight_matches_hf(
         grad_outputs=contiguous_to_nntile(grad),
     )
     assert_close(
-        gw,
+        _qkv_weight_grad_to_linear(gw),
         hf.roberta.encoder.layer[0].attention.self.query.weight.grad,
         rtol=1e-3,
         atol=BWD_ATOL,

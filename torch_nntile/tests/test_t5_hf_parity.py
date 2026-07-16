@@ -38,6 +38,12 @@ from torch_nntile.models.t5_hf_loader import (
     load_hf_into_t5,
     t5_config_from_hf,
 )
+from torch_nntile.nn.linear import (
+    linear_to_output_weight,
+    linear_to_qkv_weight,
+    qkv_to_linear_weight,
+)
+from conftest import nntile_cpu
 from parity_helpers import (
     additive_causal_mask,
     assert_close,
@@ -128,10 +134,34 @@ def _make_models(hf_cfg: HfT5Config):
 
 
 def _load_attn(local: T5Attention, hf_attn: HfAttention) -> None:
-    copy_linear(local.q, hf_attn.q)
-    copy_linear(local.k, hf_attn.k)
-    copy_linear(local.v, hf_attn.v)
-    copy_linear(local.o, hf_attn.o)
+    local.q_weight.data.copy_(
+        linear_to_qkv_weight(
+            hf_attn.q.weight.data,
+            n_heads=local.n_heads,
+            head_size=local.key_value_proj_dim,
+        )
+    )
+    local.k_weight.data.copy_(
+        linear_to_qkv_weight(
+            hf_attn.k.weight.data,
+            n_heads=local.n_heads,
+            head_size=local.key_value_proj_dim,
+        )
+    )
+    local.v_weight.data.copy_(
+        linear_to_qkv_weight(
+            hf_attn.v.weight.data,
+            n_heads=local.n_heads,
+            head_size=local.key_value_proj_dim,
+        )
+    )
+    local.o_weight.data.copy_(
+        linear_to_output_weight(
+            hf_attn.o.weight.data,
+            n_heads=local.n_heads,
+            head_size=local.key_value_proj_dim,
+        )
+    )
 
 
 def _load_ff(local: T5LayerFF, hf_ff: HfLayerFF) -> None:
@@ -396,14 +426,14 @@ def test_t5_conditional_generation_backward_matches_hf():
     gw_q, gw_lm, gw_shared = torch.autograd.grad(
         logits,
         (
-            local.model.encoder.block[0].self_attn.q.weight,
+            local.model.encoder.block[0].self_attn.q_weight,
             local.lm_head.weight,
             local.model.shared.weight,
         ),
         contiguous_to_nntile(grad),
     )
     assert_close(
-        gw_q,
+        qkv_to_linear_weight(nntile_cpu(gw_q)),
         hf.encoder.block[0].layer[0].SelfAttention.q.weight.grad,
         rtol=1e-3,
         atol=BWD_ATOL,
