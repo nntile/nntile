@@ -5,7 +5,7 @@
 # libtorch_nntile (LibTorch PrivateUse1 + models).
 
 option(BUILD_TORCH_NNTILE
-    "Build libtorch_nntile (requires LibTorch)" ON)
+    "Build libtorch_nntile (requires LibTorch)" OFF)
 
 if(NOT BUILD_TORCH_NNTILE)
     return()
@@ -18,8 +18,6 @@ if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
     find_package(nntile REQUIRED CONFIG)
 endif()
 
-# Torch is found REQUIRED at the top level; keep a local check for
-# stand-alone / nested configures.
 if(NOT Torch_FOUND)
     find_package(Torch REQUIRED)
 endif()

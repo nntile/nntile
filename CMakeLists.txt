@@ -29,7 +29,8 @@ option(USE_FLASH_SDPA "Build cuDNN flash SDPA (disabled on graph_api until C-ord
 option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_TESTS "Build and run tests (requires linked nntile libs)" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
-option(BUILD_TORCH_NNTILE "Build libtorch_nntile (requires LibTorch)" ON)
+option(BUILD_TORCH_NNTILE
+    "Build libtorch_nntile (requires LibTorch; off = libnntile-only)" OFF)
 option(BUILD_TORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -192,12 +193,14 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-# LibTorch is required for libtorch_nntile and the torch_nntile Python
-# extension ABI; put Torch on CMAKE_PREFIX_PATH (e.g. from
-# torch.utils.cmake_prefix_path).
-find_package(Torch REQUIRED)
-set(NNTILE_HAVE_TORCH ON)
-message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
+# LibTorch is required only when building libtorch_nntile. libnntile and its
+# C++ tests configure and build without Torch.
+set(NNTILE_HAVE_TORCH OFF)
+if(BUILD_TORCH_NNTILE)
+    find_package(Torch REQUIRED)
+    set(NNTILE_HAVE_TORCH ON)
+    message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
+endif()
 
 if(BUILD_NNTILE)
     add_subdirectory(nntile)

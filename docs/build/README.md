@@ -9,7 +9,7 @@
 | StarPU | 1.4 via `pkg-config starpu-1.4` (use the [nntile/starpu](https://github.com/nntile/starpu) fork for SGOC) |
 | CUDA (default) | Toolkit ≥ 11.0, cuBLAS, cuDNN (cuDNN frontend is built from `external/cudnn_frontend`) |
 | CPU BLAS | OpenBLAS or compatible when `USE_CBLAS=ON` |
-| Python | 3.x + **PyTorch 2.9.1** (required; LibTorch via `CMAKE_PREFIX_PATH`) |
+| Python | 3.x; **PyTorch 2.9.1** only when building libtorch_nntile / torch_nntile |
 | GPU | Compute capability ≥ 8.0 |
 
 If StarPU was built in **SimGrid** mode, the build emulates CUDA/CBLAS at compile
@@ -111,7 +111,7 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `USE_CBLAS` | ON | CPU BLAS kernels |
 | `BUILD_TESTS` | ON | CTest suite (off in SimGrid mode) |
 | `BUILD_DOCS` | OFF | Doxygen documentation |
-| `BUILD_TORCH_NNTILE` | ON | Build **libtorch_nntile** (LibTorch required) |
+| `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile** (requires LibTorch) |
 | `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
 | `BUILD_COVERAGE` | OFF | LCOV coverage; enables tests; `make coverage` |
 
@@ -127,14 +127,13 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 
 ### LibTorch / torch_nntile
 
-**LibTorch is required** for every CMake configure (`find_package(Torch REQUIRED)`).
-Put Torch on `CMAKE_PREFIX_PATH` (from `torch.utils.cmake_prefix_path`).
-**libtorch_nntile** builds by default (`BUILD_TORCH_NNTILE=ON`). Both
-**libnntile** and **libtorch_nntile** install CMake packages
-(`find_package(nntile)` / `find_package(torch_nntile)`).
+**libnntile** and its C++ tests do **not** need PyTorch. LibTorch is required
+only when `-DBUILD_TORCH_NNTILE=ON` (and for the **torch_nntile** Python
+extension build via `setup.py` / `build-system.requires`).
 
-The **torch_nntile** Python extension also requires PyTorch at *build* time
-(`build-system.requires` / `setup.py`), not only for running tests.
+Put Torch on `CMAKE_PREFIX_PATH` (from `torch.utils.cmake_prefix_path`) when
+building libtorch_nntile. Both **libnntile** and **libtorch_nntile** install
+CMake packages (`find_package(nntile)` / `find_package(torch_nntile)`).
 
 In-tree (build both):
 
@@ -142,7 +141,8 @@ In-tree (build both):
 TORCH_PREFIX="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
 cmake -S . -B build -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_PREFIX_PATH="${CONDA_PREFIX};${TORCH_PREFIX}"
+  -DCMAKE_PREFIX_PATH="${CONDA_PREFIX};${TORCH_PREFIX}" \
+  -DBUILD_TORCH_NNTILE=ON
 
 cmake --build build -j$(nproc)
 cmake --install build --prefix "$PWD/install"

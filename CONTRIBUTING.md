@@ -44,8 +44,9 @@ follow these steps to contribute code.
 
    See Linting and Type-Checking section for more details.
 
-7. Make sure the tests pass after building **libnntile** / **libtorch_nntile**
-   (LibTorch is required at CMake configure time) and installing `torch_nntile`:
+7. Make sure the tests pass after building **libnntile** (no Torch required).
+   When using the PrivateUse1 stack, also build **libtorch_nntile** /
+   install `torch_nntile` (PyTorch required for those only):
 
    ```bash
    export LD_LIBRARY_PATH="$(pwd)/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH}"
