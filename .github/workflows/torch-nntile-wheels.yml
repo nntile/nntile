@@ -91,6 +91,11 @@ jobs:
           python3 -m venv "${RUNNER_TEMP}/cibw-venv"
           "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install --upgrade pip
           "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install "cibuildwheel==${CIBUILDWHEEL_VERSION}"
+          # macOS delocate resolves _C.so @rpath torch deps from this env.
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            "${RUNNER_TEMP}/cibw-venv/bin/python" -m pip install \
+              "torch==${TORCH_VERSION}" "torchvision==0.24.1"
+          fi
           echo "${RUNNER_TEMP}/cibw-venv/bin" >> "${GITHUB_PATH}"
 
       - name: Build wheel

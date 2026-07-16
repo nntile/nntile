@@ -4,16 +4,48 @@
 # @file torch_nntile/tests/conftest.py
 # Session-wide StarPU / nntile context for libnntile parity tests.
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
-# Layout is torch_nntile/torch_nntile/; when pytest runs from the repo root,
-# cwd shadows the editable install unless the project root is on sys.path.
+# Layout is torch_nntile/torch_nntile/. Prefer the in-tree package only when a
+# built extension is present (editable / local build). Otherwise the project
+# tree has no _C.so and must not shadow a pip-installed wheel (CI).
 _pkg_root = Path(__file__).resolve().parent.parent
-if _pkg_root.name == "torch_nntile":
-    _root = str(_pkg_root)
-    if _root not in sys.path:
+_pkg_dir = _pkg_root / "torch_nntile"
+_has_local_ext = _pkg_root.name == "torch_nntile" and any(
+    _pkg_dir.glob("_C.*")
+)
+
+
+def _path_entry(path: Path) -> str | None:
+    try:
+        return str(path.resolve())
+    except OSError:
+        return None
+
+
+if _has_local_ext:
+    _root = _path_entry(_pkg_root)
+    if _root and _root not in sys.path:
         sys.path.insert(0, _root)
+else:
+    # Drop path entries that make the source tree win over site-packages:
+    # 1) the project root (…/torch_nntile) itself
+    # 2) a repo root whose torch_nntile/ project has no built _C
+    _shadow: set[str] = set()
+    _root = _path_entry(_pkg_root)
+    if _root:
+        _shadow.add(_root)
+    _repo = _path_entry(_pkg_root.parent)
+    if _repo and (_pkg_root / "pyproject.toml").is_file():
+        _shadow.add(_repo)
+    sys.path[:] = [
+        p
+        for p in sys.path
+        if not p or _path_entry(Path(p)) not in _shadow
+    ]
 
 import pytest
 import torch
