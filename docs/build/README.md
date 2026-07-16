@@ -186,6 +186,25 @@ See [torch_nntile.md](../torch_nntile.md) and [graph-wip.md](../graph-wip.md).
 - Examples copied to `build/wrappers/python/examples/`
 - No `make install` required for development — set `PYTHONPATH` to the build tree
 
+## Build and test CI (layered)
+
+[`.github/workflows/build-test.yml`](../../.github/workflows/build-test.yml)
+runs on pushes/PRs to `main` and `graph_api`:
+
+| Job | Depends on | Role |
+|-----|------------|------|
+| `build-libnntile` | — | Build + install libnntile (`BUILD_TORCH_NNTILE=OFF`) |
+| `test-libnntile` | build | C++ ctest |
+| `test-cmake-install-libnntile` | build | `cmake --install` layout check |
+| `build-libtorch-nntile` | libnntile prefix | Build + install libtorch_nntile against prefix |
+| `test-cmake-install-libtorch-nntile` | libtorch build | Re-install into a fresh prefix + `find_package` smoke |
+| `build-torch-nntile-wheel` | libtorch prefix | `pip wheel` linking installed libs (CI artifact) |
+| `test-torch-nntile` | CI wheel | Install wheel + pytest |
+
+Python tests always consume the wheel from `build-torch-nntile-wheel`, not
+an editable install. This is separate from the release/manylinux wheel
+workflow below.
+
 ## torch_nntile wheels (CI)
 
 Prebuilt `torch_nntile` wheels are built by the **`torch_nntile wheels`**

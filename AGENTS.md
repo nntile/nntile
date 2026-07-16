@@ -80,4 +80,7 @@ Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 - **Agent checklist (actionable):** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)
 - **Roadmap:** [docs/dev/graph_static_execution_plan.md](docs/dev/graph_static_execution_plan.md)
 - **Migration:** [docs/dev/libtorch_nntile_migration.md](docs/dev/libtorch_nntile_migration.md)
+- **Build-and-test CI:** layered jobs in `.github/workflows/build-test.yml`
+  (libnntile → libtorch_nntile install test → CI wheel → Python tests on
+  that wheel). Separate from release wheels.
 - **`torch_nntile` wheels:** built on PRs to `graph_api` and `workflow_dispatch`; see [torch_nntile/README.md](torch_nntile/README.md#prebuilt-wheels-001)

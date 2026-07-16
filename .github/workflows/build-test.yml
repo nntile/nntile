@@ -129,8 +129,8 @@ jobs:
           .github/scripts/list-not-implemented-tests.sh build || true
           ctest --test-dir build -LE NotImplemented --output-on-failure
 
-  test-cmake-install:
-    name: test cmake install
+  test-cmake-install-libnntile:
+    name: test cmake install libnntile
     needs: build-libnntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
@@ -151,8 +151,8 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-test-install-${{ github.sha }}
-          restore-keys: ccache-test-install-
+          key: ccache-test-install-libnntile-${{ github.sha }}
+          restore-keys: ccache-test-install-libnntile-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=OFF
@@ -166,7 +166,7 @@ jobs:
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-test-install-${{ github.sha }}
+          key: ccache-test-install-libnntile-${{ github.sha }}
 
   # -------------------------------------------------------------------------
   # Layer 2: libtorch_nntile (links installed libnntile)
@@ -229,9 +229,16 @@ jobs:
           name: nntile-torch-prefix
           path: prefix/
           retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: torch-nntile-build
+          path: |
+            build-torch/
+            !build-torch/_deps/**
+          retention-days: 1
 
-  test-libtorch-nntile:
-    name: test libtorch_nntile
+  test-cmake-install-libtorch-nntile:
+    name: test cmake install libtorch_nntile
     needs: build-libtorch-nntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
@@ -257,14 +264,38 @@ jobs:
             >> "${GITHUB_ENV}"
       - uses: actions/download-artifact@v4
         with:
-          name: nntile-torch-prefix
-          path: prefix
-      - name: Smoke find_package(torch_nntile)
+          name: nntile-prefix
+          path: verify-prefix
+      - uses: actions/download-artifact@v4
+        with:
+          name: torch-nntile-build
+          path: build-torch
+      - run: rm -rf build-torch/_deps
+      - name: Re-install libtorch_nntile into a fresh prefix and verify
+        run: |
+          set -euo pipefail
+          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
+            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
+              /usr/lib/x86_64-linux-gnu/libstdc++.so
+          fi
+          # Reconfigure so install rules match this tree, then install into
+          # a copy of the libnntile prefix.
+          cmake -S . -B build-torch ${CMAKE_COMMON} \
+            -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=ON -DBUILD_TESTS=OFF \
+            -DCMAKE_PREFIX_PATH="${PWD}/verify-prefix;${TORCH_PREFIX}"
+          cmake --build build-torch --target torch_nntile -j"$(nproc)"
+          cmake \
+            -DBUILD_DIR="${PWD}/build-torch" \
+            -DCMAKE_INSTALL_PREFIX="${PWD}/verify-prefix" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DTORCH_NNTILE_INSTALL_LIB_BASENAME=libtorch_nntile.so \
+            -P torch_nntile/tests/verify_install.cmake
+      - name: find_package(torch_nntile) smoke
         run: |
           set -euo pipefail
           export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
-          INSTALLED_PREFIX="${PWD}/prefix"
+          export LD_LIBRARY_PATH="${PWD}/verify-prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          INSTALLED_PREFIX="${PWD}/verify-prefix"
           mkdir -p /tmp/tn-smoke && cd /tmp/tn-smoke
           cat > CMakeLists.txt <<'EOF'
           cmake_minimum_required(VERSION 3.24)
@@ -284,10 +315,10 @@ jobs:
           ./build/tn_smoke
 
   # -------------------------------------------------------------------------
-  # Layer 3: torch_nntile Python package (thin _C → libtorch_nntile)
+  # Layer 3: wheel from lib artifacts, then Python tests
   # -------------------------------------------------------------------------
-  build-and-test-torch-nntile:
-    name: build and test torch_nntile
+  build-torch-nntile-wheel:
+    name: build torch_nntile wheel
     needs: build-libtorch-nntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
@@ -319,13 +350,59 @@ jobs:
           export NNTILE_SOURCE_DIR="${PWD}"
           export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
           export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
-          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
-          pip install --break-system-packages \
+          pip3 install --break-system-packages \
             'torch==2.9.1' 'torchvision==0.24.1' \
             --index-url "${TORCH_PIP_INDEX}"
-          pip install --break-system-packages \
+          pip3 install --break-system-packages \
+            'setuptools>=61' wheel ninja
+          mkdir -p wheelhouse
+          CXX=g++ pip3 wheel ./torch_nntile \
+            -w wheelhouse --no-build-isolation --no-deps
+          ls -la wheelhouse/*.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: torch-nntile-ci-wheel
+          path: wheelhouse/*.whl
+          retention-days: 1
+          if-no-files-found: error
+
+  test-torch-nntile:
+    name: test torch_nntile
+    needs: build-torch-nntile-wheel
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-dev python3-pip \
+            pkg-config
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntile-torch-prefix
+          path: prefix
+      - uses: actions/download-artifact@v4
+        with:
+          name: torch-nntile-ci-wheel
+          path: wheelhouse
+      - run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          pip3 install --break-system-packages \
             pytest 'numpy>=1.21' 'transformers<4.53'
-          CXX=g++ pip install --break-system-packages \
-            -e ./torch_nntile --no-build-isolation --force-reinstall
+          pip3 install --break-system-packages \
+            --force-reinstall --no-deps wheelhouse/*.whl
           pytest -vv --rootdir=. -m 'not slow' torch_nntile/tests/
