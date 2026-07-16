@@ -6,22 +6,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-if(NOT TARGET Catch2::Catch2WithMain)
-    include(FetchContent)
-    FetchContent_Declare(
-        Catch2
-        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG v3.11.0
-    )
-    FetchContent_MakeAvailable(Catch2)
-endif()
-
-# catch_discover_tests() lives in Catch2's extras module.
-if(NOT COMMAND catch_discover_tests)
-    list(APPEND CMAKE_MODULE_PATH
-        "${Catch2_SOURCE_DIR}/extras")
-    include(Catch)
-endif()
+include("${PROJECT_SOURCE_DIR}/cmake_modules/NntileCatch2.cmake")
 
 if(NOT TARGET torch_nntile::torch_nntile)
     find_package(torch_nntile REQUIRED CONFIG)

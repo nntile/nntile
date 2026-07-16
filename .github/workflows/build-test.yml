@@ -21,6 +21,8 @@ env:
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
   TORCH_PIP_INDEX: https://download.pytorch.org/whl/cpu
+  CATCH2_GIT_TAG: v3.11.0
+  CATCH2_ARTIFACT: catch2-prefix-v3.11.0
   CMAKE_COMMON: >-
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
     -DUSE_CUDA=OFF
@@ -30,6 +32,36 @@ env:
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 jobs:
+  # -------------------------------------------------------------------------
+  # Shared Catch2 (one compile per run; cache across runs)
+  # -------------------------------------------------------------------------
+  build-catch2:
+    name: build Catch2
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git cmake g++ ninja-build
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-catch2-setup
+        with:
+          git-tag: ${{ env.CATCH2_GIT_TAG }}
+          install-prefix: ${{ github.workspace }}/catch2-prefix
+          build-type: RelWithDebInfo
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.CATCH2_ARTIFACT }}
+          path: catch2-prefix/
+          retention-days: 1
+          if-no-files-found: error
+
   # -------------------------------------------------------------------------
   # Layer 1: libnntile (no LibTorch)
   # -------------------------------------------------------------------------
@@ -78,7 +110,7 @@ jobs:
 
   test-libnntile:
     name: test libnntile
-    needs: build-libnntile
+    needs: [build-libnntile, build-catch2]
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -94,6 +126,10 @@ jobs:
         with:
           name: nntile-prefix
           path: prefix
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.CATCH2_ARTIFACT }}
+          path: catch2-prefix
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
@@ -103,7 +139,7 @@ jobs:
         run: |
           cmake -S . -B build-tests ${CMAKE_COMMON} \
             -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF -DBUILD_TESTS=ON \
-            -DCMAKE_PREFIX_PATH="${PWD}/prefix"
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix"
           cmake --build build-tests -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
@@ -119,7 +155,7 @@ jobs:
           .github/scripts/restore-ctest-execute-bits.sh build-tests/nntile/tests
       - name: Run C++ tests (ctest)
         run: |
-          export LD_LIBRARY_PATH="${PWD}/prefix/lib:${PWD}/build-tests/_deps/catch2-build/src:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:${PWD}/catch2-prefix/lib:${LD_LIBRARY_PATH:-}"
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           .github/scripts/list-not-implemented-tests.sh build-tests || true
@@ -189,7 +225,7 @@ jobs:
 
   test-libtorch-nntile:
     name: test libtorch_nntile
-    needs: build-libtorch-nntile
+    needs: [build-libtorch-nntile, build-catch2]
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -217,6 +253,10 @@ jobs:
         with:
           name: nntile-torch-prefix
           path: prefix
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.CATCH2_ARTIFACT }}
+          path: catch2-prefix
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
@@ -231,7 +271,7 @@ jobs:
           fi
           # Needed during cmake --build: catch_discover_tests runs binaries
           # to list Catch2 cases (DT_RUNPATH is not transitive to libnntile).
-          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:${PWD}/catch2-prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           cmake -S . -B build-torch-tests ${CMAKE_COMMON} \
@@ -239,7 +279,7 @@ jobs:
             -DBUILD_TORCH_NNTILE=OFF \
             -DBUILD_TESTS=OFF \
             -DBUILD_TORCH_NNTILE_TESTS=ON \
-            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}"
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix;${TORCH_PREFIX}"
           cmake --build build-torch-tests -j"$(nproc)" \
             --target tests_libtorch_nntile_smoke \
                     tests_libtorch_nntile_aten_ops
