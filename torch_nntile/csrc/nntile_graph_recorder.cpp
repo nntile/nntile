@@ -461,11 +461,13 @@ void write_cpu_bytes_to_staging_locked(
         if (!skip_starpu)
         {
             auto local = buf.acquire(STARPU_W);
-            const auto *src = static_cast<const bool *>(host_ptr);
+            // Torch bool / uint8 storage is byte-addressed.
+            const auto *src =
+                static_cast<const std::uint8_t *>(host_ptr);
             for (std::size_t i = 0; i < count; ++i)
             {
                 local[static_cast<nntile::Index>(i)] =
-                    nntile::bool_t(src[i]);
+                    nntile::bool_t(src[i] != 0);
             }
             local.release();
         }
@@ -638,11 +640,13 @@ void read_staging_to_host_locked(
                 "torch_nntile: staging read size mismatch");
         }
         auto local = buf.acquire(STARPU_R);
-        auto *dst = static_cast<bool *>(host_ptr);
+        // Torch bool storage is 1 byte/elem; do not write through bool*
+        // (pointer arithmetic / aliasing). Treat host buffer as bytes.
+        auto *dst = static_cast<std::uint8_t *>(host_ptr);
         for (std::size_t i = 0; i < count; ++i)
         {
-            dst[i] = static_cast<bool>(
-                local[static_cast<nntile::Index>(i)]);
+            dst[i] = static_cast<std::uint8_t>(
+                static_cast<bool>(local[static_cast<nntile::Index>(i)]));
         }
         local.release();
         break;
@@ -1226,6 +1230,34 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     const nntile::DataType dtype = logical->dtype();
     const std::size_t count =
         static_cast<std::size_t>(logical->nelems());
+    // Host buffer must match the logical payload size. A larger logical
+    // (stale TensorRef / shape drift) would write past dst and segfault.
+    TORCH_CHECK(
+        dst.is_cpu(),
+        "torch_nntile: copy_nntile_tensor_to_cpu expects a CPU dst");
+    TORCH_CHECK(
+        dst.is_contiguous(),
+        "torch_nntile: copy_nntile_tensor_to_cpu requires contiguous dst");
+    TORCH_CHECK(
+        static_cast<std::size_t>(dst.numel()) == count,
+        "torch_nntile: host readout size mismatch: torch numel=",
+        dst.numel(),
+        " logical nelems=",
+        count,
+        " torch shape=",
+        src.sizes(),
+        " logical shape rank=",
+        logical->ndim());
+    const std::size_t elem_bytes = nntile::dtype_size(dtype);
+    TORCH_CHECK(
+        static_cast<std::size_t>(dst.nbytes()) >= count * elem_bytes,
+        "torch_nntile: host readout buffer too small: dst.nbytes=",
+        dst.nbytes(),
+        " need=",
+        count * elem_bytes);
+    TORCH_CHECK(
+        aten_scalar_to_nntile_dtype(dst.scalar_type()) == dtype,
+        "torch_nntile: host readout dtype mismatch");
     // Respect dst storage_offset (matches CPU->nntile ingress via data_ptr()).
     void *host_ptr = dst.data_ptr();
 
@@ -1274,6 +1306,9 @@ void init_nntile_input_from_cpu(
     TORCH_CHECK(
         cpu_src.is_contiguous() && nntile_dst.is_contiguous(),
         "init_nntile_input_from_cpu: contiguous tensors required");
+    TORCH_CHECK(
+        cpu_src.scalar_type() == nntile_dst.scalar_type(),
+        "init_nntile_input_from_cpu: dtype mismatch");
 
     if (g_graph == nullptr)
     {
@@ -1359,6 +1394,16 @@ void register_data_node(
 {
     const SteadyClock::time_point t0 = SteadyClock::now();
     std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    TORCH_CHECK(node != nullptr, "register_data_node: null node");
+    TORCH_CHECK(
+        static_cast<std::size_t>(tensor.numel()) ==
+            static_cast<std::size_t>(node->nelems()),
+        "torch_nntile: register_data_node size mismatch: torch numel=",
+        tensor.numel(),
+        " logical nelems=",
+        node->nelems(),
+        " torch shape=",
+        tensor.sizes());
     at::Tensor mutable_tensor = tensor;
     if (!static_cast<bool>(tensor_ref(mutable_tensor)))
     {

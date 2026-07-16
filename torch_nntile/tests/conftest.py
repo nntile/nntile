@@ -148,16 +148,14 @@ def _reset_nntile_graph_session_after_test():
 
 
 def nntile_cpu(tensor: torch.Tensor) -> torch.Tensor:
-    """Copy an nntile tensor to CPU after synchronizing StarPU.
+    """Copy an nntile tensor to CPU, flushing a pending TensorGraph first.
 
-    ``device=nntile`` is async: ``compile_graph``/``run`` submit kernels without
-    joining. Host readout (``.cpu()`` / ``assert_close``) must ``wait()`` first
-    or low-level kernels can race with the gather and segfault.
+    ``.cpu()`` gathers through StarPU and blocks until tile data is ready;
+    do not add an extra ``wait()`` here. If a pending graph exists, compile
+    and run it so the gather sees the produced logical.
     """
-    if tensor.device.type == "nntile":
-        if torch_nntile.has_pending_graph():
-            torch_nntile.compile_graph()
-            torch_nntile.run()
-        torch_nntile.wait()
+    if tensor.device.type == "nntile" and torch_nntile.has_pending_graph():
+        torch_nntile.compile_graph()
+        torch_nntile.run()
     with torch.no_grad():
         return tensor.cpu()
