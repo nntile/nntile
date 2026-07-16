@@ -51,7 +51,7 @@ follow these steps to contribute code.
    ```bash
    export LD_LIBRARY_PATH="$(pwd)/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH}"
    export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
-   ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
+   ctest --test-dir build -LE "(MPI|NotImplemented)" --output-on-failure
    ```
 
    For the PrivateUse1 Python package:
