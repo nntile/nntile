@@ -91,7 +91,7 @@ jobs:
           restore-keys: ccache-build-libnntile-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF \
+            -DBUILD_TESTING=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE_WHEEL=OFF \
             -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
@@ -143,7 +143,7 @@ jobs:
             -DBUILD_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE_WHEEL=OFF \
-            -DBUILD_TESTS=ON \
+            -DBUILD_TESTING=ON \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix"
           cmake --build build-tests -j"$(nproc)"
       - run: |
@@ -213,7 +213,7 @@ jobs:
             -DBUILD_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=ON \
             -DBUILD_TORCH_NNTILE_WHEEL=OFF \
-            -DBUILD_TESTS=OFF \
+            -DBUILD_TESTING=OFF \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}" \
             -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
           cmake --build build-torch --target torch_nntile -j"$(nproc)"
@@ -286,8 +286,7 @@ jobs:
             -DBUILD_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE_WHEEL=OFF \
-            -DBUILD_TESTS=OFF \
-            -DBUILD_TORCH_NNTILE_TESTS=ON \
+            -DBUILD_TESTING=ON \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix;${TORCH_PREFIX}"
           cmake --build build-torch-tests -j"$(nproc)" \
             --target tests_libtorch_nntile_smoke \
@@ -350,7 +349,7 @@ jobs:
           cmake -S . -B build-wheel ${CMAKE_COMMON} \
             -DBUILD_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
-            -DBUILD_TESTS=OFF \
+            -DBUILD_TESTING=OFF \
             -DBUILD_TORCH_NNTILE_WHEEL=ON \
             -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
             -DNNTILE_PREFIX="${PWD}/prefix" \

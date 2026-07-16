@@ -8,7 +8,7 @@ build_dir="${1:-build}"
 tests_root="${build_dir}/nntile/tests"
 
 if [ ! -d "$tests_root" ]; then
-    echo "No ${tests_root}; configure with -DBUILD_TESTS=ON first" >&2
+    echo "No ${tests_root}; configure with -DBUILD_TESTING=ON first" >&2
     exit 1
 fi
 

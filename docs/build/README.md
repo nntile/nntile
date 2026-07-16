@@ -134,13 +134,12 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `USE_CUDA_BF16` | ON | BF16 support |
 | `USE_CUDA_FP8` | ON | FP8 if CUDA ≥ 11.8 |
 | `USE_CBLAS` | ON | CPU BLAS kernels |
-| `BUILD_TESTS` | ON | CTest suite; with `BUILD_NNTILE=OFF` links installed libnntile |
+| `BUILD_TESTING` | ON | Standard CMake CTest switch; tests are built only for enabled components (`BUILD_NNTILE` / `BUILD_TORCH_NNTILE` / `BUILD_TORCH_NNTILE_WHEEL`). With all three OFF, layered CI links tests against an install prefix |
 | `BUILD_DOCS` | OFF | Doxygen documentation |
 | `BUILD_TORCH_NNTILE` | ON | Build **libtorch_nntile**, the LibTorch bridge (requires LibTorch) |
 | `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
-| `BUILD_TORCH_NNTILE_TESTS` | OFF | C++ libtorch_nntile tests (`torch_nntile/tests`; auto-ON with `BUILD_TORCH_NNTILE`+`BUILD_TESTS`) |
 | `BUILD_TORCH_NNTILE_WHEEL` | ON | Build the installable **torch_nntile** pip wheel (`torch_nntile_wheel`; user-facing product; use `-DNNTILE_PREFIX` to skip rebuilding libs) |
-| `BUILD_COVERAGE` | OFF | LCOV coverage; enables tests; `make coverage` |
+| `BUILD_COVERAGE` | OFF | LCOV coverage; forces `BUILD_TESTING=ON`; `make coverage` |
 
 ### Common cache variables
 
@@ -188,7 +187,7 @@ cmake --install build-torch --prefix "$PWD/install"
 
 # Wheel only (reuse install; do not rebuild libs)
 cmake -S . -B build-wheel -GNinja \
-  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF -DBUILD_TESTS=OFF \
+  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF -DBUILD_TESTING=OFF \
   -DBUILD_TORCH_NNTILE_WHEEL=ON -DTORCH_NNTILE_WHEEL_REPAIR=OFF \
   -DNNTILE_PREFIX="$PWD/install" -DTORCH_NNTILE_PREFIX="$PWD/install" \
   -DCMAKE_PREFIX_PATH="$PWD/install;${TORCH_PREFIX}"
@@ -207,7 +206,8 @@ C++ TensorGraph tests (against an installed libnntile, no library rebuild):
 
 ```bash
 cmake -S . -B build-tests -GNinja \
-  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF -DBUILD_TESTS=ON \
+  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=OFF \
+  -DBUILD_TORCH_NNTILE_WHEEL=OFF -DBUILD_TESTING=ON \
   -DCMAKE_PREFIX_PATH="$PWD/install"
 cmake --build build-tests -j$(nproc)
 export LD_LIBRARY_PATH="$PWD/install/lib:${LD_LIBRARY_PATH:-}"
@@ -241,8 +241,9 @@ runs on pushes/PRs to `main` and `graph_api`:
 | `test-torch-nntile` | CI wheel | Install wheel + pytest model/extension suite |
 
 `test-libtorch-nntile` does **not** depend on the Python wheel: it links
-`torch_nntile::torch_nntile` from the install prefix (`BUILD_TORCH_NNTILE_TESTS=ON`).
-`test-torch-nntile` covers the Python extension and HF/model parity tests.
+`torch_nntile::torch_nntile` from the install prefix (`BUILD_TESTING=ON` with
+product libs OFF). `test-torch-nntile` covers the Python extension and
+HF/model parity tests.
 
 Install packaging is exercised by the stepwise build → test consumers
 (`find_package` / wheel / ctest), not by separate install-layout jobs.
@@ -309,7 +310,7 @@ bash torch_nntile/tools/build_wheel_deps.sh "$PWD"
 Or plain CMake:
 
 ```bash
-cmake -S . -B build -GNinja -DUSE_CUDA=OFF -DBUILD_TESTS=OFF \
+cmake -S . -B build -GNinja -DUSE_CUDA=OFF -DBUILD_TESTING=OFF \
   -DBUILD_TORCH_NNTILE_WHEEL=ON \
   -DCMAKE_PREFIX_PATH="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
 cmake --build build --target torch_nntile_wheel
@@ -345,7 +346,7 @@ A driver is only required at runtime when using CUDA StarPU workers
 
 ## Running tests
 
-Requires `BUILD_TESTS=ON` (default) and a finished build. Tests are skipped when
+Requires `BUILD_TESTING=ON` (default) and a finished build. Tests are skipped when
 StarPU uses SimGrid.
 
 ### Running tests with CTest

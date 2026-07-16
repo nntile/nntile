@@ -27,9 +27,6 @@ option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
 option(USE_FLASH_SDPA "Build cuDNN flash SDPA (disabled on graph_api until C-order migration)" OFF)
 option(USE_CBLAS "Use CPU CBLAS" ON)
-option(BUILD_TESTS
-    "Build and run tests (links nntile; works with BUILD_NNTILE=OFF + prefix)"
-    ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 # Default ON: the user-facing product is the torch_nntile pip wheel (needs
 # LibTorch on CMAKE_PREFIX_PATH). Layered CI and Torch-less configures must
@@ -37,12 +34,17 @@ option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_TORCH_NNTILE
     "Build LibTorch bridge libtorch_nntile (requires LibTorch)" ON)
 option(BUILD_TORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
-option(BUILD_TORCH_NNTILE_TESTS
-    "Build libtorch_nntile C++ tests (needs LibTorch + libtorch_nntile)"
-    OFF)
 option(BUILD_TORCH_NNTILE_WHEEL
     "Build installable torch_nntile pip wheel (user-facing product)" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
+
+# Standard CMake testing switch (default ON). Tests are added only for
+# enabled components: BUILD_NNTILE, BUILD_TORCH_NNTILE, and/or
+# BUILD_TORCH_NNTILE_WHEEL. Pass -DBUILD_TESTING=OFF to skip all tests.
+include(CTest)
+if(BUILD_COVERAGE)
+    set(BUILD_TESTING ON CACHE BOOL "Build the testing tree" FORCE)
+endif()
 
 # In-tree wheel needs libtorch_nntile. Against an install prefix, keep
 # BUILD_TORCH_NNTILE=OFF and pass -DNNTILE_PREFIX=... (and optionally
@@ -213,16 +215,7 @@ elseif(USE_CBLAS)
     endif()
 endif()
 
-if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
-    include(CTest)
-endif()
-
-if(BUILD_TORCH_NNTILE_TESTS AND NOT HAVE_STARPU_SIMGRID)
-    include(CTest)
-endif()
-
 if(BUILD_COVERAGE)
-    set(BUILD_TESTS ON)
     include(CodeCoverage)
     append_coverage_compiler_flags()
     set(COVERAGE_EXCLUDES "${PROJECT_SOURCE_DIR}/nntile/tests/*"
@@ -253,11 +246,6 @@ if(BUILD_TORCH_NNTILE)
     add_subdirectory(torch_nntile)
 endif()
 
-# In-tree libtorch_nntile tests follow BUILD_TESTS when the library is built.
-if(BUILD_TORCH_NNTILE AND BUILD_TESTS)
-    set(BUILD_TORCH_NNTILE_TESTS ON)
-endif()
-
 # Wheel against installed libs only (no libtorch_nntile rebuild).
 if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
     if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
@@ -266,33 +254,43 @@ if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
     include("${PROJECT_SOURCE_DIR}/torch_nntile/cmake/TorchNntileWheel.cmake")
 endif()
 
-# C++ tests can link an installed libnntile (BUILD_NNTILE=OFF) so CI does not
-# recompile the library when running ctest.
-if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
-    if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
-        find_package(nntile REQUIRED CONFIG)
+# C++ tests follow BUILD_TESTING and only for enabled components.
+# Layered CI can also pass all of BUILD_NNTILE / BUILD_TORCH_NNTILE /
+# BUILD_TORCH_NNTILE_WHEEL OFF and link tests against an install prefix:
+# nntile suite if only libnntile is installed, torch suite if
+# libtorch_nntile is present.
+if(BUILD_TESTING AND NOT HAVE_STARPU_SIMGRID)
+    if(NOT BUILD_NNTILE AND NOT BUILD_TORCH_NNTILE
+            AND NOT BUILD_TORCH_NNTILE_WHEEL)
+        if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
+            find_package(torch_nntile QUIET CONFIG)
+        endif()
+        if(TARGET torch_nntile OR TARGET torch_nntile::torch_nntile
+                OR torch_nntile_FOUND)
+            if(NOT Torch_FOUND)
+                find_package(Torch REQUIRED)
+                set(NNTILE_HAVE_TORCH ON)
+            endif()
+            add_subdirectory(
+                "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
+                "${PROJECT_BINARY_DIR}/torch_nntile/tests")
+        else()
+            if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
+                find_package(nntile REQUIRED CONFIG)
+            endif()
+            if(DEFINED NNTILE_BUILT_WITH_CUDA)
+                set(NNTILE_USE_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+                set(NNTILE_LINK_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+            endif()
+            add_subdirectory(
+                "${PROJECT_SOURCE_DIR}/nntile/tests"
+                "${PROJECT_BINARY_DIR}/nntile/tests")
+        endif()
     endif()
-    if(DEFINED NNTILE_BUILT_WITH_CUDA)
-        set(NNTILE_USE_CUDA "${NNTILE_BUILT_WITH_CUDA}")
-        set(NNTILE_LINK_CUDA "${NNTILE_BUILT_WITH_CUDA}")
-    endif()
-    if(NOT BUILD_NNTILE)
-        add_subdirectory(
-            "${PROJECT_SOURCE_DIR}/nntile/tests"
-            "${PROJECT_BINARY_DIR}/nntile/tests")
-    endif()
-endif()
 
-# libtorch_nntile C++ tests (in-tree or against an install prefix).
-if(BUILD_TORCH_NNTILE_TESTS AND NOT HAVE_STARPU_SIMGRID)
-    if(NOT TARGET torch_nntile AND NOT TARGET torch_nntile::torch_nntile)
-        find_package(torch_nntile REQUIRED CONFIG)
+    if(BUILD_TORCH_NNTILE)
+        add_subdirectory(
+            "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
+            "${PROJECT_BINARY_DIR}/torch_nntile/tests")
     endif()
-    if(NOT Torch_FOUND)
-        find_package(Torch REQUIRED)
-        set(NNTILE_HAVE_TORCH ON)
-    endif()
-    add_subdirectory(
-        "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
-        "${PROJECT_BINARY_DIR}/torch_nntile/tests")
 endif()

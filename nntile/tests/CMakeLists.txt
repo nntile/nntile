@@ -139,7 +139,7 @@ function(add_test_set)
     endif()
 endfunction()
 
-if(BUILD_TESTS)
+if(BUILD_TESTING)
     add_test_set(TARGET_NAME tests_nntile_constants
         EXEC_NAME test_constants
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/constants.cc

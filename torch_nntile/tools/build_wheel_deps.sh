@@ -233,7 +233,7 @@ configure_nntile_cmake() {
         -S "${repo_root}"
         -B "${build_dir}"
         -DCMAKE_BUILD_TYPE=Release
-        -DBUILD_TESTS=OFF
+        -DBUILD_TESTING=OFF
         -DBUILD_TORCH_NNTILE=ON
         -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
         -DPython3_EXECUTABLE="${python}"

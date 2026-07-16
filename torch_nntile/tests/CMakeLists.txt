@@ -16,8 +16,6 @@ if(NOT Torch_FOUND)
     find_package(Torch REQUIRED)
 endif()
 
-include(CTest)
-
 set(_torch_nntile_test_include
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )

@@ -35,7 +35,7 @@ Libraries:
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-  -DBUILD_TESTS=OFF \
+  -DBUILD_TESTING=OFF \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" -GNinja

@@ -8,7 +8,7 @@
 
 include(FetchContent)
 
-if(BUILD_TESTS)
+if(BUILD_TESTING)
     include(NntileCatch2)
 endif()
 
