@@ -163,6 +163,11 @@ def test_llama_rms_norm_matches_cpu():
 # ---------------------------------------------------------------------------
 
 
+def _nntile_linear_cpu(linear: torch.nn.Module, x: Tensor) -> Tensor:
+    """CPU ``F.linear`` matching ``NntileLinear`` weight layout."""
+    return F.linear(x, linear.weight, linear.bias)
+
+
 def test_llama_mlp_forward_matches_cpu():
     torch.manual_seed(4)
     cfg = LlamaConfig(
@@ -179,7 +184,11 @@ def test_llama_mlp_forward_matches_cpu():
     x = torch.randn(2, 8, cfg.hidden_size, dtype=torch.float32)
 
     with torch.no_grad():
-        y_cpu = mlp(x)
+        y_cpu = _nntile_linear_cpu(
+            mlp.down_proj,
+            F.silu(_nntile_linear_cpu(mlp.gate_proj, x))
+            * _nntile_linear_cpu(mlp.up_proj, x),
+        )
 
     mlp_nnt = clone_to_nntile(mlp)
     with torch.no_grad():
@@ -198,30 +207,67 @@ def _llama_attn_cpu_ref(
     sin: Tensor,
     cos: Tensor,
 ) -> Tensor:
-    """CPU reference: same Linear weights + RoPE + SDPA (+ GQA repeat)."""
+    """CPU reference using NNTile Q/K/V/O weight layouts + RoPE + SDPA."""
     b, s, _ = x.shape
-    q = attn._shape(attn.q_proj(x), attn.n_heads)
-    k = attn._shape(attn.k_proj(x), attn.n_kv_heads)
-    v = attn._shape(attn.v_proj(x), attn.n_kv_heads)
+    # q_weight: MHA ``[H, D, nh]`` or GQA ``[H, D, n_kv, n_rep]``
+    if attn.use_gqa:
+        # x @ W -> [B, S, D, n_kv, n_rep] then to [n_kv, n_rep, B, S, D]
+        q = torch.einsum("bsh,hdkr->bsdkr", x, attn.q_weight.data)
+        q = q.permute(3, 4, 0, 1, 2).contiguous()
+        # Flatten kv*rep into head dim for SDPA after rope.
+        q_sdpa = q.reshape(attn.n_heads, b, s, attn.head_dim)
+    else:
+        q = torch.einsum("bsh,hdn->bsdn", x, attn.q_weight.data)
+        q_sdpa = q.permute(3, 0, 1, 2).contiguous()
 
-    n_heads = q.size(1)
-    sin_h = sin.unsqueeze(1).expand(-1, n_heads, -1, -1).contiguous()
-    cos_h = cos.unsqueeze(1).expand(-1, n_heads, -1, -1).contiguous()
-    # KV heads may differ under GQA - expand sin/cos to kv head count too.
-    sin_k = sin.unsqueeze(1).expand(-1, attn.n_kv_heads, -1, -1).contiguous()
-    cos_k = cos.unsqueeze(1).expand(-1, attn.n_kv_heads, -1, -1).contiguous()
-    q = _rope_ref_forward(sin_h, cos_h, q)
-    k = _rope_ref_forward(sin_k, cos_k, k)
+    k = torch.einsum("bsh,hdn->bsdn", x, attn.k_weight.data)
+    v = torch.einsum("bsh,hdn->bsdn", x, attn.v_weight.data)
+    k_sdpa = k.permute(3, 0, 1, 2).contiguous()
+    v_sdpa = v.permute(3, 0, 1, 2).contiguous()
 
-    if attn.n_rep > 1:
-        k = k.repeat_interleave(attn.n_rep, dim=1)
-        v = v.repeat_interleave(attn.n_rep, dim=1)
+    # RoPE on last dim; broadcast sin/cos over heads.
+    def _rope_heads(t: Tensor, n_heads: int) -> Tensor:
+        # t: [n_heads, B, S, D]
+        sin_h = (
+            sin.unsqueeze(0)
+            .expand(n_heads, -1, -1, -1)
+            .contiguous()
+        )
+        cos_h = (
+            cos.unsqueeze(0)
+            .expand(n_heads, -1, -1, -1)
+            .contiguous()
+        )
+        return _rope_ref_forward(sin_h, cos_h, t)
 
+    if attn.use_gqa:
+        # RoPE before flattening: apply per (kv, rep) as n_heads.
+        q_r = q.reshape(attn.n_heads, b, s, attn.head_dim)
+        q_sdpa = _rope_heads(q_r, attn.n_heads)
+        k_sdpa = _rope_heads(k_sdpa, attn.n_kv_heads)
+        k_sdpa = k_sdpa.repeat_interleave(attn.n_rep, dim=0)
+        v_sdpa = v_sdpa.repeat_interleave(attn.n_rep, dim=0)
+    else:
+        q_sdpa = _rope_heads(q_sdpa, attn.n_heads)
+        k_sdpa = _rope_heads(k_sdpa, attn.n_kv_heads)
+
+    # F.sdpa expects [B, nh, S, D]
+    q_b = q_sdpa.permute(1, 0, 2, 3)
+    k_b = k_sdpa.permute(1, 0, 2, 3)
+    v_b = v_sdpa.permute(1, 0, 2, 3)
     out = F.scaled_dot_product_attention(
-        q, k, v, attn_mask=None, dropout_p=0.0, is_causal=True
+        q_b, k_b, v_b, attn_mask=None, dropout_p=0.0, is_causal=True
     )
-    out = out.transpose(1, 2).contiguous().view(b, s, -1)
-    return attn.o_proj(out)
+    # back to [nh, B, S, D] then O proj
+    out = out.permute(1, 0, 2, 3).contiguous()
+    if attn.use_gqa:
+        # o_weight: [D, n_kv, n_rep, H]
+        out = out.reshape(attn.n_kv_heads, attn.n_rep, b, s, attn.head_dim)
+        y = torch.einsum("krbsd,dkrh->bsh", out, attn.o_weight.data)
+    else:
+        # o_weight: [D, nh, H]; out [nh, B, S, D]
+        y = torch.einsum("nbsd,dnh->bsh", out, attn.o_weight.data)
+    return y
 
 
 @pytest.mark.parametrize(
@@ -271,6 +317,32 @@ def test_llama_attention_forward_matches_cpu(n_heads, n_kv, head_dim):
 # ---------------------------------------------------------------------------
 
 
+def _bert_self_attn_cpu_ref(attn: BertSelfAttention, x: Tensor) -> Tensor:
+    """CPU reference for NNTile QKV projection + dense SDPA (no mask)."""
+    b, s, _ = x.shape
+    nh, hs = attn.n_heads, attn.head_dim
+
+    def _proj(layer) -> Tensor:
+        # weight [H, hs, nh] -> [nh, B, S, hs]
+        y = torch.einsum("bsh,hdn->bsdn", x, layer.weight.data)
+        y = y.permute(3, 0, 1, 2).contiguous()
+        if layer.bias is not None:
+            y = y + layer.bias.data.view(nh, 1, 1, hs)
+        return y
+
+    q = _proj(attn.query)
+    k = _proj(attn.key)
+    v = _proj(attn.value)
+    q_b = q.permute(1, 0, 2, 3)
+    k_b = k.permute(1, 0, 2, 3)
+    v_b = v.permute(1, 0, 2, 3)
+    out = F.scaled_dot_product_attention(
+        q_b, k_b, v_b, attn_mask=None, dropout_p=0.0, is_causal=False
+    )
+    # BertSelfAttention returns SDPA kernel layout [nh, B, S, hs]
+    return out.permute(1, 0, 2, 3).contiguous()
+
+
 def test_bert_self_attention_forward_matches_cpu():
     torch.manual_seed(7)
     cfg = BertConfig(
@@ -285,7 +357,7 @@ def test_bert_self_attention_forward_matches_cpu():
     x = torch.randn(2, 8, cfg.hidden_size, dtype=torch.float32)
 
     with torch.no_grad():
-        y_cpu = attn(x, is_causal=False)
+        y_cpu = _bert_self_attn_cpu_ref(attn, x)
 
     attn_nnt = clone_to_nntile(attn)
     with torch.no_grad():
@@ -305,11 +377,36 @@ def test_bert_self_attention_backward_matches_cpu():
     )
     attn = BertSelfAttention(cfg).float()
     x = torch.randn(2, 8, cfg.hidden_size, dtype=torch.float32)
-    grad_out = torch.randn_like(x)
+    with torch.no_grad():
+        y_shape = _bert_self_attn_cpu_ref(attn, x).shape
+    grad_out = torch.randn(y_shape, dtype=torch.float32)
 
+    attn_cpu = BertSelfAttention(cfg).float()
+    attn_cpu.load_state_dict(attn.state_dict())
+    for p in attn_cpu.parameters():
+        p.requires_grad_(True)
     x_cpu = x.detach().requires_grad_(True)
-    y_cpu = attn(x_cpu, is_causal=False)
-    y_cpu.backward(grad_out)
+
+    def _proj(layer, inp):
+        nh, hs = attn_cpu.n_heads, attn_cpu.head_dim
+        y = torch.einsum("bsh,hdn->bsdn", inp, layer.weight)
+        y = y.permute(3, 0, 1, 2).contiguous()
+        if layer.bias is not None:
+            y = y + layer.bias.view(nh, 1, 1, hs)
+        return y
+
+    q = _proj(attn_cpu.query, x_cpu)
+    k = _proj(attn_cpu.key, x_cpu)
+    v = _proj(attn_cpu.value, x_cpu)
+    out = F.scaled_dot_product_attention(
+        q.permute(1, 0, 2, 3),
+        k.permute(1, 0, 2, 3),
+        v.permute(1, 0, 2, 3),
+        attn_mask=None,
+        dropout_p=0.0,
+        is_causal=False,
+    ).permute(1, 0, 2, 3)
+    out.backward(grad_out)
 
     attn_nnt = clone_to_nntile(attn)
     for p in attn_nnt.parameters():
@@ -321,7 +418,7 @@ def test_bert_self_attention_backward_matches_cpu():
     assert_close(x_nnt.grad, x_cpu.grad, rtol=RTOL, atol=ATOL)
     assert_close(
         attn_nnt.query.weight.grad,
-        attn.query.weight.grad,
+        attn_cpu.query.weight.grad,
         rtol=RTOL,
         atol=ATOL,
     )
