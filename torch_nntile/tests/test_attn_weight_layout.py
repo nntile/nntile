@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import torch
-
 from torch_nntile.nn.weight_layout import (
     convert_attn_weights,
     nntile_to_torch_o_weight,

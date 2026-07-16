@@ -13,16 +13,11 @@ pytest.importorskip("numpy")
 pytest.importorskip("transformers")
 
 import torch
-from transformers import LlamaConfig as HfLlamaConfig
-from transformers import LlamaForCausalLM
-from transformers.models.llama.modeling_llama import (
-    LlamaAttention as HfAttention,
-    LlamaDecoderLayer as HfDecoder,
-    LlamaMLP as HfMLP,
-    LlamaRotaryEmbedding,
+from parity_helpers import (
+    additive_causal_mask,
+    assert_close,
+    contiguous_to_nntile,
 )
-
-from torch_nntile import _C
 from torch_nntile.models.hf_rope_layout import (
     copy_linear,
     hf_to_nntile_qkv_weight,
@@ -46,22 +41,24 @@ from torch_nntile.nn.linear import (
     linear_to_qkv_weight,
 )
 from torch_nntile.rope import rope_sin_cos_from_position_ids
-from parity_helpers import (
-    additive_causal_mask,
-    assert_close,
-    contiguous_to_nntile,
+from transformers import LlamaConfig as HfLlamaConfig
+from transformers import LlamaForCausalLM
+from transformers.models.llama.modeling_llama import (
+    LlamaAttention as HfAttention,
 )
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
+from transformers.models.llama.modeling_llama import (
+    LlamaDecoderLayer as HfDecoder,
+)
+from transformers.models.llama.modeling_llama import (
+    LlamaMLP as HfMLP,
+)
+from transformers.models.llama.modeling_llama import (
+    LlamaRotaryEmbedding,
 )
 
 RTOL = 1e-4
 ATOL = 1e-4
 BWD_ATOL = 1e-3
-
 
 # ---------------------------------------------------------------------------
 # Config (was llama_config.cc)

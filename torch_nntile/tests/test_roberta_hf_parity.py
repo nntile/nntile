@@ -13,17 +13,8 @@ pytest.importorskip("numpy")
 pytest.importorskip("transformers")
 
 import torch
-from transformers import RobertaConfig as HfRobertaConfig
-from transformers import RobertaForMaskedLM
-from transformers.models.roberta.modeling_roberta import (
-    RobertaAttention as HfAttention,
-    RobertaEmbeddings as HfEmbeddings,
-    RobertaIntermediate as HfIntermediate,
-    RobertaLayer as HfLayer,
-    RobertaSelfAttention as HfSelfAttention,
-)
-
-from torch_nntile import _C
+from conftest import nntile_cpu
+from parity_helpers import assert_close, contiguous_to_nntile, copy_linear
 from torch_nntile.models.bert import (
     BertAttention,
     BertIntermediate,
@@ -47,13 +38,22 @@ from torch_nntile.nn.linear import (
     linear_to_qkv_weight,
     qkv_to_linear_weight,
 )
-from conftest import nntile_cpu
-from parity_helpers import assert_close, contiguous_to_nntile, copy_linear
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
+from transformers import RobertaConfig as HfRobertaConfig
+from transformers import RobertaForMaskedLM
+from transformers.models.roberta.modeling_roberta import (
+    RobertaAttention as HfAttention,
+)
+from transformers.models.roberta.modeling_roberta import (
+    RobertaEmbeddings as HfEmbeddings,
+)
+from transformers.models.roberta.modeling_roberta import (
+    RobertaIntermediate as HfIntermediate,
+)
+from transformers.models.roberta.modeling_roberta import (
+    RobertaLayer as HfLayer,
+)
+from transformers.models.roberta.modeling_roberta import (
+    RobertaSelfAttention as HfSelfAttention,
 )
 
 RTOL = 1e-4
@@ -164,14 +164,18 @@ def _load_attention(local: BertAttention, hf_attn: HfAttention) -> None:
         )
     )
     local.output.dense.bias.data.copy_(hf_attn.output.dense.bias.data)
-    local.output.LayerNorm.load_state_dict(hf_attn.output.LayerNorm.state_dict())
+    local.output.LayerNorm.load_state_dict(
+        hf_attn.output.LayerNorm.state_dict()
+    )
 
 
 def _load_layer(local: BertLayer, hf_layer: HfLayer) -> None:
     _load_attention(local.attention, hf_layer.attention)
     copy_linear(local.intermediate.dense, hf_layer.intermediate.dense)
     copy_linear(local.output.dense, hf_layer.output.dense)
-    local.output.LayerNorm.load_state_dict(hf_layer.output.LayerNorm.state_dict())
+    local.output.LayerNorm.load_state_dict(
+        hf_layer.output.LayerNorm.state_dict()
+    )
 
 
 def _untie_hf_roberta_mlm(hf: RobertaForMaskedLM) -> None:
@@ -250,9 +254,13 @@ def test_roberta_intermediate_activation_variants(hidden_act, tiny_hf_config):
     tiny_hf_config.hidden_act = hidden_act
     torch.manual_seed(2)
     hf_inter = HfIntermediate(tiny_hf_config).eval().float()
-    local = BertIntermediate(
-        roberta_config_from_hf(tiny_hf_config).to_bert_config()
-    ).eval().float()
+    local = (
+        BertIntermediate(
+            roberta_config_from_hf(tiny_hf_config).to_bert_config()
+        )
+        .eval()
+        .float()
+    )
     copy_linear(local.dense, hf_inter.dense)
     local = local.to("nntile")
     x = torch.randn(2, 8, tiny_hf_config.hidden_size)
@@ -268,9 +276,11 @@ def test_roberta_intermediate_activation_variants(hidden_act, tiny_hf_config):
 def test_roberta_embeddings_forward_with_pads_matches_hf(tiny_hf_config):
     torch.manual_seed(1)
     hf_emb = HfEmbeddings(tiny_hf_config).eval().float()
-    local = RobertaEmbeddings(
-        roberta_config_from_hf(tiny_hf_config)
-    ).eval().float()
+    local = (
+        RobertaEmbeddings(roberta_config_from_hf(tiny_hf_config))
+        .eval()
+        .float()
+    )
     _load_embeddings(local, hf_emb)
 
     assert local.word_embeddings.padding_idx is None
@@ -292,9 +302,13 @@ def test_roberta_embeddings_forward_with_pads_matches_hf(tiny_hf_config):
 def test_roberta_intermediate_forward_backward_matches_hf(tiny_hf_config):
     torch.manual_seed(2)
     hf_inter = HfIntermediate(tiny_hf_config).eval().float()
-    local = BertIntermediate(
-        roberta_config_from_hf(tiny_hf_config).to_bert_config()
-    ).eval().float()
+    local = (
+        BertIntermediate(
+            roberta_config_from_hf(tiny_hf_config).to_bert_config()
+        )
+        .eval()
+        .float()
+    )
     copy_linear(local.dense, hf_inter.dense)
     local = local.to("nntile")
 
@@ -312,9 +326,13 @@ def test_roberta_self_attention_forward_backward_matches_hf(tiny_hf_config):
     """Self-attn returns SDPA layout; HF merge is covered by BertAttention."""
     torch.manual_seed(3)
     hf_self = HfSelfAttention(tiny_hf_config).eval().float()
-    local = BertSelfAttention(
-        roberta_config_from_hf(tiny_hf_config).to_bert_config()
-    ).eval().float()
+    local = (
+        BertSelfAttention(
+            roberta_config_from_hf(tiny_hf_config).to_bert_config()
+        )
+        .eval()
+        .float()
+    )
     _load_self_attention(local, hf_self)
     local = local.to("nntile")
 
@@ -346,9 +364,11 @@ def test_roberta_self_attention_forward_backward_matches_hf(tiny_hf_config):
 def test_roberta_attention_forward_backward_matches_hf(tiny_hf_config):
     torch.manual_seed(4)
     hf_attn = HfAttention(tiny_hf_config).eval().float()
-    local = BertAttention(
-        roberta_config_from_hf(tiny_hf_config).to_bert_config()
-    ).eval().float()
+    local = (
+        BertAttention(roberta_config_from_hf(tiny_hf_config).to_bert_config())
+        .eval()
+        .float()
+    )
     _load_attention(local, hf_attn)
     local = local.to("nntile")
 
@@ -367,9 +387,11 @@ def test_roberta_attention_forward_backward_matches_hf(tiny_hf_config):
 def test_roberta_layer_forward_backward_matches_hf(tiny_hf_config):
     torch.manual_seed(5)
     hf_layer = HfLayer(tiny_hf_config).eval().float()
-    local = BertLayer(
-        roberta_config_from_hf(tiny_hf_config).to_bert_config()
-    ).eval().float()
+    local = (
+        BertLayer(roberta_config_from_hf(tiny_hf_config).to_bert_config())
+        .eval()
+        .float()
+    )
     _load_layer(local, hf_layer)
     local = local.to("nntile")
 
@@ -474,9 +496,7 @@ def test_roberta_mlm_logits_forward_backward_query_weight_matches_hf(
     token_type_ids = _roberta_token_type_ids(tiny_hf_config)
     grad = torch.randn(2, 8, tiny_hf_config.vocab_size)
 
-    logits_ref = hf(
-        input_ids=input_ids, token_type_ids=token_type_ids
-    ).logits
+    logits_ref = hf(input_ids=input_ids, token_type_ids=token_type_ids).logits
     logits_ref.backward(grad)
     logits = local(
         contiguous_to_nntile(input_ids),

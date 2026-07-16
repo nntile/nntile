@@ -7,17 +7,9 @@
 from __future__ import annotations
 
 import torch
-import pytest
-
-import torch_nntile
-from torch_nntile import _C
 from conftest import nntile_cpu
 
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+import torch_nntile
 
 
 def test_diamond_shared_weight_grad_matches_cpu():
@@ -38,7 +30,9 @@ def test_diamond_shared_weight_grad_matches_cpu():
     y_nnt = h1_nnt + h2_nnt
     y_nnt.backward(torch.ones(y_nnt.shape, device="cpu").to("nntile"))
 
-    assert torch.allclose(nntile_cpu(w_nnt.grad), w_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(w_nnt.grad), w_cpu.grad, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_microbatch_grad_accumulation_matches_cpu():
@@ -48,8 +42,12 @@ def test_microbatch_grad_accumulation_matches_cpu():
     x2_cpu = torch.randn(2, 3)
     w_cpu = torch.randn(4, 3, requires_grad=True)
 
-    y1_cpu = torch.nn.functional.relu(torch.nn.functional.linear(x1_cpu, w_cpu, None))
-    y2_cpu = torch.nn.functional.relu(torch.nn.functional.linear(x2_cpu, w_cpu, None))
+    y1_cpu = torch.nn.functional.relu(
+        torch.nn.functional.linear(x1_cpu, w_cpu, None)
+    )
+    y2_cpu = torch.nn.functional.relu(
+        torch.nn.functional.linear(x2_cpu, w_cpu, None)
+    )
     grad_scale = 0.5
     y1_cpu.backward(torch.full_like(y1_cpu, grad_scale))
     y2_cpu.backward(torch.full_like(y2_cpu, grad_scale))
@@ -66,8 +64,12 @@ def test_microbatch_grad_accumulation_matches_cpu():
     y2_nnt = torch.nn.functional.relu(
         torch.nn.functional.linear(x2_nnt, w_nnt, None)
     )
-    y1_nnt.backward(torch.full(y1_nnt.shape, grad_scale, device="cpu").to("nntile"))
-    y2_nnt.backward(torch.full(y2_nnt.shape, grad_scale, device="cpu").to("nntile"))
+    y1_nnt.backward(
+        torch.full(y1_nnt.shape, grad_scale, device="cpu").to("nntile")
+    )
+    y2_nnt.backward(
+        torch.full(y2_nnt.shape, grad_scale, device="cpu").to("nntile")
+    )
 
     assert torch.allclose(nntile_cpu(w_nnt.grad), w_ref, rtol=1e-4, atol=1e-4)
 

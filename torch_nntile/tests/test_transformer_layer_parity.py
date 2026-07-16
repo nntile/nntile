@@ -9,10 +9,9 @@ from __future__ import annotations
 import pytest
 import torch
 import torch.nn.functional as F
+from conftest import nntile_cpu
+from parity_helpers import assert_close, clone_to_nntile, contiguous_to_nntile
 from torch import Tensor
-
-import torch_nntile
-from torch_nntile import _C
 from torch_nntile.models.bert import BertConfig, BertSelfAttention
 from torch_nntile.models.llama import (
     LlamaAttention,
@@ -27,14 +26,8 @@ from torch_nntile.rope import (
     rope,
     rope_sin_cos_from_position_ids,
 )
-from conftest import nntile_cpu
-from parity_helpers import assert_close, clone_to_nntile, contiguous_to_nntile
 
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+import torch_nntile
 
 RTOL = 1e-4
 ATOL = 1e-4
@@ -67,14 +60,10 @@ def test_rope_forward_matches_ref():
     x = torch.randn(batch, heads, seq, head_dim, dtype=torch.float32)
 
     sin_exp = (
-        sin.unsqueeze(1)
-        .expand(batch, heads, seq, head_dim // 2)
-        .contiguous()
+        sin.unsqueeze(1).expand(batch, heads, seq, head_dim // 2).contiguous()
     )
     cos_exp = (
-        cos.unsqueeze(1)
-        .expand(batch, heads, seq, head_dim // 2)
-        .contiguous()
+        cos.unsqueeze(1).expand(batch, heads, seq, head_dim // 2).contiguous()
     )
 
     y_ref = _rope_ref_forward(sin_exp, cos_exp, x)
@@ -97,14 +86,10 @@ def test_rope_backward_matches_ref():
     grad_y = torch.randn_like(x)
 
     sin_exp = (
-        sin.unsqueeze(1)
-        .expand(batch, heads, seq, head_dim // 2)
-        .contiguous()
+        sin.unsqueeze(1).expand(batch, heads, seq, head_dim // 2).contiguous()
     )
     cos_exp = (
-        cos.unsqueeze(1)
-        .expand(batch, heads, seq, head_dim // 2)
-        .contiguous()
+        cos.unsqueeze(1).expand(batch, heads, seq, head_dim // 2).contiguous()
     )
 
     dx_ref = _rope_ref_backward(sin_exp, cos_exp, grad_y)
@@ -228,16 +213,8 @@ def _llama_attn_cpu_ref(
     # RoPE on last dim; broadcast sin/cos over heads.
     def _rope_heads(t: Tensor, n_heads: int) -> Tensor:
         # t: [n_heads, B, S, D]
-        sin_h = (
-            sin.unsqueeze(0)
-            .expand(n_heads, -1, -1, -1)
-            .contiguous()
-        )
-        cos_h = (
-            cos.unsqueeze(0)
-            .expand(n_heads, -1, -1, -1)
-            .contiguous()
-        )
+        sin_h = sin.unsqueeze(0).expand(n_heads, -1, -1, -1).contiguous()
+        cos_h = cos.unsqueeze(0).expand(n_heads, -1, -1, -1).contiguous()
         return _rope_ref_forward(sin_h, cos_h, t)
 
     if attn.use_gqa:

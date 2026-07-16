@@ -13,17 +13,8 @@ pytest.importorskip("numpy")
 pytest.importorskip("transformers")
 
 import torch
-from transformers import BertConfig as HfBertConfig
-from transformers import BertForMaskedLM
-from transformers.models.bert.modeling_bert import (
-    BertAttention as HfAttention,
-    BertEmbeddings as HfEmbeddings,
-    BertIntermediate as HfIntermediate,
-    BertLayer as HfLayer,
-    BertSelfAttention as HfSelfAttention,
-)
-
-from torch_nntile import _C
+from conftest import nntile_cpu
+from parity_helpers import assert_close, contiguous_to_nntile, copy_linear
 from torch_nntile.models.bert import (
     BertAttention,
     BertConfig,
@@ -45,13 +36,22 @@ from torch_nntile.nn.linear import (
     linear_to_qkv_weight,
     qkv_to_linear_weight,
 )
-from conftest import nntile_cpu
-from parity_helpers import assert_close, contiguous_to_nntile, copy_linear
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
+from transformers import BertConfig as HfBertConfig
+from transformers import BertForMaskedLM
+from transformers.models.bert.modeling_bert import (
+    BertAttention as HfAttention,
+)
+from transformers.models.bert.modeling_bert import (
+    BertEmbeddings as HfEmbeddings,
+)
+from transformers.models.bert.modeling_bert import (
+    BertIntermediate as HfIntermediate,
+)
+from transformers.models.bert.modeling_bert import (
+    BertLayer as HfLayer,
+)
+from transformers.models.bert.modeling_bert import (
+    BertSelfAttention as HfSelfAttention,
 )
 
 RTOL = 1e-4
@@ -160,14 +160,18 @@ def _load_attention(local: BertAttention, hf_attn: HfAttention) -> None:
         )
     )
     local.output.dense.bias.data.copy_(hf_attn.output.dense.bias.data)
-    local.output.LayerNorm.load_state_dict(hf_attn.output.LayerNorm.state_dict())
+    local.output.LayerNorm.load_state_dict(
+        hf_attn.output.LayerNorm.state_dict()
+    )
 
 
 def _load_layer(local: BertLayer, hf_layer: HfLayer) -> None:
     _load_attention(local.attention, hf_layer.attention)
     copy_linear(local.intermediate.dense, hf_layer.intermediate.dense)
     copy_linear(local.output.dense, hf_layer.output.dense)
-    local.output.LayerNorm.load_state_dict(hf_layer.output.LayerNorm.state_dict())
+    local.output.LayerNorm.load_state_dict(
+        hf_layer.output.LayerNorm.state_dict()
+    )
 
 
 def _untie_hf_bert_mlm(hf: BertForMaskedLM) -> None:
@@ -237,9 +241,9 @@ def test_bert_intermediate_activation_variants(hidden_act, tiny_hf_config):
     tiny_hf_config.hidden_act = hidden_act
     torch.manual_seed(2)
     hf_inter = HfIntermediate(tiny_hf_config).eval().float()
-    local = BertIntermediate(
-        bert_config_from_hf(tiny_hf_config)
-    ).eval().float()
+    local = (
+        BertIntermediate(bert_config_from_hf(tiny_hf_config)).eval().float()
+    )
     copy_linear(local.dense, hf_inter.dense)
     local = local.to("nntile")
     x = torch.randn(2, 8, tiny_hf_config.hidden_size)
@@ -273,9 +277,9 @@ def test_bert_embeddings_forward_matches_hf(tiny_hf_config):
 def test_bert_intermediate_forward_backward_matches_hf(tiny_hf_config):
     torch.manual_seed(2)
     hf_inter = HfIntermediate(tiny_hf_config).eval().float()
-    local = BertIntermediate(
-        bert_config_from_hf(tiny_hf_config)
-    ).eval().float()
+    local = (
+        BertIntermediate(bert_config_from_hf(tiny_hf_config)).eval().float()
+    )
     copy_linear(local.dense, hf_inter.dense)
     local = local.to("nntile")
 
@@ -293,9 +297,9 @@ def test_bert_self_attention_forward_backward_matches_hf(tiny_hf_config):
     """Self-attn returns SDPA layout; HF merge is covered by BertAttention."""
     torch.manual_seed(3)
     hf_self = HfSelfAttention(tiny_hf_config).eval().float()
-    local = BertSelfAttention(
-        bert_config_from_hf(tiny_hf_config)
-    ).eval().float()
+    local = (
+        BertSelfAttention(bert_config_from_hf(tiny_hf_config)).eval().float()
+    )
     _load_self_attention(local, hf_self)
     local = local.to("nntile")
 

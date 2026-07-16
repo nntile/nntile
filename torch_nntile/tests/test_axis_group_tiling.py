@@ -13,14 +13,7 @@ from pathlib import Path
 
 import pytest
 import torch
-
-from torch_nntile import _C
 from conftest import subprocess_environ
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def _run_subprocess(script: str) -> None:

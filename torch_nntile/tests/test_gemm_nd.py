@@ -8,15 +8,8 @@ from __future__ import annotations
 
 import pytest
 import torch
-
-from torch_nntile import _C
-from torch_nntile.gemm import gemm
 from conftest import nntile_cpu, subprocess_environ
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+from torch_nntile.gemm import gemm
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -99,9 +92,7 @@ def test_gemm_qkv_backward():
     x_n = x.detach().to("nntile").requires_grad_(True)
     w_n = w.detach().to("nntile").requires_grad_(True)
     out = gemm(x_n, w_n, ndim=1, batch_ndim=0)
-    grad_cpu = torch.randn_like(
-        _cpu_ref_gemm(x, w, ndim=1, batch_ndim=0)
-    )
+    grad_cpu = torch.randn_like(_cpu_ref_gemm(x, w, ndim=1, batch_ndim=0))
     grad_out = grad_cpu.to("nntile")
     out.backward(grad_out)
     ref_out = _cpu_ref_gemm(x, w, ndim=1, batch_ndim=0)

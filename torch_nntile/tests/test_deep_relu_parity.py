@@ -5,18 +5,10 @@
 # DeepReLU forward parity: CPU PyTorch vs nntile (no CPU fallback).
 
 import torch
-import pytest
+from conftest import nntile_cpu
+from torch_nntile.models import DeepReLU
 
 import torch_nntile
-from torch_nntile import _C
-from torch_nntile.models import DeepReLU
-from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def test_deep_relu_forward_matches_cpu():
@@ -64,7 +56,9 @@ def test_linear_relu_layer_matches_cpu():
 
 
 def test_linear_relu_layer_backward_matches_cpu():
-    x_cpu = torch.tensor([[1.0, -2.0, 0.5], [0.0, 3.0, -1.0]], requires_grad=True)
+    x_cpu = torch.tensor(
+        [[1.0, -2.0, 0.5], [0.0, 3.0, -1.0]], requires_grad=True
+    )
     weight = torch.tensor(
         [[0.25, -0.5, 1.0], [2.0, 0.0, -1.0]],
         requires_grad=True,
@@ -88,7 +82,9 @@ def test_linear_relu_layer_backward_matches_cpu():
     )
 
     assert torch.allclose(nntile_cpu(gx_nnt), x_cpu.grad, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(gw_nnt), weight.grad, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_deep_relu_backward_matches_cpu():

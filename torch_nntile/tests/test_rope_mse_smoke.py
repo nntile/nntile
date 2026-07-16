@@ -8,18 +8,11 @@
 
 from __future__ import annotations
 
-import pytest
 import torch
-
-import torch_nntile
-from torch_nntile import _C
 from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
 from torch_nntile.training import mse_loss
 
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+import torch_nntile
 
 
 def test_rope_forward_shape_on_nntile():

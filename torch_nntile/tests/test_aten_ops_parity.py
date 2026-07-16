@@ -6,19 +6,11 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn.functional as F
-import pytest
-
-from torch_nntile import _C
-from parity_helpers import assert_aten_op_forward_backward, assert_close
 from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+from parity_helpers import assert_aten_op_forward_backward, assert_close
 
 _RTOL = 1e-4
 _ATOL = 1e-4

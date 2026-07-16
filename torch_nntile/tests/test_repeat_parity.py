@@ -5,16 +5,7 @@
 # Parity tests for nntile repeat via chained scale_slice.
 
 import torch
-import pytest
-
-from torch_nntile import _C
 from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def test_repeat_1d_matches_cpu():

@@ -12,18 +12,11 @@ pytest.importorskip("numpy")
 pytest.importorskip("transformers")
 
 import torch
+from conftest import nntile_cpu
+from torch_nntile.training import cross_entropy, train_full_batch_step
 from transformers import GPT2Config, GPT2LMHeadModel
 
 import torch_nntile
-from torch_nntile import _C
-from torch_nntile.training import cross_entropy, train_full_batch_step
-from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 @pytest.fixture
@@ -57,11 +50,15 @@ def _make_stock_models(config: GPT2Config):
 def test_hf_gpt2_forward_matches_cpu(tiny_gpt2_config):
     ref, model = _make_stock_models(tiny_gpt2_config)
     with torch.no_grad():
-        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
+        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to(
+            "nntile"
+        )
     with torch.no_grad():
         ref_logits = ref(nntile_cpu(input_ids)).logits
         out = model(input_ids).logits
-    torch.testing.assert_close(nntile_cpu(out), ref_logits, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(
+        nntile_cpu(out), ref_logits, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
@@ -72,7 +69,9 @@ def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
         param.requires_grad_(True)
 
     with torch.no_grad():
-        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
+        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to(
+            "nntile"
+        )
     labels = input_ids.clone()
 
     ref.zero_grad(set_to_none=True)
@@ -86,9 +85,11 @@ def test_hf_gpt2_cross_entropy_backward_matches_cpu(tiny_gpt2_config):
     model.zero_grad(set_to_none=True)
     logits = model(input_ids).logits
     loss = cross_entropy(logits, labels, reduction="mean")
-    gw_nnt, = torch.autograd.grad(loss, model.transformer.wte.weight)
+    (gw_nnt,) = torch.autograd.grad(loss, model.transformer.wte.weight)
 
-    torch.testing.assert_close(nntile_cpu(loss), ref_loss, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(
+        nntile_cpu(loss), ref_loss, rtol=1e-4, atol=1e-4
+    )
     torch.testing.assert_close(
         nntile_cpu(gw_nnt),
         ref.transformer.wte.weight.grad,
@@ -103,7 +104,9 @@ def test_hf_gpt2_train_full_batch_step_nntile_inputs(tiny_gpt2_config):
         param.requires_grad_(True)
 
     with torch.no_grad():
-        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to("nntile")
+        input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to(
+            "nntile"
+        )
     labels = input_ids.clone()
     before = {
         name: tensor.detach().cpu().clone()
@@ -117,7 +120,5 @@ def test_hf_gpt2_train_full_batch_step_nntile_inputs(tiny_gpt2_config):
         name: tensor.detach().cpu().clone()
         for name, tensor in model.state_dict().items()
     }
-    max_delta = max(
-        (before[k] - after[k]).abs().max().item() for k in before
-    )
+    max_delta = max((before[k] - after[k]).abs().max().item() for k in before)
     assert max_delta > 0.0

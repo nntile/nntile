@@ -10,17 +10,11 @@ import math
 
 import pytest
 import torch
+from conftest import nntile_cpu, subprocess_environ
+from torch_nntile.nn import SDPA, sdpa_eager
 
 import torch_nntile
 from torch_nntile import _C
-from torch_nntile.nn import SDPA, sdpa_eager
-from conftest import nntile_cpu, subprocess_environ
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def _projection_to_kernel_layout(x: torch.Tensor) -> torch.Tensor:
@@ -187,7 +181,10 @@ def test_sdpa_mask_axis_order_matches_causal_layout():
         batch_ndim=2,
     )
     assert not torch.allclose(
-        nntile_cpu(out_sparse), nntile_cpu(out_transposed_mask), rtol=1e-4, atol=1e-4
+        nntile_cpu(out_sparse),
+        nntile_cpu(out_transposed_mask),
+        rtol=1e-4,
+        atol=1e-4,
     )
 
 

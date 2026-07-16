@@ -4,18 +4,12 @@
 # @file torch_nntile/tests/test_norm_parity.py
 # Parity tests for nntile 2-norm via TensorGraph (libnntile).
 
-import torch
 import pytest
+import torch
+from conftest import nntile_cpu
 
 import torch_nntile
 from torch_nntile import _C
-from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def _init_nntile() -> None:
@@ -113,7 +107,11 @@ def test_vector_norm_out_matches_cpu():
 
 
 def test_vector_norm_rejects_requires_grad_in_grad_mode():
-    x = torch.tensor([[1.0, 2.0], [3.0, 4.0]]).to("nntile").requires_grad_(True)
+    x = (
+        torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+        .to("nntile")
+        .requires_grad_(True)
+    )
     with pytest.raises(RuntimeError, match="forward-only"):
         torch.linalg.vector_norm(x, ord=2)
 

@@ -5,17 +5,9 @@
 # Parity tests for nntile add via TensorGraph (libnntile).
 
 import torch
-import pytest
-
-import torch_nntile
-from torch_nntile import _C
 from conftest import nntile_cpu
 
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+import torch_nntile
 
 
 def test_add_matches_cpu():

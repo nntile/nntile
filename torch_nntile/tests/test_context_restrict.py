@@ -7,13 +7,6 @@
 import pytest
 
 import torch_nntile
-from torch_nntile import _C
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def test_init_context_before_ops():

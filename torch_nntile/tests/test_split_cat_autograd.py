@@ -10,19 +10,12 @@ import textwrap
 from pathlib import Path
 
 import torch
-import pytest
-
-from torch_nntile import _C
 from conftest import nntile_cpu, subprocess_environ
 
 
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
-
-
-def _grad_with_ones(output: torch.Tensor, inputs: tuple[torch.Tensor, ...]) -> tuple:
+def _grad_with_ones(
+    output: torch.Tensor, inputs: tuple[torch.Tensor, ...]
+) -> tuple:
     """Backward via grad_outputs; avoids ``sum`` (not on nntile)."""
     grad_out = torch.ones_like(output)
     return torch.autograd.grad(output, inputs, grad_outputs=grad_out)
@@ -98,12 +91,15 @@ def test_cat_backward_two_tensors():
 
 def test_cat_backward_many_tensors():
     tensors_cpu = [
-        torch.randn(2, 3, dtype=torch.float32, requires_grad=True) for _ in range(4)
+        torch.randn(2, 3, dtype=torch.float32, requires_grad=True)
+        for _ in range(4)
     ]
     y_cpu = torch.cat(tensors_cpu, dim=1)
     grads_cpu = _grad_with_ones(y_cpu, tuple(tensors_cpu))
 
-    tensors = [t.detach().to("nntile").requires_grad_(True) for t in tensors_cpu]
+    tensors = [
+        t.detach().to("nntile").requires_grad_(True) for t in tensors_cpu
+    ]
     y = torch.cat(tensors, dim=1)
     grads = _grad_with_ones(y, tuple(tensors))
 

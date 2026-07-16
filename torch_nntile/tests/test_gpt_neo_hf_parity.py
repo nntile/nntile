@@ -13,15 +13,13 @@ pytest.importorskip("numpy")
 pytest.importorskip("transformers")
 
 import torch
-from transformers import GPTNeoConfig as HfGPTNeoConfig
-from transformers import GPTNeoForCausalLM
-from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoAttention as HfAttention,
-    GPTNeoBlock as HfBlock,
-    GPTNeoMLP as HfMLP,
+from conftest import nntile_cpu
+from parity_helpers import (
+    additive_causal_mask,
+    additive_local_causal_mask,
+    assert_close,
+    contiguous_to_nntile,
 )
-
-from torch_nntile import _C
 from torch_nntile.models.gpt_neo import (
     GPTNeoAttention,
     GPTNeoBlock,
@@ -39,25 +37,22 @@ from torch_nntile.nn.linear import (
     linear_to_qkv_weight,
     qkv_to_linear_weight,
 )
-from conftest import nntile_cpu
-from parity_helpers import (
-    additive_causal_mask,
-    additive_local_causal_mask,
-    assert_close,
-    contiguous_to_nntile,
+from transformers import GPTNeoConfig as HfGPTNeoConfig
+from transformers import GPTNeoForCausalLM
+from transformers.models.gpt_neo.modeling_gpt_neo import (
+    GPTNeoAttention as HfAttention,
 )
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
+from transformers.models.gpt_neo.modeling_gpt_neo import (
+    GPTNeoBlock as HfBlock,
+)
+from transformers.models.gpt_neo.modeling_gpt_neo import (
+    GPTNeoMLP as HfMLP,
 )
 
 RTOL = 1e-4
 ATOL = 1e-4
 ATTN_ATOL = 5e-4
 BWD_ATOL = 1e-3
-
 
 # ---------------------------------------------------------------------------
 # Config (was gpt_neo_config.cc)

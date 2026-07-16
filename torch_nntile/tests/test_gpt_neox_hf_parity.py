@@ -13,16 +13,11 @@ pytest.importorskip("numpy")
 pytest.importorskip("transformers")
 
 import torch
-from transformers import GPTNeoXConfig as HfGPTNeoXConfig
-from transformers import GPTNeoXForCausalLM
-from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXAttention as HfAttention,
-    GPTNeoXLayer as HfLayer,
-    GPTNeoXMLP as HfMLP,
-    GPTNeoXRotaryEmbedding,
+from parity_helpers import (
+    additive_causal_mask,
+    assert_close,
+    contiguous_to_nntile,
 )
-
-from torch_nntile import _C
 from torch_nntile.models.gpt_neox import (
     GPTNeoXAttention,
     GPTNeoXCausal,
@@ -41,23 +36,25 @@ from torch_nntile.models.hf_rope_layout import (
 )
 from torch_nntile.nn.linear import linear_to_output_weight
 from torch_nntile.rope import rope_sin_cos_from_position_ids
-from parity_helpers import (
-    additive_causal_mask,
-    assert_close,
-    contiguous_to_nntile,
+from transformers import GPTNeoXConfig as HfGPTNeoXConfig
+from transformers import GPTNeoXForCausalLM
+from transformers.models.gpt_neox.modeling_gpt_neox import (
+    GPTNeoXAttention as HfAttention,
 )
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
+from transformers.models.gpt_neox.modeling_gpt_neox import (
+    GPTNeoXLayer as HfLayer,
+)
+from transformers.models.gpt_neox.modeling_gpt_neox import (
+    GPTNeoXMLP as HfMLP,
+)
+from transformers.models.gpt_neox.modeling_gpt_neox import (
+    GPTNeoXRotaryEmbedding,
 )
 
 RTOL = 1e-4
 ATOL = 1e-4
 ATTN_ATOL = 5e-4
 BWD_ATOL = 1e-3
-
 
 # ---------------------------------------------------------------------------
 # Config (was gpt_neox_config.cc)
@@ -194,9 +191,7 @@ def _load_attn(local: GPTNeoXAttention, hf_attn, cfg: GPTNeoXConfig) -> None:
             rotary_pct=pct,
         ).reshape(cfg.num_attention_heads, 3 * cfg.head_dim)
         local.q_bias.data.copy_(fused_b[:, : cfg.head_dim])
-        local.k_bias.data.copy_(
-            fused_b[:, cfg.head_dim : 2 * cfg.head_dim]
-        )
+        local.k_bias.data.copy_(fused_b[:, cfg.head_dim : 2 * cfg.head_dim])
         local.v_bias.data.copy_(
             fused_b[:, 2 * cfg.head_dim : 3 * cfg.head_dim]
         )
@@ -205,7 +200,9 @@ def _load_attn(local: GPTNeoXAttention, hf_attn, cfg: GPTNeoXConfig) -> None:
 
 
 def _load_layer(local: GPTNeoXLayer, hf_layer: HfLayer, cfg: GPTNeoXConfig):
-    local.input_layernorm.load_state_dict(hf_layer.input_layernorm.state_dict())
+    local.input_layernorm.load_state_dict(
+        hf_layer.input_layernorm.state_dict()
+    )
     local.post_attention_layernorm.load_state_dict(
         hf_layer.post_attention_layernorm.state_dict()
     )

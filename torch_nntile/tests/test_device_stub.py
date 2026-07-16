@@ -16,7 +16,6 @@ def test_import_registers_device():
     assert _C.is_registered()
     assert torch.device("nntile").type == "nntile"
     assert hasattr(torch, "nntile")
-    assert _C.has_libnntile()
 
 
 def test_empty_on_device():

@@ -6,22 +6,13 @@
 
 from __future__ import annotations
 
-import pytest
 import torch
-
-from torch_nntile import _C
+from conftest import nntile_cpu
 from torch_nntile.models.mlp_mixer import (
     MlpMixer,
     MlpMixerConfig,
     MlpMixerCpu,
     copy_cpu_weights_to_nntile,
-)
-from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
 )
 
 

@@ -10,16 +10,7 @@ import textwrap
 from pathlib import Path
 
 import torch
-import pytest
-
-from torch_nntile import _C
 from conftest import nntile_cpu, subprocess_environ
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def _run_graph_subprocess(script: str) -> None:

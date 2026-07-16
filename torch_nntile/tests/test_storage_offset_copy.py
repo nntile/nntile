@@ -8,18 +8,10 @@ from __future__ import annotations
 
 import torch
 import torch.nn.functional as F
-import pytest
+from conftest import nntile_cpu
+from torch_nntile.training import cross_entropy
 
 import torch_nntile
-from torch_nntile import _C
-from torch_nntile.training import cross_entropy
-from conftest import nntile_cpu
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def test_to_nntile_preserves_storage_offset_view():

@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/conftest.py
-# Session-wide StarPU / nntile context for libnntile parity tests.
+# Session-wide StarPU / nntile context for device="nntile" parity tests.
 
 from __future__ import annotations
 
@@ -47,16 +47,13 @@ if _has_local_ext:
 else:
     _shadow = _shadow_path_entries()
     sys.path[:] = [
-        p
-        for p in sys.path
-        if not p or _path_entry(Path(p)) not in _shadow
+        p for p in sys.path if not p or _path_entry(Path(p)) not in _shadow
     ]
 
 import pytest
 import torch
 
 import torch_nntile
-from torch_nntile import _C
 
 
 def subprocess_environ(**extra: str) -> dict[str, str]:
@@ -90,9 +87,7 @@ def subprocess_environ(**extra: str) -> dict[str, str]:
         ordered = [pkg_root] + [p for p in existing if p != pkg_root]
     else:
         shadow = _shadow_path_entries()
-        ordered = [
-            p for p in existing if _path_entry(Path(p)) not in shadow
-        ]
+        ordered = [p for p in existing if _path_entry(Path(p)) not in shadow]
     env["PYTHONPATH"] = ":".join(ordered)
     env.update(extra)
     return env
@@ -105,15 +100,13 @@ def ensure_nntile_context(
     verbose: int = 0,
     cpu_fallback: bool = False,
 ) -> None:
-    """Initialize the nntile context before the first libnntile-backed op.
+    """Initialize the nntile device context before the first nntile op.
 
     ``cpu_fallback`` is selected at :func:`init_context` time (runtime flag, not
     a compile-time setting). Call this early with ``cpu_fallback=False`` for
     parity tests that require unsupported ATen ops to fail instead of silently
     falling back to CPU.
     """
-    if not _C.has_libnntile():
-        return
     if not torch_nntile.is_context_initialized():
         torch_nntile.init_context(
             ncpu=ncpu,
@@ -134,7 +127,7 @@ def ensure_nntile_context(
 
 
 def pytest_sessionstart(session) -> None:
-    """Configure nntile before collection or any libnntile-backed op."""
+    """Configure nntile before collection or any nntile-backed op."""
     del session
     ensure_nntile_context(cpu_fallback=False)
 
@@ -142,8 +135,6 @@ def pytest_sessionstart(session) -> None:
 def pytest_sessionfinish(session, exitstatus) -> None:
     """Tear down StarPU before interpreter finalization (avoids exit UAF)."""
     del session, exitstatus
-    if not _C.has_libnntile():
-        return
     if torch_nntile.is_context_initialized():
         torch_nntile.wait()
         torch_nntile.shutdown_context()
@@ -153,17 +144,12 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 def _reset_nntile_graph_session_after_test():
     """Isolate parity tests: stale TensorGraph sessions corrupt later tests."""
     yield
-    if _C.has_libnntile():
-        torch_nntile.reset_graph_session()
+    torch_nntile.reset_graph_session()
 
 
 def nntile_cpu(tensor: torch.Tensor) -> torch.Tensor:
     """Copy an nntile tensor to CPU, flushing a pending TensorGraph first."""
-    if (
-        _C.has_libnntile()
-        and tensor.device.type == "nntile"
-        and torch_nntile.has_pending_graph()
-    ):
+    if tensor.device.type == "nntile" and torch_nntile.has_pending_graph():
         torch_nntile.compile_graph()
         torch_nntile.run()
     with torch.no_grad():

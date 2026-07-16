@@ -4,29 +4,21 @@
 # @file torch_nntile/tests/test_deep_relu_mnist_train.py
 # Full-batch MNIST training: CPU vs nntile loss and weight parity.
 
-import torch
 import pytest
+import torch
 
 pytest.importorskip("torchvision")
-from torchvision import datasets
-
-import torch_nntile
-from torch_nntile import _C
 from torch_nntile.models import DeepReLU
 from torch_nntile.training import (
     clone_model_weights,
     max_weight_delta,
     train_full_batch_step,
 )
+from torchvision import datasets
 
+import torch_nntile
 
-pytestmark = [
-    pytest.mark.skipif(
-        not _C.has_libnntile(),
-        reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-    ),
-    pytest.mark.slow,
-]
+pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(scope="module")
@@ -60,10 +52,13 @@ def test_mnist_full_batch_training_matches_cpu(mnist_full_batch):
         model_nnt.load_state_dict(model_cpu.state_dict())
         model_nnt = model_nnt.to("nntile")
 
-    assert max_weight_delta(
-        clone_model_weights(model_cpu),
-        clone_model_weights(model_nnt),
-    ) == 0.0
+    assert (
+        max_weight_delta(
+            clone_model_weights(model_cpu),
+            clone_model_weights(model_nnt),
+        )
+        == 0.0
+    )
 
     cpu_losses: list[float] = []
     nnt_losses: list[float] = []
@@ -72,12 +67,8 @@ def test_mnist_full_batch_training_matches_cpu(mnist_full_batch):
         y_nnt = labels.to("nntile")
 
     for _ in range(epochs):
-        cpu_losses.append(
-            train_full_batch_step(model_cpu, images, labels, lr)
-        )
-        nnt_losses.append(
-            train_full_batch_step(model_nnt, x_nnt, y_nnt, lr)
-        )
+        cpu_losses.append(train_full_batch_step(model_cpu, images, labels, lr))
+        nnt_losses.append(train_full_batch_step(model_nnt, x_nnt, y_nnt, lr))
 
     for loss_cpu, loss_nnt in zip(cpu_losses, nnt_losses):
         assert abs(loss_cpu - loss_nnt) < 1e-3

@@ -1,10 +1,7 @@
 import torch
+
 import torch_nntile
 from torch_nntile import _C
-
-
-if not _C.has_libnntile():
-    raise SystemExit("torch_nntile wheel was built without libnntile")
 
 # Smoke runs on CPU CI and CUDA wheels with ncuda=0; flag must be readable.
 _ = torch_nntile.built_with_cuda()

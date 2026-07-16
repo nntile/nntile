@@ -4,18 +4,11 @@
 # @file torch_nntile/tests/test_softmax_parity.py
 # Softmax forward/backward parity: CPU PyTorch vs nntile.
 
-import torch
 import pytest
-
-import torch_nntile
-from torch_nntile import _C
+import torch
 from conftest import nntile_cpu
 
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
+import torch_nntile
 
 
 @pytest.fixture
@@ -53,7 +46,9 @@ def test_softmax_backward_matches_cpu(random_input):
     y_nnt = torch.nn.functional.softmax(x_nnt, dim=-1)
     y_nnt.backward(torch.ones_like(y_nnt))
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_softmax_backward_dim0(random_input):
@@ -65,7 +60,9 @@ def test_softmax_backward_dim0(random_input):
     y_nnt = torch.nn.functional.softmax(x_nnt, dim=0)
     y_nnt.backward(torch.ones_like(y_nnt))
 
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_nn_softmax_module(random_input):
@@ -80,4 +77,6 @@ def test_nn_softmax_module(random_input):
     y_nnt.backward(torch.ones_like(y_nnt))
 
     assert torch.allclose(nntile_cpu(y_nnt), y_cpu, rtol=1e-4, atol=1e-4)
-    assert torch.allclose(nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4)
+    assert torch.allclose(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-4, atol=1e-4
+    )

@@ -4,20 +4,14 @@
 # @file torch_nntile/tests/test_cross_entropy_parity.py
 # Cross-entropy parity: CPU PyTorch vs nntile tensor ops.
 
-import torch
 import pytest
+import torch
 import torch.nn.functional as F
+from conftest import nntile_cpu
+from torch_nntile.training import cross_entropy
 
 import torch_nntile
-from torch_nntile import _C
-from torch_nntile.training import cross_entropy
-from conftest import nntile_cpu
 
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 def test_cross_entropy_forward_mean_matches_cpu():
     torch.manual_seed(0)
@@ -71,7 +65,9 @@ def test_cross_entropy_forward_sum_matches_cpu():
 def test_cross_entropy_backward_matches_cpu():
     torch.manual_seed(2)
     batch, classes = 6, 4
-    logits_cpu = torch.randn(batch, classes, dtype=torch.float32, requires_grad=True)
+    logits_cpu = torch.randn(
+        batch, classes, dtype=torch.float32, requires_grad=True
+    )
     target = torch.randint(0, classes, (batch,))
 
     loss_cpu = F.cross_entropy(logits_cpu, target, reduction="mean")

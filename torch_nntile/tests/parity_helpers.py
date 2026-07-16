@@ -10,9 +10,8 @@ import copy
 
 import torch
 import torch.nn as nn
-from torch import Tensor
-
 from conftest import nntile_cpu
+from torch import Tensor
 
 
 def assert_close(
@@ -188,15 +187,3 @@ def assert_aten_op_forward_backward(
             rtol=bwd_rtol,
             atol=bwd_atol,
         )
-
-
-def require_libnntile():
-    """Import-time skip helper used by model parity modules."""
-    import pytest
-
-    from torch_nntile import _C
-
-    return pytest.mark.skipif(
-        not _C.has_libnntile(),
-        reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-    )

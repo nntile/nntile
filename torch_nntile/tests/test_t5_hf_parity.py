@@ -15,15 +15,12 @@ pytest.importorskip("numpy")
 pytest.importorskip("transformers")
 
 import torch
-from transformers import T5Config as HfT5Config
-from transformers import T5ForConditionalGeneration as HfT5
-from transformers.models.t5.modeling_t5 import (
-    T5Attention as HfAttention,
-    T5Block as HfBlock,
-    T5LayerFF as HfLayerFF,
+from conftest import nntile_cpu
+from parity_helpers import (
+    additive_causal_mask,
+    assert_close,
+    contiguous_to_nntile,
 )
-
-from torch_nntile import _C
 from torch_nntile.models.hf_rope_layout import copy_linear
 from torch_nntile.models.t5 import (
     T5Attention,
@@ -43,24 +40,22 @@ from torch_nntile.nn.linear import (
     linear_to_qkv_weight,
     qkv_to_linear_weight,
 )
-from conftest import nntile_cpu
-from parity_helpers import (
-    additive_causal_mask,
-    assert_close,
-    contiguous_to_nntile,
+from transformers import T5Config as HfT5Config
+from transformers import T5ForConditionalGeneration as HfT5
+from transformers.models.t5.modeling_t5 import (
+    T5Attention as HfAttention,
 )
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
+from transformers.models.t5.modeling_t5 import (
+    T5Block as HfBlock,
+)
+from transformers.models.t5.modeling_t5 import (
+    T5LayerFF as HfLayerFF,
 )
 
 RTOL = 1e-4
 ATOL = 1e-4
 ATTN_ATOL = 5e-4
 BWD_ATOL = 1e-3
-
 
 # ---------------------------------------------------------------------------
 # Config (was t5_config.cc)
@@ -233,11 +228,15 @@ def test_t5_ff_forward_backward_matches_hf():
 def test_t5_self_attention_forward_backward_matches_hf(causal):
     torch.manual_seed(10 + int(causal))
     hf_cfg = _hf_cfg()
-    hf_attn = HfAttention(
-        hf_cfg,
-        has_relative_attention_bias=False,
-        layer_idx=0,
-    ).eval().float()
+    hf_attn = (
+        HfAttention(
+            hf_cfg,
+            has_relative_attention_bias=False,
+            layer_idx=0,
+        )
+        .eval()
+        .float()
+    )
     local = T5Attention(t5_config_from_hf(hf_cfg), is_decoder=causal).eval()
     local.float()
     _load_attn(local, hf_attn)
@@ -268,15 +267,23 @@ def test_t5_self_attention_forward_backward_matches_hf(causal):
 def test_t5_cross_attention_forward_backward_matches_hf():
     torch.manual_seed(12)
     hf_cfg = _hf_cfg()
-    hf_attn = HfAttention(
-        _decoder_hf_cfg(hf_cfg),
-        has_relative_attention_bias=False,
-        layer_idx=0,
-    ).eval().float()
-    local = T5Attention(
-        t5_config_from_hf(hf_cfg),
-        is_decoder=True,
-    ).eval().float()
+    hf_attn = (
+        HfAttention(
+            _decoder_hf_cfg(hf_cfg),
+            has_relative_attention_bias=False,
+            layer_idx=0,
+        )
+        .eval()
+        .float()
+    )
+    local = (
+        T5Attention(
+            t5_config_from_hf(hf_cfg),
+            is_decoder=True,
+        )
+        .eval()
+        .float()
+    )
     _load_attn(local, hf_attn)
     local_n = local.to("nntile")
 
@@ -316,11 +323,15 @@ def test_t5_cross_attention_forward_backward_matches_hf():
 def test_t5_encoder_block_forward_backward_matches_hf():
     torch.manual_seed(20)
     hf_cfg = _hf_cfg()
-    hf_block = HfBlock(
-        hf_cfg,
-        has_relative_attention_bias=False,
-        layer_idx=0,
-    ).eval().float()
+    hf_block = (
+        HfBlock(
+            hf_cfg,
+            has_relative_attention_bias=False,
+            layer_idx=0,
+        )
+        .eval()
+        .float()
+    )
     local = T5EncoderBlock(t5_config_from_hf(hf_cfg)).eval().float()
     _load_encoder_block(local, hf_block)
     local_n = local.to("nntile")
@@ -341,11 +352,15 @@ def test_t5_encoder_block_forward_backward_matches_hf():
 def test_t5_decoder_block_forward_matches_hf():
     torch.manual_seed(21)
     hf_cfg = _hf_cfg()
-    hf_block = HfBlock(
-        _decoder_hf_cfg(hf_cfg),
-        has_relative_attention_bias=False,
-        layer_idx=0,
-    ).eval().float()
+    hf_block = (
+        HfBlock(
+            _decoder_hf_cfg(hf_cfg),
+            has_relative_attention_bias=False,
+            layer_idx=0,
+        )
+        .eval()
+        .float()
+    )
     local = T5DecoderBlock(t5_config_from_hf(hf_cfg)).eval().float()
     _load_decoder_block(local, hf_block)
     local_n = local.to("nntile")

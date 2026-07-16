@@ -6,16 +6,9 @@
 
 from __future__ import annotations
 
-import pytest
 import torch
 
 from torch_nntile import _C
-
-
-pytestmark = pytest.mark.skipif(
-    not _C.has_libnntile(),
-    reason="torch_nntile built without libnntile (set NNTILE_BUILD_DIR)",
-)
 
 
 def test_cpp_models_listed():
@@ -31,8 +24,10 @@ def test_cpp_models_listed():
 
 
 def test_cpp_llama_causal_forward_on_nntile():
-    ids = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
-        "nntile"
+    ids = (
+        torch.randint(0, 128, (2, 8), dtype=torch.long)
+        .contiguous()
+        .to("nntile")
     )
     out = _C.cpp_llama_causal_forward(
         ids,
@@ -48,8 +43,10 @@ def test_cpp_llama_causal_forward_on_nntile():
 
 
 def test_cpp_bert_mlm_forward_on_nntile():
-    ids = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
-        "nntile"
+    ids = (
+        torch.randint(0, 128, (2, 8), dtype=torch.long)
+        .contiguous()
+        .to("nntile")
     )
     # zeros_like on nntile long fails (fill_ is float32-only in graph mode).
     tt = torch.zeros_like(ids.cpu()).contiguous().to("nntile")
@@ -86,8 +83,10 @@ def test_cpp_roberta_mlm_forward_on_nntile():
 
 
 def test_cpp_gpt_neo_causal_forward_on_nntile():
-    ids = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
-        "nntile"
+    ids = (
+        torch.randint(0, 128, (2, 8), dtype=torch.long)
+        .contiguous()
+        .to("nntile")
     )
     out = _C.cpp_gpt_neo_causal_forward(
         ids,
@@ -103,8 +102,10 @@ def test_cpp_gpt_neo_causal_forward_on_nntile():
 
 
 def test_cpp_gpt_neox_causal_forward_on_nntile():
-    ids = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
-        "nntile"
+    ids = (
+        torch.randint(0, 128, (2, 8), dtype=torch.long)
+        .contiguous()
+        .to("nntile")
     )
     out = _C.cpp_gpt_neox_causal_forward(
         ids,
@@ -120,8 +121,10 @@ def test_cpp_gpt_neox_causal_forward_on_nntile():
 
 
 def test_cpp_gpt2_causal_forward_on_nntile():
-    ids = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
-        "nntile"
+    ids = (
+        torch.randint(0, 128, (2, 8), dtype=torch.long)
+        .contiguous()
+        .to("nntile")
     )
     out = _C.cpp_gpt2_causal_forward(
         ids,
@@ -137,11 +140,15 @@ def test_cpp_gpt2_causal_forward_on_nntile():
 def test_cpp_t5_forward_on_nntile():
     # Equal enc/dec seq: nntile SDPA currently requires Q/K/V same shape
     # (cross-attn with unequal lengths is not supported yet).
-    enc = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
-        "nntile"
+    enc = (
+        torch.randint(0, 128, (2, 8), dtype=torch.long)
+        .contiguous()
+        .to("nntile")
     )
-    dec = torch.randint(0, 128, (2, 8), dtype=torch.long).contiguous().to(
-        "nntile"
+    dec = (
+        torch.randint(0, 128, (2, 8), dtype=torch.long)
+        .contiguous()
+        .to("nntile")
     )
     out = _C.cpp_t5_forward(
         enc,
