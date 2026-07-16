@@ -2,10 +2,15 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/bert.cpp
- * BERT MLM — LibTorch port of deleted NNGraph ``nntile::model::bert``.
+ * BERT MLM — port of deleted ``nntile::model::bert`` (not HF ATen).
  */
 
 #include <torch_nntile/models/bert.hh>
+
+#include "nntile_add_fiber.h"
+#include "nntile_gemm.h"
+#include "nntile_sdpa.h"
+#include "nntile_transpose.h"
 
 #include <stdexcept>
 
@@ -24,23 +29,41 @@ torch::Tensor apply_bert_gelu(torch::Tensor x, bool tanh_approx)
     return torch::gelu(x);
 }
 
-bool is_gelu_tanh(std::string const& act)
+bool is_gelu_tanh(std::string const &act)
 {
     return act == "gelu_pytorch_tanh" || act == "gelutanh" ||
         act == "gelu_new";
 }
 
+torch::Tensor linear_gemm(
+    torch::Tensor const &x,
+    torch::Tensor const &weight,
+    torch::Tensor const &bias)
+{
+    auto out = gemm(
+        x,
+        weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    return add_fiber(
+        bias,
+        out,
+        /*axis=*/out.dim() - 1,
+        /*batch_ndim=*/0);
+}
+
 } // namespace
 
 torch::Tensor bert_position_ids_from_input_ids(
-    torch::Tensor const& input_ids,
+    torch::Tensor const &input_ids,
     int64_t pad_token_id)
 {
     int64_t b = input_ids.size(0);
     int64_t s = input_ids.size(1);
     if (pad_token_id < 0)
     {
-        // Host arange then upload (nntile lacks aten::arange for long).
         auto pos = torch::arange(
             s,
             torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU));
@@ -51,7 +74,6 @@ torch::Tensor bert_position_ids_from_input_ids(
         }
         return pos;
     }
-    // Match HF / Python RobertaEmbeddings: compute on CPU, then move.
     auto ids_cpu = input_ids.device().is_cpu() ?
         input_ids :
         input_ids.to(torch::kCPU);
@@ -64,60 +86,136 @@ torch::Tensor bert_position_ids_from_input_ids(
     return position_ids;
 }
 
-BertLayerImpl::BertLayerImpl(BertConfig const& cfg)
+BertSelfAttentionImpl::BertSelfAttentionImpl(BertConfig const &cfg) :
+    n_heads(cfg.num_attention_heads),
+    head_size(cfg.head_dim()),
+    hidden(cfg.hidden_size)
 {
-    n_head = cfg.num_attention_heads;
-    hidden = cfg.hidden_size;
-    head_dim = hidden / n_head;
-    gelu_tanh = is_gelu_tanh(cfg.hidden_act);
-    if (hidden % n_head != 0)
+    if (hidden % n_heads != 0)
     {
         throw std::invalid_argument(
-            "BertLayer: hidden_size must be divisible by heads");
+            "BertSelfAttention: hidden_size must be divisible by heads");
     }
-    // Post-norm layout (NNGraph BertAttention / BertOutput).
-    query = register_module("query", torch::nn::Linear(hidden, hidden));
-    key = register_module("key", torch::nn::Linear(hidden, hidden));
-    value = register_module("value", torch::nn::Linear(hidden, hidden));
-    attn_dense = register_module(
-        "attn_dense",
-        torch::nn::Linear(hidden, hidden));
-    attn_ln = register_module(
-        "attn_ln",
+    int64_t const hs = head_size;
+    int64_t const nh = n_heads;
+    int64_t const h = hidden;
+    q_weight = register_parameter(
+        "q_weight",
+        torch::empty({h, hs, nh}));
+    k_weight = register_parameter(
+        "k_weight",
+        torch::empty({h, hs, nh}));
+    v_weight = register_parameter(
+        "v_weight",
+        torch::empty({h, hs, nh}));
+    q_bias = register_parameter("q_bias", torch::zeros({nh, hs}));
+    k_bias = register_parameter("k_bias", torch::zeros({nh, hs}));
+    v_bias = register_parameter("v_bias", torch::zeros({nh, hs}));
+    torch::nn::init::normal_(q_weight, 0.0, 0.02);
+    torch::nn::init::normal_(k_weight, 0.0, 0.02);
+    torch::nn::init::normal_(v_weight, 0.0, 0.02);
+}
+
+torch::Tensor BertSelfAttentionImpl::forward(torch::Tensor x)
+{
+    // Mirror ``bert_self_attention.cc`` (no mask in smoke path).
+    auto q = gemm(x, q_weight, /*ndim=*/1, /*batch_ndim=*/0);
+    q = model_transpose(q, /*model_ndim=*/1);
+    q = add_fiber(q_bias, q, /*axis=*/3, /*batch_ndim=*/1);
+
+    auto k = gemm(x, k_weight, /*ndim=*/1, /*batch_ndim=*/0);
+    k = model_transpose(k, /*model_ndim=*/1);
+    k = add_fiber(k_bias, k, /*axis=*/3, /*batch_ndim=*/1);
+
+    auto v = gemm(x, v_weight, /*ndim=*/1, /*batch_ndim=*/0);
+    v = model_transpose(v, /*model_ndim=*/1);
+    v = add_fiber(v_bias, v, /*axis=*/3, /*batch_ndim=*/1);
+
+    auto attn = sdpa_kernel(
+        q,
+        k,
+        v,
+        /*mask=*/std::nullopt,
+        /*batch_ndim=*/2);
+    return model_transpose(attn, /*model_ndim=*/3);
+}
+
+BertSelfOutputImpl::BertSelfOutputImpl(BertConfig const &cfg)
+{
+    int64_t const hs = cfg.head_dim();
+    int64_t const nh = cfg.num_attention_heads;
+    int64_t const h = cfg.hidden_size;
+    dense_weight = register_parameter(
+        "dense_weight",
+        torch::empty({hs, nh, h}));
+    dense_bias = register_parameter("dense_bias", torch::zeros({h}));
+    ln = register_module(
+        "ln",
         torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({hidden}).eps(cfg.layer_norm_eps)));
-    intermediate = register_module(
-        "intermediate",
-        torch::nn::Linear(hidden, cfg.intermediate_size));
-    output_dense = register_module(
-        "output_dense",
-        torch::nn::Linear(cfg.intermediate_size, hidden));
-    output_ln = register_module(
-        "output_ln",
+            torch::nn::LayerNormOptions({h}).eps(cfg.layer_norm_eps)));
+    torch::nn::init::normal_(dense_weight, 0.0, 0.02);
+}
+
+torch::Tensor BertSelfOutputImpl::forward(
+    torch::Tensor attn_heads,
+    torch::Tensor residual)
+{
+    // ``bert_self_output.cc``: gemm(ndim=2) + add_fiber + add + LN.
+    auto dense_out = gemm(
+        attn_heads,
+        dense_weight,
+        /*ndim=*/2,
+        /*batch_ndim=*/0);
+    dense_out = add_fiber(
+        dense_bias,
+        dense_out,
+        /*axis=*/dense_out.dim() - 1,
+        /*batch_ndim=*/0);
+    return ln->forward(residual + dense_out);
+}
+
+BertAttentionImpl::BertAttentionImpl(BertConfig const &cfg)
+{
+    self = register_module("self", BertSelfAttention(cfg));
+    output = register_module("output", BertSelfOutput(cfg));
+}
+
+torch::Tensor BertAttentionImpl::forward(torch::Tensor x)
+{
+    auto heads = self->forward(x);
+    return output->forward(heads, x);
+}
+
+BertLayerImpl::BertLayerImpl(BertConfig const &cfg)
+{
+    gelu_tanh = is_gelu_tanh(cfg.hidden_act);
+    attention = register_module("attention", BertAttention(cfg));
+    int64_t const h = cfg.hidden_size;
+    int64_t const mid = cfg.intermediate_size;
+    inter_weight = register_parameter(
+        "inter_weight",
+        torch::empty({mid, h}));
+    inter_bias = register_parameter("inter_bias", torch::zeros({mid}));
+    out_weight = register_parameter(
+        "out_weight",
+        torch::empty({h, mid}));
+    out_bias = register_parameter("out_bias", torch::zeros({h}));
+    out_ln = register_module(
+        "out_ln",
         torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({hidden}).eps(cfg.layer_norm_eps)));
+            torch::nn::LayerNormOptions({h}).eps(cfg.layer_norm_eps)));
+    torch::nn::init::normal_(inter_weight, 0.0, 0.02);
+    torch::nn::init::normal_(out_weight, 0.0, 0.02);
 }
 
 torch::Tensor BertLayerImpl::forward(torch::Tensor x)
 {
-    int64_t b = x.size(0);
-    int64_t s = x.size(1);
-    auto reshape = [&](torch::Tensor t) {
-        return t.view({b, s, n_head, head_dim}).transpose(1, 2);
-    };
-    auto attn = at::scaled_dot_product_attention(
-        reshape(query->forward(x)),
-        reshape(key->forward(x)),
-        reshape(value->forward(x)),
-        /*attn_mask=*/c10::nullopt,
-        /*dropout_p=*/0.0,
-        /*is_causal=*/false);
-    attn = attn.transpose(1, 2).contiguous().view({b, s, hidden});
-    // BertSelfOutput: LayerNorm(dense(attn) + residual)
-    x = attn_ln->forward(attn_dense->forward(attn) + x);
-    auto mid = apply_bert_gelu(intermediate->forward(x), gelu_tanh);
-    // BertOutput: LayerNorm(dense(ff) + residual)
-    return output_ln->forward(output_dense->forward(mid) + x);
+    // ``bert_layer.cc``: attention → intermediate → output(+residual).
+    auto attn_out = attention->forward(x);
+    auto mid = linear_gemm(attn_out, inter_weight, inter_bias);
+    mid = apply_bert_gelu(mid, gelu_tanh);
+    auto proj = linear_gemm(mid, out_weight, out_bias);
+    return out_ln->forward(attn_out + proj);
 }
 
 BertMlmImpl::BertMlmImpl(BertConfig cfg) : config(std::move(cfg))
@@ -145,18 +243,25 @@ BertMlmImpl::BertMlmImpl(BertConfig cfg) : config(std::move(cfg))
         list->push_back(BertLayer(config));
     }
     layers = register_module("layers", list);
-    // BertMlmHead: dense → act → LN → decoder (untied; migration debt).
-    transform_dense = register_module(
-        "transform_dense",
-        torch::nn::Linear(config.hidden_size, config.hidden_size));
+    int64_t const h = config.hidden_size;
+    transform_weight = register_parameter(
+        "transform_weight",
+        torch::empty({h, h}));
+    transform_bias = register_parameter(
+        "transform_bias",
+        torch::zeros({h}));
     transform_ln = register_module(
         "transform_ln",
         torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({config.hidden_size})
-                .eps(config.layer_norm_eps)));
-    decoder = register_module(
-        "decoder",
-        torch::nn::Linear(config.hidden_size, config.vocab_size));
+            torch::nn::LayerNormOptions({h}).eps(config.layer_norm_eps)));
+    decoder_weight = register_parameter(
+        "decoder_weight",
+        torch::empty({config.vocab_size, h}));
+    decoder_bias = register_parameter(
+        "decoder_bias",
+        torch::zeros({config.vocab_size}));
+    torch::nn::init::normal_(transform_weight, 0.0, 0.02);
+    torch::nn::init::normal_(decoder_weight, 0.0, 0.02);
 }
 
 torch::Tensor BertMlmImpl::forward(
@@ -188,13 +293,14 @@ torch::Tensor BertMlmImpl::forward(
         position_embeddings->forward(pos) +
         token_type_embeddings->forward(token_type_ids);
     h = emb_ln->forward(h);
-    for (auto& module : *layers)
+    for (auto &module : *layers)
     {
         h = module->as<BertLayerImpl>()->forward(h);
     }
-    h = transform_ln->forward(
-        apply_bert_gelu(transform_dense->forward(h), gelu_tanh));
-    return decoder->forward(h);
+    h = linear_gemm(h, transform_weight, transform_bias);
+    h = apply_bert_gelu(h, gelu_tanh);
+    h = transform_ln->forward(h);
+    return linear_gemm(h, decoder_weight, decoder_bias);
 }
 
 } // namespace torch_nntile::models

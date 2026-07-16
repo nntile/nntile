@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/bert.hh
- * BERT MLM for device=nntile (LibTorch port of NNGraph bert).
+ * BERT MLM matching deleted ``nntile::model::bert`` (not HF ATen).
  */
 
 #pragma once
@@ -29,31 +29,74 @@ struct BertConfig
     std::string hidden_act = "gelu";
     //! ``< 0``: BERT ``0..S-1`` positions; ``>= 0``: pad-aware ids.
     int64_t pad_token_id = -1;
+
+    int64_t head_dim() const
+    {
+        return hidden_size / num_attention_heads;
+    }
 };
 
-//! Absolute position ids: BERT arange or RoBERTa pad-skipping.
-//! Built on host when needed, then uploaded (nntile lacks long arange/ne).
 torch::Tensor bert_position_ids_from_input_ids(
-    torch::Tensor const& input_ids,
+    torch::Tensor const &input_ids,
     int64_t pad_token_id);
 
-//! Encoder block: post-norm attention + FFN (NNGraph BertLayer).
+//! ``BertSelfAttention``: gemm → transpose(1) → add_fiber → sdpa →
+//! transpose(3).
+struct BertSelfAttentionImpl : torch::nn::Module
+{
+    int64_t n_heads = 0;
+    int64_t head_size = 0;
+    int64_t hidden = 0;
+    torch::Tensor q_weight;
+    torch::Tensor k_weight;
+    torch::Tensor v_weight;
+    torch::Tensor q_bias;
+    torch::Tensor k_bias;
+    torch::Tensor v_bias;
+
+    explicit BertSelfAttentionImpl(BertConfig const &cfg);
+    torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(BertSelfAttention);
+
+//! ``BertSelfOutput``: gemm(ndim=2) + residual + LayerNorm.
+struct BertSelfOutputImpl : torch::nn::Module
+{
+    torch::Tensor dense_weight;
+    torch::Tensor dense_bias;
+    torch::nn::LayerNorm ln{nullptr};
+
+    explicit BertSelfOutputImpl(BertConfig const &cfg);
+    torch::Tensor forward(
+        torch::Tensor attn_heads,
+        torch::Tensor residual);
+};
+
+TORCH_MODULE(BertSelfOutput);
+
+struct BertAttentionImpl : torch::nn::Module
+{
+    BertSelfAttention self{nullptr};
+    BertSelfOutput output{nullptr};
+
+    explicit BertAttentionImpl(BertConfig const &cfg);
+    torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(BertAttention);
+
 struct BertLayerImpl : torch::nn::Module
 {
-    torch::nn::Linear query{nullptr};
-    torch::nn::Linear key{nullptr};
-    torch::nn::Linear value{nullptr};
-    torch::nn::Linear attn_dense{nullptr};
-    torch::nn::LayerNorm attn_ln{nullptr};
-    torch::nn::Linear intermediate{nullptr};
-    torch::nn::Linear output_dense{nullptr};
-    torch::nn::LayerNorm output_ln{nullptr};
-    int64_t n_head = 0;
-    int64_t hidden = 0;
-    int64_t head_dim = 0;
+    BertAttention attention{nullptr};
+    torch::Tensor inter_weight;
+    torch::Tensor inter_bias;
+    torch::Tensor out_weight;
+    torch::Tensor out_bias;
+    torch::nn::LayerNorm out_ln{nullptr};
     bool gelu_tanh = false;
 
-    explicit BertLayerImpl(BertConfig const& cfg);
+    explicit BertLayerImpl(BertConfig const &cfg);
     torch::Tensor forward(torch::Tensor x);
 };
 
@@ -67,13 +110,13 @@ struct BertMlmImpl : torch::nn::Module
     torch::nn::Embedding token_type_embeddings{nullptr};
     torch::nn::LayerNorm emb_ln{nullptr};
     torch::nn::ModuleList layers{nullptr};
-    torch::nn::Linear transform_dense{nullptr};
+    torch::Tensor transform_weight;
+    torch::Tensor transform_bias;
     torch::nn::LayerNorm transform_ln{nullptr};
-    torch::nn::Linear decoder{nullptr};
+    torch::Tensor decoder_weight;
+    torch::Tensor decoder_bias;
     bool gelu_tanh = false;
-    //! Cached host-built index tables uploaded to device.
     torch::Tensor cached_pos_;
-    torch::Tensor cached_tt_;
     int64_t cache_batch_ = -1;
     int64_t cache_seq_ = -1;
 

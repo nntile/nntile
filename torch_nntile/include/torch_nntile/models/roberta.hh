@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/roberta.hh
- * RoBERTa MLM for device=nntile (pad-aware positions; NNGraph roberta).
+ * RoBERTa MLM matching deleted ``nntile::model::roberta``.
  */
 
 #pragma once
@@ -53,9 +53,11 @@ struct RobertaMlmImpl : torch::nn::Module
     torch::nn::Embedding token_type_embeddings{nullptr};
     torch::nn::LayerNorm emb_ln{nullptr};
     torch::nn::ModuleList layers{nullptr};
-    torch::nn::Linear lm_dense{nullptr};
+    torch::Tensor lm_dense_weight;
+    torch::Tensor lm_dense_bias;
     torch::nn::LayerNorm lm_ln{nullptr};
-    torch::nn::Linear lm_decoder{nullptr};
+    torch::Tensor lm_decoder_weight;
+    torch::Tensor lm_decoder_bias;
     bool gelu_tanh = false;
 
     explicit RobertaMlmImpl(RobertaConfig cfg);
