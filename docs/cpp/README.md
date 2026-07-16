@@ -9,6 +9,8 @@ NNTile ships two installable libraries:
 
 `torch_nntile` / **libtorch_nntile** link **libnntile** only.
 
+Product overview of the Graph API: [../graph.md](../graph.md).
+
 ```mermaid
 flowchart TB
   subgraph torch [libtorch_nntile]
@@ -55,10 +57,19 @@ StarPU codelets wrapping kernel calls.
 
 **Namespace:** `nntile::core`
 
-Single-tile operations (`Tile<T>`).
+Single-tile operations (`Tile<T>`), plus optional execution schedules
+(`execution_schedule.hh`).
 
 ## tensor / tile / runtime
 
 **Namespaces:** `nntile::tensor`, `nntile::tile`, `nntile::runtime`
 
-TensorGraph, TileGraph lowering, and Runtime execution.
+| Layer | Role |
+|-------|------|
+| **TensorGraph** | Symbolic tensors (`TensorNode`) and ops (`OpNode` with `lower_to_tile`) |
+| **TileGraph** | Tiled IR; tile ops implement `execute(Runtime&)` |
+| **Runtime** | `compile`, `execute` / `execute_range`, `wait`; optional static schedule |
+
+Typical flow: record into `TensorGraph` → `seal_phase` +
+`append_tensor_graph_phase` → `Runtime::compile()` → `execute_range()` →
+`wait()`. Design notes: [../dev/README.md](../dev/README.md).

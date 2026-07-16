@@ -77,10 +77,16 @@ Uses ruff, isort, and standard pre-commit hooks. Configuration is in
 
 ### Graph API work (`graph_api` branch)
 
+Graph API is the main product path (still WIP): deferred TensorGraph →
+TileGraph → Runtime, exposed as `device=nntile` via torch_nntile. NNGraph and
+per-op eager graph execution are gone.
+
+- **Overview:** [docs/graph.md](docs/graph.md)
+- **Design notes index:** [docs/dev/README.md](docs/dev/README.md)
 - **O(N) compiler design:** [docs/dev/graph_compiler_on_design.md](docs/dev/graph_compiler_on_design.md)
-- **Agent checklist (actionable):** [docs/dev/graph_static_execution_agentic_plan.md](docs/dev/graph_static_execution_agentic_plan.md)
-- **Roadmap:** [docs/dev/graph_static_execution_plan.md](docs/dev/graph_static_execution_plan.md)
-- **Migration:** [docs/dev/libtorch_nntile_migration.md](docs/dev/libtorch_nntile_migration.md)
+- **Tensor / session semantics:** [docs/dev/torch_nntile_tensor_architecture.md](docs/dev/torch_nntile_tensor_architecture.md)
+- **Optional schedules:** [docs/dev/execution_json_schema.md](docs/dev/execution_json_schema.md)
+- **Migration (complete):** [docs/dev/libtorch_nntile_migration.md](docs/dev/libtorch_nntile_migration.md)
 - **Build-and-test CI:** layered jobs in `.github/workflows/build-test.yml`
   (build+install libnntile → ctest against prefix → build+install
   libtorch_nntile → CI wheel → Python tests). No separate cmake-install

@@ -10,7 +10,7 @@
  * TensorGraph - graph operating on tensors. Purely symbolic; lower to
  * ``TileGraph`` and use ``nntile::Runtime`` (``#include
  * <nntile/runtime.hh>``) for execution.
- * Autograd is handled by ``NNGraph``, not by this class.
+ * Autograd is owned by PyTorch / libtorch_nntile, not by this class.
  *
  * @version 1.1.0
  * */

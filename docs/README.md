@@ -4,51 +4,41 @@
 heterogeneous systems. It uses [StarPU](https://starpu.gitlabpages.inria.fr) for
 task-based scheduling and asynchronous data movement across CPU and GPU resources.
 
-This documentation covers how to build NNTile, the C++ implementation stack, the
-Python API, inference services (gateway and Telegram bot), the SGOC scheduler,
-and end-to-end training examples.
+The primary path on the `graph_api` branch is the **Graph API**: deferred
+TensorGraph → TileGraph → Runtime, exposed to users as PyTorch
+`device="nntile"` via **torch_nntile** / **libtorch_nntile**. The Graph API is
+still evolving (WIP), but it is the main product surface — not a side experiment.
 
 ## Quick start
 
 | Goal | Start here |
 |------|------------|
-| Build from source or Docker | [build/README.md](build/README.md) |
-| C++ stack overview (kernel → tensor) | [cpp/README.md](cpp/README.md) |
-| Python package and runtime | [python/README.md](python/README.md) |
-| Tensor ops reference | [python/functions.md](python/functions.md) |
-| Layers and models | [python/layers.md](python/layers.md), [python/models.md](python/models.md) |
-| Training scripts and notebooks | [python/training.md](python/training.md) |
-| Data preparation | [python/data-preparation.md](python/data-preparation.md) |
-| Inference, gateway, Telegram bot | [inference/README.md](inference/README.md) |
-| SGOC scheduler (limited VRAM, single GPU) | [sgoc/README.md](sgoc/README.md) |
-| NNTile Graph API (work in progress) | [graph-wip.md](graph-wip.md) |
+| **Graph API (main, WIP)** | [graph.md](graph.md) |
 | PyTorch `device="nntile"` (torch_nntile) | [torch_nntile.md](torch_nntile.md) |
 | Install prebuilt `torch_nntile` wheel (CI) | [torch_nntile.md#prebuilt-wheels](torch_nntile.md#prebuilt-wheels) |
+| Build from source or Docker | [build/README.md](build/README.md) |
+| C++ stack (kernel → TensorGraph → Runtime) | [cpp/README.md](cpp/README.md) |
+| Design notes (`docs/dev`) | [dev/README.md](dev/README.md) |
+| Inference, gateway, Telegram bot | [inference/README.md](inference/README.md) |
+| SGOC scheduler (limited VRAM, single GPU) | [sgoc/README.md](sgoc/README.md) |
 
 ## Documentation map
 
 ```
 docs/
   README.md                 ← you are here
-  build/README.md           Build, CMake, Docker, testing, torch_nntile wheel CI
-  cpp/README.md             C++ kernel / starpu / tile / tensor
-  graph-wip.md              NNTile Graph API status
-  torch_nntile.md           PyTorch device="nntile", axis-group tiling
+  graph.md                  Graph API overview (main entry)
+  torch_nntile.md           PyTorch device="nntile", tiling, wheels
+  build/README.md           Build, CMake, Docker, testing, wheel CI
+  cpp/README.md             C++ kernel / starpu / tile / tensor / runtime
+  dev/README.md             Design notes index
   sgoc/README.md            SGOC StarPU scheduler
   inference/README.md       Inference, nntile_gateway, nntile_tgbot
-  python/
-    README.md               Package overview
-    tensors.md              Creation and I/O
-    functions.md            Tensor operation wrappers
-    layers.md               Layer API
-    models.md               Model catalog
-    training.md             Pipeline, loss, optimizers, examples
-    data-preparation.md     Dataset scripts
 ```
 
-Internal graph design notes under `docs/dev/` (including
-[dev/graph_static_execution_plan.md](dev/graph_static_execution_plan.md)) are
-not part of this guide.
+Package-level docs also live next to the code:
+
+- [`torch_nntile/README.md`](../torch_nntile/README.md) — Python package README
 
 ## Hardware note
 
