@@ -14,6 +14,12 @@ from transformers import GPTNeoForCausalLM
 
 from torch_nntile.models.gpt_neo import GPTNeoCausal, GPTNeoConfig
 from torch_nntile.models.hf_rope_layout import copy_linear
+from torch_nntile.nn.linear import (
+    linear_to_output_weight,
+    linear_to_qkv_weight,
+    output_to_linear_weight,
+    qkv_to_linear_weight,
+)
 
 
 def gpt_neo_config_from_hf(hf: HfGPTNeoConfig) -> GPTNeoConfig:
@@ -38,18 +44,48 @@ def gpt_neo_config_from_hf(hf: HfGPTNeoConfig) -> GPTNeoConfig:
 
 def _load_attn_from_hf(dst_attn, src_attn) -> None:
     inner = src_attn.attention
-    copy_linear(dst_attn.q_proj, inner.q_proj)
-    copy_linear(dst_attn.k_proj, inner.k_proj)
-    copy_linear(dst_attn.v_proj, inner.v_proj)
-    copy_linear(dst_attn.out_proj, inner.out_proj)
+    n_heads = dst_attn.n_heads
+    head_size = dst_attn.head_dim
+    dst_attn.q_weight.data.copy_(
+        linear_to_qkv_weight(
+            inner.q_proj.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst_attn.k_weight.data.copy_(
+        linear_to_qkv_weight(
+            inner.k_proj.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst_attn.v_weight.data.copy_(
+        linear_to_qkv_weight(
+            inner.v_proj.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst_attn.o_weight.data.copy_(
+        linear_to_output_weight(
+            inner.out_proj.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst_attn.o_bias.data.copy_(inner.out_proj.bias.data)
 
 
 def _export_attn_to_hf(src_attn, dst_attn) -> None:
     inner = dst_attn.attention
-    copy_linear(inner.q_proj, src_attn.q_proj)
-    copy_linear(inner.k_proj, src_attn.k_proj)
-    copy_linear(inner.v_proj, src_attn.v_proj)
-    copy_linear(inner.out_proj, src_attn.out_proj)
+    inner.q_proj.weight.data.copy_(qkv_to_linear_weight(src_attn.q_weight.data))
+    inner.k_proj.weight.data.copy_(qkv_to_linear_weight(src_attn.k_weight.data))
+    inner.v_proj.weight.data.copy_(qkv_to_linear_weight(src_attn.v_weight.data))
+    inner.out_proj.weight.data.copy_(
+        output_to_linear_weight(src_attn.o_weight.data)
+    )
+    inner.out_proj.bias.data.copy_(src_attn.o_bias.data)
 
 
 def load_hf_into_gpt_neo_causal(

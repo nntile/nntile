@@ -14,6 +14,14 @@ from transformers import BertForMaskedLM
 
 from torch_nntile.models.bert import BertConfig, BertMlm
 from torch_nntile.models.hf_rope_layout import copy_linear
+from torch_nntile.nn.linear import (
+    linear_to_output_weight,
+    linear_to_qkv_bias,
+    linear_to_qkv_weight,
+    output_to_linear_weight,
+    qkv_to_linear_bias,
+    qkv_to_linear_weight,
+)
 
 
 def bert_config_from_hf(hf: HfBertConfig) -> BertConfig:
@@ -44,10 +52,61 @@ def _load_embeddings(dst, src) -> None:
 
 
 def _load_layer(dst, src) -> None:
-    copy_linear(dst.attention.self.query, src.attention.self.query)
-    copy_linear(dst.attention.self.key, src.attention.self.key)
-    copy_linear(dst.attention.self.value, src.attention.self.value)
-    copy_linear(dst.attention.output.dense, src.attention.output.dense)
+    self_attn = dst.attention.self
+    n_heads = self_attn.n_heads
+    head_size = self_attn.head_dim
+    self_attn.query.weight.data.copy_(
+        linear_to_qkv_weight(
+            src.attention.self.query.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    self_attn.key.weight.data.copy_(
+        linear_to_qkv_weight(
+            src.attention.self.key.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    self_attn.value.weight.data.copy_(
+        linear_to_qkv_weight(
+            src.attention.self.value.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    self_attn.query.bias.data.copy_(
+        linear_to_qkv_bias(
+            src.attention.self.query.bias.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    self_attn.key.bias.data.copy_(
+        linear_to_qkv_bias(
+            src.attention.self.key.bias.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    self_attn.value.bias.data.copy_(
+        linear_to_qkv_bias(
+            src.attention.self.value.bias.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst.attention.output.dense.weight.data.copy_(
+        linear_to_output_weight(
+            src.attention.output.dense.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst.attention.output.dense.bias.data.copy_(
+        src.attention.output.dense.bias.data
+    )
     dst.attention.output.LayerNorm.weight.data.copy_(
         src.attention.output.LayerNorm.weight.data
     )
@@ -87,7 +146,7 @@ def export_bert_mlm_to_hf_state_dict(
     *,
     config: HfBertConfig | None = None,
 ) -> dict[str, torch.Tensor]:
-    """Export local BERT CPU weights as an HF ``BertForMaskedLM`` state_dict."""
+    """Export local BERT CPU weights as an HF state dict."""
     cfg = minimal.config
     if config is None:
         config = HfBertConfig(
@@ -109,7 +168,50 @@ def export_bert_mlm_to_hf_state_dict(
     for dst_layer, src_layer in zip(
         hf.bert.encoder.layer, minimal.bert.encoder.layer
     ):
-        _load_layer(dst_layer, src_layer)
+        src_attn = src_layer.attention.self
+        n_heads = src_attn.n_heads
+        head_size = src_attn.head_dim
+        dst_layer.attention.self.query.weight.data.copy_(
+            qkv_to_linear_weight(src_attn.query.weight.data)
+        )
+        dst_layer.attention.self.key.weight.data.copy_(
+            qkv_to_linear_weight(src_attn.key.weight.data)
+        )
+        dst_layer.attention.self.value.weight.data.copy_(
+            qkv_to_linear_weight(src_attn.value.weight.data)
+        )
+        del n_heads, head_size
+        dst_layer.attention.self.query.bias.data.copy_(
+            qkv_to_linear_bias(src_attn.query.bias.data)
+        )
+        dst_layer.attention.self.key.bias.data.copy_(
+            qkv_to_linear_bias(src_attn.key.bias.data)
+        )
+        dst_layer.attention.self.value.bias.data.copy_(
+            qkv_to_linear_bias(src_attn.value.bias.data)
+        )
+        dst_layer.attention.output.dense.weight.data.copy_(
+            output_to_linear_weight(
+                src_layer.attention.output.dense.weight.data
+            )
+        )
+        dst_layer.attention.output.dense.bias.data.copy_(
+            src_layer.attention.output.dense.bias.data
+        )
+        dst_layer.attention.output.LayerNorm.weight.data.copy_(
+            src_layer.attention.output.LayerNorm.weight.data
+        )
+        dst_layer.attention.output.LayerNorm.bias.data.copy_(
+            src_layer.attention.output.LayerNorm.bias.data
+        )
+        copy_linear(dst_layer.intermediate.dense, src_layer.intermediate.dense)
+        copy_linear(dst_layer.output.dense, src_layer.output.dense)
+        dst_layer.output.LayerNorm.weight.data.copy_(
+            src_layer.output.LayerNorm.weight.data
+        )
+        dst_layer.output.LayerNorm.bias.data.copy_(
+            src_layer.output.LayerNorm.bias.data
+        )
 
     pred = hf.cls.predictions
     transform = pred.transform

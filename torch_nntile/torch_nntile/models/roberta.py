@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from torch_nntile.nn.linear import NntileLinear
 from torch_nntile.models.bert import (
     BertConfig,
     BertEncoder,
@@ -153,12 +154,14 @@ class RobertaModel(nn.Module):
 class RobertaMlmHead(nn.Module):
     def __init__(self, config: RobertaConfig) -> None:
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense = NntileLinear(config.hidden_size, config.hidden_size)
         self.layer_norm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
-        self.decoder = nn.Linear(
-            config.hidden_size, config.vocab_size, bias=True
+        self.decoder = NntileLinear(
+            config.hidden_size,
+            config.vocab_size,
+            bias=True,
         )
         # Match HF ``RobertaLMHead`` (ACT2FN[hidden_act]).
         self.act = _bert_activation(config.hidden_act)

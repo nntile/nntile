@@ -58,7 +58,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 
@@ -455,14 +454,7 @@ def save_hf_checkpoint(
 
 
 def train_nntile(args: argparse.Namespace) -> int:
-    from torch_nntile import _C
     from torch_nntile.training import SGD
-
-    if not _C.has_libnntile():
-        raise SystemExit(
-            "torch_nntile was built without libnntile. "
-            "Set NNTILE_BUILD_DIR and reinstall."
-        )
 
     if args.restrict_cuda and args.restrict_cpu:
         raise SystemExit("Pass only one of --restrict-cuda / --restrict-cpu")

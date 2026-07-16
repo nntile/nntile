@@ -680,14 +680,7 @@ def train_nntile(args: argparse.Namespace) -> int:
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     import torch_nntile
-    from torch_nntile import _C
     from torch_nntile.training import SGD, clone_model_weights
-
-    if not _C.has_libnntile():
-        raise SystemExit(
-            "torch_nntile was built without libnntile. "
-            "Set NNTILE_BUILD_DIR and reinstall."
-        )
 
     if args.restrict_cuda and args.restrict_cpu:
         raise SystemExit("Pass only one of --restrict-cuda / --restrict-cpu")

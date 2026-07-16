@@ -14,12 +14,20 @@ from transformers import LlamaForCausalLM
 
 from torch_nntile.models.hf_rope_layout import (
     copy_linear,
-    hf_to_nntile_qkv_bias,
     hf_to_nntile_qkv_weight,
-    nntile_to_hf_qkv_bias,
     nntile_to_hf_qkv_weight,
 )
 from torch_nntile.models.llama import LlamaCausal, LlamaConfig
+from torch_nntile.nn.linear import (
+    gqa_output_to_linear_weight,
+    gqa_q_to_linear_weight,
+    linear_to_gqa_output_weight,
+    linear_to_gqa_q_weight,
+    linear_to_output_weight,
+    linear_to_qkv_weight,
+    output_to_linear_weight,
+    qkv_to_linear_weight,
+)
 
 
 def llama_config_from_hf(hf: HfLlamaConfig) -> LlamaConfig:
@@ -47,36 +55,62 @@ def _load_attn_from_hf(dst_attn, src_attn, cfg: LlamaConfig) -> None:
     n_heads = cfg.num_attention_heads
     n_kv = cfg.num_key_value_heads
     head_dim = cfg.head_dim
-    dst_attn.q_proj.weight.data.copy_(
-        hf_to_nntile_qkv_weight(
-            src_attn.q_proj.weight.data,
-            n_heads=n_heads,
-            head_dim=head_dim,
-        )
+    q_weight = hf_to_nntile_qkv_weight(
+        src_attn.q_proj.weight.data,
+        n_heads=n_heads,
+        head_dim=head_dim,
     )
-    dst_attn.k_proj.weight.data.copy_(
-        hf_to_nntile_qkv_weight(
-            src_attn.k_proj.weight.data,
-            n_heads=n_kv,
-            head_dim=head_dim,
-        )
-    )
-    copy_linear(dst_attn.v_proj, src_attn.v_proj)
-    copy_linear(dst_attn.o_proj, src_attn.o_proj)
-    if dst_attn.q_proj.bias is not None and src_attn.q_proj.bias is not None:
-        dst_attn.q_proj.bias.data.copy_(
-            hf_to_nntile_qkv_bias(
-                src_attn.q_proj.bias.data,
-                n_heads=n_heads,
-                head_dim=head_dim,
+    if dst_attn.use_gqa:
+        dst_attn.q_weight.data.copy_(
+            linear_to_gqa_q_weight(
+                q_weight,
+                n_kv_heads=n_kv,
+                n_rep=dst_attn.n_rep,
+                head_size=head_dim,
             )
         )
-    if dst_attn.k_proj.bias is not None and src_attn.k_proj.bias is not None:
-        dst_attn.k_proj.bias.data.copy_(
-            hf_to_nntile_qkv_bias(
-                src_attn.k_proj.bias.data,
-                n_heads=n_kv,
-                head_dim=head_dim,
+    else:
+        dst_attn.q_weight.data.copy_(
+            linear_to_qkv_weight(
+                q_weight,
+                n_heads=n_heads,
+                head_size=head_dim,
+            )
+        )
+    k_weight = hf_to_nntile_qkv_weight(
+        src_attn.k_proj.weight.data,
+        n_heads=n_kv,
+        head_dim=head_dim,
+    )
+    dst_attn.k_weight.data.copy_(
+        linear_to_qkv_weight(
+            k_weight,
+            n_heads=n_kv,
+            head_size=head_dim,
+        )
+    )
+    dst_attn.v_weight.data.copy_(
+        linear_to_qkv_weight(
+            src_attn.v_proj.weight.data,
+            n_heads=n_kv,
+            head_size=head_dim,
+        )
+    )
+    if dst_attn.use_gqa:
+        dst_attn.o_weight.data.copy_(
+            linear_to_gqa_output_weight(
+                src_attn.o_proj.weight.data,
+                n_kv_heads=n_kv,
+                n_rep=dst_attn.n_rep,
+                head_size=head_dim,
+            )
+        )
+    else:
+        dst_attn.o_weight.data.copy_(
+            linear_to_output_weight(
+                src_attn.o_proj.weight.data,
+                n_heads=n_heads,
+                head_size=head_dim,
             )
         )
 
@@ -85,38 +119,38 @@ def _export_attn_to_hf(src_attn, dst_attn, cfg: LlamaConfig) -> None:
     n_heads = cfg.num_attention_heads
     n_kv = cfg.num_key_value_heads
     head_dim = cfg.head_dim
+    if src_attn.use_gqa:
+        q_weight = gqa_q_to_linear_weight(src_attn.q_weight.data)
+        o_weight = gqa_output_to_linear_weight(src_attn.o_weight.data)
+    else:
+        q_weight = qkv_to_linear_weight(src_attn.q_weight.data)
+        o_weight = output_to_linear_weight(src_attn.o_weight.data)
     dst_attn.q_proj.weight.data.copy_(
         nntile_to_hf_qkv_weight(
-            src_attn.q_proj.weight.data,
+            q_weight,
             n_heads=n_heads,
             head_dim=head_dim,
         )
     )
     dst_attn.k_proj.weight.data.copy_(
         nntile_to_hf_qkv_weight(
-            src_attn.k_proj.weight.data,
+            qkv_to_linear_weight(src_attn.k_weight.data),
             n_heads=n_kv,
             head_dim=head_dim,
         )
     )
-    copy_linear(dst_attn.v_proj, src_attn.v_proj)
-    copy_linear(dst_attn.o_proj, src_attn.o_proj)
-    if src_attn.q_proj.bias is not None and dst_attn.q_proj.bias is not None:
-        dst_attn.q_proj.bias.data.copy_(
-            nntile_to_hf_qkv_bias(
-                src_attn.q_proj.bias.data,
-                n_heads=n_heads,
-                head_dim=head_dim,
-            )
-        )
-    if src_attn.k_proj.bias is not None and dst_attn.k_proj.bias is not None:
-        dst_attn.k_proj.bias.data.copy_(
-            nntile_to_hf_qkv_bias(
-                src_attn.k_proj.bias.data,
-                n_heads=n_kv,
-                head_dim=head_dim,
-            )
-        )
+    dst_attn.v_proj.weight.data.copy_(
+        qkv_to_linear_weight(src_attn.v_weight.data)
+    )
+    dst_attn.o_proj.weight.data.copy_(o_weight)
+    for proj in (
+        dst_attn.q_proj,
+        dst_attn.k_proj,
+        dst_attn.v_proj,
+        dst_attn.o_proj,
+    ):
+        if proj.bias is not None:
+            proj.bias.data.zero_()
 
 
 def load_hf_into_llama_causal(
@@ -152,7 +186,7 @@ def export_llama_causal_to_hf_state_dict(
     *,
     config: HfLlamaConfig | None = None,
 ) -> dict[str, torch.Tensor]:
-    """Export local Llama CPU weights as an HF ``LlamaForCausalLM`` state_dict."""
+    """Export local Llama CPU weights as an HF state dict."""
     cfg = minimal.config
     if config is None:
         config = HfLlamaConfig(

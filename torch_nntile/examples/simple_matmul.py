@@ -41,7 +41,6 @@ if str(_REPO / "torch_nntile") not in sys.path:
     sys.path.insert(0, str(_REPO / "torch_nntile"))
 
 import torch_nntile  # noqa: E402
-from torch_nntile import _C  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -170,12 +169,6 @@ def main() -> None:
         help="Print axis groups after the first round",
     )
     args = parser.parse_args()
-
-    if not _C.has_libnntile():
-        raise SystemExit(
-            "torch_nntile was built without libnntile. "
-            "Set NNTILE_BUILD_DIR and rebuild."
-        )
 
     size = SIZE_PRESETS[args.size]
     repeat = size.repeat if args.repeat is None else args.repeat

@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/t5.hh
- * T5 encoder-decoder for device=nntile (LibTorch / NNGraph t5).
+ * T5 encoder-decoder matching deleted ``nntile::model::t5``.
  */
 
 #pragma once
@@ -35,7 +35,7 @@ struct T5ForConditionalGenerationImpl : torch::nn::Module
     torch::nn::ModuleList decoder_blocks{nullptr};
     torch::Tensor enc_final_w;
     torch::Tensor dec_final_w;
-    torch::nn::Linear lm_head{nullptr};
+    torch::Tensor lm_weight;
 
     explicit T5ForConditionalGenerationImpl(T5Config cfg);
     torch::Tensor forward(

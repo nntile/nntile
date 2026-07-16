@@ -2,12 +2,16 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/gpt_neox.cpp
- * GPT-NeoX — LibTorch port of deleted NNGraph ``nntile::model::gptneox``.
+ * GPT-NeoX causal LM — port of deleted ``nntile::model::gptneox``.
  */
 
 #include <torch_nntile/models/gpt_neox.hh>
 
+#include "nntile_add_fiber.h"
+#include "nntile_gemm.h"
 #include "nntile_rope.h"
+#include "nntile_sdpa.h"
+#include "nntile_transpose.h"
 
 #include <cmath>
 #include <stdexcept>
@@ -19,35 +23,57 @@ namespace torch_nntile::models
 namespace
 {
 
-//! Host RoPE tables for partial rotary dim (NNGraph rope_sin_cos).
+torch::Tensor causal_mask_host(int64_t seq)
+{
+    auto opts = torch::TensorOptions()
+        .dtype(torch::kBool)
+        .device(torch::kCPU);
+    auto q = torch::arange(
+        seq,
+        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU))
+        .unsqueeze(1);
+    auto k = torch::arange(
+        seq,
+        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU))
+        .unsqueeze(0);
+    return (k <= q).to(opts);
+}
+
+int64_t gptneox_rope_dim(GptNeoXConfig const &cfg, int64_t head_dim)
+{
+    int64_t dim = static_cast<int64_t>(
+        std::lround(
+            static_cast<double>(head_dim) * cfg.rotary_pct));
+    if (dim < 2)
+    {
+        dim = 2;
+    }
+    if (dim % 2 != 0)
+    {
+        --dim;
+    }
+    if (dim > head_dim)
+    {
+        dim = head_dim - (head_dim % 2);
+    }
+    return dim;
+}
+
 void rope_sin_cos_host(
     int64_t batch,
     int64_t seq,
-    int64_t rotary_ndims,
-    double rope_theta,
-    torch::Tensor& sin_out,
-    torch::Tensor& cos_out)
+    int64_t rope_dim,
+    double base,
+    torch::Tensor &sin_out,
+    torch::Tensor &cos_out)
 {
-    if (rotary_ndims <= 0)
-    {
-        sin_out = torch::Tensor();
-        cos_out = torch::Tensor();
-        return;
-    }
-    if (rotary_ndims % 2 != 0)
-    {
-        throw std::invalid_argument(
-            "rope: rotary_ndims must be even");
-    }
-    int64_t half = rotary_ndims / 2;
+    int64_t const half = rope_dim / 2;
     std::vector<float> inv(static_cast<std::size_t>(half));
     for (int64_t i = 0; i < half; ++i)
     {
         double idx = static_cast<double>(2 * i);
         inv[static_cast<std::size_t>(i)] = static_cast<float>(
-            1.0 / std::pow(
-                rope_theta,
-                idx / static_cast<double>(rotary_ndims)));
+            1.0 / std::pow(base, idx / static_cast<double>(rope_dim)));
     }
     sin_out = torch::empty(
         {batch, seq, half},
@@ -70,7 +96,6 @@ void rope_sin_cos_host(
     }
 }
 
-//! Partial RoPE via narrow + interleaved ``rope_forward`` + cat.
 torch::Tensor apply_partial_rope(
     torch::Tensor x,
     torch::Tensor sin,
@@ -78,149 +103,219 @@ torch::Tensor apply_partial_rope(
     int64_t rotary_ndims,
     int64_t head_dim)
 {
-    if (rotary_ndims <= 0)
+    // x: [n_heads, batch, seq, head_dim]; sin/cos: [batch, seq, half].
+    int64_t const n_heads = x.size(0);
+    if (sin.dim() == 3)
     {
-        return x;
+        int64_t const b = sin.size(0);
+        int64_t const s = sin.size(1);
+        int64_t const half = sin.size(2);
+        sin = sin.view({1, b, s, half}).repeat({n_heads, 1, 1, 1});
+        cos = cos.view({1, b, s, half}).repeat({n_heads, 1, 1, 1});
+    }
+    if (rotary_ndims == head_dim)
+    {
+        return rope(sin, cos, x);
     }
     auto x_rot = x.narrow(/*dim=*/-1, /*start=*/0, /*length=*/rotary_ndims);
     auto x_pass = x.narrow(
         /*dim=*/-1,
         /*start=*/rotary_ndims,
         /*length=*/head_dim - rotary_ndims);
-    int64_t n_heads = x.size(1);
-    if (sin.dim() == 3)
-    {
-        int64_t b = sin.size(0);
-        int64_t s = sin.size(1);
-        int64_t half = sin.size(2);
-        sin = sin.view({b, 1, s, half}).repeat({1, n_heads, 1, 1});
-        cos = cos.view({b, 1, s, half}).repeat({1, n_heads, 1, 1});
-    }
-    x_rot = torch_nntile::rope_forward(sin, cos, x_rot);
+    x_rot = rope(sin, cos, x_rot);
     return torch::cat({x_rot, x_pass}, /*dim=*/-1);
 }
 
-struct GptNeoXLayerImpl : torch::nn::Module
+torch::Tensor linear_gemm(
+    torch::Tensor const &x,
+    torch::Tensor const &weight,
+    torch::Tensor const &bias)
 {
-    torch::nn::LayerNorm input_layernorm{nullptr};
-    torch::nn::Linear query_key_value{nullptr};
-    torch::nn::Linear dense{nullptr};
-    torch::nn::LayerNorm post_attention_layernorm{nullptr};
-    torch::nn::Linear dense_h_to_4h{nullptr};
-    torch::nn::Linear dense_4h_to_h{nullptr};
-    int64_t n_head = 0;
-    int64_t hidden = 0;
-    int64_t head_dim = 0;
-    int64_t rotary_ndims = 0;
-    bool use_parallel_residual = true;
+    auto out = gemm(
+        x,
+        weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    return add_fiber(
+        bias,
+        out,
+        /*axis=*/out.dim() - 1,
+        /*batch_ndim=*/0);
+}
 
-    explicit GptNeoXLayerImpl(GptNeoXConfig const& cfg)
+struct GptNeoXAttentionImpl : torch::nn::Module
+{
+    int64_t n_heads = 0;
+    int64_t head_size = 0;
+    int64_t hidden = 0;
+    int64_t rotary_ndims = 0;
+    torch::Tensor q_weight;
+    torch::Tensor k_weight;
+    torch::Tensor v_weight;
+    torch::Tensor o_weight;
+
+    explicit GptNeoXAttentionImpl(GptNeoXConfig const &cfg) :
+        n_heads(cfg.num_attention_heads),
+        head_size(cfg.hidden_size / cfg.num_attention_heads),
+        hidden(cfg.hidden_size),
+        rotary_ndims(gptneox_rope_dim(cfg, head_size))
     {
-        n_head = cfg.num_attention_heads;
-        hidden = cfg.hidden_size;
-        head_dim = hidden / n_head;
-        rotary_ndims = static_cast<int64_t>(head_dim * cfg.rotary_pct);
-        // Match Python / NNGraph: even rotary width.
-        if (rotary_ndims % 2 != 0)
-        {
-            rotary_ndims -= 1;
-        }
-        use_parallel_residual = cfg.use_parallel_residual;
-        if (hidden % n_head != 0)
+        if (cfg.hidden_size % cfg.num_attention_heads != 0)
         {
             throw std::invalid_argument(
-                "GptNeoXLayer: hidden_size must be divisible by heads");
+                "GptNeoXAttention: hidden_size % n_heads != 0");
         }
-        input_layernorm = register_module(
-            "input_layernorm",
-            torch::nn::LayerNorm(
-                torch::nn::LayerNormOptions({hidden})
-                    .eps(cfg.layer_norm_eps)));
-        query_key_value = register_module(
-            "query_key_value",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(hidden, 3 * hidden)
-                    .bias(cfg.attention_bias)));
-        dense = register_module(
-            "dense",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(hidden, hidden)
-                    .bias(cfg.attention_bias)));
-        post_attention_layernorm = register_module(
-            "post_attention_layernorm",
-            torch::nn::LayerNorm(
-                torch::nn::LayerNormOptions({hidden})
-                    .eps(cfg.layer_norm_eps)));
-        dense_h_to_4h = register_module(
-            "dense_h_to_4h",
-            torch::nn::Linear(hidden, cfg.intermediate_size));
-        dense_4h_to_h = register_module(
-            "dense_4h_to_h",
-            torch::nn::Linear(cfg.intermediate_size, hidden));
-    }
-
-    torch::Tensor attention(
-        torch::Tensor x,
-        torch::Tensor sin,
-        torch::Tensor cos)
-    {
-        int64_t b = x.size(0);
-        int64_t s = x.size(1);
-        auto qkv = query_key_value->forward(x)
-            .view({b, s, n_head, 3 * head_dim});
-        auto chunks = qkv.split(head_dim, /*dim=*/-1);
-        auto q = chunks[0].transpose(1, 2);
-        auto k = chunks[1].transpose(1, 2);
-        auto v = chunks[2].transpose(1, 2);
-        q = apply_partial_rope(q, sin, cos, rotary_ndims, head_dim);
-        k = apply_partial_rope(k, sin, cos, rotary_ndims, head_dim);
-        auto attn = at::scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            /*attn_mask=*/c10::nullopt,
-            /*dropout_p=*/0.0,
-            /*is_causal=*/true);
-        attn = attn.transpose(1, 2).contiguous().view({b, s, hidden});
-        return dense->forward(attn);
-    }
-
-    torch::Tensor mlp(torch::Tensor x)
-    {
-        return dense_4h_to_h->forward(
-            torch::gelu(dense_h_to_4h->forward(x)));
+        int64_t const hs = head_size;
+        int64_t const nh = n_heads;
+        int64_t const h = hidden;
+        q_weight = register_parameter(
+            "q_weight",
+            torch::empty({h, hs, nh}));
+        k_weight = register_parameter(
+            "k_weight",
+            torch::empty({h, hs, nh}));
+        v_weight = register_parameter(
+            "v_weight",
+            torch::empty({h, hs, nh}));
+        o_weight = register_parameter(
+            "o_weight",
+            torch::empty({hs, nh, h}));
+        torch::nn::init::normal_(q_weight, 0.0, 0.02);
+        torch::nn::init::normal_(k_weight, 0.0, 0.02);
+        torch::nn::init::normal_(v_weight, 0.0, 0.02);
+        torch::nn::init::normal_(o_weight, 0.0, 0.02);
     }
 
     torch::Tensor forward(
         torch::Tensor x,
-        torch::Tensor sin,
-        torch::Tensor cos)
+        torch::Tensor const &sin,
+        torch::Tensor const &cos,
+        torch::Tensor const &mask)
     {
-        if (use_parallel_residual)
-        {
-            auto normed = input_layernorm->forward(x);
-            return x + attention(normed, sin, cos) +
-                mlp(post_attention_layernorm->forward(x));
-        }
-        auto h = x + attention(input_layernorm->forward(x), sin, cos);
-        return h + mlp(post_attention_layernorm->forward(h));
+        auto q = model_transpose(
+            gemm(x, q_weight, /*ndim=*/1, /*batch_ndim=*/0),
+            /*model_ndim=*/1);
+        auto k = model_transpose(
+            gemm(x, k_weight, /*ndim=*/1, /*batch_ndim=*/0),
+            /*model_ndim=*/1);
+        auto v = model_transpose(
+            gemm(x, v_weight, /*ndim=*/1, /*batch_ndim=*/0),
+            /*model_ndim=*/1);
+        q = apply_partial_rope(q, sin, cos, rotary_ndims, head_size);
+        k = apply_partial_rope(k, sin, cos, rotary_ndims, head_size);
+        auto attn = sdpa_kernel(
+            q,
+            k,
+            v,
+            mask,
+            /*batch_ndim=*/2);
+        attn = model_transpose(attn, /*model_ndim=*/3);
+        return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
     }
 };
 
-TORCH_MODULE(GptNeoXLayer);
+TORCH_MODULE(GptNeoXAttention);
+
+struct GptNeoXMLPImpl : torch::nn::Module
+{
+    torch::Tensor fc1_weight;
+    torch::Tensor fc1_bias;
+    torch::Tensor fc2_weight;
+    torch::Tensor fc2_bias;
+
+    explicit GptNeoXMLPImpl(GptNeoXConfig const &cfg)
+    {
+        int64_t const h = cfg.hidden_size;
+        int64_t const inner = cfg.intermediate_size;
+        fc1_weight = register_parameter(
+            "fc1_weight",
+            torch::empty({inner, h}));
+        fc1_bias = register_parameter("fc1_bias", torch::zeros({inner}));
+        fc2_weight = register_parameter(
+            "fc2_weight",
+            torch::empty({h, inner}));
+        fc2_bias = register_parameter("fc2_bias", torch::zeros({h}));
+        torch::nn::init::normal_(fc1_weight, 0.0, 0.02);
+        torch::nn::init::normal_(fc2_weight, 0.0, 0.02);
+    }
+
+    torch::Tensor forward(torch::Tensor x)
+    {
+        x = linear_gemm(x, fc1_weight, fc1_bias);
+        x = torch::gelu(x);
+        return linear_gemm(x, fc2_weight, fc2_bias);
+    }
+};
+
+TORCH_MODULE(GptNeoXMLP);
+
+struct GptNeoXDecoderImpl : torch::nn::Module
+{
+    torch::nn::LayerNorm input_norm{nullptr};
+    GptNeoXAttention attn{nullptr};
+    torch::nn::LayerNorm post_attn_norm{nullptr};
+    GptNeoXMLP mlp{nullptr};
+    bool parallel_residual = true;
+
+    explicit GptNeoXDecoderImpl(GptNeoXConfig const &cfg) :
+        parallel_residual(cfg.use_parallel_residual)
+    {
+        input_norm = register_module(
+            "input_norm",
+            torch::nn::LayerNorm(
+                torch::nn::LayerNormOptions({cfg.hidden_size})
+                    .eps(cfg.layer_norm_eps)));
+        attn = register_module("attention", GptNeoXAttention(cfg));
+        post_attn_norm = register_module(
+            "post_attn_norm",
+            torch::nn::LayerNorm(
+                torch::nn::LayerNormOptions({cfg.hidden_size})
+                    .eps(cfg.layer_norm_eps)));
+        mlp = register_module("mlp", GptNeoXMLP(cfg));
+    }
+
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor const &sin,
+        torch::Tensor const &cos,
+        torch::Tensor const &mask)
+    {
+        auto attn_out = attn->forward(
+            input_norm->forward(x),
+            sin,
+            cos,
+            mask);
+        if (parallel_residual)
+        {
+            auto mlp_out = mlp->forward(post_attn_norm->forward(x));
+            return x + attn_out + mlp_out;
+        }
+        auto post = x + attn_out;
+        return post + mlp->forward(post_attn_norm->forward(post));
+    }
+};
+
+TORCH_MODULE(GptNeoXDecoder);
 
 } // namespace
 
 GptNeoXCausalImpl::GptNeoXCausalImpl(GptNeoXConfig cfg) :
     config(std::move(cfg))
 {
+    if (config.hidden_size % config.num_attention_heads != 0)
+    {
+        throw std::invalid_argument(
+            "GptNeoXCausal: hidden_size % n_heads != 0");
+    }
     embed_in = register_module(
         "embed_in",
         torch::nn::Embedding(config.vocab_size, config.hidden_size));
     torch::nn::ModuleList list;
     for (int64_t i = 0; i < config.num_hidden_layers; ++i)
     {
-        list->push_back(GptNeoXLayer(config));
+        list->push_back(GptNeoXDecoder(config));
     }
     layers = register_module("layers", list);
     final_layer_norm = register_module(
@@ -228,13 +323,10 @@ GptNeoXCausalImpl::GptNeoXCausalImpl(GptNeoXConfig cfg) :
         torch::nn::LayerNorm(
             torch::nn::LayerNormOptions({config.hidden_size})
                 .eps(config.layer_norm_eps)));
-    embed_out = register_module(
-        "embed_out",
-        torch::nn::Linear(
-            torch::nn::LinearOptions(
-                config.hidden_size,
-                config.vocab_size)
-                .bias(false)));
+    lm_weight = register_parameter(
+        "lm_weight",
+        torch::empty({config.vocab_size, config.hidden_size}));
+    torch::nn::init::normal_(lm_weight, 0.0, 0.02);
 }
 
 void GptNeoXCausalImpl::warm_rope_cache(
@@ -242,71 +334,59 @@ void GptNeoXCausalImpl::warm_rope_cache(
     int64_t seq,
     torch::Device device)
 {
-    int64_t head_dim = config.hidden_size / config.num_attention_heads;
-    int64_t rotary_ndims =
-        static_cast<int64_t>(head_dim * config.rotary_pct);
-    if (rotary_ndims % 2 != 0)
-    {
-        rotary_ndims -= 1;
-    }
-    if (rotary_ndims <= 0)
-    {
-        return;
-    }
-    if (rope_sin_.defined() && rope_cache_batch_ == batch &&
-        rope_cache_seq_ == seq && rope_sin_.device() == device)
-    {
-        return;
-    }
+    int64_t const head_dim =
+        config.hidden_size / config.num_attention_heads;
+    int64_t const rope_dim = gptneox_rope_dim(config, head_dim);
     torch::Tensor sin_h;
     torch::Tensor cos_h;
     rope_sin_cos_host(
         batch,
         seq,
-        rotary_ndims,
+        rope_dim,
         config.rotary_emb_base,
         sin_h,
         cos_h);
+    auto mask = causal_mask_host(seq);
     if (!device.is_cpu())
     {
         sin_h = sin_h.to(device);
         cos_h = cos_h.to(device);
+        mask = mask.to(device);
     }
-    torch::NoGradGuard guard;
     rope_sin_ = sin_h;
     rope_cos_ = cos_h;
+    cached_mask_ = mask;
     rope_cache_batch_ = batch;
     rope_cache_seq_ = seq;
 }
 
 torch::Tensor GptNeoXCausalImpl::forward(torch::Tensor input_ids)
 {
-    int64_t b = input_ids.size(0);
-    int64_t s = input_ids.size(1);
-    int64_t head_dim = config.hidden_size / config.num_attention_heads;
-    int64_t rotary_ndims =
-        static_cast<int64_t>(head_dim * config.rotary_pct);
-    if (rotary_ndims % 2 != 0)
-    {
-        rotary_ndims -= 1;
-    }
-    if (rotary_ndims > 0 &&
-        (!rope_sin_.defined() || rope_cache_batch_ != b ||
-            rope_cache_seq_ != s ||
-            rope_sin_.device() != input_ids.device()))
+    int64_t const b = input_ids.size(0);
+    int64_t const s = input_ids.size(1);
+    if (!rope_sin_.defined() || rope_cache_batch_ != b ||
+        rope_cache_seq_ != s ||
+        rope_sin_.device() != input_ids.device())
     {
         warm_rope_cache(b, s, input_ids.device());
     }
     auto x = embed_in->forward(input_ids);
-    for (auto& module : *layers)
+    for (auto &module : *layers)
     {
-        x = module->as<GptNeoXLayerImpl>()->forward(
+        x = module->as<GptNeoXDecoderImpl>()->forward(
             x,
             rope_sin_,
-            rope_cos_);
+            rope_cos_,
+            cached_mask_);
     }
     x = final_layer_norm->forward(x);
-    return embed_out->forward(x);
+    return gemm(
+        x,
+        lm_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
 }
 
 } // namespace torch_nntile::models

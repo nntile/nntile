@@ -4,7 +4,7 @@
 # @file torch_nntile/torch_nntile/models/t5.py
 # T5 encoder-decoder for device="nntile".
 
-"""Simplified T5 mirroring ``nntile::model::t5`` (T5ForConditionalGeneration)."""
+"""Simplified T5 mirroring ``nntile::model::t5``."""
 
 from __future__ import annotations
 
@@ -12,9 +12,11 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
+from torch_nntile.gemm import gemm
+from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
+from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 from torch_nntile.normalization import rms_norm
 
 
@@ -69,9 +71,9 @@ class T5DenseGatedActDense(nn.Module):
 
     def __init__(self, config: T5Config) -> None:
         super().__init__()
-        self.wi_0 = nn.Linear(config.d_model, config.d_ff, bias=False)
-        self.wi_1 = nn.Linear(config.d_model, config.d_ff, bias=False)
-        self.wo = nn.Linear(config.d_ff, config.d_model, bias=False)
+        self.wi_0 = NntileLinear(config.d_model, config.d_ff, bias=False)
+        self.wi_1 = NntileLinear(config.d_model, config.d_ff, bias=False)
+        self.wo = NntileLinear(config.d_ff, config.d_model, bias=False)
         self.act = nn.GELU(approximate="tanh")
 
     def forward(self, x: Tensor) -> Tensor:
@@ -88,16 +90,36 @@ class T5Attention(nn.Module):
         self.key_value_proj_dim = config.d_kv
         self.inner_dim = config.inner_dim
         self.d_model = config.d_model
-        self.q = nn.Linear(self.d_model, self.inner_dim, bias=False)
-        self.k = nn.Linear(self.d_model, self.inner_dim, bias=False)
-        self.v = nn.Linear(self.d_model, self.inner_dim, bias=False)
-        self.o = nn.Linear(self.inner_dim, self.d_model, bias=False)
+        self.q_weight = nn.Parameter(
+            torch.empty(self.d_model, self.key_value_proj_dim, self.n_heads)
+        )
+        self.k_weight = nn.Parameter(
+            torch.empty(self.d_model, self.key_value_proj_dim, self.n_heads)
+        )
+        self.v_weight = nn.Parameter(
+            torch.empty(self.d_model, self.key_value_proj_dim, self.n_heads)
+        )
+        self.o_weight = nn.Parameter(
+            torch.empty(self.key_value_proj_dim, self.n_heads, self.d_model)
+        )
+        self.reset_parameters()
 
-    def _shape(self, x: Tensor) -> Tensor:
-        b, s, _ = x.shape
-        return x.view(
-            b, s, self.n_heads, self.key_value_proj_dim
-        ).transpose(1, 2)
+    def reset_parameters(self) -> None:
+        for p in (
+            self.q_weight,
+            self.k_weight,
+            self.v_weight,
+            self.o_weight,
+        ):
+            nn.init.normal_(p, std=0.02)
+
+    def _project(self, x: Tensor, weight: Tensor) -> Tensor:
+        proj = gemm(x, weight, ndim=1, batch_ndim=0)
+        return nntile_model_transpose(proj, 1)
+
+    def _output(self, attn_out: Tensor) -> Tensor:
+        attn_t = nntile_model_transpose(attn_out, 3)
+        return gemm(attn_t, self.o_weight, ndim=2, batch_ndim=0)
 
     def forward(
         self,
@@ -107,25 +129,30 @@ class T5Attention(nn.Module):
         *,
         is_causal: bool = False,
     ) -> Tensor:
-        b, s, _ = hidden.shape
-        q = self._shape(self.q(hidden))
+        s = int(hidden.size(1))
+        q = self._project(hidden, self.q_weight)
         kv_input = hidden if key_value_states is None else key_value_states
-        k = self._shape(self.k(kv_input))
-        v = self._shape(self.v(kv_input))
+        k = self._project(kv_input, self.k_weight)
+        v = self._project(kv_input, self.v_weight)
         # HF T5 scores are unscaled; cancel SDPA ``1/sqrt(d)`` via mul.Scalar.
         q = torch.ops.aten.mul.Scalar(
             q, float(self.key_value_proj_dim) ** 0.5
         )
-        out = F.scaled_dot_product_attention(
+        mask = prepare_sdpa_mask(
+            attn_mask,
+            hidden,
+            q_len=s,
+            k_len=int(kv_input.size(1)),
+            is_causal=is_causal,
+        )
+        out = sdpa_kernel(
             q,
             k,
             v,
-            attn_mask=attn_mask,
-            dropout_p=0.0,
-            is_causal=is_causal and attn_mask is None,
+            mask=mask,
+            batch_ndim=2,
         )
-        out = out.transpose(1, 2).contiguous().view(b, s, self.inner_dim)
-        return self.o(out)
+        return self._output(out)
 
 
 class T5LayerFF(nn.Module):
@@ -279,7 +306,11 @@ class T5ForConditionalGeneration(nn.Module):
         config.validate()
         self.config = config
         self.model = T5Model(config)
-        self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        self.lm_head = NntileLinear(
+            config.d_model,
+            config.vocab_size,
+            bias=False,
+        )
         # Weight tying intentionally unsupported (independent lm_head).
         # Config.tie_word_embeddings is ignored for now (migration debt).
 

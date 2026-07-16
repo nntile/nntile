@@ -25,7 +25,6 @@ if str(_REPO / "torch_nntile") not in sys.path:
     sys.path.insert(0, str(_REPO / "torch_nntile"))
 
 import torch_nntile  # noqa: E402
-from torch_nntile import _C  # noqa: E402
 from torch_nntile.models.gpt_neox import (  # noqa: E402
     GPTNeoXCausal,
     GPTNeoXConfig,
@@ -73,11 +72,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    if not _C.has_libnntile():
-        raise SystemExit(
-            "torch_nntile was built without libnntile. "
-            "Set NNTILE_BUILD_DIR and reinstall."
-        )
     torch.manual_seed(args.seed)
     cfg = tiny_config()
     inputs_cpu, labels_cpu = make_batch(

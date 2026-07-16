@@ -14,6 +14,11 @@ from transformers import RobertaForMaskedLM
 
 from torch_nntile.models.bert_hf_loader import _load_layer
 from torch_nntile.models.hf_rope_layout import copy_linear
+from torch_nntile.nn.linear import (
+    output_to_linear_weight,
+    qkv_to_linear_bias,
+    qkv_to_linear_weight,
+)
 from torch_nntile.models.roberta import RobertaConfig, RobertaMlm
 
 
@@ -99,7 +104,47 @@ def export_roberta_mlm_to_hf_state_dict(
     for dst_layer, src_layer in zip(
         hf.roberta.encoder.layer, minimal.roberta.encoder.layer
     ):
-        _load_layer(dst_layer, src_layer)
+        src_attn = src_layer.attention.self
+        dst_layer.attention.self.query.weight.data.copy_(
+            qkv_to_linear_weight(src_attn.query.weight.data)
+        )
+        dst_layer.attention.self.key.weight.data.copy_(
+            qkv_to_linear_weight(src_attn.key.weight.data)
+        )
+        dst_layer.attention.self.value.weight.data.copy_(
+            qkv_to_linear_weight(src_attn.value.weight.data)
+        )
+        dst_layer.attention.self.query.bias.data.copy_(
+            qkv_to_linear_bias(src_attn.query.bias.data)
+        )
+        dst_layer.attention.self.key.bias.data.copy_(
+            qkv_to_linear_bias(src_attn.key.bias.data)
+        )
+        dst_layer.attention.self.value.bias.data.copy_(
+            qkv_to_linear_bias(src_attn.value.bias.data)
+        )
+        dst_layer.attention.output.dense.weight.data.copy_(
+            output_to_linear_weight(
+                src_layer.attention.output.dense.weight.data
+            )
+        )
+        dst_layer.attention.output.dense.bias.data.copy_(
+            src_layer.attention.output.dense.bias.data
+        )
+        dst_layer.attention.output.LayerNorm.weight.data.copy_(
+            src_layer.attention.output.LayerNorm.weight.data
+        )
+        dst_layer.attention.output.LayerNorm.bias.data.copy_(
+            src_layer.attention.output.LayerNorm.bias.data
+        )
+        copy_linear(dst_layer.intermediate.dense, src_layer.intermediate.dense)
+        copy_linear(dst_layer.output.dense, src_layer.output.dense)
+        dst_layer.output.LayerNorm.weight.data.copy_(
+            src_layer.output.LayerNorm.weight.data
+        )
+        dst_layer.output.LayerNorm.bias.data.copy_(
+            src_layer.output.LayerNorm.bias.data
+        )
 
     head = hf.lm_head
     copy_linear(head.dense, minimal.lm_head.dense)

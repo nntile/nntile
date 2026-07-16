@@ -21,7 +21,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from torch_nntile.gemm import gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
+from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
+from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 from torch_nntile.normalization import rms_norm
 
 try:
@@ -49,16 +52,11 @@ def _repeat_kv(x: Tensor, n_rep: int) -> Tensor:
     """GQA KV expand via ``aten::repeat`` (nntile scale-slice), not host.
 
     Matches deleted NNGraph ``scale_slice(..., kv_group_size)``.
-    ``x`` is ``[B, H_kv, S, D]`` → ``[B, H_kv * n_rep, S, D]``.
+    ``x`` is ``[H_kv, B, S, D]`` → ``[H_kv, n_rep, B, S, D]``.
     """
     if n_rep == 1:
         return x
-    b, h_kv, s, d = x.shape
-    return (
-        x.view(b, h_kv, 1, s, d)
-        .repeat(1, 1, n_rep, 1, 1)
-        .view(b, h_kv * n_rep, s, d)
-    )
+    return x.unsqueeze(1).repeat(1, n_rep, 1, 1, 1)
 
 
 @dataclass
@@ -119,9 +117,9 @@ class LlamaMLP(nn.Module):
         h = config.hidden_size
         i = config.intermediate_size
         bias = config.mlp_bias
-        self.gate_proj = nn.Linear(h, i, bias=bias)
-        self.up_proj = nn.Linear(h, i, bias=bias)
-        self.down_proj = nn.Linear(i, h, bias=bias)
+        self.gate_proj = NntileLinear(h, i, bias=bias)
+        self.up_proj = NntileLinear(h, i, bias=bias)
+        self.down_proj = NntileLinear(i, h, bias=bias)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x))
@@ -137,39 +135,67 @@ class LlamaAttention(nn.Module):
         self.n_kv_heads = config.num_key_value_heads
         self.head_dim = config.head_dim
         self.n_rep = self.n_heads // self.n_kv_heads
-        bias = config.attention_bias
-        self.q_proj = nn.Linear(
-            self.hidden_size, self.n_heads * self.head_dim, bias=bias
+        self.use_gqa = self.n_rep > 1
+        if self.use_gqa:
+            self.q_weight = nn.Parameter(
+                torch.empty(
+                    self.hidden_size,
+                    self.head_dim,
+                    self.n_kv_heads,
+                    self.n_rep,
+                )
+            )
+            self.o_weight = nn.Parameter(
+                torch.empty(
+                    self.head_dim,
+                    self.n_kv_heads,
+                    self.n_rep,
+                    self.hidden_size,
+                )
+            )
+        else:
+            self.q_weight = nn.Parameter(
+                torch.empty(self.hidden_size, self.head_dim, self.n_heads)
+            )
+            self.o_weight = nn.Parameter(
+                torch.empty(self.head_dim, self.n_heads, self.hidden_size)
+            )
+        self.k_weight = nn.Parameter(
+            torch.empty(self.hidden_size, self.head_dim, self.n_kv_heads)
         )
-        self.k_proj = nn.Linear(
-            self.hidden_size, self.n_kv_heads * self.head_dim, bias=bias
+        self.v_weight = nn.Parameter(
+            torch.empty(self.hidden_size, self.head_dim, self.n_kv_heads)
         )
-        self.v_proj = nn.Linear(
-            self.hidden_size, self.n_kv_heads * self.head_dim, bias=bias
-        )
-        self.o_proj = nn.Linear(
-            self.n_heads * self.head_dim, self.hidden_size, bias=bias
-        )
+        self.reset_parameters()
 
-    def _shape(self, x: Tensor, n_heads: int) -> Tensor:
-        b, s, _ = x.shape
-        return x.view(b, s, n_heads, self.head_dim).transpose(1, 2)
+    def reset_parameters(self) -> None:
+        for p in (
+            self.q_weight,
+            self.k_weight,
+            self.v_weight,
+            self.o_weight,
+        ):
+            nn.init.normal_(p, std=0.02)
+
+    def _project_q(self, x: Tensor) -> Tensor:
+        q = gemm(x, self.q_weight, ndim=1, batch_ndim=0)
+        return nntile_model_transpose(q, 2 if self.use_gqa else 1)
+
+    def _project_kv(self, x: Tensor, weight: Tensor) -> Tensor:
+        out = gemm(x, weight, ndim=1, batch_ndim=0)
+        return nntile_model_transpose(out, 1)
+
+    def _output(self, attn_out: Tensor) -> Tensor:
+        attn_t = nntile_model_transpose(attn_out, 3)
+        out_ndim = 3 if self.use_gqa else 2
+        return gemm(attn_t, self.o_weight, ndim=out_ndim, batch_ndim=0)
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # x: [B, H, S, D]; sin/cos: [B, S, D/2] or [B, H, S, D/2].
         # RoPE tables must share x's device (upload once if needed).
         if sin.device != x.device:
             sin = sin.to(x.device)
             cos = cos.to(x.device)
-        n_heads = x.size(1)
-        if sin.dim() == 3:
-            b, s, half = sin.shape
-            sin_h = sin.view(b, 1, s, half).repeat(1, n_heads, 1, 1)
-            cos_h = cos.view(b, 1, s, half).repeat(1, n_heads, 1, 1)
-        else:
-            sin_h = sin
-            cos_h = cos
-        return rope(sin_h, cos_h, x)
+        return rope(sin, cos, x)
 
     def forward(
         self,
@@ -180,26 +206,32 @@ class LlamaAttention(nn.Module):
         *,
         is_causal: bool = True,
     ) -> Tensor:
-        b, s, _ = x.shape
-        q = self._shape(self.q_proj(x), self.n_heads)
-        k = self._shape(self.k_proj(x), self.n_kv_heads)
-        v = self._shape(self.v_proj(x), self.n_kv_heads)
+        s = int(x.size(1))
+        q = self._project_q(x)
+        k = self._project_kv(x, self.k_weight)
+        v = self._project_kv(x, self.v_weight)
         if sin is not None and cos is not None:
             q = self._apply_rope(q, sin, cos)
             k = self._apply_rope(k, sin, cos)
-        if self.n_rep > 1:
+        batch_ndim = 2
+        if self.use_gqa:
             k = _repeat_kv(k, self.n_rep)
             v = _repeat_kv(v, self.n_rep)
-        out = F.scaled_dot_product_attention(
+            batch_ndim = 3
+        mask = prepare_sdpa_mask(
+            attn_mask,
+            x,
+            q_len=s,
+            is_causal=is_causal,
+        )
+        out = sdpa_kernel(
             q,
             k,
             v,
-            attn_mask=attn_mask,
-            dropout_p=0.0,
-            is_causal=is_causal and attn_mask is None,
+            mask=mask,
+            batch_ndim=batch_ndim,
         )
-        out = out.transpose(1, 2).contiguous().view(b, s, -1)
-        return self.o_proj(out)
+        return self._output(out)
 
 
 class LlamaDecoder(nn.Module):
@@ -345,7 +377,7 @@ class LlamaCausal(nn.Module):
         config.validate()
         self.config = config
         self.model = LlamaModel(config)
-        self.lm_head = nn.Linear(
+        self.lm_head = NntileLinear(
             config.hidden_size, config.vocab_size, bias=False
         )
         # Weight tying intentionally unsupported (independent lm_head).

@@ -12,8 +12,15 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
+
+from torch_nntile.nn.linear import (
+    NntileAttentionOutput,
+    NntileLinear,
+    NntileQKVProjection,
+    prepare_sdpa_mask,
+)
+from torch_nntile.nn.sdpa import sdpa_kernel
 
 
 @dataclass
@@ -128,13 +135,24 @@ class BertSelfAttention(nn.Module):
         self.n_heads = config.num_attention_heads
         self.head_dim = config.head_dim
         self.hidden = config.hidden_size
-        self.query = nn.Linear(self.hidden, self.hidden)
-        self.key = nn.Linear(self.hidden, self.hidden)
-        self.value = nn.Linear(self.hidden, self.hidden)
-
-    def _shape(self, x: Tensor) -> Tensor:
-        b, s, _ = x.shape
-        return x.view(b, s, self.n_heads, self.head_dim).transpose(1, 2)
+        self.query = NntileQKVProjection(
+            self.hidden,
+            self.head_dim,
+            self.n_heads,
+            bias=True,
+        )
+        self.key = NntileQKVProjection(
+            self.hidden,
+            self.head_dim,
+            self.n_heads,
+            bias=True,
+        )
+        self.value = NntileQKVProjection(
+            self.hidden,
+            self.head_dim,
+            self.n_heads,
+            bias=True,
+        )
 
     def forward(
         self,
@@ -143,25 +161,31 @@ class BertSelfAttention(nn.Module):
         *,
         is_causal: bool = False,
     ) -> Tensor:
-        b, s, _ = x.shape
-        q = self._shape(self.query(x))
-        k = self._shape(self.key(x))
-        v = self._shape(self.value(x))
-        out = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=attn_mask,
-            dropout_p=0.0,
-            is_causal=is_causal and attn_mask is None,
+        s = int(x.size(1))
+        mask = prepare_sdpa_mask(
+            attn_mask,
+            x,
+            q_len=s,
+            is_causal=is_causal,
         )
-        return out.transpose(1, 2).contiguous().view(b, s, self.hidden)
+        return sdpa_kernel(
+            self.query(x),
+            self.key(x),
+            self.value(x),
+            mask=mask,
+            batch_ndim=2,
+        )
 
 
 class BertSelfOutput(nn.Module):
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense = NntileAttentionOutput(
+            config.head_dim,
+            config.num_attention_heads,
+            config.hidden_size,
+            bias=True,
+        )
         self.LayerNorm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
@@ -189,7 +213,10 @@ class BertAttention(nn.Module):
 class BertIntermediate(nn.Module):
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
+        self.dense = NntileLinear(
+            config.hidden_size,
+            config.intermediate_size,
+        )
         self.intermediate_act_fn = _bert_activation(config.hidden_act)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -199,7 +226,10 @@ class BertIntermediate(nn.Module):
 class BertOutput(nn.Module):
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
-        self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
+        self.dense = NntileLinear(
+            config.intermediate_size,
+            config.hidden_size,
+        )
         self.LayerNorm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
@@ -270,14 +300,16 @@ class BertMlmHead(nn.Module):
 
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense = NntileLinear(config.hidden_size, config.hidden_size)
         # Match HF ``BertPredictionHeadTransform`` (ACT2FN[hidden_act]).
         self.transform_act_fn = _bert_activation(config.hidden_act)
         self.LayerNorm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
-        self.decoder = nn.Linear(
-            config.hidden_size, config.vocab_size, bias=True
+        self.decoder = NntileLinear(
+            config.hidden_size,
+            config.vocab_size,
+            bias=True,
         )
 
     def forward(self, hidden: Tensor) -> Tensor:

@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/gpt_neox.hh
- * GPT-NeoX causal LM for device=nntile (LibTorch / NNGraph gptneox).
+ * GPT-NeoX causal LM matching deleted ``nntile::model::gptneox``.
  */
 
 #pragma once
@@ -35,10 +35,10 @@ struct GptNeoXCausalImpl : torch::nn::Module
     torch::nn::Embedding embed_in{nullptr};
     torch::nn::ModuleList layers{nullptr};
     torch::nn::LayerNorm final_layer_norm{nullptr};
-    torch::nn::Linear embed_out{nullptr};
-    //! One-shot RoPE tables (NNGraph bind_data); plain Tensors, not buffers.
+    torch::Tensor lm_weight;
     torch::Tensor rope_sin_;
     torch::Tensor rope_cos_;
+    torch::Tensor cached_mask_;
     int64_t rope_cache_batch_ = -1;
     int64_t rope_cache_seq_ = -1;
 

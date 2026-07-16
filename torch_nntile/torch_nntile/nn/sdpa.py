@@ -81,13 +81,17 @@ def _validate_sdpa_inputs(
     *,
     batch_ndim: int,
 ) -> None:
-    if batch_ndim != 2:
-        raise ValueError("sdpa currently supports batch_ndim=2 only")
+    if batch_ndim not in (2, 3):
+        raise ValueError("sdpa currently supports batch_ndim=2 or 3")
     if q.device.type != "nntile":
         raise ValueError("sdpa expects nntile Q/K/V tensors")
     if k.device.type != "nntile" or v.device.type != "nntile":
         raise ValueError("sdpa expects nntile Q/K/V tensors")
-    if q.dtype != torch.float32 or k.dtype != torch.float32 or v.dtype != torch.float32:
+    if (
+        q.dtype != torch.float32
+        or k.dtype != torch.float32
+        or v.dtype != torch.float32
+    ):
         raise ValueError("nntile sdpa supports float32 only")
     if mask is not None and mask.dtype != torch.bool:
         raise ValueError("nntile sdpa: mask must be bool")
@@ -105,7 +109,9 @@ def sdpa_kernel(
 ) -> Tensor:
     """SDPA on kernel layout (matches ``nntile::sdpa_eager`` inputs).
 
-    Expects Q/K/V as ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``.
+    Expects ``[n_heads, batch, seq, head_size]`` when ``batch_ndim=2``.
+    GQA callers may use ``batch_ndim=3`` with
+    ``[n_kv_heads, n_rep, batch, seq, head_size]``.
     Optional BOOL mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key).
     """
     _validate_sdpa_inputs(q, k, v, mask, batch_ndim=batch_ndim)

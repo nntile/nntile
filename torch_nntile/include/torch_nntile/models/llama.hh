@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/llama.hh
- * Tiny Llama causal LM for device=nntile (LibTorch).
+ * Llama causal LM matching deleted ``nntile::model::llama``.
  */
 
 #pragma once
@@ -32,11 +32,11 @@ struct LlamaCausalImpl : torch::nn::Module
     LlamaConfig config;
     torch::nn::Embedding embed_tokens{nullptr};
     torch::nn::ModuleList layers{nullptr};
-    torch::nn::Linear lm_head{nullptr};
+    torch::Tensor lm_weight;
     torch::Tensor weight_rms;
-    //! One-shot RoPE tables (NNGraph bind_data); not recomputed per step.
     torch::Tensor rope_sin_;
     torch::Tensor rope_cos_;
+    torch::Tensor cached_mask_;
     int64_t rope_cache_batch_ = -1;
     int64_t rope_cache_seq_ = -1;
 

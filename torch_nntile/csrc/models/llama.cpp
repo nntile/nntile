@@ -2,13 +2,16 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/llama.cpp
- * Llama causal LM — LibTorch port of deleted NNGraph llama attention/rope.
+ * Llama causal LM — port of deleted ``nntile::model::llama``.
  */
 
 #include <torch_nntile/models/llama.hh>
 
-#include "nntile_rope.h"
+#include "nntile_gemm.h"
 #include "nntile_rms_norm.h"
+#include "nntile_rope.h"
+#include "nntile_sdpa.h"
+#include "nntile_transpose.h"
 
 #include <cmath>
 #include <stdexcept>
@@ -20,13 +23,28 @@ namespace torch_nntile::models
 namespace
 {
 
+torch::Tensor causal_mask_host(int64_t seq)
+{
+    auto opts = torch::TensorOptions()
+        .dtype(torch::kBool)
+        .device(torch::kCPU);
+    auto q = torch::arange(
+        seq,
+        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU))
+        .unsqueeze(1);
+    auto k = torch::arange(
+        seq,
+        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU))
+        .unsqueeze(0);
+    return (k <= q).to(opts);
+}
+
 torch::Tensor rms_norm(
     torch::Tensor x,
     torch::Tensor weight,
     double eps)
 {
-    // Use nntile rms_norm kernel (aten::pow is not on nntile).
-    auto out_rstd = torch_nntile::rms_norm_forward(
+    auto out_rstd = rms_norm_forward(
         x,
         /*normalized_shape=*/std::vector<int64_t>{x.size(-1)},
         weight,
@@ -34,20 +52,19 @@ torch::Tensor rms_norm(
     return std::get<0>(out_rstd);
 }
 
-//! Host RoPE tables (NNGraph ``rope_sin_cos_from_position_ids``), then upload.
 void rope_sin_cos_host(
     int64_t batch,
     int64_t seq,
     int64_t head_dim,
     double rope_theta,
-    torch::Tensor& sin_out,
-    torch::Tensor& cos_out)
+    torch::Tensor &sin_out,
+    torch::Tensor &cos_out)
 {
     if (head_dim % 2 != 0)
     {
         throw std::invalid_argument("rope: head_dim must be even");
     }
-    int64_t half = head_dim / 2;
+    int64_t const half = head_dim / 2;
     std::vector<float> inv(static_cast<std::size_t>(half));
     for (int64_t i = 0; i < half; ++i)
     {
@@ -76,148 +93,230 @@ void rope_sin_cos_host(
     }
 }
 
-torch::Tensor repeat_kv(torch::Tensor x, int64_t n_rep)
-{
-    // NNGraph ``scale_slice`` GQA expand → aten::repeat on nntile.
-    if (n_rep == 1)
-    {
-        return x;
-    }
-    int64_t b = x.size(0);
-    int64_t h = x.size(1);
-    int64_t s = x.size(2);
-    int64_t d = x.size(3);
-    return x.view({b, h, 1, s, d})
-        .repeat({1, 1, n_rep, 1, 1})
-        .view({b, h * n_rep, s, d});
-}
-
-torch::Tensor apply_rope_nngraph(
+torch::Tensor apply_rope(
     torch::Tensor x,
     torch::Tensor sin,
     torch::Tensor cos)
 {
-    // x: [B,H,S,D]; sin/cos: [B,S,D/2] — expand heads via repeat.
-    int64_t n_heads = x.size(1);
+    // x layout: [n_heads, batch, seq, head_dim] (after model_transpose).
+    int64_t const n_heads = x.size(0);
     if (sin.dim() == 3)
     {
-        int64_t b = sin.size(0);
-        int64_t s = sin.size(1);
-        int64_t half = sin.size(2);
-        sin = sin.view({b, 1, s, half}).repeat({1, n_heads, 1, 1});
-        cos = cos.view({b, 1, s, half}).repeat({1, n_heads, 1, 1});
+        int64_t const b = sin.size(0);
+        int64_t const s = sin.size(1);
+        int64_t const half = sin.size(2);
+        sin = sin.view({1, b, s, half}).repeat({n_heads, 1, 1, 1});
+        cos = cos.view({1, b, s, half}).repeat({n_heads, 1, 1, 1});
     }
-    // Prefer nntile rope kernel (same as deleted NNGraph ``rope`` op).
-    return torch_nntile::rope_forward(sin, cos, x);
+    return rope(sin, cos, x);
 }
 
-struct LlamaDecoderImpl : torch::nn::Module
+torch::Tensor repeat_kv_heads(torch::Tensor x, int64_t n_rep)
 {
-    torch::nn::Linear q_proj{nullptr};
-    torch::nn::Linear k_proj{nullptr};
-    torch::nn::Linear v_proj{nullptr};
-    torch::nn::Linear o_proj{nullptr};
-    torch::nn::Linear gate_proj{nullptr};
-    torch::nn::Linear up_proj{nullptr};
-    torch::nn::Linear down_proj{nullptr};
-    torch::Tensor attn_norm_w;
-    torch::Tensor mlp_norm_w;
+    // NNGraph scale_slice on axis 1 for GQA:
+    // [n_kv, B, S, D] -> [n_kv, n_rep, B, S, D] via view+repeat.
+    if (n_rep == 1)
+    {
+        return x;
+    }
+    int64_t const n_kv = x.size(0);
+    int64_t const b = x.size(1);
+    int64_t const s = x.size(2);
+    int64_t const d = x.size(3);
+    return x.view({n_kv, 1, b, s, d})
+        .repeat({1, n_rep, 1, 1, 1});
+}
+
+struct LlamaAttentionImpl : torch::nn::Module
+{
     int64_t n_heads = 0;
     int64_t n_kv = 0;
-    int64_t head_dim = 0;
-    double eps = 1e-6;
+    int64_t head_size = 0;
+    int64_t n_rep = 0;
+    bool use_gqa = false;
+    torch::Tensor q_weight;
+    torch::Tensor k_weight;
+    torch::Tensor v_weight;
+    torch::Tensor o_weight;
 
-    explicit LlamaDecoderImpl(LlamaConfig const& cfg)
+    explicit LlamaAttentionImpl(LlamaConfig const &cfg) :
+        n_heads(cfg.num_attention_heads),
+        n_kv(cfg.num_key_value_heads),
+        head_size(cfg.hidden_size / cfg.num_attention_heads),
+        n_rep(cfg.num_attention_heads / cfg.num_key_value_heads),
+        use_gqa(
+            cfg.num_key_value_heads < cfg.num_attention_heads)
     {
-        n_heads = cfg.num_attention_heads;
-        n_kv = cfg.num_key_value_heads;
-        head_dim = cfg.hidden_size / cfg.num_attention_heads;
-        eps = cfg.rms_norm_eps;
-        q_proj = register_module(
-            "q_proj",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(cfg.hidden_size, cfg.hidden_size)
-                    .bias(false)));
-        k_proj = register_module(
-            "k_proj",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(
-                    cfg.hidden_size, n_kv * head_dim)
-                    .bias(false)));
-        v_proj = register_module(
-            "v_proj",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(
-                    cfg.hidden_size, n_kv * head_dim)
-                    .bias(false)));
-        o_proj = register_module(
-            "o_proj",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(cfg.hidden_size, cfg.hidden_size)
-                    .bias(false)));
-        gate_proj = register_module(
-            "gate_proj",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(
-                    cfg.hidden_size, cfg.intermediate_size)
-                    .bias(false)));
-        up_proj = register_module(
-            "up_proj",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(
-                    cfg.hidden_size, cfg.intermediate_size)
-                    .bias(false)));
-        down_proj = register_module(
-            "down_proj",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(
-                    cfg.intermediate_size, cfg.hidden_size)
-                    .bias(false)));
-        attn_norm_w = register_parameter(
-            "attn_norm_w", torch::ones({cfg.hidden_size}));
-        mlp_norm_w = register_parameter(
-            "mlp_norm_w", torch::ones({cfg.hidden_size}));
+        if (cfg.hidden_size % cfg.num_attention_heads != 0)
+        {
+            throw std::invalid_argument(
+                "LlamaAttention: hidden_size % n_heads != 0");
+        }
+        if (cfg.num_attention_heads % cfg.num_key_value_heads != 0)
+        {
+            throw std::invalid_argument(
+                "LlamaAttention: n_heads % n_kv != 0");
+        }
+        int64_t const h = cfg.hidden_size;
+        int64_t const hs = head_size;
+        if (use_gqa)
+        {
+            q_weight = register_parameter(
+                "q_weight",
+                torch::empty({h, hs, n_kv, n_rep}));
+            o_weight = register_parameter(
+                "o_weight",
+                torch::empty({hs, n_kv, n_rep, h}));
+        }
+        else
+        {
+            q_weight = register_parameter(
+                "q_weight",
+                torch::empty({h, hs, n_heads}));
+            o_weight = register_parameter(
+                "o_weight",
+                torch::empty({hs, n_heads, h}));
+        }
+        k_weight = register_parameter(
+            "k_weight",
+            torch::empty({h, hs, n_kv}));
+        v_weight = register_parameter(
+            "v_weight",
+            torch::empty({h, hs, n_kv}));
+        torch::nn::init::normal_(q_weight, 0.0, 0.02);
+        torch::nn::init::normal_(k_weight, 0.0, 0.02);
+        torch::nn::init::normal_(v_weight, 0.0, 0.02);
+        torch::nn::init::normal_(o_weight, 0.0, 0.02);
     }
 
     torch::Tensor forward(
         torch::Tensor x,
-        torch::Tensor sin,
-        torch::Tensor cos)
+        torch::Tensor const &sin,
+        torch::Tensor const &cos,
+        torch::Tensor const &mask)
     {
-        auto h = rms_norm(x, attn_norm_w, eps);
-        int64_t b = h.size(0);
-        int64_t s = h.size(1);
-        auto q = q_proj->forward(h)
-            .view({b, s, n_heads, head_dim})
-            .transpose(1, 2);
-        auto k = k_proj->forward(h)
-            .view({b, s, n_kv, head_dim})
-            .transpose(1, 2);
-        auto v = v_proj->forward(h)
-            .view({b, s, n_kv, head_dim})
-            .transpose(1, 2);
-        q = apply_rope_nngraph(q, sin, cos);
-        k = apply_rope_nngraph(k, sin, cos);
-        if (n_kv != n_heads)
+        auto q = gemm(x, q_weight, /*ndim=*/1, /*batch_ndim=*/0);
+        q = model_transpose(q, use_gqa ? 2 : 1);
+        auto k = model_transpose(
+            gemm(x, k_weight, /*ndim=*/1, /*batch_ndim=*/0),
+            /*model_ndim=*/1);
+        auto v = model_transpose(
+            gemm(x, v_weight, /*ndim=*/1, /*batch_ndim=*/0),
+            /*model_ndim=*/1);
+        q = apply_rope(q, sin, cos);
+        k = apply_rope(k, sin, cos);
+        auto k_sdpa = k;
+        auto v_sdpa = v;
+        int64_t batch_ndim = 2;
+        if (use_gqa)
         {
-            int64_t rep = n_heads / n_kv;
-            k = repeat_kv(k, rep);
-            v = repeat_kv(v, rep);
+            k_sdpa = repeat_kv_heads(k, n_rep);
+            v_sdpa = repeat_kv_heads(v, n_rep);
+            batch_ndim = 3;
         }
-        auto attn = at::scaled_dot_product_attention(
+        auto attn = sdpa_kernel(
             q,
-            k,
-            v,
-            /*attn_mask=*/c10::nullopt,
-            /*dropout_p=*/0.0,
-            /*is_causal=*/true);
-        attn = attn.transpose(1, 2).contiguous().view(
-            {b, s, n_heads * head_dim});
-        x = x + o_proj->forward(attn);
-        auto m = rms_norm(x, mlp_norm_w, eps);
-        auto gate = torch::silu(gate_proj->forward(m));
-        m = down_proj->forward(gate * up_proj->forward(m));
-        return x + m;
+            k_sdpa,
+            v_sdpa,
+            mask,
+            batch_ndim);
+        attn = model_transpose(attn, /*model_ndim=*/3);
+        int64_t const out_ndim = use_gqa ? 3 : 2;
+        return gemm(attn, o_weight, out_ndim, /*batch_ndim=*/0);
+    }
+};
+
+TORCH_MODULE(LlamaAttention);
+
+struct LlamaMLPImpl : torch::nn::Module
+{
+    torch::Tensor gate_weight;
+    torch::Tensor up_weight;
+    torch::Tensor down_weight;
+
+    explicit LlamaMLPImpl(LlamaConfig const &cfg)
+    {
+        int64_t const h = cfg.hidden_size;
+        int64_t const i = cfg.intermediate_size;
+        gate_weight = register_parameter(
+            "gate_weight",
+            torch::empty({i, h}));
+        up_weight = register_parameter(
+            "up_weight",
+            torch::empty({i, h}));
+        down_weight = register_parameter(
+            "down_weight",
+            torch::empty({h, i}));
+        torch::nn::init::normal_(gate_weight, 0.0, 0.02);
+        torch::nn::init::normal_(up_weight, 0.0, 0.02);
+        torch::nn::init::normal_(down_weight, 0.0, 0.02);
+    }
+
+    torch::Tensor forward(torch::Tensor x)
+    {
+        auto gate = gemm(
+            x,
+            gate_weight,
+            /*ndim=*/1,
+            /*batch_ndim=*/0,
+            /*trans_a=*/false,
+            /*trans_b=*/true);
+        auto up = gemm(
+            x,
+            up_weight,
+            /*ndim=*/1,
+            /*batch_ndim=*/0,
+            /*trans_a=*/false,
+            /*trans_b=*/true);
+        auto hidden = torch::silu(gate) * up;
+        return gemm(
+            hidden,
+            down_weight,
+            /*ndim=*/1,
+            /*batch_ndim=*/0,
+            /*trans_a=*/false,
+            /*trans_b=*/true);
+    }
+};
+
+TORCH_MODULE(LlamaMLP);
+
+struct LlamaDecoderImpl : torch::nn::Module
+{
+    torch::Tensor input_norm_w;
+    LlamaAttention attn{nullptr};
+    torch::Tensor post_attn_norm_w;
+    LlamaMLP mlp{nullptr};
+    double rms_eps = 1e-6;
+
+    explicit LlamaDecoderImpl(LlamaConfig const &cfg) :
+        rms_eps(cfg.rms_norm_eps)
+    {
+        input_norm_w = register_parameter(
+            "input_norm_w",
+            torch::ones({cfg.hidden_size}));
+        attn = register_module("attention", LlamaAttention(cfg));
+        post_attn_norm_w = register_parameter(
+            "post_attn_norm_w",
+            torch::ones({cfg.hidden_size}));
+        mlp = register_module("mlp", LlamaMLP(cfg));
+    }
+
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor const &sin,
+        torch::Tensor const &cos,
+        torch::Tensor const &mask)
+    {
+        auto attn_out = attn->forward(
+            rms_norm(x, input_norm_w, rms_eps),
+            sin,
+            cos,
+            mask);
+        auto post = x + attn_out;
+        auto mlp_out = mlp->forward(
+            rms_norm(post, post_attn_norm_w, rms_eps));
+        return post + mlp_out;
     }
 };
 
@@ -225,20 +324,12 @@ TORCH_MODULE(LlamaDecoder);
 
 } // namespace
 
-LlamaCausalImpl::LlamaCausalImpl(LlamaConfig cfg) :
-    config(std::move(cfg))
+LlamaCausalImpl::LlamaCausalImpl(LlamaConfig cfg) : config(std::move(cfg))
 {
     if (config.hidden_size % config.num_attention_heads != 0)
     {
         throw std::invalid_argument(
-            "LlamaCausal: hidden_size must be divisible by "
-            "num_attention_heads");
-    }
-    if (config.num_attention_heads % config.num_key_value_heads != 0)
-    {
-        throw std::invalid_argument(
-            "LlamaCausal: num_attention_heads must be divisible by "
-            "num_key_value_heads");
+            "LlamaCausal: hidden_size % n_heads != 0");
     }
     embed_tokens = register_module(
         "embed_tokens",
@@ -252,13 +343,10 @@ LlamaCausalImpl::LlamaCausalImpl(LlamaConfig cfg) :
     weight_rms = register_parameter(
         "weight_rms",
         torch::ones({config.hidden_size}));
-    lm_head = register_module(
-        "lm_head",
-        torch::nn::Linear(
-            torch::nn::LinearOptions(config.hidden_size, config.vocab_size)
-                .bias(false)));
-    // RoPE caches are plain Tensors (not buffers): host tables uploaded once
-    // (NNGraph bind_data). register_buffer + .to(nntile) breaks set_data.
+    lm_weight = register_parameter(
+        "lm_weight",
+        torch::empty({config.vocab_size, config.hidden_size}));
+    torch::nn::init::normal_(lm_weight, 0.0, 0.02);
 }
 
 void LlamaCausalImpl::warm_rope_cache(
@@ -266,49 +354,58 @@ void LlamaCausalImpl::warm_rope_cache(
     int64_t seq,
     torch::Device device)
 {
-    if (rope_sin_.defined() && rope_cache_batch_ == batch &&
-        rope_cache_seq_ == seq && rope_sin_.device() == device)
-    {
-        return;
-    }
+    int64_t const head_dim =
+        config.hidden_size / config.num_attention_heads;
     torch::Tensor sin_h;
     torch::Tensor cos_h;
     rope_sin_cos_host(
         batch,
         seq,
-        config.hidden_size / config.num_attention_heads,
+        head_dim,
         config.rope_theta,
         sin_h,
         cos_h);
+    auto mask = causal_mask_host(seq);
     if (!device.is_cpu())
     {
         sin_h = sin_h.to(device);
         cos_h = cos_h.to(device);
+        mask = mask.to(device);
     }
-    torch::NoGradGuard guard;
     rope_sin_ = sin_h;
     rope_cos_ = cos_h;
+    cached_mask_ = mask;
     rope_cache_batch_ = batch;
     rope_cache_seq_ = seq;
 }
 
 torch::Tensor LlamaCausalImpl::forward(torch::Tensor input_ids)
 {
-    int64_t b = input_ids.size(0);
-    int64_t s = input_ids.size(1);
+    int64_t const b = input_ids.size(0);
+    int64_t const s = input_ids.size(1);
     if (!rope_sin_.defined() || rope_cache_batch_ != b ||
-        rope_cache_seq_ != s || rope_sin_.device() != input_ids.device())
+        rope_cache_seq_ != s ||
+        rope_sin_.device() != input_ids.device())
     {
-        // One-shot table prep (NNGraph bind_data); reused across steps.
         warm_rope_cache(b, s, input_ids.device());
     }
-    auto h = embed_tokens->forward(input_ids);
-    for (auto& module : *layers)
+    auto x = embed_tokens->forward(input_ids);
+    for (auto &module : *layers)
     {
-        h = module->as<LlamaDecoderImpl>()->forward(h, rope_sin_, rope_cos_);
+        x = module->as<LlamaDecoderImpl>()->forward(
+            x,
+            rope_sin_,
+            rope_cos_,
+            cached_mask_);
     }
-    h = rms_norm(h, weight_rms, config.rms_norm_eps);
-    return lm_head->forward(h);
+    x = rms_norm(x, weight_rms, config.rms_norm_eps);
+    return gemm(
+        x,
+        lm_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
 }
 
 } // namespace torch_nntile::models

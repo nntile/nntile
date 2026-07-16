@@ -4,10 +4,10 @@
 # @file torch_nntile/torch_nntile/models/gpt_neox.py
 # GPT-NeoX causal LM for device="nntile".
 
-"""GPT-NeoX stack mirroring ``nntile::model::gptneox`` (RoPE, parallel residual).
+"""GPT-NeoX stack mirroring ``nntile::model::gptneox``.
 
-Activations stay on ``device=nntile``; position / RoPE tables are cached uploads
-(same pattern as deleted NNGraph bind_data).
+Uses RoPE and parallel residual. Activations stay on ``device=nntile``;
+position / RoPE tables are cached uploads (deleted NNGraph bind_data pattern).
 """
 
 from __future__ import annotations
@@ -16,10 +16,12 @@ from dataclasses import dataclass, field
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
+from torch_nntile.gemm import gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
+from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
+from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 
 try:
     from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
@@ -78,7 +80,17 @@ class GPTNeoXConfig:
 
     @property
     def rotary_ndims(self) -> int:
-        return int(self.head_dim * self.rotary_pct)
+        if self.rotary_pct <= 0:
+            return 0
+        dim = round(self.head_dim * self.rotary_pct)
+        dim = max(2, dim)
+        if dim % 2 != 0:
+            dim -= 1
+        if dim > self.head_dim:
+            dim = self.head_dim
+            if dim % 2 != 0:
+                dim -= 1
+        return dim
 
 
 class GPTNeoXAttention(nn.Module):
@@ -88,11 +100,36 @@ class GPTNeoXAttention(nn.Module):
         self.head_dim = config.head_dim
         self.hidden = config.hidden_size
         self.rotary_ndims = config.rotary_ndims
-        bias = config.attention_bias
-        self.query_key_value = nn.Linear(
-            self.hidden, 3 * self.hidden, bias=bias
+        self.q_weight = nn.Parameter(
+            torch.empty(self.hidden, self.head_dim, self.n_heads)
         )
-        self.dense = nn.Linear(self.hidden, self.hidden, bias=bias)
+        self.k_weight = nn.Parameter(
+            torch.empty(self.hidden, self.head_dim, self.n_heads)
+        )
+        self.v_weight = nn.Parameter(
+            torch.empty(self.hidden, self.head_dim, self.n_heads)
+        )
+        self.o_weight = nn.Parameter(
+            torch.empty(self.head_dim, self.n_heads, self.hidden)
+        )
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        for p in (
+            self.q_weight,
+            self.k_weight,
+            self.v_weight,
+            self.o_weight,
+        ):
+            nn.init.normal_(p, std=0.02)
+
+    def _project(self, x: Tensor, weight: Tensor) -> Tensor:
+        proj = gemm(x, weight, ndim=1, batch_ndim=0)
+        return nntile_model_transpose(proj, 1)
+
+    def _output(self, attn_out: Tensor) -> Tensor:
+        attn_t = nntile_model_transpose(attn_out, 3)
+        return gemm(attn_t, self.o_weight, ndim=2, batch_ndim=0)
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
         # Partial RoPE on-device via narrow + rope + cat (nntile kernels).
@@ -104,14 +141,7 @@ class GPTNeoXAttention(nn.Module):
             cos = cos.to(x.device)
         x_rot = torch.narrow(x, -1, 0, rot)
         x_pass = torch.narrow(x, -1, rot, self.head_dim - rot)
-        n_heads = x.size(1)
-        if sin.dim() == 3:
-            b, s, half = sin.shape
-            sin_h = sin.view(b, 1, s, half).repeat(1, n_heads, 1, 1)
-            cos_h = cos.view(b, 1, s, half).repeat(1, n_heads, 1, 1)
-        else:
-            sin_h, cos_h = sin, cos
-        x_rot = rope(sin_h, cos_h, x_rot)
+        x_rot = rope(sin, cos, x_rot)
         return torch.cat([x_rot, x_pass], dim=-1)
 
     def forward(
@@ -123,35 +153,36 @@ class GPTNeoXAttention(nn.Module):
         *,
         is_causal: bool = True,
     ) -> Tensor:
-        b, s, _ = x.shape
-        qkv = self.query_key_value(x)
-        qkv = qkv.view(b, s, self.n_heads, 3 * self.head_dim)
-        q, k, v = qkv.split(self.head_dim, dim=-1)
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
+        s = int(x.size(1))
+        q = self._project(x, self.q_weight)
+        k = self._project(x, self.k_weight)
+        v = self._project(x, self.v_weight)
         if sin is not None and cos is not None:
             q = self._apply_rope(q, sin, cos)
             k = self._apply_rope(k, sin, cos)
-        out = F.scaled_dot_product_attention(
+        mask = prepare_sdpa_mask(
+            attn_mask,
+            x,
+            q_len=s,
+            is_causal=is_causal,
+        )
+        out = sdpa_kernel(
             q,
             k,
             v,
-            attn_mask=attn_mask,
-            dropout_p=0.0,
-            is_causal=is_causal and attn_mask is None,
+            mask=mask,
+            batch_ndim=2,
         )
-        out = out.transpose(1, 2).contiguous().view(b, s, self.hidden)
-        return self.dense(out)
+        return self._output(out)
 
 
 class GPTNeoXMLP(nn.Module):
     def __init__(self, config: GPTNeoXConfig) -> None:
         super().__init__()
-        self.dense_h_to_4h = nn.Linear(
+        self.dense_h_to_4h = NntileLinear(
             config.hidden_size, config.intermediate_size
         )
-        self.dense_4h_to_h = nn.Linear(
+        self.dense_4h_to_h = NntileLinear(
             config.intermediate_size, config.hidden_size
         )
         self.act = nn.GELU()
@@ -312,7 +343,7 @@ class GPTNeoXCausal(nn.Module):
         config.validate()
         self.config = config
         self.gpt_neox = GPTNeoXModel(config)
-        self.embed_out = nn.Linear(
+        self.embed_out = NntileLinear(
             config.hidden_size, config.vocab_size, bias=False
         )
         # Weight tying intentionally unsupported (independent embed_out).

@@ -649,14 +649,7 @@ def main() -> None:
 
     if use_nntile:
         import torch_nntile
-        from torch_nntile import _C
 
-        if not _C.has_libnntile():
-            raise SystemExit(
-                "torch_nntile was built without libnntile. "
-                "Set NNTILE_BUILD_DIR and reinstall with "
-                "--no-build-isolation --no-deps."
-            )
         torch_nntile.init_context(
             ncpu=args.ncpu,
             ncuda=args.ncuda,

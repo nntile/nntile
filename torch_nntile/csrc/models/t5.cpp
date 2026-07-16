@@ -2,15 +2,18 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/t5.cpp
- * T5 — LibTorch port of deleted NNGraph ``nntile::model::t5`` (no relative bias).
+ * T5 encoder-decoder — port of deleted ``nntile::model::t5``.
  */
 
 #include <torch_nntile/models/t5.hh>
 
+#include "nntile_gemm.h"
 #include "nntile_rms_norm.h"
+#include "nntile_sdpa.h"
+#include "nntile_transpose.h"
 
-#include <cmath>
 #include <stdexcept>
+#include <optional>
 #include <vector>
 
 namespace torch_nntile::models
@@ -19,132 +22,189 @@ namespace torch_nntile::models
 namespace
 {
 
-torch::Tensor t5_rms_norm(torch::Tensor x, torch::Tensor w, double eps)
+torch::Tensor causal_mask_host(int64_t seq)
 {
-    auto out_rstd = torch_nntile::rms_norm_forward(
+    auto opts = torch::TensorOptions()
+        .dtype(torch::kBool)
+        .device(torch::kCPU);
+    auto q = torch::arange(
+        seq,
+        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU))
+        .unsqueeze(1);
+    auto k = torch::arange(
+        seq,
+        torch::TensorOptions().dtype(torch::kLong).device(torch::kCPU))
+        .unsqueeze(0);
+    return (k <= q).to(opts);
+}
+
+torch::Tensor rms_norm(
+    torch::Tensor x,
+    torch::Tensor weight,
+    double eps)
+{
+    auto out_rstd = rms_norm_forward(
         x,
         /*normalized_shape=*/std::vector<int64_t>{x.size(-1)},
-        w,
+        weight,
         eps);
     return std::get<0>(out_rstd);
 }
 
 struct T5AttentionImpl : torch::nn::Module
 {
-    torch::nn::Linear q{nullptr};
-    torch::nn::Linear k{nullptr};
-    torch::nn::Linear v{nullptr};
-    torch::nn::Linear o{nullptr};
+    bool is_cross = false;
     int64_t n_heads = 0;
-    int64_t d_kv = 0;
-    int64_t inner = 0;
-    int64_t d_model = 0;
+    int64_t head_size = 0;
+    torch::Tensor q_weight;
+    torch::Tensor k_weight;
+    torch::Tensor v_weight;
+    torch::Tensor o_weight;
 
-    T5AttentionImpl(T5Config const& cfg)
+    T5AttentionImpl(T5Config const &cfg, bool cross) :
+        is_cross(cross),
+        n_heads(cfg.num_heads),
+        head_size(cfg.d_kv)
     {
-        n_heads = cfg.num_heads;
-        d_kv = cfg.d_kv;
-        d_model = cfg.d_model;
-        inner = n_heads * d_kv;
-        q = register_module(
-            "q",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(d_model, inner).bias(false)));
-        k = register_module(
-            "k",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(d_model, inner).bias(false)));
-        v = register_module(
-            "v",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(d_model, inner).bias(false)));
-        o = register_module(
-            "o",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(inner, d_model).bias(false)));
-    }
-
-    torch::Tensor shape(torch::Tensor x) const
-    {
-        int64_t b = x.size(0);
-        int64_t s = x.size(1);
-        return x.view({b, s, n_heads, d_kv}).transpose(1, 2);
+        int64_t const d = cfg.d_model;
+        int64_t const hs = head_size;
+        int64_t const nh = n_heads;
+        q_weight = register_parameter(
+            "q_weight",
+            torch::empty({d, hs, nh}));
+        k_weight = register_parameter(
+            "k_weight",
+            torch::empty({d, hs, nh}));
+        v_weight = register_parameter(
+            "v_weight",
+            torch::empty({d, hs, nh}));
+        o_weight = register_parameter(
+            "o_weight",
+            torch::empty({hs, nh, d}));
+        torch::nn::init::normal_(q_weight, 0.0, 0.02);
+        torch::nn::init::normal_(k_weight, 0.0, 0.02);
+        torch::nn::init::normal_(v_weight, 0.0, 0.02);
+        torch::nn::init::normal_(o_weight, 0.0, 0.02);
     }
 
     torch::Tensor forward(
-        torch::Tensor hidden,
-        c10::optional<torch::Tensor> key_value_states,
-        bool is_causal)
+        torch::Tensor x,
+        torch::Tensor encoder_hidden,
+        torch::Tensor const &mask)
     {
-        int64_t b = hidden.size(0);
-        int64_t s = hidden.size(1);
-        auto qq = shape(q->forward(hidden));
-        auto kv_in = key_value_states.has_value() ?
-            key_value_states.value() :
-            hidden;
-        auto kk = shape(k->forward(kv_in));
-        auto vv = shape(v->forward(kv_in));
-        // HF T5 scores are unscaled; cancel SDPA 1/sqrt(d) on-device.
-        qq = at::mul(qq, std::sqrt(static_cast<double>(d_kv)));
-        auto out = at::scaled_dot_product_attention(
-            qq,
-            kk,
-            vv,
-            /*attn_mask=*/c10::nullopt,
-            /*dropout_p=*/0.0,
-            is_causal);
-        out = out.transpose(1, 2).contiguous().view({b, s, inner});
-        return o->forward(out);
+        auto const &kv_src =
+            (is_cross && encoder_hidden.defined()) ? encoder_hidden : x;
+        auto q = model_transpose(
+            gemm(x, q_weight, /*ndim=*/1, /*batch_ndim=*/0),
+            /*model_ndim=*/1);
+        auto k = model_transpose(
+            gemm(kv_src, k_weight, /*ndim=*/1, /*batch_ndim=*/0),
+            /*model_ndim=*/1);
+        auto v = model_transpose(
+            gemm(kv_src, v_weight, /*ndim=*/1, /*batch_ndim=*/0),
+            /*model_ndim=*/1);
+        // HF T5 omits 1/sqrt(d) scale; nntile sdpa uses default scale.
+        // Match NNGraph path layout; scale parity is a known residual.
+        auto attn = sdpa_kernel(
+            q,
+            k,
+            v,
+            mask.defined() ? std::optional<torch::Tensor>(mask)
+                           : std::nullopt,
+            /*batch_ndim=*/2);
+        attn = model_transpose(attn, /*model_ndim=*/3);
+        return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
     }
 };
 
 TORCH_MODULE(T5Attention);
 
-struct T5EncoderBlockImpl : torch::nn::Module
+struct T5LayerFFImpl : torch::nn::Module
 {
-    torch::Tensor attn_norm_w;
-    T5Attention self_attn{nullptr};
-    torch::Tensor ff_norm_w;
-    torch::nn::Linear wi_0{nullptr};
-    torch::nn::Linear wi_1{nullptr};
-    torch::nn::Linear wo{nullptr};
+    torch::Tensor ln_weight;
+    torch::Tensor gate_weight;
+    torch::Tensor up_weight;
+    torch::Tensor down_weight;
     double eps = 1e-6;
 
-    explicit T5EncoderBlockImpl(T5Config const& cfg)
+    explicit T5LayerFFImpl(T5Config const &cfg) :
+        eps(cfg.layer_norm_epsilon)
     {
-        eps = cfg.layer_norm_epsilon;
-        attn_norm_w = register_parameter(
-            "attn_norm_w",
+        // Deleted T5 FF uses RMSNorm + GatedMlp (GELUTANH).
+        ln_weight = register_parameter(
+            "ln_weight",
             torch::ones({cfg.d_model}));
-        self_attn = register_module("self_attn", T5Attention(cfg));
-        ff_norm_w = register_parameter(
-            "ff_norm_w",
-            torch::ones({cfg.d_model}));
-        wi_0 = register_module(
-            "wi_0",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(cfg.d_model, cfg.d_ff)
-                    .bias(false)));
-        wi_1 = register_module(
-            "wi_1",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(cfg.d_model, cfg.d_ff)
-                    .bias(false)));
-        wo = register_module(
-            "wo",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(cfg.d_ff, cfg.d_model)
-                    .bias(false)));
+        int64_t const d = cfg.d_model;
+        int64_t const ff = cfg.d_ff;
+        gate_weight = register_parameter(
+            "gate_weight",
+            torch::empty({ff, d}));
+        up_weight = register_parameter(
+            "up_weight",
+            torch::empty({ff, d}));
+        down_weight = register_parameter(
+            "down_weight",
+            torch::empty({d, ff}));
+        torch::nn::init::normal_(gate_weight, 0.0, 0.02);
+        torch::nn::init::normal_(up_weight, 0.0, 0.02);
+        torch::nn::init::normal_(down_weight, 0.0, 0.02);
     }
 
     torch::Tensor forward(torch::Tensor x)
     {
-        auto h = t5_rms_norm(x, attn_norm_w, eps);
-        x = x + self_attn->forward(h, c10::nullopt, /*is_causal=*/false);
-        h = t5_rms_norm(x, ff_norm_w, eps);
-        auto gated = torch::gelu(wi_0->forward(h), "tanh") *
-            wi_1->forward(h);
-        return x + wo->forward(gated);
+        auto x_norm = rms_norm(x, ln_weight, eps);
+        auto gate = gemm(
+            x_norm,
+            gate_weight,
+            /*ndim=*/1,
+            /*batch_ndim=*/0,
+            /*trans_a=*/false,
+            /*trans_b=*/true);
+        auto up = gemm(
+            x_norm,
+            up_weight,
+            /*ndim=*/1,
+            /*batch_ndim=*/0,
+            /*trans_a=*/false,
+            /*trans_b=*/true);
+        auto hidden = torch::gelu(gate, "tanh") * up;
+        auto ff = gemm(
+            hidden,
+            down_weight,
+            /*ndim=*/1,
+            /*batch_ndim=*/0,
+            /*trans_a=*/false,
+            /*trans_b=*/true);
+        return x + ff;
+    }
+};
+
+TORCH_MODULE(T5LayerFF);
+
+struct T5EncoderBlockImpl : torch::nn::Module
+{
+    torch::Tensor ln0_weight;
+    T5Attention self_attn{nullptr};
+    T5LayerFF ff{nullptr};
+    double eps = 1e-6;
+
+    explicit T5EncoderBlockImpl(T5Config const &cfg) :
+        eps(cfg.layer_norm_epsilon)
+    {
+        ln0_weight = register_parameter(
+            "ln0_weight",
+            torch::ones({cfg.d_model}));
+        self_attn = register_module(
+            "self_attn",
+            T5Attention(cfg, /*cross=*/false));
+        ff = register_module("ff", T5LayerFF(cfg));
+    }
+
+    torch::Tensor forward(torch::Tensor x)
+    {
+        auto x_norm = rms_norm(x, ln0_weight, eps);
+        auto attn = self_attn->forward(x_norm, {}, {});
+        return ff->forward(x + attn);
     }
 };
 
@@ -152,58 +212,45 @@ TORCH_MODULE(T5EncoderBlock);
 
 struct T5DecoderBlockImpl : torch::nn::Module
 {
-    torch::Tensor self_norm_w;
+    torch::Tensor ln0_weight;
+    torch::Tensor ln1_weight;
     T5Attention self_attn{nullptr};
-    torch::Tensor cross_norm_w;
     T5Attention cross_attn{nullptr};
-    torch::Tensor ff_norm_w;
-    torch::nn::Linear wi_0{nullptr};
-    torch::nn::Linear wi_1{nullptr};
-    torch::nn::Linear wo{nullptr};
+    T5LayerFF ff{nullptr};
     double eps = 1e-6;
 
-    explicit T5DecoderBlockImpl(T5Config const& cfg)
+    explicit T5DecoderBlockImpl(T5Config const &cfg) :
+        eps(cfg.layer_norm_epsilon)
     {
-        eps = cfg.layer_norm_epsilon;
-        self_norm_w = register_parameter(
-            "self_norm_w",
+        ln0_weight = register_parameter(
+            "ln0_weight",
             torch::ones({cfg.d_model}));
-        self_attn = register_module("self_attn", T5Attention(cfg));
-        cross_norm_w = register_parameter(
-            "cross_norm_w",
+        ln1_weight = register_parameter(
+            "ln1_weight",
             torch::ones({cfg.d_model}));
-        cross_attn = register_module("cross_attn", T5Attention(cfg));
-        ff_norm_w = register_parameter(
-            "ff_norm_w",
-            torch::ones({cfg.d_model}));
-        wi_0 = register_module(
-            "wi_0",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(cfg.d_model, cfg.d_ff)
-                    .bias(false)));
-        wi_1 = register_module(
-            "wi_1",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(cfg.d_model, cfg.d_ff)
-                    .bias(false)));
-        wo = register_module(
-            "wo",
-            torch::nn::Linear(
-                torch::nn::LinearOptions(cfg.d_ff, cfg.d_model)
-                    .bias(false)));
+        self_attn = register_module(
+            "self_attn",
+            T5Attention(cfg, /*cross=*/false));
+        cross_attn = register_module(
+            "cross_attn",
+            T5Attention(cfg, /*cross=*/true));
+        ff = register_module("ff", T5LayerFF(cfg));
     }
 
-    torch::Tensor forward(torch::Tensor x, torch::Tensor enc)
+    torch::Tensor forward(
+        torch::Tensor x,
+        torch::Tensor encoder_hidden,
+        torch::Tensor const &self_mask)
     {
-        auto h = t5_rms_norm(x, self_norm_w, eps);
-        x = x + self_attn->forward(h, c10::nullopt, /*is_causal=*/true);
-        h = t5_rms_norm(x, cross_norm_w, eps);
-        x = x +
-            cross_attn->forward(h, enc, /*is_causal=*/false);
-        h = t5_rms_norm(x, ff_norm_w, eps);
-        auto gated = torch::gelu(wi_0->forward(h), "tanh") *
-            wi_1->forward(h);
-        return x + wo->forward(gated);
+        auto x_norm = rms_norm(x, ln0_weight, eps);
+        auto self_out = self_attn->forward(x_norm, {}, self_mask);
+        auto post = x + self_out;
+        auto y_norm = rms_norm(post, ln1_weight, eps);
+        auto cross_out = cross_attn->forward(
+            y_norm,
+            encoder_hidden,
+            {});
+        return ff->forward(post + cross_out);
     }
 };
 
@@ -215,11 +262,6 @@ T5ForConditionalGenerationImpl::T5ForConditionalGenerationImpl(
     T5Config cfg) :
     config(std::move(cfg))
 {
-    if (config.d_kv <= 0 || config.num_heads <= 0)
-    {
-        throw std::invalid_argument(
-            "T5: d_kv and num_heads must be > 0");
-    }
     shared = register_module(
         "shared",
         torch::nn::Embedding(config.vocab_size, config.d_model));
@@ -241,12 +283,10 @@ T5ForConditionalGenerationImpl::T5ForConditionalGenerationImpl(
     dec_final_w = register_parameter(
         "dec_final_w",
         torch::ones({config.d_model}));
-    lm_head = register_module(
-        "lm_head",
-        torch::nn::Linear(
-            torch::nn::LinearOptions(config.d_model, config.vocab_size)
-                .bias(false)));
-    // Weight tying intentionally unsupported (independent lm_head).
+    lm_weight = register_parameter(
+        "lm_weight",
+        torch::empty({config.vocab_size, config.d_model}));
+    torch::nn::init::normal_(lm_weight, 0.0, 0.02);
 }
 
 torch::Tensor T5ForConditionalGenerationImpl::forward(
@@ -254,19 +294,33 @@ torch::Tensor T5ForConditionalGenerationImpl::forward(
     torch::Tensor decoder_input_ids)
 {
     auto enc = shared->forward(encoder_input_ids);
-    for (auto& module : *encoder_blocks)
+    for (auto &module : *encoder_blocks)
     {
         enc = module->as<T5EncoderBlockImpl>()->forward(enc);
     }
-    enc = t5_rms_norm(enc, enc_final_w, config.layer_norm_epsilon);
-
-    auto dec = shared->forward(decoder_input_ids);
-    for (auto& module : *decoder_blocks)
+    enc = rms_norm(enc, enc_final_w, config.layer_norm_epsilon);
+    int64_t const s = decoder_input_ids.size(1);
+    auto self_mask = causal_mask_host(s);
+    if (!decoder_input_ids.device().is_cpu())
     {
-        dec = module->as<T5DecoderBlockImpl>()->forward(dec, enc);
+        self_mask = self_mask.to(decoder_input_ids.device());
     }
-    dec = t5_rms_norm(dec, dec_final_w, config.layer_norm_epsilon);
-    return lm_head->forward(dec);
+    auto dec = shared->forward(decoder_input_ids);
+    for (auto &module : *decoder_blocks)
+    {
+        dec = module->as<T5DecoderBlockImpl>()->forward(
+            dec,
+            enc,
+            self_mask);
+    }
+    dec = rms_norm(dec, dec_final_w, config.layer_norm_epsilon);
+    return gemm(
+        dec,
+        lm_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
 }
 
 } // namespace torch_nntile::models

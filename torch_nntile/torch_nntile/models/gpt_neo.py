@@ -12,13 +12,20 @@ from dataclasses import dataclass, field
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
+from torch_nntile.add_fiber import add_fiber
+from torch_nntile.gemm import gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
+from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
+from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 
 
-def make_local_causal_sdpa_mask(seq_len: int, window_size: int) -> Tensor:
+def make_local_causal_sdpa_mask(
+    seq_len: int,
+    window_size: int,
+    device: torch.device | None = None,
+) -> Tensor:
     """BOOL local-causal mask ``[seq, seq]`` for GPT-Neo local layers.
 
     Keep on CPU — nntile SDPA converts host bool/float masks; device-side
@@ -27,10 +34,13 @@ def make_local_causal_sdpa_mask(seq_len: int, window_size: int) -> Tensor:
     """
     q_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
     k_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
-    return (
+    mask = (
         (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1))
         & ((q_idx.unsqueeze(1) - k_idx.unsqueeze(0)) < window_size)
     ).contiguous()
+    if device is not None and device.type != "cpu":
+        mask = mask.to(device)
+    return mask
 
 
 @dataclass
@@ -87,22 +97,51 @@ class GPTNeoAttention(nn.Module):
         self.hidden = config.hidden_size
         self.local = local
         self.window_size = config.window_size
-        self.q_proj = nn.Linear(self.hidden, self.hidden, bias=False)
-        self.k_proj = nn.Linear(self.hidden, self.hidden, bias=False)
-        self.v_proj = nn.Linear(self.hidden, self.hidden, bias=False)
-        self.out_proj = nn.Linear(self.hidden, self.hidden, bias=True)
+        self.q_weight = nn.Parameter(
+            torch.empty(self.hidden, self.head_dim, self.n_heads)
+        )
+        self.k_weight = nn.Parameter(
+            torch.empty(self.hidden, self.head_dim, self.n_heads)
+        )
+        self.v_weight = nn.Parameter(
+            torch.empty(self.hidden, self.head_dim, self.n_heads)
+        )
+        self.o_weight = nn.Parameter(
+            torch.empty(self.head_dim, self.n_heads, self.hidden)
+        )
+        self.o_bias = nn.Parameter(torch.zeros(self.hidden))
         # Host-built local masks (aux); keyed by seq_len.
         self._local_mask_cache: dict[int, Tensor] = {}
+        self.reset_parameters()
 
-    def _shape(self, x: Tensor) -> Tensor:
-        b, s, _ = x.shape
-        return x.view(b, s, self.n_heads, self.head_dim).transpose(1, 2)
+    def reset_parameters(self) -> None:
+        for p in (
+            self.q_weight,
+            self.k_weight,
+            self.v_weight,
+            self.o_weight,
+        ):
+            nn.init.normal_(p, std=0.02)
+        nn.init.zeros_(self.o_bias)
 
-    def _cached_local_mask(self, seq_len: int) -> Tensor:
+    def _project(self, x: Tensor, weight: Tensor) -> Tensor:
+        proj = gemm(x, weight, ndim=1, batch_ndim=0)
+        return nntile_model_transpose(proj, 1)
+
+    def _output(self, attn_out: Tensor) -> Tensor:
+        attn_t = nntile_model_transpose(attn_out, 3)
+        out = gemm(attn_t, self.o_weight, ndim=2, batch_ndim=0)
+        return add_fiber(self.o_bias, out, axis=out.dim() - 1, batch_ndim=0)
+
+    def _cached_local_mask(self, seq_len: int, x: Tensor) -> Tensor:
         cached = self._local_mask_cache.get(seq_len)
-        if cached is not None:
+        if cached is not None and cached.device == x.device:
             return cached
-        mask = make_local_causal_sdpa_mask(seq_len, self.window_size)
+        mask = make_local_causal_sdpa_mask(
+            seq_len,
+            self.window_size,
+            device=x.device,
+        )
         self._local_mask_cache[seq_len] = mask
         return mask
 
@@ -113,37 +152,53 @@ class GPTNeoAttention(nn.Module):
         *,
         is_causal: bool | None = None,
     ) -> Tensor:
-        b, s, _ = x.shape
-        q = self._shape(self.q_proj(x))
-        k = self._shape(self.k_proj(x))
-        v = self._shape(self.v_proj(x))
+        s = int(x.size(1))
+        q = self._project(x, self.q_weight)
+        k = self._project(x, self.k_weight)
+        v = self._project(x, self.v_weight)
         # HF GPT-Neo scores are unscaled; cancel SDPA ``1/sqrt(d)``.
         # Use aten mul.Scalar — ``q * float`` may dispatch Tensor×CPU-scalar.
         q = torch.ops.aten.mul.Scalar(q, float(self.head_dim) ** 0.5)
         # Local layers use a sliding causal window when the caller does not
         # supply an explicit mask (matches HF ``attention_layers`` / bias).
         if attn_mask is None and self.local:
-            attn_mask = self._cached_local_mask(s)
-            is_causal = False
+            mask = self._cached_local_mask(s, x)
         elif is_causal is None:
             is_causal = attn_mask is None
-        out = F.scaled_dot_product_attention(
+            mask = prepare_sdpa_mask(
+                attn_mask,
+                x,
+                q_len=s,
+                is_causal=bool(is_causal),
+            )
+        else:
+            mask = prepare_sdpa_mask(
+                attn_mask,
+                x,
+                q_len=s,
+                is_causal=bool(is_causal),
+            )
+        out = sdpa_kernel(
             q,
             k,
             v,
-            attn_mask=attn_mask,
-            dropout_p=0.0,
-            is_causal=bool(is_causal) and attn_mask is None,
+            mask=mask,
+            batch_ndim=2,
         )
-        out = out.transpose(1, 2).contiguous().view(b, s, self.hidden)
-        return self.out_proj(out)
+        return self._output(out)
 
 
 class GPTNeoMLP(nn.Module):
     def __init__(self, config: GPTNeoConfig) -> None:
         super().__init__()
-        self.c_fc = nn.Linear(config.hidden_size, config.intermediate_size)
-        self.c_proj = nn.Linear(config.intermediate_size, config.hidden_size)
+        self.c_fc = NntileLinear(
+            config.hidden_size,
+            config.intermediate_size,
+        )
+        self.c_proj = NntileLinear(
+            config.intermediate_size,
+            config.hidden_size,
+        )
         self.act = nn.GELU(approximate="tanh")
 
     def forward(self, x: Tensor) -> Tensor:
@@ -235,7 +290,7 @@ class GPTNeoCausal(nn.Module):
         config.validate()
         self.config = config
         self.transformer = GPTNeoModel(config)
-        self.lm_head = nn.Linear(
+        self.lm_head = NntileLinear(
             config.hidden_size, config.vocab_size, bias=False
         )
         # Weight tying intentionally unsupported (independent lm_head).

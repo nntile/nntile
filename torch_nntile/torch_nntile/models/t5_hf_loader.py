@@ -15,14 +15,25 @@ from __future__ import annotations
 
 import torch
 from transformers import T5Config as HfT5Config
-from transformers import T5ForConditionalGeneration as HfT5ForConditionalGeneration
+from transformers import (
+    T5ForConditionalGeneration as HfT5ForConditionalGeneration,
+)
 
 from torch_nntile.models.hf_rope_layout import copy_linear
+from torch_nntile.nn.linear import (
+    linear_to_output_weight,
+    linear_to_qkv_weight,
+    output_to_linear_weight,
+    qkv_to_linear_weight,
+)
 from torch_nntile.models.t5 import T5Config, T5ForConditionalGeneration
 
 
 def t5_config_from_hf(hf: HfT5Config) -> T5Config:
     """Build a local ``T5Config`` from an HF config."""
+    decoder_start = getattr(hf, "decoder_start_token_id", None)
+    if decoder_start is None:
+        decoder_start = hf.pad_token_id
     return T5Config(
         vocab_size=int(hf.vocab_size),
         d_model=int(hf.d_model),
@@ -43,13 +54,13 @@ def t5_config_from_hf(hf: HfT5Config) -> T5Config:
         tie_word_embeddings=False,  # local models stay untied (migration debt)
         pad_token_id=int(hf.pad_token_id),
         eos_token_id=int(hf.eos_token_id),
-        decoder_start_token_id=int(
-            getattr(hf, "decoder_start_token_id", hf.pad_token_id)
-        ),
+        decoder_start_token_id=int(decoder_start),
     )
 
 
-def disable_t5_relative_attention_bias(hf: HfT5ForConditionalGeneration) -> None:
+def disable_t5_relative_attention_bias(
+    hf: HfT5ForConditionalGeneration,
+) -> None:
     """Turn off relative bias on every encoder/decoder self-attention."""
     for block in hf.encoder.block:
         block.layer[0].SelfAttention.has_relative_attention_bias = False
@@ -58,10 +69,43 @@ def disable_t5_relative_attention_bias(hf: HfT5ForConditionalGeneration) -> None
 
 
 def _load_attn(dst, src) -> None:
-    copy_linear(dst.q, src.q)
-    copy_linear(dst.k, src.k)
-    copy_linear(dst.v, src.v)
-    copy_linear(dst.o, src.o)
+    n_heads = dst.n_heads
+    head_size = dst.key_value_proj_dim
+    dst.q_weight.data.copy_(
+        linear_to_qkv_weight(
+            src.q.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst.k_weight.data.copy_(
+        linear_to_qkv_weight(
+            src.k.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst.v_weight.data.copy_(
+        linear_to_qkv_weight(
+            src.v.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+    dst.o_weight.data.copy_(
+        linear_to_output_weight(
+            src.o.weight.data,
+            n_heads=n_heads,
+            head_size=head_size,
+        )
+    )
+
+
+def _export_attn(dst, src) -> None:
+    dst.q.weight.data.copy_(qkv_to_linear_weight(src.q_weight.data))
+    dst.k.weight.data.copy_(qkv_to_linear_weight(src.k_weight.data))
+    dst.v.weight.data.copy_(qkv_to_linear_weight(src.v_weight.data))
+    dst.o.weight.data.copy_(output_to_linear_weight(src.o_weight.data))
 
 
 def _load_ff(dst_ff, src_ff) -> None:
@@ -91,7 +135,6 @@ def load_hf_into_t5(
     hf: HfT5ForConditionalGeneration,
 ) -> None:
     """Copy HF weights into ``minimal`` (CPU; call ``.to('nntile')`` after)."""
-    cfg = minimal.config
     dst = minimal.model
 
     dst.shared.weight.data.copy_(hf.shared.weight.data)
@@ -147,7 +190,7 @@ def export_t5_to_hf_state_dict(
         dst_b.layer[0].layer_norm.weight.data.copy_(
             src_b.layer_norm.weight.data
         )
-        _load_attn(dst_b.layer[0].SelfAttention, src_b.self_attn)
+        _export_attn(dst_b.layer[0].SelfAttention, src_b.self_attn)
         _load_ff(dst_b.layer[1], src_b.ff)
     hf.encoder.final_layer_norm.weight.data.copy_(
         src.encoder.final_layer_norm.weight.data
@@ -156,11 +199,11 @@ def export_t5_to_hf_state_dict(
         dst_b.layer[0].layer_norm.weight.data.copy_(
             src_b.layer_norm_0.weight.data
         )
-        _load_attn(dst_b.layer[0].SelfAttention, src_b.self_attn)
+        _export_attn(dst_b.layer[0].SelfAttention, src_b.self_attn)
         dst_b.layer[1].layer_norm.weight.data.copy_(
             src_b.layer_norm_1.weight.data
         )
-        _load_attn(dst_b.layer[1].EncDecAttention, src_b.cross_attn)
+        _export_attn(dst_b.layer[1].EncDecAttention, src_b.cross_attn)
         _load_ff(dst_b.layer[2], src_b.ff)
     hf.decoder.final_layer_norm.weight.data.copy_(
         src.decoder.final_layer_norm.weight.data

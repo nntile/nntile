@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/gpt_neo.hh
- * GPT-Neo causal LM for device=nntile (LibTorch).
+ * GPT-Neo causal LM matching deleted ``nntile::model::gptneo``.
  */
 
 #pragma once
@@ -47,9 +47,10 @@ struct GptNeoCausalImpl : torch::nn::Module
     torch::nn::Embedding wpe{nullptr};
     torch::nn::ModuleList blocks{nullptr};
     torch::nn::LayerNorm ln_f{nullptr};
-    torch::nn::Linear lm_head{nullptr};
-    //! Cached host-built position ids uploaded once (aux, not activation).
+    torch::Tensor lm_weight;
     torch::Tensor cached_pos_;
+    torch::Tensor cached_global_mask_;
+    torch::Tensor cached_local_mask_;
     int64_t cache_batch_ = -1;
     int64_t cache_seq_ = -1;
 
