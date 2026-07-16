@@ -119,6 +119,77 @@ def assert_module_forward_backward(
     assert_close(gx, x.grad, rtol=bwd_rtol, atol=bwd_atol)
 
 
+def assert_aten_op_forward_backward(
+    op_cpu,
+    op_nnt=None,
+    *,
+    inputs_cpu: list[Tensor] | tuple[Tensor, ...],
+    rtol: float = 1e-4,
+    atol: float = 1e-4,
+    bwd_rtol: float = 1e-3,
+    bwd_atol: float = 1e-3,
+    check_input_grads: bool | list[bool] = True,
+) -> None:
+    """Compare an ATen op on CPU vs ``device=nntile`` (forward + backward).
+
+    ``op_cpu(*tensors)`` / ``op_nnt(*tensors_nnt)`` return a single tensor.
+    By default every input that requires grad is checked; pass a bool list to
+    select a subset (e.g. skip integer index tensors).
+    """
+    if op_nnt is None:
+        op_nnt = op_cpu
+
+    cpu_inputs = [
+        t.detach().clone().requires_grad_(t.requires_grad)
+        if t.is_floating_point()
+        else t.detach().clone()
+        for t in inputs_cpu
+    ]
+    y_ref = op_cpu(*cpu_inputs)
+    if not isinstance(y_ref, Tensor):
+        raise TypeError("assert_aten_op_forward_backward expects a Tensor out")
+    grad = torch.randn_like(y_ref)
+    y_ref.backward(grad)
+
+    nnt_inputs = []
+    for t in inputs_cpu:
+        if t.is_floating_point():
+            nnt_inputs.append(
+                contiguous_to_nntile(t).requires_grad_(t.requires_grad)
+            )
+        else:
+            nnt_inputs.append(contiguous_to_nntile(t))
+
+    y_nnt = op_nnt(*nnt_inputs)
+    assert_close(y_nnt, y_ref, rtol=rtol, atol=atol)
+
+    if isinstance(check_input_grads, bool):
+        mask = [check_input_grads] * len(cpu_inputs)
+    else:
+        mask = list(check_input_grads)
+        if len(mask) != len(cpu_inputs):
+            raise ValueError("check_input_grads length must match inputs")
+
+    grad_outputs = contiguous_to_nntile(grad)
+    for i, (cpu_t, nnt_t, want) in enumerate(
+        zip(cpu_inputs, nnt_inputs, mask, strict=True)
+    ):
+        if not want or not cpu_t.requires_grad:
+            continue
+        (gx,) = torch.autograd.grad(
+            y_nnt,
+            nnt_t,
+            grad_outputs=grad_outputs,
+            retain_graph=True,
+        )
+        assert_close(
+            gx,
+            cpu_t.grad,
+            rtol=bwd_rtol,
+            atol=bwd_atol,
+        )
+
+
 def require_libnntile():
     """Import-time skip helper used by model parity modules."""
     import pytest
