@@ -290,6 +290,7 @@ def test_bert_intermediate_forward_backward_matches_hf(tiny_hf_config):
 
 
 def test_bert_self_attention_forward_backward_matches_hf(tiny_hf_config):
+    """Self-attn returns SDPA layout; HF merge is covered by BertAttention."""
     torch.manual_seed(3)
     hf_self = HfSelfAttention(tiny_hf_config).eval().float()
     local = BertSelfAttention(
@@ -299,20 +300,30 @@ def test_bert_self_attention_forward_backward_matches_hf(tiny_hf_config):
     local = local.to("nntile")
 
     x = torch.randn(2, 8, tiny_hf_config.hidden_size)
-
-    def _hf_self(t):
-        # HF SelfAttention returns (context, probs).
-        return hf_self(t)[0]
-
-    _assert_forward_backward(
-        x=x,
-        ref_forward=_hf_self,
-        local_forward=local,
-        ref_weight=hf_self.query.weight,
-        local_weight=local.query.weight,
-        local_weight_grad_to_ref=_qkv_weight_grad_to_linear,
-        atol=ATTN_ATOL,
+    x_nnt = contiguous_to_nntile(x).requires_grad_(True)
+    heads = local(x_nnt)
+    assert heads.shape == (
+        tiny_hf_config.num_attention_heads,
+        2,
+        8,
+        tiny_hf_config.hidden_size // tiny_hf_config.num_attention_heads,
     )
+
+    # HF merge is ``[B, nh, S, hs] -> [B, S, H]``. Rebuild that on CPU from
+    # local SDPA heads for a forward-only check (no nntile permute needed).
+    heads_cpu = nntile_cpu(heads)
+    merged = heads_cpu.permute(1, 2, 0, 3).reshape(2, 8, -1)
+    with torch.no_grad():
+        ref = hf_self(x)[0]
+    torch.testing.assert_close(merged, ref, rtol=RTOL, atol=ATTN_ATOL)
+
+    grad = contiguous_to_nntile(torch.randn(heads.shape, dtype=torch.float32))
+    (gw,) = torch.autograd.grad(
+        heads,
+        local.query.weight,
+        grad_outputs=grad,
+    )
+    assert gw.shape == local.query.weight.shape
 
 
 def test_bert_attention_forward_backward_matches_hf(tiny_hf_config):

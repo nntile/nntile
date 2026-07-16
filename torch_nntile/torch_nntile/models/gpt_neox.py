@@ -18,6 +18,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from torch_nntile.add_fiber import add_fiber
 from torch_nntile.gemm import gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
@@ -100,6 +101,7 @@ class GPTNeoXAttention(nn.Module):
         self.head_dim = config.head_dim
         self.hidden = config.hidden_size
         self.rotary_ndims = config.rotary_ndims
+        self.attention_bias = config.attention_bias
         self.q_weight = nn.Parameter(
             torch.empty(self.hidden, self.head_dim, self.n_heads)
         )
@@ -112,6 +114,23 @@ class GPTNeoXAttention(nn.Module):
         self.o_weight = nn.Parameter(
             torch.empty(self.head_dim, self.n_heads, self.hidden)
         )
+        if self.attention_bias:
+            # ``(n_heads, head_dim)``; applied after transpose into SDPA layout.
+            self.q_bias = nn.Parameter(
+                torch.zeros(self.n_heads, self.head_dim)
+            )
+            self.k_bias = nn.Parameter(
+                torch.zeros(self.n_heads, self.head_dim)
+            )
+            self.v_bias = nn.Parameter(
+                torch.zeros(self.n_heads, self.head_dim)
+            )
+            self.o_bias = nn.Parameter(torch.zeros(self.hidden))
+        else:
+            self.register_parameter("q_bias", None)
+            self.register_parameter("k_bias", None)
+            self.register_parameter("v_bias", None)
+            self.register_parameter("o_bias", None)
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
@@ -122,14 +141,28 @@ class GPTNeoXAttention(nn.Module):
             self.o_weight,
         ):
             nn.init.normal_(p, std=0.02)
+        for p in (self.q_bias, self.k_bias, self.v_bias, self.o_bias):
+            if p is not None:
+                nn.init.zeros_(p)
 
     def _project(self, x: Tensor, weight: Tensor) -> Tensor:
         proj = gemm(x, weight, ndim=1, batch_ndim=0)
         return nntile_model_transpose(proj, 1)
 
+    def _add_qkv_bias(self, x_sdpa: Tensor, bias: Tensor | None) -> Tensor:
+        if bias is None:
+            return x_sdpa
+        # ``x_sdpa``: ``[n_heads, batch, seq, head_dim]``
+        return add_fiber(bias, x_sdpa, axis=3, batch_ndim=1)
+
     def _output(self, attn_out: Tensor) -> Tensor:
         attn_t = nntile_model_transpose(attn_out, 3)
-        return gemm(attn_t, self.o_weight, ndim=2, batch_ndim=0)
+        out = gemm(attn_t, self.o_weight, ndim=2, batch_ndim=0)
+        if self.o_bias is not None:
+            out = add_fiber(
+                self.o_bias, out, axis=out.dim() - 1, batch_ndim=0
+            )
+        return out
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
         # Partial RoPE on-device via narrow + rope + cat (nntile kernels).
@@ -154,9 +187,9 @@ class GPTNeoXAttention(nn.Module):
         is_causal: bool = True,
     ) -> Tensor:
         s = int(x.size(1))
-        q = self._project(x, self.q_weight)
-        k = self._project(x, self.k_weight)
-        v = self._project(x, self.v_weight)
+        q = self._add_qkv_bias(self._project(x, self.q_weight), self.q_bias)
+        k = self._add_qkv_bias(self._project(x, self.k_weight), self.k_bias)
+        v = self._add_qkv_bias(self._project(x, self.v_weight), self.v_bias)
         if sin is not None and cos is not None:
             q = self._apply_rope(q, sin, cos)
             k = self._apply_rope(k, sin, cos)

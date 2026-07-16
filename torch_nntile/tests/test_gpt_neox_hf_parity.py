@@ -36,6 +36,7 @@ from torch_nntile.models.gpt_neox_hf_loader import (
 )
 from torch_nntile.models.hf_rope_layout import (
     copy_linear,
+    hf_to_nntile_fused_qkv_bias,
     hf_to_nntile_fused_qkv_weight,
 )
 from torch_nntile.nn.linear import linear_to_output_weight
@@ -157,11 +158,12 @@ def _local_sin_cos(local_cfg: GPTNeoXConfig, position_ids):
 
 
 def _load_attn(local: GPTNeoXAttention, hf_attn, cfg: GPTNeoXConfig) -> None:
+    pct = cfg.rotary_ndims / cfg.head_dim if cfg.head_dim > 0 else 0.0
     fused = hf_to_nntile_fused_qkv_weight(
         hf_attn.query_key_value.weight.data,
         n_heads=cfg.num_attention_heads,
         head_dim=cfg.head_dim,
-        rotary_pct=cfg.rotary_pct,
+        rotary_pct=pct,
     )
     fused = fused.reshape(cfg.num_attention_heads, 3 * cfg.head_dim, -1)
     local.q_weight.data.copy_(
@@ -184,6 +186,22 @@ def _load_attn(local: GPTNeoXAttention, hf_attn, cfg: GPTNeoXConfig) -> None:
             head_size=cfg.head_dim,
         )
     )
+    if local.q_bias is not None and hf_attn.query_key_value.bias is not None:
+        fused_b = hf_to_nntile_fused_qkv_bias(
+            hf_attn.query_key_value.bias.data,
+            n_heads=cfg.num_attention_heads,
+            head_dim=cfg.head_dim,
+            rotary_pct=pct,
+        ).reshape(cfg.num_attention_heads, 3 * cfg.head_dim)
+        local.q_bias.data.copy_(fused_b[:, : cfg.head_dim])
+        local.k_bias.data.copy_(
+            fused_b[:, cfg.head_dim : 2 * cfg.head_dim]
+        )
+        local.v_bias.data.copy_(
+            fused_b[:, 2 * cfg.head_dim : 3 * cfg.head_dim]
+        )
+    if local.o_bias is not None and hf_attn.dense.bias is not None:
+        local.o_bias.data.copy_(hf_attn.dense.bias.data)
 
 
 def _load_layer(local: GPTNeoXLayer, hf_layer: HfLayer, cfg: GPTNeoXConfig):

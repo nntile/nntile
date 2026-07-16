@@ -15,7 +15,9 @@ from transformers import GPTNeoXForCausalLM
 from torch_nntile.models.gpt_neox import GPTNeoXCausal, GPTNeoXConfig
 from torch_nntile.models.hf_rope_layout import (
     copy_linear,
+    hf_to_nntile_fused_qkv_bias,
     hf_to_nntile_fused_qkv_weight,
+    nntile_to_hf_fused_qkv_bias,
     nntile_to_hf_fused_qkv_weight,
 )
 from torch_nntile.nn.linear import (
@@ -42,10 +44,14 @@ def gpt_neox_config_from_hf(hf: HfGPTNeoXConfig) -> GPTNeoXConfig:
     )
 
 
+def _rotary_pct(cfg: GPTNeoXConfig) -> float:
+    return cfg.rotary_ndims / cfg.head_dim if cfg.head_dim > 0 else 0.0
+
+
 def _load_attn_from_hf(dst_attn, src_attn, cfg: GPTNeoXConfig) -> None:
     n_heads = cfg.num_attention_heads
     head_dim = cfg.head_dim
-    pct = cfg.rotary_ndims / head_dim if head_dim > 0 else 0.0
+    pct = _rotary_pct(cfg)
     fused = hf_to_nntile_fused_qkv_weight(
         src_attn.query_key_value.weight.data,
         n_heads=n_heads,
@@ -73,12 +79,27 @@ def _load_attn_from_hf(dst_attn, src_attn, cfg: GPTNeoXConfig) -> None:
             head_size=head_dim,
         )
     )
+    if (
+        dst_attn.q_bias is not None
+        and src_attn.query_key_value.bias is not None
+    ):
+        fused_b = hf_to_nntile_fused_qkv_bias(
+            src_attn.query_key_value.bias.data,
+            n_heads=n_heads,
+            head_dim=head_dim,
+            rotary_pct=pct,
+        ).reshape(n_heads, 3 * head_dim)
+        dst_attn.q_bias.data.copy_(fused_b[:, :head_dim])
+        dst_attn.k_bias.data.copy_(fused_b[:, head_dim : 2 * head_dim])
+        dst_attn.v_bias.data.copy_(fused_b[:, 2 * head_dim : 3 * head_dim])
+    if dst_attn.o_bias is not None and src_attn.dense.bias is not None:
+        dst_attn.o_bias.data.copy_(src_attn.dense.bias.data)
 
 
 def _export_attn_to_hf(src_attn, dst_attn, cfg: GPTNeoXConfig) -> None:
     n_heads = cfg.num_attention_heads
     head_dim = cfg.head_dim
-    pct = cfg.rotary_ndims / head_dim if head_dim > 0 else 0.0
+    pct = _rotary_pct(cfg)
     q = src_attn.q_weight.data.permute(2, 1, 0)
     k = src_attn.k_weight.data.permute(2, 1, 0)
     v = src_attn.v_weight.data.permute(2, 1, 0)
@@ -94,10 +115,31 @@ def _export_attn_to_hf(src_attn, dst_attn, cfg: GPTNeoXConfig) -> None:
     dst_attn.dense.weight.data.copy_(
         output_to_linear_weight(src_attn.o_weight.data)
     )
-    if dst_attn.dense.bias is not None:
-        dst_attn.dense.bias.data.zero_()
     if dst_attn.query_key_value.bias is not None:
-        dst_attn.query_key_value.bias.data.zero_()
+        if src_attn.q_bias is not None:
+            fused_b = torch.cat(
+                [
+                    src_attn.q_bias.data,
+                    src_attn.k_bias.data,
+                    src_attn.v_bias.data,
+                ],
+                dim=1,
+            ).reshape(-1)
+            dst_attn.query_key_value.bias.data.copy_(
+                nntile_to_hf_fused_qkv_bias(
+                    fused_b,
+                    n_heads=n_heads,
+                    head_dim=head_dim,
+                    rotary_pct=pct,
+                )
+            )
+        else:
+            dst_attn.query_key_value.bias.data.zero_()
+    if dst_attn.dense.bias is not None:
+        if src_attn.o_bias is not None:
+            dst_attn.dense.bias.data.copy_(src_attn.o_bias.data)
+        else:
+            dst_attn.dense.bias.data.zero_()
 
 
 def load_hf_into_gpt_neox_causal(
