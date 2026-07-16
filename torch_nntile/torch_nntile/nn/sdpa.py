@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
 from torch_nntile import _C
@@ -51,17 +50,26 @@ class _NntileSdpaKernel(torch.autograd.Function):
         q: Tensor,
         k: Tensor,
         v: Tensor,
-        mask: Tensor,
+        mask: Tensor | None,
         batch_ndim: int,
     ) -> Tensor:
         out = _C.sdpa_forward(q, k, v, mask, int(batch_ndim))
-        ctx.save_for_backward(q, k, v, mask)
+        # Save a dummy empty bool tensor when mask is None so autograd always
+        # has four saved tensors; backward reconstructs optional mask.
+        if mask is None:
+            ctx.mask_is_none = True
+            mask_saved = torch.empty(0, dtype=torch.bool, device=q.device)
+        else:
+            ctx.mask_is_none = False
+            mask_saved = mask
+        ctx.save_for_backward(q, k, v, mask_saved)
         ctx.batch_ndim = int(batch_ndim)
         return out
 
     @staticmethod
     def backward(ctx, grad_out: Tensor):
-        q, k, v, mask = ctx.saved_tensors
+        q, k, v, mask_saved = ctx.saved_tensors
+        mask = None if ctx.mask_is_none else mask_saved
         grad_q, grad_k, grad_v = _C.sdpa_backward(
             q,
             k,
@@ -113,18 +121,10 @@ def sdpa_kernel(
     GQA callers may use ``batch_ndim=3`` with
     ``[n_kv_heads, n_rep, batch, seq, head_size]``.
     Optional BOOL mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key).
+    ``mask=None`` means fully dense attention (still via libnntile, not
+    ``F.scaled_dot_product_attention``, so GQA 5-D layouts work).
     """
     _validate_sdpa_inputs(q, k, v, mask, batch_ndim=batch_ndim)
-    if mask is None:
-        return F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            dropout_p=0.0,
-            is_causal=False,
-            scale=None,
-        )
     return _NntileSdpaKernel.apply(q, k, v, mask, batch_ndim)
 
 
