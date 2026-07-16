@@ -164,6 +164,23 @@ void tensor_sum_fiber_fp32(
     int64_t batch_ndim,
     float alpha);
 
+//! ``out = alpha * sum_slice(src) + beta * out`` (NNTile ``sum_slice``).
+void tensor_sum_slice_fp32(
+    const at::Tensor &src,
+    at::Tensor &out,
+    int64_t axis,
+    float alpha,
+    float beta);
+
+//! ``out = alpha * broadcast(slice) + beta * tensor`` (NNTile ``add_slice``).
+void tensor_add_slice_fp32(
+    float alpha,
+    const at::Tensor &slice,
+    float beta,
+    const at::Tensor &tensor,
+    at::Tensor &out,
+    int64_t axis);
+
 void tensor_cross_entropy_forward_fp32(
     const at::Tensor &logits,
     const at::Tensor &labels,

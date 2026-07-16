@@ -38,6 +38,7 @@ set(TORCH_NNTILE_CSRC
     csrc/nntile_executor.cpp
     csrc/nntile_add.cpp
     csrc/nntile_add_fiber.cpp
+    csrc/nntile_sum_slice.cpp
     csrc/nntile_mul.cpp
     csrc/nntile_cat.cpp
     csrc/nntile_narrow.cpp
@@ -79,6 +80,7 @@ set(TORCH_NNTILE_CSRC
     csrc/models/bert.cpp
     csrc/models/roberta.cpp
     csrc/models/t5.cpp
+    csrc/models/mlp_mixer.cpp
 )
 
 add_library(torch_nntile SHARED ${TORCH_NNTILE_CSRC})

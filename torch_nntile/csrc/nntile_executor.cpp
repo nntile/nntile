@@ -2279,6 +2279,103 @@ void tensor_norm_slice_fp32(
     }
 }
 
+void tensor_sum_slice_fp32(
+    const at::Tensor &src,
+    at::Tensor &out,
+    int64_t axis,
+    float alpha,
+    float beta)
+{
+    const std::vector<nntile::Index> src_graph =
+        pytorch_shape_to_graph(src.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+    TORCH_CHECK(
+        axis >= 0 &&
+            static_cast<std::size_t>(axis) < src_graph.size(),
+        "nntile sum_slice: axis out of range");
+    const std::vector<nntile::Index> expected =
+        reduced_shape_along_axis(
+            src_graph,
+            static_cast<nntile::Index>(axis));
+    TORCH_CHECK(
+        out_graph == expected,
+        "nntile sum_slice: out shape must be src without axis");
+
+    auto *src_node = get_or_create_data_node(
+        src,
+        src_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::sum_slice(
+        src_node,
+        out_node,
+        static_cast<nntile::Index>(axis),
+        kNormRedux,
+        static_cast<nntile::Scalar>(alpha),
+        static_cast<nntile::Scalar>(beta));
+    register_data_node(out, out_node);
+}
+
+void tensor_add_slice_fp32(
+    float alpha,
+    const at::Tensor &slice,
+    float beta,
+    const at::Tensor &tensor,
+    at::Tensor &out,
+    int64_t axis)
+{
+    const std::vector<nntile::Index> slice_graph =
+        pytorch_shape_to_graph(slice.sizes());
+    const std::vector<nntile::Index> tensor_graph =
+        pytorch_shape_to_graph(tensor.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+    TORCH_CHECK(
+        out.sizes().equals(tensor.sizes()),
+        "nntile add_slice: out shape must match tensor");
+    TORCH_CHECK(
+        axis >= 0 &&
+            static_cast<std::size_t>(axis) < tensor_graph.size(),
+        "nntile add_slice: axis out of range");
+    const std::vector<nntile::Index> expected =
+        reduced_shape_along_axis(
+            tensor_graph,
+            static_cast<nntile::Index>(axis));
+    TORCH_CHECK(
+        slice_graph == expected,
+        "nntile add_slice: slice shape must be tensor without axis");
+
+    auto *slice_node = get_or_create_data_node(
+        slice,
+        slice_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(slice));
+    auto *tensor_node = get_or_create_data_node(
+        tensor,
+        tensor_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(tensor));
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::add_slice(
+        static_cast<nntile::Scalar>(alpha),
+        slice_node,
+        static_cast<nntile::Scalar>(beta),
+        tensor_node,
+        out_node,
+        static_cast<nntile::Index>(axis));
+    register_data_node(out, out_node);
+}
+
 void tensor_sum_dimlist_fp32(
     const at::Tensor &input,
     at::Tensor &out,
@@ -3267,6 +3364,27 @@ void tensor_sum_fiber_fp32(
     float /*alpha*/)
 {
     require_libnntile("sum_fiber");
+}
+
+void tensor_sum_slice_fp32(
+    const at::Tensor & /*src*/,
+    at::Tensor & /*out*/,
+    int64_t /*axis*/,
+    float /*alpha*/,
+    float /*beta*/)
+{
+    require_libnntile("sum_slice");
+}
+
+void tensor_add_slice_fp32(
+    float /*alpha*/,
+    const at::Tensor & /*slice*/,
+    float /*beta*/,
+    const at::Tensor & /*tensor*/,
+    at::Tensor & /*out*/,
+    int64_t /*axis*/)
+{
+    require_libnntile("add_slice");
 }
 
 void tensor_cross_entropy_forward_fp32(

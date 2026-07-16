@@ -10,6 +10,7 @@ from .gpt_neo import GPTNeoCausal, GPTNeoConfig, GPTNeoModel
 from .gpt_neox import GPTNeoXCausal, GPTNeoXConfig, GPTNeoXModel
 from .gpt2_minimal import GPT2LMHead, GPT2Model
 from .llama import LlamaCausal, LlamaConfig, LlamaModel
+from .mlp_mixer import MlpMixer, MlpMixerConfig, MlpMixerCpu
 from .roberta import RobertaConfig, RobertaMlm, RobertaModel
 from .t5 import T5Config, T5ForConditionalGeneration, T5Model
 
@@ -29,6 +30,9 @@ __all__ = [
     "LlamaCausal",
     "LlamaConfig",
     "LlamaModel",
+    "MlpMixer",
+    "MlpMixerConfig",
+    "MlpMixerCpu",
     "RobertaConfig",
     "RobertaMlm",
     "RobertaModel",

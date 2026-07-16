@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "nntile_add_fiber.h"
+#include "nntile_sum_slice.h"
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
 #include "nntile_gemm.h"
@@ -40,6 +41,7 @@
 #include <torch_nntile/models/gpt_neo.hh>
 #include <torch_nntile/models/gpt_neox.hh>
 #include <torch_nntile/models/llama.hh>
+#include <torch_nntile/models/mlp_mixer.hh>
 #include <torch_nntile/models/roberta.hh>
 #include <torch_nntile/models/t5.hh>
 
@@ -296,6 +298,22 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("alpha") = 1.0,
         py::arg("beta") = 1.0);
     m.def(
+        "sum_slice_forward",
+        &torch_nntile::sum_slice_forward,
+        "NNTile sum_slice forward (GAP reduction)",
+        py::arg("src"),
+        py::arg("axis"),
+        py::arg("alpha") = 1.0,
+        py::arg("beta") = 0.0);
+    m.def(
+        "sum_slice_backward",
+        &torch_nntile::sum_slice_backward,
+        "NNTile sum_slice backward (add_slice broadcast)",
+        py::arg("grad_out"),
+        py::arg("src"),
+        py::arg("axis"),
+        py::arg("alpha") = 1.0);
+    m.def(
         "gemm_forward",
         &torch_nntile::gemm_forward,
         "NNTile GEMM forward (N-D contraction, C++ graph API semantics)",
@@ -492,6 +510,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
                 "BertMlm",
                 "RobertaMlm",
                 "T5",
+                "MlpMixer",
             };
         },
         "Names of C++ torch::nn models in libtorch_nntile");
@@ -732,4 +751,31 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("d_ff") = 128,
         py::arg("num_layers") = 1,
         py::arg("num_heads") = 4);
+    m.def(
+        "cpp_mlp_mixer_forward",
+        [](const at::Tensor &x,
+           int64_t channel_dim,
+           int64_t init_patch_dim,
+           int64_t projected_patch_dim,
+           int64_t num_mixer_layers,
+           int64_t n_classes) {
+            using torch_nntile::models::MlpMixer;
+            using torch_nntile::models::MlpMixerConfig;
+            MlpMixerConfig cfg;
+            cfg.channel_dim = channel_dim;
+            cfg.init_patch_dim = init_patch_dim;
+            cfg.projected_patch_dim = projected_patch_dim;
+            cfg.num_mixer_layers = num_mixer_layers;
+            cfg.n_classes = n_classes;
+            auto model = MlpMixer(cfg);
+            torch_nntile::module_to_device(*model, x.device());
+            return model->forward(x);
+        },
+        "Run C++ MlpMixer forward (device follows x)",
+        py::arg("x"),
+        py::arg("channel_dim") = 8,
+        py::arg("init_patch_dim") = 4,
+        py::arg("projected_patch_dim") = 4,
+        py::arg("num_mixer_layers") = 2,
+        py::arg("n_classes") = 3);
 }

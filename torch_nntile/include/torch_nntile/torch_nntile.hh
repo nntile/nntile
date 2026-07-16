@@ -14,5 +14,6 @@
 #include <torch_nntile/models/gpt_neo.hh>
 #include <torch_nntile/models/gpt_neox.hh>
 #include <torch_nntile/models/llama.hh>
+#include <torch_nntile/models/mlp_mixer.hh>
 #include <torch_nntile/models/roberta.hh>
 #include <torch_nntile/models/t5.hh>

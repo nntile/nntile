@@ -27,6 +27,7 @@ def test_cpp_models_listed():
     assert "GptNeoXCausal" in names
     assert "Gpt2Causal" in names
     assert "T5" in names
+    assert "MlpMixer" in names
 
 
 def test_cpp_llama_causal_forward_on_nntile():
@@ -154,3 +155,17 @@ def test_cpp_t5_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)
+
+
+def test_cpp_mlp_mixer_forward_on_nntile():
+    x = torch.randn(8, 2, 4).contiguous().to("nntile")
+    out = _C.cpp_mlp_mixer_forward(
+        x,
+        channel_dim=8,
+        init_patch_dim=4,
+        projected_patch_dim=4,
+        num_mixer_layers=2,
+        n_classes=3,
+    )
+    assert out.device.type == "nntile"
+    assert tuple(out.shape) == (2, 3)
