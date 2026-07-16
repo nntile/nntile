@@ -164,6 +164,8 @@ def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
                 f"NNTILE_PREFIX={nntile_pref!r} missing installed headers "
                 f"under {nntile_inc}"
             )
+        print(f"libnntile found: {nntile_pref}")
+        print(f"libtorch_nntile found: {torch_pref}")
         return nntile_lib, torch_lib, nntile_inc, nntile_source
 
     if (var := os.environ.get("NNTILE_BUILD_DIR")):

@@ -32,4 +32,8 @@ if(NOT TARGET nntile::nntile)
     message(FATAL_ERROR "nntile::nntile target missing from nntileTargets.cmake")
 endif()
 
+if(NOT nntile_FIND_QUIETLY)
+    message(STATUS "libnntile found: ${PACKAGE_PREFIX_DIR}")
+endif()
+
 check_required_components(nntile)

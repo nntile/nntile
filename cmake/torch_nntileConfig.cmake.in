@@ -18,4 +18,8 @@ if(NOT TARGET torch_nntile::torch_nntile)
         "torch_nntile::torch_nntile target missing from torch_nntileTargets.cmake")
 endif()
 
+if(NOT torch_nntile_FIND_QUIETLY)
+    message(STATUS "libtorch_nntile found: ${PACKAGE_PREFIX_DIR}")
+endif()
+
 check_required_components(torch_nntile)

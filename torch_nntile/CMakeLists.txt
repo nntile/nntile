@@ -20,6 +20,7 @@ endif()
 
 if(NOT Torch_FOUND)
     find_package(Torch REQUIRED)
+    message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
 endif()
 
 set(TORCH_NNTILE_CSRC
