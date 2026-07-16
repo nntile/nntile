@@ -66,15 +66,17 @@ runs:
           "${CATCH2_PREFIX}/lib"/libCatch2Main.so*
         # find_package(Catch2) pulls Catch2Targets.cmake which calls
         # add_library; that is not allowed under cmake -P (script mode).
-        # Configure a tiny project instead.
+        # Configure a tiny project instead. Use LANGUAGES NONE + Ninja so
+        # we do not need make or a CXX toolchain just to find_package.
         check=/tmp/find_catch2_check
         rm -rf "${check}"
         mkdir -p "${check}"
         cat > "${check}/CMakeLists.txt" <<'EOF'
         cmake_minimum_required(VERSION 3.16)
-        project(FindCatch2Check LANGUAGES CXX)
+        project(FindCatch2Check LANGUAGES NONE)
         find_package(Catch2 3.11 CONFIG REQUIRED)
         message(STATUS "Catch2 ${Catch2_VERSION} OK")
         EOF
         cmake -S "${check}" -B "${check}/build" \
-          -DCMAKE_PREFIX_PATH="${CATCH2_PREFIX}"
+          -DCMAKE_PREFIX_PATH="${CATCH2_PREFIX}" \
+          -GNinja
