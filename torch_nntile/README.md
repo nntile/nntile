@@ -92,11 +92,11 @@ StarPU runs on CPU workers only (`ncuda=0`). macOS 14.0+ (arm64).
 Publishing to PyPI is manual: download CI artifacts and run `twine upload` locally.
 See [docs/build/README.md](../docs/build/README.md) for maintainer CI details.
 
-## Backend (libnntile required)
+## Backend (libnntile + libtorch_nntile required)
 
-`torch_nntile` always links **libnntile**. There is no host-only / stub
-extension build: set `NNTILE_BUILD_DIR` to a CMake build tree that contains
-`libnntile` before `pip install`.
+`torch_nntile._C` is a thin pybind that links prebuilt **libtorch_nntile**
+(and **libnntile**). There is no host-only / stub extension build. Build both
+C++ libraries with CMake (`-DBUILD_TORCH_NNTILE=ON`) before `pip install`.
 
 Selected ops run through libnntile `TensorGraph` → `TileGraph` → `Runtime`:
 
@@ -461,27 +461,38 @@ pytest -vv torch_nntile/tests/test_sdpa_parity.py
 pytest -vv torch_nntile/tests/test_attn_weight_layout.py
 ```
 
-## Install from source (requires libnntile)
+## Install from source (requires libnntile + libtorch_nntile)
 
-Build NNTile first (CPU-only example):
+Build both C++ libraries (CPU-only example):
 
 ```bash
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+  -DBUILD_TORCH_NNTILE=ON \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" -GNinja
-cmake --build build -j$(nproc)
+cmake --build build --target nntile torch_nntile -j$(nproc)
 ```
 
-Then install the extension against that build (use the same `torch` version you
-built NNTile against):
+Then install the thin Python extension against that build:
 
 ```bash
 pip install 'torch==2.9.1' 'torchvision==0.24.1'
 export NNTILE_BUILD_DIR=$PWD/build
+export TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
+```
+
+Prefer an install prefix (matches CI):
+
+```bash
+cmake --install build --prefix "$PWD/install"
+export NNTILE_PREFIX=$PWD/install TORCH_NNTILE_PREFIX=$PWD/install
+export NNTILE_SOURCE_DIR=$PWD
+export LD_LIBRARY_PATH=$PWD/install/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
 
@@ -495,15 +506,19 @@ export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 export STARPU_PREFIX=/opt/starpu
 export NNTILE_SOURCE_DIR=$PWD
 export NNTILE_BUILD_DIR=$PWD/build/torch_nntile_wheel
+export TORCH_NNTILE_BUILD_DIR=$NNTILE_BUILD_DIR
 export TORCH_NNTILE_WHEEL=1
 export TORCH_NNTILE_USE_CUDA=0
 export TORCH_VERSION=2.9.1
 
 pip install 'torch==2.9.1' 'torchvision==0.24.1' 'setuptools>=61' wheel ninja
-# Or: bash torch_nntile/tools/build_wheel_deps.sh "$PWD"  # builds StarPU+libnntile
+# Or: bash torch_nntile/tools/build_wheel_deps.sh "$PWD"  # StarPU+libs
+TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B "$NNTILE_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=OFF \
-  -DBUILD_TESTS=OFF -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -GNinja
-cmake --build "$NNTILE_BUILD_DIR" --target nntile -j"$(nproc)"
+  -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=ON \
+  -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
+  -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -GNinja
+cmake --build "$NNTILE_BUILD_DIR" --target nntile torch_nntile -j"$(nproc)"
 
 mkdir -p wheelhouse
 CXX=g++ pip wheel ./torch_nntile -w wheelhouse --no-build-isolation --no-deps
@@ -573,9 +588,9 @@ CXX=clang++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ## Tests
 
 ```bash
-# Requires libnntile build + LD_LIBRARY_PATH
-export NNTILE_BUILD_DIR=$PWD/build
+# Requires libnntile + libtorch_nntile + LD_LIBRARY_PATH
+export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 pytest -vv torch_nntile/tests
 ```

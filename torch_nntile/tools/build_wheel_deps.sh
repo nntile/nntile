@@ -137,21 +137,28 @@ build_starpu() {
 
 build_nntile() {
     export PKG_CONFIG_PATH="${starpu_prefix}/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
-    export LD_LIBRARY_PATH="${build_dir}/nntile:${starpu_prefix}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-    export DYLD_LIBRARY_PATH="${build_dir}/nntile:${starpu_prefix}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
+    export LD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+    export DYLD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
+
+    if [ -z "${TORCH_PREFIX:-}" ]; then
+        local python="$("${script_dir}/wheel_python.sh")"
+        export TORCH_PREFIX="$("${python}" -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+    fi
+    export CMAKE_PREFIX_PATH="${TORCH_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
 
     cmake_args=(
         -S "${repo_root}"
         -B "${build_dir}"
         -DCMAKE_BUILD_TYPE=Release
         -DBUILD_TESTS=OFF
+        -DBUILD_TORCH_NNTILE=ON
+        -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
         -GNinja
     )
 
     if [ "${use_cuda}" = "1" ]; then
         cmake_args+=(
             -DUSE_CUDA=ON
-            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
             -DCUDAToolkit_ROOT="${CUDA_HOME}"
         )
         if [ -n "${CMAKE_CUDA_COMPILER:-}" ]; then
@@ -179,9 +186,6 @@ build_nntile() {
             -DCMAKE_OSX_ARCHITECTURES=arm64
             -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
         )
-        if [ -n "${TORCH_PREFIX:-}" ]; then
-            cmake_args+=(-DCMAKE_PREFIX_PATH="${TORCH_PREFIX}")
-        fi
     else
         cmake_args+=(
             -DCMAKE_C_COMPILER="${CC:-gcc}"
@@ -190,7 +194,7 @@ build_nntile() {
     fi
 
     cmake "${cmake_args[@]}"
-    cmake --build "${build_dir}" --target nntile -j "${jobs}"
+    cmake --build "${build_dir}" --target nntile torch_nntile -j "${jobs}"
 }
 
 case "${os_name}" in
@@ -202,6 +206,8 @@ case "${os_name}" in
             # shellcheck disable=SC1091
             source "${script_dir}/setup_torch_cuda_env.sh"
             export CMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc"
+        else
+            install_torch_cpu
         fi
         ;;
     Darwin)

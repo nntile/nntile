@@ -20,7 +20,6 @@ env:
   CCACHE_DIR: /tmp/ccache
   PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
   LD_LIBRARY_PATH: /opt/starpu/lib
-  # Used only by the torch_nntile Python job (not libnntile CMake).
   TORCH_PIP_INDEX: https://download.pytorch.org/whl/cpu
   CMAKE_COMMON: >-
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -31,7 +30,10 @@ env:
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 jobs:
-  build-lib:
+  # -------------------------------------------------------------------------
+  # Layer 1: libnntile (no LibTorch)
+  # -------------------------------------------------------------------------
+  build-libnntile:
     name: build libnntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
@@ -51,19 +53,21 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-lib-${{ github.sha }}
-          restore-keys: ccache-build-lib-
+          key: ccache-build-libnntile-${{ github.sha }}
+          restore-keys: ccache-build-libnntile-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
-            -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=OFF
+            -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=OFF \
+            -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
           cmake --build build --target nntile -j"$(nproc)"
+          cmake --install build --prefix "${PWD}/prefix"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
-          .github/scripts/ccache-print-stats.sh build-lib
+          .github/scripts/ccache-print-stats.sh build-libnntile
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-lib-${{ github.sha }}
+          key: ccache-build-libnntile-${{ github.sha }}
       - uses: actions/upload-artifact@v4
         with:
           name: nntile-build
@@ -71,10 +75,15 @@ jobs:
             build/
             !build/_deps/**
           retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nntile-prefix
+          path: prefix/
+          retention-days: 1
 
-  build-and-run-tests:
-    name: build and run tests
-    needs: build-lib
+  test-libnntile:
+    name: test libnntile
+    needs: build-libnntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -94,19 +103,19 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-tests-${{ github.sha }}
-          restore-keys: ccache-build-tests-
+          key: ccache-test-libnntile-${{ github.sha }}
+          restore-keys: ccache-test-libnntile-
       - run: |
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTS=ON -DBUILD_TORCH_NNTILE=OFF
           cmake --build build -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
-          .github/scripts/ccache-print-stats.sh build-tests
+          .github/scripts/ccache-print-stats.sh test-libnntile
       - uses: actions/cache/save@v4
         with:
           path: /tmp/ccache
-          key: ccache-build-tests-${{ github.sha }}
+          key: ccache-test-libnntile-${{ github.sha }}
       - name: Restore CTest execute bits
         run: |
           chmod +x .github/scripts/restore-ctest-execute-bits.sh
@@ -118,11 +127,11 @@ jobs:
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           .github/scripts/list-not-implemented-tests.sh build || true
-          ctest --test-dir build -E wrappers -LE NotImplemented --output-on-failure
+          ctest --test-dir build -LE NotImplemented --output-on-failure
 
   test-cmake-install:
     name: test cmake install
-    needs: build-lib
+    needs: build-libnntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -159,9 +168,127 @@ jobs:
           path: /tmp/ccache
           key: ccache-test-install-${{ github.sha }}
 
-  torch-nntile-tensograph-add:
-    name: torch nntile TensorGraph add
-    needs: build-lib
+  # -------------------------------------------------------------------------
+  # Layer 2: libtorch_nntile (links installed libnntile)
+  # -------------------------------------------------------------------------
+  build-libtorch-nntile:
+    name: build libtorch_nntile
+    needs: build-libnntile
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-dev python3-pip
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntile-prefix
+          path: prefix
+      - uses: actions/cache/restore@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-build-libtorch-nntile-${{ github.sha }}
+          restore-keys: ccache-build-libtorch-nntile-
+      - run: |
+          set -euo pipefail
+          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
+            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
+              /usr/lib/x86_64-linux-gnu/libstdc++.so
+          fi
+          cmake -S . -B build-torch ${CMAKE_COMMON} \
+            -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=ON -DBUILD_TESTS=OFF \
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}" \
+            -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
+          cmake --build build-torch --target torch_nntile -j"$(nproc)"
+          cmake --install build-torch --prefix "${PWD}/prefix"
+      - run: |
+          chmod +x .github/scripts/ccache-print-stats.sh
+          .github/scripts/ccache-print-stats.sh build-libtorch-nntile
+      - uses: actions/cache/save@v4
+        with:
+          path: /tmp/ccache
+          key: ccache-build-libtorch-nntile-${{ github.sha }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nntile-torch-prefix
+          path: prefix/
+          retention-days: 1
+
+  test-libtorch-nntile:
+    name: test libtorch_nntile
+    needs: build-libtorch-nntile
+    runs-on: ubuntu-24.04
+    container: {image: ubuntu:24.04}
+    defaults:
+      run:
+        shell: bash
+        working-directory: /__w/nntile/nntile
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-dev python3-pip g++
+        working-directory: /
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/nntile-starpu-setup
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
+      - uses: actions/download-artifact@v4
+        with:
+          name: nntile-torch-prefix
+          path: prefix
+      - name: Smoke find_package(torch_nntile)
+        run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          INSTALLED_PREFIX="${PWD}/prefix"
+          mkdir -p /tmp/tn-smoke && cd /tmp/tn-smoke
+          cat > CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.24)
+          project(tn_smoke CXX)
+          find_package(torch_nntile REQUIRED CONFIG)
+          add_executable(tn_smoke smoke.cpp)
+          target_link_libraries(tn_smoke PRIVATE torch_nntile::torch_nntile)
+          EOF
+          cat > smoke.cpp <<'EOF'
+          #include <torch_nntile/torch_nntile.hh>
+          int main() { return 0; }
+          EOF
+          cmake -S . -B build \
+            -DCMAKE_PREFIX_PATH="${INSTALLED_PREFIX};${TORCH_PREFIX}" \
+            -DCMAKE_CXX_COMPILER=g++
+          cmake --build build -j"$(nproc)"
+          ./build/tn_smoke
+
+  # -------------------------------------------------------------------------
+  # Layer 3: torch_nntile Python package (thin _C → libtorch_nntile)
+  # -------------------------------------------------------------------------
+  build-and-test-torch-nntile:
+    name: build and test torch_nntile
+    needs: build-libtorch-nntile
     runs-on: ubuntu-24.04
     container: {image: ubuntu:24.04}
     defaults:
@@ -179,19 +306,19 @@ jobs:
       - uses: ./.github/actions/nntile-starpu-setup
       - uses: actions/download-artifact@v4
         with:
-          name: nntile-build
-          path: build
-      - run: rm -rf build/_deps
+          name: nntile-torch-prefix
+          path: prefix
       - run: |
           set -euo pipefail
           if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
             ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
               /usr/lib/x86_64-linux-gnu/libstdc++.so
           fi
-          export NNTILE_BUILD_DIR="${PWD}/build"
+          export NNTILE_PREFIX="${PWD}/prefix"
+          export TORCH_NNTILE_PREFIX="${PWD}/prefix"
           export NNTILE_SOURCE_DIR="${PWD}"
           export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-          export LD_LIBRARY_PATH="${PWD}/build/nntile:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           pip install --break-system-packages \

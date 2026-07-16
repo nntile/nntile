@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/setup.py
-# Build PyTorch PrivateUse1 extension for the nntile device.
+# Build thin PyTorch PrivateUse1 extension linking prebuilt libtorch_nntile.
 
 import os
 import subprocess
@@ -29,64 +29,8 @@ from torch.utils.cpp_extension import BuildExtension, CppExtension
 ROOT = Path(__file__).resolve().parent
 REPO_ROOT = ROOT.parent
 
-CSRC = [
-    "csrc/nntile_allocator.cpp",
-    "csrc/nntile_tensor_gc.cpp",
-    "csrc/nntile_tensor_meta.cpp",
-    "csrc/nntile_kernels.cpp",
-    "csrc/nntile_guard.cpp",
-    "csrc/nntile_generator.cpp",
-    "csrc/nntile_hooks.cpp",
-    "csrc/nntile_module.cpp",
-    "csrc/nntile_context.cpp",
-    "csrc/nntile_graph_recorder.cpp",
-    "csrc/nntile_gemm_layout.cpp",
-    "csrc/nntile_gemm.cpp",
-    "csrc/nntile_executor.cpp",
-    "csrc/nntile_add.cpp",
-    "csrc/nntile_add_fiber.cpp",
-    "csrc/nntile_mul.cpp",
-    "csrc/nntile_cat.cpp",
-    "csrc/nntile_narrow.cpp",
-    "csrc/nntile_split.cpp",
-    "csrc/nntile_hypot.cpp",
-    "csrc/nntile_linear.cpp",
-    "csrc/nntile_relu.cpp",
-    "csrc/nntile_threshold_backward.cpp",
-    "csrc/nntile_silu.cpp",
-    "csrc/nntile_silu_backward.cpp",
-    "csrc/nntile_gelu.cpp",
-    "csrc/nntile_gelu_backward.cpp",
-    "csrc/nntile_softmax.cpp",
-    "csrc/nntile_softmax_backward.cpp",
-    "csrc/nntile_mm.cpp",
-    "csrc/nntile_bmm.cpp",
-    "csrc/nntile_addmm.cpp",
-    "csrc/nntile_sum.cpp",
-    "csrc/nntile_mm_backward.cpp",
-    "csrc/nntile_cross_entropy.cpp",
-    "csrc/nntile_sgd_step.cpp",
-    "csrc/nntile_adam_step.cpp",
-    "csrc/nntile_layer_norm.cpp",
-    "csrc/nntile_rms_norm.cpp",
-    "csrc/nntile_rope.cpp",
-    "csrc/nntile_mse_loss.cpp",
-    "csrc/nntile_norm.cpp",
-    "csrc/nntile_broadcast.cpp",
-    "csrc/nntile_repeat.cpp",
-    "csrc/nntile_embedding.cpp",
-    "csrc/nntile_sdpa.cpp",
-    "csrc/nntile_sdpa_aten.cpp",
-    "csrc/nntile_transpose.cpp",
-    "csrc/models/deep_relu.cpp",
-    "csrc/models/gpt2.cpp",
-    "csrc/models/gpt_neo.cpp",
-    "csrc/models/gpt_neox.cpp",
-    "csrc/models/llama.cpp",
-    "csrc/models/bert.cpp",
-    "csrc/models/roberta.cpp",
-    "csrc/models/t5.cpp",
-]
+# Bridge / models live in shared libtorch_nntile; _C is pybind only.
+EXT_SOURCES = ["csrc/nntile_module.cpp"]
 
 
 def _pkg_config(package: str, flag: str) -> list[str]:
@@ -169,12 +113,24 @@ def _cuda_include_dirs() -> list[str]:
     return dirs
 
 
-def _nntile_extension_kwargs() -> dict:
-    """Build kwargs for torch_nntile._C.
+def _lib_candidates(directory: Path, basenames: list[str]) -> bool:
+    if not directory.is_dir():
+        return False
+    for base in basenames:
+        for pattern in (f"lib{base}.so", f"lib{base}.dylib", f"{base}.lib"):
+            if (directory / pattern).exists():
+                return True
+            # libfoo.so.1 style
+            if any(directory.glob(f"lib{base}.so*")):
+                return True
+    return False
 
-    libnntile is required: there is no stub / host-only extension build.
-    Set NNTILE_BUILD_DIR to a CMake build tree that contains libnntile
-    (or rely on the cibuildwheel default under build/torch_nntile_wheel).
+
+def _resolve_lib_layout() -> tuple[Path, Path, Path, Path]:
+    """Return (nntile_lib_dir, torch_nntile_lib_dir, nntile_include, nntile_source).
+
+    Prefer cmake install prefixes (NNTILE_PREFIX / TORCH_NNTILE_PREFIX).
+    Fall back to build trees (NNTILE_BUILD_DIR / TORCH_NNTILE_BUILD_DIR).
     """
     ci_build_wheel = os.environ.get("CIBUILDWHEEL") == "1"
 
@@ -183,65 +139,109 @@ def _nntile_extension_kwargs() -> dict:
     else:
         nntile_source = REPO_ROOT
 
+    nntile_prefix = os.environ.get("NNTILE_PREFIX")
+    torch_prefix = os.environ.get("TORCH_NNTILE_PREFIX", nntile_prefix)
+
+    if nntile_prefix:
+        nntile_pref = Path(nntile_prefix)
+        torch_pref = Path(torch_prefix) if torch_prefix else nntile_pref
+        nntile_lib = nntile_pref / "lib"
+        torch_lib = torch_pref / "lib"
+        nntile_inc = nntile_pref / "include"
+        if not _lib_candidates(nntile_lib, ["nntile"]):
+            raise RuntimeError(
+                f"NNTILE_PREFIX={nntile_pref!r} has no libnntile under {nntile_lib}"
+            )
+        if not _lib_candidates(torch_lib, ["torch_nntile"]):
+            raise RuntimeError(
+                f"TORCH_NNTILE_PREFIX={torch_pref!r} has no "
+                f"libtorch_nntile under {torch_lib}"
+            )
+        if not (nntile_inc / "nntile" / "defs.h").exists() and not (
+            nntile_inc / "nntile.hh"
+        ).exists():
+            raise RuntimeError(
+                f"NNTILE_PREFIX={nntile_pref!r} missing installed headers "
+                f"under {nntile_inc}"
+            )
+        return nntile_lib, torch_lib, nntile_inc, nntile_source
+
     if (var := os.environ.get("NNTILE_BUILD_DIR")):
         nntile_build = Path(var)
     elif ci_build_wheel:
         nntile_build = nntile_source / "build" / "torch_nntile_wheel"
     else:
         raise RuntimeError(
-            "torch_nntile requires libnntile. Build libnntile first, then set "
-            "NNTILE_BUILD_DIR to the CMake build directory (and optionally "
-            "NNTILE_SOURCE_DIR to the repo root). Example:\n"
+            "torch_nntile requires prebuilt libnntile and libtorch_nntile.\n"
+            "Install both (cmake --install) and set:\n"
+            "  export NNTILE_PREFIX=$PWD/install\n"
+            "  export TORCH_NNTILE_PREFIX=$PWD/install   # if same prefix\n"
+            "Or point at CMake build trees:\n"
             "  export NNTILE_BUILD_DIR=$PWD/build\n"
+            "  export TORCH_NNTILE_BUILD_DIR=$PWD/build   # contains torch_nntile/\n"
             "  export NNTILE_SOURCE_DIR=$PWD\n"
             "  CXX=g++ pip install -e ./torch_nntile --no-build-isolation"
         )
+
+    if (var := os.environ.get("TORCH_NNTILE_BUILD_DIR")):
+        torch_build = Path(var)
+    else:
+        torch_build = nntile_build
+
+    nntile_lib = nntile_build / "nntile"
+    torch_lib = torch_build / "torch_nntile"
+    nntile_inc = nntile_build / "include"
+    if not _lib_candidates(nntile_lib, ["nntile"]):
+        raise RuntimeError(
+            f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
+            f"libnntile under {nntile_lib}"
+        )
+    if not _lib_candidates(torch_lib, ["torch_nntile"]):
+        raise RuntimeError(
+            f"TORCH_NNTILE_BUILD_DIR={torch_build!r} does not contain "
+            f"libtorch_nntile under {torch_lib}. Build with "
+            "-DBUILD_TORCH_NNTILE=ON first."
+        )
+    if not (nntile_inc / "nntile" / "defs.h").exists():
+        raise RuntimeError(
+            f"NNTILE_BUILD_DIR={nntile_build!r} missing generated "
+            f"headers ({nntile_inc / 'nntile' / 'defs.h'})"
+        )
+    return nntile_lib, torch_lib, nntile_inc, nntile_source
+
+
+def _nntile_extension_kwargs() -> dict:
+    """Build kwargs for torch_nntile._C (links libtorch_nntile + libnntile)."""
+    nntile_lib_dir, torch_lib_dir, nntile_inc, nntile_source = (
+        _resolve_lib_layout()
+    )
 
     cxx_standard = os.environ.get("TORCH_NNTILE_CXX_STANDARD", "c++17")
     extra_compile_args = [f"-std={cxx_standard}"]
     define_macros: list[tuple[str, str | None]] = [
         ("TORCH_NNTILE_USE_LIBNNTILE", "1"),
     ]
+    # Public + private headers from this package source; nntile from prefix/build.
     include_dirs: list[str] = [
         str(ROOT / "include"),
         str(ROOT / "csrc"),
+        str(nntile_inc),
+        str(nntile_source / "nntile" / "include"),
     ]
-    library_dirs: list[str] = []
-    libraries: list[str] = []
+    library_dirs: list[str] = [str(nntile_lib_dir), str(torch_lib_dir)]
+    libraries: list[str] = ["torch_nntile", "nntile"]
     extra_link_args: list[str] = []
     if sys.platform == "darwin":
         extra_link_args.append("-Wl,-rpath,@loader_path/../torch/lib")
 
-    nntile_lib_dir = nntile_build / "nntile"
-    nntile_header = nntile_build / "include" / "nntile" / "defs.h"
-    if not nntile_lib_dir.exists():
-        raise RuntimeError(
-            f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
-            "the expected nntile library directory "
-            f"({nntile_lib_dir})"
-        )
-    if not nntile_header.exists():
-        raise RuntimeError(
-            f"NNTILE_BUILD_DIR={nntile_build!r} does not contain "
-            f"generated nntile headers ({nntile_header})"
-        )
-
-    include_dirs.extend([
-        str(nntile_source / "nntile" / "include"),
-        str(nntile_build / "include"),
-    ])
-    library_dirs.append(str(nntile_lib_dir))
-    # torch_nntile links libnntile (TensorGraph stack).
-    libraries.append("nntile")
     if os.environ.get("TORCH_NNTILE_WHEEL") != "1":
         if sys.platform == "darwin":
-            extra_link_args.append(
-                "-Wl,-rpath,@loader_path/../../build/nntile"
-            )
+            extra_link_args.append(f"-Wl,-rpath,{nntile_lib_dir}")
+            extra_link_args.append(f"-Wl,-rpath,{torch_lib_dir}")
         else:
-            extra_link_args.append(
-                "-Wl,-rpath,$ORIGIN/../../build/nntile"
-            )
+            extra_link_args.append(f"-Wl,-rpath,{nntile_lib_dir}")
+            extra_link_args.append(f"-Wl,-rpath,{torch_lib_dir}")
+
     _apply_pkg_config(
         "starpu-1.4",
         include_dirs,
@@ -284,7 +284,7 @@ setup(
     ext_modules=[
         CppExtension(
             name="torch_nntile._C",
-            sources=CSRC,
+            sources=EXT_SOURCES,
             **ext_kwargs,
         )
     ],

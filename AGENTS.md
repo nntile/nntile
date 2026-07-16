@@ -34,11 +34,11 @@ Libraries:
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-  -DBUILD_TESTS=OFF \
+  -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=ON \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" -GNinja
-cmake --build build -j$(nproc)
+cmake --build build --target nntile torch_nntile -j$(nproc)
 ```
 
 Build takes ~12 minutes on 4 cores. ccache speeds up subsequent rebuilds significantly.
@@ -51,12 +51,13 @@ Standard commands from `docs/build/README.md`:
 export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
-# C++ tests (excluding MPI and NotImplemented)
-ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
+# C++ tests (excluding MPI and NotImplemented); no Torch required
+ctest --test-dir build -LE "(MPI|NotImplemented)" --output-on-failure
 
-# torch_nntile Python tests (requires libnntile built + extension install)
-export NNTILE_BUILD_DIR=$PWD/build NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib:$LD_LIBRARY_PATH
+# torch_nntile Python tests (needs libnntile + libtorch_nntile + extension)
+export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
+export NNTILE_SOURCE_DIR=$PWD
+export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib:$LD_LIBRARY_PATH
 pytest -vv torch_nntile/tests/
 ```
 

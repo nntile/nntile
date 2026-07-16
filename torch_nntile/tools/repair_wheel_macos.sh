@@ -10,7 +10,7 @@ build_dir="${NNTILE_BUILD_DIR:-${repo_root}/build/torch_nntile_wheel}"
 starpu_prefix="${STARPU_PREFIX:-/opt/starpu}"
 
 export MACOSX_DEPLOYMENT_TARGET=14.0
-export DYLD_LIBRARY_PATH="${build_dir}/nntile:${starpu_prefix}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
+export DYLD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
 
 mkdir -p "${dest_dir}"
 
