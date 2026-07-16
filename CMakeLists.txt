@@ -32,7 +32,15 @@ option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_TORCH_NNTILE
     "Build libtorch_nntile (requires LibTorch; off = libnntile-only)" OFF)
 option(BUILD_TORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
+option(BUILD_TORCH_NNTILE_WHEEL
+    "Build torch_nntile Python wheel (implies BUILD_TORCH_NNTILE)" OFF)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
+
+if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
+    set(BUILD_TORCH_NNTILE ON CACHE BOOL
+        "Build libtorch_nntile (requires LibTorch; off = libnntile-only)" FORCE)
+    message(STATUS "BUILD_TORCH_NNTILE_WHEEL=ON → enabling BUILD_TORCH_NNTILE")
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)

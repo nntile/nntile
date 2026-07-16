@@ -113,6 +113,7 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `BUILD_DOCS` | OFF | Doxygen documentation |
 | `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile** (requires LibTorch) |
 | `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
+| `BUILD_TORCH_NNTILE_WHEEL` | OFF | Build **torch_nntile** Python wheel (implies `BUILD_TORCH_NNTILE`) |
 | `BUILD_COVERAGE` | OFF | LCOV coverage; enables tests; `make coverage` |
 
 ### Common cache variables
@@ -135,17 +136,20 @@ Put Torch on `CMAKE_PREFIX_PATH` (from `torch.utils.cmake_prefix_path`) when
 building libtorch_nntile. Both **libnntile** and **libtorch_nntile** install
 CMake packages (`find_package(nntile)` / `find_package(torch_nntile)`).
 
-In-tree (build both):
+In-tree (build both libraries + optional Python wheel):
 
 ```bash
 TORCH_PREFIX="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
 cmake -S . -B build -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_PREFIX_PATH="${CONDA_PREFIX};${TORCH_PREFIX}" \
-  -DBUILD_TORCH_NNTILE=ON
+  -DBUILD_TORCH_NNTILE=ON \
+  -DBUILD_TORCH_NNTILE_WHEEL=ON   # optional: also build .whl
 
-cmake --build build -j$(nproc)
+cmake --build build -j$(nproc)              # includes torch_nntile_wheel if enabled
+# Wheels land in build/wheelhouse/*.whl
 cmake --install build --prefix "$PWD/install"
+# .whl also installed under share/torch_nntile/wheels/
 ```
 
 Separate build against an installed libnntile:
@@ -186,27 +190,16 @@ See [torch_nntile.md](../torch_nntile.md) and [graph-wip.md](../graph-wip.md).
 
 Prebuilt `torch_nntile` wheels are built by the **`torch_nntile wheels`**
 workflow ([`.github/workflows/torch-nntile-wheels.yml`](../../.github/workflows/torch-nntile-wheels.yml)).
+Jobs are **compile-only** (no pytest / smoke tests): CMake
+`-DBUILD_TORCH_NNTILE_WHEEL=ON` builds libnntile, libtorch_nntile, and the
+wheel via target `torch_nntile_wheel`.
 
 | | |
 |-|-|
 | **Trigger** | Pull requests to `graph_api`, or `workflow_dispatch` |
 | **Skipped when** | PR closed without merge |
-| **Job guard** | open/sync PR, merged close, or `workflow_dispatch` |
-| **Tooling** | [cibuildwheel](https://cibuildwheel.pypa.io/) 4.1.0 |
+| **Tooling** | [`tools/build_wheel_deps.sh`](../../torch_nntile/tools/build_wheel_deps.sh) + CMake |
 | **Version** | `0.0.5` (`TORCH_NNTILE_WHEEL_VERSION`) |
-
-Workflow definition:
-
-```yaml
-on:
-  pull_request:
-    branches: [graph_api]
-  workflow_dispatch:
-
-jobs:
-  build-wheels:
-    if: workflow_dispatch || action != closed || pull_request.merged
-```
 
 ### Triggering
 
@@ -217,48 +210,44 @@ jobs:
 | Rebuild without a merge | `gh workflow run torch-nntile-wheels.yml --ref graph_api` |
 | Download artifacts | `gh run download RUN_ID -D wheelhouse` |
 
-The Actions **Run workflow** button requires the workflow file on the repository
-default branch ([`workflow_dispatch` docs](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch)). On merge, checkout uses `pull_request.base.ref` (`graph_api`).
-
 ### Matrix
 
 | Job | Runner | Wheel tag | CUDA |
 |-----|--------|-----------|------|
-| `cp312-manylinux_x86_64` | `ubuntu-24.04` | manylinux x86_64 | Yes (`torch==2.9.1` from cu128 index) |
-| `cp312-macosx_arm64` | `macos-14` | macOS 14+ arm64 | No (CPU StarPU only) |
+| `cp312-manylinux_x86_64` | `ubuntu-24.04` + manylinux_2_28 container | manylinux x86_64 | Yes (`torch==2.9.1` cu128) |
+| `cp312-macosx_arm64` | `macos-14` | macOS 14+ arm64 | No (CPU StarPU) |
 
-Each job uploads one artifact:
-
-- `torch-nntile-wheel-cp312-manylinux_x86_64`
-- `torch-nntile-wheel-cp312-macosx_arm64`
-
-There is no merge job that bundles both platforms into a single artifact.
+Artifacts: `torch-nntile-wheel-cp312-manylinux_x86_64`,
+`torch-nntile-wheel-cp312-macosx_arm64`.
 
 ### Build pipeline
 
-Linux builds run inside a manylinux container with the repo mounted read-only.
-Scripts under [`torch_nntile/tools/`](../../torch_nntile/tools/):
-
 | Script | Role |
 |--------|------|
-| `build_wheel_deps.sh` | StarPU (nntile fork, CUDA max 8 devices, no FXT), libnntile; Linux CUDA / macOS CPU split |
-| `install_linux_cuda_toolkit.sh` | manylinux: dnf CUDA 12.8 toolkit (nvcc, headers, libcuda stubs; no GPU) |
-| `setup_torch_cuda_env.sh` | Linux: `torch==2.9.1` from cu128 index + pip cuDNN; export `CUDA_HOME` |
-| `wheel_python.sh` | Select cp312 interpreter in manylinux `before-all` hooks |
-| `repair_wheel_linux.sh` | `auditwheel repair`; bundle `libstarpu` + `libnntile`; exclude NVIDIA driver and math libs; `patchelf` RPATH to `nvidia-*-cu12` pip libs |
-| `repair_wheel_macos.sh` | `delocate-wheel`; macOS 14+ arm64 |
-| `smoke_test_wheel.py` | cibuildwheel `test-command` |
+| `build_wheel_deps.sh` | StarPU + CMake `-DBUILD_TORCH_NNTILE_WHEEL=ON` (libs + wheel + repair) |
+| `install_linux_cuda_toolkit.sh` | manylinux: dnf CUDA 12.8 toolkit |
+| `setup_torch_cuda_env.sh` | Linux CUDA: torch cu128 + pip cuDNN |
+| `repair_wheel_linux.sh` / `repair_wheel_macos.sh` | auditwheel / delocate (invoked by CMake when `TORCH_NNTILE_WHEEL_REPAIR=ON`) |
 
-PyTorch itself is **not** bundled; wheels declare `torch==2.9.1` as a runtime
-dependency. On Linux x86_64, wheels also declare `nvidia-*-cu12` pip packages
-for CUDA math libraries (cuBLAS, cuDNN, cuSPARSE, cuSOLVER, nvJitLink,
-cuda-runtime). **CPU-only PyTorch from default PyPI is supported**; users do
-not need the cu128 torch index. NVIDIA driver libs (`libcuda`) are never
-bundled.
+Local one-shot (same as CI helper):
 
-CI `before-test` installs CPU `torch==2.9.1` plus NVIDIA pip packages to
-match the supported end-user path. `before-build` still uses cu128 torch for
-compiling the extension against CUDA headers.
+```bash
+export TORCH_NNTILE_USE_CUDA=0   # or 1 on Linux with CUDA toolkit
+bash torch_nntile/tools/build_wheel_deps.sh "$PWD"
+# → wheelhouse/*.whl
+```
+
+Or plain CMake:
+
+```bash
+cmake -S . -B build -GNinja -DUSE_CUDA=OFF -DBUILD_TESTS=OFF \
+  -DBUILD_TORCH_NNTILE_WHEEL=ON \
+  -DCMAKE_PREFIX_PATH="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+cmake --build build --target torch_nntile_wheel
+```
+
+PyTorch is **not** bundled; wheels declare `torch==2.9.1` as a runtime
+dependency (plus `nvidia-*-cu12` on Linux x86_64).
 
 ### Download and publish
 
@@ -303,7 +292,7 @@ ctest --test-dir build -R tests_tensor_ --output-on-failure
 ctest --test-dir build -R wrappers_python_tests_ --output-on-failure
 
 # Parallel
-ctest --test-dir build -j 8 -E wrappers --output-on-failure
+ctest --test-dir build -j 8 --output-on-failure
 ```
 
 Useful flags: `-R` / `-E` (regex), `-L` / `-LE` (labels), `--output-on-failure`.

@@ -108,6 +108,8 @@ if(BUILD_TORCH_NNTILE_EXAMPLES)
     add_subdirectory(examples/cpp)
 endif()
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/TorchNntileWheel.cmake")
+
 set(_torch_nntile_cmake_dir "${CMAKE_INSTALL_LIBDIR}/cmake/torch_nntile")
 
 install(

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Build StarPU + libnntile + libtorch_nntile + torch_nntile wheel via CMake.
+# No tests — compile/packaging only.
 set -euo pipefail
 
 package_or_repo="${1:-$(pwd)}"
@@ -14,6 +16,7 @@ fi
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 starpu_prefix="${STARPU_PREFIX:-/opt/starpu}"
 build_dir="${NNTILE_BUILD_DIR:-${repo_root}/build/torch_nntile_wheel}"
+wheelhouse_out="${TORCH_NNTILE_WHEELHOUSE:-${repo_root}/wheelhouse}"
 jobs="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
 os_name="$(uname -s)"
 use_cuda="${TORCH_NNTILE_USE_CUDA:-0}"
@@ -34,7 +37,7 @@ install_linux_packages() {
         apt-get install -y --no-install-recommends \
             autoconf automake build-essential ca-certificates cmake curl git \
             libhwloc-dev libopenblas-dev libtool-bin ninja-build pkg-config \
-            unzip wget
+            unzip wget python3 python3-dev python3-pip
     else
         echo "Unsupported Linux image: no yum or apt-get found" >&2
         exit 1
@@ -64,14 +67,26 @@ prepare_prefix() {
     fi
 }
 
+install_python_wheel_tools() {
+    local python="$1"
+    "${python}" -m pip install --upgrade pip
+    "${python}" -m pip install "setuptools>=61" wheel ninja numpy
+    if [ "${os_name}" = "Darwin" ]; then
+        "${python}" -m pip install delocate
+    else
+        "${python}" -m pip install auditwheel patchelf
+    fi
+}
+
 install_torch_cpu() {
     local python="$("${script_dir}/wheel_python.sh")"
-    "${python}" -m pip install --upgrade pip
+    install_python_wheel_tools "${python}"
     "${python}" -m pip install \
         "torch==${TORCH_VERSION:-2.9.1}" \
         "torchvision==0.24.1"
     export TORCH_PREFIX="$("${python}" -c 'import torch; print(torch.utils.cmake_prefix_path)')"
     export CMAKE_PREFIX_PATH="${TORCH_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
+    export TORCH_NNTILE_PYTHON="${python}"
 }
 
 build_starpu() {
@@ -135,16 +150,17 @@ build_starpu() {
     trap - EXIT
 }
 
-build_nntile() {
+build_wheel_with_cmake() {
     export PKG_CONFIG_PATH="${starpu_prefix}/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
     export LD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
     export DYLD_LIBRARY_PATH="${build_dir}/nntile:${build_dir}/torch_nntile:${starpu_prefix}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
 
+    local python="${TORCH_NNTILE_PYTHON:-$("${script_dir}/wheel_python.sh")}"
     if [ -z "${TORCH_PREFIX:-}" ]; then
-        local python="$("${script_dir}/wheel_python.sh")"
         export TORCH_PREFIX="$("${python}" -c 'import torch; print(torch.utils.cmake_prefix_path)')"
     fi
     export CMAKE_PREFIX_PATH="${TORCH_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
+    mkdir -p "${wheelhouse_out}"
 
     cmake_args=(
         -S "${repo_root}"
@@ -152,11 +168,20 @@ build_nntile() {
         -DCMAKE_BUILD_TYPE=Release
         -DBUILD_TESTS=OFF
         -DBUILD_TORCH_NNTILE=ON
+        -DBUILD_TORCH_NNTILE_WHEEL=ON
+        -DTORCH_NNTILE_WHEEL_REPAIR=ON
+        -DTORCH_NNTILE_WHEELHOUSE="${build_dir}/wheelhouse"
+        -DPython3_EXECUTABLE="${python}"
         -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
         -GNinja
     )
 
+    if [ -n "${TORCH_NNTILE_WHEEL_VERSION:-}" ]; then
+        cmake_args+=(-DTORCH_NNTILE_WHEEL_VERSION="${TORCH_NNTILE_WHEEL_VERSION}")
+    fi
+
     if [ "${use_cuda}" = "1" ]; then
+        export TORCH_NNTILE_USE_CUDA=1
         cmake_args+=(
             -DUSE_CUDA=ON
             -DCUDAToolkit_ROOT="${CUDA_HOME}"
@@ -177,6 +202,7 @@ build_nntile() {
             cmake_args+=(-DCMAKE_CUDA_ARCHITECTURES="${CMAKE_CUDA_ARCHITECTURES}")
         fi
     else
+        export TORCH_NNTILE_USE_CUDA=0
         cmake_args+=(-DUSE_CUDA=OFF)
     fi
 
@@ -194,7 +220,18 @@ build_nntile() {
     fi
 
     cmake "${cmake_args[@]}"
-    cmake --build "${build_dir}" --target nntile torch_nntile -j "${jobs}"
+    cmake --build "${build_dir}" --target torch_nntile_wheel -j "${jobs}"
+
+    shopt -s nullglob
+    built_wheels=("${build_dir}/wheelhouse"/*.whl)
+    if [ "${#built_wheels[@]}" -eq 0 ]; then
+        echo "No wheels produced under ${build_dir}/wheelhouse" >&2
+        exit 1
+    fi
+    cp -f "${built_wheels[@]}" "${wheelhouse_out}/"
+    echo "Copied wheels to ${wheelhouse_out}:"
+    ls -la "${wheelhouse_out}"/*.whl
+    shopt -u nullglob
 }
 
 case "${os_name}" in
@@ -206,6 +243,9 @@ case "${os_name}" in
             # shellcheck disable=SC1091
             source "${script_dir}/setup_torch_cuda_env.sh"
             export CMAKE_CUDA_COMPILER="${CUDA_HOME}/bin/nvcc"
+            python="$("${script_dir}/wheel_python.sh")"
+            install_python_wheel_tools "${python}"
+            export TORCH_NNTILE_PYTHON="${python}"
         else
             install_torch_cpu
         fi
@@ -221,4 +261,4 @@ case "${os_name}" in
 esac
 
 build_starpu
-build_nntile
+build_wheel_with_cmake

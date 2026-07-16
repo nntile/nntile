@@ -496,33 +496,24 @@ export LD_LIBRARY_PATH=$PWD/install/lib:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_L
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
 
-### Build a wheel (same layout as CI)
-
-Mirrors [`.github/workflows/torch-nntile-wheels.yml`](../.github/workflows/torch-nntile-wheels.yml)
-and [`tools/build_wheel_deps.sh`](tools/build_wheel_deps.sh) (CPU example):
+### Build a wheel (CMake)
 
 ```bash
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
-export STARPU_PREFIX=/opt/starpu
-export NNTILE_SOURCE_DIR=$PWD
-export NNTILE_BUILD_DIR=$PWD/build/torch_nntile_wheel
-export TORCH_NNTILE_BUILD_DIR=$NNTILE_BUILD_DIR
-export TORCH_NNTILE_WHEEL=1
-export TORCH_NNTILE_USE_CUDA=0
-export TORCH_VERSION=2.9.1
-
-pip install 'torch==2.9.1' 'torchvision==0.24.1' 'setuptools>=61' wheel ninja
-# Or: bash torch_nntile/tools/build_wheel_deps.sh "$PWD"  # StarPU+libs
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
-cmake -S . -B "$NNTILE_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=OFF \
-  -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=ON \
+cmake -S . -B build -GNinja -DUSE_CUDA=OFF -DBUILD_TESTS=OFF \
+  -DBUILD_TORCH_NNTILE_WHEEL=ON \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
-  -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -GNinja
-cmake --build "$NNTILE_BUILD_DIR" --target nntile torch_nntile -j"$(nproc)"
+  -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+cmake --build build --target torch_nntile_wheel
+# → build/wheelhouse/*.whl
+```
 
-mkdir -p wheelhouse
-CXX=g++ pip wheel ./torch_nntile -w wheelhouse --no-build-isolation --no-deps
-# → wheelhouse/torch_nntile-*.whl
+Or the CI helper (StarPU + libs + wheel + repair):
+
+```bash
+bash torch_nntile/tools/build_wheel_deps.sh "$PWD"
+# → wheelhouse/*.whl
 ```
 
 ## Usage
