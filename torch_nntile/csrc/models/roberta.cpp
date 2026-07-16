@@ -31,25 +31,6 @@ bool is_gelu_tanh(std::string const &act)
         act == "gelu_new";
 }
 
-torch::Tensor linear_gemm(
-    torch::Tensor const &x,
-    torch::Tensor const &weight,
-    torch::Tensor const &bias)
-{
-    auto out = gemm(
-        x,
-        weight,
-        /*ndim=*/1,
-        /*batch_ndim=*/0,
-        /*trans_a=*/false,
-        /*trans_b=*/true);
-    return add_fiber(
-        bias,
-        out,
-        /*axis=*/out.dim() - 1,
-        /*batch_ndim=*/0);
-}
-
 } // namespace
 
 RobertaMlmImpl::RobertaMlmImpl(RobertaConfig cfg) : config(std::move(cfg))
@@ -114,10 +95,33 @@ torch::Tensor RobertaMlmImpl::forward(
     {
         h = module->as<BertLayerImpl>()->forward(h);
     }
-    h = linear_gemm(h, lm_dense_weight, lm_dense_bias);
+    // Weight layout ``[out, in]`` with ``trans_b`` (NNGraph Linear).
+    h = gemm(
+        h,
+        lm_dense_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    h = add_fiber(
+        lm_dense_bias,
+        h,
+        /*axis=*/h.dim() - 1,
+        /*batch_ndim=*/0);
     h = apply_bert_gelu(h, gelu_tanh);
     h = lm_ln->forward(h);
-    return linear_gemm(h, lm_decoder_weight, lm_decoder_bias);
+    h = gemm(
+        h,
+        lm_decoder_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    return add_fiber(
+        lm_decoder_bias,
+        h,
+        /*axis=*/h.dim() - 1,
+        /*batch_ndim=*/0);
 }
 
 } // namespace torch_nntile::models

@@ -41,26 +41,6 @@ torch::Tensor causal_mask_host(int64_t seq)
     return (k <= q).to(opts);
 }
 
-torch::Tensor linear_gemm(
-    torch::Tensor const &x,
-    torch::Tensor const &weight,
-    torch::Tensor const &bias)
-{
-    // Weight layout ``[out, in]`` with ``trans_b`` (NNGraph Linear / Conv1D).
-    auto out = gemm(
-        x,
-        weight,
-        /*ndim=*/1,
-        /*batch_ndim=*/0,
-        /*trans_a=*/false,
-        /*trans_b=*/true);
-    return add_fiber(
-        bias,
-        out,
-        /*axis=*/out.dim() - 1,
-        /*batch_ndim=*/0);
-}
-
 } // namespace
 
 Gpt2AttentionImpl::Gpt2AttentionImpl(Gpt2Config const &cfg) :
@@ -148,9 +128,32 @@ Gpt2MLPImpl::Gpt2MLPImpl(Gpt2Config const &cfg)
 
 torch::Tensor Gpt2MLPImpl::forward(torch::Tensor x)
 {
-    x = linear_gemm(x, fc1_weight, fc1_bias);
+    // Weight layout ``[out, in]`` with ``trans_b`` (NNGraph Linear).
+    x = gemm(
+        x,
+        fc1_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    x = add_fiber(
+        fc1_bias,
+        x,
+        /*axis=*/x.dim() - 1,
+        /*batch_ndim=*/0);
     x = torch::gelu(x, "tanh");
-    return linear_gemm(x, fc2_weight, fc2_bias);
+    x = gemm(
+        x,
+        fc2_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    return add_fiber(
+        fc2_bias,
+        x,
+        /*axis=*/x.dim() - 1,
+        /*batch_ndim=*/0);
 }
 
 Gpt2BlockImpl::Gpt2BlockImpl(Gpt2Config const &cfg)

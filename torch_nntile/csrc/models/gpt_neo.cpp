@@ -54,25 +54,6 @@ torch::Tensor local_causal_mask_host(int64_t seq, int64_t window)
     return ((k <= q) & ((q - k) < window)).to(opts);
 }
 
-torch::Tensor linear_gemm(
-    torch::Tensor const &x,
-    torch::Tensor const &weight,
-    torch::Tensor const &bias)
-{
-    auto out = gemm(
-        x,
-        weight,
-        /*ndim=*/1,
-        /*batch_ndim=*/0,
-        /*trans_a=*/false,
-        /*trans_b=*/true);
-    return add_fiber(
-        bias,
-        out,
-        /*axis=*/out.dim() - 1,
-        /*batch_ndim=*/0);
-}
-
 } // namespace
 
 // ── GptNeoAttentionImpl ───────────────────────────────────────────────────
@@ -163,9 +144,32 @@ GptNeoMLPImpl::GptNeoMLPImpl(GptNeoConfig const &cfg)
 
 torch::Tensor GptNeoMLPImpl::forward(torch::Tensor x)
 {
-    x = linear_gemm(x, fc1_weight, fc1_bias);
+    // Weight layout ``[out, in]`` with ``trans_b`` (NNGraph Linear).
+    x = gemm(
+        x,
+        fc1_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    x = add_fiber(
+        fc1_bias,
+        x,
+        /*axis=*/x.dim() - 1,
+        /*batch_ndim=*/0);
     x = torch::gelu(x, "tanh");
-    return linear_gemm(x, fc2_weight, fc2_bias);
+    x = gemm(
+        x,
+        fc2_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    return add_fiber(
+        fc2_bias,
+        x,
+        /*axis=*/x.dim() - 1,
+        /*batch_ndim=*/0);
 }
 
 // ── GptNeoDecoderImpl ─────────────────────────────────────────────────────

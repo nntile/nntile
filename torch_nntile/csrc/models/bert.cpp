@@ -35,25 +35,6 @@ bool is_gelu_tanh(std::string const &act)
         act == "gelu_new";
 }
 
-torch::Tensor linear_gemm(
-    torch::Tensor const &x,
-    torch::Tensor const &weight,
-    torch::Tensor const &bias)
-{
-    auto out = gemm(
-        x,
-        weight,
-        /*ndim=*/1,
-        /*batch_ndim=*/0,
-        /*trans_a=*/false,
-        /*trans_b=*/true);
-    return add_fiber(
-        bias,
-        out,
-        /*axis=*/out.dim() - 1,
-        /*batch_ndim=*/0);
-}
-
 } // namespace
 
 torch::Tensor bert_position_ids_from_input_ids(
@@ -211,10 +192,33 @@ BertLayerImpl::BertLayerImpl(BertConfig const &cfg)
 torch::Tensor BertLayerImpl::forward(torch::Tensor x)
 {
     // ``bert_layer.cc``: attention → intermediate → output(+residual).
+    // Weight layout ``[out, in]`` with ``trans_b`` (NNGraph Linear).
     auto attn_out = attention->forward(x);
-    auto mid = linear_gemm(attn_out, inter_weight, inter_bias);
+    auto mid = gemm(
+        attn_out,
+        inter_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    mid = add_fiber(
+        inter_bias,
+        mid,
+        /*axis=*/mid.dim() - 1,
+        /*batch_ndim=*/0);
     mid = apply_bert_gelu(mid, gelu_tanh);
-    auto proj = linear_gemm(mid, out_weight, out_bias);
+    auto proj = gemm(
+        mid,
+        out_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    proj = add_fiber(
+        out_bias,
+        proj,
+        /*axis=*/proj.dim() - 1,
+        /*batch_ndim=*/0);
     return out_ln->forward(attn_out + proj);
 }
 
@@ -297,10 +301,32 @@ torch::Tensor BertMlmImpl::forward(
     {
         h = module->as<BertLayerImpl>()->forward(h);
     }
-    h = linear_gemm(h, transform_weight, transform_bias);
+    h = gemm(
+        h,
+        transform_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    h = add_fiber(
+        transform_bias,
+        h,
+        /*axis=*/h.dim() - 1,
+        /*batch_ndim=*/0);
     h = apply_bert_gelu(h, gelu_tanh);
     h = transform_ln->forward(h);
-    return linear_gemm(h, decoder_weight, decoder_bias);
+    h = gemm(
+        h,
+        decoder_weight,
+        /*ndim=*/1,
+        /*batch_ndim=*/0,
+        /*trans_a=*/false,
+        /*trans_b=*/true);
+    return add_fiber(
+        decoder_bias,
+        h,
+        /*axis=*/h.dim() - 1,
+        /*batch_ndim=*/0);
 }
 
 } // namespace torch_nntile::models
