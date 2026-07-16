@@ -1,22 +1,19 @@
 # Building and testing NNTile
 
-**End users:** install the **torch_nntile** pip wheel (see
-[torch_nntile/README.md](../../torch_nntile/README.md)). That is the Python
-product; bare CMake is for C++ library developers.
+**Default CMake** builds **libnntile**, **libtorch_nntile**, and the
+installable **torch_nntile** pip wheel (`BUILD_TORCH_NNTILE` and
+`BUILD_TORCH_NNTILE_WHEEL` default **ON**; needs PyTorch on
+`CMAKE_PREFIX_PATH`). Install the wheel from `build/wheelhouse/` or see
+[torch_nntile/README.md](../../torch_nntile/README.md) for prebuilt artifacts.
 
-`BUILD_TORCH_NNTILE` and `BUILD_TORCH_NNTILE_WHEEL` default **OFF** so a plain
-`cmake` configure works without LibTorch (core **libnntile** CI and
-Torch-less machines). Turn them on to build the wheel:
+Layered CI and Torch-less configures opt out explicitly:
 
 ```bash
 cmake -S . -B build -GNinja \
-  -DBUILD_TORCH_NNTILE=ON -DBUILD_TORCH_NNTILE_WHEEL=ON \
-  -DCMAKE_PREFIX_PATH="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
-cmake --build build --target torch_nntile_wheel
-# → build/wheelhouse/torch_nntile-*.whl
+  -DBUILD_TORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE_WHEEL=OFF
 ```
 
-Release builds use cibuildwheel or
+Release builds also use cibuildwheel or
 [`torch_nntile/tools/build_wheel_deps.sh`](../../torch_nntile/tools/build_wheel_deps.sh).
 
 ## Prerequisites
@@ -106,10 +103,20 @@ cmake -S . -B build -GNinja \
 cmake --build build -j$(nproc)
 ```
 
-CPU-only development:
+CPU-only development (product defaults; needs PyTorch):
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF -GNinja
+TORCH_PREFIX="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+  -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" -GNinja
+cmake --build build -j$(nproc)
+```
+
+Libnntile-only (no LibTorch):
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+  -DBUILD_TORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE_WHEEL=OFF -GNinja
 cmake --build build -j$(nproc)
 ```
 
@@ -129,10 +136,10 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 | `USE_CBLAS` | ON | CPU BLAS kernels |
 | `BUILD_TESTS` | ON | CTest suite; with `BUILD_NNTILE=OFF` links installed libnntile |
 | `BUILD_DOCS` | OFF | Doxygen documentation |
-| `BUILD_TORCH_NNTILE` | OFF | Build **libtorch_nntile**, the LibTorch bridge (requires LibTorch) |
+| `BUILD_TORCH_NNTILE` | ON | Build **libtorch_nntile**, the LibTorch bridge (requires LibTorch) |
 | `BUILD_TORCH_NNTILE_EXAMPLES` | OFF | C++ examples under `torch_nntile/examples` |
 | `BUILD_TORCH_NNTILE_TESTS` | OFF | C++ libtorch_nntile tests (`torch_nntile/tests`; auto-ON with `BUILD_TORCH_NNTILE`+`BUILD_TESTS`) |
-| `BUILD_TORCH_NNTILE_WHEEL` | OFF | Build the installable **torch_nntile** pip wheel (`torch_nntile_wheel`; user-facing product; use `-DNNTILE_PREFIX` to skip rebuilding libs) |
+| `BUILD_TORCH_NNTILE_WHEEL` | ON | Build the installable **torch_nntile** pip wheel (`torch_nntile_wheel`; user-facing product; use `-DNNTILE_PREFIX` to skip rebuilding libs) |
 | `BUILD_COVERAGE` | OFF | LCOV coverage; enables tests; `make coverage` |
 
 ### Common cache variables
@@ -147,26 +154,23 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 
 ### LibTorch / torch_nntile
 
-**libnntile** and its C++ tests do **not** need PyTorch. LibTorch is required
-only when `-DBUILD_TORCH_NNTILE=ON` and for the installable **torch_nntile**
-wheel. End users should install that wheel; plain CMake defaults remain
-libnntile-centric for core library work.
+**libnntile** C++ tests do **not** need PyTorch. Default CMake enables
+`BUILD_TORCH_NNTILE` and `BUILD_TORCH_NNTILE_WHEEL`, so put LibTorch on
+`CMAKE_PREFIX_PATH` (from `torch.utils.cmake_prefix_path`). Pass both options
+**OFF** for a Torch-less / libnntile-only configure (as layered CI does).
 
-Put Torch on `CMAKE_PREFIX_PATH` (from `torch.utils.cmake_prefix_path`) when
-building libtorch_nntile. Both **libnntile** and **libtorch_nntile** install
-CMake packages (`find_package(nntile)` / `find_package(torch_nntile)`).
+Both **libnntile** and **libtorch_nntile** install CMake packages
+(`find_package(nntile)` / `find_package(torch_nntile)`).
 
-In-tree (build both libraries + optional Python wheel):
+Default in-tree product build (libs + wheel):
 
 ```bash
 TORCH_PREFIX="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
 cmake -S . -B build -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_PREFIX_PATH="${CONDA_PREFIX};${TORCH_PREFIX}" \
-  -DBUILD_TORCH_NNTILE=ON \
-  -DBUILD_TORCH_NNTILE_WHEEL=ON   # optional: also build .whl
+  -DCMAKE_PREFIX_PATH="${CONDA_PREFIX};${TORCH_PREFIX}"
 
-cmake --build build -j$(nproc)              # includes torch_nntile_wheel if enabled
+cmake --build build -j$(nproc)              # includes torch_nntile_wheel
 # Wheels land in build/wheelhouse/*.whl
 cmake --install build --prefix "$PWD/install"
 # .whl also installed under share/torch_nntile/wheels/
@@ -177,6 +181,7 @@ Separate build against an installed libnntile:
 ```bash
 cmake -S . -B build-torch -GNinja \
   -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=ON \
+  -DBUILD_TORCH_NNTILE_WHEEL=OFF \
   -DCMAKE_PREFIX_PATH="$PWD/install;${TORCH_PREFIX}"
 cmake --build build-torch -j$(nproc)
 cmake --install build-torch --prefix "$PWD/install"
@@ -228,7 +233,7 @@ runs on pushes/PRs to `main` and `graph_api`:
 
 | Job | Depends on | Role |
 |-----|------------|------|
-| `build-libnntile` | — | Build + install libnntile (`BUILD_TORCH_NNTILE=OFF`) |
+| `build-libnntile` | — | Build + install libnntile (`BUILD_TORCH_NNTILE=OFF` + `BUILD_TORCH_NNTILE_WHEEL=OFF`) |
 | `test-libnntile` | prefix | Build **tests only** (`BUILD_NNTILE=OFF`) vs install; ctest |
 | `build-libtorch-nntile` | libnntile prefix | Build + install libtorch_nntile against prefix |
 | `test-libtorch-nntile` | torch prefix | Build **and run** libtorch_nntile C++ tests vs install (`ctest -L libtorch_nntile --no-tests=error`) |

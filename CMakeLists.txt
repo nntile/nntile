@@ -31,19 +31,17 @@ option(BUILD_TESTS
     "Build and run tests (links nntile; works with BUILD_NNTILE=OFF + prefix)"
     ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
-# LibTorch is optional and unavailable in some core-library configure
-# environments, so the LibTorch bridge and installable user-facing wheel
-# default OFF. End users should build the torch_nntile wheel with
-# BUILD_TORCH_NNTILE=ON + BUILD_TORCH_NNTILE_WHEEL=ON, cibuildwheel, or
-# torch_nntile/tools/build_wheel_deps.sh.
+# Default ON: the user-facing product is the torch_nntile pip wheel (needs
+# LibTorch on CMAKE_PREFIX_PATH). Layered CI and Torch-less configures must
+# pass -DBUILD_TORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE_WHEEL=OFF.
 option(BUILD_TORCH_NNTILE
-    "Build LibTorch bridge libtorch_nntile (requires LibTorch)" OFF)
+    "Build LibTorch bridge libtorch_nntile (requires LibTorch)" ON)
 option(BUILD_TORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
 option(BUILD_TORCH_NNTILE_TESTS
     "Build libtorch_nntile C++ tests (needs LibTorch + libtorch_nntile)"
     OFF)
 option(BUILD_TORCH_NNTILE_WHEEL
-    "Build installable torch_nntile pip wheel (user-facing product)" OFF)
+    "Build installable torch_nntile pip wheel (user-facing product)" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 
 # In-tree wheel needs libtorch_nntile. Against an install prefix, keep

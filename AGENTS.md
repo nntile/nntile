@@ -11,7 +11,8 @@ Libraries:
 
 - **libnntile** — TensorGraph stack (kernel → StarPU → core → tile → tensor → Runtime)
 - **libtorch_nntile** — LibTorch PrivateUse1 (`device=nntile`) + models
-  (optional; enable with `-DBUILD_TORCH_NNTILE=ON`)
+  (default ON with the torch_nntile wheel; pass
+  `-DBUILD_TORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE_WHEEL=OFF` for libnntile-only)
 
 ### Pre-installed dependencies
 
@@ -34,7 +35,7 @@ Libraries:
 export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
 TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-  -DBUILD_TESTS=OFF -DBUILD_TORCH_NNTILE=ON \
+  -DBUILD_TESTS=OFF \
   -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" -GNinja

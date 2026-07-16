@@ -240,6 +240,8 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} \
     -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
     -DCMAKE_DISABLE_FIND_PACKAGE_pybind11=ON \
+    -DBUILD_TORCH_NNTILE=OFF \
+    -DBUILD_TORCH_NNTILE_WHEEL=OFF \
     -GNinja
 
 # Finally, build the NNTile inplace without installation

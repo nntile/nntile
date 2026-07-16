@@ -13,28 +13,27 @@ the [StarPU](https://starpu.gitlabpages.inria.fr) runtime.
 
 ## Install (Python product)
 
-The installable end-user package is **`torch_nntile`** (a pip wheel), not a
-bare `libnntile` CMake build. Prebuilt wheels and local build instructions:
-[torch_nntile/README.md](torch_nntile/README.md).
+Plain CMake defaults to building **libnntile**, **libtorch_nntile**, and the
+installable **torch_nntile** pip wheel (needs PyTorch on `CMAKE_PREFIX_PATH`).
+Prebuilt wheels: [torch_nntile/README.md](torch_nntile/README.md).
 
 ```bash
-pip install torch==2.9.1 torchvision==0.24.1
-pip install /path/to/torch_nntile-*.whl
+TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+cmake -S . -B build -GNinja -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
+cmake --build build -j$(nproc)
+# → build/wheelhouse/torch_nntile-*.whl
+pip install build/wheelhouse/torch_nntile-*.whl
 ```
 
-Bare `cmake` defaults to the core C++ **libnntile** library only (no LibTorch
-required). To also produce the wheel from source:
+Libnntile-only (no LibTorch), as in layered CI:
 
 ```bash
 cmake -S . -B build -GNinja \
-  -DBUILD_TORCH_NNTILE=ON -DBUILD_TORCH_NNTILE_WHEEL=ON \
-  -DCMAKE_PREFIX_PATH="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
-cmake --build build --target torch_nntile_wheel
-# → build/wheelhouse/torch_nntile-*.whl
+  -DBUILD_TORCH_NNTILE=OFF -DBUILD_TORCH_NNTILE_WHEEL=OFF
 ```
 
-Or use [`torch_nntile/tools/build_wheel_deps.sh`](torch_nntile/tools/build_wheel_deps.sh)
-/ the **torch_nntile wheels** GitHub Actions workflow.
+Release CI also uses cibuildwheel /
+[`torch_nntile/tools/build_wheel_deps.sh`](torch_nntile/tools/build_wheel_deps.sh).
 
 ## Documentation
 
