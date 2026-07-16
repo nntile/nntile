@@ -15,70 +15,9 @@ from torch import Tensor
 from torch_nntile import _C
 
 
-class _NntileModelTranspose(torch.autograd.Function):
-    """``nntile::transpose(src, model_ndim)`` cyclic axis reordering.
-
-    Matches ``nntile/src/nn/ops/transpose.cc`` model-code axis semantics.
-    """
-
-    @staticmethod
-    def forward(ctx, x: Tensor, model_ndim: int) -> Tensor:
-        ctx.model_ndim = int(model_ndim)
-        ctx.save_for_backward(x)
-        return _C.model_transpose_forward(x, int(model_ndim))
-
-    @staticmethod
-    def backward(ctx, grad_out: Tensor) -> tuple[Tensor, None]:
-        x, = ctx.saved_tensors
-        grad_x = _C.model_transpose_backward(
-            grad_out,
-            ctx.model_ndim,
-            x,
-        )
-        return grad_x, None
-
-
 def nntile_model_transpose(x: Tensor, model_ndim: int) -> Tensor:
     """Apply model-code transpose axis (storage order) on nntile tensors."""
-    return _NntileModelTranspose.apply(x, model_ndim)
-
-
-class _NntileSdpaKernel(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx,
-        q: Tensor,
-        k: Tensor,
-        v: Tensor,
-        mask: Tensor | None,
-        batch_ndim: int,
-    ) -> Tensor:
-        out = _C.sdpa_forward(q, k, v, mask, int(batch_ndim))
-        # Save a dummy empty bool tensor when mask is None so autograd always
-        # has four saved tensors; backward reconstructs optional mask.
-        if mask is None:
-            ctx.mask_is_none = True
-            mask_saved = torch.empty(0, dtype=torch.bool, device=q.device)
-        else:
-            ctx.mask_is_none = False
-            mask_saved = mask
-        ctx.save_for_backward(q, k, v, mask_saved)
-        ctx.batch_ndim = int(batch_ndim)
-        return out
-
-    @staticmethod
-    def backward(ctx, grad_out: Tensor):
-        q, k, v, mask_saved = ctx.saved_tensors
-        mask = None if ctx.mask_is_none else mask_saved
-        grad_q, grad_k, grad_v = _C.sdpa_backward(
-            q,
-            k,
-            v,
-            grad_out,
-            mask,
-            ctx.batch_ndim,
-        )
-        return grad_q, grad_k, grad_v, None, None
+    return _C.model_transpose(x, model_ndim)
 
 
 def _validate_sdpa_inputs(
@@ -125,7 +64,7 @@ def sdpa_kernel(
     ``F.scaled_dot_product_attention``, so GQA 5-D layouts work).
     """
     _validate_sdpa_inputs(q, k, v, mask, batch_ndim=batch_ndim)
-    return _NntileSdpaKernel.apply(q, k, v, mask, batch_ndim)
+    return _C.sdpa_kernel(q, k, v, mask, batch_ndim)
 
 
 def sdpa_eager(

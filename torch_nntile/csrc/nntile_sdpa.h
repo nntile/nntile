@@ -110,14 +110,17 @@ inline at::Tensor sdpa_kernel(
             batch_ndim,
             true);
     }
-    // Unmasked path: PrivateUse1 ATen SDPA (same as Python sdpa_kernel).
-    return at::scaled_dot_product_attention(
+    // No mask: still use libnntile via SdpaKernelFn (not ATen SDPA).
+    at::Tensor dummy_mask = at::empty(
+        {0},
+        at::TensorOptions().dtype(at::kBool).device(q.device()));
+    return detail::SdpaKernelFn::apply(
         q,
         k,
         v,
-        /*attn_mask=*/c10::nullopt,
-        /*dropout_p=*/0.0,
-        /*is_causal=*/false);
+        dummy_mask,
+        batch_ndim,
+        false);
 }
 
 } // namespace torch_nntile

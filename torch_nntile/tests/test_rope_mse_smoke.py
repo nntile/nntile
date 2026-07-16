@@ -4,7 +4,7 @@
 # @file torch_nntile/tests/test_rope_mse_smoke.py
 # Smoke shapes for rope and mse_loss on device="nntile".
 
-"""Forward-shape smokes for ``rope`` and ``mse_loss`` (skip without libnntile)."""
+"""Forward-shape smokes for ``rope`` and ``mse_loss`` on device nntile."""
 
 from __future__ import annotations
 

@@ -22,10 +22,6 @@ from torch.autograd import Function
 from torch_nntile import _C
 
 
-def _has_rope_c() -> bool:
-    return hasattr(_C, "rope_forward") and hasattr(_C, "rope_backward")
-
-
 def _rope_ref_forward(sin: Tensor, cos: Tensor, x: Tensor) -> Tensor:
     """Pure-torch RoPE matching the NNTile interleaved-pair kernel."""
     # x: [..., 2*m], sin/cos: [..., m] (broadcast over trailing dims of x).
@@ -50,22 +46,6 @@ def _rope_ref_backward(sin: Tensor, cos: Tensor, grad_y: Tensor) -> Tensor:
     return dx
 
 
-class _NntileRope(Function):
-    @staticmethod
-    def forward(ctx: Any, sin: Tensor, cos: Tensor, x: Tensor) -> Tensor:
-        ctx.save_for_backward(sin, cos)
-        return _C.rope_forward(sin, cos, x)
-
-    @staticmethod
-    def backward(
-        ctx: Any, grad_y: Tensor
-    ) -> tuple[None, None, Tensor | None]:
-        sin, cos = ctx.saved_tensors
-        needs_x = ctx.needs_input_grad[2]
-        grad_x = _C.rope_backward(sin, cos, grad_y, [needs_x])
-        return None, None, grad_x if needs_x else None
-
-
 class _RefRope(Function):
     """CPU / non-nntile autograd fallback (same math as NNTile kernel)."""
 
@@ -85,12 +65,12 @@ class _RefRope(Function):
 def rope(sin: Tensor, cos: Tensor, x: Tensor) -> Tensor:
     """Apply rotary embeddings: ``y = rope(sin, cos, x)``.
 
-    On ``device='nntile'`` with ``_C.rope_forward`` available, uses the
-    libnntile kernel. Otherwise falls back to a pure-torch reference that
-    matches the interleaved-pair layout.
+    On ``device='nntile'`` uses the libnntile kernel via ``_C.rope``.
+    Otherwise falls back to a pure-torch reference that matches the
+    interleaved-pair layout.
     """
-    if x.device.type == "nntile" and _has_rope_c():
-        return _NntileRope.apply(sin, cos, x)
+    if x.device.type == "nntile":
+        return _C.rope(sin, cos, x)
     return _RefRope.apply(sin, cos, x)
 
 

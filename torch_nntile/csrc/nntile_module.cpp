@@ -23,6 +23,7 @@
 #include "nntile_context.h"
 #include "nntile_cross_entropy.h"
 #include "nntile_gemm.h"
+#include "nntile_model_transpose.h"
 #include "nntile_mse_loss.h"
 #include "nntile_rms_norm.h"
 #include "nntile_rope.h"
@@ -168,10 +169,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("is_registered", &torch_nntile::is_registered, "Backend loaded");
     m.def(
-        "has_libnntile",
-        &torch_nntile::has_libnntile,
-        "Whether libnntile TensorGraph add is linked");
-    m.def(
         "built_with_cuda",
         &torch_nntile::built_with_cuda,
         "Whether linked libnntile was built with CUDA");
@@ -287,6 +284,16 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("alpha") = 1.0,
         py::arg("beta") = 1.0);
     m.def(
+        "add_fiber",
+        &torch_nntile::add_fiber,
+        "NNTile add_fiber (autograd)",
+        py::arg("fiber"),
+        py::arg("tensor"),
+        py::arg("axis"),
+        py::arg("batch_ndim"),
+        py::arg("alpha") = 1.0,
+        py::arg("beta") = 1.0);
+    m.def(
         "sum_slice_forward",
         &torch_nntile::sum_slice_forward,
         "NNTile sum_slice forward (GAP reduction)",
@@ -302,6 +309,19 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("src"),
         py::arg("axis"),
         py::arg("alpha") = 1.0);
+    m.def(
+        "sum_slice",
+        &torch_nntile::sum_slice,
+        "NNTile sum_slice (autograd)",
+        py::arg("src"),
+        py::arg("axis"),
+        py::arg("alpha") = 1.0,
+        py::arg("beta") = 0.0);
+    m.def(
+        "gap",
+        &torch_nntile::gap,
+        "NNTile global average pool over axis 0 (autograd)",
+        py::arg("x"));
     m.def(
         "gemm_forward",
         &torch_nntile::gemm_forward,
@@ -322,6 +342,16 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("ndim"),
         py::arg("batch_ndim"),
         py::arg("output_mask"),
+        py::arg("trans_a") = false,
+        py::arg("trans_b") = false);
+    m.def(
+        "gemm",
+        &torch_nntile::gemm,
+        "NNTile GEMM (autograd)",
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("ndim"),
+        py::arg("batch_ndim") = 0,
         py::arg("trans_a") = false,
         py::arg("trans_b") = false);
     m.def(
@@ -417,6 +447,13 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("grad_out"),
         py::arg("output_mask"));
     m.def(
+        "rope",
+        &torch_nntile::rope,
+        "NNTile RoPE (autograd)",
+        py::arg("sin"),
+        py::arg("cos"),
+        py::arg("x"));
+    m.def(
         "mse_loss_forward",
         &torch_nntile::mse_loss_forward,
         "NNTile MSE loss forward: scale * ||x||^2",
@@ -449,6 +486,15 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("mask") = py::none(),
         py::arg("batch_ndim") = 2);
     m.def(
+        "sdpa_kernel",
+        &torch_nntile::sdpa_kernel,
+        "NNTile SDPA kernel-layout (autograd)",
+        py::arg("q"),
+        py::arg("k"),
+        py::arg("v"),
+        py::arg("mask") = py::none(),
+        py::arg("batch_ndim") = 2);
+    m.def(
         "model_transpose_forward",
         &torch_nntile::model_transpose_forward,
         "NNTile model-code transpose forward",
@@ -461,6 +507,12 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("grad_out"),
         py::arg("model_ndim"),
         py::arg("x"));
+    m.def(
+        "model_transpose",
+        &torch_nntile::model_transpose,
+        "NNTile model-code transpose (autograd)",
+        py::arg("x"),
+        py::arg("model_ndim"));
     m.def(
         "norm_forward",
         [](const at::Tensor &input,
