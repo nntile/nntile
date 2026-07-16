@@ -55,11 +55,6 @@ bool is_registered()
     return true;
 }
 
-bool has_libnntile()
-{
-    return true;
-}
-
 int64_t buffer_nbytes(const at::Tensor &tensor)
 {
     TORCH_CHECK(
