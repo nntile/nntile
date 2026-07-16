@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/bert.cpp
- * BERT MLM — port of deleted ``nntile::model::bert`` (not HF ATen).
+ * BERT MLM - port of deleted ``nntile::model::bert`` (not HF ATen).
  */
 
 #include <torch_nntile/models/bert.hh>
@@ -191,7 +191,7 @@ BertLayerImpl::BertLayerImpl(BertConfig const &cfg)
 
 torch::Tensor BertLayerImpl::forward(torch::Tensor x)
 {
-    // ``bert_layer.cc``: attention → intermediate → output(+residual).
+    // ``bert_layer.cc``: attention -> intermediate -> output(+residual).
     // Weight layout ``[out, in]`` with ``trans_b`` (NNGraph Linear).
     auto attn_out = attention->forward(x);
     auto mid = gemm(

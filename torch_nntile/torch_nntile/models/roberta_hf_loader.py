@@ -4,7 +4,7 @@
 # @file torch_nntile/torch_nntile/models/roberta_hf_loader.py
 # Convert weights between HuggingFace RoBERTa and torch_nntile RobertaMlm.
 
-"""Bidirectional HF ↔ NNTile weight conversion for RoBERTa MLM."""
+"""Bidirectional HF <-> NNTile weight conversion for RoBERTa MLM."""
 
 from __future__ import annotations
 

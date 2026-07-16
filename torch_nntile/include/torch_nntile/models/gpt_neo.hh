@@ -26,7 +26,7 @@ struct GptNeoConfig
     int64_t max_position_embeddings = 128;
     int64_t window_size = 256;
     double layer_norm_eps = 1e-5;
-    //! ``"global"`` / ``"local"`` per layer; empty → HF alternate default.
+    //! ``"global"`` / ``"local"`` per layer; empty -> HF alternate default.
     std::vector<std::string> attention_layers;
 
     bool is_local_layer(int64_t layer_id) const

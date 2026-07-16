@@ -4,7 +4,7 @@
  * @file torch_nntile/tests/models_fwd_bwd_smoke.cc
  * C++ forward/backward smoke for every model and major submodule.
  *
- * No numerical accuracy checks — only that shapes / devices are consistent
+ * No numerical accuracy checks - only that shapes / devices are consistent
  * and autograd completes without raising.
  */
 
@@ -145,7 +145,7 @@ at::Tensor rand_hidden(bool requires_grad = true)
 TEST_CASE("C++ DeepReLU forward smoke", "[models][smoke]")
 {
     // DeepReLU uses torch::nn::Linear (aten matmul). Forward works on
-    // nntile; matmul_backward is not implemented yet — smoke forward only.
+    // nntile; matmul_backward is not implemented yet - smoke forward only.
     ContextGuard guard;
     auto model = DeepReLUImpl::tiny();
     auto x = to_nntile_float(

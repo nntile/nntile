@@ -2,11 +2,11 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/gpt2.cpp
- * GPT-2 causal LM — port of deleted ``nntile::model::gpt2`` (not HF ATen).
+ * GPT-2 causal LM - port of deleted ``nntile::model::gpt2`` (not HF ATen).
  *
  * Attention matches ``gpt2_attention.cc`` / Python ``gpt2_minimal``:
- * ``gemm(ndim=1)`` → ``model_transpose(1)`` → ``add_fiber`` →
- * ``sdpa_kernel`` → ``model_transpose(3)`` → ``gemm(ndim=2)``.
+ * ``gemm(ndim=1)`` -> ``model_transpose(1)`` -> ``add_fiber`` ->
+ * ``sdpa_kernel`` -> ``model_transpose(3)`` -> ``gemm(ndim=2)``.
  */
 
 #include <torch_nntile/models/gpt2.hh>

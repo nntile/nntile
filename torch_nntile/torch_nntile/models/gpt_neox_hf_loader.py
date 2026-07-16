@@ -4,7 +4,7 @@
 # @file torch_nntile/torch_nntile/models/gpt_neox_hf_loader.py
 # Convert weights between HuggingFace GPT-NeoX and torch_nntile GPTNeoXCausal.
 
-"""Bidirectional HF ↔ NNTile weight conversion for GPT-NeoX."""
+"""Bidirectional HF <-> NNTile weight conversion for GPT-NeoX."""
 
 from __future__ import annotations
 

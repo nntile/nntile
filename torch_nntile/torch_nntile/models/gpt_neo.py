@@ -28,7 +28,7 @@ def make_local_causal_sdpa_mask(
 ) -> Tensor:
     """BOOL local-causal mask ``[seq, seq]`` for GPT-Neo local layers.
 
-    Keep on CPU — nntile SDPA converts host bool/float masks; device-side
+    Keep on CPU - nntile SDPA converts host bool/float masks; device-side
     ``where`` / float comparisons are not implemented yet.
     Allowed keys satisfy ``k <= q`` and ``q - k < window_size``.
     """
@@ -157,7 +157,7 @@ class GPTNeoAttention(nn.Module):
         k = self._project(x, self.k_weight)
         v = self._project(x, self.v_weight)
         # HF GPT-Neo scores are unscaled; cancel SDPA ``1/sqrt(d)``.
-        # Use aten mul.Scalar — ``q * float`` may dispatch Tensor×CPU-scalar.
+        # Use aten mul.Scalar - ``q * float`` may dispatch TensorxCPU-scalar.
         q = torch.ops.aten.mul.Scalar(q, float(self.head_dim) ** 0.5)
         # Local layers use a sliding causal window when the caller does not
         # supply an explicit mask (matches HF ``attention_layers`` / bias).

@@ -163,7 +163,7 @@ def test_embedding_matches_cpu_forward_backward():
     weight = torch.randn(16, 8, dtype=torch.float32, requires_grad=True)
     indices = torch.randint(0, 16, (2, 5), dtype=torch.long)
 
-    # F.embedding(input, weight) — indices first.
+    # F.embedding(input, weight) - indices first.
     assert_aten_op_forward_backward(
         F.embedding,
         inputs_cpu=[indices, weight],

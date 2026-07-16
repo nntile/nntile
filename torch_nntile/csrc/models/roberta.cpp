@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/roberta.cpp
- * RoBERTa MLM — port of deleted ``nntile::model::roberta`` (NNGraph layout).
+ * RoBERTa MLM - port of deleted ``nntile::model::roberta`` (NNGraph layout).
  */
 
 #include <torch_nntile/models/roberta.hh>

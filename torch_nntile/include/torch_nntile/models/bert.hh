@@ -40,7 +40,7 @@ torch::Tensor bert_position_ids_from_input_ids(
     torch::Tensor const &input_ids,
     int64_t pad_token_id);
 
-//! ``BertSelfAttention``: gemm → transpose(1) → add_fiber → sdpa →
+//! ``BertSelfAttention``: gemm -> transpose(1) -> add_fiber -> sdpa ->
 //! transpose(3).
 struct BertSelfAttentionImpl : torch::nn::Module
 {

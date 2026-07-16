@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/llama.cpp
- * Llama causal LM — port of deleted ``nntile::model::llama``.
+ * Llama causal LM - port of deleted ``nntile::model::llama``.
  */
 
 #include <torch_nntile/models/llama.hh>
@@ -135,7 +135,7 @@ torch::Tensor repeat_kv_heads(torch::Tensor x, int64_t n_rep)
 
 } // namespace
 
-// ── LlamaAttentionImpl ────────────────────────────────────────────────────
+// -- LlamaAttentionImpl ----------------------------------------------------
 
 LlamaAttentionImpl::LlamaAttentionImpl(LlamaConfig const &cfg) :
     n_heads(cfg.num_attention_heads),
@@ -222,7 +222,7 @@ torch::Tensor LlamaAttentionImpl::forward(
     return gemm(attn, o_weight, out_ndim, /*batch_ndim=*/0);
 }
 
-// ── LlamaMLPImpl ─────────────────────────────────────────────────────────
+// -- LlamaMLPImpl ---------------------------------------------------------
 
 LlamaMLPImpl::LlamaMLPImpl(LlamaConfig const &cfg)
 {
@@ -268,7 +268,7 @@ torch::Tensor LlamaMLPImpl::forward(torch::Tensor x)
         /*trans_b=*/true);
 }
 
-// ── LlamaDecoderImpl ─────────────────────────────────────────────────────
+// -- LlamaDecoderImpl -----------------------------------------------------
 
 LlamaDecoderImpl::LlamaDecoderImpl(LlamaConfig const &cfg) :
     rms_eps(cfg.rms_norm_eps)
@@ -300,7 +300,7 @@ torch::Tensor LlamaDecoderImpl::forward(
     return post + mlp_out;
 }
 
-// ── LlamaCausalImpl ──────────────────────────────────────────────────────
+// -- LlamaCausalImpl ------------------------------------------------------
 
 LlamaCausalImpl::LlamaCausalImpl(LlamaConfig cfg) : config(std::move(cfg))
 {

@@ -145,7 +145,7 @@ at::Tensor broadcastable_attn_bias_to_2d(
         "nntile sdpa: attn_bias trailing shape must be [q_seq, k_seq]");
 
     const at::Tensor canonical = canonical_leading_slice(bias);
-    // Size-based broadcast check only. Never .cpu() here — that gathers
+    // Size-based broadcast check only. Never .cpu() here - that gathers
     // through StarPU and syncs during graph recording.
     for (int64_t d = 0; d < bias.dim() - 2; ++d)
     {
@@ -317,7 +317,7 @@ sdpa_overrideable_forward(
     const at::Tensor logsumexp = logsumexp_placeholder(query);
     // PyTorch SDPA API requires logsumexp; nntile softmax uses maxsumexp internally.
     // Backward ignores this tensor and uses maxsumexp buffers in sdpa_backward.
-    // Keep philox tensors on CPU — they are unused API placeholders only.
+    // Keep philox tensors on CPU - they are unused API placeholders only.
     const at::Tensor philox_seed = at::empty(
         {},
         at::TensorOptions().dtype(at::ScalarType::Long).device(at::kCPU));

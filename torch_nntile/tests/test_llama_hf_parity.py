@@ -213,7 +213,7 @@ def test_llama_rope_sin_cos_matches_hf_half_channels():
 
 
 # ---------------------------------------------------------------------------
-# Attention matrix: MHA/GQA × RoPE/no-RoPE × causal/no-mask
+# Attention matrix: MHA/GQA x RoPE/no-RoPE x causal/no-mask
 # (was llama_attention.cc)
 # ---------------------------------------------------------------------------
 
@@ -244,7 +244,7 @@ def test_llama_attention_forward_backward_matrix(gqa, use_rope, causal):
         cos = torch.ones(b, s, half)
         pos_emb = (torch.ones_like(pos_emb[0]), torch.zeros_like(pos_emb[1]))
 
-    # Prefer ``is_causal=True`` over additive float masks — nntile SDPA rejects
+    # Prefer ``is_causal=True`` over additive float masks - nntile SDPA rejects
     # common additive ``-inf`` mask layouts (``view: storage alias``).
     y_ref = hf_attn(
         x,

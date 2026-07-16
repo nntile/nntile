@@ -410,7 +410,7 @@ def test_bert_mlm_untied_embedding_and_decoder_backward_matches_hf(
         local.cls.decoder.weight
         is not local.bert.embeddings.word_embeddings.weight
     )
-    # Avoid pad id 0 — nntile embedding grad at index 0 is a known sharp edge.
+    # Avoid pad id 0 - nntile embedding grad at index 0 is a known sharp edge.
     input_ids = torch.randint(1, tiny_hf_config.vocab_size, (2, 8))
     token_type_ids = _bert_token_type_ids(tiny_hf_config)
     grad = torch.randn(2, 8, tiny_hf_config.vocab_size)

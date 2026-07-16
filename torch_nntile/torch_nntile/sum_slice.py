@@ -9,8 +9,8 @@
 Old ``nntile.layer.gap.GAP`` forward is::
 
     alpha = 1 / x.shape[0]
-    sum_slice(alpha, x, 0.0, yT, axis=0)   # → [batch, ...]
-    transpose(yT → y)                       # side-R Linear layout
+    sum_slice(alpha, x, 0.0, yT, axis=0)   # -> [batch, ...]
+    transpose(yT -> y)                       # side-R Linear layout
 
 Here ``sum_slice`` / ``gap`` expose the reduction itself (``yT``). Torch-side
 MLP-Mixer keeps ``[batch, channels]`` and applies a side-L classifier gemm.

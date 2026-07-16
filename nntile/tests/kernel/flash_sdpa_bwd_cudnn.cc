@@ -448,7 +448,7 @@ void run_cuda_test(TestData<T> &data)
 
     if(bwd_graph == nullptr)
     {
-        WARN("cuDNN Flash Attention backward graph preparation failed — skipping test "
+        WARN("cuDNN Flash Attention backward graph preparation failed - skipping test "
              "for this configuration (likely unsupported on this system).");
         cleanup();
         return;
@@ -457,7 +457,7 @@ void run_cuda_test(TestData<T> &data)
     auto ws_status = bwd_graph->get_workspace_size(workspace_size);
     if(!ws_status.is_good())
     {
-        WARN("cuDNN Flash Attention backward workspace query failed — skipping test "
+        WARN("cuDNN Flash Attention backward workspace query failed - skipping test "
              "for this configuration (likely unsupported on this system).");
         cleanup();
         return;

@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/t5.cpp
- * T5 encoder-decoder — port of deleted ``nntile::model::t5``.
+ * T5 encoder-decoder - port of deleted ``nntile::model::t5``.
  */
 
 #include <torch_nntile/models/t5.hh>
@@ -53,7 +53,7 @@ torch::Tensor rms_norm(
 
 } // namespace
 
-// ── T5AttentionImpl ───────────────────────────────────────────────────────
+// -- T5AttentionImpl -------------------------------------------------------
 
 T5AttentionImpl::T5AttentionImpl(T5Config const &cfg, bool cross) :
     is_cross(cross),
@@ -110,7 +110,7 @@ torch::Tensor T5AttentionImpl::forward(
     return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
 }
 
-// ── T5LayerFFImpl ─────────────────────────────────────────────────────────
+// -- T5LayerFFImpl ---------------------------------------------------------
 
 T5LayerFFImpl::T5LayerFFImpl(T5Config const &cfg) :
     eps(cfg.layer_norm_epsilon)
@@ -163,7 +163,7 @@ torch::Tensor T5LayerFFImpl::forward(torch::Tensor x)
     return x + ff_out;
 }
 
-// ── T5EncoderBlockImpl ────────────────────────────────────────────────────
+// -- T5EncoderBlockImpl ----------------------------------------------------
 
 T5EncoderBlockImpl::T5EncoderBlockImpl(T5Config const &cfg) :
     eps(cfg.layer_norm_epsilon)
@@ -184,7 +184,7 @@ torch::Tensor T5EncoderBlockImpl::forward(torch::Tensor x)
     return ff->forward(x + attn);
 }
 
-// ── T5DecoderBlockImpl ────────────────────────────────────────────────────
+// -- T5DecoderBlockImpl ----------------------------------------------------
 
 T5DecoderBlockImpl::T5DecoderBlockImpl(T5Config const &cfg) :
     eps(cfg.layer_norm_epsilon)
@@ -220,7 +220,7 @@ torch::Tensor T5DecoderBlockImpl::forward(
     return ff->forward(post + cross_out);
 }
 
-// ── T5ForConditionalGenerationImpl ────────────────────────────────────────
+// -- T5ForConditionalGenerationImpl ----------------------------------------
 
 T5ForConditionalGenerationImpl::T5ForConditionalGenerationImpl(
     T5Config cfg) :

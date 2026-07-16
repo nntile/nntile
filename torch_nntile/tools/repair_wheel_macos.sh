@@ -56,7 +56,7 @@ export DYLD_FALLBACK_LIBRARY_PATH="${DYLD_LIBRARY_PATH}${DYLD_FALLBACK_LIBRARY_P
 mkdir -p "${dest_dir}"
 
 # Exclude torch/c10 by path and exact basenames. Do NOT use a bare "libtorch"
-# pattern — that also matches libtorch_nntile.dylib which must be bundled.
+# pattern - that also matches libtorch_nntile.dylib which must be bundled.
 delocate_opts=(
     --exclude /torch/
     --exclude libtorch.dylib

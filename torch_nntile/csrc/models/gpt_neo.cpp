@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/gpt_neo.cpp
- * GPT-Neo causal LM — port of deleted ``nntile::model::gptneo``.
+ * GPT-Neo causal LM - port of deleted ``nntile::model::gptneo``.
  */
 
 #include <torch_nntile/models/gpt_neo.hh>
@@ -56,7 +56,7 @@ torch::Tensor local_causal_mask_host(int64_t seq, int64_t window)
 
 } // namespace
 
-// ── GptNeoAttentionImpl ───────────────────────────────────────────────────
+// -- GptNeoAttentionImpl ---------------------------------------------------
 
 GptNeoAttentionImpl::GptNeoAttentionImpl(
     GptNeoConfig const &cfg,
@@ -124,7 +124,7 @@ torch::Tensor GptNeoAttentionImpl::forward(
         /*batch_ndim=*/0);
 }
 
-// ── GptNeoMLPImpl ─────────────────────────────────────────────────────────
+// -- GptNeoMLPImpl ---------------------------------------------------------
 
 GptNeoMLPImpl::GptNeoMLPImpl(GptNeoConfig const &cfg)
 {
@@ -172,7 +172,7 @@ torch::Tensor GptNeoMLPImpl::forward(torch::Tensor x)
         /*batch_ndim=*/0);
 }
 
-// ── GptNeoDecoderImpl ─────────────────────────────────────────────────────
+// -- GptNeoDecoderImpl -----------------------------------------------------
 
 GptNeoDecoderImpl::GptNeoDecoderImpl(
     GptNeoConfig const &cfg,
@@ -208,7 +208,7 @@ torch::Tensor GptNeoDecoderImpl::forward(
     return post + mlp_out;
 }
 
-// ── GptNeoCausalImpl ──────────────────────────────────────────────────────
+// -- GptNeoCausalImpl ------------------------------------------------------
 
 GptNeoCausalImpl::GptNeoCausalImpl(GptNeoConfig cfg) :
     config(std::move(cfg))

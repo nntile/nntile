@@ -207,7 +207,7 @@ def _llama_attn_cpu_ref(
     n_heads = q.size(1)
     sin_h = sin.unsqueeze(1).expand(-1, n_heads, -1, -1).contiguous()
     cos_h = cos.unsqueeze(1).expand(-1, n_heads, -1, -1).contiguous()
-    # KV heads may differ under GQA — expand sin/cos to kv head count too.
+    # KV heads may differ under GQA - expand sin/cos to kv head count too.
     sin_k = sin.unsqueeze(1).expand(-1, attn.n_kv_heads, -1, -1).contiguous()
     cos_k = cos.unsqueeze(1).expand(-1, attn.n_kv_heads, -1, -1).contiguous()
     q = _rope_ref_forward(sin_h, cos_h, q)

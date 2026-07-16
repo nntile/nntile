@@ -8,7 +8,7 @@
 
 Uses the same NNTile primitives as the C++ model (``gemm``, ``transpose``,
 ``add_fiber``, ``sdpa_eager``, ``layer_norm`` via ``nn.LayerNorm``,
-``embedding``, ``gelutanh``, residual ``add``) — not broadcast ``scale_slice``.
+``embedding``, ``gelutanh``, residual ``add``) - not broadcast ``scale_slice``.
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ class GPT2Attention(nn.Module):
             nn.init.zeros_(p)
 
     def _qkv_proj(self, x: Tensor, weight: Tensor) -> Tensor:
-        """``gemm(x, w, ndim=1)`` → ``[batch, seq, head_size, n_heads]``."""
+        """``gemm(x, w, ndim=1)`` -> ``[batch, seq, head_size, n_heads]``."""
         return gemm(x, weight, ndim=1, batch_ndim=0)
 
     def _add_qkv_bias(self, x_sdpa: Tensor, bias: Tensor) -> Tensor:
@@ -131,7 +131,7 @@ class GPT2Attention(nn.Module):
 
     def forward(self, x: Tensor, causal_mask: Tensor | None) -> Tensor:
         # Mirror ``nntile/src/model/gpt2/gpt2_attention.cc``:
-        # gemm → transpose(1) → add_fiber(bias) → sdpa_eager → transpose(3) → O.
+        # gemm -> transpose(1) -> add_fiber(bias) -> sdpa_eager -> transpose(3) -> O.
         q = nntile_model_transpose(self._qkv_proj(x, self.q_weight), 1)
         q = self._add_qkv_bias(q, self.q_bias)
         k = nntile_model_transpose(self._qkv_proj(x, self.k_weight), 1)
@@ -193,7 +193,7 @@ class GPT2Model(nn.Module):
         )
         self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
         # Built once on CPU, moved to the request device, then reused.
-        # Keys: position_ids → (batch, seq); causal_mask → seq.
+        # Keys: position_ids -> (batch, seq); causal_mask -> seq.
         self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
         self._causal_mask_cache: dict[int, Tensor] = {}
 

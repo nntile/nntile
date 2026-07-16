@@ -4,7 +4,7 @@
 # @file torch_nntile/torch_nntile/models/t5_hf_loader.py
 # Convert weights between HuggingFace T5 and torch_nntile T5.
 
-"""Bidirectional HF ↔ NNTile weight conversion for T5.
+"""Bidirectional HF <-> NNTile weight conversion for T5.
 
 Local ``T5Attention`` has no relative-position bias. Loaders copy Q/K/V/O and
 FF weights; callers should disable HF relative bias before comparing forwards

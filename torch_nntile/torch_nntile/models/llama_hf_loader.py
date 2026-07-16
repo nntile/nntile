@@ -4,7 +4,7 @@
 # @file torch_nntile/torch_nntile/models/llama_hf_loader.py
 # Convert weights between HuggingFace Llama and torch_nntile LlamaCausal.
 
-"""Bidirectional HF ↔ NNTile weight conversion for Llama."""
+"""Bidirectional HF <-> NNTile weight conversion for Llama."""
 
 from __future__ import annotations
 

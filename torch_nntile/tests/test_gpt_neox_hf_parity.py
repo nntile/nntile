@@ -221,7 +221,7 @@ def test_gpt_neox_mlp_forward_backward_matches_hf():
 
 
 # ---------------------------------------------------------------------------
-# Attention matrix: RoPE/no-RoPE × causal/no-mask × bias/no-bias
+# Attention matrix: RoPE/no-RoPE x causal/no-mask x bias/no-bias
 # (was gpt_neox_attention.cc)
 # ---------------------------------------------------------------------------
 

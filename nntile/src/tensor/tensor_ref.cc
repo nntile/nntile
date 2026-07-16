@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/src/tensor/tensor_ref.cc
- * TensorRef hold lifetime → async invalidate.
+ * TensorRef hold lifetime -> async invalidate.
  *
  * @version 1.1.0
  * */

@@ -121,7 +121,7 @@ struct NntileHooksInterface final : public at::PrivateUse1HooksInterface
 //!
 //! LibTorch autograd calls getCurrentStream when accumulating grads on
 //! PrivateUse1. Without a registered backend name and guard impl, that
-//! path throws even though the test reference is on CPU — the PrivateUse1
+//! path throws even though the test reference is on CPU - the PrivateUse1
 //! leaf still goes through accelerator stream bookkeeping.
 struct NntileGuardImpl final : public c10::impl::DeviceGuardImplInterface
 {

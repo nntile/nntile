@@ -35,8 +35,8 @@ struct Gpt2Config
     }
 };
 
-//! NNGraph ``Gpt2Attention``: gemm → transpose(1) → add_fiber → sdpa →
-//! transpose(3) → gemm(ndim=2).
+//! NNGraph ``Gpt2Attention``: gemm -> transpose(1) -> add_fiber -> sdpa ->
+//! transpose(3) -> gemm(ndim=2).
 struct Gpt2AttentionImpl : torch::nn::Module
 {
     int64_t n_head = 0;

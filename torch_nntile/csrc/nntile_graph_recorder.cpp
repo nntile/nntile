@@ -64,7 +64,7 @@ namespace torch_nntile
 namespace
 {
 
-//! Temporary profiling knob: skip StarPU *compute* submit and host↔tile
+//! Temporary profiling knob: skip StarPU *compute* submit and host<->tile
 //! acquire/memcpy so record+compile wall time can be measured alone.
 //! ``execute_range`` still runs (watermark + last-consumer reclaim) so
 //! incremental compile stays O(pending). Set ``TORCH_NNTILE_SKIP_STARPU=1``.
@@ -503,7 +503,7 @@ void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
 //! compile lowers every logical ``L``. Submitting all scatters before any
 //! ``S`` unregister leaves StarPU holding CUDA replicates of every ``S``
 //! beside every ``L``; unregister only parks those buffers in the
-//! allocation cache (``nvidia-smi`` stays ≈2×). Drain + destroy each
+//! allocation cache (``nvidia-smi`` stays ~2x). Drain + destroy each
 //! ``S`` before the next scatter so the next ``L`` reuses the cached
 //! chunk instead of allocating another full working set.
 void run_pending_with_scatter_staging_release_locked(
@@ -844,7 +844,7 @@ void prepare_invalidate_selection_locked()
 //! ``append_invalidates_for_unmarked_unsealed`` covers emplace_data temps.
 //! A side-channel ``invalidate_logical_tiles`` here ran *before* the phase
 //! was submitted, so ``del inputs`` after record (but before compile) could
-//! free ingress tiles before embedding tasks were inserted — StarPU then
+//! free ingress tiles before embedding tasks were inserted - StarPU then
 //! saw "handle is not initialized".
 void flush_released_logicals_locked()
 {
@@ -951,7 +951,7 @@ void run_graph_locked()
     {
         return;
     }
-    // Submit only (except ingress scatters — see below). INVALIDATE ops are
+    // Submit only (except ingress scatters - see below). INVALIDATE ops are
     // already in the execution stream. Join StarPU via wait() for readout.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
@@ -964,7 +964,7 @@ void run_graph_locked()
         if (!g_exec->pending_scatter_stagings.empty())
         {
             // Per-S release so StarPU's allocation cache can reuse each
-            // ephemeral CUDA chunk for the next logical L (avoids ≈2×).
+            // ephemeral CUDA chunk for the next logical L (avoids ~2x).
             run_pending_with_scatter_staging_release_locked(
                 g_exec->pending_exec_op_begin,
                 g_exec->pending_exec_op_end,
@@ -1084,7 +1084,7 @@ void sync_param_grad_aliases_locked()
 
 void execute_pending_graph_locked()
 {
-    // compile + run only. Never wait here — callers must use wait() /
+    // compile + run only. Never wait here - callers must use wait() /
     // wait_graph_session() (same contract as compile_graph + run).
     compile_graph_locked();
     run_graph_locked();
@@ -1226,7 +1226,7 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
     const nntile::DataType dtype = logical->dtype();
     const std::size_t count =
         static_cast<std::size_t>(logical->nelems());
-    // Respect dst storage_offset (matches CPU→nntile ingress via data_ptr()).
+    // Respect dst storage_offset (matches CPU->nntile ingress via data_ptr()).
     void *host_ptr = dst.data_ptr();
 
     // Sync a prior async execute()/run() even when no ops are pending so
@@ -1291,7 +1291,7 @@ void init_nntile_input_from_cpu(
         existing)
     {
         throw std::runtime_error(
-            "torch_nntile: CPU→nntile copy into an already-bound tensor is "
+            "torch_nntile: CPU->nntile copy into an already-bound tensor is "
             "unsupported; ingress each tensor once via .to('nntile')");
     }
 
@@ -1738,7 +1738,7 @@ std::string format_info_locked()
     }
     if (g_timing.run_calls > 0)
     {
-        ss << "  note: wait_calls should be ≈ run_calls when callers avoid "
+        ss << "  note: wait_calls should be ~ run_calls when callers avoid "
            << "redundant wait(); idle wait() is a no-op\n";
     }
 

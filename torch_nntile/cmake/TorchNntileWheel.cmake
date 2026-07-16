@@ -220,5 +220,5 @@ install(
 )
 
 message(STATUS
-    "torch_nntile wheel target enabled → ${TORCH_NNTILE_WHEELHOUSE} "
+    "torch_nntile wheel target enabled -> ${TORCH_NNTILE_WHEELHOUSE} "
     "(build target: torch_nntile_wheel)")

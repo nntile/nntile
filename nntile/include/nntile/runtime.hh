@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/runtime.hh
- * ``nntile::Runtime`` — compile/execute a ``TileGraph`` (IR only).
+ * ``nntile::Runtime`` - compile/execute a ``TileGraph`` (IR only).
  *
  * @version 1.1.0
  * */
@@ -60,7 +60,7 @@ class Runtime
     //! logicals). Call ``wait()`` to join StarPU before host readout.
     //! If ``submit_tasks`` is false, skip ``OpNode::execute`` (no StarPU
     //! inserts) but still advance the executed watermark and last-consumer
-    //! reclaim — required so incremental ``compile()`` stays O(pending)
+    //! reclaim - required so incremental ``compile()`` stays O(pending)
     //! under dry-run profiling.
     void execute_range(
         size_t op_begin,
@@ -114,7 +114,7 @@ class Runtime
     //! execution_order_.size()``), clear ``execution_order_`` and reset
     //! compile/execute watermarks so the next ``compile()`` is O(pending)
     //! without retaining session tile-op history. Returns true if cleared.
-    //! Caller must also ``TileGraph::clear_ops()`` when true — otherwise the
+    //! Caller must also ``TileGraph::clear_ops()`` when true - otherwise the
     //! next ``compile()`` would re-append the entire historical op list.
     //! Does not drop tile nodes or ``compiled_tile_node_count_``.
     bool drop_fully_executed_history();
@@ -146,7 +146,7 @@ class Runtime
 
 
     //! Drop StarPU buffers for a logical tensor that is no longer marked
-    //! input/output. Uses ``invalidate_submit`` / async unregister only —
+    //! input/output. Uses ``invalidate_submit`` / async unregister only -
     //! safe while earlier submitted tasks still reference the handle; StarPU
     //! defers free until last use. No-op if still marked, unknown, or never
     //! allocated.

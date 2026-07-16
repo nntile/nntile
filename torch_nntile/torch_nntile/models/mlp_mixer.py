@@ -2,14 +2,14 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/models/mlp_mixer.py
-# MLP-Mixer for device="nntile" — gemm side-L / side-R, no axis swaps.
+# MLP-Mixer for device="nntile" - gemm side-L / side-R, no axis swaps.
 
 """MLP-Mixer matching ``torch_nntile::models::MlpMixer`` / main torch_models.
 
 Input layout is ``[n_patches, batch, patch_dim]`` (``channel_dim = n_patches``).
 
 * Side L (channel mix): ``gemm(x, W, ndim=1, trans_b=True)`` on the last axis.
-* Side R (token mix): ``gemm(W, x, ndim=1)`` on the leading axis — no transpose.
+* Side R (token mix): ``gemm(W, x, ndim=1)`` on the leading axis - no transpose.
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ class MlpMixer(nn.Module):
         h = _linear_last(x, self.stem_weight)
         for block in self.blocks:
             h = block(h)
-        # Old ``GAP``: sum_slice(1/P, ·, axis=0). Keep [batch, channels]
+        # Old ``GAP``: sum_slice(1/P, *, axis=0). Keep [batch, channels]
         # (skip the side-R transpose used by the deleted Linear API).
         pooled = gap(h)
         return _linear_last(pooled, self.classifier_weight)

@@ -444,7 +444,7 @@ def test_roberta_export_roundtrip_state_dict_matches_hf_keys(tiny_hf_config):
 
 
 def test_roberta_vs_bert_default_special_tokens_differ():
-    """RoBERTa pad/bos/eos differ from Bert — configs must not be mixed."""
+    """RoBERTa pad/bos/eos differ from Bert - configs must not be mixed."""
     from transformers import BertConfig
 
     r = HfRobertaConfig()

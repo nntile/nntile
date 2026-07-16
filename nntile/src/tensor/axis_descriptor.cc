@@ -138,7 +138,7 @@ void merge_axis(std::shared_ptr<AxisDescriptor>& lhs,
     }
 
     std::shared_ptr<AxisDescriptor> keep = *keep_slot;
-    // Save the descriptor being replaced — `*replace_slot` may alias one of
+    // Save the descriptor being replaced - `*replace_slot` may alias one of
     // the tensor slots we reassign inside the loop.
     std::shared_ptr<AxisDescriptor> old_desc = *replace_slot;
 

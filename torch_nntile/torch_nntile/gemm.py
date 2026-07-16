@@ -66,7 +66,7 @@ def gemm(
 
     ``trans_a`` / ``trans_b`` select NNTile transpose flags (swap the first
     ``ndim`` axes of the operand for the contraction), matching
-    ``nntile::tensor::gemm`` — do not materialize ``Tensor.t()`` /
+    ``nntile::tensor::gemm`` - do not materialize ``Tensor.t()`` /
     ``swap_two_axes``.
 
     Examples (GPT-2 attention, ``batch_ndim=0``):

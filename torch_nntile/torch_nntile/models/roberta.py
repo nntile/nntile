@@ -91,7 +91,7 @@ class RobertaEmbeddings(nn.Module):
         b, s = input_ids.shape
         if position_ids is None:
             # Pad-aware index table (HF create_position_ids_from_input_ids).
-            # Integer ne/cumsum are not on nntile yet — build the *index*
+            # Integer ne/cumsum are not on nntile yet - build the *index*
             # tensor on host from a copy of input_ids, then upload once.
             # Embeddings / activations never leave device=nntile.
             ids_host = (

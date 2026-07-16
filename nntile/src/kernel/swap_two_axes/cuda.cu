@@ -4,13 +4,13 @@
  * @file src/kernel/swap_two_axes/cuda.cu
  * Swap axes 1 and 3 in a 5D buffer on CUDA.
  *
- * Layout is ``[d0, d1, d2, d3, d4]`` → ``[d0, d3, d2, d1, d4]``.
+ * Layout is ``[d0, d1, d2, d3, d4]`` -> ``[d0, d3, d2, d1, d4]``.
  *
  * - ``d4 > 1`` (non-fastest axis swap): each warp copies a contiguous fiber
- *   ``src[i0,i1,i2,i3,:]`` → ``dst[i0,i3,i2,i1,:]``, using ``float4`` when
+ *   ``src[i0,i1,i2,i3,:]`` -> ``dst[i0,i3,i2,i1,:]``, using ``float4`` when
  *   ``d4`` is a multiple of the vector width.
  * - ``d4 == 1`` (fastest-axis involvement, e.g. HF ``transpose(-1,-2)``):
- *   for each ``(i0,i2)`` this is a ``d1×d3`` matrix transpose. A separate
+ *   for each ``(i0,i2)`` this is a ``d1xd3`` matrix transpose. A separate
  *   tiled shared-memory kernel coalesces both loads and stores.
  *
  * @version 1.1.0
@@ -95,7 +95,7 @@ void cuda_kernel_fiber(
     }
 }
 
-/*! Tiled transpose of the (d1 × d3) plane for each (i0, i2) when d4 == 1.
+/*! Tiled transpose of the (d1 x d3) plane for each (i0, i2) when d4 == 1.
  *
  * Src element ``(i1,i3)`` is contiguous in ``i3``; dst element ``(i3,i1)`` is
  * contiguous in ``i1``. Shared-memory tiling coalesces both sides (NVIDIA

@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file nntile/CMakeLists.txt
-# libnntile: kernel → starpu → core → TileGraph → TensorGraph → Runtime.
+# libnntile: kernel -> starpu -> core -> TileGraph -> TensorGraph -> Runtime.
 #
 # @version 1.1.0
 

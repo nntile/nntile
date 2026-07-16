@@ -32,7 +32,7 @@ set(_lib_dir "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
 
 set(_tn_lib "${_lib_dir}/${TORCH_NNTILE_INSTALL_LIB_BASENAME}")
 if(NOT EXISTS "${_tn_lib}")
-    # Accept SONAME variants (libtorch_nntile.so.1, …).
+    # Accept SONAME variants (libtorch_nntile.so.1, ...).
     file(GLOB _tn_libs "${_lib_dir}/libtorch_nntile.so*")
     if(NOT _tn_libs)
         message(FATAL_ERROR "Missing installed library under ${_lib_dir}: "

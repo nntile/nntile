@@ -140,7 +140,7 @@ def sdpa_eager(
 
     Applies ``transpose(..., 1)`` to kernel layout, runs ``sdpa_kernel``, then
     ``transpose(..., 3)`` on the output. Q/K/V biases (C++ ``add_fiber`` after
-    transpose) belong in the caller — see ``GPT2Attention``.
+    transpose) belong in the caller - see ``GPT2Attention``.
     Optional BOOL mask ``[q_seq, k_seq]`` (dim0 = query, dim1 = key). Scale is
     ``1/sqrt(head_size)``.
     """

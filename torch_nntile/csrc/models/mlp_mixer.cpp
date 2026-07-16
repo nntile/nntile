@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/mlp_mixer.cpp
- * MLP-Mixer — port of main ``nntile.torch_models.mlp_mixer``.
+ * MLP-Mixer - port of main ``nntile.torch_models.mlp_mixer``.
  *
  * Side L: ``gemm(x, W, ndim=1, trans_b)``. Side R: ``gemm(W, x, ndim=1)``.
  * GAP: ``sum_slice`` (old ``nntile.layer.gap.GAP`` without side-R transpose).
@@ -39,7 +39,7 @@ torch::Tensor linear_leading_dim(
     torch::Tensor const &weight,
     torch::Tensor const &x)
 {
-    // ``W [out, in] @ x [in, ...]`` → ``[out, ...]``.
+    // ``W [out, in] @ x [in, ...]`` -> ``[out, ...]``.
     return gemm(
         weight,
         x,
@@ -144,7 +144,7 @@ torch::Tensor MlpMixerImpl::forward(torch::Tensor x)
     {
         h = module->as<MixerBlockImpl>()->forward(h);
     }
-    // Old wrappers: sum_slice(1/P, h, axis=0) → [B, D]; then transpose for
+    // Old wrappers: sum_slice(1/P, h, axis=0) -> [B, D]; then transpose for
     // side-R Linear. Torch layout keeps [B, D] + side-L classifier gemm.
     auto pooled = torch_nntile::gap(h);
     return linear_last_dim(pooled, classifier_weight);

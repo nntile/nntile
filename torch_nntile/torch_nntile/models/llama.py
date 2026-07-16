@@ -8,7 +8,7 @@
 
 Forward / backward keep activations on ``device=nntile`` end-to-end.
 ``position_ids`` / RoPE ``sin``/``cos`` are one-shot host tables (see
-``warm_sequence_caches``), matching deleted NNGraph ``bind_data`` — prepared
+``warm_sequence_caches``), matching deleted NNGraph ``bind_data`` - prepared
 once for training, not recomputed from activations each step.
 """
 
@@ -52,7 +52,7 @@ def _repeat_kv(x: Tensor, n_rep: int) -> Tensor:
     """GQA KV expand via ``aten::repeat`` (nntile scale-slice), not host.
 
     Matches deleted NNGraph ``scale_slice(..., kv_group_size)``.
-    ``x`` is ``[H_kv, B, S, D]`` → ``[H_kv, n_rep, B, S, D]``.
+    ``x`` is ``[H_kv, B, S, D]`` -> ``[H_kv, n_rep, B, S, D]``.
     """
     if n_rep == 1:
         return x
@@ -302,7 +302,7 @@ class LlamaModel(nn.Module):
         """Return sin/cos on ``position_ids.device`` (built once, then reused).
 
         Matches deleted NNGraph: RoPE tables are prepared on the host and
-        bound once for training — never recomputed from activations.
+        bound once for training - never recomputed from activations.
         """
         batch, seq = int(position_ids.size(0)), int(position_ids.size(-1))
         key = (batch, seq)

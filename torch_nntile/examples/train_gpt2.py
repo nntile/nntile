@@ -20,16 +20,16 @@ Before training, all epoch batches (inputs + labels) and the model are moved
 onto ``nntile``; the script prints prefetch time and wall training time.
 Each iter ``compile_graph``/``run``s after ``optimizer.zero_grad``, then
 prints loss via ``.to("cpu")`` (host sync) so grad ``INVALIDATE``s share that
-step’s compile phase. A bare multi-step async ``run()`` without sync would
+step's compile phase. A bare multi-step async ``run()`` without sync would
 let ``STARPU_W``-only clears allocate one working set per in-flight step
 (see debt D7 in ``docs/dev/torch_nntile_tensor_architecture.md``).
 
-No axis tiling yet — full tensors on nntile.
+No axis tiling yet - full tensors on nntile.
 
 Modes:
 
-* ``train`` — from scratch (``--seed`` required) or resume (``--checkpoint``).
-* ``compare`` — print relative Frobenius norms of weight differences.
+* ``train`` - from scratch (``--seed`` required) or resume (``--checkpoint``).
+* ``compare`` - print relative Frobenius norms of weight differences.
 
 Dataset: a deterministic synthetic token stream generated from
 ``--data-seed`` (defaults to ``--seed``). No external corpus is downloaded
@@ -507,12 +507,12 @@ def train_nntile(args: argparse.Namespace) -> int:
             model = cpu_model.to("nntile")
         prefetch_s = time.perf_counter() - t_pre0
         print(
-            f"timing host→nntile prefetch: {prefetch_s:.3f}s "
+            f"timing host->nntile prefetch: {prefetch_s:.3f}s "
             f"(input elems {n_input_elems}, label elems {n_label_elems}, "
             f"+ model)"
         )
         # Seal ingress scatters now so the first train compile is O(step),
-        # not O(model+batches). Do not wait — overlap with setup.
+        # not O(model+batches). Do not wait - overlap with setup.
         torch_nntile.compile_graph()
         torch_nntile.run()
         del cpu_model
@@ -561,7 +561,7 @@ def train_nntile(args: argparse.Namespace) -> int:
         )
         t_train0 = time.perf_counter()
         # Clear grads before the loop; clear again each iter before compile so
-        # grad INVALIDATEs share that step’s sealed phase with the train ops.
+        # grad INVALIDATEs share that step's sealed phase with the train ops.
         optimizer.zero_grad(set_to_none=True)
         for epoch_idx, epoch_data in enumerate(epoch_batches):
             epoch = start_epoch + epoch_idx

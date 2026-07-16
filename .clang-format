@@ -1,5 +1,5 @@
 # Canonical profile for this repository. Matches
-# .cursor/skills/cpp-coding-style/ — adjust here if team rules change.
+# .cursor/skills/cpp-coding-style/ - adjust here if team rules change.
 #
 # Optional east const (clang-format 14+; remove if unsupported):
 # QualifierAlignment: Custom

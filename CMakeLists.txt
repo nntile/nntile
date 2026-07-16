@@ -56,7 +56,7 @@ if(BUILD_TORCH_NNTILE_WHEEL AND NOT BUILD_TORCH_NNTILE)
             "Build libtorch_nntile (requires LibTorch; off = libnntile-only)"
             FORCE)
         message(STATUS
-            "BUILD_TORCH_NNTILE_WHEEL=ON → enabling BUILD_TORCH_NNTILE")
+            "BUILD_TORCH_NNTILE_WHEEL=ON -> enabling BUILD_TORCH_NNTILE")
     else()
         message(STATUS
             "BUILD_TORCH_NNTILE_WHEEL=ON with install prefix "

@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_storage_offset_copy.py
-# CPU→nntile copy must honor storage_offset (B=1 causal label views).
+# CPU->nntile copy must honor storage_offset (B=1 causal label views).
 
 from __future__ import annotations
 

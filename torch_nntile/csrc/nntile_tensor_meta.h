@@ -54,7 +54,7 @@ void set_logical_tensor_nodes_alive(bool alive);
 void note_logical_released(nntile::TensorGraph::TensorNode *logical);
 
 //! Drain ``note_logical_released`` / ``note_tensor_ref_released`` queue
-//! (call under recorder lock). Does not ``invalidate_logical_tiles`` —
+//! (call under recorder lock). Does not ``invalidate_logical_tiles`` -
 //! reclaim is ordinary graph ``INVALIDATE`` only.
 std::vector<nntile::TensorGraph::TensorNode *> take_released_logicals();
 

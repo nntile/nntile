@@ -2,14 +2,14 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/torch_nntile/models/hf_rope_layout.py
-# Convert HF rotate_half RoPE channel order ↔ NNTile interleaved pairs.
+# Convert HF rotate_half RoPE channel order <-> NNTile interleaved pairs.
 
-"""RoPE weight-channel layout helpers for HF ↔ NNTile conversion.
+"""RoPE weight-channel layout helpers for HF <-> NNTile conversion.
 
 HuggingFace Llama / GPT-NeoX apply ``rotate_half`` (first/second half of the
 rotary dims). NNTile ``rope`` uses interleaved even/odd pairs. Matching
 forward values requires rearranging Q/K (and fused QKV) output channels when
-loading or exporting weights — the same transform used by the deleted
+loading or exporting weights - the same transform used by the deleted
 ``nntile/tests/model/*/generate_test_data.py`` fixtures.
 """
 
@@ -20,7 +20,7 @@ from torch import Tensor
 
 
 def _interleave_along_head_dim(w: Tensor, rotary_elems: int) -> Tensor:
-    """``(n_heads, head_dim, ...)`` → interleaved pairs on first rotary elems."""
+    """``(n_heads, head_dim, ...)`` -> interleaved pairs on first rotary elems."""
     if rotary_elems <= 0:
         return w
     if rotary_elems % 2 != 0:
@@ -58,7 +58,7 @@ def hf_to_nntile_qkv_weight(
     head_dim: int,
     rotary_pct: float = 1.0,
 ) -> Tensor:
-    """HF ``Linear`` ``(n_heads*head_dim, in)`` → NNTile interleaved out rows."""
+    """HF ``Linear`` ``(n_heads*head_dim, in)`` -> NNTile interleaved out rows."""
     out_f, in_f = weight.shape
     if out_f != n_heads * head_dim:
         raise ValueError(
@@ -77,7 +77,7 @@ def nntile_to_hf_qkv_weight(
     head_dim: int,
     rotary_pct: float = 1.0,
 ) -> Tensor:
-    """NNTile interleaved ``(n_heads*head_dim, in)`` → HF ``rotate_half`` rows."""
+    """NNTile interleaved ``(n_heads*head_dim, in)`` -> HF ``rotate_half`` rows."""
     out_f, in_f = weight.shape
     if out_f != n_heads * head_dim:
         raise ValueError(
@@ -132,7 +132,7 @@ def hf_to_nntile_fused_qkv_weight(
     head_dim: int,
     rotary_pct: float = 1.0,
 ) -> Tensor:
-    """HF GPT-NeoX ``query_key_value`` weight → interleaved Q/K channels.
+    """HF GPT-NeoX ``query_key_value`` weight -> interleaved Q/K channels.
 
     Weight layout is ``(n_heads, 3*head_dim, in)`` with per-head ``[q|k|v]``.
     """
@@ -183,7 +183,7 @@ def hf_to_nntile_fused_qkv_bias(
     head_dim: int,
     rotary_pct: float = 1.0,
 ) -> Tensor:
-    """HF GPT-NeoX fused QKV bias → interleaved Q/K channels."""
+    """HF GPT-NeoX fused QKV bias -> interleaved Q/K channels."""
     hidden = n_heads * head_dim
     if bias.numel() != 3 * hidden:
         raise ValueError(

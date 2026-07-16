@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/gpt_neox.cpp
- * GPT-NeoX causal LM — port of deleted ``nntile::model::gptneox``.
+ * GPT-NeoX causal LM - port of deleted ``nntile::model::gptneox``.
  */
 
 #include <torch_nntile/models/gpt_neox.hh>
@@ -133,7 +133,7 @@ torch::Tensor apply_partial_rope(
 
 } // namespace
 
-// ── GptNeoXAttentionImpl ──────────────────────────────────────────────────
+// -- GptNeoXAttentionImpl --------------------------------------------------
 
 GptNeoXAttentionImpl::GptNeoXAttentionImpl(GptNeoXConfig const &cfg) :
     n_heads(cfg.num_attention_heads),
@@ -194,7 +194,7 @@ torch::Tensor GptNeoXAttentionImpl::forward(
     return gemm(attn, o_weight, /*ndim=*/2, /*batch_ndim=*/0);
 }
 
-// ── GptNeoXMLPImpl ────────────────────────────────────────────────────────
+// -- GptNeoXMLPImpl --------------------------------------------------------
 
 GptNeoXMLPImpl::GptNeoXMLPImpl(GptNeoXConfig const &cfg)
 {
@@ -242,7 +242,7 @@ torch::Tensor GptNeoXMLPImpl::forward(torch::Tensor x)
         /*batch_ndim=*/0);
 }
 
-// ── GptNeoXDecoderImpl ────────────────────────────────────────────────────
+// -- GptNeoXDecoderImpl ----------------------------------------------------
 
 GptNeoXDecoderImpl::GptNeoXDecoderImpl(GptNeoXConfig const &cfg) :
     parallel_residual(cfg.use_parallel_residual)
@@ -281,7 +281,7 @@ torch::Tensor GptNeoXDecoderImpl::forward(
     return post + mlp->forward(post_attn_norm->forward(post));
 }
 
-// ── GptNeoXCausalImpl ─────────────────────────────────────────────────────
+// -- GptNeoXCausalImpl -----------------------------------------------------
 
 GptNeoXCausalImpl::GptNeoXCausalImpl(GptNeoXConfig cfg) :
     config(std::move(cfg))

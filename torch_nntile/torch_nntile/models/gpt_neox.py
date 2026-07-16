@@ -267,7 +267,7 @@ class GPTNeoXModel(nn.Module):
         """Return sin/cos on ``position_ids.device`` (built once, then reused).
 
         Matches deleted NNGraph: RoPE tables are prepared on the host and
-        bound once for training — never recomputed from activations.
+        bound once for training - never recomputed from activations.
         """
         batch, seq = int(position_ids.size(0)), int(position_ids.size(-1))
         key = (batch, seq)

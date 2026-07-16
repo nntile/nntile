@@ -66,7 +66,7 @@ def fix_text(text: str) -> str:
         text,
     )
 
-    # NN add — auto* and simple assignments only (not Catch macros)
+    # NN add - auto* and simple assignments only (not Catch macros)
     text = re.sub(
         r"(\bauto\*\s+\w+\s*=\s*)add\(\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*"
         r"([^,]+),\s*"
@@ -132,7 +132,7 @@ def fix_text(text: str) -> str:
             text,
         )
 
-    # NN gelu(x, "z") — gelu returns NN TensorNode*
+    # NN gelu(x, "z") - gelu returns NN TensorNode*
     text = re.sub(
         r"\bgelu\(\s*([^,]+)\s*,\s*\"([^\"]*)\"\s*\)",
         r'gelu(\1)->set_name("\2")',

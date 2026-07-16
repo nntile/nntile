@@ -497,7 +497,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("keepdim") = false,
         py::arg("out") = py::none());
 
-    // C++ libtorch_nntile models (NNGraph ports) — tested from Python.
+    // C++ libtorch_nntile models (NNGraph ports) - tested from Python.
     m.def(
         "cpp_models_listed",
         []() {
