@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/t5.hh
- * Tiny T5 encoder-decoder for device=nntile.
+ * T5 encoder-decoder for device=nntile (LibTorch / NNGraph t5).
  */
 
 #pragma once
@@ -18,24 +18,24 @@ struct T5Config
 {
     int64_t vocab_size = 32128;
     int64_t d_model = 64;
+    int64_t d_kv = 32;
     int64_t d_ff = 128;
     int64_t num_layers = 1;
+    int64_t num_decoder_layers = 1;
     int64_t num_heads = 2;
     double layer_norm_epsilon = 1e-6;
+    bool tie_word_embeddings = true;
 };
 
 struct T5ForConditionalGenerationImpl : torch::nn::Module
 {
     T5Config config;
     torch::nn::Embedding shared{nullptr};
+    torch::nn::ModuleList encoder_blocks{nullptr};
+    torch::nn::ModuleList decoder_blocks{nullptr};
+    torch::Tensor enc_final_w;
+    torch::Tensor dec_final_w;
     torch::nn::Linear lm_head{nullptr};
-    torch::nn::Linear enc_attn{nullptr};
-    torch::nn::Linear enc_ff{nullptr};
-    torch::nn::Linear dec_attn{nullptr};
-    torch::nn::Linear dec_cross{nullptr};
-    torch::nn::Linear dec_ff{nullptr};
-    torch::Tensor enc_norm_w;
-    torch::Tensor dec_norm_w;
 
     explicit T5ForConditionalGenerationImpl(T5Config cfg);
     torch::Tensor forward(

@@ -259,8 +259,8 @@ def test_llama_attention_forward_matches_cpu(n_heads, n_kv, head_dim):
     with torch.no_grad():
         y_nnt = attn_nnt(
             contiguous_to_nntile(x),
-            sin=sin,  # kept on CPU; LlamaAttention expands/moves
-            cos=cos,
+            sin=contiguous_to_nntile(sin),
+            cos=contiguous_to_nntile(cos),
             is_causal=True,
         )
     assert_close(y_nnt, y_ref, rtol=RTOL, atol=ATOL)

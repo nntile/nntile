@@ -107,15 +107,9 @@ class GPTNeoAttention(nn.Module):
         q = self._shape(self.q_proj(x))
         k = self._shape(self.k_proj(x))
         v = self._shape(self.v_proj(x))
-        # HF GPT-Neo ``_attn`` does not divide by ``sqrt(head_dim)``. NNTile
-        # SDPA always scales; cancel it by pre-scaling Q.
-        scale = float(self.head_dim) ** 0.5
-        if q.device.type == "nntile":
-            q = q * torch.full(
-                q.shape, scale, dtype=torch.float32, device="cpu"
-            ).to(q.device)
-        else:
-            q = q * scale
+        # HF GPT-Neo scores are unscaled; cancel SDPA ``1/sqrt(d)``.
+        # Use aten mul.Scalar — ``q * float`` may dispatch Tensor×CPU-scalar.
+        q = torch.ops.aten.mul.Scalar(q, float(self.head_dim) ** 0.5)
         # Local layers use a sliding causal window when the caller does not
         # supply an explicit mask (matches HF ``attention_layers`` / bias).
         if attn_mask is None and self.local:
@@ -187,6 +181,27 @@ class GPTNeoModel(nn.Module):
             ]
         )
         self.ln_f = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
+
+    def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
+        batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
+        key = (batch, seq)
+        cached = self._position_ids_cache.get(key)
+        if cached is not None and cached.device == input_ids.device:
+            return cached
+        position_ids = (
+            torch.arange(seq, dtype=torch.long, device="cpu")
+            .unsqueeze(0)
+            .expand(batch, seq)
+            .contiguous()
+        )
+        if input_ids.device.type != "cpu":
+            position_ids = position_ids.to(input_ids.device)
+        self._position_ids_cache[key] = position_ids
+        return position_ids
+
+    def clear_sequence_caches(self) -> None:
+        self._position_ids_cache.clear()
 
     def forward(
         self,
@@ -194,16 +209,8 @@ class GPTNeoModel(nn.Module):
         position_ids: Tensor | None = None,
         attn_mask: Tensor | None = None,
     ) -> Tensor:
-        b, s = input_ids.shape
         if position_ids is None:
-            position_ids = (
-                torch.arange(s, dtype=torch.long, device="cpu")
-                .unsqueeze(0)
-                .expand(b, s)
-                .contiguous()
-            )
-            if input_ids.device.type != "cpu":
-                position_ids = position_ids.to(input_ids.device)
+            position_ids = self._cached_position_ids(input_ids)
         x = self.wte(input_ids) + self.wpe(position_ids)
         for block in self.h:
             x = block(x, attn_mask)

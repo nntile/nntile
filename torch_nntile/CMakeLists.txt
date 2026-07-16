@@ -67,6 +67,8 @@ set(TORCH_NNTILE_CSRC
     csrc/nntile_mse_loss.cpp
     csrc/models/deep_relu.cpp
     csrc/models/gpt2.cpp
+    csrc/models/gpt_neo.cpp
+    csrc/models/gpt_neox.cpp
     csrc/models/llama.cpp
     csrc/models/bert.cpp
     csrc/models/roberta.cpp

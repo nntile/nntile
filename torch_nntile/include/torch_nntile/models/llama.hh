@@ -34,8 +34,17 @@ struct LlamaCausalImpl : torch::nn::Module
     torch::nn::ModuleList layers{nullptr};
     torch::nn::Linear lm_head{nullptr};
     torch::Tensor weight_rms;
+    //! One-shot RoPE tables (NNGraph bind_data); not recomputed per step.
+    torch::Tensor rope_sin_;
+    torch::Tensor rope_cos_;
+    int64_t rope_cache_batch_ = -1;
+    int64_t rope_cache_seq_ = -1;
 
     explicit LlamaCausalImpl(LlamaConfig cfg);
+    void warm_rope_cache(
+        int64_t batch,
+        int64_t seq,
+        torch::Device device);
     torch::Tensor forward(torch::Tensor input_ids);
 };
 

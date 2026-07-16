@@ -79,13 +79,8 @@ torch::Tensor Gpt2BlockImpl::forward(
     q = reshape_heads(q);
     k = reshape_heads(k);
     v = reshape_heads(v);
-    auto attn = torch::nn::functional::scaled_dot_product_attention(
-        q,
-        k,
-        v,
-        torch::nn::functional::ScaledDotProductAttentionFuncOptions()
-            .attn_mask(mask)
-            .is_causal(false));
+    auto attn = at::scaled_dot_product_attention(
+        q, k, v, mask, /*dropout_p=*/0.0, /*is_causal=*/false);
     attn = attn.transpose(1, 2).contiguous().view({b, s, n_embd});
     x = x + c_proj->forward(attn);
     auto m = ln_2->forward(x);

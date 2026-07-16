@@ -264,8 +264,8 @@ def test_gpt_neox_attention_forward_backward_matrix(
     x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
     y = local_n(
         x_n,
-        sin=sin,
-        cos=cos,
+        sin=None if sin is None else contiguous_to_nntile(sin),
+        cos=None if cos is None else contiguous_to_nntile(cos),
         attn_mask=None,
         is_causal=causal,
     )
@@ -309,8 +309,8 @@ def test_gpt_neox_layer_forward_matches_hf():
         )[0]
         out = local_n(
             contiguous_to_nntile(x),
-            sin=sin,
-            cos=cos,
+            sin=contiguous_to_nntile(sin),
+            cos=contiguous_to_nntile(cos),
             attn_mask=None,
             is_causal=True,
         )

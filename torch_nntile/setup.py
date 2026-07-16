@@ -68,6 +68,14 @@ CSRC = [
     "csrc/nntile_sdpa.cpp",
     "csrc/nntile_sdpa_aten.cpp",
     "csrc/nntile_transpose.cpp",
+    "csrc/models/deep_relu.cpp",
+    "csrc/models/gpt2.cpp",
+    "csrc/models/gpt_neo.cpp",
+    "csrc/models/gpt_neox.cpp",
+    "csrc/models/llama.cpp",
+    "csrc/models/bert.cpp",
+    "csrc/models/roberta.cpp",
+    "csrc/models/t5.cpp",
 ]
 
 
@@ -173,7 +181,10 @@ def _nntile_extension_kwargs() -> dict:
     cxx_standard = os.environ.get("TORCH_NNTILE_CXX_STANDARD", "c++17")
     extra_compile_args = [f"-std={cxx_standard}"]
     define_macros: list[tuple[str, str | None]] = []
-    include_dirs: list[str] = []
+    include_dirs: list[str] = [
+        str(ROOT / "include"),
+        str(ROOT / "csrc"),
+    ]
     library_dirs: list[str] = []
     libraries: list[str] = []
     extra_link_args: list[str] = []

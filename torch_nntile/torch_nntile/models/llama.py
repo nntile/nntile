@@ -4,7 +4,13 @@
 # @file torch_nntile/torch_nntile/models/llama.py
 # Llama causal LM for device="nntile".
 
-"""Llama stack mirroring ``nntile::model::llama`` (RMSNorm, RoPE, SiLU MLP)."""
+"""Llama stack mirroring ``nntile::model::llama`` (RMSNorm, RoPE, SiLU MLP).
+
+Forward / backward keep activations on ``device=nntile`` end-to-end.
+``position_ids`` / RoPE ``sin``/``cos`` are one-shot host tables (see
+``warm_sequence_caches``), matching deleted NNGraph ``bind_data`` — prepared
+once for training, not recomputed from activations each step.
+"""
 
 from __future__ import annotations
 
@@ -33,43 +39,26 @@ except ImportError:  # pragma: no cover - stub if rope.py missing
         del rope_theta
         b, s = position_ids.shape
         half = head_dim // 2
-        z = torch.zeros(b, s, half, dtype=torch.float32, device=position_ids.device)
+        z = torch.zeros(
+            b, s, half, dtype=torch.float32, device=position_ids.device
+        )
         return z, torch.ones_like(z)
 
 
-class _RepeatKV(torch.autograd.Function):
-    """``repeat_interleave`` for GQA; CPU round-trip on ``device=nntile``."""
-
-    @staticmethod
-    def forward(ctx, x: Tensor, n_rep: int) -> Tensor:  # type: ignore[override]
-        ctx.n_rep = int(n_rep)
-        if n_rep == 1:
-            return x
-        if x.device.type != "nntile":
-            return x.repeat_interleave(n_rep, dim=1)
-        y = (
-            x.detach()
-            .to("cpu")
-            .repeat_interleave(n_rep, dim=1)
-            .contiguous()
-        )
-        return y.to(x.device)
-
-    @staticmethod
-    def backward(ctx, grad_y: Tensor):  # type: ignore[override]
-        n_rep = ctx.n_rep
-        if n_rep == 1:
-            return grad_y, None
-        g = grad_y.detach().to("cpu")
-        b, h, s, d = g.shape
-        g = g.view(b, h // n_rep, n_rep, s, d).sum(dim=2).contiguous()
-        if grad_y.device.type != "cpu":
-            g = g.to(grad_y.device)
-        return g, None
-
-
 def _repeat_kv(x: Tensor, n_rep: int) -> Tensor:
-    return _RepeatKV.apply(x, n_rep)
+    """GQA KV expand via ``aten::repeat`` (nntile scale-slice), not host.
+
+    Matches deleted NNGraph ``scale_slice(..., kv_group_size)``.
+    ``x`` is ``[B, H_kv, S, D]`` → ``[B, H_kv * n_rep, S, D]``.
+    """
+    if n_rep == 1:
+        return x
+    b, h_kv, s, d = x.shape
+    return (
+        x.view(b, h_kv, 1, s, d)
+        .repeat(1, 1, n_rep, 1, 1)
+        .view(b, h_kv * n_rep, s, d)
+    )
 
 
 @dataclass
@@ -167,25 +156,16 @@ class LlamaAttention(nn.Module):
         return x.view(b, s, n_heads, self.head_dim).transpose(1, 2)
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # x: [B, H, S, D]; sin/cos: [B, S, D/2] or already [B, H, S, D/2].
-        # Expand on CPU — nntile rejects non-contiguous expand views.
+        # x: [B, H, S, D]; sin/cos: [B, S, D/2] or [B, H, S, D/2].
+        # RoPE tables must share x's device (upload once if needed).
+        if sin.device != x.device:
+            sin = sin.to(x.device)
+            cos = cos.to(x.device)
         n_heads = x.size(1)
         if sin.dim() == 3:
-            sin_c = sin.detach().to("cpu")
-            cos_c = cos.detach().to("cpu")
-            sin_h = (
-                sin_c.unsqueeze(1)
-                .expand(-1, n_heads, -1, -1)
-                .contiguous()
-            )
-            cos_h = (
-                cos_c.unsqueeze(1)
-                .expand(-1, n_heads, -1, -1)
-                .contiguous()
-            )
-            if x.device.type != "cpu":
-                sin_h = sin_h.to(x.device)
-                cos_h = cos_h.to(x.device)
+            b, s, half = sin.shape
+            sin_h = sin.view(b, 1, s, half).repeat(1, n_heads, 1, 1)
+            cos_h = cos.view(b, 1, s, half).repeat(1, n_heads, 1, 1)
         else:
             sin_h = sin
             cos_h = cos
@@ -262,6 +242,80 @@ class LlamaModel(nn.Module):
             [LlamaDecoder(config) for _ in range(config.num_hidden_layers)]
         )
         self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        # Host-built index / RoPE tables uploaded once (NNGraph bind_data).
+        self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
+        self._rope_cache: dict[tuple[int, int], tuple[Tensor, Tensor]] = {}
+
+    def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
+        batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
+        key = (batch, seq)
+        cached = self._position_ids_cache.get(key)
+        if cached is not None and cached.device == input_ids.device:
+            return cached
+        # nntile lacks aten::arange; build on host, upload once.
+        position_ids = (
+            torch.arange(seq, dtype=torch.long, device="cpu")
+            .unsqueeze(0)
+            .expand(batch, seq)
+            .contiguous()
+        )
+        if input_ids.device.type != "cpu":
+            position_ids = position_ids.to(input_ids.device)
+        self._position_ids_cache[key] = position_ids
+        return position_ids
+
+    def _cached_rope(
+        self, position_ids: Tensor
+    ) -> tuple[Tensor, Tensor]:
+        """Return sin/cos on ``position_ids.device`` (built once, then reused).
+
+        Matches deleted NNGraph: RoPE tables are prepared on the host and
+        bound once for training — never recomputed from activations.
+        """
+        batch, seq = int(position_ids.size(0)), int(position_ids.size(-1))
+        key = (batch, seq)
+        cached = self._rope_cache.get(key)
+        if cached is not None and cached[0].device == position_ids.device:
+            return cached
+        # One-shot host table from arange (do not gather nntile position_ids).
+        pos_host = (
+            torch.arange(seq, dtype=torch.long, device="cpu")
+            .unsqueeze(0)
+            .expand(batch, seq)
+            .contiguous()
+        )
+        sin, cos = rope_sin_cos_from_position_ids(
+            pos_host,
+            self.config.head_dim,
+            rope_theta=self.config.rope_theta,
+        )
+        if position_ids.device.type != "cpu":
+            sin = sin.to(position_ids.device)
+            cos = cos.to(position_ids.device)
+        self._rope_cache[key] = (sin, cos)
+        return sin, cos
+
+    def clear_sequence_caches(self) -> None:
+        self._position_ids_cache.clear()
+        self._rope_cache.clear()
+
+    def warm_sequence_caches(
+        self,
+        *,
+        batch_sizes: list[int] | tuple[int, ...],
+        seq_len: int,
+        device: torch.device | str,
+    ) -> None:
+        """Prepare position_ids / RoPE tables once for training reuse."""
+        device = torch.device(device)
+        for batch in sorted({int(b) for b in batch_sizes}):
+            if batch < 1:
+                raise ValueError(f"batch size must be >= 1, got {batch}")
+            probe = torch.empty(
+                (batch, seq_len), dtype=torch.long, device=device
+            )
+            pos = self._cached_position_ids(probe)
+            self._cached_rope(pos)
 
     def forward(
         self,
@@ -273,24 +327,10 @@ class LlamaModel(nn.Module):
         *,
         is_causal: bool = True,
     ) -> Tensor:
-        b, s = input_ids.shape
         if position_ids is None:
-            position_ids = (
-                torch.arange(s, dtype=torch.long, device="cpu")
-                .unsqueeze(0)
-                .expand(b, s)
-                .contiguous()
-            )
-            if input_ids.device.type != "cpu":
-                position_ids = position_ids.to(input_ids.device)
+            position_ids = self._cached_position_ids(input_ids)
         if sin is None or cos is None:
-            # Keep RoPE tables on CPU; attention expands/moves per head count.
-            pos_cpu = position_ids.detach().to("cpu").contiguous()
-            sin, cos = rope_sin_cos_from_position_ids(
-                pos_cpu,
-                self.config.head_dim,
-                rope_theta=self.config.rope_theta,
-            )
+            sin, cos = self._cached_rope(position_ids)
         x = self.embed_tokens(input_ids)
         for layer in self.layers:
             x = layer(x, sin, cos, attn_mask, is_causal=is_causal)

@@ -68,6 +68,41 @@ class BertEmbeddings(nn.Module):
         self.LayerNorm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
+        self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
+        self._token_type_ids_cache: dict[tuple[int, int], Tensor] = {}
+
+    def _cached_arange_ids(self, input_ids: Tensor) -> Tensor:
+        batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
+        key = (batch, seq)
+        cached = self._position_ids_cache.get(key)
+        if cached is not None and cached.device == input_ids.device:
+            return cached
+        ids = (
+            torch.arange(seq, dtype=torch.long, device="cpu")
+            .unsqueeze(0)
+            .expand(batch, seq)
+            .contiguous()
+        )
+        if input_ids.device.type != "cpu":
+            ids = ids.to(input_ids.device)
+        self._position_ids_cache[key] = ids
+        return ids
+
+    def _cached_zero_token_types(self, input_ids: Tensor) -> Tensor:
+        batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
+        key = (batch, seq)
+        cached = self._token_type_ids_cache.get(key)
+        if cached is not None and cached.device == input_ids.device:
+            return cached
+        ids = torch.zeros(batch, seq, dtype=torch.long, device="cpu")
+        if input_ids.device.type != "cpu":
+            ids = ids.to(input_ids.device)
+        self._token_type_ids_cache[key] = ids
+        return ids
+
+    def clear_sequence_caches(self) -> None:
+        self._position_ids_cache.clear()
+        self._token_type_ids_cache.clear()
 
     def forward(
         self,
@@ -75,20 +110,10 @@ class BertEmbeddings(nn.Module):
         token_type_ids: Tensor | None = None,
         position_ids: Tensor | None = None,
     ) -> Tensor:
-        b, s = input_ids.shape
         if position_ids is None:
-            position_ids = (
-                torch.arange(s, dtype=torch.long, device="cpu")
-                .unsqueeze(0)
-                .expand(b, s)
-                .contiguous()
-            )
-            if input_ids.device.type != "cpu":
-                position_ids = position_ids.to(input_ids.device)
+            position_ids = self._cached_arange_ids(input_ids)
         if token_type_ids is None:
-            token_type_ids = torch.zeros(b, s, dtype=torch.long, device="cpu")
-            if input_ids.device.type != "cpu":
-                token_type_ids = token_type_ids.to(input_ids.device)
+            token_type_ids = self._cached_zero_token_types(input_ids)
         x = (
             self.word_embeddings(input_ids)
             + self.position_embeddings(position_ids)

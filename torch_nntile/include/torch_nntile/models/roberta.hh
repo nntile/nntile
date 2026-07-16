@@ -2,12 +2,14 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/roberta.hh
- * RoBERTa MLM for device=nntile (pad-aware position embeddings).
+ * RoBERTa MLM for device=nntile (pad-aware positions; NNGraph roberta).
  */
 
 #pragma once
 
 #include <torch_nntile/models/bert.hh>
+
+#include <string>
 
 namespace torch_nntile::models
 {
@@ -23,6 +25,7 @@ struct RobertaConfig
     int64_t type_vocab_size = 1;
     int64_t pad_token_id = 1;
     double layer_norm_eps = 1e-5;
+    std::string hidden_act = "gelu";
 
     BertConfig to_bert_config() const
     {
@@ -35,12 +38,13 @@ struct RobertaConfig
         cfg.max_position_embeddings = max_position_embeddings;
         cfg.type_vocab_size = type_vocab_size;
         cfg.layer_norm_eps = layer_norm_eps;
+        cfg.hidden_act = hidden_act;
         cfg.pad_token_id = pad_token_id;
         return cfg;
     }
 };
 
-//! RoBERTa MLM - same encoder blocks as BERT, pad-skipping position ids.
+//! RoBERTa MLM: pad-aware positions + BertLayer encoder + LM head.
 struct RobertaMlmImpl : torch::nn::Module
 {
     RobertaConfig config;
@@ -49,7 +53,10 @@ struct RobertaMlmImpl : torch::nn::Module
     torch::nn::Embedding token_type_embeddings{nullptr};
     torch::nn::LayerNorm emb_ln{nullptr};
     torch::nn::ModuleList layers{nullptr};
-    torch::nn::Linear cls{nullptr};
+    torch::nn::Linear lm_dense{nullptr};
+    torch::nn::LayerNorm lm_ln{nullptr};
+    torch::nn::Linear lm_decoder{nullptr};
+    bool gelu_tanh = false;
 
     explicit RobertaMlmImpl(RobertaConfig cfg);
     torch::Tensor forward(

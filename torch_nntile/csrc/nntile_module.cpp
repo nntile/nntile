@@ -32,6 +32,15 @@
 #include "nntile_sgd_step.h"
 #include "nntile_adam_step.h"
 
+#include <torch_nntile/models/bert.hh>
+#include <torch_nntile/models/deep_relu.hh>
+#include <torch_nntile/models/gpt2.hh>
+#include <torch_nntile/models/gpt_neo.hh>
+#include <torch_nntile/models/gpt_neox.hh>
+#include <torch_nntile/models/llama.hh>
+#include <torch_nntile/models/roberta.hh>
+#include <torch_nntile/models/t5.hh>
+
 #ifdef TORCH_NNTILE_USE_LIBNNTILE
 #include <nntile/base_types.hh>
 #endif
@@ -463,4 +472,196 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("dim") = py::none(),
         py::arg("keepdim") = false,
         py::arg("out") = py::none());
+
+    // C++ libtorch_nntile models (NNGraph ports) — tested from Python.
+    m.def(
+        "cpp_models_listed",
+        []() {
+            return std::vector<std::string>{
+                "DeepReLU",
+                "Gpt2Causal",
+                "GptNeoCausal",
+                "GptNeoXCausal",
+                "LlamaCausal",
+                "BertMlm",
+                "RobertaMlm",
+                "T5",
+            };
+        },
+        "Names of C++ torch::nn models in libtorch_nntile");
+    m.def(
+        "cpp_llama_causal_forward",
+        [](const at::Tensor &input_ids,
+           int64_t vocab_size,
+           int64_t hidden_size,
+           int64_t intermediate_size,
+           int64_t num_hidden_layers,
+           int64_t num_attention_heads,
+           int64_t num_key_value_heads) {
+            using torch_nntile::models::LlamaCausal;
+            using torch_nntile::models::LlamaConfig;
+            LlamaConfig cfg;
+            cfg.vocab_size = vocab_size;
+            cfg.hidden_size = hidden_size;
+            cfg.intermediate_size = intermediate_size;
+            cfg.num_hidden_layers = num_hidden_layers;
+            cfg.num_attention_heads = num_attention_heads;
+            cfg.num_key_value_heads = num_key_value_heads;
+            cfg.max_position_embeddings =
+                std::max<int64_t>(input_ids.size(1), 8);
+            auto model = LlamaCausal(cfg);
+            model->to(input_ids.device());
+            model->warm_rope_cache(
+                input_ids.size(0),
+                input_ids.size(1),
+                input_ids.device());
+            return model->forward(input_ids);
+        },
+        "Run C++ LlamaCausal forward (device follows input_ids)",
+        py::arg("input_ids"),
+        py::arg("vocab_size") = 128,
+        py::arg("hidden_size") = 64,
+        py::arg("intermediate_size") = 128,
+        py::arg("num_hidden_layers") = 1,
+        py::arg("num_attention_heads") = 4,
+        py::arg("num_key_value_heads") = 4);
+    m.def(
+        "cpp_bert_mlm_forward",
+        [](const at::Tensor &input_ids,
+           const at::Tensor &token_type_ids,
+           int64_t vocab_size,
+           int64_t hidden_size,
+           int64_t intermediate_size,
+           int64_t num_hidden_layers,
+           int64_t num_attention_heads) {
+            using torch_nntile::models::BertConfig;
+            using torch_nntile::models::BertMlm;
+            BertConfig cfg;
+            cfg.vocab_size = vocab_size;
+            cfg.hidden_size = hidden_size;
+            cfg.intermediate_size = intermediate_size;
+            cfg.num_hidden_layers = num_hidden_layers;
+            cfg.num_attention_heads = num_attention_heads;
+            cfg.max_position_embeddings =
+                std::max<int64_t>(input_ids.size(1), 8);
+            auto model = BertMlm(cfg);
+            model->to(input_ids.device());
+            return model->forward(input_ids, token_type_ids);
+        },
+        "Run C++ BertMlm forward",
+        py::arg("input_ids"),
+        py::arg("token_type_ids"),
+        py::arg("vocab_size") = 128,
+        py::arg("hidden_size") = 64,
+        py::arg("intermediate_size") = 128,
+        py::arg("num_hidden_layers") = 1,
+        py::arg("num_attention_heads") = 4);
+    m.def(
+        "cpp_roberta_mlm_forward",
+        [](const at::Tensor &input_ids,
+           const at::Tensor &token_type_ids,
+           int64_t vocab_size,
+           int64_t hidden_size,
+           int64_t intermediate_size,
+           int64_t num_hidden_layers,
+           int64_t num_attention_heads,
+           int64_t pad_token_id) {
+            using torch_nntile::models::RobertaConfig;
+            using torch_nntile::models::RobertaMlm;
+            RobertaConfig cfg;
+            cfg.vocab_size = vocab_size;
+            cfg.hidden_size = hidden_size;
+            cfg.intermediate_size = intermediate_size;
+            cfg.num_hidden_layers = num_hidden_layers;
+            cfg.num_attention_heads = num_attention_heads;
+            cfg.pad_token_id = pad_token_id;
+            cfg.max_position_embeddings =
+                std::max<int64_t>(input_ids.size(1) + 2, 16);
+            auto model = RobertaMlm(cfg);
+            model->to(input_ids.device());
+            return model->forward(input_ids, token_type_ids);
+        },
+        "Run C++ RobertaMlm forward (pad-aware positions)",
+        py::arg("input_ids"),
+        py::arg("token_type_ids"),
+        py::arg("vocab_size") = 128,
+        py::arg("hidden_size") = 64,
+        py::arg("intermediate_size") = 128,
+        py::arg("num_hidden_layers") = 1,
+        py::arg("num_attention_heads") = 4,
+        py::arg("pad_token_id") = 1);
+    m.def(
+        "cpp_gpt_neo_causal_forward",
+        [](const at::Tensor &input_ids,
+           int64_t vocab_size,
+           int64_t hidden_size,
+           int64_t intermediate_size,
+           int64_t num_hidden_layers,
+           int64_t num_attention_heads,
+           int64_t window_size) {
+            using torch_nntile::models::GptNeoCausal;
+            using torch_nntile::models::GptNeoConfig;
+            GptNeoConfig cfg;
+            cfg.vocab_size = vocab_size;
+            cfg.hidden_size = hidden_size;
+            cfg.intermediate_size = intermediate_size;
+            cfg.num_hidden_layers = num_hidden_layers;
+            cfg.num_attention_heads = num_attention_heads;
+            cfg.window_size = window_size;
+            cfg.max_position_embeddings =
+                std::max<int64_t>(input_ids.size(1), 8);
+            cfg.attention_layers.clear();
+            for (int64_t i = 0; i < num_hidden_layers; ++i)
+            {
+                cfg.attention_layers.push_back(
+                    (i % 2 == 1) ? "local" : "global");
+            }
+            auto model = GptNeoCausal(cfg);
+            model->to(input_ids.device());
+            return model->forward(input_ids);
+        },
+        "Run C++ GptNeoCausal forward",
+        py::arg("input_ids"),
+        py::arg("vocab_size") = 128,
+        py::arg("hidden_size") = 64,
+        py::arg("intermediate_size") = 128,
+        py::arg("num_hidden_layers") = 2,
+        py::arg("num_attention_heads") = 4,
+        py::arg("window_size") = 4);
+    m.def(
+        "cpp_gpt_neox_causal_forward",
+        [](const at::Tensor &input_ids,
+           int64_t vocab_size,
+           int64_t hidden_size,
+           int64_t intermediate_size,
+           int64_t num_hidden_layers,
+           int64_t num_attention_heads,
+           double rotary_pct) {
+            using torch_nntile::models::GptNeoXCausal;
+            using torch_nntile::models::GptNeoXConfig;
+            GptNeoXConfig cfg;
+            cfg.vocab_size = vocab_size;
+            cfg.hidden_size = hidden_size;
+            cfg.intermediate_size = intermediate_size;
+            cfg.num_hidden_layers = num_hidden_layers;
+            cfg.num_attention_heads = num_attention_heads;
+            cfg.rotary_pct = rotary_pct;
+            cfg.max_position_embeddings =
+                std::max<int64_t>(input_ids.size(1), 8);
+            auto model = GptNeoXCausal(cfg);
+            model->to(input_ids.device());
+            model->warm_rope_cache(
+                input_ids.size(0),
+                input_ids.size(1),
+                input_ids.device());
+            return model->forward(input_ids);
+        },
+        "Run C++ GptNeoXCausal forward",
+        py::arg("input_ids"),
+        py::arg("vocab_size") = 128,
+        py::arg("hidden_size") = 64,
+        py::arg("intermediate_size") = 128,
+        py::arg("num_hidden_layers") = 1,
+        py::arg("num_attention_heads") = 4,
+        py::arg("rotary_pct") = 0.25);
 }

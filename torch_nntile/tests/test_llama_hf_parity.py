@@ -257,8 +257,8 @@ def test_llama_attention_forward_backward_matrix(gqa, use_rope, causal):
     x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
     y = local_n(
         x_n,
-        sin=sin,
-        cos=cos,
+        sin=contiguous_to_nntile(sin),
+        cos=contiguous_to_nntile(cos),
         attn_mask=None,
         is_causal=causal,
     )
@@ -311,8 +311,8 @@ def test_llama_decoder_forward_backward_matches_hf(gqa):
     x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
     y = local_n(
         x_n,
-        sin=sin,
-        cos=cos,
+        sin=contiguous_to_nntile(sin),
+        cos=contiguous_to_nntile(cos),
         attn_mask=None,
         is_causal=True,
     )

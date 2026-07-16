@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/include/torch_nntile/models/bert.hh
- * Tiny BERT MLM for device=nntile.
+ * BERT MLM for device=nntile (LibTorch port of NNGraph bert).
  */
 
 #pragma once
@@ -10,6 +10,7 @@
 #include <torch/torch.h>
 
 #include <cstdint>
+#include <string>
 
 namespace torch_nntile::models
 {
@@ -24,32 +25,39 @@ struct BertConfig
     int64_t max_position_embeddings = 128;
     int64_t type_vocab_size = 2;
     double layer_norm_eps = 1e-12;
-    //! ``< 0``: BERT ``0..S-1`` positions; ``>= 0``: RoBERTa pad-aware ids.
+    //! ``gelu`` (exact) or ``gelu_pytorch_tanh``.
+    std::string hidden_act = "gelu";
+    //! ``< 0``: BERT ``0..S-1`` positions; ``>= 0``: pad-aware ids.
     int64_t pad_token_id = -1;
 };
 
-//! Encoder block shared by BERT and RoBERTa LibTorch stacks.
+//! Absolute position ids: BERT arange or RoBERTa pad-skipping.
+//! Built on host when needed, then uploaded (nntile lacks long arange/ne).
+torch::Tensor bert_position_ids_from_input_ids(
+    torch::Tensor const& input_ids,
+    int64_t pad_token_id);
+
+//! Encoder block: post-norm attention + FFN (NNGraph BertLayer).
 struct BertLayerImpl : torch::nn::Module
 {
-    torch::nn::LayerNorm ln1{nullptr};
-    torch::nn::Linear qkv{nullptr};
-    torch::nn::Linear out{nullptr};
-    torch::nn::LayerNorm ln2{nullptr};
-    torch::nn::Linear ff_in{nullptr};
-    torch::nn::Linear ff_out{nullptr};
+    torch::nn::Linear query{nullptr};
+    torch::nn::Linear key{nullptr};
+    torch::nn::Linear value{nullptr};
+    torch::nn::Linear attn_dense{nullptr};
+    torch::nn::LayerNorm attn_ln{nullptr};
+    torch::nn::Linear intermediate{nullptr};
+    torch::nn::Linear output_dense{nullptr};
+    torch::nn::LayerNorm output_ln{nullptr};
     int64_t n_head = 0;
     int64_t hidden = 0;
+    int64_t head_dim = 0;
+    bool gelu_tanh = false;
 
     explicit BertLayerImpl(BertConfig const& cfg);
     torch::Tensor forward(torch::Tensor x);
 };
 
 TORCH_MODULE(BertLayer);
-
-//! Absolute position ids: BERT arange or RoBERTa pad-skipping.
-torch::Tensor bert_position_ids_from_input_ids(
-    torch::Tensor const& input_ids,
-    int64_t pad_token_id);
 
 struct BertMlmImpl : torch::nn::Module
 {
@@ -59,7 +67,15 @@ struct BertMlmImpl : torch::nn::Module
     torch::nn::Embedding token_type_embeddings{nullptr};
     torch::nn::LayerNorm emb_ln{nullptr};
     torch::nn::ModuleList layers{nullptr};
-    torch::nn::Linear cls{nullptr};
+    torch::nn::Linear transform_dense{nullptr};
+    torch::nn::LayerNorm transform_ln{nullptr};
+    torch::nn::Linear decoder{nullptr};
+    bool gelu_tanh = false;
+    //! Cached host-built index tables uploaded to device.
+    torch::Tensor cached_pos_;
+    torch::Tensor cached_tt_;
+    int64_t cache_batch_ = -1;
+    int64_t cache_seq_ = -1;
 
     explicit BertMlmImpl(BertConfig cfg);
     torch::Tensor forward(

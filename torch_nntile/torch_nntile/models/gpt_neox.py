@@ -4,7 +4,11 @@
 # @file torch_nntile/torch_nntile/models/gpt_neox.py
 # GPT-NeoX causal LM for device="nntile".
 
-"""GPT-NeoX stack mirroring ``nntile::model::gptneox`` (RoPE, parallel residual)."""
+"""GPT-NeoX stack mirroring ``nntile::model::gptneox`` (RoPE, parallel residual).
+
+Activations stay on ``device=nntile``; position / RoPE tables are cached uploads
+(same pattern as deleted NNGraph bind_data).
+"""
 
 from __future__ import annotations
 
@@ -32,7 +36,9 @@ except ImportError:  # pragma: no cover
         del rope_theta
         b, s = position_ids.shape
         half = head_dim // 2
-        z = torch.zeros(b, s, half, dtype=torch.float32, device=position_ids.device)
+        z = torch.zeros(
+            b, s, half, dtype=torch.float32, device=position_ids.device
+        )
         return z, torch.ones_like(z)
 
 
@@ -89,36 +95,24 @@ class GPTNeoXAttention(nn.Module):
         self.dense = nn.Linear(self.hidden, self.hidden, bias=bias)
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # Partial RoPE: rotate first rotary_ndims dims, pass through the rest.
+        # Partial RoPE on-device via narrow + rope + cat (nntile kernels).
         rot = self.rotary_ndims
         if rot <= 0:
             return x
-        # Narrow/slice views are unsupported on nntile; apply on CPU then return.
-        device = x.device
-        x_cpu = x.detach().to("cpu") if device.type == "nntile" else x
-        sin_cpu = sin.detach().to("cpu") if sin.device.type != "cpu" else sin
-        cos_cpu = cos.detach().to("cpu") if cos.device.type != "cpu" else cos
-        x_rot, x_pass = x_cpu[..., :rot], x_cpu[..., rot:]
-        n_heads = x_cpu.size(1)
-        if sin_cpu.dim() == 3:
-            sin_h = (
-                sin_cpu.unsqueeze(1)
-                .expand(-1, n_heads, -1, -1)
-                .contiguous()
-            )
-            cos_h = (
-                cos_cpu.unsqueeze(1)
-                .expand(-1, n_heads, -1, -1)
-                .contiguous()
-            )
+        if sin.device != x.device:
+            sin = sin.to(x.device)
+            cos = cos.to(x.device)
+        x_rot = torch.narrow(x, -1, 0, rot)
+        x_pass = torch.narrow(x, -1, rot, self.head_dim - rot)
+        n_heads = x.size(1)
+        if sin.dim() == 3:
+            b, s, half = sin.shape
+            sin_h = sin.view(b, 1, s, half).repeat(1, n_heads, 1, 1)
+            cos_h = cos.view(b, 1, s, half).repeat(1, n_heads, 1, 1)
         else:
-            sin_h, cos_h = sin_cpu, cos_cpu
+            sin_h, cos_h = sin, cos
         x_rot = rope(sin_h, cos_h, x_rot)
-        out = torch.cat([x_rot, x_pass], dim=-1)
-        if device.type == "nntile":
-            # Preserve autograd via residual on device: re-ingress result.
-            return out.contiguous().to(device)
-        return out
+        return torch.cat([x_rot, x_pass], dim=-1)
 
     def forward(
         self,
@@ -189,7 +183,6 @@ class GPTNeoXLayer(nn.Module):
         is_causal: bool = True,
     ) -> Tensor:
         if self.use_parallel_residual:
-            # attn and mlp from the same normalized input, then sum.
             normed = self.input_layernorm(x)
             attn_out = self.attention(
                 normed, sin, cos, attn_mask, is_causal=is_causal
@@ -217,6 +210,78 @@ class GPTNeoXModel(nn.Module):
         self.final_layer_norm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
+        self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
+        self._rope_cache: dict[tuple[int, int], tuple[Tensor, Tensor]] = {}
+
+    def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
+        batch, seq = int(input_ids.size(0)), int(input_ids.size(-1))
+        key = (batch, seq)
+        cached = self._position_ids_cache.get(key)
+        if cached is not None and cached.device == input_ids.device:
+            return cached
+        position_ids = (
+            torch.arange(seq, dtype=torch.long, device="cpu")
+            .unsqueeze(0)
+            .expand(batch, seq)
+            .contiguous()
+        )
+        if input_ids.device.type != "cpu":
+            position_ids = position_ids.to(input_ids.device)
+        self._position_ids_cache[key] = position_ids
+        return position_ids
+
+    def _cached_rope(
+        self, position_ids: Tensor
+    ) -> tuple[Tensor, Tensor]:
+        """Return sin/cos on ``position_ids.device`` (built once, then reused).
+
+        Matches deleted NNGraph: RoPE tables are prepared on the host and
+        bound once for training — never recomputed from activations.
+        """
+        batch, seq = int(position_ids.size(0)), int(position_ids.size(-1))
+        key = (batch, seq)
+        cached = self._rope_cache.get(key)
+        if cached is not None and cached[0].device == position_ids.device:
+            return cached
+        pos_host = (
+            torch.arange(seq, dtype=torch.long, device="cpu")
+            .unsqueeze(0)
+            .expand(batch, seq)
+            .contiguous()
+        )
+        sin, cos = rope_sin_cos_from_position_ids(
+            pos_host,
+            self.config.rotary_ndims,
+            rope_theta=self.config.rotary_emb_base,
+        )
+        if position_ids.device.type != "cpu":
+            sin = sin.to(position_ids.device)
+            cos = cos.to(position_ids.device)
+        self._rope_cache[key] = (sin, cos)
+        return sin, cos
+
+    def clear_sequence_caches(self) -> None:
+        self._position_ids_cache.clear()
+        self._rope_cache.clear()
+
+    def warm_sequence_caches(
+        self,
+        *,
+        batch_sizes: list[int] | tuple[int, ...],
+        seq_len: int,
+        device: torch.device | str,
+    ) -> None:
+        """Prepare position_ids / RoPE tables once for training reuse."""
+        device = torch.device(device)
+        for batch in sorted({int(b) for b in batch_sizes}):
+            if batch < 1:
+                raise ValueError(f"batch size must be >= 1, got {batch}")
+            probe = torch.empty(
+                (batch, seq_len), dtype=torch.long, device=device
+            )
+            pos = self._cached_position_ids(probe)
+            if self.config.rotary_ndims > 0:
+                self._cached_rope(pos)
 
     def forward(
         self,
@@ -228,24 +293,11 @@ class GPTNeoXModel(nn.Module):
         *,
         is_causal: bool = True,
     ) -> Tensor:
-        b, s = input_ids.shape
         if position_ids is None:
-            position_ids = (
-                torch.arange(s, dtype=torch.long, device="cpu")
-                .unsqueeze(0)
-                .expand(b, s)
-                .contiguous()
-            )
-            if input_ids.device.type != "cpu":
-                position_ids = position_ids.to(input_ids.device)
+            position_ids = self._cached_position_ids(input_ids)
         rotary_dim = self.config.rotary_ndims
         if (sin is None or cos is None) and rotary_dim > 0:
-            pos_cpu = position_ids.detach().to("cpu").contiguous()
-            sin, cos = rope_sin_cos_from_position_ids(
-                pos_cpu,
-                rotary_dim,
-                rope_theta=self.config.rotary_emb_base,
-            )
+            sin, cos = self._cached_rope(position_ids)
         x = self.embed_in(input_ids)
         for layer in self.layers:
             x = layer(x, sin, cos, attn_mask, is_causal=is_causal)

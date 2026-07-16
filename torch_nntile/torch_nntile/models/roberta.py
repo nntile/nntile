@@ -89,12 +89,18 @@ class RobertaEmbeddings(nn.Module):
     ) -> Tensor:
         b, s = input_ids.shape
         if position_ids is None:
-            # HF RoBERTa: positions are pad_token_id + 1 .. for non-pad tokens.
-            # Compare on CPU — nntile lacks aten::ne for integer tensors.
-            ids_cpu = input_ids.detach().to("cpu")
+            # Pad-aware index table (HF create_position_ids_from_input_ids).
+            # Integer ne/cumsum are not on nntile yet — build the *index*
+            # tensor on host from a copy of input_ids, then upload once.
+            # Embeddings / activations never leave device=nntile.
+            ids_host = (
+                input_ids
+                if input_ids.device.type == "cpu"
+                else input_ids.to("cpu")
+            )
             pad = self.pad_token_id if self.pad_token_id >= 0 else -1
             if pad >= 0:
-                mask = (ids_cpu != pad).to(torch.long)
+                mask = (ids_host != pad).to(torch.long)
                 incremental = mask.cumsum(dim=1) * mask
                 position_ids = incremental + pad
             else:

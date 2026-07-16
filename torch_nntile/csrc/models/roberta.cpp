@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/models/roberta.cpp
+ * RoBERTa MLM — LibTorch port of deleted NNGraph ``nntile::model::roberta``.
  */
 
 #include <torch_nntile/models/roberta.hh>
@@ -9,8 +10,29 @@
 namespace torch_nntile::models
 {
 
+namespace
+{
+
+torch::Tensor apply_bert_gelu(torch::Tensor x, bool tanh_approx)
+{
+    if (tanh_approx)
+    {
+        return torch::gelu(x, "tanh");
+    }
+    return torch::gelu(x);
+}
+
+bool is_gelu_tanh(std::string const& act)
+{
+    return act == "gelu_pytorch_tanh" || act == "gelutanh" ||
+        act == "gelu_new";
+}
+
+} // namespace
+
 RobertaMlmImpl::RobertaMlmImpl(RobertaConfig cfg) : config(std::move(cfg))
 {
+    gelu_tanh = is_gelu_tanh(config.hidden_act);
     BertConfig bert_cfg = config.to_bert_config();
     word_embeddings = register_module(
         "word_embeddings",
@@ -34,8 +56,17 @@ RobertaMlmImpl::RobertaMlmImpl(RobertaConfig cfg) : config(std::move(cfg))
         list->push_back(BertLayer(bert_cfg));
     }
     layers = register_module("layers", list);
-    cls = register_module(
-        "cls",
+    // RobertaLMHead: dense → act → LN → decoder (+ bias).
+    lm_dense = register_module(
+        "lm_dense",
+        torch::nn::Linear(config.hidden_size, config.hidden_size));
+    lm_ln = register_module(
+        "lm_ln",
+        torch::nn::LayerNorm(
+            torch::nn::LayerNormOptions({config.hidden_size})
+                .eps(config.layer_norm_eps)));
+    lm_decoder = register_module(
+        "lm_decoder",
         torch::nn::Linear(config.hidden_size, config.vocab_size));
 }
 
@@ -54,7 +85,8 @@ torch::Tensor RobertaMlmImpl::forward(
     {
         h = module->as<BertLayerImpl>()->forward(h);
     }
-    return cls->forward(h);
+    h = lm_ln->forward(apply_bert_gelu(lm_dense->forward(h), gelu_tanh));
+    return lm_decoder->forward(h);
 }
 
 } // namespace torch_nntile::models
