@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-include("${PROJECT_SOURCE_DIR}/cmake_modules/NntileCatch2.cmake")
+include("${PROJECT_SOURCE_DIR}/cmake/NntileCatch2.cmake")
 
 if(NOT TARGET torch_nntile::torch_nntile)
     find_package(torch_nntile REQUIRED CONFIG)

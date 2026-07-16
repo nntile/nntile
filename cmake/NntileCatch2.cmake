@@ -1,7 +1,7 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file cmake_modules/NntileCatch2.cmake
+# @file cmake/NntileCatch2.cmake
 # Prefer an installed Catch2 (CI prefix / CMAKE_PREFIX_PATH), else FetchContent.
 # GLOBAL: find_package in external/ must expose targets to nntile/tests/.
 #

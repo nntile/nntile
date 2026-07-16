@@ -16,7 +16,7 @@ message(STATUS "Using CMake ${CMAKE_VERSION}")
 
 project(NNTile VERSION 1.1.0 LANGUAGES CXX C)
 
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(BUILD_LIBNNTILE "Build the core C++ libnntile library" ON)
