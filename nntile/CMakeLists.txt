@@ -16,6 +16,7 @@ if(NOT BUILD_NNTILE)
 endif()
 
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/include/nntile/defs.h.in"
@@ -25,11 +26,20 @@ configure_file(
 
 # TensorGraph stack: kernel -> starpu -> core -> tile -> tensor -> runtime.
 add_library(nntile)
+add_library(nntile::nntile ALIAS nntile)
 target_sources(nntile PRIVATE
     "${PROJECT_SOURCE_DIR}/external/random.h")
+# nlohmann_json is built in-tree (FetchContent) but not in this export set;
+# BUILD/INSTALL_INTERFACE keeps install(EXPORT) valid while Config.cmake
+# find_dependency(nlohmann_json) recreates the imported target for consumers.
 target_link_libraries(nntile PUBLIC
-    ${StarPU_LDFLAGS}
-    nlohmann_json::nlohmann_json)
+    "$<BUILD_INTERFACE:nlohmann_json::nlohmann_json>"
+    "$<INSTALL_INTERFACE:nlohmann_json::nlohmann_json>"
+)
+# INSTALL_INTERFACE include root (nntile.hh + nntile/).
+target_include_directories(nntile PUBLIC
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+)
 nntile_apply_common_includes(nntile)
 nntile_apply_cuda(nntile)
 nntile_apply_cblas(nntile)
@@ -43,11 +53,15 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+set(_nntile_cmake_dir "${CMAKE_INSTALL_LIBDIR}/cmake/nntile")
+
 install(
     TARGETS nntile
+    EXPORT nntileTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 # Trailing slash installs directory *contents* into include/nntile/.
 install(
@@ -62,4 +76,31 @@ install(
 install(
     FILES "${PROJECT_BINARY_DIR}/include/nntile/defs.h"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nntile
+)
+
+install(
+    EXPORT nntileTargets
+    FILE nntileTargets.cmake
+    NAMESPACE nntile::
+    DESTINATION ${_nntile_cmake_dir}
+)
+
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/cmake/nntileConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/nntileConfig.cmake"
+    INSTALL_DESTINATION ${_nntile_cmake_dir}
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/nntileConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(
+    FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/nntileConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/nntileConfigVersion.cmake"
+        "${PROJECT_SOURCE_DIR}/cmake/NNTileFindStarPU.cmake"
+    DESTINATION ${_nntile_cmake_dir}
 )

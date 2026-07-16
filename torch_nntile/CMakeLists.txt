@@ -11,8 +11,11 @@ if(NOT BUILD_TORCH_NNTILE)
     return()
 endif()
 
-if(NOT TARGET nntile)
-    message(FATAL_ERROR "BUILD_TORCH_NNTILE requires libnntile")
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
+    find_package(nntile REQUIRED CONFIG)
 endif()
 
 find_package(Torch REQUIRED)
@@ -81,31 +84,66 @@ add_library(torch_nntile::torch_nntile ALIAS torch_nntile)
 target_compile_definitions(torch_nntile PUBLIC TORCH_NNTILE_USE_LIBNNTILE=1)
 target_include_directories(torch_nntile
     PUBLIC
-        "${CMAKE_CURRENT_SOURCE_DIR}/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/csrc"
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     PRIVATE
-        "${PROJECT_SOURCE_DIR}/nntile/include"
-        "${PROJECT_BINARY_DIR}/include"
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/csrc>"
 )
-target_link_libraries(torch_nntile
-    PUBLIC
-        nntile
-        ${TORCH_LIBRARIES}
-)
+# In-tree `nntile` is a different export set; record nntile::nntile for
+# install(EXPORT) and resolve via find_dependency(nntile) in Config.cmake.
+if(TARGET nntile)
+    target_link_libraries(torch_nntile PUBLIC
+        "$<BUILD_INTERFACE:nntile>"
+        "$<INSTALL_INTERFACE:nntile::nntile>"
+    )
+else()
+    target_link_libraries(torch_nntile PUBLIC nntile::nntile)
+endif()
+target_link_libraries(torch_nntile PUBLIC ${TORCH_LIBRARIES})
 set_property(TARGET torch_nntile PROPERTY CXX_STANDARD 17)
 
 if(BUILD_TORCH_NNTILE_EXAMPLES)
     add_subdirectory(examples/cpp)
 endif()
 
+set(_torch_nntile_cmake_dir "${CMAKE_INSTALL_LIBDIR}/cmake/torch_nntile")
+
 install(
     TARGETS torch_nntile
+    EXPORT torch_nntileTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/torch_nntile/"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/torch_nntile
     FILES_MATCHING PATTERN "*.hh" PATTERN "*.h"
+)
+
+install(
+    EXPORT torch_nntileTargets
+    FILE torch_nntileTargets.cmake
+    NAMESPACE torch_nntile::
+    DESTINATION ${_torch_nntile_cmake_dir}
+)
+
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/cmake/torch_nntileConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/torch_nntileConfig.cmake"
+    INSTALL_DESTINATION ${_torch_nntile_cmake_dir}
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/torch_nntileConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(
+    FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/torch_nntileConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/torch_nntileConfigVersion.cmake"
+    DESTINATION ${_torch_nntile_cmake_dir}
 )

@@ -1,0 +1,21 @@
+# @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#
+# @file cmake/torch_nntileConfig.cmake.in
+# find_package(torch_nntile) config for installed libtorch_nntile.
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(nntile REQUIRED)
+find_dependency(Torch REQUIRED)
+
+include("${CMAKE_CURRENT_LIST_DIR}/torch_nntileTargets.cmake")
+
+if(NOT TARGET torch_nntile::torch_nntile)
+    message(FATAL_ERROR
+        "torch_nntile::torch_nntile target missing from torch_nntileTargets.cmake")
+endif()
+
+check_required_components(torch_nntile)

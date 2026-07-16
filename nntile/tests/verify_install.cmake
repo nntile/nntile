@@ -57,4 +57,39 @@ if(NOT EXISTS "${_lib_path}")
     message(FATAL_ERROR "Missing installed library: ${_lib_path}")
 endif()
 
+set(_nntile_cmake_dir "${_lib_dir}/cmake/nntile")
+foreach(_cmake_file IN ITEMS
+        nntileConfig.cmake
+        nntileConfigVersion.cmake
+        nntileTargets.cmake
+        NNTileFindStarPU.cmake)
+    set(_path "${_nntile_cmake_dir}/${_cmake_file}")
+    if(NOT EXISTS "${_path}")
+        message(FATAL_ERROR "Missing installed CMake package file: ${_path}")
+    endif()
+endforeach()
+
+if(DEFINED TORCH_NNTILE_INSTALL_LIB_BASENAME)
+    set(_tn_lib "${_lib_dir}/${TORCH_NNTILE_INSTALL_LIB_BASENAME}")
+    if(NOT EXISTS "${_tn_lib}")
+        message(FATAL_ERROR "Missing installed library: ${_tn_lib}")
+    endif()
+    set(_tn_cmake_dir "${_lib_dir}/cmake/torch_nntile")
+    foreach(_cmake_file IN ITEMS
+            torch_nntileConfig.cmake
+            torch_nntileConfigVersion.cmake
+            torch_nntileTargets.cmake)
+        set(_path "${_tn_cmake_dir}/${_cmake_file}")
+        if(NOT EXISTS "${_path}")
+            message(FATAL_ERROR
+                "Missing installed CMake package file: ${_path}")
+        endif()
+    endforeach()
+    set(_tn_header
+        "${_include_root}/torch_nntile/torch_nntile.hh")
+    if(NOT EXISTS "${_tn_header}")
+        message(FATAL_ERROR "Missing installed header: ${_tn_header}")
+    endif()
+endif()
+
 message(STATUS "nntile install verification passed (${CMAKE_INSTALL_PREFIX})")

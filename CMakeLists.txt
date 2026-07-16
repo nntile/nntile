@@ -41,14 +41,16 @@ set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 macro(nntile_apply_common_includes target)
+    # BUILD_INTERFACE only: install export uses INSTALL_INTERFACE on
+    # libnntile. StarPU headers come from StarPU::starpu.
     target_include_directories(${target} PUBLIC
-        "${PROJECT_SOURCE_DIR}/nntile/include"
-        "${PROJECT_BINARY_DIR}/include"
-        ${StarPU_INCLUDE_DIRS}
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/nntile/include>"
+        "$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>"
     )
     target_include_directories(${target} PRIVATE
         "${PROJECT_SOURCE_DIR}/external"
     )
+    target_link_libraries(${target} PUBLIC StarPU::starpu)
 endmacro()
 
 macro(nntile_propagation_scope target out_var)
@@ -84,9 +86,13 @@ macro(nntile_apply_cblas target)
 endmacro()
 
 find_package(PkgConfig REQUIRED)
+
+# Install nlohmann_json with NNTile so find_dependency(nlohmann_json) works.
+set(JSON_Install ON CACHE BOOL "Install nlohmann_json with NNTile" FORCE)
 add_subdirectory("external")
 
-pkg_check_modules(StarPU REQUIRED starpu-1.4)
+# StarPU::starpu (pkg-config); shared with installed nntileConfig.cmake.
+include("${PROJECT_SOURCE_DIR}/cmake/NNTileFindStarPU.cmake")
 
 include(CheckSymbolExists)
 set(CMAKE_REQUIRED_INCLUDES ${StarPU_INCLUDE_DIRS})
@@ -202,6 +208,9 @@ if(BUILD_NNTILE)
     add_subdirectory(nntile)
 endif()
 
-if(BUILD_TORCH_NNTILE AND BUILD_NNTILE)
+if(BUILD_TORCH_NNTILE)
+    if(NOT TARGET nntile)
+        find_package(nntile REQUIRED CONFIG)
+    endif()
     add_subdirectory(torch_nntile)
 endif()

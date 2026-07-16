@@ -128,7 +128,11 @@ Defined in [`CMakeLists.txt`](../../CMakeLists.txt):
 
 ### LibTorch / torch_nntile
 
-Optional **libtorch_nntile** builds need LibTorch on `CMAKE_PREFIX_PATH`:
+Optional **libtorch_nntile** builds need LibTorch on `CMAKE_PREFIX_PATH`.
+Both **libnntile** and **libtorch_nntile** install CMake packages
+(`find_package(nntile)` / `find_package(torch_nntile)`).
+
+In-tree (build both):
 
 ```bash
 TORCH_PREFIX="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
@@ -138,6 +142,25 @@ cmake -S . -B build -GNinja \
   -DBUILD_TORCH_NNTILE=ON
 
 cmake --build build -j$(nproc)
+cmake --install build --prefix "$PWD/install"
+```
+
+Separate build against an installed libnntile:
+
+```bash
+cmake -S . -B build-torch -GNinja \
+  -DBUILD_NNTILE=OFF -DBUILD_TORCH_NNTILE=ON \
+  -DCMAKE_PREFIX_PATH="$PWD/install;${TORCH_PREFIX}"
+cmake --build build-torch -j$(nproc)
+cmake --install build-torch --prefix "$PWD/install"
+```
+
+Consumer:
+
+```cmake
+find_package(nntile REQUIRED CONFIG)
+find_package(torch_nntile REQUIRED CONFIG)
+target_link_libraries(my_app PRIVATE torch_nntile::torch_nntile)
 ```
 
 C++ TensorGraph tests (no LibTorch required):
