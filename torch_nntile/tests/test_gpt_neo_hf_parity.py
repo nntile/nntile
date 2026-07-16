@@ -209,13 +209,6 @@ def test_gpt_neo_mlp_forward_backward_matches_hf():
 # ---------------------------------------------------------------------------
 
 
-def bool_local_causal_mask(seq: int, window: int) -> Tensor:
-    """BOOL local-causal mask ``[S,S]`` for nntile SDPA (``True`` = keep)."""
-    q = torch.arange(seq).unsqueeze(1)
-    k = torch.arange(seq).unsqueeze(0)
-    return ((k <= q) & ((q - k) < window)).contiguous()
-
-
 @pytest.mark.parametrize("mode", ["nomask", "causal", "local"])
 def test_gpt_neo_attention_forward_backward_matrix(mode):
     torch.manual_seed(10 + ["nomask", "causal", "local"].index(mode))
@@ -232,33 +225,17 @@ def test_gpt_neo_attention_forward_backward_matrix(mode):
     x = torch.randn(b, s, h, requires_grad=True)
     if mode == "nomask":
         hf_mask = torch.zeros(b, 1, s, s)
-        nnt_mask = None
         is_causal = False
     elif mode == "causal":
         hf_mask = additive_causal_mask(b, s)
-        nnt_mask = None
         is_causal = True
     else:
         hf_mask = additive_local_causal_mask(b, s, hf_cfg.window_size)
-        nnt_mask = contiguous_to_nntile(
-            bool_local_causal_mask(s, hf_cfg.window_size)
-        )
-        is_causal = False
+        is_causal = None  # local attention builds its own window mask
 
     y_ref = _hf_attention_reference(hf_attn, x, mode=mode, mask=hf_mask)
     grad = torch.randn_like(y_ref)
     y_ref.backward(grad)
-
-    # Local float/bool masks need aten::where — not on nntile yet. Validate
-    # local attention math on CPU; keep nomask/causal on nntile.
-    if mode == "local":
-        local_cpu = GPTNeoAttention(
-            local_cfg, local=True
-        ).eval().float()
-        _load_attn(local_cpu, hf_attn)
-        y = local_cpu(x.detach(), attn_mask=hf_mask, is_causal=False)
-        assert_close(y, y_ref.detach(), rtol=RTOL, atol=ATTN_ATOL)
-        return
 
     x_n = contiguous_to_nntile(x.detach()).requires_grad_(True)
     y = local_n(x_n, attn_mask=None, is_causal=is_causal)
@@ -301,6 +278,22 @@ def test_gpt_neo_model_hidden_forward_matches_hf():
     with torch.no_grad():
         ref = hf.transformer(ids).last_hidden_state
         out = local.transformer(contiguous_to_nntile(ids))
+    assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
+
+
+def test_gpt_neo_model_alternating_local_global_matches_hf():
+    """Default HF pattern: even global, odd local sliding window."""
+    hf_cfg = _hf_cfg(
+        attention_layers=["global", "local", "global", "local"],
+        window_size=4,
+    )
+    hf, local = _make_causal(hf_cfg)
+    assert local.config.is_local_attention_layer(1)
+    assert not local.config.is_local_attention_layer(0)
+    ids = torch.randint(0, hf_cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        ref = hf(ids).logits
+        out = local(contiguous_to_nntile(ids))
     assert_close(out, ref, rtol=RTOL, atol=ATTN_ATOL)
 
 

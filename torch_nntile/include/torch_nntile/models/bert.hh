@@ -24,7 +24,32 @@ struct BertConfig
     int64_t max_position_embeddings = 128;
     int64_t type_vocab_size = 2;
     double layer_norm_eps = 1e-12;
+    //! ``< 0``: BERT ``0..S-1`` positions; ``>= 0``: RoBERTa pad-aware ids.
+    int64_t pad_token_id = -1;
 };
+
+//! Encoder block shared by BERT and RoBERTa LibTorch stacks.
+struct BertLayerImpl : torch::nn::Module
+{
+    torch::nn::LayerNorm ln1{nullptr};
+    torch::nn::Linear qkv{nullptr};
+    torch::nn::Linear out{nullptr};
+    torch::nn::LayerNorm ln2{nullptr};
+    torch::nn::Linear ff_in{nullptr};
+    torch::nn::Linear ff_out{nullptr};
+    int64_t n_head = 0;
+    int64_t hidden = 0;
+
+    explicit BertLayerImpl(BertConfig const& cfg);
+    torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(BertLayer);
+
+//! Absolute position ids: BERT arange or RoBERTa pad-skipping.
+torch::Tensor bert_position_ids_from_input_ids(
+    torch::Tensor const& input_ids,
+    int64_t pad_token_id);
 
 struct BertMlmImpl : torch::nn::Module
 {

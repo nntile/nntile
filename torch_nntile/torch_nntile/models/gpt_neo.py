@@ -18,6 +18,21 @@ from torch import Tensor
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
 
 
+def make_local_causal_sdpa_mask(seq_len: int, window_size: int) -> Tensor:
+    """BOOL local-causal mask ``[seq, seq]`` for GPT-Neo local layers.
+
+    Keep on CPU — nntile SDPA converts host bool/float masks; device-side
+    ``where`` / float comparisons are not implemented yet.
+    Allowed keys satisfy ``k <= q`` and ``q - k < window_size``.
+    """
+    q_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
+    k_idx = torch.arange(seq_len, dtype=torch.long, device="cpu")
+    return (
+        (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1))
+        & ((q_idx.unsqueeze(1) - k_idx.unsqueeze(0)) < window_size)
+    ).contiguous()
+
+
 @dataclass
 class GPTNeoConfig:
     vocab_size: int = 50257
@@ -101,7 +116,12 @@ class GPTNeoAttention(nn.Module):
             ).to(q.device)
         else:
             q = q * scale
-        if is_causal is None:
+        # Local layers use a sliding causal window when the caller does not
+        # supply an explicit mask (matches HF ``attention_layers`` / bias).
+        if attn_mask is None and self.local:
+            attn_mask = make_local_causal_sdpa_mask(s, self.window_size)
+            is_causal = False
+        elif is_causal is None:
             is_causal = attn_mask is None
         out = F.scaled_dot_product_attention(
             q,
@@ -222,4 +242,5 @@ __all__ = [
     "GPTNeoMLP",
     "GPTNeoModel",
     "make_causal_sdpa_mask",
+    "make_local_causal_sdpa_mask",
 ]

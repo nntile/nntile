@@ -11,78 +11,80 @@
 namespace torch_nntile::models
 {
 
-namespace
+BertLayerImpl::BertLayerImpl(BertConfig const& cfg)
 {
+    n_head = cfg.num_attention_heads;
+    hidden = cfg.hidden_size;
+    if (hidden % n_head != 0)
+    {
+        throw std::invalid_argument(
+            "BertLayer: hidden_size must be divisible by heads");
+    }
+    ln1 = register_module(
+        "ln1",
+        torch::nn::LayerNorm(
+            torch::nn::LayerNormOptions({hidden}).eps(cfg.layer_norm_eps)));
+    qkv = register_module("qkv", torch::nn::Linear(hidden, 3 * hidden));
+    out = register_module("out", torch::nn::Linear(hidden, hidden));
+    ln2 = register_module(
+        "ln2",
+        torch::nn::LayerNorm(
+            torch::nn::LayerNormOptions({hidden}).eps(cfg.layer_norm_eps)));
+    ff_in = register_module(
+        "ff_in",
+        torch::nn::Linear(hidden, cfg.intermediate_size));
+    ff_out = register_module(
+        "ff_out",
+        torch::nn::Linear(cfg.intermediate_size, hidden));
+}
 
-struct BertLayerImpl : torch::nn::Module
+torch::Tensor BertLayerImpl::forward(torch::Tensor x)
 {
-    torch::nn::LayerNorm ln1{nullptr};
-    torch::nn::Linear qkv{nullptr};
-    torch::nn::Linear out{nullptr};
-    torch::nn::LayerNorm ln2{nullptr};
-    torch::nn::Linear ff_in{nullptr};
-    torch::nn::Linear ff_out{nullptr};
-    int64_t n_head = 0;
-    int64_t hidden = 0;
+    auto h = ln1->forward(x);
+    auto packed = qkv->forward(h).chunk(3, -1);
+    int64_t b = x.size(0);
+    int64_t s = x.size(1);
+    int64_t hs = hidden / n_head;
+    auto reshape = [&](torch::Tensor t) {
+        return t.view({b, s, n_head, hs}).transpose(1, 2);
+    };
+    auto attn = torch::nn::functional::scaled_dot_product_attention(
+        reshape(packed[0]),
+        reshape(packed[1]),
+        reshape(packed[2]));
+    attn = attn.transpose(1, 2).contiguous().view({b, s, hidden});
+    x = x + out->forward(attn);
+    auto m = ln2->forward(x);
+    m = torch::gelu(ff_in->forward(m));
+    return x + ff_out->forward(m);
+}
 
-    explicit BertLayerImpl(BertConfig const& cfg)
+torch::Tensor bert_position_ids_from_input_ids(
+    torch::Tensor const& input_ids,
+    int64_t pad_token_id)
+{
+    int64_t s = input_ids.size(1);
+    if (pad_token_id < 0)
     {
-        n_head = cfg.num_attention_heads;
-        hidden = cfg.hidden_size;
-        if (hidden % n_head != 0)
-        {
-            throw std::invalid_argument(
-                "BertLayer: hidden_size must be divisible by heads");
-        }
-        ln1 = register_module(
-            "ln1",
-            torch::nn::LayerNorm(
-                torch::nn::LayerNormOptions({hidden})
-                    .eps(cfg.layer_norm_eps)));
-        qkv = register_module(
-            "qkv",
-            torch::nn::Linear(hidden, 3 * hidden));
-        out = register_module(
-            "out",
-            torch::nn::Linear(hidden, hidden));
-        ln2 = register_module(
-            "ln2",
-            torch::nn::LayerNorm(
-                torch::nn::LayerNormOptions({hidden})
-                    .eps(cfg.layer_norm_eps)));
-        ff_in = register_module(
-            "ff_in",
-            torch::nn::Linear(hidden, cfg.intermediate_size));
-        ff_out = register_module(
-            "ff_out",
-            torch::nn::Linear(cfg.intermediate_size, hidden));
+        return torch::arange(
+            s,
+            torch::TensorOptions()
+                .dtype(torch::kLong)
+                .device(input_ids.device()));
     }
-
-    torch::Tensor forward(torch::Tensor x)
+    // Match HF / Python RobertaEmbeddings: compute on CPU (nntile lacks
+    // integer compare/cumsum ops), then move.
+    auto ids_cpu = input_ids.device().is_cpu() ?
+        input_ids :
+        input_ids.to(torch::kCPU);
+    auto mask = ids_cpu.ne(pad_token_id).to(torch::kLong);
+    auto position_ids = mask.cumsum(/*dim=*/1) * mask + pad_token_id;
+    if (!input_ids.device().is_cpu())
     {
-        auto h = ln1->forward(x);
-        auto packed = qkv->forward(h).chunk(3, -1);
-        int64_t b = x.size(0);
-        int64_t s = x.size(1);
-        int64_t hs = hidden / n_head;
-        auto reshape = [&](torch::Tensor t) {
-            return t.view({b, s, n_head, hs}).transpose(1, 2);
-        };
-        auto attn = torch::nn::functional::scaled_dot_product_attention(
-            reshape(packed[0]),
-            reshape(packed[1]),
-            reshape(packed[2]));
-        attn = attn.transpose(1, 2).contiguous().view({b, s, hidden});
-        x = x + out->forward(attn);
-        auto m = ln2->forward(x);
-        m = torch::gelu(ff_in->forward(m));
-        return x + ff_out->forward(m);
+        position_ids = position_ids.contiguous().to(input_ids.device());
     }
-};
-
-TORCH_MODULE(BertLayer);
-
-} // namespace
+    return position_ids;
+}
 
 BertMlmImpl::BertMlmImpl(BertConfig cfg) : config(std::move(cfg))
 {
@@ -117,12 +119,9 @@ torch::Tensor BertMlmImpl::forward(
     torch::Tensor input_ids,
     torch::Tensor token_type_ids)
 {
-    int64_t s = input_ids.size(1);
-    auto pos = torch::arange(
-        s,
-        torch::TensorOptions()
-            .dtype(torch::kLong)
-            .device(input_ids.device()));
+    auto pos = bert_position_ids_from_input_ids(
+        input_ids,
+        config.pad_token_id);
     auto h = word_embeddings->forward(input_ids) +
         position_embeddings->forward(pos) +
         token_type_embeddings->forward(token_type_ids);

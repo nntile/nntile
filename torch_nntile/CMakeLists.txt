@@ -69,6 +69,7 @@ set(TORCH_NNTILE_CSRC
     csrc/models/gpt2.cpp
     csrc/models/llama.cpp
     csrc/models/bert.cpp
+    csrc/models/roberta.cpp
     csrc/models/t5.cpp
 )
 
