@@ -71,16 +71,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 
 import torch
 from transformers import GPT2Config, GPT2LMHeadModel
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
 
 
 def _default_config_path() -> Path:
@@ -678,9 +673,6 @@ def train_torch(args: argparse.Namespace) -> int:
 
 def train_nntile(args: argparse.Namespace) -> int:
     # Import only on the nntile path so CUDA/CPU training stays unaffected.
-    root = _repo_root() / "torch_nntile"
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
     import torch_nntile
 
     if args.restrict_cuda and args.restrict_cpu:

@@ -15,18 +15,11 @@ Example::
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
 
 import torch
-
-_REPO = Path(__file__).resolve().parents[2]
-if str(_REPO / "torch_nntile") not in sys.path:
-    sys.path.insert(0, str(_REPO / "torch_nntile"))
-
-import torch_nntile  # noqa: E402
-from torch_nntile.models.llama import LlamaCausal, LlamaConfig  # noqa: E402
-from torch_nntile.training import AdamW, cross_entropy  # noqa: E402
+import torch_nntile
+from torch_nntile.models.llama import LlamaCausal, LlamaConfig
+from torch_nntile.training import AdamW, cross_entropy
 
 
 def tiny_config() -> LlamaConfig:
