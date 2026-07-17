@@ -852,7 +852,6 @@ at::Tensor contiguous(
     }
     // Bool / int views (HF masks): gather full logical, apply view on
     // host, scatter a contiguous result.
-    nntile::TensorRef binding = tensor_ref(self);
     TORCH_CHECK(
         binding,
         "nntile contiguous: unbound non-float tensor");
