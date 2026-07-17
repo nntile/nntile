@@ -127,18 +127,59 @@ def ensure_nntile_context(
 
 
 def pytest_collection_modifyitems(config, items) -> None:
-    """Under NNTILE_TORCH_NATIVE_OPS, aten parity is C++ CTest (not pytest)."""
+    """Under NNTILE_TORCH_NATIVE_OPS, skip classic-only / model suites.
+
+    Aten parity lives in C++ CTest (``-L torch_native|libtorch_nntile``).
+    CI ``test-torch-nntile`` runs an explicit allowlist; this hook still
+    protects full-suite ``pytest torch_nntile/tests/`` from cascading
+    ImportError on gated ``nn`` / models / fused loss.
+    """
     del config
     if not getattr(torch_nntile, "TORCH_NATIVE_OPS", False):
         return
+    # Modules that exercise PrivateUse1 I/O + basic aten without classic
+    # pybind models / fused CE / tiling compilers.
+    allow = {
+        "test_device_stub",
+        "test_context_restrict",
+        "test_libtorch_nntile_smoke",
+        "test_cuda_deps",
+        "test_add_parity",
+        "test_add_inplace_parity",
+        "test_mul_parity",
+        "test_hypot_parity",
+        "test_linear_bias_parity",
+        "test_addmm_parity",
+        "test_bmm",
+        "test_cat_parity",
+        "test_split_cat_autograd",
+        "test_softmax_parity",
+        "test_silu_gelu_parity",
+        "test_sum_parity",
+        "test_repeat_parity",
+        "test_embedding_parity",
+        "test_sdpa_parity",
+        "test_sdpa_aten",
+        "test_normalization_parity",
+        "test_norm_parity",
+        "test_transpose_materialize",
+        "test_mm_transpose",
+        "test_storage_offset_copy",
+        "test_graph_execution",
+        "test_grad_accumulation",
+        "test_aten_ops_parity",
+    }
     skip = pytest.mark.skip(
         reason=(
-            "NNTILE_TORCH_NATIVE_OPS: use ctest -L libtorch_nntile / "
-            "-L torch_native (see docs/dev/torch_starpu_kernels.md)"
+            "NNTILE_TORCH_NATIVE_OPS: classic models/loss/tiling not in "
+            "slim wheel; use ctest -L torch_native|libtorch_nntile "
+            "(see docs/dev/torch_starpu_kernels.md)"
         )
     )
     for item in items:
-        item.add_marker(skip)
+        mod = item.module.__name__.rsplit(".", 1)[-1]
+        if mod not in allow:
+            item.add_marker(skip)
 
 
 def pytest_sessionstart(session) -> None:

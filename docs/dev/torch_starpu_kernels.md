@@ -331,6 +331,12 @@ ctest --test-dir build -L torch_native --output-on-failure
 ctest --test-dir build -L libtorch_nntile --output-on-failure
 ```
 
+CI (`.github/workflows/build-test.yml`) mirrors this on PRs to `graph_api`:
+`test-libnntile` runs `-L torch_native`, `test-libtorch-nntile` runs
+`-L libtorch_nntile`, and both use `--no-tests=error` so an empty suite
+cannot green-pass. Layer-1 libnntile builds with LibTorch because
+`NNTILE_TORCH_NATIVE_OPS` puts aten codelets inside `libnntile`.
+
 ## Why meta probe (not hand-written shapes)
 
 In-tree CPU/CUDA share structured **`meta`** for output shapes. Calling the

@@ -11,6 +11,16 @@ if bool(_C.built_with_cuda()) != bool(torch_nntile.built_with_cuda()):
         f"(py={torch_nntile.built_with_cuda()} native={_C.built_with_cuda()})"
     )
 
+print(
+    f"torch_nntile smoke: TORCH_NATIVE_OPS={torch_nntile.TORCH_NATIVE_OPS} "
+    f"BUILT_WITH_CUDA={torch_nntile.built_with_cuda()}"
+)
+if not torch_nntile.TORCH_NATIVE_OPS:
+    raise SystemExit(
+        "expected NNTILE_TORCH_NATIVE_OPS wheel "
+        f"(TORCH_NATIVE_OPS={torch_nntile.TORCH_NATIVE_OPS})"
+    )
+
 torch_nntile.init_context(ncpu=1, ncuda=0, verbose=0, cpu_fallback=False)
 torch_nntile.restrict_cpu()
 

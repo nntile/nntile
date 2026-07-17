@@ -252,6 +252,13 @@ if(BUILD_LIBTORCH_NNTILE)
     if(NOT TARGET nntile AND NOT TARGET nntile::nntile)
         find_package(nntile REQUIRED CONFIG)
     endif()
+    # Align PrivateUse1 / executor sources with the linked libnntile.
+    if(DEFINED NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
+        set(NNTILE_TORCH_NATIVE_OPS
+            "${NNTILE_BUILT_WITH_TORCH_NATIVE_OPS}" CACHE BOOL
+            "Build only I/O ops + torch-native compute (experimental)"
+            FORCE)
+    endif()
     add_subdirectory(torch_nntile)
 endif()
 
@@ -280,6 +287,10 @@ if(BUILD_TESTING AND NOT HAVE_STARPU_SIMGRID)
                 find_package(Torch REQUIRED)
                 set(NNTILE_HAVE_TORCH ON)
             endif()
+            if(DEFINED NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
+                set(NNTILE_TORCH_NATIVE_OPS
+                    "${NNTILE_BUILT_WITH_TORCH_NATIVE_OPS}")
+            endif()
             add_subdirectory(
                 "${PROJECT_SOURCE_DIR}/torch_nntile/tests"
                 "${PROJECT_BINARY_DIR}/torch_nntile/tests")
@@ -290,6 +301,10 @@ if(BUILD_TESTING AND NOT HAVE_STARPU_SIMGRID)
             if(DEFINED NNTILE_BUILT_WITH_CUDA)
                 set(NNTILE_USE_CUDA "${NNTILE_BUILT_WITH_CUDA}")
                 set(NNTILE_LINK_CUDA "${NNTILE_BUILT_WITH_CUDA}")
+            endif()
+            if(DEFINED NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
+                set(NNTILE_TORCH_NATIVE_OPS
+                    "${NNTILE_BUILT_WITH_TORCH_NATIVE_OPS}")
             endif()
             add_subdirectory(
                 "${PROJECT_SOURCE_DIR}/nntile/tests"

@@ -63,7 +63,7 @@ jobs:
           if-no-files-found: error
 
   # -------------------------------------------------------------------------
-  # Layer 1: libnntile (no LibTorch)
+  # Layer 1: libnntile (torch-native: links LibTorch for StarPU aten codelets)
   # -------------------------------------------------------------------------
   build-libnntile:
     name: build libnntile
@@ -76,7 +76,8 @@ jobs:
     steps:
       - run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates git
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-dev python3-pip
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
@@ -84,19 +85,38 @@ jobs:
       - run: .github/scripts/check-nntile-includes.sh .
       - run: chmod +x .github/scripts/check-model-no-swap-axes.sh
       - run: .github/scripts/check-model-no-swap-axes.sh .
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
       - uses: actions/cache/restore@v4
         with:
           path: /tmp/ccache
           key: ccache-build-libnntile-${{ github.sha }}
           restore-keys: ccache-build-libnntile-
-      - run: |
+      - name: Configure and build libnntile (NNTILE_TORCH_NATIVE_OPS)
+        run: |
+          set -euo pipefail
+          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
+            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
+              /usr/lib/x86_64-linux-gnu/libstdc++.so
+          fi
           cmake -S . -B build ${CMAKE_COMMON} \
             -DBUILD_TESTING=OFF \
             -DBUILD_LIBTORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
+            -DNNTILE_TORCH_NATIVE_OPS=ON \
+            -DCMAKE_PREFIX_PATH="${TORCH_PREFIX}" \
             -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
           cmake --build build --target nntile -j"$(nproc)"
           cmake --install build --prefix "${PWD}/prefix"
+          echo "Installed libnntile (torch-native) to ${PWD}/prefix"
+          grep -E 'NNTILE_TORCH_NATIVE_OPS' \
+            "${PWD}/prefix/include/nntile/defs.h" || true
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
           .github/scripts/ccache-print-stats.sh build-libnntile
@@ -120,10 +140,21 @@ jobs:
         shell: bash
         working-directory: /__w/nntile/nntile
     steps:
-      - run: apt-get update && apt-get install -y ca-certificates git
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git python3 python3-dev python3-pip
         working-directory: /
       - uses: actions/checkout@v6
       - uses: ./.github/actions/nntile-starpu-setup
+      - name: Install LibTorch (CPU)
+        run: |
+          set -euo pipefail
+          pip3 install --break-system-packages \
+            'torch==2.9.1' 'torchvision==0.24.1' \
+            --index-url "${TORCH_PIP_INDEX}"
+          echo "TORCH_PREFIX=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
+            >> "${GITHUB_ENV}"
       - uses: actions/download-artifact@v4
         with:
           name: nntile-prefix
@@ -137,14 +168,24 @@ jobs:
           path: /tmp/ccache
           key: ccache-test-libnntile-${{ github.sha }}
           restore-keys: ccache-test-libnntile-
-      - name: Build tests against installed libnntile
+      - name: Build torch-native C++ tests against installed libnntile
         run: |
+          set -euo pipefail
+          if [ ! -e /usr/lib/x86_64-linux-gnu/libstdc++.so ]; then
+            ln -sf "$(ls /usr/lib/gcc/x86_64-linux-gnu/*/libstdc++.so | tail -1)" \
+              /usr/lib/x86_64-linux-gnu/libstdc++.so
+          fi
+          # catch_discover_tests / test binaries need libnntile + Torch + StarPU.
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:${PWD}/catch2-prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
+          export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+          export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
           cmake -S . -B build-tests ${CMAKE_COMMON} \
             -DBUILD_LIBNNTILE=OFF \
             -DBUILD_LIBTORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
             -DBUILD_TESTING=ON \
-            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix"
+            -DNNTILE_TORCH_NATIVE_OPS=ON \
+            -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix;${TORCH_PREFIX}"
           cmake --build build-tests -j"$(nproc)"
       - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
@@ -158,13 +199,17 @@ jobs:
           chmod +x .github/scripts/restore-ctest-execute-bits.sh
           chmod +x .github/scripts/list-not-implemented-tests.sh
           .github/scripts/restore-ctest-execute-bits.sh build-tests/nntile/tests
-      - name: Run C++ tests (ctest)
+      - name: Run torch-native libnntile C++ tests
         run: |
-          export LD_LIBRARY_PATH="${PWD}/prefix/lib:${PWD}/catch2-prefix/lib:${LD_LIBRARY_PATH:-}"
+          set -euo pipefail
+          export LD_LIBRARY_PATH="${PWD}/prefix/lib:${PWD}/catch2-prefix/lib:/opt/starpu/lib:${LD_LIBRARY_PATH:-}"
           export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
           export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 GOTO_NUM_THREADS=1
-          .github/scripts/list-not-implemented-tests.sh build-tests || true
-          ctest --test-dir build-tests -LE NotImplemented --output-on-failure
+          echo "Discovered torch_native CTest entries:"
+          ctest --test-dir build-tests -N -L torch_native
+          # Progress signal for the torch-native stack (starpu/core/tile/tensor).
+          ctest --test-dir build-tests -L torch_native \
+            --output-on-failure --no-tests=error
 
   # -------------------------------------------------------------------------
   # Layer 2: libtorch_nntile (links installed libnntile)
@@ -214,11 +259,12 @@ jobs:
             -DBUILD_LIBTORCH_NNTILE=ON \
             -DBUILD_TORCH_NNTILE=OFF \
             -DBUILD_TESTING=OFF \
+            -DNNTILE_TORCH_NATIVE_OPS=ON \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${TORCH_PREFIX}" \
             -DCMAKE_INSTALL_PREFIX="${PWD}/prefix"
           cmake --build build-torch --target torch_nntile -j"$(nproc)"
           cmake --install build-torch --prefix "${PWD}/prefix"
-      - run: |
+          echo "Installed libtorch_nntile (torch-native) to ${PWD}/prefix"      - run: |
           chmod +x .github/scripts/ccache-print-stats.sh
           .github/scripts/ccache-print-stats.sh build-libtorch-nntile
       - uses: actions/cache/save@v4
@@ -287,11 +333,12 @@ jobs:
             -DBUILD_LIBTORCH_NNTILE=OFF \
             -DBUILD_TORCH_NNTILE=OFF \
             -DBUILD_TESTING=ON \
+            -DNNTILE_TORCH_NATIVE_OPS=ON \
             -DCMAKE_PREFIX_PATH="${PWD}/prefix;${PWD}/catch2-prefix;${TORCH_PREFIX}"
           cmake --build build-torch-tests -j"$(nproc)" \
             --target tests_libtorch_nntile_smoke \
                     tests_libtorch_nntile_aten_ops
-          echo "Discovered libtorch_nntile CTest entries:"
+          echo "Discovered libtorch_nntile CTest entries (aten parity progress):"
           ctest --test-dir build-torch-tests -N -L libtorch_nntile
           # --no-tests=error: compiling alone must not green-pass.
           ctest --test-dir build-torch-tests -L libtorch_nntile \
@@ -392,7 +439,7 @@ jobs:
         with:
           name: torch-nntile-ci-wheel
           path: wheelhouse
-      - name: Install wheel and run torch_nntile model/extension tests
+      - name: Install wheel and run torch-native Python smoke
         run: |
           set -euo pipefail
           export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
@@ -409,7 +456,15 @@ jobs:
           pip3 install --break-system-packages \
             --force-reinstall --no-deps wheelhouse/*.whl
           # Prefer the installed wheel over the source tree (no in-tree _C.so).
-          # Model/extension suite. ATen op fwd+bwd parity is C++ ctest in
-          # test-libtorch-nntile (not this job).
-          pytest -vv --override-ini='pythonpath=' -m 'not slow' \
-            torch_nntile/tests/
+          python3 - <<'PY'
+          import torch_nntile as t
+          assert t.TORCH_NATIVE_OPS, "CI wheel must be NNTILE_TORCH_NATIVE_OPS"
+          print(f"TORCH_NATIVE_OPS={t.TORCH_NATIVE_OPS} BUILT_WITH_CUDA={t.built_with_cuda()}")
+          PY
+          # Aten fwd+bwd parity is C++ ctest (test-libtorch-nntile).
+          # Under torch-native, run the allowlisted Python smoke suite only.
+          pytest -vv --override-ini='pythonpath=' \
+            torch_nntile/tests/test_device_stub.py \
+            torch_nntile/tests/test_context_restrict.py \
+            torch_nntile/tests/test_libtorch_nntile_smoke.py \
+            torch_nntile/tests/test_cuda_deps.py

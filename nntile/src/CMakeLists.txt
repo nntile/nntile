@@ -550,7 +550,15 @@ if(NNTILE_TORCH_NATIVE_OPS)
             "kernel/fill/cpu.cc"
             "kernel/subcopy/cpu.cc"
         )
+        # I/O codelets still register CUDA functions when NNTILE_USE_CUDA;
+        # keep fill/subcopy CUDA kernels so CUDA wheels import cleanly.
         set(KERNEL_CUDA_SRC)
+        if(NNTILE_USE_CUDA)
+            set(KERNEL_CUDA_SRC
+                "kernel/fill/cuda.cu"
+                "kernel/subcopy/cuda.cu"
+            )
+        endif()
     endif()
     set(STARPU_CODELET_SRC
         "starpu/clear.cc"
