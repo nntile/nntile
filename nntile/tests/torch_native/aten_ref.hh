@@ -17,10 +17,21 @@
 #include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/core/grad_mode.h>
 
+// ATen pulls in a CHECK macro that clashes with Catch2.
+#ifdef CHECK
+#   undef CHECK
+#endif
+
 #include <nntile/base_types.hh>
 
 namespace nntile::test::torch_native
 {
+
+inline float as_float(nntile::fp32_t v)
+{
+    return static_cast<float>(
+        static_cast<nntile::fp32_t::repr_t>(v));
+}
 
 inline void require_close(
     const std::vector<float> &got,

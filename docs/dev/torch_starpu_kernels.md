@@ -139,7 +139,12 @@ CPU wrapper), with these differences:
    `args_t` (type unique per codelet) and passes it to
    `starpu_task_insert` / `nntile_starpu_task_insert` together with StarPU
    data handles for the tile buffers.
-2. **CPU function** (`void (*)(void *buffers[], void *cl_args)`):
+2. **Access modes (required):** every tensor argument must be classified
+   as read-only, write-only, read-write, or workspace, and submitted with
+   the matching StarPU mode (see [Data access modes](#data-access-modes)
+   below). Never submit the same handle twice as `STARPU_R` + `STARPU_W`;
+   use `STARPU_RW` once instead.
+3. **CPU function** (`void (*)(void *buffers[], void *cl_args)`):
    - Unpack `args_t`.
    - For each buffer, build `at::Tensor` with `torch::from_blob` (or
      `at::from_blob`) using the raw pointer and the meta from `args_t`.
@@ -147,7 +152,106 @@ CPU wrapper), with these differences:
      **not** free StarPU-owned memory.
    - Call the low-level aten API, preferably `at::<op>_out(...)` /
      `at::_ops::<op>_out::call(...)`.
-3. No CUDA implementation in the first version (`where` = `STARPU_CPU`).
+4. No CUDA implementation in the first version (`where` = `STARPU_CPU`).
+
+## Data access modes
+
+Every torch-native StarPU task must declare how each buffer is used.
+NNTile logical roles map to StarPU modes as follows:
+
+| Role | Meaning | StarPU mode |
+|------|---------|-------------|
+| read-only | Task reads; must not write | `STARPU_R` |
+| write-only | Task fully overwrites; prior value unused | `STARPU_W` |
+| read-write | Task reads then updates the same buffer | `STARPU_RW` |
+| workspace | Temporary scratch; no live value across tasks | `STARPU_SCRATCH` |
+
+Rules:
+
+1. Prefer out-of-place `*_out` shapes: all inputs `STARPU_R`, each
+   distinct output `STARPU_W`.
+2. If the same StarPU handle is both an input and the destination
+   (accumulate / true in-place), submit it **once** as `STARPU_RW`.
+3. Use `STARPU_SCRATCH` only for StarPU-managed temporary tiles. Host
+   allocations inside ATen (not registered with StarPU) are not
+   scratch handles—document them as “ATen-internal temp” instead.
+4. PrivateUse1 “inplace” APIs (`add_`, `silu_`, …) may still lower to
+   **new** TensorGraph nodes (SSA). In that case StarPU still sees
+   distinct `R` + `W` handles; that is not `STARPU_RW` unless the tile
+   handle is actually shared.
+
+### Implemented ops (current)
+
+Dedicated codelet `torch_add` (`aten::add.out`):
+
+| Handle | Role | Mode |
+|--------|------|------|
+| `self` | read-only | `STARPU_R` |
+| `other` | read-only | `STARPU_R` |
+| `out` | write-only | `STARPU_W` |
+
+Family codelet `torch_unary` (one `R` input, one `W` output):
+
+| `TorchKind` | Aten | Handles |
+|-------------|------|---------|
+| `MulScalar` | `mul.Scalar_out` | in `R`, out `W` |
+| `Relu` | `relu.out` | in `R`, out `W` |
+| `Silu` | `silu.out` | in `R`, out `W` |
+| `Gelu` | `gelu.out` | in `R`, out `W` |
+| `Softmax` | `_softmax.out` | in `R`, out `W` |
+| `Sum` | `sum.IntList_out` | in `R`, out `W` |
+| `VectorNorm` | `linalg_vector_norm.out` | in `R`, out `W` |
+| `NarrowCopy` | `narrow_copy.out` | in `R`, out `W` |
+| `Repeat` | `repeat.out` | in `R`, out `W` |
+| `TransposeCopy` | `transpose_copy.int_out` | in `R`, out `W` |
+
+Family codelet `torch_binary` (two `R` inputs, one `W` output):
+
+| `TorchKind` | Aten | Handles |
+|-------------|------|---------|
+| `Mul` | `mul.out` | a `R`, b `R`, out `W` |
+| `Hypot` | `hypot.out` | a `R`, b `R`, out `W` |
+| `ThresholdBackward` | `threshold_backward` | grad_out `R`, self `R`, grad_in `W` |
+| `SiluBackward` | `silu_backward` | grad_out `R`, self `R`, grad_in `W` |
+| `GeluBackward` | `gelu_backward` | grad_out `R`, self `R`, grad_in `W` |
+| `SoftmaxBackward` | `_softmax_backward_data` | grad_out `R`, output `R`, grad_in `W` |
+| `Mm` | `mm.out` | a `R`, b `R`, out `W` |
+| `Bmm` | `bmm.out` | a `R`, b `R`, out `W` |
+| `Matmul` | `matmul.out` | a `R`, b `R`, out `W` |
+| `Linear` (no bias) | `linear.out` | input `R`, weight `R`, out `W` |
+
+Family codelet `torch_ternary`:
+
+| `TorchKind` | Aten | Handles / modes |
+|-------------|------|-----------------|
+| `Addmm` (out ≠ self) | `addmm.out` | self `R`, mat1 `R`, mat2 `R`, out `W` |
+| `Addmm` (out ≡ self) | `addmm.out` accumulate | self/out `RW`, mat1 `R`, mat2 `R` |
+| `Linear` (with bias) | `linear.out` | input `R`, weight `R`, bias `R`, out `W` |
+| `Sdpa` | `scaled_dot_product_attention` | q `R`, k `R`, v `R`, out `W` |
+
+Specialized codelets:
+
+| Codelet | Aten | Handles / modes |
+|---------|------|-----------------|
+| `torch_embedding` | `embedding.out` | weight `R`, indices `R`, out `W` |
+| `torch_cat` | `cat.out` | each input `R`, out `W` |
+| `torch_layer_norm` | `native_layer_norm` | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
+
+Classic I/O kept on this path (not torch-native compute, but same rules):
+
+| Op | Modes |
+|----|-------|
+| `fill` | data `W` |
+| `subcopy` / `copy` | src `R`, dst `W` (intersection variants may differ) |
+| `clear` | data `W` |
+
+**Scratch:** none of the current torch-native codelets register
+`STARPU_SCRATCH`. ATen may allocate temporary host memory inside the
+CPU kernel; that is outside StarPU’s data handles.
+
+**Not yet wired as StarPU tasks** (when added, declare modes explicitly):
+`embedding_dense_backward` (typically grad_weight `RW` or `W` + accumulate),
+`native_layer_norm_backward`, SDPA backward.
 
 Example sketch:
 
@@ -201,6 +305,9 @@ StarPU workers to avoid oversubscription.
    with `Tile<T>` + meta per tensor.
 4. StarPU: `args_t` with all metas; CPU wrapper `from_blob` + same
    `*_out` on `device=CPU` under `NoGradGuard`; no `nntile::kernel`.
+   **Declare access modes** for every tensor (`R` / `W` / `RW` /
+   `SCRATCH`) and wire them in `submit`; document the row in the
+   [Data access modes](#data-access-modes) table.
 5. **C++ tests (required)** — same layering as classic libnntile, under
    `nntile/tests/torch_native/` (label `torch_native`):
    - **starpu:** codelet submit vs CPU `aten::*_out` reference

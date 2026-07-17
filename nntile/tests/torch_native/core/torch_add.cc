@@ -51,8 +51,8 @@ TEST_CASE_METHOD(
         auto o = other.acquire(STARPU_R);
         for (Index i = 0; i < nelems; ++i)
         {
-            self_host[static_cast<size_t>(i)] = s[i];
-            other_host[static_cast<size_t>(i)] = o[i];
+            self_host[static_cast<size_t>(i)] = tn::as_float(s[i]);
+            other_host[static_cast<size_t>(i)] = tn::as_float(o[i]);
         }
         s.release();
         o.release();
@@ -84,7 +84,7 @@ TEST_CASE_METHOD(
         auto z = out.acquire(STARPU_R);
         for (Index i = 0; i < nelems; ++i)
         {
-            got[static_cast<size_t>(i)] = z[i];
+            got[static_cast<size_t>(i)] = tn::as_float(z[i]);
         }
         z.release();
     }

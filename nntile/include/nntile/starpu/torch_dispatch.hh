@@ -31,33 +31,41 @@ namespace nntile::starpu
 //! Names match torch aten schemas (not NNTile classic kernels). TensorGraph
 //! records the same kind; StarPU CPU wrappers call the matching
 //! ``at::*_out`` / ``*_copy_out`` on ``device=CPU`` under ``NoGradGuard``.
+//!
+//! Access modes (out-of-place ``*_out`` unless noted): each tensor is
+//! read-only (``STARPU_R``), write-only (``STARPU_W``), read-write
+//! (``STARPU_RW``), or workspace (``STARPU_SCRATCH``). See
+//! ``docs/dev/torch_starpu_kernels.md`` for the full table. Family
+//! codelets below implement the common out-of-place pattern
+//! ``R… + W``; ``Addmm`` may use ``RW`` when ``out`` aliases the first
+//! input (accumulate).
 enum class TorchKind : std::int32_t
 {
-    Mul = 1,                 // aten::mul.out / mul.Scalar_out
-    Hypot = 2,               // aten::hypot.out
-    MulScalar = 3,           // aten::mul.Scalar_out
-    Relu = 10,               // aten::relu.out
-    Silu = 11,               // aten::silu.out
-    Gelu = 12,               // aten::gelu.out
-    ThresholdBackward = 20,  // aten::threshold_backward.grad_input
-    SiluBackward = 21,       // aten::silu_backward.grad_input
-    GeluBackward = 22,       // aten::gelu_backward.grad_input
-    Softmax = 30,            // aten::_softmax.out
-    SoftmaxBackward = 31,   // aten::_softmax_backward_data.out
-    Sum = 40,                // aten::sum.IntList_out
-    VectorNorm = 41,         // aten::linalg_vector_norm.out
-    Mm = 50,                 // aten::mm.out
-    Bmm = 51,                // aten::bmm.out
-    Addmm = 52,              // aten::addmm.out
-    Matmul = 53,             // aten::matmul.out
-    Linear = 54,             // aten::linear.out
-    Cat = 60,                // aten::cat.out
-    NarrowCopy = 61,         // aten::narrow_copy.out
-    Repeat = 62,             // aten::repeat.out
-    NativeLayerNorm = 70,    // aten::native_layer_norm
-    Embedding = 80,          // aten::embedding.out
-    Sdpa = 90,               // aten::scaled_dot_product_attention
-    TransposeCopy = 100,     // aten::transpose_copy.int_out
+    Mul = 1,                 // R,R → W  aten::mul.out
+    Hypot = 2,               // R,R → W  aten::hypot.out
+    MulScalar = 3,           // R → W    aten::mul.Scalar_out
+    Relu = 10,               // R → W    aten::relu.out
+    Silu = 11,               // R → W    aten::silu.out
+    Gelu = 12,               // R → W    aten::gelu.out
+    ThresholdBackward = 20,  // R,R → W  aten::threshold_backward
+    SiluBackward = 21,       // R,R → W  aten::silu_backward
+    GeluBackward = 22,       // R,R → W  aten::gelu_backward
+    Softmax = 30,            // R → W    aten::_softmax.out
+    SoftmaxBackward = 31,   // R,R → W  aten::_softmax_backward_data
+    Sum = 40,                // R → W    aten::sum.IntList_out
+    VectorNorm = 41,         // R → W    aten::linalg_vector_norm.out
+    Mm = 50,                 // R,R → W  aten::mm.out
+    Bmm = 51,                // R,R → W  aten::bmm.out
+    Addmm = 52,              // R,R,R→W or RW,R,R  aten::addmm.out
+    Matmul = 53,             // R,R → W  aten::matmul.out
+    Linear = 54,             // R,R → W or R,R,R→W  aten::linear.out
+    Cat = 60,                // R… → W   aten::cat.out
+    NarrowCopy = 61,         // R → W    aten::narrow_copy.out
+    Repeat = 62,             // R → W    aten::repeat.out
+    NativeLayerNorm = 70,    // R,(R),(R) → W,W,W  native_layer_norm
+    Embedding = 80,          // R,R → W  aten::embedding.out
+    Sdpa = 90,               // R,R,R → W  scaled_dot_product_attention
+    TransposeCopy = 100,     // R → W    aten::transpose_copy.int_out
 };
 
 inline constexpr Index torch_dispatch_max_ndim = core::torch_native_max_ndim;
@@ -80,7 +88,8 @@ struct TorchDispatchArgs
     // Cat: dim, n_tensors
     // NativeLayerNorm: normalized_ndim, has_weight, has_bias;
     //   eps in scalars[0]
-    // Addmm: beta in scalars[0], alpha in scalars[1]
+    // Addmm: beta in scalars[0], alpha in scalars[1];
+    //   iargs[7]=1 when out aliases first input (STARPU_RW)
     // Sdpa: has_mask in iargs[0], is_causal in iargs[1]
     // TransposeCopy: dim0, dim1
     char sarg[16] = {};

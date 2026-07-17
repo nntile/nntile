@@ -67,7 +67,7 @@ TEST_CASE_METHOD(
         auto loc = out.acquire(STARPU_R);
         for (Index i = 0; i < nelems; ++i)
         {
-            got[static_cast<size_t>(i)] = loc[i];
+            got[static_cast<size_t>(i)] = tn::as_float(loc[i]);
         }
         loc.release();
     }
@@ -128,7 +128,7 @@ TEST_CASE_METHOD(
         auto loc = out.acquire(STARPU_R);
         for (Index i = 0; i < 6; ++i)
         {
-            got[static_cast<size_t>(i)] = loc[i];
+            got[static_cast<size_t>(i)] = tn::as_float(loc[i]);
         }
         loc.release();
     }
@@ -179,7 +179,7 @@ TEST_CASE_METHOD(
         auto loc = out.acquire(STARPU_R);
         for (Index i = 0; i < 6; ++i)
         {
-            got[static_cast<size_t>(i)] = loc[i];
+            got[static_cast<size_t>(i)] = tn::as_float(loc[i]);
         }
         loc.release();
     }

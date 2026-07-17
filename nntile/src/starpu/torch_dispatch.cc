@@ -483,7 +483,10 @@ void TorchTernary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
         float *a = ifaces[0]->get_ptr<float>();
         float *b = ifaces[1]->get_ptr<float>();
         float *c = ifaces[2]->get_ptr<float>();
-        float *out = ifaces[3]->get_ptr<float>();
+        // iargs[7]: out aliases first input (STARPU_RW on a).
+        float *out = (args->iargs[7] != 0)
+            ? a
+            : ifaces[3]->get_ptr<float>();
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
         run_ternary(args, a, b, c, out);
@@ -517,21 +520,53 @@ void TorchTernary<std::tuple<T>>::submit(
 )
 {
     args_t *args = clone_args(meta);
-    int ret = nntile_starpu_task_insert(
-        &codelet,
-        starpu_worker_hint,
-        STARPU_R,
-        a.get(),
-        STARPU_R,
-        b.get(),
-        STARPU_R,
-        c.get(),
-        STARPU_CL_ARGS,
-        args,
-        sizeof(*args),
-        STARPU_W,
-        out.get(),
-        0);
+    // Same StarPU handle as both read input and write output must use
+    // STARPU_RW once (e.g. addmm accumulate into C). Do not submit the
+    // handle twice as STARPU_R + STARPU_W.
+    if (out.get() == b.get() || out.get() == c.get())
+    {
+        std::free(args);
+        throw std::runtime_error(
+            "torch_ternary.submit: out may only alias the first "
+            "input (STARPU_RW); aliasing mat1/mat2 is unsupported");
+    }
+    const bool out_aliases_a = (out.get() == a.get());
+    args->iargs[7] = out_aliases_a ? 1 : 0;
+    int ret = 0;
+    if (out_aliases_a)
+    {
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_RW,
+            a.get(),
+            STARPU_R,
+            b.get(),
+            STARPU_R,
+            c.get(),
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            0);
+    }
+    else
+    {
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            a.get(),
+            STARPU_R,
+            b.get(),
+            STARPU_R,
+            c.get(),
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+    }
     if (ret != 0)
     {
         throw std::runtime_error("torch_ternary.submit failed");

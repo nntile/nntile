@@ -28,6 +28,7 @@ namespace nntile::starpu
 inline constexpr Index torch_add_max_ndim = core::torch_native_max_ndim;
 
 //! Torch-native add: out = self + alpha * other (aten::add.out).
+//! Access: self ``STARPU_R``, other ``STARPU_R``, out ``STARPU_W``.
 template<typename T>
 class TorchAdd;
 
