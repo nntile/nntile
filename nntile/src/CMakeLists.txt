@@ -372,6 +372,7 @@ set(GRAPH_TENSOR_LAYER_SRC
     "tensor/ops/fill.cc"
     "tensor/ops/gather.cc"
     "tensor/ops/gemm.cc"
+    "tensor/ops/gemm_shape.cc"
     "tensor/ops/gelu.cc"
     "tensor/ops/gelu_backward.cc"
     "tensor/ops/gelu_inplace.cc"
@@ -540,9 +541,10 @@ if(NNTILE_USE_FLASH_SDPA)
 endif()
 
 
-# Experimental: strip classic compute ops; keep I/O + torch-native add.
+# Experimental: strip classic compute ops; keep I/O + torch-native ops.
 if(NNTILE_TORCH_NATIVE_OPS)
-    message(STATUS "NNTILE_TORCH_NATIVE_OPS: compiling I/O + torch_add only")
+    message(STATUS
+        "NNTILE_TORCH_NATIVE_OPS: compiling I/O + torch-native dispatch")
     if(NOT HAVE_STARPU_SIMGRID)
         set(KERNEL_CPU_SRC
             "kernel/fill/cpu.cc"
@@ -556,13 +558,16 @@ if(NNTILE_TORCH_NATIVE_OPS)
         "starpu/fill.cc"
         "starpu/subcopy.cc"
         "starpu/torch_add.cc"
+        "starpu/torch_dispatch.cc"
     )
     set(CORE_OPERATION_SRC
         "core/clear.cc"
         "core/copy.cc"
         "core/copy_intersection.cc"
         "core/fill.cc"
+        "core/torch_meta.cc"
         "core/torch_add.cc"
+        "core/torch_dispatch.cc"
     )
     set(GRAPH_TENSOR_LAYER_SRC
         "tensor/axis_descriptor.cc"
@@ -581,6 +586,8 @@ if(NNTILE_TORCH_NATIVE_OPS)
         "tensor/ops/gather.cc"
         "tensor/ops/scatter.cc"
         "tensor/ops/torch_add.cc"
+        "tensor/ops/torch_dispatch.cc"
+        "tensor/ops/gemm_shape.cc"
     )
     set(GRAPH_TILE_LAYER_SRC
         "tile/append_tensor_graph_phase.cc"
@@ -594,6 +601,7 @@ if(NNTILE_TORCH_NATIVE_OPS)
         "tile/ops/copy_intersection.cc"
         "tile/ops/fill.cc"
         "tile/ops/torch_add.cc"
+        "tile/ops/torch_dispatch.cc"
     )
     set(NNTILE_GRAPH_STACK_SRC
         ${GRAPH_TENSOR_LAYER_SRC}

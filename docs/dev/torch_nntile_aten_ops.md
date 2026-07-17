@@ -5,6 +5,12 @@
 **Related:** [torch_starpu_kernels.md](torch_starpu_kernels.md),
 [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md)
 
+Under `NNTILE_TORCH_NATIVE_OPS`, each listed compute schema records a
+torch-native TensorGraph op that lowers to the **same aten call on
+`device=CPU` with no grad** inside a StarPU codelet (see
+[torch_starpu_kernels.md](torch_starpu_kernels.md)). Classic NNTile
+kernels are not used for compute on this path.
+
 While torch-native StarPU codelets are introduced for untiled tensors,
 **axis-group tiling is disabled** for the PrivateUse1 path:
 

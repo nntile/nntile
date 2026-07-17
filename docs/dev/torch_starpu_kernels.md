@@ -11,16 +11,37 @@ StarPU’s task runtime, without a matching `nntile::kernel` implementation.
 
 CUDA wrappers are out of scope for the first cut (CPU StarPU workers only).
 
+## Invariant (torch-native path)
+
+Under `NNTILE_TORCH_NATIVE_OPS`, TensorGraph **compute** ops are **only**
+torch-native aten ops (`TorchKind` / `TensorTorch*Op`). Classic NNTile
+kernels (`swap_two_axes`, `scale_slice`, gemm codelets, …) are **not**
+TensorGraph compute ops on this path.
+
+Each such op must lower to the **same aten schema** inside the StarPU CPU
+codelet:
+
+1. `at::from_blob` on **`device=CPU`** (StarPU-owned buffers; empty deleter).
+2. Call the matching `at::*_out` / `*_copy_out` / functional aten API.
+3. Wrap with `at::NoGradGuard` and
+   `at::AutoDispatchBelowADInplaceOrView` so execution does not re-enter
+   PrivateUse1 or Autograd.
+
+I/O ops (`fill` / `subcopy` / scatter / gather / …) may stay classic.
+
+`TorchKind` names follow aten (e.g. `TransposeCopy`, `NarrowCopy`,
+`NativeLayerNorm`), not NNTile classic names.
+
 ## Goal
 
 ```text
 torch / autograd
     → PrivateUse1 aten impl (device=nntile)
-    → TensorGraph OpNode  (record only)
+    → TensorGraph OpNode  (torch-native only; record)
     → lower (single tile only) → TileGraph OpNode
     → Runtime execute → nntile::core (torch-based)
     → nntile::starpu::submit → StarPU codelet
-    → codelet CPU wrapper: from_blob + aten::*_out
+    → codelet CPU wrapper: from_blob(CPU) + same aten::*_out (no grad)
 ```
 
 Tiling remains the product path for `nntile::kernel` ops later; for this
@@ -199,9 +220,10 @@ those ops need a different strategy or remain unsupported on this path.
 The experimental flag **`NNTILE_TORCH_NATIVE_OPS`** (default ON on
 `graph_api_torch_kernels`) strips classic compute kernels/codelets/ops from
 the build and keeps I/O (`fill` / `subcopy` / `clear` / `copy` / `scatter` /
-`gather` / `invalidate`) plus **`torch_add`**.
+`gather` / `invalidate`) plus torch-native family codelets
+(`torch_add`, `torch_dispatch` / `TorchKind`).
 
-Lessons from wiring the first op:
+Lessons from wiring the first ops:
 
 1. **LibTorch must link into `libnntile`** when the StarPU codelet calls ATen
    (`from_blob` + `add_out`). Confining torch solely to `libtorch_nntile`
@@ -236,7 +258,9 @@ Lessons from wiring the first op:
     fail on classic aten coverage that is no longer linked.
 
 Reference sources: `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_add.*`,
+`nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_dispatch.*`,
 `torch_nntile/csrc/nntile_add.cpp`,
 `torch_nntile/csrc/nntile_executor_torch_native.cpp`,
 `torch_nntile/csrc/nntile_module_torch_native.cpp`,
-`torch_nntile/tests/test_torch_native_add_parity.py`.
+`torch_nntile/tests/test_torch_native_add_parity.py`,
+`torch_nntile/tests/test_torch_native_ops_parity.py`.
