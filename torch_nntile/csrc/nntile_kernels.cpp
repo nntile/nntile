@@ -817,19 +817,49 @@ at::Tensor contiguous(
     {
         return self;
     }
+    if (self.scalar_type() == at::ScalarType::Float)
+    {
+        // Densify into a fresh contiguous buffer. Do not call clone() here:
+        // stock clone(memory_format) redispatches to contiguous and would
+        // recurse. AutogradPrivateUse1 wraps this via ContiguousFn.
+        at::Tensor result = at::empty(
+            self.sizes(),
+            self.options()
+                .memory_format(at::MemoryFormat::Contiguous)
+                .requires_grad(false));
+        tensor_copy_fp32(self, result);
+        return result;
+    }
+    // Bool / int views (HF masks): gather full logical, apply view on
+    // host, scatter a contiguous result.
+    nntile::TensorRef binding = tensor_ref(self);
     TORCH_CHECK(
-        self.scalar_type() == at::ScalarType::Float,
-        "nntile contiguous densify supports float32 only");
-    // Densify into a fresh contiguous buffer. Do not call clone() here:
-    // stock clone(memory_format) redispatches to contiguous and would
-    // recurse. AutogradPrivateUse1 wraps this via ContiguousFn.
-    at::Tensor result = at::empty(
+        binding,
+        "nntile contiguous: unbound non-float tensor");
+    nntile::TensorGraph::TensorNode *logical = binding.get();
+    std::vector<int64_t> full_sizes(
+        logical->shape().begin(),
+        logical->shape().end());
+    if (full_sizes.empty())
+    {
+        full_sizes.push_back(static_cast<int64_t>(logical->nelems()));
+    }
+    at::Tensor full_cpu = at::empty(
+        full_sizes,
+        self.options().device(at::kCPU).memory_format(
+            at::MemoryFormat::Contiguous));
+    copy_nntile_tensor_to_cpu(self, full_cpu);
+    at::Tensor viewed = full_cpu.as_strided(
         self.sizes(),
-        self.options()
-            .memory_format(at::MemoryFormat::Contiguous)
-            .requires_grad(false));
-    tensor_copy_fp32(self, result);
-    return result;
+        self.strides(),
+        self.storage_offset());
+    at::Tensor contig_cpu = viewed.contiguous();
+    at::Tensor out = empty_metadata_tensor(
+        contig_cpu.sizes(),
+        contig_cpu.scalar_type(),
+        self.device());
+    init_nntile_input_from_cpu(contig_cpu, out);
+    return out;
 }
 
 //! Same-shape densify: identity backward (like CloneBackward).

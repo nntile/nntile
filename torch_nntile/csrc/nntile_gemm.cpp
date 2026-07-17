@@ -202,9 +202,46 @@ at::Tensor matmul_nd(const at::Tensor &a, const at::Tensor &b)
     return out;
 }
 
+std::tuple<at::Tensor, at::Tensor> matmul_backward(
+    const at::Tensor &grad,
+    const at::Tensor &self,
+    const at::Tensor &other,
+    std::array<bool, 2> mask)
+{
+    check_gemm_tensors(self, other);
+    TORCH_CHECK(
+        is_nntile_device(grad.device()),
+        "nntile matmul_backward expects nntile grad");
+    PreparedGemmOperands prepared;
+    if (self.dim() == 2 && other.dim() == 2)
+    {
+        prepared = prepare_mm_operands(self, other);
+    }
+    else if (
+        self.dim() == 3 && other.dim() == 3 &&
+        self.size(0) == other.size(0))
+    {
+        prepared = prepare_bmm_operands(self, other);
+    }
+    else
+    {
+        prepared = prepare_gemm_operands_inferred(self, other);
+    }
+    return gemm_backward(
+        prepared.a,
+        prepared.b,
+        grad.is_contiguous() ? grad : grad.contiguous(),
+        prepared.params.ndim,
+        prepared.params.batch_ndim,
+        mask,
+        prepared.params.trans_a,
+        prepared.params.trans_b);
+}
+
 } // namespace torch_nntile
 
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("matmul", TORCH_FN(torch_nntile::matmul_nd));
+    m.impl("matmul_backward", TORCH_FN(torch_nntile::matmul_backward));
 }

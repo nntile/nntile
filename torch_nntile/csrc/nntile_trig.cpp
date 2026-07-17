@@ -65,63 +65,71 @@ void check_unary_fp32(
 
 } // namespace
 
-at::Tensor cos_tensor(const at::Tensor &self)
-{
-    check_unary_fp32(self, "cos");
-    at::Tensor out = at::empty_like(self);
-    tensor_cos_fp32(self, out);
-    return out;
-}
-
-at::Tensor &cos_out(const at::Tensor &self, at::Tensor &out)
-{
-    check_unary_fp32(self, "cos", out);
-    tensor_cos_fp32(self, out);
-    return out;
-}
-
-at::Tensor sin_tensor(const at::Tensor &self)
-{
-    check_unary_fp32(self, "sin");
-    at::Tensor out = at::empty_like(self);
-    tensor_sin_fp32(self, out);
-    return out;
-}
-
-at::Tensor &sin_out(const at::Tensor &self, at::Tensor &out)
-{
-    check_unary_fp32(self, "sin", out);
-    tensor_sin_fp32(self, out);
-    return out;
-}
-
 at::Tensor neg_tensor(const at::Tensor &self)
 {
-    check_unary_fp32(self, "neg");
-    at::Tensor out = at::empty_like(self);
-    tensor_neg_fp32(self, out);
+    check_unary_fp32(self.is_contiguous() ? self : self.contiguous(), "neg");
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    at::Tensor out = at::empty_like(inp);
+    tensor_neg_fp32(inp, out);
     return out;
 }
 
 at::Tensor &neg_out(const at::Tensor &self, at::Tensor &out)
 {
-    check_unary_fp32(self, "neg", out);
-    tensor_neg_fp32(self, out);
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "neg", out);
+    tensor_neg_fp32(inp, out);
+    return out;
+}
+
+at::Tensor cos_tensor(const at::Tensor &self)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "cos");
+    at::Tensor out = at::empty_like(inp);
+    tensor_cos_fp32(inp, out);
+    return out;
+}
+
+at::Tensor &cos_out(const at::Tensor &self, at::Tensor &out)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "cos", out);
+    tensor_cos_fp32(inp, out);
+    return out;
+}
+
+at::Tensor sin_tensor(const at::Tensor &self)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "sin");
+    at::Tensor out = at::empty_like(inp);
+    tensor_sin_fp32(inp, out);
+    return out;
+}
+
+at::Tensor &sin_out(const at::Tensor &self, at::Tensor &out)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "sin", out);
+    tensor_sin_fp32(inp, out);
     return out;
 }
 
 at::Tensor rsqrt_tensor(const at::Tensor &self)
 {
-    check_unary_fp32(self, "rsqrt");
-    at::Tensor out = at::empty_like(self);
-    tensor_rsqrt_fp32(self, out);
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "rsqrt");
+    at::Tensor out = at::empty_like(inp);
+    tensor_rsqrt_fp32(inp, out);
     return out;
 }
 
 at::Tensor &rsqrt_out(const at::Tensor &self, at::Tensor &out)
 {
-    check_unary_fp32(self, "rsqrt", out);
-    tensor_rsqrt_fp32(self, out);
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "rsqrt", out);
+    tensor_rsqrt_fp32(inp, out);
     return out;
 }
 
