@@ -217,6 +217,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm_backward(
         mean_reduced,
         rstd_reduced,
         weight.has_value() ? &*weight : nullptr,
+        bias.has_value() ? &*bias : nullptr,
         weight.has_value(),
         bias.has_value(),
         output_mask[0] ? &grad_input : nullptr,

@@ -1454,8 +1454,9 @@ void tensor_layer_norm_backward_fp32(
     const at::Tensor &mean,
     const at::Tensor &rstd,
     const at::Tensor *weight,
+    const at::Tensor *bias,
     bool has_weight,
-    bool /*has_bias*/,
+    bool has_bias,
     at::Tensor *grad_input,
     at::Tensor *grad_weight,
     at::Tensor *grad_bias,
@@ -1504,6 +1505,15 @@ void tensor_layer_norm_backward_fp32(
             nntile::DataType::FP32,
             mark_as_input_for_operand(*weight));
     }
+    nntile::TensorGraph::TensorNode *bias_node = nullptr;
+    if (has_bias && bias != nullptr)
+    {
+        bias_node = get_or_create_data_node(
+            *bias,
+            {norm_len},
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(*bias));
+    }
 
     nntile::TensorGraph::TensorNode *gi_node = nullptr;
     nntile::TensorGraph::TensorNode *gw_node = nullptr;
@@ -1539,7 +1549,7 @@ void tensor_layer_norm_backward_fp32(
         mean_node,
         rstd_node,
         weight_node,
-        /*bias=*/nullptr,
+        bias_node,
         gi_node,
         gw_node,
         gb_node,

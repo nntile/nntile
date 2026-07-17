@@ -1082,7 +1082,11 @@ void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
             need_gb};
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        if (need_gi && need_gw && need_gb)
+        // ATen empty_like(bias/weight) requires defined affine tensors when
+        // the corresponding output_mask bit is set.
+        const bool use_out = need_gi && need_gw && need_gb && has_w
+            && has_b;
+        if (use_out)
         {
             at::native_layer_norm_backward_out(
                 grad_input,
@@ -1093,10 +1097,8 @@ void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
                 normalized_shape,
                 mean,
                 rstd,
-                has_w ? c10::optional<at::Tensor>(weight)
-                    : c10::nullopt,
-                has_b ? c10::optional<at::Tensor>(bias)
-                    : c10::nullopt,
+                weight,
+                bias,
                 output_mask);
         }
         else

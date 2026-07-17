@@ -291,6 +291,7 @@ void tensor_layer_norm_backward_fp32(
     const at::Tensor &mean,
     const at::Tensor &rstd,
     const at::Tensor *weight,
+    const at::Tensor *bias,
     bool has_weight,
     bool has_bias,
     at::Tensor *grad_input,
