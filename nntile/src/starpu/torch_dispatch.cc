@@ -10,8 +10,10 @@
 #include "nntile/starpu/torch_dispatch.hh"
 
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -35,6 +37,7 @@
 #include <ATen/ops/hypot.h>
 #include <ATen/ops/linalg_vector_norm.h>
 #include <ATen/ops/linear.h>
+#include <ATen/ops/masked_fill.h>
 #include <ATen/ops/matmul.h>
 #include <ATen/ops/mm.h>
 #include <ATen/ops/mul.h>
@@ -42,6 +45,7 @@
 #include <ATen/ops/native_layer_norm_backward.h>
 #include <ATen/ops/nll_loss_backward.h>
 #include <ATen/ops/nll_loss_forward.h>
+#include <ATen/ops/ones.h>
 #include <ATen/ops/relu.h>
 #include <ATen/ops/repeat.h>
 #include <ATen/ops/scaled_dot_product_attention.h>
@@ -50,8 +54,8 @@
 #include <ATen/ops/softmax.h>
 #include <ATen/ops/sum.h>
 #include <ATen/ops/threshold_backward.h>
-
-#include <limits>
+#include <ATen/ops/tril.h>
+#include <ATen/ops/zeros.h>
 
 #include "nntile/starpu/torch_blob.hh"
 #ifdef NNTILE_USE_CUDA
@@ -352,6 +356,48 @@ void run_ternary(
     default:
         throw std::runtime_error("torch_ternary: unsupported kind");
     }
+}
+
+//! Math SDPA backward via matmul/softmax (CPU+CUDA; no flash_*_for_cpu).
+void run_sdpa_math_backward(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const at::Tensor &grad_out,
+    const c10::optional<at::Tensor> &attn_mask,
+    bool is_causal,
+    at::Tensor &grad_q,
+    at::Tensor &grad_k,
+    at::Tensor &grad_v)
+{
+    const double scale =
+        1.0 / std::sqrt(static_cast<double>(q.size(-1)));
+    at::Tensor scores = at::matmul(q, k.transpose(-2, -1));
+    scores = scores.mul(scale);
+    if (is_causal)
+    {
+        const auto L = scores.size(-2);
+        const auto S = scores.size(-1);
+        at::Tensor keep = at::ones(
+            {L, S},
+            q.options().dtype(at::kBool)).tril();
+        scores.masked_fill_(
+            ~keep,
+            -std::numeric_limits<float>::infinity());
+    }
+    if (attn_mask.has_value())
+    {
+        scores = scores.add(*attn_mask);
+    }
+    at::Tensor attn = at::softmax(scores, /*dim=*/-1);
+    at::Tensor d_attn =
+        at::matmul(grad_out, v.transpose(-2, -1));
+    at::Tensor d_scores = attn.mul(
+        d_attn.sub((attn.mul(d_attn)).sum(-1, /*keepdim=*/true)));
+    d_scores = d_scores.mul(scale);
+    grad_q.copy_(at::matmul(d_scores, k));
+    grad_k.copy_(at::matmul(d_scores.transpose(-2, -1), q));
+    grad_v.copy_(at::matmul(attn.transpose(-2, -1), grad_out));
 }
 
 uint32_t args_footprint(const TorchDispatchArgs *args)
@@ -1744,30 +1790,47 @@ void TorchSdpaBackward::cpu(void *buffers[], void *cl_args) noexcept
         }
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        // Recompute flash-CPU forward for logsumexp, then backward.
-        auto fwd = at::_scaled_dot_product_flash_attention_for_cpu(
-            q,
-            k,
-            v,
-            /*dropout_p=*/0.0,
-            is_causal,
-            attn_mask,
-            /*scale=*/c10::nullopt);
-        auto bwd =
-            at::_scaled_dot_product_flash_attention_for_cpu_backward(
-                grad_out,
+        // flash_*_for_cpu is CPU-only; CUDA uses math SDPA bwd.
+        if (q.is_cuda())
+        {
+            run_sdpa_math_backward(
                 q,
                 k,
                 v,
-                std::get<0>(fwd),
-                std::get<1>(fwd),
-                /*dropout_p=*/0.0,
-                is_causal,
+                grad_out,
                 attn_mask,
-                /*scale=*/c10::nullopt);
-        grad_q.copy_(std::get<0>(bwd));
-        grad_k.copy_(std::get<1>(bwd));
-        grad_v.copy_(std::get<2>(bwd));
+                is_causal,
+                grad_q,
+                grad_k,
+                grad_v);
+        }
+        else
+        {
+            auto fwd =
+                at::_scaled_dot_product_flash_attention_for_cpu(
+                    q,
+                    k,
+                    v,
+                    /*dropout_p=*/0.0,
+                    is_causal,
+                    attn_mask,
+                    /*scale=*/c10::nullopt);
+            auto bwd = at::
+                _scaled_dot_product_flash_attention_for_cpu_backward(
+                    grad_out,
+                    q,
+                    k,
+                    v,
+                    std::get<0>(fwd),
+                    std::get<1>(fwd),
+                    /*dropout_p=*/0.0,
+                    is_causal,
+                    attn_mask,
+                    /*scale=*/c10::nullopt);
+            grad_q.copy_(std::get<0>(bwd));
+            grad_k.copy_(std::get<1>(bwd));
+            grad_v.copy_(std::get<2>(bwd));
+        }
     }
     catch (const std::exception &ex)
     {

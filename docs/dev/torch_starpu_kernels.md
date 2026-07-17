@@ -229,6 +229,12 @@ enqueue.
 If an `aten::*_out` schema is **CPU-only** (e.g. `narrow_copy.out`,
 `transpose_copy.out`), implement the same semantics with a view +
 `copy_` so the StarPU CUDA worker path stays valid.
+
+`_scaled_dot_product_flash_attention_for_cpu` / `_…_for_cpu_backward`
+are also CPU-only. On CUDA workers, `torch_sdpa_backward` uses an
+explicit math SDPA backward (`matmul` + `softmax`) under
+`NoGradGuard` instead of those ops (CUDA flash is typically
+half/bf16-only; math stays valid for fp32).
 ### Context affinity
 
 | API | Torch-native compute codelets |
@@ -325,7 +331,7 @@ Specialized codelets:
 | `torch_cat` | `cat.out` | each input `R`, out `W` |
 | `torch_layer_norm` | `native_layer_norm` | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
 | `torch_layer_norm_backward` | `native_layer_norm_backward` | grad_out / input / mean / rstd `R`; optional weight/bias `R`; needed grad outs `W` |
-| `torch_sdpa_backward` | flash-CPU SDPA bwd | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
+| `torch_sdpa_backward` | flash-CPU bwd; CUDA: math SDPA bwd | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
 
