@@ -19,10 +19,13 @@ ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 
 from . import _C  # noqa: E402, F401 - loads kernels and allocator
 
-# Classic aten/pybind ops are not compiled under NNTILE_TORCH_NATIVE_OPS.
+# Classic aten/pybind models/loss are not compiled under
+# NNTILE_TORCH_NATIVE_OPS. HF compat shims still apply (cache_position,
+# NewGELU→gelu(tanh), device transfer).
+from . import compat as _compat  # noqa: E402, F401
+
 if not TORCH_NATIVE_OPS:
     from . import loss as _loss  # noqa: E402, F401
-    from . import compat as _compat  # noqa: E402, F401
     from . import nn as nn  # noqa: E402, F401
     from . import normalization as _normalization  # noqa: E402, F401
     from . import norm as _norm  # noqa: E402, F401

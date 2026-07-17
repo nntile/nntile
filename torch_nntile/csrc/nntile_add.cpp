@@ -114,10 +114,26 @@ at::Tensor &add_out(
     return out;
 }
 
+at::Tensor &add__tensor(
+    at::Tensor &self,
+    const at::Tensor &other,
+    const at::Scalar &alpha)
+{
+    check_add_inputs(self, other);
+    // SSA: record out-of-place add and rebind ``self`` to the result node.
+    tensor_add_inplace_fp32(
+        alpha.to<float>(),
+        other,
+        1.0f,
+        self);
+    return self;
+}
+
 } // namespace torch_nntile
 
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("add.Tensor", TORCH_FN(torch_nntile::add_tensor));
     m.impl("add.out", TORCH_FN(torch_nntile::add_out));
+    m.impl("add_.Tensor", TORCH_FN(torch_nntile::add__tensor));
 }
