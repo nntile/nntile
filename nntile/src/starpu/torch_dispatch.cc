@@ -38,7 +38,6 @@
 #include <ATen/ops/matmul.h>
 #include <ATen/ops/mm.h>
 #include <ATen/ops/mul.h>
-#include <ATen/ops/narrow_copy.h>
 #include <ATen/ops/native_layer_norm.h>
 #include <ATen/ops/native_layer_norm_backward.h>
 #include <ATen/ops/nll_loss_backward.h>
@@ -51,7 +50,6 @@
 #include <ATen/ops/softmax.h>
 #include <ATen/ops/sum.h>
 #include <ATen/ops/threshold_backward.h>
-#include <ATen/ops/transpose_copy.h>
 
 #include <limits>
 
@@ -188,10 +186,15 @@ void run_unary(
     }
     case TorchKind::NarrowCopy:
     {
-        const std::int64_t dim = static_cast<std::int64_t>(args->iargs[0]);
-        const std::int64_t start = static_cast<std::int64_t>(args->iargs[1]);
-        const std::int64_t length = static_cast<std::int64_t>(args->iargs[2]);
-        at::narrow_copy_out(result, self, dim, start, length);
+        const std::int64_t dim =
+            static_cast<std::int64_t>(args->iargs[0]);
+        const std::int64_t start =
+            static_cast<std::int64_t>(args->iargs[1]);
+        const std::int64_t length =
+            static_cast<std::int64_t>(args->iargs[2]);
+        // narrow_copy.out is CPU-only in stock ATen; view + copy_
+        // works on CPU and CUDA (StarPU worker stream).
+        result.copy_(self.narrow(dim, start, length));
         break;
     }
     case TorchKind::Repeat:
@@ -200,7 +203,8 @@ void run_unary(
         const Index ndim = args->in_ndim[0];
         for (Index i = 0; i < ndim; ++i)
         {
-            repeats.push_back(static_cast<std::int64_t>(args->iargs[i]));
+            repeats.push_back(
+                static_cast<std::int64_t>(args->iargs[i]));
         }
         at::repeat_out(result, self, repeats);
         break;
@@ -217,7 +221,9 @@ void run_unary(
             static_cast<std::int64_t>(args->iargs[0]);
         const std::int64_t d1 =
             static_cast<std::int64_t>(args->iargs[1]);
-        at::transpose_copy_out(result, self, d0, d1);
+        // transpose_copy.out is not registered for CUDA; transpose
+        // view + copy_ works on CPU and CUDA.
+        result.copy_(self.transpose(d0, d1));
         break;
     }
     default:

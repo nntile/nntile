@@ -225,6 +225,10 @@ codelet("nntile_torch_op", footprint, cpu_funcs, cuda_funcs);
 CUDA impls stay `STARPU_CUDA_ASYNC` like classic NNTile kernels: bind
 ATen to StarPU’s worker stream via `TorchCudaEnv` and return after
 enqueue.
+
+If an `aten::*_out` schema is **CPU-only** (e.g. `narrow_copy.out`,
+`transpose_copy.out`), implement the same semantics with a view +
+`copy_` so the StarPU CUDA worker path stays valid.
 ### Context affinity
 
 | API | Torch-native compute codelets |
@@ -282,9 +286,9 @@ Family codelet `torch_unary` (one `R` input, one `W` output):
 | `LogSoftmax` | `_log_softmax.out` | in `R`, out `W` |
 | `Sum` | `sum.IntList_out` | in `R`, out `W` |
 | `VectorNorm` | `linalg_vector_norm.out` | in `R`, out `W` |
-| `NarrowCopy` | `narrow_copy.out` | in `R`, out `W` |
+| `NarrowCopy` | `narrow` view + `copy_` | in `R`, out `W` |
 | `Repeat` | `repeat.out` | in `R`, out `W` |
-| `TransposeCopy` | `transpose_copy.int_out` | in `R`, out `W` |
+| `TransposeCopy` | `transpose` view + `copy_` | in `R`, out `W` |
 
 Family codelet `torch_binary` (two `R` inputs, one `W` output):
 
