@@ -112,6 +112,20 @@ at::Tensor in_fp32(
         device);
 }
 
+at::Tensor in_i64(
+    std::int64_t *ptr,
+    const TorchDispatchArgs &args,
+    Index slot,
+    c10::optional<at::Device> device = c10::nullopt)
+{
+    return blob_i64(
+        ptr,
+        sizes_of(args, slot, false),
+        strides_of(args, slot, false),
+        static_cast<std::int64_t>(args.in_offset[slot]),
+        device);
+}
+
 at::Tensor out_fp32(
     float *ptr,
     const TorchDispatchArgs &args,
@@ -961,10 +975,7 @@ void TorchEmbedding::cpu(void *buffers[], void *cl_args) noexcept
         auto *indices = ifaces[1]->get_ptr<std::int64_t>();
         float *out = ifaces[2]->get_ptr<float>();
         at::Tensor w = in_fp32(weight, *args, 0);
-        at::Tensor idx = blob_i64(
-            indices,
-            sizes_of(*args, 1, false),
-            strides_of(*args, 1, false));
+        at::Tensor idx = in_i64(indices, *args, 1);
         at::Tensor result = out_fp32(out, *args, 0);
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
@@ -1818,10 +1829,7 @@ void TorchEmbeddingDenseBackward::cpu(
         auto *idx_ptr = ifaces[1]->get_ptr<std::int64_t>();
         float *gw_ptr = ifaces[2]->get_ptr<float>();
         at::Tensor grad = in_fp32(grad_ptr, *args, 0);
-        at::Tensor indices = blob_i64(
-            idx_ptr,
-            sizes_of(*args, 1, false),
-            strides_of(*args, 1, false));
+        at::Tensor indices = in_i64(idx_ptr, *args, 1);
         at::Tensor grad_weight = out_fp32(gw_ptr, *args, 0);
         const std::int64_t num_weights =
             static_cast<std::int64_t>(args->iargs[0]);
@@ -2147,10 +2155,7 @@ void TorchNllLossForward::cpu(void *buffers[], void *cl_args) noexcept
         float *loss_ptr = ifaces[2]->get_ptr<float>();
         float *tw_ptr = ifaces[3]->get_ptr<float>();
         at::Tensor log_probs = in_fp32(lp_ptr, *args, 0);
-        at::Tensor target = blob_i64(
-            tgt_ptr,
-            sizes_of(*args, 1, false),
-            strides_of(*args, 1, false));
+        at::Tensor target = in_i64(tgt_ptr, *args, 1);
         at::Tensor loss = out_fp32(loss_ptr, *args, 0);
         at::Tensor total_weight = out_fp32(tw_ptr, *args, 1);
         const std::int64_t reduction =
@@ -2266,10 +2271,7 @@ void TorchNllLossBackward::cpu(void *buffers[], void *cl_args) noexcept
         float *gi_ptr = ifaces[4]->get_ptr<float>();
         at::Tensor grad_output = in_fp32(go_ptr, *args, 0);
         at::Tensor log_probs = in_fp32(lp_ptr, *args, 1);
-        at::Tensor target = blob_i64(
-            tgt_ptr,
-            sizes_of(*args, 2, false),
-            strides_of(*args, 2, false));
+        at::Tensor target = in_i64(tgt_ptr, *args, 2);
         at::Tensor total_weight = in_fp32(tw_ptr, *args, 3);
         at::Tensor grad_input = out_fp32(gi_ptr, *args, 0);
         const std::int64_t reduction =

@@ -556,7 +556,8 @@ void torch_nll_loss_forward(
     TileGraph::TileNode *loss,
     TileGraph::TileNode *total_weight,
     Index reduction,
-    Index ignore_index)
+    Index ignore_index,
+    starpu::TorchDispatchArgs extra)
 {
     auto op = std::make_shared<TileTorchNllLossForwardOp>(
         log_probs,
@@ -564,7 +565,8 @@ void torch_nll_loss_forward(
         loss,
         total_weight,
         reduction,
-        ignore_index);
+        ignore_index,
+        extra);
     log_probs->graph()->add_op(op);
 }
 
@@ -575,13 +577,29 @@ void TileTorchNllLossForwardOp::execute(Runtime &runtime) const
     auto &loss_t = runtime.get_tile<fp32_t>(loss);
     auto &tw_t = runtime.get_tile<fp32_t>(total_weight);
     const core::TorchTileMeta lp_meta =
-        core::make_contiguous_torch_meta(log_probs->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            false,
+            log_probs->shape());
     const core::TorchTileMeta tgt_meta =
-        core::make_contiguous_torch_meta(target->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            1,
+            false,
+            target->shape());
     const core::TorchTileMeta loss_meta =
-        core::make_contiguous_torch_meta(loss->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            true,
+            loss->shape());
     const core::TorchTileMeta tw_meta =
-        core::make_contiguous_torch_meta(total_weight->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            1,
+            true,
+            total_weight->shape());
     core::torch_nll_loss_forward_out(
         runtime.starpu_worker_hint(),
         lp_t,
@@ -603,7 +621,8 @@ void torch_nll_loss_backward(
     TileGraph::TileNode *total_weight,
     TileGraph::TileNode *grad_input,
     Index reduction,
-    Index ignore_index)
+    Index ignore_index,
+    starpu::TorchDispatchArgs extra)
 {
     auto op = std::make_shared<TileTorchNllLossBackwardOp>(
         grad_output,
@@ -612,7 +631,8 @@ void torch_nll_loss_backward(
         total_weight,
         grad_input,
         reduction,
-        ignore_index);
+        ignore_index,
+        extra);
     grad_output->graph()->add_op(op);
 }
 
@@ -624,15 +644,35 @@ void TileTorchNllLossBackwardOp::execute(Runtime &runtime) const
     auto &tw_t = runtime.get_tile<fp32_t>(total_weight);
     auto &gi_t = runtime.get_tile<fp32_t>(grad_input);
     const core::TorchTileMeta go_meta =
-        core::make_contiguous_torch_meta(grad_output->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            false,
+            grad_output->shape());
     const core::TorchTileMeta lp_meta =
-        core::make_contiguous_torch_meta(log_probs->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            1,
+            false,
+            log_probs->shape());
     const core::TorchTileMeta tgt_meta =
-        core::make_contiguous_torch_meta(target->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            2,
+            false,
+            target->shape());
     const core::TorchTileMeta tw_meta =
-        core::make_contiguous_torch_meta(total_weight->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            3,
+            false,
+            total_weight->shape());
     const core::TorchTileMeta gi_meta =
-        core::make_contiguous_torch_meta(grad_input->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            true,
+            grad_input->shape());
     core::torch_nll_loss_backward_out(
         runtime.starpu_worker_hint(),
         go_t,

@@ -485,7 +485,8 @@ void torch_nll_loss_forward(
     TensorGraph::TensorNode *loss,
     TensorGraph::TensorNode *total_weight,
     Index reduction,
-    Index ignore_index)
+    Index ignore_index,
+    starpu::TorchDispatchArgs extra)
 {
     auto op = std::make_shared<TensorTorchNllLossForwardOp>(
         log_probs,
@@ -493,7 +494,8 @@ void torch_nll_loss_forward(
         loss,
         total_weight,
         reduction,
-        ignore_index);
+        ignore_index,
+        extra);
     log_probs->graph()->add_op(op);
 }
 
@@ -514,7 +516,8 @@ void TensorTorchNllLossForwardOp::lower_to_tile(
         vloss[0],
         vtw[0],
         reduction,
-        ignore_index);
+        ignore_index,
+        extra);
 }
 
 void torch_nll_loss_backward(
@@ -524,7 +527,8 @@ void torch_nll_loss_backward(
     TensorGraph::TensorNode *total_weight,
     TensorGraph::TensorNode *grad_input,
     Index reduction,
-    Index ignore_index)
+    Index ignore_index,
+    starpu::TorchDispatchArgs extra)
 {
     auto op = std::make_shared<TensorTorchNllLossBackwardOp>(
         grad_output,
@@ -533,7 +537,8 @@ void torch_nll_loss_backward(
         total_weight,
         grad_input,
         reduction,
-        ignore_index);
+        ignore_index,
+        extra);
     grad_output->graph()->add_op(op);
 }
 
@@ -557,7 +562,8 @@ void TensorTorchNllLossBackwardOp::lower_to_tile(
         vtw[0],
         vgi[0],
         reduction,
-        ignore_index);
+        ignore_index,
+        extra);
 }
 
 } // namespace nntile::tensor

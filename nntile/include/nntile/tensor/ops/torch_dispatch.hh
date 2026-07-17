@@ -520,6 +520,7 @@ struct TensorTorchNllLossForwardOp : TensorGraph::OpNode
 {
     Index reduction = 1;
     Index ignore_index = -100;
+    starpu::TorchDispatchArgs extra{};
     TensorGraph::TensorNode *log_probs = nullptr;
     TensorGraph::TensorNode *target = nullptr;
     TensorGraph::TensorNode *loss = nullptr;
@@ -532,9 +533,11 @@ struct TensorTorchNllLossForwardOp : TensorGraph::OpNode
         TensorGraph::TensorNode *loss_,
         TensorGraph::TensorNode *total_weight_,
         Index reduction_,
-        Index ignore_index_) :
+        Index ignore_index_,
+        starpu::TorchDispatchArgs extra_ = {}) :
         reduction(reduction_),
         ignore_index(ignore_index_),
+        extra(extra_),
         log_probs(log_probs_),
         target(target_),
         loss(loss_),
@@ -563,12 +566,14 @@ void torch_nll_loss_forward(
     TensorGraph::TensorNode *loss,
     TensorGraph::TensorNode *total_weight,
     Index reduction,
-    Index ignore_index);
+    Index ignore_index,
+    starpu::TorchDispatchArgs extra = {});
 
 struct TensorTorchNllLossBackwardOp : TensorGraph::OpNode
 {
     Index reduction = 1;
     Index ignore_index = -100;
+    starpu::TorchDispatchArgs extra{};
     TensorGraph::TensorNode *grad_output = nullptr;
     TensorGraph::TensorNode *log_probs = nullptr;
     TensorGraph::TensorNode *target = nullptr;
@@ -583,9 +588,11 @@ struct TensorTorchNllLossBackwardOp : TensorGraph::OpNode
         TensorGraph::TensorNode *total_weight_,
         TensorGraph::TensorNode *grad_input_,
         Index reduction_,
-        Index ignore_index_) :
+        Index ignore_index_,
+        starpu::TorchDispatchArgs extra_ = {}) :
         reduction(reduction_),
         ignore_index(ignore_index_),
+        extra(extra_),
         grad_output(grad_output_),
         log_probs(log_probs_),
         target(target_),
@@ -620,6 +627,7 @@ void torch_nll_loss_backward(
     TensorGraph::TensorNode *total_weight,
     TensorGraph::TensorNode *grad_input,
     Index reduction,
-    Index ignore_index);
+    Index ignore_index,
+    starpu::TorchDispatchArgs extra = {});
 
 } // namespace nntile::tensor

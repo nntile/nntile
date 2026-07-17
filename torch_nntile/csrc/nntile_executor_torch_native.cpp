@@ -2047,13 +2047,19 @@ void tensor_nll_loss_forward_fp32(
         nntile::DataType::FP32,
         false);
 
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, log_probs, false);
+    pack_tensor_layout(extra, 1, target, false);
+    pack_tensor_layout(extra, 0, loss, true);
+    pack_tensor_layout(extra, 1, total_weight, true);
     nntile::tensor::torch_nll_loss_forward(
         lp_node,
         tgt_node,
         loss_node,
         tw_node,
         static_cast<nntile::Index>(reduction),
-        static_cast<nntile::Index>(ignore_index));
+        static_cast<nntile::Index>(ignore_index),
+        extra);
     register_data_node(loss, loss_node);
     register_data_node(total_weight, tw_node);
 }
@@ -2114,6 +2120,12 @@ void tensor_nll_loss_backward_fp32(
         nntile::DataType::FP32,
         false);
 
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, grad_output, false);
+    pack_tensor_layout(extra, 1, log_probs, false);
+    pack_tensor_layout(extra, 2, target, false);
+    pack_tensor_layout(extra, 3, total_weight, false);
+    pack_tensor_layout(extra, 0, grad_input, true);
     nntile::tensor::torch_nll_loss_backward(
         go_node,
         lp_node,
@@ -2121,7 +2133,8 @@ void tensor_nll_loss_backward_fp32(
         tw_node,
         gi_node,
         static_cast<nntile::Index>(reduction),
-        static_cast<nntile::Index>(ignore_index));
+        static_cast<nntile::Index>(ignore_index),
+        extra);
     register_data_node(grad_input, gi_node);
 }
 
