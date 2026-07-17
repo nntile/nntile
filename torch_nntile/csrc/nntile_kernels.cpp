@@ -322,6 +322,23 @@ at::Tensor as_strided(
     return result;
 }
 
+//! HF RoPE uses ``aten::alias`` for full-dim slices (``q[..., :D]``).
+//! Stock alias builds a new TensorImpl without our BackendMeta, so the
+//! view loses the packed QKV TensorRef and densify invents a wrong node.
+at::Tensor alias(const at::Tensor &self)
+{
+    TORCH_CHECK(is_nntile_device(self.device()), "alias: expected nntile");
+    at::Tensor result = at::detail::make_tensor<at::TensorImpl>(
+        c10::Storage(self.storage()),
+        self.key_set(),
+        self.dtype());
+    auto *result_impl = result.unsafeGetTensorImpl();
+    result_impl->set_storage_offset(self.storage_offset());
+    result_impl->set_sizes_and_strides(self.sizes(), self.strides());
+    record_view_alias(self, result);
+    return result;
+}
+
 at::Tensor reshape_alias(
     const at::Tensor &self,
     at::IntArrayRef size,
@@ -901,6 +918,17 @@ public:
     }
 };
 
+bool is_partial_storage_cover(const at::Tensor &self)
+{
+    nntile::TensorRef binding = tensor_ref(self);
+    if (!binding)
+    {
+        return false;
+    }
+    return self.storage_offset() != 0 ||
+        static_cast<int64_t>(binding.get()->nelems()) != self.numel();
+}
+
 at::Tensor contiguous_autograd(
     const at::Tensor &self,
     at::MemoryFormat memory_format)
@@ -911,7 +939,10 @@ at::Tensor contiguous_autograd(
     TORCH_CHECK(
         memory_format == at::MemoryFormat::Contiguous,
         "nntile contiguous supports Contiguous memory format only");
-    if (self.is_contiguous(memory_format))
+    // Match PrivateUse1 contiguous: 1-element / narrow views can be
+    // ``is_contiguous`` yet still need densify for host scalar I/O.
+    if (self.is_contiguous(memory_format) &&
+        !is_partial_storage_cover(self))
     {
         return self;
     }
@@ -948,6 +979,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("empty.memory_format", TORCH_FN(torch_nntile::empty_memory_format));
     m.impl("empty_strided", TORCH_FN(torch_nntile::empty_strided));
     m.impl("as_strided", TORCH_FN(torch_nntile::as_strided));
+    m.impl("alias", TORCH_FN(torch_nntile::alias));
     m.impl("view", TORCH_FN(torch_nntile::view));
     m.impl("_unsafe_view", TORCH_FN(torch_nntile::unsafe_view));
     m.impl("_reshape_alias", TORCH_FN(torch_nntile::reshape_alias));

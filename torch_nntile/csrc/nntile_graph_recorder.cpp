@@ -858,6 +858,17 @@ nntile::TensorGraph::TensorNode *logical_node_for_tensor_locked(
         return logical;
     }
 
+    // Unbound non-dense views must share a parent via as_strided/alias/
+    // narrow. Inventing a fresh node of torch.numel() would rebind a
+    // packed QKV slice to a too-small logical (RoPE rotate_half).
+    if (!mutable_tensor.is_contiguous() ||
+        mutable_tensor.storage_offset() != 0)
+    {
+        throw std::runtime_error(
+            "torch_nntile: unbound non-dense view (missing alias/"
+            "as_strided TensorRef share)");
+    }
+
     nntile::TensorRef node_ref = g_graph->data(shape, dtype);
     nntile::TensorGraph::TensorNode *node = node_ref.get();
     apply_axis_name_hints_locked(impl_key, node);
