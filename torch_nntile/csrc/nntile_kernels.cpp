@@ -826,7 +826,14 @@ at::Tensor contiguous(
     TORCH_CHECK(
         memory_format == at::MemoryFormat::Contiguous,
         "nntile contiguous supports Contiguous memory format only");
-    if (self.is_contiguous(memory_format))
+    // A 1-element view with storage_offset!=0 is often ``is_contiguous``
+    // yet still aliases a larger logical; densify those for host I/O.
+    nntile::TensorRef binding = tensor_ref(self);
+    const bool partial_cover =
+        binding &&
+        (self.storage_offset() != 0 ||
+         static_cast<int64_t>(binding.get()->nelems()) != self.numel());
+    if (self.is_contiguous(memory_format) && !partial_cover)
     {
         return self;
     }

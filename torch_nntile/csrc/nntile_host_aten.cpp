@@ -351,6 +351,21 @@ at::Tensor pow_tensor_scalar(
     const at::Scalar &exponent)
 {
     TORCH_CHECK(is_nntile_device(self.device()), "pow: expected nntile");
+    // RMSNorm uses ``x.pow(2)``; keep it on the StarPU mul path.
+    if (exponent.isFloatingPoint() && exponent.toDouble() == 2.0)
+    {
+        at::Tensor a = self.is_contiguous() ? self : self.contiguous();
+        at::Tensor out = at::empty_like(a);
+        tensor_mul_fp32(a, a, out);
+        return out;
+    }
+    if (exponent.isIntegral(false) && exponent.toLong() == 2)
+    {
+        at::Tensor a = self.is_contiguous() ? self : self.contiguous();
+        at::Tensor out = at::empty_like(a);
+        tensor_mul_fp32(a, a, out);
+        return out;
+    }
     return scatter_nntile(
         at::pow(gather_cpu(self), exponent),
         self.device());
