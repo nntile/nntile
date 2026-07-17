@@ -40,20 +40,26 @@ def test_mm_backward_parity():
     )
 
 
-def test_contiguous_permute_matmul_raises():
+def test_permute_zero_copy_view():
     torch.manual_seed(4)
-    x_nnt = torch.randn(2, 3, 4).to("nntile")
-    with pytest.raises(RuntimeError, match="permute: non-contiguous"):
-        x_nnt.permute(0, 2, 1)
+    x_cpu = torch.randn(2, 3, 4)
+    x_nnt = x_cpu.to("nntile")
+    y_nnt = x_nnt.permute(0, 2, 1)
+    assert not y_nnt.is_contiguous()
+    torch.testing.assert_close(
+        nntile_cpu(y_nnt), x_cpu.permute(0, 2, 1), rtol=1e-5, atol=1e-5
+    )
 
 
 def test_linear_transpose_weight_backward_parity():
     torch.manual_seed(5)
     base = torch.randn(5, 4)
     x_cpu = torch.randn(3, 5, requires_grad=True)
-    w_cpu = base.t().requires_grad_(True)
+    w_cpu = base.t().contiguous().requires_grad_(True)
     x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
-    w_nnt = base.to("nntile").t().requires_grad_(True)
+    # Densify after t(): linear gemm layout expects a dense [out, in]
+    # leaf (same as nn.Linear weight storage).
+    w_nnt = base.to("nntile").t().contiguous().requires_grad_(True)
     out_cpu = torch.nn.functional.linear(x_cpu, w_cpu)
     grad_out = torch.ones_like(out_cpu)
     out_cpu.backward(grad_out)

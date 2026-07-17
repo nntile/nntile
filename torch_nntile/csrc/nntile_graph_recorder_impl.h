@@ -63,5 +63,7 @@ void note_record_linear_bwd(double seconds);
 void note_record_ce_bwd(double seconds);
 void note_record_relu_bwd(double seconds);
 void note_record_gemm(double seconds);
+void note_record_narrow_copy(std::uint64_t nelems);
+void note_record_transpose_copy(std::uint64_t nelems);
 
 } // namespace torch_nntile

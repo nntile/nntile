@@ -108,9 +108,17 @@ void TileTorchUnaryOp::execute(Runtime &runtime) const
     auto &in_t = runtime.get_tile<fp32_t>(in);
     auto &out_t = runtime.get_tile<fp32_t>(out);
     const core::TorchTileMeta in_meta =
-        core::make_contiguous_torch_meta(in->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            false,
+            in->shape());
     const core::TorchTileMeta out_meta =
-        core::make_contiguous_torch_meta(out->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            true,
+            out->shape());
     core::torch_unary_out(
         runtime.starpu_worker_hint(),
         kind,
@@ -127,11 +135,23 @@ void TileTorchBinaryOp::execute(Runtime &runtime) const
     auto &b_t = runtime.get_tile<fp32_t>(b);
     auto &out_t = runtime.get_tile<fp32_t>(out);
     const core::TorchTileMeta a_meta =
-        core::make_contiguous_torch_meta(a->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            false,
+            a->shape());
     const core::TorchTileMeta b_meta =
-        core::make_contiguous_torch_meta(b->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            1,
+            false,
+            b->shape());
     const core::TorchTileMeta out_meta =
-        core::make_contiguous_torch_meta(out->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            true,
+            out->shape());
     core::torch_binary_out(
         runtime.starpu_worker_hint(),
         kind,
@@ -151,13 +171,29 @@ void TileTorchTernaryOp::execute(Runtime &runtime) const
     auto &c_t = runtime.get_tile<fp32_t>(c);
     auto &out_t = runtime.get_tile<fp32_t>(out);
     const core::TorchTileMeta a_meta =
-        core::make_contiguous_torch_meta(a->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            false,
+            a->shape());
     const core::TorchTileMeta b_meta =
-        core::make_contiguous_torch_meta(b->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            1,
+            false,
+            b->shape());
     const core::TorchTileMeta c_meta =
-        core::make_contiguous_torch_meta(c->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            2,
+            false,
+            c->shape());
     const core::TorchTileMeta out_meta =
-        core::make_contiguous_torch_meta(out->shape());
+        core::meta_from_args_or_contiguous(
+            extra,
+            0,
+            true,
+            out->shape());
     core::torch_ternary_out(
         runtime.starpu_worker_hint(),
         kind,
@@ -437,7 +473,8 @@ void torch_sdpa_backward(
     TileGraph::TileNode *grad_q,
     TileGraph::TileNode *grad_k,
     TileGraph::TileNode *grad_v,
-    bool is_causal)
+    bool is_causal,
+    starpu::TorchDispatchArgs extra)
 {
     auto op = std::make_shared<TileTorchSdpaBackwardOp>(
         q,
@@ -448,7 +485,8 @@ void torch_sdpa_backward(
         grad_q,
         grad_k,
         grad_v,
-        is_causal);
+        is_causal,
+        extra);
     q->graph()->add_op(op);
 }
 
@@ -461,26 +499,35 @@ void TileTorchSdpaBackwardOp::execute(Runtime &runtime) const
     auto &gq_t = runtime.get_tile<fp32_t>(grad_q);
     auto &gk_t = runtime.get_tile<fp32_t>(grad_k);
     auto &gv_t = runtime.get_tile<fp32_t>(grad_v);
+    // Prefer packed sizes/strides/offset (views into parent storage).
     const core::TorchTileMeta q_meta =
-        core::make_contiguous_torch_meta(q->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 0, false, q->shape());
     const core::TorchTileMeta k_meta =
-        core::make_contiguous_torch_meta(k->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 1, false, k->shape());
     const core::TorchTileMeta v_meta =
-        core::make_contiguous_torch_meta(v->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 2, false, v->shape());
     const core::TorchTileMeta go_meta =
-        core::make_contiguous_torch_meta(grad_out->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 3, false, grad_out->shape());
     const core::TorchTileMeta gq_meta =
-        core::make_contiguous_torch_meta(grad_q->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 0, true, grad_q->shape());
     const core::TorchTileMeta gk_meta =
-        core::make_contiguous_torch_meta(grad_k->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 1, true, grad_k->shape());
     const core::TorchTileMeta gv_meta =
-        core::make_contiguous_torch_meta(grad_v->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 2, true, grad_v->shape());
     core::Tile<bool_t> *mask_ptr = nullptr;
     core::TorchTileMeta mask_meta;
     if (mask != nullptr)
     {
         mask_ptr = &runtime.get_tile<bool_t>(mask);
-        mask_meta = core::make_contiguous_torch_meta(mask->shape());
+        mask_meta = core::meta_from_args_or_contiguous(
+            extra, 4, false, mask->shape());
     }
     core::torch_sdpa_backward_out(
         runtime.starpu_worker_hint(),

@@ -75,6 +75,7 @@ enum class TorchKind : std::int32_t
     Sdpa = 90,               // R,R,R → W  scaled_dot_product_attention
     SdpaBackward = 91,       // R… → W,W,W  SDPA backward
     TransposeCopy = 100,     // R → W    aten::transpose_copy.int_out
+    Copy = 101,              // R → W    densify / contiguous (copy_)
 };
 
 inline constexpr Index torch_dispatch_max_ndim = core::torch_native_max_ndim;
@@ -116,6 +117,9 @@ struct TorchDispatchArgs
         {};
     Index out_strides[torch_dispatch_max_tensors][torch_dispatch_max_ndim] =
         {};
+    //! Element offsets into StarPU buffers (views); 0 for dense tiles.
+    Index in_offset[torch_dispatch_max_tensors] = {};
+    Index out_offset[torch_dispatch_max_tensors] = {};
 };
 
 template<typename T>

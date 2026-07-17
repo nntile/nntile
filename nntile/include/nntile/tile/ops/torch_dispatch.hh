@@ -423,6 +423,7 @@ void torch_embedding_dense_backward(
 struct TileTorchSdpaBackwardOp : TileGraph::OpNode
 {
     bool is_causal = false;
+    starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *q = nullptr;
     TileGraph::TileNode *k = nullptr;
     TileGraph::TileNode *v = nullptr;
@@ -442,8 +443,10 @@ struct TileTorchSdpaBackwardOp : TileGraph::OpNode
         TileGraph::TileNode *grad_q_,
         TileGraph::TileNode *grad_k_,
         TileGraph::TileNode *grad_v_,
-        bool is_causal_) :
+        bool is_causal_,
+        starpu::TorchDispatchArgs extra_ = {}) :
         is_causal(is_causal_),
+        extra(extra_),
         q(q_),
         k(k_),
         v(v_),
@@ -483,7 +486,8 @@ void torch_sdpa_backward(
     TileGraph::TileNode *grad_q,
     TileGraph::TileNode *grad_k,
     TileGraph::TileNode *grad_v,
-    bool is_causal = false);
+    bool is_causal = false,
+    starpu::TorchDispatchArgs extra = {});
 
 struct TileTorchNllLossForwardOp : TileGraph::OpNode
 {

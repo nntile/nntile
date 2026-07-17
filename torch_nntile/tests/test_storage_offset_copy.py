@@ -9,7 +9,6 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 from conftest import nntile_cpu
-from torch_nntile.training import cross_entropy
 
 import torch_nntile
 
@@ -47,6 +46,14 @@ def test_cpu_readout_into_storage_offset_dst():
 
 
 def test_cross_entropy_batch1_causal_label_view_matches_cpu():
+    import pytest
+
+    # Classic training.cross_entropy is not in the torch-native slim module;
+    # F.cross_entropy on offset label views is covered by HF train scripts.
+    if getattr(torch_nntile, "TORCH_NATIVE_OPS", False):
+        pytest.skip("classic cross_entropy helper not in TORCH_NATIVE_OPS")
+    from torch_nntile.training import cross_entropy
+
     torch.manual_seed(0)
     batch = torch.randint(0, 256, (1, 32), dtype=torch.long)
     labels_view = batch[:, 1:]

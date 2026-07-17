@@ -59,17 +59,19 @@ inline at::Device resolve_device(
 }
 
 //! Empty deleter: StarPU owns the buffer.
+//! ``storage_offset`` is in elements; pointer is advanced before from_blob.
 inline at::Tensor blob_fp32(
     float *ptr,
     const std::vector<std::int64_t> &sizes,
     const std::vector<std::int64_t> &strides,
+    std::int64_t storage_offset = 0,
     c10::optional<at::Device> device = c10::nullopt)
 {
     auto opts = at::TensorOptions()
         .dtype(at::kFloat)
         .device(resolve_device(device));
     return at::from_blob(
-        ptr,
+        ptr + storage_offset,
         at::IntArrayRef(sizes),
         at::IntArrayRef(strides),
         /*deleter=*/[](void *) {},
@@ -85,6 +87,7 @@ inline at::Tensor blob_fp32(
         ptr,
         to_i64(meta.sizes),
         to_i64(meta.strides),
+        static_cast<std::int64_t>(meta.storage_offset),
         device);
 }
 
@@ -92,13 +95,14 @@ inline at::Tensor blob_i64(
     std::int64_t *ptr,
     const std::vector<std::int64_t> &sizes,
     const std::vector<std::int64_t> &strides,
+    std::int64_t storage_offset = 0,
     c10::optional<at::Device> device = c10::nullopt)
 {
     auto opts = at::TensorOptions()
         .dtype(at::kLong)
         .device(resolve_device(device));
     return at::from_blob(
-        ptr,
+        ptr + storage_offset,
         at::IntArrayRef(sizes),
         at::IntArrayRef(strides),
         /*deleter=*/[](void *) {},
@@ -109,13 +113,14 @@ inline at::Tensor blob_bool(
     bool *ptr,
     const std::vector<std::int64_t> &sizes,
     const std::vector<std::int64_t> &strides,
+    std::int64_t storage_offset = 0,
     c10::optional<at::Device> device = c10::nullopt)
 {
     auto opts = at::TensorOptions()
         .dtype(at::kBool)
         .device(resolve_device(device));
     return at::from_blob(
-        ptr,
+        ptr + storage_offset,
         at::IntArrayRef(sizes),
         at::IntArrayRef(strides),
         /*deleter=*/[](void *) {},

@@ -49,9 +49,20 @@ void check_cat_tensor(const at::Tensor &tensor)
     TORCH_CHECK(
         tensor.scalar_type() == at::ScalarType::Float,
         "nntile cat supports float32 only");
-    TORCH_CHECK(
-        tensor.is_contiguous(),
-        "nntile cat requires contiguous tensors");
+}
+
+std::vector<at::Tensor> densify_cat_inputs(
+    const std::vector<at::Tensor> &tensors)
+{
+    std::vector<at::Tensor> out;
+    out.reserve(tensors.size());
+    for (const at::Tensor &tensor : tensors)
+    {
+        check_cat_tensor(tensor);
+        out.push_back(
+            tensor.is_contiguous() ? tensor : tensor.contiguous());
+    }
+    return out;
 }
 
 void check_cat_inputs(
@@ -152,7 +163,8 @@ void run_cat(
 
 at::Tensor cat(const at::ITensorListRef &tensors, int64_t dim)
 {
-    std::vector<at::Tensor> materialized = materialize_cat_inputs(tensors);
+    std::vector<at::Tensor> materialized =
+        densify_cat_inputs(materialize_cat_inputs(tensors));
     if (materialized.size() == 1)
     {
         return materialized[0];
@@ -171,7 +183,8 @@ at::Tensor &cat_out(
     int64_t dim,
     at::Tensor &out)
 {
-    std::vector<at::Tensor> materialized = materialize_cat_inputs(tensors);
+    std::vector<at::Tensor> materialized =
+        densify_cat_inputs(materialize_cat_inputs(tensors));
     if (materialized.size() == 1)
     {
         TORCH_CHECK(

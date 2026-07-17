@@ -314,9 +314,8 @@ at::Tensor as_strided(
     auto *result_impl = result.unsafeGetTensorImpl();
     result_impl->set_storage_offset(storage_offset_value);
     result_impl->set_sizes_and_strides(size, stride);
-    TORCH_CHECK(
-        result.is_contiguous(),
-        "as_strided: non-contiguous layout is not supported on nntile");
+    // Untiled torch-native path: non-contiguous views are allowed.
+    // StarPU codelets receive sizes/strides/offset via TorchDispatchArgs.
     record_view_alias(self, result);
     return result;
 }
@@ -380,36 +379,78 @@ const at::Tensor &resize_(
     return self;
 }
 
+at::Tensor as_strided(
+    const at::Tensor &self,
+    at::IntArrayRef size,
+    at::IntArrayRef stride,
+    std::optional<int64_t> storage_offset);
+
+at::Tensor contiguous(
+    const at::Tensor &self,
+    at::MemoryFormat memory_format);
+
 at::Tensor copy_from(
     const at::Tensor &self,
     const at::Tensor &dst,
     bool /*non_blocking*/)
 {
-    check_copy_devices(self, dst);
+    // Untiled views: densify nntile src before host I/O.
+    at::Tensor src = self;
+    if (is_nntile_device(self.device()) && !self.is_contiguous() &&
+        self.scalar_type() == at::ScalarType::Float)
+    {
+        src = contiguous(self, at::MemoryFormat::Contiguous);
+    }
+    TORCH_CHECK(
+        (src.is_cpu() && is_nntile_device(dst.device())) ||
+            (is_nntile_device(src.device()) && dst.is_cpu()) ||
+            (is_nntile_device(src.device()) &&
+                is_nntile_device(dst.device())),
+        "nntile stub copy supports CPU <-> nntile only");
+    TORCH_CHECK(src.sizes() == dst.sizes(), "copy size mismatch");
+    TORCH_CHECK(
+        src.scalar_type() == dst.scalar_type(),
+        "copy dtype mismatch");
+
     at::Tensor mutable_dst = dst;
-    if (dst.is_cpu() && is_nntile_device(self.device()))
+    if (dst.is_cpu() && is_nntile_device(src.device()))
     {
         if (has_graph_session())
         {
-            // run() is async; do not wait_for_all here. copy_nntile_tensor_to_cpu
-            // / gather compile finishes any pending run before readout.
-            copy_nntile_tensor_to_cpu(self, mutable_dst);
+            // .cpu() may allocate a strided host buffer matching the
+            // nntile view; gather into a contiguous temp then copy_.
+            if (!mutable_dst.is_contiguous())
+            {
+                at::Tensor tmp = at::empty(
+                    src.sizes(),
+                    mutable_dst.options().memory_format(
+                        at::MemoryFormat::Contiguous));
+                copy_nntile_tensor_to_cpu(src, tmp);
+                mutable_dst.copy_(tmp);
+            }
+            else
+            {
+                copy_nntile_tensor_to_cpu(src, mutable_dst);
+            }
             return dst;
         }
     }
-    if (is_nntile_device(mutable_dst.device()) && self.is_cpu())
+    if (is_nntile_device(mutable_dst.device()) && src.is_cpu())
     {
-        init_nntile_input_from_cpu(self, mutable_dst);
+        TORCH_CHECK(
+            src.is_contiguous() && mutable_dst.is_contiguous(),
+            "nntile stub copy requires contiguous tensors");
+        init_nntile_input_from_cpu(src, mutable_dst);
         return dst;
     }
     else if (
-        is_nntile_device(self.device()) &&
+        is_nntile_device(src.device()) &&
         is_nntile_device(mutable_dst.device()))
     {
-        nntile::TensorRef src_binding = tensor_ref(self);
+        nntile::TensorRef src_binding = tensor_ref(src);
         if (src_binding != nullptr &&
-            self.sizes() == mutable_dst.sizes() &&
-            self.scalar_type() == mutable_dst.scalar_type())
+            src.sizes() == mutable_dst.sizes() &&
+            src.scalar_type() == mutable_dst.scalar_type())
         {
             attach_tensor_ref(mutable_dst, src_binding);
             return dst;
@@ -518,24 +559,18 @@ at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
     {
         return self;
     }
-    TORCH_CHECK(
-        self.scalar_type() == at::ScalarType::Float,
-        "nntile transpose supports float32 only");
-    TORCH_CHECK(
-        self.is_contiguous(),
-        "nntile transpose requires contiguous input");
     auto sizes = self.sizes().vec();
+    auto strides = self.strides().vec();
     std::swap(sizes[static_cast<size_t>(dim0)], sizes[static_cast<size_t>(dim1)]);
-    at::Tensor result = at::empty(
-        c10::IntArrayRef(sizes),
-        self.options().memory_format(at::MemoryFormat::Contiguous));
-    const int64_t numel = self.numel();
-    if (numel == 0)
-    {
-        return result;
-    }
-    tensor_swap_two_axes_fp32(self, result, dim0, dim1);
-    return result;
+    std::swap(
+        strides[static_cast<size_t>(dim0)],
+        strides[static_cast<size_t>(dim1)]);
+    // Zero-copy view (untiled); layout packed at op-record time.
+    return torch_nntile::as_strided(
+        self,
+        sizes,
+        strides,
+        std::optional<int64_t>(self.storage_offset()));
 }
 
 at::Tensor t(const at::Tensor &self)
@@ -568,16 +603,11 @@ at::Tensor permute(const at::Tensor &self, at::IntArrayRef dims)
         sizes[static_cast<size_t>(i)] = self.size(src);
         strides[static_cast<size_t>(i)] = self.stride(src);
     }
-    at::Tensor result = reshape_alias(
+    return torch_nntile::as_strided(
         self,
-        c10::IntArrayRef(sizes),
-        c10::IntArrayRef(strides));
-    TORCH_CHECK(
-        result.is_contiguous(),
-        "permute: non-contiguous layout is not supported on nntile; "
-        "use transpose for axis swaps");
-    record_view_alias(self, result);
-    return result;
+        sizes,
+        strides,
+        std::optional<int64_t>(self.storage_offset()));
 }
 
 at::Tensor contiguous(
@@ -593,10 +623,13 @@ at::Tensor contiguous(
         return self;
     }
     TORCH_CHECK(
-        false,
-        "aten::contiguous is not supported on device=nntile; ensure tensors are "
-        "contiguous before .to('nntile') or use graph layout ops "
-        "(transpose, model_transpose, repeat, view)");
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile contiguous densify supports float32 only");
+    at::Tensor result = at::empty(
+        self.sizes(),
+        self.options().memory_format(at::MemoryFormat::Contiguous));
+    tensor_copy_fp32(self, result);
+    return result;
 }
 
 at::Tensor contiguous_autograd(

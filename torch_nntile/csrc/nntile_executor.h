@@ -42,6 +42,9 @@ void tensor_swap_two_axes_fp32(
     int64_t dim0,
     int64_t dim1);
 
+//! Densify ``src`` (view OK) into contiguous ``dst`` (same shape).
+void tensor_copy_fp32(const at::Tensor &src, at::Tensor &dst);
+
 void tensor_add_inplace_fp32(
     float alpha,
     const at::Tensor &other,

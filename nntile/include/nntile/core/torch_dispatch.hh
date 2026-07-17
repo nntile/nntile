@@ -31,6 +31,14 @@ void pack_meta_into(
     const TorchTileMeta &meta,
     bool is_out);
 
+//! Unpack layout from ``args`` if packed (ndim>0); else contiguous
+//! ``tile_shape``.
+TorchTileMeta meta_from_args_or_contiguous(
+    const starpu::TorchDispatchArgs &args,
+    Index slot,
+    bool is_out,
+    const std::vector<Index> &tile_shape);
+
 void torch_unary_out(
     int starpu_worker_hint,
     starpu::TorchKind kind,

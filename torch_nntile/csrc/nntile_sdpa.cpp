@@ -37,7 +37,7 @@ void check_sdpa_tensor(
     TORCH_CHECK(
         tensor.scalar_type() == at::ScalarType::Float,
         "nntile sdpa supports float32 only");
-    TORCH_CHECK(tensor.is_contiguous(), "nntile sdpa requires contiguous");
+    // Untiled: non-contiguous views OK (sizes/strides/offset packed).
     TORCH_CHECK(tensor.dim() >= 3, "nntile sdpa: tensor rank must be >= 3");
 }
 

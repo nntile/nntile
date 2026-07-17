@@ -34,6 +34,7 @@ void pack_meta_into(
     if (is_out)
     {
         args.out_ndim[slot] = ndim;
+        args.out_offset[slot] = meta.storage_offset;
         for (Index i = 0; i < ndim; ++i)
         {
             args.out_sizes[slot][i] = meta.sizes[static_cast<size_t>(i)];
@@ -44,6 +45,7 @@ void pack_meta_into(
     else
     {
         args.in_ndim[slot] = ndim;
+        args.in_offset[slot] = meta.storage_offset;
         for (Index i = 0; i < ndim; ++i)
         {
             args.in_sizes[slot][i] = meta.sizes[static_cast<size_t>(i)];
@@ -51,6 +53,35 @@ void pack_meta_into(
                 meta.strides[static_cast<size_t>(i)];
         }
     }
+}
+
+TorchTileMeta meta_from_args_or_contiguous(
+    const starpu::TorchDispatchArgs &args,
+    Index slot,
+    bool is_out,
+    const std::vector<Index> &tile_shape)
+{
+    const Index ndim =
+        is_out ? args.out_ndim[slot] : args.in_ndim[slot];
+    if (ndim <= 0)
+    {
+        return make_contiguous_torch_meta(tile_shape);
+    }
+    TorchTileMeta meta;
+    meta.sizes.resize(static_cast<size_t>(ndim));
+    meta.strides.resize(static_cast<size_t>(ndim));
+    meta.storage_offset =
+        is_out ? args.out_offset[slot] : args.in_offset[slot];
+    for (Index i = 0; i < ndim; ++i)
+    {
+        meta.sizes[static_cast<size_t>(i)] = is_out
+            ? args.out_sizes[slot][i]
+            : args.in_sizes[slot][i];
+        meta.strides[static_cast<size_t>(i)] = is_out
+            ? args.out_strides[slot][i]
+            : args.in_strides[slot][i];
+    }
+    return meta;
 }
 
 void torch_unary_out(

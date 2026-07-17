@@ -450,6 +450,7 @@ void torch_embedding_dense_backward(
 struct TensorTorchSdpaBackwardOp : TensorGraph::OpNode
 {
     bool is_causal = false;
+    starpu::TorchDispatchArgs extra{};
     TensorGraph::TensorNode *q = nullptr;
     TensorGraph::TensorNode *k = nullptr;
     TensorGraph::TensorNode *v = nullptr;
@@ -469,8 +470,10 @@ struct TensorTorchSdpaBackwardOp : TensorGraph::OpNode
         TensorGraph::TensorNode *grad_q_,
         TensorGraph::TensorNode *grad_k_,
         TensorGraph::TensorNode *grad_v_,
-        bool is_causal_) :
+        bool is_causal_,
+        starpu::TorchDispatchArgs extra_ = {}) :
         is_causal(is_causal_),
+        extra(extra_),
         q(q_),
         k(k_),
         v(v_),
@@ -510,7 +513,8 @@ void torch_sdpa_backward(
     TensorGraph::TensorNode *grad_q,
     TensorGraph::TensorNode *grad_k,
     TensorGraph::TensorNode *grad_v,
-    bool is_causal = false);
+    bool is_causal = false,
+    starpu::TorchDispatchArgs extra = {});
 
 struct TensorTorchNllLossForwardOp : TensorGraph::OpNode
 {

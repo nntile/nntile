@@ -425,7 +425,8 @@ void torch_sdpa_backward(
     TensorGraph::TensorNode *grad_q,
     TensorGraph::TensorNode *grad_k,
     TensorGraph::TensorNode *grad_v,
-    bool is_causal)
+    bool is_causal,
+    starpu::TorchDispatchArgs extra)
 {
     auto op = std::make_shared<TensorTorchSdpaBackwardOp>(
         q,
@@ -436,7 +437,8 @@ void torch_sdpa_backward(
         grad_q,
         grad_k,
         grad_v,
-        is_causal);
+        is_causal,
+        extra);
     q->graph()->add_op(op);
 }
 
@@ -473,7 +475,8 @@ void TensorTorchSdpaBackwardOp::lower_to_tile(
         vgq[0],
         vgk[0],
         vgv[0],
-        is_causal);
+        is_causal,
+        extra);
 }
 
 void torch_nll_loss_forward(

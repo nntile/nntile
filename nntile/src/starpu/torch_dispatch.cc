@@ -108,6 +108,7 @@ at::Tensor in_fp32(
         ptr,
         sizes_of(args, slot, false),
         strides_of(args, slot, false),
+        static_cast<std::int64_t>(args.in_offset[slot]),
         device);
 }
 
@@ -121,6 +122,7 @@ at::Tensor out_fp32(
         ptr,
         sizes_of(args, slot, true),
         strides_of(args, slot, true),
+        static_cast<std::int64_t>(args.out_offset[slot]),
         device);
 }
 
@@ -205,6 +207,10 @@ void run_unary(
         result.copy_(self.narrow(dim, start, length));
         break;
     }
+    case TorchKind::Copy:
+        // Densify a (possibly non-contiguous) view into contiguous out.
+        result.copy_(self);
+        break;
     case TorchKind::Repeat:
     {
         std::vector<std::int64_t> repeats;
@@ -1861,7 +1867,8 @@ void TorchSdpaBackward::cpu(void *buffers[], void *cl_args) noexcept
             mask_bool = blob_bool(
                 reinterpret_cast<bool *>(m_ptr),
                 sizes_of(*args, 4, false),
-                strides_of(*args, 4, false));
+                strides_of(*args, 4, false),
+                static_cast<std::int64_t>(args->in_offset[4]));
         }
         float *gq_ptr = ifaces[buf++]->get_ptr<float>();
         float *gk_ptr = ifaces[buf++]->get_ptr<float>();

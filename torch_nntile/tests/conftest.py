@@ -206,10 +206,13 @@ def _reset_nntile_graph_session_after_test():
 def nntile_cpu(tensor: torch.Tensor) -> torch.Tensor:
     """Copy an nntile tensor to CPU, flushing a pending TensorGraph first.
 
-    ``.cpu()`` gathers through StarPU and blocks until tile data is ready;
-    do not add an extra ``wait()`` here. If a pending graph exists, compile
-    and run it so the gather sees the produced logical.
+    Non-contiguous views are densified first (``contiguous`` records a
+    ``Copy``). ``.cpu()`` gathers through StarPU and blocks until tile data
+    is ready; do not add an extra ``wait()`` here. If a pending graph
+    exists, compile and run it so the gather sees the produced logical.
     """
+    if tensor.device.type == "nntile" and not tensor.is_contiguous():
+        tensor = tensor.contiguous()
     if tensor.device.type == "nntile" and torch_nntile.has_pending_graph():
         torch_nntile.compile_graph()
         torch_nntile.run()

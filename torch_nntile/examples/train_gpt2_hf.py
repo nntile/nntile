@@ -91,6 +91,11 @@ def _attn_implementation_for_device(device: str) -> str:
     * ``nntile``: ``sdpa`` - routes through ``F.scaled_dot_product_attention``,
       which torch_nntile overrides with its SDPA kernel. Eager HF attention
       uses ops that are not fully supported on ``device=nntile``.
+
+    Remaining wall-time gap vs CUDA should shrink once HF layout transforms
+    (``split``/``narrow``/``transpose``) are zero-copy views with packed
+    sizes/strides/offset. ``--verbose`` + ``print_info()`` layout-copy
+    counters should stay near zero for those paths.
     """
     if device == "nntile":
         return "sdpa"

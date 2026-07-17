@@ -145,6 +145,11 @@ struct GraphApiTimingStats
     double record_relu_bwd_s = 0.0;
     std::uint64_t record_gemm_calls = 0;
     double record_gemm_s = 0.0;
+    // HF layout tax: views on CUDA, materializing copies on nntile.
+    std::uint64_t record_narrow_copy_calls = 0;
+    std::uint64_t record_transpose_copy_calls = 0;
+    std::uint64_t record_narrow_copy_elems = 0;
+    std::uint64_t record_transpose_copy_elems = 0;
 };
 
 GraphApiTimingStats g_timing;
@@ -794,14 +799,17 @@ nntile::TensorGraph::TensorNode *logical_node_for_tensor_locked(
                 "torch_nntile: tensor logical node does not belong to the "
                 "active TensorGraph");
         }
-        if (graph_numel(logical->shape()) != graph_numel(shape))
+        const nntile::Index storage_n = graph_numel(logical->shape());
+        const nntile::Index want_n = graph_numel(shape);
+        // Views (transpose/narrow/split) share the parent storage node and
+        // may have fewer elements. Layout (sizes/strides/offset) is packed
+        // into TorchDispatchArgs at record time — do not densify here.
+        if (want_n > storage_n)
         {
             throw std::invalid_argument(
-                "torch_nntile: logical node numel mismatch for tensor");
+                "torch_nntile: view numel exceeds storage logical");
         }
-        nntile::TensorGraph::TensorNode *node =
-            ensure_graph_shape_bridge_locked(logical, shape);
-        return node;
+        return logical;
     }
 
     nntile::TensorRef node_ref = g_graph->data(shape, dtype);
@@ -1490,6 +1498,18 @@ void note_record_gemm(double seconds)
     g_timing.record_gemm_s += seconds;
 }
 
+void note_record_narrow_copy(std::uint64_t nelems)
+{
+    ++g_timing.record_narrow_copy_calls;
+    g_timing.record_narrow_copy_elems += nelems;
+}
+
+void note_record_transpose_copy(std::uint64_t nelems)
+{
+    ++g_timing.record_transpose_copy_calls;
+    g_timing.record_transpose_copy_elems += nelems;
+}
+
 nntile::TensorGraph::TensorNode *lookup_data_node(
     const at::Tensor &tensor,
     const std::vector<nntile::Index> &shape)
@@ -1564,10 +1584,10 @@ void record_view_alias(const at::Tensor &self, const at::Tensor &view)
     {
         view_shape.push_back(static_cast<nntile::Index>(dim));
     }
-    if (graph_numel(src_node->shape()) != graph_numel(view_shape))
+    if (graph_numel(src_node->shape()) < graph_numel(view_shape))
     {
         throw std::invalid_argument(
-            "view: storage alias must preserve numel");
+            "view: alias numel exceeds storage logical");
     }
     at::Tensor mutable_view = view;
     share_tensor_ref_for_reshape(self, mutable_view);
@@ -1820,6 +1840,24 @@ std::string format_info_locked()
                   g_timing.record_relu_bwd_s,
                   g_timing.record_relu_bwd_calls)
            << " ms)\n";
+        if (g_timing.record_narrow_copy_calls > 0 ||
+            g_timing.record_transpose_copy_calls > 0)
+        {
+            // Residual materializing layout copies (should be rare once
+            // transpose/narrow/split are zero-copy views).
+            const double narrow_gib = static_cast<double>(
+                    g_timing.record_narrow_copy_elems) *
+                4.0 / (1024.0 * 1024.0 * 1024.0);
+            const double transpose_gib = static_cast<double>(
+                    g_timing.record_transpose_copy_elems) *
+                4.0 / (1024.0 * 1024.0 * 1024.0);
+            ss << "    layout copies (should be ~0 with view metadata):\n";
+            ss << "      NarrowCopy: " << g_timing.record_narrow_copy_calls
+               << " ops, " << narrow_gib << " GiB fp32\n";
+            ss << "      TransposeCopy: "
+               << g_timing.record_transpose_copy_calls << " ops, "
+               << transpose_gib << " GiB fp32\n";
+        }
     }
     if (g_timing.run_calls > 0)
     {

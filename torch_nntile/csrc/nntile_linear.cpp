@@ -141,10 +141,17 @@ at::Tensor linear(
     const at::Tensor &weight,
     const std::optional<at::Tensor> &bias)
 {
-    check_linear_tensors(input, weight, bias);
+    // Linear gemm layout / autograd expect dense operands. Transpose
+    // views (e.g. weight.t()) densify here; attention QKV views stay
+    // zero-copy until SDPA.
+    const at::Tensor input_c =
+        input.is_contiguous() ? input : input.contiguous();
+    const at::Tensor weight_c =
+        weight.is_contiguous() ? weight : weight.contiguous();
+    check_linear_tensors(input_c, weight_c, bias);
     const PreparedGemmOperands prepared =
-        prepare_linear_operands(input, weight);
-    at::Tensor output = make_linear_output(prepared.out_shape, input);
+        prepare_linear_operands(input_c, weight_c);
+    at::Tensor output = make_linear_output(prepared.out_shape, input_c);
     run_linear(prepared, output, bias);
     return output;
 }
@@ -155,9 +162,13 @@ at::Tensor &linear_out(
     const std::optional<at::Tensor> &bias,
     at::Tensor &out)
 {
-    check_linear_tensors(input, weight, bias, out);
+    const at::Tensor input_c =
+        input.is_contiguous() ? input : input.contiguous();
+    const at::Tensor weight_c =
+        weight.is_contiguous() ? weight : weight.contiguous();
+    check_linear_tensors(input_c, weight_c, bias, out);
     const PreparedGemmOperands prepared =
-        prepare_linear_operands(input, weight);
+        prepare_linear_operands(input_c, weight_c);
     TORCH_CHECK(
         out.sizes().vec() == prepared.out_shape,
         "nntile linear.out: output shape mismatch");

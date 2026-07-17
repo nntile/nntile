@@ -294,9 +294,8 @@ sdpa_overrideable_forward(
             false,
             scale),
         "nntile sdpa: unsupported scaled_dot_product_attention arguments");
-    TORCH_CHECK(
-        query.is_contiguous() && key.is_contiguous() && value.is_contiguous(),
-        "nntile sdpa: Q, K, V must be contiguous");
+    // Untiled path: strided Q/K/V views (sizes/strides/offset) are OK;
+    // layout is packed into TorchDispatchArgs at record time.
 
     const int64_t batch_ndim = query.dim() - 2;
     const c10::SymInt q_seq = query.sym_size(-2);
@@ -430,13 +429,12 @@ sdpa_overrideable_backward(
             query.device());
     }
 
-    require_contiguous_nntile(grad_out, "grad_out");
-    const at::Tensor &grad_out_c = grad_out;
+    // Untiled: grad_out may be a strided view; layout is packed at record.
     auto grad_qkv = sdpa_backward(
         query,
         key,
         value,
-        grad_out_c,
+        grad_out,
         mask,
         batch_ndim,
         causal_flag);

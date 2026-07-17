@@ -136,8 +136,9 @@ void torch_binary_out(
     const starpu::TorchDispatchArgs &extra = {});
 ```
 
-`TorchTileMeta` holds strides / dtype / sizes needed to rebuild `at::Tensor`
-views. For `TorchKind::Add`, put torch alpha in `extra.scalars[0]`.
+`TorchTileMeta` holds sizes, strides, and `storage_offset` (elements) needed
+to rebuild `at::Tensor` views via `from_blob`. For `TorchKind::Add`, put
+torch alpha in `extra.scalars[0]`.
 Core only packs handles and calls `nntile::starpu::torch_binary.submit(...)`.
 
 ### 6. `nntile::starpu` codelet
@@ -449,10 +450,10 @@ Lessons from wiring the first ops:
    cuBLAS); do not read stream/handle from the tensor.
 3. **`from_blob` needs an empty deleter** so temporary `Tensor` destructors
    do not free StarPU memory. Prefer `torch_blob::blob_*` helpers.
-4. **Single-tile contiguous path** can derive row-major strides from tile
-   shape via `core::make_contiguous_torch_meta`. Persisting full stride meta
-   on `TensorNode` / `TileNode` remains follow-up work for non-contiguous
-   layouts.
+4. **Tile meta:** packed `TorchTileMeta` carries sizes, strides, and
+   `storage_offset` (elements) so untiled views (`transpose` / `narrow` /
+   `split`) share the parent StarPU buffer. Empty packed ndim falls back
+   to `core::make_contiguous_torch_meta(tile_shape)`.
 5. **Functional `add.Tensor` still needs a PrivateUse1 impl** (meta probe →
    `empty` → record `torch_binary(Add, …)`). Registering only `add.out` is
    not enough. Same for `add_.Tensor` (SSA rebind via `register_data_node`).
