@@ -152,6 +152,119 @@ def test_contiguous_densifies_transpose_view():
     torch.testing.assert_close(y_nnt, y_cpu, rtol=1e-5, atol=1e-5)
 
 
+def test_expand_and_sum_backward():
+    """Broadcast expand (SumBackward) must share storage, not reject."""
+    torch.manual_seed(19)
+    x_cpu = torch.randn(2, 3, requires_grad=True)
+    x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
+    y_cpu = x_cpu.expand(4, 2, 3)
+    y_nnt = x_nnt.expand(4, 2, 3)
+    assert y_nnt.stride()[0] == 0
+    torch.testing.assert_close(
+        nntile_cpu(y_nnt), y_cpu, rtol=1e-5, atol=1e-5
+    )
+    x_cpu.sum().backward()
+    x_nnt.sum().backward()
+    torch.testing.assert_close(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-5, atol=1e-5
+    )
+
+
+def test_transpose_contiguous_backward_parity():
+    torch.manual_seed(20)
+    x_cpu = torch.randn(1, 16, 4, 8, requires_grad=True)
+    x_nnt = x_cpu.detach().to("nntile").requires_grad_(True)
+    x_cpu.transpose(1, 2).contiguous().sum().backward()
+    x_nnt.transpose(1, 2).contiguous().sum().backward()
+    torch.testing.assert_close(
+        nntile_cpu(x_nnt.grad), x_cpu.grad, rtol=1e-5, atol=1e-5
+    )
+
+
+def test_fused_qkv_split_heads_contiguous_backward():
+    """GPT-2: c_attn split → view heads → transpose → contiguous → bwd."""
+    torch.manual_seed(21)
+    batch, seq, n_heads, head_dim = 1, 16, 4, 8
+    hidden = n_heads * head_dim
+    qkv_cpu = torch.randn(batch, seq, 3 * hidden, requires_grad=True)
+    qkv_nnt = qkv_cpu.detach().to("nntile").requires_grad_(True)
+
+    def heads(t):
+        q, _, _ = t.split(hidden, dim=2)
+        return q.view(batch, seq, n_heads, head_dim).transpose(1, 2).contiguous()
+
+    heads(qkv_cpu).sum().backward()
+    heads(qkv_nnt).sum().backward()
+    torch.testing.assert_close(
+        nntile_cpu(qkv_nnt.grad), qkv_cpu.grad, rtol=1e-5, atol=1e-5
+    )
+
+
+def test_fused_qkv_sdpa_backward_parity():
+    """GPT-2 attention: split → heads → causal SDPA → backward."""
+    torch.manual_seed(22)
+    batch, seq, n_heads, head_dim = 1, 16, 4, 8
+    hidden = n_heads * head_dim
+    qkv_cpu = torch.randn(batch, seq, 3 * hidden, requires_grad=True)
+    qkv_nnt = qkv_cpu.detach().to("nntile").requires_grad_(True)
+
+    def attn(t):
+        q, k, v = t.split(hidden, dim=2)
+        q = q.view(batch, seq, n_heads, head_dim).transpose(1, 2)
+        k = k.view(batch, seq, n_heads, head_dim).transpose(1, 2)
+        v = v.view(batch, seq, n_heads, head_dim).transpose(1, 2)
+        return torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, is_causal=True
+        )
+
+    attn(qkv_cpu).sum().backward()
+    attn(qkv_nnt).sum().backward()
+    torch.testing.assert_close(
+        nntile_cpu(qkv_nnt.grad),
+        qkv_cpu.grad,
+        rtol=1e-4,
+        atol=1e-4,
+    )
+
+
+def test_reshape_after_transpose_keeps_graph_ref():
+    """reshape of non-viewable transpose must keep TensorRef (_unsafe_view)."""
+    env = subprocess_environ()
+    script = textwrap.dedent(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1, ncuda=0, verbose=0, cpu_fallback=False
+        )
+        torch_nntile.restrict_cpu()
+        x = torch.randn(1, 2, 8, 4).to("nntile")
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        y = x.transpose(1, 2).reshape(1, 8, 8)
+        z = torch.cat([y, y, y], dim=-1)
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        ref = x.cpu().transpose(1, 2).reshape(1, 8, 8)
+        ref = torch.cat([ref, ref, ref], dim=-1)
+        torch.testing.assert_close(z.cpu(), ref, rtol=1e-5, atol=1e-5)
+        """
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise AssertionError(
+            f"reshape/_unsafe_view subprocess failed ({proc.returncode})\n"
+            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+        )
+
+
 def test_permute_is_zero_copy_view():
     torch.manual_seed(17)
     x_cpu = torch.randn(2, 8, 4, 16)

@@ -85,11 +85,14 @@ Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
 ## Views, reshape, and nntile→nntile `copy_`
 
 - Untiled torch-native path: `as_strided` / `transpose` / `permute` /
-  `narrow` / `split` / `chunk` are **zero-copy views**. They share the
-  parent `TensorRef` (storage node) and carry full layout metadata —
-  **sizes, strides, and `storage_offset`** — into StarPU via
+  `narrow` / `split` / `chunk` / `_unsafe_view` are **zero-copy views**.
+  They share the parent `TensorRef` (storage node) and carry full layout
+  metadata — **sizes, strides, and `storage_offset`** — into StarPU via
   `TorchDispatchArgs` / `TorchTileMeta`. `from_blob` advances the StarPU
   pointer by `storage_offset` (elements) before applying strides.
+  ``reshape`` of a non-viewable layout densifies then ``_unsafe_view``;
+  without a PrivateUse1 ``_unsafe_view`` kernel the densified result would
+  drop `TensorRef` and break SplitBackward ``cat``.
 - `Tensor.contiguous()` on a non-contiguous view densifies with
   `TorchKind::Copy` (`result.copy_(self)`). Contiguous inputs are a no-op.
 - Legacy materializing `NarrowCopy` / `TransposeCopy` remain available for
@@ -97,8 +100,11 @@ Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
   (`c_attn` → `split` → `transpose` heads → SDPA) should no longer pay
   those copies. `print_info()` still reports residual layout-copy GiB if
   any path still materializes.
-- At op-record time, a PyTorch shape that differs from `L`'s graph shape
-  with **larger** numel is rejected; smaller view numel is allowed (alias).
+- At op-record time, a view must fit inside `L`'s storage (max index from
+  sizes/strides/`storage_offset`). Smaller view numel is fine (narrow /
+  split / transpose). **Broadcast `expand`** (zero strides) may have
+  **larger** logical numel than storage and is allowed when indices stay
+  in range.
 - **nntile→nntile `copy_`** with matching shape/dtype **aliases** `TensorRef`
   (same hold, no data copy). Distinct metadata tensors that cannot share a
   hold raise. There is no graph `tensor::copy` for this path.

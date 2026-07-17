@@ -21,6 +21,7 @@
 #include <c10/core/DeviceGuard.h>
 #include <c10/core/ScalarType.h>
 #include <c10/core/ScalarTypeToTypeMeta.h>
+#include <torch/csrc/autograd/custom_function.h>
 #include <torch/library.h>
 #include <torch/version.h>
 
@@ -335,6 +336,9 @@ at::Tensor reshape_alias(
     auto *result_impl = result.unsafeGetTensorImpl();
     result_impl->set_storage_offset(self.storage_offset());
     result_impl->set_sizes_and_strides(size, stride);
+    // Same as view/as_strided: share the parent TensorRef so later
+    // ops pack layout against the storage tile (not a fresh empty).
+    record_view_alias(self, result);
     return result;
 }
 
@@ -349,9 +353,27 @@ at::Tensor view(const at::Tensor &self, at::IntArrayRef size)
     TORCH_CHECK(
         stride.has_value(),
         "view size is not compatible with input tensor's size and stride");
-    at::Tensor result = reshape_alias(self, inferred, *stride);
-    record_view_alias(self, result);
-    return result;
+    // reshape_alias records the TensorRef share.
+    return reshape_alias(self, inferred, *stride);
+}
+
+//! ``reshape`` densifies then calls ``_unsafe_view``; without this
+//! kernel the result keeps storage but drops BackendMeta/TensorRef,
+//! so later ``cat`` (SplitBackward) reads an uninitialized handle.
+at::Tensor unsafe_view(
+    const at::Tensor &self,
+    c10::SymIntArrayRef size)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "_unsafe_view: expected nntile");
+    std::vector<int64_t> sizes;
+    sizes.reserve(size.size());
+    for (const auto &dim : size)
+    {
+        sizes.push_back(dim.guard_int(__FILE__, __LINE__));
+    }
+    return view(self, sizes);
 }
 
 const at::Tensor &resize_(
@@ -625,19 +647,53 @@ at::Tensor contiguous(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile contiguous densify supports float32 only");
+    // Densify into a fresh contiguous buffer. Do not call clone() here:
+    // stock clone(memory_format) redispatches to contiguous and would
+    // recurse. AutogradPrivateUse1 wraps this via ContiguousFn.
     at::Tensor result = at::empty(
         self.sizes(),
-        self.options().memory_format(at::MemoryFormat::Contiguous));
+        self.options()
+            .memory_format(at::MemoryFormat::Contiguous)
+            .requires_grad(false));
     tensor_copy_fp32(self, result);
     return result;
 }
+
+//! Same-shape densify: identity backward (like CloneBackward).
+class ContiguousFn : public torch::autograd::Function<ContiguousFn>
+{
+public:
+    static at::Tensor forward(
+        torch::autograd::AutogradContext * /*ctx*/,
+        at::Tensor self)
+    {
+        at::AutoDispatchBelowADInplaceOrView guard;
+        return contiguous(self, at::MemoryFormat::Contiguous);
+    }
+
+    static torch::autograd::variable_list backward(
+        torch::autograd::AutogradContext * /*ctx*/,
+        torch::autograd::variable_list grad_outputs)
+    {
+        return {grad_outputs[0]};
+    }
+};
 
 at::Tensor contiguous_autograd(
     const at::Tensor &self,
     at::MemoryFormat memory_format)
 {
-    at::AutoDispatchBelowAutograd guard;
-    return contiguous(self, memory_format);
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "contiguous: expected nntile");
+    TORCH_CHECK(
+        memory_format == at::MemoryFormat::Contiguous,
+        "nntile contiguous supports Contiguous memory format only");
+    if (self.is_contiguous(memory_format))
+    {
+        return self;
+    }
+    return ContiguousFn::apply(self);
 }
 
 void cpu_fallback(const c10::OperatorHandle &op, torch::jit::Stack *stack)
@@ -671,6 +727,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("empty_strided", TORCH_FN(torch_nntile::empty_strided));
     m.impl("as_strided", TORCH_FN(torch_nntile::as_strided));
     m.impl("view", TORCH_FN(torch_nntile::view));
+    m.impl("_unsafe_view", TORCH_FN(torch_nntile::unsafe_view));
     m.impl("_reshape_alias", TORCH_FN(torch_nntile::reshape_alias));
     m.impl("transpose.int", TORCH_FN(torch_nntile::transpose_int));
     m.impl("t", TORCH_FN(torch_nntile::t));
@@ -690,6 +747,10 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
         TORCH_FN(torch_nntile::set_source_storage_storage_offset));
 }
 
+// AutogradPrivateUse1: ContiguousFn densifies under
+// AutoDispatchBelowADInplaceOrView and uses identity backward (same
+// logical shape). Do not use AutoDispatchBelowAutograd alone — that
+// drops requires_grad / grad_fn on the densify result.
 TORCH_LIBRARY_IMPL(aten, AutogradPrivateUse1, m)
 {
     m.impl("contiguous", TORCH_FN(torch_nntile::contiguous_autograd));

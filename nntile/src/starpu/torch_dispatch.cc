@@ -208,9 +208,31 @@ void run_unary(
         break;
     }
     case TorchKind::Copy:
+    {
         // Densify a (possibly non-contiguous) view into contiguous out.
+        if (self.sizes() != result.sizes())
+        {
+            auto fmt = [](at::IntArrayRef dims) {
+                std::string s = "[";
+                for (size_t i = 0; i < dims.size(); ++i)
+                {
+                    if (i != 0)
+                    {
+                        s += ",";
+                    }
+                    s += std::to_string(dims[i]);
+                }
+                return s + "]";
+            };
+            throw std::runtime_error(
+                "torch Copy: in/out size mismatch in=" +
+                fmt(self.sizes()) +
+                " out=" +
+                fmt(result.sizes()));
+        }
         result.copy_(self);
         break;
+    }
     case TorchKind::Repeat:
     {
         std::vector<std::int64_t> repeats;

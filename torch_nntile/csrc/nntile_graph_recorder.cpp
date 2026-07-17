@@ -681,6 +681,52 @@ nntile::Index graph_numel(const std::vector<nntile::Index> &graph_shape)
     return nelems;
 }
 
+//! True when ``view`` indices stay inside a storage of ``storage_numel``
+//! elements. Allows broadcast ``expand`` (zero strides) whose logical
+//! numel exceeds storage numel — unlike a raw numel comparison.
+bool view_fits_storage(
+    const at::Tensor &view,
+    nntile::Index storage_numel)
+{
+    if (storage_numel < 0)
+    {
+        return false;
+    }
+    if (view.numel() == 0)
+    {
+        return view.storage_offset() >= 0
+            && view.storage_offset() <= storage_numel;
+    }
+    const int64_t offset = view.storage_offset();
+    if (offset < 0)
+    {
+        return false;
+    }
+    int64_t max_index = offset;
+    int64_t min_index = offset;
+    const auto sizes = view.sizes();
+    const auto strides = view.strides();
+    for (int64_t i = 0; i < sizes.size(); ++i)
+    {
+        const int64_t size = sizes[i];
+        const int64_t stride = strides[i];
+        if (size <= 0)
+        {
+            continue;
+        }
+        const int64_t span = (size - 1) * stride;
+        if (span >= 0)
+        {
+            max_index += span;
+        }
+        else
+        {
+            min_index += span;
+        }
+    }
+    return min_index >= 0 && max_index < storage_numel;
+}
+
 //! Bytes available in ``tensor`` storage from ``data_ptr()`` to the end.
 //!
 //! ``tensor.nbytes()`` is typically ``numel * itemsize`` and does **not**
@@ -800,14 +846,14 @@ nntile::TensorGraph::TensorNode *logical_node_for_tensor_locked(
                 "active TensorGraph");
         }
         const nntile::Index storage_n = graph_numel(logical->shape());
-        const nntile::Index want_n = graph_numel(shape);
-        // Views (transpose/narrow/split) share the parent storage node and
-        // may have fewer elements. Layout (sizes/strides/offset) is packed
-        // into TorchDispatchArgs at record time — do not densify here.
-        if (want_n > storage_n)
+        // Views (transpose/narrow/split/expand) share the parent storage
+        // node. Layout (sizes/strides/offset) is packed into
+        // TorchDispatchArgs at record time — do not densify here.
+        // Broadcast expand may have larger logical numel than storage.
+        if (!view_fits_storage(mutable_tensor, storage_n))
         {
             throw std::invalid_argument(
-                "torch_nntile: view numel exceeds storage logical");
+                "torch_nntile: view indices exceed storage logical");
         }
         return logical;
     }
@@ -1578,16 +1624,13 @@ void record_view_alias(const at::Tensor &self, const at::Tensor &view)
     {
         return;
     }
-    std::vector<nntile::Index> view_shape;
-    view_shape.reserve(static_cast<std::size_t>(view.dim()));
-    for (const auto dim : view.sizes())
-    {
-        view_shape.push_back(static_cast<nntile::Index>(dim));
-    }
-    if (graph_numel(src_node->shape()) < graph_numel(view_shape))
+    const nntile::Index storage_n = graph_numel(src_node->shape());
+    // Reject OOB aliases; allow expand/broadcast (zero strides) whose
+    // logical numel exceeds storage numel.
+    if (!view_fits_storage(view, storage_n))
     {
         throw std::invalid_argument(
-            "view: alias numel exceeds storage logical");
+            "view: alias indices exceed storage logical");
     }
     at::Tensor mutable_view = view;
     share_tensor_ref_for_reshape(self, mutable_view);
