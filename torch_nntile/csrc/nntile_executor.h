@@ -204,6 +204,34 @@ void tensor_softmax_fp32(
     at::Tensor &out,
     int64_t dim);
 
+void tensor_log_softmax_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t dim);
+
+void tensor_log_softmax_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &output,
+    at::Tensor &grad_input,
+    int64_t dim);
+
+void tensor_nll_loss_forward_fp32(
+    const at::Tensor &log_probs,
+    const at::Tensor &target,
+    at::Tensor &loss,
+    at::Tensor &total_weight,
+    int64_t reduction,
+    int64_t ignore_index);
+
+void tensor_nll_loss_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &log_probs,
+    const at::Tensor &target,
+    const at::Tensor &total_weight,
+    at::Tensor &grad_input,
+    int64_t reduction,
+    int64_t ignore_index);
+
 void tensor_softmax_backward_fp32(
     const at::Tensor &grad_output,
     const at::Tensor &output,

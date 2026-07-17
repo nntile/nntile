@@ -69,6 +69,8 @@ for unregistered ops when `cpu_fallback=True`.
 | `nntile_gelu_backward.cpp` | `gelu_backward`, `gelu_backward.grad_input` |
 | `nntile_softmax.cpp` | `_softmax`, `_softmax.out` |
 | `nntile_softmax_backward.cpp` | `_softmax_backward_data` |
+| `nntile_log_softmax.cpp` | `_log_softmax`, `_log_softmax.out`, `_log_softmax_backward_data` |
+| `nntile_nll_loss.cpp` | `nll_loss_forward`, `nll_loss_backward` |
 | `nntile_hypot.cpp` | `hypot`, `hypot.out` |
 | `nntile_sum.cpp` | `sum.IntList_out`, `sum.dim_IntList` |
 | `nntile_norm.cpp` | `linalg_vector_norm`, `linalg_vector_norm.out` |

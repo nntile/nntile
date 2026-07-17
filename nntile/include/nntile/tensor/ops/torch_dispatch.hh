@@ -314,4 +314,308 @@ void torch_layer_norm(
     Index normalized_ndim,
     Scalar eps);
 
+struct TensorTorchLayerNormBackwardOp : TensorGraph::OpNode
+{
+    Index normalized_ndim = 1;
+    bool need_grad_input = false;
+    bool need_grad_weight = false;
+    bool need_grad_bias = false;
+    TensorGraph::TensorNode *grad_out = nullptr;
+    TensorGraph::TensorNode *input = nullptr;
+    TensorGraph::TensorNode *mean = nullptr;
+    TensorGraph::TensorNode *rstd = nullptr;
+    TensorGraph::TensorNode *weight = nullptr;
+    TensorGraph::TensorNode *bias = nullptr;
+    TensorGraph::TensorNode *grad_input = nullptr;
+    TensorGraph::TensorNode *grad_weight = nullptr;
+    TensorGraph::TensorNode *grad_bias = nullptr;
+
+    TensorTorchLayerNormBackwardOp() = default;
+    TensorTorchLayerNormBackwardOp(
+        TensorGraph::TensorNode *grad_out_,
+        TensorGraph::TensorNode *input_,
+        TensorGraph::TensorNode *mean_,
+        TensorGraph::TensorNode *rstd_,
+        TensorGraph::TensorNode *weight_,
+        TensorGraph::TensorNode *bias_,
+        TensorGraph::TensorNode *grad_input_,
+        TensorGraph::TensorNode *grad_weight_,
+        TensorGraph::TensorNode *grad_bias_,
+        Index normalized_ndim_,
+        bool need_grad_input_,
+        bool need_grad_weight_,
+        bool need_grad_bias_) :
+        normalized_ndim(normalized_ndim_),
+        need_grad_input(need_grad_input_),
+        need_grad_weight(need_grad_weight_),
+        need_grad_bias(need_grad_bias_),
+        grad_out(grad_out_),
+        input(input_),
+        mean(mean_),
+        rstd(rstd_),
+        weight(weight_),
+        bias(bias_),
+        grad_input(grad_input_),
+        grad_weight(grad_weight_),
+        grad_bias(grad_bias_)
+    {
+        inputs_ = {grad_out, input, mean, rstd};
+        if (weight != nullptr)
+        {
+            inputs_.push_back(weight);
+        }
+        if (bias != nullptr)
+        {
+            inputs_.push_back(bias);
+        }
+        if (need_grad_input && grad_input != nullptr)
+        {
+            outputs_.push_back(grad_input);
+        }
+        if (need_grad_weight && grad_weight != nullptr)
+        {
+            outputs_.push_back(grad_weight);
+        }
+        if (need_grad_bias && grad_bias != nullptr)
+        {
+            outputs_.push_back(grad_bias);
+        }
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_NATIVE_LAYER_NORM_BACKWARD";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchLayerNormBackwardOp>(
+            *this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+void torch_layer_norm_backward(
+    TensorGraph::TensorNode *grad_out,
+    TensorGraph::TensorNode *input,
+    TensorGraph::TensorNode *mean,
+    TensorGraph::TensorNode *rstd,
+    TensorGraph::TensorNode *weight,
+    TensorGraph::TensorNode *bias,
+    TensorGraph::TensorNode *grad_input,
+    TensorGraph::TensorNode *grad_weight,
+    TensorGraph::TensorNode *grad_bias,
+    Index normalized_ndim,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias);
+
+struct TensorTorchEmbeddingDenseBackwardOp : TensorGraph::OpNode
+{
+    TensorGraph::TensorNode *grad = nullptr;
+    TensorGraph::TensorNode *indices = nullptr;
+    TensorGraph::TensorNode *grad_weight = nullptr;
+
+    TensorTorchEmbeddingDenseBackwardOp() = default;
+    TensorTorchEmbeddingDenseBackwardOp(
+        TensorGraph::TensorNode *grad_,
+        TensorGraph::TensorNode *indices_,
+        TensorGraph::TensorNode *grad_weight_) :
+        grad(grad_), indices(indices_), grad_weight(grad_weight_)
+    {
+        inputs_ = {grad, indices};
+        outputs_ = {grad_weight};
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_EMBEDDING_DENSE_BACKWARD";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchEmbeddingDenseBackwardOp>(
+            *this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+void torch_embedding_dense_backward(
+    TensorGraph::TensorNode *grad,
+    TensorGraph::TensorNode *indices,
+    TensorGraph::TensorNode *grad_weight);
+
+struct TensorTorchSdpaBackwardOp : TensorGraph::OpNode
+{
+    bool is_causal = false;
+    TensorGraph::TensorNode *q = nullptr;
+    TensorGraph::TensorNode *k = nullptr;
+    TensorGraph::TensorNode *v = nullptr;
+    TensorGraph::TensorNode *grad_out = nullptr;
+    TensorGraph::TensorNode *mask = nullptr;
+    TensorGraph::TensorNode *grad_q = nullptr;
+    TensorGraph::TensorNode *grad_k = nullptr;
+    TensorGraph::TensorNode *grad_v = nullptr;
+
+    TensorTorchSdpaBackwardOp() = default;
+    TensorTorchSdpaBackwardOp(
+        TensorGraph::TensorNode *q_,
+        TensorGraph::TensorNode *k_,
+        TensorGraph::TensorNode *v_,
+        TensorGraph::TensorNode *grad_out_,
+        TensorGraph::TensorNode *mask_,
+        TensorGraph::TensorNode *grad_q_,
+        TensorGraph::TensorNode *grad_k_,
+        TensorGraph::TensorNode *grad_v_,
+        bool is_causal_) :
+        is_causal(is_causal_),
+        q(q_),
+        k(k_),
+        v(v_),
+        grad_out(grad_out_),
+        mask(mask_),
+        grad_q(grad_q_),
+        grad_k(grad_k_),
+        grad_v(grad_v_)
+    {
+        inputs_ = {q, k, v, grad_out};
+        if (mask != nullptr)
+        {
+            inputs_.push_back(mask);
+        }
+        outputs_ = {grad_q, grad_k, grad_v};
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_SDPA_BACKWARD";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchSdpaBackwardOp>(*this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+void torch_sdpa_backward(
+    TensorGraph::TensorNode *q,
+    TensorGraph::TensorNode *k,
+    TensorGraph::TensorNode *v,
+    TensorGraph::TensorNode *grad_out,
+    TensorGraph::TensorNode *mask,
+    TensorGraph::TensorNode *grad_q,
+    TensorGraph::TensorNode *grad_k,
+    TensorGraph::TensorNode *grad_v,
+    bool is_causal = false);
+
+struct TensorTorchNllLossForwardOp : TensorGraph::OpNode
+{
+    Index reduction = 1;
+    Index ignore_index = -100;
+    TensorGraph::TensorNode *log_probs = nullptr;
+    TensorGraph::TensorNode *target = nullptr;
+    TensorGraph::TensorNode *loss = nullptr;
+    TensorGraph::TensorNode *total_weight = nullptr;
+
+    TensorTorchNllLossForwardOp() = default;
+    TensorTorchNllLossForwardOp(
+        TensorGraph::TensorNode *log_probs_,
+        TensorGraph::TensorNode *target_,
+        TensorGraph::TensorNode *loss_,
+        TensorGraph::TensorNode *total_weight_,
+        Index reduction_,
+        Index ignore_index_) :
+        reduction(reduction_),
+        ignore_index(ignore_index_),
+        log_probs(log_probs_),
+        target(target_),
+        loss(loss_),
+        total_weight(total_weight_)
+    {
+        inputs_ = {log_probs, target};
+        outputs_ = {loss, total_weight};
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_NLL_LOSS_FORWARD";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchNllLossForwardOp>(*this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+void torch_nll_loss_forward(
+    TensorGraph::TensorNode *log_probs,
+    TensorGraph::TensorNode *target,
+    TensorGraph::TensorNode *loss,
+    TensorGraph::TensorNode *total_weight,
+    Index reduction,
+    Index ignore_index);
+
+struct TensorTorchNllLossBackwardOp : TensorGraph::OpNode
+{
+    Index reduction = 1;
+    Index ignore_index = -100;
+    TensorGraph::TensorNode *grad_output = nullptr;
+    TensorGraph::TensorNode *log_probs = nullptr;
+    TensorGraph::TensorNode *target = nullptr;
+    TensorGraph::TensorNode *total_weight = nullptr;
+    TensorGraph::TensorNode *grad_input = nullptr;
+
+    TensorTorchNllLossBackwardOp() = default;
+    TensorTorchNllLossBackwardOp(
+        TensorGraph::TensorNode *grad_output_,
+        TensorGraph::TensorNode *log_probs_,
+        TensorGraph::TensorNode *target_,
+        TensorGraph::TensorNode *total_weight_,
+        TensorGraph::TensorNode *grad_input_,
+        Index reduction_,
+        Index ignore_index_) :
+        reduction(reduction_),
+        ignore_index(ignore_index_),
+        grad_output(grad_output_),
+        log_probs(log_probs_),
+        target(target_),
+        total_weight(total_weight_),
+        grad_input(grad_input_)
+    {
+        inputs_ = {
+            grad_output,
+            log_probs,
+            target,
+            total_weight};
+        outputs_ = {grad_input};
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_NLL_LOSS_BACKWARD";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchNllLossBackwardOp>(*this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+void torch_nll_loss_backward(
+    TensorGraph::TensorNode *grad_output,
+    TensorGraph::TensorNode *log_probs,
+    TensorGraph::TensorNode *target,
+    TensorGraph::TensorNode *total_weight,
+    TensorGraph::TensorNode *grad_input,
+    Index reduction,
+    Index ignore_index);
+
 } // namespace nntile::tensor

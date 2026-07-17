@@ -98,4 +98,86 @@ void torch_layer_norm_out(
     Index normalized_ndim,
     Scalar eps);
 
+void torch_layer_norm_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad_out,
+    const TorchTileMeta &grad_out_meta,
+    const Tile<fp32_t> &input,
+    const TorchTileMeta &input_meta,
+    const Tile<fp32_t> &mean,
+    const TorchTileMeta &mean_meta,
+    const Tile<fp32_t> &rstd,
+    const TorchTileMeta &rstd_meta,
+    const Tile<fp32_t> *weight,
+    const TorchTileMeta *weight_meta,
+    const Tile<fp32_t> *bias,
+    const TorchTileMeta *bias_meta,
+    const Tile<fp32_t> *grad_input,
+    const TorchTileMeta *grad_input_meta,
+    const Tile<fp32_t> *grad_weight,
+    const TorchTileMeta *grad_weight_meta,
+    const Tile<fp32_t> *grad_bias,
+    const TorchTileMeta *grad_bias_meta,
+    Index normalized_ndim,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias);
+
+void torch_embedding_dense_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad,
+    const TorchTileMeta &grad_meta,
+    const Tile<int64_t> &indices,
+    const TorchTileMeta &indices_meta,
+    const Tile<fp32_t> &grad_weight,
+    const TorchTileMeta &grad_weight_meta);
+
+void torch_sdpa_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &q,
+    const TorchTileMeta &q_meta,
+    const Tile<fp32_t> &k,
+    const TorchTileMeta &k_meta,
+    const Tile<fp32_t> &v,
+    const TorchTileMeta &v_meta,
+    const Tile<fp32_t> &grad_out,
+    const TorchTileMeta &grad_out_meta,
+    const Tile<bool_t> *mask,
+    const TorchTileMeta *mask_meta,
+    const Tile<fp32_t> &grad_q,
+    const TorchTileMeta &grad_q_meta,
+    const Tile<fp32_t> &grad_k,
+    const TorchTileMeta &grad_k_meta,
+    const Tile<fp32_t> &grad_v,
+    const TorchTileMeta &grad_v_meta,
+    bool is_causal);
+
+void torch_nll_loss_forward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &log_probs,
+    const TorchTileMeta &log_probs_meta,
+    const Tile<int64_t> &target,
+    const TorchTileMeta &target_meta,
+    const Tile<fp32_t> &loss,
+    const TorchTileMeta &loss_meta,
+    const Tile<fp32_t> &total_weight,
+    const TorchTileMeta &total_weight_meta,
+    Index reduction,
+    Index ignore_index);
+
+void torch_nll_loss_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad_output,
+    const TorchTileMeta &grad_output_meta,
+    const Tile<fp32_t> &log_probs,
+    const TorchTileMeta &log_probs_meta,
+    const Tile<int64_t> &target,
+    const TorchTileMeta &target_meta,
+    const Tile<fp32_t> &total_weight,
+    const TorchTileMeta &total_weight_meta,
+    const Tile<fp32_t> &grad_input,
+    const TorchTileMeta &grad_input_meta,
+    Index reduction,
+    Index ignore_index);
+
 } // namespace nntile::core

@@ -199,6 +199,7 @@ Family codelet `torch_unary` (one `R` input, one `W` output):
 | `Silu` | `silu.out` | in `R`, out `W` |
 | `Gelu` | `gelu.out` | in `R`, out `W` |
 | `Softmax` | `_softmax.out` | in `R`, out `W` |
+| `LogSoftmax` | `_log_softmax.out` | in `R`, out `W` |
 | `Sum` | `sum.IntList_out` | in `R`, out `W` |
 | `VectorNorm` | `linalg_vector_norm.out` | in `R`, out `W` |
 | `NarrowCopy` | `narrow_copy.out` | in `R`, out `W` |
@@ -215,6 +216,7 @@ Family codelet `torch_binary` (two `R` inputs, one `W` output):
 | `SiluBackward` | `silu_backward` | grad_out `R`, self `R`, grad_in `W` |
 | `GeluBackward` | `gelu_backward` | grad_out `R`, self `R`, grad_in `W` |
 | `SoftmaxBackward` | `_softmax_backward_data` | grad_out `R`, output `R`, grad_in `W` |
+| `LogSoftmaxBackward` | `_log_softmax_backward_data` | grad_out `R`, output `R`, grad_in `W` |
 | `Mm` | `mm.out` | a `R`, b `R`, out `W` |
 | `Bmm` | `bmm.out` | a `R`, b `R`, out `W` |
 | `Matmul` | `matmul.out` | a `R`, b `R`, out `W` |
@@ -234,8 +236,13 @@ Specialized codelets:
 | Codelet | Aten | Handles / modes |
 |---------|------|-----------------|
 | `torch_embedding` | `embedding.out` | weight `R`, indices `R`, out `W` |
+| `torch_embedding_dense_backward` | `embedding_dense_backward.out` | grad `R`, indices `R`, grad_weight `W` |
 | `torch_cat` | `cat.out` | each input `R`, out `W` |
 | `torch_layer_norm` | `native_layer_norm` | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
+| `torch_layer_norm_backward` | `native_layer_norm_backward` | grad_out / input / mean / rstd `R`; optional weight/bias `R`; needed grad outs `W` |
+| `torch_sdpa_backward` | flash-CPU SDPA bwd | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
+| `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
+| `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
 
 Classic I/O kept on this path (not torch-native compute, but same rules):
 
@@ -248,10 +255,6 @@ Classic I/O kept on this path (not torch-native compute, but same rules):
 **Scratch:** none of the current torch-native codelets register
 `STARPU_SCRATCH`. ATen may allocate temporary host memory inside the
 CPU kernel; that is outside StarPU’s data handles.
-
-**Not yet wired as StarPU tasks** (when added, declare modes explicitly):
-`embedding_dense_backward` (typically grad_weight `RW` or `W` + accumulate),
-`native_layer_norm_backward`, SDPA backward.
 
 Example sketch:
 

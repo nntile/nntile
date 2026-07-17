@@ -52,6 +52,10 @@ enum class TorchKind : std::int32_t
     GeluBackward = 22,       // R,R → W  aten::gelu_backward
     Softmax = 30,            // R → W    aten::_softmax.out
     SoftmaxBackward = 31,   // R,R → W  aten::_softmax_backward_data
+    LogSoftmax = 32,         // R → W    aten::_log_softmax.out
+    LogSoftmaxBackward = 33,// R,R → W  aten::_log_softmax_backward_data
+    NllLossForward = 34,     // R,R → W,W  aten::nll_loss_forward
+    NllLossBackward = 35,    // R,R,R,R → W  aten::nll_loss_backward
     Sum = 40,                // R → W    aten::sum.IntList_out
     VectorNorm = 41,         // R → W    aten::linalg_vector_norm.out
     Mm = 50,                 // R,R → W  aten::mm.out
@@ -63,8 +67,11 @@ enum class TorchKind : std::int32_t
     NarrowCopy = 61,         // R → W    aten::narrow_copy.out
     Repeat = 62,             // R → W    aten::repeat.out
     NativeLayerNorm = 70,    // R,(R),(R) → W,W,W  native_layer_norm
+    NativeLayerNormBackward = 71, // R… → W…  native_layer_norm_backward
     Embedding = 80,          // R,R → W  aten::embedding.out
+    EmbeddingDenseBackward = 81, // R,R → W  embedding_dense_backward
     Sdpa = 90,               // R,R,R → W  scaled_dot_product_attention
+    SdpaBackward = 91,       // R… → W,W,W  SDPA backward
     TransposeCopy = 100,     // R → W    aten::transpose_copy.int_out
 };
 
@@ -80,7 +87,7 @@ struct TorchDispatchArgs
     Scalar scalars[4] = {0, 0, 0, 0};
     Index iargs[8] = {0, 0, 0, 0, 0, 0, 0, 0};
     // iargs layout (per kind):
-    // Softmax/SoftmaxBackward: dim
+    // Softmax/SoftmaxBackward/LogSoftmax*: dim
     // Sum/VectorNorm: n_dims, keepdim, dim0..
     // Gelu*: approximate_tanh in iargs[0]
     // NarrowCopy: dim, start, length
@@ -88,9 +95,14 @@ struct TorchDispatchArgs
     // Cat: dim, n_tensors
     // NativeLayerNorm: normalized_ndim, has_weight, has_bias;
     //   eps in scalars[0]
+    // NativeLayerNormBackward: normalized_ndim, has_weight,
+    //   has_bias, need_gi, need_gw, need_gb
+    // NllLoss*: reduction in iargs[0], ignore_index in iargs[1]
     // Addmm: beta in scalars[0], alpha in scalars[1];
     //   iargs[7]=1 when out aliases first input (STARPU_RW)
-    // Sdpa: has_mask in iargs[0], is_causal in iargs[1]
+    // Sdpa/SdpaBackward: has_mask in iargs[0], is_causal in
+    //   iargs[1]
+    // EmbeddingDenseBackward: num_weights in iargs[0]
     // TransposeCopy: dim0, dim1
     char sarg[16] = {};
     Index in_ndim[torch_dispatch_max_tensors] = {};
@@ -217,6 +229,126 @@ public:
     );
 };
 
+//! LayerNorm backward: inputs R → optional grad outs W.
+class TorchLayerNormBackward
+{
+public:
+    Codelet codelet;
+    TorchLayerNormBackward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+    static constexpr func_array cuda_funcs = {};
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle grad_out,
+        Handle input,
+        Handle mean,
+        Handle rstd,
+        Handle weight,
+        Handle bias,
+        Handle grad_input,
+        Handle grad_weight,
+        Handle grad_bias,
+        bool has_weight,
+        bool has_bias,
+        bool need_grad_input,
+        bool need_grad_weight,
+        bool need_grad_bias
+    );
+};
+
+//! Embedding dense backward: grad + indices → grad_weight.
+class TorchEmbeddingDenseBackward
+{
+public:
+    Codelet codelet;
+    TorchEmbeddingDenseBackward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+    static constexpr func_array cuda_funcs = {};
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle grad,
+        Handle indices,
+        Handle grad_weight
+    );
+};
+
+//! SDPA backward: q,k,v,grad_out,(mask) → grad_q,k,v.
+class TorchSdpaBackward
+{
+public:
+    Codelet codelet;
+    TorchSdpaBackward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+    static constexpr func_array cuda_funcs = {};
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle q,
+        Handle k,
+        Handle v,
+        Handle grad_out,
+        Handle mask,
+        Handle grad_q,
+        Handle grad_k,
+        Handle grad_v,
+        bool has_mask
+    );
+};
+
+//! NLL loss forward: log_probs + target → loss, total_weight.
+class TorchNllLossForward
+{
+public:
+    Codelet codelet;
+    TorchNllLossForward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+    static constexpr func_array cuda_funcs = {};
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle log_probs,
+        Handle target,
+        Handle loss,
+        Handle total_weight
+    );
+};
+
+//! NLL loss backward: grad_loss + log_probs + target + tw → grad.
+class TorchNllLossBackward
+{
+public:
+    Codelet codelet;
+    TorchNllLossBackward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+    static constexpr func_array cuda_funcs = {};
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle grad_output,
+        Handle log_probs,
+        Handle target,
+        Handle total_weight,
+        Handle grad_input
+    );
+};
+
 //! Variable-arity cat: up to torch_dispatch_max_tensors fp32 inputs.
 class TorchCat
 {
@@ -253,7 +385,12 @@ extern torch_unary_pack_t torch_unary;
 extern torch_binary_pack_t torch_binary;
 extern torch_ternary_pack_t torch_ternary;
 extern TorchEmbedding torch_embedding;
+extern TorchEmbeddingDenseBackward torch_embedding_dense_backward;
 extern TorchLayerNorm torch_layer_norm;
+extern TorchLayerNormBackward torch_layer_norm_backward;
+extern TorchSdpaBackward torch_sdpa_backward;
+extern TorchNllLossForward torch_nll_loss_forward;
+extern TorchNllLossBackward torch_nll_loss_backward;
 extern TorchCat torch_cat;
 
 } // namespace nntile::starpu

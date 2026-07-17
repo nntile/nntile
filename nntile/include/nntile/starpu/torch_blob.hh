@@ -84,4 +84,20 @@ inline at::Tensor blob_i64(
         opts);
 }
 
+inline at::Tensor blob_bool(
+    bool *ptr,
+    const std::vector<std::int64_t> &sizes,
+    const std::vector<std::int64_t> &strides)
+{
+    auto opts = at::TensorOptions()
+        .dtype(at::kBool)
+        .device(at::kCPU);
+    return at::from_blob(
+        ptr,
+        at::IntArrayRef(sizes),
+        at::IntArrayRef(strides),
+        /*deleter=*/[](void *) {},
+        opts);
+}
+
 } // namespace nntile::starpu::torch_blob

@@ -330,7 +330,12 @@ void Context::restrict_cpu()
     torch_binary.restrict_where(STARPU_CPU);
     torch_ternary.restrict_where(STARPU_CPU);
     torch_embedding.codelet.restrict_where(STARPU_CPU);
+    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CPU);
     torch_layer_norm.codelet.restrict_where(STARPU_CPU);
+    torch_layer_norm_backward.codelet.restrict_where(STARPU_CPU);
+    torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
+    torch_nll_loss_forward.codelet.restrict_where(STARPU_CPU);
+    torch_nll_loss_backward.codelet.restrict_where(STARPU_CPU);
     torch_cat.codelet.restrict_where(STARPU_CPU);
 #else
     accumulate.restrict_where(STARPU_CPU);
@@ -414,7 +419,12 @@ void Context::restrict_cuda()
     torch_binary.restrict_where(STARPU_CPU);
     torch_ternary.restrict_where(STARPU_CPU);
     torch_embedding.codelet.restrict_where(STARPU_CPU);
+    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CPU);
     torch_layer_norm.codelet.restrict_where(STARPU_CPU);
+    torch_layer_norm_backward.codelet.restrict_where(STARPU_CPU);
+    torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
+    torch_nll_loss_forward.codelet.restrict_where(STARPU_CPU);
+    torch_nll_loss_backward.codelet.restrict_where(STARPU_CPU);
     torch_cat.codelet.restrict_where(STARPU_CPU);
 #else
     accumulate.restrict_where(STARPU_CUDA);
@@ -497,7 +507,12 @@ void Context::restore_where()
     torch_binary.restore_where();
     torch_ternary.restore_where();
     torch_embedding.codelet.restore_where();
+    torch_embedding_dense_backward.codelet.restore_where();
     torch_layer_norm.codelet.restore_where();
+    torch_layer_norm_backward.codelet.restore_where();
+    torch_sdpa_backward.codelet.restore_where();
+    torch_nll_loss_forward.codelet.restore_where();
+    torch_nll_loss_backward.codelet.restore_where();
     torch_cat.codelet.restore_where();
 #else
     accumulate.restore_where();

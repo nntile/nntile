@@ -300,4 +300,300 @@ void torch_layer_norm_out(
         bias != nullptr);
 }
 
+void torch_layer_norm_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad_out,
+    const TorchTileMeta &grad_out_meta,
+    const Tile<fp32_t> &input,
+    const TorchTileMeta &input_meta,
+    const Tile<fp32_t> &mean,
+    const TorchTileMeta &mean_meta,
+    const Tile<fp32_t> &rstd,
+    const TorchTileMeta &rstd_meta,
+    const Tile<fp32_t> *weight,
+    const TorchTileMeta *weight_meta,
+    const Tile<fp32_t> *bias,
+    const TorchTileMeta *bias_meta,
+    const Tile<fp32_t> *grad_input,
+    const TorchTileMeta *grad_input_meta,
+    const Tile<fp32_t> *grad_weight,
+    const TorchTileMeta *grad_weight_meta,
+    const Tile<fp32_t> *grad_bias,
+    const TorchTileMeta *grad_bias_meta,
+    Index normalized_ndim,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = grad_out.mpi_get_rank();
+    if (need_grad_input && grad_input != nullptr)
+    {
+        out_rank = grad_input->mpi_get_rank();
+    }
+    else if (need_grad_weight && grad_weight != nullptr)
+    {
+        out_rank = grad_weight->mpi_get_rank();
+    }
+    else if (need_grad_bias && grad_bias != nullptr)
+    {
+        out_rank = grad_bias->mpi_get_rank();
+    }
+    grad_out.mpi_transfer(out_rank, mpi_rank);
+    input.mpi_transfer(out_rank, mpi_rank);
+    mean.mpi_transfer(out_rank, mpi_rank);
+    rstd.mpi_transfer(out_rank, mpi_rank);
+    if (weight != nullptr)
+    {
+        weight->mpi_transfer(out_rank, mpi_rank);
+    }
+    if (bias != nullptr)
+    {
+        bias->mpi_transfer(out_rank, mpi_rank);
+    }
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args{};
+    args.kind = starpu::TorchKind::NativeLayerNormBackward;
+    args.n_in = 4 + (weight != nullptr) + (bias != nullptr);
+    args.n_out = static_cast<Index>(need_grad_input)
+        + static_cast<Index>(need_grad_weight)
+        + static_cast<Index>(need_grad_bias);
+    args.iargs[0] = normalized_ndim;
+    pack_meta_into(args, 0, grad_out_meta, false);
+    pack_meta_into(args, 1, input_meta, false);
+    pack_meta_into(args, 2, mean_meta, false);
+    pack_meta_into(args, 3, rstd_meta, false);
+    if (weight != nullptr && weight_meta != nullptr)
+    {
+        pack_meta_into(args, 4, *weight_meta, false);
+    }
+    if (bias != nullptr && bias_meta != nullptr)
+    {
+        pack_meta_into(args, 5, *bias_meta, false);
+    }
+    if (need_grad_input && grad_input_meta != nullptr)
+    {
+        pack_meta_into(args, 0, *grad_input_meta, true);
+    }
+    if (need_grad_weight && grad_weight_meta != nullptr)
+    {
+        pack_meta_into(args, 1, *grad_weight_meta, true);
+    }
+    if (need_grad_bias && grad_bias_meta != nullptr)
+    {
+        pack_meta_into(args, 2, *grad_bias_meta, true);
+    }
+    starpu::torch_layer_norm_backward.submit(
+        starpu_worker_hint,
+        args,
+        grad_out,
+        input,
+        mean,
+        rstd,
+        weight != nullptr ? *weight : input,
+        bias != nullptr ? *bias : input,
+        grad_input != nullptr ? *grad_input : input,
+        grad_weight != nullptr ? *grad_weight : input,
+        grad_bias != nullptr ? *grad_bias : input,
+        weight != nullptr,
+        bias != nullptr,
+        need_grad_input,
+        need_grad_weight,
+        need_grad_bias);
+}
+
+void torch_embedding_dense_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad,
+    const TorchTileMeta &grad_meta,
+    const Tile<int64_t> &indices,
+    const TorchTileMeta &indices_meta,
+    const Tile<fp32_t> &grad_weight,
+    const TorchTileMeta &grad_weight_meta)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = grad_weight.mpi_get_rank();
+    grad.mpi_transfer(out_rank, mpi_rank);
+    indices.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args{};
+    args.kind = starpu::TorchKind::EmbeddingDenseBackward;
+    args.n_in = 2;
+    args.n_out = 1;
+    args.iargs[0] = grad_weight_meta.sizes.empty()
+        ? 0
+        : grad_weight_meta.sizes[0];
+    pack_meta_into(args, 0, grad_meta, false);
+    pack_meta_into(args, 1, indices_meta, false);
+    pack_meta_into(args, 0, grad_weight_meta, true);
+    starpu::torch_embedding_dense_backward.submit(
+        starpu_worker_hint,
+        args,
+        grad,
+        indices,
+        grad_weight);
+}
+
+void torch_sdpa_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &q,
+    const TorchTileMeta &q_meta,
+    const Tile<fp32_t> &k,
+    const TorchTileMeta &k_meta,
+    const Tile<fp32_t> &v,
+    const TorchTileMeta &v_meta,
+    const Tile<fp32_t> &grad_out,
+    const TorchTileMeta &grad_out_meta,
+    const Tile<bool_t> *mask,
+    const TorchTileMeta *mask_meta,
+    const Tile<fp32_t> &grad_q,
+    const TorchTileMeta &grad_q_meta,
+    const Tile<fp32_t> &grad_k,
+    const TorchTileMeta &grad_k_meta,
+    const Tile<fp32_t> &grad_v,
+    const TorchTileMeta &grad_v_meta,
+    bool is_causal)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = grad_q.mpi_get_rank();
+    q.mpi_transfer(out_rank, mpi_rank);
+    k.mpi_transfer(out_rank, mpi_rank);
+    v.mpi_transfer(out_rank, mpi_rank);
+    grad_out.mpi_transfer(out_rank, mpi_rank);
+    if (mask != nullptr)
+    {
+        mask->mpi_transfer(out_rank, mpi_rank);
+    }
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args{};
+    args.kind = starpu::TorchKind::SdpaBackward;
+    args.n_in = 4 + (mask != nullptr ? 1 : 0);
+    args.n_out = 3;
+    args.iargs[0] = mask != nullptr ? 1 : 0;
+    args.iargs[1] = is_causal ? 1 : 0;
+    pack_meta_into(args, 0, q_meta, false);
+    pack_meta_into(args, 1, k_meta, false);
+    pack_meta_into(args, 2, v_meta, false);
+    pack_meta_into(args, 3, grad_out_meta, false);
+    if (mask != nullptr && mask_meta != nullptr)
+    {
+        pack_meta_into(args, 4, *mask_meta, false);
+    }
+    pack_meta_into(args, 0, grad_q_meta, true);
+    pack_meta_into(args, 1, grad_k_meta, true);
+    pack_meta_into(args, 2, grad_v_meta, true);
+    starpu::Handle mask_handle = q;
+    if (mask != nullptr)
+    {
+        mask_handle = *mask;
+    }
+    starpu::torch_sdpa_backward.submit(
+        starpu_worker_hint,
+        args,
+        q,
+        k,
+        v,
+        grad_out,
+        mask_handle,
+        grad_q,
+        grad_k,
+        grad_v,
+        mask != nullptr);
+}
+
+void torch_nll_loss_forward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &log_probs,
+    const TorchTileMeta &log_probs_meta,
+    const Tile<int64_t> &target,
+    const TorchTileMeta &target_meta,
+    const Tile<fp32_t> &loss,
+    const TorchTileMeta &loss_meta,
+    const Tile<fp32_t> &total_weight,
+    const TorchTileMeta &total_weight_meta,
+    Index reduction,
+    Index ignore_index)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = loss.mpi_get_rank();
+    log_probs.mpi_transfer(out_rank, mpi_rank);
+    target.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args{};
+    args.kind = starpu::TorchKind::NllLossForward;
+    args.n_in = 2;
+    args.n_out = 2;
+    args.iargs[0] = reduction;
+    args.iargs[1] = ignore_index;
+    pack_meta_into(args, 0, log_probs_meta, false);
+    pack_meta_into(args, 1, target_meta, false);
+    pack_meta_into(args, 0, loss_meta, true);
+    pack_meta_into(args, 1, total_weight_meta, true);
+    starpu::torch_nll_loss_forward.submit(
+        starpu_worker_hint,
+        args,
+        log_probs,
+        target,
+        loss,
+        total_weight);
+}
+
+void torch_nll_loss_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad_output,
+    const TorchTileMeta &grad_output_meta,
+    const Tile<fp32_t> &log_probs,
+    const TorchTileMeta &log_probs_meta,
+    const Tile<int64_t> &target,
+    const TorchTileMeta &target_meta,
+    const Tile<fp32_t> &total_weight,
+    const TorchTileMeta &total_weight_meta,
+    const Tile<fp32_t> &grad_input,
+    const TorchTileMeta &grad_input_meta,
+    Index reduction,
+    Index ignore_index)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = grad_input.mpi_get_rank();
+    grad_output.mpi_transfer(out_rank, mpi_rank);
+    log_probs.mpi_transfer(out_rank, mpi_rank);
+    target.mpi_transfer(out_rank, mpi_rank);
+    total_weight.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args{};
+    args.kind = starpu::TorchKind::NllLossBackward;
+    args.n_in = 4;
+    args.n_out = 1;
+    args.iargs[0] = reduction;
+    args.iargs[1] = ignore_index;
+    pack_meta_into(args, 0, grad_output_meta, false);
+    pack_meta_into(args, 1, log_probs_meta, false);
+    pack_meta_into(args, 2, target_meta, false);
+    pack_meta_into(args, 3, total_weight_meta, false);
+    pack_meta_into(args, 0, grad_input_meta, true);
+    starpu::torch_nll_loss_backward.submit(
+        starpu_worker_hint,
+        args,
+        grad_output,
+        log_probs,
+        target,
+        total_weight,
+        grad_input);
+}
+
 } // namespace nntile::core
