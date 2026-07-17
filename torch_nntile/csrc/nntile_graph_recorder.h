@@ -64,4 +64,9 @@ void print_info();
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 
+//! Gather a (possibly strided / offset) nntile view to a contiguous CPU
+//! tensor of the view's logical shape. Handles partial covers of a larger
+//! TensorNode (select / narrow / chunk views).
+at::Tensor gather_nntile_view_to_cpu(const at::Tensor &src);
+
 } // namespace torch_nntile

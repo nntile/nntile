@@ -690,30 +690,26 @@ at::Scalar local_scalar_dense(const at::Tensor &self)
         is_nntile_device(self.device()),
         "_local_scalar_dense: expected nntile");
     TORCH_CHECK(self.numel() > 0, "Cannot convert empty tensor to scalar");
-    // HF indexes like ``cache_position[-1]`` are 1-element views into a
-    // larger storage; densify so host readout size matches the logical.
-    at::Tensor src = self;
-    if (self.numel() == 1)
+    // HF ``cache_position[-1]`` is a 1-element select into a larger
+    // logical. Gather via the shared view helper (handles partial covers).
+    nntile::TensorRef binding = tensor_ref(self);
+    if (binding &&
+        (self.storage_offset() != 0 ||
+         static_cast<int64_t>(binding.get()->nelems()) != self.numel()))
     {
-        nntile::TensorRef binding = tensor_ref(self);
-        if (!self.is_contiguous() || self.storage_offset() != 0 ||
-            (binding &&
-             static_cast<int64_t>(binding.get()->nelems()) != 1))
-        {
-            src = self.contiguous();
-        }
+        return tensor_to_scalar(gather_nntile_view_to_cpu(self).reshape({}));
     }
     require_no_pending_graph(
         "read a scalar from an nntile tensor "
         "(call torch_nntile.compile_graph() and torch_nntile.run() first)");
     wait_for_all();
-    if (is_metadata_only_tensor(src))
+    if (is_metadata_only_tensor(self))
     {
-        at::Tensor cpu_scalar = at::empty({}, src.options().device(at::kCPU));
-        copy_nntile_tensor_to_cpu(src, cpu_scalar);
+        at::Tensor cpu_scalar = at::empty({}, self.options().device(at::kCPU));
+        copy_nntile_tensor_to_cpu(self, cpu_scalar);
         return tensor_to_scalar(cpu_scalar);
     }
-    return tensor_to_scalar(src);
+    return tensor_to_scalar(self);
 }
 
 at::Tensor &set_source_tensor(at::Tensor &result, const at::Tensor &source)

@@ -36,13 +36,7 @@ at::Tensor gather_cpu(const at::Tensor &self)
     TORCH_CHECK(
         is_nntile_device(self.device()),
         "nntile add: expected nntile tensor");
-    at::Tensor src = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor cpu = at::empty(
-        src.sizes(),
-        src.options().device(at::kCPU).memory_format(
-            at::MemoryFormat::Contiguous));
-    copy_nntile_tensor_to_cpu(src, cpu);
-    return cpu;
+    return gather_nntile_view_to_cpu(self);
 }
 
 at::Tensor scatter_nntile(

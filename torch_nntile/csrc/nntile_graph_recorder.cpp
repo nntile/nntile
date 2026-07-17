@@ -12,6 +12,7 @@
 #include "nntile_context.h"
 
 #include <ATen/Tensor.h>
+#include <ATen/ops/empty.h>
 #include <c10/core/DeviceType.h>
 #include <c10/util/Exception.h>
 #include <stdexcept>
@@ -1394,6 +1395,48 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
         host_ptr,
         dtype,
         count);
+}
+
+at::Tensor gather_nntile_view_to_cpu(const at::Tensor &src)
+{
+    TORCH_CHECK(
+        src.device().type() == c10::DeviceType::PrivateUse1,
+        "gather_nntile_view_to_cpu: expected nntile");
+    nntile::TensorRef binding = tensor_ref(src);
+    TORCH_CHECK(
+        binding,
+        "gather_nntile_view_to_cpu: unbound tensor");
+    nntile::TensorGraph::TensorNode *logical = binding.get();
+    const bool dense_cover =
+        src.is_contiguous() &&
+        src.storage_offset() == 0 &&
+        static_cast<int64_t>(logical->nelems()) == src.numel();
+    if (dense_cover)
+    {
+        at::Tensor cpu = at::empty(
+            src.sizes(),
+            src.options().device(at::kCPU).memory_format(
+                at::MemoryFormat::Contiguous));
+        copy_nntile_tensor_to_cpu(src, cpu);
+        return cpu;
+    }
+    std::vector<int64_t> full_sizes(
+        logical->shape().begin(),
+        logical->shape().end());
+    if (full_sizes.empty())
+    {
+        full_sizes.push_back(static_cast<int64_t>(logical->nelems()));
+    }
+    at::Tensor full_cpu = at::empty(
+        full_sizes,
+        src.options().device(at::kCPU).memory_format(
+            at::MemoryFormat::Contiguous));
+    copy_nntile_tensor_to_cpu(src, full_cpu);
+    return full_cpu.as_strided(
+                   src.sizes(),
+                   src.strides(),
+                   src.storage_offset())
+        .contiguous();
 }
 
 void init_nntile_input_from_cpu(

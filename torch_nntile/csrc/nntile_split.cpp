@@ -193,11 +193,3 @@ std::vector<at::Tensor> chunk(
 }
 
 } // namespace torch_nntile
-
-TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
-{
-    m.impl("split_with_sizes", TORCH_FN(torch_nntile::split_with_sizes));
-    m.impl("split", TORCH_FN(torch_nntile::split_sizes_array));
-    m.impl("split.Tensor", TORCH_FN(torch_nntile::split_tensor));
-    m.impl("chunk", TORCH_FN(torch_nntile::chunk));
-}

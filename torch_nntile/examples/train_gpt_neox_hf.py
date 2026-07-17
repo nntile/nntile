@@ -34,7 +34,9 @@ def tiny_config() -> GPTNeoXConfig:
         num_hidden_layers=2,
         num_attention_heads=4,
         max_position_embeddings=64,
-        rotary_pct=1.0,
+        # Full rotary leaves an empty q_pass slice; TensorGraph rejects
+        # zero-sized dims on backward. Partial RoPE keeps a pass-through.
+        rotary_pct=0.5,
         rotary_emb_base=10000,
         attention_dropout=0.0,
         hidden_dropout=0.0,

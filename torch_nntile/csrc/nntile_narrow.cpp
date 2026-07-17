@@ -78,9 +78,42 @@ at::Tensor narrow(
         offset);
 }
 
+//! ``cache_position[-1]`` / HF indexing uses ``aten::select.int``.
+at::Tensor select_int(
+    const at::Tensor &self,
+    int64_t dim,
+    int64_t index)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "nntile select expects tensor on device nntile");
+    TORCH_CHECK(self.dim() > 0, "nntile select: cannot select a 0-dim tensor");
+    const int64_t wrapped_dim = at::maybe_wrap_dim(dim, self.dim());
+    const int64_t dim_size = self.size(wrapped_dim);
+    int64_t index_val = index;
+    if (index_val < 0)
+    {
+        index_val += dim_size;
+    }
+    TORCH_CHECK(
+        index_val >= 0 && index_val < dim_size,
+        "nntile select: index out of range");
+
+    auto sizes = self.sizes().vec();
+    auto strides = self.strides().vec();
+    const int64_t offset =
+        self.storage_offset() +
+        index_val * self.stride(wrapped_dim);
+    sizes.erase(sizes.begin() + static_cast<std::ptrdiff_t>(wrapped_dim));
+    strides.erase(
+        strides.begin() + static_cast<std::ptrdiff_t>(wrapped_dim));
+    return make_strided_view(self, sizes, strides, offset);
+}
+
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("narrow", TORCH_FN(torch_nntile::narrow));
+    m.impl("select.int", TORCH_FN(torch_nntile::select_int));
 }
 
 } // namespace torch_nntile
