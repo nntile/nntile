@@ -102,10 +102,12 @@ void check_embedding_backward_inputs(
 
 at::Tensor prepare_indices(const at::Tensor &indices)
 {
-    TORCH_CHECK(
-        indices.is_contiguous(),
-        "nntile embedding: indices must be contiguous");
-    return indices;
+    return indices.is_contiguous() ? indices : indices.contiguous();
+}
+
+at::Tensor densify_fp32(const at::Tensor &tensor)
+{
+    return tensor.is_contiguous() ? tensor : tensor.contiguous();
 }
 
 std::vector<int64_t> embedding_output_shape(
@@ -150,24 +152,28 @@ at::Tensor embedding_dense_backward(
     int64_t padding_idx,
     bool scale_grad_by_freq)
 {
-    check_embedding_backward_inputs(grad_output, indices, num_weights);
+    const at::Tensor grad_contig = densify_fp32(grad_output);
+    const at::Tensor indices_contig = prepare_indices(indices);
+    check_embedding_backward_inputs(
+        grad_contig,
+        indices_contig,
+        num_weights);
     check_embedding_optional_args(padding_idx, scale_grad_by_freq, false);
 
-    const at::Tensor indices_contig = prepare_indices(indices);
-    const int64_t embed_dim = grad_output.size(-1);
+    const int64_t embed_dim = grad_contig.size(-1);
     TORCH_CHECK(
         num_weights > 0 && embed_dim > 0,
         "nntile embedding_dense_backward: invalid weight shape");
 
     at::Tensor grad_weight = at::zeros(
         {num_weights, embed_dim},
-        grad_output.options().memory_format(at::MemoryFormat::Contiguous));
+        grad_contig.options().memory_format(at::MemoryFormat::Contiguous));
 
     const nntile::Index axis =
         static_cast<nntile::Index>(indices_contig.dim());
     tensor_embedding_backward_fp32(
         indices_contig,
-        grad_output,
+        grad_contig,
         grad_weight,
         axis,
         0);

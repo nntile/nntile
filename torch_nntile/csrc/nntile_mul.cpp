@@ -123,9 +123,12 @@ at::Tensor mul_scalar(const at::Tensor &self, const at::Scalar &other)
     TORCH_CHECK(
         is_nntile_device(self.device()),
         "nntile mul.Scalar expects tensor on device nntile");
-    TORCH_CHECK(
-        self.scalar_type() == at::ScalarType::Float,
-        "nntile mul.Scalar supports float32 only");
+    if (self.scalar_type() != at::ScalarType::Float)
+    {
+        return scatter_nntile(
+            at::mul(gather_cpu(self), other),
+            self.device());
+    }
     TORCH_CHECK(self.is_contiguous(), "nntile mul.Scalar requires contiguous");
     at::Tensor out = at::empty_like(self);
     tensor_mul_scalar_fp32(self, out, other.to<float>());

@@ -19,6 +19,7 @@
 #include <ATen/native/CPUFallback.h>
 #include <ATen/native/Resize.h>
 #include <ATen/ops/arange.h>
+#include <ATen/ops/full.h>
 #include <c10/core/DeviceGuard.h>
 #include <c10/core/ScalarType.h>
 #include <c10/core/ScalarTypeToTypeMeta.h>
@@ -110,10 +111,21 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
     }
     if (is_metadata_only_tensor(self))
     {
+        if (self.scalar_type() == at::ScalarType::Float)
+        {
+            tensor_fill_fp32(self, value.to<float>());
+            return;
+        }
+        // T5 ``torch.ones(..., dtype=long, device=nntile)`` for masks:
+        // host-fill then ingress (StarPU fill is fp32-only).
         TORCH_CHECK(
-            self.scalar_type() == at::ScalarType::Float,
-            "fill_: metadata-only nntile tensors support float32 in graph mode");
-        tensor_fill_fp32(self, value.to<float>());
+            !static_cast<bool>(tensor_ref(self)),
+            "fill_: non-float metadata fill requires an unbound tensor");
+        at::Tensor cpu = at::full(
+            self.sizes(),
+            value,
+            self.options().device(at::kCPU));
+        init_nntile_input_from_cpu(cpu, self);
         return;
     }
     switch (self.scalar_type())

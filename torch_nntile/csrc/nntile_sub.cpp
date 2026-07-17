@@ -6,7 +6,11 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder.h"
+#include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
+#include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
 #include <torch/library.h>
@@ -20,6 +24,32 @@ namespace
 bool is_nntile_device(c10::Device device)
 {
     return device.type() == c10::DeviceType::PrivateUse1;
+}
+
+at::Tensor scatter_nntile(
+    const at::Tensor &cpu,
+    c10::Device device)
+{
+    TORCH_CHECK(cpu.is_cpu(), "nntile sub: expected CPU tensor");
+    at::Tensor contig = cpu.contiguous();
+    at::Tensor out = empty_metadata_tensor(
+        contig.sizes(),
+        contig.scalar_type(),
+        device);
+    init_nntile_input_from_cpu(contig, out);
+    return out;
+}
+
+at::Tensor sub_host(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    const at::Scalar &alpha)
+{
+    at::Tensor a = gather_nntile_view_to_cpu(self);
+    at::Tensor b = is_nntile_device(other.device())
+        ? gather_nntile_view_to_cpu(other)
+        : other.cpu();
+    return scatter_nntile(at::sub(a, b, alpha), self.device());
 }
 
 void check_sub_inputs(
@@ -60,6 +90,14 @@ at::Tensor sub_tensor(
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
+    // T5 relative bias: long broadcast ``memory - context``.
+    if (!is_nntile_device(other.device()) ||
+        self.scalar_type() != other.scalar_type() ||
+        self.scalar_type() != at::ScalarType::Float ||
+        !self.sizes().equals(other.sizes()))
+    {
+        return sub_host(self, other, alpha);
+    }
     check_sub_inputs(self, other);
     at::Tensor out = at::empty_like(self);
     run_torch_sub(self, other, alpha, out);
@@ -72,6 +110,15 @@ at::Tensor &sub_out(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
+    if (!is_nntile_device(other.device()) ||
+        self.scalar_type() != other.scalar_type() ||
+        self.scalar_type() != at::ScalarType::Float ||
+        !self.sizes().equals(other.sizes()))
+    {
+        at::Tensor tmp = sub_host(self, other, alpha);
+        out.copy_(tmp);
+        return out;
+    }
     check_sub_inputs(self, other);
     TORCH_CHECK(
         is_nntile_device(out.device()),

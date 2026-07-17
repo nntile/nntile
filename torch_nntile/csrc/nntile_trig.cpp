@@ -6,9 +6,13 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder.h"
+#include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
+#include <ATen/ops/neg.h>
 #include <torch/csrc/autograd/custom_function.h>
 #include <torch/library.h>
 
@@ -68,6 +72,19 @@ void check_unary_fp32(
 
 at::Tensor neg_tensor(const at::Tensor &self)
 {
+    if (self.scalar_type() != at::ScalarType::Float)
+    {
+        TORCH_CHECK(
+            is_nntile_device(self.device()),
+            "nntile neg: expected nntile");
+        at::Tensor cpu = gather_nntile_view_to_cpu(self);
+        at::Tensor out = empty_metadata_tensor(
+            cpu.sizes(),
+            cpu.scalar_type(),
+            self.device());
+        init_nntile_input_from_cpu(at::neg(cpu), out);
+        return out;
+    }
     check_unary_fp32(self.is_contiguous() ? self : self.contiguous(), "neg");
     at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
     at::Tensor out = at::empty_like(inp);
