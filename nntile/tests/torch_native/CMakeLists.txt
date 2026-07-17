@@ -34,34 +34,18 @@ function(nntile_torch_native_add_test name source labels)
 endfunction()
 
 nntile_torch_native_add_test(
-    tests_torch_native_starpu_torch_add
-    starpu/torch_add.cc
-    "torch_native;starpu;smoke")
-nntile_torch_native_add_test(
     tests_torch_native_starpu_torch_dispatch
     starpu/torch_dispatch.cc
-    "torch_native;starpu")
-nntile_torch_native_add_test(
-    tests_torch_native_core_torch_add
-    core/torch_add.cc
-    "torch_native;core;smoke")
+    "torch_native;starpu;smoke")
 nntile_torch_native_add_test(
     tests_torch_native_core_torch_dispatch
     core/torch_dispatch.cc
-    "torch_native;core")
-nntile_torch_native_add_test(
-    tests_torch_native_tile_torch_add
-    tile/ops/torch_add.cc
-    "torch_native;graph;tile;smoke")
+    "torch_native;core;smoke")
 nntile_torch_native_add_test(
     tests_torch_native_tile_torch_dispatch
     tile/ops/torch_dispatch.cc
-    "torch_native;graph;tile")
-nntile_torch_native_add_test(
-    tests_torch_native_tensor_torch_add
-    tensor/ops/torch_add.cc
-    "torch_native;graph;tensor;smoke")
+    "torch_native;graph;tile;smoke")
 nntile_torch_native_add_test(
     tests_torch_native_tensor_torch_dispatch
     tensor/ops/torch_dispatch.cc
-    "torch_native;graph;tensor")
+    "torch_native;graph;tensor;smoke")

@@ -36,7 +36,6 @@
 #   include "nntile/starpu/copy.hh"
 #   include "nntile/starpu/fill.hh"
 #   include "nntile/starpu/subcopy.hh"
-#   include "nntile/starpu/torch_add.hh"
 #   include "nntile/starpu/torch_dispatch.hh"
 #else
 #   include "nntile/starpu.hh"
@@ -325,7 +324,6 @@ void Context::restrict_cpu()
     copy.codelet.restrict_where(STARPU_CPU);
     fill.restrict_where(STARPU_CPU);
     subcopy.restrict_where(STARPU_CPU);
-    torch_add.restrict_where(STARPU_CPU);
     torch_unary.restrict_where(STARPU_CPU);
     torch_binary.restrict_where(STARPU_CPU);
     torch_ternary.restrict_where(STARPU_CPU);
@@ -413,7 +411,6 @@ void Context::restrict_cuda()
     copy.codelet.restrict_where(STARPU_CUDA);
     fill.restrict_where(STARPU_CUDA);
     subcopy.restrict_where(STARPU_CUDA);
-    torch_add.restrict_where(STARPU_CUDA);
     torch_unary.restrict_where(STARPU_CUDA);
     torch_binary.restrict_where(STARPU_CUDA);
     torch_ternary.restrict_where(STARPU_CUDA);
@@ -501,7 +498,6 @@ void Context::restore_where()
     copy.codelet.restore_where();
     fill.restore_where();
     subcopy.restore_where();
-    torch_add.restore_where();
     torch_unary.restore_where();
     torch_binary.restore_where();
     torch_ternary.restore_where();

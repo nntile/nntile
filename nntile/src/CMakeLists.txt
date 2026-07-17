@@ -565,7 +565,6 @@ if(NNTILE_TORCH_NATIVE_OPS)
         "starpu/copy.cc"
         "starpu/fill.cc"
         "starpu/subcopy.cc"
-        "starpu/torch_add.cc"
         "starpu/torch_dispatch.cc"
     )
     set(CORE_OPERATION_SRC
@@ -574,7 +573,6 @@ if(NNTILE_TORCH_NATIVE_OPS)
         "core/copy_intersection.cc"
         "core/fill.cc"
         "core/torch_meta.cc"
-        "core/torch_add.cc"
         "core/torch_dispatch.cc"
     )
     set(GRAPH_TENSOR_LAYER_SRC
@@ -593,7 +591,6 @@ if(NNTILE_TORCH_NATIVE_OPS)
         "tensor/ops/fill.cc"
         "tensor/ops/gather.cc"
         "tensor/ops/scatter.cc"
-        "tensor/ops/torch_add.cc"
         "tensor/ops/torch_dispatch.cc"
         "tensor/ops/gemm_shape.cc"
     )
@@ -608,7 +605,6 @@ if(NNTILE_TORCH_NATIVE_OPS)
         "tile/ops/copy.cc"
         "tile/ops/copy_intersection.cc"
         "tile/ops/fill.cc"
-        "tile/ops/torch_add.cc"
         "tile/ops/torch_dispatch.cc"
     )
     set(NNTILE_GRAPH_STACK_SRC
@@ -663,7 +659,7 @@ nntile_add_objs(nntile_objs_tensor nntile
 nntile_add_objs(nntile_objs_runtime nntile
     ${GRAPH_RUNTIME_SRC})
 if(NNTILE_TORCH_NATIVE_OPS)
-    # OBJECT libs need Torch headers for torch_add codelets / core.
+    # OBJECT libs need Torch headers for torch-native codelets / core.
     foreach(_torch_obj IN ITEMS
             nntile_objs_starpu nntile_objs_core
             nntile_objs_tile nntile_objs_tensor)

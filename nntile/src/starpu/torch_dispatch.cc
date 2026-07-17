@@ -20,6 +20,7 @@
 #include <ATen/ATen.h>
 #include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/core/grad_mode.h>
+#include <ATen/ops/add.h>
 #include <ATen/ops/addmm.h>
 #include <ATen/ops/bmm.h>
 #include <ATen/ops/cat.h>
@@ -238,6 +239,13 @@ void run_binary(
     {
     case TorchKind::Mul:
         at::mul_out(result, ta, tb);
+        break;
+    case TorchKind::Add:
+        at::add_out(
+            result,
+            ta,
+            tb,
+            static_cast<double>(args->scalars[0]));
         break;
     case TorchKind::Hypot:
         at::hypot_out(result, ta, tb);

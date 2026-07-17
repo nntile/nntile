@@ -45,6 +45,7 @@ enum class TorchKind : std::int32_t
     Mul = 1,                 // R,R → W  aten::mul.out
     Hypot = 2,               // R,R → W  aten::hypot.out
     MulScalar = 3,           // R → W    aten::mul.Scalar_out
+    Add = 4,                 // R,R → W  aten::add.out (alpha in scalars[0])
     Relu = 10,               // R → W    aten::relu.out
     Silu = 11,               // R → W    aten::silu.out
     Gelu = 12,               // R → W    aten::gelu.out
@@ -99,6 +100,7 @@ struct TorchDispatchArgs
     // NativeLayerNormBackward: normalized_ndim, has_weight,
     //   has_bias, need_gi, need_gw, need_gb
     // NllLoss*: reduction in iargs[0], ignore_index in iargs[1]
+    // Add: torch alpha in scalars[0] (out = a + alpha * b)
     // Addmm: beta in scalars[0], alpha in scalars[1];
     //   iargs[7]=1 when out aliases first input (STARPU_RW)
     // Sdpa/SdpaBackward: has_mask in iargs[0], is_causal in

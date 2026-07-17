@@ -11,6 +11,7 @@
 #include <nntile/core/torch_meta.hh>
 #include <nntile/starpu/torch_dispatch.hh>
 
+#include <ATen/ops/add.h>
 #include <ATen/ops/mm.h>
 #include <ATen/ops/mul.h>
 #include <ATen/ops/relu.h>
@@ -105,6 +106,50 @@ TEST_CASE_METHOD(
 
     TorchDispatchArgs meta = pack2d(TorchKind::Mul, rows, cols);
     meta.n_in = 2;
+    meta.in_ndim[1] = 2;
+    meta.in_sizes[1][0] = rows;
+    meta.in_sizes[1][1] = cols;
+    meta.in_strides[1][0] = cols;
+    meta.in_strides[1][1] = 1;
+
+    VariableHandle ha(a.data(), sizeof(float) * nelems);
+    VariableHandle hb(b.data(), sizeof(float) * nelems);
+    VariableHandle hout(out.data(), sizeof(float) * nelems);
+    torch_binary.restrict_where(STARPU_CPU);
+    torch_binary.submit<std::tuple<fp32_t>>(-1, meta, ha, hb, hout);
+    starpu_task_wait_for_all();
+    ha.unregister();
+    hb.unregister();
+    hout.unregister();
+    tn::require_close(out, ref);
+}
+
+TEST_CASE_METHOD(
+    nntile::test::ContextFixture,
+    "starpu torch_binary Add matches aten::add_out",
+    "[torch_native][starpu]")
+{
+    const Index rows = 2;
+    const Index cols = 2;
+    const Index nelems = 4;
+    const double alpha = 1.5;
+    std::vector<float> a = {1.f, 2.f, 3.f, 4.f};
+    std::vector<float> b = {2.f, 0.5f, -1.f, 3.f};
+    std::vector<float> out(nelems, 0.f);
+    std::vector<float> ref(nelems, 0.f);
+
+    tn::with_cpu_aten(
+        [&]
+        {
+            at::Tensor ta = tn::blob_cpu(a.data(), {rows, cols});
+            at::Tensor tb = tn::blob_cpu(b.data(), {rows, cols});
+            at::Tensor tr = tn::blob_cpu(ref.data(), {rows, cols});
+            at::add_out(tr, ta, tb, alpha);
+        });
+
+    TorchDispatchArgs meta = pack2d(TorchKind::Add, rows, cols);
+    meta.n_in = 2;
+    meta.scalars[0] = static_cast<Scalar>(alpha);
     meta.in_ndim[1] = 2;
     meta.in_sizes[1][0] = rows;
     meta.in_sizes[1][1] = cols;

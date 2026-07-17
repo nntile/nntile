@@ -23,7 +23,6 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/tensor/ops/fill.hh>
-#include <nntile/tensor/ops/torch_add.hh>
 #include <nntile/tensor/ops/torch_dispatch.hh>
 
 namespace torch_nntile
@@ -150,7 +149,7 @@ void tensor_add_fp32(
 {
     // NNTile historical API: z = alpha * x + beta * y.
     // Torch add.out is out = self + alpha * other. Require alpha==1 and
-    // map beta → torch alpha.
+    // map beta → torch alpha (TorchKind::Add scalars[0]).
     TORCH_CHECK(
         alpha == 1.0f,
         "torch_nntile torch_add: only alpha=1 on the left "
@@ -178,10 +177,14 @@ void tensor_add_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(y));
 
-    auto *z_node = nntile::tensor::torch_add(
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = static_cast<nntile::Scalar>(beta);
+    auto *z_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Add,
         x_node,
         y_node,
-        static_cast<nntile::Scalar>(beta))->set_name("z");
+        graph_shape,
+        extra)->set_name("z");
     register_data_node(out, z_node);
 }
 
@@ -231,10 +234,14 @@ void tensor_add_inplace_fp32(
             scale_extra);
     }
 
-    auto *out_node = nntile::tensor::torch_add(
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = static_cast<nntile::Scalar>(alpha);
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Add,
         lhs_node,
         other_node,
-        static_cast<nntile::Scalar>(alpha));
+        graph_shape,
+        extra);
     register_data_node(self, out_node);
 }
 

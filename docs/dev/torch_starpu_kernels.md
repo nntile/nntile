@@ -114,7 +114,7 @@ Each `TileNode` must carry the **same tensor meta** as its logical
 match the buffer layout StarPU will hold).
 
 At execute time, the tile op calls a dedicated **`nntile::core`** entry that
-is clearly named as torch-based (e.g. `core::torch_add_out`), **not** a
+is clearly named as torch-based (e.g. `core::torch_binary_out`), **not** a
 `nntile::kernel::*` function.
 
 ### 5. `nntile::core` (torch-based, no `nntile::kernel`)
@@ -124,18 +124,21 @@ Signature sketch:
 ```cpp
 // Torch-based core path: Tile + ATen meta → StarPU submit.
 // No nntile::kernel counterpart.
-void torch_add_out(
-    const Tile<fp32_t> &self,
-    const TileMeta &self_meta,
-    const Tile<fp32_t> &other,
-    const TileMeta &other_meta,
+void torch_binary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,  // e.g. TorchKind::Add
+    const Tile<fp32_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<fp32_t> &b,
+    const TorchTileMeta &b_meta,
     const Tile<fp32_t> &out,
-    const TileMeta &out_meta,
-    Scalar alpha);
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra = {});
 ```
 
-`TileMeta` holds strides / dtype / sizes needed to rebuild `at::Tensor`
-views. Core only packs handles and calls `nntile::starpu::<op>.submit(...)`.
+`TorchTileMeta` holds strides / dtype / sizes needed to rebuild `at::Tensor`
+views. For `TorchKind::Add`, put torch alpha in `extra.scalars[0]`.
+Core only packs handles and calls `nntile::starpu::torch_binary.submit(...)`.
 
 ### 6. `nntile::starpu` codelet
 
@@ -207,9 +210,9 @@ void cuda(void *buffers[], void *cl_args) noexcept
 #endif
 ```
 
-Generic Unary / Binary / Ternary / `torch_add` may pass
-`cuda_env.device()` explicitly into `run_*` instead of relying on TLS;
-specialized codelets prefer TLS + shared `cpu()` body.
+Generic Unary / Binary / Ternary may pass `cuda_env.device()` explicitly
+into `run_*` instead of relying on TLS; specialized codelets prefer TLS +
+shared `cpu()` body.
 
 Register both functions:
 
@@ -262,14 +265,6 @@ Rules:
 
 ### Implemented ops (current)
 
-Dedicated codelet `torch_add` (`aten::add.out`):
-
-| Handle | Role | Mode |
-|--------|------|------|
-| `self` | read-only | `STARPU_R` |
-| `other` | read-only | `STARPU_R` |
-| `out` | write-only | `STARPU_W` |
-
 Family codelet `torch_unary` (one `R` input, one `W` output):
 
 | `TorchKind` | Aten | Handles |
@@ -290,6 +285,7 @@ Family codelet `torch_binary` (two `R` inputs, one `W` output):
 
 | `TorchKind` | Aten | Handles |
 |-------------|------|---------|
+| `Add` | `add.out` (alpha in `scalars[0]`) | a `R`, b `R`, out `W` |
 | `Mul` | `mul.out` | a `R`, b `R`, out `W` |
 | `Hypot` | `hypot.out` | a `R`, b `R`, out `W` |
 | `ThresholdBackward` | `threshold_backward` | grad_out `R`, self `R`, grad_in `W` |
@@ -339,23 +335,12 @@ kernel; that is outside StarPU’s data handles.
 Example sketch (CPU; CUDA wraps with `TorchCudaEnv` — see above):
 
 ```cpp
-void TorchAddOut::cpu(void *buffers[], void *cl_args) noexcept
+void TorchBinary::cpu(void *buffers[], void *cl_args) noexcept
 {
-    auto *args = reinterpret_cast<args_t *>(cl_args);
-    auto **ifaces = reinterpret_cast<VariableInterface **>(buffers);
-    float *self_ptr = ifaces[0]->get_ptr<float>();
-    float *other_ptr = ifaces[1]->get_ptr<float>();
-    float *out_ptr = ifaces[2]->get_ptr<float>();
-
+    auto *args = reinterpret_cast<TorchDispatchArgs *>(cl_args);
     // Prefer torch_blob::blob_fp32 (empty deleter, TLS device).
-    at::Tensor self = blob_fp32(self_ptr, sizes, self_strides, at::kCPU);
-    at::Tensor other = blob_fp32(
-        other_ptr, sizes, other_strides, at::kCPU);
-    at::Tensor out = blob_fp32(out_ptr, sizes, out_strides, at::kCPU);
-
-    at::AutoDispatchBelowADInplaceOrView guard;
-    at::NoGradGuard no_grad;
-    at::add_out(out, self, other, args->alpha);
+    // For TorchKind::Add: at::add_out(out, a, b, args->scalars[0]);
+    // For TorchKind::Mul: at::mul_out(out, a, b);
 }
 ```
 
@@ -426,19 +411,19 @@ Torch changes shape rules. Use hand-written shapes only for trivial cases
 Data-dependent shapes (`nonzero`, etc.) cannot be inferred from meta alone;
 those ops need a different strategy or remain unsupported on this path.
 
-## First implementation notes (`torch_add`)
+## First implementation notes
 
 The experimental flag **`NNTILE_TORCH_NATIVE_OPS`** (default ON on
 `graph_api_torch_kernels`) strips classic compute kernels/codelets/ops from
 the build and keeps I/O (`fill` / `subcopy` / `clear` / `copy` / `scatter` /
 `gather` / `invalidate`) plus torch-native family codelets
-(`torch_add`, `torch_dispatch` / `TorchKind`).
+(`torch_dispatch` / `TorchKind`, including `Add` on `torch_binary`).
 
 Lessons from wiring the first ops:
 
 1. **LibTorch must link into `libnntile`** when the StarPU codelet calls ATen
-   (`from_blob` + `add_out`). Confining torch solely to `libtorch_nntile`
-   is not enough if `nntile::starpu::torch_add` lives in libnntile.
+   (`from_blob` + `*_out`). Confining torch solely to `libtorch_nntile`
+   is not enough if torch-native codelets live in libnntile.
 2. **Codelet tensors must be `device=CPU` or `device=CUDA`**, never
    `nntile`, or the call re-enters PrivateUse1. Use
    `AutoDispatchBelowADInplaceOrView` + `NoGradGuard` around `*_out`.
@@ -447,15 +432,14 @@ Lessons from wiring the first ops:
 3. **`from_blob` needs an empty deleter** so temporary `Tensor` destructors
    do not free StarPU memory. Prefer `torch_blob::blob_*` helpers.
 4. **Single-tile contiguous path** can derive row-major strides from tile
-   shape at `TileTorchAddOp::execute` via
-   `core::make_contiguous_torch_meta`. Persisting full stride meta on
-   `TensorNode` / `TileNode` remains follow-up work for non-contiguous
+   shape via `core::make_contiguous_torch_meta`. Persisting full stride meta
+   on `TensorNode` / `TileNode` remains follow-up work for non-contiguous
    layouts.
 5. **Functional `add.Tensor` still needs a PrivateUse1 impl** (meta probe →
-   `empty` → record `tensor::torch_add`). Registering only `add.out` is not
-   enough.
-6. Map Torch `add(self, other, alpha)` to NNTile-style
-   `z = 1 * self + alpha * other` in the executor bridge.
+   `empty` → record `torch_binary(Add, …)`). Registering only `add.out` is
+   not enough. Same for `add_.Tensor` (SSA rebind via `register_data_node`).
+6. Map Torch `add(self, other, alpha)` to `TorchKind::Add` with
+   `extra.scalars[0] = alpha` (`out = self + alpha * other`).
 7. Keep **`OMP_NUM_THREADS=1`** / `torch.set_num_threads(1)` under StarPU
    workers.
 8. **Slim the pybind `_C` module** when ops are stripped from
@@ -469,7 +453,7 @@ Lessons from wiring the first ops:
     `nntile/tests/torch_native/`). Pytest is not the coverage path for
     these torch-native ops.
 
-Reference sources: `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_add.*`,
+Reference sources:
 `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_dispatch.*`,
 `nntile/include/nntile/starpu/torch_{blob,cuda_env}.hh`,
 `nntile/tests/torch_native/`,

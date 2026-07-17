@@ -13,6 +13,7 @@
 #include <nntile/tensor/ops/torch_dispatch.hh>
 #include <nntile/tile.hh>
 
+#include <ATen/ops/add.h>
 #include <ATen/ops/mm.h>
 #include <ATen/ops/relu.h>
 
@@ -96,6 +97,49 @@ TEST_CASE_METHOD(
             xa,
             xb,
             {2, 2}));
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(xa, a);
+    runtime.bind_data(xb, b);
+    runtime.execute();
+    runtime.wait();
+    tn::require_close(runtime.get_output<float>(out), ref);
+}
+
+TEST_CASE_METHOD(
+    nntile::test::ContextFixture,
+    "TensorGraph torch_binary Add untiled matches aten",
+    "[torch_native][tensor]")
+{
+    const std::vector<Index> shape = {2, 2};
+    const Scalar alpha = 1.5f;
+    std::vector<float> a = {1.f, 2.f, 3.f, 4.f};
+    std::vector<float> b = {5.f, 6.f, 7.f, 8.f};
+    std::vector<float> ref(4, 0.f);
+
+    tn::with_cpu_aten(
+        [&]
+        {
+            at::Tensor ta = tn::blob_cpu(a.data(), shape);
+            at::Tensor tb = tn::blob_cpu(b.data(), shape);
+            at::Tensor tr = tn::blob_cpu(ref.data(), shape);
+            at::add_out(tr, ta, tb, static_cast<double>(alpha));
+        });
+
+    TensorGraph graph("torch_add");
+    nntile::TensorRef xa = graph.data(shape, DataType::FP32);
+    nntile::TensorRef xb = graph.data(shape, DataType::FP32);
+    starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = alpha;
+    nntile::TensorRef out = nntile::TensorRef::adopt(
+        gt::torch_binary(
+            starpu::TorchKind::Add,
+            xa,
+            xb,
+            shape,
+            extra));
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
     Runtime runtime(tile_graph);

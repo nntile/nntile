@@ -11,6 +11,7 @@
 #include <nntile/core/torch_dispatch.hh>
 #include <nntile/core/torch_meta.hh>
 
+#include <ATen/ops/add.h>
 #include <ATen/ops/linear.h>
 #include <ATen/ops/relu.h>
 #include <ATen/ops/transpose_copy.h>
@@ -60,6 +61,67 @@ TEST_CASE_METHOD(
         meta,
         out,
         meta);
+    starpu_task_wait_for_all();
+
+    std::vector<float> got(nelems);
+    {
+        auto loc = out.acquire(STARPU_R);
+        for (Index i = 0; i < nelems; ++i)
+        {
+            got[static_cast<size_t>(i)] = tn::as_float(loc[i]);
+        }
+        loc.release();
+    }
+    tn::require_close(got, ref);
+}
+
+TEST_CASE_METHOD(
+    nntile::test::ContextFixture,
+    "core torch_binary Add matches aten::add_out",
+    "[torch_native][core]")
+{
+    const std::vector<Index> shape = {2, 2};
+    const Index nelems = 4;
+    const Scalar alpha = 1.5f;
+    Tile<fp32_t> a(shape), b(shape), out(shape);
+    std::vector<float> a_h = {1.f, 2.f, 3.f, 4.f};
+    std::vector<float> b_h = {2.f, 0.5f, -1.f, 3.f};
+    std::vector<float> ref(nelems, 0.f);
+
+    {
+        auto la = a.acquire(STARPU_W);
+        auto lb = b.acquire(STARPU_W);
+        for (Index i = 0; i < nelems; ++i)
+        {
+            la[i] = a_h[static_cast<size_t>(i)];
+            lb[i] = b_h[static_cast<size_t>(i)];
+        }
+        la.release();
+        lb.release();
+    }
+
+    tn::with_cpu_aten(
+        [&]
+        {
+            at::Tensor ta = tn::blob_cpu(a_h.data(), shape);
+            at::Tensor tb = tn::blob_cpu(b_h.data(), shape);
+            at::Tensor tr = tn::blob_cpu(ref.data(), shape);
+            at::add_out(tr, ta, tb, static_cast<double>(alpha));
+        });
+
+    const TorchTileMeta meta = make_contiguous_torch_meta(shape);
+    starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = alpha;
+    torch_binary_out(
+        -1,
+        starpu::TorchKind::Add,
+        a,
+        meta,
+        b,
+        meta,
+        out,
+        meta,
+        extra);
     starpu_task_wait_for_all();
 
     std::vector<float> got(nelems);
