@@ -83,6 +83,35 @@ nntile::starpu::TorchKind torch_gemm_kind(c10::IntArrayRef a_shape,
     return nntile::starpu::TorchKind::Matmul;
 }
 
+//! Transpose the last two dims via aten::transpose_copy (for gemm trans flags).
+nntile::TensorGraph::TensorNode *maybe_transpose_matrix_node(
+    nntile::TensorGraph::TensorNode *node,
+    std::vector<nntile::Index> shape,
+    bool transpose)
+{
+    if (!transpose)
+    {
+        return node;
+    }
+    TORCH_CHECK(
+        shape.size() >= 2,
+        "torch_nntile gemm: transpose requires rank >= 2");
+    const nntile::Index d0 =
+        static_cast<nntile::Index>(shape.size()) - 2;
+    const nntile::Index d1 =
+        static_cast<nntile::Index>(shape.size()) - 1;
+    std::swap(shape[static_cast<std::size_t>(d0)],
+        shape[static_cast<std::size_t>(d1)]);
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[0] = d0;
+    extra.iargs[1] = d1;
+    return nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::TransposeCopy,
+        node,
+        shape,
+        extra);
+}
+
 void pack_sum_dims(
     nntile::starpu::TorchDispatchArgs &extra,
     const std::vector<int64_t> &dims,
@@ -599,11 +628,32 @@ void tensor_gemm_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(b));
 
-    const nntile::starpu::TorchKind kind =
-        torch_gemm_kind(a_gemm_shape, b_gemm_shape);
-    (void)params;
+    // Honor classic gemm transpose flags by lowering to
+    // aten::transpose_copy then mm/bmm/matmul (CPU, no grad).
+    a_node = maybe_transpose_matrix_node(
+        a_node,
+        a_graph,
+        params.trans_a);
+    b_node = maybe_transpose_matrix_node(
+        b_node,
+        b_graph,
+        params.trans_b);
+
+    std::vector<nntile::Index> a_eff = a_graph;
+    std::vector<nntile::Index> b_eff = b_graph;
+    if (params.trans_a && a_eff.size() >= 2)
+    {
+        std::swap(a_eff[a_eff.size() - 2], a_eff[a_eff.size() - 1]);
+    }
+    if (params.trans_b && b_eff.size() >= 2)
+    {
+        std::swap(b_eff[b_eff.size() - 2], b_eff[b_eff.size() - 1]);
+    }
+
+    const std::vector<int64_t> a_i64(a_eff.begin(), a_eff.end());
+    const std::vector<int64_t> b_i64(b_eff.begin(), b_eff.end());
     auto *out_node = nntile::tensor::torch_binary(
-        kind,
+        torch_gemm_kind(a_i64, b_i64),
         a_node,
         b_node,
         out_graph);
@@ -678,16 +728,70 @@ void tensor_linear_fp32(
     const at::Tensor &weight,
     at::Tensor &out)
 {
-    const PreparedGemmOperands prepared =
-        prepare_linear_operands(input, weight);
-    tensor_gemm_fp32(
-        prepared.params,
-        prepared.a,
-        prepared.a_gemm_shape,
-        prepared.b,
-        prepared.b_gemm_shape,
-        out,
-        prepared.out_shape);
+    // aten::linear(input, weight) — same schema in the StarPU codelet.
+    const std::vector<nntile::Index> in_graph =
+        pytorch_shape_to_graph(input.sizes());
+    const std::vector<nntile::Index> w_graph =
+        pytorch_shape_to_graph(weight.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        in_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *w_node = get_or_create_data_node(
+        weight,
+        w_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(weight));
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Linear,
+        in_node,
+        w_node,
+        out_graph);
+    register_data_node(out, out_node);
+}
+
+void tensor_linear_bias_fp32(
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    const at::Tensor &bias,
+    at::Tensor &out)
+{
+    // aten::linear(input, weight, bias).
+    const std::vector<nntile::Index> in_graph =
+        pytorch_shape_to_graph(input.sizes());
+    const std::vector<nntile::Index> w_graph =
+        pytorch_shape_to_graph(weight.sizes());
+    const std::vector<nntile::Index> b_graph =
+        pytorch_shape_to_graph(bias.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        in_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *w_node = get_or_create_data_node(
+        weight,
+        w_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(weight));
+    auto *b_node = get_or_create_data_node(
+        bias,
+        b_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(bias));
+    auto *out_node = nntile::tensor::torch_ternary(
+        nntile::starpu::TorchKind::Linear,
+        in_node,
+        w_node,
+        b_node,
+        out_graph);
+    register_data_node(out, out_node);
 }
 
 void tensor_linear_backward_input_fp32(
@@ -747,7 +851,9 @@ void tensor_linear_add_bias_fp32(
     at::Tensor &output,
     const at::Tensor &bias)
 {
-    // out = out + bias (broadcast over leading dims).
+    // Prefer recording aten::linear with bias when possible. Here output
+    // already holds the matmul result; fold bias via add after repeat
+    // using aten ops only (repeat + add).
     TORCH_CHECK(bias.dim() == 1, "linear_add_bias: bias must be 1D");
     TORCH_CHECK(
         output.size(-1) == bias.size(0),

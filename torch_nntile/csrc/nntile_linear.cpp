@@ -103,17 +103,17 @@ void run_linear(
     const std::optional<at::Tensor> &bias)
 {
     const bool has_bias = bias.has_value() && bias->defined();
-    tensor_gemm_fp32(
-        prepared.params,
-        prepared.a,
-        prepared.a_gemm_shape,
-        prepared.b,
-        prepared.b_gemm_shape,
-        output,
-        prepared.out_shape);
     if (has_bias)
     {
-        tensor_linear_add_bias_fp32(output, *bias);
+        tensor_linear_bias_fp32(
+            prepared.a,
+            prepared.b,
+            *bias,
+            output);
+    }
+    else
+    {
+        tensor_linear_fp32(prepared.a, prepared.b, output);
     }
 }
 

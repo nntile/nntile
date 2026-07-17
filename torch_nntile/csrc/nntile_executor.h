@@ -67,6 +67,13 @@ void tensor_linear_fp32(
     const at::Tensor &weight,
     at::Tensor &out);
 
+//! ``aten::linear`` with bias (ternary StarPU codelet).
+void tensor_linear_bias_fp32(
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    const at::Tensor &bias,
+    at::Tensor &out);
+
 void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out);
 
 void tensor_relu_backward_fp32(
