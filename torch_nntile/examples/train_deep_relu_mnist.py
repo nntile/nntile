@@ -84,7 +84,6 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
-import sys
 import time
 from pathlib import Path
 from typing import Type
@@ -95,8 +94,6 @@ from torchvision import datasets
 
 _REPO = Path(__file__).resolve().parents[2]
 _TORCH_NNTILE_ROOT = _REPO / "torch_nntile"
-if str(_TORCH_NNTILE_ROOT) not in sys.path:
-    sys.path.insert(0, str(_TORCH_NNTILE_ROOT))
 
 _DeepReLU: Type[nn.Module] | None = None
 

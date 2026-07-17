@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import atexit
+from pathlib import Path
 
 import torch
 
@@ -17,7 +18,22 @@ from ._cuda_deps import ensure_linux_cuda_deps
 
 ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 
-from . import _C  # noqa: E402, F401 - loads kernels and allocator
+try:
+    from . import _C  # noqa: F401 - loads kernels and allocator
+except ImportError as exc:
+    pkg_dir = Path(__file__).resolve().parent
+    # Missing extension (source tree / bad install). Keep linker errors for a
+    # present `_C` (e.g. libtorch_nntile not on LD_LIBRARY_PATH) unchanged.
+    if any(pkg_dir.glob("_C.*")):
+        raise
+    raise ImportError(
+        "torch_nntile extension `_C` is missing from "
+        f"{pkg_dir}. Install a built package "
+        "(wheel or `pip install -e ./torch_nntile`), and avoid "
+        "importing the unbuilt source tree via cwd/PYTHONPATH. "
+        "pytest may use an in-tree `_C` when present; see "
+        "torch_nntile/tests/conftest.py."
+    ) from exc
 from . import loss as _loss  # noqa: E402, F401
 from . import compat as _compat  # noqa: E402, F401
 from . import nn as nn  # noqa: E402, F401
