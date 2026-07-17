@@ -134,6 +134,7 @@ struct TileTorchTernaryOp : TileGraph::OpNode
 
 struct TileTorchEmbeddingOp : TileGraph::OpNode
 {
+    starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *weight = nullptr;
     TileGraph::TileNode *indices = nullptr;
     TileGraph::TileNode *out = nullptr;
@@ -142,8 +143,12 @@ struct TileTorchEmbeddingOp : TileGraph::OpNode
     TileTorchEmbeddingOp(
         TileGraph::TileNode *weight_,
         TileGraph::TileNode *indices_,
-        TileGraph::TileNode *out_) :
-        weight(weight_), indices(indices_), out(out_)
+        TileGraph::TileNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        weight(weight_),
+        indices(indices_),
+        out(out_)
     {
         inputs_ = {weight, indices};
         outputs_ = {out};
@@ -216,7 +221,8 @@ void torch_ternary(
 void torch_embedding(
     TileGraph::TileNode *weight,
     TileGraph::TileNode *indices,
-    TileGraph::TileNode *out);
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra = {});
 
 void torch_cat(
     Index dim,
@@ -386,6 +392,7 @@ void torch_layer_norm_backward(
 
 struct TileTorchEmbeddingDenseBackwardOp : TileGraph::OpNode
 {
+    starpu::TorchDispatchArgs extra{};
     TileGraph::TileNode *grad = nullptr;
     TileGraph::TileNode *indices = nullptr;
     TileGraph::TileNode *grad_weight = nullptr;
@@ -394,8 +401,12 @@ struct TileTorchEmbeddingDenseBackwardOp : TileGraph::OpNode
     TileTorchEmbeddingDenseBackwardOp(
         TileGraph::TileNode *grad_,
         TileGraph::TileNode *indices_,
-        TileGraph::TileNode *grad_weight_) :
-        grad(grad_), indices(indices_), grad_weight(grad_weight_)
+        TileGraph::TileNode *grad_weight_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        grad(grad_),
+        indices(indices_),
+        grad_weight(grad_weight_)
     {
         inputs_ = {grad, indices};
         outputs_ = {grad_weight};
@@ -418,7 +429,8 @@ struct TileTorchEmbeddingDenseBackwardOp : TileGraph::OpNode
 void torch_embedding_dense_backward(
     TileGraph::TileNode *grad,
     TileGraph::TileNode *indices,
-    TileGraph::TileNode *grad_weight);
+    TileGraph::TileNode *grad_weight,
+    starpu::TorchDispatchArgs extra = {});
 
 struct TileTorchSdpaBackwardOp : TileGraph::OpNode
 {

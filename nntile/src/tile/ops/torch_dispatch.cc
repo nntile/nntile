@@ -77,7 +77,8 @@ void torch_ternary(
 void torch_embedding(
     TileGraph::TileNode *weight,
     TileGraph::TileNode *indices,
-    TileGraph::TileNode *out)
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra)
 {
     if (weight == nullptr || indices == nullptr || out == nullptr)
     {
@@ -86,7 +87,8 @@ void torch_embedding(
     auto op = std::make_shared<TileTorchEmbeddingOp>(
         weight,
         indices,
-        out);
+        out,
+        extra);
     weight->graph()->add_op(op);
 }
 
@@ -213,12 +215,16 @@ void TileTorchEmbeddingOp::execute(Runtime &runtime) const
     auto &w_t = runtime.get_tile<fp32_t>(weight);
     auto &idx_t = runtime.get_tile<int64_t>(indices);
     auto &out_t = runtime.get_tile<fp32_t>(out);
+    // Prefer packed sizes/strides/offset (sliced position_ids, etc.).
     const core::TorchTileMeta w_meta =
-        core::make_contiguous_torch_meta(weight->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 0, false, weight->shape());
     const core::TorchTileMeta idx_meta =
-        core::make_contiguous_torch_meta(indices->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 1, false, indices->shape());
     const core::TorchTileMeta out_meta =
-        core::make_contiguous_torch_meta(out->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 0, true, out->shape());
     core::torch_embedding_out(
         runtime.starpu_worker_hint(),
         w_t,
@@ -434,12 +440,14 @@ void TileTorchLayerNormBackwardOp::execute(Runtime &runtime) const
 void torch_embedding_dense_backward(
     TileGraph::TileNode *grad,
     TileGraph::TileNode *indices,
-    TileGraph::TileNode *grad_weight)
+    TileGraph::TileNode *grad_weight,
+    starpu::TorchDispatchArgs extra)
 {
     auto op = std::make_shared<TileTorchEmbeddingDenseBackwardOp>(
         grad,
         indices,
-        grad_weight);
+        grad_weight,
+        extra);
     grad->graph()->add_op(op);
 }
 
@@ -449,11 +457,14 @@ void TileTorchEmbeddingDenseBackwardOp::execute(Runtime &runtime) const
     auto &idx_t = runtime.get_tile<int64_t>(indices);
     auto &gw_t = runtime.get_tile<fp32_t>(grad_weight);
     const core::TorchTileMeta g_meta =
-        core::make_contiguous_torch_meta(grad->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 0, false, grad->shape());
     const core::TorchTileMeta idx_meta =
-        core::make_contiguous_torch_meta(indices->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 1, false, indices->shape());
     const core::TorchTileMeta gw_meta =
-        core::make_contiguous_torch_meta(grad_weight->shape());
+        core::meta_from_args_or_contiguous(
+            extra, 0, true, grad_weight->shape());
     core::torch_embedding_dense_backward_out(
         runtime.starpu_worker_hint(),
         g_t,

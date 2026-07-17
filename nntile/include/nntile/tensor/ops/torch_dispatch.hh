@@ -139,6 +139,7 @@ struct TensorTorchTernaryOp : TensorGraph::OpNode
 
 struct TensorTorchEmbeddingOp : TensorGraph::OpNode
 {
+    starpu::TorchDispatchArgs extra{};
     TensorGraph::TensorNode *weight = nullptr;
     TensorGraph::TensorNode *indices = nullptr;
     TensorGraph::TensorNode *out = nullptr;
@@ -147,8 +148,12 @@ struct TensorTorchEmbeddingOp : TensorGraph::OpNode
     TensorTorchEmbeddingOp(
         TensorGraph::TensorNode *weight_,
         TensorGraph::TensorNode *indices_,
-        TensorGraph::TensorNode *out_) :
-        weight(weight_), indices(indices_), out(out_)
+        TensorGraph::TensorNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        weight(weight_),
+        indices(indices_),
+        out(out_)
     {
         inputs_ = {weight, indices};
         outputs_ = {out};
@@ -242,7 +247,8 @@ void torch_ternary(
 TensorGraph::TensorNode *torch_embedding(
     TensorGraph::TensorNode *weight,
     TensorGraph::TensorNode *indices,
-    const std::vector<Index> &out_shape);
+    const std::vector<Index> &out_shape,
+    starpu::TorchDispatchArgs extra = {});
 
 TensorGraph::TensorNode *torch_cat(
     Index dim,
@@ -413,6 +419,7 @@ void torch_layer_norm_backward(
 
 struct TensorTorchEmbeddingDenseBackwardOp : TensorGraph::OpNode
 {
+    starpu::TorchDispatchArgs extra{};
     TensorGraph::TensorNode *grad = nullptr;
     TensorGraph::TensorNode *indices = nullptr;
     TensorGraph::TensorNode *grad_weight = nullptr;
@@ -421,8 +428,12 @@ struct TensorTorchEmbeddingDenseBackwardOp : TensorGraph::OpNode
     TensorTorchEmbeddingDenseBackwardOp(
         TensorGraph::TensorNode *grad_,
         TensorGraph::TensorNode *indices_,
-        TensorGraph::TensorNode *grad_weight_) :
-        grad(grad_), indices(indices_), grad_weight(grad_weight_)
+        TensorGraph::TensorNode *grad_weight_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        grad(grad_),
+        indices(indices_),
+        grad_weight(grad_weight_)
     {
         inputs_ = {grad, indices};
         outputs_ = {grad_weight};
@@ -445,7 +456,8 @@ struct TensorTorchEmbeddingDenseBackwardOp : TensorGraph::OpNode
 void torch_embedding_dense_backward(
     TensorGraph::TensorNode *grad,
     TensorGraph::TensorNode *indices,
-    TensorGraph::TensorNode *grad_weight);
+    TensorGraph::TensorNode *grad_weight,
+    starpu::TorchDispatchArgs extra = {});
 
 struct TensorTorchSdpaBackwardOp : TensorGraph::OpNode
 {

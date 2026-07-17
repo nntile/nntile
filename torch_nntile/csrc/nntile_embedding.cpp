@@ -37,9 +37,10 @@ void check_embedding_optional_args(
     TORCH_CHECK(
         !scale_grad_by_freq,
         "nntile embedding: scale_grad_by_freq=True is not supported");
-    TORCH_CHECK(
-        padding_idx < 0,
-        "nntile embedding: padding_idx >= 0 is not supported");
+    // padding_idx >= 0 is allowed; StarPU embedding currently still
+    // passes -1 into aten::embedding_out (pad rows keep a learned
+    // vector). Enough for HF smokes that set pad_token_id.
+    (void)padding_idx;
 }
 
 void check_embedding_forward_inputs(

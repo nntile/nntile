@@ -40,7 +40,9 @@ if(NNTILE_TORCH_NATIVE_OPS)
         csrc/nntile_gemm_layout.cpp
         csrc/nntile_executor_torch_native.cpp
         csrc/nntile_add.cpp
+        csrc/nntile_sub.cpp
         csrc/nntile_mul.cpp
+        csrc/nntile_host_aten.cpp
         csrc/nntile_cat.cpp
         csrc/nntile_narrow.cpp
         csrc/nntile_split.cpp

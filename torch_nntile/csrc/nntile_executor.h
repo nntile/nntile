@@ -26,6 +26,13 @@ void tensor_add_fp32(
     const at::Tensor &y,
     at::Tensor &out);
 
+//! ``out = x - alpha * y`` (torch sub.out semantics).
+void tensor_sub_fp32(
+    const at::Tensor &x,
+    const at::Tensor &y,
+    float alpha,
+    at::Tensor &out);
+
 void tensor_model_transpose_forward_fp32(
     const at::Tensor &src,
     at::Tensor &dst,

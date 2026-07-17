@@ -46,6 +46,7 @@ enum class TorchKind : std::int32_t
     Hypot = 2,               // R,R → W  aten::hypot.out
     MulScalar = 3,           // R → W    aten::mul.Scalar_out
     Add = 4,                 // R,R → W  aten::add.out (alpha in scalars[0])
+    Sub = 5,                 // R,R → W  aten::sub.out (alpha in scalars[0])
     Relu = 10,               // R → W    aten::relu.out
     Silu = 11,               // R → W    aten::silu.out
     Gelu = 12,               // R → W    aten::gelu.out

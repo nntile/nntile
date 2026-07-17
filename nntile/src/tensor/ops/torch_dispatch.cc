@@ -151,14 +151,16 @@ void torch_ternary(
 TensorGraph::TensorNode *torch_embedding(
     TensorGraph::TensorNode *weight,
     TensorGraph::TensorNode *indices,
-    const std::vector<Index> &out_shape)
+    const std::vector<Index> &out_shape,
+    starpu::TorchDispatchArgs extra)
 {
     TensorGraph::TensorNode *out =
         weight->graph()->emplace_data(out_shape, weight->dtype());
     auto op = std::make_shared<TensorTorchEmbeddingOp>(
         weight,
         indices,
-        out);
+        out,
+        extra);
     weight->graph()->add_op(op);
     return out;
 }
@@ -222,7 +224,7 @@ void TensorTorchEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
     require_single_tile("TORCH_EMBEDDING", vw);
     require_single_tile("TORCH_EMBEDDING", vi);
     require_single_tile("TORCH_EMBEDDING", vout);
-    tile::torch_embedding(vw[0], vi[0], vout[0]);
+    tile::torch_embedding(vw[0], vi[0], vout[0], extra);
 }
 
 void TensorTorchCatOp::lower_to_tile(const LoweringContext &ctx) const
@@ -395,12 +397,14 @@ void TensorTorchLayerNormBackwardOp::lower_to_tile(
 void torch_embedding_dense_backward(
     TensorGraph::TensorNode *grad,
     TensorGraph::TensorNode *indices,
-    TensorGraph::TensorNode *grad_weight)
+    TensorGraph::TensorNode *grad_weight,
+    starpu::TorchDispatchArgs extra)
 {
     auto op = std::make_shared<TensorTorchEmbeddingDenseBackwardOp>(
         grad,
         indices,
-        grad_weight);
+        grad_weight,
+        extra);
     grad->graph()->add_op(op);
 }
 
@@ -413,7 +417,11 @@ void TensorTorchEmbeddingDenseBackwardOp::lower_to_tile(
     require_single_tile("TORCH_EMBEDDING_DENSE_BWD", vg);
     require_single_tile("TORCH_EMBEDDING_DENSE_BWD", vi);
     require_single_tile("TORCH_EMBEDDING_DENSE_BWD", vgw);
-    tile::torch_embedding_dense_backward(vg[0], vi[0], vgw[0]);
+    tile::torch_embedding_dense_backward(
+        vg[0],
+        vi[0],
+        vgw[0],
+        extra);
 }
 
 void torch_sdpa_backward(

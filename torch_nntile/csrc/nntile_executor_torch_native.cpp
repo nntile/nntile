@@ -212,6 +212,49 @@ void tensor_add_fp32(
     register_data_node(out, z_node);
 }
 
+void tensor_sub_fp32(
+    const at::Tensor &x,
+    const at::Tensor &y,
+    float alpha,
+    at::Tensor &out)
+{
+    TORCH_CHECK(
+        x.sizes().equals(y.sizes()) && x.sizes().equals(out.sizes()),
+        "torch_nntile torch_sub: same-shape tensors only");
+    TORCH_CHECK(
+        x.scalar_type() == at::kFloat &&
+            y.scalar_type() == at::kFloat &&
+            out.scalar_type() == at::kFloat,
+        "torch_nntile torch_sub: float32 only");
+
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(x.sizes());
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+    auto *y_node = get_or_create_data_node(
+        y,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(y));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = static_cast<nntile::Scalar>(alpha);
+    pack_tensor_layout(extra, 0, x, false);
+    pack_tensor_layout(extra, 1, y, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *z_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Sub,
+        x_node,
+        y_node,
+        graph_shape,
+        extra);
+    register_data_node(out, z_node);
+}
+
 void tensor_fill_fp32(at::Tensor &self, float value)
 {
     const std::vector<nntile::Index> graph_shape =
@@ -1325,10 +1368,15 @@ void tensor_embedding_forward_fp32(
         nntile::DataType::INT64,
         mark_as_input_for_operand(indices));
 
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, weight, false);
+    pack_tensor_layout(extra, 1, indices, false);
+    pack_tensor_layout(extra, 0, out, true);
     auto *out_node = nntile::tensor::torch_embedding(
         weight_node,
         index_node,
-        out_graph);
+        out_graph,
+        extra);
     register_data_node(out, out_node);
 }
 
@@ -1844,10 +1892,15 @@ void tensor_embedding_backward_fp32(
         nntile::DataType::FP32,
         false);
 
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, grad_out, false);
+    pack_tensor_layout(extra, 1, indices, false);
+    pack_tensor_layout(extra, 0, grad_weight, true);
     nntile::tensor::torch_embedding_dense_backward(
         grad_out_node,
         index_node,
-        grad_weight_node);
+        grad_weight_node,
+        extra);
     register_data_node(grad_weight, grad_weight_node);
 }
 

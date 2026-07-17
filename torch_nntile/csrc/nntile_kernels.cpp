@@ -18,6 +18,7 @@
 #include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/native/CPUFallback.h>
 #include <ATen/native/Resize.h>
+#include <ATen/ops/arange.h>
 #include <c10/core/DeviceGuard.h>
 #include <c10/core/ScalarType.h>
 #include <c10/core/ScalarTypeToTypeMeta.h>
@@ -529,6 +530,143 @@ at::Tensor copy_from_and_resize(const at::Tensor &self, const at::Tensor &dst)
     return copy_from(self, dst, false);
 }
 
+namespace
+{
+
+at::TensorOptions cpu_opts_like(const at::Tensor &out)
+{
+    return at::TensorOptions()
+        .dtype(out.scalar_type())
+        .device(at::kCPU)
+        .layout(at::kStrided);
+}
+
+at::Tensor &arange_fill_out(
+    at::Tensor &out,
+    const at::Scalar &start,
+    const at::Scalar &end,
+    const at::Scalar &step)
+{
+    TORCH_CHECK(
+        is_nntile_device(out.device()),
+        "arange: expected nntile out");
+    at::Tensor cpu = at::arange(start, end, step, cpu_opts_like(out));
+    if (cpu.sizes() != out.sizes())
+    {
+        resize_(
+            out,
+            c10::SymIntArrayRef(cpu.sym_sizes()),
+            std::nullopt);
+    }
+    copy_from(cpu, out, /*non_blocking=*/false);
+    return out;
+}
+
+at::Tensor arange_on_nntile(
+    const at::Scalar &start,
+    const at::Scalar &end,
+    const at::Scalar &step,
+    std::optional<at::ScalarType> dtype_opt,
+    std::optional<at::Layout> layout_opt,
+    std::optional<at::Device> device_opt,
+    std::optional<bool> pin_memory_opt)
+{
+    const auto device = c10::device_or_default(device_opt);
+    TORCH_CHECK(is_nntile_device(device), "arange: expected nntile device");
+    TORCH_CHECK(
+        c10::layout_or_default(layout_opt) == c10::Layout::Strided,
+        "arange: non-strided layout not supported on nntile");
+    TORCH_CHECK(
+        !c10::pinned_memory_or_default(pin_memory_opt),
+        "arange: pin memory is CPU-only");
+    const c10::ScalarType dtype = dtype_opt.has_value()
+        ? *dtype_opt
+        : (start.isFloatingPoint() || end.isFloatingPoint() ||
+                step.isFloatingPoint()
+                ? at::ScalarType::Float
+                : at::ScalarType::Long);
+    at::Tensor cpu = at::arange(
+        start,
+        end,
+        step,
+        at::TensorOptions().dtype(dtype).device(at::kCPU));
+    at::Tensor out = empty_metadata_tensor(cpu.sizes(), dtype, device);
+    copy_from(cpu, out, /*non_blocking=*/false);
+    return out;
+}
+
+} // namespace
+
+at::Tensor arange_end(
+    const at::Scalar &end,
+    std::optional<at::ScalarType> dtype,
+    std::optional<at::Layout> layout,
+    std::optional<at::Device> device,
+    std::optional<bool> pin_memory)
+{
+    return arange_on_nntile(
+        /*start=*/0,
+        end,
+        /*step=*/1,
+        dtype,
+        layout,
+        device,
+        pin_memory);
+}
+
+at::Tensor arange_start(
+    const at::Scalar &start,
+    const at::Scalar &end,
+    std::optional<at::ScalarType> dtype,
+    std::optional<at::Layout> layout,
+    std::optional<at::Device> device,
+    std::optional<bool> pin_memory)
+{
+    return arange_on_nntile(
+        start,
+        end,
+        /*step=*/1,
+        dtype,
+        layout,
+        device,
+        pin_memory);
+}
+
+at::Tensor arange_start_step(
+    const at::Scalar &start,
+    const at::Scalar &end,
+    const at::Scalar &step,
+    std::optional<at::ScalarType> dtype,
+    std::optional<at::Layout> layout,
+    std::optional<at::Device> device,
+    std::optional<bool> pin_memory)
+{
+    return arange_on_nntile(
+        start,
+        end,
+        step,
+        dtype,
+        layout,
+        device,
+        pin_memory);
+}
+
+at::Tensor &arange_out(
+    const at::Scalar &end,
+    at::Tensor &out)
+{
+    return arange_fill_out(out, /*start=*/0, end, /*step=*/1);
+}
+
+at::Tensor &arange_start_out(
+    const at::Scalar &start,
+    const at::Scalar &end,
+    const at::Scalar &step,
+    at::Tensor &out)
+{
+    return arange_fill_out(out, start, end, step);
+}
+
 at::Scalar local_scalar_dense(const at::Tensor &self)
 {
     TORCH_CHECK(
@@ -780,6 +918,11 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl(
         "set_.source_Storage_storage_offset",
         TORCH_FN(torch_nntile::set_source_storage_storage_offset));
+    m.impl("arange", TORCH_FN(torch_nntile::arange_end));
+    m.impl("arange.start", TORCH_FN(torch_nntile::arange_start));
+    m.impl("arange.start_step", TORCH_FN(torch_nntile::arange_start_step));
+    m.impl("arange.out", TORCH_FN(torch_nntile::arange_out));
+    m.impl("arange.start_out", TORCH_FN(torch_nntile::arange_start_out));
 }
 
 // AutogradPrivateUse1: ContiguousFn densifies under

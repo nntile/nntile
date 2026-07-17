@@ -82,6 +82,12 @@ class _NntileBackendModule:
     def device_count() -> int:
         return 1
 
+    @staticmethod
+    def get_amp_supported_dtype() -> list[torch.dtype]:
+        # RoPE / HF disable autocast around float32 math; torch still
+        # requires this hook when device_type is ``nntile``.
+        return [torch.float16, torch.bfloat16]
+
 
 def _register_backend() -> None:
     global _registered
