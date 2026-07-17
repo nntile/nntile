@@ -40,7 +40,7 @@ def tiny_config() -> BertConfig:
         attention_probs_dropout_prob=0.0,
         pad_token_id=0,
     )
-    cfg._attn_implementation = "sdpa"
+    cfg._attn_implementation = "eager"
     return cfg
 
 

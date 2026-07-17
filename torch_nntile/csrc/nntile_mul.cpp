@@ -5,7 +5,9 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -20,6 +22,39 @@ namespace
 bool is_nntile_device(c10::Device device)
 {
     return device.type() == c10::DeviceType::PrivateUse1;
+}
+
+at::Tensor gather_cpu(const at::Tensor &self)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "nntile mul: expected nntile tensor");
+    at::Tensor src = self.is_contiguous() ? self : self.contiguous();
+    at::Tensor cpu = at::empty(
+        src.sizes(),
+        src.options().device(at::kCPU).memory_format(
+            at::MemoryFormat::Contiguous));
+    copy_nntile_tensor_to_cpu(src, cpu);
+    return cpu;
+}
+
+at::Tensor scatter_nntile(
+    const at::Tensor &cpu,
+    c10::Device device)
+{
+    TORCH_CHECK(cpu.is_cpu(), "nntile mul: expected CPU tensor");
+    at::Tensor contig = cpu.contiguous();
+    at::Tensor out = empty_metadata_tensor(
+        contig.sizes(),
+        contig.scalar_type(),
+        device);
+    init_nntile_input_from_cpu(contig, out);
+    return out;
+}
+
+bool is_cpu_scalar_tensor(const at::Tensor &t)
+{
+    return t.is_cpu() && t.numel() == 1;
 }
 
 void check_mul_inputs(
@@ -71,32 +106,28 @@ void run_mul_inplace_kernel(at::Tensor &self, const at::Tensor &other)
     tensor_mul_inplace_fp32(other, self);
 }
 
+at::Tensor mul_host(const at::Tensor &self, const at::Tensor &other)
+{
+    at::Tensor a = gather_cpu(self);
+    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
+                                                    : other.cpu();
+    return scatter_nntile(at::mul(a, b), self.device());
+}
+
+void mul_inplace_host(at::Tensor &self, const at::Tensor &other)
+{
+    at::Tensor a = gather_cpu(self);
+    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
+                                                    : other.cpu();
+    at::Tensor tmp = at::mul(a, b);
+    TORCH_CHECK(
+        tmp.scalar_type() == self.scalar_type(),
+        "nntile mul_: host result dtype mismatch");
+    TORCH_CHECK(tmp.sizes() == self.sizes(), "nntile mul_: shape mismatch");
+    init_nntile_input_from_cpu(tmp.contiguous(), self);
+}
+
 } // namespace
-
-at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
-{
-    check_mul_inputs(self, other);
-    at::Tensor out = at::empty_like(self);
-    run_mul_kernel(self, other, out);
-    return out;
-}
-
-at::Tensor &mul_out(
-    const at::Tensor &self,
-    const at::Tensor &other,
-    at::Tensor &out)
-{
-    check_mul_inputs(self, other, out);
-    run_mul_kernel(self, other, out);
-    return out;
-}
-
-at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
-{
-    check_mul_inputs(self, other);
-    run_mul_inplace_kernel(self, other);
-    return self;
-}
 
 at::Tensor mul_scalar(const at::Tensor &self, const at::Scalar &other)
 {
@@ -130,6 +161,68 @@ at::Tensor &mul_scalar_out(
         "nntile mul.Scalar_out requires contiguous tensors");
     tensor_mul_scalar_fp32(self, out, other.to<float>());
     return out;
+}
+
+at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
+{
+    // PyTorch may wrap Python floats as CPU 0-dim tensors for mul.Tensor.
+    if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
+    {
+        return mul_scalar(self, other.item());
+    }
+    if (!is_nntile_device(other.device()) ||
+        self.scalar_type() != other.scalar_type() ||
+        self.scalar_type() != at::ScalarType::Float)
+    {
+        return mul_host(self, other);
+    }
+    check_mul_inputs(self, other);
+    at::Tensor out = at::empty_like(self);
+    run_mul_kernel(self, other, out);
+    return out;
+}
+
+at::Tensor &mul_out(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
+    {
+        return mul_scalar_out(self, other.item(), out);
+    }
+    if (!is_nntile_device(other.device()) ||
+        self.scalar_type() != other.scalar_type() ||
+        self.scalar_type() != at::ScalarType::Float)
+    {
+        at::Tensor tmp = mul_host(self, other);
+        out.copy_(tmp);
+        return out;
+    }
+    check_mul_inputs(self, other, out);
+    run_mul_kernel(self, other, out);
+    return out;
+}
+
+at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
+{
+    if (is_cpu_scalar_tensor(other) &&
+        self.scalar_type() == at::ScalarType::Float)
+    {
+        at::Tensor tmp = mul_scalar(self, other.item());
+        self.copy_(tmp);
+        return self;
+    }
+    if (!is_nntile_device(other.device()) ||
+        self.scalar_type() != other.scalar_type() ||
+        self.scalar_type() != at::ScalarType::Float)
+    {
+        mul_inplace_host(self, other);
+        return self;
+    }
+    check_mul_inputs(self, other);
+    run_mul_inplace_kernel(self, other);
+    return self;
 }
 
 } // namespace torch_nntile

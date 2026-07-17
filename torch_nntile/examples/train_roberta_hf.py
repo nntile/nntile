@@ -42,7 +42,7 @@ def tiny_config() -> RobertaConfig:
         bos_token_id=0,
         eos_token_id=2,
     )
-    cfg._attn_implementation = "sdpa"
+    cfg._attn_implementation = "eager"
     return cfg
 
 
