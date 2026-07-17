@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file include/nntile/starpu/torch_blob.hh
- * from_blob helpers for torch-native StarPU CPU codelets.
+ * from_blob helpers for torch-native StarPU codelets (CPU / CUDA).
  *
  * @version 1.1.0
  */
@@ -20,12 +20,20 @@
 
 #include <ATen/ATen.h>
 #include <ATen/ops/from_blob.h>
+#include <c10/util/Optional.h>
 
 #include <nntile/base_types.hh>
 #include <nntile/core/torch_meta.hh>
 
 namespace nntile::starpu::torch_blob
 {
+
+//! Thread-local default device for from_blob (CPU, or CUDA under TorchCudaEnv).
+inline at::Device &default_device_tls()
+{
+    thread_local at::Device device = at::kCPU;
+    return device;
+}
 
 inline std::vector<std::int64_t> to_i64(const Index *data, Index n)
 {
@@ -44,15 +52,22 @@ inline std::vector<std::int64_t> to_i64(
     return to_i64(data.data(), static_cast<Index>(data.size()));
 }
 
+inline at::Device resolve_device(
+    const c10::optional<at::Device> &device)
+{
+    return device.has_value() ? *device : default_device_tls();
+}
+
 //! Empty deleter: StarPU owns the buffer.
 inline at::Tensor blob_fp32(
     float *ptr,
     const std::vector<std::int64_t> &sizes,
-    const std::vector<std::int64_t> &strides)
+    const std::vector<std::int64_t> &strides,
+    c10::optional<at::Device> device = c10::nullopt)
 {
     auto opts = at::TensorOptions()
         .dtype(at::kFloat)
-        .device(at::kCPU);
+        .device(resolve_device(device));
     return at::from_blob(
         ptr,
         at::IntArrayRef(sizes),
@@ -63,19 +78,25 @@ inline at::Tensor blob_fp32(
 
 inline at::Tensor blob_fp32(
     float *ptr,
-    const core::TorchTileMeta &meta)
+    const core::TorchTileMeta &meta,
+    c10::optional<at::Device> device = c10::nullopt)
 {
-    return blob_fp32(ptr, to_i64(meta.sizes), to_i64(meta.strides));
+    return blob_fp32(
+        ptr,
+        to_i64(meta.sizes),
+        to_i64(meta.strides),
+        device);
 }
 
 inline at::Tensor blob_i64(
     std::int64_t *ptr,
     const std::vector<std::int64_t> &sizes,
-    const std::vector<std::int64_t> &strides)
+    const std::vector<std::int64_t> &strides,
+    c10::optional<at::Device> device = c10::nullopt)
 {
     auto opts = at::TensorOptions()
         .dtype(at::kLong)
-        .device(at::kCPU);
+        .device(resolve_device(device));
     return at::from_blob(
         ptr,
         at::IntArrayRef(sizes),
@@ -87,11 +108,12 @@ inline at::Tensor blob_i64(
 inline at::Tensor blob_bool(
     bool *ptr,
     const std::vector<std::int64_t> &sizes,
-    const std::vector<std::int64_t> &strides)
+    const std::vector<std::int64_t> &strides,
+    c10::optional<at::Device> device = c10::nullopt)
 {
     auto opts = at::TensorOptions()
         .dtype(at::kBool)
-        .device(at::kCPU);
+        .device(resolve_device(device));
     return at::from_blob(
         ptr,
         at::IntArrayRef(sizes),

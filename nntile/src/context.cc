@@ -409,23 +409,22 @@ void Context::restrict_cuda()
 {
     using namespace nntile::starpu;
 #ifdef NNTILE_TORCH_NATIVE_OPS
-    // Torch-native codelets are CPU-only in the first cut.
-    clear.codelet.restrict_where(STARPU_CPU);
-    copy.codelet.restrict_where(STARPU_CPU);
-    fill.restrict_where(STARPU_CPU);
-    subcopy.restrict_where(STARPU_CPU);
-    torch_add.restrict_where(STARPU_CPU);
-    torch_unary.restrict_where(STARPU_CPU);
-    torch_binary.restrict_where(STARPU_CPU);
-    torch_ternary.restrict_where(STARPU_CPU);
-    torch_embedding.codelet.restrict_where(STARPU_CPU);
-    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CPU);
-    torch_layer_norm.codelet.restrict_where(STARPU_CPU);
-    torch_layer_norm_backward.codelet.restrict_where(STARPU_CPU);
-    torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
-    torch_nll_loss_forward.codelet.restrict_where(STARPU_CPU);
-    torch_nll_loss_backward.codelet.restrict_where(STARPU_CPU);
-    torch_cat.codelet.restrict_where(STARPU_CPU);
+    clear.codelet.restrict_where(STARPU_CUDA);
+    copy.codelet.restrict_where(STARPU_CUDA);
+    fill.restrict_where(STARPU_CUDA);
+    subcopy.restrict_where(STARPU_CUDA);
+    torch_add.restrict_where(STARPU_CUDA);
+    torch_unary.restrict_where(STARPU_CUDA);
+    torch_binary.restrict_where(STARPU_CUDA);
+    torch_ternary.restrict_where(STARPU_CUDA);
+    torch_embedding.codelet.restrict_where(STARPU_CUDA);
+    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_layer_norm.codelet.restrict_where(STARPU_CUDA);
+    torch_layer_norm_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_sdpa_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_nll_loss_forward.codelet.restrict_where(STARPU_CUDA);
+    torch_nll_loss_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_cat.codelet.restrict_where(STARPU_CUDA);
 #else
     accumulate.restrict_where(STARPU_CUDA);
     accumulate_hypot.restrict_where(STARPU_CUDA);

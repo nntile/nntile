@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file src/starpu/torch_dispatch.cc
- * Torch-native family StarPU codelets (CPU aten *_out).
+ * Torch-native family StarPU codelets (CPU/CUDA aten *_out).
  *
  * @version 1.1.0
  */
@@ -55,6 +55,9 @@
 #include <limits>
 
 #include "nntile/starpu/torch_blob.hh"
+#ifdef NNTILE_USE_CUDA
+#include "nntile/starpu/torch_cuda_env.hh"
+#endif
 
 namespace nntile::starpu
 {
@@ -91,29 +94,37 @@ std::vector<std::int64_t> strides_of(
 at::Tensor in_fp32(
     float *ptr,
     const TorchDispatchArgs &args,
-    Index slot)
+    Index slot,
+    c10::optional<at::Device> device = c10::nullopt)
 {
     return blob_fp32(
         ptr,
         sizes_of(args, slot, false),
-        strides_of(args, slot, false));
+        strides_of(args, slot, false),
+        device);
 }
 
 at::Tensor out_fp32(
     float *ptr,
     const TorchDispatchArgs &args,
-    Index slot)
+    Index slot,
+    c10::optional<at::Device> device = c10::nullopt)
 {
     return blob_fp32(
         ptr,
         sizes_of(args, slot, true),
-        strides_of(args, slot, true));
+        strides_of(args, slot, true),
+        device);
 }
 
-void run_unary(TorchDispatchArgs *args, float *in, float *out)
+void run_unary(
+    TorchDispatchArgs *args,
+    float *in,
+    float *out,
+    at::Device device)
 {
-    at::Tensor self = in_fp32(in, *args, 0);
-    at::Tensor result = out_fp32(out, *args, 0);
+    at::Tensor self = in_fp32(in, *args, 0, device);
+    at::Tensor result = out_fp32(out, *args, 0, device);
     switch (args->kind)
     {
     case TorchKind::Relu:
@@ -217,11 +228,12 @@ void run_binary(
     TorchDispatchArgs *args,
     float *a,
     float *b,
-    float *out)
+    float *out,
+    at::Device device)
 {
-    at::Tensor ta = in_fp32(a, *args, 0);
-    at::Tensor tb = in_fp32(b, *args, 1);
-    at::Tensor result = out_fp32(out, *args, 0);
+    at::Tensor ta = in_fp32(a, *args, 0, device);
+    at::Tensor tb = in_fp32(b, *args, 1, device);
+    at::Tensor result = out_fp32(out, *args, 0, device);
     switch (args->kind)
     {
     case TorchKind::Mul:
@@ -287,12 +299,13 @@ void run_ternary(
     float *a,
     float *b,
     float *c,
-    float *out)
+    float *out,
+    at::Device device)
 {
-    at::Tensor ta = in_fp32(a, *args, 0);
-    at::Tensor tb = in_fp32(b, *args, 1);
-    at::Tensor tc = in_fp32(c, *args, 2);
-    at::Tensor result = out_fp32(out, *args, 0);
+    at::Tensor ta = in_fp32(a, *args, 0, device);
+    at::Tensor tb = in_fp32(b, *args, 1, device);
+    at::Tensor tc = in_fp32(c, *args, 2, device);
+    at::Tensor result = out_fp32(out, *args, 0, device);
     switch (args->kind)
     {
     case TorchKind::Addmm:
@@ -357,7 +370,6 @@ template<typename T>
 TorchUnary<std::tuple<T>>::TorchUnary():
     codelet("nntile_torch_unary", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 template<>
@@ -374,7 +386,7 @@ void TorchUnary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
         float *out = ifaces[1]->get_ptr<float>();
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        run_unary(args, in, out);
+        run_unary(args, in, out, at::kCPU);
     }
     catch (const std::exception &ex)
     {
@@ -386,6 +398,37 @@ void TorchUnary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+template<>
+void TorchUnary<std::tuple<fp32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        float *in = ifaces[0]->get_ptr<float>();
+        float *out = ifaces[1]->get_ptr<float>();
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        run_unary(args, in, out, cuda_env.device());
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_unary CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 uint32_t TorchUnary<std::tuple<T>>::footprint(struct starpu_task *task)
@@ -424,7 +467,6 @@ template<typename T>
 TorchBinary<std::tuple<T>>::TorchBinary():
     codelet("nntile_torch_binary", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 template<>
@@ -442,7 +484,7 @@ void TorchBinary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
         float *out = ifaces[2]->get_ptr<float>();
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        run_binary(args, a, b, out);
+        run_binary(args, a, b, out, at::kCPU);
     }
     catch (const std::exception &ex)
     {
@@ -454,6 +496,38 @@ void TorchBinary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+template<>
+void TorchBinary<std::tuple<fp32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        float *a = ifaces[0]->get_ptr<float>();
+        float *b = ifaces[1]->get_ptr<float>();
+        float *out = ifaces[2]->get_ptr<float>();
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        run_binary(args, a, b, out, cuda_env.device());
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_binary CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 uint32_t TorchBinary<std::tuple<T>>::footprint(struct starpu_task *task)
@@ -495,7 +569,6 @@ template<typename T>
 TorchTernary<std::tuple<T>>::TorchTernary():
     codelet("nntile_torch_ternary", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 template<>
@@ -517,7 +590,7 @@ void TorchTernary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
             : ifaces[3]->get_ptr<float>();
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        run_ternary(args, a, b, c, out);
+        run_ternary(args, a, b, c, out, at::kCPU);
     }
     catch (const std::exception &ex)
     {
@@ -529,6 +602,39 @@ void TorchTernary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+template<>
+void TorchTernary<std::tuple<fp32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        float *a = ifaces[0]->get_ptr<float>();
+        float *b = ifaces[1]->get_ptr<float>();
+        float *c = ifaces[2]->get_ptr<float>();
+        float *out = ifaces[3]->get_ptr<float>();
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        run_ternary(args, a, b, c, out, cuda_env.device());
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_ternary CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 uint32_t TorchTernary<std::tuple<T>>::footprint(struct starpu_task *task)
@@ -604,7 +710,6 @@ void TorchTernary<std::tuple<T>>::submit(
 TorchEmbedding::TorchEmbedding():
     codelet("nntile_torch_embedding", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 void TorchEmbedding::cpu(void *buffers[], void *cl_args) noexcept
@@ -645,6 +750,30 @@ void TorchEmbedding::cpu(void *buffers[], void *cl_args) noexcept
 #endif
 }
 
+
+#ifdef NNTILE_USE_CUDA
+void TorchEmbedding::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_embedding CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
 uint32_t TorchEmbedding::footprint(struct starpu_task *task)
 {
     return args_footprint(
@@ -682,7 +811,6 @@ void TorchEmbedding::submit(
 TorchCat::TorchCat():
     codelet("nntile_torch_cat", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 void TorchCat::cpu(void *buffers[], void *cl_args) noexcept
@@ -720,6 +848,30 @@ void TorchCat::cpu(void *buffers[], void *cl_args) noexcept
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchCat::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_cat CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 uint32_t TorchCat::footprint(struct starpu_task *task)
 {
@@ -835,7 +987,6 @@ template class TorchTernary<std::tuple<nntile::fp32_t>>;
 TorchLayerNorm::TorchLayerNorm():
     codelet("nntile_torch_layer_norm", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 void TorchLayerNorm::cpu(void *buffers[], void *cl_args) noexcept
@@ -898,6 +1049,30 @@ void TorchLayerNorm::cpu(void *buffers[], void *cl_args) noexcept
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchLayerNorm::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_layer_norm CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 uint32_t TorchLayerNorm::footprint(struct starpu_task *task)
 {
@@ -995,7 +1170,6 @@ TorchLayerNormBackward::TorchLayerNormBackward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
@@ -1138,6 +1312,30 @@ void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchLayerNormBackward::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_layer_norm_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 uint32_t TorchLayerNormBackward::footprint(struct starpu_task *task)
 {
@@ -1367,7 +1565,6 @@ TorchEmbeddingDenseBackward::TorchEmbeddingDenseBackward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 void TorchEmbeddingDenseBackward::cpu(
@@ -1411,6 +1608,30 @@ void TorchEmbeddingDenseBackward::cpu(
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchEmbeddingDenseBackward::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_embedding_dense_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 uint32_t TorchEmbeddingDenseBackward::footprint(
     struct starpu_task *task)
@@ -1456,7 +1677,6 @@ TorchSdpaBackward::TorchSdpaBackward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 void TorchSdpaBackward::cpu(void *buffers[], void *cl_args) noexcept
@@ -1542,6 +1762,30 @@ void TorchSdpaBackward::cpu(void *buffers[], void *cl_args) noexcept
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchSdpaBackward::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_sdpa_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 uint32_t TorchSdpaBackward::footprint(struct starpu_task *task)
 {
@@ -1630,7 +1874,6 @@ TorchNllLossForward::TorchNllLossForward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 void TorchNllLossForward::cpu(void *buffers[], void *cl_args) noexcept
@@ -1678,6 +1921,30 @@ void TorchNllLossForward::cpu(void *buffers[], void *cl_args) noexcept
 #endif
 }
 
+
+#ifdef NNTILE_USE_CUDA
+void TorchNllLossForward::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_nll_loss_forward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
 uint32_t TorchNllLossForward::footprint(struct starpu_task *task)
 {
     return args_footprint(
@@ -1724,7 +1991,6 @@ TorchNllLossBackward::TorchNllLossBackward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 void TorchNllLossBackward::cpu(void *buffers[], void *cl_args) noexcept
@@ -1774,6 +2040,30 @@ void TorchNllLossBackward::cpu(void *buffers[], void *cl_args) noexcept
     }
 #endif
 }
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchNllLossBackward::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_nll_loss_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 uint32_t TorchNllLossBackward::footprint(struct starpu_task *task)
 {

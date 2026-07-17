@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file src/starpu/torch_add.cc
- * Torch-native add StarPU codelet (CPU aten::add.out).
+ * Torch-native add StarPU codelet (CPU/CUDA aten::add.out).
  *
  * @version 1.1.0
  */
@@ -17,7 +17,12 @@
 #include <ATen/ATen.h>
 #include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/core/grad_mode.h>
-#include <ATen/ops/from_blob.h>
+#include <ATen/ops/add.h>
+
+#include "nntile/starpu/torch_blob.hh"
+#ifdef NNTILE_USE_CUDA
+#include "nntile/starpu/torch_cuda_env.hh"
+#endif
 
 namespace nntile::starpu
 {
@@ -25,30 +30,45 @@ namespace nntile::starpu
 namespace
 {
 
-// Use std::int64_t (not nntile::int64_t) for at::IntArrayRef.
-std::vector<std::int64_t> to_i64(const Index *data, Index n)
-{
-    std::vector<std::int64_t> out(static_cast<size_t>(n));
-    for (Index i = 0; i < n; ++i)
-    {
-        out[static_cast<size_t>(i)] =
-            static_cast<std::int64_t>(data[i]);
-    }
-    return out;
-}
+using torch_blob::blob_fp32;
+using torch_blob::to_i64;
 
-at::Tensor blob_tensor(
-    float *ptr,
-    const std::vector<std::int64_t> &sizes,
-    const std::vector<std::int64_t> &strides,
-    const at::TensorOptions &opts)
+void run_add(
+    const TorchAdd<std::tuple<fp32_t>>::args_t *args,
+    float *self_ptr,
+    float *other_ptr,
+    float *out_ptr,
+    c10::optional<at::Device> device = c10::nullopt)
 {
-    return at::from_blob(
-        ptr,
-        at::IntArrayRef(sizes),
-        at::IntArrayRef(strides),
-        /*deleter=*/[](void *) {},
-        opts);
+    const Index ndim = args->ndim;
+    auto sizes = to_i64(args->sizes, ndim);
+    auto self_strides = to_i64(args->self_strides, ndim);
+    auto other_strides = to_i64(args->other_strides, ndim);
+    auto out_strides = to_i64(args->out_strides, ndim);
+
+    at::Tensor self = blob_fp32(
+        self_ptr,
+        sizes,
+        self_strides,
+        device);
+    at::Tensor other = blob_fp32(
+        other_ptr,
+        sizes,
+        other_strides,
+        device);
+    at::Tensor out = blob_fp32(
+        out_ptr,
+        sizes,
+        out_strides,
+        device);
+
+    at::AutoDispatchBelowADInplaceOrView guard;
+    at::NoGradGuard no_grad;
+    at::add_out(
+        out,
+        self,
+        other,
+        static_cast<double>(args->alpha));
 }
 
 } // namespace
@@ -57,7 +77,6 @@ template<typename T>
 TorchAdd<std::tuple<T>>::TorchAdd():
     codelet("nntile_torch_add", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.restrict_where(STARPU_CPU);
 }
 
 template<>
@@ -70,44 +89,12 @@ void TorchAdd<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
         auto *args = reinterpret_cast<args_t *>(cl_args);
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
-        float *self_ptr = ifaces[0]->get_ptr<float>();
-        float *other_ptr = ifaces[1]->get_ptr<float>();
-        float *out_ptr = ifaces[2]->get_ptr<float>();
-
-        const Index ndim = args->ndim;
-        auto sizes = to_i64(args->sizes, ndim);
-        auto self_strides = to_i64(args->self_strides, ndim);
-        auto other_strides = to_i64(args->other_strides, ndim);
-        auto out_strides = to_i64(args->out_strides, ndim);
-
-        auto opts = at::TensorOptions()
-            .dtype(at::kFloat)
-            .device(at::kCPU);
-
-        // Empty deleter: StarPU owns the buffers.
-        at::Tensor self = blob_tensor(
-            self_ptr,
-            sizes,
-            self_strides,
-            opts);
-        at::Tensor other = blob_tensor(
-            other_ptr,
-            sizes,
-            other_strides,
-            opts);
-        at::Tensor out = blob_tensor(
-            out_ptr,
-            sizes,
-            out_strides,
-            opts);
-
-        at::AutoDispatchBelowADInplaceOrView guard;
-        at::NoGradGuard no_grad;
-        at::add_out(
-            out,
-            self,
-            other,
-            static_cast<double>(args->alpha));
+        run_add(
+            args,
+            ifaces[0]->get_ptr<float>(),
+            ifaces[1]->get_ptr<float>(),
+            ifaces[2]->get_ptr<float>(),
+            at::kCPU);
     }
     catch (const std::exception &ex)
     {
@@ -119,6 +106,37 @@ void TorchAdd<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
     }
 #endif
 }
+
+#ifdef NNTILE_USE_CUDA
+template<>
+void TorchAdd<std::tuple<fp32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        run_add(
+            args,
+            ifaces[0]->get_ptr<float>(),
+            ifaces[1]->get_ptr<float>(),
+            ifaces[2]->get_ptr<float>(),
+            cuda_env.device());
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_add CUDA codelet failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 uint32_t TorchAdd<std::tuple<T>>::footprint(struct starpu_task *task)

@@ -5,11 +5,13 @@
 **Related:** [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md),
 [../cpp/README.md](../cpp/README.md), [../graph.md](../graph.md)
 
-This note describes how to plug a **libtorch / ATen** CPU kernel into the
+This note describes how to plug a **libtorch / ATen** kernel into the
 Graph API stack so that an untiled `device=nntile` op still runs under
 StarPU’s task runtime, without a matching `nntile::kernel` implementation.
 
-CUDA wrappers are out of scope for the first cut (CPU StarPU workers only).
+CPU and CUDA StarPU workers are both in scope: the same aten schema runs
+on `device=CPU` or `device=CUDA` blobs; CUDA must use the **StarPU** stream
+and cuBLAS handle (never streams/handles from the `from_blob` tensor).
 
 ## Invariant (torch-native path)
 
@@ -18,14 +20,17 @@ torch-native aten ops (`TorchKind` / `TensorTorch*Op`). Classic NNTile
 kernels (`swap_two_axes`, `scale_slice`, gemm codelets, …) are **not**
 TensorGraph compute ops on this path.
 
-Each such op must lower to the **same aten schema** inside the StarPU CPU
+Each such op must lower to the **same aten schema** inside the StarPU
 codelet:
 
-1. `at::from_blob` on **`device=CPU`** (StarPU-owned buffers; empty deleter).
+1. `at::from_blob` on **`device=CPU`** or **`device=CUDA`** (StarPU-owned
+   buffers; empty deleter). The tensor is **meta + pointer only**.
 2. Call the matching `at::*_out` / `*_copy_out` / functional aten API.
 3. Wrap with `at::NoGradGuard` and
    `at::AutoDispatchBelowADInplaceOrView` so execution does not re-enter
    PrivateUse1 or Autograd.
+4. **CUDA only:** bind ATen to the StarPU worker via `TorchCudaEnv`
+   (see [CUDA StarPU workers](#cuda-starpu-workers) below).
 
 I/O ops (`fill` / `subcopy` / scatter / gather / …) may stay classic.
 
@@ -41,7 +46,9 @@ torch / autograd
     → lower (single tile only) → TileGraph OpNode
     → Runtime execute → nntile::core (torch-based)
     → nntile::starpu::submit → StarPU codelet
-    → codelet CPU wrapper: from_blob(CPU) + same aten::*_out (no grad)
+    → CPU:  from_blob(CPU)  + same aten::*_out (no grad)
+    → CUDA: TorchCudaEnv (StarPU stream + cuBLAS)
+            + from_blob(CUDA) + same aten::*_out (no grad)
 ```
 
 Tiling remains the product path for `nntile::kernel` ops later; for this
@@ -144,15 +151,88 @@ CPU wrapper), with these differences:
    the matching StarPU mode (see [Data access modes](#data-access-modes)
    below). Never submit the same handle twice as `STARPU_R` + `STARPU_W`;
    use `STARPU_RW` once instead.
-3. **CPU function** (`void (*)(void *buffers[], void *cl_args)`):
+3. **CPU / CUDA function** (`void (*)(void *buffers[], void *cl_args)`):
    - Unpack `args_t`.
-   - For each buffer, build `at::Tensor` with `torch::from_blob` (or
-     `at::from_blob`) using the raw pointer and the meta from `args_t`.
+   - For each buffer, build `at::Tensor` with `torch_blob::blob_*` /
+     `at::from_blob` using the raw pointer and the meta from `args_t`.
    - Use an **empty deleter** so destroying the temporary `Tensor` does
      **not** free StarPU-owned memory.
    - Call the low-level aten API, preferably `at::<op>_out(...)` /
      `at::_ops::<op>_out::call(...)`.
-4. No CUDA implementation in the first version (`where` = `STARPU_CPU`).
+   - Wrap with `NoGradGuard` + `AutoDispatchBelowADInplaceOrView`.
+4. **CUDA:** register `cuda_funcs[0]`; body starts with `TorchCudaEnv`
+   (StarPU stream + cuBLAS). Do **not** hard-`restrict_where(STARPU_CPU)`
+   on the codelet — `Context::restrict_cpu` / `restrict_cuda` set affinity.
+
+## CUDA StarPU workers
+
+Torch-native compute codelets support CUDA when NNTile is built with
+`USE_CUDA=ON`. All binding lives under `nntile::starpu` only.
+
+### `TorchCudaEnv` (`torch_cuda_env.hh`)
+
+RAII helper used at the start of every CUDA codelet body:
+
+1. `starpu_cuda_get_local_stream()` — worker’s CUDA stream
+2. `starpu_cublas_get_local_handle()` + `cublasSetStream(handle, stream)`
+3. Device id from `starpu_worker_get_devid(starpu_worker_get_id())`
+4. `at::cuda::CUDAGuard` + `CUDAStreamGuard` with
+   `at::cuda::getStreamFromExternal(stream, device_index)` so ATen
+   kernels enqueue on the **StarPU** stream
+5. Sets `torch_blob::default_device_tls()` to `cuda:devid` for the
+   duration of the guard (restored on destroy)
+
+**Never** take the stream or cuBLAS handle from a `from_blob` tensor —
+those tensors are meta + StarPU pointer only.
+
+StarPU’s cuBLAS handle is bound to that stream. ATen BLAS entry points
+still use PyTorch’s own handle, but under `CUDAStreamGuard` they run on
+the same StarPU stream.
+
+### Codelet recipe
+
+```cpp
+void cpu(void *buffers[], void *cl_args) noexcept
+{
+    // from_blob via TLS (CPU by default) + at::*_out
+}
+
+#ifdef NNTILE_USE_CUDA
+void cuda(void *buffers[], void *cl_args) noexcept
+{
+    TorchCudaEnv cuda_env; // StarPU stream + cuBLAS; TLS → CUDA
+    (void)cuda_env;
+    cpu(buffers, cl_args); // same aten body; blobs on CUDA
+}
+#endif
+```
+
+Generic Unary / Binary / Ternary / `torch_add` may pass
+`cuda_env.device()` explicitly into `run_*` instead of relying on TLS;
+specialized codelets prefer TLS + shared `cpu()` body.
+
+Register both functions:
+
+```cpp
+codelet("nntile_torch_op", footprint, cpu_funcs, cuda_funcs);
+```
+
+### Context affinity
+
+| API | Torch-native compute codelets |
+|-----|-------------------------------|
+| `restrict_cpu()` | `STARPU_CPU` |
+| `restrict_cuda()` | `STARPU_CUDA` |
+| `restore_where()` | clear restriction |
+
+### Still out of scope
+
+- Autograd / `requires_grad` inside codelets
+- Replacing I/O kernels (`fill`, `subcopy`, …) with Torch (classic CUDA
+  I/O may still be compiled when `USE_CUDA` is on)
+- Sharing one StarPU codelet across many ATen ops long-term (acceptable as
+  bootstrap for Unary/Binary/Ternary; prefer named per-op codelets for
+  profiling)
 
 ## Data access modes
 
@@ -253,10 +333,10 @@ Classic I/O kept on this path (not torch-native compute, but same rules):
 | `clear` | data `W` |
 
 **Scratch:** none of the current torch-native codelets register
-`STARPU_SCRATCH`. ATen may allocate temporary host memory inside the
-CPU kernel; that is outside StarPU’s data handles.
+`STARPU_SCRATCH`. ATen may allocate temporary memory inside the
+kernel; that is outside StarPU’s data handles.
 
-Example sketch:
+Example sketch (CPU; CUDA wraps with `TorchCudaEnv` — see above):
 
 ```cpp
 void TorchAddOut::cpu(void *buffers[], void *cl_args) noexcept
@@ -267,24 +347,21 @@ void TorchAddOut::cpu(void *buffers[], void *cl_args) noexcept
     float *other_ptr = ifaces[1]->get_ptr<float>();
     float *out_ptr = ifaces[2]->get_ptr<float>();
 
-    auto opts = at::TensorOptions()
-        .dtype(at::kFloat)
-        .device(at::kCPU);
-    at::Tensor self = at::from_blob(
-        self_ptr, args->self_sizes, args->self_strides, opts);
-    at::Tensor other = at::from_blob(
-        other_ptr, args->other_sizes, args->other_strides, opts);
-    at::Tensor out = at::from_blob(
-        out_ptr, args->out_sizes, args->out_strides, opts);
+    // Prefer torch_blob::blob_fp32 (empty deleter, TLS device).
+    at::Tensor self = blob_fp32(self_ptr, sizes, self_strides, at::kCPU);
+    at::Tensor other = blob_fp32(
+        other_ptr, sizes, other_strides, at::kCPU);
+    at::Tensor out = blob_fp32(out_ptr, sizes, out_strides, at::kCPU);
 
+    at::AutoDispatchBelowADInplaceOrView guard;
+    at::NoGradGuard no_grad;
     at::add_out(out, self, other, args->alpha);
-    // self/other/out destructors must not free self_ptr/other_ptr/out_ptr
 }
 ```
 
-Disable autograd / Variable mode inside the codelet if needed
-(`AutoDispatchBelowAutograd` or equivalent) so the call hits the CPU
-kernel, not another PrivateUse1 recording path.
+Disable autograd / Variable mode inside the codelet
+(`AutoDispatchBelowADInplaceOrView` + `NoGradGuard`) so the call hits the
+CPU/CUDA aten kernel, not another PrivateUse1 recording path.
 
 ### 7. Linking
 
@@ -307,7 +384,9 @@ StarPU workers to avoid oversubscription.
 3. Tile execute → `nntile::core::torch_*` / `TorchKind` (named torch-based)
    with `Tile<T>` + meta per tensor.
 4. StarPU: `args_t` with all metas; CPU wrapper `from_blob` + same
-   `*_out` on `device=CPU` under `NoGradGuard`; no `nntile::kernel`.
+   `*_out` under `NoGradGuard`; `#ifdef NNTILE_USE_CUDA` CUDA wrapper
+   via `TorchCudaEnv` (StarPU stream + cuBLAS; never from the tensor);
+   register `cuda_funcs`; no `nntile::kernel`.
    **Declare access modes** for every tensor (`R` / `W` / `RW` /
    `SCRATCH`) and wire them in `submit`; document the row in the
    [Data access modes](#data-access-modes) table.
@@ -360,11 +439,13 @@ Lessons from wiring the first ops:
 1. **LibTorch must link into `libnntile`** when the StarPU codelet calls ATen
    (`from_blob` + `add_out`). Confining torch solely to `libtorch_nntile`
    is not enough if `nntile::starpu::torch_add` lives in libnntile.
-2. **Codelet tensors must be `device=CPU`**, not `nntile`, or the call
-   re-enters PrivateUse1. Use `AutoDispatchBelowADInplaceOrView` +
-   `NoGradGuard` around `at::add_out`.
+2. **Codelet tensors must be `device=CPU` or `device=CUDA`**, never
+   `nntile`, or the call re-enters PrivateUse1. Use
+   `AutoDispatchBelowADInplaceOrView` + `NoGradGuard` around `*_out`.
+   On CUDA, construct blobs only after `TorchCudaEnv` (StarPU stream +
+   cuBLAS); do not read stream/handle from the tensor.
 3. **`from_blob` needs an empty deleter** so temporary `Tensor` destructors
-   do not free StarPU memory.
+   do not free StarPU memory. Prefer `torch_blob::blob_*` helpers.
 4. **Single-tile contiguous path** can derive row-major strides from tile
    shape at `TileTorchAddOp::execute` via
    `core::make_contiguous_torch_meta`. Persisting full stride meta on
@@ -390,6 +471,7 @@ Lessons from wiring the first ops:
 
 Reference sources: `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_add.*`,
 `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_dispatch.*`,
+`nntile/include/nntile/starpu/torch_{blob,cuda_env}.hh`,
 `nntile/tests/torch_native/`,
 `torch_nntile/csrc/nntile_add.cpp`,
 `torch_nntile/csrc/nntile_executor_torch_native.cpp`,

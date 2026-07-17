@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file include/nntile/starpu/torch_dispatch.hh
- * Family StarPU codelets for torch-native aten kernels (CPU).
+ * Family StarPU codelets for torch-native aten kernels (CPU/CUDA).
  *
  * @version 1.1.0
  */
@@ -29,8 +29,9 @@ namespace nntile::starpu
 //! Which aten kernel the CPU codelet should call.
 //!
 //! Names match torch aten schemas (not NNTile classic kernels). TensorGraph
-//! records the same kind; StarPU CPU wrappers call the matching
-//! ``at::*_out`` / ``*_copy_out`` on ``device=CPU`` under ``NoGradGuard``.
+//! records the same kind; StarPU CPU/CUDA wrappers call the matching
+//! ``at::*_out`` / ``*_copy_out`` on ``device=CPU`` / ``device=CUDA``
+//! under ``NoGradGuard``. CUDA uses StarPU stream + cuBLAS handle.
 //!
 //! Access modes (out-of-place ``*_out`` unless noted): each tensor is
 //! read-only (``STARPU_R``), write-only (``STARPU_W``), read-write
@@ -128,7 +129,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -150,7 +156,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -173,7 +184,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -194,7 +210,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -214,7 +235,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -239,7 +265,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -270,7 +301,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -290,7 +326,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -316,7 +357,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -337,7 +383,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,
@@ -359,7 +410,12 @@ public:
     static uint32_t footprint(struct starpu_task *task);
     static void cpu(void *buffers[], void *cl_args) noexcept;
     static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
     void submit(
         int starpu_worker_hint,
         const args_t &meta,

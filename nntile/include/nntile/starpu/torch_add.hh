@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file include/nntile/starpu/torch_add.hh
- * Torch-native add on StarPU buffers (CPU, no nntile::kernel).
+ * Torch-native add on StarPU buffers (CPU/CUDA, no nntile::kernel).
  *
  * @version 1.1.0
  */
@@ -59,7 +59,15 @@ public:
         cpu
     };
 
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else
     static constexpr func_array cuda_funcs = {};
+#endif
 
     void submit(
         int starpu_worker_hint,
