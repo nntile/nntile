@@ -24,6 +24,8 @@
 #include <starpu.h>
 #include <starpu_cublas_v2.h>
 
+#include <stdexcept>
+
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
@@ -55,6 +57,13 @@ public:
                   stream_,
                   device_index_))
     {
+        if (stream_ == nullptr || handle_ == nullptr)
+        {
+            throw std::runtime_error(
+                "TorchCudaEnv: StarPU CUDA stream or cuBLAS "
+                "handle is null (CUDA worker after "
+                "starpu_cublas_init required)");
+        }
         cublasSetStream(handle_, stream_);
         torch_blob::default_device_tls() = device();
     }

@@ -109,6 +109,20 @@ Codelet &Codelet::restore_where()
     return *this;
 }
 
+Codelet &Codelet::set_cuda_synchronous()
+{
+#ifdef NNTILE_USE_CUDA
+    for(int i = 0; i < STARPU_MAXIMPLEMENTATIONS; ++i)
+    {
+        if(starpu_codelet::cuda_funcs[i])
+        {
+            starpu_codelet::cuda_flags[i] = 0;
+        }
+    }
+#endif // NNTILE_USE_CUDA
+    return *this;
+}
+
 //! Set runtime decision on number of buffers and access modes
 Codelet &Codelet::set_modes_variable()
 {

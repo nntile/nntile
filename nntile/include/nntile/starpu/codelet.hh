@@ -82,6 +82,14 @@ public:
     //! Restore where the codelet should be executed
     Codelet &restore_where();
 
+    //! Clear STARPU_CUDA_ASYNC on registered CUDA impls.
+    //!
+    //! Classic NNTile kernels are async (enqueue + return). Torch-native
+    //! codelets call ATen, which may use other streams or sync internally;
+    //! run them as synchronous CUDA tasks so StarPU joins the local stream
+    //! after the codelet returns.
+    Codelet &set_cuda_synchronous();
+
     //! Set modes for the codelet
     template<size_t N>
     Codelet &set_modes_fixed(const std::array<starpu_data_access_mode, N> &modes)
