@@ -182,14 +182,18 @@ std::vector<int64_t> gemm_output_shape_pytorch(
 
 PreparedGemmOperands prepare_mm_operands(const at::Tensor &a, const at::Tensor &b)
 {
-    GemmMatrixLayout a_layout = analyze_matrix_layout_for_nntile(a);
-    GemmMatrixLayout b_layout = analyze_matrix_layout_for_nntile(b);
+    at::Tensor a_use = a.is_contiguous() ? a : a.contiguous();
+    at::Tensor b_use = b.is_contiguous() ? b : b.contiguous();
+    // Re-analyze after densify: contiguous matrices may still be
+    // row/column-contiguous views with an inferred transpose.
+    GemmMatrixLayout a_layout = analyze_matrix_layout_for_nntile(a_use);
+    GemmMatrixLayout b_layout = analyze_matrix_layout_for_nntile(b_use);
 
     PreparedGemmOperands prepared;
-    require_gemm_layout(a, a_layout, "operand a");
-    require_gemm_layout(b, b_layout, "operand b");
-    prepared.a = a;
-    prepared.b = b;
+    require_gemm_layout(a_use, a_layout, "operand a");
+    require_gemm_layout(b_use, b_layout, "operand b");
+    prepared.a = a_use;
+    prepared.b = b_use;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;
@@ -206,14 +210,16 @@ PreparedGemmOperands prepare_mm_operands(const at::Tensor &a, const at::Tensor &
 
 PreparedGemmOperands prepare_bmm_operands(const at::Tensor &a, const at::Tensor &b)
 {
-    GemmMatrixLayout a_layout = analyze_batched_gemm_operand_layout(a);
-    GemmMatrixLayout b_layout = analyze_batched_gemm_operand_layout(b);
+    at::Tensor a_use = a.is_contiguous() ? a : a.contiguous();
+    at::Tensor b_use = b.is_contiguous() ? b : b.contiguous();
+    GemmMatrixLayout a_layout = analyze_batched_gemm_operand_layout(a_use);
+    GemmMatrixLayout b_layout = analyze_batched_gemm_operand_layout(b_use);
 
     PreparedGemmOperands prepared;
-    require_gemm_layout(a, a_layout, "operand a");
-    require_gemm_layout(b, b_layout, "operand b");
-    prepared.a = a;
-    prepared.b = b;
+    require_gemm_layout(a_use, a_layout, "operand a");
+    require_gemm_layout(b_use, b_layout, "operand b");
+    prepared.a = a_use;
+    prepared.b = b_use;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;
@@ -277,14 +283,16 @@ PreparedGemmOperands prepare_gemm_operands(
     bool trans_a,
     bool trans_b)
 {
-    GemmMatrixLayout a_layout = layout_from_nd_contiguous(a);
-    GemmMatrixLayout b_layout = layout_from_nd_contiguous(b);
+    at::Tensor a_use = a.is_contiguous() ? a : a.contiguous();
+    at::Tensor b_use = b.is_contiguous() ? b : b.contiguous();
+    GemmMatrixLayout a_layout = layout_from_nd_contiguous(a_use);
+    GemmMatrixLayout b_layout = layout_from_nd_contiguous(b_use);
 
     PreparedGemmOperands prepared;
-    require_gemm_layout(a, a_layout, "operand a");
-    require_gemm_layout(b, b_layout, "operand b");
-    prepared.a = a;
-    prepared.b = b;
+    require_gemm_layout(a_use, a_layout, "operand a");
+    require_gemm_layout(b_use, b_layout, "operand b");
+    prepared.a = a_use;
+    prepared.b = b_use;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;

@@ -6,6 +6,9 @@
  */
 
 #include "nntile_executor.h"
+#include "nntile_graph_recorder.h"
+#include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -21,6 +24,39 @@ namespace
 bool is_nntile_device(c10::Device device)
 {
     return device.type() == c10::DeviceType::PrivateUse1;
+}
+
+bool is_cpu_scalar_tensor(const at::Tensor &t)
+{
+    return t.is_cpu() && t.numel() == 1;
+}
+
+at::Tensor gather_cpu(const at::Tensor &self)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "nntile add: expected nntile tensor");
+    at::Tensor src = self.is_contiguous() ? self : self.contiguous();
+    at::Tensor cpu = at::empty(
+        src.sizes(),
+        src.options().device(at::kCPU).memory_format(
+            at::MemoryFormat::Contiguous));
+    copy_nntile_tensor_to_cpu(src, cpu);
+    return cpu;
+}
+
+at::Tensor scatter_nntile(
+    const at::Tensor &cpu,
+    c10::Device device)
+{
+    TORCH_CHECK(cpu.is_cpu(), "nntile add: expected CPU tensor");
+    at::Tensor contig = cpu.contiguous();
+    at::Tensor out = empty_metadata_tensor(
+        contig.sizes(),
+        contig.scalar_type(),
+        device);
+    init_nntile_input_from_cpu(contig, out);
+    return out;
 }
 
 void check_add_inputs(
@@ -46,21 +82,6 @@ void check_add_inputs(
         "nntile add requires contiguous tensors");
 }
 
-//! Probe output meta via device=meta (shared Torch shape logic).
-at::Tensor meta_add_result(
-    const at::Tensor &self,
-    const at::Tensor &other,
-    const at::Scalar &alpha)
-{
-    auto self_m = at::empty_like(
-        self,
-        self.options().device(at::kMeta));
-    auto other_m = at::empty_like(
-        other,
-        other.options().device(at::kMeta));
-    return at::add(self_m, other_m, alpha);
-}
-
 void run_torch_add(
     const at::Tensor &self,
     const at::Tensor &other,
@@ -77,17 +98,64 @@ void run_torch_add(
         out);
 }
 
+at::Tensor add_host(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    const at::Scalar &alpha)
+{
+    at::Tensor a = gather_cpu(self);
+    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
+                                                    : other.cpu();
+    return scatter_nntile(at::add(a, b, alpha), self.device());
+}
+
 } // namespace
+
+at::Tensor add_scalar(
+    const at::Tensor &self,
+    const at::Scalar &other,
+    const at::Scalar &alpha)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "nntile add.Scalar expects nntile self");
+    at::Tensor cpu = gather_cpu(self);
+    return scatter_nntile(at::add(cpu, other, alpha), self.device());
+}
+
+at::Tensor &add_scalar_out(
+    const at::Tensor &self,
+    const at::Scalar &other,
+    const at::Scalar &alpha,
+    at::Tensor &out)
+{
+    TORCH_CHECK(
+        is_nntile_device(self.device()) && is_nntile_device(out.device()),
+        "nntile add.Scalar_out expects nntile");
+    at::Tensor tmp = add_scalar(self, other, alpha);
+    out.copy_(tmp);
+    return out;
+}
 
 at::Tensor add_tensor(
     const at::Tensor &self,
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
+    if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
+    {
+        return add_scalar(self, other.item(), alpha);
+    }
+    if (!is_nntile_device(other.device()) ||
+        self.scalar_type() != other.scalar_type() ||
+        self.scalar_type() != at::ScalarType::Float ||
+        !self.sizes().equals(other.sizes()))
+    {
+        return add_host(self, other, alpha);
+    }
     check_add_inputs(self, other);
-    at::Tensor out_meta = meta_add_result(self, other, alpha);
     at::Tensor out = at::empty(
-        out_meta.sizes(),
+        self.sizes(),
         self.options().memory_format(at::MemoryFormat::Contiguous));
     run_torch_add(self, other, alpha, out);
     return out;
@@ -99,6 +167,19 @@ at::Tensor &add_out(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
+    if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
+    {
+        return add_scalar_out(self, other.item(), alpha, out);
+    }
+    if (!is_nntile_device(other.device()) ||
+        self.scalar_type() != other.scalar_type() ||
+        self.scalar_type() != at::ScalarType::Float ||
+        !self.sizes().equals(other.sizes()))
+    {
+        at::Tensor tmp = add_host(self, other, alpha);
+        out.copy_(tmp);
+        return out;
+    }
     check_add_inputs(self, other);
     TORCH_CHECK(
         is_nntile_device(out.device()),
@@ -119,6 +200,21 @@ at::Tensor &add__tensor(
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
+    if (is_cpu_scalar_tensor(other))
+    {
+        at::Tensor tmp = add_scalar(self, other.item(), alpha);
+        self.copy_(tmp);
+        return self;
+    }
+    if (!is_nntile_device(other.device()) ||
+        self.scalar_type() != other.scalar_type() ||
+        self.scalar_type() != at::ScalarType::Float ||
+        !self.sizes().equals(other.sizes()))
+    {
+        at::Tensor tmp = add_host(self, other, alpha);
+        self.copy_(tmp);
+        return self;
+    }
     check_add_inputs(self, other);
     // SSA: record out-of-place add and rebind ``self`` to the result node.
     tensor_add_inplace_fp32(
@@ -136,4 +232,6 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("add.Tensor", TORCH_FN(torch_nntile::add_tensor));
     m.impl("add.out", TORCH_FN(torch_nntile::add_out));
     m.impl("add_.Tensor", TORCH_FN(torch_nntile::add__tensor));
+    m.impl("add.Scalar", TORCH_FN(torch_nntile::add_scalar));
+    m.impl("add.Scalar_out", TORCH_FN(torch_nntile::add_scalar_out));
 }

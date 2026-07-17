@@ -116,15 +116,9 @@ at::Tensor mul_host(const at::Tensor &self, const at::Tensor &other)
 
 void mul_inplace_host(at::Tensor &self, const at::Tensor &other)
 {
-    at::Tensor a = gather_cpu(self);
-    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
-                                                    : other.cpu();
-    at::Tensor tmp = at::mul(a, b);
-    TORCH_CHECK(
-        tmp.scalar_type() == self.scalar_type(),
-        "nntile mul_: host result dtype mismatch");
-    TORCH_CHECK(tmp.sizes() == self.sizes(), "nntile mul_: shape mismatch");
-    init_nntile_input_from_cpu(tmp.contiguous(), self);
+    at::Tensor result = mul_host(self, other);
+    // SSA-style rebind: nntile←nntile copy attaches the result TensorRef.
+    self.copy_(result);
 }
 
 } // namespace
@@ -172,7 +166,8 @@ at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
     }
     if (!is_nntile_device(other.device()) ||
         self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float)
+        self.scalar_type() != at::ScalarType::Float ||
+        self.sizes() != other.sizes())
     {
         return mul_host(self, other);
     }
@@ -215,7 +210,8 @@ at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
     }
     if (!is_nntile_device(other.device()) ||
         self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float)
+        self.scalar_type() != at::ScalarType::Float ||
+        self.sizes() != other.sizes())
     {
         mul_inplace_host(self, other);
         return self;
