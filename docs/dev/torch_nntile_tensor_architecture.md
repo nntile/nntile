@@ -95,6 +95,11 @@ Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
   drop `TensorRef` and break SplitBackward ``cat``.
 - `Tensor.contiguous()` on a non-contiguous view densifies with
   `TorchKind::Copy` (`result.copy_(self)`). Contiguous inputs are a no-op.
+- Host egress (`.cpu()` / nntile→CPU `copy_`) densifies before gather when
+  the tensor is not a dense cover of `L` from `storage_offset == 0`
+  (contiguous `narrow` / Split Backward slices share `L` but have a
+  smaller numel or nonzero offset). `Tensor.contiguous()` alone is not
+  enough: it returns `self` for already-contiguous views.
 - Legacy materializing `NarrowCopy` / `TransposeCopy` remain available for
   explicit densify helpers, but HF GPT-2 attention
   (`c_attn` → `split` → `transpose` heads → SDPA) should no longer pay

@@ -277,6 +277,33 @@ def test_permute_is_zero_copy_view():
     )
 
 
+def test_cat_backward_contiguous_slice_egress():
+    """Cat SplitBackward grads are contiguous offset/partial views of L."""
+    torch.manual_seed(19)
+    a_cpu = torch.randn(2, 4, requires_grad=True)
+    b_cpu = torch.randn(3, 4, requires_grad=True)
+    y_cpu = torch.cat([a_cpu, b_cpu], dim=0)
+    grad = torch.randn_like(y_cpu)
+    y_cpu.backward(grad)
+
+    a_nnt = a_cpu.detach().to("nntile").requires_grad_(True)
+    b_nnt = b_cpu.detach().to("nntile").requires_grad_(True)
+    y_nnt = torch.cat([a_nnt, b_nnt], dim=0)
+    y_nnt.backward(grad.to("nntile"))
+    ga = a_nnt.grad
+    gb = b_nnt.grad
+    assert ga is not None and gb is not None
+    assert ga.is_contiguous() and ga.storage_offset() == 0
+    assert ga.numel() < y_nnt.numel()
+    assert gb.is_contiguous() and gb.storage_offset() == a_cpu.numel()
+    torch.testing.assert_close(
+        nntile_cpu(ga), a_cpu.grad, rtol=1e-4, atol=1e-4
+    )
+    torch.testing.assert_close(
+        nntile_cpu(gb), b_cpu.grad, rtol=1e-4, atol=1e-4
+    )
+
+
 def test_split_narrow_offset_view_parity():
     """split/narrow must keep storage_offset (not densify)."""
     torch.manual_seed(18)

@@ -411,6 +411,42 @@ at::Tensor contiguous(
     const at::Tensor &self,
     at::MemoryFormat memory_format);
 
+//! Host I/O gathers the full ``TensorNode``. Densify views that are
+//! not a dense cover of that node from offset 0: contiguous narrow /
+//! Split Backward slices share parent storage and would numel-mismatch
+//! on egress. Do not call ``contiguous()``: it returns ``self`` for
+//! already-contiguous views (including offset/partial covers).
+bool needs_densify_for_host_io(const at::Tensor &self)
+{
+    if (!is_nntile_device(self.device()) ||
+        self.scalar_type() != at::ScalarType::Float)
+    {
+        return false;
+    }
+    if (!self.is_contiguous() || self.storage_offset() != 0)
+    {
+        return true;
+    }
+    nntile::TensorRef binding = tensor_ref(self);
+    if (!binding)
+    {
+        return false;
+    }
+    return static_cast<int64_t>(binding.get()->nelems()) !=
+        self.numel();
+}
+
+at::Tensor densify_for_host_io(const at::Tensor &self)
+{
+    at::Tensor result = at::empty(
+        self.sizes(),
+        self.options()
+            .memory_format(at::MemoryFormat::Contiguous)
+            .requires_grad(false));
+    tensor_copy_fp32(self, result);
+    return result;
+}
+
 at::Tensor copy_from(
     const at::Tensor &self,
     const at::Tensor &dst,
@@ -418,10 +454,9 @@ at::Tensor copy_from(
 {
     // Untiled views: densify nntile src before host I/O.
     at::Tensor src = self;
-    if (is_nntile_device(self.device()) && !self.is_contiguous() &&
-        self.scalar_type() == at::ScalarType::Float)
+    if (needs_densify_for_host_io(self))
     {
-        src = contiguous(self, at::MemoryFormat::Contiguous);
+        src = densify_for_host_io(self);
     }
     TORCH_CHECK(
         (src.is_cpu() && is_nntile_device(dst.device())) ||
