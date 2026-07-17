@@ -164,10 +164,10 @@ CPU wrapper), with these differences:
      `at::_ops::<op>_out::call(...)`.
    - Wrap with `NoGradGuard` + `AutoDispatchBelowADInplaceOrView`.
 4. **CUDA:** register `cuda_funcs[0]`; body starts with `TorchCudaEnv`
-   (StarPU stream + cuBLAS). Call `codelet.set_cuda_synchronous()` so
-   ATen tasks are not `STARPU_CUDA_ASYNC` (StarPU joins the worker stream
-   after return). Do **not** hard-`restrict_where(STARPU_CPU)` on the
-   codelet — `Context::restrict_cpu` / `restrict_cuda` set affinity.
+   (StarPU stream + cuBLAS). Keep the default `STARPU_CUDA_ASYNC` flag
+   (same as classic kernels: enqueue on the StarPU worker stream and
+   return). Do **not** hard-`restrict_where(STARPU_CPU)` on the codelet —
+   `Context::restrict_cpu` / `restrict_cuda` set affinity.
 
 ## CUDA StarPU workers
 
@@ -216,16 +216,15 @@ Generic Unary / Binary / Ternary may pass `cuda_env.device()` explicitly
 into `run_*` instead of relying on TLS; specialized codelets prefer TLS +
 shared `cpu()` body.
 
-Register both functions and clear async CUDA flags:
+Register both functions:
 
 ```cpp
 codelet("nntile_torch_op", footprint, cpu_funcs, cuda_funcs);
-codelet.set_cuda_synchronous();
 ```
 
-Classic NNTile kernels stay `STARPU_CUDA_ASYNC`; torch-native ATen
-codelets must be synchronous so StarPU does not release buffers before
-ATen finishes (ATen may use non-StarPU streams internally).
+CUDA impls stay `STARPU_CUDA_ASYNC` like classic NNTile kernels: bind
+ATen to StarPU’s worker stream via `TorchCudaEnv` and return after
+enqueue.
 ### Context affinity
 
 | API | Torch-native compute codelets |

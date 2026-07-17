@@ -378,7 +378,6 @@ template<typename T>
 TorchUnary<std::tuple<T>>::TorchUnary():
     codelet("nntile_torch_unary", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 template<>
@@ -476,7 +475,6 @@ template<typename T>
 TorchBinary<std::tuple<T>>::TorchBinary():
     codelet("nntile_torch_binary", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 template<>
@@ -579,7 +577,6 @@ template<typename T>
 TorchTernary<std::tuple<T>>::TorchTernary():
     codelet("nntile_torch_ternary", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 template<>
@@ -724,7 +721,6 @@ void TorchTernary<std::tuple<T>>::submit(
 TorchEmbedding::TorchEmbedding():
     codelet("nntile_torch_embedding", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 void TorchEmbedding::cpu(void *buffers[], void *cl_args) noexcept
@@ -826,7 +822,6 @@ void TorchEmbedding::submit(
 TorchCat::TorchCat():
     codelet("nntile_torch_cat", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 void TorchCat::cpu(void *buffers[], void *cl_args) noexcept
@@ -1003,7 +998,6 @@ template class TorchTernary<std::tuple<nntile::fp32_t>>;
 TorchLayerNorm::TorchLayerNorm():
     codelet("nntile_torch_layer_norm", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 void TorchLayerNorm::cpu(void *buffers[], void *cl_args) noexcept
@@ -1187,7 +1181,6 @@ TorchLayerNormBackward::TorchLayerNormBackward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
@@ -1583,7 +1576,6 @@ TorchEmbeddingDenseBackward::TorchEmbeddingDenseBackward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 void TorchEmbeddingDenseBackward::cpu(
@@ -1696,7 +1688,6 @@ TorchSdpaBackward::TorchSdpaBackward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 void TorchSdpaBackward::cpu(void *buffers[], void *cl_args) noexcept
@@ -1894,7 +1885,6 @@ TorchNllLossForward::TorchNllLossForward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 void TorchNllLossForward::cpu(void *buffers[], void *cl_args) noexcept
@@ -2012,7 +2002,6 @@ TorchNllLossBackward::TorchNllLossBackward():
         cpu_funcs,
         cuda_funcs)
 {
-    codelet.set_cuda_synchronous();
 }
 
 void TorchNllLossBackward::cpu(void *buffers[], void *cl_args) noexcept
