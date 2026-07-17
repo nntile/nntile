@@ -127,17 +127,18 @@ def ensure_nntile_context(
 
 
 def pytest_collection_modifyitems(config, items) -> None:
-    """Under NNTILE_TORCH_NATIVE_OPS, only torch-native parity tests run."""
+    """Under NNTILE_TORCH_NATIVE_OPS, aten parity is C++ CTest (not pytest)."""
     del config
     if not getattr(torch_nntile, "TORCH_NATIVE_OPS", False):
         return
     skip = pytest.mark.skip(
-        reason="NNTILE_TORCH_NATIVE_OPS: only torch-native add is compiled"
+        reason=(
+            "NNTILE_TORCH_NATIVE_OPS: use ctest -L libtorch_nntile / "
+            "-L torch_native (see docs/dev/torch_starpu_kernels.md)"
+        )
     )
     for item in items:
-        path = str(item.fspath)
-        if "test_torch_native_" not in path:
-            item.add_marker(skip)
+        item.add_marker(skip)
 
 
 def pytest_sessionstart(session) -> None:

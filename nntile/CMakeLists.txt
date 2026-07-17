@@ -57,8 +57,9 @@ endif()
 
 add_subdirectory(src)
 
-# Classic layer tests expect the full kernel/op set.
-if(BUILD_TESTING AND NOT NNTILE_TORCH_NATIVE_OPS)
+# Under NNTILE_TORCH_NATIVE_OPS, classic kernel/op suites are skipped; the
+# torch_native layer suite (starpu/core/tile/tensor) is registered instead.
+if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 

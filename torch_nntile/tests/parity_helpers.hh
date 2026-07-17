@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch_nntile/runtime.hh>
 
 #include <cmath>
 #include <functional>
@@ -23,8 +24,19 @@ inline c10::Device nntile_device()
     return c10::Device(c10::DeviceType::PrivateUse1, 0);
 }
 
+inline void flush_pending_graph()
+{
+    if (torch_nntile::has_pending_graph())
+    {
+        torch_nntile::compile_graph();
+        torch_nntile::run_graph();
+        torch_nntile::wait_for_all();
+    }
+}
+
 inline at::Tensor to_cpu(at::Tensor const &t)
 {
+    flush_pending_graph();
     return t.detach().cpu().contiguous();
 }
 

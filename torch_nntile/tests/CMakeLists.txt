@@ -102,10 +102,12 @@ function(torch_nntile_add_test name source)
 endfunction()
 
 torch_nntile_add_test(tests_libtorch_nntile_smoke smoke_add.cc)
+# Torch-native path: PrivateUse1 aten parity is the libtorch_nntile suite.
+# Classic models smoke needs the full classic op set.
+torch_nntile_add_test(
+    tests_libtorch_nntile_aten_ops
+    aten_ops_parity.cc)
 if(NOT NNTILE_TORCH_NATIVE_OPS)
-    torch_nntile_add_test(
-        tests_libtorch_nntile_aten_ops
-        aten_ops_parity.cc)
     torch_nntile_add_test(
         tests_libtorch_nntile_models_smoke
         models_fwd_bwd_smoke.cc)

@@ -197,13 +197,29 @@ StarPU workers to avoid oversubscription.
    for non-obvious shapes; record TensorGraph op with full tensor meta.
 2. Tensor lower: single-tile only → one TileGraph op; copy meta onto
    `TileNode`s.
-3. Tile execute → `nntile::core::torch_<op>` (named torch-based) with
-   `Tile<T>` + meta per tensor.
-4. StarPU: `args_t` with all metas; CPU wrapper `from_blob` + `*_out`;
-   no `nntile::kernel`.
-5. Untiled parity test against CPU Torch; do **not** add multi-tile tests
-   until tiling is re-enabled for this path.
-6. Update the op table in [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md).
+3. Tile execute → `nntile::core::torch_*` / `TorchKind` (named torch-based)
+   with `Tile<T>` + meta per tensor.
+4. StarPU: `args_t` with all metas; CPU wrapper `from_blob` + same
+   `*_out` on `device=CPU` under `NoGradGuard`; no `nntile::kernel`.
+5. **C++ tests (required)** — same layering as classic libnntile, under
+   `nntile/tests/torch_native/` (label `torch_native`):
+   - **starpu:** codelet submit vs CPU `aten::*_out` reference
+   - **core:** `core::torch_*_out` vs the same aten reference
+   - **tile:** TileGraph `execute` vs aten
+   - **tensor:** TensorGraph structure + untiled lower/execute vs aten  
+   Do **not** add multi-tile tests until tiling is re-enabled for this path.
+6. **libtorch_nntile C++:** add a Catch2 case in
+   `torch_nntile/tests/aten_ops_parity.cc` (label `libtorch_nntile`) for
+   the PrivateUse1 schema vs CPU (fwd, and bwd when autograd applies).
+   Prefer CTest / Catch2 over pytest for these aten ops.
+7. Update the op table in [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md).
+
+Run layer + PrivateUse1 suites (with `BUILD_TESTING=ON`):
+
+```bash
+ctest --test-dir build -L torch_native --output-on-failure
+ctest --test-dir build -L libtorch_nntile --output-on-failure
+```
 
 ## Why meta probe (not hand-written shapes)
 
@@ -251,16 +267,16 @@ Lessons from wiring the first ops:
    `nntile_module_torch_native.cpp` instead (`setup.py` picks it from
    `defs.h`). Otherwise `_C.so` fails to import with undefined symbols.
 9. Gate Python package side imports (`loss`, `nn`, …) on
-   `TORCH_NATIVE_OPS` in `_build_info.py` so `import torch_nntile` stays
-   usable for the add parity test.
-10. **Skip non-native pytest modules** in `tests/conftest.py` when
-    `TORCH_NATIVE_OPS` is set, so CI `pytest torch_nntile/tests/` does not
-    fail on classic aten coverage that is no longer linked.
+   `TORCH_NATIVE_OPS` in `_build_info.py` so the slim wheel stays importable.
+10. Prefer **C++ CTest** for aten parity (`aten_ops_parity.cc`,
+    `nntile/tests/torch_native/`). Pytest is not the coverage path for
+    these torch-native ops.
 
 Reference sources: `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_add.*`,
 `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_dispatch.*`,
+`nntile/tests/torch_native/`,
 `torch_nntile/csrc/nntile_add.cpp`,
 `torch_nntile/csrc/nntile_executor_torch_native.cpp`,
 `torch_nntile/csrc/nntile_module_torch_native.cpp`,
-`torch_nntile/tests/test_torch_native_add_parity.py`,
-`torch_nntile/tests/test_torch_native_ops_parity.py`.
+`torch_nntile/tests/aten_ops_parity.cc`,
+`torch_nntile/tests/smoke_add.cc`.
