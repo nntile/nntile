@@ -17,6 +17,7 @@
 
 #include <tuple>
 
+#include <nntile/core/torch_meta.hh>
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
 
@@ -24,7 +25,7 @@ namespace nntile::starpu
 {
 
 //! Max rank packed into torch_add args_t (contiguous FP32 path).
-inline constexpr Index torch_add_max_ndim = 8;
+inline constexpr Index torch_add_max_ndim = core::torch_native_max_ndim;
 
 //! Torch-native add: out = self + alpha * other (aten::add.out).
 template<typename T>

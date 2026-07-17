@@ -15,23 +15,12 @@
 #error "nntile/core/torch_add.hh requires NNTILE_TORCH_NATIVE_OPS"
 #endif
 
-#include <vector>
-
 #include <nntile/base_types.hh>
 #include <nntile/core/tile.hh>
+#include <nntile/core/torch_meta.hh>
 
 namespace nntile::core
 {
-
-//! Contiguous tensor meta for a single tile (sizes + row-major strides).
-struct TorchTileMeta
-{
-    std::vector<Index> sizes;
-    std::vector<Index> strides;
-};
-
-//! Build contiguous row-major strides for ``sizes``.
-TorchTileMeta make_contiguous_torch_meta(const std::vector<Index> &sizes);
 
 //! Torch-based out-of-place add: out = self + alpha * other.
 //! Passes Tile handles and meta to ``nntile::starpu::torch_add``.

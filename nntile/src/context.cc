@@ -37,6 +37,7 @@
 #   include "nntile/starpu/fill.hh"
 #   include "nntile/starpu/subcopy.hh"
 #   include "nntile/starpu/torch_add.hh"
+#   include "nntile/starpu/torch_dispatch.hh"
 #else
 #   include "nntile/starpu.hh"
 #endif
@@ -325,6 +326,12 @@ void Context::restrict_cpu()
     fill.restrict_where(STARPU_CPU);
     subcopy.restrict_where(STARPU_CPU);
     torch_add.restrict_where(STARPU_CPU);
+    torch_unary.restrict_where(STARPU_CPU);
+    torch_binary.restrict_where(STARPU_CPU);
+    torch_ternary.restrict_where(STARPU_CPU);
+    torch_embedding.codelet.restrict_where(STARPU_CPU);
+    torch_layer_norm.codelet.restrict_where(STARPU_CPU);
+    torch_cat.codelet.restrict_where(STARPU_CPU);
 #else
     accumulate.restrict_where(STARPU_CPU);
     accumulate_hypot.restrict_where(STARPU_CPU);
@@ -403,6 +410,12 @@ void Context::restrict_cuda()
     fill.restrict_where(STARPU_CPU);
     subcopy.restrict_where(STARPU_CPU);
     torch_add.restrict_where(STARPU_CPU);
+    torch_unary.restrict_where(STARPU_CPU);
+    torch_binary.restrict_where(STARPU_CPU);
+    torch_ternary.restrict_where(STARPU_CPU);
+    torch_embedding.codelet.restrict_where(STARPU_CPU);
+    torch_layer_norm.codelet.restrict_where(STARPU_CPU);
+    torch_cat.codelet.restrict_where(STARPU_CPU);
 #else
     accumulate.restrict_where(STARPU_CUDA);
     accumulate_hypot.restrict_where(STARPU_CUDA);
@@ -480,6 +493,12 @@ void Context::restore_where()
     fill.restore_where();
     subcopy.restore_where();
     torch_add.restore_where();
+    torch_unary.restore_where();
+    torch_binary.restore_where();
+    torch_ternary.restore_where();
+    torch_embedding.codelet.restore_where();
+    torch_layer_norm.codelet.restore_where();
+    torch_cat.codelet.restore_where();
 #else
     accumulate.restore_where();
     accumulate_hypot.restore_where();

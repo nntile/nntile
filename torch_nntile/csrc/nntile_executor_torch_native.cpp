@@ -2,22 +2,28 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_executor_torch_native.cpp
- * Minimal executor for NNTILE_TORCH_NATIVE_OPS (add + fill).
+ * Torch-native TensorGraph executor for NNTILE_TORCH_NATIVE_OPS.
  */
 
 #include "nntile_executor.h"
 
+#include "nntile_broadcast.h"
+#include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_meta.h"
 
+#include <ATen/Functions.h>
 #include <c10/util/Exception.h>
+
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 #include <nntile/base_types.hh>
 #include <nntile/tensor/ops/fill.hh>
 #include <nntile/tensor/ops/torch_add.hh>
-
-#include <vector>
+#include <nntile/tensor/ops/torch_dispatch.hh>
 
 namespace torch_nntile
 {
@@ -45,14 +51,62 @@ bool mark_as_input_for_operand(const at::Tensor &tensor)
     return false;
 }
 
+std::vector<nntile::Index> reduced_shape_along_axis(
+    const std::vector<nntile::Index> &input_graph,
+    nntile::Index axis)
+{
+    std::vector<nntile::Index> reduced;
+    reduced.reserve(input_graph.size() - 1);
+    for (nntile::Index i = 0;
+         i < static_cast<nntile::Index>(input_graph.size());
+         ++i)
+    {
+        if (i != axis)
+        {
+            reduced.push_back(input_graph[static_cast<std::size_t>(i)]);
+        }
+    }
+    return reduced;
+}
+
+nntile::starpu::TorchKind torch_gemm_kind(c10::IntArrayRef a_shape,
+    c10::IntArrayRef b_shape)
+{
+    if (a_shape.size() == 2 && b_shape.size() == 2)
+    {
+        return nntile::starpu::TorchKind::Mm;
+    }
+    if (a_shape.size() == 3 && b_shape.size() == 3)
+    {
+        return nntile::starpu::TorchKind::Bmm;
+    }
+    return nntile::starpu::TorchKind::Matmul;
+}
+
+void pack_sum_dims(
+    nntile::starpu::TorchDispatchArgs &extra,
+    const std::vector<int64_t> &dims,
+    bool keepdim)
+{
+    TORCH_CHECK(
+        dims.size() <= 6,
+        "torch_nntile sum: at most 6 reduction dims supported");
+    extra.iargs[0] = static_cast<nntile::Index>(dims.size());
+    extra.iargs[1] = keepdim ? 1 : 0;
+    for (std::size_t i = 0; i < dims.size(); ++i)
+    {
+        extra.iargs[2 + static_cast<nntile::Index>(i)] =
+            static_cast<nntile::Index>(dims[i]);
+    }
+}
+
 [[noreturn]] void throw_op_disabled(const char *name)
 {
     TORCH_CHECK(
         false,
         "torch_nntile: operation '",
         name,
-        "' is disabled under NNTILE_TORCH_NATIVE_OPS "
-        "(only out-of-place add is available)");
+        "' is disabled under NNTILE_TORCH_NATIVE_OPS");
 }
 
 } // namespace
@@ -115,18 +169,1025 @@ void tensor_fill_fp32(at::Tensor &self, float value)
     register_data_node(self, self_node);
 }
 
-void tensor_swap_two_axes_fp32(
-    const at::Tensor &,
-    at::Tensor &,
-    int64_t,
-    int64_t)
+void tensor_add_inplace_fp32(
+    float alpha,
+    const at::Tensor &other,
+    float beta,
+    at::Tensor &self)
 {
-    throw_op_disabled("swap_two_axes / transpose");
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(other));
+
+    nntile::TensorGraph::TensorNode *lhs_node = self_node;
+    if (beta != 1.0f)
+    {
+        nntile::starpu::TorchDispatchArgs scale_extra;
+        scale_extra.scalars[0] = static_cast<nntile::Scalar>(beta);
+        lhs_node = nntile::tensor::torch_unary(
+            nntile::starpu::TorchKind::MulScalar,
+            self_node,
+            graph_shape,
+            scale_extra);
+    }
+
+    auto *out_node = nntile::tensor::torch_add(
+        lhs_node,
+        other_node,
+        static_cast<nntile::Scalar>(alpha));
+    register_data_node(self, out_node);
 }
 
-void tensor_add_inplace_fp32(float, const at::Tensor &, float, at::Tensor &)
+void tensor_mul_fp32(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
 {
-    throw_op_disabled("add_");
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(other));
+
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Mul,
+        self_node,
+        other_node,
+        graph_shape);
+    register_data_node(out, out_node);
+}
+
+void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(other));
+
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Mul,
+        self_node,
+        other_node,
+        graph_shape);
+    register_data_node(self, out_node);
+}
+
+void tensor_mul_scalar_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    float scalar)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *input_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = static_cast<nntile::Scalar>(scalar);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::MulScalar,
+        input_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_hypot_fp32(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(other));
+
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Hypot,
+        self_node,
+        other_node,
+        graph_shape);
+    register_data_node(out, out_node);
+}
+
+void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Relu,
+        in_node,
+        graph_shape);
+    register_data_node(out, out_node);
+}
+
+void tensor_relu_backward_fp32(
+    const at::Tensor &x,
+    const at::Tensor &dy,
+    at::Tensor &dx)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(x.sizes());
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+    auto *dy_node = get_or_create_data_node(
+        dy,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dy));
+    auto *dx_node = get_or_create_data_node(
+        dx,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dx));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = static_cast<nntile::Scalar>(0.0);
+    nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::ThresholdBackward,
+        dy_node,
+        x_node,
+        dx_node,
+        extra);
+    register_data_node(dx, dx_node);
+}
+
+void tensor_silu_fp32(const at::Tensor &input, at::Tensor &out)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Silu,
+        in_node,
+        graph_shape);
+    register_data_node(out, out_node);
+}
+
+void tensor_silu_inplace_fp32(at::Tensor &self)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Silu,
+        in_node,
+        graph_shape);
+    register_data_node(self, out_node);
+}
+
+void tensor_silu_backward_fp32(
+    const at::Tensor &x,
+    const at::Tensor &dy,
+    at::Tensor &dx)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(x.sizes());
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+    auto *dy_node = get_or_create_data_node(
+        dy,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dy));
+    auto *dx_node = get_or_create_data_node(
+        dx,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dx));
+
+    nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::SiluBackward,
+        dy_node,
+        x_node,
+        dx_node);
+    register_data_node(dx, dx_node);
+}
+
+void tensor_gelu_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    bool approximate_tanh)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = approximate_tanh ? 1 : 0;
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Gelu,
+        in_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_gelu_inplace_fp32(at::Tensor &self, bool approximate_tanh)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = approximate_tanh ? 1 : 0;
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Gelu,
+        in_node,
+        graph_shape,
+        extra);
+    register_data_node(self, out_node);
+}
+
+void tensor_gelu_backward_fp32(
+    const at::Tensor &x,
+    const at::Tensor &dy,
+    at::Tensor &dx,
+    bool approximate_tanh)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(x.sizes());
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+    auto *dy_node = get_or_create_data_node(
+        dy,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dy));
+    auto *dx_node = get_or_create_data_node(
+        dx,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dx));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = approximate_tanh ? 1 : 0;
+    nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::GeluBackward,
+        dy_node,
+        x_node,
+        dx_node,
+        extra);
+    register_data_node(dx, dx_node);
+}
+
+void tensor_softmax_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t dim)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = static_cast<nntile::Index>(dim);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Softmax,
+        in_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_softmax_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &output,
+    at::Tensor &grad_input,
+    int64_t dim)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(output.sizes());
+
+    auto *grad_out_node = get_or_create_data_node(
+        grad_output,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_output));
+    auto *out_node = get_or_create_data_node(
+        output,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(output));
+    auto *grad_in_node = get_or_create_data_node(
+        grad_input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_input));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = static_cast<nntile::Index>(dim);
+    nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::SoftmaxBackward,
+        grad_out_node,
+        out_node,
+        grad_in_node,
+        extra);
+    register_data_node(grad_input, grad_in_node);
+}
+
+void tensor_gemm_fp32(
+    const GemmParams &params,
+    const at::Tensor &a,
+    c10::IntArrayRef a_gemm_shape,
+    const at::Tensor &b,
+    c10::IntArrayRef b_gemm_shape,
+    at::Tensor &out,
+    c10::IntArrayRef /*out_shape*/)
+{
+    const std::vector<nntile::Index> a_graph =
+        pytorch_shape_to_graph(a_gemm_shape);
+    const std::vector<nntile::Index> b_graph =
+        pytorch_shape_to_graph(b_gemm_shape);
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *a_node = get_or_create_data_node(
+        a,
+        a_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        b_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(b));
+
+    const nntile::starpu::TorchKind kind =
+        torch_gemm_kind(a_gemm_shape, b_gemm_shape);
+    (void)params;
+    auto *out_node = nntile::tensor::torch_binary(
+        kind,
+        a_node,
+        b_node,
+        out_graph);
+    register_data_node(out, out_node);
+}
+
+void tensor_gemm_accumulate_fp32(
+    const GemmParams &params,
+    const at::Tensor &a,
+    c10::IntArrayRef a_gemm_shape,
+    const at::Tensor &b,
+    c10::IntArrayRef b_gemm_shape,
+    const at::Tensor &c,
+    c10::IntArrayRef c_shape,
+    at::Tensor &out,
+    c10::IntArrayRef /*out_shape*/)
+{
+    const std::vector<nntile::Index> a_graph =
+        pytorch_shape_to_graph(a_gemm_shape);
+    const std::vector<nntile::Index> b_graph =
+        pytorch_shape_to_graph(b_gemm_shape);
+    const std::vector<nntile::Index> c_graph =
+        pytorch_shape_to_graph(c_shape);
+
+    auto *a_node = get_or_create_data_node(
+        a,
+        a_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        b_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(b));
+    auto *c_node = get_or_create_data_node(
+        c,
+        c_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(c));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = static_cast<nntile::Scalar>(params.beta);
+    extra.scalars[1] = static_cast<nntile::Scalar>(params.alpha);
+    nntile::tensor::torch_ternary(
+        nntile::starpu::TorchKind::Addmm,
+        c_node,
+        a_node,
+        b_node,
+        c_node,
+        extra);
+    register_data_node(out, c_node);
+}
+
+void tensor_mm_fp32(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    const PreparedGemmOperands prepared = prepare_mm_operands(a, b);
+    tensor_gemm_fp32(
+        prepared.params,
+        prepared.a,
+        prepared.a_gemm_shape,
+        prepared.b,
+        prepared.b_gemm_shape,
+        out,
+        prepared.out_shape);
+}
+
+void tensor_linear_fp32(
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    at::Tensor &out)
+{
+    const PreparedGemmOperands prepared =
+        prepare_linear_operands(input, weight);
+    tensor_gemm_fp32(
+        prepared.params,
+        prepared.a,
+        prepared.a_gemm_shape,
+        prepared.b,
+        prepared.b_gemm_shape,
+        out,
+        prepared.out_shape);
+}
+
+void tensor_linear_backward_input_fp32(
+    const at::Tensor &grad_out,
+    const at::Tensor &weight,
+    at::Tensor &grad_input)
+{
+    const PreparedGemmOperands forward =
+        prepare_linear_operands(grad_input, weight);
+    const GemmParams params =
+        infer_linear_backward_grad_input_params(forward.params);
+    const GemmMatrixLayout grad_out_layout =
+        analyze_matrix_layout_for_nntile(grad_out);
+    TORCH_CHECK(
+        !grad_out_layout.needs_copy,
+        "nntile linear_backward_input: grad_out must be contiguous or "
+        "row/column-contiguous");
+    tensor_gemm_fp32(
+        params,
+        grad_out,
+        grad_out_layout.gemm_shape,
+        weight,
+        forward.b_gemm_shape,
+        grad_input,
+        forward.a_gemm_shape);
+}
+
+void tensor_linear_backward_weight_fp32(
+    const at::Tensor &grad_out,
+    const at::Tensor &input,
+    at::Tensor &grad_weight)
+{
+    const PreparedGemmOperands forward =
+        prepare_linear_operands(input, grad_weight);
+    const GemmParams params =
+        infer_linear_backward_grad_weight_params(forward.params);
+    const GemmMatrixLayout grad_out_layout =
+        analyze_matrix_layout_for_nntile(grad_out);
+    TORCH_CHECK(
+        !grad_out_layout.needs_copy,
+        "nntile linear_backward_weight: grad_out must be contiguous or "
+        "row/column-contiguous");
+    TORCH_CHECK(
+        forward.a.is_contiguous(),
+        "nntile linear_backward_weight: input must be contiguous");
+    tensor_gemm_fp32(
+        params,
+        grad_out,
+        grad_out_layout.gemm_shape,
+        forward.a,
+        forward.a_gemm_shape,
+        grad_weight,
+        forward.b_gemm_shape);
+}
+
+void tensor_linear_add_bias_fp32(
+    at::Tensor &output,
+    const at::Tensor &bias)
+{
+    // out = out + bias (broadcast over leading dims).
+    TORCH_CHECK(bias.dim() == 1, "linear_add_bias: bias must be 1D");
+    TORCH_CHECK(
+        output.size(-1) == bias.size(0),
+        "linear_add_bias: trailing size mismatch");
+    std::vector<int64_t> bshape(static_cast<size_t>(output.dim()), 1);
+    bshape.back() = bias.size(0);
+    at::Tensor bias_view = bias.reshape(bshape);
+    std::vector<int64_t> repeats(static_cast<size_t>(output.dim()), 1);
+    for (int64_t i = 0; i < output.dim() - 1; ++i)
+    {
+        repeats[static_cast<size_t>(i)] = output.size(i);
+    }
+    at::Tensor bias_b = at::empty(
+        output.sizes(),
+        output.options().memory_format(at::MemoryFormat::Contiguous));
+    tensor_repeat_fp32(bias_view, bias_b, repeats);
+    at::Tensor tmp = at::empty_like(output);
+    tensor_add_fp32(1.0f, output, 1.0f, bias_b, tmp);
+    const auto out_shape = pytorch_shape_to_graph(tmp.sizes());
+    auto *node = get_or_create_data_node(
+        tmp,
+        out_shape,
+        nntile::DataType::FP32,
+        false);
+    register_data_node(output, node);
+}
+
+void tensor_linear_grad_bias_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_bias)
+{
+    TORCH_CHECK(
+        grad_output.dim() >= 1,
+        "nntile linear grad_bias: grad_output rank < 1");
+    TORCH_CHECK(
+        grad_bias.dim() == 1,
+        "nntile linear grad_bias: grad_bias must be 1D");
+    TORCH_CHECK(
+        grad_bias.size(0) == grad_output.size(-1),
+        "nntile linear grad_bias: size mismatch");
+
+    const std::vector<nntile::Index> grad_out_graph =
+        pytorch_shape_to_graph(grad_output.sizes());
+    const std::vector<nntile::Index> grad_bias_graph =
+        pytorch_shape_to_graph(grad_bias.sizes());
+
+    auto *grad_out_node = get_or_create_data_node(
+        grad_output,
+        grad_out_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_output));
+    auto *grad_bias_node = get_or_create_data_node(
+        grad_bias,
+        grad_bias_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_bias));
+
+    std::vector<int64_t> dims;
+    dims.reserve(static_cast<std::size_t>(grad_output.dim() - 1));
+    for (int64_t i = 0; i < grad_output.dim() - 1; ++i)
+    {
+        dims.push_back(i);
+    }
+
+    nntile::starpu::TorchDispatchArgs extra;
+    pack_sum_dims(extra, dims, false);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Sum,
+        grad_out_node,
+        grad_bias_node,
+        extra);
+    register_data_node(grad_bias, grad_bias_node);
+}
+
+void tensor_norm_fp32(
+    const at::Tensor &x,
+    at::Tensor &out)
+{
+    const int64_t numel = x.numel();
+    TORCH_CHECK(numel > 0, "torch_nntile norm: empty tensor");
+    const std::vector<nntile::Index> flat_shape{
+        static_cast<nntile::Index>(numel)};
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        flat_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+    auto *out_node = get_or_create_data_node(
+        out,
+        std::vector<nntile::Index>{},
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(out));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = 1;
+    extra.iargs[1] = 0;
+    extra.iargs[2] = 0;
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::VectorNorm,
+        x_node,
+        out_node,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_norm_slice_fp32(
+    const at::Tensor &x,
+    at::Tensor &out,
+    int64_t axis,
+    bool keepdim)
+{
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(x.sizes());
+    const nntile::Index ax = static_cast<nntile::Index>(axis);
+
+    auto *x_node = get_or_create_data_node(
+        x,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(x));
+
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(out));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = 1;
+    extra.iargs[1] = keepdim ? 1 : 0;
+    extra.iargs[2] = ax;
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::VectorNorm,
+        x_node,
+        out_node,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_sum_dimlist_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    at::OptionalIntArrayRef dim,
+    bool keepdim)
+{
+    const c10::IntArrayRef input_shape = input.sizes();
+    const int64_t rank = static_cast<int64_t>(input_shape.size());
+    TORCH_CHECK(rank > 0, "nntile sum: cannot sum a 0-dim tensor");
+
+    std::vector<int64_t> dims;
+    if (!dim.has_value() || dim->empty())
+    {
+        dims.reserve(static_cast<std::size_t>(rank));
+        for (int64_t i = 0; i < rank; ++i)
+        {
+            dims.push_back(i);
+        }
+    }
+    else
+    {
+        dims.reserve(dim->size());
+        for (const auto d : *dim)
+        {
+            const int64_t axis = d < 0 ? d + rank : d;
+            TORCH_CHECK(
+                axis >= 0 && axis < rank,
+                "nntile sum: dimension out of range");
+            dims.push_back(axis);
+        }
+    }
+    std::sort(dims.begin(), dims.end(), std::greater<int64_t>());
+
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(input_shape);
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(out));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    pack_sum_dims(extra, dims, keepdim);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Sum,
+        in_node,
+        out_node,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_cat_fp32(
+    const std::vector<at::Tensor> &inputs,
+    at::Tensor &out,
+    int64_t dim)
+{
+    TORCH_CHECK(!inputs.empty(), "tensor_cat_fp32: expected non-empty inputs");
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    std::vector<nntile::TensorGraph::TensorNode *> nodes;
+    nodes.reserve(inputs.size());
+    for (const auto &tensor : inputs)
+    {
+        const std::vector<nntile::Index> shape_graph =
+            pytorch_shape_to_graph(tensor.sizes());
+        nodes.push_back(get_or_create_data_node(
+            tensor,
+            shape_graph,
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(tensor)));
+    }
+
+    auto *out_node = nntile::tensor::torch_cat(axis, nodes, out_graph);
+    register_data_node(out, out_node);
+}
+
+void tensor_narrow_fp32(
+    const at::Tensor &input,
+    int64_t dim,
+    int64_t start,
+    int64_t length,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> in_graph =
+        pytorch_shape_to_graph(input.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        in_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = static_cast<nntile::Index>(dim);
+    extra.iargs[1] = static_cast<nntile::Index>(start);
+    extra.iargs[2] = static_cast<nntile::Index>(length);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::NarrowCopy,
+        in_node,
+        out_graph,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_split_with_sizes_fp32(
+    const at::Tensor &input,
+    int64_t dim,
+    const std::vector<int64_t> &split_sizes,
+    const std::vector<at::Tensor> &outputs)
+{
+    const std::vector<nntile::Index> in_graph =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *in_node = get_or_create_data_node(
+        input,
+        in_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    nntile::Index offset = 0;
+    for (std::size_t i = 0; i < split_sizes.size(); ++i)
+    {
+        const std::vector<nntile::Index> out_graph =
+            pytorch_shape_to_graph(outputs[i].sizes());
+
+        nntile::starpu::TorchDispatchArgs extra;
+        extra.iargs[0] = static_cast<nntile::Index>(dim);
+        extra.iargs[1] = offset;
+        extra.iargs[2] =
+            static_cast<nntile::Index>(split_sizes[i]);
+        auto *out_node = nntile::tensor::torch_unary(
+            nntile::starpu::TorchKind::NarrowCopy,
+            in_node,
+            out_graph,
+            extra);
+        register_data_node(outputs[i], out_node);
+        offset += static_cast<nntile::Index>(split_sizes[i]);
+    }
+}
+
+void tensor_embedding_forward_fp32(
+    const at::Tensor &indices,
+    const at::Tensor &weight,
+    at::Tensor &out,
+    nntile::Index /*axis*/)
+{
+    const std::vector<nntile::Index> index_graph =
+        pytorch_shape_to_graph(indices.sizes());
+    const std::vector<nntile::Index> weight_graph =
+        pytorch_shape_to_graph(weight.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *weight_node = get_or_create_data_node(
+        weight,
+        weight_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(weight));
+    auto *index_node = get_or_create_data_node(
+        indices,
+        index_graph,
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(indices));
+
+    auto *out_node = nntile::tensor::torch_embedding(
+        weight_node,
+        index_node,
+        out_graph);
+    register_data_node(out, out_node);
+}
+
+void tensor_layer_norm_forward_fp32(
+    const at::Tensor &input,
+    const at::Tensor *weight,
+    const at::Tensor *bias,
+    bool has_weight,
+    bool has_bias,
+    at::Tensor &output,
+    at::Tensor &mean,
+    at::Tensor &rstd,
+    int64_t norm_axis,
+    float eps)
+{
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(input.sizes());
+    const nntile::Index axis = static_cast<nntile::Index>(norm_axis);
+    const nntile::Index norm_len =
+        input_graph[static_cast<std::size_t>(axis)];
+    const std::vector<nntile::Index> reduced_graph =
+        reduced_shape_along_axis(input_graph, axis);
+    const nntile::Index normalized_ndim =
+        static_cast<nntile::Index>(input_graph.size()) - axis;
+
+    auto *input_node = get_or_create_data_node(
+        input,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *out_node = get_or_create_data_node(
+        output,
+        input_graph,
+        nntile::DataType::FP32,
+        false);
+    auto *mean_node = get_or_create_data_node(
+        mean,
+        reduced_graph,
+        nntile::DataType::FP32,
+        false);
+    auto *rstd_node = get_or_create_data_node(
+        rstd,
+        reduced_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::TensorGraph::TensorNode *weight_node = nullptr;
+    nntile::TensorGraph::TensorNode *bias_node = nullptr;
+    if (has_weight)
+    {
+        weight_node = get_or_create_data_node(
+            *weight,
+            {norm_len},
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(*weight));
+    }
+    if (has_bias)
+    {
+        bias_node = get_or_create_data_node(
+            *bias,
+            {norm_len},
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(*bias));
+    }
+
+    nntile::tensor::torch_layer_norm(
+        input_node,
+        weight_node,
+        bias_node,
+        out_node,
+        mean_node,
+        rstd_node,
+        normalized_ndim,
+        static_cast<nntile::Scalar>(eps));
+
+    register_data_node(output, out_node);
+    register_data_node(mean, mean_node);
+    register_data_node(rstd, rstd_node);
+}
+
+void tensor_sdpa_forward_fp32(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const at::Tensor *mask,
+    at::Tensor &out,
+    int64_t /*batch_ndim*/)
+{
+    const std::vector<nntile::Index> q_graph =
+        pytorch_shape_to_graph(q.sizes());
+
+    auto *q_node = get_or_create_data_node(
+        q,
+        q_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(q));
+    auto *k_node = get_or_create_data_node(
+        k,
+        pytorch_shape_to_graph(k.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(k));
+    auto *v_node = get_or_create_data_node(
+        v,
+        pytorch_shape_to_graph(v.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(v));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.iargs[0] = mask != nullptr ? 1 : 0;
+    extra.iargs[1] = 0;
+    auto *out_node = nntile::tensor::torch_ternary(
+        nntile::starpu::TorchKind::Sdpa,
+        q_node,
+        k_node,
+        v_node,
+        q_graph,
+        extra);
+    register_data_node(out, out_node);
 }
 
 void tensor_model_transpose_forward_fp32(
@@ -145,131 +1206,28 @@ void tensor_model_transpose_backward_fp32(
     throw_op_disabled("model_transpose_backward");
 }
 
-void tensor_mul_fp32(const at::Tensor &, const at::Tensor &, at::Tensor &)
+void tensor_swap_two_axes_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst,
+    int64_t dim0,
+    int64_t dim1)
 {
-    throw_op_disabled("mul");
-}
-
-void tensor_mul_inplace_fp32(const at::Tensor &, at::Tensor &)
-{
-    throw_op_disabled("mul_");
-}
-
-void tensor_hypot_fp32(const at::Tensor &, const at::Tensor &, at::Tensor &)
-{
-    throw_op_disabled("hypot");
-}
-
-void tensor_linear_fp32(const at::Tensor &, const at::Tensor &, at::Tensor &)
-{
-    throw_op_disabled("linear");
-}
-
-void tensor_relu_fp32(const at::Tensor &, at::Tensor &)
-{
-    throw_op_disabled("relu");
-}
-
-void tensor_relu_backward_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("relu_backward");
-}
-
-void tensor_silu_fp32(const at::Tensor &, at::Tensor &)
-{
-    throw_op_disabled("silu");
-}
-
-void tensor_silu_inplace_fp32(at::Tensor &)
-{
-    throw_op_disabled("silu_");
-}
-
-void tensor_silu_backward_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("silu_backward");
-}
-
-void tensor_gelu_fp32(const at::Tensor &, at::Tensor &, bool)
-{
-    throw_op_disabled("gelu");
-}
-
-void tensor_gelu_inplace_fp32(at::Tensor &, bool)
-{
-    throw_op_disabled("gelu_");
-}
-
-void tensor_gelu_backward_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    at::Tensor &,
-    bool)
-{
-    throw_op_disabled("gelu_backward");
-}
-
-void tensor_gemm_fp32(
-    const GemmParams &,
-    const at::Tensor &,
-    c10::IntArrayRef,
-    const at::Tensor &,
-    c10::IntArrayRef,
-    at::Tensor &,
-    c10::IntArrayRef)
-{
-    throw_op_disabled("gemm");
-}
-
-void tensor_gemm_accumulate_fp32(
-    const GemmParams &,
-    const at::Tensor &,
-    c10::IntArrayRef,
-    const at::Tensor &,
-    c10::IntArrayRef,
-    const at::Tensor &,
-    c10::IntArrayRef,
-    at::Tensor &,
-    c10::IntArrayRef)
-{
-    throw_op_disabled("gemm_accumulate");
-}
-
-void tensor_mm_fp32(const at::Tensor &, const at::Tensor &, at::Tensor &)
-{
-    throw_op_disabled("mm");
-}
-
-void tensor_linear_backward_input_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("linear_backward_input");
-}
-
-void tensor_linear_backward_weight_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("linear_backward_weight");
-}
-
-void tensor_linear_add_bias_fp32(at::Tensor &, const at::Tensor &)
-{
-    throw_op_disabled("linear_add_bias");
-}
-
-void tensor_linear_grad_bias_fp32(const at::Tensor &, at::Tensor &)
-{
-    throw_op_disabled("linear_grad_bias");
+    const auto in_shape = pytorch_shape_to_graph(src.sizes());
+    const auto out_shape = pytorch_shape_to_graph(dst.sizes());
+    auto *in_node = get_or_create_data_node(
+        src,
+        in_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[0] = static_cast<nntile::Index>(dim0);
+    extra.iargs[1] = static_cast<nntile::Index>(dim1);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::TransposeCopy,
+        in_node,
+        out_shape,
+        extra);
+    register_data_node(dst, out_node);
 }
 
 void tensor_add_fiber_fp32(
@@ -284,131 +1242,201 @@ void tensor_add_fiber_fp32(
     throw_op_disabled("add_fiber");
 }
 
-
 void tensor_sum_fiber_fp32(
-    const at::Tensor &, at::Tensor &, int64_t, int64_t, float)
-{ throw_op_disabled("sum_fiber"); }
+    const at::Tensor &,
+    at::Tensor &,
+    int64_t,
+    int64_t,
+    float)
+{
+    throw_op_disabled("sum_fiber");
+}
 
 void tensor_sum_slice_fp32(
-    const at::Tensor &, at::Tensor &, int64_t, float, float)
-{ throw_op_disabled("sum_slice"); }
+    const at::Tensor &,
+    at::Tensor &,
+    int64_t,
+    float,
+    float)
+{
+    throw_op_disabled("sum_slice");
+}
 
 void tensor_add_slice_fp32(
-    float, const at::Tensor &, float, const at::Tensor &, at::Tensor &,
+    float,
+    const at::Tensor &,
+    float,
+    const at::Tensor &,
+    at::Tensor &,
     int64_t)
-{ throw_op_disabled("add_slice"); }
+{
+    throw_op_disabled("add_slice");
+}
 
 void tensor_cross_entropy_forward_fp32(
-    const at::Tensor &, const at::Tensor &, std::int64_t, bool,
-    at::Tensor &, at::Tensor &)
-{ throw_op_disabled("cross_entropy_forward"); }
+    const at::Tensor &,
+    const at::Tensor &,
+    std::int64_t,
+    bool,
+    at::Tensor &,
+    at::Tensor &)
+{
+    throw_op_disabled("cross_entropy_forward");
+}
 
 void tensor_cross_entropy_backward_fp32(
-    const at::Tensor &, const at::Tensor &, const at::Tensor &,
-    const at::Tensor &, at::Tensor &, at::Tensor &, std::int64_t, bool)
-{ throw_op_disabled("cross_entropy_backward"); }
-
-void tensor_softmax_fp32(const at::Tensor &, at::Tensor &, int64_t)
-{ throw_op_disabled("softmax"); }
-
-void tensor_softmax_backward_fp32(
-    const at::Tensor &, const at::Tensor &, at::Tensor &, int64_t)
-{ throw_op_disabled("softmax_backward"); }
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor &,
+    at::Tensor &,
+    at::Tensor &,
+    std::int64_t,
+    bool)
+{
+    throw_op_disabled("cross_entropy_backward");
+}
 
 void tensor_sgd_step_fp32(
-    int64_t, float, float, float, float, bool, const at::Tensor &,
-    at::Tensor &, at::Tensor &)
-{ throw_op_disabled("sgd_step"); }
+    int64_t,
+    float,
+    float,
+    float,
+    float,
+    bool,
+    const at::Tensor &,
+    at::Tensor &,
+    at::Tensor &)
+{
+    throw_op_disabled("sgd_step");
+}
 
 void tensor_adam_step_fp32(
-    int64_t, float, float, float, float, float, const at::Tensor &,
-    at::Tensor &, at::Tensor &, at::Tensor &)
-{ throw_op_disabled("adam_step"); }
+    int64_t,
+    float,
+    float,
+    float,
+    float,
+    float,
+    const at::Tensor &,
+    at::Tensor &,
+    at::Tensor &,
+    at::Tensor &)
+{
+    throw_op_disabled("adam_step");
+}
 
 void tensor_adamw_step_fp32(
-    int64_t, float, float, float, float, float, const at::Tensor &,
-    at::Tensor &, at::Tensor &, at::Tensor &)
-{ throw_op_disabled("adamw_step"); }
-
-void tensor_layer_norm_forward_fp32(
-    const at::Tensor &, const at::Tensor *, const at::Tensor *, bool, bool,
-    at::Tensor &, at::Tensor &, at::Tensor &, int64_t, float)
-{ throw_op_disabled("layer_norm_forward"); }
+    int64_t,
+    float,
+    float,
+    float,
+    float,
+    float,
+    const at::Tensor &,
+    at::Tensor &,
+    at::Tensor &,
+    at::Tensor &)
+{
+    throw_op_disabled("adamw_step");
+}
 
 void tensor_layer_norm_backward_fp32(
-    const at::Tensor &, const at::Tensor &, const at::Tensor &,
-    const at::Tensor &, const at::Tensor *, bool, bool, at::Tensor *,
-    at::Tensor *, at::Tensor *, bool, bool, bool, int64_t)
-{ throw_op_disabled("layer_norm_backward"); }
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor *,
+    bool,
+    bool,
+    at::Tensor *,
+    at::Tensor *,
+    at::Tensor *,
+    bool,
+    bool,
+    bool,
+    int64_t)
+{
+    throw_op_disabled("layer_norm_backward");
+}
 
 void tensor_rms_norm_forward_fp32(
-    const at::Tensor &, const at::Tensor *, bool, at::Tensor &,
-    at::Tensor &, int64_t, float)
-{ throw_op_disabled("rms_norm_forward"); }
+    const at::Tensor &,
+    const at::Tensor *,
+    bool,
+    at::Tensor &,
+    at::Tensor &,
+    int64_t,
+    float)
+{
+    throw_op_disabled("rms_norm_forward");
+}
 
 void tensor_rms_norm_backward_fp32(
-    const at::Tensor &, const at::Tensor &, const at::Tensor &,
-    const at::Tensor *, bool, at::Tensor *, at::Tensor *, bool, bool,
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor *,
+    bool,
+    at::Tensor *,
+    at::Tensor *,
+    bool,
+    bool,
     int64_t)
-{ throw_op_disabled("rms_norm_backward"); }
+{
+    throw_op_disabled("rms_norm_backward");
+}
 
 void tensor_rope_fp32(
-    const at::Tensor &, const at::Tensor &, const at::Tensor &, at::Tensor &)
-{ throw_op_disabled("rope"); }
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor &,
+    at::Tensor &)
+{
+    throw_op_disabled("rope");
+}
 
 void tensor_rope_backward_fp32(
-    const at::Tensor &, const at::Tensor &, const at::Tensor &, at::Tensor &)
-{ throw_op_disabled("rope_backward"); }
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor &,
+    at::Tensor &)
+{
+    throw_op_disabled("rope_backward");
+}
 
 void tensor_mse_loss_fp32(const at::Tensor &, float, at::Tensor &)
-{ throw_op_disabled("mse_loss"); }
+{
+    throw_op_disabled("mse_loss");
+}
 
 void tensor_mse_loss_backward_fp32(const at::Tensor &, float, at::Tensor &)
-{ throw_op_disabled("mse_loss_backward"); }
-
-void tensor_norm_fp32(const at::Tensor &, at::Tensor &)
-{ throw_op_disabled("norm"); }
-
-void tensor_norm_slice_fp32(const at::Tensor &, at::Tensor &, int64_t, bool)
-{ throw_op_disabled("norm_slice"); }
-
-void tensor_sum_dimlist_fp32(
-    const at::Tensor &, at::Tensor &, at::OptionalIntArrayRef, bool)
-{ throw_op_disabled("sum_dimlist"); }
-
-void tensor_mul_scalar_fp32(const at::Tensor &, at::Tensor &, float)
-{ throw_op_disabled("mul_scalar"); }
-
-void tensor_cat_fp32(
-    const std::vector<at::Tensor> &, at::Tensor &, int64_t)
-{ throw_op_disabled("cat"); }
-
-void tensor_narrow_fp32(
-    const at::Tensor &, int64_t, int64_t, int64_t, at::Tensor &)
-{ throw_op_disabled("narrow"); }
-
-void tensor_split_with_sizes_fp32(
-    const at::Tensor &, int64_t, const std::vector<int64_t> &,
-    const std::vector<at::Tensor> &)
-{ throw_op_disabled("split_with_sizes"); }
-
-void tensor_embedding_forward_fp32(
-    const at::Tensor &, const at::Tensor &, at::Tensor &, nntile::Index)
-{ throw_op_disabled("embedding_forward"); }
+{
+    throw_op_disabled("mse_loss_backward");
+}
 
 void tensor_embedding_backward_fp32(
-    const at::Tensor &, const at::Tensor &, at::Tensor &, nntile::Index, int)
-{ throw_op_disabled("embedding_backward"); }
-
-void tensor_sdpa_forward_fp32(
-    const at::Tensor &, const at::Tensor &, const at::Tensor &,
-    const at::Tensor *, at::Tensor &, int64_t)
-{ throw_op_disabled("sdpa_forward"); }
+    const at::Tensor &,
+    const at::Tensor &,
+    at::Tensor &,
+    nntile::Index,
+    int)
+{
+    throw_op_disabled("embedding_backward");
+}
 
 void tensor_sdpa_backward_fp32(
-    const at::Tensor &, const at::Tensor &, const at::Tensor &,
-    const at::Tensor *, const at::Tensor &, at::Tensor &, at::Tensor &,
-    at::Tensor &, int64_t)
-{ throw_op_disabled("sdpa_backward"); }
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor &,
+    const at::Tensor *,
+    const at::Tensor &,
+    at::Tensor &,
+    at::Tensor &,
+    at::Tensor &,
+    int64_t)
+{
+    throw_op_disabled("sdpa_backward");
+}
 
 } // namespace torch_nntile

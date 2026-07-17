@@ -17,25 +17,6 @@
 namespace nntile::core
 {
 
-TorchTileMeta make_contiguous_torch_meta(const std::vector<Index> &sizes)
-{
-    TorchTileMeta meta;
-    meta.sizes = sizes;
-    meta.strides.resize(sizes.size());
-    if (sizes.empty())
-    {
-        return meta;
-    }
-    meta.strides.back() = 1;
-    for (Index i = static_cast<Index>(sizes.size()) - 2; i >= 0; --i)
-    {
-        meta.strides[static_cast<size_t>(i)] =
-            meta.strides[static_cast<size_t>(i + 1)] *
-            sizes[static_cast<size_t>(i + 1)];
-    }
-    return meta;
-}
-
 namespace
 {
 
