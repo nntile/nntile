@@ -1,0 +1,239 @@
+/*! @copyright (c) 2026-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *
+ * @file torch_nntile/csrc/nntile_module_torch_native.cpp
+ * @brief Slim pybind module for NNTILE_TORCH_NATIVE_OPS builds.
+ */
+
+#include <torch/extension.h>
+
+#include <c10/core/Device.h>
+#include <c10/core/DeviceType.h>
+
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "nntile_context.h"
+#include "nntile_graph_recorder.h"
+
+namespace torch_nntile
+{
+
+bool is_registered()
+{
+    return true;
+}
+
+int64_t buffer_nbytes(const at::Tensor &tensor)
+{
+    TORCH_CHECK(
+        tensor.device().type() == c10::DeviceType::PrivateUse1,
+        "buffer_nbytes expects an nntile tensor");
+    return static_cast<int64_t>(tensor.storage().nbytes());
+}
+
+bool buffer_equal_cpu(
+    const at::Tensor &nntile_tensor,
+    const at::Tensor &cpu_tensor)
+{
+    TORCH_CHECK(
+        nntile_tensor.device().type() == c10::DeviceType::PrivateUse1,
+        "buffer_equal_cpu expects nntile tensor as first argument");
+    TORCH_CHECK(cpu_tensor.is_cpu(), "buffer_equal_cpu expects CPU tensor");
+    TORCH_CHECK(
+        nntile_tensor.is_contiguous(),
+        "buffer_equal_cpu: nntile tensor must be contiguous");
+    at::Tensor const lhs = nntile_tensor.cpu();
+    at::Tensor const rhs = cpu_tensor.contiguous();
+    return lhs.equal(rhs);
+}
+
+void init_context_py(
+    int ncpu,
+    int ncuda,
+    int ooc_enabled,
+    const std::string &ooc_path,
+    std::size_t ooc_size,
+    int logger,
+    int verbose,
+    bool cpu_fallback)
+{
+    init_context(
+        ncpu,
+        ncuda,
+        ooc_enabled,
+        ooc_path.c_str(),
+        ooc_size,
+        logger,
+        verbose,
+        cpu_fallback);
+}
+
+std::vector<std::int64_t> parse_tile_sizes_py(const py::object &tile_sizes)
+{
+    if (py::isinstance<py::int_>(tile_sizes))
+    {
+        const std::int64_t value = tile_sizes.cast<std::int64_t>();
+        if (value <= 0)
+        {
+            throw std::runtime_error(
+                "torch_nntile.set_axis_group_tiling: tile size must be "
+                "positive");
+        }
+        return {value};
+    }
+    if (py::isinstance<py::list>(tile_sizes) ||
+        py::isinstance<py::tuple>(tile_sizes))
+    {
+        std::vector<std::int64_t> sizes;
+        for (const py::handle item : tile_sizes)
+        {
+            const std::int64_t value = py::cast<std::int64_t>(item);
+            if (value <= 0)
+            {
+                throw std::runtime_error(
+                    "torch_nntile.set_axis_group_tiling: tile size must be "
+                    "positive");
+            }
+            sizes.push_back(value);
+        }
+        if (sizes.empty())
+        {
+            throw std::runtime_error(
+                "torch_nntile.set_axis_group_tiling: tile_sizes must be "
+                "non-empty");
+        }
+        return sizes;
+    }
+    throw std::runtime_error(
+        "torch_nntile.set_axis_group_tiling: tile_sizes must be int or "
+        "sequence of ints");
+}
+
+void set_axis_group_name_py(
+    const at::Tensor &tensor,
+    const py::dict &names)
+{
+    TORCH_CHECK(
+        tensor.device().type() == c10::DeviceType::PrivateUse1,
+        "set_axis_group_name expects an nntile tensor");
+    std::unordered_map<int, std::string> parsed;
+    for (const auto &item : names)
+    {
+        const int dim = py::cast<int>(item.first);
+        const std::string name = py::cast<std::string>(item.second);
+        parsed.emplace(dim, name);
+    }
+    set_axis_group_name(tensor, parsed);
+    stage_tensor_for_axis_group_compile(tensor);
+}
+
+void set_axis_group_tiling_py(
+    const std::string &name,
+    const py::object &tile_sizes)
+{
+    set_axis_group_tiling(name, parse_tile_sizes_py(tile_sizes));
+}
+
+} // namespace torch_nntile
+
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
+{
+    m.def("is_registered", &torch_nntile::is_registered, "Backend loaded");
+    m.def(
+        "built_with_cuda",
+        &torch_nntile::built_with_cuda,
+        "Whether linked libnntile was built with CUDA");
+    m.def("buffer_nbytes", &torch_nntile::buffer_nbytes, "Storage nbytes");
+    m.def(
+        "buffer_equal_cpu",
+        &torch_nntile::buffer_equal_cpu,
+        "Compare nntile tensor to CPU tensor");
+    m.def(
+        "init_context",
+        &torch_nntile::init_context_py,
+        "Configure StarPU workers before the first nntile op",
+        py::arg("ncpu") = -1,
+        py::arg("ncuda") = -1,
+        py::arg("ooc_enabled") = 0,
+        py::arg("ooc_path") = "/tmp/nntile_ooc",
+        py::arg("ooc_size") = 16 * 1024 * 1024,
+        py::arg("logger") = 0,
+        py::arg("verbose") = 0,
+        py::arg("cpu_fallback") = true);
+    m.def(
+        "is_cpu_fallback_enabled",
+        &torch_nntile::is_cpu_fallback_enabled,
+        "Whether unsupported ops may fall back to CPU");
+    m.def(
+        "is_context_initialized",
+        &torch_nntile::is_context_initialized,
+        "Whether the libnntile context has been created");
+    m.def(
+        "restrict_cpu",
+        &torch_nntile::restrict_cpu,
+        "Run StarPU codelets on CPU workers only");
+    m.def(
+        "restrict_cuda",
+        &torch_nntile::restrict_cuda,
+        "Run StarPU codelets on CUDA workers only");
+    m.def(
+        "restore_where",
+        &torch_nntile::restore_where,
+        "Restore default StarPU codelet worker placement");
+    m.def(
+        "wait_for_all",
+        &torch_nntile::wait_for_all,
+        "Block until all submitted StarPU tasks finish");
+    m.def(
+        "shutdown_context",
+        &torch_nntile::shutdown_context,
+        "Shut down libnntile / StarPU (safe to call repeatedly)");
+    m.def(
+        "execute",
+        &torch_nntile::execute_pending_graph,
+        "Compile and submit the pending TensorGraph (does not wait; call wait())");
+    m.def(
+        "compile_graph",
+        &torch_nntile::compile_graph,
+        "Lower and compile the pending TensorGraph into a persistent session");
+    m.def(
+        "run",
+        &torch_nntile::run_graph,
+        "Submit the compiled graph to StarPU (asynchronous; does not wait)");
+    m.def(
+        "reset_graph_session",
+        &torch_nntile::reset_graph_session,
+        "Discard the compiled graph session and recorder state");
+    m.def(
+        "has_pending_graph",
+        &torch_nntile::has_pending_graph,
+        "Whether a deferred TensorGraph is waiting for compile/run");
+    m.def(
+        "set_axis_group_name",
+        &torch_nntile::set_axis_group_name_py,
+        "Name TensorGraph axis groups for selected tensor dimensions",
+        py::arg("tensor"),
+        py::arg("names"));
+    m.def(
+        "set_axis_group_tiling",
+        &torch_nntile::set_axis_group_tiling_py,
+        "Set tiling for a named axis group before compile/run",
+        py::arg("name"),
+        py::arg("tile_sizes"));
+    m.def(
+        "format_axis_groups",
+        &torch_nntile::format_axis_groups,
+        "Format pending TensorGraph axis groups");
+    m.def(
+        "print_axis_groups",
+        &torch_nntile::print_axis_groups,
+        "Print pending TensorGraph axis groups to stdout");
+    m.def(
+        "print_info",
+        &torch_nntile::print_info,
+        "Print cumulative compile/run/wait/host-readout timing stats");
+}

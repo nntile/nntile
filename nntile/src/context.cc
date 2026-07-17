@@ -31,7 +31,15 @@
 // Other NNTile headers
 #include "nntile/logger.hh"
 #include "nntile/starpu/handle.hh"
-#include "nntile/starpu.hh"
+#ifdef NNTILE_TORCH_NATIVE_OPS
+#   include "nntile/starpu/clear.hh"
+#   include "nntile/starpu/copy.hh"
+#   include "nntile/starpu/fill.hh"
+#   include "nntile/starpu/subcopy.hh"
+#   include "nntile/starpu/torch_add.hh"
+#else
+#   include "nntile/starpu.hh"
+#endif
 
 namespace nntile
 {
@@ -311,6 +319,13 @@ void Context::shutdown()
 void Context::restrict_cpu()
 {
     using namespace nntile::starpu;
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    clear.codelet.restrict_where(STARPU_CPU);
+    copy.codelet.restrict_where(STARPU_CPU);
+    fill.restrict_where(STARPU_CPU);
+    subcopy.restrict_where(STARPU_CPU);
+    torch_add.restrict_where(STARPU_CPU);
+#else
     accumulate.restrict_where(STARPU_CPU);
     accumulate_hypot.restrict_where(STARPU_CPU);
     accumulate_maxsumexp.restrict_where(STARPU_CPU);
@@ -374,12 +389,21 @@ void Context::restrict_cpu()
     total_sum_accum.restrict_where(STARPU_CPU);
     transpose.restrict_where(STARPU_CPU);
     isfinite.restrict_where(STARPU_CPU);
+#endif
 }
 
 //! Restrict computation to CUDA
 void Context::restrict_cuda()
 {
     using namespace nntile::starpu;
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    // Torch-native codelets are CPU-only in the first cut.
+    clear.codelet.restrict_where(STARPU_CPU);
+    copy.codelet.restrict_where(STARPU_CPU);
+    fill.restrict_where(STARPU_CPU);
+    subcopy.restrict_where(STARPU_CPU);
+    torch_add.restrict_where(STARPU_CPU);
+#else
     accumulate.restrict_where(STARPU_CUDA);
     accumulate_hypot.restrict_where(STARPU_CUDA);
     accumulate_maxsumexp.restrict_where(STARPU_CUDA);
@@ -443,12 +467,20 @@ void Context::restrict_cuda()
     total_sum_accum.restrict_where(STARPU_CUDA);
     transpose.restrict_where(STARPU_CUDA);
     isfinite.restrict_where(STARPU_CUDA);
+#endif
 }
 
 //! Restore computation to all devices
 void Context::restore_where()
 {
     using namespace nntile::starpu;
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    clear.codelet.restore_where();
+    copy.codelet.restore_where();
+    fill.restore_where();
+    subcopy.restore_where();
+    torch_add.restore_where();
+#else
     accumulate.restore_where();
     accumulate_hypot.restore_where();
     accumulate_maxsumexp.restore_where();
@@ -512,6 +544,7 @@ void Context::restore_where()
     total_sum_accum.restore_where();
     transpose.restore_where();
     isfinite.restore_where();
+#endif
 }
 
 } // namespace nntile

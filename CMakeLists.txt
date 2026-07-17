@@ -37,6 +37,10 @@ option(BUILD_LIBTORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
 option(BUILD_TORCH_NNTILE
     "Build torch_nntile Python product (_C extension + pip wheel)" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
+# Experimental graph_api_torch_kernels path: drop classic compute kernels/ops
+# and keep I/O + torch-native StarPU codelets (requires LibTorch).
+option(NNTILE_TORCH_NATIVE_OPS
+    "Build only I/O ops + torch-native compute (experimental)" ON)
 
 # Standard CMake testing switch (default ON). Tests are added only for
 # enabled components: BUILD_LIBNNTILE, BUILD_LIBTORCH_NNTILE, and/or
@@ -226,13 +230,18 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-# LibTorch is required only when building libtorch_nntile. libnntile and its
-# C++ tests configure and build without Torch.
+# LibTorch is required for libtorch_nntile, and for experimental
+# NNTILE_TORCH_NATIVE_OPS (torch kernels inside libnntile StarPU codelets).
 set(NNTILE_HAVE_TORCH OFF)
-if(BUILD_LIBTORCH_NNTILE)
+if(BUILD_LIBTORCH_NNTILE OR NNTILE_TORCH_NATIVE_OPS)
     find_package(Torch REQUIRED)
     set(NNTILE_HAVE_TORCH ON)
     message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
+endif()
+if(NNTILE_TORCH_NATIVE_OPS AND NOT NNTILE_HAVE_TORCH)
+    message(FATAL_ERROR
+        "NNTILE_TORCH_NATIVE_OPS=ON requires LibTorch "
+        "(set CMAKE_PREFIX_PATH to Torch)")
 endif()
 
 if(BUILD_LIBNNTILE)

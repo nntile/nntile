@@ -126,6 +126,20 @@ def ensure_nntile_context(
     torch_nntile.restrict_cpu()
 
 
+def pytest_collection_modifyitems(config, items) -> None:
+    """Under NNTILE_TORCH_NATIVE_OPS, only torch-native parity tests run."""
+    del config
+    if not getattr(torch_nntile, "TORCH_NATIVE_OPS", False):
+        return
+    skip = pytest.mark.skip(
+        reason="NNTILE_TORCH_NATIVE_OPS: only torch-native add is compiled"
+    )
+    for item in items:
+        path = str(item.fspath)
+        if "test_torch_native_" not in path:
+            item.add_marker(skip)
+
+
 def pytest_sessionstart(session) -> None:
     """Configure nntile before collection or any nntile-backed op."""
     del session

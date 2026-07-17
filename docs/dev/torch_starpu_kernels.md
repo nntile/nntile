@@ -193,3 +193,50 @@ Torch changes shape rules. Use hand-written shapes only for trivial cases
 
 Data-dependent shapes (`nonzero`, etc.) cannot be inferred from meta alone;
 those ops need a different strategy or remain unsupported on this path.
+
+## First implementation notes (`torch_add`)
+
+The experimental flag **`NNTILE_TORCH_NATIVE_OPS`** (default ON on
+`graph_api_torch_kernels`) strips classic compute kernels/codelets/ops from
+the build and keeps I/O (`fill` / `subcopy` / `clear` / `copy` / `scatter` /
+`gather` / `invalidate`) plus **`torch_add`**.
+
+Lessons from wiring the first op:
+
+1. **LibTorch must link into `libnntile`** when the StarPU codelet calls ATen
+   (`from_blob` + `add_out`). Confining torch solely to `libtorch_nntile`
+   is not enough if `nntile::starpu::torch_add` lives in libnntile.
+2. **Codelet tensors must be `device=CPU`**, not `nntile`, or the call
+   re-enters PrivateUse1. Use `AutoDispatchBelowADInplaceOrView` +
+   `NoGradGuard` around `at::add_out`.
+3. **`from_blob` needs an empty deleter** so temporary `Tensor` destructors
+   do not free StarPU memory.
+4. **Single-tile contiguous path** can derive row-major strides from tile
+   shape at `TileTorchAddOp::execute` via
+   `core::make_contiguous_torch_meta`. Persisting full stride meta on
+   `TensorNode` / `TileNode` remains follow-up work for non-contiguous
+   layouts.
+5. **Functional `add.Tensor` still needs a PrivateUse1 impl** (meta probe →
+   `empty` → record `tensor::torch_add`). Registering only `add.out` is not
+   enough.
+6. Map Torch `add(self, other, alpha)` to NNTile-style
+   `z = 1 * self + alpha * other` in the executor bridge.
+7. Keep **`OMP_NUM_THREADS=1`** / `torch.set_num_threads(1)` under StarPU
+   workers.
+8. **Slim the pybind `_C` module** when ops are stripped from
+   `libtorch_nntile`. Full `nntile_module.cpp` still binds gemm / sum_slice /
+   models / etc.; under `NNTILE_TORCH_NATIVE_OPS`, build
+   `nntile_module_torch_native.cpp` instead (`setup.py` picks it from
+   `defs.h`). Otherwise `_C.so` fails to import with undefined symbols.
+9. Gate Python package side imports (`loss`, `nn`, …) on
+   `TORCH_NATIVE_OPS` in `_build_info.py` so `import torch_nntile` stays
+   usable for the add parity test.
+10. **Skip non-native pytest modules** in `tests/conftest.py` when
+    `TORCH_NATIVE_OPS` is set, so CI `pytest torch_nntile/tests/` does not
+    fail on classic aten coverage that is no longer linked.
+
+Reference sources: `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_add.*`,
+`torch_nntile/csrc/nntile_add.cpp`,
+`torch_nntile/csrc/nntile_executor_torch_native.cpp`,
+`torch_nntile/csrc/nntile_module_torch_native.cpp`,
+`torch_nntile/tests/test_torch_native_add_parity.py`.

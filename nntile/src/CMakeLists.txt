@@ -539,6 +539,69 @@ if(NNTILE_USE_FLASH_SDPA)
     )
 endif()
 
+
+# Experimental: strip classic compute ops; keep I/O + torch-native add.
+if(NNTILE_TORCH_NATIVE_OPS)
+    message(STATUS "NNTILE_TORCH_NATIVE_OPS: compiling I/O + torch_add only")
+    if(NOT HAVE_STARPU_SIMGRID)
+        set(KERNEL_CPU_SRC
+            "kernel/fill/cpu.cc"
+            "kernel/subcopy/cpu.cc"
+        )
+        set(KERNEL_CUDA_SRC)
+    endif()
+    set(STARPU_CODELET_SRC
+        "starpu/clear.cc"
+        "starpu/copy.cc"
+        "starpu/fill.cc"
+        "starpu/subcopy.cc"
+        "starpu/torch_add.cc"
+    )
+    set(CORE_OPERATION_SRC
+        "core/clear.cc"
+        "core/copy.cc"
+        "core/copy_intersection.cc"
+        "core/fill.cc"
+        "core/torch_add.cc"
+    )
+    set(GRAPH_TENSOR_LAYER_SRC
+        "tensor/axis_descriptor.cc"
+        "tensor/tiling_spec_json.cc"
+        "tensor/tensor_graph_tiling.cc"
+        "tensor/graph_data_node.cc"
+        "tensor/graph_op_node.cc"
+        "tensor/tensor_ref.cc"
+        "tensor/tile_lowering_helpers.cc"
+        "tensor/ops/clear.cc"
+        "tensor/ops/invalidate.cc"
+        "tensor/ops/contiguous_view.cc"
+        "tensor/ops/copy.cc"
+        "tensor/ops/copy_intersection.cc"
+        "tensor/ops/fill.cc"
+        "tensor/ops/gather.cc"
+        "tensor/ops/scatter.cc"
+        "tensor/ops/torch_add.cc"
+    )
+    set(GRAPH_TILE_LAYER_SRC
+        "tile/append_tensor_graph_phase.cc"
+        "tile/lower_staging_tensor.cc"
+        "tile/from_tensor_graph.cc"
+        "tile/graph_data_node.cc"
+        "tile/lower_from_tensor.cc"
+        "tile/ops/clear.cc"
+        "tile/ops/invalidate.cc"
+        "tile/ops/copy.cc"
+        "tile/ops/copy_intersection.cc"
+        "tile/ops/fill.cc"
+        "tile/ops/torch_add.cc"
+    )
+    set(NNTILE_GRAPH_STACK_SRC
+        ${GRAPH_TENSOR_LAYER_SRC}
+        ${GRAPH_RUNTIME_SRC}
+        ${GRAPH_TILE_LAYER_SRC}
+    )
+endif()
+
 set(NNTILE_CORE_SRC
     ${BASE_SRC}
     ${KERNEL_CUDA_SRC}
@@ -583,5 +646,19 @@ nntile_add_objs(nntile_objs_tensor nntile
     ${GRAPH_TENSOR_LAYER_SRC})
 nntile_add_objs(nntile_objs_runtime nntile
     ${GRAPH_RUNTIME_SRC})
+if(NNTILE_TORCH_NATIVE_OPS)
+    # OBJECT libs need Torch headers for torch_add codelets / core.
+    foreach(_torch_obj IN ITEMS
+            nntile_objs_starpu nntile_objs_core
+            nntile_objs_tile nntile_objs_tensor)
+        if(TARGET ${_torch_obj})
+            target_link_libraries(${_torch_obj} PUBLIC ${TORCH_LIBRARIES})
+            if(TORCH_CXX_FLAGS)
+                target_compile_options(${_torch_obj} PRIVATE
+                    ${TORCH_CXX_FLAGS})
+            endif()
+        endif()
+    endforeach()
+endif()
 target_sources(nntile PRIVATE ${LOGGER_SRC})
 target_sources(nntile PRIVATE context.cc)
