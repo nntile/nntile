@@ -229,45 +229,41 @@ void apply_axis_name_hints_locked(
     }
 }
 
+//! Temporary: PrivateUse1 aten ops require a single tile per tensor while
+//! torch-native StarPU codelets are introduced. See
+//! docs/dev/torch_starpu_kernels.md.
+[[noreturn]] void throw_tiled_aten_temporarily_disabled()
+{
+    throw std::runtime_error(
+        "torch_nntile: axis-group tiling is temporarily disabled for "
+        "device=nntile PrivateUse1 aten ops (single-tile / untiled tensors "
+        "only). See docs/dev/torch_nntile_aten_ops.md and "
+        "docs/dev/torch_starpu_kernels.md.");
+}
+
+void require_untiled_torch_session_locked()
+{
+    if (g_graph == nullptr)
+    {
+        return;
+    }
+    for (nntile::AxisDescriptor *axis : g_graph->axis_groups())
+    {
+        if (axis != nullptr && axis->is_tiled())
+        {
+            throw_tiled_aten_temporarily_disabled();
+        }
+    }
+}
+
 void apply_pending_axis_tiling_locked()
 {
     if (g_graph == nullptr || g_axis_tiling_by_name.empty())
     {
         return;
     }
-
-    bool applied_any = false;
-    for (const auto &[name, pattern] : g_axis_tiling_by_name)
-    {
-        bool found_any = false;
-        for (nntile::AxisDescriptor *axis : g_graph->axis_groups())
-        {
-            if (axis == nullptr || axis->name != name)
-            {
-                continue;
-            }
-            found_any = true;
-            applied_any = true;
-            const std::vector<nntile::Index> resolved =
-                nntile::tile_sizes_for_axis_extent(pattern, axis->extent);
-            nntile::apply_tiling_to_axis(axis, resolved);
-        }
-        if (!found_any)
-        {
-            throw std::runtime_error(
-                "torch_nntile set_axis_group_tiling: unknown axis group '" +
-                name + "'");
-        }
-    }
-    // Axis tile_sizes changed: drop cached layouts so the next ensure rebuilds
-    // from the updated AxisDescriptors.
-    if (applied_any && g_exec != nullptr && g_exec->session_tiling != nullptr)
-    {
-        g_exec->session_tiling->clear();
-    }
-    // Pending tiling is one-shot: applied at this compile, do not re-apply
-    // (and clear session layouts) on every subsequent compile.
-    g_axis_tiling_by_name.clear();
+    // Reject before mutating AxisDescriptors.
+    throw_tiled_aten_temporarily_disabled();
 }
 
 nntile::DataType aten_scalar_to_nntile_dtype(at::ScalarType dtype)
@@ -939,6 +935,7 @@ void compile_graph_locked()
 
     sync_param_grad_aliases_locked();
     apply_pending_axis_tiling_locked();
+    require_untiled_torch_session_locked();
 
     // Marks must reflect live Python refs before INVALIDATE selection.
     prepare_invalidate_selection_locked();
@@ -1621,19 +1618,9 @@ void set_axis_group_tiling(
     const std::string &name,
     const std::vector<std::int64_t> &tile_sizes)
 {
-    if (name.empty())
-    {
-        throw std::runtime_error(
-            "torch_nntile set_axis_group_tiling: name must be non-empty");
-    }
-    if (tile_sizes.empty())
-    {
-        throw std::runtime_error(
-            "torch_nntile set_axis_group_tiling: tile_sizes must be non-empty");
-    }
-    std::vector<nntile::Index> pattern(tile_sizes.begin(), tile_sizes.end());
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    g_axis_tiling_by_name[name] = std::move(pattern);
+    (void)name;
+    (void)tile_sizes;
+    throw_tiled_aten_temporarily_disabled();
 }
 
 std::string format_pending_tile_sizes(

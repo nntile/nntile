@@ -222,9 +222,13 @@ def set_axis_group_name(tensor: torch.Tensor, names: dict[int, str]) -> None:
 def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ...]) -> None:
     """Set tiling for a named axis group before :func:`execute`.
 
-  ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
-  sizes (``list``/``tuple``) that sum to the axis extent.
-  """
+    ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
+    sizes (``list``/``tuple``) that sum to the axis extent.
+
+    Temporarily raises: PrivateUse1 aten ops on ``device=nntile`` require
+    untiled (single-tile) tensors while torch-native StarPU codelets land.
+    See ``docs/dev/torch_nntile_aten_ops.md``.
+    """
     _C.set_axis_group_tiling(name, tile_sizes)
 
 
