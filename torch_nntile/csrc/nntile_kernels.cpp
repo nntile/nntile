@@ -231,25 +231,11 @@ at::Tensor ones_like(
             self.sizes(),
             dtype,
             options.device());
-        // Autograd ones_like(loss) is a unit scalar. Mark it constant without
-        // a FILL so CE can fold the scale; non-scalar ones_like still fills.
-        if (dtype == at::ScalarType::Float && result.numel() == 1)
-        {
-            std::vector<nntile::Index> shape;
-            shape.reserve(static_cast<std::size_t>(result.dim()));
-            for (const auto dim : result.sizes())
-            {
-                shape.push_back(static_cast<nntile::Index>(dim));
-            }
-            nntile::TensorGraph::TensorNode *node = get_or_create_data_node(
-                result,
-                shape,
-                nntile::DataType::FP32,
-                false);
-            node->set_constant_value(static_cast<nntile::Scalar>(1.0));
-            node->note_produced();
-            return result;
-        }
+        // Always FILL (including autograd ones_like(loss) unit scalars).
+        // A constant-without-FILL shortcut leaves the StarPU handle
+        // uninitialized; torch-native readers (e.g. nll_loss_backward)
+        // take STARPU_R and assert. tensor::fill still sets constant_value
+        // so classic CE can fold the scale.
         fill_scalar(result, 1);
         return result;
     }

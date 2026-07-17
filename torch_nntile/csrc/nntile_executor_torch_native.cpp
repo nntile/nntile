@@ -11,6 +11,7 @@
 #include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_gc.h"
 #include "nntile_tensor_meta.h"
 
 #include <ATen/Functions.h>
@@ -1865,6 +1866,16 @@ void tensor_nll_loss_backward_fp32(
         go_graph,
         nntile::DataType::FP32,
         mark_as_input_for_operand(grad_output));
+    // TorchNllLossBackward reads grad_output with STARPU_R. If autograd
+    // seeded a metadata scalar without a producer write, materialize it.
+    if (is_metadata_only_tensor(grad_output) &&
+        !go_node->has_producer())
+    {
+        const nntile::Scalar val = go_node->has_constant_value()
+            ? go_node->constant_value()
+            : static_cast<nntile::Scalar>(1.0);
+        nntile::tensor::fill(val, go_node);
+    }
     auto *lp_node = get_or_create_data_node(
         log_probs,
         lp_graph,
