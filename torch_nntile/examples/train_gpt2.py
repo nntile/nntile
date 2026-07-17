@@ -66,10 +66,6 @@ import torch_nntile
 from transformers import GPT2Config, GPT2LMHeadModel
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
 def _default_config_path() -> Path:
     return Path(__file__).resolve().parent / "gpt2_hf_tiny_config.json"
 

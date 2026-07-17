@@ -536,8 +536,20 @@ extension + `tools/smoke_test_wheel.py`).
 
 ## Usage
 
-Run Python from **outside** the repo root (or from inside `torch_nntile/`) so
-`import torch_nntile` resolves the installed package, not the project folder.
+Install `torch_nntile` first (wheel or editable). Examples and scripts import
+the installed package — they do **not** rewrite `sys.path`. Do not run from
+the repo root or `torch_nntile/` with an unbuilt tree on `PYTHONPATH`; that
+shadows site-packages and yields a missing `_C` (often misreported as a
+circular import).
+
+For local development, prefer:
+
+```bash
+CXX=g++ pip install -e ./torch_nntile --no-build-isolation
+```
+
+`pytest` only prefers an in-tree package when a built `_C.*` is present
+(`tests/conftest.py`); otherwise it uses the installed wheel.
 
 ```python
 import torch

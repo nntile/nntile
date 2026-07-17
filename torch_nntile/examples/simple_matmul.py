@@ -29,18 +29,11 @@ CUDA example (manual, requires GPU)::
 from __future__ import annotations
 
 import argparse
-import sys
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 import torch
-
-_REPO = Path(__file__).resolve().parents[2]
-if str(_REPO / "torch_nntile") not in sys.path:
-    sys.path.insert(0, str(_REPO / "torch_nntile"))
-
-import torch_nntile  # noqa: E402
+import torch_nntile
 
 
 @dataclass(frozen=True)
