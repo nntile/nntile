@@ -164,16 +164,31 @@ at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
     {
         return mul_scalar(self, other.item());
     }
+    if (is_nntile_device(other.device()) && is_cpu_scalar_tensor(self))
+    {
+        return mul_scalar(other, self.item());
+    }
     if (!is_nntile_device(other.device()) ||
         self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float ||
-        self.sizes() != other.sizes())
+        self.scalar_type() != at::ScalarType::Float)
     {
         return mul_host(self, other);
     }
-    check_mul_inputs(self, other);
-    at::Tensor out = at::empty_like(self);
-    run_mul_kernel(self, other, out);
+    at::Tensor a = self.is_contiguous() ? self : self.contiguous();
+    at::Tensor b = other;
+    if (!a.sizes().equals(b.sizes()))
+    {
+        // RoPE / mask broadcast: expand then densify so StarPU mul stays
+        // same-shape (host gather breaks deferred-graph backward).
+        b = b.expand(a.sizes()).contiguous();
+    }
+    else if (!b.is_contiguous())
+    {
+        b = b.contiguous();
+    }
+    check_mul_inputs(a, b);
+    at::Tensor out = at::empty_like(a);
+    run_mul_kernel(a, b, out);
     return out;
 }
 
@@ -210,14 +225,31 @@ at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
     }
     if (!is_nntile_device(other.device()) ||
         self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float ||
-        self.sizes() != other.sizes())
+        self.scalar_type() != at::ScalarType::Float)
     {
         mul_inplace_host(self, other);
         return self;
     }
-    check_mul_inputs(self, other);
-    run_mul_inplace_kernel(self, other);
+    at::Tensor b = other;
+    if (!self.sizes().equals(b.sizes()))
+    {
+        b = b.expand(self.sizes()).contiguous();
+    }
+    else if (!b.is_contiguous())
+    {
+        b = b.contiguous();
+    }
+    at::Tensor a = self.is_contiguous() ? self : self.contiguous();
+    if (!a.is_same(self))
+    {
+        at::Tensor out = at::empty_like(a);
+        check_mul_inputs(a, b);
+        run_mul_kernel(a, b, out);
+        self.copy_(out);
+        return self;
+    }
+    check_mul_inputs(self, b);
+    run_mul_inplace_kernel(self, b);
     return self;
 }
 
