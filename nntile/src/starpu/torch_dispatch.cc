@@ -204,7 +204,29 @@ void run_unary(
             static_cast<std::int64_t>(args->iargs[2]);
         // narrow_copy.out is CPU-only in stock ATen; view + copy_
         // works on CPU and CUDA (StarPU worker stream).
-        result.copy_(self.narrow(dim, start, length));
+        at::Tensor src = self.narrow(dim, start, length);
+        if (src.sizes() != result.sizes())
+        {
+            auto fmt = [](at::IntArrayRef dims) {
+                std::string s = "[";
+                for (size_t i = 0; i < dims.size(); ++i)
+                {
+                    if (i != 0)
+                    {
+                        s += ",";
+                    }
+                    s += std::to_string(dims[i]);
+                }
+                return s + "]";
+            };
+            throw std::runtime_error(
+                "torch NarrowCopy: size mismatch after narrow "
+                "narrowed=" +
+                fmt(src.sizes()) +
+                " out=" +
+                fmt(result.sizes()));
+        }
+        result.copy_(src);
         break;
     }
     case TorchKind::Copy:
@@ -228,7 +250,10 @@ void run_unary(
                 "torch Copy: in/out size mismatch in=" +
                 fmt(self.sizes()) +
                 " out=" +
-                fmt(result.sizes()));
+                fmt(result.sizes()) +
+                " (packed layout meta must match logical "
+                "tensor sizes; unpacked slots fall back to "
+                "storage tile shape)");
         }
         result.copy_(self);
         break;
@@ -259,7 +284,31 @@ void run_unary(
             static_cast<std::int64_t>(args->iargs[1]);
         // transpose_copy.out is not registered for CUDA; transpose
         // view + copy_ works on CPU and CUDA.
-        result.copy_(self.transpose(d0, d1));
+        at::Tensor src = self.transpose(d0, d1);
+        if (src.sizes() != result.sizes())
+        {
+            auto fmt = [](at::IntArrayRef dims) {
+                std::string s = "[";
+                for (size_t i = 0; i < dims.size(); ++i)
+                {
+                    if (i != 0)
+                    {
+                        s += ",";
+                    }
+                    s += std::to_string(dims[i]);
+                }
+                return s + "]";
+            };
+            throw std::runtime_error(
+                "torch TransposeCopy: size mismatch after "
+                "transpose transposed=" +
+                fmt(src.sizes()) +
+                " out=" +
+                fmt(result.sizes()) +
+                " in=" +
+                fmt(self.sizes()));
+        }
+        result.copy_(src);
         break;
     }
     default:

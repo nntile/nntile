@@ -120,6 +120,11 @@ struct TorchDispatchArgs
     //! Element offsets into StarPU buffers (views); 0 for dense tiles.
     Index in_offset[torch_dispatch_max_tensors] = {};
     Index out_offset[torch_dispatch_max_tensors] = {};
+    //! 1 if sizes/strides/offset were packed for this slot.
+    //! Distinguishes a packed scalar (``ndim == 0``) from an unpacked
+    //! slot that should fall back to the contiguous tile shape.
+    Index in_layout_set[torch_dispatch_max_tensors] = {};
+    Index out_layout_set[torch_dispatch_max_tensors] = {};
 };
 
 template<typename T>

@@ -31,8 +31,15 @@ void pack_meta_into(
     const TorchTileMeta &meta,
     bool is_out);
 
-//! Unpack layout from ``args`` if packed (ndim>0); else contiguous
-//! ``tile_shape``.
+//! Unpack layout from ``args`` if ``*_layout_set`` is set.
+//!
+//! Otherwise fall back to contiguous ``tile_shape`` (StarPU storage
+//! shape). That fallback is only valid for full-tile contiguous
+//! operands. View-aware record paths must ``pack_meta_into`` /
+//! ``pack_tensor_layout`` from the ``at::Tensor`` (sizes, strides,
+//! storage_offset) so execute-time ``from_blob`` rebuilds the same view.
+//! Packed scalars use ``ndim == 0`` with ``layout_set``; do not treat
+//! ``ndim == 0`` alone as unpacked.
 TorchTileMeta meta_from_args_or_contiguous(
     const starpu::TorchDispatchArgs &args,
     Index slot,

@@ -31,10 +31,18 @@ void pack_meta_into(
     {
         throw std::runtime_error("torch_dispatch: ndim too large");
     }
+    // Clear unused slots so a later smaller-rank pack cannot leave
+    // stale sizes/strides from a previous op on a reused args blob.
     if (is_out)
     {
+        args.out_layout_set[slot] = 1;
         args.out_ndim[slot] = ndim;
         args.out_offset[slot] = meta.storage_offset;
+        for (Index i = 0; i < starpu::torch_dispatch_max_ndim; ++i)
+        {
+            args.out_sizes[slot][i] = 0;
+            args.out_strides[slot][i] = 0;
+        }
         for (Index i = 0; i < ndim; ++i)
         {
             args.out_sizes[slot][i] = meta.sizes[static_cast<size_t>(i)];
@@ -44,8 +52,14 @@ void pack_meta_into(
     }
     else
     {
+        args.in_layout_set[slot] = 1;
         args.in_ndim[slot] = ndim;
         args.in_offset[slot] = meta.storage_offset;
+        for (Index i = 0; i < starpu::torch_dispatch_max_ndim; ++i)
+        {
+            args.in_sizes[slot][i] = 0;
+            args.in_strides[slot][i] = 0;
+        }
         for (Index i = 0; i < ndim; ++i)
         {
             args.in_sizes[slot][i] = meta.sizes[static_cast<size_t>(i)];
@@ -61,11 +75,21 @@ TorchTileMeta meta_from_args_or_contiguous(
     bool is_out,
     const std::vector<Index> &tile_shape)
 {
-    const Index ndim =
-        is_out ? args.out_ndim[slot] : args.in_ndim[slot];
-    if (ndim <= 0)
+    const Index layout_set =
+        is_out ? args.out_layout_set[slot] : args.in_layout_set[slot];
+    // Unpacked: legacy contiguous full-tile ops (tile tests). View-
+    // aware torch_nntile record paths must pack sizes/strides/offset
+    // from the at::Tensor; otherwise from_blob uses the StarPU
+    // storage tile shape and ignores the logical view.
+    if (layout_set == 0)
     {
         return make_contiguous_torch_meta(tile_shape);
+    }
+    const Index ndim =
+        is_out ? args.out_ndim[slot] : args.in_ndim[slot];
+    if (ndim < 0)
+    {
+        throw std::runtime_error("torch_dispatch: negative ndim");
     }
     TorchTileMeta meta;
     meta.sizes.resize(static_cast<size_t>(ndim));

@@ -84,10 +84,18 @@ nntile::starpu::TorchKind torch_gemm_kind(c10::IntArrayRef a_shape,
     return nntile::starpu::TorchKind::Matmul;
 }
 
-//! Transpose the last two dims via aten::transpose_copy (for gemm trans flags).
+//! Densify a BLAS-style ``trans`` gemm operand for aten::mm/bmm.
+//!
+//! ``gemm_shape`` is the layout used by classic NNTile gemm: for a
+//! column-contiguous logical ``[M,K]`` it is already ``[K,M]`` (same
+//! bytes as a contiguous gemm matrix). TransposeCopy reinterprets the
+//! StarPU buffer as that contiguous gemm layout and writes contiguous
+//! logical order (last two dims swapped) so aten::mm needs no trans.
+//! Packs both layouts; without packing, execute falls back to the
+//! storage tile shape and breaks on views.
 nntile::TensorGraph::TensorNode *maybe_transpose_matrix_node(
     nntile::TensorGraph::TensorNode *node,
-    std::vector<nntile::Index> shape,
+    std::vector<nntile::Index> gemm_shape,
     bool transpose)
 {
     if (!transpose)
@@ -95,21 +103,33 @@ nntile::TensorGraph::TensorNode *maybe_transpose_matrix_node(
         return node;
     }
     TORCH_CHECK(
-        shape.size() >= 2,
+        gemm_shape.size() >= 2,
         "torch_nntile gemm: transpose requires rank >= 2");
     const nntile::Index d0 =
-        static_cast<nntile::Index>(shape.size()) - 2;
+        static_cast<nntile::Index>(gemm_shape.size()) - 2;
     const nntile::Index d1 =
-        static_cast<nntile::Index>(shape.size()) - 1;
-    std::swap(shape[static_cast<std::size_t>(d0)],
-        shape[static_cast<std::size_t>(d1)]);
+        static_cast<nntile::Index>(gemm_shape.size()) - 1;
+    std::vector<nntile::Index> out_shape = gemm_shape;
+    std::swap(
+        out_shape[static_cast<std::size_t>(d0)],
+        out_shape[static_cast<std::size_t>(d1)]);
     nntile::starpu::TorchDispatchArgs extra{};
+    nntile::core::pack_meta_into(
+        extra,
+        0,
+        nntile::core::make_contiguous_torch_meta(gemm_shape),
+        false);
+    nntile::core::pack_meta_into(
+        extra,
+        0,
+        nntile::core::make_contiguous_torch_meta(out_shape),
+        true);
     extra.iargs[0] = d0;
     extra.iargs[1] = d1;
     return nntile::tensor::torch_unary(
         nntile::starpu::TorchKind::TransposeCopy,
         node,
-        shape,
+        out_shape,
         extra);
 }
 
@@ -698,8 +718,9 @@ void tensor_gemm_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(b));
 
-    // Honor classic gemm transpose flags by lowering to
-    // aten::transpose_copy then mm/bmm/matmul (CPU, no grad).
+    // Honor classic gemm transpose flags by densifying column-contiguous
+    // operands (gemm_shape reinterpret + TransposeCopy), then mm/bmm/
+    // matmul on contiguous logical shapes (no further trans).
     a_node = maybe_transpose_matrix_node(
         a_node,
         a_graph,
@@ -709,6 +730,8 @@ void tensor_gemm_fp32(
         b_graph,
         params.trans_b);
 
+    // After densify, effective shapes are logical (gemm_shape with the
+    // last two dims swapped when trans was set).
     std::vector<nntile::Index> a_eff = a_graph;
     std::vector<nntile::Index> b_eff = b_graph;
     if (params.trans_a && a_eff.size() >= 2)
@@ -722,11 +745,41 @@ void tensor_gemm_fp32(
 
     const std::vector<int64_t> a_i64(a_eff.begin(), a_eff.end());
     const std::vector<int64_t> b_i64(b_eff.begin(), b_eff.end());
+    // Always pack layouts: after TransposeCopy the mm inputs are the
+    // new contiguous nodes (a_eff/b_eff); otherwise use the at::Tensor
+    // view meta. Unpacked slots fall back to storage tile shapes.
+    nntile::starpu::TorchDispatchArgs extra{};
+    if (params.trans_a)
+    {
+        nntile::core::pack_meta_into(
+            extra,
+            0,
+            nntile::core::make_contiguous_torch_meta(a_eff),
+            false);
+    }
+    else
+    {
+        pack_tensor_layout(extra, 0, a, false);
+    }
+    if (params.trans_b)
+    {
+        nntile::core::pack_meta_into(
+            extra,
+            1,
+            nntile::core::make_contiguous_torch_meta(b_eff),
+            false);
+    }
+    else
+    {
+        pack_tensor_layout(extra, 1, b, false);
+    }
+    pack_tensor_layout(extra, 0, out, true);
     auto *out_node = nntile::tensor::torch_binary(
         torch_gemm_kind(a_i64, b_i64),
         a_node,
         b_node,
-        out_graph);
+        out_graph,
+        extra);
     register_data_node(out, out_node);
 }
 
@@ -1234,6 +1287,8 @@ void tensor_split_with_sizes_fp32(
         extra.iargs[1] = offset;
         extra.iargs[2] =
             static_cast<nntile::Index>(split_sizes[i]);
+        pack_tensor_layout(extra, 0, input, false);
+        pack_tensor_layout(extra, 0, outputs[i], true);
         auto *out_node = nntile::tensor::torch_unary(
             nntile::starpu::TorchKind::NarrowCopy,
             in_node,
