@@ -27,6 +27,7 @@
 #include <ATen/ops/addmm.h>
 #include <ATen/ops/bmm.h>
 #include <ATen/ops/cat.h>
+#include <ATen/ops/cos.h>
 #include <ATen/ops/_log_softmax.h>
 #include <ATen/ops/_log_softmax_backward_data.h>
 #include <ATen/ops/_scaled_dot_product_flash_attention_for_cpu.h>
@@ -48,14 +49,17 @@
 #include <ATen/ops/mul.h>
 #include <ATen/ops/native_layer_norm.h>
 #include <ATen/ops/native_layer_norm_backward.h>
+#include <ATen/ops/neg.h>
 #include <ATen/ops/nll_loss_backward.h>
 #include <ATen/ops/nll_loss_forward.h>
 #include <ATen/ops/ones.h>
 #include <ATen/ops/relu.h>
 #include <ATen/ops/repeat.h>
+#include <ATen/ops/rsqrt.h>
 #include <ATen/ops/scaled_dot_product_attention.h>
 #include <ATen/ops/silu.h>
 #include <ATen/ops/silu_backward.h>
+#include <ATen/ops/sin.h>
 #include <ATen/ops/softmax.h>
 #include <ATen/ops/sum.h>
 #include <ATen/ops/threshold_backward.h>
@@ -162,6 +166,18 @@ void run_unary(
             result,
             self,
             args->iargs[0] ? "tanh" : "none");
+        break;
+    case TorchKind::Cos:
+        at::cos_out(result, self);
+        break;
+    case TorchKind::Sin:
+        at::sin_out(result, self);
+        break;
+    case TorchKind::Neg:
+        at::neg_out(result, self);
+        break;
+    case TorchKind::Rsqrt:
+        at::rsqrt_out(result, self);
         break;
     case TorchKind::Softmax:
         at::_softmax_out(

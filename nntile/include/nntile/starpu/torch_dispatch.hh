@@ -50,6 +50,10 @@ enum class TorchKind : std::int32_t
     Relu = 10,               // R → W    aten::relu.out
     Silu = 11,               // R → W    aten::silu.out
     Gelu = 12,               // R → W    aten::gelu.out
+    Cos = 13,                // R → W    aten::cos.out
+    Sin = 14,                // R → W    aten::sin.out
+    Neg = 15,                // R → W    aten::neg.out
+    Rsqrt = 16,              // R → W    aten::rsqrt.out
     ThresholdBackward = 20,  // R,R → W  aten::threshold_backward
     SiluBackward = 21,       // R,R → W  aten::silu_backward
     GeluBackward = 22,       // R,R → W  aten::gelu_backward

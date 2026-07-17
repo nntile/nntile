@@ -51,6 +51,7 @@ if(NNTILE_TORCH_NATIVE_OPS)
         csrc/nntile_relu.cpp
         csrc/nntile_threshold_backward.cpp
         csrc/nntile_silu.cpp
+        csrc/nntile_trig.cpp
         csrc/nntile_silu_backward.cpp
         csrc/nntile_gelu.cpp
         csrc/nntile_gelu_backward.cpp
@@ -98,6 +99,7 @@ else()
         csrc/nntile_relu.cpp
         csrc/nntile_threshold_backward.cpp
         csrc/nntile_silu.cpp
+        csrc/nntile_trig.cpp
         csrc/nntile_silu_backward.cpp
         csrc/nntile_gelu.cpp
         csrc/nntile_gelu_backward.cpp

@@ -86,6 +86,11 @@ void tensor_linear_bias_fp32(
 
 void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out);
 
+void tensor_cos_fp32(const at::Tensor &input, at::Tensor &out);
+void tensor_sin_fp32(const at::Tensor &input, at::Tensor &out);
+void tensor_neg_fp32(const at::Tensor &input, at::Tensor &out);
+void tensor_rsqrt_fp32(const at::Tensor &input, at::Tensor &out);
+
 void tensor_relu_backward_fp32(
     const at::Tensor &x,
     const at::Tensor &dy,

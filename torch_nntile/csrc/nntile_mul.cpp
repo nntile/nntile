@@ -9,6 +9,7 @@
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
+#include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
 #include <torch/library.h>
@@ -174,20 +175,18 @@ at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
     {
         return mul_host(self, other);
     }
-    at::Tensor a = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor b = other;
-    if (!a.sizes().equals(b.sizes()))
-    {
-        // RoPE / mask broadcast: expand then densify so StarPU mul stays
-        // same-shape (host gather breaks deferred-graph backward).
-        b = b.expand(a.sizes()).contiguous();
-    }
-    else if (!b.is_contiguous())
-    {
-        b = b.contiguous();
-    }
+    std::vector<int64_t> out_sizes =
+        at::infer_size(self.sizes(), other.sizes());
+    at::Tensor a = self.sizes().equals(out_sizes)
+        ? (self.is_contiguous() ? self : self.contiguous())
+        : self.expand(out_sizes).contiguous();
+    at::Tensor b = other.sizes().equals(out_sizes)
+        ? (other.is_contiguous() ? other : other.contiguous())
+        : other.expand(out_sizes).contiguous();
     check_mul_inputs(a, b);
-    at::Tensor out = at::empty_like(a);
+    at::Tensor out = at::empty(
+        out_sizes,
+        a.options().memory_format(at::MemoryFormat::Contiguous));
     run_mul_kernel(a, b, out);
     return out;
 }
@@ -230,26 +229,8 @@ at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
         mul_inplace_host(self, other);
         return self;
     }
-    at::Tensor b = other;
-    if (!self.sizes().equals(b.sizes()))
-    {
-        b = b.expand(self.sizes()).contiguous();
-    }
-    else if (!b.is_contiguous())
-    {
-        b = b.contiguous();
-    }
-    at::Tensor a = self.is_contiguous() ? self : self.contiguous();
-    if (!a.is_same(self))
-    {
-        at::Tensor out = at::empty_like(a);
-        check_mul_inputs(a, b);
-        run_mul_kernel(a, b, out);
-        self.copy_(out);
-        return self;
-    }
-    check_mul_inputs(self, b);
-    run_mul_inplace_kernel(self, b);
+    at::Tensor tmp = mul_tensor(self, other);
+    self.copy_(tmp);
     return self;
 }
 

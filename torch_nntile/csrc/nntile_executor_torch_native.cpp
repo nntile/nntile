@@ -462,6 +462,49 @@ void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out)
     register_data_node(out, out_node);
 }
 
+void tensor_unary_fp32(
+    nntile::starpu::TorchKind kind,
+    const at::Tensor &input,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_unary(
+        kind,
+        in_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_cos_fp32(const at::Tensor &input, at::Tensor &out)
+{
+    tensor_unary_fp32(nntile::starpu::TorchKind::Cos, input, out);
+}
+
+void tensor_sin_fp32(const at::Tensor &input, at::Tensor &out)
+{
+    tensor_unary_fp32(nntile::starpu::TorchKind::Sin, input, out);
+}
+
+void tensor_neg_fp32(const at::Tensor &input, at::Tensor &out)
+{
+    tensor_unary_fp32(nntile::starpu::TorchKind::Neg, input, out);
+}
+
+void tensor_rsqrt_fp32(const at::Tensor &input, at::Tensor &out)
+{
+    tensor_unary_fp32(nntile::starpu::TorchKind::Rsqrt, input, out);
+}
+
 void tensor_relu_backward_fp32(
     const at::Tensor &x,
     const at::Tensor &dy,
