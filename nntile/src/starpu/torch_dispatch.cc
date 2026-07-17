@@ -30,6 +30,10 @@
 #include <ATen/ops/_log_softmax_backward_data.h>
 #include <ATen/ops/_scaled_dot_product_flash_attention_for_cpu.h>
 #include <ATen/ops/_scaled_dot_product_flash_attention_for_cpu_backward.h>
+#ifdef NNTILE_USE_CUDA
+#include <ATen/ops/_scaled_dot_product_efficient_attention.h>
+#include <ATen/ops/_scaled_dot_product_efficient_attention_backward.h>
+#endif
 #include <ATen/ops/embedding.h>
 #include <ATen/ops/embedding_dense_backward.h>
 #include <ATen/ops/gelu.h>
@@ -358,7 +362,7 @@ void run_ternary(
     }
 }
 
-//! Math SDPA backward via matmul/softmax (CPU+CUDA; no flash_*_for_cpu).
+//! Math SDPA backward via matmul/softmax (fallback; materializes SxS).
 void run_sdpa_math_backward(
     const at::Tensor &q,
     const at::Tensor &k,
@@ -399,6 +403,99 @@ void run_sdpa_math_backward(
     grad_k.copy_(at::matmul(d_scores.transpose(-2, -1), q));
     grad_v.copy_(at::matmul(attn.transpose(-2, -1), grad_out));
 }
+
+#ifdef NNTILE_USE_CUDA
+//! CUDA mem-efficient SDPA backward (fp32-capable; no SxS materialize).
+void run_sdpa_efficient_backward(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const at::Tensor &grad_out,
+    const c10::optional<at::Tensor> &attn_mask,
+    bool is_causal,
+    at::Tensor &grad_q,
+    at::Tensor &grad_k,
+    at::Tensor &grad_v)
+{
+    at::Tensor qc = q.contiguous();
+    at::Tensor kc = k.contiguous();
+    at::Tensor vc = v.contiguous();
+    at::Tensor goc = grad_out.contiguous();
+    c10::optional<at::Tensor> bias = c10::nullopt;
+    if (attn_mask.has_value())
+    {
+        bias = attn_mask->contiguous();
+    }
+    auto fwd = at::_scaled_dot_product_efficient_attention(
+        qc,
+        kc,
+        vc,
+        bias,
+        /*compute_log_sumexp=*/true,
+        /*dropout_p=*/0.0,
+        is_causal,
+        /*scale=*/c10::nullopt);
+    at::Tensor bias_tensor =
+        bias.has_value() ? *bias : at::Tensor();
+    auto bwd = at::_scaled_dot_product_efficient_attention_backward(
+        goc,
+        qc,
+        kc,
+        vc,
+        bias_tensor,
+        std::get<0>(fwd),
+        std::get<1>(fwd),
+        std::get<2>(fwd),
+        std::get<3>(fwd),
+        /*dropout_p=*/0.0,
+        std::array<bool, 4>{true, true, true, false},
+        is_causal,
+        /*scale=*/c10::nullopt);
+    grad_q.copy_(std::get<0>(bwd));
+    grad_k.copy_(std::get<1>(bwd));
+    grad_v.copy_(std::get<2>(bwd));
+}
+
+//! CUDA SDPA backward: efficient first, math fallback.
+void run_sdpa_cuda_backward(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const at::Tensor &grad_out,
+    const c10::optional<at::Tensor> &attn_mask,
+    bool is_causal,
+    at::Tensor &grad_q,
+    at::Tensor &grad_k,
+    at::Tensor &grad_v)
+{
+    try
+    {
+        run_sdpa_efficient_backward(
+            q,
+            k,
+            v,
+            grad_out,
+            attn_mask,
+            is_causal,
+            grad_q,
+            grad_k,
+            grad_v);
+    }
+    catch (const c10::Error &)
+    {
+        run_sdpa_math_backward(
+            q,
+            k,
+            v,
+            grad_out,
+            attn_mask,
+            is_causal,
+            grad_q,
+            grad_k,
+            grad_v);
+    }
+}
+#endif // NNTILE_USE_CUDA
 
 uint32_t args_footprint(const TorchDispatchArgs *args)
 {
@@ -1790,10 +1887,12 @@ void TorchSdpaBackward::cpu(void *buffers[], void *cl_args) noexcept
         }
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        // flash_*_for_cpu is CPU-only; CUDA uses math SDPA bwd.
+        // flash_*_for_cpu is CPU-only; CUDA uses mem-efficient
+        // (math fallback). Prefer is_causal over dense SxS masks.
+#ifdef NNTILE_USE_CUDA
         if (q.is_cuda())
         {
-            run_sdpa_math_backward(
+            run_sdpa_cuda_backward(
                 q,
                 k,
                 v,
@@ -1805,6 +1904,7 @@ void TorchSdpaBackward::cpu(void *buffers[], void *cl_args) noexcept
                 grad_v);
         }
         else
+#endif
         {
             auto fwd =
                 at::_scaled_dot_product_flash_attention_for_cpu(

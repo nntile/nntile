@@ -113,7 +113,8 @@ at::Tensor sdpa_forward(
     const at::Tensor &k,
     const at::Tensor &v,
     const std::optional<at::Tensor> &mask,
-    int64_t batch_ndim)
+    int64_t batch_ndim,
+    bool is_causal)
 {
     check_sdpa_qkv(q, k, v, batch_ndim);
     if (mask.has_value())
@@ -143,7 +144,14 @@ at::Tensor sdpa_forward(
         mask_ptr = &mask_u8;
     }
 
-    tensor_sdpa_forward_fp32(q, k, v, mask_ptr, out, batch_ndim);
+    tensor_sdpa_forward_fp32(
+        q,
+        k,
+        v,
+        mask_ptr,
+        out,
+        batch_ndim,
+        is_causal);
     return out;
 }
 
@@ -153,7 +161,8 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     const at::Tensor &v,
     const at::Tensor &grad_out,
     const std::optional<at::Tensor> &mask,
-    int64_t batch_ndim)
+    int64_t batch_ndim,
+    bool is_causal)
 {
     check_sdpa_qkv(q, k, v, batch_ndim);
     check_sdpa_tensor(grad_out, "grad_out");
@@ -199,7 +208,8 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
         grad_q,
         grad_k,
         grad_v,
-        batch_ndim);
+        batch_ndim,
+        is_causal);
     return {grad_q, grad_k, grad_v};
 }
 

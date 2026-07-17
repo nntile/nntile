@@ -1270,7 +1270,8 @@ void tensor_sdpa_forward_fp32(
     const at::Tensor &v,
     const at::Tensor *mask,
     at::Tensor &out,
-    int64_t /*batch_ndim*/)
+    int64_t /*batch_ndim*/,
+    bool is_causal)
 {
     const std::vector<nntile::Index> q_graph =
         pytorch_shape_to_graph(q.sizes());
@@ -1291,9 +1292,13 @@ void tensor_sdpa_forward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(v));
 
+    // Ternary Sdpa has no mask buffer; causal is encoded in iargs[1].
+    // Custom masks require is_causal=false and are not applied here —
+    // prefer is_causal=true from the aten override for GPT-style models.
+    (void)mask;
     nntile::starpu::TorchDispatchArgs extra;
-    extra.iargs[0] = mask != nullptr ? 1 : 0;
-    extra.iargs[1] = 0;
+    extra.iargs[0] = 0;
+    extra.iargs[1] = is_causal ? 1 : 0;
     auto *out_node = nntile::tensor::torch_ternary(
         nntile::starpu::TorchKind::Sdpa,
         q_node,
@@ -1680,7 +1685,8 @@ void tensor_sdpa_backward_fp32(
     at::Tensor &grad_q,
     at::Tensor &grad_k,
     at::Tensor &grad_v,
-    int64_t /*batch_ndim*/)
+    int64_t /*batch_ndim*/,
+    bool is_causal)
 {
     const std::vector<nntile::Index> q_graph =
         pytorch_shape_to_graph(q.sizes());
@@ -1711,7 +1717,7 @@ void tensor_sdpa_backward_fp32(
         mark_as_input_for_operand(grad_out));
 
     nntile::TensorGraph::TensorNode *mask_node = nullptr;
-    if (mask != nullptr)
+    if (mask != nullptr && !is_causal)
     {
         const std::vector<nntile::Index> mask_graph =
             pytorch_shape_to_graph(mask->sizes());
@@ -1747,7 +1753,7 @@ void tensor_sdpa_backward_fp32(
         grad_q_node,
         grad_k_node,
         grad_v_node,
-        /*is_causal=*/false);
+        is_causal);
     register_data_node(grad_q, grad_q_node);
     register_data_node(grad_k, grad_k_node);
     register_data_node(grad_v, grad_v_node);

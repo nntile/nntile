@@ -407,7 +407,8 @@ void tensor_sdpa_forward_fp32(
     const at::Tensor &v,
     const at::Tensor *mask,
     at::Tensor &out,
-    int64_t batch_ndim);
+    int64_t batch_ndim,
+    bool is_causal = false);
 
 void tensor_sdpa_backward_fp32(
     const at::Tensor &q,
@@ -418,6 +419,7 @@ void tensor_sdpa_backward_fp32(
     at::Tensor &grad_q,
     at::Tensor &grad_k,
     at::Tensor &grad_v,
-    int64_t batch_ndim);
+    int64_t batch_ndim,
+    bool is_causal = false);
 
 } // namespace torch_nntile
