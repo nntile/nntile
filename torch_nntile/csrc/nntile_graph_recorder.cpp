@@ -1449,8 +1449,13 @@ void register_data_node(
         node->nelems(),
         " torch shape=",
         tensor.sizes());
+    // SSA inplace (add_/mul_/…) allocates a new TensorNode; rebind the
+    // TensorRef so the next forward reads the updated logical. Skipping
+    // when a ref already exists left parameters stuck on the old leaf
+    // (stock SGD appeared to step but losses never changed).
     at::Tensor mutable_tensor = tensor;
-    if (!static_cast<bool>(tensor_ref(mutable_tensor)))
+    nntile::TensorRef current = tensor_ref(mutable_tensor);
+    if (!current || current.get() != node)
     {
         attach_tensor_ref(
             mutable_tensor,
