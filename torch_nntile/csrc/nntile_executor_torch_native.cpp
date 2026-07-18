@@ -540,6 +540,11 @@ void tensor_rsqrt_fp32(const at::Tensor &input, at::Tensor &out)
     tensor_unary_fp32(nntile::starpu::TorchKind::Rsqrt, input, out);
 }
 
+void tensor_exp_fp32(const at::Tensor &input, at::Tensor &out)
+{
+    tensor_unary_fp32(nntile::starpu::TorchKind::Exp, input, out);
+}
+
 void tensor_relu_backward_fp32(
     const at::Tensor &x,
     const at::Tensor &dy,

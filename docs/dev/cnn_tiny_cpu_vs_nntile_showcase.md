@@ -136,6 +136,8 @@ Measured with `bench_cnn_tiny_cpu_vs_nntile.py` on the Cloud Agent VM
 
 - HF language-model counterpart:
   [hf_tiny_cpu_vs_nntile_showcase.md](hf_tiny_cpu_vs_nntile_showcase.md)
+- DiT counterpart:
+  [dit_tiny_cpu_vs_nntile_showcase.md](dit_tiny_cpu_vs_nntile_showcase.md)
 - [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md) (CNN PrivateUse1 list)
 - [torch_starpu_kernels.md](torch_starpu_kernels.md)
 - Product overview: [../torch_nntile.md](../torch_nntile.md)

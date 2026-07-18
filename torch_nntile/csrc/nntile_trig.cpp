@@ -2,7 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_trig.cpp
- * Torch-native cos / sin / neg / rsqrt (StarPU unary family).
+ * Torch-native cos / sin / neg / rsqrt / exp (StarPU unary family).
  */
 
 #include "nntile_executor.h"
@@ -150,11 +150,29 @@ at::Tensor &rsqrt_out(const at::Tensor &self, at::Tensor &out)
     return out;
 }
 
+at::Tensor exp_tensor(const at::Tensor &self)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "exp");
+    at::Tensor out = at::empty_like(inp);
+    tensor_exp_fp32(inp, out);
+    return out;
+}
+
+at::Tensor &exp_out(const at::Tensor &self, at::Tensor &out)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "exp", out);
+    tensor_exp_fp32(inp, out);
+    return out;
+}
+
 } // namespace torch_nntile
 
 // Match device=cuda: PrivateUse1 (device) forward only. Autograd uses the
 // generic VariableType formula ``-0.5 * grad * result.pow(3)`` (see
 // derivatives.yaml); keep ``pow.Tensor_Scalar`` on StarPU for exp 2/3.
+// ``exp`` likewise: VariableType ``grad * result`` (no AutogradPrivateUse1).
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("cos", TORCH_FN(torch_nntile::cos_tensor));
@@ -165,4 +183,6 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("neg.out", TORCH_FN(torch_nntile::neg_out));
     m.impl("rsqrt", TORCH_FN(torch_nntile::rsqrt_tensor));
     m.impl("rsqrt.out", TORCH_FN(torch_nntile::rsqrt_out));
+    m.impl("exp", TORCH_FN(torch_nntile::exp_tensor));
+    m.impl("exp.out", TORCH_FN(torch_nntile::exp_out));
 }

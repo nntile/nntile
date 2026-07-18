@@ -19,6 +19,7 @@ Start with the product docs if you are new:
 | [graph_compile_perf_mnist.md](graph_compile_perf_mnist.md) | Compile-perf measurements (MNIST dry-run) |
 | [hf_tiny_cpu_vs_nntile_showcase.md](hf_tiny_cpu_vs_nntile_showcase.md) | Tiny HF smokes: CPU vs nntile loss/wall table |
 | [cnn_tiny_cpu_vs_nntile_showcase.md](cnn_tiny_cpu_vs_nntile_showcase.md) | Tiny CNN smokes (LeNet / ResNet): CPU vs nntile |
+| [dit_tiny_cpu_vs_nntile_showcase.md](dit_tiny_cpu_vs_nntile_showcase.md) | Tiny Diffusers DiT: CPU vs nntile loss/wall |
 | [cuda_wheel_single_nvidia_stack_plan.md](cuda_wheel_single_nvidia_stack_plan.md) | CUDA wheel disk / single NVIDIA stack (infra) |
 
 ## Historical

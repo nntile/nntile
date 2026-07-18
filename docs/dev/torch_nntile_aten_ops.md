@@ -162,7 +162,7 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 | `nntile_batch_norm.cpp` | `native_batch_norm`, `native_batch_norm_backward` |
 | `nntile_embedding.cpp` | `embedding`, `embedding_dense_backward` |
 | `nntile_cat.cpp` | `cat`, `cat.out` |
-| `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt` (+ `.out`) |
+| `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt`, `exp` (+ `.out`) |
 | `nntile_repeat.cpp` | `repeat` |
 | `nntile_max_pool2d.cpp` | `max_pool2d_with_indices`, `max_pool2d_with_indices.out`, `max_pool2d_with_indices_backward`, `max_pool2d_with_indices_backward.grad_input` |
 | `nntile_upsample2d.cpp` | `upsample_nearest2d`, `upsample_nearest2d.out`, `upsample_nearest2d_backward`, `upsample_nearest2d_backward.grad_input`, `upsample_bilinear2d` (+ `.out` / `_backward` / `.grad_input`) |

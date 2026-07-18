@@ -148,6 +148,7 @@ symbols; use a full torch_nntile extension build (CI wheel or local
 ## Related
 
 - CNN counterpart: [cnn_tiny_cpu_vs_nntile_showcase.md](cnn_tiny_cpu_vs_nntile_showcase.md)
+- DiT counterpart: [dit_tiny_cpu_vs_nntile_showcase.md](dit_tiny_cpu_vs_nntile_showcase.md)
 - [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md)
 - [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md)
 - [torch_starpu_kernels.md](torch_starpu_kernels.md)
