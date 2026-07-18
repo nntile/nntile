@@ -46,9 +46,19 @@ nntile_apply_cblas(nntile)
 if(HAVE_STARPU_SIMGRID)
     target_compile_definitions(nntile PUBLIC STARPU_SIMGRID)
 endif()
+if(NNTILE_TORCH_NATIVE_OPS)
+    if(NOT Torch_FOUND)
+        find_package(Torch REQUIRED)
+    endif()
+    target_link_libraries(nntile PUBLIC ${TORCH_LIBRARIES})
+    # defs.h already #cmakedefine's this; avoid -D redefinition warnings.
+    message(STATUS "libnntile links LibTorch (NNTILE_TORCH_NATIVE_OPS)")
+endif()
 
 add_subdirectory(src)
 
+# Under NNTILE_TORCH_NATIVE_OPS, classic kernel/op suites are skipped; the
+# torch_native layer suite (starpu/core/tile/tensor) is registered instead.
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()

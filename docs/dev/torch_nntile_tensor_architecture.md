@@ -84,11 +84,44 @@ Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
 
 ## Views, reshape, and nntile→nntile `copy_`
 
-- Same-numel `view` / contiguous `as_strided` / contiguous-preserving `permute`
-  **share** the same `TensorRef` (no tile copy, no graph op). Non-contiguous
-  `permute` and `Tensor.contiguous()` on non-contiguous nntile tensors error.
-- At op-record time, a PyTorch shape that differs from `L`'s graph shape (same
-  numel) may insert a `contiguous_view` **shape bridge**.
+- Untiled torch-native path: `as_strided` / `transpose` / `permute` /
+  `narrow` / `split` / `chunk` / `_unsafe_view` are **zero-copy views**.
+  They share the parent `TensorRef` (storage node) and carry full layout
+  metadata — **sizes, strides, and `storage_offset`** — into StarPU via
+  `TorchDispatchArgs` / `TorchTileMeta`. `from_blob` advances the StarPU
+  pointer by `storage_offset` (elements) before applying strides.
+  ``reshape`` of a non-viewable layout densifies then ``_unsafe_view``;
+  without a PrivateUse1 ``_unsafe_view`` kernel the densified result would
+  drop `TensorRef` and break SplitBackward ``cat``.
+- `Tensor.contiguous()` densifies when the tensor is non-contiguous, a
+  partial cover of `L` (nonzero `storage_offset` or smaller numel), or a
+  **same-numel reshape view** whose `TensorNode` shape still matches the
+  parent (e.g. View Backward of attention heads `[B,S,H,D]` →
+  `[B,S,H*D]`). Without that densify, SplitBackward ``cat`` would see
+  tile shapes `3×[B,S,H,D]` and allocate `[B,S,3H,D]` instead of the
+  fused `[B,S,3*n_embd]`, triggering PyTorch `resize_output` warnings.
+  Truly dense contiguous tensors (matching node shape) are a no-op.
+  **Footgun:** C++ `tensor.contiguous()` / Python `.contiguous()` use
+  ATen's method fast-path and return `*this` when `is_contiguous()`
+  without dispatching to PrivateUse1 — reshape views never densify that
+  way. Call `torch_nntile::contiguous(...)` (or `aten::contiguous` via
+  the dispatcher) from C++ helpers such as `densify_cat_inputs`.
+- Host egress (`.cpu()` / nntile→CPU `copy_`) densifies before gather when
+  the tensor is not a dense cover of `L` from `storage_offset == 0`
+  (contiguous `narrow` / Split Backward slices share `L` but have a
+  smaller numel or nonzero offset). Use `needs_densify_for_host_io` /
+  `densify_for_host_io` for that path — do not assume `.contiguous()`
+  alone covers every host-I/O case.
+- Legacy materializing `NarrowCopy` / `TransposeCopy` remain available for
+  explicit densify helpers, but HF GPT-2 attention
+  (`c_attn` → `split` → `transpose` heads → SDPA) should no longer pay
+  those copies. `print_info()` still reports residual layout-copy GiB if
+  any path still materializes.
+- At op-record time, a view must fit inside `L`'s storage (max index from
+  sizes/strides/`storage_offset`). Smaller view numel is fine (narrow /
+  split / transpose). **Broadcast `expand`** (zero strides) may have
+  **larger** logical numel than storage and is allowed when indices stay
+  in range.
 - **nntile→nntile `copy_`** with matching shape/dtype **aliases** `TensorRef`
   (same hold, no data copy). Distinct metadata tensors that cannot share a
   hold raise. There is no graph `tensor::copy` for this path.

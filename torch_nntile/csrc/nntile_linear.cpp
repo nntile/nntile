@@ -10,7 +10,6 @@
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
-#include <torch/library.h>
 
 #include <array>
 #include <chrono>
@@ -103,17 +102,17 @@ void run_linear(
     const std::optional<at::Tensor> &bias)
 {
     const bool has_bias = bias.has_value() && bias->defined();
-    tensor_gemm_fp32(
-        prepared.params,
-        prepared.a,
-        prepared.a_gemm_shape,
-        prepared.b,
-        prepared.b_gemm_shape,
-        output,
-        prepared.out_shape);
     if (has_bias)
     {
-        tensor_linear_add_bias_fp32(output, *bias);
+        tensor_linear_bias_fp32(
+            prepared.a,
+            prepared.b,
+            *bias,
+            output);
+    }
+    else
+    {
+        tensor_linear_fp32(prepared.a, prepared.b, output);
     }
 }
 
@@ -141,10 +140,17 @@ at::Tensor linear(
     const at::Tensor &weight,
     const std::optional<at::Tensor> &bias)
 {
-    check_linear_tensors(input, weight, bias);
+    // Linear gemm layout / autograd expect dense operands. Transpose
+    // views (e.g. weight.t()) densify here; attention QKV views stay
+    // zero-copy until SDPA.
+    const at::Tensor input_c =
+        input.is_contiguous() ? input : input.contiguous();
+    const at::Tensor weight_c =
+        weight.is_contiguous() ? weight : weight.contiguous();
+    check_linear_tensors(input_c, weight_c, bias);
     const PreparedGemmOperands prepared =
-        prepare_linear_operands(input, weight);
-    at::Tensor output = make_linear_output(prepared.out_shape, input);
+        prepare_linear_operands(input_c, weight_c);
+    at::Tensor output = make_linear_output(prepared.out_shape, input_c);
     run_linear(prepared, output, bias);
     return output;
 }
@@ -155,9 +161,13 @@ at::Tensor &linear_out(
     const std::optional<at::Tensor> &bias,
     at::Tensor &out)
 {
-    check_linear_tensors(input, weight, bias, out);
+    const at::Tensor input_c =
+        input.is_contiguous() ? input : input.contiguous();
+    const at::Tensor weight_c =
+        weight.is_contiguous() ? weight : weight.contiguous();
+    check_linear_tensors(input_c, weight_c, bias, out);
     const PreparedGemmOperands prepared =
-        prepare_linear_operands(input, weight);
+        prepare_linear_operands(input_c, weight_c);
     TORCH_CHECK(
         out.sizes().vec() == prepared.out_shape,
         "nntile linear.out: output shape mismatch");
@@ -186,10 +196,18 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             weight.scalar_type() == at::ScalarType::Float,
         "nntile linear_backward supports float32 only");
 
+    const at::Tensor grad_out =
+        grad_output.is_contiguous() ? grad_output
+                                    : grad_output.contiguous();
+    const at::Tensor input_c =
+        input.is_contiguous() ? input : input.contiguous();
+    const at::Tensor weight_c =
+        weight.is_contiguous() ? weight : weight.contiguous();
+
     const PreparedGemmOperands forward =
-        prepare_linear_operands(input, weight);
+        prepare_linear_operands(input_c, weight_c);
     const GemmMatrixLayout weight_layout =
-        analyze_matrix_layout_for_nntile(weight);
+        analyze_matrix_layout_for_nntile(weight_c);
 
     at::Tensor grad_input;
     at::Tensor grad_weight;
@@ -200,7 +218,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             infer_linear_backward_grad_input_params(forward.params);
 
         const GemmMatrixLayout grad_out_layout =
-            linear_operand_layout(grad_output);
+            linear_operand_layout(grad_out);
         TORCH_CHECK(
             !grad_out_layout.needs_copy,
             "nntile linear_backward: grad_output must be contiguous or "
@@ -209,10 +227,10 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             !weight_layout.needs_copy,
             "nntile linear_backward: weight must be contiguous or "
             "row/column-contiguous");
-        const at::Tensor &grad_out_prepared = grad_output;
+        const at::Tensor &grad_out_prepared = grad_out;
         const at::Tensor &weight_prepared = forward.b;
 
-        grad_input = at::empty_like(input);
+        grad_input = at::empty_like(input_c);
         tensor_gemm_fp32(
             grad_input_params,
             grad_out_prepared,
@@ -236,7 +254,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
     if (output_mask[1])
     {
         const GemmMatrixLayout grad_out_layout =
-            linear_operand_layout(grad_output);
+            linear_operand_layout(grad_out);
         TORCH_CHECK(
             !grad_out_layout.needs_copy,
             "nntile linear_backward: grad_output must be contiguous or "
@@ -244,10 +262,10 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         TORCH_CHECK(
             forward.a.is_contiguous(),
             "nntile linear_backward: input must be contiguous");
-        const at::Tensor &grad_out_prepared = grad_output;
+        const at::Tensor &grad_out_prepared = grad_out;
         const at::Tensor &input_prepared = forward.a;
 
-        grad_weight = at::empty_like(weight);
+        grad_weight = at::empty_like(weight_c);
         if (weight_layout.trans)
         {
             GemmParams grad_weight_params =
@@ -287,13 +305,13 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
     if (output_mask[2])
     {
         TORCH_CHECK(
-            grad_output.dim() >= 1,
+            grad_out.dim() >= 1,
             "nntile linear_backward: grad_output must be at least 1D");
         grad_bias = at::empty(
-            {weight.size(0)},
-            grad_output.options().memory_format(
+            {weight_c.size(0)},
+            grad_out.options().memory_format(
                 at::MemoryFormat::Contiguous));
-        tensor_linear_grad_bias_fp32(grad_output, grad_bias);
+        tensor_linear_grad_bias_fp32(grad_out, grad_bias);
         nntile::TensorGraph::TensorNode *grad_bias_node = lookup_data_node(
             grad_bias,
             pytorch_shape_to_graph(grad_bias.sizes()));
@@ -314,9 +332,9 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
 
 } // namespace torch_nntile
 
-TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
-{
-    m.impl("linear", TORCH_FN(torch_nntile::linear));
-    m.impl("linear.out", TORCH_FN(torch_nntile::linear_out));
-    m.impl("linear_backward", TORCH_FN(torch_nntile::linear_backward));
-}
+// Match device=cuda: do NOT register PrivateUse1 ``linear``. CUDA uses
+// CompositeImplicitAutograd ``linear`` → ``addmm``; Autograd differentiates
+// the decomposed graph (AddmmBackward). Our PrivateUse1 ``addmm`` /
+// ``mm`` supply the device kernels. Keep the helpers above for direct
+// TensorGraph / StarPU use.
+

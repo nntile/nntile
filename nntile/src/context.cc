@@ -31,7 +31,15 @@
 // Other NNTile headers
 #include "nntile/logger.hh"
 #include "nntile/starpu/handle.hh"
-#include "nntile/starpu.hh"
+#ifdef NNTILE_TORCH_NATIVE_OPS
+#   include "nntile/starpu/clear.hh"
+#   include "nntile/starpu/copy.hh"
+#   include "nntile/starpu/fill.hh"
+#   include "nntile/starpu/subcopy.hh"
+#   include "nntile/starpu/torch_dispatch.hh"
+#else
+#   include "nntile/starpu.hh"
+#endif
 
 namespace nntile
 {
@@ -311,6 +319,23 @@ void Context::shutdown()
 void Context::restrict_cpu()
 {
     using namespace nntile::starpu;
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    clear.codelet.restrict_where(STARPU_CPU);
+    copy.codelet.restrict_where(STARPU_CPU);
+    fill.restrict_where(STARPU_CPU);
+    subcopy.restrict_where(STARPU_CPU);
+    torch_unary.restrict_where(STARPU_CPU);
+    torch_binary.restrict_where(STARPU_CPU);
+    torch_ternary.restrict_where(STARPU_CPU);
+    torch_embedding.codelet.restrict_where(STARPU_CPU);
+    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CPU);
+    torch_layer_norm.codelet.restrict_where(STARPU_CPU);
+    torch_layer_norm_backward.codelet.restrict_where(STARPU_CPU);
+    torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
+    torch_nll_loss_forward.codelet.restrict_where(STARPU_CPU);
+    torch_nll_loss_backward.codelet.restrict_where(STARPU_CPU);
+    torch_cat.codelet.restrict_where(STARPU_CPU);
+#else
     accumulate.restrict_where(STARPU_CPU);
     accumulate_hypot.restrict_where(STARPU_CPU);
     accumulate_maxsumexp.restrict_where(STARPU_CPU);
@@ -374,12 +399,30 @@ void Context::restrict_cpu()
     total_sum_accum.restrict_where(STARPU_CPU);
     transpose.restrict_where(STARPU_CPU);
     isfinite.restrict_where(STARPU_CPU);
+#endif
 }
 
 //! Restrict computation to CUDA
 void Context::restrict_cuda()
 {
     using namespace nntile::starpu;
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    clear.codelet.restrict_where(STARPU_CUDA);
+    copy.codelet.restrict_where(STARPU_CUDA);
+    fill.restrict_where(STARPU_CUDA);
+    subcopy.restrict_where(STARPU_CUDA);
+    torch_unary.restrict_where(STARPU_CUDA);
+    torch_binary.restrict_where(STARPU_CUDA);
+    torch_ternary.restrict_where(STARPU_CUDA);
+    torch_embedding.codelet.restrict_where(STARPU_CUDA);
+    torch_embedding_dense_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_layer_norm.codelet.restrict_where(STARPU_CUDA);
+    torch_layer_norm_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_sdpa_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_nll_loss_forward.codelet.restrict_where(STARPU_CUDA);
+    torch_nll_loss_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_cat.codelet.restrict_where(STARPU_CUDA);
+#else
     accumulate.restrict_where(STARPU_CUDA);
     accumulate_hypot.restrict_where(STARPU_CUDA);
     accumulate_maxsumexp.restrict_where(STARPU_CUDA);
@@ -443,12 +486,30 @@ void Context::restrict_cuda()
     total_sum_accum.restrict_where(STARPU_CUDA);
     transpose.restrict_where(STARPU_CUDA);
     isfinite.restrict_where(STARPU_CUDA);
+#endif
 }
 
 //! Restore computation to all devices
 void Context::restore_where()
 {
     using namespace nntile::starpu;
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    clear.codelet.restore_where();
+    copy.codelet.restore_where();
+    fill.restore_where();
+    subcopy.restore_where();
+    torch_unary.restore_where();
+    torch_binary.restore_where();
+    torch_ternary.restore_where();
+    torch_embedding.codelet.restore_where();
+    torch_embedding_dense_backward.codelet.restore_where();
+    torch_layer_norm.codelet.restore_where();
+    torch_layer_norm_backward.codelet.restore_where();
+    torch_sdpa_backward.codelet.restore_where();
+    torch_nll_loss_forward.codelet.restore_where();
+    torch_nll_loss_backward.codelet.restore_where();
+    torch_cat.codelet.restore_where();
+#else
     accumulate.restore_where();
     accumulate_hypot.restore_where();
     accumulate_maxsumexp.restore_where();
@@ -512,6 +573,7 @@ void Context::restore_where()
     total_sum_accum.restore_where();
     transpose.restore_where();
     isfinite.restore_where();
+#endif
 }
 
 } // namespace nntile

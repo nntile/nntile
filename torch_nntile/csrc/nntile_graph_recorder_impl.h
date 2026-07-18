@@ -31,6 +31,12 @@ void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst);
 
+//! See ``overwrite_bound_nntile_logical_from_cpu`` in
+//! ``nntile_graph_recorder.h``.
+void overwrite_bound_nntile_logical_from_cpu(
+    const at::Tensor &cpu_src,
+    const at::Tensor &nntile_bound);
+
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
     const at::Tensor &tensor,
     const std::vector<nntile::Index> &shape,
@@ -63,5 +69,7 @@ void note_record_linear_bwd(double seconds);
 void note_record_ce_bwd(double seconds);
 void note_record_relu_bwd(double seconds);
 void note_record_gemm(double seconds);
+void note_record_narrow_copy(std::uint64_t nelems);
+void note_record_transpose_copy(std::uint64_t nelems);
 
 } // namespace torch_nntile

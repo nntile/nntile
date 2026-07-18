@@ -97,13 +97,14 @@ at::Tensor sum_dimlist(
     bool keepdim,
     std::optional<at::ScalarType> /*dtype*/)
 {
-    check_sum_input(self);
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_sum_input(inp);
     const std::vector<int64_t> out_sizes =
-        infer_sum_output_sizes(self.sizes(), dim, keepdim);
+        infer_sum_output_sizes(inp.sizes(), dim, keepdim);
     at::Tensor out = at::empty(
         out_sizes,
-        self.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_sum_dimlist_fp32(self, out, dim, keepdim);
+        inp.options().memory_format(at::MemoryFormat::Contiguous));
+    tensor_sum_dimlist_fp32(inp, out, dim, keepdim);
     return out;
 }
 
@@ -114,17 +115,18 @@ at::Tensor &sum_dimlist_out(
     std::optional<at::ScalarType> dtype,
     at::Tensor &out)
 {
-    check_sum_input(self);
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_sum_input(inp);
     TORCH_CHECK(
         is_nntile_device(out.device()),
         "nntile sum.out expects output on device nntile");
     const std::vector<int64_t> out_sizes =
-        infer_sum_output_sizes(self.sizes(), dim, keepdim);
+        infer_sum_output_sizes(inp.sizes(), dim, keepdim);
     TORCH_CHECK(
         out.sizes().vec() == out_sizes,
         "nntile sum.out: output shape mismatch");
     TORCH_CHECK(out.is_contiguous(), "nntile sum.out requires contiguous out");
-    tensor_sum_dimlist_fp32(self, out, dim, keepdim);
+    tensor_sum_dimlist_fp32(inp, out, dim, keepdim);
     return out;
 }
 

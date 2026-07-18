@@ -21,7 +21,8 @@ at::Tensor sdpa_forward(
     const at::Tensor &k,
     const at::Tensor &v,
     const std::optional<at::Tensor> &mask,
-    int64_t batch_ndim);
+    int64_t batch_ndim,
+    bool is_causal = false);
 
 std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     const at::Tensor &q,
@@ -29,7 +30,8 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     const at::Tensor &v,
     const at::Tensor &grad_out,
     const std::optional<at::Tensor> &mask,
-    int64_t batch_ndim);
+    int64_t batch_ndim,
+    bool is_causal = false);
 
 namespace detail
 {

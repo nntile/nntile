@@ -71,16 +71,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 
 import torch
 from transformers import GPT2Config, GPT2LMHeadModel
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
 
 
 def _default_config_path() -> Path:
@@ -96,6 +91,11 @@ def _attn_implementation_for_device(device: str) -> str:
     * ``nntile``: ``sdpa`` - routes through ``F.scaled_dot_product_attention``,
       which torch_nntile overrides with its SDPA kernel. Eager HF attention
       uses ops that are not fully supported on ``device=nntile``.
+
+    Remaining wall-time gap vs CUDA should shrink once HF layout transforms
+    (``split``/``narrow``/``transpose``) are zero-copy views with packed
+    sizes/strides/offset. ``--verbose`` + ``print_info()`` layout-copy
+    counters should stay near zero for those paths.
     """
     if device == "nntile":
         return "sdpa"
@@ -529,11 +529,13 @@ def causal_lm_loss_nntile(
     input_ids: torch.Tensor,
     labels: torch.Tensor,
 ):
-    """Next-token CE on nntile via ``torch_nntile.training.cross_entropy``."""
-    from torch_nntile.training import cross_entropy
-
+    """Next-token CE on nntile via stock ``F.cross_entropy`` (aten path)."""
     logits = model(input_ids=input_ids).logits
-    return cross_entropy(logits, labels, reduction="mean")
+    vocab = logits.shape[-1]
+    return torch.nn.functional.cross_entropy(
+        logits.reshape(-1, vocab),
+        labels.reshape(-1),
+    )
 
 
 def _nntile_only_args_set(args: argparse.Namespace) -> list[str]:
@@ -676,11 +678,7 @@ def train_torch(args: argparse.Namespace) -> int:
 
 def train_nntile(args: argparse.Namespace) -> int:
     # Import only on the nntile path so CUDA/CPU training stays unaffected.
-    root = _repo_root() / "torch_nntile"
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
     import torch_nntile
-    from torch_nntile.training import SGD, clone_model_weights
 
     if args.restrict_cuda and args.restrict_cpu:
         raise SystemExit("Pass only one of --restrict-cuda / --restrict-cpu")
@@ -744,17 +742,23 @@ def train_nntile(args: argparse.Namespace) -> int:
         for param in model.parameters():
             param.requires_grad_(True)
 
-        optimizer = SGD(
+        # Stock SGD records aten add_/mul_ into TensorGraph (torch-native).
+        optimizer = torch.optim.SGD(
             [p for p in model.parameters() if p.requires_grad],
             lr=args.lr,
             momentum=args.momentum,
             weight_decay=args.weight_decay,
         )
         if ckpt is not None and ckpt.get("optimizer_state_dict") is not None:
-            print(
-                "Note: nntile SGD velocity is not restored from checkpoint; "
-                "weights were loaded."
-            )
+            opt_state = ckpt.get("optimizer_state_dict")
+            if opt_state is not None:
+                try:
+                    optimizer.load_state_dict(opt_state)
+                except (ValueError, RuntimeError) as exc:
+                    print(
+                        "Note: could not restore optimizer state "
+                        f"({exc}); weights were loaded."
+                    )
 
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -829,7 +833,11 @@ def train_nntile(args: argparse.Namespace) -> int:
             f"{train_wall_s:.3f}s ({args.epochs} epochs)"
         )
 
-        weights = clone_model_weights(model)
+        with torch.no_grad():
+            weights = {
+                name: tensor.detach().cpu().clone()
+                for name, tensor in model.state_dict().items()
+            }
         path = ckpt_path
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {

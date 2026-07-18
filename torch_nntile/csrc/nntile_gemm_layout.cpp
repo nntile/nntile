@@ -182,14 +182,18 @@ std::vector<int64_t> gemm_output_shape_pytorch(
 
 PreparedGemmOperands prepare_mm_operands(const at::Tensor &a, const at::Tensor &b)
 {
-    GemmMatrixLayout a_layout = analyze_matrix_layout_for_nntile(a);
-    GemmMatrixLayout b_layout = analyze_matrix_layout_for_nntile(b);
+    at::Tensor a_use = a.is_contiguous() ? a : a.contiguous();
+    at::Tensor b_use = b.is_contiguous() ? b : b.contiguous();
+    // Re-analyze after densify: contiguous matrices may still be
+    // row/column-contiguous views with an inferred transpose.
+    GemmMatrixLayout a_layout = analyze_matrix_layout_for_nntile(a_use);
+    GemmMatrixLayout b_layout = analyze_matrix_layout_for_nntile(b_use);
 
     PreparedGemmOperands prepared;
-    require_gemm_layout(a, a_layout, "operand a");
-    require_gemm_layout(b, b_layout, "operand b");
-    prepared.a = a;
-    prepared.b = b;
+    require_gemm_layout(a_use, a_layout, "operand a");
+    require_gemm_layout(b_use, b_layout, "operand b");
+    prepared.a = a_use;
+    prepared.b = b_use;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;
@@ -206,14 +210,16 @@ PreparedGemmOperands prepare_mm_operands(const at::Tensor &a, const at::Tensor &
 
 PreparedGemmOperands prepare_bmm_operands(const at::Tensor &a, const at::Tensor &b)
 {
-    GemmMatrixLayout a_layout = analyze_batched_gemm_operand_layout(a);
-    GemmMatrixLayout b_layout = analyze_batched_gemm_operand_layout(b);
+    at::Tensor a_use = a.is_contiguous() ? a : a.contiguous();
+    at::Tensor b_use = b.is_contiguous() ? b : b.contiguous();
+    GemmMatrixLayout a_layout = analyze_batched_gemm_operand_layout(a_use);
+    GemmMatrixLayout b_layout = analyze_batched_gemm_operand_layout(b_use);
 
     PreparedGemmOperands prepared;
-    require_gemm_layout(a, a_layout, "operand a");
-    require_gemm_layout(b, b_layout, "operand b");
-    prepared.a = a;
-    prepared.b = b;
+    require_gemm_layout(a_use, a_layout, "operand a");
+    require_gemm_layout(b_use, b_layout, "operand b");
+    prepared.a = a_use;
+    prepared.b = b_use;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;
@@ -234,6 +240,28 @@ std::pair<int64_t, int64_t> infer_gemm_params(
 {
     const int64_t a_rank = static_cast<int64_t>(a_shape.size());
     const int64_t b_rank = static_cast<int64_t>(b_shape.size());
+
+    // Prefer torch.matmul semantics: (...batch, M, K) @ (...batch, K, N)
+    // with a single contracted K (ndim=1). The greedy scan below can
+    // over-contract when M==N (e.g. attention [B,H,S,D]@[B,H,D,S]).
+    if (a_rank >= 2 && b_rank >= 2 && a_rank == b_rank)
+    {
+        const int64_t batch_ndim = a_rank - 2;
+        bool prefix_ok = true;
+        for (int64_t b = 0; b < batch_ndim; ++b)
+        {
+            if (a_shape[b] != b_shape[b])
+            {
+                prefix_ok = false;
+                break;
+            }
+        }
+        if (prefix_ok && a_shape[a_rank - 1] == b_shape[b_rank - 2])
+        {
+            return {1, batch_ndim};
+        }
+    }
+
     const int64_t max_batch = std::min(a_rank, b_rank);
 
     for (int64_t batch_ndim = 0; batch_ndim <= max_batch; ++batch_ndim)
@@ -252,13 +280,25 @@ std::pair<int64_t, int64_t> infer_gemm_params(
             continue;
         }
 
+        // Only contract one trailing K for matmul-like shapes once a
+        // batch prefix matches (avoid M==N over-contraction).
+        if (a_rank >= batch_ndim + 2 && b_rank >= batch_ndim + 2 &&
+            a_shape[a_rank - 1] == b_shape[batch_ndim])
+        {
+            // b layout (...batch, K, N): K at batch_ndim when N follows.
+            if (b_rank == batch_ndim + 2)
+            {
+                return {1, batch_ndim};
+            }
+        }
+
         int64_t ndim = 0;
         while (ndim < a_rank - batch_ndim && batch_ndim + ndim < b_rank &&
                a_shape[a_rank - 1 - ndim] == b_shape[batch_ndim + ndim])
         {
             ++ndim;
         }
-        if (ndim > 0)
+        if (ndim == 1)
         {
             return {ndim, batch_ndim};
         }
@@ -277,14 +317,16 @@ PreparedGemmOperands prepare_gemm_operands(
     bool trans_a,
     bool trans_b)
 {
-    GemmMatrixLayout a_layout = layout_from_nd_contiguous(a);
-    GemmMatrixLayout b_layout = layout_from_nd_contiguous(b);
+    at::Tensor a_use = a.is_contiguous() ? a : a.contiguous();
+    at::Tensor b_use = b.is_contiguous() ? b : b.contiguous();
+    GemmMatrixLayout a_layout = layout_from_nd_contiguous(a_use);
+    GemmMatrixLayout b_layout = layout_from_nd_contiguous(b_use);
 
     PreparedGemmOperands prepared;
-    require_gemm_layout(a, a_layout, "operand a");
-    require_gemm_layout(b, b_layout, "operand b");
-    prepared.a = a;
-    prepared.b = b;
+    require_gemm_layout(a_use, a_layout, "operand a");
+    require_gemm_layout(b_use, b_layout, "operand b");
+    prepared.a = a_use;
+    prepared.b = b_use;
 
     prepared.a_gemm_shape = a_layout.gemm_shape;
     prepared.b_gemm_shape = b_layout.gemm_shape;

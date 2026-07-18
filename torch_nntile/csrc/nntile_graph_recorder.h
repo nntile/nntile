@@ -64,4 +64,19 @@ void print_info();
 
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 
+//! Gather a (possibly strided / offset) nntile view to a contiguous CPU
+//! tensor of the view's logical shape. Handles partial covers of a larger
+//! TensorNode (select / narrow / chunk views).
+at::Tensor gather_nntile_view_to_cpu(const at::Tensor &src);
+
+//! Gather the full ``TensorNode`` backing ``src`` (any view) to a
+//! contiguous CPU tensor whose shape matches the logical storage.
+at::Tensor gather_full_logical_to_cpu(const at::Tensor &src);
+
+//! Overwrite an already-bound nntile logical with a contiguous CPU buffer
+//! matching the logical shape / numel. Used for copy-into-view RMW.
+void overwrite_bound_nntile_logical_from_cpu(
+    const at::Tensor &cpu_src,
+    const at::Tensor &nntile_bound);
+
 } // namespace torch_nntile

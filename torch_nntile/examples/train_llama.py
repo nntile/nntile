@@ -7,111 +7,59 @@
 
 """Short LlamaCausal training smoke: synthetic tokens, few steps, print loss.
 
-Example::
+Uses JSON config / checkpoint like ``train_gpt2_hf.py``::
 
-    python torch_nntile/examples/train_llama.py --steps 2 --seed 0 --ncpu 1
+    python torch_nntile/examples/train_llama.py train \\
+        --seed 0 --config llama_tiny_config.json \\
+        --output-dir /tmp/llama --steps 2
 """
 
 from __future__ import annotations
 
-import argparse
-import sys
 from pathlib import Path
 
 import torch
+from torch_nntile.models.llama import LlamaCausal, LlamaConfig
+from torch_nntile.training import cross_entropy
 
-_REPO = Path(__file__).resolve().parents[2]
-if str(_REPO / "torch_nntile") not in sys.path:
-    sys.path.insert(0, str(_REPO / "torch_nntile"))
-
-import torch_nntile  # noqa: E402
-from torch_nntile.models.llama import LlamaCausal, LlamaConfig  # noqa: E402
-from torch_nntile.training import AdamW, cross_entropy  # noqa: E402
+from nntile_tiny_train_common import run_tiny_nntile_main
 
 
-def tiny_config() -> LlamaConfig:
-    return LlamaConfig(
-        vocab_size=128,
-        hidden_size=64,
-        intermediate_size=128,
-        num_hidden_layers=1,
-        num_attention_heads=4,
-        num_key_value_heads=4,
-        max_position_embeddings=32,
-        tie_word_embeddings=False,
-    )
-
-
-def make_batch(
-    vocab_size: int,
-    *,
-    batch_size: int,
-    seq_len: int,
-    seed: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    g = torch.Generator().manual_seed(seed)
-    packed = torch.randint(
-        0, vocab_size, (batch_size, seq_len + 1), dtype=torch.long, generator=g
-    )
-    return packed[:, :-1].clone(), packed[:, 1:].clone()
-
-
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--steps", type=int, default=2)
-    p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--ncpu", type=int, default=1)
-    p.add_argument("--batch-size", type=int, default=2)
-    p.add_argument("--seq-len", type=int, default=8)
-    p.add_argument("--lr", type=float, default=1e-3)
-    return p.parse_args(argv)
+def _default_config() -> Path:
+    return Path(__file__).resolve().parent / "llama_tiny_config.json"
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
-    torch.manual_seed(args.seed)
-    cfg = tiny_config()
-    inputs_cpu, labels_cpu = make_batch(
-        cfg.vocab_size,
-        batch_size=args.batch_size,
-        seq_len=args.seq_len,
-        seed=args.seed,
-    )
-    model_cpu = LlamaCausal(cfg).float().train()
-
-    torch_nntile.init_context(
-        ncpu=args.ncpu, ncuda=0, cpu_fallback=False
-    )
-    try:
-        with torch.no_grad():
-            inputs = inputs_cpu.to("nntile")
-            labels = labels_cpu.to("nntile")
-            model = model_cpu.to("nntile")
-        del model_cpu, inputs_cpu, labels_cpu
-        for p in model.parameters():
-            p.requires_grad_(True)
-        opt = AdamW(
-            [p for p in model.parameters() if p.requires_grad],
-            lr=args.lr,
+    def build_batch(cfg, args):
+        g = torch.Generator().manual_seed(args.seed)
+        packed = torch.randint(
+            0,
+            cfg.vocab_size,
+            (args.batch_size, args.seq_len + 1),
+            dtype=torch.long,
+            generator=g,
         )
-        opt.zero_grad(set_to_none=True)
-        for step in range(args.steps):
-            logits = model(inputs)
-            loss = cross_entropy(logits, labels, reduction="mean")
-            loss.backward()
-            opt.step()
-            step_loss = loss.detach()
-            del loss, logits
-            opt.zero_grad(set_to_none=True)
-            torch_nntile.compile_graph()
-            torch_nntile.run()
-            torch_nntile.wait()
-            value = float(step_loss.to("cpu").item())
-            del step_loss
-            print(f"[llama] step {step + 1}/{args.steps}  loss={value:.6f}")
-    finally:
-        torch_nntile.shutdown_context()
-    return 0
+        return {
+            "input_ids": packed[:, :-1].clone(),
+            "labels": packed[:, 1:].clone(),
+        }
+
+    def loss_fn(model, batch):
+        logits = model(batch["input_ids"])
+        return cross_entropy(
+            logits, batch["labels"], reduction="mean"
+        )
+
+    return run_tiny_nntile_main(
+        name="llama",
+        argv=argv,
+        default_config=_default_config(),
+        config_cls=LlamaConfig,
+        model_cls=LlamaCausal,
+        build_batch=build_batch,
+        loss_fn=loss_fn,
+        description=__doc__,
+    )
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 
 ## Prebuilt wheels
 
-CI builds `torch_nntile` 0.0.5 wheels via the **`torch_nntile wheels`** workflow
+CI builds `torch_nntile` 0.0.6 wheels via the **`torch_nntile wheels`** workflow
 (`.github/workflows/torch-nntile-wheels.yml`).
 
 | Trigger | When wheels build |
@@ -115,6 +115,12 @@ and the package README
 Tiling in NNTile is defined on **shared axis groups** (`AxisDescriptor` in C++),
 not on individual `torch.Tensor` storage. The workflow mirrors GPT-2 graph
 training (`name_gpt2_training_axis_groups` + `apply_flat_tiling_spec`):
+
+> **Temporary:** axis-group tiling for PrivateUse1 aten ops is disabled while
+> torch-native StarPU codelets are introduced. `set_axis_group_tiling` raises;
+> use untiled tensors only. See
+> [dev/torch_nntile_aten_ops.md](dev/torch_nntile_aten_ops.md) and
+> [dev/torch_starpu_kernels.md](dev/torch_starpu_kernels.md).
 
 1. **Name** selected dimensions of a tensor (partial naming is OK).
 2. Record forward/backward into the pending graph (ops merge related axes).

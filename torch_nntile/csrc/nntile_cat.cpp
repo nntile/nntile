@@ -18,6 +18,14 @@
 namespace torch_nntile
 {
 
+// densify_cat_inputs must call this C++ kernel — not Tensor::contiguous().
+// The Tensor method returns *this when is_contiguous() without dispatching
+// to PrivateUse1, so same-numel reshape views (View Backward) stay aliased
+// to the parent TensorNode and SplitBackward cat packs wrong tile shapes.
+at::Tensor contiguous(
+    const at::Tensor &self,
+    at::MemoryFormat memory_format);
+
 namespace
 {
 
@@ -49,9 +57,23 @@ void check_cat_tensor(const at::Tensor &tensor)
     TORCH_CHECK(
         tensor.scalar_type() == at::ScalarType::Float,
         "nntile cat supports float32 only");
-    TORCH_CHECK(
-        tensor.is_contiguous(),
-        "nntile cat requires contiguous tensors");
+}
+
+std::vector<at::Tensor> densify_cat_inputs(
+    const std::vector<at::Tensor> &tensors)
+{
+    std::vector<at::Tensor> out;
+    out.reserve(tensors.size());
+    for (const at::Tensor &tensor : tensors)
+    {
+        check_cat_tensor(tensor);
+        // Always densify via the PrivateUse1 kernel (not Tensor::contiguous):
+        // reshape views can be is_contiguous yet still share a differently
+        // shaped TensorNode (View Backward of attention heads).
+        out.push_back(
+            contiguous(tensor, at::MemoryFormat::Contiguous));
+    }
+    return out;
 }
 
 void check_cat_inputs(
@@ -152,7 +174,8 @@ void run_cat(
 
 at::Tensor cat(const at::ITensorListRef &tensors, int64_t dim)
 {
-    std::vector<at::Tensor> materialized = materialize_cat_inputs(tensors);
+    std::vector<at::Tensor> materialized =
+        densify_cat_inputs(materialize_cat_inputs(tensors));
     if (materialized.size() == 1)
     {
         return materialized[0];
@@ -171,7 +194,8 @@ at::Tensor &cat_out(
     int64_t dim,
     at::Tensor &out)
 {
-    std::vector<at::Tensor> materialized = materialize_cat_inputs(tensors);
+    std::vector<at::Tensor> materialized =
+        densify_cat_inputs(materialize_cat_inputs(tensors));
     if (materialized.size() == 1)
     {
         TORCH_CHECK(

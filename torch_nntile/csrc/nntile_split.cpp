@@ -2,10 +2,11 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_split.cpp
+ * Zero-copy ``aten::split`` / ``chunk`` via narrow views.
  */
 
-#include "nntile_executor.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_tensor_meta.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -31,12 +32,6 @@ void check_split_input(const at::Tensor &self)
     TORCH_CHECK(
         is_nntile_device(self.device()),
         "nntile split expects tensor on device nntile");
-    TORCH_CHECK(
-        self.scalar_type() == at::ScalarType::Float,
-        "nntile split supports float32 only");
-    TORCH_CHECK(
-        self.is_contiguous(),
-        "nntile split requires contiguous tensor");
     TORCH_CHECK(self.dim() > 0, "nntile split: cannot split a 0-dim tensor");
 }
 
@@ -55,7 +50,9 @@ void validate_split_sizes(
     int64_t dim_size,
     const std::vector<int64_t> &split_sizes)
 {
-    TORCH_CHECK(!split_sizes.empty(), "nntile split: split_sizes must be non-empty");
+    TORCH_CHECK(
+        !split_sizes.empty(),
+        "nntile split: split_sizes must be non-empty");
     int64_t total = 0;
     for (const auto i : c10::irange(split_sizes.size()))
     {
@@ -93,35 +90,38 @@ std::vector<int64_t> compute_chunk_sizes(int64_t dim_size, int64_t chunks)
     return compute_equal_split_sizes(dim_size, split_size);
 }
 
-std::vector<at::Tensor> make_split_outputs(
+at::Tensor make_strided_view(
     const at::Tensor &self,
-    int64_t dim,
-    const std::vector<int64_t> &split_sizes)
+    at::IntArrayRef size,
+    at::IntArrayRef stride,
+    int64_t storage_offset)
 {
-    std::vector<at::Tensor> outputs;
-    outputs.reserve(split_sizes.size());
-    for (const int64_t size : split_sizes)
-    {
-        std::vector<int64_t> out_shape = self.sizes().vec();
-        out_shape[static_cast<std::size_t>(dim)] = size;
-        outputs.push_back(at::empty(
-            out_shape,
-            self.options().memory_format(at::MemoryFormat::Contiguous)));
-    }
-    return outputs;
+    at::Tensor result = at::detail::make_tensor<at::TensorImpl>(
+        c10::Storage(self.storage()),
+        self.key_set(),
+        self.dtype());
+    auto *result_impl = result.unsafeGetTensorImpl();
+    result_impl->set_storage_offset(storage_offset);
+    result_impl->set_sizes_and_strides(size, stride);
+    record_view_alias(self, result);
+    return result;
 }
 
-void run_split_with_sizes(
+at::Tensor narrow_view(
     const at::Tensor &self,
     int64_t dim,
-    const std::vector<int64_t> &split_sizes,
-    std::vector<at::Tensor> &outputs)
+    int64_t start,
+    int64_t length)
 {
-    for (at::Tensor &out : outputs)
-    {
-    }
-
-    tensor_split_with_sizes_fp32(self, dim, split_sizes, outputs);
+    auto sizes = self.sizes().vec();
+    sizes[static_cast<std::size_t>(dim)] = length;
+    const int64_t offset =
+        self.storage_offset() + start * self.stride(dim);
+    return make_strided_view(
+        self,
+        sizes,
+        self.strides(),
+        offset);
 }
 
 std::vector<at::Tensor> split_with_sizes_impl(
@@ -133,9 +133,15 @@ std::vector<at::Tensor> split_with_sizes_impl(
     const int64_t wrapped_dim = at::maybe_wrap_dim(dim, self.dim());
     validate_split_sizes(self.size(wrapped_dim), split_sizes);
 
-    std::vector<at::Tensor> outputs =
-        make_split_outputs(self, wrapped_dim, split_sizes);
-    run_split_with_sizes(self, wrapped_dim, split_sizes, outputs);
+    std::vector<at::Tensor> outputs;
+    outputs.reserve(split_sizes.size());
+    int64_t start = 0;
+    for (const int64_t length : split_sizes)
+    {
+        outputs.push_back(
+            narrow_view(self, wrapped_dim, start, length));
+        start += length;
+    }
     return outputs;
 }
 
@@ -187,11 +193,3 @@ std::vector<at::Tensor> chunk(
 }
 
 } // namespace torch_nntile
-
-TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
-{
-    m.impl("split_with_sizes", TORCH_FN(torch_nntile::split_with_sizes));
-    m.impl("split", TORCH_FN(torch_nntile::split_sizes_array));
-    m.impl("split.Tensor", TORCH_FN(torch_nntile::split_tensor));
-    m.impl("chunk", TORCH_FN(torch_nntile::chunk));
-}

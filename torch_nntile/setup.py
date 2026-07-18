@@ -29,8 +29,23 @@ from torch.utils.cpp_extension import BuildExtension, CppExtension
 ROOT = Path(__file__).resolve().parent
 REPO_ROOT = ROOT.parent
 
-# Bridge / models live in shared libtorch_nntile; _C is pybind only.
-EXT_SOURCES = ["csrc/nntile_module.cpp"]
+
+def _nntile_torch_native_ops(nntile_inc: Path) -> bool:
+    """Match linked libnntile NNTILE_TORCH_NATIVE_OPS (defs.h)."""
+    defs = nntile_inc / "nntile" / "defs.h"
+    if defs.is_file():
+        for line in defs.read_text(encoding="utf-8").splitlines():
+            if line.strip().startswith("#define NNTILE_TORCH_NATIVE_OPS"):
+                return True
+        return False
+    return os.environ.get("NNTILE_TORCH_NATIVE_OPS") == "1"
+
+
+def _extension_sources(nntile_inc: Path) -> list[str]:
+    # Bridge / models live in shared libtorch_nntile; _C is pybind only.
+    if _nntile_torch_native_ops(nntile_inc):
+        return ["csrc/nntile_module_torch_native.cpp"]
+    return ["csrc/nntile_module.cpp"]
 
 
 def _pkg_config(package: str, flag: str) -> list[str]:
@@ -147,7 +162,10 @@ def _nntile_built_with_cuda(nntile_inc: Path) -> bool:
     return os.environ.get("TORCH_NNTILE_USE_CUDA") == "1"
 
 
-def _write_build_info(built_with_cuda: bool) -> None:
+def _write_build_info(
+    built_with_cuda: bool,
+    torch_native_ops: bool,
+) -> None:
     path = ROOT / "torch_nntile" / "_build_info.py"
     path.write_text(
         "# @copyright (c) 2026-present Skolkovo Institute of Science and "
@@ -162,7 +180,8 @@ def _write_build_info(built_with_cuda: bool) -> None:
         "\n"
         "from __future__ import annotations\n"
         "\n"
-        f"BUILT_WITH_CUDA = {built_with_cuda!s}\n",
+        f"BUILT_WITH_CUDA = {built_with_cuda!s}\n"
+        f"TORCH_NATIVE_OPS = {torch_native_ops!s}\n",
         encoding="utf-8",
     )
 
@@ -259,12 +278,15 @@ def _nntile_extension_kwargs() -> dict:
         _resolve_lib_layout()
     )
     built_with_cuda = _nntile_built_with_cuda(nntile_inc)
-    _write_build_info(built_with_cuda)
+    torch_native_ops = _nntile_torch_native_ops(nntile_inc)
+    _write_build_info(built_with_cuda, torch_native_ops)
     if built_with_cuda:
         os.environ.setdefault("TORCH_NNTILE_USE_CUDA", "1")
         print("libnntile CUDA: ON (BUILT_WITH_CUDA=True)")
     else:
         print("libnntile CUDA: OFF (BUILT_WITH_CUDA=False)")
+    if torch_native_ops:
+        print("libnntile torch-native ops: ON (slim _C module)")
 
     cxx_standard = os.environ.get("TORCH_NNTILE_CXX_STANDARD", "c++17")
     extra_compile_args = [f"-std={cxx_standard}"]
@@ -310,13 +332,16 @@ def _nntile_extension_kwargs() -> dict:
         "extra_compile_args": extra_compile_args,
         "extra_link_args": extra_link_args,
         "_built_with_cuda": built_with_cuda,
+        "_nntile_inc": nntile_inc,
     }
 
 
 ext_kwargs = _nntile_extension_kwargs()
 _built_with_cuda = bool(ext_kwargs.pop("_built_with_cuda", False))
+_nntile_inc = Path(ext_kwargs.pop("_nntile_inc"))
+EXT_SOURCES = _extension_sources(_nntile_inc)
 
-_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.5")
+_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.6")
 _torch_requires = "torch==2.9.1"
 _torchvision_requires = "torchvision==0.24.1"
 _linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'

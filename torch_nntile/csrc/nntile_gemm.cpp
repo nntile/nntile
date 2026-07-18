@@ -12,7 +12,6 @@
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
-#include <torch/library.h>
 
 namespace torch_nntile
 {
@@ -202,9 +201,46 @@ at::Tensor matmul_nd(const at::Tensor &a, const at::Tensor &b)
     return out;
 }
 
+std::tuple<at::Tensor, at::Tensor> matmul_backward(
+    const at::Tensor &grad,
+    const at::Tensor &self,
+    const at::Tensor &other,
+    std::array<bool, 2> mask)
+{
+    check_gemm_tensors(self, other);
+    TORCH_CHECK(
+        is_nntile_device(grad.device()),
+        "nntile matmul_backward expects nntile grad");
+    PreparedGemmOperands prepared;
+    if (self.dim() == 2 && other.dim() == 2)
+    {
+        prepared = prepare_mm_operands(self, other);
+    }
+    else if (
+        self.dim() == 3 && other.dim() == 3 &&
+        self.size(0) == other.size(0))
+    {
+        prepared = prepare_bmm_operands(self, other);
+    }
+    else
+    {
+        prepared = prepare_gemm_operands_inferred(self, other);
+    }
+    return gemm_backward(
+        prepared.a,
+        prepared.b,
+        grad.is_contiguous() ? grad : grad.contiguous(),
+        prepared.params.ndim,
+        prepared.params.batch_ndim,
+        mask,
+        prepared.params.trans_a,
+        prepared.params.trans_b);
+}
+
 } // namespace torch_nntile
 
-TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
-{
-    m.impl("matmul", TORCH_FN(torch_nntile::matmul_nd));
-}
+// Match device=cuda: do NOT register PrivateUse1 ``matmul``. CUDA uses
+// CompositeImplicitAutograd ``matmul`` → ``mm`` / ``bmm`` / …; Autograd
+// differentiates the decomposed graph. Our PrivateUse1 ``mm`` / ``bmm``
+// supply the device kernels.
+

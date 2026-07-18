@@ -12,9 +12,12 @@ Start with the product docs if you are new:
 | Doc | Topic |
 |-----|-------|
 | [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md) | `TensorRef` / logical tiles, I/O, INVALIDATE, session debt |
+| [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md) | PrivateUse1 aten op list; CUDA registration policy; untiled-only |
+| [torch_starpu_kernels.md](torch_starpu_kernels.md) | Untiled torch kernels as StarPU codelets; match-CUDA dispatch guide |
 | [graph_compiler_on_design.md](graph_compiler_on_design.md) | O(N) incremental TensorGraph → TileGraph → Runtime |
 | [execution_json_schema.md](execution_json_schema.md) | Optional static `execution.json` schedule |
 | [graph_compile_perf_mnist.md](graph_compile_perf_mnist.md) | Compile-perf measurements (MNIST dry-run) |
+| [hf_tiny_cpu_vs_nntile_showcase.md](hf_tiny_cpu_vs_nntile_showcase.md) | Tiny HF smokes: CPU vs nntile loss/wall table |
 | [cuda_wheel_single_nvidia_stack_plan.md](cuda_wheel_single_nvidia_stack_plan.md) | CUDA wheel disk / single NVIDIA stack (infra) |
 
 ## Historical

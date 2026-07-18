@@ -11,7 +11,16 @@ import sys
 import textwrap
 from pathlib import Path
 
+import pytest
 from conftest import subprocess_environ
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "Temporarily disabled: device=nntile PrivateUse1 aten ops require "
+        "untiled tensors while torch-native StarPU codelets land "
+        "(docs/dev/torch_nntile_aten_ops.md)."
+    ),
+)
 
 
 def _run_subprocess(script: str) -> None:

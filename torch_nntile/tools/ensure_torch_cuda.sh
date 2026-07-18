@@ -27,7 +27,24 @@ then
 fi
 
 echo "Installing torch==${torch_version} from ${torch_cuda_index}" >&2
+# Fresh cibuildwheel test venvs reinstall ~2.5GB CUDA torch while the
+# build tree is still on disk; reclaim cache/tmp before the download.
+"${python}" -m pip cache purge 2>/dev/null || true
+rm -rf /root/.cache/pip "${TMPDIR:-/tmp}/pip-"* 2>/dev/null || true
+# Drop the unrepaired intermediate only. Do NOT remove
+# /tmp/cibuildwheel/repaired_wheel: cibuildwheel's test phase still
+# pip-installs the repaired artifact from that path (before-test also
+# invokes this script).
+rm -rf /tmp/cibuildwheel/built_wheel 2>/dev/null || true
+# Shared libs are already linked into the repaired wheel; the cmake tree
+# is several GB and is the usual disk-full culprit on GHA runners.
+if [ -n "${NNTILE_BUILD_DIR:-}" ]; then
+    rm -rf "${NNTILE_BUILD_DIR}" 2>/dev/null || true
+fi
+rm -rf /tmp/nntile-build 2>/dev/null || true
+df -h / /tmp 2>/dev/null || df -h / || true
 "${python}" -m pip install --no-cache-dir \
     "torch==${torch_version}" \
     "torchvision==${torchvision_version}" \
     --index-url "${torch_cuda_index}"
+"${python}" -m pip cache purge 2>/dev/null || true

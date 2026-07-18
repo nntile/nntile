@@ -294,26 +294,41 @@ sdpa_overrideable_forward(
             false,
             scale),
         "nntile sdpa: unsupported scaled_dot_product_attention arguments");
-    TORCH_CHECK(
-        query.is_contiguous() && key.is_contiguous() && value.is_contiguous(),
-        "nntile sdpa: Q, K, V must be contiguous");
+    // Untiled path: strided Q/K/V views (sizes/strides/offset) are OK;
+    // layout is packed into TorchDispatchArgs at record time.
 
     const int64_t batch_ndim = query.dim() - 2;
     const c10::SymInt q_seq = query.sym_size(-2);
     const c10::SymInt k_seq = key.sym_size(-2);
-    const std::optional<at::Tensor> mask = convert_attn_bias_to_mask(
-        attn_bias,
-        is_causal,
-        q_seq.expect_int(),
-        k_seq.expect_int(),
-        query.device());
+
+    // Prefer fused is_causal (no dense SxS mask) when there is no
+    // explicit attn_bias. Dense causal masks dominate at long seq_len.
+    const bool has_bias = attn_bias.has_value() &&
+        attn_bias->defined() &&
+        attn_bias->numel() > 0;
+    std::optional<at::Tensor> mask = std::nullopt;
+    bool causal_flag = false;
+    if (is_causal && !has_bias)
+    {
+        causal_flag = true;
+    }
+    else
+    {
+        mask = convert_attn_bias_to_mask(
+            attn_bias,
+            is_causal,
+            q_seq.expect_int(),
+            k_seq.expect_int(),
+            query.device());
+    }
 
     const at::Tensor out = sdpa_forward(
         query,
         key,
         value,
         mask,
-        batch_ndim);
+        batch_ndim,
+        causal_flag);
     const at::Tensor logsumexp = logsumexp_placeholder(query);
     // PyTorch SDPA API requires logsumexp; nntile softmax uses maxsumexp internally.
     // Backward ignores this tensor and uses maxsumexp buffers in sdpa_backward.
@@ -397,22 +412,32 @@ sdpa_overrideable_backward(
         attn_bias.defined() && attn_bias.numel() > 0
         ? std::optional<at::Tensor>(attn_bias)
         : std::nullopt;
-    const std::optional<at::Tensor> mask = convert_attn_bias_to_mask(
-        attn_bias_opt,
-        is_causal,
-        query.size(-2),
-        key.size(-2),
-        query.device());
+    const bool has_bias = attn_bias_opt.has_value();
+    std::optional<at::Tensor> mask = std::nullopt;
+    bool causal_flag = false;
+    if (is_causal && !has_bias)
+    {
+        causal_flag = true;
+    }
+    else
+    {
+        mask = convert_attn_bias_to_mask(
+            attn_bias_opt,
+            is_causal,
+            query.size(-2),
+            key.size(-2),
+            query.device());
+    }
 
-    require_contiguous_nntile(grad_out, "grad_out");
-    const at::Tensor &grad_out_c = grad_out;
+    // Untiled: grad_out may be a strided view; layout is packed at record.
     auto grad_qkv = sdpa_backward(
         query,
         key,
         value,
-        grad_out_c,
+        grad_out,
         mask,
-        batch_ndim);
+        batch_ndim,
+        causal_flag);
 
     at::Tensor grad_q = grad_input_mask[0] ? std::get<0>(grad_qkv)
                                           : at::Tensor();

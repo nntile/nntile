@@ -12,6 +12,7 @@
 #include "nntile_context.h"
 
 #include <ATen/Tensor.h>
+#include <ATen/ops/empty.h>
 #include <c10/core/DeviceType.h>
 #include <c10/util/Exception.h>
 #include <stdexcept>
@@ -145,6 +146,11 @@ struct GraphApiTimingStats
     double record_relu_bwd_s = 0.0;
     std::uint64_t record_gemm_calls = 0;
     double record_gemm_s = 0.0;
+    // HF layout tax: views on CUDA, materializing copies on nntile.
+    std::uint64_t record_narrow_copy_calls = 0;
+    std::uint64_t record_transpose_copy_calls = 0;
+    std::uint64_t record_narrow_copy_elems = 0;
+    std::uint64_t record_transpose_copy_elems = 0;
 };
 
 GraphApiTimingStats g_timing;
@@ -229,45 +235,41 @@ void apply_axis_name_hints_locked(
     }
 }
 
+//! Temporary: PrivateUse1 aten ops require a single tile per tensor while
+//! torch-native StarPU codelets are introduced. See
+//! docs/dev/torch_starpu_kernels.md.
+[[noreturn]] void throw_tiled_aten_temporarily_disabled()
+{
+    throw std::runtime_error(
+        "torch_nntile: axis-group tiling is temporarily disabled for "
+        "device=nntile PrivateUse1 aten ops (single-tile / untiled tensors "
+        "only). See docs/dev/torch_nntile_aten_ops.md and "
+        "docs/dev/torch_starpu_kernels.md.");
+}
+
+void require_untiled_torch_session_locked()
+{
+    if (g_graph == nullptr)
+    {
+        return;
+    }
+    for (nntile::AxisDescriptor *axis : g_graph->axis_groups())
+    {
+        if (axis != nullptr && axis->is_tiled())
+        {
+            throw_tiled_aten_temporarily_disabled();
+        }
+    }
+}
+
 void apply_pending_axis_tiling_locked()
 {
     if (g_graph == nullptr || g_axis_tiling_by_name.empty())
     {
         return;
     }
-
-    bool applied_any = false;
-    for (const auto &[name, pattern] : g_axis_tiling_by_name)
-    {
-        bool found_any = false;
-        for (nntile::AxisDescriptor *axis : g_graph->axis_groups())
-        {
-            if (axis == nullptr || axis->name != name)
-            {
-                continue;
-            }
-            found_any = true;
-            applied_any = true;
-            const std::vector<nntile::Index> resolved =
-                nntile::tile_sizes_for_axis_extent(pattern, axis->extent);
-            nntile::apply_tiling_to_axis(axis, resolved);
-        }
-        if (!found_any)
-        {
-            throw std::runtime_error(
-                "torch_nntile set_axis_group_tiling: unknown axis group '" +
-                name + "'");
-        }
-    }
-    // Axis tile_sizes changed: drop cached layouts so the next ensure rebuilds
-    // from the updated AxisDescriptors.
-    if (applied_any && g_exec != nullptr && g_exec->session_tiling != nullptr)
-    {
-        g_exec->session_tiling->clear();
-    }
-    // Pending tiling is one-shot: applied at this compile, do not re-apply
-    // (and clear session layouts) on every subsequent compile.
-    g_axis_tiling_by_name.clear();
+    // Reject before mutating AxisDescriptors.
+    throw_tiled_aten_temporarily_disabled();
 }
 
 nntile::DataType aten_scalar_to_nntile_dtype(at::ScalarType dtype)
@@ -680,6 +682,52 @@ nntile::Index graph_numel(const std::vector<nntile::Index> &graph_shape)
     return nelems;
 }
 
+//! True when ``view`` indices stay inside a storage of ``storage_numel``
+//! elements. Allows broadcast ``expand`` (zero strides) whose logical
+//! numel exceeds storage numel — unlike a raw numel comparison.
+bool view_fits_storage(
+    const at::Tensor &view,
+    nntile::Index storage_numel)
+{
+    if (storage_numel < 0)
+    {
+        return false;
+    }
+    if (view.numel() == 0)
+    {
+        return view.storage_offset() >= 0
+            && view.storage_offset() <= storage_numel;
+    }
+    const int64_t offset = view.storage_offset();
+    if (offset < 0)
+    {
+        return false;
+    }
+    int64_t max_index = offset;
+    int64_t min_index = offset;
+    const auto sizes = view.sizes();
+    const auto strides = view.strides();
+    for (int64_t i = 0; i < sizes.size(); ++i)
+    {
+        const int64_t size = sizes[i];
+        const int64_t stride = strides[i];
+        if (size <= 0)
+        {
+            continue;
+        }
+        const int64_t span = (size - 1) * stride;
+        if (span >= 0)
+        {
+            max_index += span;
+        }
+        else
+        {
+            min_index += span;
+        }
+    }
+    return min_index >= 0 && max_index < storage_numel;
+}
+
 //! Bytes available in ``tensor`` storage from ``data_ptr()`` to the end.
 //!
 //! ``tensor.nbytes()`` is typically ``numel * itemsize`` and does **not**
@@ -798,14 +846,28 @@ nntile::TensorGraph::TensorNode *logical_node_for_tensor_locked(
                 "torch_nntile: tensor logical node does not belong to the "
                 "active TensorGraph");
         }
-        if (graph_numel(logical->shape()) != graph_numel(shape))
+        const nntile::Index storage_n = graph_numel(logical->shape());
+        // Views (transpose/narrow/split/expand) share the parent storage
+        // node. Layout (sizes/strides/offset) is packed into
+        // TorchDispatchArgs at record time — do not densify here.
+        // Broadcast expand may have larger logical numel than storage.
+        if (!view_fits_storage(mutable_tensor, storage_n))
         {
             throw std::invalid_argument(
-                "torch_nntile: logical node numel mismatch for tensor");
+                "torch_nntile: view indices exceed storage logical");
         }
-        nntile::TensorGraph::TensorNode *node =
-            ensure_graph_shape_bridge_locked(logical, shape);
-        return node;
+        return logical;
+    }
+
+    // Unbound non-dense views must share a parent via as_strided/alias/
+    // narrow. Inventing a fresh node of torch.numel() would rebind a
+    // packed QKV slice to a too-small logical (RoPE rotate_half).
+    if (!mutable_tensor.is_contiguous() ||
+        mutable_tensor.storage_offset() != 0)
+    {
+        throw std::runtime_error(
+            "torch_nntile: unbound non-dense view (missing alias/"
+            "as_strided TensorRef share)");
     }
 
     nntile::TensorRef node_ref = g_graph->data(shape, dtype);
@@ -939,6 +1001,7 @@ void compile_graph_locked()
 
     sync_param_grad_aliases_locked();
     apply_pending_axis_tiling_locked();
+    require_untiled_torch_session_locked();
 
     // Marks must reflect live Python refs before INVALIDATE selection.
     prepare_invalidate_selection_locked();
@@ -1334,6 +1397,73 @@ void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst)
         count);
 }
 
+at::Tensor gather_nntile_view_to_cpu(const at::Tensor &src)
+{
+    TORCH_CHECK(
+        src.device().type() == c10::DeviceType::PrivateUse1,
+        "gather_nntile_view_to_cpu: expected nntile");
+    nntile::TensorRef binding = tensor_ref(src);
+    TORCH_CHECK(
+        binding,
+        "gather_nntile_view_to_cpu: unbound tensor");
+    nntile::TensorGraph::TensorNode *logical = binding.get();
+    const bool dense_cover =
+        src.is_contiguous() &&
+        src.storage_offset() == 0 &&
+        static_cast<int64_t>(logical->nelems()) == src.numel();
+    if (dense_cover)
+    {
+        at::Tensor cpu = at::empty(
+            src.sizes(),
+            src.options().device(at::kCPU).memory_format(
+                at::MemoryFormat::Contiguous));
+        copy_nntile_tensor_to_cpu(src, cpu);
+        return cpu;
+    }
+    std::vector<int64_t> full_sizes(
+        logical->shape().begin(),
+        logical->shape().end());
+    if (full_sizes.empty())
+    {
+        full_sizes.push_back(static_cast<int64_t>(logical->nelems()));
+    }
+    at::Tensor full_cpu = at::empty(
+        full_sizes,
+        src.options().device(at::kCPU).memory_format(
+            at::MemoryFormat::Contiguous));
+    copy_nntile_tensor_to_cpu(src, full_cpu);
+    return full_cpu.as_strided(
+                   src.sizes(),
+                   src.strides(),
+                   src.storage_offset())
+        .contiguous();
+}
+
+at::Tensor gather_full_logical_to_cpu(const at::Tensor &src)
+{
+    TORCH_CHECK(
+        src.device().type() == c10::DeviceType::PrivateUse1,
+        "gather_full_logical_to_cpu: expected nntile");
+    nntile::TensorRef binding = tensor_ref(src);
+    TORCH_CHECK(
+        binding,
+        "gather_full_logical_to_cpu: unbound tensor");
+    nntile::TensorGraph::TensorNode *logical = binding.get();
+    std::vector<int64_t> full_sizes(
+        logical->shape().begin(),
+        logical->shape().end());
+    if (full_sizes.empty())
+    {
+        full_sizes.push_back(static_cast<int64_t>(logical->nelems()));
+    }
+    at::Tensor full_cpu = at::empty(
+        full_sizes,
+        src.options().device(at::kCPU).memory_format(
+            at::MemoryFormat::Contiguous));
+    copy_nntile_tensor_to_cpu(src, full_cpu);
+    return full_cpu;
+}
+
 void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst)
@@ -1402,6 +1532,70 @@ void init_nntile_input_from_cpu(
     nntile::tensor::scatter(staging, logical);
 }
 
+void overwrite_bound_nntile_logical_from_cpu(
+    const at::Tensor &cpu_src,
+    const at::Tensor &nntile_bound)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    TORCH_CHECK(
+        cpu_src.is_cpu(),
+        "overwrite_bound_nntile_logical_from_cpu: expected CPU src");
+    TORCH_CHECK(
+        cpu_src.is_contiguous(),
+        "overwrite_bound_nntile_logical_from_cpu: CPU src must be "
+        "contiguous");
+    TORCH_CHECK(
+        nntile_bound.device().type() == c10::DeviceType::PrivateUse1,
+        "overwrite_bound_nntile_logical_from_cpu: expected nntile");
+    nntile::TensorRef binding = tensor_ref(nntile_bound);
+    TORCH_CHECK(
+        binding,
+        "overwrite_bound_nntile_logical_from_cpu: unbound tensor");
+    nntile::TensorGraph::TensorNode *logical = binding.get();
+    const nntile::DataType dtype = logical->dtype();
+    TORCH_CHECK(
+        aten_scalar_to_nntile_dtype(cpu_src.scalar_type()) == dtype,
+        "overwrite_bound_nntile_logical_from_cpu: dtype mismatch");
+    TORCH_CHECK(
+        static_cast<std::size_t>(cpu_src.numel()) ==
+            static_cast<std::size_t>(logical->nelems()),
+        "overwrite_bound_nntile_logical_from_cpu: numel mismatch");
+    check_host_buffer_for_transfer(
+        cpu_src,
+        static_cast<std::size_t>(cpu_src.numel()),
+        nntile::dtype_size(dtype),
+        "overwrite_bound_nntile_logical_from_cpu");
+
+    // Sync prior async work so scatter appends to a clean phase (same
+    // pattern as copy_nntile_tensor_to_cpu).
+    if (g_run_cleanup_pending)
+    {
+        finish_run_locked();
+    }
+    if (g_graph != nullptr &&
+        g_graph->num_ops() > g_graph->phase_seal_cursor())
+    {
+        compile_graph_locked();
+        run_graph_locked();
+        finish_run_locked();
+    }
+
+    auto *staging =
+        new_ephemeral_staging_node_locked(logical, "overwrite");
+    if (staging == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile: failed to create overwrite staging tensor");
+    }
+    lower_io_staging_locked(staging);
+    write_cpu_bytes_to_staging_locked(
+        staging,
+        cpu_src.data_ptr(),
+        dtype,
+        static_cast<std::size_t>(cpu_src.numel()));
+    nntile::tensor::scatter(staging, logical);
+}
+
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
     const at::Tensor &tensor,
     const std::vector<nntile::Index> &shape,
@@ -1452,8 +1646,13 @@ void register_data_node(
         node->nelems(),
         " torch shape=",
         tensor.sizes());
+    // SSA inplace (add_/mul_/…) allocates a new TensorNode; rebind the
+    // TensorRef so the next forward reads the updated logical. Skipping
+    // when a ref already exists left parameters stuck on the old leaf
+    // (stock SGD appeared to step but losses never changed).
     at::Tensor mutable_tensor = tensor;
-    if (!static_cast<bool>(tensor_ref(mutable_tensor)))
+    nntile::TensorRef current = tensor_ref(mutable_tensor);
+    if (!current || current.get() != node)
     {
         attach_tensor_ref(
             mutable_tensor,
@@ -1486,6 +1685,18 @@ void note_record_gemm(double seconds)
 {
     ++g_timing.record_gemm_calls;
     g_timing.record_gemm_s += seconds;
+}
+
+void note_record_narrow_copy(std::uint64_t nelems)
+{
+    ++g_timing.record_narrow_copy_calls;
+    g_timing.record_narrow_copy_elems += nelems;
+}
+
+void note_record_transpose_copy(std::uint64_t nelems)
+{
+    ++g_timing.record_transpose_copy_calls;
+    g_timing.record_transpose_copy_elems += nelems;
 }
 
 nntile::TensorGraph::TensorNode *lookup_data_node(
@@ -1556,16 +1767,13 @@ void record_view_alias(const at::Tensor &self, const at::Tensor &view)
     {
         return;
     }
-    std::vector<nntile::Index> view_shape;
-    view_shape.reserve(static_cast<std::size_t>(view.dim()));
-    for (const auto dim : view.sizes())
-    {
-        view_shape.push_back(static_cast<nntile::Index>(dim));
-    }
-    if (graph_numel(src_node->shape()) != graph_numel(view_shape))
+    const nntile::Index storage_n = graph_numel(src_node->shape());
+    // Reject OOB aliases; allow expand/broadcast (zero strides) whose
+    // logical numel exceeds storage numel.
+    if (!view_fits_storage(view, storage_n))
     {
         throw std::invalid_argument(
-            "view: storage alias must preserve numel");
+            "view: alias indices exceed storage logical");
     }
     at::Tensor mutable_view = view;
     share_tensor_ref_for_reshape(self, mutable_view);
@@ -1621,19 +1829,9 @@ void set_axis_group_tiling(
     const std::string &name,
     const std::vector<std::int64_t> &tile_sizes)
 {
-    if (name.empty())
-    {
-        throw std::runtime_error(
-            "torch_nntile set_axis_group_tiling: name must be non-empty");
-    }
-    if (tile_sizes.empty())
-    {
-        throw std::runtime_error(
-            "torch_nntile set_axis_group_tiling: tile_sizes must be non-empty");
-    }
-    std::vector<nntile::Index> pattern(tile_sizes.begin(), tile_sizes.end());
-    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
-    g_axis_tiling_by_name[name] = std::move(pattern);
+    (void)name;
+    (void)tile_sizes;
+    throw_tiled_aten_temporarily_disabled();
 }
 
 std::string format_pending_tile_sizes(
@@ -1828,6 +2026,24 @@ std::string format_info_locked()
                   g_timing.record_relu_bwd_s,
                   g_timing.record_relu_bwd_calls)
            << " ms)\n";
+        if (g_timing.record_narrow_copy_calls > 0 ||
+            g_timing.record_transpose_copy_calls > 0)
+        {
+            // Residual materializing layout copies (should be rare once
+            // transpose/narrow/split are zero-copy views).
+            const double narrow_gib = static_cast<double>(
+                    g_timing.record_narrow_copy_elems) *
+                4.0 / (1024.0 * 1024.0 * 1024.0);
+            const double transpose_gib = static_cast<double>(
+                    g_timing.record_transpose_copy_elems) *
+                4.0 / (1024.0 * 1024.0 * 1024.0);
+            ss << "    layout copies (should be ~0 with view metadata):\n";
+            ss << "      NarrowCopy: " << g_timing.record_narrow_copy_calls
+               << " ops, " << narrow_gib << " GiB fp32\n";
+            ss << "      TransposeCopy: "
+               << g_timing.record_transpose_copy_calls << " ops, "
+               << transpose_gib << " GiB fp32\n";
+        }
     }
     if (g_timing.run_calls > 0)
     {

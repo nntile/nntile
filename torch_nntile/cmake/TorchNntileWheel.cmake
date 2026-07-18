@@ -13,7 +13,7 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(TORCH_NNTILE_WHEELHOUSE "${CMAKE_BINARY_DIR}/wheelhouse"
     CACHE PATH "Output directory for torch_nntile wheels")
-set(TORCH_NNTILE_WHEEL_VERSION "0.0.5"
+set(TORCH_NNTILE_WHEEL_VERSION "0.0.6"
     CACHE STRING "torch_nntile wheel version (TORCH_NNTILE_WHEEL_VERSION)")
 option(TORCH_NNTILE_WHEEL_REPAIR
     "Run auditwheel/delocate after pip wheel (ON for manylinux CI; OFF for local)"

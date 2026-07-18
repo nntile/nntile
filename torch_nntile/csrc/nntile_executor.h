@@ -26,6 +26,13 @@ void tensor_add_fp32(
     const at::Tensor &y,
     at::Tensor &out);
 
+//! ``out = x - alpha * y`` (torch sub.out semantics).
+void tensor_sub_fp32(
+    const at::Tensor &x,
+    const at::Tensor &y,
+    float alpha,
+    at::Tensor &out);
+
 void tensor_model_transpose_forward_fp32(
     const at::Tensor &src,
     at::Tensor &dst,
@@ -41,6 +48,9 @@ void tensor_swap_two_axes_fp32(
     at::Tensor &dst,
     int64_t dim0,
     int64_t dim1);
+
+//! Densify ``src`` (view OK) into contiguous ``dst`` (same shape).
+void tensor_copy_fp32(const at::Tensor &src, at::Tensor &dst);
 
 void tensor_add_inplace_fp32(
     float alpha,
@@ -67,7 +77,19 @@ void tensor_linear_fp32(
     const at::Tensor &weight,
     at::Tensor &out);
 
+//! ``aten::linear`` with bias (ternary StarPU codelet).
+void tensor_linear_bias_fp32(
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    const at::Tensor &bias,
+    at::Tensor &out);
+
 void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out);
+
+void tensor_cos_fp32(const at::Tensor &input, at::Tensor &out);
+void tensor_sin_fp32(const at::Tensor &input, at::Tensor &out);
+void tensor_neg_fp32(const at::Tensor &input, at::Tensor &out);
+void tensor_rsqrt_fp32(const at::Tensor &input, at::Tensor &out);
 
 void tensor_relu_backward_fp32(
     const at::Tensor &x,
@@ -197,6 +219,34 @@ void tensor_softmax_fp32(
     at::Tensor &out,
     int64_t dim);
 
+void tensor_log_softmax_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t dim);
+
+void tensor_log_softmax_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &output,
+    at::Tensor &grad_input,
+    int64_t dim);
+
+void tensor_nll_loss_forward_fp32(
+    const at::Tensor &log_probs,
+    const at::Tensor &target,
+    at::Tensor &loss,
+    at::Tensor &total_weight,
+    int64_t reduction,
+    int64_t ignore_index);
+
+void tensor_nll_loss_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &log_probs,
+    const at::Tensor &target,
+    const at::Tensor &total_weight,
+    at::Tensor &grad_input,
+    int64_t reduction,
+    int64_t ignore_index);
+
 void tensor_softmax_backward_fp32(
     const at::Tensor &grad_output,
     const at::Tensor &output,
@@ -256,6 +306,7 @@ void tensor_layer_norm_backward_fp32(
     const at::Tensor &mean,
     const at::Tensor &rstd,
     const at::Tensor *weight,
+    const at::Tensor *bias,
     bool has_weight,
     bool has_bias,
     at::Tensor *grad_input,
@@ -371,7 +422,8 @@ void tensor_sdpa_forward_fp32(
     const at::Tensor &v,
     const at::Tensor *mask,
     at::Tensor &out,
-    int64_t batch_ndim);
+    int64_t batch_ndim,
+    bool is_causal = false);
 
 void tensor_sdpa_backward_fp32(
     const at::Tensor &q,
@@ -382,6 +434,7 @@ void tensor_sdpa_backward_fp32(
     at::Tensor &grad_q,
     at::Tensor &grad_k,
     at::Tensor &grad_v,
-    int64_t batch_ndim);
+    int64_t batch_ndim,
+    bool is_causal = false);
 
 } // namespace torch_nntile

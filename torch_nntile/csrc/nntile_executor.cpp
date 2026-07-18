@@ -1576,8 +1576,9 @@ void tensor_layer_norm_backward_fp32(
     const at::Tensor &mean,
     const at::Tensor &rstd,
     const at::Tensor *weight,
+    const at::Tensor * /*bias*/,
     bool has_weight,
-    bool has_bias,
+    bool /*has_bias*/,
     at::Tensor *grad_input,
     at::Tensor *grad_weight,
     at::Tensor *grad_bias,
@@ -2819,7 +2820,8 @@ void tensor_sdpa_forward_fp32(
     const at::Tensor &v,
     const at::Tensor *mask,
     at::Tensor &out,
-    int64_t batch_ndim)
+    int64_t batch_ndim,
+    bool is_causal)
 {
     const std::vector<nntile::Index> q_graph = pytorch_shape_to_graph(q.sizes());
     const std::vector<nntile::Index> k_graph = pytorch_shape_to_graph(k.sizes());
@@ -2852,16 +2854,32 @@ void tensor_sdpa_forward_fp32(
         nntile::DataType::FP32,
         false);
 
+    // Classic path has no fused is_causal; materialize a keep-mask.
+    at::Tensor causal_mask;
+    const at::Tensor *mask_eff = mask;
+    if (mask_eff == nullptr && is_causal)
+    {
+        const int64_t q_seq = q.size(-2);
+        const int64_t k_seq = k.size(-2);
+        const auto idx_opts = at::TensorOptions().dtype(at::kLong);
+        const at::Tensor k_idx = at::arange(k_seq, idx_opts);
+        const at::Tensor q_idx = at::arange(q_seq, idx_opts);
+        causal_mask =
+            (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous().to(
+                q.device());
+        mask_eff = &causal_mask;
+    }
+
     nntile::TensorGraph::TensorNode *mask_node = nullptr;
-    if (mask != nullptr)
+    if (mask_eff != nullptr)
     {
         const std::vector<nntile::Index> mask_graph =
-            pytorch_shape_to_graph(mask->sizes());
+            pytorch_shape_to_graph(mask_eff->sizes());
         mask_node = get_or_create_data_node(
-            *mask,
+            *mask_eff,
             mask_graph,
             nntile::DataType::BOOL,
-            mark_as_input_for_operand(*mask));
+            mark_as_input_for_operand(*mask_eff));
     }
 
     auto *attn_node = compute_sdpa_attn(
@@ -2892,7 +2910,8 @@ void tensor_sdpa_backward_fp32(
     at::Tensor &grad_q,
     at::Tensor &grad_k,
     at::Tensor &grad_v,
-    int64_t batch_ndim)
+    int64_t batch_ndim,
+    bool is_causal)
 {
     const std::vector<nntile::Index> q_graph = pytorch_shape_to_graph(q.sizes());
     const std::vector<nntile::Index> k_graph = pytorch_shape_to_graph(k.sizes());
@@ -2926,16 +2945,31 @@ void tensor_sdpa_backward_fp32(
         nntile::DataType::FP32,
         mark_as_input_for_operand(grad_out));
 
+    at::Tensor causal_mask;
+    const at::Tensor *mask_eff = mask;
+    if (mask_eff == nullptr && is_causal)
+    {
+        const int64_t q_seq_i = q.size(-2);
+        const int64_t k_seq_i = k.size(-2);
+        const auto idx_opts = at::TensorOptions().dtype(at::kLong);
+        const at::Tensor k_idx = at::arange(k_seq_i, idx_opts);
+        const at::Tensor q_idx = at::arange(q_seq_i, idx_opts);
+        causal_mask =
+            (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous().to(
+                q.device());
+        mask_eff = &causal_mask;
+    }
+
     nntile::TensorGraph::TensorNode *mask_node = nullptr;
-    if (mask != nullptr)
+    if (mask_eff != nullptr)
     {
         const std::vector<nntile::Index> mask_graph =
-            pytorch_shape_to_graph(mask->sizes());
+            pytorch_shape_to_graph(mask_eff->sizes());
         mask_node = get_or_create_data_node(
-            *mask,
+            *mask_eff,
             mask_graph,
             nntile::DataType::BOOL,
-            mark_as_input_for_operand(*mask));
+            mark_as_input_for_operand(*mask_eff));
     }
 
     nntile::TensorGraph &graph = *q_node->graph();

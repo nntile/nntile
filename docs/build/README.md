@@ -230,21 +230,24 @@ See [torch_nntile.md](../torch_nntile.md) and [graph.md](../graph.md).
 ## Build and test CI (layered)
 
 [`.github/workflows/build-test.yml`](../../.github/workflows/build-test.yml)
-runs on pushes/PRs to `main` and `graph_api`:
+runs on pushes/PRs to `main` and `graph_api`. On
+`graph_api_torch_kernels` / `NNTILE_TORCH_NATIVE_OPS=ON`, libnntile links
+LibTorch (StarPU aten codelets) and CTest labels show progress of the
+torch-native stack:
 
 | Job | Depends on | Role |
 |-----|------------|------|
-| `build-libnntile` | — | Build + install libnntile (`BUILD_LIBTORCH_NNTILE=OFF` + `BUILD_TORCH_NNTILE=OFF`) |
-| `test-libnntile` | prefix | Build **tests only** (`BUILD_LIBNNTILE=OFF`) vs install; ctest |
-| `build-libtorch-nntile` | libnntile prefix | Build + install libtorch_nntile against prefix |
-| `test-libtorch-nntile` | torch prefix | Build **and run** libtorch_nntile C++ tests vs install (`ctest -L libtorch_nntile --no-tests=error`) |
+| `build-libnntile` | — | Build + install libnntile with **LibTorch** + `NNTILE_TORCH_NATIVE_OPS=ON` (`BUILD_LIBTORCH_NNTILE=OFF` + `BUILD_TORCH_NNTILE=OFF`) |
+| `test-libnntile` | prefix | Build **tests only** vs install; `ctest -L torch_native --no-tests=error` (starpu/core/tile/tensor) |
+| `build-libtorch-nntile` | libnntile prefix | Build + install libtorch_nntile against prefix (slim PrivateUse1) |
+| `test-libtorch-nntile` | torch prefix | `ctest -L libtorch_nntile --no-tests=error` (aten parity progress) |
 | `build-torch-nntile` | torch prefix | CMake `-DBUILD_TORCH_NNTILE=ON` + `-DNNTILE_PREFIX` (extension + wheel; no lib rebuild) |
-| `test-torch-nntile` | CI wheel | Install wheel + pytest model/extension suite |
+| `test-torch-nntile` | CI wheel | Install wheel + assert `TORCH_NATIVE_OPS` + Python smoke allowlist |
 
 `test-libtorch-nntile` does **not** depend on the Python wheel: it links
 `torch_nntile::torch_nntile` from the install prefix (`BUILD_TESTING=ON` with
-product libs OFF). `test-torch-nntile` covers the Python extension and
-HF/model parity tests.
+product libs OFF). Aten op fwd+bwd parity is C++ ctest here, not pytest.
+`test-torch-nntile` covers device/context smoke under the slim wheel.
 
 Install packaging is exercised by the stepwise build → test consumers
 (`find_package` / wheel / ctest), not by separate install-layout jobs.
@@ -268,7 +271,7 @@ Full pytest suites stay in **build-and-test**.
 | **Skipped when** | PR closed without merge |
 | **Tooling** | cibuildwheel + [`tools/build_wheel_deps.sh`](../../torch_nntile/tools/build_wheel_deps.sh) |
 | **Smoke** | `tools/smoke_test_wheel.py` (cibuildwheel `test-command`) |
-| **Version** | `0.0.5` (`TORCH_NNTILE_WHEEL_VERSION`) |
+| **Version** | `0.0.6` (`TORCH_NNTILE_WHEEL_VERSION`) |
 
 ### Triggering
 

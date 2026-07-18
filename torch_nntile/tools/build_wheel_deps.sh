@@ -235,6 +235,7 @@ configure_nntile_cmake() {
         -DCMAKE_BUILD_TYPE=Release
         -DBUILD_TESTING=OFF
         -DBUILD_LIBTORCH_NNTILE=ON
+        -DNNTILE_TORCH_NATIVE_OPS=ON
         -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
         -DPython3_EXECUTABLE="${python}"
         -GNinja

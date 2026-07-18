@@ -1,0 +1,10 @@
+{
+  "vocab_size": 128,
+  "d_model": 64,
+  "d_kv": 16,
+  "d_ff": 128,
+  "num_layers": 1,
+  "num_decoder_layers": 1,
+  "num_heads": 4,
+  "tie_word_embeddings": false
+}

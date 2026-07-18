@@ -12,17 +12,25 @@ import atexit
 
 import torch
 
-from ._build_info import BUILT_WITH_CUDA
+from ._build_info import BUILT_WITH_CUDA, TORCH_NATIVE_OPS
 from ._cuda_deps import ensure_linux_cuda_deps
 
 ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 
 from . import _C  # noqa: E402, F401 - loads kernels and allocator
-from . import loss as _loss  # noqa: E402, F401
+
+# Classic aten/pybind models/loss are not compiled under
+# NNTILE_TORCH_NATIVE_OPS. HF compat shims still apply (cache_position,
+# NewGELU→gelu(tanh), device transfer).
 from . import compat as _compat  # noqa: E402, F401
-from . import nn as nn  # noqa: E402, F401
-from . import normalization as _normalization  # noqa: E402, F401
-from . import norm as _norm  # noqa: E402, F401
+
+if not TORCH_NATIVE_OPS:
+    from . import loss as _loss  # noqa: E402, F401
+    from . import nn as nn  # noqa: E402, F401
+    from . import normalization as _normalization  # noqa: E402, F401
+    from . import norm as _norm  # noqa: E402, F401
+else:
+    nn = None  # type: ignore[assignment]
 
 _registered = False
 _atexit_shutdown_registered = False
@@ -73,6 +81,12 @@ class _NntileBackendModule:
     @staticmethod
     def device_count() -> int:
         return 1
+
+    @staticmethod
+    def get_amp_supported_dtype() -> list[torch.dtype]:
+        # RoPE / HF disable autocast around float32 math; torch still
+        # requires this hook when device_type is ``nntile``.
+        return [torch.float16, torch.bfloat16]
 
 
 def _register_backend() -> None:
@@ -222,9 +236,13 @@ def set_axis_group_name(tensor: torch.Tensor, names: dict[int, str]) -> None:
 def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ...]) -> None:
     """Set tiling for a named axis group before :func:`execute`.
 
-  ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
-  sizes (``list``/``tuple``) that sum to the axis extent.
-  """
+    ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
+    sizes (``list``/``tuple``) that sum to the axis extent.
+
+    Temporarily raises: PrivateUse1 aten ops on ``device=nntile`` require
+    untiled (single-tile) tensors while torch-native StarPU codelets land.
+    See ``docs/dev/torch_nntile_aten_ops.md``.
+    """
     _C.set_axis_group_tiling(name, tile_sizes)
 
 
@@ -258,6 +276,7 @@ __all__ = [
     "_C",
     "built_with_cuda",
     "BUILT_WITH_CUDA",
+    "TORCH_NATIVE_OPS",
     "init_context",
     "execute",
     "compile_graph",
@@ -277,5 +296,6 @@ __all__ = [
     "format_axis_groups",
     "print_axis_groups",
     "print_info",
-    "nn",
 ]
+if not TORCH_NATIVE_OPS:
+    __all__.append("nn")

@@ -140,22 +140,27 @@ function(add_test_set)
 endfunction()
 
 if(BUILD_TESTING)
-    add_test_set(TARGET_NAME tests_nntile_constants
-        EXEC_NAME test_constants
-        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/constants.cc
-        LINK_LIBRARIES nntile::nntile
-        LABELS "SUBSYSTEM_KERNEL;smoke"
-        COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_nntile_constants
-        COV_GLOBAL coverage
-    )
-    if(NOT HAVE_STARPU_SIMGRID)
-        add_subdirectory(kernel)
+    if(NNTILE_TORCH_NATIVE_OPS)
+        # I/O + torch-native compute only; no classic kernel/op suites.
+        add_subdirectory(torch_native)
+    else()
+        add_test_set(TARGET_NAME tests_nntile_constants
+            EXEC_NAME test_constants
+            SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/constants.cc
+            LINK_LIBRARIES nntile::nntile
+            LABELS "SUBSYSTEM_KERNEL;smoke"
+            COV_ENABLE ${BUILD_COVERAGE}
+            COV_NAME coverage_nntile_constants
+            COV_GLOBAL coverage
+        )
+        if(NOT HAVE_STARPU_SIMGRID)
+            add_subdirectory(kernel)
+        endif()
+        add_subdirectory(starpu)
+        add_subdirectory(core)
+        add_subdirectory(tile)
+        add_subdirectory(tensor)
     endif()
-    add_subdirectory(starpu)
-    add_subdirectory(core)
-    add_subdirectory(tile)
-    add_subdirectory(tensor)
 endif()
 
 if(BUILD_COVERAGE)
