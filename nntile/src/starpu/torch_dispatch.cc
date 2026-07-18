@@ -1176,9 +1176,7 @@ void TorchCat::submit(
     {
         handles[i] = inputs[i].get();
     }
-    // Use packed insert via repeated API — starpu_task_insert varargs.
-    // Fall back to sequential narrow copies if n is awkward: for n<=8
-    // build a one-shot insert with a fixed switch.
+    // starpu_task_insert is varargs — fixed switch covers 1..max_tensors.
     const Index n = static_cast<Index>(inputs.size());
     int ret = 0;
     switch (n)
@@ -1247,10 +1245,106 @@ void TorchCat::submit(
             out.get(),
             0);
         break;
+    case 5:
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            handles[0],
+            STARPU_R,
+            handles[1],
+            STARPU_R,
+            handles[2],
+            STARPU_R,
+            handles[3],
+            STARPU_R,
+            handles[4],
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+        break;
+    case 6:
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            handles[0],
+            STARPU_R,
+            handles[1],
+            STARPU_R,
+            handles[2],
+            STARPU_R,
+            handles[3],
+            STARPU_R,
+            handles[4],
+            STARPU_R,
+            handles[5],
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+        break;
+    case 7:
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            handles[0],
+            STARPU_R,
+            handles[1],
+            STARPU_R,
+            handles[2],
+            STARPU_R,
+            handles[3],
+            STARPU_R,
+            handles[4],
+            STARPU_R,
+            handles[5],
+            STARPU_R,
+            handles[6],
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+        break;
+    case 8:
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            handles[0],
+            STARPU_R,
+            handles[1],
+            STARPU_R,
+            handles[2],
+            STARPU_R,
+            handles[3],
+            STARPU_R,
+            handles[4],
+            STARPU_R,
+            handles[5],
+            STARPU_R,
+            handles[6],
+            STARPU_R,
+            handles[7],
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+        break;
     default:
         std::free(args);
         throw std::runtime_error(
-            "torch_cat.submit: only up to 4 inputs in first cut");
+            "torch_cat.submit: unexpected input count");
     }
     if (ret != 0)
     {

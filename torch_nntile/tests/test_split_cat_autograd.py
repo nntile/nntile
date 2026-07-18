@@ -107,6 +107,35 @@ def test_cat_backward_many_tensors():
         assert torch.allclose(nntile_cpu(g), ref, rtol=1e-5, atol=1e-5)
 
 
+def test_cat_forward_five_and_eight_inputs():
+    """StarPU TorchCat::submit must accept up to torch_dispatch_max_tensors."""
+    _run_graph_subprocess(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1,
+            ncuda=0,
+            cpu_fallback=False,
+        )
+        torch_nntile.restrict_cpu()
+
+        for n in (5, 8):
+            parts_cpu = [
+                torch.randn(2, 3, dtype=torch.float32) for _ in range(n)
+            ]
+            y_cpu = torch.cat(parts_cpu, dim=1)
+            parts = [p.to("nntile") for p in parts_cpu]
+            y = torch.cat(parts, dim=1)
+            assert torch_nntile.has_pending_graph()
+            torch_nntile.compile_graph()
+            torch_nntile.run()
+            assert torch.allclose(y.cpu(), y_cpu, rtol=1e-5, atol=1e-5)
+        """
+    )
+
+
 def test_split_backward():
     x_cpu = torch.randn(2, 7, dtype=torch.float32, requires_grad=True)
     parts_cpu = torch.split(x_cpu, [3, 4], dim=1)
