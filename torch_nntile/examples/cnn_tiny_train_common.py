@@ -24,6 +24,7 @@ import torch.nn as nn
 
 from hf_tiny_train_common import (
     compare_checkpoints,
+    configure_single_thread_host,
     load_json_object,
     save_checkpoint,
 )
@@ -163,7 +164,28 @@ def add_cnn_train_compare_subparsers(
     train.add_argument("--steps", type=int, default=1)
     train.add_argument("--batch-size", type=int, default=2)
     train.add_argument("--lr", type=float, default=1e-2)
-    train.add_argument("--ncpu", type=int, default=2)
+    train.add_argument(
+        "--ncpu",
+        type=int,
+        default=1,
+        help="StarPU CPU workers for --device nntile (default: 1)",
+    )
+    train.add_argument(
+        "--ncuda",
+        type=int,
+        default=0,
+        help="StarPU CUDA workers for --device nntile (default: 0)",
+    )
+    train.add_argument(
+        "--restrict-cpu",
+        action="store_true",
+        help="restrict_cpu() after init (nntile only)",
+    )
+    train.add_argument(
+        "--restrict-cuda",
+        action="store_true",
+        help="restrict_cuda() after init (nntile only)",
+    )
     train.add_argument(
         "--cpu-fallback",
         action="store_true",
@@ -262,6 +284,7 @@ def run_tiny_cnn_train(
     build_batch: BatchBuilder,
     loss_fn: LossFn,
 ) -> int:
+    configure_single_thread_host()
     print(
         f"=== {name} tiny CNN smoke  device={args.device}  "
         f"config_seed={seed} ==="
@@ -292,13 +315,17 @@ def run_tiny_cnn_train(
 
     import torch_nntile
 
+    ncuda = int(getattr(args, "ncuda", 0))
     torch_nntile.init_context(
         ncpu=args.ncpu,
-        ncuda=0,
+        ncuda=ncuda,
         verbose=0,
         cpu_fallback=bool(args.cpu_fallback),
     )
-    torch_nntile.restrict_cpu()
+    if getattr(args, "restrict_cuda", False):
+        torch_nntile.restrict_cuda()
+    elif getattr(args, "restrict_cpu", False) or ncuda == 0:
+        torch_nntile.restrict_cpu()
     try:
         with torch.no_grad():
             batch = {k: v.to("nntile") for k, v in batch_cpu.items()}

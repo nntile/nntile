@@ -41,7 +41,22 @@ def main(argv: list[str] | None = None) -> int:
             seed=args.seed if args.seed is not None else 0,
         )
         attn = torch.ones_like(x)
-        return {"input_ids": x, "labels": y, "attention_mask": attn}
+        # Contiguous token/position ids: HF buffer.expand() is non-contig
+        # for batch>1 and nntile embedding rejects non-contiguous indices.
+        token_type_ids = torch.zeros_like(x)
+        position_ids = (
+            torch.arange(args.seq_len, dtype=torch.long)
+            .unsqueeze(0)
+            .expand(args.batch_size, -1)
+            .contiguous()
+        )
+        return {
+            "input_ids": x,
+            "labels": y,
+            "attention_mask": attn,
+            "token_type_ids": token_type_ids,
+            "position_ids": position_ids,
+        }
 
     return run_tiny_hf_main(
         name="bert",
