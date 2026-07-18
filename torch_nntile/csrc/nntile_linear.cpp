@@ -10,7 +10,6 @@
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
-#include <torch/library.h>
 
 #include <array>
 #include <chrono>
@@ -333,9 +332,9 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
 
 } // namespace torch_nntile
 
-TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
-{
-    m.impl("linear", TORCH_FN(torch_nntile::linear));
-    m.impl("linear.out", TORCH_FN(torch_nntile::linear_out));
-    m.impl("linear_backward", TORCH_FN(torch_nntile::linear_backward));
-}
+// Match device=cuda: do NOT register PrivateUse1 ``linear``. CUDA uses
+// CompositeImplicitAutograd ``linear`` → ``addmm``; Autograd differentiates
+// the decomposed graph (AddmmBackward). Our PrivateUse1 ``addmm`` /
+// ``mm`` supply the device kernels. Keep the helpers above for direct
+// TensorGraph / StarPU use.
+

@@ -12,7 +12,6 @@
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
-#include <torch/library.h>
 
 namespace torch_nntile
 {
@@ -240,8 +239,8 @@ std::tuple<at::Tensor, at::Tensor> matmul_backward(
 
 } // namespace torch_nntile
 
-TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
-{
-    m.impl("matmul", TORCH_FN(torch_nntile::matmul_nd));
-    m.impl("matmul_backward", TORCH_FN(torch_nntile::matmul_backward));
-}
+// Match device=cuda: do NOT register PrivateUse1 ``matmul``. CUDA uses
+// CompositeImplicitAutograd ``matmul`` → ``mm`` / ``bmm`` / …; Autograd
+// differentiates the decomposed graph. Our PrivateUse1 ``mm`` / ``bmm``
+// supply the device kernels.
+

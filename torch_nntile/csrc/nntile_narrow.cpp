@@ -2,7 +2,10 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_narrow.cpp
- * Zero-copy ``aten::narrow`` view (sizes/strides/offset).
+ * Reference helpers for ``narrow`` / ``select.int`` views. Not registered on
+ * PrivateUse1 — match CUDA Composite → ``as_strided`` (nntile_kernels.cpp).
+ * Slice / Select / AsStrided Backward still need copy-into-view (today
+ * nntile→nntile copy rebinds TensorRef instead of writing the parent).
  */
 
 #include "nntile_graph_recorder_impl.h"
@@ -10,7 +13,6 @@
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
-#include <torch/library.h>
 
 #include <optional>
 
@@ -110,10 +112,8 @@ at::Tensor select_int(
     return make_strided_view(self, sizes, strides, offset);
 }
 
-TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
-{
-    m.impl("narrow", TORCH_FN(torch_nntile::narrow));
-    m.impl("select.int", TORCH_FN(torch_nntile::select_int));
-}
+// Match device=cuda: do NOT register PrivateUse1 ``narrow`` / ``select.int``.
+// CUDA uses CompositeImplicit/Explicit → ``as_strided``; Autograd uses
+// Slice / Select Backward. Our PrivateUse1 ``as_strided`` supplies views.
 
 } // namespace torch_nntile

@@ -549,19 +549,35 @@ at::Tensor pow_tensor_scalar(
     const at::Scalar &exponent)
 {
     TORCH_CHECK(is_nntile_device(self.device()), "pow: expected nntile");
-    // RMSNorm uses ``x.pow(2)``; keep it on the StarPU mul path.
-    if (exponent.isFloatingPoint() && exponent.toDouble() == 2.0)
+    // CUDA RsqrtBackward uses ``result.pow(3)``; RMSNorm uses ``x.pow(2)``.
+    // Keep small integer powers on StarPU mul instead of host pow.
+    int64_t exp_i = 0;
+    bool is_small_int = false;
+    if (exponent.isIntegral(false))
     {
-        at::Tensor a = self.is_contiguous() ? self : self.contiguous();
-        at::Tensor out = at::empty_like(a);
-        tensor_mul_fp32(a, a, out);
-        return out;
+        exp_i = exponent.toLong();
+        is_small_int = (exp_i == 2 || exp_i == 3);
     }
-    if (exponent.isIntegral(false) && exponent.toLong() == 2)
+    else if (exponent.isFloatingPoint())
+    {
+        const double exp_d = exponent.toDouble();
+        if (exp_d == 2.0 || exp_d == 3.0)
+        {
+            exp_i = static_cast<int64_t>(exp_d);
+            is_small_int = true;
+        }
+    }
+    if (is_small_int)
     {
         at::Tensor a = self.is_contiguous() ? self : self.contiguous();
         at::Tensor out = at::empty_like(a);
         tensor_mul_fp32(a, a, out);
+        if (exp_i == 3)
+        {
+            at::Tensor out3 = at::empty_like(a);
+            tensor_mul_fp32(out, a, out3);
+            return out3;
+        }
         return out;
     }
     return scatter_nntile(

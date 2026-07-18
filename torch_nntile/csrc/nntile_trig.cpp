@@ -13,7 +13,6 @@
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
 #include <ATen/ops/neg.h>
-#include <torch/csrc/autograd/custom_function.h>
 #include <torch/library.h>
 
 namespace torch_nntile
@@ -151,49 +150,11 @@ at::Tensor &rsqrt_out(const at::Tensor &self, at::Tensor &out)
     return out;
 }
 
-//! ``d(rsqrt(x))/dx = -0.5 * rsqrt(x)^3`` — keep Llama RMSNorm on StarPU.
-class RsqrtFn : public torch::autograd::Function<RsqrtFn>
-{
-public:
-    static at::Tensor forward(
-        torch::autograd::AutogradContext *ctx,
-        at::Tensor self)
-    {
-        at::AutoDispatchBelowADInplaceOrView guard;
-        at::Tensor out = rsqrt_tensor(self);
-        ctx->save_for_backward({out});
-        return out;
-    }
-
-    static torch::autograd::variable_list backward(
-        torch::autograd::AutogradContext *ctx,
-        torch::autograd::variable_list grad_outputs)
-    {
-        at::AutoDispatchBelowADInplaceOrView guard;
-        const at::Tensor out = ctx->get_saved_variables()[0];
-        const at::Tensor &grad = grad_outputs[0];
-        at::Tensor out2 = at::empty_like(out);
-        tensor_mul_fp32(out, out, out2);
-        at::Tensor out3 = at::empty_like(out);
-        tensor_mul_fp32(out2, out, out3);
-        at::Tensor scaled = at::empty_like(out);
-        tensor_mul_scalar_fp32(out3, scaled, -0.5f);
-        at::Tensor dx = at::empty_like(out);
-        tensor_mul_fp32(grad, scaled, dx);
-        return {dx};
-    }
-};
-
-at::Tensor rsqrt_autograd(const at::Tensor &self)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "nntile rsqrt: expected nntile");
-    return RsqrtFn::apply(self);
-}
-
 } // namespace torch_nntile
 
+// Match device=cuda: PrivateUse1 (device) forward only. Autograd uses the
+// generic VariableType formula ``-0.5 * grad * result.pow(3)`` (see
+// derivatives.yaml); keep ``pow.Tensor_Scalar`` on StarPU for exp 2/3.
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("cos", TORCH_FN(torch_nntile::cos_tensor));
@@ -204,9 +165,4 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("neg.out", TORCH_FN(torch_nntile::neg_out));
     m.impl("rsqrt", TORCH_FN(torch_nntile::rsqrt_tensor));
     m.impl("rsqrt.out", TORCH_FN(torch_nntile::rsqrt_out));
-}
-
-TORCH_LIBRARY_IMPL(aten, AutogradPrivateUse1, m)
-{
-    m.impl("rsqrt", TORCH_FN(torch_nntile::rsqrt_autograd));
 }

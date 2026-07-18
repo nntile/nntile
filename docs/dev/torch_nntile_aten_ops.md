@@ -23,6 +23,31 @@ While torch-native StarPU codelets are introduced for untiled tensors,
 Libnntile C++ TensorGraph tiling tests are unchanged (they do not go through
 PrivateUse1).
 
+## Registration policy (match `device=cuda`)
+
+Baseline is how stock PyTorch registers the same schema for CUDA:
+
+| CUDA pattern | What nntile should do |
+|--------------|------------------------|
+| Device kernel (`RegisterCUDA` / structured `.out`) | PrivateUse1 device impl; Autograd stays on generic VariableType |
+| `CompositeImplicitAutograd` (`chunk`, `narrow`, `linear`, `matmul`, …) | **Do not** register PrivateUse1 — let the composite lower to primitives (`as_strided`, `addmm`, `mm`, …) |
+| `CompositeExplicitAutograd` shared default (`select.int`, `alias`, …) | Prefer composite unless nntile storage needs a hook (`as_strided` / `alias` for `TensorRef`) |
+| AutogradCUDA = VariableType formula (e.g. `rsqrt` → `result.pow(3)`) | **Do not** register AutogradPrivateUse1; implement the formula’s device ops (`pow`) |
+
+Intentional deviations (nntile storage / StarPU):
+
+- `as_strided` / `alias` — PrivateUse1 so views keep `TensorRef` (CUDA has
+  `as_strided_tensorimpl`; composite `alias` would drop our GC binding).
+- `contiguous` on **AutogradPrivateUse1** — densify partial covers; CUDA’s
+  CompositeImplicit `contiguous` can return a still-strided “contiguous”
+  view that is not a full StarPU buffer cover.
+
+Known gap vs CUDA view backward: nntile→nntile `_copy_from` currently
+**rebinds** `TensorRef` (SSA) instead of writing into a parent buffer at
+`storage_offset`. That breaks Slice / Select / AsStrided Backward after
+composite `narrow` / `select`. Fix is copy-into-view (host RMW or in-place
+StarPU write into the existing logical), not re-registering those ops.
+
 ## Registered aten schemas
 
 All registrations are `TORCH_LIBRARY_IMPL(aten, PrivateUse1, …)` unless noted.
@@ -35,7 +60,9 @@ Sources live under `torch_nntile/csrc/`.
 | `empty.memory_format` |
 | `empty_strided` |
 | `as_strided` |
+| `alias` |
 | `view` |
+| `_unsafe_view` |
 | `_reshape_alias` |
 | `transpose.int` |
 | `t` |
@@ -54,6 +81,9 @@ Sources live under `torch_nntile/csrc/`.
 
 Also: `contiguous` on **AutogradPrivateUse1**, and a boxed **`cpu_fallback`**
 for unregistered ops when `cpu_fallback=True`.
+
+Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
+`chunk`, `split` / `split_with_sizes`, `linear`, `matmul`.
 
 ### Elementwise / reductions / norms
 
@@ -75,15 +105,16 @@ for unregistered ops when `cpu_fallback=True`.
 | `nntile_sum.cpp` | `sum.IntList_out`, `sum.dim_IntList` |
 | `nntile_norm.cpp` | `linalg_vector_norm`, `linalg_vector_norm.out` |
 
-### Linear algebra / linear
+### Linear algebra
 
 | File | Schemas |
 |------|---------|
 | `nntile_mm.cpp` | `mm`, `mm.out` |
 | `nntile_bmm.cpp` | `bmm`, `bmm.out` |
 | `nntile_addmm.cpp` | `addmm`, `addmm.out` |
-| `nntile_gemm.cpp` | `matmul` |
-| `nntile_linear.cpp` | `linear`, `linear.out`, `linear_backward` |
+
+`nntile_linear.cpp` / `nntile_gemm.cpp` keep StarPU helpers but do **not**
+register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 
 ### Norm / embedding / layout
 
@@ -92,9 +123,11 @@ for unregistered ops when `cpu_fallback=True`.
 | `nntile_layer_norm.cpp` | `native_layer_norm`, `native_layer_norm_backward` |
 | `nntile_embedding.cpp` | `embedding`, `embedding_dense_backward` |
 | `nntile_cat.cpp` | `cat`, `cat.out` |
-| `nntile_split.cpp` | `split_with_sizes`, `split`, `split.Tensor`, `chunk` |
-| `nntile_narrow.cpp` | `narrow` |
+| `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt` (+ `.out`) |
 | `nntile_repeat.cpp` | `repeat` |
+
+`nntile_split.cpp` / `nntile_narrow.cpp` are reference helpers only (no
+PrivateUse1 registration).
 
 ### SDPA (`nntile_sdpa_aten.cpp`)
 
