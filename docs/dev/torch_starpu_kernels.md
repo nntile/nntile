@@ -462,16 +462,25 @@ use it to reimplement a VariableType formula (that was the `rsqrt` mistake).
 | `as_strided`, `alias` | Must call `record_view_alias` / share `TensorRef`; stock composite `alias` drops BackendMeta. |
 | `contiguous` (+ AutogradPrivateUse1) | Torch “contiguous” views can still be partial covers of a StarPU logical; we densify. |
 
-### Known gap: copy-into-view
+### Copy-into-view (Slice / AsStrided Backward)
 
-Composite view **forward** matches CUDA. Slice / Select / AsStrided
-**Backward** still misbehave if they `copy_` into a strided view of a
-zeros-like base: nntile→nntile `_copy_from` currently **reattaches**
-`TensorRef` (SSA) instead of writing the parent buffer at
-`storage_offset`. Fix copy-into-view (host RMW or in-place write into the
-existing logical). Do **not** “fix” it by re-registering `narrow` /
-`select` — PrivateUse1 `narrow` also lacks a VariableType derivative
-(`NotImplemented`).
+Composite view **forward** matches CUDA. Backward (`SliceBackward0`,
+`SelectBackward0`, `AsStridedBackward0`, …) does
+`zeros_like(base).as_strided(...).copy_(grad)`.
+
+nntile→nntile `_copy_from` must **not** SSA-rebind `TensorRef` onto a
+partial / strided destination (that left the base zeros untouched). For
+those destinations, copy does host RMW:
+
+1. `gather_nntile_view_to_cpu(src)` (contiguous logical of the source)
+2. `gather_full_logical_to_cpu(dst)` (full parent buffer)
+3. Patch `full.as_strided(dst.sizes(), dst.strides(), dst.offset()).copy_(src)`
+4. `overwrite_bound_nntile_logical_from_cpu(full, dst)` (scatter into the
+   existing logical; view + base keep the same `TensorRef`)
+
+Dense full-cover nntile→nntile copies still SSA-rebind (graph style).
+Do **not** re-register PrivateUse1 `narrow` / `select` to “fix” backward —
+VariableType has no narrow derivative (`NotImplemented`).
 
 Op list and policy summary:
 [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md).
@@ -587,8 +596,9 @@ Lessons from wiring the first ops:
 12. **Densify in PrivateUse1 compute impls** when VariableType formulas
     pass non-contiguous views (`mul.Scalar`, `sum`, …). Hard
     `is_contiguous` checks fail CUDA-identical backward graphs.
-13. **nntile→nntile copy must not silently rebind views** if Slice /
-    AsStrided Backward should work; today SSA rebind is a known gap.
+13. **nntile→nntile copy into views** uses host RMW +
+    `overwrite_bound_nntile_logical_from_cpu` (not SSA rebind), so Slice /
+    AsStrided Backward match CUDA.
 
 Reference sources:
 `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_dispatch.*`,

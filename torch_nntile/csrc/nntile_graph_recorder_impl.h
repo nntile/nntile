@@ -31,6 +31,12 @@ void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst);
 
+//! See ``overwrite_bound_nntile_logical_from_cpu`` in
+//! ``nntile_graph_recorder.h``.
+void overwrite_bound_nntile_logical_from_cpu(
+    const at::Tensor &cpu_src,
+    const at::Tensor &nntile_bound);
+
 nntile::TensorGraph::TensorNode *get_or_create_data_node(
     const at::Tensor &tensor,
     const std::vector<nntile::Index> &shape,

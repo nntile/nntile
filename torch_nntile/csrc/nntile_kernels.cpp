@@ -477,6 +477,45 @@ at::Tensor densify_for_host_io(const at::Tensor &self)
     return result;
 }
 
+//! True when ``dst`` is a view of a larger (or strided) logical: copy must
+//! write into the parent buffer, not rebind ``TensorRef`` (SSA).
+bool needs_copy_into_view(const at::Tensor &dst)
+{
+    nntile::TensorRef binding = tensor_ref(dst);
+    if (!binding)
+    {
+        return false;
+    }
+    if (dst.storage_offset() != 0)
+    {
+        return true;
+    }
+    if (static_cast<int64_t>(binding.get()->nelems()) != dst.numel())
+    {
+        return true;
+    }
+    return !dst.is_contiguous();
+}
+
+void copy_into_nntile_view(
+    const at::Tensor &src,
+    at::Tensor &dst)
+{
+    TORCH_CHECK(
+        is_nntile_device(dst.device()),
+        "copy_into_nntile_view: expected nntile dst");
+    at::Tensor src_cpu = src.is_cpu()
+        ? src.contiguous()
+        : gather_nntile_view_to_cpu(src);
+    at::Tensor full_cpu = gather_full_logical_to_cpu(dst);
+    full_cpu.as_strided(
+               dst.sizes(),
+               dst.strides(),
+               dst.storage_offset())
+        .copy_(src_cpu);
+    overwrite_bound_nntile_logical_from_cpu(full_cpu, dst);
+}
+
 at::Tensor copy_from(
     const at::Tensor &self,
     const at::Tensor &dst,
@@ -524,6 +563,11 @@ at::Tensor copy_from(
     }
     if (is_nntile_device(mutable_dst.device()) && src.is_cpu())
     {
+        if (needs_copy_into_view(mutable_dst))
+        {
+            copy_into_nntile_view(src, mutable_dst);
+            return dst;
+        }
         TORCH_CHECK(
             src.is_contiguous() && mutable_dst.is_contiguous(),
             "nntile stub copy requires contiguous tensors");
@@ -534,11 +578,17 @@ at::Tensor copy_from(
         is_nntile_device(src.device()) &&
         is_nntile_device(mutable_dst.device()))
     {
+        if (needs_copy_into_view(mutable_dst))
+        {
+            copy_into_nntile_view(src, mutable_dst);
+            return dst;
+        }
         nntile::TensorRef src_binding = tensor_ref(src);
         if (src_binding != nullptr &&
             src.sizes() == mutable_dst.sizes() &&
             src.scalar_type() == mutable_dst.scalar_type())
         {
+            // Dense full-cover SSA rebind (unchanged).
             attach_tensor_ref(mutable_dst, src_binding);
             return dst;
         }

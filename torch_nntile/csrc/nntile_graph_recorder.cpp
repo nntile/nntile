@@ -1439,6 +1439,31 @@ at::Tensor gather_nntile_view_to_cpu(const at::Tensor &src)
         .contiguous();
 }
 
+at::Tensor gather_full_logical_to_cpu(const at::Tensor &src)
+{
+    TORCH_CHECK(
+        src.device().type() == c10::DeviceType::PrivateUse1,
+        "gather_full_logical_to_cpu: expected nntile");
+    nntile::TensorRef binding = tensor_ref(src);
+    TORCH_CHECK(
+        binding,
+        "gather_full_logical_to_cpu: unbound tensor");
+    nntile::TensorGraph::TensorNode *logical = binding.get();
+    std::vector<int64_t> full_sizes(
+        logical->shape().begin(),
+        logical->shape().end());
+    if (full_sizes.empty())
+    {
+        full_sizes.push_back(static_cast<int64_t>(logical->nelems()));
+    }
+    at::Tensor full_cpu = at::empty(
+        full_sizes,
+        src.options().device(at::kCPU).memory_format(
+            at::MemoryFormat::Contiguous));
+    copy_nntile_tensor_to_cpu(src, full_cpu);
+    return full_cpu;
+}
+
 void init_nntile_input_from_cpu(
     const at::Tensor &cpu_src,
     at::Tensor &nntile_dst)
@@ -1504,6 +1529,70 @@ void init_nntile_input_from_cpu(
         dtype,
         static_cast<std::size_t>(cpu_src.numel()));
 
+    nntile::tensor::scatter(staging, logical);
+}
+
+void overwrite_bound_nntile_logical_from_cpu(
+    const at::Tensor &cpu_src,
+    const at::Tensor &nntile_bound)
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    TORCH_CHECK(
+        cpu_src.is_cpu(),
+        "overwrite_bound_nntile_logical_from_cpu: expected CPU src");
+    TORCH_CHECK(
+        cpu_src.is_contiguous(),
+        "overwrite_bound_nntile_logical_from_cpu: CPU src must be "
+        "contiguous");
+    TORCH_CHECK(
+        nntile_bound.device().type() == c10::DeviceType::PrivateUse1,
+        "overwrite_bound_nntile_logical_from_cpu: expected nntile");
+    nntile::TensorRef binding = tensor_ref(nntile_bound);
+    TORCH_CHECK(
+        binding,
+        "overwrite_bound_nntile_logical_from_cpu: unbound tensor");
+    nntile::TensorGraph::TensorNode *logical = binding.get();
+    const nntile::DataType dtype = logical->dtype();
+    TORCH_CHECK(
+        aten_scalar_to_nntile_dtype(cpu_src.scalar_type()) == dtype,
+        "overwrite_bound_nntile_logical_from_cpu: dtype mismatch");
+    TORCH_CHECK(
+        static_cast<std::size_t>(cpu_src.numel()) ==
+            static_cast<std::size_t>(logical->nelems()),
+        "overwrite_bound_nntile_logical_from_cpu: numel mismatch");
+    check_host_buffer_for_transfer(
+        cpu_src,
+        static_cast<std::size_t>(cpu_src.numel()),
+        nntile::dtype_size(dtype),
+        "overwrite_bound_nntile_logical_from_cpu");
+
+    // Sync prior async work so scatter appends to a clean phase (same
+    // pattern as copy_nntile_tensor_to_cpu).
+    if (g_run_cleanup_pending)
+    {
+        finish_run_locked();
+    }
+    if (g_graph != nullptr &&
+        g_graph->num_ops() > g_graph->phase_seal_cursor())
+    {
+        compile_graph_locked();
+        run_graph_locked();
+        finish_run_locked();
+    }
+
+    auto *staging =
+        new_ephemeral_staging_node_locked(logical, "overwrite");
+    if (staging == nullptr)
+    {
+        throw std::runtime_error(
+            "torch_nntile: failed to create overwrite staging tensor");
+    }
+    lower_io_staging_locked(staging);
+    write_cpu_bytes_to_staging_locked(
+        staging,
+        cpu_src.data_ptr(),
+        dtype,
+        static_cast<std::size_t>(cpu_src.numel()));
     nntile::tensor::scatter(staging, logical);
 }
 

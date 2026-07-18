@@ -69,13 +69,12 @@ Intentional deviations (nntile storage / StarPU):
   CompositeImplicit `contiguous` can return a still-strided “contiguous”
   view that is not a full StarPU buffer cover.
 
-Known gap vs CUDA view backward: nntile→nntile `_copy_from` currently
-**rebinds** `TensorRef` (SSA) instead of writing into a parent buffer at
-`storage_offset`. That breaks Slice / Select / AsStrided Backward after
-composite `narrow` / `select`. Fix is copy-into-view (host RMW or in-place
-StarPU write into the existing logical), not re-registering those ops.
-Re-registering PrivateUse1 `narrow` is also wrong: VariableType has no
-narrow derivative (`NotImplemented`).
+Known gap vs CUDA view backward: ~~nntile→nntile `_copy_from` rebinds
+`TensorRef` (SSA) instead of writing the parent at `storage_offset`.~~
+**Fixed:** partial / strided destinations use host RMW
+(`gather_full_logical_to_cpu` → patch view →
+`overwrite_bound_nntile_logical_from_cpu`). Dense full-cover copies still
+SSA-rebind. Slice / Select / AsStrided / T Backward now match CPU grads.
 
 ## Registered aten schemas
 

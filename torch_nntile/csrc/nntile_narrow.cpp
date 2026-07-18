@@ -4,8 +4,8 @@
  * @file torch_nntile/csrc/nntile_narrow.cpp
  * Reference helpers for ``narrow`` / ``select.int`` views. Not registered on
  * PrivateUse1 — match CUDA Composite → ``as_strided`` (nntile_kernels.cpp).
- * Slice / Select / AsStrided Backward still need copy-into-view (today
- * nntile→nntile copy rebinds TensorRef instead of writing the parent).
+ * View backward uses copy-into-view in ``_copy_from`` (host RMW of the
+ * parent logical).
  */
 
 #include "nntile_graph_recorder_impl.h"
