@@ -18,6 +18,14 @@
 namespace torch_nntile
 {
 
+// densify_cat_inputs must call this C++ kernel — not Tensor::contiguous().
+// The Tensor method returns *this when is_contiguous() without dispatching
+// to PrivateUse1, so same-numel reshape views (View Backward) stay aliased
+// to the parent TensorNode and SplitBackward cat packs wrong tile shapes.
+at::Tensor contiguous(
+    const at::Tensor &self,
+    at::MemoryFormat memory_format);
+
 namespace
 {
 
@@ -59,10 +67,11 @@ std::vector<at::Tensor> densify_cat_inputs(
     for (const at::Tensor &tensor : tensors)
     {
         check_cat_tensor(tensor);
-        // Always go through contiguous(): reshape views can be
-        // is_contiguous yet still share a differently shaped TensorNode
-        // (View Backward of attention heads). contiguous() densifies those.
-        out.push_back(tensor.contiguous());
+        // Always densify via the PrivateUse1 kernel (not Tensor::contiguous):
+        // reshape views can be is_contiguous yet still share a differently
+        // shaped TensorNode (View Backward of attention heads).
+        out.push_back(
+            contiguous(tensor, at::MemoryFormat::Contiguous));
     }
     return out;
 }

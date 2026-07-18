@@ -246,3 +246,84 @@ def test_cat_backward_subprocess():
         assert torch.allclose(gb.cpu(), gb_cpu, rtol=1e-5, atol=1e-5)
         """
     )
+
+
+def test_view_backward_cat_no_resize_warning():
+    """View Backward reshape views must densify before SplitBackward cat.
+
+    Reproduces HF GPT-2 attn: heads [B,S,H,D] → View Backward to
+    [B,S,H*D] then SplitBackward cat. Without densify, StarPU cat packs
+    node shapes and aten::cat_out resize-warns fused → [B,S,3H,D].
+    """
+    env = subprocess_environ()
+    script = textwrap.dedent(
+        """
+        import torch
+        import torch_nntile
+
+        torch_nntile.init_context(
+            ncpu=1,
+            ncuda=0,
+            cpu_fallback=False,
+        )
+        torch_nntile.restrict_cpu()
+
+        batch, seq, n_heads, head_dim = 1, 8, 4, 16
+        hidden = n_heads * head_dim
+        qkv_cpu = torch.randn(
+            batch, seq, 3 * hidden, dtype=torch.float32, requires_grad=True
+        )
+        q_c, k_c, v_c = qkv_cpu.split(hidden, dim=2)
+        qh_c = q_c.view(batch, seq, n_heads, head_dim)
+        kh_c = k_c.view(batch, seq, n_heads, head_dim)
+        vh_c = v_c.view(batch, seq, n_heads, head_dim)
+        gx_cpu = torch.autograd.grad(
+            (qh_c, kh_c, vh_c),
+            qkv_cpu,
+            grad_outputs=(
+                torch.ones_like(qh_c),
+                torch.ones_like(kh_c),
+                torch.ones_like(vh_c),
+            ),
+        )[0]
+
+        qkv = qkv_cpu.detach().to("nntile").requires_grad_(True)
+        q, k, v = qkv.split(hidden, dim=2)
+        qh = q.view(batch, seq, n_heads, head_dim)
+        kh = k.view(batch, seq, n_heads, head_dim)
+        vh = v.view(batch, seq, n_heads, head_dim)
+        gx = torch.autograd.grad(
+            (qh, kh, vh),
+            qkv,
+            grad_outputs=(
+                torch.ones_like(qh),
+                torch.ones_like(kh),
+                torch.ones_like(vh),
+            ),
+        )[0]
+        assert torch_nntile.has_pending_graph()
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        assert torch.allclose(gx.cpu(), gx_cpu, rtol=1e-5, atol=1e-5)
+        """
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise AssertionError(
+            f"subprocess failed ({proc.returncode})\n"
+            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+        )
+    if (
+        "Resize.cpp" in proc.stderr
+        or "resized since it had shape" in proc.stderr
+    ):
+        raise AssertionError(
+            "unexpected Resize.cpp / resize_output warning\n"
+            f"stderr:\n{proc.stderr}"
+        )

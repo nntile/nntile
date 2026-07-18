@@ -101,6 +101,11 @@ Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
   tile shapes `3×[B,S,H,D]` and allocate `[B,S,3H,D]` instead of the
   fused `[B,S,3*n_embd]`, triggering PyTorch `resize_output` warnings.
   Truly dense contiguous tensors (matching node shape) are a no-op.
+  **Footgun:** C++ `tensor.contiguous()` / Python `.contiguous()` use
+  ATen's method fast-path and return `*this` when `is_contiguous()`
+  without dispatching to PrivateUse1 — reshape views never densify that
+  way. Call `torch_nntile::contiguous(...)` (or `aten::contiguous` via
+  the dispatcher) from C++ helpers such as `densify_cat_inputs`.
 - Host egress (`.cpu()` / nntile→CPU `copy_`) densifies before gather when
   the tensor is not a dense cover of `L` from `storage_offset == 0`
   (contiguous `narrow` / Split Backward slices share `L` but have a
