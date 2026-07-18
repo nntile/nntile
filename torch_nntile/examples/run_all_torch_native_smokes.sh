@@ -71,22 +71,29 @@ done
 
 GPT2_OUT="${TMPDIR:-/tmp}/torch_nntile_gpt2_hf_smoke_$$"
 mkdir -p "${GPT2_OUT}"
-run_py "${EXAMPLES}/train_gpt2_hf.py" train \
-  --device "${DEVICE}" \
-  --seed "${SEED}" \
-  --data-seed "${SEED}" \
-  --epochs 1 \
-  --max-sequences 4 \
-  --batch-size 2 \
-  --seq-len 8 \
-  --output-dir "${GPT2_OUT}" \
-  --ncpu "${NCPU}" \
-  --ncuda "${NCUDA}" \
+GPT2_ARGS=(
+  "${EXAMPLES}/train_gpt2_hf.py" train
+  --device "${DEVICE}"
+  --seed "${SEED}"
+  --data-seed "${SEED}"
+  --epochs 1
+  --max-sequences 4
+  --batch-size 2
+  --seq-len 8
+  --output-dir "${GPT2_OUT}"
+  --ncpu "${NCPU}"
+  --ncuda "${NCUDA}"
   --no-shuffle
-if [[ "${DEVICE}" == "nntile" && "${NCUDA}" == "0" ]]; then
-  # pin CPU workers when no CUDA workers requested
-  true
+)
+# train_gpt2_hf does not auto-restrict; match HF/CNN/DiT commons.
+if [[ "${DEVICE}" == "nntile" ]]; then
+  if [[ "${NCUDA}" != "0" ]]; then
+    GPT2_ARGS+=(--restrict-cuda)
+  else
+    GPT2_ARGS+=(--restrict-cpu)
+  fi
 fi
+run_py "${GPT2_ARGS[@]}"
 
 # CNN torch-native stacks
 for script in \
