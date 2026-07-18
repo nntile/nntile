@@ -65,6 +65,25 @@ int64_t conv_transpose_output_extent(
         output_padding + 1;
 }
 
+std::vector<int64_t> expand_spatial_2d(
+    c10::IntArrayRef values,
+    int64_t default0,
+    int64_t default1)
+{
+    if (values.empty())
+    {
+        return {default0, default1};
+    }
+    if (values.size() == 1)
+    {
+        return {values[0], values[0]};
+    }
+    TORCH_CHECK(
+        values.size() == 2,
+        "nntile convolution: expected 1D or 2D spatial args");
+    return {values[0], values[1]};
+}
+
 std::vector<int64_t> convolution_output_shape(
     const at::Tensor &input,
     const at::Tensor &weight,
@@ -77,14 +96,14 @@ std::vector<int64_t> convolution_output_shape(
 {
     TORCH_CHECK(input.dim() == 4, "nntile convolution supports 4D NCHW");
     TORCH_CHECK(weight.dim() == 4, "nntile convolution weight must be 4D");
-    TORCH_CHECK(stride.size() == 2, "nntile convolution stride must be 2D");
-    TORCH_CHECK(padding.size() == 2, "nntile convolution padding must be 2D");
-    TORCH_CHECK(
-        dilation.size() == 2,
-        "nntile convolution dilation must be 2D");
-    TORCH_CHECK(
-        output_padding.size() == 2,
-        "nntile convolution output_padding must be 2D");
+    const std::vector<int64_t> stride_2d =
+        expand_spatial_2d(stride, 1, 1);
+    const std::vector<int64_t> padding_2d =
+        expand_spatial_2d(padding, 0, 0);
+    const std::vector<int64_t> dilation_2d =
+        expand_spatial_2d(dilation, 1, 1);
+    const std::vector<int64_t> output_padding_2d =
+        expand_spatial_2d(output_padding, 0, 0);
 
     std::vector<int64_t> out_shape = input.sizes().vec();
     out_shape[1] = transposed ? weight.size(1) * groups : weight.size(0);
@@ -96,19 +115,19 @@ std::vector<int64_t> convolution_output_shape(
             out_shape[idx] = conv_transpose_output_extent(
                 input.size(idx),
                 weight.size(idx),
-                stride[dim],
-                padding[dim],
-                dilation[dim],
-                output_padding[dim]);
+                stride_2d[dim],
+                padding_2d[dim],
+                dilation_2d[dim],
+                output_padding_2d[dim]);
         }
         else
         {
             out_shape[idx] = conv_output_extent(
                 input.size(idx),
                 weight.size(idx),
-                stride[dim],
-                padding[dim],
-                dilation[dim]);
+                stride_2d[dim],
+                padding_2d[dim],
+                dilation_2d[dim]);
         }
     }
     return out_shape;
@@ -129,15 +148,21 @@ at::Tensor convolution_overrideable(
 {
     check_conv_tensor(input, "nntile convolution input");
     check_conv_tensor(weight, "nntile convolution weight");
-    if (bias.has_value())
+    // TORCH_FN may wrap Python ``None`` as an undefined Tensor inside
+    // optional rather than ``nullopt``.
+    const bool has_bias = bias.has_value() && bias->defined();
+    if (has_bias)
     {
         check_conv_tensor(*bias, "nntile convolution bias");
     }
-    std::vector<int64_t> stride_i = sym_to_i64(stride);
-    std::vector<int64_t> padding_i = sym_to_i64(padding);
-    std::vector<int64_t> dilation_i = sym_to_i64(dilation);
-    std::vector<int64_t> output_padding_i = sym_to_i64(output_padding);
-    TORCH_CHECK(stride_i.size() == 2, "nntile convolution supports 2D only");
+    std::vector<int64_t> stride_i =
+        expand_spatial_2d(sym_to_i64(stride), 1, 1);
+    std::vector<int64_t> padding_i =
+        expand_spatial_2d(sym_to_i64(padding), 0, 0);
+    std::vector<int64_t> dilation_i =
+        expand_spatial_2d(sym_to_i64(dilation), 1, 1);
+    std::vector<int64_t> output_padding_i =
+        expand_spatial_2d(sym_to_i64(output_padding), 0, 0);
     std::vector<int64_t> out_shape = convolution_output_shape(
         input,
         weight,
@@ -154,7 +179,7 @@ at::Tensor convolution_overrideable(
     tensor_convolution_fp32(
         input,
         weight,
-        bias.has_value() ? &*bias : nullptr,
+        has_bias ? &*bias : nullptr,
         out,
         stride_i,
         padding_i,
@@ -181,10 +206,14 @@ convolution_backward_overrideable(
     check_conv_tensor(grad_output, "nntile convolution_backward grad");
     check_conv_tensor(input, "nntile convolution_backward input");
     check_conv_tensor(weight, "nntile convolution_backward weight");
-    std::vector<int64_t> stride_i = sym_to_i64(stride);
-    std::vector<int64_t> padding_i = sym_to_i64(padding);
-    std::vector<int64_t> dilation_i = sym_to_i64(dilation);
-    std::vector<int64_t> output_padding_i = sym_to_i64(output_padding);
+    std::vector<int64_t> stride_i =
+        expand_spatial_2d(sym_to_i64(stride), 1, 1);
+    std::vector<int64_t> padding_i =
+        expand_spatial_2d(sym_to_i64(padding), 0, 0);
+    std::vector<int64_t> dilation_i =
+        expand_spatial_2d(sym_to_i64(dilation), 1, 1);
+    std::vector<int64_t> output_padding_i =
+        expand_spatial_2d(sym_to_i64(output_padding), 0, 0);
     at::Tensor grad_input;
     at::Tensor grad_weight;
     at::Tensor grad_bias;

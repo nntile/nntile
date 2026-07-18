@@ -157,9 +157,32 @@ void pack_pair(
     nntile::Index start,
     c10::IntArrayRef values)
 {
-    TORCH_CHECK(values.size() == 2, "torch_nntile: expected 2D arguments");
-    extra.iargs[start] = static_cast<nntile::Index>(values[0]);
-    extra.iargs[start + 1] = static_cast<nntile::Index>(values[1]);
+    // PyTorch ``int[2]`` args often arrive as length-1 (broadcast).
+    TORCH_CHECK(
+        values.size() == 1 || values.size() == 2,
+        "torch_nntile: expected 1D or 2D spatial arguments");
+    const nntile::Index v0 = static_cast<nntile::Index>(values[0]);
+    const nntile::Index v1 = values.size() == 2
+        ? static_cast<nntile::Index>(values[1])
+        : v0;
+    extra.iargs[start] = v0;
+    extra.iargs[start + 1] = v1;
+}
+
+void pack_pair_or_default(
+    nntile::starpu::TorchDispatchArgs &extra,
+    nntile::Index start,
+    c10::IntArrayRef values,
+    nntile::Index default0,
+    nntile::Index default1)
+{
+    if (values.empty())
+    {
+        extra.iargs[start] = default0;
+        extra.iargs[start + 1] = default1;
+        return;
+    }
+    pack_pair(extra, start, values);
 }
 
 [[noreturn]] void throw_op_disabled(const char *name)
@@ -2287,8 +2310,10 @@ void tensor_avg_pool2d_fp32(
         false);
     nntile::starpu::TorchDispatchArgs extra{};
     pack_pair(extra, 0, kernel);
-    pack_pair(extra, 2, stride);
-    pack_pair(extra, 4, padding);
+    const nntile::Index k0 = extra.iargs[0];
+    const nntile::Index k1 = extra.iargs[1];
+    pack_pair_or_default(extra, 2, stride, k0, k1);
+    pack_pair_or_default(extra, 4, padding, 0, 0);
     extra.iargs[6] = ceil_mode ? 1 : 0;
     extra.iargs[7] = count_include_pad ? 1 : 0;
     extra.iargs[8] = divisor_override.has_value() ? 1 : 0;
@@ -2334,8 +2359,10 @@ void tensor_avg_pool2d_backward_fp32(
         false);
     nntile::starpu::TorchDispatchArgs extra{};
     pack_pair(extra, 0, kernel);
-    pack_pair(extra, 2, stride);
-    pack_pair(extra, 4, padding);
+    const nntile::Index k0 = extra.iargs[0];
+    const nntile::Index k1 = extra.iargs[1];
+    pack_pair_or_default(extra, 2, stride, k0, k1);
+    pack_pair_or_default(extra, 4, padding, 0, 0);
     extra.iargs[6] = ceil_mode ? 1 : 0;
     extra.iargs[7] = count_include_pad ? 1 : 0;
     extra.iargs[8] = divisor_override.has_value() ? 1 : 0;
@@ -2613,9 +2640,12 @@ void tensor_max_pool2d_with_indices_fp32(
         false);
     nntile::starpu::TorchDispatchArgs extra{};
     pack_pair(extra, 0, kernel);
-    pack_pair(extra, 2, stride);
-    pack_pair(extra, 4, padding);
-    pack_pair(extra, 6, dilation);
+    // Empty stride means stride == kernel (aten max/avg pool default).
+    const nntile::Index k0 = extra.iargs[0];
+    const nntile::Index k1 = extra.iargs[1];
+    pack_pair_or_default(extra, 2, stride, k0, k1);
+    pack_pair_or_default(extra, 4, padding, 0, 0);
+    pack_pair_or_default(extra, 6, dilation, 1, 1);
     extra.iargs[8] = ceil_mode ? 1 : 0;
     pack_tensor_layout(extra, 0, input, false);
     pack_tensor_layout(extra, 0, out, true);
@@ -2662,9 +2692,11 @@ void tensor_max_pool2d_with_indices_backward_fp32(
         false);
     nntile::starpu::TorchDispatchArgs extra{};
     pack_pair(extra, 0, kernel);
-    pack_pair(extra, 2, stride);
-    pack_pair(extra, 4, padding);
-    pack_pair(extra, 6, dilation);
+    const nntile::Index k0 = extra.iargs[0];
+    const nntile::Index k1 = extra.iargs[1];
+    pack_pair_or_default(extra, 2, stride, k0, k1);
+    pack_pair_or_default(extra, 4, padding, 0, 0);
+    pack_pair_or_default(extra, 6, dilation, 1, 1);
     extra.iargs[8] = ceil_mode ? 1 : 0;
     pack_tensor_layout(extra, 0, grad_output, false);
     pack_tensor_layout(extra, 1, input, false);

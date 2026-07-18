@@ -126,7 +126,7 @@ Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 |------|---------|
 | `nntile_add.cpp` | `add.Tensor`, `add.out`, `add_.Tensor`, `add.Scalar`, `add.Scalar_out`, `add_.Scalar` |
 | `nntile_mul.cpp` | `mul.Tensor`, `mul.out`, `mul_.Tensor`, `mul.Scalar`, `mul.Scalar_out` |
-| `nntile_relu.cpp` | `relu`, `relu.out` |
+| `nntile_relu.cpp` | `relu`, `relu.out`, `relu_` |
 | `nntile_threshold_backward.cpp` | `threshold_backward` |
 | `nntile_silu.cpp` | `silu`, `silu.out`, `silu_` |
 | `nntile_silu_backward.cpp` | `silu_backward`, `silu_backward.grad_input` |
