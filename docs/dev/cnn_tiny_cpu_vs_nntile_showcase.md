@@ -104,31 +104,32 @@ Spawning a fresh Python process per run costs ~1–3 s here (imports).
 Do **not** treat process elapsed as a device comparison — use the
 printed train-loop wall.
 
-## Results (CPU vs nntile, `ncpu=1`)
+## Results (CPU vs nntile, `ncpu=1` / `ncpu=2`)
 
 Measured with `bench_cnn_tiny_cpu_vs_nntile.py` on the Cloud Agent VM
-(CPU-only StarPU / `USE_CUDA=OFF`, `ncpu=1`, `steps=1`, `batch-size=2`,
+(CPU-only StarPU / `USE_CUDA=OFF`, `steps=1`, `batch-size=2`,
 `seed=0`, `OMP_NUM_THREADS=1` / `torch.set_num_threads(1)`, date
 2026-07-18). Tiny configs (16–28 spatial, 8–16 channels) —
-**overhead-dominated**, not a speed contest. Single-core protocol:
-[reproducibility.md](reproducibility.md).
+**overhead-dominated**, not a speed contest. Single-core host protocol:
+[reproducibility.md](reproducibility.md). Re-run with `--ncpu 2` for the
+extra nntile column.
 
-| Model | CPU loss | nntile loss | CPU wall (s) | nntile wall (s) | Δ loss | Status |
-|---|---:|---:|---:|---:|---:|---|
-| lenet | 2.230573 | 2.230573 | 0.004 | 0.006 | 0.000e+00 | OK |
-| resnet | 1.905449 | 1.905449 | 0.004 | 0.008 | 0.000e+00 | OK |
-| vgg | 2.474704 | 2.474704 | 0.005 | 0.009 | 0.000e+00 | OK |
-| mobilenet | 2.080944 | 2.080944 | 0.004 | 0.010 | 0.000e+00 | OK |
-| unet | 1.160912 | 1.160912 | 0.012 | 0.021 | 0.000e+00 | OK |
-| unet_modern | 1.164545 | 1.164545 | 0.009 | 0.019 | 0.000e+00 | OK |
+| Model | CPU loss | nntile loss | CPU wall (s) | nntile ncpu=1 (s) | nntile ncpu=2 (s) | Δ loss | Status |
+|---|---:|---:|---:|---:|---:|---:|---|
+| lenet | 2.230573 | 2.230573 | 0.004 | 0.006 | 0.008 | 0.000e+00 | OK |
+| resnet | 1.905449 | 1.905449 | 0.004 | 0.008 | 0.009 | 0.000e+00 | OK |
+| vgg | 2.474704 | 2.474704 | 0.005 | 0.009 | 0.009 | 0.000e+00 | OK |
+| mobilenet | 2.080944 | 2.080944 | 0.004 | 0.010 | 0.010 | 0.000e+00 | OK |
+| unet | 1.160912 | 1.160912 | 0.012 | 0.021 | 0.022 | 0.000e+00 | OK |
+| unet_modern | 1.164545 | 1.164545 | 0.009 | 0.019 | 0.021 | 0.000e+00 | OK |
 
 **Takeaways for demos**
 
 1. **Correctness:** losses match on CPU and nntile for every model above
    (classic transpose U-Net and interpolate-based modern U-Net).
 2. **Timing at this scale:** nntile wall is higher (StarPU submit +
-   compile/run + host sync) while the math is tiny; middle CNN recipes
-   shrink the gap to ~1.1–1.4× — see
+   compile/run + host sync) while the math is tiny; `ncpu=2` does not
+   help here. Middle CNN recipes shrink the gap to ~1.1–1.4× — see
    [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + config dict + seed / step).

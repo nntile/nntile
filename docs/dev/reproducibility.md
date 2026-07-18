@@ -22,8 +22,9 @@ Wall times are the printed **train-loop** times (`wall=…s` or GPT-2
 
 ## Single-core host protocol (required)
 
-Overhead comparisons pin **one host compute thread** and **one StarPU CPU
-worker** unless you intentionally measure multi-worker scaling:
+Overhead comparisons pin **one host compute thread**. StarPU worker count
+defaults to **one** (`--ncpu 1`); pass `--ncpu 2` (or higher) only when
+measuring multi-worker scaling — keep host BLAS single-threaded either way:
 
 ```bash
 export OMP_NUM_THREADS=1
@@ -34,8 +35,9 @@ export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 ```
 
 Train helpers call `configure_single_thread_host()`
-(`torch.set_num_threads(1)` + the env defaults above). Pass `--ncpu 1` for
-`device=nntile`. Bench runners also force the env in the child process.
+(`torch.set_num_threads(1)` + the env defaults above). Pass `--ncpu 1` or
+`--ncpu 2` for `device=nntile`. Bench runners also force the env in the
+child process.
 
 ## Build / install (torch 2.9.1)
 
@@ -73,6 +75,11 @@ On a **CUDA** host, rebuild with `-DUSE_CUDA=ON` against a matching
 python torch_nntile/examples/bench_hf_tiny_cpu_vs_nntile.py --ncpu 1
 python torch_nntile/examples/bench_cnn_tiny_cpu_vs_nntile.py --ncpu 1
 python torch_nntile/examples/bench_dit_hf_tiny_cpu_vs_nntile.py --ncpu 1
+
+# Optional: two StarPU CPU workers (tiny stays overhead-dominated)
+python torch_nntile/examples/bench_hf_tiny_cpu_vs_nntile.py --ncpu 2
+python torch_nntile/examples/bench_cnn_tiny_cpu_vs_nntile.py --ncpu 2
+python torch_nntile/examples/bench_dit_hf_tiny_cpu_vs_nntile.py --ncpu 2
 ```
 
 Documented results:
@@ -92,6 +99,11 @@ recipes:
 python torch_nntile/examples/bench_torch_native_middle_cpu_vs_nntile.py \
   --families hf,cnn,dit \
   --markdown-out /tmp/torch_native_middle.md
+
+# Two StarPU CPU workers (nntile only; compare to CPU column from above)
+python torch_nntile/examples/bench_torch_native_middle_cpu_vs_nntile.py \
+  --families hf,cnn,dit --devices nntile --ncpu 2 \
+  --markdown-out /tmp/torch_native_middle_ncpu2.md
 ```
 
 Override a single model while tuning a new machine::
@@ -104,6 +116,7 @@ python torch_nntile/examples/bench_torch_native_middle_cpu_vs_nntile.py \
 
 Expect **nntile/CPU wall ratios closer to 1.0** than on tiny smokes: StarPU
 submit + compile/run + host sync become a smaller fraction of the math.
+With `--ncpu 2`, several middle HF models beat single-thread torch.
 
 Results summary: [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
 
