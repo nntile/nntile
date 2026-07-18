@@ -458,9 +458,14 @@ StarPU `TorchKind` (or whose stock path is host / unfused today):
 | `native_group_norm` (+ bwd) | ViT / ConvNeXt / some CNNs; `group_norm` is CompositeImplicit → this primitive | PrivateUse1 like LayerNorm |
 | `native_dropout` (+ bwd) | Training noise; `dropout` is CompositeImplicit | device primitive |
 | `upsample_nearest2d` / `upsample_bilinear2d` (+ bwd) | Segmentation / detectors / generative vision | device `.out` |
-| RoPE (classic disabled) | Llama / NeoX positional; torch-native still `throw_op_disabled` | StarPU fused or composite of mul/add |
-| Fused cross-entropy | Optional; today CE = `_log_softmax` + `nll_loss_*` (both StarPU) | only if profiling wants one task |
 | Softplus / Mish / PReLU | Less common activations; Softplus/Mish are device schemas, PReLU CompositeImplicit | low priority |
+
+**Not a missing aten fused op:** HuggingFace rotary (Llama / NeoX / …) is
+ordinary PyTorch math (`apply_rotary_pos_emb` → `rotate_half` + `mul` /
+`add` / views). There is no `aten::rope`. Stock HF models already run that
+decomposition on `device=nntile`. Classic NNTile `_C.rope` is a separate
+interleaved-pair kernel for hand-written stacks under
+`NNTILE_TORCH_NATIVE_OPS=OFF`; it is not what HF calls.
 
 Not “fused,” but still leave StarPU for composite leftovers:
 

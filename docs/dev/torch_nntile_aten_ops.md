@@ -178,10 +178,12 @@ Short list for product planning:
 1. **`native_group_norm`** (+ backward) — GroupNorm models (ViT-style).
 2. **`native_dropout`** — training.
 3. **Upsample / interpolate** device schemas — vision.
-4. **RoPE** — still disabled under `NNTILE_TORCH_NATIVE_OPS` (HF Llama often
-   inlines rotary via mul/add; hand-written classic RoPE is not on this path).
-5. Host leftovers: **`mean`**, general **`pow`/`div`/`where`**. RMSNorm
+4. Host leftovers: **`mean`**, general **`pow`/`div`/`where`**. RMSNorm
    correctly uses the composite path, so it currently reaches host `mean`.
+
+HF rotary is **not** a fused-aten gap: `apply_rotary_pos_emb` lowers to
+`mul` / `add` / views. Classic `_C.rope` is only for hand-written models
+when torch-native ops are off.
 
 ### SDPA (`nntile_sdpa_aten.cpp`)
 
