@@ -309,6 +309,10 @@ at::Tensor empty_strided(
     const c10::DeviceGuard device_guard(device);
     const c10::ScalarType dtype = c10::dtype_or_default(dtype_opt);
     at::Tensor tensor = empty_metadata_tensor(size, dtype, device);
+    // Match device=cuda: honor requested strides (metadata-only storage).
+    // Ignoring strides made structured kernels / empty_strided factories
+    // look contiguous and later resize_output when shapes were reinterpreted.
+    tensor.unsafeGetTensorImpl()->set_sizes_and_strides(size, stride);
     return tensor;
 }
 

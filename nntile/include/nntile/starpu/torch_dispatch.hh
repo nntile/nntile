@@ -99,7 +99,8 @@ struct TorchDispatchArgs
     // Sum/VectorNorm: n_dims, keepdim, dim0..
     // Gelu*: approximate_tanh in iargs[0]
     // NarrowCopy: dim, start, length
-    // Repeat: repeat counts in iargs[0..ndim-1]
+    // Repeat: repeat counts in iargs[0..out_ndim-1] (output rank; may
+    //   pad leading dims when the input tile is still the 1D parent)
     // Cat: dim, n_tensors
     // NativeLayerNorm: normalized_ndim, has_weight, has_bias;
     //   eps in scalars[0]

@@ -305,6 +305,13 @@ Family codelet `torch_unary` (one `R` input, one `W` output):
 | `VectorNorm` | `linalg_vector_norm.out` | in `R`, out `W` |
 | `NarrowCopy` | `narrow` view + `copy_` | in `R`, out `W` |
 | `Repeat` | `repeat.out` | in `R`, out `W` |
+
+`Repeat` stores factors for the **output** rank (`iargs[0..out_ndim)`).
+Bias broadcast for `addmm` / `linear` may reshape a 1D bias to `[1, N]`
+(view of the parent storage tile). Record paths must
+`pack_tensor_layout` so execute-time `from_blob` rebuilds that view;
+the CPU/CUDA wrapper must not take the repeat count from `in_ndim`
+alone (parent tile rank can stay 1).
 | `TransposeCopy` | `transpose` view + `copy_` | in `R`, out `W` |
 
 Family codelet `torch_binary` (two `R` inputs, one `W` output):

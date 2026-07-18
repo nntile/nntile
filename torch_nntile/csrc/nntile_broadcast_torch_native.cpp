@@ -10,6 +10,7 @@
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_meta.h"
+#include "nntile_torch_layout.h"
 
 #include <c10/util/Exception.h>
 
@@ -107,6 +108,12 @@ void tensor_repeat_fp32(
         extra.iargs[i] = static_cast<nntile::Index>(
             full_repeats[static_cast<size_t>(i)]);
     }
+    // Pack logical layouts: src may be a reshape view of a 1D bias
+    // whose TensorNode is still the parent storage. Without this,
+    // execute falls back to the tile shape and aten::repeat_out sees
+    // a 1D self with too few factors (resize_output flatten warning).
+    pack_tensor_layout(extra, 0, src, false);
+    pack_tensor_layout(extra, 0, out, true);
     auto *out_node = nntile::tensor::torch_unary(
         nntile::starpu::TorchKind::Repeat,
         src_node,

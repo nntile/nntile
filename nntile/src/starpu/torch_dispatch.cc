@@ -291,9 +291,15 @@ void run_unary(
     }
     case TorchKind::Repeat:
     {
+        // Factors are stored for the *output* rank (tensor_repeat_fp32).
+        // Do not use in_ndim: the StarPU tile may still be the parent 1D
+        // bias storage while factors pad a leading dim (addmm / linear
+        // bias broadcast). Using in_ndim alone made aten::repeat_out
+        // target a flat [numel] shape and resize_output-warn on the
+        // preallocated 2D out.
         std::vector<std::int64_t> repeats;
-        const Index ndim = args->in_ndim[0];
-        for (Index i = 0; i < ndim; ++i)
+        const Index nrep = args->out_ndim[0];
+        for (Index i = 0; i < nrep; ++i)
         {
             repeats.push_back(
                 static_cast<std::int64_t>(args->iargs[i]));
