@@ -7,6 +7,7 @@
 
 #include "parity_helpers.hh"
 
+#include <ATen/ops/rms_norm.h>
 #include <torch_nntile/runtime.hh>
 
 #include <catch2/catch_test_macros.hpp>
@@ -321,6 +322,39 @@ TEST_CASE("aten native_batch_norm fwd+bwd matches CPU", "[aten][parity]")
         1e-4,
         2e-3,
         2e-3);
+}
+
+TEST_CASE("aten rms_norm weight fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 8});
+    auto w = seeded({8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::rms_norm(
+                xs[0],
+                {8},
+                std::optional<at::Tensor>(xs[1]),
+                1e-5);
+        },
+        {x, w});
+}
+
+TEST_CASE("aten rms_norm no weight fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::rms_norm(
+                xs[0],
+                {8},
+                std::nullopt,
+                1e-5);
+        },
+        {x});
 }
 
 TEST_CASE("aten cat fwd+bwd matches CPU", "[aten][parity]")

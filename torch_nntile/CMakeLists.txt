@@ -70,6 +70,7 @@ if(NNTILE_TORCH_NATIVE_OPS)
         csrc/nntile_sum.cpp
         csrc/nntile_gemm.cpp
         csrc/nntile_layer_norm.cpp
+        csrc/nntile_rms_norm_aten.cpp
         csrc/nntile_norm.cpp
         csrc/nntile_broadcast_torch_native.cpp
         csrc/nntile_repeat.cpp

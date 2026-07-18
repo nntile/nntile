@@ -72,6 +72,19 @@ std::vector<nntile::Index> reduced_shape_along_axis(
     return reduced;
 }
 
+std::vector<nntile::Index> leading_shape_before_axis(
+    const std::vector<nntile::Index> &input_graph,
+    nntile::Index axis)
+{
+    std::vector<nntile::Index> reduced;
+    reduced.reserve(static_cast<std::size_t>(axis));
+    for (nntile::Index i = 0; i < axis; ++i)
+    {
+        reduced.push_back(input_graph[static_cast<std::size_t>(i)]);
+    }
+    return reduced;
+}
+
 nntile::starpu::TorchKind torch_gemm_kind(c10::IntArrayRef a_shape,
     c10::IntArrayRef b_shape)
 {
@@ -1863,30 +1876,144 @@ void tensor_layer_norm_backward_fp32(
 }
 
 void tensor_rms_norm_forward_fp32(
-    const at::Tensor &,
-    const at::Tensor *,
-    bool,
-    at::Tensor &,
-    at::Tensor &,
-    int64_t,
-    float)
+    const at::Tensor &input,
+    const at::Tensor *weight,
+    bool has_weight,
+    at::Tensor &output,
+    at::Tensor &rstd,
+    int64_t norm_axis,
+    float eps)
 {
-    throw_op_disabled("rms_norm_forward");
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(input.sizes());
+    const nntile::Index axis = static_cast<nntile::Index>(norm_axis);
+    const std::vector<nntile::Index> reduced_graph =
+        leading_shape_before_axis(input_graph, axis);
+    const nntile::Index normalized_ndim =
+        static_cast<nntile::Index>(input_graph.size()) - axis;
+
+    auto *input_node = get_or_create_data_node(
+        input,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *out_node = get_or_create_data_node(
+        output,
+        input_graph,
+        nntile::DataType::FP32,
+        false);
+    auto *rstd_node = get_or_create_data_node(
+        rstd,
+        reduced_graph,
+        nntile::DataType::FP32,
+        false);
+
+    nntile::TensorGraph::TensorNode *weight_node = nullptr;
+    if (has_weight && weight != nullptr)
+    {
+        weight_node = get_or_create_data_node(
+            *weight,
+            pytorch_shape_to_graph(weight->sizes()),
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(*weight));
+    }
+
+    nntile::tensor::torch_rms_norm(
+        input_node,
+        weight_node,
+        out_node,
+        rstd_node,
+        normalized_ndim,
+        static_cast<nntile::Scalar>(eps));
+
+    register_data_node(output, out_node);
+    register_data_node(rstd, rstd_node);
 }
 
 void tensor_rms_norm_backward_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    const at::Tensor &,
-    const at::Tensor *,
-    bool,
-    at::Tensor *,
-    at::Tensor *,
-    bool,
-    bool,
-    int64_t)
+    const at::Tensor &grad_out,
+    const at::Tensor &input,
+    const at::Tensor &rstd,
+    const at::Tensor *weight,
+    bool has_weight,
+    at::Tensor *grad_input,
+    at::Tensor *grad_weight,
+    bool grad_input_needed,
+    bool grad_weight_needed,
+    int64_t norm_axis)
 {
-    throw_op_disabled("rms_norm_backward");
+    const std::vector<nntile::Index> input_graph =
+        pytorch_shape_to_graph(input.sizes());
+    const nntile::Index axis = static_cast<nntile::Index>(norm_axis);
+    const std::vector<nntile::Index> reduced_graph =
+        leading_shape_before_axis(input_graph, axis);
+    const nntile::Index normalized_ndim =
+        static_cast<nntile::Index>(input_graph.size()) - axis;
+
+    auto *grad_out_node = get_or_create_data_node(
+        grad_out,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_out));
+    auto *input_node = get_or_create_data_node(
+        input,
+        input_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *rstd_node = get_or_create_data_node(
+        rstd,
+        reduced_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(rstd));
+
+    nntile::TensorGraph::TensorNode *weight_node = nullptr;
+    if (has_weight && weight != nullptr)
+    {
+        weight_node = get_or_create_data_node(
+            *weight,
+            pytorch_shape_to_graph(weight->sizes()),
+            nntile::DataType::FP32,
+            mark_as_input_for_operand(*weight));
+    }
+
+    nntile::TensorGraph::TensorNode *gi_node = nullptr;
+    nntile::TensorGraph::TensorNode *gw_node = nullptr;
+    if (grad_input_needed && grad_input != nullptr)
+    {
+        gi_node = get_or_create_data_node(
+            *grad_input,
+            input_graph,
+            nntile::DataType::FP32,
+            false);
+    }
+    if (grad_weight_needed && grad_weight != nullptr)
+    {
+        gw_node = get_or_create_data_node(
+            *grad_weight,
+            pytorch_shape_to_graph(grad_weight->sizes()),
+            nntile::DataType::FP32,
+            false);
+    }
+
+    nntile::tensor::torch_rms_norm_backward(
+        grad_out_node,
+        input_node,
+        rstd_node,
+        weight_node,
+        gi_node,
+        gw_node,
+        normalized_ndim,
+        grad_input_needed,
+        grad_weight_needed);
+
+    if (grad_input_needed && grad_input != nullptr)
+    {
+        register_data_node(*grad_input, gi_node);
+    }
+    if (grad_weight_needed && grad_weight != nullptr)
+    {
+        register_data_node(*grad_weight, gw_node);
+    }
 }
 
 void tensor_rope_fp32(

@@ -60,6 +60,7 @@ match CPU for the same call (`RsqrtBackward0`, `AddmmBackward0`,
 | `chunk` / `split` / `narrow` / `select.int` | Composite → views | **No** PrivateUse1; keep `as_strided` (+ `alias`) |
 | `as_strided` / `alias` | device / shared composite | PrivateUse1 (keep `TensorRef`) |
 | `contiguous` | CompositeImplicit | PrivateUse1 + AutogradPrivateUse1 densify |
+| `rms_norm` | CompositeImplicit (`pow` / `mean` / `rsqrt` / `mul`) | **Intentional deviation:** PrivateUse1 + AutogradPrivateUse1 fused StarPU task |
 
 Intentional deviations (nntile storage / StarPU):
 
@@ -68,6 +69,11 @@ Intentional deviations (nntile storage / StarPU):
 - `contiguous` on **AutogradPrivateUse1** — densify partial covers; CUDA’s
   CompositeImplicit `contiguous` can return a still-strided “contiguous”
   view that is not a full StarPU buffer cover.
+- `rms_norm` on **PrivateUse1** and **AutogradPrivateUse1** — PyTorch has no
+  `native_rms_norm` device primitive. Letting CompositeImplicit run on
+  `device=nntile` decomposes through `mean`, which currently gathers to host.
+  The override records one fused StarPU task for forward and one for backward,
+  saving reduced `rstd` for autograd.
 
 Known gap vs CUDA view backward: ~~nntile→nntile `_copy_from` rebinds
 `TensorRef` (SSA) instead of writing the parent at `storage_offset`.~~
@@ -132,6 +138,7 @@ Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 | `nntile_hypot.cpp` | `hypot`, `hypot.out` |
 | `nntile_sum.cpp` | `sum.IntList_out`, `sum.dim_IntList` |
 | `nntile_norm.cpp` | `linalg_vector_norm`, `linalg_vector_norm.out` |
+| `nntile_rms_norm_aten.cpp` | `rms_norm` (also AutogradPrivateUse1) |
 | `nntile_avg_pool2d.cpp` | `avg_pool2d`, `avg_pool2d.out`, `avg_pool2d_backward`, `avg_pool2d_backward.grad_input` |
 | `nntile_adaptive_avg_pool2d.cpp` | `_adaptive_avg_pool2d`, `_adaptive_avg_pool2d.out`, `_adaptive_avg_pool2d_backward`, `_adaptive_avg_pool2d_backward.out` |
 
@@ -161,6 +168,17 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 
 `nntile_split.cpp` / `nntile_narrow.cpp` are reference helpers only (no
 PrivateUse1 registration).
+
+### Missing fused ops
+
+- `mean` remains a host fallback in `nntile_host_aten.cpp`; any unfused
+  CompositeImplicit path that lowers through `mean` still leaves StarPU.
+- `group_norm` is not registered on PrivateUse1. If needed, prefer wiring
+  PyTorch’s `native_group_norm` / backward schemas instead of relying on a
+  host fallback or composite reduction path.
+- General `pow`, `div.Tensor`, and `where` still have host fallback cases;
+  only the small `pow` exponents needed by current autograd formulas are
+  StarPU-backed.
 
 ### SDPA (`nntile_sdpa_aten.cpp`)
 

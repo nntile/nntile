@@ -417,6 +417,131 @@ void torch_layer_norm_backward(
     bool need_grad_weight,
     bool need_grad_bias);
 
+struct TensorTorchRmsNormOp : TensorGraph::OpNode
+{
+    Scalar eps = 1e-5;
+    Index normalized_ndim = 1;
+    TensorGraph::TensorNode *input = nullptr;
+    TensorGraph::TensorNode *weight = nullptr;
+    TensorGraph::TensorNode *out = nullptr;
+    TensorGraph::TensorNode *rstd = nullptr;
+
+    TensorTorchRmsNormOp() = default;
+    TensorTorchRmsNormOp(
+        TensorGraph::TensorNode *input_,
+        TensorGraph::TensorNode *weight_,
+        TensorGraph::TensorNode *out_,
+        TensorGraph::TensorNode *rstd_,
+        Index normalized_ndim_,
+        Scalar eps_) :
+        eps(eps_),
+        normalized_ndim(normalized_ndim_),
+        input(input_),
+        weight(weight_),
+        out(out_),
+        rstd(rstd_)
+    {
+        inputs_ = {input};
+        if (weight != nullptr)
+        {
+            inputs_.push_back(weight);
+        }
+        outputs_ = {out, rstd};
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_RMS_NORM";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchRmsNormOp>(*this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+void torch_rms_norm(
+    TensorGraph::TensorNode *input,
+    TensorGraph::TensorNode *weight,
+    TensorGraph::TensorNode *out,
+    TensorGraph::TensorNode *rstd,
+    Index normalized_ndim,
+    Scalar eps);
+
+struct TensorTorchRmsNormBackwardOp : TensorGraph::OpNode
+{
+    Index normalized_ndim = 1;
+    bool need_grad_input = false;
+    bool need_grad_weight = false;
+    TensorGraph::TensorNode *grad_out = nullptr;
+    TensorGraph::TensorNode *input = nullptr;
+    TensorGraph::TensorNode *rstd = nullptr;
+    TensorGraph::TensorNode *weight = nullptr;
+    TensorGraph::TensorNode *grad_input = nullptr;
+    TensorGraph::TensorNode *grad_weight = nullptr;
+
+    TensorTorchRmsNormBackwardOp() = default;
+    TensorTorchRmsNormBackwardOp(
+        TensorGraph::TensorNode *grad_out_,
+        TensorGraph::TensorNode *input_,
+        TensorGraph::TensorNode *rstd_,
+        TensorGraph::TensorNode *weight_,
+        TensorGraph::TensorNode *grad_input_,
+        TensorGraph::TensorNode *grad_weight_,
+        Index normalized_ndim_,
+        bool need_grad_input_,
+        bool need_grad_weight_) :
+        normalized_ndim(normalized_ndim_),
+        need_grad_input(need_grad_input_),
+        need_grad_weight(need_grad_weight_),
+        grad_out(grad_out_),
+        input(input_),
+        rstd(rstd_),
+        weight(weight_),
+        grad_input(grad_input_),
+        grad_weight(grad_weight_)
+    {
+        inputs_ = {grad_out, input, rstd};
+        if (weight != nullptr)
+        {
+            inputs_.push_back(weight);
+        }
+        if (need_grad_input && grad_input != nullptr)
+        {
+            outputs_.push_back(grad_input);
+        }
+        if (need_grad_weight && grad_weight != nullptr)
+        {
+            outputs_.push_back(grad_weight);
+        }
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_RMS_NORM_BACKWARD";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchRmsNormBackwardOp>(*this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+void torch_rms_norm_backward(
+    TensorGraph::TensorNode *grad_out,
+    TensorGraph::TensorNode *input,
+    TensorGraph::TensorNode *rstd,
+    TensorGraph::TensorNode *weight,
+    TensorGraph::TensorNode *grad_input,
+    TensorGraph::TensorNode *grad_weight,
+    Index normalized_ndim,
+    bool need_grad_input,
+    bool need_grad_weight);
+
 struct TensorTorchEmbeddingDenseBackwardOp : TensorGraph::OpNode
 {
     starpu::TorchDispatchArgs extra{};

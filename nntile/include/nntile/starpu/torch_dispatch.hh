@@ -75,6 +75,8 @@ enum class TorchKind : std::int32_t
     Repeat = 62,             // R → W    aten::repeat.out
     NativeLayerNorm = 70,    // R,(R),(R) → W,W,W  native_layer_norm
     NativeLayerNormBackward = 71, // R… → W…  native_layer_norm_backward
+    RmsNorm = 72,            // R,(R) → W,W  aten::rms_norm + saved rstd
+    RmsNormBackward = 73,    // R,R,R,(R) → W,(W)  fused rms_norm backward
     Embedding = 80,          // R,R → W  aten::embedding.out
     EmbeddingDenseBackward = 81, // R,R → W  embedding_dense_backward
     Sdpa = 90,               // R,R,R → W  scaled_dot_product_attention
@@ -116,6 +118,8 @@ struct TorchDispatchArgs
     //   eps in scalars[0]
     // NativeLayerNormBackward: normalized_ndim, has_weight,
     //   has_bias, need_gi, need_gw, need_gb
+    // RmsNorm: normalized_ndim, has_weight; eps in scalars[0]
+    // RmsNormBackward: normalized_ndim, has_weight, need_gi, need_gw
     // NllLoss*: reduction in iargs[0], ignore_index in iargs[1]
     // Add: torch alpha in scalars[0] (out = a + alpha * b)
     // Addmm: beta in scalars[0], alpha in scalars[1];
@@ -328,6 +332,64 @@ public:
         bool need_grad_input,
         bool need_grad_weight,
         bool need_grad_bias
+    );
+};
+
+//! RMSNorm: input + optional weight → out, rstd.
+class TorchRmsNorm
+{
+public:
+    Codelet codelet;
+    TorchRmsNorm();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle input,
+        Handle weight,
+        Handle out,
+        Handle rstd,
+        bool has_weight
+    );
+};
+
+//! RMSNorm backward: inputs R → optional grad outs W.
+class TorchRmsNormBackward
+{
+public:
+    Codelet codelet;
+    TorchRmsNormBackward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle grad_out,
+        Handle input,
+        Handle rstd,
+        Handle weight,
+        Handle grad_input,
+        Handle grad_weight,
+        bool has_weight,
+        bool need_grad_input,
+        bool need_grad_weight
     );
 };
 
@@ -675,6 +737,8 @@ extern TorchNativeBatchNorm torch_native_batch_norm;
 extern TorchNativeBatchNormBackward torch_native_batch_norm_backward;
 extern TorchLayerNorm torch_layer_norm;
 extern TorchLayerNormBackward torch_layer_norm_backward;
+extern TorchRmsNorm torch_rms_norm;
+extern TorchRmsNormBackward torch_rms_norm_backward;
 extern TorchSdpaBackward torch_sdpa_backward;
 extern TorchNllLossForward torch_nll_loss_forward;
 extern TorchNllLossBackward torch_nll_loss_backward;

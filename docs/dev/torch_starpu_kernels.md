@@ -353,6 +353,8 @@ Specialized codelets:
 | `torch_cat` | `cat.out` | each input `R`, out `W` |
 | `torch_layer_norm` | `native_layer_norm` | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
 | `torch_layer_norm_backward` | `native_layer_norm_backward` | grad_out / input / mean / rstd `R`; optional weight/bias `R`; needed grad outs `W` |
+| `torch_rms_norm` | `rms_norm` fused in worker | input `R`; optional weight `R`; out / rstd `W` |
+| `torch_rms_norm_backward` | rms_norm backward fused in worker | grad_out / input / rstd `R`; optional weight `R`; needed grad outs `W` |
 | `torch_sdpa_backward` | flash-CPU bwd; CUDA: efficient (math fallback) | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
@@ -436,8 +438,26 @@ User call (requires_grad possible)
 | `AutogradCUDA` = same CompositeImplicit | Autograd *is* the decomposition | Same as composite forward — no PrivateUse1 override. |
 
 `AutogradPrivateUse1` is **rare**. Use it only when the generic path is wrong
-for nntile storage (today: `contiguous` densify under autograd). Do **not**
-use it to reimplement a VariableType formula (that was the `rsqrt` mistake).
+for nntile storage (today: `contiguous` densify under autograd) or when a
+documented fused op must replace a host/device-breaking decomposition
+(`rms_norm`). Do **not** use it to reimplement a VariableType formula
+(that was the `rsqrt` mistake).
+
+**Intentional RMSNorm deviation:** `aten::rms_norm` is
+CompositeImplicitAutograd and has no `native_rms_norm` device primitive like
+LayerNorm. On `device=nntile`, the stock decomposition goes through
+`pow` / `mean` / `rsqrt` / `mul`; `mean` is currently a host gather fallback.
+NNTile therefore registers PrivateUse1 `rms_norm` and AutogradPrivateUse1
+`rms_norm` to record one fused StarPU forward task and one fused backward task.
+
+### Missing fused ops
+
+- Unfused paths that lower through `mean` still use the host fallback in
+  `nntile_host_aten.cpp`.
+- `group_norm` is not registered; if needed, wire `native_group_norm` and its
+  backward rather than a host fallback/composite reduction path.
+- General `pow`, `div.Tensor`, and `where` still contain host fallback cases;
+  only selected common formulas are StarPU-backed today.
 
 ### Worked examples
 
