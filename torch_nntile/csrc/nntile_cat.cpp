@@ -59,8 +59,10 @@ std::vector<at::Tensor> densify_cat_inputs(
     for (const at::Tensor &tensor : tensors)
     {
         check_cat_tensor(tensor);
-        out.push_back(
-            tensor.is_contiguous() ? tensor : tensor.contiguous());
+        // Always go through contiguous(): reshape views can be
+        // is_contiguous yet still share a differently shaped TensorNode
+        // (View Backward of attention heads). contiguous() densifies those.
+        out.push_back(tensor.contiguous());
     }
     return out;
 }

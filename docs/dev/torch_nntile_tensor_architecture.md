@@ -93,13 +93,20 @@ Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
   ``reshape`` of a non-viewable layout densifies then ``_unsafe_view``;
   without a PrivateUse1 ``_unsafe_view`` kernel the densified result would
   drop `TensorRef` and break SplitBackward ``cat``.
-- `Tensor.contiguous()` on a non-contiguous view densifies with
-  `TorchKind::Copy` (`result.copy_(self)`). Contiguous inputs are a no-op.
+- `Tensor.contiguous()` densifies when the tensor is non-contiguous, a
+  partial cover of `L` (nonzero `storage_offset` or smaller numel), or a
+  **same-numel reshape view** whose `TensorNode` shape still matches the
+  parent (e.g. View Backward of attention heads `[B,S,H,D]` →
+  `[B,S,H*D]`). Without that densify, SplitBackward ``cat`` would see
+  tile shapes `3×[B,S,H,D]` and allocate `[B,S,3H,D]` instead of the
+  fused `[B,S,3*n_embd]`, triggering PyTorch `resize_output` warnings.
+  Truly dense contiguous tensors (matching node shape) are a no-op.
 - Host egress (`.cpu()` / nntile→CPU `copy_`) densifies before gather when
   the tensor is not a dense cover of `L` from `storage_offset == 0`
   (contiguous `narrow` / Split Backward slices share `L` but have a
-  smaller numel or nonzero offset). `Tensor.contiguous()` alone is not
-  enough: it returns `self` for already-contiguous views.
+  smaller numel or nonzero offset). Use `needs_densify_for_host_io` /
+  `densify_for_host_io` for that path — do not assume `.contiguous()`
+  alone covers every host-I/O case.
 - Legacy materializing `NarrowCopy` / `TransposeCopy` remain available for
   explicit densify helpers, but HF GPT-2 attention
   (`c_attn` → `split` → `transpose` heads → SDPA) should no longer pay

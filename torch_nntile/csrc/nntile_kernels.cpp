@@ -897,6 +897,37 @@ at::Tensor permute(const at::Tensor &self, at::IntArrayRef dims)
         std::optional<int64_t>(self.storage_offset()));
 }
 
+bool is_partial_storage_cover(const at::Tensor &self)
+{
+    nntile::TensorRef binding = tensor_ref(self);
+    if (!binding)
+    {
+        return false;
+    }
+    if (self.storage_offset() != 0 ||
+        static_cast<int64_t>(binding.get()->nelems()) != self.numel())
+    {
+        return true;
+    }
+    // Same-numel reshape view: TensorNode shape still the parent
+    // (e.g. View Backward of [B,S,H,D] → [B,S,H*D]).
+    const auto &node_shape = binding.get()->shape();
+    if (node_shape.size() != static_cast<std::size_t>(self.dim()))
+    {
+        return true;
+    }
+    for (int64_t i = 0; i < self.dim(); ++i)
+    {
+        if (static_cast<int64_t>(
+                node_shape[static_cast<std::size_t>(i)]) !=
+            self.size(i))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 at::Tensor contiguous(
     const at::Tensor &self,
     at::MemoryFormat memory_format)
@@ -907,12 +938,13 @@ at::Tensor contiguous(
         "nntile contiguous supports Contiguous memory format only");
     // A 1-element view with storage_offset!=0 is often ``is_contiguous``
     // yet still aliases a larger logical; densify those for host I/O.
+    // Same-numel reshape views (View Backward of attention heads) also
+    // keep the parent TensorNode shape — densify so cat/split see the
+    // logical sizes instead of the storage tile (else SplitBackward
+    // cats 3×[B,S,H,D] into [B,S,3*n_embd] and resize_output-warns).
     nntile::TensorRef binding = tensor_ref(self);
-    const bool partial_cover =
-        binding &&
-        (self.storage_offset() != 0 ||
-         static_cast<int64_t>(binding.get()->nelems()) != self.numel());
-    if (self.is_contiguous(memory_format) && !partial_cover)
+    if (self.is_contiguous(memory_format) &&
+        !is_partial_storage_cover(self))
     {
         return self;
     }
@@ -979,17 +1011,6 @@ public:
         return {grad_outputs[0]};
     }
 };
-
-bool is_partial_storage_cover(const at::Tensor &self)
-{
-    nntile::TensorRef binding = tensor_ref(self);
-    if (!binding)
-    {
-        return false;
-    }
-    return self.storage_offset() != 0 ||
-        static_cast<int64_t>(binding.get()->nelems()) != self.numel();
-}
 
 at::Tensor contiguous_autograd(
     const at::Tensor &self,
