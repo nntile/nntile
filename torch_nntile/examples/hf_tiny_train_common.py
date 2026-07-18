@@ -348,6 +348,8 @@ def mlm_ce_loss(
     kwargs: dict[str, Any] = {"input_ids": batch["input_ids"]}
     if "attention_mask" in batch:
         kwargs["attention_mask"] = batch["attention_mask"]
+    if "token_type_ids" in batch:
+        kwargs["token_type_ids"] = batch["token_type_ids"]
     if "position_ids" in batch:
         # Avoid RoBERTa create_position_ids (aten::ne on pad id).
         kwargs["position_ids"] = batch["position_ids"]

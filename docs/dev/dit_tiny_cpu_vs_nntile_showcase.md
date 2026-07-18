@@ -97,25 +97,32 @@ StarPU `init_context` / shutdown.
 
 Measured with `bench_dit_hf_tiny_cpu_vs_nntile.py` on the Cloud Agent VM
 (CPU-only StarPU / `USE_CUDA=OFF`, `ncpu=1`, `steps=1`, `batch-size=2`,
-`seed=0`, date 2026-07-18). Tiny config: 16×16, 2 layers, hidden 16 —
-**overhead-dominated**, not a speed contest.
+`seed=0`, `OMP_NUM_THREADS=1` / `torch.set_num_threads(1)`, date
+2026-07-18). Tiny config: 16×16, 2 layers, hidden 16 —
+**overhead-dominated**, not a speed contest. Single-core protocol:
+[reproducibility.md](reproducibility.md).
 
 | Model | CPU loss | nntile loss | CPU wall (s) | nntile wall (s) | Δ loss | Status |
 |---|---:|---:|---:|---:|---:|---|
-| dit | 1.603470 | 1.603470 | 0.007 | 0.042 | 0.000e+00 | OK |
+| dit | 1.603470 | 1.603470 | 0.005 | 0.023 | 0.000e+00 | OK |
 
 **Takeaways for demos**
 
 1. **Correctness:** noise-prediction MSE matches on CPU and nntile.
 2. **Timing at this scale:** nntile wall is higher (StarPU submit +
-   compile/run + host sync) while the math is tiny; expect the gap to
-   shrink on larger resolution / depth or with CUDA workers.
+   compile/run + host sync) while the math is tiny; the middle DiT
+   recipe lands near **1.4×** — see
+   [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + Diffusers config dict + seed /
    step). Relative Frobenius after one step stays ~1e-9.
 
 ## Related
 
+- Middle (~1 min) overhead table:
+  [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md)
+- Measurement protocol (CPU / GPU):
+  [reproducibility.md](reproducibility.md)
 - HF language-model counterpart:
   [hf_tiny_cpu_vs_nntile_showcase.md](hf_tiny_cpu_vs_nntile_showcase.md)
 - CNN counterpart:

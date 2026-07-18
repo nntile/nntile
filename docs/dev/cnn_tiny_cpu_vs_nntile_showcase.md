@@ -108,32 +108,38 @@ printed train-loop wall.
 
 Measured with `bench_cnn_tiny_cpu_vs_nntile.py` on the Cloud Agent VM
 (CPU-only StarPU / `USE_CUDA=OFF`, `ncpu=1`, `steps=1`, `batch-size=2`,
-`seed=0`, date 2026-07-18). Tiny configs (16–28 spatial, 8–16 channels)
-— **overhead-dominated**, not a speed contest.
+`seed=0`, `OMP_NUM_THREADS=1` / `torch.set_num_threads(1)`, date
+2026-07-18). Tiny configs (16–28 spatial, 8–16 channels) —
+**overhead-dominated**, not a speed contest. Single-core protocol:
+[reproducibility.md](reproducibility.md).
 
 | Model | CPU loss | nntile loss | CPU wall (s) | nntile wall (s) | Δ loss | Status |
 |---|---:|---:|---:|---:|---:|---|
-| lenet | 2.230573 | 2.230573 | 0.005 | 0.011 | 0.000e+00 | OK |
-| resnet | 1.905449 | 1.905449 | 0.005 | 0.016 | 0.000e+00 | OK |
-| vgg | 2.474704 | 2.474704 | 0.007 | 0.013 | 0.000e+00 | OK |
-| mobilenet | 2.080944 | 2.080944 | 0.006 | 0.017 | 0.000e+00 | OK |
-| unet | 1.160912 | 1.160912 | 0.016 | 0.070 | 0.000e+00 | OK |
-| unet_modern | 1.164545 | 1.164545 | 0.015 | 0.043 | 0.000e+00 | OK |
+| lenet | 2.230573 | 2.230573 | 0.004 | 0.006 | 0.000e+00 | OK |
+| resnet | 1.905449 | 1.905449 | 0.004 | 0.008 | 0.000e+00 | OK |
+| vgg | 2.474704 | 2.474704 | 0.005 | 0.009 | 0.000e+00 | OK |
+| mobilenet | 2.080944 | 2.080944 | 0.004 | 0.010 | 0.000e+00 | OK |
+| unet | 1.160912 | 1.160912 | 0.012 | 0.021 | 0.000e+00 | OK |
+| unet_modern | 1.164545 | 1.164545 | 0.009 | 0.019 | 0.000e+00 | OK |
 
 **Takeaways for demos**
 
 1. **Correctness:** losses match on CPU and nntile for every model above
    (classic transpose U-Net and interpolate-based modern U-Net).
 2. **Timing at this scale:** nntile wall is higher (StarPU submit +
-   compile/run + host sync) while the math is tiny; expect the gap to
-   shrink (and reverse) on larger images / batch / depth or with CUDA
-   workers (`--ncuda` when built with `USE_CUDA=ON`).
+   compile/run + host sync) while the math is tiny; middle CNN recipes
+   shrink the gap to ~1.1–1.4× — see
+   [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + config dict + seed / step).
    Use `compare` for relative Frobenius norms.
 
 ## Related
 
+- Middle (~1 min) overhead table:
+  [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md)
+- Measurement protocol (CPU / GPU):
+  [reproducibility.md](reproducibility.md)
 - HF language-model counterpart:
   [hf_tiny_cpu_vs_nntile_showcase.md](hf_tiny_cpu_vs_nntile_showcase.md)
 - DiT counterpart:

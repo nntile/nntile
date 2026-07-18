@@ -47,11 +47,14 @@ def main(argv: list[str] | None = None) -> int:
             .expand(args.batch_size, -1)
             .contiguous()
         )
+        # Contiguous zeros: HF buffer.expand() is non-contig for batch>1.
+        token_type_ids = torch.zeros_like(x)
         return {
             "input_ids": x,
             "labels": y,
             "attention_mask": attn,
             "position_ids": pos,
+            "token_type_ids": token_type_ids,
         }
 
     return run_tiny_hf_main(

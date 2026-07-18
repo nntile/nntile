@@ -102,26 +102,28 @@ device comparison — use the printed train-loop wall.
 
 Measured with `bench_hf_tiny_cpu_vs_nntile.py` on the Cloud Agent VM
 (CPU-only StarPU / `USE_CUDA=OFF`, `ncpu=1`, `steps=1`, `seq-len=16`,
-`batch-size=1`, `seed=0`, date 2026-07-18). Tiny configs: ~64-wide
-hidden, 1–2 layers — **overhead-dominated**, not a speed contest.
+`batch-size=1`, `seed=0`, `OMP_NUM_THREADS=1` / `torch.set_num_threads(1)`,
+date 2026-07-18). Tiny configs: ~64-wide hidden, 1–2 layers —
+**overhead-dominated**, not a speed contest. Single-core protocol:
+[reproducibility.md](reproducibility.md).
 
 | Model | CPU loss | nntile loss | CPU wall (s) | nntile wall (s) | Δ loss | Status |
 |---|---:|---:|---:|---:|---:|---|
 | gpt2 | 5.615653 | 5.615653 | 0.005 | 0.015 | 0.000e+00 | OK |
-| gpt-neo | 4.827158 | 4.827158 | 0.004 | 0.013 | 0.000e+00 | OK |
-| gpt-neox | 4.835960 | 4.835960 | 0.004 | 0.020 | 0.000e+00 | OK |
+| gpt-neo | 4.827158 | 4.827158 | 0.004 | 0.014 | 0.000e+00 | OK |
+| gpt-neox | 4.835960 | 4.835960 | 0.004 | 0.019 | 0.000e+00 | OK |
 | llama | 4.915326 | 4.915326 | 0.004 | 0.024 | 0.000e+00 | OK |
 | bert | 4.833461 | 4.833461 | 0.004 | 0.013 | 0.000e+00 | OK |
 | roberta | 4.735972 | 4.735972 | 0.004 | 0.013 | 0.000e+00 | OK |
-| t5 | 5.692081 | 5.692081 | 0.005 | 0.033 | 0.000e+00 | OK |
+| t5 | 5.692081 | 5.692081 | 0.005 | 0.032 | 0.000e+00 | OK |
 
 **Takeaways for demos**
 
 1. **Correctness:** losses match on CPU and nntile for every model above.
 2. **Timing at this scale:** nntile wall is higher (StarPU submit +
-   compile/run + host sync) while the math is tiny; expect the gap to
-   shrink (and reverse) on larger seq / batch / depth or with CUDA
-   workers (`--ncuda`).
+   compile/run + host sync) while the math is tiny; middle-sized recipes
+   shrink the gap to ~1–2× — see
+   [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + HF `config` dict + seed /
    step). Use `compare` for relative Frobenius norms.
@@ -147,6 +149,10 @@ symbols; use a full torch_nntile extension build (CI wheel or local
 
 ## Related
 
+- Middle (~1 min) overhead table:
+  [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md)
+- Measurement protocol (CPU / GPU):
+  [reproducibility.md](reproducibility.md)
 - CNN counterpart: [cnn_tiny_cpu_vs_nntile_showcase.md](cnn_tiny_cpu_vs_nntile_showcase.md)
 - DiT counterpart: [dit_tiny_cpu_vs_nntile_showcase.md](dit_tiny_cpu_vs_nntile_showcase.md)
 - [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md)
