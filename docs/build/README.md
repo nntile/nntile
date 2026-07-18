@@ -271,7 +271,7 @@ Full pytest suites stay in **build-and-test**.
 | **Skipped when** | PR closed without merge |
 | **Tooling** | cibuildwheel + [`tools/build_wheel_deps.sh`](../../torch_nntile/tools/build_wheel_deps.sh) |
 | **Smoke** | `tools/smoke_test_wheel.py` (cibuildwheel `test-command`) |
-| **Version** | `0.0.5` (`TORCH_NNTILE_WHEEL_VERSION`) |
+| **Version** | `0.0.6` (`TORCH_NNTILE_WHEEL_VERSION`) |
 
 ### Triggering
 

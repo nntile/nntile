@@ -341,7 +341,7 @@ _built_with_cuda = bool(ext_kwargs.pop("_built_with_cuda", False))
 _nntile_inc = Path(ext_kwargs.pop("_nntile_inc"))
 EXT_SOURCES = _extension_sources(_nntile_inc)
 
-_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.5")
+_wheel_version = os.environ.get("TORCH_NNTILE_WHEEL_VERSION", "0.0.6")
 _torch_requires = "torch==2.9.1"
 _torchvision_requires = "torchvision==0.24.1"
 _linux_marker = 'platform_system == "Linux" and platform_machine == "x86_64"'
