@@ -113,23 +113,27 @@ date 2026-07-18). Tiny configs: ~64-wide hidden, 1–2 layers —
 [reproducibility.md](reproducibility.md). Re-run with `--ncpu 2` for the
 extra nntile column.
 
-| Model | CPU loss | nntile loss | CPU wall (s) | nntile ncpu=1 (s) | nntile ncpu=2 (s) | Δ loss | Status |
-|---|---:|---:|---:|---:|---:|---:|---|
-| gpt2 | 5.615653 | 5.615653 | 0.005 | 0.015 | 0.017 | 0.000e+00 | OK |
-| gpt-neo | 4.827158 | 4.827158 | 0.004 | 0.014 | 0.015 | 0.000e+00 | OK |
-| gpt-neox | 4.835960 | 4.835960 | 0.004 | 0.019 | 0.021 | 0.000e+00 | OK |
-| llama | 4.915326 | 4.915326 | 0.004 | 0.024 | 0.024 | 0.000e+00 | OK |
-| bert | 4.833461 | 4.833461 | 0.004 | 0.013 | 0.014 | 0.000e+00 | OK |
-| roberta | 4.735972 | 4.735972 | 0.004 | 0.013 | 0.014 | 0.000e+00 | OK |
-| t5 | 5.692081 | 5.692081 | 0.005 | 0.032 | 0.034 | 0.000e+00 | OK |
+| Model | CPU loss | nntile loss | CPU (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| gpt2 | 5.615653 | 5.615653 | 0.005 | 0.015 | 0.017 | 0.33x | 0.29x | 0.88x | OK |
+| gpt-neo | 4.827158 | 4.827158 | 0.004 | 0.014 | 0.015 | 0.29x | 0.27x | 0.93x | OK |
+| gpt-neox | 4.835960 | 4.835960 | 0.004 | 0.019 | 0.021 | 0.21x | 0.19x | 0.90x | OK |
+| llama | 4.915326 | 4.915326 | 0.004 | 0.024 | 0.024 | 0.17x | 0.17x | 1.00x | OK |
+| bert | 4.833461 | 4.833461 | 0.004 | 0.013 | 0.014 | 0.31x | 0.29x | 0.93x | OK |
+| roberta | 4.735972 | 4.735972 | 0.004 | 0.013 | 0.014 | 0.31x | 0.29x | 0.93x | OK |
+| t5 | 5.692081 | 5.692081 | 0.005 | 0.032 | 0.034 | 0.16x | 0.15x | 0.94x | OK |
+
+`Accel@k` = `CPU_wall / nntile_ncpuk_wall`; `Accel(1→2)` =
+`nntile₁ / nntile₂`. Values **<1** mean nntile is slower (expected at
+this tiny scale).
 
 **Takeaways for demos**
 
 1. **Correctness:** losses match on CPU and nntile for every model above.
-2. **Timing at this scale:** nntile wall is higher (StarPU submit +
-   compile/run + host sync) while the math is tiny; `ncpu=2` does not
-   help (still overhead-dominated). Middle-sized recipes shrink the gap
-   and benefit from a second worker — see
+2. **Timing at this scale:** Accel@1 is only **0.16–0.33×** (StarPU
+   submit + compile/run + host sync dominate); `ncpu=2` does not help
+   (`Accel(1→2) ≤ 1`). Middle-sized recipes raise Accel toward **1×**
+   and beyond — see
    [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + HF `config` dict + seed /

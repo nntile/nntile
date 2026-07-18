@@ -103,17 +103,19 @@ Measured with `bench_dit_hf_tiny_cpu_vs_nntile.py` on the Cloud Agent VM
 [reproducibility.md](reproducibility.md). Re-run with `--ncpu 2` for the
 extra nntile column.
 
-| Model | CPU loss | nntile loss | CPU wall (s) | nntile ncpu=1 (s) | nntile ncpu=2 (s) | Δ loss | Status |
-|---|---:|---:|---:|---:|---:|---:|---|
-| dit | 1.603470 | 1.603470 | 0.005 | 0.023 | 0.026 | 0.000e+00 | OK |
+| Model | CPU loss | nntile loss | CPU (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| dit | 1.603470 | 1.603470 | 0.005 | 0.023 | 0.026 | 0.22x | 0.19x | 0.88x | OK |
+
+`Accel@k` = `CPU_wall / nntile_ncpuk_wall`; `Accel(1→2)` =
+`nntile₁ / nntile₂`.
 
 **Takeaways for demos**
 
 1. **Correctness:** noise-prediction MSE matches on CPU and nntile.
-2. **Timing at this scale:** nntile wall is higher (StarPU submit +
-   compile/run + host sync) while the math is tiny; `ncpu=2` does not
-   help here. The middle DiT recipe lands near **1.4×** (`ncpu=1`) /
-   **1.16×** (`ncpu=2`) — see
+2. **Timing at this scale:** Accel@1 is only **0.22×**; `ncpu=2` does not
+   help. The middle DiT recipe reaches Accel@1 **0.69×** / Accel@2
+   **0.86×** (`Accel(1→2)=1.24×`) — see
    [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + Diffusers config dict + seed /

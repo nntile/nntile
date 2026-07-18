@@ -36,22 +36,30 @@ StarPU worker count changes via `--ncpu`.
 
 Measured on the Cloud Agent VM (CPU-only StarPU / `USE_CUDA=OFF`,
 `host_threads=1`, `seed=0`, date 2026-07-18). Walls are **train-loop
-only**. Ratios are `nntile_wall / cpu_wall` (CPU is always single-thread
-torch). Tiny-smoke nntile/CPU ratios were typically **3–6×**; middle
-recipes land near **1.0–2.0×** at `ncpu=1`, and several models drop
-below **1×** at `ncpu=2`.
+only**. CPU is always single-thread torch.
+
+**Acceleration ratios** (higher is better for nntile):
+
+- `Accel@1` = `CPU_wall / nntile_ncpu1_wall` (>1 ⇒ nntile faster than CPU)
+- `Accel@2` = `CPU_wall / nntile_ncpu2_wall`
+- `Accel(1→2)` = `nntile_ncpu1_wall / nntile_ncpu2_wall`
+  (>1 ⇒ second StarPU worker speeds up nntile)
+
+Tiny-smoke Accel@1 values were typically **0.15–0.35**; middle recipes
+land near **0.5–1.0** at `ncpu=1`, and several models exceed **1.0** at
+`ncpu=2`.
 
 ### hf
 
-| Model | steps | batch | seq | CPU wall (s) | nntile ncpu=1 (s) | nntile ncpu=2 (s) | ncpu1/CPU | ncpu2/CPU | Status |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| gpt2 | 32 | 8 | 256 | 51.849 | 52.486 | 38.980 | 1.01x | 0.75x | OK |
-| gpt-neo | 28 | 8 | 256 | 43.360 | 61.457 | 50.614 | 1.42x | 1.17x | OK |
-| gpt-neox | 30 | 8 | 256 | 42.430 | 84.284 | 63.636 | 1.99x | 1.50x | OK |
-| llama | 24 | 8 | 256 | 44.777 | 77.397 | 60.698 | 1.73x | 1.36x | OK |
-| bert | 32 | 8 | 256 | 45.654 | 59.186 | 40.995 | 1.30x | 0.90x | OK |
-| roberta | 32 | 8 | 256 | 45.867 | 59.874 | 40.891 | 1.31x | 0.89x | OK |
-| t5 | 12 | 4 | 192 | 15.496 | 39.751 | 33.875 | 2.57x | 2.19x | OK |
+| Model | steps | batch | seq | CPU (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| gpt2 | 32 | 8 | 256 | 51.849 | 52.486 | 38.980 | 0.99x | 1.33x | 1.35x | OK |
+| gpt-neo | 28 | 8 | 256 | 43.360 | 61.457 | 50.614 | 0.71x | 0.86x | 1.21x | OK |
+| gpt-neox | 30 | 8 | 256 | 42.430 | 84.284 | 63.636 | 0.50x | 0.67x | 1.32x | OK |
+| llama | 24 | 8 | 256 | 44.777 | 77.397 | 60.698 | 0.58x | 0.74x | 1.28x | OK |
+| bert | 32 | 8 | 256 | 45.654 | 59.186 | 40.995 | 0.77x | 1.11x | 1.44x | OK |
+| roberta | 32 | 8 | 256 | 45.867 | 59.874 | 40.891 | 0.77x | 1.12x | 1.46x | OK |
+| t5 | 12 | 4 | 192 | 15.496 | 39.751 | 33.875 | 0.39x | 0.46x | 1.17x | OK |
 
 Final losses (CPU / nntile) match the prior `ncpu=1` run to printing
 precision for these seeds (BERT/RoBERTa keep the same small FP drift).
@@ -60,32 +68,33 @@ per-step `compile_graph` cost on the encoder–decoder graph.
 
 ### cnn
 
-| Model | steps | batch | CPU wall (s) | nntile ncpu=1 (s) | nntile ncpu=2 (s) | ncpu1/CPU | ncpu2/CPU | Status |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| lenet | 30 | 32 | 49.763 | 61.999 | 52.094 | 1.25x | 1.05x | OK |
-| resnet | 12 | 16 | 55.368 | 66.583 | 69.375 | 1.20x | 1.25x | OK |
-| vgg | 64 | 8 | 47.119 | 51.857 | 53.652 | 1.10x | 1.14x | OK |
-| mobilenet | 40 | 16 | 45.060 | 64.550 | 64.982 | 1.43x | 1.44x | OK |
-| unet | 64 | 4 | 47.571 | 59.755 | 58.969 | 1.26x | 1.24x | OK |
-| unet_modern | 60 | 4 | 49.367 | 57.875 | 59.086 | 1.17x | 1.20x | OK |
+| Model | steps | batch | CPU (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| lenet | 30 | 32 | 49.763 | 61.999 | 52.094 | 0.80x | 0.96x | 1.19x | OK |
+| resnet | 12 | 16 | 55.368 | 66.583 | 69.375 | 0.83x | 0.80x | 0.96x | OK |
+| vgg | 64 | 8 | 47.119 | 51.857 | 53.652 | 0.91x | 0.88x | 0.97x | OK |
+| mobilenet | 40 | 16 | 45.060 | 64.550 | 64.982 | 0.70x | 0.69x | 0.99x | OK |
+| unet | 64 | 4 | 47.571 | 59.755 | 58.969 | 0.80x | 0.81x | 1.01x | OK |
+| unet_modern | 60 | 4 | 49.367 | 57.875 | 59.086 | 0.85x | 0.84x | 0.98x | OK |
 
 ### dit
 
-| Model | steps | batch | CPU wall (s) | nntile ncpu=1 (s) | nntile ncpu=2 (s) | ncpu1/CPU | ncpu2/CPU | Status |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| dit | 12 | 8 | 44.826 | 64.525 | 51.863 | 1.44x | 1.16x | OK |
+| Model | steps | batch | CPU (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| dit | 12 | 8 | 44.826 | 64.525 | 51.863 | 0.69x | 0.86x | 1.24x | OK |
 
 ## Takeaways
 
 1. **Correctness:** most models match to printing precision; a few
    multi-step runs (BERT / LeNet / MobileNet) show small FP drift in
    final loss after tens of steps.
-2. **`ncpu=1` vs tiny:** GPT-2 is essentially **1.01×**; CNN middle
-   recipes are **1.1–1.4×**; causal LMs land **1.3–2.0×**. Tiny smokes
-   were often **3–6×**.
-3. **`ncpu=2`:** HF models improve further (GPT-2 / BERT / RoBERTa
-   beat single-thread torch). Some CNNs (ResNet / VGG / MobileNet) do
-   not speed up — limited parallelism in the untiled graph at this size.
+2. **`ncpu=1` vs tiny:** Accel@1 for GPT-2 is essentially **0.99×**; CNN
+   middle recipes are **0.7–0.9×**; causal LMs land **0.5–0.8×**. Tiny
+   smokes were often **0.15–0.35×**.
+3. **`ncpu=2`:** Accel(1→2) is **1.2–1.5×** for most HF models (GPT-2 /
+   BERT / RoBERTa beat single-thread torch at Accel@2 **>1**). Some CNNs
+   (ResNet / VGG / MobileNet) do not speed up — limited parallelism in
+   the untiled graph at this size.
 4. **GPU follow-up:** re-run the same recipes on a CUDA build using the
    checklist in [reproducibility.md](reproducibility.md).
 

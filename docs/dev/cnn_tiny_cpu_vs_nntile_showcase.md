@@ -114,22 +114,24 @@ Measured with `bench_cnn_tiny_cpu_vs_nntile.py` on the Cloud Agent VM
 [reproducibility.md](reproducibility.md). Re-run with `--ncpu 2` for the
 extra nntile column.
 
-| Model | CPU loss | nntile loss | CPU wall (s) | nntile ncpu=1 (s) | nntile ncpu=2 (s) | Δ loss | Status |
-|---|---:|---:|---:|---:|---:|---:|---|
-| lenet | 2.230573 | 2.230573 | 0.004 | 0.006 | 0.008 | 0.000e+00 | OK |
-| resnet | 1.905449 | 1.905449 | 0.004 | 0.008 | 0.009 | 0.000e+00 | OK |
-| vgg | 2.474704 | 2.474704 | 0.005 | 0.009 | 0.009 | 0.000e+00 | OK |
-| mobilenet | 2.080944 | 2.080944 | 0.004 | 0.010 | 0.010 | 0.000e+00 | OK |
-| unet | 1.160912 | 1.160912 | 0.012 | 0.021 | 0.022 | 0.000e+00 | OK |
-| unet_modern | 1.164545 | 1.164545 | 0.009 | 0.019 | 0.021 | 0.000e+00 | OK |
+| Model | CPU loss | nntile loss | CPU (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| lenet | 2.230573 | 2.230573 | 0.004 | 0.006 | 0.008 | 0.67x | 0.50x | 0.75x | OK |
+| resnet | 1.905449 | 1.905449 | 0.004 | 0.008 | 0.009 | 0.50x | 0.44x | 0.89x | OK |
+| vgg | 2.474704 | 2.474704 | 0.005 | 0.009 | 0.009 | 0.56x | 0.56x | 1.00x | OK |
+| mobilenet | 2.080944 | 2.080944 | 0.004 | 0.010 | 0.010 | 0.40x | 0.40x | 1.00x | OK |
+| unet | 1.160912 | 1.160912 | 0.012 | 0.021 | 0.022 | 0.57x | 0.55x | 0.95x | OK |
+| unet_modern | 1.164545 | 1.164545 | 0.009 | 0.019 | 0.021 | 0.47x | 0.43x | 0.90x | OK |
+
+`Accel@k` = `CPU_wall / nntile_ncpuk_wall`; `Accel(1→2)` =
+`nntile₁ / nntile₂`.
 
 **Takeaways for demos**
 
 1. **Correctness:** losses match on CPU and nntile for every model above
    (classic transpose U-Net and interpolate-based modern U-Net).
-2. **Timing at this scale:** nntile wall is higher (StarPU submit +
-   compile/run + host sync) while the math is tiny; `ncpu=2` does not
-   help here. Middle CNN recipes shrink the gap to ~1.1–1.4× — see
+2. **Timing at this scale:** Accel@1 is only **0.4–0.7×**; `ncpu=2` does
+   not help. Middle CNN recipes raise Accel toward **0.7–0.9×** — see
    [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + config dict + seed / step).
