@@ -37,6 +37,7 @@
 #include <ATen/ops/where.h>
 #include <c10/core/DeviceGuard.h>
 #include <torch/library.h>
+#include <torch/version.h>
 
 namespace torch_nntile
 {
@@ -53,6 +54,22 @@ bool is_cpu_scalar_tensor(const at::Tensor &t)
 {
     return t.is_cpu() && t.numel() == 1;
 }
+
+//! Torch 2.12+ SymInt-ified ``aten::triu``; 2.9.x keeps plain ``int``.
+#if (TORCH_VERSION_MAJOR > 2) \
+    || (TORCH_VERSION_MAJOR == 2 && TORCH_VERSION_MINOR >= 12)
+using TriuDiagonal = c10::SymInt;
+inline int64_t triu_diagonal_as_int64(TriuDiagonal diagonal)
+{
+    return diagonal.expect_int();
+}
+#else
+using TriuDiagonal = int64_t;
+inline int64_t triu_diagonal_as_int64(TriuDiagonal diagonal)
+{
+    return diagonal;
+}
+#endif
 
 at::Tensor gather_cpu(const at::Tensor &self)
 {
@@ -153,25 +170,26 @@ at::Tensor to_copy(
     return scatter_nntile(converted, out_device);
 }
 
-at::Tensor triu(const at::Tensor &self, c10::SymInt diagonal)
+at::Tensor triu(const at::Tensor &self, TriuDiagonal diagonal)
 {
     TORCH_CHECK(is_nntile_device(self.device()), "triu: expected nntile");
     at::Tensor cpu = gather_cpu(self);
     at::Tensor out_cpu =
-        at::triu(cpu, diagonal.expect_int());
+        at::triu(cpu, triu_diagonal_as_int64(diagonal));
     return scatter_nntile(out_cpu, self.device());
 }
 
 at::Tensor &triu_out(
     const at::Tensor &self,
-    c10::SymInt diagonal,
+    TriuDiagonal diagonal,
     at::Tensor &out)
 {
     TORCH_CHECK(
         is_nntile_device(self.device()) && is_nntile_device(out.device()),
         "triu.out: expected nntile");
     at::Tensor cpu = gather_cpu(self);
-    at::Tensor tmp = at::triu(cpu, diagonal.expect_int());
+    at::Tensor tmp =
+        at::triu(cpu, triu_diagonal_as_int64(diagonal));
     copy_cpu_into_nntile(tmp, out);
     return out;
 }
