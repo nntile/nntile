@@ -147,6 +147,107 @@ void torch_embedding_dense_backward_out(
     const Tile<fp32_t> &grad_weight,
     const TorchTileMeta &grad_weight_meta);
 
+void torch_convolution_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &input,
+    const TorchTileMeta &input_meta,
+    const Tile<fp32_t> &weight,
+    const TorchTileMeta &weight_meta,
+    const Tile<fp32_t> *bias,
+    const TorchTileMeta *bias_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_convolution_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad_out,
+    const TorchTileMeta &grad_out_meta,
+    const Tile<fp32_t> &input,
+    const TorchTileMeta &input_meta,
+    const Tile<fp32_t> &weight,
+    const TorchTileMeta &weight_meta,
+    const Tile<fp32_t> *grad_input,
+    const TorchTileMeta *grad_input_meta,
+    const Tile<fp32_t> *grad_weight,
+    const TorchTileMeta *grad_weight_meta,
+    const Tile<fp32_t> *grad_bias,
+    const TorchTileMeta *grad_bias_meta,
+    const starpu::TorchDispatchArgs &extra,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias);
+
+void torch_max_pool2d_with_indices_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &input,
+    const TorchTileMeta &input_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const Tile<int64_t> &indices,
+    const TorchTileMeta &indices_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_max_pool2d_with_indices_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad_out,
+    const TorchTileMeta &grad_out_meta,
+    const Tile<fp32_t> &input,
+    const TorchTileMeta &input_meta,
+    const Tile<int64_t> &indices,
+    const TorchTileMeta &indices_meta,
+    const Tile<fp32_t> &grad_input,
+    const TorchTileMeta &grad_input_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_native_batch_norm_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &input,
+    const TorchTileMeta &input_meta,
+    const Tile<fp32_t> *weight,
+    const TorchTileMeta *weight_meta,
+    const Tile<fp32_t> *bias,
+    const TorchTileMeta *bias_meta,
+    const Tile<fp32_t> *running_mean,
+    const TorchTileMeta *running_mean_meta,
+    const Tile<fp32_t> *running_var,
+    const TorchTileMeta *running_var_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const Tile<fp32_t> &save_mean,
+    const TorchTileMeta &save_mean_meta,
+    const Tile<fp32_t> &save_invstd,
+    const TorchTileMeta &save_invstd_meta,
+    const starpu::TorchDispatchArgs &extra,
+    bool training);
+
+void torch_native_batch_norm_backward_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &grad_out,
+    const TorchTileMeta &grad_out_meta,
+    const Tile<fp32_t> &input,
+    const TorchTileMeta &input_meta,
+    const Tile<fp32_t> *weight,
+    const TorchTileMeta *weight_meta,
+    const Tile<fp32_t> *running_mean,
+    const TorchTileMeta *running_mean_meta,
+    const Tile<fp32_t> *running_var,
+    const TorchTileMeta *running_var_meta,
+    const Tile<fp32_t> *save_mean,
+    const TorchTileMeta *save_mean_meta,
+    const Tile<fp32_t> *save_invstd,
+    const TorchTileMeta *save_invstd_meta,
+    const Tile<fp32_t> *grad_input,
+    const TorchTileMeta *grad_input_meta,
+    const Tile<fp32_t> *grad_weight,
+    const TorchTileMeta *grad_weight_meta,
+    const Tile<fp32_t> *grad_bias,
+    const TorchTileMeta *grad_bias_meta,
+    const starpu::TorchDispatchArgs &extra,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias);
+
 void torch_sdpa_backward_out(
     int starpu_worker_hint,
     const Tile<fp32_t> &q,

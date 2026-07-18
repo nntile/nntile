@@ -305,6 +305,8 @@ Family codelet `torch_unary` (one `R` input, one `W` output):
 | `VectorNorm` | `linalg_vector_norm.out` | in `R`, out `W` |
 | `NarrowCopy` | `narrow` view + `copy_` | in `R`, out `W` |
 | `Repeat` | `repeat.out` | in `R`, out `W` |
+| `AvgPool2d` | `avg_pool2d.out` | in `R`, out `W` |
+| `AdaptiveAvgPool2d` | `_adaptive_avg_pool2d.out` | in `R`, out `W` |
 
 `Repeat` stores factors for the **output** rank (`iargs[0..out_ndim)`).
 Bias broadcast for `addmm` / `linear` may reshape a 1D bias to `[1, N]`
@@ -326,6 +328,8 @@ Family codelet `torch_binary` (two `R` inputs, one `W` output):
 | `GeluBackward` | `gelu_backward` | grad_out `R`, self `R`, grad_in `W` |
 | `SoftmaxBackward` | `_softmax_backward_data` | grad_out `R`, output `R`, grad_in `W` |
 | `LogSoftmaxBackward` | `_log_softmax_backward_data` | grad_out `R`, output `R`, grad_in `W` |
+| `AvgPool2dBackward` | `avg_pool2d_backward.grad_input` | grad_out `R`, self `R`, grad_input `W` |
+| `AdaptiveAvgPool2dBackward` | `_adaptive_avg_pool2d_backward.out` | grad_out `R`, self `R`, grad_input `W` |
 | `Mm` | `mm.out` | a `R`, b `R`, out `W` |
 | `Bmm` | `bmm.out` | a `R`, b `R`, out `W` |
 | `Matmul` | `matmul.out` | a `R`, b `R`, out `W` |
@@ -352,6 +356,12 @@ Specialized codelets:
 | `torch_sdpa_backward` | flash-CPU bwd; CUDA: efficient (math fallback) | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
+| `torch_convolution` | `convolution` | input / weight `R`; optional bias `R`; out `W` |
+| `torch_convolution_backward` | `convolution_backward` | grad_out / input / weight `R`; needed grad outs `W` |
+| `torch_max_pool2d_with_indices` | `max_pool2d_with_indices.out` | input `R`, out `W`, indices `W` |
+| `torch_max_pool2d_with_indices_backward` | `max_pool2d_with_indices_backward.grad_input` | grad_out / input / indices `R`, grad_input `W` |
+| `torch_native_batch_norm` | `native_batch_norm` | input `R`; optional weight/bias `R`; running stats `RW` when training; out / saved stats `W` |
+| `torch_native_batch_norm_backward` | `native_batch_norm_backward` | grad_out / input / optional stats `R`; needed grad outs `W` |
 
 Classic I/O kept on this path (not torch-native compute, but same rules):
 

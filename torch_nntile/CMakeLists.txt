@@ -59,6 +59,11 @@ if(NNTILE_TORCH_NATIVE_OPS)
         csrc/nntile_softmax_backward.cpp
         csrc/nntile_log_softmax.cpp
         csrc/nntile_nll_loss.cpp
+        csrc/nntile_avg_pool2d.cpp
+        csrc/nntile_adaptive_avg_pool2d.cpp
+        csrc/nntile_max_pool2d.cpp
+        csrc/nntile_convolution.cpp
+        csrc/nntile_batch_norm.cpp
         csrc/nntile_mm.cpp
         csrc/nntile_bmm.cpp
         csrc/nntile_addmm.cpp

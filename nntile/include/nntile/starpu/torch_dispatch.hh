@@ -81,6 +81,16 @@ enum class TorchKind : std::int32_t
     SdpaBackward = 91,       // R… → W,W,W  SDPA backward
     TransposeCopy = 100,     // R → W    aten::transpose_copy.int_out
     Copy = 101,              // R → W    densify / contiguous (copy_)
+    AvgPool2d = 110,         // R → W    aten::avg_pool2d.out
+    AvgPool2dBackward = 111, // R,R → W  aten::avg_pool2d_backward
+    AdaptiveAvgPool2d = 112, // R → W    aten::_adaptive_avg_pool2d.out
+    AdaptiveAvgPool2dBackward = 113, // R,R → W  adaptive avg pool bwd
+    Convolution = 120,       // R,R,(R) → W  aten::convolution
+    ConvolutionBackward = 121, // R,R,R → W...  convolution_backward
+    MaxPool2dWithIndices = 130, // R → W,W(i64)  max_pool2d_with_indices
+    MaxPool2dWithIndicesBackward = 131, // R,R,R(i64) → W
+    NativeBatchNorm = 140,   // R,(R),(R),(RW),(RW) → W,W,W
+    NativeBatchNormBackward = 141, // R... → W... native_batch_norm_backward
 };
 
 inline constexpr Index torch_dispatch_max_ndim = core::torch_native_max_ndim;
@@ -93,7 +103,7 @@ struct TorchDispatchArgs
     Index n_in = 0;
     Index n_out = 1;
     Scalar scalars[4] = {0, 0, 0, 0};
-    Index iargs[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    Index iargs[16] = {};
     // iargs layout (per kind):
     // Softmax/SoftmaxBackward/LogSoftmax*: dim
     // Sum/VectorNorm: n_dims, keepdim, dim0..
@@ -114,6 +124,19 @@ struct TorchDispatchArgs
     //   iargs[1]
     // EmbeddingDenseBackward: num_weights in iargs[0]
     // TransposeCopy: dim0, dim1
+    // AvgPool2d: kernel [0..1], stride [2..3], padding [4..5],
+    //   ceil_mode [6], count_include_pad [7], has_divisor [8],
+    //   divisor [9]
+    // AdaptiveAvgPool2d: output_size H,W in iargs[0..1]
+    // Convolution: spatial_ndim [0], groups [1], transposed [2],
+    //   stride [3..4], padding [5..6], dilation [7..8],
+    //   output_padding [9..10], has_bias [11], output_mask [12..14]
+    // MaxPool2d: kernel [0..1], stride [2..3], padding [4..5],
+    //   dilation [6..7], ceil_mode [8]
+    // NativeBatchNorm: training [0], has_weight [1], has_bias [2],
+    //   has_running_mean [3], has_running_var [4], has_save_mean [5],
+    //   has_save_invstd [6], output_mask [7..9]; momentum in
+    //   scalars[0], eps in scalars[1]
     char sarg[16] = {};
     Index in_ndim[torch_dispatch_max_tensors] = {};
     Index out_ndim[torch_dispatch_max_tensors] = {};
@@ -333,6 +356,190 @@ public:
     );
 };
 
+//! Convolution: input + weight + optional bias → out.
+class TorchConvolution
+{
+public:
+    Codelet codelet;
+    TorchConvolution();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle input,
+        Handle weight,
+        Handle bias,
+        Handle out,
+        bool has_bias
+    );
+};
+
+//! Convolution backward: grad_out + input + weight → optional grad outs.
+class TorchConvolutionBackward
+{
+public:
+    Codelet codelet;
+    TorchConvolutionBackward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle grad_out,
+        Handle input,
+        Handle weight,
+        Handle grad_input,
+        Handle grad_weight,
+        Handle grad_bias,
+        bool need_grad_input,
+        bool need_grad_weight,
+        bool need_grad_bias
+    );
+};
+
+//! MaxPool2d with indices: input fp32 → output fp32 + indices i64.
+class TorchMaxPool2dWithIndices
+{
+public:
+    Codelet codelet;
+    TorchMaxPool2dWithIndices();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle input,
+        Handle out,
+        Handle indices
+    );
+};
+
+//! MaxPool2d backward: grad_out + self + indices i64 → grad_input.
+class TorchMaxPool2dWithIndicesBackward
+{
+public:
+    Codelet codelet;
+    TorchMaxPool2dWithIndicesBackward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle grad_out,
+        Handle input,
+        Handle indices,
+        Handle grad_input
+    );
+};
+
+//! Native batch norm: input + optional affine/running stats → out, stats.
+class TorchNativeBatchNorm
+{
+public:
+    Codelet codelet;
+    TorchNativeBatchNorm();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle input,
+        Handle weight,
+        Handle bias,
+        Handle running_mean,
+        Handle running_var,
+        Handle out,
+        Handle save_mean,
+        Handle save_invstd,
+        bool has_weight,
+        bool has_bias,
+        bool has_running_mean,
+        bool has_running_var,
+        bool training
+    );
+};
+
+//! Native batch norm backward: inputs R → optional grad outs W.
+class TorchNativeBatchNormBackward
+{
+public:
+    Codelet codelet;
+    TorchNativeBatchNormBackward();
+    using args_t = TorchDispatchArgs;
+    static uint32_t footprint(struct starpu_task *task);
+    static void cpu(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cpu_funcs = {cpu};
+#ifdef NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args) noexcept;
+    static constexpr func_array cuda_funcs = {cuda};
+#else
+    static constexpr func_array cuda_funcs = {};
+#endif
+    void submit(
+        int starpu_worker_hint,
+        const args_t &meta,
+        Handle grad_out,
+        Handle input,
+        Handle weight,
+        Handle running_mean,
+        Handle running_var,
+        Handle save_mean,
+        Handle save_invstd,
+        Handle grad_input,
+        Handle grad_weight,
+        Handle grad_bias,
+        bool has_weight,
+        bool has_running_mean,
+        bool has_running_var,
+        bool has_save_mean,
+        bool has_save_invstd,
+        bool need_grad_input,
+        bool need_grad_weight,
+        bool need_grad_bias
+    );
+};
+
 //! SDPA backward: q,k,v,grad_out,(mask) → grad_q,k,v.
 class TorchSdpaBackward
 {
@@ -459,6 +666,13 @@ extern torch_binary_pack_t torch_binary;
 extern torch_ternary_pack_t torch_ternary;
 extern TorchEmbedding torch_embedding;
 extern TorchEmbeddingDenseBackward torch_embedding_dense_backward;
+extern TorchConvolution torch_convolution;
+extern TorchConvolutionBackward torch_convolution_backward;
+extern TorchMaxPool2dWithIndices torch_max_pool2d_with_indices;
+extern TorchMaxPool2dWithIndicesBackward
+    torch_max_pool2d_with_indices_backward;
+extern TorchNativeBatchNorm torch_native_batch_norm;
+extern TorchNativeBatchNormBackward torch_native_batch_norm_backward;
 extern TorchLayerNorm torch_layer_norm;
 extern TorchLayerNormBackward torch_layer_norm_backward;
 extern TorchSdpaBackward torch_sdpa_backward;

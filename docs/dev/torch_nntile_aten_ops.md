@@ -132,6 +132,8 @@ Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 | `nntile_hypot.cpp` | `hypot`, `hypot.out` |
 | `nntile_sum.cpp` | `sum.IntList_out`, `sum.dim_IntList` |
 | `nntile_norm.cpp` | `linalg_vector_norm`, `linalg_vector_norm.out` |
+| `nntile_avg_pool2d.cpp` | `avg_pool2d`, `avg_pool2d.out`, `avg_pool2d_backward`, `avg_pool2d_backward.grad_input` |
+| `nntile_adaptive_avg_pool2d.cpp` | `_adaptive_avg_pool2d`, `_adaptive_avg_pool2d.out`, `_adaptive_avg_pool2d_backward`, `_adaptive_avg_pool2d_backward.out` |
 
 ### Linear algebra
 
@@ -140,6 +142,7 @@ Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 | `nntile_mm.cpp` | `mm`, `mm.out` |
 | `nntile_bmm.cpp` | `bmm`, `bmm.out` |
 | `nntile_addmm.cpp` | `addmm`, `addmm.out` |
+| `nntile_convolution.cpp` | `convolution_overrideable`, `convolution_backward_overrideable` |
 
 `nntile_linear.cpp` / `nntile_gemm.cpp` keep StarPU helpers but do **not**
 register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
@@ -149,10 +152,12 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 | File | Schemas |
 |------|---------|
 | `nntile_layer_norm.cpp` | `native_layer_norm`, `native_layer_norm_backward` |
+| `nntile_batch_norm.cpp` | `native_batch_norm`, `native_batch_norm_backward` |
 | `nntile_embedding.cpp` | `embedding`, `embedding_dense_backward` |
 | `nntile_cat.cpp` | `cat`, `cat.out` |
 | `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt` (+ `.out`) |
 | `nntile_repeat.cpp` | `repeat` |
+| `nntile_max_pool2d.cpp` | `max_pool2d_with_indices`, `max_pool2d_with_indices.out`, `max_pool2d_with_indices_backward`, `max_pool2d_with_indices_backward.grad_input` |
 
 `nntile_split.cpp` / `nntile_narrow.cpp` are reference helpers only (no
 PrivateUse1 registration).

@@ -432,6 +432,419 @@ void torch_embedding_dense_backward(
     TileGraph::TileNode *grad_weight,
     starpu::TorchDispatchArgs extra = {});
 
+struct TileTorchConvolutionOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *input = nullptr;
+    TileGraph::TileNode *weight = nullptr;
+    TileGraph::TileNode *bias = nullptr;
+    TileGraph::TileNode *out = nullptr;
+
+    TileTorchConvolutionOp() = default;
+    TileTorchConvolutionOp(
+        TileGraph::TileNode *input_,
+        TileGraph::TileNode *weight_,
+        TileGraph::TileNode *bias_,
+        TileGraph::TileNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        input(input_),
+        weight(weight_),
+        bias(bias_),
+        out(out_)
+    {
+        inputs_ = {input, weight};
+        if (bias != nullptr)
+        {
+            inputs_.push_back(bias);
+        }
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_CONVOLUTION";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchConvolutionOp>(*this);
+    }
+};
+
+void torch_convolution(
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *weight,
+    TileGraph::TileNode *bias,
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra = {});
+
+struct TileTorchConvolutionBackwardOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    bool need_grad_input = false;
+    bool need_grad_weight = false;
+    bool need_grad_bias = false;
+    TileGraph::TileNode *grad_out = nullptr;
+    TileGraph::TileNode *input = nullptr;
+    TileGraph::TileNode *weight = nullptr;
+    TileGraph::TileNode *grad_input = nullptr;
+    TileGraph::TileNode *grad_weight = nullptr;
+    TileGraph::TileNode *grad_bias = nullptr;
+
+    TileTorchConvolutionBackwardOp() = default;
+    TileTorchConvolutionBackwardOp(
+        TileGraph::TileNode *grad_out_,
+        TileGraph::TileNode *input_,
+        TileGraph::TileNode *weight_,
+        TileGraph::TileNode *grad_input_,
+        TileGraph::TileNode *grad_weight_,
+        TileGraph::TileNode *grad_bias_,
+        bool need_grad_input_,
+        bool need_grad_weight_,
+        bool need_grad_bias_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        need_grad_input(need_grad_input_),
+        need_grad_weight(need_grad_weight_),
+        need_grad_bias(need_grad_bias_),
+        grad_out(grad_out_),
+        input(input_),
+        weight(weight_),
+        grad_input(grad_input_),
+        grad_weight(grad_weight_),
+        grad_bias(grad_bias_)
+    {
+        inputs_ = {grad_out, input, weight};
+        if (need_grad_input && grad_input != nullptr)
+        {
+            outputs_.push_back(grad_input);
+        }
+        if (need_grad_weight && grad_weight != nullptr)
+        {
+            outputs_.push_back(grad_weight);
+        }
+        if (need_grad_bias && grad_bias != nullptr)
+        {
+            outputs_.push_back(grad_bias);
+        }
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_CONVOLUTION_BACKWARD";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchConvolutionBackwardOp>(*this);
+    }
+};
+
+void torch_convolution_backward(
+    TileGraph::TileNode *grad_out,
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *weight,
+    TileGraph::TileNode *grad_input,
+    TileGraph::TileNode *grad_weight,
+    TileGraph::TileNode *grad_bias,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias,
+    starpu::TorchDispatchArgs extra = {});
+
+struct TileTorchMaxPool2dWithIndicesOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *input = nullptr;
+    TileGraph::TileNode *out = nullptr;
+    TileGraph::TileNode *indices = nullptr;
+
+    TileTorchMaxPool2dWithIndicesOp() = default;
+    TileTorchMaxPool2dWithIndicesOp(
+        TileGraph::TileNode *input_,
+        TileGraph::TileNode *out_,
+        TileGraph::TileNode *indices_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        input(input_),
+        out(out_),
+        indices(indices_)
+    {
+        inputs_ = {input};
+        outputs_ = {out, indices};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_MAX_POOL2D_WITH_INDICES";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchMaxPool2dWithIndicesOp>(*this);
+    }
+};
+
+void torch_max_pool2d_with_indices(
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *out,
+    TileGraph::TileNode *indices,
+    starpu::TorchDispatchArgs extra = {});
+
+struct TileTorchMaxPool2dWithIndicesBackwardOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *grad_out = nullptr;
+    TileGraph::TileNode *input = nullptr;
+    TileGraph::TileNode *indices = nullptr;
+    TileGraph::TileNode *grad_input = nullptr;
+
+    TileTorchMaxPool2dWithIndicesBackwardOp() = default;
+    TileTorchMaxPool2dWithIndicesBackwardOp(
+        TileGraph::TileNode *grad_out_,
+        TileGraph::TileNode *input_,
+        TileGraph::TileNode *indices_,
+        TileGraph::TileNode *grad_input_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        grad_out(grad_out_),
+        input(input_),
+        indices(indices_),
+        grad_input(grad_input_)
+    {
+        inputs_ = {grad_out, input, indices};
+        outputs_ = {grad_input};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_MAX_POOL2D_WITH_INDICES_BACKWARD";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<
+            TileTorchMaxPool2dWithIndicesBackwardOp>(*this);
+    }
+};
+
+void torch_max_pool2d_with_indices_backward(
+    TileGraph::TileNode *grad_out,
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *indices,
+    TileGraph::TileNode *grad_input,
+    starpu::TorchDispatchArgs extra = {});
+
+struct TileTorchNativeBatchNormOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    bool training = false;
+    TileGraph::TileNode *input = nullptr;
+    TileGraph::TileNode *weight = nullptr;
+    TileGraph::TileNode *bias = nullptr;
+    TileGraph::TileNode *running_mean = nullptr;
+    TileGraph::TileNode *running_var = nullptr;
+    TileGraph::TileNode *out = nullptr;
+    TileGraph::TileNode *save_mean = nullptr;
+    TileGraph::TileNode *save_invstd = nullptr;
+
+    TileTorchNativeBatchNormOp() = default;
+    TileTorchNativeBatchNormOp(
+        TileGraph::TileNode *input_,
+        TileGraph::TileNode *weight_,
+        TileGraph::TileNode *bias_,
+        TileGraph::TileNode *running_mean_,
+        TileGraph::TileNode *running_var_,
+        TileGraph::TileNode *out_,
+        TileGraph::TileNode *save_mean_,
+        TileGraph::TileNode *save_invstd_,
+        bool training_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        training(training_),
+        input(input_),
+        weight(weight_),
+        bias(bias_),
+        running_mean(running_mean_),
+        running_var(running_var_),
+        out(out_),
+        save_mean(save_mean_),
+        save_invstd(save_invstd_)
+    {
+        inputs_ = {input};
+        if (weight != nullptr)
+        {
+            inputs_.push_back(weight);
+        }
+        if (bias != nullptr)
+        {
+            inputs_.push_back(bias);
+        }
+        if (running_mean != nullptr)
+        {
+            inputs_.push_back(running_mean);
+        }
+        if (running_var != nullptr)
+        {
+            inputs_.push_back(running_var);
+        }
+        outputs_ = {out, save_mean, save_invstd};
+        if (training && running_mean != nullptr)
+        {
+            outputs_.push_back(running_mean);
+        }
+        if (training && running_var != nullptr)
+        {
+            outputs_.push_back(running_var);
+        }
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_NATIVE_BATCH_NORM";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchNativeBatchNormOp>(*this);
+    }
+};
+
+void torch_native_batch_norm(
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *weight,
+    TileGraph::TileNode *bias,
+    TileGraph::TileNode *running_mean,
+    TileGraph::TileNode *running_var,
+    TileGraph::TileNode *out,
+    TileGraph::TileNode *save_mean,
+    TileGraph::TileNode *save_invstd,
+    bool training,
+    starpu::TorchDispatchArgs extra = {});
+
+struct TileTorchNativeBatchNormBackwardOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    bool need_grad_input = false;
+    bool need_grad_weight = false;
+    bool need_grad_bias = false;
+    TileGraph::TileNode *grad_out = nullptr;
+    TileGraph::TileNode *input = nullptr;
+    TileGraph::TileNode *weight = nullptr;
+    TileGraph::TileNode *running_mean = nullptr;
+    TileGraph::TileNode *running_var = nullptr;
+    TileGraph::TileNode *save_mean = nullptr;
+    TileGraph::TileNode *save_invstd = nullptr;
+    TileGraph::TileNode *grad_input = nullptr;
+    TileGraph::TileNode *grad_weight = nullptr;
+    TileGraph::TileNode *grad_bias = nullptr;
+
+    TileTorchNativeBatchNormBackwardOp() = default;
+    TileTorchNativeBatchNormBackwardOp(
+        TileGraph::TileNode *grad_out_,
+        TileGraph::TileNode *input_,
+        TileGraph::TileNode *weight_,
+        TileGraph::TileNode *running_mean_,
+        TileGraph::TileNode *running_var_,
+        TileGraph::TileNode *save_mean_,
+        TileGraph::TileNode *save_invstd_,
+        TileGraph::TileNode *grad_input_,
+        TileGraph::TileNode *grad_weight_,
+        TileGraph::TileNode *grad_bias_,
+        bool need_grad_input_,
+        bool need_grad_weight_,
+        bool need_grad_bias_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        need_grad_input(need_grad_input_),
+        need_grad_weight(need_grad_weight_),
+        need_grad_bias(need_grad_bias_),
+        grad_out(grad_out_),
+        input(input_),
+        weight(weight_),
+        running_mean(running_mean_),
+        running_var(running_var_),
+        save_mean(save_mean_),
+        save_invstd(save_invstd_),
+        grad_input(grad_input_),
+        grad_weight(grad_weight_),
+        grad_bias(grad_bias_)
+    {
+        inputs_ = {grad_out, input};
+        if (weight != nullptr)
+        {
+            inputs_.push_back(weight);
+        }
+        if (running_mean != nullptr)
+        {
+            inputs_.push_back(running_mean);
+        }
+        if (running_var != nullptr)
+        {
+            inputs_.push_back(running_var);
+        }
+        if (save_mean != nullptr)
+        {
+            inputs_.push_back(save_mean);
+        }
+        if (save_invstd != nullptr)
+        {
+            inputs_.push_back(save_invstd);
+        }
+        if (need_grad_input && grad_input != nullptr)
+        {
+            outputs_.push_back(grad_input);
+        }
+        if (need_grad_weight && grad_weight != nullptr)
+        {
+            outputs_.push_back(grad_weight);
+        }
+        if (need_grad_bias && grad_bias != nullptr)
+        {
+            outputs_.push_back(grad_bias);
+        }
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_NATIVE_BATCH_NORM_BACKWARD";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchNativeBatchNormBackwardOp>(*this);
+    }
+};
+
+void torch_native_batch_norm_backward(
+    TileGraph::TileNode *grad_out,
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *weight,
+    TileGraph::TileNode *running_mean,
+    TileGraph::TileNode *running_var,
+    TileGraph::TileNode *save_mean,
+    TileGraph::TileNode *save_invstd,
+    TileGraph::TileNode *grad_input,
+    TileGraph::TileNode *grad_weight,
+    TileGraph::TileNode *grad_bias,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias,
+    starpu::TorchDispatchArgs extra = {});
+
 struct TileTorchSdpaBackwardOp : TileGraph::OpNode
 {
     bool is_causal = false;
