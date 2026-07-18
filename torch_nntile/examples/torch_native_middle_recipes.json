@@ -1,0 +1,117 @@
+{
+  "_comment": "Middle torch-native train recipes for ~1 min wall on 1 CPU core (Cloud Agent VM). See docs/dev/reproducibility.md.",
+  "protocol": {
+    "ncpu": 1,
+    "ncuda": 0,
+    "seed": 0,
+    "host_threads": 1,
+    "env": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "STARPU_SILENT": "1",
+      "STARPU_FXT_TRACE": "0",
+      "STARPU_WORKERS_NOBIND": "1"
+    }
+  },
+  "hf": {
+    "gpt2": {
+      "script": "train_gpt2_hf.py",
+      "config": "gpt2_hf_middle_config.json",
+      "is_gpt2": true,
+      "steps": 24,
+      "seq_len": 256,
+      "batch_size": 8
+    },
+    "gpt-neo": {
+      "script": "train_gpt_neo_hf.py",
+      "config": "gpt_neo_hf_middle_config.json",
+      "steps": 24,
+      "seq_len": 256,
+      "batch_size": 8
+    },
+    "gpt-neox": {
+      "script": "train_gpt_neox_hf.py",
+      "config": "gpt_neox_hf_middle_config.json",
+      "steps": 24,
+      "seq_len": 256,
+      "batch_size": 8
+    },
+    "llama": {
+      "script": "train_llama_hf.py",
+      "config": "llama_hf_middle_config.json",
+      "steps": 24,
+      "seq_len": 256,
+      "batch_size": 8
+    },
+    "bert": {
+      "script": "train_bert_hf.py",
+      "config": "bert_hf_middle_config.json",
+      "steps": 24,
+      "seq_len": 256,
+      "batch_size": 8
+    },
+    "roberta": {
+      "script": "train_roberta_hf.py",
+      "config": "roberta_hf_middle_config.json",
+      "steps": 24,
+      "seq_len": 256,
+      "batch_size": 8
+    },
+    "t5": {
+      "script": "train_t5_hf.py",
+      "config": "t5_hf_middle_config.json",
+      "steps": 12,
+      "seq_len": 128,
+      "batch_size": 4
+    }
+  },
+  "cnn": {
+    "lenet": {
+      "script": "train_lenet_tiny.py",
+      "config": "lenet_middle_config.json",
+      "steps": 30,
+      "batch_size": 32
+    },
+    "resnet": {
+      "script": "train_resnet_tiny.py",
+      "config": "resnet_middle_config.json",
+      "steps": 12,
+      "batch_size": 16
+    },
+    "vgg": {
+      "script": "train_vgg_tiny.py",
+      "config": "vgg_middle_config.json",
+      "steps": 10,
+      "batch_size": 8
+    },
+    "mobilenet": {
+      "script": "train_mobilenet_tiny.py",
+      "config": "mobilenet_middle_config.json",
+      "steps": 20,
+      "batch_size": 16
+    },
+    "unet": {
+      "script": "train_unet_tiny.py",
+      "config": "unet_middle_config.json",
+      "steps": 8,
+      "batch_size": 4
+    },
+    "unet_modern": {
+      "script": "train_unet_modern_tiny.py",
+      "config": "unet_modern_middle_config.json",
+      "steps": 8,
+      "batch_size": 4
+    }
+  },
+  "dit": {
+    "dit": {
+      "script": "train_dit_hf.py",
+      "config": "dit_hf_middle_config.json",
+      "steps": 12,
+      "batch_size": 8,
+      "dataset_split": "train[:256]"
+    }
+  }
+}

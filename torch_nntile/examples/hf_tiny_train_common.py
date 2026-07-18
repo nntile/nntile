@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 import traceback
 from collections.abc import Callable
@@ -24,6 +25,28 @@ from typing import Any
 import torch
 
 LossFn = Callable[[torch.nn.Module, dict[str, torch.Tensor]], torch.Tensor]
+
+
+def configure_single_thread_host() -> None:
+    """Pin host BLAS / PyTorch to one core for fair overhead comparisons.
+
+    Call before any heavy compute. StarPU worker count is still controlled by
+    ``init_context(ncpu=...)`` / ``--ncpu`` independently.
+    """
+    for key in (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+    ):
+        os.environ.setdefault(key, "1")
+    torch.set_num_threads(1)
+    try:
+        torch.set_num_interop_threads(1)
+    except RuntimeError:
+        # May already be set after the first parallel op.
+        pass
 BatchBuilder = Callable[
     [Any, argparse.Namespace],
     dict[str, torch.Tensor],
@@ -197,7 +220,28 @@ def add_train_compare_subparsers(
     train.add_argument("--batch-size", type=int, default=1)
     train.add_argument("--seq-len", type=int, default=16)
     train.add_argument("--lr", type=float, default=1e-3)
-    train.add_argument("--ncpu", type=int, default=2)
+    train.add_argument(
+        "--ncpu",
+        type=int,
+        default=1,
+        help="StarPU CPU workers for --device nntile (default: 1)",
+    )
+    train.add_argument(
+        "--ncuda",
+        type=int,
+        default=0,
+        help="StarPU CUDA workers for --device nntile (default: 0)",
+    )
+    train.add_argument(
+        "--restrict-cpu",
+        action="store_true",
+        help="restrict_cpu() after init (nntile only)",
+    )
+    train.add_argument(
+        "--restrict-cuda",
+        action="store_true",
+        help="restrict_cuda() after init (nntile only)",
+    )
     train.add_argument(
         "--cpu-fallback",
         action="store_true",
@@ -391,6 +435,7 @@ def run_tiny_hf_train(
     loss_fn: LossFn,
 ) -> int:
     """Run a few train steps; optionally save ``checkpoint.pt``."""
+    configure_single_thread_host()
     print(
         f"=== {name} tiny HF smoke  device={args.device}  "
         f"config_seed={seed} ==="
@@ -421,13 +466,17 @@ def run_tiny_hf_train(
 
     import torch_nntile
 
+    ncuda = int(getattr(args, "ncuda", 0))
     torch_nntile.init_context(
         ncpu=args.ncpu,
-        ncuda=0,
+        ncuda=ncuda,
         verbose=0,
         cpu_fallback=bool(args.cpu_fallback),
     )
-    torch_nntile.restrict_cpu()
+    if getattr(args, "restrict_cuda", False):
+        torch_nntile.restrict_cuda()
+    elif getattr(args, "restrict_cpu", False) or ncuda == 0:
+        torch_nntile.restrict_cpu()
     try:
         with torch.no_grad():
             batch = {k: v.to("nntile") for k, v in batch_cpu.items()}

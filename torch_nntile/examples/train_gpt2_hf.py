@@ -77,6 +77,8 @@ from pathlib import Path
 import torch
 from transformers import GPT2Config, GPT2LMHeadModel
 
+from hf_tiny_train_common import configure_single_thread_host
+
 
 def _default_config_path() -> Path:
     return Path(__file__).resolve().parent / "gpt2_hf_tiny_config.json"
@@ -995,6 +997,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train":
         if not args.checkpoint and args.seed is None:
             raise SystemExit("--seed is required when training from scratch")
+        configure_single_thread_host()
         configure_tf32(
             disable_tf32=bool(args.disable_tf32),
             device=args.device,

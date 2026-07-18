@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--steps", type=int, default=1)
     p.add_argument("--seq-len", type=int, default=16)
     p.add_argument("--batch-size", type=int, default=1)
-    p.add_argument("--ncpu", type=int, default=2)
+    p.add_argument("--ncpu", type=int, default=1)
     p.add_argument("--seed", type=int, default=0)
     args = p.parse_args(argv)
 

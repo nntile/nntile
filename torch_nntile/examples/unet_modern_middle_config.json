@@ -1,0 +1,10 @@
+{
+  "_comment": "Middle modern U-Net (~1 min train loop on 1 CPU core)",
+  "in_channels": 1,
+  "num_classes": 3,
+  "height": 128,
+  "width": 128,
+  "base_channels": 48,
+  "depth": 3,
+  "upsample_mode": "bilinear"
+}

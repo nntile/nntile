@@ -42,9 +42,18 @@ class TinyLeNet(nn.Module):
         hidden = int(cfg["fc_hidden"])
         num_classes = int(cfg["num_classes"])
         in_ch = int(cfg["in_channels"])
+        height = int(cfg["height"])
+        width = int(cfg["width"])
+        # Two 2×2 max-pools with stride 2 (same padding on 5×5 convs).
+        if height % 4 != 0 or width % 4 != 0:
+            raise ValueError(
+                f"LeNet height/width must be divisible by 4, "
+                f"got {height}x{width}"
+            )
+        flat = c2 * (height // 4) * (width // 4)
         self.conv1 = nn.Conv2d(in_ch, c1, kernel_size=5, padding=2)
         self.conv2 = nn.Conv2d(c1, c2, kernel_size=5, padding=2)
-        self.fc1 = nn.Linear(c2 * 7 * 7, hidden)
+        self.fc1 = nn.Linear(flat, hidden)
         self.fc2 = nn.Linear(hidden, num_classes)
 
     def forward(self, x):
