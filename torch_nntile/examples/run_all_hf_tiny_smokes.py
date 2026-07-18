@@ -45,8 +45,11 @@ def main(argv: list[str] | None = None) -> int:
         cmd = [
             sys.executable,
             str(here / script),
+            "train",
             "--device",
             args.device,
+            "--seed",
+            str(args.seed),
             "--steps",
             str(args.steps),
             "--seq-len",
@@ -55,8 +58,6 @@ def main(argv: list[str] | None = None) -> int:
             str(args.batch_size),
             "--ncpu",
             str(args.ncpu),
-            "--seed",
-            str(args.seed),
         ]
         print("\n" + "=" * 72)
         print(" ".join(cmd))

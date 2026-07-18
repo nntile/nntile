@@ -7,71 +7,53 @@
 
 """Tiny HF Llama causal LM smoke (synthetic tokens).
 
-Example::
+Uses JSON config / checkpoint like ``train_gpt2_hf.py``::
 
-    python torch_nntile/examples/train_llama_hf.py --device nntile --steps 1
+    python torch_nntile/examples/train_llama_hf.py train \\
+        --device nntile --seed 0 --config llama_hf_tiny_config.json \\
+        --output-dir /tmp/llama_hf --steps 1
+
+    python ... compare --checkpoint-a A.pt --checkpoint-b B.pt
 """
 
 from __future__ import annotations
 
-import argparse
+from pathlib import Path
 
 from transformers import LlamaConfig, LlamaForCausalLM
 
 from hf_tiny_train_common import (
-    add_common_args,
     causal_ce_loss,
     make_causal_batch,
-    run_tiny_hf_train,
+    run_tiny_hf_main,
 )
 
 
-def tiny_config() -> LlamaConfig:
-    cfg = LlamaConfig(
-        vocab_size=128,
-        hidden_size=64,
-        intermediate_size=128,
-        num_hidden_layers=2,
-        num_attention_heads=4,
-        num_key_value_heads=4,
-        max_position_embeddings=64,
-        rms_norm_eps=1e-6,
-        rope_theta=10000.0,
-        attention_dropout=0.0,
-        hidden_act="silu",
-        tie_word_embeddings=False,
-        bos_token_id=0,
-        eos_token_id=0,
-    )
-    cfg._attn_implementation = "sdpa"
-    cfg.use_cache = False
-    return cfg
+def _default_config() -> Path:
+    return Path(__file__).resolve().parent / "llama_hf_tiny_config.json"
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description=__doc__)
-    add_common_args(p)
-    args = p.parse_args(argv)
-    cfg = tiny_config()
-
-    def build_model():
-        return LlamaForCausalLM(cfg)
-
-    def build_batch():
+    def build_batch(cfg, args):
         x, y = make_causal_batch(
             cfg.vocab_size,
             batch_size=args.batch_size,
             seq_len=args.seq_len,
-            seed=args.seed,
+            seed=args.seed if args.seed is not None else 0,
         )
         return {"input_ids": x, "labels": y}
 
-    return run_tiny_hf_train(
+    return run_tiny_hf_main(
         name="llama",
-        args=args,
-        build_model=build_model,
+        argv=argv,
+        default_config=_default_config(),
+        config_cls=LlamaConfig,
+        model_cls=LlamaForCausalLM,
         build_batch=build_batch,
         loss_fn=causal_ce_loss,
+        attn_implementation="sdpa",
+        use_cache=False,
+        description=__doc__,
     )
 
 

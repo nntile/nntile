@@ -7,73 +7,51 @@
 
 """Tiny HF GPT-Neo causal LM smoke (synthetic tokens).
 
-Example::
+Uses JSON config / checkpoint like ``train_gpt2_hf.py``::
 
-    python torch_nntile/examples/train_gpt_neo_hf.py --device nntile --steps 1
+    python torch_nntile/examples/train_gpt_neo_hf.py train \\
+        --device nntile --seed 0 --config gpt_neo_hf_tiny_config.json \\
+        --output-dir /tmp/gpt_neo_hf --steps 1
 """
 
 from __future__ import annotations
 
-import argparse
+from pathlib import Path
 
 from transformers import GPTNeoConfig, GPTNeoForCausalLM
 
 from hf_tiny_train_common import (
-    add_common_args,
     causal_ce_loss,
     make_causal_batch,
-    run_tiny_hf_train,
+    run_tiny_hf_main,
 )
 
 
-def tiny_config() -> GPTNeoConfig:
-    cfg = GPTNeoConfig(
-        vocab_size=128,
-        hidden_size=64,
-        intermediate_size=128,
-        num_layers=2,
-        num_heads=4,
-        max_position_embeddings=64,
-        attention_types=[[["global"], 2]],
-        window_size=32,
-        attention_dropout=0.0,
-        embed_dropout=0.0,
-        resid_dropout=0.0,
-        classifier_dropout=0.0,
-        bos_token_id=0,
-        eos_token_id=0,
-    )
-    # GPT-Neo has no SDPA path in this transformers version; eager uses
-    # matmul attention (still exercises nntile mm/add/softmax/etc.).
-    cfg._attn_implementation = "eager"
-    cfg.use_cache = False
-    return cfg
+def _default_config() -> Path:
+    return Path(__file__).resolve().parent / "gpt_neo_hf_tiny_config.json"
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description=__doc__)
-    add_common_args(p)
-    args = p.parse_args(argv)
-    cfg = tiny_config()
-
-    def build_model():
-        return GPTNeoForCausalLM(cfg)
-
-    def build_batch():
+    def build_batch(cfg, args):
         x, y = make_causal_batch(
             cfg.vocab_size,
             batch_size=args.batch_size,
             seq_len=args.seq_len,
-            seed=args.seed,
+            seed=args.seed if args.seed is not None else 0,
         )
         return {"input_ids": x, "labels": y}
 
-    return run_tiny_hf_train(
+    return run_tiny_hf_main(
         name="gpt-neo",
-        args=args,
-        build_model=build_model,
+        argv=argv,
+        default_config=_default_config(),
+        config_cls=GPTNeoConfig,
+        model_cls=GPTNeoForCausalLM,
         build_batch=build_batch,
         loss_fn=causal_ce_loss,
+        attn_implementation="eager",
+        use_cache=False,
+        description=__doc__,
     )
 
 
