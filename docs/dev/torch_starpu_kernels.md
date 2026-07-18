@@ -299,6 +299,11 @@ Family codelet `torch_unary` (one `R` input, one `W` output):
 | `Relu` | `relu.out` | in `R`, out `W` |
 | `Silu` | `silu.out` | in `R`, out `W` |
 | `Gelu` | `gelu.out` | in `R`, out `W` |
+| `Cos` | `cos.out` | in `R`, out `W` |
+| `Sin` | `sin.out` | in `R`, out `W` |
+| `Neg` | `neg.out` | in `R`, out `W` |
+| `Rsqrt` | `rsqrt.out` | in `R`, out `W` |
+| `Exp` | `exp.out` | in `R`, out `W` |
 | `Softmax` | `_softmax.out` | in `R`, out `W` |
 | `LogSoftmax` | `_log_softmax.out` | in `R`, out `W` |
 | `Sum` | `sum.IntList_out` | in `R`, out `W` |

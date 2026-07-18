@@ -44,6 +44,7 @@
 #endif
 #include <ATen/ops/embedding.h>
 #include <ATen/ops/embedding_dense_backward.h>
+#include <ATen/ops/exp.h>
 #include <ATen/ops/gelu.h>
 #include <ATen/ops/gelu_backward.h>
 #include <ATen/ops/hypot.h>
@@ -245,6 +246,9 @@ void run_unary(
         break;
     case TorchKind::Rsqrt:
         at::rsqrt_out(result, self);
+        break;
+    case TorchKind::Exp:
+        at::exp_out(result, self);
         break;
     case TorchKind::AvgPool2d:
         at::avg_pool2d_out(

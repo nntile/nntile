@@ -25,6 +25,32 @@ bool is_nntile_device(c10::Device device)
     return device.type() == c10::DeviceType::PrivateUse1;
 }
 
+at::Tensor as_contiguous_fp32(
+    const at::Tensor &tensor,
+    const char *name)
+{
+    TORCH_CHECK(
+        is_nntile_device(tensor.device()),
+        "nntile layer_norm: expected nntile ",
+        name);
+    TORCH_CHECK(
+        tensor.scalar_type() == at::ScalarType::Float,
+        "nntile layer_norm supports float32 only");
+    return tensor.is_contiguous() ? tensor : tensor.contiguous();
+}
+
+//! Autograd may pass an undefined Tensor inside optional instead of nullopt.
+std::optional<at::Tensor> optional_defined_contiguous(
+    const std::optional<at::Tensor> &tensor,
+    const char *name)
+{
+    if (!tensor.has_value() || !tensor->defined())
+    {
+        return std::nullopt;
+    }
+    return as_contiguous_fp32(*tensor, name);
+}
+
 void check_norm_tensor(
     const at::Tensor &tensor,
     const char *name)
@@ -36,7 +62,6 @@ void check_norm_tensor(
     TORCH_CHECK(
         tensor.scalar_type() == at::ScalarType::Float,
         "nntile layer_norm supports float32 only");
-    TORCH_CHECK(tensor.is_contiguous(), "nntile layer_norm requires contiguous");
 }
 
 int64_t resolve_norm_axis(
@@ -141,22 +166,28 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm(
     const std::optional<at::Tensor> &bias,
     double eps)
 {
-    check_norm_tensor(input, "input");
-    const int64_t norm_axis = resolve_norm_axis(input.sizes(), normalized_shape);
-    check_optional_affine(input, weight, bias, norm_axis);
+    at::Tensor input_c = as_contiguous_fp32(input, "input");
+    const int64_t norm_axis = resolve_norm_axis(
+        input_c.sizes(),
+        normalized_shape);
+    std::optional<at::Tensor> weight_c =
+        optional_defined_contiguous(weight, "weight");
+    std::optional<at::Tensor> bias_c =
+        optional_defined_contiguous(bias, "bias");
+    check_optional_affine(input_c, weight_c, bias_c, norm_axis);
 
-    at::Tensor output = at::empty_like(input);
+    at::Tensor output = at::empty_like(input_c);
     // Reduced (non-keepdim) stats - matches C++ ``NNLayerNormOp`` buffers and
     // avoids ``scale_slice`` broadcast of mean/rstd.
-    const auto stats_sizes = reduced_sizes(input.sizes(), norm_axis);
+    const auto stats_sizes = reduced_sizes(input_c.sizes(), norm_axis);
     at::Tensor mean = at::empty(
         stats_sizes,
-        input.options().memory_format(at::MemoryFormat::Contiguous));
+        input_c.options().memory_format(at::MemoryFormat::Contiguous));
     at::Tensor rstd = at::empty(
         stats_sizes,
-        input.options().memory_format(at::MemoryFormat::Contiguous));
+        input_c.options().memory_format(at::MemoryFormat::Contiguous));
     run_layer_norm_forward(
-        input, weight, bias, norm_axis, eps, output, mean, rstd);
+        input_c, weight_c, bias_c, norm_axis, eps, output, mean, rstd);
     return {output, mean, rstd};
 }
 
@@ -170,62 +201,65 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm_backward(
     const std::optional<at::Tensor> &bias,
     std::array<bool, 3> output_mask)
 {
-    check_norm_tensor(grad_out, "grad_out");
-    check_norm_tensor(input, "input");
-    check_norm_tensor(mean, "mean");
-    check_norm_tensor(rstd, "rstd");
-    const int64_t norm_axis = resolve_norm_axis(input.sizes(), normalized_shape);
-    check_optional_affine(input, weight, bias, norm_axis);
+    // Sum/Mean backward often expands a non-contiguous ones view into
+    // ``grad_out``; densify before the StarPU codelet.
+    at::Tensor grad_out_c = as_contiguous_fp32(grad_out, "grad_out");
+    at::Tensor input_c = as_contiguous_fp32(input, "input");
+    at::Tensor mean_c = as_contiguous_fp32(mean, "mean");
+    at::Tensor rstd_c = as_contiguous_fp32(rstd, "rstd");
+    const int64_t norm_axis = resolve_norm_axis(
+        input_c.sizes(),
+        normalized_shape);
+    std::optional<at::Tensor> weight_c =
+        optional_defined_contiguous(weight, "weight");
+    std::optional<at::Tensor> bias_c =
+        optional_defined_contiguous(bias, "bias");
+    check_optional_affine(input_c, weight_c, bias_c, norm_axis);
 
     // Forward now saves reduced stats; accept legacy keepdim tensors too.
-    at::Tensor mean_reduced = mean;
-    at::Tensor rstd_reduced = rstd;
-    if (mean.dim() == input.dim() && mean.size(norm_axis) == 1)
+    at::Tensor mean_reduced = mean_c;
+    at::Tensor rstd_reduced = rstd_c;
+    if (mean_c.dim() == input_c.dim() && mean_c.size(norm_axis) == 1)
     {
-        mean_reduced = mean.squeeze(norm_axis);
+        mean_reduced = mean_c.squeeze(norm_axis).contiguous();
     }
-    if (rstd.dim() == input.dim() && rstd.size(norm_axis) == 1)
+    if (rstd_c.dim() == input_c.dim() && rstd_c.size(norm_axis) == 1)
     {
-        rstd_reduced = rstd.squeeze(norm_axis);
+        rstd_reduced = rstd_c.squeeze(norm_axis).contiguous();
     }
 
     at::Tensor grad_input;
     at::Tensor grad_weight;
     at::Tensor grad_bias;
-    std::vector<at::Tensor> inputs = {grad_out, input, mean_reduced, rstd_reduced};
-    if (weight.has_value())
-    {
-        inputs.push_back(*weight);
-    }
 
     if (output_mask[0])
     {
-        grad_input = at::empty_like(input);
+        grad_input = at::empty_like(input_c);
     }
-    if (output_mask[1] && weight.has_value())
+    if (output_mask[1] && weight_c.has_value())
     {
-        grad_weight = at::empty_like(*weight);
+        grad_weight = at::empty_like(*weight_c);
     }
-    if (output_mask[2] && bias.has_value())
+    if (output_mask[2] && bias_c.has_value())
     {
-        grad_bias = at::empty_like(*bias);
+        grad_bias = at::empty_like(*bias_c);
     }
 
     tensor_layer_norm_backward_fp32(
-        grad_out,
-        input,
+        grad_out_c,
+        input_c,
         mean_reduced,
         rstd_reduced,
-        weight.has_value() ? &*weight : nullptr,
-        bias.has_value() ? &*bias : nullptr,
-        weight.has_value(),
-        bias.has_value(),
+        weight_c.has_value() ? &*weight_c : nullptr,
+        bias_c.has_value() ? &*bias_c : nullptr,
+        weight_c.has_value(),
+        bias_c.has_value(),
         output_mask[0] ? &grad_input : nullptr,
-        output_mask[1] && weight.has_value() ? &grad_weight : nullptr,
-        output_mask[2] && bias.has_value() ? &grad_bias : nullptr,
+        output_mask[1] && weight_c.has_value() ? &grad_weight : nullptr,
+        output_mask[2] && bias_c.has_value() ? &grad_bias : nullptr,
         output_mask[0],
-        output_mask[1] && weight.has_value(),
-        output_mask[2] && bias.has_value(),
+        output_mask[1] && weight_c.has_value(),
+        output_mask[2] && bias_c.has_value(),
         norm_axis);
 
     return {grad_input, grad_weight, grad_bias};

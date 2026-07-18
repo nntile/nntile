@@ -129,6 +129,21 @@ _FWD_BWD_CASES = [
         lambda: _seeded((2, 3, 4)),
         lambda x: x.reshape(6, 4),
     ),
+    (
+        "exp",
+        lambda: _seeded((4, 8)),
+        torch.exp,
+    ),
+    (
+        "cos",
+        lambda: _seeded((4, 8)),
+        torch.cos,
+    ),
+    (
+        "sin",
+        lambda: _seeded((4, 8)),
+        torch.sin,
+    ),
 ]
 
 
@@ -179,6 +194,24 @@ def test_layer_norm_matches_cpu_forward_backward():
     assert_aten_op_forward_backward(
         op,
         inputs_cpu=[x, weight, bias],
+        rtol=_RTOL,
+        atol=_ATOL,
+        bwd_rtol=_BWD_RTOL,
+        bwd_atol=_BWD_ATOL,
+    )
+
+
+def test_layer_norm_no_affine_matches_cpu_forward_backward():
+    """DiT AdaLN uses LayerNorm(elementwise_affine=False)."""
+    torch.manual_seed(0)
+    x = torch.randn(2, 4, 8, dtype=torch.float32, requires_grad=True)
+
+    def op(inp):
+        return F.layer_norm(inp, (8,), weight=None, bias=None, eps=1e-6)
+
+    assert_aten_op_forward_backward(
+        op,
+        inputs_cpu=[x],
         rtol=_RTOL,
         atol=_ATOL,
         bwd_rtol=_BWD_RTOL,
