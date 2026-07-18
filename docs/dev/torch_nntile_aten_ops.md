@@ -171,14 +171,17 @@ PrivateUse1 registration).
 
 ### Missing fused ops
 
-- `mean` remains a host fallback in `nntile_host_aten.cpp`; any unfused
-  CompositeImplicit path that lowers through `mean` still leaves StarPU.
-- `group_norm` is not registered on PrivateUse1. If needed, prefer wiring
-  PyTorch’s `native_group_norm` / backward schemas instead of relying on a
-  host fallback or composite reduction path.
-- General `pow`, `div.Tensor`, and `where` still have host fallback cases;
-  only the small `pow` exponents needed by current autograd formulas are
-  StarPU-backed.
+See the table in
+[torch_starpu_kernels.md — Missing fused ops](torch_starpu_kernels.md#missing-fused-ops).
+Short list for product planning:
+
+1. **`native_group_norm`** (+ backward) — GroupNorm models (ViT-style).
+2. **`native_dropout`** — training.
+3. **Upsample / interpolate** device schemas — vision.
+4. **RoPE** — still disabled under `NNTILE_TORCH_NATIVE_OPS` (HF Llama often
+   inlines rotary via mul/add; hand-written classic RoPE is not on this path).
+5. Host leftovers: **`mean`**, general **`pow`/`div`/`where`** (RMSNorm no
+   longer needs host `mean`).
 
 ### SDPA (`nntile_sdpa_aten.cpp`)
 

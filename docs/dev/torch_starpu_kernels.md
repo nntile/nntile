@@ -452,12 +452,25 @@ NNTile therefore registers PrivateUse1 `rms_norm` and AutogradPrivateUse1
 
 ### Missing fused ops
 
-- Unfused paths that lower through `mean` still use the host fallback in
-  `nntile_host_aten.cpp`.
-- `group_norm` is not registered; if needed, wire `native_group_norm` and its
-  backward rather than a host fallback/composite reduction path.
-- General `pow`, `div.Tensor`, and `where` still contain host fallback cases;
-  only selected common formulas are StarPU-backed today.
+Fused / multi-kernel ATen ops that popular models still lack as a **single**
+StarPU `TorchKind` (or whose stock path is host / unfused today):
+
+| Gap | Why it matters | Suggested schema |
+|-----|----------------|------------------|
+| `native_group_norm` (+ bwd) | ViT / ConvNeXt / some CNNs; `group_norm` is CompositeImplicit → this primitive | PrivateUse1 like LayerNorm |
+| `native_dropout` (+ bwd) | Training noise; `dropout` is CompositeImplicit | device primitive |
+| `upsample_nearest2d` / `upsample_bilinear2d` (+ bwd) | Segmentation / detectors / generative vision | device `.out` |
+| RoPE (classic disabled) | Llama / NeoX positional; torch-native still `throw_op_disabled` | StarPU fused or composite of mul/add |
+| Fused cross-entropy | Optional; today CE = `_log_softmax` + `nll_loss_*` (both StarPU) | only if profiling wants one task |
+| Softplus / Mish / PReLU | Less common activations; Softplus/Mish are device schemas, PReLU CompositeImplicit | low priority |
+
+Not “fused,” but still leave StarPU for composite leftovers:
+
+- `mean` — host gather in `nntile_host_aten.cpp` (RMSNorm no longer depends on it)
+- General `pow`, `div.Tensor`, `where` — host fallback except `pow` exp 2/3 via mul
+
+Already fused on this path: `NativeLayerNorm`, `RmsNorm`, SDPA overrideable,
+softmax / NLL, CNN conv/pool/batch_norm, silu/gelu/relu.
 
 ### Worked examples
 
