@@ -68,10 +68,19 @@ at::Tensor &relu_out(const at::Tensor &self, at::Tensor &out)
     return out;
 }
 
+at::Tensor &relu_(at::Tensor &self)
+{
+    // Functional SSA rebind (same pattern as gelu_ / silu_).
+    check_relu_input(self, self);
+    run_relu(self, self);
+    return self;
+}
+
 } // namespace torch_nntile
 
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("relu", TORCH_FN(torch_nntile::relu));
     m.impl("relu.out", TORCH_FN(torch_nntile::relu_out));
+    m.impl("relu_", TORCH_FN(torch_nntile::relu_));
 }

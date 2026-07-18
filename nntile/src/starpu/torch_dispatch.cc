@@ -22,11 +22,17 @@
 #include <ATen/ATen.h>
 #include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/core/grad_mode.h>
+#include <ATen/ops/_adaptive_avg_pool2d.h>
+#include <ATen/ops/_adaptive_avg_pool2d_backward.h>
 #include <ATen/ops/add.h>
 #include <ATen/ops/sub.h>
 #include <ATen/ops/addmm.h>
+#include <ATen/ops/avg_pool2d.h>
+#include <ATen/ops/avg_pool2d_backward.h>
 #include <ATen/ops/bmm.h>
 #include <ATen/ops/cat.h>
+#include <ATen/ops/convolution.h>
+#include <ATen/ops/convolution_backward.h>
 #include <ATen/ops/cos.h>
 #include <ATen/ops/_log_softmax.h>
 #include <ATen/ops/_log_softmax_backward_data.h>
@@ -45,8 +51,13 @@
 #include <ATen/ops/linear.h>
 #include <ATen/ops/masked_fill.h>
 #include <ATen/ops/matmul.h>
+#include <ATen/ops/max_pool2d_with_indices.h>
+#include <ATen/ops/max_pool2d_with_indices_backward.h>
+#include <ATen/ops/mean.h>
 #include <ATen/ops/mm.h>
 #include <ATen/ops/mul.h>
+#include <ATen/ops/native_batch_norm.h>
+#include <ATen/ops/native_batch_norm_backward.h>
 #include <ATen/ops/native_layer_norm.h>
 #include <ATen/ops/native_layer_norm_backward.h>
 #include <ATen/ops/neg.h>
@@ -64,6 +75,10 @@
 #include <ATen/ops/sum.h>
 #include <ATen/ops/threshold_backward.h>
 #include <ATen/ops/tril.h>
+#include <ATen/ops/upsample_bilinear2d.h>
+#include <ATen/ops/upsample_bilinear2d_backward.h>
+#include <ATen/ops/upsample_nearest2d.h>
+#include <ATen/ops/upsample_nearest2d_backward.h>
 #include <ATen/ops/zeros.h>
 
 #include "nntile/starpu/torch_blob.hh"
@@ -145,6 +160,58 @@ at::Tensor out_fp32(
         device);
 }
 
+at::Tensor out_i64(
+    std::int64_t *ptr,
+    const TorchDispatchArgs &args,
+    Index slot,
+    c10::optional<at::Device> device = c10::nullopt)
+{
+    return blob_i64(
+        ptr,
+        sizes_of(args, slot, true),
+        strides_of(args, slot, true),
+        static_cast<std::int64_t>(args.out_offset[slot]),
+        device);
+}
+
+std::vector<std::int64_t> iarg_vec(
+    const TorchDispatchArgs &args,
+    Index start,
+    Index count)
+{
+    std::vector<std::int64_t> values;
+    values.reserve(static_cast<size_t>(count));
+    for (Index i = 0; i < count; ++i)
+    {
+        values.push_back(static_cast<std::int64_t>(args.iargs[start + i]));
+    }
+    return values;
+}
+
+c10::optional<std::int64_t> optional_iarg(
+    const TorchDispatchArgs &args,
+    Index has_slot,
+    Index value_slot)
+{
+    if (args.iargs[has_slot] == 0)
+    {
+        return c10::nullopt;
+    }
+    return static_cast<std::int64_t>(args.iargs[value_slot]);
+}
+
+c10::optional<double> optional_scale(
+    const TorchDispatchArgs &args,
+    Index has_slot,
+    Index scalar_slot)
+{
+    if (args.iargs[has_slot] == 0)
+    {
+        return c10::nullopt;
+    }
+    return static_cast<double>(args.scalars[scalar_slot]);
+}
+
 void run_unary(
     TorchDispatchArgs *args,
     float *in,
@@ -178,6 +245,59 @@ void run_unary(
         break;
     case TorchKind::Rsqrt:
         at::rsqrt_out(result, self);
+        break;
+    case TorchKind::AvgPool2d:
+        at::avg_pool2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 2),
+            iarg_vec(*args, 4, 2),
+            args->iargs[6] != 0,
+            args->iargs[7] != 0,
+            optional_iarg(*args, 8, 9));
+        break;
+    case TorchKind::AdaptiveAvgPool2d:
+        at::_adaptive_avg_pool2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2));
+        break;
+    case TorchKind::UpsampleNearest2d:
+        at::upsample_nearest2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            optional_scale(*args, 2, 0),
+            optional_scale(*args, 3, 1));
+        break;
+    case TorchKind::UpsampleNearest2dBackward:
+        at::upsample_nearest2d_backward_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 4),
+            optional_scale(*args, 6, 0),
+            optional_scale(*args, 7, 1));
+        break;
+    case TorchKind::UpsampleBilinear2d:
+        at::upsample_bilinear2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            args->iargs[2] != 0,
+            optional_scale(*args, 3, 0),
+            optional_scale(*args, 4, 1));
+        break;
+    case TorchKind::UpsampleBilinear2dBackward:
+        at::upsample_bilinear2d_backward_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 4),
+            args->iargs[6] != 0,
+            optional_scale(*args, 7, 0),
+            optional_scale(*args, 8, 1));
         break;
     case TorchKind::Softmax:
         at::_softmax_out(
@@ -401,6 +521,21 @@ void run_binary(
             ta,
             tb,
             args->iargs[0] ? "tanh" : "none");
+        break;
+    case TorchKind::AvgPool2dBackward:
+        at::avg_pool2d_backward_out(
+            result,
+            ta,
+            tb,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 2),
+            iarg_vec(*args, 4, 2),
+            args->iargs[6] != 0,
+            args->iargs[7] != 0,
+            optional_iarg(*args, 8, 9));
+        break;
+    case TorchKind::AdaptiveAvgPool2dBackward:
+        at::_adaptive_avg_pool2d_backward_out(result, ta, tb);
         break;
     case TorchKind::SoftmaxBackward:
         at::_softmax_backward_data_out(
@@ -640,6 +775,85 @@ TorchDispatchArgs *clone_args(const TorchDispatchArgs &meta)
     }
     *args = meta;
     return args;
+}
+
+int submit_accesses(
+    Codelet *codelet,
+    int starpu_worker_hint,
+    TorchDispatchArgs *args,
+    const std::vector<std::pair<enum starpu_data_access_mode, Handle>>
+        &handles)
+{
+    if (handles.empty() || handles.size() > 10)
+    {
+        std::free(args);
+        throw std::runtime_error("torch_dispatch.submit: bad handle count");
+    }
+    starpu_data_handle_t h[10];
+    enum starpu_data_access_mode m[10];
+    const Index n = static_cast<Index>(handles.size());
+    for (Index i = 0; i < n; ++i)
+    {
+        m[static_cast<size_t>(i)] = handles[static_cast<size_t>(i)].first;
+        h[static_cast<size_t>(i)] =
+            handles[static_cast<size_t>(i)].second.get();
+    }
+    switch (n)
+    {
+    case 1:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0],
+            STARPU_CL_ARGS, args, sizeof(*args), 0);
+    case 2:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            STARPU_CL_ARGS, args, sizeof(*args), 0);
+    case 3:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            m[2], h[2], STARPU_CL_ARGS, args, sizeof(*args), 0);
+    case 4:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            m[2], h[2], m[3], h[3], STARPU_CL_ARGS, args,
+            sizeof(*args), 0);
+    case 5:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            m[2], h[2], m[3], h[3], m[4], h[4],
+            STARPU_CL_ARGS, args, sizeof(*args), 0);
+    case 6:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            m[2], h[2], m[3], h[3], m[4], h[4], m[5], h[5],
+            STARPU_CL_ARGS, args, sizeof(*args), 0);
+    case 7:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            m[2], h[2], m[3], h[3], m[4], h[4], m[5], h[5],
+            m[6], h[6], STARPU_CL_ARGS, args, sizeof(*args), 0);
+    case 8:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            m[2], h[2], m[3], h[3], m[4], h[4], m[5], h[5],
+            m[6], h[6], m[7], h[7], STARPU_CL_ARGS, args,
+            sizeof(*args), 0);
+    case 9:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            m[2], h[2], m[3], h[3], m[4], h[4], m[5], h[5],
+            m[6], h[6], m[7], h[7], m[8], h[8],
+            STARPU_CL_ARGS, args, sizeof(*args), 0);
+    case 10:
+        return nntile_starpu_task_insert(
+            codelet, starpu_worker_hint, m[0], h[0], m[1], h[1],
+            m[2], h[2], m[3], h[3], m[4], h[4], m[5], h[5],
+            m[6], h[6], m[7], h[7], m[8], h[8], m[9], h[9],
+            STARPU_CL_ARGS, args, sizeof(*args), 0);
+    default:
+        std::free(args);
+        throw std::runtime_error("torch_dispatch.submit: bad handle count");
+    }
 }
 
 } // namespace
@@ -2039,6 +2253,837 @@ void TorchEmbeddingDenseBackward::submit(
     }
 }
 
+TorchConvolution::TorchConvolution():
+    codelet("nntile_torch_convolution", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchConvolution::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        const bool has_bias = args->iargs[11] != 0;
+        Index buf = 0;
+        at::Tensor input = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 0);
+        at::Tensor weight = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 1);
+        at::Tensor bias;
+        if (has_bias)
+        {
+            bias = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 2);
+        }
+        at::Tensor out = out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 0);
+        const Index ndim = args->iargs[0];
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        at::Tensor result = at::convolution(
+            input,
+            weight,
+            has_bias ? c10::optional<at::Tensor>(bias) : c10::nullopt,
+            iarg_vec(*args, 3, ndim),
+            iarg_vec(*args, 5, ndim),
+            iarg_vec(*args, 7, ndim),
+            args->iargs[2] != 0,
+            iarg_vec(*args, 9, ndim),
+            static_cast<std::int64_t>(args->iargs[1]));
+        out.copy_(result);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_convolution failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchConvolution::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_convolution CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchConvolution::footprint(struct starpu_task *task)
+{
+    return args_footprint(reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchConvolution::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle input,
+    Handle weight,
+    Handle bias,
+    Handle out,
+    bool has_bias
+)
+{
+    args_t *args = clone_args(meta);
+    args->kind = TorchKind::Convolution;
+    args->iargs[11] = has_bias ? 1 : 0;
+    std::vector<std::pair<enum starpu_data_access_mode, Handle>> handles;
+    handles.push_back({STARPU_R, input});
+    handles.push_back({STARPU_R, weight});
+    if (has_bias)
+    {
+        handles.push_back({STARPU_R, bias});
+    }
+    handles.push_back({STARPU_W, out});
+    if (submit_accesses(&codelet, starpu_worker_hint, args, handles) != 0)
+    {
+        throw std::runtime_error("torch_convolution.submit failed");
+    }
+}
+
+TorchConvolutionBackward::TorchConvolutionBackward():
+    codelet(
+        "nntile_torch_convolution_backward",
+        footprint,
+        cpu_funcs,
+        cuda_funcs)
+{
+}
+
+void TorchConvolutionBackward::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        const bool need_gi = args->iargs[12] != 0;
+        const bool need_gw = args->iargs[13] != 0;
+        const bool need_gb = args->iargs[14] != 0;
+        Index buf = 0;
+        at::Tensor grad_out =
+            in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 0);
+        at::Tensor input = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 1);
+        at::Tensor weight = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 2);
+        at::Tensor grad_input;
+        at::Tensor grad_weight;
+        at::Tensor grad_bias;
+        if (need_gi)
+        {
+            grad_input = out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 0);
+        }
+        if (need_gw)
+        {
+            grad_weight = out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 1);
+        }
+        if (need_gb)
+        {
+            grad_bias = out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 2);
+        }
+        const Index ndim = args->iargs[0];
+        std::vector<std::int64_t> bias_sizes_vec;
+        at::OptionalIntArrayRef bias_sizes = c10::nullopt;
+        if (need_gb)
+        {
+            bias_sizes_vec = sizes_of(*args, 2, true);
+            bias_sizes = at::IntArrayRef(bias_sizes_vec);
+        }
+        std::array<bool, 3> output_mask = {need_gi, need_gw, need_gb};
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        auto grads = at::convolution_backward(
+            grad_out,
+            input,
+            weight,
+            bias_sizes,
+            iarg_vec(*args, 3, ndim),
+            iarg_vec(*args, 5, ndim),
+            iarg_vec(*args, 7, ndim),
+            args->iargs[2] != 0,
+            iarg_vec(*args, 9, ndim),
+            static_cast<std::int64_t>(args->iargs[1]),
+            output_mask);
+        if (need_gi)
+        {
+            grad_input.copy_(std::get<0>(grads));
+        }
+        if (need_gw)
+        {
+            grad_weight.copy_(std::get<1>(grads));
+        }
+        if (need_gb)
+        {
+            grad_bias.copy_(std::get<2>(grads));
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_convolution_backward failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchConvolutionBackward::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_convolution_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchConvolutionBackward::footprint(struct starpu_task *task)
+{
+    return args_footprint(reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchConvolutionBackward::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle grad_out,
+    Handle input,
+    Handle weight,
+    Handle grad_input,
+    Handle grad_weight,
+    Handle grad_bias,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias
+)
+{
+    args_t *args = clone_args(meta);
+    args->kind = TorchKind::ConvolutionBackward;
+    args->iargs[12] = need_grad_input ? 1 : 0;
+    args->iargs[13] = need_grad_weight ? 1 : 0;
+    args->iargs[14] = need_grad_bias ? 1 : 0;
+    std::vector<std::pair<enum starpu_data_access_mode, Handle>> handles;
+    handles.push_back({STARPU_R, grad_out});
+    handles.push_back({STARPU_R, input});
+    handles.push_back({STARPU_R, weight});
+    if (need_grad_input)
+    {
+        handles.push_back({STARPU_W, grad_input});
+    }
+    if (need_grad_weight)
+    {
+        handles.push_back({STARPU_W, grad_weight});
+    }
+    if (need_grad_bias)
+    {
+        handles.push_back({STARPU_W, grad_bias});
+    }
+    if (submit_accesses(&codelet, starpu_worker_hint, args, handles) != 0)
+    {
+        throw std::runtime_error("torch_convolution_backward.submit failed");
+    }
+}
+
+TorchMaxPool2dWithIndices::TorchMaxPool2dWithIndices():
+    codelet(
+        "nntile_torch_max_pool2d_with_indices",
+        footprint,
+        cpu_funcs,
+        cuda_funcs)
+{
+}
+
+void TorchMaxPool2dWithIndices::cpu(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        at::Tensor input = in_fp32(ifaces[0]->get_ptr<float>(), *args, 0);
+        at::Tensor out = out_fp32(ifaces[1]->get_ptr<float>(), *args, 0);
+        at::Tensor indices =
+            out_i64(ifaces[2]->get_ptr<std::int64_t>(), *args, 1);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        at::max_pool2d_with_indices_out(
+            out,
+            indices,
+            input,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 2),
+            iarg_vec(*args, 4, 2),
+            iarg_vec(*args, 6, 2),
+            args->iargs[8] != 0);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_max_pool2d_with_indices failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchMaxPool2dWithIndices::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_max_pool2d_with_indices CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchMaxPool2dWithIndices::footprint(struct starpu_task *task)
+{
+    return args_footprint(reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchMaxPool2dWithIndices::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle input,
+    Handle out,
+    Handle indices
+)
+{
+    args_t *args = clone_args(meta);
+    args->kind = TorchKind::MaxPool2dWithIndices;
+    std::vector<std::pair<enum starpu_data_access_mode, Handle>> handles = {
+        {STARPU_R, input},
+        {STARPU_W, out},
+        {STARPU_W, indices}};
+    if (submit_accesses(&codelet, starpu_worker_hint, args, handles) != 0)
+    {
+        throw std::runtime_error(
+            "torch_max_pool2d_with_indices.submit failed");
+    }
+}
+
+TorchMaxPool2dWithIndicesBackward::TorchMaxPool2dWithIndicesBackward():
+    codelet(
+        "nntile_torch_max_pool2d_with_indices_backward",
+        footprint,
+        cpu_funcs,
+        cuda_funcs)
+{
+}
+
+void TorchMaxPool2dWithIndicesBackward::cpu(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        at::Tensor grad_out =
+            in_fp32(ifaces[0]->get_ptr<float>(), *args, 0);
+        at::Tensor input = in_fp32(ifaces[1]->get_ptr<float>(), *args, 1);
+        at::Tensor indices =
+            in_i64(ifaces[2]->get_ptr<std::int64_t>(), *args, 2);
+        at::Tensor grad_input =
+            out_fp32(ifaces[3]->get_ptr<float>(), *args, 0);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        at::max_pool2d_with_indices_backward_out(
+            grad_input,
+            grad_out,
+            input,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 2),
+            iarg_vec(*args, 4, 2),
+            iarg_vec(*args, 6, 2),
+            args->iargs[8] != 0,
+            indices);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_max_pool2d_with_indices_backward failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchMaxPool2dWithIndicesBackward::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_max_pool2d_with_indices_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchMaxPool2dWithIndicesBackward::footprint(
+    struct starpu_task *task)
+{
+    return args_footprint(reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchMaxPool2dWithIndicesBackward::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle grad_out,
+    Handle input,
+    Handle indices,
+    Handle grad_input
+)
+{
+    args_t *args = clone_args(meta);
+    args->kind = TorchKind::MaxPool2dWithIndicesBackward;
+    std::vector<std::pair<enum starpu_data_access_mode, Handle>> handles = {
+        {STARPU_R, grad_out},
+        {STARPU_R, input},
+        {STARPU_R, indices},
+        {STARPU_W, grad_input}};
+    if (submit_accesses(&codelet, starpu_worker_hint, args, handles) != 0)
+    {
+        throw std::runtime_error(
+            "torch_max_pool2d_with_indices_backward.submit failed");
+    }
+}
+
+TorchNativeBatchNorm::TorchNativeBatchNorm():
+    codelet(
+        "nntile_torch_native_batch_norm",
+        footprint,
+        cpu_funcs,
+        cuda_funcs)
+{
+}
+
+void TorchNativeBatchNorm::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        const bool training = args->iargs[0] != 0;
+        const bool has_w = args->iargs[1] != 0;
+        const bool has_b = args->iargs[2] != 0;
+        const bool has_rm = args->iargs[3] != 0;
+        const bool has_rv = args->iargs[4] != 0;
+        Index buf = 0;
+        at::Tensor input = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 0);
+        at::Tensor out = out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 0);
+        at::Tensor save_mean =
+            out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 1);
+        at::Tensor save_invstd =
+            out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 2);
+        at::Tensor weight;
+        at::Tensor bias;
+        at::Tensor running_mean;
+        at::Tensor running_var;
+        if (has_w)
+        {
+            weight = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 1);
+        }
+        if (has_b)
+        {
+            bias = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 2);
+        }
+        if (has_rm)
+        {
+            running_mean =
+                in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 3);
+        }
+        if (has_rv)
+        {
+            running_var =
+                in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 4);
+        }
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        auto result = at::native_batch_norm(
+            input,
+            has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
+            has_b ? c10::optional<at::Tensor>(bias) : c10::nullopt,
+            has_rm ? c10::optional<at::Tensor>(running_mean) : c10::nullopt,
+            has_rv ? c10::optional<at::Tensor>(running_var) : c10::nullopt,
+            training,
+            static_cast<double>(args->scalars[0]),
+            static_cast<double>(args->scalars[1]));
+        out.copy_(std::get<0>(result));
+        save_mean.copy_(std::get<1>(result).reshape(save_mean.sizes()));
+        save_invstd.copy_(std::get<2>(result).reshape(save_invstd.sizes()));
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_native_batch_norm failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchNativeBatchNorm::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_native_batch_norm CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchNativeBatchNorm::footprint(struct starpu_task *task)
+{
+    return args_footprint(reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchNativeBatchNorm::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle input,
+    Handle weight,
+    Handle bias,
+    Handle running_mean,
+    Handle running_var,
+    Handle out,
+    Handle save_mean,
+    Handle save_invstd,
+    bool has_weight,
+    bool has_bias,
+    bool has_running_mean,
+    bool has_running_var,
+    bool training
+)
+{
+    args_t *args = clone_args(meta);
+    args->kind = TorchKind::NativeBatchNorm;
+    args->iargs[0] = training ? 1 : 0;
+    args->iargs[1] = has_weight ? 1 : 0;
+    args->iargs[2] = has_bias ? 1 : 0;
+    args->iargs[3] = has_running_mean ? 1 : 0;
+    args->iargs[4] = has_running_var ? 1 : 0;
+    std::vector<std::pair<enum starpu_data_access_mode, Handle>> handles;
+    handles.push_back({STARPU_R, input});
+    handles.push_back({STARPU_W, out});
+    handles.push_back({STARPU_W, save_mean});
+    handles.push_back({STARPU_W, save_invstd});
+    if (has_weight)
+    {
+        handles.push_back({STARPU_R, weight});
+    }
+    if (has_bias)
+    {
+        handles.push_back({STARPU_R, bias});
+    }
+    if (has_running_mean)
+    {
+        handles.push_back({training ? STARPU_RW : STARPU_R, running_mean});
+    }
+    if (has_running_var)
+    {
+        handles.push_back({training ? STARPU_RW : STARPU_R, running_var});
+    }
+    if (submit_accesses(&codelet, starpu_worker_hint, args, handles) != 0)
+    {
+        throw std::runtime_error("torch_native_batch_norm.submit failed");
+    }
+}
+
+TorchNativeBatchNormBackward::TorchNativeBatchNormBackward():
+    codelet(
+        "nntile_torch_native_batch_norm_backward",
+        footprint,
+        cpu_funcs,
+        cuda_funcs)
+{
+}
+
+void TorchNativeBatchNormBackward::cpu(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        const bool training = args->iargs[0] != 0;
+        const bool has_w = args->iargs[1] != 0;
+        const bool has_rm = args->iargs[3] != 0;
+        const bool has_rv = args->iargs[4] != 0;
+        const bool has_sm = args->iargs[5] != 0;
+        const bool has_si = args->iargs[6] != 0;
+        const bool need_gi = args->iargs[7] != 0;
+        const bool need_gw = args->iargs[8] != 0;
+        const bool need_gb = args->iargs[9] != 0;
+        Index buf = 0;
+        at::Tensor grad_out =
+            in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 0);
+        at::Tensor input = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 1);
+        at::Tensor weight;
+        at::Tensor running_mean;
+        at::Tensor running_var;
+        at::Tensor save_mean;
+        at::Tensor save_invstd;
+        if (has_w)
+        {
+            weight = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 2);
+        }
+        if (has_rm)
+        {
+            running_mean =
+                in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 3);
+        }
+        if (has_rv)
+        {
+            running_var =
+                in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 4);
+        }
+        if (has_sm)
+        {
+            save_mean = in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 5);
+        }
+        if (has_si)
+        {
+            save_invstd =
+                in_fp32(ifaces[buf++]->get_ptr<float>(), *args, 6);
+        }
+        at::Tensor grad_input;
+        at::Tensor grad_weight;
+        at::Tensor grad_bias;
+        if (need_gi)
+        {
+            grad_input = out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 0);
+        }
+        if (need_gw)
+        {
+            grad_weight = out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 1);
+        }
+        if (need_gb)
+        {
+            grad_bias = out_fp32(ifaces[buf++]->get_ptr<float>(), *args, 2);
+        }
+        std::array<bool, 3> output_mask = {need_gi, need_gw, need_gb};
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        auto grads = at::native_batch_norm_backward(
+            grad_out,
+            input,
+            has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
+            has_rm ? c10::optional<at::Tensor>(running_mean) : c10::nullopt,
+            has_rv ? c10::optional<at::Tensor>(running_var) : c10::nullopt,
+            has_sm ? c10::optional<at::Tensor>(save_mean) : c10::nullopt,
+            has_si ? c10::optional<at::Tensor>(save_invstd) : c10::nullopt,
+            training,
+            static_cast<double>(args->scalars[1]),
+            output_mask);
+        if (need_gi)
+        {
+            grad_input.copy_(std::get<0>(grads));
+        }
+        if (need_gw)
+        {
+            grad_weight.copy_(std::get<1>(grads));
+        }
+        if (need_gb)
+        {
+            grad_bias.copy_(std::get<2>(grads));
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_native_batch_norm_backward failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+#ifdef NNTILE_USE_CUDA
+void TorchNativeBatchNormBackward::cuda(
+    void *buffers[],
+    void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_native_batch_norm_backward CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchNativeBatchNormBackward::footprint(
+    struct starpu_task *task)
+{
+    return args_footprint(reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchNativeBatchNormBackward::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle grad_out,
+    Handle input,
+    Handle weight,
+    Handle running_mean,
+    Handle running_var,
+    Handle save_mean,
+    Handle save_invstd,
+    Handle grad_input,
+    Handle grad_weight,
+    Handle grad_bias,
+    bool has_weight,
+    bool has_running_mean,
+    bool has_running_var,
+    bool has_save_mean,
+    bool has_save_invstd,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias
+)
+{
+    args_t *args = clone_args(meta);
+    args->kind = TorchKind::NativeBatchNormBackward;
+    args->iargs[1] = has_weight ? 1 : 0;
+    args->iargs[3] = has_running_mean ? 1 : 0;
+    args->iargs[4] = has_running_var ? 1 : 0;
+    args->iargs[5] = has_save_mean ? 1 : 0;
+    args->iargs[6] = has_save_invstd ? 1 : 0;
+    args->iargs[7] = need_grad_input ? 1 : 0;
+    args->iargs[8] = need_grad_weight ? 1 : 0;
+    args->iargs[9] = need_grad_bias ? 1 : 0;
+    std::vector<std::pair<enum starpu_data_access_mode, Handle>> handles;
+    handles.push_back({STARPU_R, grad_out});
+    handles.push_back({STARPU_R, input});
+    if (has_weight)
+    {
+        handles.push_back({STARPU_R, weight});
+    }
+    if (has_running_mean)
+    {
+        handles.push_back({STARPU_R, running_mean});
+    }
+    if (has_running_var)
+    {
+        handles.push_back({STARPU_R, running_var});
+    }
+    if (has_save_mean)
+    {
+        handles.push_back({STARPU_R, save_mean});
+    }
+    if (has_save_invstd)
+    {
+        handles.push_back({STARPU_R, save_invstd});
+    }
+    if (need_grad_input)
+    {
+        handles.push_back({STARPU_W, grad_input});
+    }
+    if (need_grad_weight)
+    {
+        handles.push_back({STARPU_W, grad_weight});
+    }
+    if (need_grad_bias)
+    {
+        handles.push_back({STARPU_W, grad_bias});
+    }
+    if (submit_accesses(&codelet, starpu_worker_hint, args, handles) != 0)
+    {
+        throw std::runtime_error(
+            "torch_native_batch_norm_backward.submit failed");
+    }
+}
+
 TorchSdpaBackward::TorchSdpaBackward():
     codelet(
         "nntile_torch_sdpa_backward",
@@ -2496,6 +3541,12 @@ torch_binary_pack_t torch_binary;
 torch_ternary_pack_t torch_ternary;
 TorchEmbedding torch_embedding;
 TorchEmbeddingDenseBackward torch_embedding_dense_backward;
+TorchConvolution torch_convolution;
+TorchConvolutionBackward torch_convolution_backward;
+TorchMaxPool2dWithIndices torch_max_pool2d_with_indices;
+TorchMaxPool2dWithIndicesBackward torch_max_pool2d_with_indices_backward;
+TorchNativeBatchNorm torch_native_batch_norm;
+TorchNativeBatchNormBackward torch_native_batch_norm_backward;
 TorchLayerNorm torch_layer_norm;
 TorchLayerNormBackward torch_layer_norm_backward;
 TorchSdpaBackward torch_sdpa_backward;

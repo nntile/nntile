@@ -71,9 +71,11 @@ void check_add_inputs(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile torch_add supports float32 only");
-    TORCH_CHECK(
-        self.is_contiguous() && other.is_contiguous(),
-        "nntile add requires contiguous tensors");
+}
+
+at::Tensor as_contiguous_fp32(const at::Tensor &tensor)
+{
+    return tensor.is_contiguous() ? tensor : tensor.contiguous();
 }
 
 void run_torch_add(
@@ -86,9 +88,9 @@ void run_torch_add(
     // beta_y = torch alpha → out = x + alpha * y.
     tensor_add_fp32(
         1.0f,
-        self,
+        as_contiguous_fp32(self),
         alpha.to<float>(),
-        other,
+        as_contiguous_fp32(other),
         out);
 }
 
@@ -213,9 +215,19 @@ at::Tensor &add__tensor(
     // SSA: record out-of-place add and rebind ``self`` to the result node.
     tensor_add_inplace_fp32(
         alpha.to<float>(),
-        other,
+        as_contiguous_fp32(other),
         1.0f,
         self);
+    return self;
+}
+
+at::Tensor &add__scalar(
+    at::Tensor &self,
+    const at::Scalar &other,
+    const at::Scalar &alpha)
+{
+    at::Tensor tmp = add_scalar(self, other, alpha);
+    self.copy_(tmp);
     return self;
 }
 
@@ -226,6 +238,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("add.Tensor", TORCH_FN(torch_nntile::add_tensor));
     m.impl("add.out", TORCH_FN(torch_nntile::add_out));
     m.impl("add_.Tensor", TORCH_FN(torch_nntile::add__tensor));
+    m.impl("add_.Scalar", TORCH_FN(torch_nntile::add__scalar));
     m.impl("add.Scalar", TORCH_FN(torch_nntile::add_scalar));
     m.impl("add.Scalar_out", TORCH_FN(torch_nntile::add_scalar_out));
 }

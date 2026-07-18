@@ -305,6 +305,8 @@ Family codelet `torch_unary` (one `R` input, one `W` output):
 | `VectorNorm` | `linalg_vector_norm.out` | in `R`, out `W` |
 | `NarrowCopy` | `narrow` view + `copy_` | in `R`, out `W` |
 | `Repeat` | `repeat.out` | in `R`, out `W` |
+| `AvgPool2d` | `avg_pool2d.out` | in `R`, out `W` |
+| `AdaptiveAvgPool2d` | `_adaptive_avg_pool2d.out` | in `R`, out `W` |
 
 `Repeat` stores factors for the **output** rank (`iargs[0..out_ndim)`).
 Bias broadcast for `addmm` / `linear` may reshape a 1D bias to `[1, N]`
@@ -326,6 +328,8 @@ Family codelet `torch_binary` (two `R` inputs, one `W` output):
 | `GeluBackward` | `gelu_backward` | grad_out `R`, self `R`, grad_in `W` |
 | `SoftmaxBackward` | `_softmax_backward_data` | grad_out `R`, output `R`, grad_in `W` |
 | `LogSoftmaxBackward` | `_log_softmax_backward_data` | grad_out `R`, output `R`, grad_in `W` |
+| `AvgPool2dBackward` | `avg_pool2d_backward.grad_input` | grad_out `R`, self `R`, grad_input `W` |
+| `AdaptiveAvgPool2dBackward` | `_adaptive_avg_pool2d_backward.out` | grad_out `R`, self `R`, grad_input `W` |
 | `Mm` | `mm.out` | a `R`, b `R`, out `W` |
 | `Bmm` | `bmm.out` | a `R`, b `R`, out `W` |
 | `Matmul` | `matmul.out` | a `R`, b `R`, out `W` |
@@ -352,6 +356,12 @@ Specialized codelets:
 | `torch_sdpa_backward` | flash-CPU bwd; CUDA: efficient (math fallback) | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
+| `torch_convolution` | `convolution` | input / weight `R`; optional bias `R`; out `W` |
+| `torch_convolution_backward` | `convolution_backward` | grad_out / input / weight `R`; needed grad outs `W` |
+| `torch_max_pool2d_with_indices` | `max_pool2d_with_indices.out` | input `R`, out `W`, indices `W` |
+| `torch_max_pool2d_with_indices_backward` | `max_pool2d_with_indices_backward.grad_input` | grad_out / input / indices `R`, grad_input `W` |
+| `torch_native_batch_norm` | `native_batch_norm` | input `R`; optional weight/bias `R`; running stats `RW` when training; out / saved stats `W` |
+| `torch_native_batch_norm_backward` | `native_batch_norm_backward` | grad_out / input / optional stats `R`; needed grad outs `W` |
 
 Classic I/O kept on this path (not torch-native compute, but same rules):
 
@@ -426,8 +436,49 @@ User call (requires_grad possible)
 | `AutogradCUDA` = same CompositeImplicit | Autograd *is* the decomposition | Same as composite forward — no PrivateUse1 override. |
 
 `AutogradPrivateUse1` is **rare**. Use it only when the generic path is wrong
-for nntile storage (today: `contiguous` densify under autograd). Do **not**
-use it to reimplement a VariableType formula (that was the `rsqrt` mistake).
+for nntile storage (today: `contiguous` densify under autograd) or when a
+documented fused op must replace a host/device-breaking decomposition
+(LayerNorm via `native_layer_norm`). Do **not** use it to reimplement a
+VariableType formula (that was the `rsqrt` mistake).
+
+**RMSNorm matches CUDA:** `aten::rms_norm` is CompositeImplicitAutograd and
+has no `native_rms_norm` device primitive. Leave it unregistered for
+PrivateUse1 / AutogradPrivateUse1 so it decomposes through
+`pow` / `mean` / `rsqrt` / `mul`, as CUDA does. LayerNorm remains fused via
+`native_layer_norm` because that device primitive exists and the single-pass
+mean+variance computation matters.
+
+### Missing fused ops
+
+Fused / multi-kernel ATen ops that popular models still lack as a **single**
+StarPU `TorchKind` (or whose stock path is host / unfused today):
+
+| Gap | Why it matters | Suggested schema |
+|-----|----------------|------------------|
+| `native_group_norm` (+ bwd) | ViT / ConvNeXt / some CNNs; `group_norm` is CompositeImplicit → this primitive | PrivateUse1 like LayerNorm |
+| `native_dropout` (+ bwd) | Training noise; `dropout` is CompositeImplicit | device primitive |
+| Softplus / Mish / PReLU | Less common activations; Softplus/Mish are device schemas, PReLU CompositeImplicit | low priority |
+
+**Done (vision upsample):** `upsample_nearest2d` / `upsample_bilinear2d`
+(+ backward) are registered on PrivateUse1 and lower through StarPU
+`TorchKind::Upsample*`; see `nntile_upsample2d.cpp` and the modern U-Net
+smoke.
+
+**Not a missing aten fused op:** HuggingFace rotary (Llama / NeoX / …) is
+ordinary PyTorch math (`apply_rotary_pos_emb` → `rotate_half` + `mul` /
+`add` / views). There is no `aten::rope`. Stock HF models already run that
+decomposition on `device=nntile`. Classic NNTile `_C.rope` is a separate
+interleaved-pair kernel for hand-written stacks under
+`NNTILE_TORCH_NATIVE_OPS=OFF`; it is not what HF calls.
+
+Not “fused,” but still leave StarPU for composite leftovers:
+
+- `mean` — host gather in `nntile_host_aten.cpp`; RMSNorm correctly uses it
+  through the CUDA-like composite path.
+- General `pow`, `div.Tensor`, `where` — host fallback except `pow` exp 2/3 via mul
+
+Already fused on this path: `NativeLayerNorm`, SDPA overrideable,
+softmax / NLL, CNN conv/pool/batch_norm, silu/gelu/relu.
 
 ### Worked examples
 

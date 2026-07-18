@@ -60,6 +60,7 @@ match CPU for the same call (`RsqrtBackward0`, `AddmmBackward0`,
 | `chunk` / `split` / `narrow` / `select.int` | Composite → views | **No** PrivateUse1; keep `as_strided` (+ `alias`) |
 | `as_strided` / `alias` | device / shared composite | PrivateUse1 (keep `TensorRef`) |
 | `contiguous` | CompositeImplicit | PrivateUse1 + AutogradPrivateUse1 densify |
+| `rms_norm` | CompositeImplicit (`pow` / `mean` / `rsqrt` / `mul`) | **No** PrivateUse1 / AutogradPrivateUse1; match CUDA |
 
 Intentional deviations (nntile storage / StarPU):
 
@@ -68,6 +69,12 @@ Intentional deviations (nntile storage / StarPU):
 - `contiguous` on **AutogradPrivateUse1** — densify partial covers; CUDA’s
   CompositeImplicit `contiguous` can return a still-strided “contiguous”
   view that is not a full StarPU buffer cover.
+
+`rms_norm` is not an intentional deviation: CUDA leaves it as
+CompositeImplicitAutograd, so `device=nntile` does the same and relies on
+the primitive ops (`pow` / `mean` / `rsqrt` / `mul`). LayerNorm remains fused
+through `native_layer_norm` because PyTorch has that device primitive and
+single-pass mean+variance matters.
 
 Known gap vs CUDA view backward: ~~nntile→nntile `_copy_from` rebinds
 `TensorRef` (SSA) instead of writing the parent at `storage_offset`.~~
@@ -117,9 +124,9 @@ Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 
 | File | Schemas |
 |------|---------|
-| `nntile_add.cpp` | `add.Tensor`, `add.out`, `add_.Tensor` |
+| `nntile_add.cpp` | `add.Tensor`, `add.out`, `add_.Tensor`, `add.Scalar`, `add.Scalar_out`, `add_.Scalar` |
 | `nntile_mul.cpp` | `mul.Tensor`, `mul.out`, `mul_.Tensor`, `mul.Scalar`, `mul.Scalar_out` |
-| `nntile_relu.cpp` | `relu`, `relu.out` |
+| `nntile_relu.cpp` | `relu`, `relu.out`, `relu_` |
 | `nntile_threshold_backward.cpp` | `threshold_backward` |
 | `nntile_silu.cpp` | `silu`, `silu.out`, `silu_` |
 | `nntile_silu_backward.cpp` | `silu_backward`, `silu_backward.grad_input` |
@@ -132,6 +139,8 @@ Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 | `nntile_hypot.cpp` | `hypot`, `hypot.out` |
 | `nntile_sum.cpp` | `sum.IntList_out`, `sum.dim_IntList` |
 | `nntile_norm.cpp` | `linalg_vector_norm`, `linalg_vector_norm.out` |
+| `nntile_avg_pool2d.cpp` | `avg_pool2d`, `avg_pool2d.out`, `avg_pool2d_backward`, `avg_pool2d_backward.grad_input` |
+| `nntile_adaptive_avg_pool2d.cpp` | `_adaptive_avg_pool2d`, `_adaptive_avg_pool2d.out`, `_adaptive_avg_pool2d_backward`, `_adaptive_avg_pool2d_backward.out` |
 
 ### Linear algebra
 
@@ -140,6 +149,7 @@ Not registered (CUDA composite → our primitives): `narrow`, `select.int`,
 | `nntile_mm.cpp` | `mm`, `mm.out` |
 | `nntile_bmm.cpp` | `bmm`, `bmm.out` |
 | `nntile_addmm.cpp` | `addmm`, `addmm.out` |
+| `nntile_convolution.cpp` | `convolution_overrideable`, `convolution_backward_overrideable` |
 
 `nntile_linear.cpp` / `nntile_gemm.cpp` keep StarPU helpers but do **not**
 register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
@@ -149,13 +159,33 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 | File | Schemas |
 |------|---------|
 | `nntile_layer_norm.cpp` | `native_layer_norm`, `native_layer_norm_backward` |
+| `nntile_batch_norm.cpp` | `native_batch_norm`, `native_batch_norm_backward` |
 | `nntile_embedding.cpp` | `embedding`, `embedding_dense_backward` |
 | `nntile_cat.cpp` | `cat`, `cat.out` |
 | `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt` (+ `.out`) |
 | `nntile_repeat.cpp` | `repeat` |
+| `nntile_max_pool2d.cpp` | `max_pool2d_with_indices`, `max_pool2d_with_indices.out`, `max_pool2d_with_indices_backward`, `max_pool2d_with_indices_backward.grad_input` |
+| `nntile_upsample2d.cpp` | `upsample_nearest2d`, `upsample_nearest2d.out`, `upsample_nearest2d_backward`, `upsample_nearest2d_backward.grad_input`, `upsample_bilinear2d` (+ `.out` / `_backward` / `.grad_input`) |
 
 `nntile_split.cpp` / `nntile_narrow.cpp` are reference helpers only (no
 PrivateUse1 registration).
+
+### Missing fused ops
+
+See the table in
+[torch_starpu_kernels.md — Missing fused ops](torch_starpu_kernels.md#missing-fused-ops).
+Short list for product planning:
+
+1. **`native_group_norm`** (+ backward) — GroupNorm models (ViT-style).
+2. **`native_dropout`** — training.
+3. Host leftovers: **`mean`**, general **`pow`/`div`/`where`**. RMSNorm
+   correctly uses the composite path, so it currently reaches host `mean`.
+4. **`nll_loss2d`** — optional ergonomics for NCHW segmentation CE
+   (smokes flatten to 1D `nll_loss` instead).
+
+HF rotary is **not** a fused-aten gap: `apply_rotary_pos_emb` lowers to
+`mul` / `add` / views. Classic `_C.rope` is only for hand-written models
+when torch-native ops are off.
 
 ### SDPA (`nntile_sdpa_aten.cpp`)
 

@@ -329,6 +329,12 @@ void Context::restrict_cpu()
     torch_ternary.restrict_where(STARPU_CPU);
     torch_embedding.codelet.restrict_where(STARPU_CPU);
     torch_embedding_dense_backward.codelet.restrict_where(STARPU_CPU);
+    torch_convolution.codelet.restrict_where(STARPU_CPU);
+    torch_convolution_backward.codelet.restrict_where(STARPU_CPU);
+    torch_max_pool2d_with_indices.codelet.restrict_where(STARPU_CPU);
+    torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CPU);
+    torch_native_batch_norm.codelet.restrict_where(STARPU_CPU);
+    torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CPU);
     torch_layer_norm.codelet.restrict_where(STARPU_CPU);
     torch_layer_norm_backward.codelet.restrict_where(STARPU_CPU);
     torch_sdpa_backward.codelet.restrict_where(STARPU_CPU);
@@ -416,6 +422,12 @@ void Context::restrict_cuda()
     torch_ternary.restrict_where(STARPU_CUDA);
     torch_embedding.codelet.restrict_where(STARPU_CUDA);
     torch_embedding_dense_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_convolution.codelet.restrict_where(STARPU_CUDA);
+    torch_convolution_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_max_pool2d_with_indices.codelet.restrict_where(STARPU_CUDA);
+    torch_max_pool2d_with_indices_backward.codelet.restrict_where(STARPU_CUDA);
+    torch_native_batch_norm.codelet.restrict_where(STARPU_CUDA);
+    torch_native_batch_norm_backward.codelet.restrict_where(STARPU_CUDA);
     torch_layer_norm.codelet.restrict_where(STARPU_CUDA);
     torch_layer_norm_backward.codelet.restrict_where(STARPU_CUDA);
     torch_sdpa_backward.codelet.restrict_where(STARPU_CUDA);
@@ -503,6 +515,12 @@ void Context::restore_where()
     torch_ternary.restore_where();
     torch_embedding.codelet.restore_where();
     torch_embedding_dense_backward.codelet.restore_where();
+    torch_convolution.codelet.restore_where();
+    torch_convolution_backward.codelet.restore_where();
+    torch_max_pool2d_with_indices.codelet.restore_where();
+    torch_max_pool2d_with_indices_backward.codelet.restore_where();
+    torch_native_batch_norm.codelet.restore_where();
+    torch_native_batch_norm_backward.codelet.restore_where();
     torch_layer_norm.codelet.restore_where();
     torch_layer_norm_backward.codelet.restore_where();
     torch_sdpa_backward.codelet.restore_where();

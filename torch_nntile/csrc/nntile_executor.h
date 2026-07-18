@@ -12,6 +12,8 @@
 #include <c10/util/ArrayRef.h>
 
 #include <cstdint>
+#include <array>
+#include <optional>
 #include <vector>
 
 #include <nntile/base_types.hh>
@@ -246,6 +248,145 @@ void tensor_nll_loss_backward_fp32(
     at::Tensor &grad_input,
     int64_t reduction,
     int64_t ignore_index);
+
+void tensor_avg_pool2d_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef kernel,
+    c10::IntArrayRef stride,
+    c10::IntArrayRef padding,
+    bool ceil_mode,
+    bool count_include_pad,
+    std::optional<int64_t> divisor_override);
+
+void tensor_avg_pool2d_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &input,
+    at::Tensor &grad_input,
+    c10::IntArrayRef kernel,
+    c10::IntArrayRef stride,
+    c10::IntArrayRef padding,
+    bool ceil_mode,
+    bool count_include_pad,
+    std::optional<int64_t> divisor_override);
+
+void tensor_adaptive_avg_pool2d_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef output_size);
+
+void tensor_adaptive_avg_pool2d_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &input,
+    at::Tensor &grad_input);
+
+void tensor_upsample_nearest2d_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef output_size,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w);
+
+void tensor_upsample_nearest2d_backward_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_input,
+    c10::IntArrayRef output_size,
+    c10::IntArrayRef input_size,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w);
+
+void tensor_upsample_bilinear2d_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef output_size,
+    bool align_corners,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w);
+
+void tensor_upsample_bilinear2d_backward_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_input,
+    c10::IntArrayRef output_size,
+    c10::IntArrayRef input_size,
+    bool align_corners,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w);
+
+void tensor_convolution_fp32(
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    const at::Tensor *bias,
+    at::Tensor &out,
+    c10::IntArrayRef stride,
+    c10::IntArrayRef padding,
+    c10::IntArrayRef dilation,
+    bool transposed,
+    c10::IntArrayRef output_padding,
+    int64_t groups);
+
+void tensor_convolution_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    at::Tensor *grad_input,
+    at::Tensor *grad_weight,
+    at::Tensor *grad_bias,
+    c10::IntArrayRef stride,
+    c10::IntArrayRef padding,
+    c10::IntArrayRef dilation,
+    bool transposed,
+    c10::IntArrayRef output_padding,
+    int64_t groups,
+    std::array<bool, 3> output_mask);
+
+void tensor_max_pool2d_with_indices_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    at::Tensor &indices,
+    c10::IntArrayRef kernel,
+    c10::IntArrayRef stride,
+    c10::IntArrayRef padding,
+    c10::IntArrayRef dilation,
+    bool ceil_mode);
+
+void tensor_max_pool2d_with_indices_backward_fp32(
+    const at::Tensor &grad_output,
+    const at::Tensor &input,
+    const at::Tensor &indices,
+    at::Tensor &grad_input,
+    c10::IntArrayRef kernel,
+    c10::IntArrayRef stride,
+    c10::IntArrayRef padding,
+    c10::IntArrayRef dilation,
+    bool ceil_mode);
+
+void tensor_native_batch_norm_fp32(
+    const at::Tensor &input,
+    const at::Tensor *weight,
+    const at::Tensor *bias,
+    const at::Tensor *running_mean,
+    const at::Tensor *running_var,
+    at::Tensor &out,
+    at::Tensor &save_mean,
+    at::Tensor &save_invstd,
+    bool training,
+    double momentum,
+    double eps);
+
+void tensor_native_batch_norm_backward_fp32(
+    const at::Tensor &grad_out,
+    const at::Tensor &input,
+    const at::Tensor *weight,
+    const at::Tensor *running_mean,
+    const at::Tensor *running_var,
+    const at::Tensor *save_mean,
+    const at::Tensor *save_invstd,
+    at::Tensor *grad_input,
+    at::Tensor *grad_weight,
+    at::Tensor *grad_bias,
+    bool training,
+    double eps,
+    std::array<bool, 3> output_mask);
 
 void tensor_softmax_backward_fp32(
     const at::Tensor &grad_output,

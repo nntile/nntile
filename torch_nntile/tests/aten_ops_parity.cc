@@ -7,9 +7,13 @@
 
 #include "parity_helpers.hh"
 
+#include <ATen/ops/rms_norm.h>
 #include <torch_nntile/runtime.hh>
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <optional>
+#include <tuple>
 
 namespace
 {
@@ -216,6 +220,194 @@ TEST_CASE("aten linear no bias fwd+bwd matches CPU", "[aten][parity]")
             return torch::linear(xs[0], xs[1]);
         },
         {x, w});
+}
+
+TEST_CASE("aten avg_pool2d fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 8, 8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::avg_pool2d(
+                xs[0],
+                {2, 2},
+                {2, 2},
+                {0, 0},
+                false,
+                true,
+                std::nullopt);
+        },
+        {x});
+}
+
+TEST_CASE("aten adaptive_avg_pool2d fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 7, 5});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::_adaptive_avg_pool2d(xs[0], {3, 2});
+        },
+        {x});
+}
+
+TEST_CASE("aten upsample_nearest2d fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 5, 7});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::upsample_nearest2d(
+                xs[0],
+                c10::IntArrayRef({10, 14}),
+                std::nullopt,
+                std::nullopt);
+        },
+        {x});
+}
+
+TEST_CASE(
+    "aten upsample_nearest2d scale_factor fwd+bwd matches CPU",
+    "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 4, 4});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            // Matches F.interpolate(..., scale_factor=2): both size and
+            // scales are passed to the device schema.
+            return at::upsample_nearest2d(
+                xs[0],
+                c10::IntArrayRef({8, 8}),
+                /*scales_h=*/2.0,
+                /*scales_w=*/2.0);
+        },
+        {x});
+}
+
+TEST_CASE("aten upsample_bilinear2d fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 5, 7});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::upsample_bilinear2d(
+                xs[0],
+                c10::IntArrayRef({10, 14}),
+                /*align_corners=*/false,
+                std::nullopt,
+                std::nullopt);
+        },
+        {x});
+}
+
+TEST_CASE("aten max_pool2d_with_indices fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 8, 8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return std::get<0>(at::max_pool2d_with_indices(
+                xs[0],
+                {2, 2},
+                {2, 2},
+                {0, 0},
+                {1, 1},
+                false));
+        },
+        {x});
+}
+
+TEST_CASE("aten convolution fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 8, 8});
+    auto w = seeded({4, 3, 3, 3});
+    auto b = seeded({4});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::convolution(
+                xs[0],
+                xs[1],
+                xs[2],
+                {1, 1},
+                {1, 1},
+                {1, 1},
+                false,
+                {0, 0},
+                1);
+        },
+        {x, w, b},
+        1e-4,
+        1e-4,
+        2e-3,
+        2e-3);
+}
+
+TEST_CASE("aten native_batch_norm fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 4, 4});
+    auto w = seeded({3});
+    auto b = seeded({3});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return std::get<0>(at::native_batch_norm(
+                xs[0],
+                xs[1],
+                xs[2],
+                std::nullopt,
+                std::nullopt,
+                true,
+                0.1,
+                1e-5));
+        },
+        {x, w, b},
+        1e-4,
+        1e-4,
+        2e-3,
+        2e-3);
+}
+
+TEST_CASE("aten rms_norm weight fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 8});
+    auto w = seeded({8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::rms_norm(
+                xs[0],
+                {8},
+                std::optional<at::Tensor>(xs[1]),
+                1e-5);
+        },
+        {x, w});
+}
+
+TEST_CASE("aten rms_norm no weight fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::rms_norm(
+                xs[0],
+                {8},
+                std::nullopt,
+                1e-5);
+        },
+        {x});
 }
 
 TEST_CASE("aten cat fwd+bwd matches CPU", "[aten][parity]")

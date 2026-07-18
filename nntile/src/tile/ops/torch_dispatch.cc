@@ -475,6 +475,453 @@ void TileTorchEmbeddingDenseBackwardOp::execute(Runtime &runtime) const
         gw_meta);
 }
 
+void torch_convolution(
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *weight,
+    TileGraph::TileNode *bias,
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra)
+{
+    auto op = std::make_shared<TileTorchConvolutionOp>(
+        input,
+        weight,
+        bias,
+        out,
+        extra);
+    input->graph()->add_op(op);
+}
+
+void TileTorchConvolutionOp::execute(Runtime &runtime) const
+{
+    auto &in_t = runtime.get_tile<fp32_t>(input);
+    auto &w_t = runtime.get_tile<fp32_t>(weight);
+    auto &out_t = runtime.get_tile<fp32_t>(out);
+    const core::TorchTileMeta in_meta =
+        core::meta_from_args_or_contiguous(extra, 0, false, input->shape());
+    const core::TorchTileMeta w_meta =
+        core::meta_from_args_or_contiguous(extra, 1, false, weight->shape());
+    const core::TorchTileMeta out_meta =
+        core::meta_from_args_or_contiguous(extra, 0, true, out->shape());
+    core::Tile<fp32_t> *b_ptr = nullptr;
+    core::TorchTileMeta b_meta;
+    if (bias != nullptr)
+    {
+        b_ptr = &runtime.get_tile<fp32_t>(bias);
+        b_meta = core::meta_from_args_or_contiguous(
+            extra,
+            2,
+            false,
+            bias->shape());
+    }
+    core::torch_convolution_out(
+        runtime.starpu_worker_hint(),
+        in_t,
+        in_meta,
+        w_t,
+        w_meta,
+        b_ptr,
+        b_ptr != nullptr ? &b_meta : nullptr,
+        out_t,
+        out_meta,
+        extra);
+}
+
+void torch_convolution_backward(
+    TileGraph::TileNode *grad_out,
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *weight,
+    TileGraph::TileNode *grad_input,
+    TileGraph::TileNode *grad_weight,
+    TileGraph::TileNode *grad_bias,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias,
+    starpu::TorchDispatchArgs extra)
+{
+    auto op = std::make_shared<TileTorchConvolutionBackwardOp>(
+        grad_out,
+        input,
+        weight,
+        grad_input,
+        grad_weight,
+        grad_bias,
+        need_grad_input,
+        need_grad_weight,
+        need_grad_bias,
+        extra);
+    grad_out->graph()->add_op(op);
+}
+
+void TileTorchConvolutionBackwardOp::execute(Runtime &runtime) const
+{
+    auto &go_t = runtime.get_tile<fp32_t>(grad_out);
+    auto &in_t = runtime.get_tile<fp32_t>(input);
+    auto &w_t = runtime.get_tile<fp32_t>(weight);
+    const core::TorchTileMeta go_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, false, grad_out->shape());
+    const core::TorchTileMeta in_meta =
+        core::meta_from_args_or_contiguous(extra, 1, false, input->shape());
+    const core::TorchTileMeta w_meta =
+        core::meta_from_args_or_contiguous(extra, 2, false, weight->shape());
+    core::Tile<fp32_t> *gi_ptr = nullptr;
+    core::Tile<fp32_t> *gw_ptr = nullptr;
+    core::Tile<fp32_t> *gb_ptr = nullptr;
+    core::TorchTileMeta gi_meta;
+    core::TorchTileMeta gw_meta;
+    core::TorchTileMeta gb_meta;
+    if (need_grad_input && grad_input != nullptr)
+    {
+        gi_ptr = &runtime.get_tile<fp32_t>(grad_input);
+        gi_meta = core::meta_from_args_or_contiguous(
+            extra, 0, true, grad_input->shape());
+    }
+    if (need_grad_weight && grad_weight != nullptr)
+    {
+        gw_ptr = &runtime.get_tile<fp32_t>(grad_weight);
+        gw_meta = core::meta_from_args_or_contiguous(
+            extra, 1, true, grad_weight->shape());
+    }
+    if (need_grad_bias && grad_bias != nullptr)
+    {
+        gb_ptr = &runtime.get_tile<fp32_t>(grad_bias);
+        gb_meta = core::meta_from_args_or_contiguous(
+            extra, 2, true, grad_bias->shape());
+    }
+    core::torch_convolution_backward_out(
+        runtime.starpu_worker_hint(),
+        go_t,
+        go_meta,
+        in_t,
+        in_meta,
+        w_t,
+        w_meta,
+        gi_ptr,
+        gi_ptr != nullptr ? &gi_meta : nullptr,
+        gw_ptr,
+        gw_ptr != nullptr ? &gw_meta : nullptr,
+        gb_ptr,
+        gb_ptr != nullptr ? &gb_meta : nullptr,
+        extra,
+        need_grad_input,
+        need_grad_weight,
+        need_grad_bias);
+}
+
+void torch_max_pool2d_with_indices(
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *out,
+    TileGraph::TileNode *indices,
+    starpu::TorchDispatchArgs extra)
+{
+    auto op = std::make_shared<TileTorchMaxPool2dWithIndicesOp>(
+        input,
+        out,
+        indices,
+        extra);
+    input->graph()->add_op(op);
+}
+
+void TileTorchMaxPool2dWithIndicesOp::execute(Runtime &runtime) const
+{
+    auto &in_t = runtime.get_tile<fp32_t>(input);
+    auto &out_t = runtime.get_tile<fp32_t>(out);
+    auto &idx_t = runtime.get_tile<int64_t>(indices);
+    const core::TorchTileMeta in_meta =
+        core::meta_from_args_or_contiguous(extra, 0, false, input->shape());
+    const core::TorchTileMeta out_meta =
+        core::meta_from_args_or_contiguous(extra, 0, true, out->shape());
+    const core::TorchTileMeta idx_meta =
+        core::meta_from_args_or_contiguous(extra, 1, true, indices->shape());
+    core::torch_max_pool2d_with_indices_out(
+        runtime.starpu_worker_hint(),
+        in_t,
+        in_meta,
+        out_t,
+        out_meta,
+        idx_t,
+        idx_meta,
+        extra);
+}
+
+void torch_max_pool2d_with_indices_backward(
+    TileGraph::TileNode *grad_out,
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *indices,
+    TileGraph::TileNode *grad_input,
+    starpu::TorchDispatchArgs extra)
+{
+    auto op = std::make_shared<TileTorchMaxPool2dWithIndicesBackwardOp>(
+        grad_out,
+        input,
+        indices,
+        grad_input,
+        extra);
+    grad_out->graph()->add_op(op);
+}
+
+void TileTorchMaxPool2dWithIndicesBackwardOp::execute(
+    Runtime &runtime) const
+{
+    auto &go_t = runtime.get_tile<fp32_t>(grad_out);
+    auto &in_t = runtime.get_tile<fp32_t>(input);
+    auto &idx_t = runtime.get_tile<int64_t>(indices);
+    auto &gi_t = runtime.get_tile<fp32_t>(grad_input);
+    const core::TorchTileMeta go_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, false, grad_out->shape());
+    const core::TorchTileMeta in_meta =
+        core::meta_from_args_or_contiguous(extra, 1, false, input->shape());
+    const core::TorchTileMeta idx_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 2, false, indices->shape());
+    const core::TorchTileMeta gi_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, true, grad_input->shape());
+    core::torch_max_pool2d_with_indices_backward_out(
+        runtime.starpu_worker_hint(),
+        go_t,
+        go_meta,
+        in_t,
+        in_meta,
+        idx_t,
+        idx_meta,
+        gi_t,
+        gi_meta,
+        extra);
+}
+
+void torch_native_batch_norm(
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *weight,
+    TileGraph::TileNode *bias,
+    TileGraph::TileNode *running_mean,
+    TileGraph::TileNode *running_var,
+    TileGraph::TileNode *out,
+    TileGraph::TileNode *save_mean,
+    TileGraph::TileNode *save_invstd,
+    bool training,
+    starpu::TorchDispatchArgs extra)
+{
+    auto op = std::make_shared<TileTorchNativeBatchNormOp>(
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        out,
+        save_mean,
+        save_invstd,
+        training,
+        extra);
+    input->graph()->add_op(op);
+}
+
+void TileTorchNativeBatchNormOp::execute(Runtime &runtime) const
+{
+    auto &in_t = runtime.get_tile<fp32_t>(input);
+    auto &out_t = runtime.get_tile<fp32_t>(out);
+    auto &sm_t = runtime.get_tile<fp32_t>(save_mean);
+    auto &si_t = runtime.get_tile<fp32_t>(save_invstd);
+    const core::TorchTileMeta in_meta =
+        core::meta_from_args_or_contiguous(extra, 0, false, input->shape());
+    const core::TorchTileMeta out_meta =
+        core::meta_from_args_or_contiguous(extra, 0, true, out->shape());
+    const core::TorchTileMeta sm_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 1, true, save_mean->shape());
+    const core::TorchTileMeta si_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 2, true, save_invstd->shape());
+    core::Tile<fp32_t> *w_ptr = nullptr;
+    core::Tile<fp32_t> *b_ptr = nullptr;
+    core::Tile<fp32_t> *rm_ptr = nullptr;
+    core::Tile<fp32_t> *rv_ptr = nullptr;
+    core::TorchTileMeta w_meta;
+    core::TorchTileMeta b_meta;
+    core::TorchTileMeta rm_meta;
+    core::TorchTileMeta rv_meta;
+    if (weight != nullptr)
+    {
+        w_ptr = &runtime.get_tile<fp32_t>(weight);
+        w_meta = core::meta_from_args_or_contiguous(
+            extra, 1, false, weight->shape());
+    }
+    if (bias != nullptr)
+    {
+        b_ptr = &runtime.get_tile<fp32_t>(bias);
+        b_meta = core::meta_from_args_or_contiguous(
+            extra, 2, false, bias->shape());
+    }
+    if (running_mean != nullptr)
+    {
+        rm_ptr = &runtime.get_tile<fp32_t>(running_mean);
+        rm_meta = core::meta_from_args_or_contiguous(
+            extra, 3, false, running_mean->shape());
+    }
+    if (running_var != nullptr)
+    {
+        rv_ptr = &runtime.get_tile<fp32_t>(running_var);
+        rv_meta = core::meta_from_args_or_contiguous(
+            extra, 4, false, running_var->shape());
+    }
+    core::torch_native_batch_norm_out(
+        runtime.starpu_worker_hint(),
+        in_t,
+        in_meta,
+        w_ptr,
+        w_ptr != nullptr ? &w_meta : nullptr,
+        b_ptr,
+        b_ptr != nullptr ? &b_meta : nullptr,
+        rm_ptr,
+        rm_ptr != nullptr ? &rm_meta : nullptr,
+        rv_ptr,
+        rv_ptr != nullptr ? &rv_meta : nullptr,
+        out_t,
+        out_meta,
+        sm_t,
+        sm_meta,
+        si_t,
+        si_meta,
+        extra,
+        training);
+}
+
+void torch_native_batch_norm_backward(
+    TileGraph::TileNode *grad_out,
+    TileGraph::TileNode *input,
+    TileGraph::TileNode *weight,
+    TileGraph::TileNode *running_mean,
+    TileGraph::TileNode *running_var,
+    TileGraph::TileNode *save_mean,
+    TileGraph::TileNode *save_invstd,
+    TileGraph::TileNode *grad_input,
+    TileGraph::TileNode *grad_weight,
+    TileGraph::TileNode *grad_bias,
+    bool need_grad_input,
+    bool need_grad_weight,
+    bool need_grad_bias,
+    starpu::TorchDispatchArgs extra)
+{
+    auto op = std::make_shared<TileTorchNativeBatchNormBackwardOp>(
+        grad_out,
+        input,
+        weight,
+        running_mean,
+        running_var,
+        save_mean,
+        save_invstd,
+        grad_input,
+        grad_weight,
+        grad_bias,
+        need_grad_input,
+        need_grad_weight,
+        need_grad_bias,
+        extra);
+    grad_out->graph()->add_op(op);
+}
+
+void TileTorchNativeBatchNormBackwardOp::execute(Runtime &runtime) const
+{
+    auto &go_t = runtime.get_tile<fp32_t>(grad_out);
+    auto &in_t = runtime.get_tile<fp32_t>(input);
+    const core::TorchTileMeta go_meta =
+        core::meta_from_args_or_contiguous(
+            extra, 0, false, grad_out->shape());
+    const core::TorchTileMeta in_meta =
+        core::meta_from_args_or_contiguous(extra, 1, false, input->shape());
+    core::Tile<fp32_t> *w_ptr = nullptr;
+    core::Tile<fp32_t> *rm_ptr = nullptr;
+    core::Tile<fp32_t> *rv_ptr = nullptr;
+    core::Tile<fp32_t> *sm_ptr = nullptr;
+    core::Tile<fp32_t> *si_ptr = nullptr;
+    core::Tile<fp32_t> *gi_ptr = nullptr;
+    core::Tile<fp32_t> *gw_ptr = nullptr;
+    core::Tile<fp32_t> *gb_ptr = nullptr;
+    core::TorchTileMeta w_meta;
+    core::TorchTileMeta rm_meta;
+    core::TorchTileMeta rv_meta;
+    core::TorchTileMeta sm_meta;
+    core::TorchTileMeta si_meta;
+    core::TorchTileMeta gi_meta;
+    core::TorchTileMeta gw_meta;
+    core::TorchTileMeta gb_meta;
+    if (weight != nullptr)
+    {
+        w_ptr = &runtime.get_tile<fp32_t>(weight);
+        w_meta = core::meta_from_args_or_contiguous(
+            extra, 2, false, weight->shape());
+    }
+    if (running_mean != nullptr)
+    {
+        rm_ptr = &runtime.get_tile<fp32_t>(running_mean);
+        rm_meta = core::meta_from_args_or_contiguous(
+            extra, 3, false, running_mean->shape());
+    }
+    if (running_var != nullptr)
+    {
+        rv_ptr = &runtime.get_tile<fp32_t>(running_var);
+        rv_meta = core::meta_from_args_or_contiguous(
+            extra, 4, false, running_var->shape());
+    }
+    if (save_mean != nullptr)
+    {
+        sm_ptr = &runtime.get_tile<fp32_t>(save_mean);
+        sm_meta = core::meta_from_args_or_contiguous(
+            extra, 5, false, save_mean->shape());
+    }
+    if (save_invstd != nullptr)
+    {
+        si_ptr = &runtime.get_tile<fp32_t>(save_invstd);
+        si_meta = core::meta_from_args_or_contiguous(
+            extra, 6, false, save_invstd->shape());
+    }
+    if (need_grad_input && grad_input != nullptr)
+    {
+        gi_ptr = &runtime.get_tile<fp32_t>(grad_input);
+        gi_meta = core::meta_from_args_or_contiguous(
+            extra, 0, true, grad_input->shape());
+    }
+    if (need_grad_weight && grad_weight != nullptr)
+    {
+        gw_ptr = &runtime.get_tile<fp32_t>(grad_weight);
+        gw_meta = core::meta_from_args_or_contiguous(
+            extra, 1, true, grad_weight->shape());
+    }
+    if (need_grad_bias && grad_bias != nullptr)
+    {
+        gb_ptr = &runtime.get_tile<fp32_t>(grad_bias);
+        gb_meta = core::meta_from_args_or_contiguous(
+            extra, 2, true, grad_bias->shape());
+    }
+    core::torch_native_batch_norm_backward_out(
+        runtime.starpu_worker_hint(),
+        go_t,
+        go_meta,
+        in_t,
+        in_meta,
+        w_ptr,
+        w_ptr != nullptr ? &w_meta : nullptr,
+        rm_ptr,
+        rm_ptr != nullptr ? &rm_meta : nullptr,
+        rv_ptr,
+        rv_ptr != nullptr ? &rv_meta : nullptr,
+        sm_ptr,
+        sm_ptr != nullptr ? &sm_meta : nullptr,
+        si_ptr,
+        si_ptr != nullptr ? &si_meta : nullptr,
+        gi_ptr,
+        gi_ptr != nullptr ? &gi_meta : nullptr,
+        gw_ptr,
+        gw_ptr != nullptr ? &gw_meta : nullptr,
+        gb_ptr,
+        gb_ptr != nullptr ? &gb_meta : nullptr,
+        extra,
+        need_grad_input,
+        need_grad_weight,
+        need_grad_bias);
+}
+
 void torch_sdpa_backward(
     TileGraph::TileNode *q,
     TileGraph::TileNode *k,

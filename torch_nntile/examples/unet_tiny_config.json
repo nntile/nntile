@@ -1,0 +1,9 @@
+{
+  "_comment": "Tiny U-Net (seg) for torch_nntile CNN showcase; ConvTranspose up path",
+  "in_channels": 1,
+  "num_classes": 3,
+  "height": 16,
+  "width": 16,
+  "base_channels": 8,
+  "depth": 2
+}
