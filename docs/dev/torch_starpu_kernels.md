@@ -76,9 +76,16 @@ Prefer driving compute through **`*_out`** variants conceptually: functional
 forms allocate then share the same structured `impl` as `add.out` / `mm.out`.
 Inside the StarPU codelet, call the out-style API with preallocated buffers.
 
+**Before** registering on PrivateUse1, check how stock PyTorch registers the
+same schema for CUDA — see
+[Match device=cuda registration](#match-devicecuda-registration). Overriding a
+`CompositeImplicitAutograd` op (e.g. `linear`, `chunk`) shadows CUDA’s
+decomposition and often breaks Autograd.
+
 Register functional, inplace, and out overloads separately on PrivateUse1
-(`add.Tensor`, `add.out`, `add_.Tensor`, …). Out/inplace alone do **not**
-make functional `add` work on PrivateUse1.
+**only when CUDA has a device kernel** for that schema (or nntile storage
+requires a hook — `as_strided` / `alias`). Out/inplace alone do **not** make
+functional `add` work on PrivateUse1.
 
 ### 2. TensorGraph / TensorNode metadata
 
@@ -379,33 +386,134 @@ without Torch where required.
 Set `OMP_NUM_THREADS=1` / `torch.set_num_threads(1)` when running under
 StarPU workers to avoid oversubscription.
 
+## Match `device=cuda` registration
+
+Baseline for every new aten schema: **how stock PyTorch dispatches it on
+CUDA**, not “register PrivateUse1 and invent AutogradPrivateUse1.” Inspect
+with:
+
+```python
+import torch
+print(torch._C._dispatch_dump("aten::rsqrt"))
+print(torch._C._dispatch_dump_table("aten::rsqrt"))
+```
+
+Compare the `CUDA:` / `AutogradCUDA:` / `PrivateUse1:` rows (load
+`torch_nntile` only when checking *our* overrides).
+
+### Dispatch layers (simplified)
+
+```text
+User call (requires_grad possible)
+  → AutogradCUDA / AutogradPrivateUse1   # formula or composite
+  → ADInplaceOrView                      # view / inplace bookkeeping
+  → CUDA / PrivateUse1 / Composite*      # device or math kernel
+```
+
+| CUDA table row | Meaning | What to do on nntile |
+|----------------|---------|----------------------|
+| `RegisterCUDA` / structured `.out` delegate | Real device kernel | Register **PrivateUse1** forward (and `.out`). Leave Autograd on generic **VariableType** unless the formula’s callees are missing. |
+| `CompositeImplicitAutograd` | Shared math: decomposes into other aten ops | **Do not** register PrivateUse1. Let the composite run; implement the **primitives** it lowers to (`as_strided`, `addmm`, `mm`, …). |
+| `CompositeExplicitAutograd` (shared default) | Same idea; may be overridden per backend | Prefer composite. Override PrivateUse1 only if nntile storage needs a hook (e.g. `alias` must keep `TensorRef`). |
+| `AutogradCUDA` = `VariableType` | Formula in `derivatives.yaml` | **Do not** add AutogradPrivateUse1. Ensure formula ops exist on nntile (`pow`, `mul`, …). |
+| `AutogradCUDA` = same CompositeImplicit | Autograd *is* the decomposition | Same as composite forward — no PrivateUse1 override. |
+
+`AutogradPrivateUse1` is **rare**. Use it only when the generic path is wrong
+for nntile storage (today: `contiguous` densify under autograd). Do **not**
+use it to reimplement a VariableType formula (that was the `rsqrt` mistake).
+
+### Worked examples
+
+**`aten::rsqrt` (pointwise device op)**
+
+- CUDA: structured forward → `.out` device kernel; AutogradCUDA =
+  VariableType; formula `-0.5 * grad * result.pow(3)`
+  (`torchgen/.../derivatives.yaml`).
+- nntile: PrivateUse1 `rsqrt` / `rsqrt.out` only. Implement `pow.Tensor_Scalar`
+  for exponent `2`/`3` on StarPU (mul chain). Expect `grad_fn` =
+  `RsqrtBackward0`, same as CPU/CUDA.
+- Wrong: AutogradPrivateUse1 custom `Function` that duplicates the formula.
+
+**`aten::linear` / `aten::matmul`**
+
+- CUDA: both keys are CompositeImplicit (`linear` → `addmm`, `matmul` →
+  `mm` / `bmm` / …). Autograd differentiates the **expanded** graph
+  (`AddmmBackward0`, not a PrivateUse1 `linear_backward` registration).
+- nntile: do **not** register PrivateUse1 `linear` / `matmul`. Keep
+  PrivateUse1 `addmm` / `mm` / `bmm`. Helpers in `nntile_linear.cpp` /
+  `nntile_gemm.cpp` may remain for StarPU/TensorGraph but must not
+  `TORCH_LIBRARY_IMPL`.
+
+**`aten::chunk` / `split` / `narrow` / `select.int`**
+
+- CUDA: composite (or shared CompositeExplicit) → views via `narrow` /
+  `as_strided` / slice. Autograd uses `SplitBackward0` / `SliceBackward0` /
+  `SelectBackward0`.
+- nntile: do **not** register PrivateUse1 `chunk` / `split` / `narrow` /
+  `select`. Implement PrivateUse1 **`as_strided`** (and `alias`) so
+  composites keep `TensorRef`.
+- Wrong: PrivateUse1 `chunk` that builds views but skips Autograd’s Split
+  formula (NeoX QKV backward broke that way).
+
+### Intentional deviations
+
+| Schema | Why not pure CUDA mirroring |
+|--------|------------------------------|
+| `as_strided`, `alias` | Must call `record_view_alias` / share `TensorRef`; stock composite `alias` drops BackendMeta. |
+| `contiguous` (+ AutogradPrivateUse1) | Torch “contiguous” views can still be partial covers of a StarPU logical; we densify. |
+
+### Known gap: copy-into-view
+
+Composite view **forward** matches CUDA. Slice / Select / AsStrided
+**Backward** still misbehave if they `copy_` into a strided view of a
+zeros-like base: nntile→nntile `_copy_from` currently **reattaches**
+`TensorRef` (SSA) instead of writing the parent buffer at
+`storage_offset`. Fix copy-into-view (host RMW or in-place write into the
+existing logical). Do **not** “fix” it by re-registering `narrow` /
+`select` — PrivateUse1 `narrow` also lacks a VariableType derivative
+(`NotImplemented`).
+
+Op list and policy summary:
+[torch_nntile_aten_ops.md](torch_nntile_aten_ops.md).
+
 ## Checklist for a new op
 
-1. PrivateUse1: register functional / out / inplace as needed; meta-probe
+1. **Dispatch audit (required):** `torch._C._dispatch_dump_table("aten::…")`
+   for CUDA vs Composite vs VariableType. Follow
+   [Match device=cuda registration](#match-devicecuda-registration).
+   Register PrivateUse1 only for device/storage primitives; never shadow
+   CompositeImplicit Autograd without a documented reason.
+2. PrivateUse1 (when needed): register functional / out / inplace; meta-probe
    for non-obvious shapes; record TensorGraph op with full tensor meta.
-2. Tensor lower: single-tile only → one TileGraph op; copy meta onto
+   Prefer densifying non-contiguous inputs in the impl (`contiguous()`)
+   rather than hard-failing — VariableType formulas often pass views.
+3. Tensor lower: single-tile only → one TileGraph op; copy meta onto
    `TileNode`s.
-3. Tile execute → `nntile::core::torch_*` / `TorchKind` (named torch-based)
+4. Tile execute → `nntile::core::torch_*` / `TorchKind` (named torch-based)
    with `Tile<T>` + meta per tensor.
-4. StarPU: `args_t` with all metas; CPU wrapper `from_blob` + same
+5. StarPU: `args_t` with all metas; CPU wrapper `from_blob` + same
    `*_out` under `NoGradGuard`; `#ifdef NNTILE_USE_CUDA` CUDA wrapper
    via `TorchCudaEnv` (StarPU stream + cuBLAS; never from the tensor);
    register `cuda_funcs`; no `nntile::kernel`.
    **Declare access modes** for every tensor (`R` / `W` / `RW` /
    `SCRATCH`) and wire them in `submit`; document the row in the
    [Data access modes](#data-access-modes) table.
-5. **C++ tests (required)** — same layering as classic libnntile, under
+6. **Autograd check:** with `requires_grad=True`, assert `type(y.grad_fn)`
+   matches CPU/CUDA for the same op (e.g. `RsqrtBackward0`,
+   `AddmmBackward0`). If you registered AutogradPrivateUse1, justify why
+   VariableType / composite is insufficient.
+7. **C++ tests (required)** — same layering as classic libnntile, under
    `nntile/tests/torch_native/` (label `torch_native`):
    - **starpu:** codelet submit vs CPU `aten::*_out` reference
    - **core:** `core::torch_*_out` vs the same aten reference
    - **tile:** TileGraph `execute` vs aten
    - **tensor:** TensorGraph structure + untiled lower/execute vs aten  
    Do **not** add multi-tile tests until tiling is re-enabled for this path.
-6. **libtorch_nntile C++:** add a Catch2 case in
+8. **libtorch_nntile C++:** add a Catch2 case in
    `torch_nntile/tests/aten_ops_parity.cc` (label `libtorch_nntile`) for
    the PrivateUse1 schema vs CPU (fwd, and bwd when autograd applies).
    Prefer CTest / Catch2 over pytest for these aten ops.
-7. Update the op table in [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md).
+9. Update the op table in [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md).
 
 Run layer + PrivateUse1 suites (with `BUILD_TESTING=ON`):
 
@@ -471,12 +579,24 @@ Lessons from wiring the first ops:
 10. Prefer **C++ CTest** for aten parity (`aten_ops_parity.cc`,
     `nntile/tests/torch_native/`). Pytest is not the coverage path for
     these torch-native ops.
+11. **Match CUDA dispatch before registering.** PrivateUse1
+    `chunk`/`split`/`linear`/`matmul` and AutogradPrivateUse1 `rsqrt`
+    looked convenient but diverged from CUDA Autograd (Split / Addmm /
+    RsqrtBackward). Audit with `_dispatch_dump_table`; see
+    [Match device=cuda registration](#match-devicecuda-registration).
+12. **Densify in PrivateUse1 compute impls** when VariableType formulas
+    pass non-contiguous views (`mul.Scalar`, `sum`, …). Hard
+    `is_contiguous` checks fail CUDA-identical backward graphs.
+13. **nntile→nntile copy must not silently rebind views** if Slice /
+    AsStrided Backward should work; today SSA rebind is a known gap.
 
 Reference sources:
 `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_dispatch.*`,
 `nntile/include/nntile/starpu/torch_{blob,cuda_env}.hh`,
 `nntile/tests/torch_native/`,
 `torch_nntile/csrc/nntile_add.cpp`,
+`torch_nntile/csrc/nntile_trig.cpp`,
+`torch_nntile/csrc/nntile_kernels.cpp`,
 `torch_nntile/csrc/nntile_executor_torch_native.cpp`,
 `torch_nntile/csrc/nntile_module_torch_native.cpp`,
 `torch_nntile/tests/aten_ops_parity.cc`,

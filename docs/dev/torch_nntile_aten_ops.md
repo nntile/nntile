@@ -25,7 +25,9 @@ PrivateUse1).
 
 ## Registration policy (match `device=cuda`)
 
-Baseline is how stock PyTorch registers the same schema for CUDA:
+Baseline is how stock PyTorch registers the same schema for CUDA. Full
+write-up (layers, dump commands, worked examples):
+[torch_starpu_kernels.md — Match device=cuda registration](torch_starpu_kernels.md#match-devicecuda-registration).
 
 | CUDA pattern | What nntile should do |
 |--------------|------------------------|
@@ -33,6 +35,31 @@ Baseline is how stock PyTorch registers the same schema for CUDA:
 | `CompositeImplicitAutograd` (`chunk`, `narrow`, `linear`, `matmul`, …) | **Do not** register PrivateUse1 — let the composite lower to primitives (`as_strided`, `addmm`, `mm`, …) |
 | `CompositeExplicitAutograd` shared default (`select.int`, `alias`, …) | Prefer composite unless nntile storage needs a hook (`as_strided` / `alias` for `TensorRef`) |
 | AutogradCUDA = VariableType formula (e.g. `rsqrt` → `result.pow(3)`) | **Do not** register AutogradPrivateUse1; implement the formula’s device ops (`pow`) |
+
+### Quick audit
+
+```python
+import torch
+# Before importing torch_nntile: stock CUDA / composite rows.
+print(torch._C._dispatch_dump_table("aten::OP"))
+# After import torch_nntile: confirm we did not shadow CompositeImplicit
+# unless intentional; AutogradPrivateUse1 should match AutogradCUDA
+# (usually VariableType or CompositeImplicit — not a custom kernel).
+```
+
+With `requires_grad=True`, `type(out.grad_fn).__name__` on nntile should
+match CPU for the same call (`RsqrtBackward0`, `AddmmBackward0`,
+`SplitBackward0`, …).
+
+### Worked decisions
+
+| Schema | CUDA | nntile choice |
+|--------|------|---------------|
+| `rsqrt` | device `.out` + VariableType (`pow(3)`) | PrivateUse1 `rsqrt`(+`.out`); `pow` exp 2/3 via mul; **no** AutogradPrivateUse1 |
+| `linear` / `matmul` | CompositeImplicit → `addmm` / `mm` | **No** PrivateUse1; keep `addmm` / `mm` / `bmm` |
+| `chunk` / `split` / `narrow` / `select.int` | Composite → views | **No** PrivateUse1; keep `as_strided` (+ `alias`) |
+| `as_strided` / `alias` | device / shared composite | PrivateUse1 (keep `TensorRef`) |
+| `contiguous` | CompositeImplicit | PrivateUse1 + AutogradPrivateUse1 densify |
 
 Intentional deviations (nntile storage / StarPU):
 
@@ -47,6 +74,8 @@ Known gap vs CUDA view backward: nntile→nntile `_copy_from` currently
 `storage_offset`. That breaks Slice / Select / AsStrided Backward after
 composite `narrow` / `select`. Fix is copy-into-view (host RMW or in-place
 StarPU write into the existing logical), not re-registering those ops.
+Re-registering PrivateUse1 `narrow` is also wrong: VariableType has no
+narrow derivative (`NotImplemented`).
 
 ## Registered aten schemas
 
