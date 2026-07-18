@@ -28,6 +28,7 @@ SCRIPTS = (
     ("vgg", "train_vgg_tiny.py"),
     ("mobilenet", "train_mobilenet_tiny.py"),
     ("unet", "train_unet_tiny.py"),
+    ("unet_modern", "train_unet_modern_tiny.py"),
 )
 
 LOSS_RE = re.compile(r"loss=([0-9.]+)")

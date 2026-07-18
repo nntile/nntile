@@ -1,0 +1,10 @@
+{
+  "_comment": "Modern tiny U-Net: F.interpolate upsample (no ConvTranspose)",
+  "in_channels": 1,
+  "num_classes": 3,
+  "height": 16,
+  "width": 16,
+  "base_channels": 8,
+  "depth": 2,
+  "upsample_mode": "bilinear"
+}

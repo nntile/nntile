@@ -457,8 +457,12 @@ StarPU `TorchKind` (or whose stock path is host / unfused today):
 |-----|----------------|------------------|
 | `native_group_norm` (+ bwd) | ViT / ConvNeXt / some CNNs; `group_norm` is CompositeImplicit → this primitive | PrivateUse1 like LayerNorm |
 | `native_dropout` (+ bwd) | Training noise; `dropout` is CompositeImplicit | device primitive |
-| `upsample_nearest2d` / `upsample_bilinear2d` (+ bwd) | Segmentation / detectors / generative vision | device `.out` |
 | Softplus / Mish / PReLU | Less common activations; Softplus/Mish are device schemas, PReLU CompositeImplicit | low priority |
+
+**Done (vision upsample):** `upsample_nearest2d` / `upsample_bilinear2d`
+(+ backward) are registered on PrivateUse1 and lower through StarPU
+`TorchKind::Upsample*`; see `nntile_upsample2d.cpp` and the modern U-Net
+smoke.
 
 **Not a missing aten fused op:** HuggingFace rotary (Llama / NeoX / …) is
 ordinary PyTorch math (`apply_rotary_pos_emb` → `rotate_half` + `mul` /

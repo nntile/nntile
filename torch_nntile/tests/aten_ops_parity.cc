@@ -253,6 +253,59 @@ TEST_CASE("aten adaptive_avg_pool2d fwd+bwd matches CPU", "[aten][parity]")
         {x});
 }
 
+TEST_CASE("aten upsample_nearest2d fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 5, 7});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::upsample_nearest2d(
+                xs[0],
+                c10::IntArrayRef({10, 14}),
+                std::nullopt,
+                std::nullopt);
+        },
+        {x});
+}
+
+TEST_CASE(
+    "aten upsample_nearest2d scale_factor fwd+bwd matches CPU",
+    "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 4, 4});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            // Matches F.interpolate(..., scale_factor=2): both size and
+            // scales are passed to the device schema.
+            return at::upsample_nearest2d(
+                xs[0],
+                c10::IntArrayRef({8, 8}),
+                /*scales_h=*/2.0,
+                /*scales_w=*/2.0);
+        },
+        {x});
+}
+
+TEST_CASE("aten upsample_bilinear2d fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 3, 5, 7});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return at::upsample_bilinear2d(
+                xs[0],
+                c10::IntArrayRef({10, 14}),
+                /*align_corners=*/false,
+                std::nullopt,
+                std::nullopt);
+        },
+        {x});
+}
+
 TEST_CASE("aten max_pool2d_with_indices fwd+bwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;

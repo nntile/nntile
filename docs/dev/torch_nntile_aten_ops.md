@@ -165,6 +165,7 @@ register `linear` / `matmul` (CUDA CompositeImplicit → `addmm` / `mm`).
 | `nntile_trig.cpp` | `cos`, `sin`, `neg`, `rsqrt` (+ `.out`) |
 | `nntile_repeat.cpp` | `repeat` |
 | `nntile_max_pool2d.cpp` | `max_pool2d_with_indices`, `max_pool2d_with_indices.out`, `max_pool2d_with_indices_backward`, `max_pool2d_with_indices_backward.grad_input` |
+| `nntile_upsample2d.cpp` | `upsample_nearest2d`, `upsample_nearest2d.out`, `upsample_nearest2d_backward`, `upsample_nearest2d_backward.grad_input`, `upsample_bilinear2d` (+ `.out` / `_backward` / `.grad_input`) |
 
 `nntile_split.cpp` / `nntile_narrow.cpp` are reference helpers only (no
 PrivateUse1 registration).
@@ -177,9 +178,10 @@ Short list for product planning:
 
 1. **`native_group_norm`** (+ backward) — GroupNorm models (ViT-style).
 2. **`native_dropout`** — training.
-3. **Upsample / interpolate** device schemas — vision.
-4. Host leftovers: **`mean`**, general **`pow`/`div`/`where`**. RMSNorm
+3. Host leftovers: **`mean`**, general **`pow`/`div`/`where`**. RMSNorm
    correctly uses the composite path, so it currently reaches host `mean`.
+4. **`nll_loss2d`** — optional ergonomics for NCHW segmentation CE
+   (smokes flatten to 1D `nll_loss` instead).
 
 HF rotary is **not** a fused-aten gap: `apply_rotary_pos_emb` lowers to
 `mul` / `add` / views. Classic `_C.rope` is only for hand-written models

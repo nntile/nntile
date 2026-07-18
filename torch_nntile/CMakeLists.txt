@@ -62,6 +62,7 @@ if(NNTILE_TORCH_NATIVE_OPS)
         csrc/nntile_avg_pool2d.cpp
         csrc/nntile_adaptive_avg_pool2d.cpp
         csrc/nntile_max_pool2d.cpp
+        csrc/nntile_upsample2d.cpp
         csrc/nntile_convolution.cpp
         csrc/nntile_batch_norm.cpp
         csrc/nntile_mm.cpp

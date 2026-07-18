@@ -91,6 +91,10 @@ enum class TorchKind : std::int32_t
     MaxPool2dWithIndicesBackward = 131, // R,R,R(i64) → W
     NativeBatchNorm = 140,   // R,(R),(R),(RW),(RW) → W,W,W
     NativeBatchNormBackward = 141, // R... → W... native_batch_norm_backward
+    UpsampleNearest2d = 150, // R → W    aten::upsample_nearest2d.out
+    UpsampleNearest2dBackward = 151, // R → W  upsample_nearest2d_backward
+    UpsampleBilinear2d = 152, // R → W   aten::upsample_bilinear2d.out
+    UpsampleBilinear2dBackward = 153, // R → W upsample_bilinear2d_backward
 };
 
 inline constexpr Index torch_dispatch_max_ndim = core::torch_native_max_ndim;
@@ -137,6 +141,16 @@ struct TorchDispatchArgs
     //   has_running_mean [3], has_running_var [4], has_save_mean [5],
     //   has_save_invstd [6], output_mask [7..9]; momentum in
     //   scalars[0], eps in scalars[1]
+    // UpsampleNearest2d forward: out_h[0], out_w[1], has_scales_h[2],
+    //   has_scales_w[3]; scales in scalars[0..1]
+    // UpsampleNearest2dBackward: out_h[0], out_w[1], in_n[2], in_c[3],
+    //   in_h[4], in_w[5], has_scales_h[6], has_scales_w[7];
+    //   scales in scalars[0..1]
+    // UpsampleBilinear2d forward: out_h[0], out_w[1], align_corners[2],
+    //   has_scales_h[3], has_scales_w[4]; scales in scalars[0..1]
+    // UpsampleBilinear2dBackward: out_h[0], out_w[1], in_n[2], in_c[3],
+    //   in_h[4], in_w[5], align_corners[6], has_scales_h[7],
+    //   has_scales_w[8]; scales in scalars[0..1]
     char sarg[16] = {};
     Index in_ndim[torch_dispatch_max_tensors] = {};
     Index out_ndim[torch_dispatch_max_tensors] = {};

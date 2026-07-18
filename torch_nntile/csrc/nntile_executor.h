@@ -280,6 +280,38 @@ void tensor_adaptive_avg_pool2d_backward_fp32(
     const at::Tensor &input,
     at::Tensor &grad_input);
 
+void tensor_upsample_nearest2d_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef output_size,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w);
+
+void tensor_upsample_nearest2d_backward_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_input,
+    c10::IntArrayRef output_size,
+    c10::IntArrayRef input_size,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w);
+
+void tensor_upsample_bilinear2d_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef output_size,
+    bool align_corners,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w);
+
+void tensor_upsample_bilinear2d_backward_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_input,
+    c10::IntArrayRef output_size,
+    c10::IntArrayRef input_size,
+    bool align_corners,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w);
+
 void tensor_convolution_fp32(
     const at::Tensor &input,
     const at::Tensor &weight,

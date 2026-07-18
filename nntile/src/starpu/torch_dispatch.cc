@@ -75,6 +75,10 @@
 #include <ATen/ops/sum.h>
 #include <ATen/ops/threshold_backward.h>
 #include <ATen/ops/tril.h>
+#include <ATen/ops/upsample_bilinear2d.h>
+#include <ATen/ops/upsample_bilinear2d_backward.h>
+#include <ATen/ops/upsample_nearest2d.h>
+#include <ATen/ops/upsample_nearest2d_backward.h>
 #include <ATen/ops/zeros.h>
 
 #include "nntile/starpu/torch_blob.hh"
@@ -196,6 +200,18 @@ c10::optional<std::int64_t> optional_iarg(
     return static_cast<std::int64_t>(args.iargs[value_slot]);
 }
 
+c10::optional<double> optional_scale(
+    const TorchDispatchArgs &args,
+    Index has_slot,
+    Index scalar_slot)
+{
+    if (args.iargs[has_slot] == 0)
+    {
+        return c10::nullopt;
+    }
+    return static_cast<double>(args.scalars[scalar_slot]);
+}
+
 void run_unary(
     TorchDispatchArgs *args,
     float *in,
@@ -246,6 +262,42 @@ void run_unary(
             result,
             self,
             iarg_vec(*args, 0, 2));
+        break;
+    case TorchKind::UpsampleNearest2d:
+        at::upsample_nearest2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            optional_scale(*args, 2, 0),
+            optional_scale(*args, 3, 1));
+        break;
+    case TorchKind::UpsampleNearest2dBackward:
+        at::upsample_nearest2d_backward_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 4),
+            optional_scale(*args, 6, 0),
+            optional_scale(*args, 7, 1));
+        break;
+    case TorchKind::UpsampleBilinear2d:
+        at::upsample_bilinear2d_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            args->iargs[2] != 0,
+            optional_scale(*args, 3, 0),
+            optional_scale(*args, 4, 1));
+        break;
+    case TorchKind::UpsampleBilinear2dBackward:
+        at::upsample_bilinear2d_backward_out(
+            result,
+            self,
+            iarg_vec(*args, 0, 2),
+            iarg_vec(*args, 2, 4),
+            args->iargs[6] != 0,
+            optional_scale(*args, 7, 0),
+            optional_scale(*args, 8, 1));
         break;
     case TorchKind::Softmax:
         at::_softmax_out(

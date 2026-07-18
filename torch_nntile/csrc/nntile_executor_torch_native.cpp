@@ -2444,6 +2444,172 @@ void tensor_adaptive_avg_pool2d_backward_fp32(
     register_data_node(grad_input, gi_node);
 }
 
+void pack_optional_scale(
+    nntile::starpu::TorchDispatchArgs &extra,
+    nntile::Index has_slot,
+    nntile::Index scalar_slot,
+    const std::optional<double> &scale)
+{
+    if (scale.has_value())
+    {
+        extra.iargs[has_slot] = 1;
+        extra.scalars[scalar_slot] = static_cast<nntile::Scalar>(*scale);
+    }
+    else
+    {
+        extra.iargs[has_slot] = 0;
+        extra.scalars[scalar_slot] = 0;
+    }
+}
+
+void tensor_upsample_nearest2d_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef output_size,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w)
+{
+    const auto in_graph = pytorch_shape_to_graph(input.sizes());
+    const auto out_graph = pytorch_shape_to_graph(out.sizes());
+    auto *in_node = get_or_create_data_node(
+        input,
+        in_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_pair(extra, 0, output_size);
+    pack_optional_scale(extra, 2, 0, scales_h);
+    pack_optional_scale(extra, 3, 1, scales_w);
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::UpsampleNearest2d,
+        in_node,
+        out_node,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_upsample_nearest2d_backward_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_input,
+    c10::IntArrayRef output_size,
+    c10::IntArrayRef input_size,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w)
+{
+    const auto go_graph = pytorch_shape_to_graph(grad_output.sizes());
+    const auto gi_graph = pytorch_shape_to_graph(grad_input.sizes());
+    auto *go_node = get_or_create_data_node(
+        grad_output,
+        go_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_output));
+    auto *gi_node = get_or_create_data_node(
+        grad_input,
+        gi_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_pair(extra, 0, output_size);
+    TORCH_CHECK(input_size.size() == 4, "upsample bwd: input_size rank 4");
+    extra.iargs[2] = static_cast<nntile::Index>(input_size[0]);
+    extra.iargs[3] = static_cast<nntile::Index>(input_size[1]);
+    extra.iargs[4] = static_cast<nntile::Index>(input_size[2]);
+    extra.iargs[5] = static_cast<nntile::Index>(input_size[3]);
+    pack_optional_scale(extra, 6, 0, scales_h);
+    pack_optional_scale(extra, 7, 1, scales_w);
+    pack_tensor_layout(extra, 0, grad_output, false);
+    pack_tensor_layout(extra, 0, grad_input, true);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::UpsampleNearest2dBackward,
+        go_node,
+        gi_node,
+        extra);
+    register_data_node(grad_input, gi_node);
+}
+
+void tensor_upsample_bilinear2d_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef output_size,
+    bool align_corners,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w)
+{
+    const auto in_graph = pytorch_shape_to_graph(input.sizes());
+    const auto out_graph = pytorch_shape_to_graph(out.sizes());
+    auto *in_node = get_or_create_data_node(
+        input,
+        in_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_pair(extra, 0, output_size);
+    extra.iargs[2] = align_corners ? 1 : 0;
+    pack_optional_scale(extra, 3, 0, scales_h);
+    pack_optional_scale(extra, 4, 1, scales_w);
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::UpsampleBilinear2d,
+        in_node,
+        out_node,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_upsample_bilinear2d_backward_fp32(
+    const at::Tensor &grad_output,
+    at::Tensor &grad_input,
+    c10::IntArrayRef output_size,
+    c10::IntArrayRef input_size,
+    bool align_corners,
+    const std::optional<double> &scales_h,
+    const std::optional<double> &scales_w)
+{
+    const auto go_graph = pytorch_shape_to_graph(grad_output.sizes());
+    const auto gi_graph = pytorch_shape_to_graph(grad_input.sizes());
+    auto *go_node = get_or_create_data_node(
+        grad_output,
+        go_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(grad_output));
+    auto *gi_node = get_or_create_data_node(
+        grad_input,
+        gi_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_pair(extra, 0, output_size);
+    TORCH_CHECK(input_size.size() == 4, "upsample bwd: input_size rank 4");
+    extra.iargs[2] = static_cast<nntile::Index>(input_size[0]);
+    extra.iargs[3] = static_cast<nntile::Index>(input_size[1]);
+    extra.iargs[4] = static_cast<nntile::Index>(input_size[2]);
+    extra.iargs[5] = static_cast<nntile::Index>(input_size[3]);
+    extra.iargs[6] = align_corners ? 1 : 0;
+    pack_optional_scale(extra, 7, 0, scales_h);
+    pack_optional_scale(extra, 8, 1, scales_w);
+    pack_tensor_layout(extra, 0, grad_output, false);
+    pack_tensor_layout(extra, 0, grad_input, true);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::UpsampleBilinear2dBackward,
+        go_node,
+        gi_node,
+        extra);
+    register_data_node(grad_input, gi_node);
+}
+
 void tensor_convolution_fp32(
     const at::Tensor &input,
     const at::Tensor &weight,
