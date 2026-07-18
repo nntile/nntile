@@ -138,37 +138,6 @@ void torch_layer_norm_backward_out(
     bool need_grad_weight,
     bool need_grad_bias);
 
-void torch_rms_norm_out(
-    int starpu_worker_hint,
-    const Tile<fp32_t> &input,
-    const TorchTileMeta &input_meta,
-    const Tile<fp32_t> *weight,
-    const TorchTileMeta *weight_meta,
-    const Tile<fp32_t> &out,
-    const TorchTileMeta &out_meta,
-    const Tile<fp32_t> &rstd,
-    const TorchTileMeta &rstd_meta,
-    Index normalized_ndim,
-    Scalar eps);
-
-void torch_rms_norm_backward_out(
-    int starpu_worker_hint,
-    const Tile<fp32_t> &grad_out,
-    const TorchTileMeta &grad_out_meta,
-    const Tile<fp32_t> &input,
-    const TorchTileMeta &input_meta,
-    const Tile<fp32_t> &rstd,
-    const TorchTileMeta &rstd_meta,
-    const Tile<fp32_t> *weight,
-    const TorchTileMeta *weight_meta,
-    const Tile<fp32_t> *grad_input,
-    const TorchTileMeta *grad_input_meta,
-    const Tile<fp32_t> *grad_weight,
-    const TorchTileMeta *grad_weight_meta,
-    Index normalized_ndim,
-    bool need_grad_input,
-    bool need_grad_weight);
-
 void torch_embedding_dense_backward_out(
     int starpu_worker_hint,
     const Tile<fp32_t> &grad,

@@ -219,6 +219,16 @@ at::Tensor &add__tensor(
     return self;
 }
 
+at::Tensor &add__scalar(
+    at::Tensor &self,
+    const at::Scalar &other,
+    const at::Scalar &alpha)
+{
+    at::Tensor tmp = add_scalar(self, other, alpha);
+    self.copy_(tmp);
+    return self;
+}
+
 } // namespace torch_nntile
 
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
@@ -226,6 +236,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("add.Tensor", TORCH_FN(torch_nntile::add_tensor));
     m.impl("add.out", TORCH_FN(torch_nntile::add_out));
     m.impl("add_.Tensor", TORCH_FN(torch_nntile::add__tensor));
+    m.impl("add_.Scalar", TORCH_FN(torch_nntile::add__scalar));
     m.impl("add.Scalar", TORCH_FN(torch_nntile::add_scalar));
     m.impl("add.Scalar_out", TORCH_FN(torch_nntile::add_scalar_out));
 }
