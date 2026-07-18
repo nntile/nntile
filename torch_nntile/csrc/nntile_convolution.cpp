@@ -29,7 +29,13 @@ void check_conv_tensor(const at::Tensor &tensor, const char *name)
 {
     TORCH_CHECK(is_nntile_device(tensor.device()), name, ": expected nntile");
     TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Float, name, ": fp32");
-    TORCH_CHECK(tensor.is_contiguous(), name, ": contiguous tensor required");
+}
+
+// StarPU kernels need dense NCHW; ``cat`` / view grads may be strided.
+at::Tensor as_contiguous_fp32(const at::Tensor &tensor, const char *name)
+{
+    check_conv_tensor(tensor, name);
+    return tensor.is_contiguous() ? tensor : tensor.contiguous();
 }
 
 std::vector<int64_t> sym_to_i64(c10::SymIntArrayRef values)
@@ -146,14 +152,17 @@ at::Tensor convolution_overrideable(
     c10::SymIntArrayRef output_padding,
     c10::SymInt groups)
 {
-    check_conv_tensor(input, "nntile convolution input");
-    check_conv_tensor(weight, "nntile convolution weight");
+    const at::Tensor input_c =
+        as_contiguous_fp32(input, "nntile convolution input");
+    const at::Tensor weight_c =
+        as_contiguous_fp32(weight, "nntile convolution weight");
     // TORCH_FN may wrap Python ``None`` as an undefined Tensor inside
     // optional rather than ``nullopt``.
     const bool has_bias = bias.has_value() && bias->defined();
+    at::Tensor bias_c;
     if (has_bias)
     {
-        check_conv_tensor(*bias, "nntile convolution bias");
+        bias_c = as_contiguous_fp32(*bias, "nntile convolution bias");
     }
     std::vector<int64_t> stride_i =
         expand_spatial_2d(sym_to_i64(stride), 1, 1);
@@ -164,8 +173,8 @@ at::Tensor convolution_overrideable(
     std::vector<int64_t> output_padding_i =
         expand_spatial_2d(sym_to_i64(output_padding), 0, 0);
     std::vector<int64_t> out_shape = convolution_output_shape(
-        input,
-        weight,
+        input_c,
+        weight_c,
         stride_i,
         padding_i,
         dilation_i,
@@ -174,12 +183,12 @@ at::Tensor convolution_overrideable(
         groups.expect_int());
     at::Tensor out = empty_metadata_tensor(
         out_shape,
-        input.scalar_type(),
-        input.device());
+        input_c.scalar_type(),
+        input_c.device());
     tensor_convolution_fp32(
-        input,
-        weight,
-        has_bias ? &*bias : nullptr,
+        input_c,
+        weight_c,
+        has_bias ? &bias_c : nullptr,
         out,
         stride_i,
         padding_i,
@@ -203,9 +212,15 @@ convolution_backward_overrideable(
     c10::SymInt groups,
     std::array<bool, 3> output_mask)
 {
-    check_conv_tensor(grad_output, "nntile convolution_backward grad");
-    check_conv_tensor(input, "nntile convolution_backward input");
-    check_conv_tensor(weight, "nntile convolution_backward weight");
+    const at::Tensor grad_c = as_contiguous_fp32(
+        grad_output,
+        "nntile convolution_backward grad");
+    const at::Tensor input_c = as_contiguous_fp32(
+        input,
+        "nntile convolution_backward input");
+    const at::Tensor weight_c = as_contiguous_fp32(
+        weight,
+        "nntile convolution_backward weight");
     std::vector<int64_t> stride_i =
         expand_spatial_2d(sym_to_i64(stride), 1, 1);
     std::vector<int64_t> padding_i =
@@ -220,28 +235,28 @@ convolution_backward_overrideable(
     if (output_mask[0])
     {
         grad_input = empty_metadata_tensor(
-            input.sizes(),
-            input.scalar_type(),
-            input.device());
+            input_c.sizes(),
+            input_c.scalar_type(),
+            input_c.device());
     }
     if (output_mask[1])
     {
         grad_weight = empty_metadata_tensor(
-            weight.sizes(),
-            weight.scalar_type(),
-            weight.device());
+            weight_c.sizes(),
+            weight_c.scalar_type(),
+            weight_c.device());
     }
     if (output_mask[2])
     {
         grad_bias = empty_metadata_tensor(
-            {grad_output.size(1)},
-            grad_output.scalar_type(),
-            grad_output.device());
+            {grad_c.size(1)},
+            grad_c.scalar_type(),
+            grad_c.device());
     }
     tensor_convolution_backward_fp32(
-        grad_output,
-        input,
-        weight,
+        grad_c,
+        input_c,
+        weight_c,
         output_mask[0] ? &grad_input : nullptr,
         output_mask[1] ? &grad_weight : nullptr,
         output_mask[2] ? &grad_bias : nullptr,

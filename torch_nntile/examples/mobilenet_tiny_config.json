@@ -1,0 +1,9 @@
+{
+  "_comment": "Tiny MobileNet-style (depthwise separable) for torch_nntile showcase",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 16,
+  "width": 16,
+  "base_channels": 8,
+  "blocks": 2
+}

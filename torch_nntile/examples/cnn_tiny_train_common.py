@@ -65,12 +65,60 @@ def make_image_batch(
     return {"images": images, "labels": labels}
 
 
+def make_segmentation_batch(
+    *,
+    batch_size: int,
+    channels: int,
+    height: int,
+    width: int,
+    num_classes: int,
+    seed: int,
+) -> dict[str, torch.Tensor]:
+    """Deterministic synthetic images + per-pixel class labels."""
+    g = torch.Generator().manual_seed(seed)
+    images = torch.randn(
+        batch_size,
+        channels,
+        height,
+        width,
+        dtype=torch.float32,
+        generator=g,
+    )
+    labels = torch.randint(
+        0,
+        num_classes,
+        (batch_size, height, width),
+        dtype=torch.long,
+        generator=g,
+    )
+    return {"images": images, "labels": labels}
+
+
 def classification_ce_loss(
     model: nn.Module,
     batch: dict[str, torch.Tensor],
 ) -> torch.Tensor:
     logits = model(batch["images"])
     return nn.functional.cross_entropy(logits, batch["labels"])
+
+
+def segmentation_ce_loss(
+    model: nn.Module,
+    batch: dict[str, torch.Tensor],
+) -> torch.Tensor:
+    """Pixel-wise CE for NCHW logits vs NHW long labels.
+
+    Flattens spatial dims so loss uses ``nll_loss`` (1D) rather than
+    ``nll_loss2d``, which is not registered on PrivateUse1 yet.
+    """
+    logits = model(batch["images"])
+    # logits: NCHW -> (N*H*W, C); labels: NHW -> (N*H*W,)
+    n, c, h, w = logits.shape
+    logits_flat = (
+        logits.permute(0, 2, 3, 1).contiguous().reshape(n * h * w, c)
+    )
+    labels_flat = batch["labels"].reshape(n * h * w)
+    return nn.functional.cross_entropy(logits_flat, labels_flat)
 
 
 def add_cnn_train_compare_subparsers(
