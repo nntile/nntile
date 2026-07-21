@@ -95,12 +95,14 @@ per-step `compile_graph` cost on the encoder–decoder graph.
    BERT / RoBERTa beat single-thread torch at Accel@2 **>1**). Some CNNs
    (ResNet / VGG / MobileNet) do not speed up — limited parallelism in
    the untiled graph at this size.
-4. **GPU follow-up:** re-run the same recipes on a CUDA build using the
-   checklist in [reproducibility.md](reproducibility.md).
+4. **GPU follow-up:** re-run on a CUDA build — results in
+   [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md)
+   (checklist in [reproducibility.md](reproducibility.md)).
 
 ## Related
 
 - [reproducibility.md](reproducibility.md)
+- [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md)
 - [hf_tiny_cpu_vs_nntile_showcase.md](hf_tiny_cpu_vs_nntile_showcase.md)
 - [cnn_tiny_cpu_vs_nntile_showcase.md](cnn_tiny_cpu_vs_nntile_showcase.md)
 - [dit_tiny_cpu_vs_nntile_showcase.md](dit_tiny_cpu_vs_nntile_showcase.md)

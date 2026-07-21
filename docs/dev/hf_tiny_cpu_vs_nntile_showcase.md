@@ -127,6 +127,24 @@ extra nntile column.
 `nntile₁ / nntile₂`. Values **<1** mean nntile is slower (expected at
 this tiny scale).
 
+## Results (CUDA vs nntile, single GPU)
+
+Same tiny recipes on NVIDIA A40 (`CUDA_VISIBLE_DEVICES=1`,
+`--ncpu 0 --ncuda 1 --restrict-cuda`, TF32 off, date 2026-07-21). Full
+table (tiny + middle): [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
+
+| Model | CUDA loss | nntile loss | CUDA (s) | nntile (s) | Accel | Status |
+|---|---:|---:|---:|---:|---:|---|
+| gpt2 | 5.552704 | 5.552704 | 0.546 | 0.222 | 2.46x | OK |
+| gpt-neo | 4.827158 | 4.827158 | 0.250 | 0.213 | 1.17x | OK |
+| gpt-neox | 4.835960 | 4.835960 | 0.223 | 0.262 | 0.85x | OK |
+| llama | 4.915325 | 4.915325 | 0.265 | 0.274 | 0.97x | OK |
+| bert | 4.833462 | 4.833462 | 0.216 | 0.215 | 1.00x | OK |
+| roberta | 4.735972 | 4.735972 | 0.213 | 0.217 | 0.98x | OK |
+| t5 | 5.692081 | 5.692081 | 0.317 | 0.344 | 0.92x | OK |
+
+`Accel` = `CUDA_wall / nntile_wall`. Losses match; walls stay sub-second.
+
 **Takeaways for demos**
 
 1. **Correctness:** losses match on CPU and nntile for every model above.
@@ -135,6 +153,8 @@ this tiny scale).
    (`Accel(1→2) ≤ 1`). Middle-sized recipes raise Accel toward **1×**
    and beyond — see
    [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
+   Single-GPU CUDA vs nntile:
+   [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + HF `config` dict + seed /
    step). Use `compare` for relative Frobenius norms.
@@ -162,6 +182,8 @@ symbols; use a full torch_nntile extension build (CI wheel or local
 
 - Middle (~1 min) overhead table:
   [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md)
+- Single-GPU CUDA vs nntile:
+  [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md)
 - Measurement protocol (CPU / GPU):
   [reproducibility.md](reproducibility.md)
 - CNN counterpart: [cnn_tiny_cpu_vs_nntile_showcase.md](cnn_tiny_cpu_vs_nntile_showcase.md)

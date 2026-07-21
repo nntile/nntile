@@ -2,20 +2,24 @@
 # @copyright (c) 2026-present Skolkovo Institute of Science and Technology
 #                              (Skoltech), Russia. All rights reserved.
 #
-# @file torch_nntile/examples/bench_torch_native_middle_cpu_vs_nntile.py
-# Middle-sized torch-native CPU vs nntile overhead benches (~1 min/train).
+# @file torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py
+# Tiny + middle torch-native CUDA vs nntile (single GPU) benches.
 
-"""Run middle HF / CNN / DiT recipes on cpu and nntile; print markdown tables.
+"""Compare ``--device cuda`` vs ``--device nntile`` (``ncuda=1``).
 
-Uses :file:`torch_native_middle_recipes.json` (committed configs + steps /
-batch / seq). Goal: show that StarPU / graph overhead becomes a smaller
-fraction of wall time as model + batch grow — still on a single host core
-(``ncpu=1``, ``torch.set_num_threads(1)``).
+Tiny defaults match the CPU showcase smokes; middle uses
+``torch_native_middle_recipes.json``.
 
 Example::
 
-    python torch_nntile/examples/bench_torch_native_middle_cpu_vs_nntile.py \\
-        --families hf,cnn,dit --markdown-out /tmp/middle_table.md
+    export CUDA_VISIBLE_DEVICES=1
+    export LD_LIBRARY_PATH=$PWD/install/lib:/opt/conda/envs/nntile/lib:$LD_LIBRARY_PATH
+    python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \\
+        --suite tiny --families hf,cnn,dit \\
+        --markdown-out /tmp/torch_native_tiny_cuda.md
+    python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \\
+        --suite middle --families hf,cnn,dit \\
+        --markdown-out /tmp/torch_native_middle_cuda.md
 """
 
 from __future__ import annotations
@@ -37,6 +41,93 @@ GPT2_WALL_RE = re.compile(
     r"timing (?:nntile|torch) train wall[^:]*:\s*([0-9.]+)s"
 )
 
+TINY_RECIPES: dict[str, dict[str, dict[str, Any]]] = {
+    "hf": {
+        "gpt2": {
+            "script": "train_gpt2_hf.py",
+            "is_gpt2": True,
+            "steps": 1,
+            "seq_len": 16,
+            "batch_size": 1,
+        },
+        "gpt-neo": {
+            "script": "train_gpt_neo_hf.py",
+            "steps": 1,
+            "seq_len": 16,
+            "batch_size": 1,
+        },
+        "gpt-neox": {
+            "script": "train_gpt_neox_hf.py",
+            "steps": 1,
+            "seq_len": 16,
+            "batch_size": 1,
+        },
+        "llama": {
+            "script": "train_llama_hf.py",
+            "steps": 1,
+            "seq_len": 16,
+            "batch_size": 1,
+        },
+        "bert": {
+            "script": "train_bert_hf.py",
+            "steps": 1,
+            "seq_len": 16,
+            "batch_size": 1,
+        },
+        "roberta": {
+            "script": "train_roberta_hf.py",
+            "steps": 1,
+            "seq_len": 16,
+            "batch_size": 1,
+        },
+        "t5": {
+            "script": "train_t5_hf.py",
+            "steps": 1,
+            "seq_len": 16,
+            "batch_size": 1,
+        },
+    },
+    "cnn": {
+        "lenet": {
+            "script": "train_lenet_tiny.py",
+            "steps": 1,
+            "batch_size": 2,
+        },
+        "resnet": {
+            "script": "train_resnet_tiny.py",
+            "steps": 1,
+            "batch_size": 2,
+        },
+        "vgg": {
+            "script": "train_vgg_tiny.py",
+            "steps": 1,
+            "batch_size": 2,
+        },
+        "mobilenet": {
+            "script": "train_mobilenet_tiny.py",
+            "steps": 1,
+            "batch_size": 2,
+        },
+        "unet": {
+            "script": "train_unet_tiny.py",
+            "steps": 1,
+            "batch_size": 2,
+        },
+        "unet_modern": {
+            "script": "train_unet_modern_tiny.py",
+            "steps": 1,
+            "batch_size": 2,
+        },
+    },
+    "dit": {
+        "dit": {
+            "script": "train_dit_hf.py",
+            "steps": 1,
+            "batch_size": 2,
+        },
+    },
+}
+
 
 @dataclass
 class RunResult:
@@ -51,11 +142,8 @@ class RunResult:
     recipe: dict[str, Any]
 
 
-def _apply_protocol_env(protocol: dict[str, Any]) -> dict[str, str]:
+def _host_env() -> dict[str, str]:
     env = os.environ.copy()
-    for key, value in protocol.get("env", {}).items():
-        env[str(key)] = str(value)
-    # Always pin host threads for this bench.
     for key in (
         "OMP_NUM_THREADS",
         "OPENBLAS_NUM_THREADS",
@@ -64,6 +152,9 @@ def _apply_protocol_env(protocol: dict[str, Any]) -> dict[str, str]:
         "VECLIB_MAXIMUM_THREADS",
     ):
         env[key] = "1"
+    env.setdefault("STARPU_SILENT", "1")
+    env.setdefault("STARPU_FXT_TRACE", "0")
+    env.setdefault("STARPU_WORKERS_NOBIND", "1")
     return env
 
 
@@ -74,21 +165,19 @@ def _build_cmd(
     name: str,
     recipe: dict[str, Any],
     device: str,
-    protocol: dict[str, Any],
+    ncpu: int,
+    ncuda: int,
+    seed: int,
     output_root: Path,
 ) -> list[str]:
     script = here / str(recipe["script"])
-    config = here / str(recipe["config"])
     out_dir = output_root / family / f"{name}_{device}"
     out_dir.mkdir(parents=True, exist_ok=True)
-    ncpu = int(protocol.get("ncpu", 1))
-    ncuda = int(protocol.get("ncuda", 0))
-    seed = int(protocol.get("seed", 0))
     steps = int(recipe["steps"])
     batch_size = int(recipe["batch_size"])
 
     if recipe.get("is_gpt2"):
-        seq_len = int(recipe["seq_len"])
+        seq_len = int(recipe.get("seq_len", 16))
         cmd = [
             sys.executable,
             str(script),
@@ -99,8 +188,6 @@ def _build_cmd(
             str(seed),
             "--data-seed",
             str(seed),
-            "--config",
-            str(config),
             "--epochs",
             "1",
             "--seq-len",
@@ -117,12 +204,14 @@ def _build_cmd(
             str(out_dir),
             "--no-shuffle",
         ]
+        if "config" in recipe:
+            cmd.extend(["--config", str(here / str(recipe["config"]))])
         if device == "cuda":
             cmd.append("--disable-tf32")
-        if device == "nntile" and ncuda == 0:
-            cmd.append("--restrict-cpu")
-        elif device == "nntile" and ncuda > 0:
+        if device == "nntile" and ncuda > 0:
             cmd.append("--restrict-cuda")
+        elif device == "nntile":
+            cmd.append("--restrict-cpu")
         return cmd
 
     cmd = [
@@ -133,8 +222,6 @@ def _build_cmd(
         device,
         "--seed",
         str(seed),
-        "--config",
-        str(config),
         "--steps",
         str(steps),
         "--batch-size",
@@ -146,14 +233,16 @@ def _build_cmd(
         "--output-dir",
         str(out_dir),
     ]
+    if "config" in recipe:
+        cmd.extend(["--config", str(here / str(recipe["config"]))])
     if "seq_len" in recipe:
         cmd.extend(["--seq-len", str(int(recipe["seq_len"]))])
     if "dataset_split" in recipe:
         cmd.extend(["--dataset-split", str(recipe["dataset_split"])])
-    if device == "nntile" and ncuda == 0:
-        cmd.append("--restrict-cpu")
-    elif device == "nntile" and ncuda > 0:
+    if device == "nntile" and ncuda > 0:
         cmd.append("--restrict-cuda")
+    elif device == "nntile":
+        cmd.append("--restrict-cpu")
     return cmd
 
 
@@ -164,7 +253,9 @@ def run_one(
     name: str,
     recipe: dict[str, Any],
     device: str,
-    protocol: dict[str, Any],
+    ncpu: int,
+    ncuda: int,
+    seed: int,
     output_root: Path,
     env: dict[str, str],
 ) -> RunResult:
@@ -174,7 +265,9 @@ def run_one(
         name=name,
         recipe=recipe,
         device=device,
-        protocol=protocol,
+        ncpu=ncpu,
+        ncuda=ncuda,
+        seed=seed,
         output_root=output_root,
     )
     print("    " + " ".join(cmd), flush=True)
@@ -203,7 +296,7 @@ def run_one(
     ok = proc.returncode == 0 and loss is not None
     tail = ""
     if not ok:
-        tail = (proc.stderr or proc.stdout or "")[-1000:].strip()
+        tail = (proc.stderr or proc.stdout or "")[-1200:].strip()
     return RunResult(
         family=family,
         name=name,
@@ -221,7 +314,6 @@ def format_family_table(
     family: str,
     results: list[RunResult],
     order: list[str],
-    devices: list[str],
 ) -> str:
     by_name: dict[str, dict[str, RunResult]] = {}
     for r in results:
@@ -229,67 +321,50 @@ def format_family_table(
             continue
         by_name.setdefault(r.name, {})[r.device] = r
 
-    # Prefer cuda vs nntile column labels when those are the pair.
-    if devices == ["cuda", "nntile"] or (
-        "cuda" in devices and "nntile" in devices and "cpu" not in devices
-    ):
-        left, right = "cuda", "nntile"
-        left_h, right_h = "CUDA", "nntile"
-        ratio_h = "nntile/CUDA"
-    elif len(devices) >= 2:
-        left, right = devices[0], devices[1]
-        left_h, right_h = left, right
-        ratio_h = f"{right}/{left}"
-    else:
-        left, right = "cpu", "nntile"
-        left_h, right_h = "CPU", "nntile"
-        ratio_h = "nntile/CPU"
-
     lines = [
         f"### {family}",
         "",
-        f"| Model | steps | batch | seq | {left_h} loss | {right_h} loss | "
-        f"{left_h} wall (s) | {right_h} wall (s) | {ratio_h} | "
-        "Δ loss | Status |",
+        "| Model | steps | batch | seq | CUDA loss | nntile loss | "
+        "CUDA wall (s) | nntile wall (s) | nntile/CUDA | Δ loss | Status |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for name in order:
         row = by_name.get(name, {})
-        a = row.get(left)
-        b = row.get(right)
-        if a is None or b is None:
+        cuda = row.get("cuda")
+        nnt = row.get("nntile")
+        if cuda is None or nnt is None:
             lines.append(
                 f"| {name} | — | — | — | — | — | — | — | — | — | "
                 "incomplete |"
             )
             continue
-        recipe = a.recipe
+        recipe = cuda.recipe
         steps = recipe.get("steps", "—")
         batch = recipe.get("batch_size", "—")
         seq = recipe.get("seq_len", "—")
-        if not a.ok or not b.ok:
+        if not cuda.ok or not nnt.ok:
             status = "FAIL"
-            if not a.ok:
-                status += f" {left}"
-            if not b.ok:
-                status += f" {right}"
+            if not cuda.ok:
+                status += " cuda"
+            if not nnt.ok:
+                status += " nntile"
             lines.append(
                 f"| {name} | {steps} | {batch} | {seq} | "
-                f"{a.loss if a.loss is not None else '—'} | "
-                f"{b.loss if b.loss is not None else '—'} | "
-                f"{(a.wall_s or float('nan')):.3f} | "
-                f"{(b.wall_s or float('nan')):.3f} | — | — | "
+                f"{cuda.loss if cuda.loss is not None else '—'} | "
+                f"{nnt.loss if nnt.loss is not None else '—'} | "
+                f"{(cuda.wall_s or float('nan')):.3f} | "
+                f"{(nnt.wall_s or float('nan')):.3f} | — | — | "
                 f"{status} |"
             )
             continue
-        assert a.loss is not None and b.loss is not None
-        assert a.wall_s is not None and b.wall_s is not None
-        ratio = b.wall_s / max(a.wall_s, 1e-12)
-        dloss = abs(a.loss - b.loss)
+        assert cuda.loss is not None and nnt.loss is not None
+        assert cuda.wall_s is not None and nnt.wall_s is not None
+        ratio = nnt.wall_s / max(cuda.wall_s, 1e-12)
+        dloss = abs(cuda.loss - nnt.loss)
         lines.append(
             f"| {name} | {steps} | {batch} | {seq} | "
-            f"{a.loss:.6f} | {b.loss:.6f} | "
-            f"{a.wall_s:.3f} | {b.wall_s:.3f} | "
+            f"{cuda.loss:.6f} | {nnt.loss:.6f} | "
+            f"{cuda.wall_s:.3f} | {nnt.wall_s:.3f} | "
             f"{ratio:.2f}x | {dloss:.3e} | OK |"
         )
     return "\n".join(lines)
@@ -297,60 +372,44 @@ def format_family_table(
 
 def main(argv: list[str] | None = None) -> int:
     here = Path(__file__).resolve().parent
-    default_recipes = here / "torch_native_middle_recipes.json"
+    default_middle = here / "torch_native_middle_recipes.json"
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
+        "--suite",
+        choices=("tiny", "middle"),
+        default="tiny",
+        help="tiny showcase smokes or middle recipes",
+    )
+    p.add_argument(
         "--recipes",
-        default=str(default_recipes),
-        help="Path to torch_native_middle_recipes.json",
+        default=str(default_middle),
+        help="Middle recipes JSON (ignored for --suite tiny)",
     )
-    p.add_argument(
-        "--families",
-        default="hf,cnn,dit",
-        help="Comma-separated: hf,cnn,dit",
-    )
-    p.add_argument(
-        "--only",
-        default="",
-        help="Optional comma-separated model names to run",
-    )
-    p.add_argument(
-        "--devices",
-        default="cpu,nntile",
-        help="Comma-separated devices (default: cpu,nntile)",
-    )
+    p.add_argument("--families", default="hf,cnn,dit")
+    p.add_argument("--only", default="")
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--ncpu", type=int, default=0)
+    p.add_argument("--ncuda", type=int, default=1)
     p.add_argument(
         "--output-root",
-        default="/tmp/torch_native_middle_cpu_vs_nntile",
+        default="/tmp/torch_native_cuda_vs_nntile",
     )
     p.add_argument("--markdown-out", default="")
-    p.add_argument(
-        "--ncpu",
-        type=int,
-        default=None,
-        help="Override recipe protocol ncpu",
-    )
-    p.add_argument(
-        "--ncuda",
-        type=int,
-        default=None,
-        help="Override recipe protocol ncuda",
-    )
     args = p.parse_args(argv)
 
-    recipes_doc = json.loads(Path(args.recipes).read_text(encoding="utf-8"))
-    protocol = dict(recipes_doc.get("protocol", {}))
-    if args.ncpu is not None:
-        protocol["ncpu"] = args.ncpu
-    if args.ncuda is not None:
-        protocol["ncuda"] = args.ncuda
+    if args.suite == "tiny":
+        recipes_doc: dict[str, Any] = dict(TINY_RECIPES)
+    else:
+        recipes_doc = json.loads(
+            Path(args.recipes).read_text(encoding="utf-8")
+        )
 
     families = [f.strip() for f in args.families.split(",") if f.strip()]
     only = {x.strip() for x in args.only.split(",") if x.strip()}
-    devices = [d.strip() for d in args.devices.split(",") if d.strip()]
-    output_root = Path(args.output_root)
+    output_root = Path(args.output_root) / args.suite
     output_root.mkdir(parents=True, exist_ok=True)
-    env = _apply_protocol_env(protocol)
+    env = _host_env()
+    devices = ("cuda", "nntile")
 
     results: list[RunResult] = []
     sections: list[str] = []
@@ -365,10 +424,11 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             recipe = dict(group[name])
             for device in devices:
+                ncpu = args.ncpu if device == "nntile" else 0
+                ncuda = args.ncuda if device == "nntile" else 0
                 print(
-                    f"==> {family}/{name} device={device} "
-                    f"ncpu={protocol.get('ncpu')} "
-                    f"ncuda={protocol.get('ncuda')}",
+                    f"==> {args.suite}/{family}/{name} device={device} "
+                    f"ncpu={ncpu} ncuda={ncuda}",
                     flush=True,
                 )
                 r = run_one(
@@ -377,7 +437,9 @@ def main(argv: list[str] | None = None) -> int:
                     name=name,
                     recipe=recipe,
                     device=device,
-                    protocol=protocol,
+                    ncpu=ncpu,
+                    ncuda=ncuda,
+                    seed=args.seed,
                     output_root=output_root,
                     env=env,
                 )
@@ -390,21 +452,12 @@ def main(argv: list[str] | None = None) -> int:
                 if not r.ok and r.stderr_tail:
                     print(f"    stderr_tail:\n{r.stderr_tail}", flush=True)
                 results.append(r)
-        sections.append(
-            format_family_table(family, results, order, devices)
-        )
+        sections.append(format_family_table(family, results, order))
 
-    if "cuda" in devices and "cpu" not in devices:
-        title = "Middle torch-native CUDA vs nntile"
-    else:
-        title = "Middle torch-native CPU vs nntile"
     header = (
-        f"# {title}\n\n"
-        f"protocol ncpu={protocol.get('ncpu')} "
-        f"ncuda={protocol.get('ncuda')} "
-        f"seed={protocol.get('seed')} "
-        f"host_threads={protocol.get('host_threads', 1)} "
-        f"devices={','.join(devices)}\n"
+        f"# {args.suite.capitalize()} torch-native CUDA vs nntile\n\n"
+        f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', '')} "
+        f"ncpu={args.ncpu} ncuda={args.ncuda} seed={args.seed}\n"
     )
     table = header + "\n\n".join(sections) + "\n"
     print("\n" + table)

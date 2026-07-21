@@ -110,6 +110,18 @@ extra nntile column.
 `Accel@k` = `CPU_wall / nntile_ncpuk_wall`; `Accel(1→2)` =
 `nntile₁ / nntile₂`.
 
+## Results (CUDA vs nntile, single GPU)
+
+Same tiny recipe on NVIDIA A40 (`CUDA_VISIBLE_DEVICES=1`,
+`--ncpu 0 --ncuda 1 --restrict-cuda`, TF32 off, date 2026-07-21). Full
+table: [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
+
+| Model | CUDA loss | nntile loss | CUDA (s) | nntile (s) | Accel | Status |
+|---|---:|---:|---:|---:|---:|---|
+| dit | 1.603470 | 1.603470 | 0.559 | 0.395 | 1.42x | OK |
+
+`Accel` = `CUDA_wall / nntile_wall`.
+
 **Takeaways for demos**
 
 1. **Correctness:** noise-prediction MSE matches on CPU and nntile.
@@ -117,6 +129,8 @@ extra nntile column.
    help. The middle DiT recipe reaches Accel@1 **0.69×** / Accel@2
    **0.86×** (`Accel(1→2)=1.24×`) — see
    [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
+   Single-GPU CUDA vs nntile:
+   [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + Diffusers config dict + seed /
    step). Relative Frobenius after one step stays ~1e-9.
@@ -125,6 +139,8 @@ extra nntile column.
 
 - Middle (~1 min) overhead table:
   [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md)
+- Single-GPU CUDA vs nntile:
+  [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md)
 - Measurement protocol (CPU / GPU):
   [reproducibility.md](reproducibility.md)
 - HF language-model counterpart:

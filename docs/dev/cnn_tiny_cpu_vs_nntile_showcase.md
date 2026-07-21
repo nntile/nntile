@@ -126,6 +126,23 @@ extra nntile column.
 `Accel@k` = `CPU_wall / nntile_ncpuk_wall`; `Accel(1→2)` =
 `nntile₁ / nntile₂`.
 
+## Results (CUDA vs nntile, single GPU)
+
+Same tiny recipes on NVIDIA A40 (`CUDA_VISIBLE_DEVICES=1`,
+`--ncpu 0 --ncuda 1 --restrict-cuda`, TF32 off, date 2026-07-21). Full
+table: [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
+
+| Model | CUDA loss | nntile loss | CUDA (s) | nntile (s) | Accel | Status |
+|---|---:|---:|---:|---:|---:|---|
+| lenet | 2.230573 | 2.230573 | 0.557 | 0.297 | 1.87x | OK |
+| resnet | 1.905450 | 1.905450 | 0.700 | 0.283 | 2.47x | OK |
+| vgg | 2.474704 | 2.474704 | 0.624 | 0.295 | 2.12x | OK |
+| mobilenet | 2.080944 | 2.080944 | 0.340 | 0.286 | 1.19x | OK |
+| unet | 1.160912 | 1.160912 | 0.613 | 0.362 | 1.69x | OK |
+| unet_modern | 1.164545 | 1.164545 | 0.561 | 0.403 | 1.39x | OK |
+
+`Accel` = `CUDA_wall / nntile_wall`.
+
 **Takeaways for demos**
 
 1. **Correctness:** losses match on CPU and nntile for every model above
@@ -133,6 +150,8 @@ extra nntile column.
 2. **Timing at this scale:** Accel@1 is only **0.4–0.7×**; `ncpu=2` does
    not help. Middle CNN recipes raise Accel toward **0.7–0.9×** — see
    [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
+   Single-GPU CUDA vs nntile:
+   [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + config dict + seed / step).
    Use `compare` for relative Frobenius norms.
@@ -141,6 +160,8 @@ extra nntile column.
 
 - Middle (~1 min) overhead table:
   [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md)
+- Single-GPU CUDA vs nntile:
+  [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md)
 - Measurement protocol (CPU / GPU):
   [reproducibility.md](reproducibility.md)
 - HF language-model counterpart:

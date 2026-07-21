@@ -125,43 +125,38 @@ Results summary: [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_
 Goal: see whether `device=nntile` shows overhead vs torch on a GPU host, and
 whether middle-sized work still amortizes that overhead.
 
+Documented single-GPU results:
+[torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md)
+(`bench_torch_native_cuda_vs_nntile.py`).
+
 1. Build with `USE_CUDA=ON` and install the matching CUDA `torch==2.9.1`.
 2. Keep host BLAS single-threaded (`OMP_NUM_THREADS=1`, …) so CPU prep does
    not hide device time.
-3. Compare **three** runs with the same middle config / seed / steps:
+3. Compare **torch CUDA** vs **nntile CUDA workers** with the same config /
+   seed / steps (TF32 off for FP32 parity):
 
 | Run | Command sketch |
 |-----|----------------|
-| Torch CUDA | `--device cuda` (GPT-2 HF already; for HF/CNN/DiT commons add a cuda device if needed, or use GPT-2 / a thin cuda wrapper) |
+| Torch CUDA | `--device cuda` (optionally `--disable-tf32`) |
 | Nntile CUDA workers | `--device nntile --ncpu 0 --ncuda 1 --restrict-cuda` |
-| Nntile CPU worker (control) | `--device nntile --ncpu 1 --ncuda 0 --restrict-cpu` |
 
-Example (GPT-2 middle)::
+Batch helper::
 
 ```bash
-python torch_nntile/examples/train_gpt2_hf.py train \
-  --device cuda --seed 0 \
-  --config torch_nntile/examples/gpt2_hf_middle_config.json \
-  --epochs 1 --seq-len 256 --batch-size 8 --max-sequences 192 \
-  --output-dir /tmp/gpt2_cuda --no-shuffle --disable-tf32
-
-python torch_nntile/examples/train_gpt2_hf.py train \
-  --device nntile --seed 0 \
-  --config torch_nntile/examples/gpt2_hf_middle_config.json \
-  --epochs 1 --seq-len 256 --batch-size 8 --max-sequences 192 \
-  --ncpu 0 --ncuda 1 --restrict-cuda \
-  --output-dir /tmp/gpt2_nntile_cuda --no-shuffle
+export CUDA_VISIBLE_DEVICES=1
+export LD_LIBRARY_PATH=$PWD/install/lib:$LD_LIBRARY_PATH
+python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
+  --suite tiny --families hf,cnn,dit
+python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
+  --suite middle --families hf,cnn,dit
 ```
 
-HF / CNN / DiT commons accept `--ncuda` / `--restrict-cuda` the same way
-(they currently expose `cpu` and `nntile` devices; use GPT-2 HF or a local
-`--device cuda` fork when you need a pure torch CUDA baseline for those
-models).
+HF / CNN / DiT commons accept `--device cuda` / `--ncuda` /
+`--restrict-cuda` the same way as GPT-2 HF.
 
-4. Record: host model / CUDA driver / torch build, printed train walls, final
-   losses, and `nntile/torch` ratio. Attach a short table next to the CPU
-   middle results in
-   [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
+4. Record: host model / CUDA driver / torch build, printed train walls,
+   final losses, and `CUDA/nntile` Accel. Update
+   [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 
 ## Recording a new machine
 
