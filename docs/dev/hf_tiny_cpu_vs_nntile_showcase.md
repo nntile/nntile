@@ -127,6 +127,26 @@ extra nntile column.
 `nntile₁ / nntile₂`. Values **<1** mean nntile is slower (expected at
 this tiny scale).
 
+## Results (CUDA vs nntile, `ncuda=1` / `ncuda=2`)
+
+Same tiny recipes on NVIDIA A40 (2026-07-21). `ncuda=1` uses
+`CUDA_VISIBLE_DEVICES=1`; `ncuda=2` uses `CUDA_VISIBLE_DEVICES=1,2`.
+Full Accel tables (tiny + middle):
+[torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
+
+| Model | CUDA (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---|
+| gpt2 | 0.546 | 0.222 | 0.223 | 2.46x | 2.45x | 1.00x | OK |
+| gpt-neo | 0.250 | 0.213 | 0.233 | 1.17x | 1.07x | 0.91x | OK |
+| gpt-neox | 0.223 | 0.262 | 0.287 | 0.85x | 0.78x | 0.91x | OK |
+| llama | 0.265 | 0.274 | 0.624 | 0.97x | 0.42x | 0.44x | OK |
+| bert | 0.216 | 0.215 | 0.242 | 1.00x | 0.89x | 0.89x | OK |
+| roberta | 0.213 | 0.217 | 0.337 | 0.98x | 0.63x | 0.64x | OK |
+| t5 | 0.317 | 0.344 | 0.349 | 0.92x | 0.91x | 0.99x | OK |
+
+`Accel@k` = `CUDA_wall / nntile_ncudak_wall`; `Accel(1→2)` =
+`nntile₁ / nntile₂`. Losses match CUDA vs nntile.
+
 **Takeaways for demos**
 
 1. **Correctness:** losses match on CPU and nntile for every model above.
@@ -135,6 +155,8 @@ this tiny scale).
    (`Accel(1→2) ≤ 1`). Middle-sized recipes raise Accel toward **1×**
    and beyond — see
    [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md).
+   Single-GPU CUDA vs nntile:
+   [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 3. **Checkpoints:** each successful `--output-dir` run writes
    `checkpoint.pt` (`model_state_dict` + HF `config` dict + seed /
    step). Use `compare` for relative Frobenius norms.
@@ -162,6 +184,8 @@ symbols; use a full torch_nntile extension build (CI wheel or local
 
 - Middle (~1 min) overhead table:
   [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md)
+- Single-GPU CUDA vs nntile:
+  [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md)
 - Measurement protocol (CPU / GPU):
   [reproducibility.md](reproducibility.md)
 - CNN counterpart: [cnn_tiny_cpu_vs_nntile_showcase.md](cnn_tiny_cpu_vs_nntile_showcase.md)

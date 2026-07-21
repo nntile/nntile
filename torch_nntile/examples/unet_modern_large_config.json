@@ -1,0 +1,10 @@
+{
+  "_comment": "Large modern U-Net (~1 min torch CUDA train on A40; bigger than middle)",
+  "in_channels": 1,
+  "num_classes": 3,
+  "height": 256,
+  "width": 256,
+  "base_channels": 64,
+  "depth": 4,
+  "upsample_mode": "bilinear"
+}

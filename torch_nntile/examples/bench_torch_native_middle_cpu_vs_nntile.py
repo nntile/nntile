@@ -117,8 +117,12 @@ def _build_cmd(
             str(out_dir),
             "--no-shuffle",
         ]
+        if device == "cuda":
+            cmd.append("--disable-tf32")
         if device == "nntile" and ncuda == 0:
             cmd.append("--restrict-cpu")
+        elif device == "nntile" and ncuda > 0:
+            cmd.append("--restrict-cuda")
         return cmd
 
     cmd = [
@@ -148,6 +152,8 @@ def _build_cmd(
         cmd.extend(["--dataset-split", str(recipe["dataset_split"])])
     if device == "nntile" and ncuda == 0:
         cmd.append("--restrict-cpu")
+    elif device == "nntile" and ncuda > 0:
+        cmd.append("--restrict-cuda")
     return cmd
 
 
@@ -215,6 +221,7 @@ def format_family_table(
     family: str,
     results: list[RunResult],
     order: list[str],
+    devices: list[str],
 ) -> str:
     by_name: dict[str, dict[str, RunResult]] = {}
     for r in results:
@@ -222,50 +229,67 @@ def format_family_table(
             continue
         by_name.setdefault(r.name, {})[r.device] = r
 
+    # Prefer cuda vs nntile column labels when those are the pair.
+    if devices == ["cuda", "nntile"] or (
+        "cuda" in devices and "nntile" in devices and "cpu" not in devices
+    ):
+        left, right = "cuda", "nntile"
+        left_h, right_h = "CUDA", "nntile"
+        ratio_h = "nntile/CUDA"
+    elif len(devices) >= 2:
+        left, right = devices[0], devices[1]
+        left_h, right_h = left, right
+        ratio_h = f"{right}/{left}"
+    else:
+        left, right = "cpu", "nntile"
+        left_h, right_h = "CPU", "nntile"
+        ratio_h = "nntile/CPU"
+
     lines = [
         f"### {family}",
         "",
-        "| Model | steps | batch | seq | CPU loss | nntile loss | "
-        "CPU wall (s) | nntile wall (s) | nntile/CPU | Δ loss | Status |",
+        f"| Model | steps | batch | seq | {left_h} loss | {right_h} loss | "
+        f"{left_h} wall (s) | {right_h} wall (s) | {ratio_h} | "
+        "Δ loss | Status |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for name in order:
         row = by_name.get(name, {})
-        cpu = row.get("cpu")
-        nnt = row.get("nntile")
-        if cpu is None or nnt is None:
+        a = row.get(left)
+        b = row.get(right)
+        if a is None or b is None:
             lines.append(
                 f"| {name} | — | — | — | — | — | — | — | — | — | "
                 "incomplete |"
             )
             continue
-        recipe = cpu.recipe
+        recipe = a.recipe
         steps = recipe.get("steps", "—")
         batch = recipe.get("batch_size", "—")
         seq = recipe.get("seq_len", "—")
-        if not cpu.ok or not nnt.ok:
+        if not a.ok or not b.ok:
             status = "FAIL"
-            if not cpu.ok:
-                status += " cpu"
-            if not nnt.ok:
-                status += " nntile"
+            if not a.ok:
+                status += f" {left}"
+            if not b.ok:
+                status += f" {right}"
             lines.append(
                 f"| {name} | {steps} | {batch} | {seq} | "
-                f"{cpu.loss if cpu.loss is not None else '—'} | "
-                f"{nnt.loss if nnt.loss is not None else '—'} | "
-                f"{(cpu.wall_s or float('nan')):.3f} | "
-                f"{(nnt.wall_s or float('nan')):.3f} | — | — | "
+                f"{a.loss if a.loss is not None else '—'} | "
+                f"{b.loss if b.loss is not None else '—'} | "
+                f"{(a.wall_s or float('nan')):.3f} | "
+                f"{(b.wall_s or float('nan')):.3f} | — | — | "
                 f"{status} |"
             )
             continue
-        assert cpu.loss is not None and nnt.loss is not None
-        assert cpu.wall_s is not None and nnt.wall_s is not None
-        ratio = nnt.wall_s / max(cpu.wall_s, 1e-12)
-        dloss = abs(cpu.loss - nnt.loss)
+        assert a.loss is not None and b.loss is not None
+        assert a.wall_s is not None and b.wall_s is not None
+        ratio = b.wall_s / max(a.wall_s, 1e-12)
+        dloss = abs(a.loss - b.loss)
         lines.append(
             f"| {name} | {steps} | {batch} | {seq} | "
-            f"{cpu.loss:.6f} | {nnt.loss:.6f} | "
-            f"{cpu.wall_s:.3f} | {nnt.wall_s:.3f} | "
+            f"{a.loss:.6f} | {b.loss:.6f} | "
+            f"{a.wall_s:.3f} | {b.wall_s:.3f} | "
             f"{ratio:.2f}x | {dloss:.3e} | OK |"
         )
     return "\n".join(lines)
@@ -366,14 +390,21 @@ def main(argv: list[str] | None = None) -> int:
                 if not r.ok and r.stderr_tail:
                     print(f"    stderr_tail:\n{r.stderr_tail}", flush=True)
                 results.append(r)
-        sections.append(format_family_table(family, results, order))
+        sections.append(
+            format_family_table(family, results, order, devices)
+        )
 
+    if "cuda" in devices and "cpu" not in devices:
+        title = "Middle torch-native CUDA vs nntile"
+    else:
+        title = "Middle torch-native CPU vs nntile"
     header = (
-        "# Middle torch-native CPU vs nntile\n\n"
+        f"# {title}\n\n"
         f"protocol ncpu={protocol.get('ncpu')} "
         f"ncuda={protocol.get('ncuda')} "
         f"seed={protocol.get('seed')} "
-        f"host_threads={protocol.get('host_threads', 1)}\n"
+        f"host_threads={protocol.get('host_threads', 1)} "
+        f"devices={','.join(devices)}\n"
     )
     table = header + "\n\n".join(sections) + "\n"
     print("\n" + table)

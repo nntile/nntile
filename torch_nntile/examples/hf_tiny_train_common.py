@@ -2,7 +2,7 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/examples/hf_tiny_train_common.py
-# Shared helpers for tiny HuggingFace stock-model smokes on nntile/cpu.
+# Shared helpers for tiny HuggingFace stock-model smokes on cpu/cuda/nntile.
 
 """Shared tiny HF train loop with JSON config / checkpoint support.
 
@@ -47,6 +47,22 @@ def configure_single_thread_host() -> None:
     except RuntimeError:
         # May already be set after the first parallel op.
         pass
+
+
+def configure_tf32(*, disable_tf32: bool) -> None:
+    """Optionally disable TF32 for full FP32 matmul parity vs nntile."""
+    if not disable_tf32:
+        return
+    if hasattr(torch.backends, "cuda"):
+        torch.backends.cuda.matmul.allow_tf32 = False
+    if hasattr(torch.backends, "cudnn"):
+        torch.backends.cudnn.allow_tf32 = False
+    print(
+        "TF32 disabled (cuda.matmul.allow_tf32=False, "
+        "cudnn.allow_tf32=False)"
+    )
+
+
 BatchBuilder = Callable[
     [Any, argparse.Namespace],
     dict[str, torch.Tensor],
@@ -180,7 +196,7 @@ def add_train_compare_subparsers(
     parser: argparse.ArgumentParser,
     *,
     default_config: Path,
-    devices: tuple[str, ...] = ("cpu", "nntile"),
+    devices: tuple[str, ...] = ("cpu", "cuda", "nntile"),
 ) -> None:
     """Attach ``train`` / ``compare`` like ``train_gpt2_hf.py``."""
     sub = parser.add_subparsers(dest="command", required=True)
@@ -246,6 +262,11 @@ def add_train_compare_subparsers(
         "--cpu-fallback",
         action="store_true",
         help="Allow unregistered aten ops to fall back to CPU",
+    )
+    train.add_argument(
+        "--disable-tf32",
+        action="store_true",
+        help="Disable TF32 for full FP32 matmul (cuda / nntile CUDA)",
     )
 
     compare = sub.add_parser(
@@ -438,21 +459,38 @@ def run_tiny_hf_train(
 ) -> int:
     """Run a few train steps; optionally save ``checkpoint.pt``."""
     configure_single_thread_host()
+    if (
+        getattr(args, "disable_tf32", False)
+        or args.device == "cuda"
+        or int(getattr(args, "ncuda", 0)) > 0
+    ):
+        # Disable TF32 on cuda / nntile CUDA so losses match full FP32.
+        configure_tf32(disable_tf32=True)
     print(
         f"=== {name} tiny HF smoke  device={args.device}  "
         f"config_seed={seed} ==="
     )
     batch_cpu = build_batch(config, args)
 
-    if args.device == "cpu":
+    if args.device in ("cpu", "cuda"):
+        if args.device == "cuda" and not torch.cuda.is_available():
+            print("FAIL: CUDA is not available")
+            return 1
+        device = torch.device(args.device)
+        with torch.no_grad():
+            batch = {k: v.to(device) for k, v in batch_cpu.items()}
+            model = model.to(device)
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
         code = _train_loop(
             name=name,
             model=model,
-            batch={k: v.clone() for k, v in batch_cpu.items()},
+            batch=batch,
             loss_fn=loss_fn,
             steps=args.steps,
             lr=args.lr,
             nntile=False,
+            sync_cuda=device.type == "cuda",
         )
         if code == 0 and args.output_dir:
             save_checkpoint(
@@ -462,7 +500,7 @@ def run_tiny_hf_train(
                 seed=seed,
                 epoch=0,
                 global_step=global_step + args.steps,
-                device_name="cpu",
+                device_name=args.device,
             )
         return code
 
@@ -528,6 +566,7 @@ def _train_loop(
     steps: int,
     lr: float,
     nntile: bool = False,
+    sync_cuda: bool = False,
 ) -> int:
     torch_nntile = None
     if nntile:
@@ -551,8 +590,11 @@ def _train_loop(
         if torch_nntile is not None:
             loss_val = float(loss.detach().cpu())
         else:
-            loss_val = float(loss.detach())
+            # .item() synchronizes CUDA (fair vs nntile loss readout).
+            loss_val = float(loss.detach().item())
         print(f"[{name}] step {step + 1}/{steps}  loss={loss_val:.6f}")
+    if sync_cuda:
+        torch.cuda.synchronize()
     print(f"[{name}] wall={time.perf_counter() - t0:.3f}s  OK")
     return 0
 
