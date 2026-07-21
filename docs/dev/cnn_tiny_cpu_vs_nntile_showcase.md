@@ -126,22 +126,24 @@ extra nntile column.
 `Accel@k` = `CPU_wall / nntile_ncpuk_wall`; `Accel(1→2)` =
 `nntile₁ / nntile₂`.
 
-## Results (CUDA vs nntile, single GPU)
+## Results (CUDA vs nntile, `ncuda=1` / `ncuda=2`)
 
-Same tiny recipes on NVIDIA A40 (`CUDA_VISIBLE_DEVICES=1`,
-`--ncpu 0 --ncuda 1 --restrict-cuda`, TF32 off, date 2026-07-21). Full
-table: [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
+Same tiny recipes on NVIDIA A40 (2026-07-21). `ncuda=1` uses
+`CUDA_VISIBLE_DEVICES=1`; `ncuda=2` uses `CUDA_VISIBLE_DEVICES=1,2`.
+Full Accel tables:
+[torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 
-| Model | CUDA loss | nntile loss | CUDA (s) | nntile (s) | Accel | Status |
-|---|---:|---:|---:|---:|---:|---|
-| lenet | 2.230573 | 2.230573 | 0.557 | 0.297 | 1.87x | OK |
-| resnet | 1.905450 | 1.905450 | 0.700 | 0.283 | 2.47x | OK |
-| vgg | 2.474704 | 2.474704 | 0.624 | 0.295 | 2.12x | OK |
-| mobilenet | 2.080944 | 2.080944 | 0.340 | 0.286 | 1.19x | OK |
-| unet | 1.160912 | 1.160912 | 0.613 | 0.362 | 1.69x | OK |
-| unet_modern | 1.164545 | 1.164545 | 0.561 | 0.403 | 1.39x | OK |
+| Model | CUDA (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---|
+| lenet | 0.557 | 0.297 | 0.279 | 1.87x | 2.00x | 1.06x | OK |
+| resnet | 0.700 | 0.283 | 0.277 | 2.47x | 2.53x | 1.02x | OK |
+| vgg | 0.624 | 0.295 | 0.688 | 2.12x | 0.91x | 0.43x | OK |
+| mobilenet | 0.340 | 0.286 | 0.649 | 1.19x | 0.52x | 0.44x | OK |
+| unet | 0.613 | 0.362 | 0.730 | 1.69x | 0.84x | 0.50x | OK |
+| unet_modern | 0.561 | 0.403 | 0.396 | 1.39x | 1.42x | 1.02x | OK |
 
-`Accel` = `CUDA_wall / nntile_wall`.
+`Accel@k` = `CUDA_wall / nntile_ncudak_wall`; `Accel(1→2)` =
+`nntile₁ / nntile₂`. Losses match CUDA vs nntile.
 
 **Takeaways for demos**
 

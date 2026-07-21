@@ -127,23 +127,25 @@ extra nntile column.
 `nntile₁ / nntile₂`. Values **<1** mean nntile is slower (expected at
 this tiny scale).
 
-## Results (CUDA vs nntile, single GPU)
+## Results (CUDA vs nntile, `ncuda=1` / `ncuda=2`)
 
-Same tiny recipes on NVIDIA A40 (`CUDA_VISIBLE_DEVICES=1`,
-`--ncpu 0 --ncuda 1 --restrict-cuda`, TF32 off, date 2026-07-21). Full
-table (tiny + middle): [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
+Same tiny recipes on NVIDIA A40 (2026-07-21). `ncuda=1` uses
+`CUDA_VISIBLE_DEVICES=1`; `ncuda=2` uses `CUDA_VISIBLE_DEVICES=1,2`.
+Full Accel tables (tiny + middle):
+[torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 
-| Model | CUDA loss | nntile loss | CUDA (s) | nntile (s) | Accel | Status |
-|---|---:|---:|---:|---:|---:|---|
-| gpt2 | 5.552704 | 5.552704 | 0.546 | 0.222 | 2.46x | OK |
-| gpt-neo | 4.827158 | 4.827158 | 0.250 | 0.213 | 1.17x | OK |
-| gpt-neox | 4.835960 | 4.835960 | 0.223 | 0.262 | 0.85x | OK |
-| llama | 4.915325 | 4.915325 | 0.265 | 0.274 | 0.97x | OK |
-| bert | 4.833462 | 4.833462 | 0.216 | 0.215 | 1.00x | OK |
-| roberta | 4.735972 | 4.735972 | 0.213 | 0.217 | 0.98x | OK |
-| t5 | 5.692081 | 5.692081 | 0.317 | 0.344 | 0.92x | OK |
+| Model | CUDA (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---|
+| gpt2 | 0.546 | 0.222 | 0.223 | 2.46x | 2.45x | 1.00x | OK |
+| gpt-neo | 0.250 | 0.213 | 0.233 | 1.17x | 1.07x | 0.91x | OK |
+| gpt-neox | 0.223 | 0.262 | 0.287 | 0.85x | 0.78x | 0.91x | OK |
+| llama | 0.265 | 0.274 | 0.624 | 0.97x | 0.42x | 0.44x | OK |
+| bert | 0.216 | 0.215 | 0.242 | 1.00x | 0.89x | 0.89x | OK |
+| roberta | 0.213 | 0.217 | 0.337 | 0.98x | 0.63x | 0.64x | OK |
+| t5 | 0.317 | 0.344 | 0.349 | 0.92x | 0.91x | 0.99x | OK |
 
-`Accel` = `CUDA_wall / nntile_wall`. Losses match; walls stay sub-second.
+`Accel@k` = `CUDA_wall / nntile_ncudak_wall`; `Accel(1→2)` =
+`nntile₁ / nntile₂`. Losses match CUDA vs nntile.
 
 **Takeaways for demos**
 

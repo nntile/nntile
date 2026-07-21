@@ -110,17 +110,19 @@ extra nntile column.
 `Accel@k` = `CPU_wall / nntile_ncpuk_wall`; `Accel(1→2)` =
 `nntile₁ / nntile₂`.
 
-## Results (CUDA vs nntile, single GPU)
+## Results (CUDA vs nntile, `ncuda=1` / `ncuda=2`)
 
-Same tiny recipe on NVIDIA A40 (`CUDA_VISIBLE_DEVICES=1`,
-`--ncpu 0 --ncuda 1 --restrict-cuda`, TF32 off, date 2026-07-21). Full
-table: [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
+Same tiny recipe on NVIDIA A40 (2026-07-21). `ncuda=1` uses
+`CUDA_VISIBLE_DEVICES=1`; `ncuda=2` uses `CUDA_VISIBLE_DEVICES=1,2`.
+Full Accel tables:
+[torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 
-| Model | CUDA loss | nntile loss | CUDA (s) | nntile (s) | Accel | Status |
-|---|---:|---:|---:|---:|---:|---|
-| dit | 1.603470 | 1.603470 | 0.559 | 0.395 | 1.42x | OK |
+| Model | CUDA (s) | nntile₁ (s) | nntile₂ (s) | Accel@1 | Accel@2 | Accel(1→2) | Status |
+|---|---:|---:|---:|---:|---:|---:|---|
+| dit | 0.559 | 0.395 | 0.399 | 1.42x | 1.40x | 0.99x | OK |
 
-`Accel` = `CUDA_wall / nntile_wall`.
+`Accel@k` = `CUDA_wall / nntile_ncudak_wall`; `Accel(1→2)` =
+`nntile₁ / nntile₂`. Losses match CUDA vs nntile.
 
 **Takeaways for demos**
 

@@ -171,7 +171,8 @@ def _build_cmd(
     output_root: Path,
 ) -> list[str]:
     script = here / str(recipe["script"])
-    out_dir = output_root / family / f"{name}_{device}"
+    ncuda_tag = f"_ncuda{ncuda}" if device == "nntile" else ""
+    out_dir = output_root / family / f"{name}_{device}{ncuda_tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
     steps = int(recipe["steps"])
     batch_size = int(recipe["batch_size"])
@@ -391,6 +392,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ncpu", type=int, default=0)
     p.add_argument("--ncuda", type=int, default=1)
     p.add_argument(
+        "--devices",
+        default="cuda,nntile",
+        help="Comma-separated devices (default: cuda,nntile)",
+    )
+    p.add_argument(
         "--output-root",
         default="/tmp/torch_native_cuda_vs_nntile",
     )
@@ -406,10 +412,10 @@ def main(argv: list[str] | None = None) -> int:
 
     families = [f.strip() for f in args.families.split(",") if f.strip()]
     only = {x.strip() for x in args.only.split(",") if x.strip()}
+    devices = [d.strip() for d in args.devices.split(",") if d.strip()]
     output_root = Path(args.output_root) / args.suite
     output_root.mkdir(parents=True, exist_ok=True)
     env = _host_env()
-    devices = ("cuda", "nntile")
 
     results: list[RunResult] = []
     sections: list[str] = []
@@ -452,12 +458,40 @@ def main(argv: list[str] | None = None) -> int:
                 if not r.ok and r.stderr_tail:
                     print(f"    stderr_tail:\n{r.stderr_tail}", flush=True)
                 results.append(r)
-        sections.append(format_family_table(family, results, order))
+        if "cuda" in devices and "nntile" in devices:
+            sections.append(format_family_table(family, results, order))
+        else:
+            # Single-device dump (e.g. nntile-only ncuda=2 follow-up).
+            lines = [
+                f"### {family}",
+                "",
+                "| Model | steps | batch | seq | device | loss | "
+                "wall (s) | Status |",
+                "|---|---:|---:|---:|---|---:|---:|---|",
+            ]
+            by_name: dict[str, list[RunResult]] = {}
+            for r in results:
+                if r.family != family:
+                    continue
+                by_name.setdefault(r.name, []).append(r)
+            for name in order:
+                for r in by_name.get(name, []):
+                    recipe = r.recipe
+                    lines.append(
+                        f"| {name} | {recipe.get('steps', '—')} | "
+                        f"{recipe.get('batch_size', '—')} | "
+                        f"{recipe.get('seq_len', '—')} | {r.device} | "
+                        f"{r.loss if r.loss is not None else '—'} | "
+                        f"{(r.wall_s or float('nan')):.3f} | "
+                        f"{'OK' if r.ok else 'FAIL'} |"
+                    )
+            sections.append("\n".join(lines))
 
     header = (
         f"# {args.suite.capitalize()} torch-native CUDA vs nntile\n\n"
         f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', '')} "
-        f"ncpu={args.ncpu} ncuda={args.ncuda} seed={args.seed}\n"
+        f"ncpu={args.ncpu} ncuda={args.ncuda} seed={args.seed} "
+        f"devices={','.join(devices)}\n"
     )
     table = header + "\n\n".join(sections) + "\n"
     print("\n" + table)
