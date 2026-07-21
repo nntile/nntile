@@ -143,19 +143,27 @@ Documented single-GPU results:
 Batch helper::
 
 ```bash
+# One GPU: cuda vs nntile ncuda=1
 export CUDA_VISIBLE_DEVICES=1
 export LD_LIBRARY_PATH=$PWD/install/lib:$LD_LIBRARY_PATH
 python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
-  --suite tiny --families hf,cnn,dit
+  --suite tiny --families hf,cnn,dit --ncpu 0 --ncuda 1
 python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
-  --suite middle --families hf,cnn,dit
+  --suite middle --families hf,cnn,dit --ncpu 0 --ncuda 1
+
+# Two GPUs: nntile ncuda=2 (compare Accel@2 / Accel(1→2) in the doc)
+export CUDA_VISIBLE_DEVICES=1,2
+python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
+  --suite tiny --families hf,cnn,dit --devices nntile --ncpu 0 --ncuda 2
+python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
+  --suite middle --families hf,cnn,dit --devices nntile --ncpu 0 --ncuda 2
 ```
 
 HF / CNN / DiT commons accept `--device cuda` / `--ncuda` /
 `--restrict-cuda` the same way as GPT-2 HF.
 
 4. Record: host model / CUDA driver / torch build, printed train walls,
-   final losses, and `CUDA/nntile` Accel. Update
+   final losses, and Accel@1 / Accel@2 / Accel(1→2). Update
    [torch_native_cuda_vs_nntile.md](torch_native_cuda_vs_nntile.md).
 
 ## Recording a new machine
