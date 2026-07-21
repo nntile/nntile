@@ -3,12 +3,15 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py
-# Tiny + middle torch-native CUDA vs nntile (single GPU) benches.
+# Tiny / middle / large torch-native CUDA vs nntile (GPU) benches.
 
 """Compare ``--device cuda`` vs ``--device nntile`` (``ncuda=1``).
 
 Tiny defaults match the CPU showcase smokes; middle uses
-``torch_native_middle_recipes.json``.
+``torch_native_middle_recipes.json`` (``*_middle_config.json``, larger
+models + inputs, ~1 min on one CPU core). Large uses
+``torch_native_large_recipes.json`` (``*_large_config.json``, still larger
+models + longer / bigger inputs, ~1 min torch CUDA on NVIDIA A40).
 
 Example::
 
@@ -20,6 +23,10 @@ Example::
     python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \\
         --suite middle --families hf,cnn,dit \\
         --markdown-out /tmp/torch_native_middle_cuda.md
+    # Large: bigger models/inputs than middle; CUDA-sized (~1 min/train)
+    python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \\
+        --suite large --families hf,cnn,dit --devices cuda \\
+        --markdown-out /tmp/torch_native_large_cuda.md
 """
 
 from __future__ import annotations
@@ -374,17 +381,24 @@ def format_family_table(
 def main(argv: list[str] | None = None) -> int:
     here = Path(__file__).resolve().parent
     default_middle = here / "torch_native_middle_recipes.json"
+    default_large = here / "torch_native_large_recipes.json"
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--suite",
-        choices=("tiny", "middle"),
+        choices=("tiny", "middle", "large"),
         default="tiny",
-        help="tiny showcase smokes or middle recipes",
+        help=(
+            "tiny showcase smokes, middle (~1 min CPU), or large "
+            "(~1 min CUDA on A40)"
+        ),
     )
     p.add_argument(
         "--recipes",
-        default=str(default_middle),
-        help="Middle recipes JSON (ignored for --suite tiny)",
+        default="",
+        help=(
+            "Recipes JSON for --suite middle/large "
+            "(default: torch_native_{suite}_recipes.json; ignored for tiny)"
+        ),
     )
     p.add_argument("--families", default="hf,cnn,dit")
     p.add_argument("--only", default="")
@@ -406,9 +420,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.suite == "tiny":
         recipes_doc: dict[str, Any] = dict(TINY_RECIPES)
     else:
-        recipes_doc = json.loads(
-            Path(args.recipes).read_text(encoding="utf-8")
+        recipes_path = Path(args.recipes) if args.recipes else (
+            default_large if args.suite == "large" else default_middle
         )
+        recipes_doc = json.loads(recipes_path.read_text(encoding="utf-8"))
 
     families = [f.strip() for f in args.families.split(",") if f.strip()]
     only = {x.strip() for x in args.only.split(",") if x.strip()}

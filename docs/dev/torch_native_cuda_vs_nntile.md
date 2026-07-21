@@ -30,9 +30,12 @@ export CUDA_VISIBLE_DEVICES=1,2
 python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
   --suite tiny --families hf,cnn,dit --devices nntile --ncpu 0 --ncuda 2
 
-# Same for middle recipes
+# Same for middle / large recipes
 python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
   --suite middle --families hf,cnn,dit --ncpu 0 --ncuda 1
+# Large: ~1 min torch CUDA / model on A40 (*_large_config.json)
+python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
+  --suite large --families hf,cnn,dit --devices cuda --ncpu 0 --ncuda 1
 export CUDA_VISIBLE_DEVICES=1,2
 python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
   --suite middle --families hf,cnn,dit --devices nntile --ncpu 0 --ncuda 2
@@ -41,6 +44,17 @@ python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
 HF / CNN / DiT train commons accept `--device cuda` the same way as GPT-2
 HF. Walls are **train-loop only** (printed `wall=…s` / GPT-2
 `timing … train wall`).
+
+Suite ladder (separate configs — not only more steps):
+
+| Suite | Configs | Example GPT-2 size |
+|-------|---------|-------------------|
+| tiny | `*_tiny_config.json` | `n_embd=64`, `seq=16` |
+| middle | `*_middle_config.json` | `n_embd=512`, `seq=256` |
+| large | `*_large_config.json` | `n_embd=1024`, `seq=1024` |
+
+Large recipes:
+[`torch_native_large_recipes.json`](../../torch_nntile/examples/torch_native_large_recipes.json).
 
 ## Host
 
@@ -131,6 +145,35 @@ as the CPU middle suite).
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | dit | 12 | 8 | 1.220 | 12.006 | 12.720 | 0.10x | 0.10x | 0.94x | OK |
 
+## Large suite — CUDA sizing (~1 min / train on A40)
+
+Each suite uses a **different model config and input size**:
+
+| Suite | Config | Example GPT-2 | Example CNN | Example DiT |
+|-------|--------|---------------|-------------|-------------|
+| tiny | `*_tiny_config.json` | `n_embd=64`, `n_layer=2`, `seq=16` | 16×16 / 28×28 | `sample_size=16`, 2 layers |
+| middle | `*_middle_config.json` | `n_embd=512`, `n_layer=6`, `seq=256` | 128×128 | `sample_size=64`, 8 layers |
+| large | `*_large_config.json` | `n_embd=1024`, `n_layer=12`, `seq=1024` | 256×256 | `sample_size=128`, 16 layers |
+
+Large is **not** “middle + more steps”: recipes point at
+[`torch_native_large_recipes.json`](../../torch_nntile/examples/torch_native_large_recipes.json)
+(`*_large_config.json`, longer sequences / larger images). Steps were
+probed so each **torch CUDA** train-loop wall is ~60 s on A40
+(`CUDA_VISIBLE_DEVICES=1`).
+
+```bash
+export CUDA_VISIBLE_DEVICES=1
+python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
+  --suite large --families hf,cnn,dit --devices cuda --ncpu 0 --ncuda 1
+```
+
+Optional nntile compare uses the same large recipes
+(`--devices cuda,nntile`); expect much longer nntile walls until
+compile/sync overhead shrinks. Goal: show Accel approaching parity when
+math on large models/inputs dominates.
+
+Results: fill in after a large CUDA (and optional nntile) pass on A40.
+
 ## Takeaways
 
 1. **Correctness:** tiny losses match exactly; middle keeps the CPU
@@ -145,6 +188,9 @@ as the CPU middle suite).
    unlike several CPU middle HF models where `ncpu=2` beats `ncpu=1`.
    Untiled PrivateUse1 graphs do not yet benefit from a second GPU at
    these sizes.
+4. **Large suite:** `--suite large` uses `*_large_config.json` (bigger
+   models + inputs than middle), sized for ~1 min torch CUDA / train on
+   A40 — to check Accel as math dominates; nntile compare optional.
 
 ## Related
 

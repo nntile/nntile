@@ -11,10 +11,14 @@ PrivateUse1 aten ops are measured.
 
 ## What we measure
 
-| Suite | Purpose | Typical wall |
-|-------|---------|--------------|
-| **Tiny smoke** | Correctness + overhead-dominated timings | ≪1 s train loop |
-| **Middle** | Same recipes with larger models / batches so compute dominates | ~1 min train loop |
+| Suite | Purpose | Model / input size | Typical wall |
+|-------|---------|--------------------|--------------|
+| **Tiny smoke** | Correctness + overhead-dominated timings | `*_tiny_config.json` (e.g. GPT-2 `n_embd=64`, `seq=16`) | ≪1 s train loop |
+| **Middle** | Larger models + longer / bigger inputs so compute dominates on CPU | `*_middle_config.json` (e.g. GPT-2 `n_embd=512`, `seq=256`) | ~1 min (1 CPU core) |
+| **Large** | Still larger models + inputs (GPU overhead check) | `*_large_config.json` (e.g. GPT-2 `n_embd=1024`, `seq=1024`) | ~1 min (torch CUDA on A40) |
+
+Do **not** size suites by only raising `steps` / batch on the tiny
+config — each suite has its own JSON model config and input shape.
 
 Wall times are the printed **train-loop** times (`wall=…s` or GPT-2
 `timing … train wall`), **not** process elapsed (imports / HF init /
@@ -151,6 +155,11 @@ python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
 python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
   --suite middle --families hf,cnn,dit --ncpu 0 --ncuda 1
 
+# Large (~1 min torch CUDA / model on A40). Uses *_large_config.json
+# (bigger models + inputs than middle), not middle+more-steps.
+python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
+  --suite large --families hf,cnn,dit --devices cuda --ncpu 0 --ncuda 1
+
 # Two GPUs: nntile ncuda=2 (compare Accel@2 / Accel(1→2) in the doc)
 export CUDA_VISIBLE_DEVICES=1,2
 python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
@@ -159,8 +168,8 @@ python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
   --suite middle --families hf,cnn,dit --devices nntile --ncpu 0 --ncuda 2
 ```
 
-HF / CNN / DiT commons accept `--device cuda` / `--ncuda` /
-`--restrict-cuda` the same way as GPT-2 HF.
+Large recipes:
+[`torch_nntile/examples/torch_native_large_recipes.json`](../../torch_nntile/examples/torch_native_large_recipes.json)
 
 4. Record: host model / CUDA driver / torch build, printed train walls,
    final losses, and Accel@1 / Accel@2 / Accel(1→2). Update

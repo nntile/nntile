@@ -1,0 +1,10 @@
+{
+  "_comment": "Large LeNet (~1 min torch CUDA train on A40; bigger than middle)",
+  "in_channels": 1,
+  "num_classes": 10,
+  "height": 256,
+  "width": 256,
+  "conv1_channels": 128,
+  "conv2_channels": 256,
+  "fc_hidden": 1024
+}
