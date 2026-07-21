@@ -157,9 +157,7 @@ Each suite uses a **different model config and input size**:
 
 Large is **not** “middle + more steps”: recipes point at
 [`torch_native_large_recipes.json`](../../torch_nntile/examples/torch_native_large_recipes.json)
-(`*_large_config.json`, longer sequences / larger images). Steps were
-probed so each **torch CUDA** train-loop wall is ~60 s on A40
-(`CUDA_VISIBLE_DEVICES=1`).
+(`*_large_config.json`, longer sequences / larger images).
 
 ```bash
 export CUDA_VISIBLE_DEVICES=1
@@ -169,10 +167,41 @@ python torch_nntile/examples/bench_torch_native_cuda_vs_nntile.py \
 
 Optional nntile compare uses the same large recipes
 (`--devices cuda,nntile`); expect much longer nntile walls until
-compile/sync overhead shrinks. Goal: show Accel approaching parity when
-math on large models/inputs dominates.
+compile/sync overhead shrinks.
 
-Results: fill in after a large CUDA (and optional nntile) pass on A40.
+### Large — torch CUDA walls (A40, `CUDA_VISIBLE_DEVICES=1`, 2026-07-21)
+
+Train-loop only (`wall=…s` / GPT-2 `timing … train wall`). TF32 off.
+`seed=0`. No nntile column yet (CUDA sizing pass).
+
+#### hf
+
+| Model | steps | batch | seq | CUDA loss | CUDA wall (s) | Status |
+|---|---:|---:|---:|---:|---:|---|
+| gpt2 | 128 | 4 | 1024 | 9.143137 | 57.735 | OK |
+| gpt-neo | 128 | 4 | 1024 | 6.642664 | 55.462 | OK |
+| gpt-neox | 176 | 4 | 1024 | 8.845222 | 53.781 | OK |
+| llama | 136 | 4 | 1024 | 8.157543 | 54.033 | OK |
+| bert | 144 | 4 | 1024 | 8.150368 | 55.159 | OK |
+| roberta | 128 | 4 | 1024 | 8.338555 | 48.820 | OK |
+| t5 | 260 | 2 | 512 | 8.683820 | 59.935 | OK |
+
+#### cnn
+
+| Model | steps | batch | CUDA loss | CUDA wall (s) | Status |
+|---|---:|---:|---:|---:|---|
+| lenet | 360 | 32 | 1.884146 | 60.373 | OK |
+| resnet | 64 | 16 | 1.775742 | 53.233 | OK |
+| vgg | 400 | 8 | 1.495887 | 59.388 | OK |
+| mobilenet | 600 | 16 | 0.007413 | 59.285 | OK |
+| unet | 800 | 4 | 1.062149 | 59.051 | OK |
+| unet_modern | 720 | 4 | 1.062878 | 56.881 | OK |
+
+#### dit
+
+| Model | steps | batch | CUDA loss | CUDA wall (s) | Status |
+|---|---:|---:|---:|---:|---|
+| dit | 48 | 4 | 0.962553 | 61.712 | OK |
 
 ## Takeaways
 
@@ -188,9 +217,10 @@ Results: fill in after a large CUDA (and optional nntile) pass on A40.
    unlike several CPU middle HF models where `ncpu=2` beats `ncpu=1`.
    Untiled PrivateUse1 graphs do not yet benefit from a second GPU at
    these sizes.
-4. **Large suite:** `--suite large` uses `*_large_config.json` (bigger
-   models + inputs than middle), sized for ~1 min torch CUDA / train on
-   A40 — to check Accel as math dominates; nntile compare optional.
+4. **Large suite (CUDA):** measured A40 torch CUDA walls are ~50–60 s
+   for most HF models and DiT / ResNet; some CNN / T5 recipes still
+   under-shoot ~1 min (see large tables above). Nntile compare not run
+   yet on large.
 
 ## Related
 

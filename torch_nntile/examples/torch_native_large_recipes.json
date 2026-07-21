@@ -63,7 +63,7 @@
     "t5": {
       "script": "train_t5_hf.py",
       "config": "t5_hf_large_config.json",
-      "steps": 160,
+      "steps": 260,
       "seq_len": 512,
       "batch_size": 2
     }
@@ -72,7 +72,7 @@
     "lenet": {
       "script": "train_lenet_tiny.py",
       "config": "lenet_large_config.json",
-      "steps": 280,
+      "steps": 360,
       "batch_size": 32
     },
     "resnet": {
@@ -84,25 +84,25 @@
     "vgg": {
       "script": "train_vgg_tiny.py",
       "config": "vgg_large_config.json",
-      "steps": 288,
+      "steps": 400,
       "batch_size": 8
     },
     "mobilenet": {
       "script": "train_mobilenet_tiny.py",
       "config": "mobilenet_large_config.json",
-      "steps": 232,
+      "steps": 600,
       "batch_size": 16
     },
     "unet": {
       "script": "train_unet_tiny.py",
       "config": "unet_large_config.json",
-      "steps": 272,
+      "steps": 800,
       "batch_size": 4
     },
     "unet_modern": {
       "script": "train_unet_modern_tiny.py",
       "config": "unet_modern_large_config.json",
-      "steps": 368,
+      "steps": 720,
       "batch_size": 4
     }
   },
