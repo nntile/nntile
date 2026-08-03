@@ -131,17 +131,24 @@ class T5ForSequenceClassification(BaseModel):
         self.transformer = transformer
         self.classification_head = lm_head
 
+        # The encoder and the decoder may share a single Embedding layer. It
+        # must be listed once, else its weight gradient is accumulated twice
+        # and the optimizer reads a p.grad handle it has already invalidated
+        embedding_layers = [self.embedding]
+        embedding_activations = [self.embedding.activations_output[0]]
+        if self.embedding_decoder is not self.embedding:
+            embedding_layers.append(self.embedding_decoder)
+            embedding_activations.append(
+                self.embedding_decoder.activations_output[0]
+            )
+
         activations = (
             [x, decoder_x]
-            + [self.embedding.activations_output[0]]
+            + embedding_activations
             + transformer.activations[1:]
             + lm_head.activations[1:]
         )
-        layers = (
-            [self.embedding, self.embedding_decoder]
-            + transformer.layers
-            + lm_head.layers
-        )
+        layers = embedding_layers + transformer.layers + lm_head.layers
 
         super().__init__(activations, layers, transformer.config)
 
@@ -251,17 +258,23 @@ class T5ForConditionalGeneration(BaseModel):
         self.decoder_start_token_id = enc_config.decoder_start_token_id
         self.pad_token_id = enc_config.pad_token_id
 
+        # A shared Embedding must be listed once, see
+        # T5ForSequenceClassification.__init__
+        embedding_layers = [self.embedding]
+        embedding_activations = [self.embedding.activations_output[0]]
+        if self.embedding_decoder is not self.embedding:
+            embedding_layers.append(self.embedding_decoder)
+            embedding_activations.append(
+                self.embedding_decoder.activations_output[0]
+            )
+
         activations = (
             [x, decoder_x]
-            + [self.embedding.activations_output[0]]
+            + embedding_activations
             + transformer.activations[1:]
             + [lm_head.activations_output[0]]
         )
-        layers = (
-            [self.embedding, self.embedding_decoder]
-            + transformer.layers
-            + [lm_head]
-        )
+        layers = embedding_layers + transformer.layers + [lm_head]
 
         super().__init__(activations, layers, transformer.config)
 
@@ -295,7 +308,6 @@ class T5ForConditionalGeneration(BaseModel):
             embedding_layer.activations_output[0],
             config
         )
-        print(f"transformer.activations[-1].value.basetile_shape: {transformer.activations[-1].value.basetile_shape}")
         lm_head = Linear.from_torch(
             torch_model.lm_head,
             transformer.activations[-1],

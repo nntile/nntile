@@ -71,8 +71,13 @@ def relative_position_bucket_numpy(
     is_small = relative_position < max_exact
 
     # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
+    # Clamp before the log: entries below max_exact are discarded by np.where
+    # below, but log(0) would warn and cast -inf to an arbitrary int32
+    relative_position_large = np.maximum(
+        relative_position.astype(np.float32), max_exact
+    )
     relative_position_if_large = max_exact + (
-        np.log(relative_position.astype(np.float32) / max_exact)
+        np.log(relative_position_large / max_exact)
         / np.log(max_distance / max_exact)
         * (num_buckets - max_exact)
     ).astype(np.int32)

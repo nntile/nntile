@@ -20,6 +20,7 @@ import torch
 from transformers import T5Tokenizer
 from transformers.models.t5.modeling_t5 import (
     T5Config as T5ConfigTorch,
+    T5ForConditionalGeneration as T5ForConditionalGenerationTorch,
     T5ForSequenceClassification as T5ForSequenceClassificationTorch,
     T5Model as T5ModelTorch)
 
@@ -27,7 +28,8 @@ import nntile
 import nntile.functions
 import nntile.utils.constructors as nntc
 from nntile.model.t5_config import T5ConfigNNTile
-from nntile.model.t5_model import T5ForSequenceClassification, T5Model
+from nntile.model.t5_model import (
+    T5ForConditionalGeneration, T5ForSequenceClassification, T5Model)
 from nntile.tensor import TensorMoments, TensorTraits
 
 # NNTile dtype via corresponding Tensor type
@@ -460,6 +462,86 @@ class TestT5Model:
 
         # Clean up
         nntile_model.unregister()
+
+
+def test_conditional_generation_shared_embedding_backward(context, torch_rng):
+    """Test that the Embedding shared by the encoder and the decoder gets its
+    weight gradient accumulated exactly once"""
+    vocab_size, seq_len, n_batch = 128, 8, 2
+    torch_config = T5ConfigTorch(
+        vocab_size=vocab_size,
+        d_model=32,
+        d_kv=8,
+        d_ff=64,
+        num_layers=2,
+        num_heads=4,
+        dropout_rate=0.0,
+        dense_act_fn="gelu_new",
+        is_gated_act=True,
+        attn_implementation="eager",
+        decoder_start_token_id=0,
+        pad_token_id=0,
+        # NNTile keeps lm_head separate from the input embedding
+        tie_word_embeddings=False,
+    )
+    torch_model = T5ForConditionalGenerationTorch(torch_config)
+    torch_model.eval()
+
+    nntile_config = T5ConfigNNTile(
+        d_model=32,
+        d_model_tile=32,
+        d_kv=8,
+        d_kv_tile=8,
+        d_ff=64,
+        d_ff_tile=64,
+        n_head=4,
+        n_head_tile=4,
+        num_layers=2,
+        vocab_size=vocab_size,
+        is_gated_act=True,
+        dtype="fp32",
+    )
+
+    gen = np.random.default_rng(42)
+    ids_np = np.asfortranarray(
+        gen.integers(0, vocab_size, (seq_len, n_batch), dtype=np.int64)
+    )
+    x_traits = TensorTraits([seq_len, n_batch], [seq_len, n_batch])
+    x_distr = [0] * x_traits.grid.nelems
+    x_value = nntile.tensor.Tensor_int64(x_traits, x_distr)
+    x_value.from_array(ids_np)
+    x = TensorMoments(x_value, None, False)
+
+    nntile_model = T5ForConditionalGeneration.from_torch(
+        torch_model, x, x, nntile_config
+    )
+
+    assert len(nntile_model.layers) == len(set(map(id, nntile_model.layers)))
+    assert len(nntile_model.parameters) == len(
+        set(map(id, nntile_model.parameters))
+    )
+
+    dy_np = np.asfortranarray(
+        gen.standard_normal((vocab_size, seq_len, n_batch)).astype(np.float32)
+    )
+    nntile_model.clear_gradients()
+    nntile_model.forward_async()
+    nntile_model.activations[-1].grad.from_array(dy_np)
+    nntile_model.backward_async()
+
+    ids_torch = torch.tensor(ids_np.T.copy(), dtype=torch.long)
+    logits = torch_model(
+        input_ids=ids_torch, decoder_input_ids=ids_torch
+    ).logits
+    (logits * torch.tensor(dy_np.T.copy())).sum().backward()
+
+    rtol = dtype2tol["fp32"]["rtol"]
+    emb_grad = torch.tensor(nntc.to_numpy(nntile_model.embedding.w.grad)).T
+    ref_grad = torch_model.shared.weight.grad
+    assert torch.norm(emb_grad - ref_grad) <= rtol * torch.norm(ref_grad)
+
+    nntile_model.unregister()
+    x_value.unregister()
 
 
 @pytest.mark.benchmark
