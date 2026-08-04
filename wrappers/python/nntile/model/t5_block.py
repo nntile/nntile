@@ -209,7 +209,8 @@ class T5Block(BaseModel):
         self.attention = attention
         self.cross_attention = cross_attention
         self.feed_forward = feed_forward
-        layers = attention.layers
+        # Copy, so that attention.layers is not extended in place
+        layers = list(attention.layers)
         if cross_attention is not None:
             layers.extend(cross_attention.layers)
         layers.extend(feed_forward.layers)
@@ -217,7 +218,9 @@ class T5Block(BaseModel):
         activations = [x]
         activations.extend(attention.activations[1:])
         if cross_attention is not None:
-            activations.extend(cross_attention.activations)
+            # Skip [0] and [1]: the self-attention output is already listed
+            # above and the encoder output belongs to the encoder stack
+            activations.extend(cross_attention.activations[2:])
         activations.extend(feed_forward.activations[1:])
 
         super().__init__(activations, layers, config)

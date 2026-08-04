@@ -231,10 +231,12 @@ class TestT5Attention:
             params, dtype, is_cross_attn
         )
         cache_position = torch.arange(x.shape[1], dtype=torch.long, device=x.device)
+        # Index instead of unpacking: the length of T5Attention's output tuple
+        # differs across transformers releases
         if is_cross_attn:
-            y, _, _ = torch_layer(x, key_value_states=encoder_output_torch, cache_position=cache_position)
+            y = torch_layer(x, key_value_states=encoder_output_torch, cache_position=cache_position)[0]
         else:
-            y, _, _ = torch_layer(x, cache_position=cache_position)
+            y = torch_layer(x, cache_position=cache_position)[0]
 
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations_output[0].value).T)
@@ -259,9 +261,9 @@ class TestT5Attention:
 
         cache_position = torch.arange(x.shape[1], dtype=torch.long, device=x.device)
         if is_cross_attn:
-            y, _, _ = torch_layer(x, key_value_states=encoder_output_torch, cache_position=cache_position)
+            y = torch_layer(x, key_value_states=encoder_output_torch, cache_position=cache_position)[0]
         else:
-            y, _, _ = torch_layer(x, cache_position=cache_position)
+            y = torch_layer(x, cache_position=cache_position)[0]
 
         nntile_layer.forward_async()
         res = (y * y_grad).sum()
