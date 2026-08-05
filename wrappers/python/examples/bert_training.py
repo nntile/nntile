@@ -160,7 +160,7 @@ if args.intermediate_size_tile == -1:
 
 bert_config_nntile = BertConfigNNTile(
     vocab_size=model_torch.config.vocab_size,
-    vocab_embed_dim_tile=model_torch.config.hidden_size,
+    vocab_embed_dim_tile=args.hidden_size_tile,
     hidden_size=model_torch.config.hidden_size,
     hidden_size_tile=args.hidden_size_tile,
     max_position_embeddings=model_torch.config.max_position_embeddings,
@@ -182,6 +182,8 @@ bert_nntile = BertForMaskedLM_nntile.from_torch(model_torch,
                                                 args.seq_len,
                                                 args.seq_len_tile,
                                                 bert_config_nntile)
+n_params = sum(np.prod(p.value.shape) for p in bert_nntile.get_parameters() if p.grad is not None)
+print("Number of parameters: {}".format(n_params))
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
