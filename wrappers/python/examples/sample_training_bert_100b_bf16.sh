@@ -1,0 +1,3 @@
+python mlm_data_preparation.py --seq-len=256 --batch-size=1 --dataset-select=4
+
+STARPU_SILENT=1 STARPU_NCPU=1 STARPU_NCUDA=4 python bert_training.py --pretrained=local --config-path="bert_config_100b.json"  --optimizer="sgd" --lr=1e-5 --dtype=bf16 --nepochs=1 --batch-size=1 --minibatch-size=1 --n-masks-per-seq=2 --seq-len=256 --dataset-file="tinystories/train.bin" --save-checkpoint-path="" --hidden-size-tile=8650 --intermediate-size-tile=34600 --n-head-tile=1 --restrict=cuda
