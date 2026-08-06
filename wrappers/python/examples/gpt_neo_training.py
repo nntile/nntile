@@ -170,7 +170,7 @@ if args.intermediate_size_tile == -1:
 
 gpt_neo_config_nntile = GPTNeoConfig(
     vocab_size=model_torch.config.vocab_size,
-    vocab_embed_dim_tile=model_torch.config.hidden_size,
+    vocab_embed_dim_tile=args.hidden_size_tile,
     hidden_size=model_torch.config.hidden_size,
     hidden_size_tile=args.hidden_size_tile,
     intermediate_size=model_torch.config.intermediate_size,
@@ -196,6 +196,8 @@ gpt_neo_model = GPTNeoForCausalLM.from_torch(
     model_torch, args.minibatch_size, args.minibatch_size_tile,
     args.seq_len, args.seq_len_tile, gpt_neo_config_nntile
 )
+n_params = sum(np.prod(p.value.shape) for p in gpt_neo_model.get_parameters() if p.grad is not None)
+print("Number of parameters: {}".format(n_params))
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile", "requires {} seconds".format(time1))
 del model_torch
@@ -326,14 +328,15 @@ loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
 
 # Convert back to PyTorch and save checkpoint
-model_torch = gpt_neo_model.to_torch()
-torch.save(
-    {
-        "model_state_dict": model_torch.state_dict(),
-    },
-    args.save_checkpoint_path,
-)
-del model_torch
+if args.save_checkpoint_path:
+    model_torch = gpt_neo_model.to_torch()
+    torch.save(
+        {
+            "model_state_dict": model_torch.state_dict(),
+        },
+        args.save_checkpoint_path,
+    )
+    del model_torch
 
 # Clean up resources
 loss.unregister()

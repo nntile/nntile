@@ -229,6 +229,7 @@ class GPTNeoXAttention(BaseLayer):
         n_emb, n_seq, n_batch = x.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x.value.basetile_shape
         head_size = n_emb // n_head
+        assert head_size % 2 == 0, "head_size must be even"
         # Stupid check, that is not necessary, as the code shall work
         if n_emb != head_size * n_head:
             raise RuntimeError
