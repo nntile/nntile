@@ -2,7 +2,7 @@
     "vocab_size": 50280,
     "hidden_size": 60480,
     "num_hidden_layers": 1,
-    "num_attention_heads": 96,
+    "num_attention_heads": 10,
     "intermediate_size": 241920,
     "hidden_dropout": 0.0,
     "attention_dropout": 0.0,
