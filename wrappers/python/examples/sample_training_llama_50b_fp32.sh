@@ -1,0 +1,3 @@
+python causal_lm_data_preparation.py --seq-len=256 --batch-size=1 --dataset-select=6
+
+STARPU_SILENT=1 STARPU_NCUDA=4 STARPU_NCPU=1 python llama_training.py --restrict="cuda" --pretrained=local --config-path="llama_config_50b.json" --save-checkpoint-path="" --optimizer="sgd" --seq-len=256 --lr=1e-5 --dtype=fp32 --nepochs=1 --batch-size=1 --minibatch-size=1 --dataset-file="tinystories/train.bin" --hidden-size-tile=5396 --intermediate-size-tile=21580 --n-head-tile=1

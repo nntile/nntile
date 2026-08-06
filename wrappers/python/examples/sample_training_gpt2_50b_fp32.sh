@@ -1,0 +1,3 @@
+python causal_lm_data_preparation.py --hf-tokenizer="openai-community/gpt2" --seq-len=256 --batch-size=1 --dataset-select=25
+
+STARPU_SILENT=1 STARPU_NCPU=1 STARPU_NCUDA=4 python gpt2_lmhead_training.py --restrict="cuda" --pretrained=local --config-path="gpt2_config_50b.json" --save-checkpoint-path="" --optimizer="sgd" --lr=1e-5 --dtype=fp32 --nepochs=1 --batch-size=1 --minibatch-size=1 --dataset-file="tinystories/train.bin" --hidden-size-tile=6245 --intermediate-size-tile=24980 --n-head-tile=1

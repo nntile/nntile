@@ -1,0 +1,3 @@
+python causal_lm_data_preparation.py --hf-tokenizer="EleutherAI/gpt-neo-1.3B" --seq-len=256 --batch-size=1 --dataset-select=7
+
+STARPU_SILENT=1 STARPU_NCPU=1 STARPU_NCUDA=4 python gpt_neo_training.py --pretrained=local --config-path="gpt_neo_config_50b.json" --save-checkpoint-path="" --optimizer="sgd" --seq-len=256 --lr=1e-5 --dtype=fp32 --nepochs=1 --batch-size=1 --minibatch-size=1 --dataset-file="tinystories/train.bin" --n-head-tile=1 --hidden-size-tile=6240 --intermediate-size-tile=24960 --restrict=cuda

@@ -1,0 +1,3 @@
+python mlm_data_preparation.py --seq-len=256 --batch-size=1 --dataset-select=7 --hf-tokenizer="FacebookAI/roberta-base"
+
+STARPU_SILENT=1 STARPU_NCUDA=4 STARPU_NCPU=1 python roberta_training.py --pretrained=local --config-path="roberta_config_50b.json" --save-checkpoint-path="" --optimizer="sgd" --lr=1e-5 --dtype=fp32 --nepochs=1  --batch-size=1 --minibatch-size=1 --seq-len=256 --dataset-file="tinystories/train.bin" --restrict="cuda" --hidden-size-tile=6010 --intermediate-size-tile=24040 --n-head-tile=1
