@@ -1,11 +1,11 @@
 {
     "vocab_size": 32100,
     "d_model": 52200,
-    "d_kv": 522,
+    "d_kv": 5220,
     "d_ff": 208800,
     "num_layers": 1,
     "num_decoder_layers": 1,
-    "num_heads": 100,
+    "num_heads": 10,
     "relative_attention_num_buckets": 32,
     "dropout_rate": 0.0,
     "layer_norm_epsilon": 1e-5,
