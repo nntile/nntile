@@ -20,4 +20,3 @@ STARPU_SILENT=1 STARPU_NCPU=1 STARPU_NCUDA=4 python gpt_neo_training.py --pretra
 # NNTile training throughput samples/sec: 0.010972706200261974
 # NNTile performance (model flops): 1.1458813509231347 Tflops/s
 # NNTile loss on the last batch: 26.631755828857422
-

@@ -129,8 +129,10 @@ elif args.pretrained == "local":
 
 model_torch.eval()
 print(model_torch.config)
-num_torch_model_parameters = sum(p.numel() for p in model_torch.parameters() if p.requires_grad)
-print("Number of torch model parameters: {}".format(num_torch_model_parameters))
+num_torch_model_parameters = sum(p.numel() for p in model_torch.parameters()
+                                 if p.requires_grad)
+print("Number of torch model parameters: {}".format(
+    num_torch_model_parameters))
 
 # Initialize NNTile and StarPU
 time0 = time.time()
@@ -184,7 +186,8 @@ bert_nntile = BertForMaskedLM_nntile.from_torch(model_torch,
                                                 args.seq_len,
                                                 args.seq_len_tile,
                                                 bert_config_nntile)
-n_params = sum(np.prod(p.value.shape) for p in bert_nntile.get_parameters() if p.grad is not None)
+n_params = sum(np.prod(p.value.shape) for p in bert_nntile.get_parameters()
+                if p.grad is not None)
 print("Number of parameters: {}".format(n_params))
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",

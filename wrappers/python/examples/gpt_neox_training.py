@@ -128,8 +128,10 @@ elif args.pretrained == "local":
 model_torch.eval()
 print(model_torch.config)
 
-num_torch_model_parameters = sum(p.numel() for p in model_torch.parameters() if p.requires_grad)
-print("Number of torch model parameters: {}".format(num_torch_model_parameters))
+num_torch_model_parameters = sum(p.numel() for p in model_torch.parameters()
+                                 if p.requires_grad)
+print("Number of torch model parameters: {}".format(
+    num_torch_model_parameters))
 
 # Initialize NNTile and StarPU
 time0 = time.time()
@@ -205,7 +207,8 @@ print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
 del model_torch
 
-n_params = sum(np.prod(p.value.shape) for p in gpt_neox_nntile.get_parameters() if p.grad is not None)
+n_params = sum(np.prod(p.value.shape) for p in gpt_neox_nntile.get_parameters()
+               if p.grad is not None)
 print("Number of parameters: {}".format(n_params))
 
 # Get train tokens

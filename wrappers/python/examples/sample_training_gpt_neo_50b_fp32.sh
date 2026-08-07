@@ -6,10 +6,10 @@ STARPU_SILENT=1 STARPU_NCPU=1 STARPU_NCUDA=4 python gpt_neo_training.py --pretra
 # Converting PyTorch model to NNTile requires 1117.5141739845276 seconds
 # From PyTorch loader to NNTile batches in 0.0004432201385498047 seconds
 # Params+grads (GB): 395.818
-# Activations  (GB): 2.238 
+# Activations  (GB): 2.238
 # Optimizer    (GB): 197.909
 # Persistent   (GB): 595.965
-# Temporaries  (GB): 1.358 
+# Temporaries  (GB): 1.358
 # Batch=1/4 Epoch=1/1 Loss=22.948904037475586
 # Batch=2/4 Epoch=1/1 Loss=22.301780700683594
 # Batch=3/4 Epoch=1/1 Loss=22.12322998046875

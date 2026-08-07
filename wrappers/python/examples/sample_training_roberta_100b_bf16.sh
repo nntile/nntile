@@ -17,4 +17,3 @@ STARPU_SILENT=1 STARPU_NCUDA=4 STARPU_NCPU=1 python roberta_training.py --pretra
 # NNTile training time: 1993.0800869464874 seconds
 # NNTile training throughput tokens/sec: 0.5137776483276327
 # NNTile loss on the last batch: 22.683269500732422
-
