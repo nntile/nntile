@@ -37,9 +37,7 @@ Under [`wrappers/python/examples/`](../../wrappers/python/examples/):
 
 | Script | Task |
 |--------|------|
-| [`gpt2_custom_training.py`](../../wrappers/python/examples/gpt2_custom_training.py) | Custom GPT-2 implementation (recommended first training example) |
 | [`gpt2_lmhead_training.py`](../../wrappers/python/examples/gpt2_lmhead_training.py) | GPT-2 LM head |
-| [`gpt2_training.py`](../../wrappers/python/examples/gpt2_training.py) | GPT-2 (WikiText-103 inline) |
 | [`bert_training.py`](../../wrappers/python/examples/bert_training.py) | BERT masked LM |
 | [`roberta_training.py`](../../wrappers/python/examples/roberta_training.py) | RoBERTa masked LM |
 | [`gpt_neo_training.py`](../../wrappers/python/examples/gpt_neo_training.py) | GPT-Neo causal LM |
@@ -63,18 +61,14 @@ After [building the image](../build/README.md):
 ```shell
 docker run -it --gpus all nntile:latest
 # inside the container:
-CUDA_VISIBLE_DEVICES=0 STARPU_NCPU=2 \
-  python /workspace/nntile/wrappers/python/examples/gpt2_custom_training.py \
-  --config-path=/workspace/nntile/wrappers/python/examples/gpt2_default_config.json \
-  --tokenizer=gpt2 --tokenizer-path=data \
-  --batch=1024 --minibatch=4 --minibatch-tile=4 \
-  --seq-tile=1024 --embd-tile=768 --inner-tile=3072 --head-tile=12 \
-  --restrict=cuda --flashattention \
-  --nforward=10 --nforward-warmup=10 --nbackward=10 --nbackward-warmup=10 \
-  --dataset=WikiText-103 --dataset-path=data --dataset-select=40000 \
-  --optimizer=fusedadamw --optimizer-eps=1e-8 --weight-decay=0.1 \
-  --loss-reduction=mean --lr=3e-4 --start-lr=0 --full-lr-iter=10 \
-  --nepochs=1 --nepochs-warmup=1
+# 1) prepare dataset into train.bin
+python /workspace/nntile/wrappers/python/examples/causal_lm_data_preparation.py \
+    --hf-tokenizer="openai-community/gpt2" --seq-len=512 --batch-size=256 --dataset-select=5000
+# 2) digest train.bin into training
+python /workspace/nntile/wrappers/python/examples/gpt2_lmhead_training.py \
+    --restrict="cuda" --pretrained=local --config-path="/workspace/nntile/wrappers/python/examples/gpt2_default_config.json" \
+    --save-checkpoint-path=".model/nntile_checkpoint.pt" --optimizer="adam" --lr=1e-4 --dtype=fp32 --nepochs=1 \
+    --batch-size=256 --minibatch-size=8 --dataset-file="tinystories/train.bin"
 ```
 
 ## Jupyter notebooks
@@ -84,8 +78,8 @@ training cells:
 
 - `bert.ipynb`, `roberta.ipynb`
 - `gpt2_lmhead.ipynb`, `gpt_neo_lmhead.ipynb`, `gpt_neox_lmhead.ipynb`
-- `llama_lmhead.ipynb`, `Llama.ipynb`, `t5_lmhead.ipynb`
-- `mlp_mixer.ipynb` — MLP-Mixer vision training (calls `mlp_mixer_training.py`)
+- `llama_lmhead.ipynb`, `t5_lmhead.ipynb`
+- `mlp_mixer.ipynb`
 
 Six notebooks include **DMDASD vs SGOC** benchmarks — [sgoc/README.md](../sgoc/README.md).
 

@@ -45,6 +45,22 @@ docs/
 
 Internal graph design notes under `docs/dev/` are not part of this guide.
 
-## Hardware note
+## Minimal requirements
 
-NNTile targets CUDA devices with compute capability **8.0 or higher**.
+### Running NNTile alone without comparison against Pytorch requires
+
+- Operating System: Ubuntu 22.04 or above.
+- CUDA GPUs: compute capability 8.0 or higher.
+- CUDA toolkit: 11.8 or above.
+- CPU: x86-64 or amd64 compatible.
+- Python: 3.10 or above.
+- C++ compailer with C++17 standard supported.
+- CPU RAM: 1 GB.
+- CUDA GPU VRAM: 1 GB.
+- Hard Drive: 64 GB.
+
+### Testing and comparing against Pytorch requires additionally
+
+- Pytorch 2.0 or above.
+- Transformers Python package 4.52.*.
+- Pytest 8.2 or above.
