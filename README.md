@@ -11,6 +11,12 @@ task-based parallel programming paradigm that distributes computations across
 available hardware resources dynamically and moves data asynchronously, using
 the [StarPU](https://starpu.gitlabpages.inria.fr) runtime.
 
+## Example usage
+
+1.	Fine-tuning language models on a single-GPU server when GPU memory is insufficient. Training acceleration is achieved through optimized data offloading/loading and checkpointing managed by the custom-developed SGOC scheduler.
+2.	Parallel fine-tuning of large language models with very wide layers on a server equipped with heterogeneous GPUs. Parallelism along the hidden dimension enables efficient load distribution across GPUs of varying performance capabilities.
+3.	Inference of multiple models on a resource-constrained server. Inactive data is offloaded from GPU memory to system RAM; if RAM capacity is exceeded, data can be offloaded to disk.
+
 ## Documentation
 
 Full documentation lives under **[docs/](docs/README.md)**. Start at
