@@ -225,6 +225,11 @@ elif args.pretrained == "local":
 model_torch.eval()
 print(model_torch.config)
 
+num_torch_model_parameters = sum(p.numel() for p in model_torch.parameters()
+                                 if p.requires_grad)
+print("Number of torch model parameters: {}".format(
+    num_torch_model_parameters))
+
 model_torch.lm_head.weight = nn.Parameter(
     model_torch.lm_head.weight.detach().clone()
 )
@@ -284,6 +289,10 @@ gpt2lmhead_nntile = GPT2LMHead.from_torch(model_torch,
                                                 args.seq_len,
                                                 args.seq_len_tile,
                                                 gpt2_config_nntile)
+gpt2lmhead_nntile_parameters = gpt2lmhead_nntile.get_parameters()
+n_params = sum(np.prod(p.value.shape) for p in gpt2lmhead_nntile_parameters
+               if p.grad is not None)
+print("Number of parameters: {}".format(n_params))
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
@@ -407,10 +416,11 @@ print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
         * args.nepochs * num_train_batches * num_minibatch
         / time1 * 1e-12))
 print("NNTile loss on the last batch: {}".format(pipeline.loss_hist[-1]))
-model_torch = gpt2lmhead_nntile.to_torch()
-torch.save(
-    {
-        "model_state_dict": model_torch.state_dict(),
-    },
-    args.save_checkpoint_path,
-)
+if args.save_checkpoint_path:
+    model_torch = gpt2lmhead_nntile.to_torch()
+    torch.save(
+        {
+            "model_state_dict": model_torch.state_dict(),
+        },
+        args.save_checkpoint_path,
+    )

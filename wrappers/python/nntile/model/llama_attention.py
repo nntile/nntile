@@ -59,6 +59,7 @@ class LlamaAttention(BaseModel):
                 "num_key_value_heads")
         self.kv_group_size = self.n_head // self.n_head_kv
         self.head_size = self.n_emb // self.n_head
+        assert self.head_size % 2 == 0, "head_size must be even"
         if self.n_emb != self.head_size * self.n_head:
             raise ValueError("hidden_size must be divisible by "
                 "n_attention_head")

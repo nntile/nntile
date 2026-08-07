@@ -127,6 +127,10 @@ elif args.pretrained == "local":
 
 model_torch.eval()
 print(model_torch.config)
+num_torch_model_parameters = sum(p.numel() for p in model_torch.parameters()
+                                 if p.requires_grad)
+print("Number of torch model parameters: {}".format(
+    num_torch_model_parameters))
 
 # Initialize NNTile and StarPU
 time0 = time.time()
@@ -188,6 +192,10 @@ llama_nntile = Llama_nntile.from_torch(model_torch,
                                         pos_ids,
                                         mask,
                                         llama_config_nntile)
+n_params = sum(np.prod(p.value.shape) for p in llama_nntile.get_parameters()
+               if p.grad is not None)
+print("Number of parameters: {}".format(n_params))
+
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
@@ -280,14 +288,15 @@ loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
 
 # Convert back to PyTorch and save checkpoint
-model_torch = llama_nntile.to_torch()
-torch.save(
-    {
-        "model_state_dict": model_torch.state_dict(),
-    },
-    args.save_checkpoint_path,
-)
-del model_torch
+if args.save_checkpoint_path:
+    model_torch = llama_nntile.to_torch()
+    torch.save(
+        {
+            "model_state_dict": model_torch.state_dict(),
+        },
+        args.save_checkpoint_path,
+    )
+    del model_torch
 
 loss.unregister()
 optimizer.unregister()
