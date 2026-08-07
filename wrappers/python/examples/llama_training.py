@@ -127,6 +127,8 @@ elif args.pretrained == "local":
 
 model_torch.eval()
 print(model_torch.config)
+num_torch_model_parameters = sum(p.numel() for p in model_torch.parameters() if p.requires_grad)
+print("Number of torch model parameters: {}".format(num_torch_model_parameters))
 
 # Initialize NNTile and StarPU
 time0 = time.time()
