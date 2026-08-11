@@ -9,8 +9,11 @@ services:
       - LOG_DIR=/workspace/logs
       - CLEAR_LOGS=1
       - SPLIT_HOURS=24
+      - TENSORBOARD_PORT=6006
     ports:
+      - ${NNTILE_LOGGER_PORT:-5001}:5001
       - ${NNTILE_TB_PORT}:6006
+      - ${NNTILE_TB_TLS_PORT:-6443}:6443
     cpus: 1
 
   jupyter-lab:

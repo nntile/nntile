@@ -15,7 +15,7 @@
 #pragma once
 
 #include <nntile/logger/logger_thread.hh>
-#include <nntile/logger/websocket_client.hh>
+#include <nntile/logger/tcp_client.hh>
 
 //! Logger
 namespace nntile::logger

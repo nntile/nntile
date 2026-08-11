@@ -13,6 +13,14 @@
 
 include(FetchContent)
 
+# nlohmann/json - header-only JSON library
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 #add_subdirectory(googletest)
 #add_subdirectory(nvbench)
 add_subdirectory(pybind11)
