@@ -2,42 +2,27 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_host_aten.cpp
- * Host-mediated aten ops for HF smokes (cast, triu, comparisons).
+ * Explicit device copies (``aten::_to_copy``) plus graph-native leftovers
+ * that used to silently gather/scatter (``where``, ``full_like``, ``pow``
+ * 2/3, ``div.Scalar``).
  *
- * Pattern: gather nntile → CPU aten → scatter back. Used for ops that
- * are awkward as StarPU fp32-only codelets (dtype cast, bool masks,
- * integer compare). CUDA StarPU workers still see the resulting nntile
- * buffers via normal ingress; the host step runs on the driver thread.
+ * Compute kernels must not move nntile payloads to CPU. The user moves
+ * tensors with ``.to("nntile")`` / ``.to("cpu")``. Unregistered ops error
+ * unless ``cpu_fallback=True`` (explicit opt-in).
  */
 
 #include "nntile_executor.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_no_implicit_copy.h"
 #include "nntile_tensor_gc.h"
 
+#include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
-#include <ATen/ops/abs.h>
-#include <ATen/ops/all.h>
-#include <ATen/ops/div.h>
-#include <ATen/ops/empty.h>
-#include <ATen/ops/eq.h>
-#include <ATen/ops/full_like.h>
-#include <ATen/ops/gt.h>
-#include <ATen/ops/log.h>
-#include <ATen/ops/lt.h>
-#include <ATen/ops/masked_fill.h>
-#include <ATen/ops/mean.h>
-#include <ATen/ops/minimum.h>
-#include <ATen/ops/ne.h>
-#include <ATen/ops/pow.h>
-#include <ATen/ops/rsub.h>
-#include <ATen/ops/sub.h>
-#include <ATen/ops/triu.h>
-#include <ATen/ops/where.h>
+#include <ATen/ops/full.h>
 #include <c10/core/DeviceGuard.h>
 #include <torch/library.h>
-#include <torch/version.h>
 
 namespace torch_nntile
 {
@@ -45,46 +30,14 @@ namespace torch_nntile
 namespace
 {
 
-bool is_nntile_device(c10::Device device)
-{
-    return device.type() == c10::DeviceType::PrivateUse1;
-}
-
-bool is_cpu_scalar_tensor(const at::Tensor &t)
-{
-    return t.is_cpu() && t.numel() == 1;
-}
-
-//! Torch 2.12+ SymInt-ified ``aten::triu``; 2.9.x keeps plain ``int``.
-#if (TORCH_VERSION_MAJOR > 2) \
-    || (TORCH_VERSION_MAJOR == 2 && TORCH_VERSION_MINOR >= 12)
-using TriuDiagonal = c10::SymInt;
-inline int64_t triu_diagonal_as_int64(TriuDiagonal diagonal)
-{
-    return diagonal.expect_int();
-}
-#else
-using TriuDiagonal = int64_t;
-inline int64_t triu_diagonal_as_int64(TriuDiagonal diagonal)
-{
-    return diagonal;
-}
-#endif
-
-at::Tensor gather_cpu(const at::Tensor &self)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "host_aten: expected nntile tensor");
-    return gather_nntile_view_to_cpu(self);
-}
-
 at::Tensor scatter_nntile(
     const at::Tensor &cpu,
     c10::Device device)
 {
-    TORCH_CHECK(cpu.is_cpu(), "host_aten: expected CPU tensor");
-    TORCH_CHECK(is_nntile_device(device), "host_aten: expected nntile device");
+    TORCH_CHECK(cpu.is_cpu(), "_to_copy: expected CPU tensor");
+    TORCH_CHECK(
+        is_nntile_device(device),
+        "_to_copy: expected nntile device");
     at::Tensor contig = cpu.contiguous();
     at::Tensor out = empty_metadata_tensor(
         contig.sizes(),
@@ -92,26 +45,6 @@ at::Tensor scatter_nntile(
         device);
     init_nntile_input_from_cpu(contig, out);
     return out;
-}
-
-void copy_cpu_into_nntile(const at::Tensor &cpu, at::Tensor &out)
-{
-    TORCH_CHECK(cpu.is_cpu(), "host_aten: expected CPU src");
-    TORCH_CHECK(
-        is_nntile_device(out.device()),
-        "host_aten: expected nntile out");
-    at::Tensor contig = cpu.contiguous();
-    TORCH_CHECK(
-        contig.sizes() == out.sizes(),
-        "host_aten: out shape mismatch");
-    TORCH_CHECK(
-        contig.scalar_type() == out.scalar_type(),
-        "host_aten: out dtype mismatch");
-    if (!out.is_contiguous())
-    {
-        TORCH_CHECK(false, "host_aten: out must be contiguous");
-    }
-    init_nntile_input_from_cpu(contig, out);
 }
 
 } // namespace
@@ -135,12 +68,31 @@ at::Tensor to_copy(
             "_to_copy: only strided layout on nntile");
     }
 
-    // PrivateUse1 may be selected for CPU→nntile moves (destination
-    // device), so `self` is not always on nntile.
+    // Same-device dtype change: StarPU from_blob + copy_, no gather.
+    const c10::Device out_device =
+        device.has_value() ? *device : self.device();
+    if (is_nntile_device(self.device()) &&
+        is_nntile_device(out_device))
+    {
+        const at::ScalarType out_dtype =
+            dtype.value_or(self.scalar_type());
+        if (out_dtype == self.scalar_type())
+        {
+            return self;
+        }
+        at::Tensor out = empty_metadata_tensor(
+            self.sizes(),
+            out_dtype,
+            out_device);
+        tensor_cast(self, out);
+        return out;
+    }
+
+    // Explicit ``.to()``: nntile→CPU gathers; CPU→nntile scatters.
     at::Tensor cpu;
     if (is_nntile_device(self.device()))
     {
-        cpu = gather_cpu(self);
+        cpu = gather_nntile_view_to_cpu(self);
     }
     else
     {
@@ -158,8 +110,6 @@ at::Tensor to_copy(
     at::Tensor converted =
         cpu.to(opts, /*non_blocking=*/false, /*copy=*/true);
 
-    const c10::Device out_device =
-        device.has_value() ? *device : self.device();
     if (out_device.is_cpu())
     {
         return converted;
@@ -170,235 +120,6 @@ at::Tensor to_copy(
     return scatter_nntile(converted, out_device);
 }
 
-at::Tensor triu(const at::Tensor &self, TriuDiagonal diagonal)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "triu: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor out_cpu =
-        at::triu(cpu, triu_diagonal_as_int64(diagonal));
-    return scatter_nntile(out_cpu, self.device());
-}
-
-at::Tensor &triu_out(
-    const at::Tensor &self,
-    TriuDiagonal diagonal,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "triu.out: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor tmp =
-        at::triu(cpu, triu_diagonal_as_int64(diagonal));
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor eq_scalar(const at::Tensor &self, const at::Scalar &other)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "eq.Scalar: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor out_cpu = at::eq(cpu, other);
-    return scatter_nntile(out_cpu, self.device());
-}
-
-at::Tensor &eq_scalar_out(
-    const at::Tensor &self,
-    const at::Scalar &other,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "eq.Scalar_out: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor tmp = at::eq(cpu, other);
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "eq.Scalar_out: dtype mismatch");
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "eq.Scalar_out: shape mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor ne_scalar(const at::Tensor &self, const at::Scalar &other)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "ne.Scalar: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor out_cpu = at::ne(cpu, other);
-    return scatter_nntile(out_cpu, self.device());
-}
-
-at::Tensor &ne_scalar_out(
-    const at::Tensor &self,
-    const at::Scalar &other,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "ne.Scalar_out: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor tmp = at::ne(cpu, other);
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "ne.Scalar_out: dtype mismatch");
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "ne.Scalar_out: shape mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor all_tensor(const at::Tensor &self)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "all: expected nntile");
-    // HF uses ``if torch.all(...)`` which needs a host scalar; keep the
-    // reduction on CPU so ``.item()`` / ``__bool__`` does not require a
-    // graph flush mid-forward.
-    at::Tensor cpu = gather_cpu(self);
-    return at::all(cpu);
-}
-
-at::Tensor &all_out(const at::Tensor &self, at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "all.out: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor tmp = at::all(cpu);
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "all.out: dtype mismatch");
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "all.out: shape mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor gt_tensor(const at::Tensor &self, const at::Tensor &other)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "gt.Tensor: expected nntile");
-    at::Tensor a = gather_cpu(self);
-    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
-                                                    : other.cpu();
-    return scatter_nntile(at::gt(a, b), self.device());
-}
-
-at::Tensor &gt_tensor_out(
-    const at::Tensor &self,
-    const at::Tensor &other,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "gt.Tensor_out: expected nntile");
-    at::Tensor a = gather_cpu(self);
-    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
-                                                    : other.cpu();
-    at::Tensor tmp = at::gt(a, b);
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "gt.Tensor_out: dtype mismatch");
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "gt.Tensor_out: shape mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor gt_scalar(const at::Tensor &self, const at::Scalar &other)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "gt.Scalar: expected nntile");
-    return scatter_nntile(at::gt(gather_cpu(self), other), self.device());
-}
-
-at::Tensor &gt_scalar_out(
-    const at::Tensor &self,
-    const at::Scalar &other,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "gt.Scalar_out: expected nntile");
-    at::Tensor tmp = at::gt(gather_cpu(self), other);
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "gt.Scalar_out: dtype mismatch");
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "gt.Scalar_out: shape mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor lt_scalar(const at::Tensor &self, const at::Scalar &other)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "lt.Scalar: expected nntile");
-    return scatter_nntile(at::lt(gather_cpu(self), other), self.device());
-}
-
-at::Tensor &lt_scalar_out(
-    const at::Tensor &self,
-    const at::Scalar &other,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "lt.Scalar_out: expected nntile");
-    at::Tensor tmp = at::lt(gather_cpu(self), other);
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "lt.Scalar_out: dtype mismatch");
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "lt.Scalar_out: shape mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor abs_tensor(const at::Tensor &self)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "abs: expected nntile");
-    return scatter_nntile(at::abs(gather_cpu(self)), self.device());
-}
-
-at::Tensor &abs_out(const at::Tensor &self, at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "abs.out: expected nntile");
-    at::Tensor tmp = at::abs(gather_cpu(self));
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "abs.out: shape mismatch");
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "abs.out: dtype mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor log_tensor(const at::Tensor &self)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "log: expected nntile");
-    return scatter_nntile(at::log(gather_cpu(self)), self.device());
-}
-
-at::Tensor &log_out(const at::Tensor &self, at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "log.out: expected nntile");
-    at::Tensor tmp = at::log(gather_cpu(self));
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "log.out: shape mismatch");
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "log.out: dtype mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor minimum_tensor(
-    const at::Tensor &self,
-    const at::Tensor &other)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "minimum: expected nntile");
-    at::Tensor a = gather_cpu(self);
-    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
-                                                    : other.cpu();
-    return scatter_nntile(at::minimum(a, b), self.device());
-}
-
 at::Tensor full_like_tensor(
     const at::Tensor &self,
     const at::Scalar &fill_value,
@@ -406,25 +127,40 @@ at::Tensor full_like_tensor(
     std::optional<c10::Layout> layout,
     std::optional<c10::Device> device,
     std::optional<bool> pin_memory,
-    std::optional<c10::MemoryFormat> memory_format)
+    std::optional<c10::MemoryFormat> /*memory_format*/)
 {
     TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "full_like: expected nntile");
-    at::Tensor cpu = at::full_like(
-        gather_cpu(self),
-        fill_value,
-        dtype,
-        layout,
-        at::kCPU,
-        pin_memory,
-        memory_format);
-    c10::Device out_dev = device.value_or(self.device());
-    if (!is_nntile_device(out_dev))
+        !pin_memory.has_value() || !*pin_memory,
+        "full_like: pin_memory is CPU-only");
+    if (layout.has_value())
     {
-        return cpu.to(out_dev);
+        TORCH_CHECK(
+            *layout == at::kStrided,
+            "full_like: only strided layout on nntile");
     }
-    return scatter_nntile(cpu, out_dev);
+    const c10::ScalarType out_dtype =
+        dtype.value_or(self.scalar_type());
+    const c10::Device out_dev = device.value_or(self.device());
+    if (out_dev.is_cpu())
+    {
+        return at::full(
+            self.sizes(),
+            fill_value,
+            at::TensorOptions()
+                .dtype(out_dtype)
+                .device(at::kCPU)
+                .layout(at::kStrided));
+    }
+    require_nntile_operand(self, "full_like", "self");
+    TORCH_CHECK(
+        is_nntile_device(out_dev),
+        "full_like: unsupported destination device");
+    at::Tensor out = empty_metadata_tensor(
+        self.sizes(),
+        out_dtype,
+        out_dev);
+    out.fill_(fill_value);
+    return out;
 }
 
 at::Tensor zeros_like_tensor(
@@ -445,144 +181,50 @@ at::Tensor zeros_like_tensor(
         memory_format);
 }
 
-at::Tensor &masked_fill_scalar_(
-    at::Tensor &self,
-    const at::Tensor &mask,
-    const at::Scalar &value)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "masked_fill_: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor mask_cpu = is_nntile_device(mask.device())
-        ? gather_cpu(mask)
-        : mask.cpu();
-    cpu.masked_fill_(mask_cpu, value);
-    at::Tensor scattered = scatter_nntile(cpu, self.device());
-    self.copy_(scattered);
-    return self;
-}
-
-at::Tensor masked_fill_scalar(
-    const at::Tensor &self,
-    const at::Tensor &mask,
-    const at::Scalar &value)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "masked_fill: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor mask_cpu = is_nntile_device(mask.device())
-        ? gather_cpu(mask)
-        : mask.cpu();
-    return scatter_nntile(
-        at::masked_fill(cpu, mask_cpu, value),
-        self.device());
-}
-
-at::Tensor sub_scalar(
-    const at::Tensor &self,
-    const at::Scalar &other,
-    const at::Scalar &alpha)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "sub.Scalar: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor out_cpu = at::sub(cpu, other, alpha);
-    return scatter_nntile(out_cpu, self.device());
-}
-
-at::Tensor &sub_scalar_out(
-    const at::Tensor &self,
-    const at::Scalar &other,
-    const at::Scalar &alpha,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "sub.Scalar_out: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor tmp = at::sub(cpu, other, alpha);
-    TORCH_CHECK(out.sizes() == tmp.sizes(), "sub.Scalar_out: shape mismatch");
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "sub.Scalar_out: dtype mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
-at::Tensor rsub_scalar(
-    const at::Tensor &self,
-    const at::Scalar &other,
-    const at::Scalar &alpha)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "rsub.Scalar: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor out_cpu = at::rsub(cpu, other, alpha);
-    return scatter_nntile(out_cpu, self.device());
-}
-
-at::Tensor &rsub_scalar_out(
-    const at::Tensor &self,
-    const at::Scalar &other,
-    const at::Scalar &alpha,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "rsub.Scalar_out: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor tmp = at::rsub(cpu, other, alpha);
-    TORCH_CHECK(
-        out.sizes() == tmp.sizes(),
-        "rsub.Scalar_out: shape mismatch");
-    TORCH_CHECK(
-        out.scalar_type() == tmp.scalar_type(),
-        "rsub.Scalar_out: dtype mismatch");
-    copy_cpu_into_nntile(tmp, out);
-    return out;
-}
-
 at::Tensor pow_tensor_scalar(
     const at::Tensor &self,
     const at::Scalar &exponent)
 {
-    TORCH_CHECK(is_nntile_device(self.device()), "pow: expected nntile");
-    // CUDA RsqrtBackward uses ``result.pow(3)``; RMSNorm uses ``x.pow(2)``.
-    // Keep small integer powers on StarPU mul instead of host pow.
+    require_nntile_operand(self, "pow", "self");
+    // RMSNorm forward is ``x.pow(2)``. Autograd of that is
+    // ``2 * x.pow(1)``. RsqrtBackward is ``result.pow(3)``.
     int64_t exp_i = 0;
     bool is_small_int = false;
     if (exponent.isIntegral(false))
     {
         exp_i = exponent.toLong();
-        is_small_int = (exp_i == 2 || exp_i == 3);
+        is_small_int =
+            (exp_i == 1 || exp_i == 2 || exp_i == 3);
     }
     else if (exponent.isFloatingPoint())
     {
         const double exp_d = exponent.toDouble();
-        if (exp_d == 2.0 || exp_d == 3.0)
+        if (exp_d == 1.0 || exp_d == 2.0 || exp_d == 3.0)
         {
             exp_i = static_cast<int64_t>(exp_d);
             is_small_int = true;
         }
     }
-    if (is_small_int)
+    TORCH_CHECK(
+        is_small_int && self.scalar_type() == at::kFloat,
+        "torch_nntile pow: only integer exponents 1, 2, 3 on "
+        "float32 (graph mul); got ",
+        exponent);
+    at::Tensor a = self.is_contiguous() ? self : self.contiguous();
+    at::Tensor out = at::empty_like(a);
+    if (exp_i == 1)
     {
-        at::Tensor a = self.is_contiguous() ? self : self.contiguous();
-        at::Tensor out = at::empty_like(a);
-        tensor_mul_fp32(a, a, out);
-        if (exp_i == 3)
-        {
-            at::Tensor out3 = at::empty_like(a);
-            tensor_mul_fp32(out, a, out3);
-            return out3;
-        }
+        tensor_mul_scalar_fp32(a, out, 1.0f);
         return out;
     }
-    return scatter_nntile(
-        at::pow(gather_cpu(self), exponent),
-        self.device());
+    tensor_mul_fp32(a, a, out);
+    if (exp_i == 3)
+    {
+        at::Tensor out3 = at::empty_like(a);
+        tensor_mul_fp32(out, a, out3);
+        return out3;
+    }
+    return out;
 }
 
 at::Tensor &pow_tensor_scalar_out(
@@ -590,44 +232,10 @@ at::Tensor &pow_tensor_scalar_out(
     const at::Scalar &exponent,
     at::Tensor &out)
 {
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "pow.out: expected nntile");
-    at::Tensor tmp = at::pow(gather_cpu(self), exponent);
-    at::Tensor scattered = scatter_nntile(tmp, self.device());
-    out.copy_(scattered);
-    return out;
-}
-
-at::Tensor mean_dim(
-    const at::Tensor &self,
-    at::OptionalIntArrayRef dim,
-    bool keepdim,
-    std::optional<at::ScalarType> /*dtype*/)
-{
-    TORCH_CHECK(is_nntile_device(self.device()), "mean: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor out_cpu = dim.has_value()
-        ? at::mean(cpu, *dim, keepdim)
-        : at::mean(cpu);
-    return scatter_nntile(out_cpu, self.device());
-}
-
-at::Tensor &mean_out(
-    const at::Tensor &self,
-    at::OptionalIntArrayRef dim,
-    bool keepdim,
-    std::optional<at::ScalarType> /*dtype*/,
-    at::Tensor &out)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "mean.out: expected nntile");
-    at::Tensor cpu = gather_cpu(self);
-    at::Tensor tmp = dim.has_value() ? at::mean(cpu, *dim, keepdim)
-                                     : at::mean(cpu);
-    at::Tensor scattered = scatter_nntile(tmp, self.device());
-    out.copy_(scattered);
+    require_nntile_operand(self, "pow.out", "self");
+    require_nntile_operand(out, "pow.out", "out");
+    at::Tensor tmp = pow_tensor_scalar(self, exponent);
+    out.copy_(tmp);
     return out;
 }
 
@@ -635,10 +243,12 @@ at::Tensor div_scalar(
     const at::Tensor &self,
     const at::Scalar &other)
 {
-    TORCH_CHECK(is_nntile_device(self.device()), "div.Scalar: expected nntile");
-    // Prefer mul by reciprocal so StarPU MulScalar handles fp32 compute.
+    require_nntile_operand(self, "div.Scalar", "self");
     const double v = other.toDouble();
     TORCH_CHECK(v != 0.0, "div.Scalar: division by zero");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat,
+        "div.Scalar: float32 only");
     at::Tensor out = at::empty_like(self);
     tensor_mul_scalar_fp32(self, out, static_cast<float>(1.0 / v));
     return out;
@@ -649,11 +259,14 @@ at::Tensor &div_scalar_out(
     const at::Scalar &other,
     at::Tensor &out)
 {
-    TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(out.device()),
-        "div.Scalar_out: expected nntile");
+    require_nntile_operand(self, "div.Scalar_out", "self");
+    require_nntile_operand(out, "div.Scalar_out", "out");
     const double v = other.toDouble();
     TORCH_CHECK(v != 0.0, "div.Scalar_out: division by zero");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat &&
+            out.scalar_type() == at::kFloat,
+        "div.Scalar_out: float32 only");
     tensor_mul_scalar_fp32(self, out, static_cast<float>(1.0 / v));
     return out;
 }
@@ -664,12 +277,12 @@ at::Tensor div_tensor(const at::Tensor &self, const at::Tensor &other)
     {
         return div_scalar(self, other.item());
     }
+    require_nntile_operand(self, "div.Tensor", "self");
+    require_nntile_operand(other, "div.Tensor", "other");
     TORCH_CHECK(
-        is_nntile_device(self.device()) && is_nntile_device(other.device()),
-        "div.Tensor: expected nntile");
-    at::Tensor a = gather_cpu(self);
-    at::Tensor b = gather_cpu(other);
-    return scatter_nntile(at::div(a, b), self.device());
+        false,
+        "torch_nntile div.Tensor: tensor/tensor divide is not "
+        "implemented (no implicit host copy)");
 }
 
 at::Tensor &div_out(
@@ -691,23 +304,382 @@ at::Tensor where_self(
     const at::Tensor &self,
     const at::Tensor &other)
 {
-    at::Tensor cond_cpu = is_nntile_device(condition.device())
-        ? gather_cpu(condition)
-        : condition.cpu();
-    at::Tensor self_cpu = is_nntile_device(self.device()) ? gather_cpu(self)
-                                                          : self.cpu();
-    at::Tensor other_cpu = is_nntile_device(other.device())
-        ? gather_cpu(other)
-        : other.cpu();
-    at::Tensor out_cpu = at::where(cond_cpu, self_cpu, other_cpu);
-    const c10::Device out_dev = is_nntile_device(self.device())
-        ? self.device()
-        : (is_nntile_device(other.device()) ? other.device()
-                                            : condition.device());
+    require_nntile_operand(condition, "where.self", "condition");
+    require_nntile_operand(self, "where.self", "self");
+    at::Tensor other_op = other;
+    if (is_cpu_scalar_tensor(other) &&
+        other.scalar_type() == at::kFloat &&
+        self.scalar_type() == at::kFloat)
+    {
+        // Python/ATen may wrap a float as a 0-dim CPU tensor. Promote
+        // onto nntile with FILL (no gather of ``self``).
+        other_op = empty_metadata_tensor(
+            {},
+            at::kFloat,
+            self.device());
+        other_op.fill_(other.item());
+    }
+    else if (
+        is_cpu_scalar_tensor(other) &&
+        other.scalar_type() == at::kLong &&
+        self.scalar_type() == at::kLong)
+    {
+        other_op = empty_metadata_tensor(
+            {},
+            at::kLong,
+            self.device());
+        tensor_fill_i64(other_op, other.item().to<int64_t>());
+    }
+    else
+    {
+        require_nntile_operand(other, "where.self", "other");
+    }
     TORCH_CHECK(
-        is_nntile_device(out_dev),
-        "where.self: expected nntile destination");
-    return scatter_nntile(out_cpu, out_dev);
+        condition.scalar_type() == at::kBool,
+        "where.self: bool condition");
+    if (self.scalar_type() == at::kLong &&
+        other_op.scalar_type() == at::kLong)
+    {
+        auto bcast = at::infer_size(self.sizes(), other_op.sizes());
+        bcast = at::infer_size(bcast, condition.sizes());
+        at::Tensor out = empty_metadata_tensor(
+            bcast,
+            at::kLong,
+            self.device());
+        tensor_where_i64(condition, self, other_op, out);
+        return out;
+    }
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat &&
+            other_op.scalar_type() == at::kFloat,
+        "where.self: bool condition and float32 or int64 self/other");
+    auto bcast = at::infer_size(self.sizes(), other_op.sizes());
+    bcast = at::infer_size(bcast, condition.sizes());
+    at::Tensor out = empty_metadata_tensor(
+        bcast,
+        at::kFloat,
+        self.device());
+    tensor_where_fp32(condition, self, other_op, out);
+    return out;
+}
+
+at::Tensor triu_tensor(const at::Tensor &self, int64_t diagonal)
+{
+    require_nntile_operand(self, "triu", "self");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat,
+        "torch_nntile triu: float32 only");
+    TORCH_CHECK(self.dim() >= 2, "torch_nntile triu: expected ndim >= 2");
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    at::Tensor out = at::empty_like(inp);
+    tensor_triu_fp32(inp, out, diagonal);
+    return out;
+}
+
+at::Tensor &triu_out(
+    const at::Tensor &self,
+    int64_t diagonal,
+    at::Tensor &out)
+{
+    require_nntile_operand(self, "triu.out", "self");
+    require_nntile_operand(out, "triu.out", "out");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat &&
+            out.scalar_type() == at::kFloat,
+        "torch_nntile triu.out: float32 only");
+    TORCH_CHECK(self.sizes() == out.sizes(), "triu.out: shape mismatch");
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    TORCH_CHECK(out.is_contiguous(), "triu.out: contiguous out");
+    tensor_triu_fp32(inp, out, diagonal);
+    return out;
+}
+
+at::Tensor gt_tensor(const at::Tensor &self, const at::Tensor &other)
+{
+    at::Tensor rhs = other;
+    if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
+    {
+        require_nntile_operand(self, "gt.Tensor", "self");
+        TORCH_CHECK(
+            self.scalar_type() == at::kLong,
+            "torch_nntile gt.Tensor: int64 only");
+        rhs = empty_metadata_tensor(
+            {},
+            at::kLong,
+            self.device());
+        tensor_fill_i64(rhs, other.item().to<int64_t>());
+    }
+    require_nntile_operand(self, "gt.Tensor", "self");
+    require_nntile_operand(rhs, "gt.Tensor", "other");
+    TORCH_CHECK(
+        self.scalar_type() == at::kLong &&
+            rhs.scalar_type() == at::kLong,
+        "torch_nntile gt.Tensor: int64 only");
+    auto bcast = at::infer_size(self.sizes(), rhs.sizes());
+    at::Tensor out = empty_metadata_tensor(
+        bcast,
+        at::kBool,
+        self.device());
+    tensor_gt_i64(self, rhs, out);
+    return out;
+}
+
+at::Tensor &gt_out(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    require_nntile_operand(self, "gt.out", "self");
+    require_nntile_operand(other, "gt.out", "other");
+    require_nntile_operand(out, "gt.out", "out");
+    TORCH_CHECK(
+        self.scalar_type() == at::kLong &&
+            other.scalar_type() == at::kLong &&
+            out.scalar_type() == at::kBool,
+        "torch_nntile gt.out: int64 inputs, bool out");
+    tensor_gt_i64(self, other, out);
+    return out;
+}
+
+at::Tensor filled_i64_scalar(
+    const at::Tensor &like,
+    int64_t value)
+{
+    at::Tensor scalar = empty_metadata_tensor(
+        {},
+        at::kLong,
+        like.device());
+    tensor_fill_i64(scalar, value);
+    return scalar;
+}
+
+at::Tensor gt_scalar(const at::Tensor &self, const at::Scalar &other)
+{
+    require_nntile_operand(self, "gt.Scalar", "self");
+    TORCH_CHECK(
+        self.scalar_type() == at::kLong,
+        "torch_nntile gt.Scalar: int64 only");
+    return gt_tensor(self, filled_i64_scalar(self, other.to<int64_t>()));
+}
+
+at::Tensor lt_tensor(const at::Tensor &self, const at::Tensor &other)
+{
+    at::Tensor rhs = other;
+    if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
+    {
+        require_nntile_operand(self, "lt.Tensor", "self");
+        TORCH_CHECK(
+            self.scalar_type() == at::kLong,
+            "torch_nntile lt.Tensor: int64 only");
+        rhs = empty_metadata_tensor(
+            {},
+            at::kLong,
+            self.device());
+        tensor_fill_i64(rhs, other.item().to<int64_t>());
+    }
+    require_nntile_operand(self, "lt.Tensor", "self");
+    require_nntile_operand(rhs, "lt.Tensor", "other");
+    TORCH_CHECK(
+        self.scalar_type() == at::kLong &&
+            rhs.scalar_type() == at::kLong,
+        "torch_nntile lt.Tensor: int64 only");
+    auto bcast = at::infer_size(self.sizes(), rhs.sizes());
+    at::Tensor out = empty_metadata_tensor(
+        bcast,
+        at::kBool,
+        self.device());
+    tensor_lt_i64(self, rhs, out);
+    return out;
+}
+
+at::Tensor &lt_out(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    require_nntile_operand(self, "lt.out", "self");
+    require_nntile_operand(other, "lt.out", "other");
+    require_nntile_operand(out, "lt.out", "out");
+    tensor_lt_i64(self, other, out);
+    return out;
+}
+
+at::Tensor lt_scalar(const at::Tensor &self, const at::Scalar &other)
+{
+    require_nntile_operand(self, "lt.Scalar", "self");
+    TORCH_CHECK(
+        self.scalar_type() == at::kLong,
+        "torch_nntile lt.Scalar: int64 only");
+    return lt_tensor(self, filled_i64_scalar(self, other.to<int64_t>()));
+}
+
+at::Tensor abs_tensor(const at::Tensor &self)
+{
+    require_nntile_operand(self, "abs", "self");
+    TORCH_CHECK(
+        self.scalar_type() == at::kLong,
+        "torch_nntile abs: int64 only");
+    at::Tensor out = empty_metadata_tensor(
+        self.sizes(),
+        at::kLong,
+        self.device());
+    tensor_abs_i64(self, out);
+    return out;
+}
+
+at::Tensor &abs_out(const at::Tensor &self, at::Tensor &out)
+{
+    require_nntile_operand(self, "abs.out", "self");
+    require_nntile_operand(out, "abs.out", "out");
+    tensor_abs_i64(self, out);
+    return out;
+}
+
+at::Tensor minimum_tensor(
+    const at::Tensor &self,
+    const at::Tensor &other)
+{
+    require_nntile_operand(self, "minimum.Tensor", "self");
+    require_nntile_operand(other, "minimum.Tensor", "other");
+    TORCH_CHECK(
+        self.scalar_type() == at::kLong &&
+            other.scalar_type() == at::kLong,
+        "torch_nntile minimum: int64 only");
+    auto bcast = at::infer_size(self.sizes(), other.sizes());
+    at::Tensor out = empty_metadata_tensor(
+        bcast,
+        at::kLong,
+        self.device());
+    tensor_minimum_i64(self, other, out);
+    return out;
+}
+
+at::Tensor &minimum_out(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    require_nntile_operand(self, "minimum.out", "self");
+    require_nntile_operand(other, "minimum.out", "other");
+    require_nntile_operand(out, "minimum.out", "out");
+    tensor_minimum_i64(self, other, out);
+    return out;
+}
+
+at::Tensor filled_fp32_scalar(
+    const at::Tensor &like,
+    const at::Scalar &value)
+{
+    at::Tensor scalar = empty_metadata_tensor(
+        {},
+        at::kFloat,
+        like.device());
+    scalar.fill_(value);
+    return scalar;
+}
+
+at::Tensor eq_tensor(
+    const at::Tensor &self,
+    const at::Tensor &other)
+{
+    at::Tensor rhs = other;
+    if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
+    {
+        require_nntile_operand(self, "eq.Tensor", "self");
+        TORCH_CHECK(
+            self.scalar_type() == at::kFloat,
+            "torch_nntile eq.Tensor: float32 only");
+        rhs = filled_fp32_scalar(self, other.item());
+    }
+    require_nntile_operand(self, "eq.Tensor", "self");
+    require_nntile_operand(rhs, "eq.Tensor", "other");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat &&
+            rhs.scalar_type() == at::kFloat,
+        "torch_nntile eq.Tensor: float32 only");
+    auto bcast = at::infer_size(self.sizes(), rhs.sizes());
+    at::Tensor out = empty_metadata_tensor(
+        bcast,
+        at::kBool,
+        self.device());
+    tensor_eq_fp32(self, rhs, out);
+    return out;
+}
+
+at::Tensor &eq_out(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
+    {
+        at::Tensor rhs = filled_fp32_scalar(self, other.item());
+        require_nntile_operand(out, "eq.out", "out");
+        tensor_eq_fp32(self, rhs, out);
+        return out;
+    }
+    require_nntile_operand(self, "eq.out", "self");
+    require_nntile_operand(other, "eq.out", "other");
+    require_nntile_operand(out, "eq.out", "out");
+    tensor_eq_fp32(self, other, out);
+    return out;
+}
+
+at::Tensor eq_scalar(
+    const at::Tensor &self,
+    const at::Scalar &other)
+{
+    require_nntile_operand(self, "eq.Scalar", "self");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat,
+        "torch_nntile eq.Scalar: float32 only");
+    return eq_tensor(self, filled_fp32_scalar(self, other));
+}
+
+at::Tensor &eq_scalar_out(
+    const at::Tensor &self,
+    const at::Scalar &other,
+    at::Tensor &out)
+{
+    require_nntile_operand(self, "eq.Scalar_out", "self");
+    require_nntile_operand(out, "eq.Scalar_out", "out");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat,
+        "torch_nntile eq.Scalar_out: float32 only");
+    at::Tensor rhs = filled_fp32_scalar(self, other);
+    tensor_eq_fp32(self, rhs, out);
+    return out;
+}
+
+at::Tensor masked_fill_scalar(
+    const at::Tensor &self,
+    const at::Tensor &mask,
+    const at::Scalar &value)
+{
+    require_nntile_operand(self, "masked_fill.Scalar", "self");
+    require_nntile_operand(mask, "masked_fill.Scalar", "mask");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat,
+        "torch_nntile masked_fill: float32 self");
+    TORCH_CHECK(
+        mask.scalar_type() == at::kBool,
+        "torch_nntile masked_fill: bool mask");
+    at::Tensor filled = empty_metadata_tensor(
+        self.sizes(),
+        at::kFloat,
+        self.device());
+    filled.fill_(value);
+    return where_self(mask, filled, self);
+}
+
+at::Tensor &masked_fill__scalar(
+    at::Tensor &self,
+    const at::Tensor &mask,
+    const at::Scalar &value)
+{
+    at::Tensor tmp = masked_fill_scalar(self, mask, value);
+    self.copy_(tmp);
+    return self;
 }
 
 } // namespace torch_nntile
@@ -715,46 +687,38 @@ at::Tensor where_self(
 TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("_to_copy", TORCH_FN(torch_nntile::to_copy));
-    m.impl("triu", TORCH_FN(torch_nntile::triu));
-    m.impl("triu.out", TORCH_FN(torch_nntile::triu_out));
-    m.impl("eq.Scalar", TORCH_FN(torch_nntile::eq_scalar));
-    m.impl("eq.Scalar_out", TORCH_FN(torch_nntile::eq_scalar_out));
-    m.impl("ne.Scalar", TORCH_FN(torch_nntile::ne_scalar));
-    m.impl("ne.Scalar_out", TORCH_FN(torch_nntile::ne_scalar_out));
-    m.impl("all", TORCH_FN(torch_nntile::all_tensor));
-    m.impl("all.all_out", TORCH_FN(torch_nntile::all_out));
-    m.impl("gt.Tensor", TORCH_FN(torch_nntile::gt_tensor));
-    m.impl("gt.Tensor_out", TORCH_FN(torch_nntile::gt_tensor_out));
-    m.impl("gt.Scalar", TORCH_FN(torch_nntile::gt_scalar));
-    m.impl("gt.Scalar_out", TORCH_FN(torch_nntile::gt_scalar_out));
-    m.impl("lt.Scalar", TORCH_FN(torch_nntile::lt_scalar));
-    m.impl("lt.Scalar_out", TORCH_FN(torch_nntile::lt_scalar_out));
-    m.impl("abs", TORCH_FN(torch_nntile::abs_tensor));
-    m.impl("abs.out", TORCH_FN(torch_nntile::abs_out));
-    m.impl("log", TORCH_FN(torch_nntile::log_tensor));
-    m.impl("log.out", TORCH_FN(torch_nntile::log_out));
-    m.impl("minimum", TORCH_FN(torch_nntile::minimum_tensor));
     m.impl("full_like", TORCH_FN(torch_nntile::full_like_tensor));
     m.impl("zeros_like", TORCH_FN(torch_nntile::zeros_like_tensor));
-    m.impl(
-        "masked_fill_.Scalar",
-        TORCH_FN(torch_nntile::masked_fill_scalar_));
-    m.impl(
-        "masked_fill.Scalar",
-        TORCH_FN(torch_nntile::masked_fill_scalar));
-    m.impl("sub.Scalar", TORCH_FN(torch_nntile::sub_scalar));
-    m.impl("sub.Scalar_out", TORCH_FN(torch_nntile::sub_scalar_out));
-    m.impl("rsub.Scalar", TORCH_FN(torch_nntile::rsub_scalar));
-    m.impl("rsub.Scalar_out", TORCH_FN(torch_nntile::rsub_scalar_out));
     m.impl("pow.Tensor_Scalar", TORCH_FN(torch_nntile::pow_tensor_scalar));
     m.impl(
         "pow.Tensor_Scalar_out",
         TORCH_FN(torch_nntile::pow_tensor_scalar_out));
-    m.impl("mean.dim", TORCH_FN(torch_nntile::mean_dim));
-    m.impl("mean.out", TORCH_FN(torch_nntile::mean_out));
     m.impl("div.Scalar", TORCH_FN(torch_nntile::div_scalar));
     m.impl("div.Scalar_out", TORCH_FN(torch_nntile::div_scalar_out));
     m.impl("div.Tensor", TORCH_FN(torch_nntile::div_tensor));
     m.impl("div.out", TORCH_FN(torch_nntile::div_out));
     m.impl("where.self", TORCH_FN(torch_nntile::where_self));
+    m.impl("triu", TORCH_FN(torch_nntile::triu_tensor));
+    m.impl("triu.out", TORCH_FN(torch_nntile::triu_out));
+    m.impl("gt.Tensor", TORCH_FN(torch_nntile::gt_tensor));
+    m.impl("gt.out", TORCH_FN(torch_nntile::gt_out));
+    m.impl("gt.Scalar", TORCH_FN(torch_nntile::gt_scalar));
+    m.impl("lt.Tensor", TORCH_FN(torch_nntile::lt_tensor));
+    m.impl("lt.out", TORCH_FN(torch_nntile::lt_out));
+    m.impl("lt.Scalar", TORCH_FN(torch_nntile::lt_scalar));
+    m.impl("abs", TORCH_FN(torch_nntile::abs_tensor));
+    m.impl("abs.out", TORCH_FN(torch_nntile::abs_out));
+    m.impl("minimum.Tensor", TORCH_FN(torch_nntile::minimum_tensor));
+    m.impl("minimum.out", TORCH_FN(torch_nntile::minimum_out));
+    m.impl("min.other", TORCH_FN(torch_nntile::minimum_tensor));
+    m.impl("eq.Tensor", TORCH_FN(torch_nntile::eq_tensor));
+    m.impl("eq.out", TORCH_FN(torch_nntile::eq_out));
+    m.impl("eq.Scalar", TORCH_FN(torch_nntile::eq_scalar));
+    m.impl("eq.Scalar_out", TORCH_FN(torch_nntile::eq_scalar_out));
+    m.impl(
+        "masked_fill.Scalar",
+        TORCH_FN(torch_nntile::masked_fill_scalar));
+    m.impl(
+        "masked_fill_.Scalar",
+        TORCH_FN(torch_nntile::masked_fill__scalar));
 }

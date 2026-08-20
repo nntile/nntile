@@ -2,6 +2,7 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_sum.cpp
+ * aten::sum / aten::mean on device=nntile (torch-native StarPU path).
  */
 
 #include "nntile_executor.h"
@@ -24,18 +25,28 @@ bool is_nntile_device(c10::Device device)
     return device.type() == c10::DeviceType::PrivateUse1;
 }
 
-void check_sum_input(const at::Tensor &self)
+void check_reduce_input(const at::Tensor &self, const char *op)
 {
     TORCH_CHECK(
         is_nntile_device(self.device()),
-        "nntile sum expects tensor on device nntile");
+        "nntile ",
+        op,
+        " expects tensor on device nntile");
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
-        "nntile sum supports float32 only");
+        "nntile ",
+        op,
+        " supports float32 only");
     TORCH_CHECK(
         self.is_contiguous(),
-        "nntile sum requires contiguous tensor");
-    TORCH_CHECK(self.dim() > 0, "nntile sum: cannot sum a 0-dim tensor");
+        "nntile ",
+        op,
+        " requires contiguous tensor");
+    TORCH_CHECK(
+        self.dim() > 0,
+        "nntile ",
+        op,
+        ": cannot reduce a 0-dim tensor");
 }
 
 std::vector<int64_t> infer_sum_output_sizes(
@@ -61,7 +72,7 @@ std::vector<int64_t> infer_sum_output_sizes(
             const int64_t axis = d < 0 ? d + rank : d;
             TORCH_CHECK(
                 axis >= 0 && axis < rank,
-                "nntile sum: dimension out of range");
+                "nntile reduce: dimension out of range");
             reduce_dims.push_back(axis);
         }
     }
@@ -91,42 +102,121 @@ std::vector<int64_t> infer_sum_output_sizes(
 
 } // namespace
 
+void run_reduce_out(
+    void (*kernel)(
+        const at::Tensor &,
+        at::Tensor &,
+        at::OptionalIntArrayRef,
+        bool),
+    const char *op,
+    const at::Tensor &self,
+    at::OptionalIntArrayRef dim,
+    bool keepdim,
+    at::Tensor &out)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_reduce_input(inp, op);
+    TORCH_CHECK(
+        is_nntile_device(out.device()),
+        "nntile ",
+        op,
+        ".out expects output on device nntile");
+    const std::vector<int64_t> out_sizes =
+        infer_sum_output_sizes(inp.sizes(), dim, keepdim);
+    TORCH_CHECK(
+        out.sizes().vec() == out_sizes,
+        "nntile ",
+        op,
+        ".out: output shape mismatch");
+    TORCH_CHECK(
+        out.is_contiguous(),
+        "nntile ",
+        op,
+        ".out requires contiguous out");
+    kernel(inp, out, dim, keepdim);
+}
+
+at::Tensor run_reduce(
+    void (*kernel)(
+        const at::Tensor &,
+        at::Tensor &,
+        at::OptionalIntArrayRef,
+        bool),
+    const char *op,
+    const at::Tensor &self,
+    at::OptionalIntArrayRef dim,
+    bool keepdim)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_reduce_input(inp, op);
+    const std::vector<int64_t> out_sizes =
+        infer_sum_output_sizes(inp.sizes(), dim, keepdim);
+    at::Tensor out = at::empty(
+        out_sizes,
+        inp.options().memory_format(at::MemoryFormat::Contiguous));
+    kernel(inp, out, dim, keepdim);
+    return out;
+}
+
 at::Tensor sum_dimlist(
     const at::Tensor &self,
     at::OptionalIntArrayRef dim,
     bool keepdim,
     std::optional<at::ScalarType> /*dtype*/)
 {
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_sum_input(inp);
-    const std::vector<int64_t> out_sizes =
-        infer_sum_output_sizes(inp.sizes(), dim, keepdim);
-    at::Tensor out = at::empty(
-        out_sizes,
-        inp.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_sum_dimlist_fp32(inp, out, dim, keepdim);
-    return out;
+    return run_reduce(
+        tensor_sum_dimlist_fp32,
+        "sum",
+        self,
+        dim,
+        keepdim);
 }
 
 at::Tensor &sum_dimlist_out(
     const at::Tensor &self,
     at::OptionalIntArrayRef dim,
     bool keepdim,
-    std::optional<at::ScalarType> dtype,
+    std::optional<at::ScalarType> /*dtype*/,
     at::Tensor &out)
 {
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_sum_input(inp);
-    TORCH_CHECK(
-        is_nntile_device(out.device()),
-        "nntile sum.out expects output on device nntile");
-    const std::vector<int64_t> out_sizes =
-        infer_sum_output_sizes(inp.sizes(), dim, keepdim);
-    TORCH_CHECK(
-        out.sizes().vec() == out_sizes,
-        "nntile sum.out: output shape mismatch");
-    TORCH_CHECK(out.is_contiguous(), "nntile sum.out requires contiguous out");
-    tensor_sum_dimlist_fp32(inp, out, dim, keepdim);
+    run_reduce_out(
+        tensor_sum_dimlist_fp32,
+        "sum",
+        self,
+        dim,
+        keepdim,
+        out);
+    return out;
+}
+
+at::Tensor mean_dimlist(
+    const at::Tensor &self,
+    at::OptionalIntArrayRef dim,
+    bool keepdim,
+    std::optional<at::ScalarType> /*dtype*/)
+{
+    return run_reduce(
+        tensor_mean_dimlist_fp32,
+        "mean",
+        self,
+        dim,
+        keepdim);
+}
+
+at::Tensor &mean_dimlist_out(
+    const at::Tensor &self,
+    at::OptionalIntArrayRef dim,
+    bool keepdim,
+    std::optional<at::ScalarType> /*dtype*/,
+    at::Tensor &out)
+{
+    run_reduce_out(
+        tensor_mean_dimlist_fp32,
+        "mean",
+        self,
+        dim,
+        keepdim,
+        out);
     return out;
 }
 
@@ -136,4 +226,6 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("sum.IntList_out", TORCH_FN(torch_nntile::sum_dimlist_out));
     m.impl("sum.dim_IntList", TORCH_FN(torch_nntile::sum_dimlist));
+    m.impl("mean.out", TORCH_FN(torch_nntile::mean_dimlist_out));
+    m.impl("mean.dim", TORCH_FN(torch_nntile::mean_dimlist));
 }

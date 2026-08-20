@@ -188,7 +188,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("ooc_size") = 16 * 1024 * 1024,
         py::arg("logger") = 0,
         py::arg("verbose") = 0,
-        py::arg("cpu_fallback") = true);
+        py::arg("cpu_fallback") = false);
     m.def(
         "is_cpu_fallback_enabled",
         &torch_nntile::is_cpu_fallback_enabled,

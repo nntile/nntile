@@ -88,6 +88,83 @@ void torch_embedding_out(
     const Tile<fp32_t> &out,
     const TorchTileMeta &out_meta);
 
+void torch_where_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &condition,
+    const TorchTileMeta &condition_meta,
+    const Tile<fp32_t> &self,
+    const TorchTileMeta &self_meta,
+    const Tile<fp32_t> &other,
+    const TorchTileMeta &other_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta);
+
+void torch_where_i64_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &condition,
+    const TorchTileMeta &condition_meta,
+    const Tile<int64_t> &self,
+    const TorchTileMeta &self_meta,
+    const Tile<int64_t> &other,
+    const TorchTileMeta &other_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_arange_out(
+    int starpu_worker_hint,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_gt_out(
+    int starpu_worker_hint,
+    const Tile<int64_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<int64_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_eq_fp32_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<fp32_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_i64_binary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<int64_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<int64_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_i64_unary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<int64_t> &in,
+    const TorchTileMeta &in_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_cast_out(
+    int starpu_worker_hint,
+    const starpu::Handle &in,
+    const TorchTileMeta &in_meta,
+    const starpu::Handle &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
 void torch_cat_out(
     int starpu_worker_hint,
     Index dim,

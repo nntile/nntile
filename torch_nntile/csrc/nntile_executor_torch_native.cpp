@@ -15,6 +15,7 @@
 #include "nntile_tensor_meta.h"
 #include "nntile_torch_layout.h"
 
+#include <ATen/ExpandUtils.h>
 #include <ATen/Functions.h>
 #include <c10/util/Exception.h>
 
@@ -211,27 +212,26 @@ void tensor_add_fp32(
         "torch_nntile torch_add: only alpha=1 on the left "
         "operand is supported (z = x + beta * y)");
     TORCH_CHECK(
-        x.sizes().equals(y.sizes()) && x.sizes().equals(out.sizes()),
-        "torch_nntile torch_add: same-shape tensors only");
-    TORCH_CHECK(
         x.scalar_type() == at::kFloat &&
             y.scalar_type() == at::kFloat &&
             out.scalar_type() == at::kFloat,
         "torch_nntile torch_add: float32 only");
-
-    const std::vector<nntile::Index> graph_shape =
-        pytorch_shape_to_graph(x.sizes());
+    TORCH_CHECK(
+        out.sizes().equals(at::infer_size(x.sizes(), y.sizes())),
+        "torch_nntile torch_add: out must match broadcast shape");
 
     auto *x_node = get_or_create_data_node(
         x,
-        graph_shape,
+        pytorch_shape_to_graph(x.sizes()),
         nntile::DataType::FP32,
         mark_as_input_for_operand(x));
     auto *y_node = get_or_create_data_node(
         y,
-        graph_shape,
+        pytorch_shape_to_graph(y.sizes()),
         nntile::DataType::FP32,
         mark_as_input_for_operand(y));
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(out.sizes());
 
     nntile::starpu::TorchDispatchArgs extra;
     extra.scalars[0] = static_cast<nntile::Scalar>(beta);
@@ -320,7 +320,7 @@ void tensor_add_inplace_fp32(
         mark_as_input_for_operand(self));
     auto *other_node = get_or_create_data_node(
         other,
-        graph_shape,
+        pytorch_shape_to_graph(other.sizes()),
         nntile::DataType::FP32,
         mark_as_input_for_operand(other));
 
@@ -543,6 +543,11 @@ void tensor_rsqrt_fp32(const at::Tensor &input, at::Tensor &out)
 void tensor_exp_fp32(const at::Tensor &input, at::Tensor &out)
 {
     tensor_unary_fp32(nntile::starpu::TorchKind::Exp, input, out);
+}
+
+void tensor_log_fp32(const at::Tensor &input, at::Tensor &out)
+{
+    tensor_unary_fp32(nntile::starpu::TorchKind::Log, input, out);
 }
 
 void tensor_relu_backward_fp32(
@@ -1266,7 +1271,8 @@ void tensor_norm_slice_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_sum_dimlist_fp32(
+void tensor_reduce_dimlist_fp32(
+    nntile::starpu::TorchKind kind,
     const at::Tensor &input,
     at::Tensor &out,
     at::OptionalIntArrayRef dim,
@@ -1274,7 +1280,7 @@ void tensor_sum_dimlist_fp32(
 {
     const c10::IntArrayRef input_shape = input.sizes();
     const int64_t rank = static_cast<int64_t>(input_shape.size());
-    TORCH_CHECK(rank > 0, "nntile sum: cannot sum a 0-dim tensor");
+    TORCH_CHECK(rank > 0, "nntile reduce: cannot reduce a 0-dim tensor");
 
     std::vector<int64_t> dims;
     if (!dim.has_value() || dim->empty())
@@ -1293,7 +1299,7 @@ void tensor_sum_dimlist_fp32(
             const int64_t axis = d < 0 ? d + rank : d;
             TORCH_CHECK(
                 axis >= 0 && axis < rank,
-                "nntile sum: dimension out of range");
+                "nntile reduce: dimension out of range");
             dims.push_back(axis);
         }
     }
@@ -1320,11 +1326,39 @@ void tensor_sum_dimlist_fp32(
     pack_tensor_layout(extra, 0, input, false);
     pack_tensor_layout(extra, 0, out, true);
     nntile::tensor::torch_unary(
-        nntile::starpu::TorchKind::Sum,
+        kind,
         in_node,
         out_node,
         extra);
     register_data_node(out, out_node);
+}
+
+void tensor_sum_dimlist_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    at::OptionalIntArrayRef dim,
+    bool keepdim)
+{
+    tensor_reduce_dimlist_fp32(
+        nntile::starpu::TorchKind::Sum,
+        input,
+        out,
+        dim,
+        keepdim);
+}
+
+void tensor_mean_dimlist_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    at::OptionalIntArrayRef dim,
+    bool keepdim)
+{
+    tensor_reduce_dimlist_fp32(
+        nntile::starpu::TorchKind::Mean,
+        input,
+        out,
+        dim,
+        keepdim);
 }
 
 void tensor_cat_fp32(
@@ -1589,6 +1623,387 @@ void tensor_sdpa_forward_fp32(
     register_data_node(out, out_node);
 }
 
+void tensor_where_fp32(
+    const at::Tensor &condition,
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    TORCH_CHECK(
+        condition.scalar_type() == at::kBool,
+        "torch_nntile where: condition must be bool");
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat &&
+            other.scalar_type() == at::kFloat &&
+            out.scalar_type() == at::kFloat,
+        "torch_nntile where: float32 self/other/out only");
+
+    auto *cond_node = get_or_create_data_node(
+        condition,
+        pytorch_shape_to_graph(condition.sizes()),
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(condition));
+    auto *self_node = get_or_create_data_node(
+        self,
+        pytorch_shape_to_graph(self.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        pytorch_shape_to_graph(other.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(other));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    pack_tensor_layout(extra, 0, condition, false);
+    pack_tensor_layout(extra, 1, self, false);
+    pack_tensor_layout(extra, 2, other, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_where(
+        cond_node,
+        self_node,
+        other_node,
+        pytorch_shape_to_graph(out.sizes()),
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_triu_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t diagonal)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[0] = static_cast<nntile::Index>(diagonal);
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Triu,
+        in_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_arange_i64(
+    at::Tensor &out,
+    int64_t start,
+    int64_t end,
+    int64_t step)
+{
+    auto *out_node = get_or_create_data_node(
+        out,
+        pytorch_shape_to_graph(out.sizes()),
+        nntile::DataType::INT64,
+        /*mark_as_input=*/false);
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[0] = static_cast<nntile::Index>(start);
+    extra.iargs[1] = static_cast<nntile::Index>(end);
+    extra.iargs[2] = static_cast<nntile::Index>(step);
+    pack_tensor_layout(extra, 0, out, true);
+    nntile::tensor::torch_arange(out_node, extra);
+}
+
+void tensor_gt_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    auto *a_node = get_or_create_data_node(
+        a,
+        pytorch_shape_to_graph(a.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        pytorch_shape_to_graph(b.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(b));
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, a, false);
+    pack_tensor_layout(extra, 1, b, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_gt(
+        a_node,
+        b_node,
+        pytorch_shape_to_graph(out.sizes()),
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_eq_fp32(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    auto *a_node = get_or_create_data_node(
+        a,
+        pytorch_shape_to_graph(a.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        pytorch_shape_to_graph(b.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(b));
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.kind = nntile::starpu::TorchKind::Eq;
+    pack_tensor_layout(extra, 0, a, false);
+    pack_tensor_layout(extra, 1, b, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_gt(
+        a_node,
+        b_node,
+        pytorch_shape_to_graph(out.sizes()),
+        extra);
+    register_data_node(out, out_node);
+}
+
+namespace
+{
+
+nntile::DataType aten_dtype_to_nntile(at::ScalarType dtype)
+{
+    switch (dtype)
+    {
+    case at::kFloat:
+        return nntile::DataType::FP32;
+    case at::kLong:
+        return nntile::DataType::INT64;
+    case at::kBool:
+        return nntile::DataType::BOOL;
+    default:
+        TORCH_CHECK(false, "torch_nntile: unsupported dtype");
+    }
+}
+
+nntile::Index aten_dtype_tag(at::ScalarType dtype)
+{
+    switch (dtype)
+    {
+    case at::kFloat:
+        return 0;
+    case at::kLong:
+        return 1;
+    case at::kBool:
+        return 2;
+    default:
+        TORCH_CHECK(false, "torch_nntile: unsupported dtype tag");
+    }
+}
+
+void tensor_i64_binary(
+    nntile::starpu::TorchKind kind,
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    auto *a_node = get_or_create_data_node(
+        a,
+        pytorch_shape_to_graph(a.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        pytorch_shape_to_graph(b.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(b));
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, a, false);
+    pack_tensor_layout(extra, 1, b, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_binary(
+        kind,
+        a_node,
+        b_node,
+        pytorch_shape_to_graph(out.sizes()),
+        extra);
+    register_data_node(out, out_node);
+}
+
+} // namespace
+
+void tensor_lt_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    auto *a_node = get_or_create_data_node(
+        a,
+        pytorch_shape_to_graph(a.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        pytorch_shape_to_graph(b.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(b));
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.kind = nntile::starpu::TorchKind::Lt;
+    pack_tensor_layout(extra, 0, a, false);
+    pack_tensor_layout(extra, 1, b, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_gt(
+        a_node,
+        b_node,
+        pytorch_shape_to_graph(out.sizes()),
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_sub_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    tensor_i64_binary(nntile::starpu::TorchKind::Sub, a, b, out);
+}
+
+void tensor_add_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    tensor_i64_binary(nntile::starpu::TorchKind::Add, a, b, out);
+}
+
+void tensor_mul_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    tensor_i64_binary(nntile::starpu::TorchKind::Mul, a, b, out);
+}
+
+void tensor_minimum_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    tensor_i64_binary(nntile::starpu::TorchKind::Minimum, a, b, out);
+}
+
+void tensor_abs_i64(const at::Tensor &input, at::Tensor &out)
+{
+    const auto graph_shape = pytorch_shape_to_graph(input.sizes());
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(input));
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Abs,
+        in_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_neg_i64(const at::Tensor &input, at::Tensor &out)
+{
+    const auto graph_shape = pytorch_shape_to_graph(input.sizes());
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(input));
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Neg,
+        in_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_fill_i64(at::Tensor &self, int64_t value)
+{
+    auto *self_node = get_or_create_data_node(
+        self,
+        pytorch_shape_to_graph(self.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(self));
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.kind = nntile::starpu::TorchKind::FillI64;
+    extra.iargs[0] = static_cast<nntile::Index>(value);
+    pack_tensor_layout(extra, 0, self, true);
+    nntile::tensor::torch_arange(self_node, extra);
+    register_data_node(self, self_node);
+}
+
+void tensor_cast(const at::Tensor &input, at::Tensor &out)
+{
+    auto *in_node = get_or_create_data_node(
+        input,
+        pytorch_shape_to_graph(input.sizes()),
+        aten_dtype_to_nntile(input.scalar_type()),
+        mark_as_input_for_operand(input));
+    auto *out_node = get_or_create_data_node(
+        out,
+        pytorch_shape_to_graph(out.sizes()),
+        aten_dtype_to_nntile(out.scalar_type()),
+        /*mark_as_input=*/false);
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[0] = aten_dtype_tag(input.scalar_type());
+    extra.iargs[1] = aten_dtype_tag(out.scalar_type());
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Cast,
+        in_node,
+        out_node,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_where_i64(
+    const at::Tensor &condition,
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    auto *cond_node = get_or_create_data_node(
+        condition,
+        pytorch_shape_to_graph(condition.sizes()),
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(condition));
+    auto *self_node = get_or_create_data_node(
+        self,
+        pytorch_shape_to_graph(self.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        pytorch_shape_to_graph(other.sizes()),
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(other));
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[15] = 1;
+    pack_tensor_layout(extra, 0, condition, false);
+    pack_tensor_layout(extra, 1, self, false);
+    pack_tensor_layout(extra, 2, other, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_where(
+        cond_node,
+        self_node,
+        other_node,
+        pytorch_shape_to_graph(out.sizes()),
+        extra);
+    register_data_node(out, out_node);
+}
+
 void tensor_model_transpose_forward_fp32(
     const at::Tensor &,
     at::Tensor &,
@@ -1643,6 +2058,29 @@ void tensor_copy_fp32(const at::Tensor &src, at::Tensor &dst)
         src,
         in_shape,
         nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, src, false);
+    pack_tensor_layout(extra, 0, dst, true);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Copy,
+        in_node,
+        out_shape,
+        extra);
+    register_data_node(dst, out_node);
+}
+
+void tensor_copy_i64(const at::Tensor &src, at::Tensor &dst)
+{
+    const auto in_shape = pytorch_shape_to_graph(src.sizes());
+    const auto out_shape = pytorch_shape_to_graph(dst.sizes());
+    TORCH_CHECK(
+        in_shape == out_shape,
+        "torch_nntile copy i64: src/dst shape mismatch");
+    auto *in_node = get_or_create_data_node(
+        src,
+        in_shape,
+        nntile::DataType::INT64,
         mark_as_input_for_operand(src));
     nntile::starpu::TorchDispatchArgs extra{};
     pack_tensor_layout(extra, 0, src, false);

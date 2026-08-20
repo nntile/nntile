@@ -6,15 +6,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/ops/invalidate.hh
- * TensorGraph async invalidate (lowers to per-tile invalidate_submit).
+ * @file include/nntile/tensor/ops/unregister.hh
+ * TensorGraph async unregister (lowers to per-tile unregister_submit).
  *
  * @version 1.1.0
  * */
 
 #pragma once
-
-#include <cstddef>
 
 #include <nntile/tensor/graph.hh>
 
@@ -26,34 +24,29 @@ struct LoweringContext;
 namespace nntile::tensor
 {
 
-//! Async invalidate at tensor level (no outputs; side-effect on ``x``).
-struct TensorInvalidateOp : TensorGraph::OpNode
+//! Async unregister at tensor level (no outputs; side-effect on ``x``).
+struct TensorUnregisterOp : TensorGraph::OpNode
 {
     TensorGraph::TensorNode *x = nullptr;
 
-    TensorInvalidateOp() = default;
-    explicit TensorInvalidateOp(TensorGraph::TensorNode *x_)
+    TensorUnregisterOp() = default;
+    explicit TensorUnregisterOp(TensorGraph::TensorNode *x_)
         : x(x_)
     {
         inputs_ = {x};
         outputs_ = {};
     }
 
-    std::string op_name() const override { return "INVALIDATE"; }
+    std::string op_name() const override { return "UNREGISTER"; }
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
-        return std::make_shared<TensorInvalidateOp>(*this);
+        return std::make_shared<TensorUnregisterOp>(*this);
     }
 
     void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-void invalidate(TensorGraph::TensorNode *x);
-
-//! For every tensor touched by unsealed ops that has no live ``TensorRef``,
-//! append ``INVALIDATE``. Skips tensors that already have ``UNREGISTER``
-//! in the unsealed suffix. O(phase). Call before ``seal_phase()``.
-std::size_t append_invalidates_for_unmarked_unsealed(TensorGraph &graph);
+void unregister(TensorGraph::TensorNode *x);
 
 } // namespace nntile::tensor

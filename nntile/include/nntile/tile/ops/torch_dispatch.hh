@@ -167,6 +167,108 @@ struct TileTorchEmbeddingOp : TileGraph::OpNode
     }
 };
 
+struct TileTorchWhereOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *condition = nullptr;
+    TileGraph::TileNode *self = nullptr;
+    TileGraph::TileNode *other = nullptr;
+    TileGraph::TileNode *out = nullptr;
+
+    TileTorchWhereOp() = default;
+    TileTorchWhereOp(
+        TileGraph::TileNode *condition_,
+        TileGraph::TileNode *self_,
+        TileGraph::TileNode *other_,
+        TileGraph::TileNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        condition(condition_),
+        self(self_),
+        other(other_),
+        out(out_)
+    {
+        inputs_ = {condition, self, other};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_WHERE";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchWhereOp>(*this);
+    }
+};
+
+struct TileTorchArangeOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *out = nullptr;
+
+    TileTorchArangeOp() = default;
+    explicit TileTorchArangeOp(
+        TileGraph::TileNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        out(out_)
+    {
+        inputs_ = {};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_ARANGE";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchArangeOp>(*this);
+    }
+};
+
+struct TileTorchGtOp : TileGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TileGraph::TileNode *a = nullptr;
+    TileGraph::TileNode *b = nullptr;
+    TileGraph::TileNode *out = nullptr;
+
+    TileTorchGtOp() = default;
+    TileTorchGtOp(
+        TileGraph::TileNode *a_,
+        TileGraph::TileNode *b_,
+        TileGraph::TileNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        a(a_),
+        b(b_),
+        out(out_)
+    {
+        inputs_ = {a, b};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TILE_TORCH_GT";
+    }
+
+    void execute(Runtime &runtime) const override;
+
+    std::shared_ptr<TileGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TileTorchGtOp>(*this);
+    }
+};
+
 struct TileTorchCatOp : TileGraph::OpNode
 {
     Index dim = 0;
@@ -221,6 +323,23 @@ void torch_ternary(
 void torch_embedding(
     TileGraph::TileNode *weight,
     TileGraph::TileNode *indices,
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra = {});
+
+void torch_where(
+    TileGraph::TileNode *condition,
+    TileGraph::TileNode *self,
+    TileGraph::TileNode *other,
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra = {});
+
+void torch_arange(
+    TileGraph::TileNode *out,
+    starpu::TorchDispatchArgs extra);
+
+void torch_gt(
+    TileGraph::TileNode *a,
+    TileGraph::TileNode *b,
     TileGraph::TileNode *out,
     starpu::TorchDispatchArgs extra = {});
 

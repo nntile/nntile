@@ -197,6 +197,7 @@ inline void TensorGraph::drop_all_ops()
     // retaining SCATTER edges made TensorGraph history O(#preloaded
     // batches). Unsealed ops past the seal cursor stay (next phase
     // recorded during a prior async run).
+    // Tech debt D1: do not erase data_ here; TensorNode IR is session-lived.
     if (phase_seal_cursor_ == 0)
     {
         return;

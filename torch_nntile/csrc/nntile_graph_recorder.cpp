@@ -24,6 +24,7 @@
 #include <nntile/tensor/graph.hh>
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/invalidate.hh>
+#include <nntile/tensor/ops/unregister.hh>
 #include <nntile/tensor/ops/gather.hh>
 #include <nntile/tensor/ops/scatter.hh>
 #include <nntile/tensor/ops/contiguous_view.hh>
@@ -44,7 +45,6 @@ std::vector<Index> tile_sizes_for_axis_extent(
     Index extent);
 } // namespace nntile
 
-#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -108,8 +108,6 @@ struct RecorderExecState
     //! Slice scheduled by the latest compile_graph_locked call.
     std::size_t pending_exec_op_begin = 0;
     std::size_t pending_exec_op_end = 0;
-    //! Scatter staging tensors in the pending phase (invalidate after wait).
-    std::vector<nntile::TensorGraph::TensorNode *> pending_scatter_stagings;
 };
 
 std::unique_ptr<RecorderExecState> g_exec;
@@ -498,78 +496,6 @@ void release_io_staging_locked(nntile::TensorGraph::TensorNode *staging)
     }
 }
 
-//! Run pending tile ops, releasing each ingress ``S`` right after its
-//! scatter consumers finish.
-//!
-//! Batched ``.to("nntile")`` creates every ephemeral ``S`` first, then
-//! compile lowers every logical ``L``. Submitting all scatters before any
-//! ``S`` unregister leaves StarPU holding CUDA replicates of every ``S``
-//! beside every ``L``; unregister only parks those buffers in the
-//! allocation cache (``nvidia-smi`` stays ~2x). Drain + destroy each
-//! ``S`` before the next scatter so the next ``L`` reuses the cached
-//! chunk instead of allocating another full working set.
-void run_pending_with_scatter_staging_release_locked(
-    std::size_t op_begin,
-    std::size_t op_end,
-    bool submit_tasks)
-{
-    struct ReleasePoint
-    {
-        std::size_t after_op_end = 0;
-        nntile::TensorGraph::TensorNode *staging = nullptr;
-    };
-    std::vector<ReleasePoint> points;
-    points.reserve(g_exec->pending_scatter_stagings.size());
-    for (nntile::TensorGraph::TensorNode *staging :
-        g_exec->pending_scatter_stagings)
-    {
-        if (staging == nullptr)
-        {
-            continue;
-        }
-        std::size_t after = op_begin;
-        auto const *tiles = g_exec->tile_map.try_get(staging);
-        if (tiles != nullptr && tiles->size() == 1 &&
-            (*tiles)[0] != nullptr)
-        {
-            after = g_exec->runtime->last_input_consumer_end(
-                (*tiles)[0],
-                op_begin,
-                op_end);
-        }
-        points.push_back(ReleasePoint{after, staging});
-    }
-    std::stable_sort(
-        points.begin(),
-        points.end(),
-        [](ReleasePoint const &a, ReleasePoint const &b)
-        {
-            return a.after_op_end < b.after_op_end;
-        });
-
-    std::size_t cursor = op_begin;
-    for (ReleasePoint const &pt : points)
-    {
-        if (pt.after_op_end > cursor)
-        {
-            g_exec->runtime->execute_range(
-                cursor,
-                pt.after_op_end,
-                submit_tasks);
-            cursor = pt.after_op_end;
-        }
-        // Join before destroying S so its CUDA replicate can enter the
-        // allocation cache for the next L allocate.
-        g_exec->runtime->wait();
-        release_io_staging_locked(pt.staging);
-    }
-    if (cursor < op_end)
-    {
-        g_exec->runtime->execute_range(cursor, op_end, submit_tasks);
-    }
-    g_exec->pending_scatter_stagings.clear();
-}
-
 void read_staging_to_host_locked(
     nntile::TensorGraph::TensorNode *staging,
     void *host_ptr,
@@ -899,40 +825,12 @@ void drain_starpu_after_session_teardown()
     starpu_task_wait_for_all();
 }
 
-void collect_scatter_stagings_from_phase_locked(
-    const nntile::TensorGraph::PhaseSnapshot &phase,
-    std::vector<nntile::TensorGraph::TensorNode *> &out)
-{
-    if (g_graph == nullptr || phase.empty())
-    {
-        return;
-    }
-    const auto &ops = g_graph->ops();
-    for (std::size_t i = phase.op_begin; i < phase.op_end; ++i)
-    {
-        if (i >= ops.size() || ops[i] == nullptr)
-        {
-            continue;
-        }
-        if (ops[i]->op_name() != "SCATTER")
-        {
-            continue;
-        }
-        const auto *scatter =
-            dynamic_cast<const nntile::tensor::TensorScatterOp *>(
-                ops[i].get());
-        if (scatter != nullptr && scatter->src != nullptr)
-        {
-            out.push_back(scatter->src);
-        }
-    }
-}
-
 void compact_tensor_graph_session_locked()
 {
     // Drop sealed TensorGraph ops so the next record/compile is O(phase).
     // Unsealed ops recorded after the last seal (next phase already in
     // flight while a prior run() completes) are preserved.
+    // Tech debt D1: TensorNode / TileNode IR is not cleared; only ops.
     if (g_graph == nullptr)
     {
         return;
@@ -965,8 +863,8 @@ void prepare_invalidate_selection_locked()
 
 //! Drain the TensorRef-release queue without touching StarPU.
 //!
-//! Reclaim is **only** via ordinary ``tensor::INVALIDATE`` graph ops:
-//! ``TensorRef`` last-drop already records ``tensor::invalidate``, and
+//! Reclaim is **only** via ordinary graph ops: ``TensorRef`` last-drop
+//! records ``tensor::unregister``, and
 //! ``append_invalidates_for_unmarked_unsealed`` covers emplace_data temps.
 //! A side-channel ``invalidate_logical_tiles`` here ran *before* the phase
 //! was submitted, so ``del inputs`` after record (but before compile) could
@@ -1006,15 +904,14 @@ void compile_graph_locked()
     // Marks must reflect live Python refs before INVALIDATE selection.
     prepare_invalidate_selection_locked();
     // Drain release notes only; do not invalidate_logical_tiles here.
-    // Payload reclaim is append_invalidates + TensorRef-recorded INVALIDATE
-    // ops in this phase (submitted with compute so StarPU orders them).
+    // Payload reclaim is append_invalidates + TensorRef-recorded
+    // UNREGISTER ops in this phase (submitted with compute so StarPU
+    // orders them).
     flush_released_logicals_locked();
     nntile::tensor::append_invalidates_for_unmarked_unsealed(*g_graph);
 
     SteadyClock::time_point t_part = SteadyClock::now();
     const nntile::TensorGraph::PhaseSnapshot phase = g_graph->seal_phase();
-    std::vector<nntile::TensorGraph::TensorNode *> scatter_stagings;
-    collect_scatter_stagings_from_phase_locked(phase, scatter_stagings);
     g_timing.compile_seal_s += seconds_since(t_part);
 
     // Phase-scoped tiling: full-graph from_tensor_graph rebuilt layouts for
@@ -1063,7 +960,6 @@ void compile_graph_locked()
     g_timing.compile_runtime_s += seconds_since(t_part);
     g_exec->pending_exec_op_end =
         g_exec->runtime->execution_op_count();
-    g_exec->pending_scatter_stagings = std::move(scatter_stagings);
 
     std::uint64_t const phase_ops = static_cast<std::uint64_t>(
         g_exec->pending_exec_op_end - g_exec->pending_exec_op_begin);
@@ -1078,7 +974,7 @@ void run_graph_locked()
     {
         return;
     }
-    // Submit only (except ingress scatters - see below). INVALIDATE ops are
+    // Submit the pending tile-op range. INVALIDATE / UNREGISTER ops are
     // already in the execution stream. Join StarPU via wait() for readout.
     if (g_exec->pending_exec_op_end > g_exec->pending_exec_op_begin)
     {
@@ -1088,22 +984,10 @@ void run_graph_locked()
         bool const submit = !skip_starpu_submit_and_acquire();
         // Always call execute_range so Runtime::executed_op_end_ advances.
         // SKIP_STARPU only disables OpNode::execute (StarPU task insert).
-        if (!g_exec->pending_scatter_stagings.empty())
-        {
-            // Per-S release so StarPU's allocation cache can reuse each
-            // ephemeral CUDA chunk for the next logical L (avoids ~2x).
-            run_pending_with_scatter_staging_release_locked(
-                g_exec->pending_exec_op_begin,
-                g_exec->pending_exec_op_end,
-                submit);
-        }
-        else
-        {
-            g_exec->runtime->execute_range(
-                g_exec->pending_exec_op_begin,
-                g_exec->pending_exec_op_end,
-                submit);
-        }
+        g_exec->runtime->execute_range(
+            g_exec->pending_exec_op_begin,
+            g_exec->pending_exec_op_end,
+            submit);
         g_timing.run_s += seconds_since(t0);
         ++g_timing.run_calls;
         g_timing.run_ops += phase_ops;
@@ -1129,18 +1013,10 @@ void finish_run_locked()
     }
     SteadyClock::time_point const t0 = SteadyClock::now();
     // Join StarPU for host-visible completion. Session compact already ran
-    // at the end of run(); INVALIDATE ops were submitted with the phase.
+    // at the end of run(); reclaim ops were submitted with the phase.
     g_exec->runtime->wait();
-    // Ingress S is normally released during run() (per-scatter). Any
-    // leftover (e.g. empty execute range) is cleaned here.
-    for (nntile::TensorGraph::TensorNode *staging :
-        g_exec->pending_scatter_stagings)
-    {
-        release_io_staging_locked(staging);
-    }
-    g_exec->pending_scatter_stagings.clear();
     compact_tensor_graph_session_locked();
-    // Drain release notes; INVALIDATE ops were already submitted with the
+    // Drain release notes; reclaim ops were already submitted with the
     // phase (or recorded into the next unsealed phase on TensorRef drop).
     flush_released_logicals_locked();
     g_run_cleanup_pending = false;
@@ -1530,6 +1406,9 @@ void init_nntile_input_from_cpu(
         static_cast<std::size_t>(cpu_src.numel()));
 
     nntile::tensor::scatter(staging, logical);
+    // StarPU orders unregister after scatter. Peak ~2x during batched
+    // .to("nntile") is accepted (same as model.cuda() while CPU lives).
+    nntile::tensor::unregister(staging);
 }
 
 void overwrite_bound_nntile_logical_from_cpu(
@@ -1594,6 +1473,7 @@ void overwrite_bound_nntile_logical_from_cpu(
         dtype,
         static_cast<std::size_t>(cpu_src.numel()));
     nntile::tensor::scatter(staging, logical);
+    nntile::tensor::unregister(staging);
 }
 
 nntile::TensorGraph::TensorNode *get_or_create_data_node(

@@ -113,12 +113,16 @@ def init_context(
     logger: int = 0,
     verbose: int = 0,
     *,
-    cpu_fallback: bool = True,
+    cpu_fallback: bool = False,
 ) -> None:
     """Configure StarPU workers before the first libnntile-backed op.
 
     Records ops into a shared TensorGraph; call :func:`compile_graph`
     and :func:`run` to compile and execute the pending graph.
+
+    ``cpu_fallback`` defaults to False: unregistered aten ops raise
+    instead of silently copying nntile tensors to CPU. Move data only
+    with ``.to("nntile")`` / ``.to("cpu")``.
     """
     _C.init_context(
         ncpu,

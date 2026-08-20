@@ -6,13 +6,10 @@
  */
 
 #include "nntile_executor.h"
-#include "nntile_graph_recorder.h"
-#include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
-#include <ATen/ops/neg.h>
 #include <torch/library.h>
 
 namespace torch_nntile
@@ -71,19 +68,22 @@ void check_unary_fp32(
 
 at::Tensor neg_tensor(const at::Tensor &self)
 {
-    if (self.scalar_type() != at::ScalarType::Float)
+    TORCH_CHECK(
+        is_nntile_device(self.device()),
+        "nntile neg: expected nntile");
+    if (self.scalar_type() == at::kLong)
     {
-        TORCH_CHECK(
-            is_nntile_device(self.device()),
-            "nntile neg: expected nntile");
-        at::Tensor cpu = gather_nntile_view_to_cpu(self);
         at::Tensor out = empty_metadata_tensor(
-            cpu.sizes(),
-            cpu.scalar_type(),
+            self.sizes(),
+            at::kLong,
             self.device());
-        init_nntile_input_from_cpu(at::neg(cpu), out);
+        tensor_neg_i64(self, out);
         return out;
     }
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile neg supports float32 and int64 only "
+        "(implicit host copy disabled)");
     check_unary_fp32(self.is_contiguous() ? self : self.contiguous(), "neg");
     at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
     at::Tensor out = at::empty_like(inp);
@@ -93,6 +93,19 @@ at::Tensor neg_tensor(const at::Tensor &self)
 
 at::Tensor &neg_out(const at::Tensor &self, at::Tensor &out)
 {
+    TORCH_CHECK(
+        is_nntile_device(self.device()) &&
+            is_nntile_device(out.device()),
+        "nntile neg.out: expected nntile");
+    if (self.scalar_type() == at::kLong)
+    {
+        TORCH_CHECK(
+            out.scalar_type() == at::kLong &&
+                out.sizes() == self.sizes(),
+            "nntile neg.out: int64 shape mismatch");
+        tensor_neg_i64(self, out);
+        return out;
+    }
     at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
     check_unary_fp32(inp, "neg", out);
     tensor_neg_fp32(inp, out);
@@ -167,6 +180,23 @@ at::Tensor &exp_out(const at::Tensor &self, at::Tensor &out)
     return out;
 }
 
+at::Tensor log_tensor(const at::Tensor &self)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "log");
+    at::Tensor out = at::empty_like(inp);
+    tensor_log_fp32(inp, out);
+    return out;
+}
+
+at::Tensor &log_out(const at::Tensor &self, at::Tensor &out)
+{
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    check_unary_fp32(inp, "log", out);
+    tensor_log_fp32(inp, out);
+    return out;
+}
+
 } // namespace torch_nntile
 
 // Match device=cuda: PrivateUse1 (device) forward only. Autograd uses the
@@ -185,4 +215,6 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("rsqrt.out", TORCH_FN(torch_nntile::rsqrt_out));
     m.impl("exp", TORCH_FN(torch_nntile::exp_tensor));
     m.impl("exp.out", TORCH_FN(torch_nntile::exp_out));
+    m.impl("log", TORCH_FN(torch_nntile::log_tensor));
+    m.impl("log.out", TORCH_FN(torch_nntile::log_out));
 }

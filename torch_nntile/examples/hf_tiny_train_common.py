@@ -223,14 +223,16 @@ def add_train_compare_subparsers(
     train.add_argument(
         "--ncpu",
         type=int,
-        default=1,
-        help="StarPU CPU workers for --device nntile (default: 1)",
+        default=-1,
+        help="StarPU CPU workers for --device nntile "
+        "(default: -1 = STARPU_NCPU)",
     )
     train.add_argument(
         "--ncuda",
         type=int,
-        default=0,
-        help="StarPU CUDA workers for --device nntile (default: 0)",
+        default=-1,
+        help="StarPU CUDA workers for --device nntile "
+        "(default: -1 = STARPU_NCUDA)",
     )
     train.add_argument(
         "--restrict-cpu",
@@ -245,7 +247,10 @@ def add_train_compare_subparsers(
     train.add_argument(
         "--cpu-fallback",
         action="store_true",
-        help="Allow unregistered aten ops to fall back to CPU",
+        help=(
+            "Opt in to PyTorch CPU fallback for unregistered aten ops "
+            "(implicit nntile<->CPU copies; off by default)"
+        ),
     )
 
     compare = sub.add_parser(
@@ -468,7 +473,7 @@ def run_tiny_hf_train(
 
     import torch_nntile
 
-    ncuda = int(getattr(args, "ncuda", 0))
+    ncuda = int(getattr(args, "ncuda", -1))
     torch_nntile.init_context(
         ncpu=args.ncpu,
         ncuda=ncuda,
@@ -539,19 +544,26 @@ def _train_loop(
         [p for p in model.parameters() if p.requires_grad],
         lr=lr,
     )
+    opt.zero_grad(set_to_none=True)
     t0 = time.perf_counter()
     for step in range(steps):
-        opt.zero_grad(set_to_none=True)
-        if torch_nntile is not None:
-            torch_nntile.compile_graph()
-            torch_nntile.run()
         loss = loss_fn(model, batch)
         loss.backward()
         opt.step()
         if torch_nntile is not None:
-            loss_val = float(loss.detach().cpu())
+            # Drop autograd before compile so activation tiles unmark.
+            step_loss = loss.detach()
+            del loss
+            opt.zero_grad(set_to_none=True)
+            torch_nntile.compile_graph()
+            torch_nntile.run()
+            with torch.no_grad():
+                loss_val = float(step_loss.to("cpu").item())
+            del step_loss
         else:
             loss_val = float(loss.detach())
+            del loss
+            opt.zero_grad(set_to_none=True)
         print(f"[{name}] step {step + 1}/{steps}  loss={loss_val:.6f}")
     print(f"[{name}] wall={time.perf_counter() - t0:.3f}s  OK")
     return 0

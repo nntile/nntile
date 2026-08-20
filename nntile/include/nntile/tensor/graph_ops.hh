@@ -25,6 +25,7 @@
 #include <nntile/tensor/ops/add_slice_inplace.hh>
 #include <nntile/tensor/ops/clear.hh>
 #include <nntile/tensor/ops/invalidate.hh>
+#include <nntile/tensor/ops/unregister.hh>
 #include <nntile/tensor/ops/conv2d_bwd_input_inplace.hh>
 #include <nntile/tensor/ops/conv2d_bwd_weight_inplace.hh>
 #include <nntile/tensor/ops/conv2d_inplace.hh>

@@ -25,7 +25,15 @@
 #include <ATen/ops/_adaptive_avg_pool2d.h>
 #include <ATen/ops/_adaptive_avg_pool2d_backward.h>
 #include <ATen/ops/add.h>
+#include <ATen/ops/abs.h>
+#include <ATen/ops/arange.h>
+#include <ATen/ops/eq.h>
+#include <ATen/ops/gt.h>
+#include <ATen/ops/log.h>
+#include <ATen/ops/lt.h>
+#include <ATen/ops/minimum.h>
 #include <ATen/ops/sub.h>
+#include <ATen/ops/triu.h>
 #include <ATen/ops/addmm.h>
 #include <ATen/ops/avg_pool2d.h>
 #include <ATen/ops/avg_pool2d_backward.h>
@@ -80,6 +88,7 @@
 #include <ATen/ops/upsample_bilinear2d_backward.h>
 #include <ATen/ops/upsample_nearest2d.h>
 #include <ATen/ops/upsample_nearest2d_backward.h>
+#include <ATen/ops/where.h>
 #include <ATen/ops/zeros.h>
 
 #include "nntile/starpu/torch_blob.hh"
@@ -147,6 +156,20 @@ at::Tensor in_i64(
         device);
 }
 
+at::Tensor in_bool(
+    bool *ptr,
+    const TorchDispatchArgs &args,
+    Index slot,
+    c10::optional<at::Device> device = c10::nullopt)
+{
+    return blob_bool(
+        ptr,
+        sizes_of(args, slot, false),
+        strides_of(args, slot, false),
+        static_cast<std::int64_t>(args.in_offset[slot]),
+        device);
+}
+
 at::Tensor out_fp32(
     float *ptr,
     const TorchDispatchArgs &args,
@@ -154,6 +177,20 @@ at::Tensor out_fp32(
     c10::optional<at::Device> device = c10::nullopt)
 {
     return blob_fp32(
+        ptr,
+        sizes_of(args, slot, true),
+        strides_of(args, slot, true),
+        static_cast<std::int64_t>(args.out_offset[slot]),
+        device);
+}
+
+at::Tensor out_bool(
+    bool *ptr,
+    const TorchDispatchArgs &args,
+    Index slot,
+    c10::optional<at::Device> device = c10::nullopt)
+{
+    return blob_bool(
         ptr,
         sizes_of(args, slot, true),
         strides_of(args, slot, true),
@@ -173,6 +210,51 @@ at::Tensor out_i64(
         strides_of(args, slot, true),
         static_cast<std::int64_t>(args.out_offset[slot]),
         device);
+}
+
+//! Packed dtype tags for Cast / Where: 0=fp32, 1=i64, 2=bool.
+at::Tensor in_tagged(
+    VariableInterface *iface,
+    const TorchDispatchArgs &args,
+    Index slot,
+    Index tag)
+{
+    switch (tag)
+    {
+    case 0:
+        return in_fp32(iface->get_ptr<float>(), args, slot);
+    case 1:
+        return in_i64(iface->get_ptr<std::int64_t>(), args, slot);
+    case 2:
+        return in_bool(
+            reinterpret_cast<bool *>(iface->get_ptr<bool_t>()),
+            args,
+            slot);
+    default:
+        throw std::runtime_error("torch_cast: bad src dtype tag");
+    }
+}
+
+at::Tensor out_tagged(
+    VariableInterface *iface,
+    const TorchDispatchArgs &args,
+    Index slot,
+    Index tag)
+{
+    switch (tag)
+    {
+    case 0:
+        return out_fp32(iface->get_ptr<float>(), args, slot);
+    case 1:
+        return out_i64(iface->get_ptr<std::int64_t>(), args, slot);
+    case 2:
+        return out_bool(
+            reinterpret_cast<bool *>(iface->get_ptr<bool_t>()),
+            args,
+            slot);
+    default:
+        throw std::runtime_error("torch_cast: bad dst dtype tag");
+    }
 }
 
 std::vector<std::int64_t> iarg_vec(
@@ -249,6 +331,15 @@ void run_unary(
         break;
     case TorchKind::Exp:
         at::exp_out(result, self);
+        break;
+    case TorchKind::Log:
+        at::log_out(result, self);
+        break;
+    case TorchKind::Triu:
+        at::triu_out(
+            result,
+            self,
+            static_cast<std::int64_t>(args->iargs[0]));
         break;
     case TorchKind::AvgPool2d:
         at::avg_pool2d_out(
@@ -333,6 +424,26 @@ void run_unary(
         else
         {
             at::sum_out(result, self, dims, keepdim);
+        }
+        break;
+    }
+    case TorchKind::Mean:
+    {
+        std::vector<std::int64_t> dims;
+        const Index nd = args->iargs[0];
+        for (Index i = 0; i < nd; ++i)
+        {
+            dims.push_back(
+                static_cast<std::int64_t>(args->iargs[2 + i]));
+        }
+        const bool keepdim = args->iargs[1] != 0;
+        if (dims.empty())
+        {
+            at::mean_out(result, self);
+        }
+        else
+        {
+            at::mean_out(result, self, dims, keepdim);
         }
         break;
     }
@@ -1301,6 +1412,569 @@ void TorchEmbedding::submit(
     if (ret != 0)
     {
         throw std::runtime_error("torch_embedding.submit failed");
+    }
+}
+
+TorchWhere::TorchWhere():
+    codelet("nntile_torch_where", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchWhere::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        bool_t *cond_ptr = ifaces[0]->get_ptr<bool_t>();
+        at::Tensor cond = in_bool(
+            reinterpret_cast<bool *>(cond_ptr),
+            *args,
+            0);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        if (args->iargs[15] != 0)
+        {
+            std::int64_t *self_ptr =
+                ifaces[1]->get_ptr<std::int64_t>();
+            std::int64_t *other_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            std::int64_t *out_ptr =
+                ifaces[3]->get_ptr<std::int64_t>();
+            at::Tensor self = in_i64(self_ptr, *args, 1);
+            at::Tensor other = in_i64(other_ptr, *args, 2);
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::where_out(result, cond, self, other);
+        }
+        else
+        {
+            float *self_ptr = ifaces[1]->get_ptr<float>();
+            float *other_ptr = ifaces[2]->get_ptr<float>();
+            float *out_ptr = ifaces[3]->get_ptr<float>();
+            at::Tensor self = in_fp32(self_ptr, *args, 1);
+            at::Tensor other = in_fp32(other_ptr, *args, 2);
+            at::Tensor result = out_fp32(out_ptr, *args, 0);
+            at::where_out(result, cond, self, other);
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_where failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchWhere::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        // StarPU stream + cuBLAS; TLS blob device = CUDA.
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_where CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchWhere::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchWhere::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle condition,
+    Handle self,
+    Handle other,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_R,
+        condition.get(),
+        STARPU_R,
+        self.get(),
+        STARPU_R,
+        other.get(),
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_where.submit failed");
+    }
+}
+
+TorchArange::TorchArange():
+    codelet("nntile_torch_arange", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchArange::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        std::int64_t *out_ptr = ifaces[0]->get_ptr<std::int64_t>();
+        at::Tensor result = out_i64(out_ptr, *args, 0);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::FillI64)
+        {
+            result.fill_(
+                static_cast<std::int64_t>(args->iargs[0]));
+        }
+        else
+        {
+            at::arange_out(
+                result,
+                at::Scalar(
+                    static_cast<std::int64_t>(args->iargs[0])),
+                at::Scalar(
+                    static_cast<std::int64_t>(args->iargs[1])),
+                at::Scalar(
+                    static_cast<std::int64_t>(args->iargs[2])));
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_arange failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchArange::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_arange CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchArange::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchArange::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_arange.submit failed");
+    }
+}
+
+TorchGt::TorchGt():
+    codelet("nntile_torch_gt", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchGt::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::Eq)
+        {
+            float *a_ptr = ifaces[0]->get_ptr<float>();
+            float *b_ptr = ifaces[1]->get_ptr<float>();
+            bool_t *out_ptr = ifaces[2]->get_ptr<bool_t>();
+            at::Tensor ta = in_fp32(a_ptr, *args, 0);
+            at::Tensor tb = in_fp32(b_ptr, *args, 1);
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            at::eq_out(result, ta, tb);
+        }
+        else
+        {
+            std::int64_t *a_ptr = ifaces[0]->get_ptr<std::int64_t>();
+            std::int64_t *b_ptr = ifaces[1]->get_ptr<std::int64_t>();
+            at::Tensor ta = in_i64(a_ptr, *args, 0);
+            at::Tensor tb = in_i64(b_ptr, *args, 1);
+            switch (args->kind)
+            {
+        case TorchKind::Lt:
+        {
+            bool_t *out_ptr = ifaces[2]->get_ptr<bool_t>();
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            at::lt_out(result, ta, tb);
+            break;
+        }
+        case TorchKind::Sub:
+        {
+            std::int64_t *out_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::sub_out(result, ta, tb, /*alpha=*/1);
+            break;
+        }
+        case TorchKind::Add:
+        {
+            std::int64_t *out_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::add_out(result, ta, tb, /*alpha=*/1);
+            break;
+        }
+        case TorchKind::Mul:
+        {
+            std::int64_t *out_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::mul_out(result, ta, tb);
+            break;
+        }
+        case TorchKind::Minimum:
+        {
+            std::int64_t *out_ptr =
+                ifaces[2]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
+            at::minimum_out(result, ta, tb);
+            break;
+        }
+        default:
+        {
+            bool_t *out_ptr = ifaces[2]->get_ptr<bool_t>();
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            at::gt_out(result, ta, tb);
+            break;
+        }
+            }
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_gt failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchGt::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_gt CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchGt::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchGt::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle a,
+    Handle b,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_R,
+        a.get(),
+        STARPU_R,
+        b.get(),
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_gt.submit failed");
+    }
+}
+
+TorchI64Unary::TorchI64Unary():
+    codelet("nntile_torch_i64_unary", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchI64Unary::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        std::int64_t *in_ptr = ifaces[0]->get_ptr<std::int64_t>();
+        std::int64_t *out_ptr = ifaces[1]->get_ptr<std::int64_t>();
+        at::Tensor self = in_i64(in_ptr, *args, 0);
+        at::Tensor result = out_i64(out_ptr, *args, 0);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        switch (args->kind)
+        {
+        case TorchKind::Abs:
+            at::abs_out(result, self);
+            break;
+        case TorchKind::Neg:
+            at::neg_out(result, self);
+            break;
+        case TorchKind::Copy:
+            result.copy_(self);
+            break;
+        default:
+            throw std::runtime_error(
+                "torch_i64_unary: unsupported kind");
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_i64_unary failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchI64Unary::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_i64_unary CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchI64Unary::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchI64Unary::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle in,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_R,
+        in.get(),
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_i64_unary.submit failed");
+    }
+}
+
+TorchCast::TorchCast():
+    codelet("nntile_torch_cast", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+void TorchCast::cpu(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        auto *args = reinterpret_cast<args_t *>(cl_args);
+        auto **ifaces =
+            reinterpret_cast<VariableInterface **>(buffers);
+        at::Tensor self = in_tagged(
+            ifaces[0],
+            *args,
+            0,
+            args->iargs[0]);
+        at::Tensor result = out_tagged(
+            ifaces[1],
+            *args,
+            0,
+            args->iargs[1]);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        result.copy_(self);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_cast failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+
+
+#ifdef NNTILE_USE_CUDA
+void TorchCast::cuda(void *buffers[], void *cl_args) noexcept
+{
+#ifndef STARPU_SIMGRID
+    try
+    {
+        TorchCudaEnv cuda_env;
+        (void)cuda_env;
+        cpu(buffers, cl_args);
+    }
+    catch (const std::exception &ex)
+    {
+        std::fprintf(
+            stderr,
+            "nntile_torch_cast CUDA failed: %s\n",
+            ex.what());
+        std::abort();
+    }
+#endif
+}
+#endif // NNTILE_USE_CUDA
+
+uint32_t TorchCast::footprint(struct starpu_task *task)
+{
+    return args_footprint(
+        reinterpret_cast<args_t *>(task->cl_arg));
+}
+
+void TorchCast::submit(
+    int starpu_worker_hint,
+    const args_t &meta,
+    Handle in,
+    Handle out
+)
+{
+    args_t *args = clone_args(meta);
+    int ret = nntile_starpu_task_insert(
+        &codelet,
+        starpu_worker_hint,
+        STARPU_R,
+        in.get(),
+        STARPU_CL_ARGS,
+        args,
+        sizeof(*args),
+        STARPU_W,
+        out.get(),
+        0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("torch_cast.submit failed");
     }
 }
 
@@ -3557,5 +4231,10 @@ TorchSdpaBackward torch_sdpa_backward;
 TorchNllLossForward torch_nll_loss_forward;
 TorchNllLossBackward torch_nll_loss_backward;
 TorchCat torch_cat;
+TorchWhere torch_where;
+TorchArange torch_arange;
+TorchGt torch_gt;
+TorchI64Unary torch_i64_unary;
+TorchCast torch_cast;
 
 } // namespace nntile::starpu

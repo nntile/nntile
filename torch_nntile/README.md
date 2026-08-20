@@ -243,7 +243,8 @@ return ``loss.to("cpu").item()``.
 tensor waits for any in-flight ``run()``, compiles and runs any still-pending
 ops, then records and runs `gather(L→S)` into an ephemeral staging node. You do
 not need a prior ``compile_graph()``/``run()`` for correctness, but each
-readout permanently appends gather nodes to the session graph (see debt D1 in
+readout still leaves an ``io_staging_*`` TensorNode in the session graph
+(see debt D1 in
 [torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)).
 
 Tests: `pytest -vv torch_nntile/tests/test_graph_execution.py`

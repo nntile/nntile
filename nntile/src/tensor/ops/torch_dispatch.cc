@@ -13,6 +13,7 @@
 #include <utility>
 
 #include <nntile/base_types.hh>
+#include <nntile/dtype.hh>
 #include <nntile/tensor/tile_lowering_helpers.hh>
 #include <nntile/tile/ops/torch_dispatch.hh>
 
@@ -165,6 +166,25 @@ TensorGraph::TensorNode *torch_embedding(
     return out;
 }
 
+TensorGraph::TensorNode *torch_where(
+    TensorGraph::TensorNode *condition,
+    TensorGraph::TensorNode *self,
+    TensorGraph::TensorNode *other,
+    const std::vector<Index> &out_shape,
+    starpu::TorchDispatchArgs extra)
+{
+    TensorGraph::TensorNode *out =
+        self->graph()->emplace_data(out_shape, self->dtype());
+    auto op = std::make_shared<TensorTorchWhereOp>(
+        condition,
+        self,
+        other,
+        out,
+        extra);
+    self->graph()->add_op(op);
+    return out;
+}
+
 TensorGraph::TensorNode *torch_cat(
     Index dim,
     const std::vector<TensorGraph::TensorNode *> &inputs,
@@ -225,6 +245,66 @@ void TensorTorchEmbeddingOp::lower_to_tile(const LoweringContext &ctx) const
     require_single_tile("TORCH_EMBEDDING", vi);
     require_single_tile("TORCH_EMBEDDING", vout);
     tile::torch_embedding(vw[0], vi[0], vout[0], extra);
+}
+
+void TensorTorchWhereOp::lower_to_tile(const LoweringContext &ctx) const
+{
+    const auto &vc = tile_lower::tiles_of(ctx.tile_map, condition);
+    const auto &vs = tile_lower::tiles_of(ctx.tile_map, self);
+    const auto &vo = tile_lower::tiles_of(ctx.tile_map, other);
+    const auto &vout = tile_lower::tiles_of(ctx.tile_map, out);
+    require_single_tile("TORCH_WHERE", vc);
+    require_single_tile("TORCH_WHERE", vs);
+    require_single_tile("TORCH_WHERE", vo);
+    require_single_tile("TORCH_WHERE", vout);
+    tile::torch_where(vc[0], vs[0], vo[0], vout[0], extra);
+}
+
+void torch_arange(
+    TensorGraph::TensorNode *out,
+    starpu::TorchDispatchArgs extra)
+{
+    if (out == nullptr)
+    {
+        throw std::invalid_argument("torch_arange: null tensor");
+    }
+    auto op = std::make_shared<TensorTorchArangeOp>(out, extra);
+    out->graph()->add_op(op);
+}
+
+void TensorTorchArangeOp::lower_to_tile(const LoweringContext &ctx) const
+{
+    const auto &vout = tile_lower::tiles_of(ctx.tile_map, out);
+    require_single_tile("TORCH_ARANGE", vout);
+    tile::torch_arange(vout[0], extra);
+}
+
+TensorGraph::TensorNode *torch_gt(
+    TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
+    const std::vector<Index> &out_shape,
+    starpu::TorchDispatchArgs extra)
+{
+    if (a == nullptr || b == nullptr)
+    {
+        throw std::invalid_argument("torch_gt: null tensor");
+    }
+    TensorGraph::TensorNode *out =
+        a->graph()->emplace_data(out_shape, DataType::BOOL);
+    auto op = std::make_shared<TensorTorchGtOp>(a, b, out, extra);
+    a->graph()->add_op(op);
+    return out;
+}
+
+void TensorTorchGtOp::lower_to_tile(const LoweringContext &ctx) const
+{
+    const auto &va = tile_lower::tiles_of(ctx.tile_map, a);
+    const auto &vb = tile_lower::tiles_of(ctx.tile_map, b);
+    const auto &vout = tile_lower::tiles_of(ctx.tile_map, out);
+    require_single_tile("TORCH_GT", va);
+    require_single_tile("TORCH_GT", vb);
+    require_single_tile("TORCH_GT", vout);
+    tile::torch_gt(va[0], vb[0], vout[0], extra);
 }
 
 void TensorTorchCatOp::lower_to_tile(const LoweringContext &ctx) const

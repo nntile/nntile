@@ -23,6 +23,7 @@
 #include <c10/core/DeviceGuard.h>
 #include <c10/core/ScalarType.h>
 #include <c10/core/ScalarTypeToTypeMeta.h>
+#include <c10/core/impl/LocalDispatchKeySet.h>
 #include <torch/csrc/autograd/custom_function.h>
 #include <torch/library.h>
 #include <torch/version.h>
@@ -116,17 +117,14 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
             tensor_fill_fp32(self, value.to<float>());
             return;
         }
-        // T5 ``torch.ones(..., dtype=long, device=nntile)`` for masks:
-        // host-fill then ingress (StarPU fill is fp32-only).
+        if (self.scalar_type() == at::ScalarType::Long)
+        {
+            tensor_fill_i64(self, value.to<int64_t>());
+            return;
+        }
         TORCH_CHECK(
-            !static_cast<bool>(tensor_ref(self)),
-            "fill_: non-float metadata fill requires an unbound tensor");
-        at::Tensor cpu = at::full(
-            self.sizes(),
-            value,
-            self.options().device(at::kCPU));
-        init_nntile_input_from_cpu(cpu, self);
-        return;
+            false,
+            "fill_: nntile metadata fill supports float32 and int64");
     }
     switch (self.scalar_type())
     {
@@ -616,14 +614,6 @@ at::Tensor copy_from_and_resize(const at::Tensor &self, const at::Tensor &dst)
 namespace
 {
 
-at::TensorOptions cpu_opts_like(const at::Tensor &out)
-{
-    return at::TensorOptions()
-        .dtype(out.scalar_type())
-        .device(at::kCPU)
-        .layout(at::kStrided);
-}
-
 at::Tensor &arange_fill_out(
     at::Tensor &out,
     const at::Scalar &start,
@@ -633,15 +623,29 @@ at::Tensor &arange_fill_out(
     TORCH_CHECK(
         is_nntile_device(out.device()),
         "arange: expected nntile out");
-    at::Tensor cpu = at::arange(start, end, step, cpu_opts_like(out));
-    if (cpu.sizes() != out.sizes())
+    TORCH_CHECK(
+        out.scalar_type() == at::kLong,
+        "arange: int64 only (no host copy)");
+    TORCH_CHECK(
+        start.isIntegral(false) && end.isIntegral(false) &&
+            step.isIntegral(false),
+        "arange: integer start/end/step only");
+    const int64_t start_i = start.toLong();
+    const int64_t end_i = end.toLong();
+    const int64_t step_i = step.toLong();
+    at::Tensor meta = at::arange(
+        start,
+        end,
+        step,
+        at::TensorOptions().dtype(at::kLong).device(at::kMeta));
+    if (meta.sizes() != out.sizes())
     {
         resize_(
             out,
-            c10::SymIntArrayRef(cpu.sym_sizes()),
+            c10::SymIntArrayRef(meta.sym_sizes()),
             std::nullopt);
     }
-    copy_from(cpu, out, /*non_blocking=*/false);
+    tensor_arange_i64(out, start_i, end_i, step_i);
     return out;
 }
 
@@ -664,17 +668,25 @@ at::Tensor arange_on_nntile(
         "arange: pin memory is CPU-only");
     const c10::ScalarType dtype = dtype_opt.has_value()
         ? *dtype_opt
-        : (start.isFloatingPoint() || end.isFloatingPoint() ||
-                step.isFloatingPoint()
-                ? at::ScalarType::Float
-                : at::ScalarType::Long);
-    at::Tensor cpu = at::arange(
+        : at::ScalarType::Long;
+    TORCH_CHECK(
+        dtype == at::kLong,
+        "arange: int64 only (no host copy)");
+    TORCH_CHECK(
+        start.isIntegral(false) && end.isIntegral(false) &&
+            step.isIntegral(false),
+        "arange: integer start/end/step only");
+    at::Tensor meta = at::arange(
         start,
         end,
         step,
-        at::TensorOptions().dtype(dtype).device(at::kCPU));
-    at::Tensor out = empty_metadata_tensor(cpu.sizes(), dtype, device);
-    copy_from(cpu, out, /*non_blocking=*/false);
+        at::TensorOptions().dtype(at::kLong).device(at::kMeta));
+    at::Tensor out = empty_metadata_tensor(meta.sizes(), dtype, device);
+    tensor_arange_i64(
+        out,
+        start.toLong(),
+        end.toLong(),
+        step.toLong());
     return out;
 }
 
@@ -961,6 +973,15 @@ at::Tensor contiguous(
         tensor_copy_fp32(self, result);
         return result;
     }
+    if (self.scalar_type() == at::ScalarType::Long)
+    {
+        at::Tensor result = empty_metadata_tensor(
+            self.sizes(),
+            at::kLong,
+            self.device());
+        tensor_copy_i64(self, result);
+        return result;
+    }
     // Bool / int views (HF masks): gather full logical, apply view on
     // host, scatter a contiguous result.
     TORCH_CHECK(
@@ -1038,9 +1059,11 @@ void cpu_fallback(const c10::OperatorHandle &op, torch::jit::Stack *stack)
     {
         std::ostringstream message;
         message << "Operator '" << op.schema().operator_name()
-                << "' is not implemented for device nntile and CPU "
-                   "fallback is disabled (set cpu_fallback=True in "
-                   "torch_nntile.init_context)";
+                << "' is not implemented for device nntile. "
+                   "Implicit nntile<->CPU copies are disabled; "
+                   "move tensors with .to(\"nntile\") / .to(\"cpu\") "
+                   "or pass cpu_fallback=True to init_context "
+                   "(explicit opt-in, not recommended).";
         TORCH_CHECK(false, message.str());
     }
 #if (TORCH_VERSION_MAJOR > 2) \
@@ -1053,6 +1076,19 @@ void cpu_fallback(const c10::OperatorHandle &op, torch::jit::Stack *stack)
 #else
     at::native::cpu_fallback(op, stack);
 #endif
+}
+
+//! Ops without a generated Autogradnntile kernel (e.g. ``min.other``)
+//! error instead of falling through to PrivateUse1 / AutogradOther.
+//! Redispatch with Autogradnntile excluded; ``contiguous`` keeps its
+//! explicit AutogradPrivateUse1 impl.
+void autograd_nntile_redispatch(
+    const c10::OperatorHandle &op,
+    torch::jit::Stack *stack)
+{
+    c10::impl::ExcludeDispatchKeyGuard guard(
+        c10::DispatchKey::AutogradPrivateUse1);
+    op.callBoxed(stack);
 }
 
 } // namespace torch_nntile
@@ -1096,6 +1132,12 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 TORCH_LIBRARY_IMPL(aten, AutogradPrivateUse1, m)
 {
     m.impl("contiguous", TORCH_FN(torch_nntile::contiguous_autograd));
+}
+
+TORCH_LIBRARY_IMPL(_, AutogradPrivateUse1, m)
+{
+    m.fallback(torch::CppFunction::makeFromBoxedFunction<
+               &torch_nntile::autograd_nntile_redispatch>());
 }
 
 TORCH_LIBRARY_IMPL(_, PrivateUse1, m)

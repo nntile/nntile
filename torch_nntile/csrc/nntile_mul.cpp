@@ -7,6 +7,7 @@
 #include "nntile_executor.h"
 #include "nntile_graph_recorder.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_no_implicit_copy.h"
 #include "nntile_tensor_gc.h"
 
 #include <ATen/ExpandUtils.h>
@@ -19,38 +20,6 @@ namespace torch_nntile
 
 namespace
 {
-
-bool is_nntile_device(c10::Device device)
-{
-    return device.type() == c10::DeviceType::PrivateUse1;
-}
-
-at::Tensor gather_cpu(const at::Tensor &self)
-{
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "nntile mul: expected nntile tensor");
-    return gather_nntile_view_to_cpu(self);
-}
-
-at::Tensor scatter_nntile(
-    const at::Tensor &cpu,
-    c10::Device device)
-{
-    TORCH_CHECK(cpu.is_cpu(), "nntile mul: expected CPU tensor");
-    at::Tensor contig = cpu.contiguous();
-    at::Tensor out = empty_metadata_tensor(
-        contig.sizes(),
-        contig.scalar_type(),
-        device);
-    init_nntile_input_from_cpu(contig, out);
-    return out;
-}
-
-bool is_cpu_scalar_tensor(const at::Tensor &t)
-{
-    return t.is_cpu() && t.numel() == 1;
-}
 
 void check_mul_inputs(
     const at::Tensor &self,
@@ -96,39 +65,28 @@ void run_mul_kernel(
     tensor_mul_fp32(self, other, out);
 }
 
-void run_mul_inplace_kernel(at::Tensor &self, const at::Tensor &other)
-{
-    tensor_mul_inplace_fp32(other, self);
-}
-
-at::Tensor mul_host(const at::Tensor &self, const at::Tensor &other)
-{
-    at::Tensor a = gather_cpu(self);
-    at::Tensor b = is_nntile_device(other.device()) ? gather_cpu(other)
-                                                    : other.cpu();
-    return scatter_nntile(at::mul(a, b), self.device());
-}
-
-void mul_inplace_host(at::Tensor &self, const at::Tensor &other)
-{
-    at::Tensor result = mul_host(self, other);
-    // SSA-style rebind: nntile←nntile copy attaches the result TensorRef.
-    self.copy_(result);
-}
-
 } // namespace
 
 at::Tensor mul_scalar(const at::Tensor &self, const at::Scalar &other)
 {
-    TORCH_CHECK(
-        is_nntile_device(self.device()),
-        "nntile mul.Scalar expects tensor on device nntile");
-    if (self.scalar_type() != at::ScalarType::Float)
+    require_nntile_operand(self, "mul.Scalar", "self");
+    if (self.scalar_type() == at::ScalarType::Long)
     {
-        return scatter_nntile(
-            at::mul(gather_cpu(self), other),
+        at::Tensor filled = empty_metadata_tensor(
+            self.sizes(),
+            at::kLong,
             self.device());
+        tensor_fill_i64(filled, other.to<int64_t>());
+        at::Tensor out = empty_metadata_tensor(
+            self.sizes(),
+            at::kLong,
+            self.device());
+        tensor_mul_i64(self, filled, out);
+        return out;
     }
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float,
+        "nntile mul.Scalar supports float32 only");
     at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
     at::Tensor out = at::empty_like(inp);
     tensor_mul_scalar_fp32(inp, out, other.to<float>());
@@ -156,6 +114,22 @@ at::Tensor &mul_scalar_out(
     return out;
 }
 
+at::Tensor mul_fp32_bool(
+    const at::Tensor &fp32,
+    const at::Tensor &pred)
+{
+    require_nntile_operand(fp32, "mul.Tensor", "self");
+    require_nntile_operand(pred, "mul.Tensor", "other");
+    TORCH_CHECK(
+        fp32.scalar_type() == at::kFloat && pred.scalar_type() == at::kBool,
+        "nntile mul: expected float32 * bool");
+    auto bcast = at::infer_size(fp32.sizes(), pred.sizes());
+    at::Tensor zeros = at::zeros(
+        bcast,
+        fp32.options().memory_format(at::MemoryFormat::Contiguous));
+    return at::where(pred, fp32, zeros);
+}
+
 at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
 {
     // PyTorch may wrap Python floats as CPU 0-dim tensors for mul.Tensor.
@@ -167,12 +141,33 @@ at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
     {
         return mul_scalar(other, self.item());
     }
-    if (!is_nntile_device(other.device()) ||
-        self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float)
+    require_nntile_operand(self, "mul.Tensor", "self");
+    require_nntile_operand(other, "mul.Tensor", "other");
+    if (self.scalar_type() == at::kLong &&
+        other.scalar_type() == at::kLong)
     {
-        return mul_host(self, other);
+        auto bcast = at::infer_size(self.sizes(), other.sizes());
+        at::Tensor out = empty_metadata_tensor(
+            bcast,
+            at::kLong,
+            self.device());
+        tensor_mul_i64(self, other, out);
+        return out;
     }
+    if (self.scalar_type() == at::kFloat &&
+        other.scalar_type() == at::kBool)
+    {
+        return mul_fp32_bool(self, other);
+    }
+    if (self.scalar_type() == at::kBool &&
+        other.scalar_type() == at::kFloat)
+    {
+        return mul_fp32_bool(other, self);
+    }
+    TORCH_CHECK(
+        self.scalar_type() == at::ScalarType::Float &&
+            other.scalar_type() == at::ScalarType::Float,
+        "nntile mul supports float32 only");
     std::vector<int64_t> out_sizes =
         at::infer_size(self.sizes(), other.sizes());
     at::Tensor a = self.sizes().equals(out_sizes)
@@ -198,14 +193,8 @@ at::Tensor &mul_out(
     {
         return mul_scalar_out(self, other.item(), out);
     }
-    if (!is_nntile_device(other.device()) ||
-        self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float)
-    {
-        at::Tensor tmp = mul_host(self, other);
-        out.copy_(tmp);
-        return out;
-    }
+    require_nntile_operand(self, "mul.out", "self");
+    require_nntile_operand(other, "mul.out", "other");
     check_mul_inputs(self, other, out);
     run_mul_kernel(self, other, out);
     return out;
@@ -220,13 +209,8 @@ at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
         self.copy_(tmp);
         return self;
     }
-    if (!is_nntile_device(other.device()) ||
-        self.scalar_type() != other.scalar_type() ||
-        self.scalar_type() != at::ScalarType::Float)
-    {
-        mul_inplace_host(self, other);
-        return self;
-    }
+    require_nntile_operand(self, "mul_.Tensor", "self");
+    require_nntile_operand(other, "mul_.Tensor", "other");
     at::Tensor tmp = mul_tensor(self, other);
     self.copy_(tmp);
     return self;

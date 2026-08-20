@@ -123,7 +123,10 @@ class TensorGraph
     //! Ingress ``SCATTER`` is not special: once sealed and executed, values
     //! live in ``mark_input`` tile payloads. Unsealed ops past the seal
     //! cursor are always preserved (next phase recorded during a prior
-    //! Async ``run()``). Persistent data nodes remain.
+    //! async ``run()``).
+    //!
+    //! Tech debt D1: data nodes in ``data_`` are not removed. Dead logicals
+    //! stay as TensorNode IR after StarPU unregister until the graph dies.
     void drop_all_ops();
 
   private:

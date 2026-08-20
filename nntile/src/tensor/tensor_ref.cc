@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file nntile/src/tensor/tensor_ref.cc
- * TensorRef hold lifetime -> async invalidate.
+ * TensorRef hold lifetime -> async unregister.
  *
  * @version 1.1.0
  * */
@@ -19,7 +19,7 @@
 #include <unordered_set>
 
 #include <nntile/tensor/graph_data_node.hh>
-#include <nntile/tensor/ops/invalidate.hh>
+#include <nntile/tensor/ops/unregister.hh>
 
 namespace nntile
 {
@@ -97,7 +97,7 @@ struct TensorRef::Hold
         note_tensor_ref_released(n);
         if (n->graph() != nullptr)
         {
-            tensor::invalidate(n);
+            tensor::unregister(n);
         }
     }
 

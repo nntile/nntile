@@ -53,6 +53,7 @@ void tensor_swap_two_axes_fp32(
 
 //! Densify ``src`` (view OK) into contiguous ``dst`` (same shape).
 void tensor_copy_fp32(const at::Tensor &src, at::Tensor &dst);
+void tensor_copy_i64(const at::Tensor &src, at::Tensor &dst);
 
 void tensor_add_inplace_fp32(
     float alpha,
@@ -93,6 +94,7 @@ void tensor_sin_fp32(const at::Tensor &input, at::Tensor &out);
 void tensor_neg_fp32(const at::Tensor &input, at::Tensor &out);
 void tensor_rsqrt_fp32(const at::Tensor &input, at::Tensor &out);
 void tensor_exp_fp32(const at::Tensor &input, at::Tensor &out);
+void tensor_log_fp32(const at::Tensor &input, at::Tensor &out);
 
 void tensor_relu_backward_fp32(
     const at::Tensor &x,
@@ -522,6 +524,12 @@ void tensor_sum_dimlist_fp32(
     at::OptionalIntArrayRef dim,
     bool keepdim);
 
+void tensor_mean_dimlist_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    at::OptionalIntArrayRef dim,
+    bool keepdim);
+
 void tensor_mul_scalar_fp32(
     const at::Tensor &input,
     at::Tensor &out,
@@ -578,5 +586,73 @@ void tensor_sdpa_backward_fp32(
     at::Tensor &grad_v,
     int64_t batch_ndim,
     bool is_causal = false);
+
+void tensor_where_fp32(
+    const at::Tensor &condition,
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
+
+void tensor_triu_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t diagonal);
+
+void tensor_arange_i64(
+    at::Tensor &out,
+    int64_t start,
+    int64_t end,
+    int64_t step);
+
+void tensor_gt_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_eq_fp32(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_lt_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_sub_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_add_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_mul_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_minimum_i64(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_abs_i64(const at::Tensor &input, at::Tensor &out);
+
+void tensor_neg_i64(const at::Tensor &input, at::Tensor &out);
+
+void tensor_fill_i64(at::Tensor &self, int64_t value);
+
+void tensor_cast(
+    const at::Tensor &input,
+    at::Tensor &out);
+
+void tensor_where_i64(
+    const at::Tensor &condition,
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
 
 } // namespace torch_nntile

@@ -172,6 +172,108 @@ struct TensorTorchEmbeddingOp : TensorGraph::OpNode
     void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
+struct TensorTorchWhereOp : TensorGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TensorGraph::TensorNode *condition = nullptr;
+    TensorGraph::TensorNode *self = nullptr;
+    TensorGraph::TensorNode *other = nullptr;
+    TensorGraph::TensorNode *out = nullptr;
+
+    TensorTorchWhereOp() = default;
+    TensorTorchWhereOp(
+        TensorGraph::TensorNode *condition_,
+        TensorGraph::TensorNode *self_,
+        TensorGraph::TensorNode *other_,
+        TensorGraph::TensorNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        condition(condition_),
+        self(self_),
+        other(other_),
+        out(out_)
+    {
+        inputs_ = {condition, self, other};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_WHERE";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchWhereOp>(*this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+struct TensorTorchArangeOp : TensorGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TensorGraph::TensorNode *out = nullptr;
+
+    TensorTorchArangeOp() = default;
+    TensorTorchArangeOp(
+        TensorGraph::TensorNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        out(out_)
+    {
+        inputs_ = {};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_ARANGE";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchArangeOp>(*this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
+struct TensorTorchGtOp : TensorGraph::OpNode
+{
+    starpu::TorchDispatchArgs extra{};
+    TensorGraph::TensorNode *a = nullptr;
+    TensorGraph::TensorNode *b = nullptr;
+    TensorGraph::TensorNode *out = nullptr;
+
+    TensorTorchGtOp() = default;
+    TensorTorchGtOp(
+        TensorGraph::TensorNode *a_,
+        TensorGraph::TensorNode *b_,
+        TensorGraph::TensorNode *out_,
+        starpu::TorchDispatchArgs extra_ = {}) :
+        extra(extra_),
+        a(a_),
+        b(b_),
+        out(out_)
+    {
+        inputs_ = {a, b};
+        outputs_ = {out};
+    }
+
+    std::string op_name() const override
+    {
+        return "TORCH_GT";
+    }
+
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
+    {
+        return std::make_shared<TensorTorchGtOp>(*this);
+    }
+
+    void lower_to_tile(const LoweringContext &ctx) const override;
+};
+
 struct TensorTorchCatOp : TensorGraph::OpNode
 {
     Index dim = 0;
@@ -247,6 +349,23 @@ void torch_ternary(
 TensorGraph::TensorNode *torch_embedding(
     TensorGraph::TensorNode *weight,
     TensorGraph::TensorNode *indices,
+    const std::vector<Index> &out_shape,
+    starpu::TorchDispatchArgs extra = {});
+
+TensorGraph::TensorNode *torch_where(
+    TensorGraph::TensorNode *condition,
+    TensorGraph::TensorNode *self,
+    TensorGraph::TensorNode *other,
+    const std::vector<Index> &out_shape,
+    starpu::TorchDispatchArgs extra = {});
+
+void torch_arange(
+    TensorGraph::TensorNode *out,
+    starpu::TorchDispatchArgs extra);
+
+TensorGraph::TensorNode *torch_gt(
+    TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
     const std::vector<Index> &out_shape,
     starpu::TorchDispatchArgs extra = {});
 

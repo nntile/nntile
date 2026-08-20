@@ -122,6 +122,20 @@ class TensorGraph::TensorNode
         touch_gen_ = gen;
     }
 
+    //! True while StarPU still holds a handle for this tensor's tiles.
+    bool is_starpu_registered() const
+    {
+        return starpu_registered_;
+    }
+    void note_starpu_registered()
+    {
+        starpu_registered_ = true;
+    }
+    void note_starpu_unregistered()
+    {
+        starpu_registered_ = false;
+    }
+
   private:
     NodeId id_;
     TensorGraph *graph_;
@@ -131,6 +145,7 @@ class TensorGraph::TensorNode
     std::string name_;
     bool has_producer_ = false;
     bool has_constant_value_ = false;
+    bool starpu_registered_ = false;
     Scalar constant_value_ = 0;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
     mutable std::uint32_t touch_gen_ = 0;

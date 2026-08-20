@@ -58,12 +58,47 @@ bool tile_logical_is_live(TileGraph::TileNode const *tile)
     return desc != nullptr && tensor_ref_is_live(desc->source_node);
 }
 
+//! Keep the logical tensor flag in sync with its tiles (O(tiles)).
+void sync_logical_starpu_flag(TileGraph::TileNode *tile)
+{
+    if (tile == nullptr)
+    {
+        return;
+    }
+    TileGraph::TensorDescriptor const *desc =
+        tile->tensor_descriptor();
+    if (desc == nullptr || desc->source_node == nullptr)
+    {
+        return;
+    }
+    bool any = false;
+    for (TileGraph::TileNode *t : desc->tiles)
+    {
+        if (t != nullptr && t->is_starpu_registered())
+        {
+            any = true;
+            break;
+        }
+    }
+    auto *src = const_cast<TensorGraph::TensorNode *>(
+        desc->source_node);
+    if (any)
+    {
+        src->note_starpu_registered();
+    }
+    else
+    {
+        src->note_starpu_unregistered();
+    }
+}
+
 template <typename T>
 void allocate_tile_and_register(
     TileGraph::TileNode *node, const std::vector<Index> &shape)
 {
     auto t = std::make_shared<nntile::core::Tile<T>>(shape);
     node->set_payload(std::move(t));
+    sync_logical_starpu_flag(node);
 }
 
 //! Track both inputs and outputs when an op is needed: many kernels read
@@ -175,7 +210,7 @@ void Runtime::invalidate_logical_tiles(
         {
             continue;
         }
-        if (tile->has_payload())
+        if (tile->has_payload() && tile->is_starpu_registered())
         {
             to_release.push_back(tile);
         }
@@ -190,26 +225,46 @@ void Runtime::invalidate_logical_tiles(
     // safe during overlapping compile/run phases (no wait_for_all).
     for (const TileGraph::TileNode *tile : to_release)
     {
-        if (tile == nullptr || !tile->has_payload())
+        if (tile == nullptr || !tile->is_starpu_registered()
+            || !tile->has_payload())
         {
             continue;
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
-        const_cast<TileGraph::TileNode *>(tile)->clear_payload();
+        auto *mut = const_cast<TileGraph::TileNode *>(tile);
+        mut->clear_payload();
+        sync_logical_starpu_flag(mut);
     }
     init_state_.erase(logical);
 }
 
 void Runtime::invalidate_tile(TileGraph::TileNode *tile)
 {
-    if (tile == nullptr || !tile->has_payload())
+    if (tile == nullptr || !tile->is_starpu_registered()
+        || !tile->has_payload())
     {
         return;
     }
     auto payload = tile->payload();
     invalidate_tile_buffer(tile, payload);
     tile->clear_payload();
+    sync_logical_starpu_flag(tile);
+}
+
+void Runtime::unregister_tile(TileGraph::TileNode *tile)
+{
+    if (tile == nullptr || !tile->is_starpu_registered())
+    {
+        return;
+    }
+    if (tile->has_payload())
+    {
+        auto payload = tile->payload();
+        unregister_tile_buffer(tile, payload);
+    }
+    tile->clear_payload();
+    sync_logical_starpu_flag(tile);
 }
 
 void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
@@ -620,8 +675,9 @@ void Runtime::allocate_missing_tiles()
         auto adopt_it = tile_adoption_.find(tile_key);
         if (adopt_it != tile_adoption_.end())
         {
-            const_cast<TileGraph::TileNode *>(tile_key)->set_payload(
-                adopt_it->second);
+            auto *node = const_cast<TileGraph::TileNode *>(tile_key);
+            node->set_payload(adopt_it->second);
+            sync_logical_starpu_flag(node);
             return;
         }
         if (tile_key->has_payload())
@@ -697,35 +753,6 @@ void Runtime::allocate_missing_tiles()
         try_allocate(all_tiles[i].get(), false);
     }
     compiled_tile_node_count_ = all_tiles.size();
-}
-
-size_t Runtime::last_input_consumer_end(
-    TileNode const *tile,
-    size_t op_begin,
-    size_t op_end) const
-{
-    if (tile == nullptr || op_begin >= op_end)
-    {
-        return op_begin;
-    }
-    if (op_end > execution_order_.size())
-    {
-        throw std::out_of_range(
-            "Runtime::last_input_consumer_end: bad range");
-    }
-    size_t last = op_begin;
-    for (size_t i = op_begin; i < op_end; ++i)
-    {
-        for (TileNode const *in : execution_order_[i]->inputs())
-        {
-            if (in == tile)
-            {
-                last = i + 1;
-                break;
-            }
-        }
-    }
-    return last;
 }
 
 void Runtime::execute_range(
@@ -876,6 +903,60 @@ void Runtime::invalidate_tile_buffer(
     }
 }
 
+void Runtime::unregister_tile_buffer(
+    const TileGraph::TileNode *node,
+    const std::shared_ptr<void> &tile_ptr)
+{
+    if (node == nullptr || tile_ptr == nullptr)
+    {
+        return;
+    }
+    switch (node->dtype())
+    {
+    case DataType::FP32:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp32_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP32_FAST_TF32:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_tf32_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP32_FAST_FP16:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_fp16_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP32_FAST_BF16:
+        std::static_pointer_cast<
+            nntile::core::Tile<nntile::fp32_fast_bf16_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP64:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp64_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::FP16:
+        std::static_pointer_cast<nntile::core::Tile<nntile::fp16_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::BF16:
+        std::static_pointer_cast<nntile::core::Tile<nntile::bf16_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::INT64:
+        std::static_pointer_cast<nntile::core::Tile<nntile::int64_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    case DataType::BOOL:
+        std::static_pointer_cast<nntile::core::Tile<nntile::bool_t>>(tile_ptr)
+            ->unregister_submit();
+        break;
+    default:
+        break;
+    }
+}
+
 void Runtime::release_dead_tiles_after_op(size_t op_idx)
 {
     queue_dead_tiles_after_op(op_idx);
@@ -916,13 +997,16 @@ void Runtime::flush_queued_dead_tiles()
     }
     for (const TileGraph::TileNode *tile : queued_dead_tiles_)
     {
-        if (tile == nullptr || !tile->has_payload())
+        if (tile == nullptr || !tile->is_starpu_registered()
+            || !tile->has_payload())
         {
             continue;
         }
         auto payload = tile->payload();
         invalidate_tile_buffer(tile, payload);
-        const_cast<TileGraph::TileNode *>(tile)->clear_payload();
+        auto *mut = const_cast<TileGraph::TileNode *>(tile);
+        mut->clear_payload();
+        sync_logical_starpu_flag(mut);
     }
     queued_dead_tiles_.clear();
 }
@@ -1091,6 +1175,7 @@ bool Runtime::drop_fully_executed_history()
     execution_schedule_ = ExecutionSchedule{};
     // Keep compiled_tile_node_count_: tile nodes / payloads persist across
     // session compaction (same as TensorGraph data nodes).
+    // Tech debt D1: TileNode IR is not destroyed here.
     return true;
 }
 

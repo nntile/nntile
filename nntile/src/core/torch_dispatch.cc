@@ -242,6 +242,267 @@ void torch_embedding_out(
         out);
 }
 
+void torch_where_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &condition,
+    const TorchTileMeta &condition_meta,
+    const Tile<fp32_t> &self,
+    const TorchTileMeta &self_meta,
+    const Tile<fp32_t> &other,
+    const TorchTileMeta &other_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    condition.mpi_transfer(out_rank, mpi_rank);
+    self.mpi_transfer(out_rank, mpi_rank);
+    other.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args{};
+    args.kind = starpu::TorchKind::Where;
+    args.n_in = 3;
+    args.n_out = 1;
+    pack_meta_into(args, 0, condition_meta, false);
+    pack_meta_into(args, 1, self_meta, false);
+    pack_meta_into(args, 2, other_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_where.submit(
+        starpu_worker_hint,
+        args,
+        condition,
+        self,
+        other,
+        out);
+}
+
+void torch_where_i64_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &condition,
+    const TorchTileMeta &condition_meta,
+    const Tile<int64_t> &self,
+    const TorchTileMeta &self_meta,
+    const Tile<int64_t> &other,
+    const TorchTileMeta &other_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    condition.mpi_transfer(out_rank, mpi_rank);
+    self.mpi_transfer(out_rank, mpi_rank);
+    other.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = starpu::TorchKind::Where;
+    args.n_in = 3;
+    args.n_out = 1;
+    args.iargs[15] = 1;
+    pack_meta_into(args, 0, condition_meta, false);
+    pack_meta_into(args, 1, self_meta, false);
+    pack_meta_into(args, 2, other_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_where.submit(
+        starpu_worker_hint,
+        args,
+        condition,
+        self,
+        other,
+        out);
+}
+
+void torch_arange_out(
+    int starpu_worker_hint,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = extra.kind == starpu::TorchKind::FillI64
+        ? starpu::TorchKind::FillI64
+        : starpu::TorchKind::Arange;
+    args.n_in = 0;
+    args.n_out = 1;
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_arange.submit(
+        starpu_worker_hint,
+        args,
+        out);
+}
+
+void torch_gt_out(
+    int starpu_worker_hint,
+    const Tile<int64_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<int64_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    a.mpi_transfer(out_rank, mpi_rank);
+    b.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    if (extra.kind != starpu::TorchKind::Lt)
+    {
+        args.kind = starpu::TorchKind::Gt;
+    }
+    args.n_in = 2;
+    args.n_out = 1;
+    pack_meta_into(args, 0, a_meta, false);
+    pack_meta_into(args, 1, b_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_gt.submit(
+        starpu_worker_hint,
+        args,
+        a,
+        b,
+        out);
+}
+
+void torch_eq_fp32_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<fp32_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    a.mpi_transfer(out_rank, mpi_rank);
+    b.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = starpu::TorchKind::Eq;
+    args.n_in = 2;
+    args.n_out = 1;
+    pack_meta_into(args, 0, a_meta, false);
+    pack_meta_into(args, 1, b_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_gt.submit(
+        starpu_worker_hint,
+        args,
+        a,
+        b,
+        out);
+}
+
+void torch_i64_binary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<int64_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<int64_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    a.mpi_transfer(out_rank, mpi_rank);
+    b.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = kind;
+    args.n_in = 2;
+    args.n_out = 1;
+    pack_meta_into(args, 0, a_meta, false);
+    pack_meta_into(args, 1, b_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_gt.submit(
+        starpu_worker_hint,
+        args,
+        a,
+        b,
+        out);
+}
+
+void torch_i64_unary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<int64_t> &in,
+    const TorchTileMeta &in_meta,
+    const Tile<int64_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    in.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = kind;
+    args.n_in = 1;
+    args.n_out = 1;
+    pack_meta_into(args, 0, in_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_i64_unary.submit(
+        starpu_worker_hint,
+        args,
+        in,
+        out);
+}
+
+void torch_cast_out(
+    int starpu_worker_hint,
+    const starpu::Handle &in,
+    const TorchTileMeta &in_meta,
+    const starpu::Handle &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    in.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = starpu::TorchKind::Cast;
+    args.n_in = 1;
+    args.n_out = 1;
+    pack_meta_into(args, 0, in_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_cast.submit(
+        starpu_worker_hint,
+        args,
+        in,
+        out);
+}
+
 void torch_cat_out(
     int starpu_worker_hint,
     Index dim,

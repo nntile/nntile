@@ -8,7 +8,7 @@
  *
  * @file include/nntile/tensor/tensor_ref.hh
  * External accessibility handle for a TensorGraph::TensorNode.
- * Last drop records async invalidate; the IR node stays graph-owned.
+ * Last drop records async unregister; the IR node stays graph-owned.
  *
  * @version 1.1.0
  * */
@@ -28,7 +28,8 @@ namespace nntile
 //!
 //! ``TensorGraph`` keeps ``unique_ptr<TensorNode>``. Ops store raw
 //! ``TensorNode *``. When the last ``TensorRef`` for a node is destroyed,
-//! ``tensor::invalidate`` is recorded (payload GC); the node object remains.
+//! ``tensor::unregister`` is recorded (StarPU handle GC); the node object
+//! remains (tech debt D1: TensorNode IR is not destroyed).
 class TensorRef
 {
   public:
