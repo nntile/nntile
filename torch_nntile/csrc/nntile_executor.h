@@ -55,6 +55,15 @@ void tensor_swap_two_axes_fp32(
 void tensor_copy_fp32(const at::Tensor &src, at::Tensor &dst);
 void tensor_copy_i64(const at::Tensor &src, at::Tensor &dst);
 
+//! Write ``src`` into a strided / partial ``dst`` view of a parent
+//! logical (Slice / AsStrided backward). Does not SSA-rebind ``dst``.
+void tensor_copy_into_view_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst);
+void tensor_copy_into_view_i64(
+    const at::Tensor &src,
+    at::Tensor &dst);
+
 void tensor_add_inplace_fp32(
     float alpha,
     const at::Tensor &other,
@@ -603,6 +612,12 @@ void tensor_arange_i64(
     int64_t start,
     int64_t end,
     int64_t step);
+
+void tensor_arange_fp32(
+    at::Tensor &out,
+    float start,
+    float end,
+    float step);
 
 void tensor_gt_i64(
     const at::Tensor &a,

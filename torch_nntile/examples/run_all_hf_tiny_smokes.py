@@ -5,7 +5,7 @@
 # @file torch_nntile/examples/run_all_hf_tiny_smokes.py
 # Run all tiny HF stock-model smokes and summarize failures.
 
-"""Run gpt-neo / gpt-neox / llama / bert / roberta / t5 tiny HF smokes.
+"""Run gpt-neo / gpt-neox / llama (MHA+GQA) / bert / roberta / t5 smokes.
 
 Example::
 
@@ -19,13 +19,18 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPTS = (
-    "train_gpt_neo_hf.py",
-    "train_gpt_neox_hf.py",
-    "train_llama_hf.py",
-    "train_bert_hf.py",
-    "train_roberta_hf.py",
-    "train_t5_hf.py",
+# (script, extra argv after the shared train flags)
+RUNS = (
+    ("train_gpt_neo_hf.py", ()),
+    ("train_gpt_neox_hf.py", ()),
+    ("train_llama_hf.py", ()),
+    (
+        "train_llama_hf.py",
+        ("--config", "llama_hf_tiny_gqa_config.json"),
+    ),
+    ("train_bert_hf.py", ()),
+    ("train_roberta_hf.py", ()),
+    ("train_t5_hf.py", ()),
 )
 
 
@@ -41,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
 
     here = Path(__file__).resolve().parent
     results: list[tuple[str, int]] = []
-    for script in SCRIPTS:
+    for script, extra in RUNS:
         cmd = [
             sys.executable,
             str(here / script),
@@ -59,11 +64,18 @@ def main(argv: list[str] | None = None) -> int:
             "--ncpu",
             str(args.ncpu),
         ]
+        extra_argv = list(extra)
+        if extra_argv[:1] == ["--config"] and len(extra_argv) >= 2:
+            extra_argv[1] = str(here / extra_argv[1])
+        cmd.extend(extra_argv)
+        label = script
+        if extra:
+            label = f"{script} {' '.join(extra)}"
         print("\n" + "=" * 72)
         print(" ".join(cmd))
         print("=" * 72, flush=True)
         proc = subprocess.run(cmd, check=False)
-        results.append((script, proc.returncode))
+        results.append((label, proc.returncode))
 
     print("\n" + "=" * 72)
     print("SUMMARY")

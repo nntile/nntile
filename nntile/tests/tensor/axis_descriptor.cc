@@ -219,3 +219,52 @@ TEST_CASE("Self-add (x == y) is rejected", "[graph][axis]")
 
     REQUIRE_THROWS_AS(gt::add(2.0, x, 3.0, x), std::invalid_argument);
 }
+
+TEST_CASE("Dead TensorNode IR is GC'd and leaves holes", "[graph][axis][gc]")
+{
+    TensorGraph graph("gc_holes");
+    TensorGraph::TensorNode *a = graph.emplace_data({4});
+    TensorGraph::TensorNode *b = graph.emplace_data({4});
+    REQUIRE(graph.num_data() == 2);
+    REQUIRE(graph.num_live_data() == 2);
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+
+    std::vector<TensorGraph::TensorNode *> dead =
+        graph.collect_dead_data_nodes();
+    REQUIRE(dead.size() == 2);
+    graph.destroy_data_nodes(dead);
+    REQUIRE(graph.num_live_data() == 0);
+    REQUIRE(graph.num_data() == 2);
+    REQUIRE(graph.axis_groups().empty());
+}
+
+TEST_CASE("GC keeps live TensorRefs and prunes axis members",
+    "[graph][axis][gc]")
+{
+    TensorGraph graph("gc_members");
+    nntile::TensorRef live = graph.data({8});
+    live->set_name("live");
+    {
+        nntile::TensorRef tmp = graph.data({8});
+        tmp->set_name("tmp");
+        merge_axis(live->mutable_axes()[0], tmp->mutable_axes()[0]);
+        REQUIRE(live->axis(0)->members.size() == 2);
+        REQUIRE(graph.axis_groups().size() == 1);
+        REQUIRE(graph.collect_dead_data_nodes().empty());
+    }
+    // Last TensorRef drop records UNREGISTER; the node stays referenced
+    // until those ops are sealed and dropped.
+    REQUIRE(graph.num_ops() >= 1);
+    REQUIRE(graph.collect_dead_data_nodes().empty());
+    graph.seal_phase();
+    graph.drop_all_ops();
+    std::vector<TensorGraph::TensorNode *> dead =
+        graph.collect_dead_data_nodes();
+    REQUIRE(dead.size() == 1);
+    graph.destroy_data_nodes(dead);
+    REQUIRE(graph.num_live_data() == 1);
+    REQUIRE(graph.num_data() == 2);
+    REQUIRE(live->axis(0)->members.size() == 1);
+    REQUIRE(graph.axis_groups().size() == 1);
+}

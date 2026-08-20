@@ -408,10 +408,20 @@ void TileTorchWhereOp::execute(Runtime &runtime) const
 
 void TileTorchArangeOp::execute(Runtime &runtime) const
 {
-    auto &out_t = runtime.get_tile<int64_t>(out);
     const core::TorchTileMeta out_meta =
         core::meta_from_args_or_contiguous(
             extra, 0, true, out->shape());
+    if (out->dtype() == DataType::FP32)
+    {
+        auto &out_t = runtime.get_tile<fp32_t>(out);
+        core::torch_arange_fp32_out(
+            runtime.starpu_worker_hint(),
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    auto &out_t = runtime.get_tile<int64_t>(out);
     core::torch_arange_out(
         runtime.starpu_worker_hint(),
         out_t,

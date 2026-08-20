@@ -13,6 +13,13 @@ Uses JSON config / checkpoint like ``train_gpt2_hf.py``::
         --device nntile --seed 0 --config llama_hf_tiny_config.json \\
         --output-dir /tmp/llama_hf --steps 1
 
+    GQA (``num_key_value_heads=2``)::
+
+    python torch_nntile/examples/train_llama_hf.py train \\
+        --device nntile --seed 0 \\
+        --config llama_hf_tiny_gqa_config.json \\
+        --output-dir /tmp/llama_hf_gqa --steps 1
+
     python ... compare --checkpoint-a A.pt --checkpoint-b B.pt
 """
 

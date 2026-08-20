@@ -275,6 +275,30 @@ void Runtime::mark_initialized(TensorGraph::TensorNode const *tensor)
     }
 }
 
+void Runtime::forget_logical(TensorGraph::TensorNode const *tensor)
+{
+    if (tensor == nullptr)
+    {
+        return;
+    }
+    init_state_.erase(tensor);
+    TileGraph::TensorDescriptor const *desc =
+        graph_.get_tensor_descriptor(tensor);
+    if (desc == nullptr)
+    {
+        return;
+    }
+    for (TileGraph::TileNode *tile : desc->tiles)
+    {
+        if (tile == nullptr)
+        {
+            continue;
+        }
+        tile_adoption_.erase(tile);
+        live_tile_nodes_.erase(tile);
+    }
+}
+
 bool Runtime::tensor_requires_init_at_execute(
     TileGraph::TensorDescriptor const &desc) const
 {
@@ -335,6 +359,10 @@ void Runtime::validate_initialized_inputs_at_compile()
 {
     for (const auto &uptr : graph_.tensor_descriptors())
     {
+        if (!uptr)
+        {
+            continue;
+        }
         const TileGraph::TensorDescriptor &desc = *uptr;
         if (!tensor_requires_init_at_execute(desc))
         {
@@ -390,6 +418,10 @@ void Runtime::export_all_tiles(
     out.clear();
     for (const auto &uptr : graph_.tensor_descriptors())
     {
+        if (!uptr)
+        {
+            continue;
+        }
         const TileGraph::TensorDescriptor &desc = *uptr;
         if (desc.source_node == nullptr)
         {
@@ -1173,9 +1205,9 @@ bool Runtime::drop_fully_executed_history()
     compiled_graph_op_count_ = 0;
     live_tile_nodes_.clear();
     execution_schedule_ = ExecutionSchedule{};
-    // Keep compiled_tile_node_count_: tile nodes / payloads persist across
-    // session compaction (same as TensorGraph data nodes).
-    // Tech debt D1: TileNode IR is not destroyed here.
+    // Keep compiled_tile_node_count_: tile node slots persist (GC leaves
+    // holes; new nodes still append). Dead TileNode IR is destroyed from
+    // torch_nntile after wait + drop_fully_executed_history.
     return true;
 }
 

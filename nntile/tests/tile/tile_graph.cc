@@ -127,6 +127,47 @@ TEST_CASE("TileGraph add_tensor_descriptor manual")
     REQUIRE(dp->tiles[0] == t0);
 }
 
+TEST_CASE("TileGraph erase_source_tensor is id-indexed")
+{
+    TensorGraph tg_src("src_for_erase");
+    TensorRef t_keep = tg_src.data({4}, DataType::FP32);
+    t_keep->set_name("keep");
+    TensorRef t_drop = tg_src.data({4}, DataType::FP32);
+    t_drop->set_name("drop");
+
+    TileGraph graph("erase_desc_test");
+    auto *keep_tile = graph.data({4}, "keep");
+    auto *drop_tile = graph.data({4}, "drop");
+
+    TileGraph::TensorDescriptor keep_desc;
+    keep_desc.tensor_name = "keep";
+    keep_desc.tensor_shape = {4};
+    keep_desc.tile_shape = {4};
+    keep_desc.grid_shape = {1};
+    keep_desc.dtype = DataType::FP32;
+    keep_desc.tiles = {keep_tile};
+    keep_desc.source_node = t_keep;
+    graph.add_tensor_descriptor(std::move(keep_desc));
+
+    TileGraph::TensorDescriptor drop_desc;
+    drop_desc.tensor_name = "drop";
+    drop_desc.tensor_shape = {4};
+    drop_desc.tile_shape = {4};
+    drop_desc.grid_shape = {1};
+    drop_desc.dtype = DataType::FP32;
+    drop_desc.tiles = {drop_tile};
+    drop_desc.source_node = t_drop;
+    graph.add_tensor_descriptor(std::move(drop_desc));
+
+    REQUIRE(graph.num_tensors() == 2);
+    graph.erase_source_tensor(t_drop);
+    REQUIRE(graph.get_tensor_descriptor(t_drop) == nullptr);
+    REQUIRE(graph.get_tensor_descriptor(t_keep) != nullptr);
+    REQUIRE(graph.num_tensors() == 2);
+    REQUIRE(graph.get_tile_node("drop") == nullptr);
+    REQUIRE(graph.get_tile_node("keep") == keep_tile);
+}
+
 TEST_CASE("TileGraph to_mermaid", "[graph][tile]")
 {
     TileGraph graph("mermaid_test");
@@ -539,6 +580,10 @@ TensorNodeToTileMap build_tensor_tile_map(const TileGraph &graph)
     TensorNodeToTileMap tile_map;
     for (const auto &uptr : graph.tensor_descriptors())
     {
+        if (!uptr)
+        {
+            continue;
+        }
         const TileGraph::TensorDescriptor &desc = *uptr;
         if (desc.source_node != nullptr)
         {

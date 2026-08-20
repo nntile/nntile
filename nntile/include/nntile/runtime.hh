@@ -158,6 +158,10 @@ class Runtime
     //! Mark logical tensor tiles as host-populated (after acquire write I/O).
     void mark_initialized(TensorGraph::TensorNode const *tensor);
 
+    //! Drop ``init_state_`` / adoption / live-tile entries for a logical
+    //! about to be destroyed. No-op if unknown.
+    void forget_logical(TensorGraph::TensorNode const *tensor);
+
     //! Snapshot initialized tile buffers keyed by logical tensor (incremental reset).
     void export_initialized_tiles(
         std::unordered_map<TensorGraph::TensorNode const *,

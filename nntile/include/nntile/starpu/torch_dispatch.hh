@@ -83,6 +83,7 @@ enum class TorchKind : std::int32_t
     SdpaBackward = 91,       // R… → W,W,W  SDPA backward
     TransposeCopy = 100,     // R → W    aten::transpose_copy.int_out
     Copy = 101,              // R → W    densify / contiguous (copy_)
+    CopyIntoView = 180,      // R → RW   copy_ into packed parent view
     Triu = 102,              // R → W    aten::triu.out (diagonal iargs[0])
     AvgPool2d = 110,         // R → W    aten::avg_pool2d.out
     AvgPool2dBackward = 111, // R,R → W  aten::avg_pool2d_backward
@@ -100,6 +101,7 @@ enum class TorchKind : std::int32_t
     UpsampleBilinear2dBackward = 153, // R → W upsample_bilinear2d_backward
     Where = 160,             // R(bool),R,R → W  aten::where.out
     Arange = 170,            // → W(i64) aten::arange.out
+    ArangeFp32 = 179,        // → W(fp32) aten::arange.out
     Gt = 171,                // R(i64),R(i64) → W(bool) aten::gt.out
     Lt = 172,                // R(i64),R(i64) → W(bool) aten::lt.out
     Minimum = 173,           // R(i64),R(i64) → W(i64) aten::minimum.out
@@ -141,8 +143,10 @@ struct TorchDispatchArgs
     //   iargs[1]
     // EmbeddingDenseBackward: num_weights in iargs[0]
     // TransposeCopy: dim0, dim1
+    // CopyIntoView: iargs[7]=1 when out aliases in (one STARPU_RW)
     // Triu: diagonal in iargs[0]
     // Arange: start/end/step in iargs[0..2] (int64)
+    // ArangeFp32: start/end/step in scalars[0..2]
     // FillI64: value in iargs[0] (int64); same write-only
     //   codelet as Arange
     // Gt/Lt: none (broadcast via packed layouts)

@@ -78,10 +78,10 @@ single-pass mean+variance matters.
 
 Known gap vs CUDA view backward: ~~nntile→nntile `_copy_from` rebinds
 `TensorRef` (SSA) instead of writing the parent at `storage_offset`.~~
-**Fixed:** partial / strided destinations use host RMW
-(`gather_full_logical_to_cpu` → patch view →
-`overwrite_bound_nntile_logical_from_cpu`). Dense full-cover copies still
-SSA-rebind. Slice / Select / AsStrided / T Backward now match CPU grads.
+**Fixed:** partial / strided fp32 and int64 destinations use
+`TorchKind::CopyIntoView` (RW parent handle, packed view layout). Dense
+full-cover copies still SSA-rebind. Bool still host-RMW. Slice / Select /
+AsStrided / T Backward now match CPU grads.
 
 ## Registered aten schemas
 

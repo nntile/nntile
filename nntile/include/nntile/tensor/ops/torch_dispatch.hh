@@ -45,7 +45,17 @@ struct TensorTorchUnaryOp : TensorGraph::OpNode
         starpu::TorchDispatchArgs extra_ = {}) :
         kind(kind_), extra(extra_), in(in_), out(out_)
     {
-        inputs_ = {in};
+        // CopyIntoView mutates the parent logical (Slice / AsStrided
+        // backward). List the parent as an input so zeros_like happens
+        // before the patch, matching ADD_INPLACE.
+        if (kind == starpu::TorchKind::CopyIntoView && in != out)
+        {
+            inputs_ = {in, out};
+        }
+        else
+        {
+            inputs_ = {in};
+        }
         outputs_ = {out};
     }
 

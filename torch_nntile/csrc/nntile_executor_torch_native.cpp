@@ -1711,6 +1711,26 @@ void tensor_arange_i64(
     nntile::tensor::torch_arange(out_node, extra);
 }
 
+void tensor_arange_fp32(
+    at::Tensor &out,
+    float start,
+    float end,
+    float step)
+{
+    auto *out_node = get_or_create_data_node(
+        out,
+        pytorch_shape_to_graph(out.sizes()),
+        nntile::DataType::FP32,
+        /*mark_as_input=*/false);
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.kind = nntile::starpu::TorchKind::ArangeFp32;
+    extra.scalars[0] = start;
+    extra.scalars[1] = end;
+    extra.scalars[2] = step;
+    pack_tensor_layout(extra, 0, out, true);
+    nntile::tensor::torch_arange(out_node, extra);
+}
+
 void tensor_gt_i64(
     const at::Tensor &a,
     const at::Tensor &b,
@@ -2091,6 +2111,54 @@ void tensor_copy_i64(const at::Tensor &src, at::Tensor &dst)
         out_shape,
         extra);
     register_data_node(dst, out_node);
+}
+
+void tensor_copy_into_view_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst)
+{
+    const auto in_shape = pytorch_shape_to_graph(src.sizes());
+    auto *in_node = get_or_create_data_node(
+        src,
+        in_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    nntile::TensorRef dst_binding = tensor_ref(dst);
+    TORCH_CHECK(
+        dst_binding,
+        "torch_nntile copy-into-view: unbound dst");
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, src, false);
+    pack_tensor_layout(extra, 0, dst, true);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::CopyIntoView,
+        in_node,
+        dst_binding.get(),
+        extra);
+}
+
+void tensor_copy_into_view_i64(
+    const at::Tensor &src,
+    at::Tensor &dst)
+{
+    const auto in_shape = pytorch_shape_to_graph(src.sizes());
+    auto *in_node = get_or_create_data_node(
+        src,
+        in_shape,
+        nntile::DataType::INT64,
+        mark_as_input_for_operand(src));
+    nntile::TensorRef dst_binding = tensor_ref(dst);
+    TORCH_CHECK(
+        dst_binding,
+        "torch_nntile copy-into-view i64: unbound dst");
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, src, false);
+    pack_tensor_layout(extra, 0, dst, true);
+    nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::CopyIntoView,
+        in_node,
+        dst_binding.get(),
+        extra);
 }
 
 void tensor_add_fiber_fp32(

@@ -18,16 +18,15 @@
 #pragma once
 
 // Standard library headers
-#include <set>
+#include <algorithm>
 #include <unordered_set>
+#include <utility>
 
 // NNTile headers
 #include <nntile/tensor/graph_decl.hh>
 #include <nntile/tensor/graph_data_node.hh>
 #include <nntile/tensor/graph_op_node.hh>
 #include <nntile/tensor/tensor_ref.hh>
-
-#include <algorithm>
 
 namespace nntile
 {
@@ -41,7 +40,6 @@ inline TensorGraph::TensorNode *TensorGraph::emplace_data(
     TensorNode *node_ptr = node.get();
 
     data_.push_back(std::move(node));
-
     return node_ptr;
 }
 
@@ -197,7 +195,8 @@ inline void TensorGraph::drop_all_ops()
     // retaining SCATTER edges made TensorGraph history O(#preloaded
     // batches). Unsealed ops past the seal cursor stay (next phase
     // recorded during a prior async run).
-    // Tech debt D1: do not erase data_ here; TensorNode IR is session-lived.
+    // Dead TensorNode IR is destroyed separately via
+    // ``destroy_data_nodes`` after wait (holes stay in ``data_``).
     if (phase_seal_cursor_ == 0)
     {
         return;
@@ -206,6 +205,103 @@ inline void TensorGraph::drop_all_ops()
         ops_.begin(),
         ops_.begin() + static_cast<std::ptrdiff_t>(phase_seal_cursor_));
     phase_seal_cursor_ = 0;
+}
+
+inline size_t TensorGraph::num_live_data() const
+{
+    size_t n = 0;
+    for (std::unique_ptr<TensorNode> const &up : data_)
+    {
+        if (up)
+        {
+            ++n;
+        }
+    }
+    return n;
+}
+
+inline std::vector<TensorGraph::TensorNode *>
+TensorGraph::collect_dead_data_nodes() const
+{
+    std::unordered_set<TensorNode const *> referenced;
+    referenced.reserve(ops_.size() * 4 + 8);
+    for (std::shared_ptr<OpNode> const &op : ops_)
+    {
+        if (op == nullptr)
+        {
+            continue;
+        }
+        for (TensorNode *in : op->inputs())
+        {
+            if (in != nullptr)
+            {
+                referenced.insert(in);
+            }
+        }
+        for (TensorNode *ot : op->outputs())
+        {
+            if (ot != nullptr)
+            {
+                referenced.insert(ot);
+            }
+        }
+    }
+    std::vector<TensorNode *> dead;
+    for (std::unique_ptr<TensorNode> const &up : data_)
+    {
+        TensorNode *t = up.get();
+        if (t == nullptr)
+        {
+            continue;
+        }
+        if (tensor_ref_is_live(t))
+        {
+            continue;
+        }
+        // After wait() + empty TileGraph ops, leftover StarPU flags are
+        // stale: reclaim already ran (INVALIDATE / UNREGISTER). Keeping
+        // those nodes made live IR grow by one staging tensor per step.
+        if (referenced.count(t) != 0)
+        {
+            continue;
+        }
+        dead.push_back(t);
+    }
+    return dead;
+}
+
+inline void TensorGraph::note_axis_group(AxisDescriptor *group)
+{
+    if (group != nullptr)
+    {
+        axis_groups_.insert(group);
+    }
+}
+
+inline void TensorGraph::drop_axis_group(AxisDescriptor *group)
+{
+    if (group != nullptr)
+    {
+        axis_groups_.erase(group);
+    }
+}
+
+inline void TensorGraph::destroy_data_nodes(
+    std::vector<TensorNode *> const &nodes)
+{
+    for (TensorNode *t : nodes)
+    {
+        if (t == nullptr || t->graph() != this)
+        {
+            continue;
+        }
+        t->unlink_from_axis_groups();
+        auto const id = static_cast<size_t>(t->id());
+        if (id < data_.size() && data_[id].get() == t)
+        {
+            data_[id].reset();
+        }
+    }
 }
 
 inline void TensorGraph::rename_data_node(
@@ -236,6 +332,10 @@ inline std::vector<std::string> TensorGraph::data_names() const
     names.reserve(data_.size());
     for (auto const &node : data_)
     {
+        if (!node)
+        {
+            continue;
+        }
         names.push_back(node->name());
     }
     return names;
@@ -243,19 +343,7 @@ inline std::vector<std::string> TensorGraph::data_names() const
 
 inline std::vector<AxisDescriptor *> TensorGraph::axis_groups() const
 {
-    std::set<AxisDescriptor *> seen;
-    std::vector<AxisDescriptor *> result;
-    for (const auto &node : data_)
-    {
-        for (const auto &ax : node->axes())
-        {
-            if (seen.insert(ax.get()).second)
-            {
-                result.push_back(ax.get());
-            }
-        }
-    }
-    return result;
+    return {axis_groups_.begin(), axis_groups_.end()};
 }
 
 inline size_t TensorGraph::num_untiled_groups() const
@@ -283,7 +371,8 @@ inline std::string TensorGraph::to_string() const
     }
 
     std::stringstream ss;
-    ss << "TensorGraph(name='" << name_ << "', data=" << num_data()
+    ss << "TensorGraph(name='" << name_ << "', data=" << num_live_data()
+       << "/" << num_data()
        << ", ops=" << num_ops() << ", axis_groups=" << groups.size()
        << ", tiled=" << tiled << "/" << groups.size() << ")\n";
 
@@ -308,6 +397,10 @@ inline std::string TensorGraph::to_string() const
     ss << "Data:\n";
     for (const auto &t : data_)
     {
+        if (!t)
+        {
+            continue;
+        }
         ss << "  " << t->to_string() << "\n";
     }
 
@@ -327,6 +420,10 @@ inline std::string TensorGraph::to_mermaid() const
 
     for (const auto &node : data_)
     {
+        if (!node)
+        {
+            continue;
+        }
         std::string node_id = "D" + std::to_string(node->id());
         std::string label = node->name();
         if (label.empty())

@@ -161,11 +161,32 @@ void merge_axis(std::shared_ptr<AxisDescriptor>& lhs,
 
     for(auto [node_ptr, axis_idx] : old_desc->members)
     {
+        if(node_ptr == nullptr)
+        {
+            continue;
+        }
         auto* node = static_cast<TensorGraph::TensorNode*>(node_ptr);
         node->mutable_axes()[axis_idx] = keep;
         keep->members.push_back({node_ptr, axis_idx});
+        node->note_member_index(
+            axis_idx, keep->members.size() - 1);
+    }
+    TensorGraph *g = nullptr;
+    if(!keep->members.empty())
+    {
+        auto *n = static_cast<TensorGraph::TensorNode *>(
+            keep->members.front().first);
+        if(n != nullptr)
+        {
+            g = n->graph();
+        }
     }
     old_desc->members.clear();
+    if(g != nullptr)
+    {
+        g->drop_axis_group(old_desc.get());
+        g->note_axis_group(keep.get());
+    }
 }
 
 } // namespace nntile

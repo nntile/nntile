@@ -77,6 +77,12 @@ class TensorGraph::TensorNode
     //! joining their groups. Sizes must match shape.
     void set_axes(const std::vector<std::shared_ptr<AxisDescriptor>> &axes);
 
+    //! Swap-remove this node from each axis ``members`` list (O(ndim)).
+    void unlink_from_axis_groups();
+
+    //! Index of ``(this, dim)`` in ``axes_[dim]->members`` for O(1) unlink.
+    void note_member_index(int dim, std::size_t idx);
+
     //! True after any op lists this node as an output (O(1) producer check).
     bool has_producer() const { return has_producer_; }
     void note_produced() { has_producer_ = true; }
@@ -141,6 +147,8 @@ class TensorGraph::TensorNode
     TensorGraph *graph_;
     std::vector<Index> shape_;
     std::vector<std::shared_ptr<AxisDescriptor>> axes_;
+    //! Parallel to ``axes_``: index into that descriptor's ``members``.
+    std::vector<std::size_t> member_index_;
     DataType dtype_;
     std::string name_;
     bool has_producer_ = false;
@@ -155,6 +163,8 @@ class TensorGraph::TensorNode
 
     friend class TensorGraph;
     friend class TensorRef;
+    friend void merge_axis(std::shared_ptr<AxisDescriptor> &,
+        std::shared_ptr<AxisDescriptor> &);
 };
 
 //! Validate same shape and merge axes for two tensors (single loop).

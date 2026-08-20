@@ -343,6 +343,29 @@ void torch_arange_out(
         out);
 }
 
+void torch_arange_fp32_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = starpu::TorchKind::ArangeFp32;
+    args.n_in = 0;
+    args.n_out = 1;
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_arange.submit(
+        starpu_worker_hint,
+        args,
+        out);
+}
+
 void torch_gt_out(
     int starpu_worker_hint,
     const Tile<int64_t> &a,

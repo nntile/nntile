@@ -257,6 +257,13 @@ at::Tensor out_tagged(
     }
 }
 
+//! CopyIntoView may submit a single STARPU_RW buffer when src/dst alias.
+bool copy_into_view_aliases_in(const TorchDispatchArgs *args)
+{
+    return args->kind == TorchKind::CopyIntoView &&
+        args->iargs[7] != 0;
+}
+
 std::vector<std::int64_t> iarg_vec(
     const TorchDispatchArgs &args,
     Index start,
@@ -496,8 +503,11 @@ void run_unary(
         break;
     }
     case TorchKind::Copy:
+    case TorchKind::CopyIntoView:
     {
-        // Densify a (possibly non-contiguous) view into contiguous out.
+        // Copy: densify a view into contiguous out.
+        // CopyIntoView: packed out layout is a view of the parent
+        // StarPU buffer (STARPU_RW); copy_ writes only that region.
         if (self.sizes() != result.sizes())
         {
             auto fmt = [](at::IntArrayRef dims) {
@@ -990,7 +1000,9 @@ void TorchUnary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
         float *in = ifaces[0]->get_ptr<float>();
-        float *out = ifaces[1]->get_ptr<float>();
+        float *out = copy_into_view_aliases_in(args)
+            ? in
+            : ifaces[1]->get_ptr<float>();
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
         run_unary(args, in, out, at::kCPU);
@@ -1020,7 +1032,9 @@ void TorchUnary<std::tuple<fp32_t>>::cuda(void *buffers[], void *cl_args)
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
         float *in = ifaces[0]->get_ptr<float>();
-        float *out = ifaces[1]->get_ptr<float>();
+        float *out = copy_into_view_aliases_in(args)
+            ? in
+            : ifaces[1]->get_ptr<float>();
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
         run_unary(args, in, out, cuda_env.device());
@@ -1053,17 +1067,53 @@ void TorchUnary<std::tuple<T>>::submit(
 )
 {
     args_t *args = clone_args(meta);
-    int ret = nntile_starpu_task_insert(
-        &codelet,
-        starpu_worker_hint,
-        STARPU_R,
-        in.get(),
-        STARPU_CL_ARGS,
-        args,
-        sizeof(*args),
-        STARPU_W,
-        out.get(),
-        0);
+    int ret = 0;
+    if (args->kind == TorchKind::CopyIntoView)
+    {
+        // Preserve parent values outside the packed view (RW, not W).
+        const bool out_aliases_in = (out.get() == in.get());
+        args->iargs[7] = out_aliases_in ? 1 : 0;
+        if (out_aliases_in)
+        {
+            ret = nntile_starpu_task_insert(
+                &codelet,
+                starpu_worker_hint,
+                STARPU_RW,
+                in.get(),
+                STARPU_CL_ARGS,
+                args,
+                sizeof(*args),
+                0);
+        }
+        else
+        {
+            ret = nntile_starpu_task_insert(
+                &codelet,
+                starpu_worker_hint,
+                STARPU_R,
+                in.get(),
+                STARPU_CL_ARGS,
+                args,
+                sizeof(*args),
+                STARPU_RW,
+                out.get(),
+                0);
+        }
+    }
+    else
+    {
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            in.get(),
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+    }
     if (ret != 0)
     {
         throw std::runtime_error("torch_unary.submit failed");
@@ -1544,17 +1594,34 @@ void TorchArange::cpu(void *buffers[], void *cl_args) noexcept
         auto *args = reinterpret_cast<args_t *>(cl_args);
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
-        std::int64_t *out_ptr = ifaces[0]->get_ptr<std::int64_t>();
-        at::Tensor result = out_i64(out_ptr, *args, 0);
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        if (args->kind == TorchKind::FillI64)
+        if (args->kind == TorchKind::ArangeFp32)
         {
+            float *out_ptr = ifaces[0]->get_ptr<float>();
+            at::Tensor result = out_fp32(out_ptr, *args, 0);
+            at::arange_out(
+                result,
+                at::Scalar(
+                    static_cast<double>(args->scalars[0])),
+                at::Scalar(
+                    static_cast<double>(args->scalars[1])),
+                at::Scalar(
+                    static_cast<double>(args->scalars[2])));
+        }
+        else if (args->kind == TorchKind::FillI64)
+        {
+            std::int64_t *out_ptr =
+                ifaces[0]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
             result.fill_(
                 static_cast<std::int64_t>(args->iargs[0]));
         }
         else
         {
+            std::int64_t *out_ptr =
+                ifaces[0]->get_ptr<std::int64_t>();
+            at::Tensor result = out_i64(out_ptr, *args, 0);
             at::arange_out(
                 result,
                 at::Scalar(
@@ -1800,7 +1867,9 @@ void TorchI64Unary::cpu(void *buffers[], void *cl_args) noexcept
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
         std::int64_t *in_ptr = ifaces[0]->get_ptr<std::int64_t>();
-        std::int64_t *out_ptr = ifaces[1]->get_ptr<std::int64_t>();
+        std::int64_t *out_ptr = copy_into_view_aliases_in(args)
+            ? in_ptr
+            : ifaces[1]->get_ptr<std::int64_t>();
         at::Tensor self = in_i64(in_ptr, *args, 0);
         at::Tensor result = out_i64(out_ptr, *args, 0);
         at::AutoDispatchBelowADInplaceOrView guard;
@@ -1814,6 +1883,7 @@ void TorchI64Unary::cpu(void *buffers[], void *cl_args) noexcept
             at::neg_out(result, self);
             break;
         case TorchKind::Copy:
+        case TorchKind::CopyIntoView:
             result.copy_(self);
             break;
         default:
@@ -1869,17 +1939,52 @@ void TorchI64Unary::submit(
 )
 {
     args_t *args = clone_args(meta);
-    int ret = nntile_starpu_task_insert(
-        &codelet,
-        starpu_worker_hint,
-        STARPU_R,
-        in.get(),
-        STARPU_CL_ARGS,
-        args,
-        sizeof(*args),
-        STARPU_W,
-        out.get(),
-        0);
+    int ret = 0;
+    if (args->kind == TorchKind::CopyIntoView)
+    {
+        const bool out_aliases_in = (out.get() == in.get());
+        args->iargs[7] = out_aliases_in ? 1 : 0;
+        if (out_aliases_in)
+        {
+            ret = nntile_starpu_task_insert(
+                &codelet,
+                starpu_worker_hint,
+                STARPU_RW,
+                in.get(),
+                STARPU_CL_ARGS,
+                args,
+                sizeof(*args),
+                0);
+        }
+        else
+        {
+            ret = nntile_starpu_task_insert(
+                &codelet,
+                starpu_worker_hint,
+                STARPU_R,
+                in.get(),
+                STARPU_CL_ARGS,
+                args,
+                sizeof(*args),
+                STARPU_RW,
+                out.get(),
+                0);
+        }
+    }
+    else
+    {
+        ret = nntile_starpu_task_insert(
+            &codelet,
+            starpu_worker_hint,
+            STARPU_R,
+            in.get(),
+            STARPU_CL_ARGS,
+            args,
+            sizeof(*args),
+            STARPU_W,
+            out.get(),
+            0);
+    }
     if (ret != 0)
     {
         throw std::runtime_error("torch_i64_unary.submit failed");

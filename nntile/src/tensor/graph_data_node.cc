@@ -43,13 +43,66 @@ TensorGraph::TensorNode::TensorNode(
     }
 
     axes_.reserve(shape_.size());
+    member_index_.reserve(shape_.size());
     for(size_t i = 0; i < shape_.size(); ++i)
     {
         auto desc = std::make_shared<AxisDescriptor>();
         desc->extent = shape_[i];
         desc->members.push_back({static_cast<void*>(this),
                                   static_cast<int>(i)});
+        member_index_.push_back(0);
+        if(graph_ != nullptr)
+        {
+            graph_->note_axis_group(desc.get());
+        }
         axes_.push_back(std::move(desc));
+    }
+}
+
+void TensorGraph::TensorNode::note_member_index(int dim, std::size_t idx)
+{
+    if(dim < 0 || static_cast<size_t>(dim) >= member_index_.size())
+    {
+        throw std::out_of_range(
+            "TensorNode::note_member_index: dim out of range");
+    }
+    member_index_[static_cast<size_t>(dim)] = idx;
+}
+
+void TensorGraph::TensorNode::unlink_from_axis_groups()
+{
+    for(size_t d = 0; d < axes_.size(); ++d)
+    {
+        std::shared_ptr<AxisDescriptor> const &desc = axes_[d];
+        if(!desc)
+        {
+            continue;
+        }
+        std::size_t const idx = member_index_[d];
+        auto &members = desc->members;
+        if(idx >= members.size() || members[idx].first != this)
+        {
+            continue;
+        }
+        std::size_t const last = members.size() - 1;
+        if(idx != last)
+        {
+            members[idx] = members[last];
+            auto *other = static_cast<TensorNode *>(members[idx].first);
+            int const other_d = members[idx].second;
+            if(other != nullptr &&
+                other_d >= 0 &&
+                static_cast<size_t>(other_d) < other->member_index_.size())
+            {
+                other->member_index_[static_cast<size_t>(other_d)] = idx;
+            }
+        }
+        members.pop_back();
+        member_index_[d] = static_cast<std::size_t>(-1);
+        if(members.empty() && graph_ != nullptr)
+        {
+            graph_->drop_axis_group(desc.get());
+        }
     }
 }
 

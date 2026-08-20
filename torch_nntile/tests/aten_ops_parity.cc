@@ -480,6 +480,34 @@ TEST_CASE("aten narrow fwd matches CPU", "[aten][parity]")
     torch_nntile::test::assert_close(y, y_ref);
 }
 
+TEST_CASE("aten narrow fwd+bwd matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            return xs[0].narrow(/*dim=*/1, /*start=*/2, /*length=*/4);
+        },
+        {x});
+}
+
+TEST_CASE(
+    "aten last-dim slice+cat fwd+bwd matches CPU",
+    "[aten][parity]")
+{
+    ContextGuard guard;
+    auto x = seeded({2, 4, 8});
+    torch_nntile::test::assert_op_forward_backward(
+        [](std::vector<at::Tensor> const &xs)
+        {
+            at::Tensor rot = xs[0].slice(/*dim=*/-1, 0, 4);
+            at::Tensor pass = xs[0].slice(/*dim=*/-1, 4, 8);
+            return torch::cat({rot, pass}, /*dim=*/-1);
+        },
+        {x});
+}
+
 TEST_CASE("aten vector_norm fwd matches CPU", "[aten][parity]")
 {
     ContextGuard guard;

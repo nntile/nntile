@@ -309,6 +309,7 @@ Family codelet `torch_unary` (one `R` input, one `W` output):
 | `Sum` | `sum.IntList_out` | in `R`, out `W` |
 | `VectorNorm` | `linalg_vector_norm.out` | in `R`, out `W` |
 | `NarrowCopy` | `narrow` view + `copy_` | in `R`, out `W` |
+| `CopyIntoView` | `copy_` into parent view | in `R`, out `RW` |
 | `Repeat` | `repeat.out` | in `R`, out `W` |
 | `AvgPool2d` | `avg_pool2d.out` | in `R`, out `W` |
 | `AdaptiveAvgPool2d` | `_adaptive_avg_pool2d.out` | in `R`, out `W` |
@@ -533,13 +534,10 @@ Composite view **forward** matches CUDA. Backward (`SliceBackward0`,
 
 nntile→nntile `_copy_from` must **not** SSA-rebind `TensorRef` onto a
 partial / strided destination (that left the base zeros untouched). For
-those destinations, copy does host RMW:
-
-1. `gather_nntile_view_to_cpu(src)` (contiguous logical of the source)
-2. `gather_full_logical_to_cpu(dst)` (full parent buffer)
-3. Patch `full.as_strided(dst.sizes(), dst.strides(), dst.offset()).copy_(src)`
-4. `overwrite_bound_nntile_logical_from_cpu(full, dst)` (scatter into the
-   existing logical; view + base keep the same `TensorRef`)
+fp32 / int64 destinations, copy records `TorchKind::CopyIntoView`:
+packed out layout is the view, the StarPU handle is the parent, access
+is `STARPU_RW` so values outside the view stay. Bool still uses host
+RMW (`gather` → patch → `overwrite_bound_nntile_logical_from_cpu`).
 
 Dense full-cover nntile→nntile copies still SSA-rebind (graph style).
 Do **not** re-register PrivateUse1 `narrow` / `select` to “fix” backward —
@@ -659,9 +657,9 @@ Lessons from wiring the first ops:
 12. **Densify in PrivateUse1 compute impls** when VariableType formulas
     pass non-contiguous views (`mul.Scalar`, `sum`, …). Hard
     `is_contiguous` checks fail CUDA-identical backward graphs.
-13. **nntile→nntile copy into views** uses host RMW +
-    `overwrite_bound_nntile_logical_from_cpu` (not SSA rebind), so Slice /
-    AsStrided Backward match CUDA.
+13. **nntile→nntile copy into views** uses `CopyIntoView` (`STARPU_RW`
+    on the parent handle, packed view layout) so Slice / AsStrided
+    Backward match CUDA without a host gather of the full logical.
 
 Reference sources:
 `nntile/src/{starpu,core,tile/ops,tensor/ops}/torch_dispatch.*`,

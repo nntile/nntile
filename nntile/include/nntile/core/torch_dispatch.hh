@@ -117,6 +117,12 @@ void torch_arange_out(
     const TorchTileMeta &out_meta,
     const starpu::TorchDispatchArgs &extra);
 
+void torch_arange_fp32_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
 void torch_gt_out(
     int starpu_worker_hint,
     const Tile<int64_t> &a,

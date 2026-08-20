@@ -36,6 +36,10 @@ inline TensorGraph::TensorNode* tensor_node_named(
 {
     for(auto const& up : g.tensor_nodes())
     {
+        if(!up)
+        {
+            continue;
+        }
         if(up->name() == name)
         {
             return up.get();

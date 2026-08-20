@@ -179,14 +179,25 @@ ExecutionSchedule build_execution_schedule(
 
     for (auto const &td_uptr : graph.tensor_descriptors())
     {
+        if (!td_uptr)
+        {
+            continue;
+        }
         assign_tiles(
-            *td_uptr, schedule.num_workers, tile_worker, schedule.tile_virtual_worker);
+            *td_uptr,
+            schedule.num_workers,
+            tile_worker,
+            schedule.tile_virtual_worker);
     }
 
     std::vector<TileGraph::TileNode const *> orphans;
     for (auto const &node_uptr : graph.tile_nodes())
     {
         TileGraph::TileNode const *t = node_uptr.get();
+        if (t == nullptr)
+        {
+            continue;
+        }
         if (tile_worker.count(t) != 0)
         {
             continue;

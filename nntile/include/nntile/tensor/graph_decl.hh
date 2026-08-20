@@ -61,8 +61,8 @@ class TensorGraph
     //! Insert operations at the front of the op list (before existing ops).
     void prepend_ops(std::vector<std::shared_ptr<OpNode>> op_nodes);
 
-    //! Collect unique axis groups across all tensors in the graph.
-    //! Returns a vector of pointers to the distinct AxisDescriptors.
+    //! Live axis groups (maintained). Updated on ``emplace_data``,
+    //! ``merge_axis``, and TensorNode GC — never rebuilt from ``data_``.
     std::vector<AxisDescriptor *> axis_groups() const;
 
     //! Number of axis groups that have no tiling set.
@@ -70,7 +70,10 @@ class TensorGraph
 
     // Queries
     const std::string &name() const { return name_; }
+    //! High-water slot count (includes GC holes). NodeIds are never reused.
     size_t num_data() const { return data_.size(); }
+    //! Non-null data nodes remaining after GC.
+    size_t num_live_data() const;
     size_t num_ops() const { return ops_.size(); }
 
     //! Rename a data node (labels only; identity is the pointer).
@@ -124,15 +127,30 @@ class TensorGraph
     //! live in ``mark_input`` tile payloads. Unsealed ops past the seal
     //! cursor are always preserved (next phase recorded during a prior
     //! async ``run()``).
-    //!
-    //! Tech debt D1: data nodes in ``data_`` are not removed. Dead logicals
-    //! stay as TensorNode IR after StarPU unregister until the graph dies.
     void drop_all_ops();
 
+    //! TensorNodes with no ``TensorRef`` and not referenced by remaining
+    //! ops. Call after ``wait()`` plus ``drop_all_ops()`` once TileGraph
+    //! ops are empty. Leaves holes in ``data_``; NodeIds stay.
+    std::vector<TensorNode *> collect_dead_data_nodes() const;
+
+    //! Unlink each node from its axis groups (O(ndim) swap-remove) and
+    //! ``data_[id].reset()`` (O(1) hole). NodeIds are not reused or packed.
+    //! Caller must drop TileGraph / Runtime maps first.
+    void destroy_data_nodes(std::vector<TensorNode *> const &nodes);
+
+    void note_axis_group(AxisDescriptor *group);
+    void drop_axis_group(AxisDescriptor *group);
+
   private:
+    friend void merge_axis(std::shared_ptr<AxisDescriptor> &,
+        std::shared_ptr<AxisDescriptor> &);
+
     std::string name_;
     std::vector<std::unique_ptr<TensorNode>> data_;
     std::vector<std::shared_ptr<TensorGraph::OpNode>> ops_;
+    //! Distinct ``AxisDescriptor`` objects with at least one live member.
+    std::unordered_set<AxisDescriptor *> axis_groups_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

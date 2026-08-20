@@ -506,9 +506,31 @@ void copy_into_nntile_view(
     TORCH_CHECK(
         is_nntile_device(dst.device()),
         "copy_into_nntile_view: expected nntile dst");
-    at::Tensor src_cpu = src.is_cpu()
-        ? src.contiguous()
-        : gather_nntile_view_to_cpu(src);
+    at::Tensor src_nt = src;
+    if (src.is_cpu())
+    {
+        src_nt = at::empty(
+            src.sizes(),
+            dst.options()
+                .dtype(src.scalar_type())
+                .memory_format(at::MemoryFormat::Contiguous)
+                .requires_grad(false));
+        init_nntile_input_from_cpu(src.contiguous(), src_nt);
+    }
+    if (src_nt.scalar_type() == at::kFloat)
+    {
+        tensor_copy_into_view_fp32(src_nt, dst);
+        return;
+    }
+    if (src_nt.scalar_type() == at::kLong)
+    {
+        tensor_copy_into_view_i64(src_nt, dst);
+        return;
+    }
+    // Bool / other dtypes: host RMW until a graph-native path exists.
+    at::Tensor src_cpu = src_nt.is_cpu()
+        ? src_nt.contiguous()
+        : gather_nntile_view_to_cpu(src_nt);
     at::Tensor full_cpu = gather_full_logical_to_cpu(dst);
     full_cpu.as_strided(
                dst.sizes(),
@@ -623,13 +645,34 @@ at::Tensor &arange_fill_out(
     TORCH_CHECK(
         is_nntile_device(out.device()),
         "arange: expected nntile out");
+    if (out.scalar_type() == at::kFloat)
+    {
+        at::Tensor meta = at::arange(
+            start,
+            end,
+            step,
+            at::TensorOptions().dtype(at::kFloat).device(at::kMeta));
+        if (meta.sizes() != out.sizes())
+        {
+            resize_(
+                out,
+                c10::SymIntArrayRef(meta.sym_sizes()),
+                std::nullopt);
+        }
+        tensor_arange_fp32(
+            out,
+            static_cast<float>(start.toDouble()),
+            static_cast<float>(end.toDouble()),
+            static_cast<float>(step.toDouble()));
+        return out;
+    }
     TORCH_CHECK(
         out.scalar_type() == at::kLong,
-        "arange: int64 only (no host copy)");
+        "arange: float32 or int64 only (no host copy)");
     TORCH_CHECK(
         start.isIntegral(false) && end.isIntegral(false) &&
             step.isIntegral(false),
-        "arange: integer start/end/step only");
+        "arange: integer start/end/step for int64");
     const int64_t start_i = start.toLong();
     const int64_t end_i = end.toLong();
     const int64_t step_i = step.toLong();
@@ -669,13 +712,31 @@ at::Tensor arange_on_nntile(
     const c10::ScalarType dtype = dtype_opt.has_value()
         ? *dtype_opt
         : at::ScalarType::Long;
+    if (dtype == at::kFloat)
+    {
+        at::Tensor meta = at::arange(
+            start,
+            end,
+            step,
+            at::TensorOptions().dtype(at::kFloat).device(at::kMeta));
+        at::Tensor out = empty_metadata_tensor(
+            meta.sizes(),
+            dtype,
+            device);
+        tensor_arange_fp32(
+            out,
+            static_cast<float>(start.toDouble()),
+            static_cast<float>(end.toDouble()),
+            static_cast<float>(step.toDouble()));
+        return out;
+    }
     TORCH_CHECK(
         dtype == at::kLong,
-        "arange: int64 only (no host copy)");
+        "arange: float32 or int64 only (no host copy)");
     TORCH_CHECK(
         start.isIntegral(false) && end.isIntegral(false) &&
             step.isIntegral(false),
-        "arange: integer start/end/step only");
+        "arange: integer start/end/step for int64");
     at::Tensor meta = at::arange(
         start,
         end,

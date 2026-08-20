@@ -296,6 +296,10 @@ TensorGraphTiling TensorGraphTiling::from_tensor_graph(const TensorGraph& tg)
     TensorGraphTiling out;
     for(const auto& tn : tg.tensor_nodes())
     {
+        if(!tn)
+        {
+            continue;
+        }
         out.set_layout(tn.get(), TensorAxisLayout(tn.get()));
     }
     return out;

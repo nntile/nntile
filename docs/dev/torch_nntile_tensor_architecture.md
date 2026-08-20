@@ -77,8 +77,9 @@ the gather phase). Callers do not need an explicit `compile_graph()`/`run()`
 before `.cpu()` for correctness, but:
 
 - Ordering relative to other pending work follows whatever is still recorded.
-- Each `.cpu()` still allocates a new `io_staging_*` **TensorNode** (ops
-  are compacted after the phase; the node IR is session-lived, debt D1).
+- Each `.cpu()` still allocates a new `io_staging_*` **TensorNode**. After
+  `wait()`, unreachable TensorNode / TileNode IR is destroyed (holes remain
+  in `data_`; NodeIds are not reused).
 
 Test helper `nntile_cpu()` also flushes pending work before `.cpu()`.
 
@@ -179,7 +180,7 @@ runnable far ahead of the step that needs it. Until that exists:
 
 | # | Topic | Current behavior | Planned follow-up |
 |---|--------|------------------|-------------------|
-| D1 | Data-node IR never GC'd | Compact drops sealed TensorGraph / TileGraph **ops** only (`drop_all_ops` / `clear_ops`). `UNREGISTER` frees StarPU handles. `TensorNode` and `TileNode` objects stay in `data_` for the session (dead logicals are unreachable from Python but still allocated). `print_info` `new_nodes` counts `num_data()`, not live payloads. | Destroy TensorNode/TileNode IR after unregister completes (O(1) slot, not at submit time); keep maps keyed by node id. |
+| D1 | Data-node IR GC | Compact drops sealed TensorGraph / TileGraph **ops** (`drop_all_ops` / `clear_ops`). After `wait()`, `gc_dead_data_nodes_locked` destroys TensorNode / TileNode IR with no `TensorRef`, no StarPU registration, and no remaining op references. Holes stay in `data_`; NodeIds are not reused. `print_info` `data=` is `live/slots`. | Done. Skip GC while TileGraph ops remain (overlapping compiled-but-unexecuted phase). |
 | D2 | Ingress `S` + StarPU alloc cache | Batched `.to("nntile")` keeps every ephemeral `S` until scatters run. Submitting all scatters before any `S` unregister leaves CUDA replicates of every `S` beside every `L`; unregister parks them in StarPU's allocation cache (`STARPU_USE_ALLOCATION_CACHE`) → settled ≈2×. `starpu_memchunk_tidy` only writebacks dirty chunks — it does **not** flush that cache. | During `run()`, execute each ingress scatter, `wait()`, then destroy that `S` before the next scatter so the next `L` reuses the cached chunk. |
 | D4 | CE `ignore_index` mean | Mean CE uses `1/numel`; PyTorch uses `1/count_non_ignore`. | Graph-native valid-label count (or document as permanent limitation). |
 | D5 | `vector_norm` backward | Forward-only by design. | Add autograd when product needs it. |

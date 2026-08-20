@@ -16,6 +16,7 @@
 #include <nntile/context.hh>
 #include <nntile/core/execution_schedule.hh>
 #include <nntile/runtime.hh>
+#include <nntile/tensor.hh>
 #include <nntile/tile/ops/add.hh>
 
 using namespace nntile;
@@ -37,6 +38,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     desc.grid_shape = {2};
     desc.dtype = DataType::FP32;
     desc.tiles = {t0, t1};
+    TensorGraph logical("sched_src");
+    TensorRef src = logical.data({4}, DataType::FP32);
+    desc.source_node = src;
     tg.add_tensor_descriptor(std::move(desc));
 
     std::vector<std::shared_ptr<TileGraph::OpNode>> order;
@@ -69,8 +73,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     da.grid_shape = {2};
     da.dtype = DataType::FP32;
     da.tiles = {a0, a1};
-    tg.add_tensor_descriptor(std::move(da));
-
     TileGraph::TensorDescriptor db;
     db.tensor_name = "B";
     db.tensor_shape = {10};
@@ -78,6 +80,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     db.grid_shape = {2};
     db.dtype = DataType::FP32;
     db.tiles = {b0, b1};
+    TensorGraph logical("multi_src");
+    TensorRef src_a = logical.data({10}, DataType::FP32);
+    TensorRef src_b = logical.data({10}, DataType::FP32);
+    da.source_node = src_a;
+    db.source_node = src_b;
+    tg.add_tensor_descriptor(std::move(da));
     tg.add_tensor_descriptor(std::move(db));
 
     std::vector<std::shared_ptr<TileGraph::OpNode>> order;
@@ -217,6 +225,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     da.grid_shape = {2, 2};
     da.dtype = DataType::FP32;
     da.tiles = {t0, t1, t2, t3};
+    TensorGraph logical("batch_src");
+    TensorRef src = logical.data({4, 4}, DataType::FP32);
+    da.source_node = src;
     tg.add_tensor_descriptor(std::move(da));
 
     std::vector<std::shared_ptr<TileGraph::OpNode>> order;

@@ -57,6 +57,10 @@ TileGraph TileGraph::from_tensor_graph(
 
     for(const auto& tensor_node : tg.tensor_nodes())
     {
+        if(!tensor_node)
+        {
+            continue;
+        }
         const TensorAxisLayout* lay = scheme->find(tensor_node.get());
         if(lay == nullptr)
         {

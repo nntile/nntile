@@ -88,9 +88,17 @@ class TileGraph
     }
 
     const std::string &name() const { return name_; }
+    //! High-water slot count (includes GC holes). NodeIds are never reused.
     size_t num_data() const { return data_.size(); }
     size_t num_ops() const { return ops_.size(); }
+    //! High-water descriptor slots (includes GC holes). Indexed by source
+    //! ``TensorNode::id()``; ids are never reused.
     size_t num_tensors() const { return tensors_.size(); }
+
+    //! Drop tiles and the descriptor for one logical tensor. O(1) hole in
+    //! ``tensors_[source->id()]`` plus O(#tiles) ``data_`` holes.
+    //! Call only when no remaining tile op still points at those tiles.
+    void erase_source_tensor(TensorGraph::TensorNode const *source);
 
     //! First tile with this label (labels may repeat; for debugging only).
     TileNode *get_tile_node(const std::string &name);
@@ -136,9 +144,8 @@ class TileGraph
     std::string name_;
     std::vector<std::unique_ptr<TileNode>> data_;
     std::vector<std::shared_ptr<TileGraph::OpNode>> ops_;
+    //! Owned descriptors, dense by source ``TensorNode::id()``. Holes after GC.
     std::vector<std::unique_ptr<TensorDescriptor>> tensors_;
-    //! Dense by ``TensorNode::id()``; holes allowed after GC.
-    std::vector<TensorDescriptor *> desc_by_source_id_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

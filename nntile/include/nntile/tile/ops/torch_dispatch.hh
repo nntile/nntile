@@ -40,7 +40,14 @@ struct TileTorchUnaryOp : TileGraph::OpNode
         starpu::TorchDispatchArgs extra_ = {}) :
         kind(kind_), extra(extra_), in(in_), out(out_)
     {
-        inputs_ = {in};
+        if (kind == starpu::TorchKind::CopyIntoView && in != out)
+        {
+            inputs_ = {in, out};
+        }
+        else
+        {
+            inputs_ = {in};
+        }
         outputs_ = {out};
     }
 

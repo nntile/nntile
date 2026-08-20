@@ -128,6 +128,12 @@ struct GraphApiTimingStats
     std::uint64_t run_ops = 0;
     std::uint64_t wait_calls = 0;
     double wait_s = 0.0;
+    double wait_starpu_s = 0.0;
+    double wait_compact_s = 0.0;
+    double wait_gc_collect_s = 0.0;
+    double wait_gc_erase_s = 0.0;
+    double wait_gc_destroy_s = 0.0;
+    std::uint64_t wait_gc_dead = 0;
     std::uint64_t host_readout_calls = 0;
     double host_readout_s = 0.0;
     // Record-path attribution (op capture into TensorGraph).
@@ -177,6 +183,8 @@ void compile_graph_locked();
 void run_graph_locked();
 
 void finish_run_locked();
+
+void gc_dead_data_nodes_locked();
 
 void register_grad_alias_for_host_copy_locked(
     at::Tensor &grad,
@@ -830,7 +838,9 @@ void compact_tensor_graph_session_locked()
     // Drop sealed TensorGraph ops so the next record/compile is O(phase).
     // Unsealed ops recorded after the last seal (next phase already in
     // flight while a prior run() completes) are preserved.
-    // Tech debt D1: TensorNode / TileNode IR is not cleared; only ops.
+    // Dead TensorNode / TileNode IR is GC'd after wait() in
+    // finish_run_locked() (not here: StarPU unregister may still be in
+    // flight at compact_after_submit).
     if (g_graph == nullptr)
     {
         return;
@@ -878,6 +888,50 @@ void flush_released_logicals_locked()
 void compact_after_submit_locked()
 {
     compact_tensor_graph_session_locked();
+}
+
+void gc_dead_data_nodes_locked()
+{
+    if (g_graph == nullptr)
+    {
+        return;
+    }
+    // Tile ops / execution_order_ still hold TileNode*. Destroying IR
+    // while a compiled-but-unexecuted overlapping phase remains would
+    // dangle. Compact after a full wait clears those lists.
+    if (g_exec == nullptr ||
+        g_exec->tile_graph == nullptr ||
+        g_exec->runtime == nullptr ||
+        g_exec->tile_graph->num_ops() != 0)
+    {
+        return;
+    }
+    SteadyClock::time_point t = SteadyClock::now();
+    std::vector<nntile::TensorGraph::TensorNode *> const dead =
+        g_graph->collect_dead_data_nodes();
+    g_timing.wait_gc_collect_s += seconds_since(t);
+    if (dead.empty())
+    {
+        return;
+    }
+    g_timing.wait_gc_dead += static_cast<std::uint64_t>(dead.size());
+    t = SteadyClock::now();
+    for (nntile::TensorGraph::TensorNode *tnode : dead)
+    {
+        g_exec->tile_map.erase(tnode);
+        g_exec->inc_state.tensor_to_tiles.erase(tnode);
+        g_exec->inc_state.tensor_layout_fp.erase(tnode);
+        if (g_exec->session_tiling != nullptr)
+        {
+            g_exec->session_tiling->erase(tnode);
+        }
+        g_exec->runtime->forget_logical(tnode);
+        g_exec->tile_graph->erase_source_tensor(tnode);
+    }
+    g_timing.wait_gc_erase_s += seconds_since(t);
+    t = SteadyClock::now();
+    g_graph->destroy_data_nodes(dead);
+    g_timing.wait_gc_destroy_s += seconds_since(t);
 }
 
 void compile_graph_locked()
@@ -1014,11 +1068,16 @@ void finish_run_locked()
     SteadyClock::time_point const t0 = SteadyClock::now();
     // Join StarPU for host-visible completion. Session compact already ran
     // at the end of run(); reclaim ops were submitted with the phase.
+    SteadyClock::time_point t_part = SteadyClock::now();
     g_exec->runtime->wait();
+    g_timing.wait_starpu_s += seconds_since(t_part);
+    t_part = SteadyClock::now();
     compact_tensor_graph_session_locked();
     // Drain release notes; reclaim ops were already submitted with the
     // phase (or recorded into the next unsealed phase on TensorRef drop).
     flush_released_logicals_locked();
+    g_timing.wait_compact_s += seconds_since(t_part);
+    gc_dead_data_nodes_locked();
     g_run_cleanup_pending = false;
     g_timing.wait_s += seconds_since(t0);
     ++g_timing.wait_calls;
@@ -1755,7 +1814,8 @@ std::string format_axis_groups_locked()
     }
 
     std::ostringstream ss;
-    ss << "Pending TensorGraph: data=" << g_graph->num_data()
+    ss << "Pending TensorGraph: data=" << g_graph->num_live_data()
+       << "/" << g_graph->num_data()
        << ", ops=" << g_graph->num_ops() << ", axis_groups=" << groups.size()
        << ", tiled=" << tiled << '/' << groups.size() << '\n';
     if (groups.empty())
@@ -1861,6 +1921,24 @@ std::string format_info_locked()
        << g_timing.wait_s << "s"
        << " (avg " << avg_ms(g_timing.wait_s, g_timing.wait_calls)
        << " ms; finishes a pending run() only)\n";
+    if (g_timing.wait_calls > 0)
+    {
+        ss << "    starpu_join:  " << g_timing.wait_starpu_s << "s (avg "
+           << avg_ms(g_timing.wait_starpu_s, g_timing.wait_calls)
+           << " ms)\n";
+        ss << "    compact:      " << g_timing.wait_compact_s << "s (avg "
+           << avg_ms(g_timing.wait_compact_s, g_timing.wait_calls)
+           << " ms)\n";
+        ss << "    gc collect:   " << g_timing.wait_gc_collect_s << "s (avg "
+           << avg_ms(g_timing.wait_gc_collect_s, g_timing.wait_calls)
+           << " ms)\n";
+        ss << "    gc erase:     " << g_timing.wait_gc_erase_s << "s (avg "
+           << avg_ms(g_timing.wait_gc_erase_s, g_timing.wait_calls)
+           << " ms; dead_nodes=" << g_timing.wait_gc_dead << ")\n";
+        ss << "    gc destroy:   " << g_timing.wait_gc_destroy_s << "s (avg "
+           << avg_ms(g_timing.wait_gc_destroy_s, g_timing.wait_calls)
+           << " ms)\n";
+    }
     ss << "  starpu_task_wait_for_all: "
        << nntile::g_starpu_wait_for_all_count.load()
        << " calls (all sources; should stay flat between run()s if async)\n";

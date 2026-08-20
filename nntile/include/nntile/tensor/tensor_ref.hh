@@ -28,8 +28,9 @@ namespace nntile
 //!
 //! ``TensorGraph`` keeps ``unique_ptr<TensorNode>``. Ops store raw
 //! ``TensorNode *``. When the last ``TensorRef`` for a node is destroyed,
-//! ``tensor::unregister`` is recorded (StarPU handle GC); the node object
-//! remains (tech debt D1: TensorNode IR is not destroyed).
+//! ``tensor::unregister`` is recorded (StarPU handle GC). After
+//! ``wait()`` + ``drop_all_ops()``, unreachable IR is destroyed (holes
+//! remain in ``data_``).
 class TensorRef
 {
   public:
