@@ -122,8 +122,15 @@ Results summary: [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_
 
 ## GPU server checklist (manual)
 
-Goal: see whether `device=nntile` shows overhead vs torch on a GPU host, and
-whether middle-sized work still amortizes that overhead.
+For a **full 15-model CUDA vs nntile table** on ≥2 GiB configs, use
+[cuda_vs_nntile_2gb.md](cuda_vs_nntile_2gb.md) (`bench_cuda_vs_nntile_2gb.py`).
+Do **not** add `--device cuda` to the HF / CNN / DiT commons: CUDA and
+nntile cannot share a process. The CUDA child is
+`train_cuda_only.py` (or `train_gpt2_hf.py --device cuda`).
+
+Goal of the smaller checklist below: see whether `device=nntile` shows
+overhead vs torch on a GPU host, and whether middle-sized work still
+amortizes that overhead.
 
 1. Build with `USE_CUDA=ON` and install the matching CUDA `torch==2.9.1`.
 2. Keep host BLAS single-threaded (`OMP_NUM_THREADS=1`, …) so CPU prep does

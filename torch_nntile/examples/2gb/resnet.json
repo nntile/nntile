@@ -1,0 +1,9 @@
+{
+  "_comment": ">=2GiB FP32 params",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 32,
+  "width": 32,
+  "base_channels": 2048,
+  "blocks": 8
+}

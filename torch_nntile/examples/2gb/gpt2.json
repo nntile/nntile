@@ -1,0 +1,16 @@
+{
+  "_comment": ">=2GiB FP32 params, 100-step GPU stress (not a CPU middle recipe)",
+  "vocab_size": 2048,
+  "n_embd": 1536,
+  "n_inner": 6144,
+  "n_layer": 20,
+  "n_head": 24,
+  "n_positions": 128,
+  "layer_norm_epsilon": 1e-05,
+  "attn_pdrop": 0.0,
+  "resid_pdrop": 0.0,
+  "embd_pdrop": 0.0,
+  "tie_word_embeddings": true,
+  "bos_token_id": 2047,
+  "eos_token_id": 2047
+}
