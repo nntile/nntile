@@ -518,3 +518,28 @@ TEST_CASE("aten vector_norm fwd matches CPU", "[aten][parity]")
     at::Tensor y = torch::linalg_vector_norm(x.to(dev), 2, -1);
     torch_nntile::test::assert_close(y, y_ref);
 }
+
+TEST_CASE("aten arange as first graph op matches CPU", "[aten][parity]")
+{
+    ContextGuard guard;
+    c10::Device const dev = torch_nntile::test::nntile_device();
+    at::Tensor y = torch::arange(
+        /*end=*/8,
+        torch::TensorOptions().dtype(torch::kLong).device(dev));
+    at::Tensor y_ref = torch::arange(
+        /*end=*/8,
+        torch::TensorOptions().dtype(torch::kLong));
+    torch_nntile::test::assert_close(y, y_ref);
+    at::Tensor y2 = torch::arange(
+        /*start=*/0,
+        /*end=*/8,
+        torch::TensorOptions().dtype(torch::kLong).device(dev));
+    torch_nntile::test::assert_close(y2, y_ref);
+    at::Tensor yf = torch::arange(
+        /*end=*/4,
+        torch::TensorOptions().dtype(torch::kFloat32).device(dev));
+    at::Tensor yf_ref = torch::arange(
+        /*end=*/4,
+        torch::TensorOptions().dtype(torch::kFloat32));
+    torch_nntile::test::assert_close(yf, yf_ref);
+}

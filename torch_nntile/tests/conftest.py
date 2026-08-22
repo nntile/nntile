@@ -66,6 +66,7 @@ def subprocess_environ(**extra: str) -> dict[str, str]:
     env = dict(os.environ)
     env.pop("STARPU_DISABLE_KERNELS", None)
     env.pop("TORCH_NNTILE_SKIP_STARPU", None)
+    env.pop("TORCH_NNTILE_SKIP_KERNELS", None)
 
     build_lib = _repo_root / "build" / "nntile"
     starpu_lib = "/opt/starpu/lib"

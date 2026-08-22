@@ -187,6 +187,7 @@ at::Tensor linalg_vector_norm_nntile(
     bool keepdim,
     std::optional<at::ScalarType> dtype)
 {
+    nntile::GraphFillScope record;
     if (!is_nntile_device(self.device()))
     {
         return at::linalg_vector_norm(self, ord, dim, keepdim, dtype);
@@ -227,6 +228,7 @@ at::Tensor &linalg_vector_norm_out_nntile(
     std::optional<at::ScalarType> dtype,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     if (!is_nntile_device(self.device()))
     {
         out.copy_(at::linalg_vector_norm(self, ord, dim, keepdim, dtype));

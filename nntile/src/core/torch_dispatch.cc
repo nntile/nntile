@@ -366,6 +366,58 @@ void torch_arange_fp32_out(
         out);
 }
 
+void torch_fill_bool_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = starpu::TorchKind::FillBool;
+    args.n_in = 0;
+    args.n_out = 1;
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_arange.submit(
+        starpu_worker_hint,
+        args,
+        out);
+}
+
+void torch_unary_bool_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<bool_t> &in,
+    const TorchTileMeta &in_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    in.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = kind;
+    args.n_in = 1;
+    args.n_out = 1;
+    pack_meta_into(args, 0, in_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_unary.submit<std::tuple<fp32_t>>(
+        starpu_worker_hint,
+        args,
+        in,
+        out);
+}
+
 void torch_gt_out(
     int starpu_worker_hint,
     const Tile<int64_t> &a,

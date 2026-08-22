@@ -79,8 +79,8 @@ enum class TorchKind : std::int32_t
     NativeLayerNormBackward = 71, // R… → W…  native_layer_norm_backward
     Embedding = 80,          // R,R → W  aten::embedding.out
     EmbeddingDenseBackward = 81, // R,R → W  embedding_dense_backward
-    Sdpa = 90,               // R,R,R → W  scaled_dot_product_attention
-    SdpaBackward = 91,       // R… → W,W,W  SDPA backward
+    Sdpa = 90,               // D8 unused fused SDPA; F.sdpa uses MATH
+    SdpaBackward = 91,       // D8 unused fused SDPA backward
     TransposeCopy = 100,     // R → W    aten::transpose_copy.int_out
     Copy = 101,              // R → W    densify / contiguous (copy_)
     CopyIntoView = 180,      // R → RW   copy_ into packed parent view
@@ -110,6 +110,8 @@ enum class TorchKind : std::int32_t
     Cast = 176,              // R → W    copy_ with dtype change
     FillI64 = 177,           // → W(i64) aten fill_ (arange codelet)
     Eq = 178,                // R(fp32),R(fp32) → W(bool) aten::eq.out
+    FillBool = 182,          // → W(bool) aten fill_ (arange codelet)
+    Tril = 183,              // R(bool) → W(bool) aten::tril.out
 };
 
 inline constexpr Index torch_dispatch_max_ndim = core::torch_native_max_ndim;
@@ -149,6 +151,8 @@ struct TorchDispatchArgs
     // ArangeFp32: start/end/step in scalars[0..2]
     // FillI64: value in iargs[0] (int64); same write-only
     //   codelet as Arange
+    // FillBool: value in iargs[0] (0/1); same codelet as Arange
+    // Tril: diagonal in iargs[0]; bool unary (MATH SDPA mask)
     // Gt/Lt: none (broadcast via packed layouts)
     // Cast: src dtype tag iargs[0], dst tag iargs[1]
     //   (0=fp32, 1=i64, 2=bool)

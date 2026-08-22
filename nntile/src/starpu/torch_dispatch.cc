@@ -725,7 +725,10 @@ void run_ternary(
         break;
     case TorchKind::Sdpa:
     {
-        // No public *_out for SDPA; materialize into preallocated out.
+        // Debt D8: fused SDPA codelet. F.sdpa on nntile uses MATH
+        // composite instead (mm / softmax TensorGraph nodes). Keep this
+        // path for a later fused implementation; do not call it from
+        // _fused_sdp_choice.
         const bool is_causal = args->iargs[1] != 0;
         auto attn = at::scaled_dot_product_attention(
             ta,
@@ -999,12 +1002,32 @@ void TorchUnary<std::tuple<fp32_t>>::cpu(void *buffers[], void *cl_args)
         auto *args = reinterpret_cast<args_t *>(cl_args);
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::Tril)
+        {
+            bool_t *in = ifaces[0]->get_ptr<bool_t>();
+            bool_t *out = ifaces[1]->get_ptr<bool_t>();
+            at::Tensor self = in_bool(
+                reinterpret_cast<bool *>(in),
+                *args,
+                0,
+                at::kCPU);
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out),
+                *args,
+                0,
+                at::kCPU);
+            at::tril_out(
+                result,
+                self,
+                static_cast<std::int64_t>(args->iargs[0]));
+            return;
+        }
         float *in = ifaces[0]->get_ptr<float>();
         float *out = copy_into_view_aliases_in(args)
             ? in
             : ifaces[1]->get_ptr<float>();
-        at::AutoDispatchBelowADInplaceOrView guard;
-        at::NoGradGuard no_grad;
         run_unary(args, in, out, at::kCPU);
     }
     catch (const std::exception &ex)
@@ -1031,12 +1054,32 @@ void TorchUnary<std::tuple<fp32_t>>::cuda(void *buffers[], void *cl_args)
         auto *args = reinterpret_cast<args_t *>(cl_args);
         auto **ifaces =
             reinterpret_cast<VariableInterface **>(buffers);
+        at::AutoDispatchBelowADInplaceOrView guard;
+        at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::Tril)
+        {
+            bool_t *in = ifaces[0]->get_ptr<bool_t>();
+            bool_t *out = ifaces[1]->get_ptr<bool_t>();
+            at::Tensor self = in_bool(
+                reinterpret_cast<bool *>(in),
+                *args,
+                0,
+                cuda_env.device());
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out),
+                *args,
+                0,
+                cuda_env.device());
+            at::tril_out(
+                result,
+                self,
+                static_cast<std::int64_t>(args->iargs[0]));
+            return;
+        }
         float *in = ifaces[0]->get_ptr<float>();
         float *out = copy_into_view_aliases_in(args)
             ? in
             : ifaces[1]->get_ptr<float>();
-        at::AutoDispatchBelowADInplaceOrView guard;
-        at::NoGradGuard no_grad;
         run_unary(args, in, out, cuda_env.device());
     }
     catch (const std::exception &ex)
@@ -1616,6 +1659,15 @@ void TorchArange::cpu(void *buffers[], void *cl_args) noexcept
             at::Tensor result = out_i64(out_ptr, *args, 0);
             result.fill_(
                 static_cast<std::int64_t>(args->iargs[0]));
+        }
+        else if (args->kind == TorchKind::FillBool)
+        {
+            bool_t *out_ptr = ifaces[0]->get_ptr<bool_t>();
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            result.fill_(args->iargs[0] != 0);
         }
         else
         {

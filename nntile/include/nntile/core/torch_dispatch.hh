@@ -123,6 +123,21 @@ void torch_arange_fp32_out(
     const TorchTileMeta &out_meta,
     const starpu::TorchDispatchArgs &extra);
 
+void torch_fill_bool_out(
+    int starpu_worker_hint,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_unary_bool_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<bool_t> &in,
+    const TorchTileMeta &in_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
 void torch_gt_out(
     int starpu_worker_hint,
     const Tile<int64_t> &a,

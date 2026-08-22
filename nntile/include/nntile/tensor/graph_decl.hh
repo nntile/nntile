@@ -65,6 +65,9 @@ class TensorGraph
     //! ``merge_axis``, and TensorNode GC — never rebuilt from ``data_``.
     std::vector<AxisDescriptor *> axis_groups() const;
 
+    //! True if any live axis group has tiling set. O(|groups|), no copy.
+    bool has_tiled_axis_group() const;
+
     //! Number of axis groups that have no tiling set.
     size_t num_untiled_groups() const;
 

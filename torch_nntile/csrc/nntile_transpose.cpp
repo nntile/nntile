@@ -66,6 +66,7 @@ at::Tensor model_transpose_forward(
     const at::Tensor &x,
     int64_t model_ndim)
 {
+    nntile::GraphFillScope record;
     check_model_transpose_input(x, model_ndim, "input");
     const int64_t n = x.dim();
     const int64_t tensor_ndim = n - model_ndim;
@@ -81,6 +82,7 @@ at::Tensor model_transpose_backward(
     int64_t model_ndim,
     const at::Tensor &x)
 {
+    nntile::GraphFillScope record;
     check_model_transpose_input(grad_out, model_ndim, "grad_out");
     at::Tensor grad_x = empty_metadata_tensor(
         permuted_sizes(grad_out.sizes(), model_ndim),

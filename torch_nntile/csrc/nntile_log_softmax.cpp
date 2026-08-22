@@ -106,6 +106,7 @@ at::Tensor log_softmax(
     int64_t dim,
     bool half_to_float)
 {
+    nntile::GraphFillScope record;
     check_log_softmax_input(self, dim, half_to_float);
     at::Tensor out = at::empty_like(self);
     run_log_softmax(self, dim, out);
@@ -118,6 +119,7 @@ at::Tensor &log_softmax_out(
     bool half_to_float,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_log_softmax_input(self, dim, half_to_float, out);
     run_log_softmax(self, dim, out);
     return out;
@@ -129,6 +131,7 @@ at::Tensor log_softmax_backward_data(
     int64_t dim,
     at::ScalarType input_dtype)
 {
+    nntile::GraphFillScope record;
     check_log_softmax_backward(grad_output, output, dim, input_dtype);
     at::Tensor grad_input = at::empty_like(output);
     const int64_t wrapped_dim = at::maybe_wrap_dim(dim, output.dim());

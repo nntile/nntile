@@ -56,23 +56,34 @@ def train_loop(
         lr=lr,
     )
     opt.zero_grad(set_to_none=True)
+    torch.cuda.synchronize()
+    last_loss = None
     t0 = time.perf_counter()
     for step in range(steps):
+        t_iter0 = time.perf_counter()
         loss = loss_fn(model, batch)
         loss.backward()
         opt.step()
-        loss_val = float(loss.detach().item())
+        step_loss = loss.detach()
         del loss
         opt.zero_grad(set_to_none=True)
+        torch.cuda.synchronize()
+        iter_s = time.perf_counter() - t_iter0
         print(
-            f"[{name}] step {step + 1}/{steps}  loss={loss_val:.6f}",
+            f"timing torch iter {step + 1}/{steps} wall={iter_s:.3f}s",
             flush=True,
         )
-    torch.cuda.synchronize()
-    print(
-        f"[{name}] wall={time.perf_counter() - t0:.3f}s  OK",
-        flush=True,
-    )
+        if step == steps - 1:
+            last_loss = step_loss
+        else:
+            del step_loss
+    wall_s = time.perf_counter() - t0
+    if last_loss is None:
+        raise RuntimeError(f"{name}: no steps ran")
+    loss_val = float(last_loss.item())
+    del last_loss
+    print(f"[{name}] final loss={loss_val:.6f}", flush=True)
+    print(f"[{name}] wall={wall_s:.3f}s  OK", flush=True)
 
 
 def main() -> int:

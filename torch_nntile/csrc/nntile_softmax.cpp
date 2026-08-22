@@ -11,6 +11,8 @@
 #include <ATen/TensorUtils.h>
 #include <torch/library.h>
 
+#include <optional>
+
 namespace torch_nntile
 {
 
@@ -75,6 +77,7 @@ at::Tensor softmax(
     int64_t dim,
     bool half_to_float)
 {
+    nntile::GraphFillScope record;
     check_softmax_input(self, dim, half_to_float);
     at::Tensor out = at::empty_like(self);
     run_softmax(self, dim, out);
@@ -87,9 +90,22 @@ at::Tensor &softmax_out(
     bool half_to_float,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_softmax_input(self, dim, half_to_float, out);
     run_softmax(self, dim, out);
     return out;
+}
+
+at::Tensor safe_softmax(
+    const at::Tensor &self,
+    int64_t dim,
+    std::optional<at::ScalarType> dtype)
+{
+    nntile::GraphFillScope record;
+    TORCH_CHECK(
+        !dtype.has_value() || *dtype == at::ScalarType::Float,
+        "nntile _safe_softmax: float32 only");
+    return softmax(self, dim, /*half_to_float=*/false);
 }
 
 } // namespace torch_nntile
@@ -98,4 +114,5 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
 {
     m.impl("_softmax", TORCH_FN(torch_nntile::softmax));
     m.impl("_softmax.out", TORCH_FN(torch_nntile::softmax_out));
+    m.impl("_safe_softmax", TORCH_FN(torch_nntile::safe_softmax));
 }

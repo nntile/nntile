@@ -122,9 +122,15 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
             tensor_fill_i64(self, value.to<int64_t>());
             return;
         }
+        if (self.scalar_type() == at::ScalarType::Bool)
+        {
+            tensor_fill_bool(self, value.to<bool>());
+            return;
+        }
         TORCH_CHECK(
             false,
-            "fill_: nntile metadata fill supports float32 and int64");
+            "fill_: nntile metadata fill supports "
+            "float32, int64, and bool");
     }
     switch (self.scalar_type())
     {
@@ -168,6 +174,16 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
         }
         break;
     }
+    case at::ScalarType::Bool:
+    {
+        const bool fill_value = value.to<bool>();
+        bool *data = self.data_ptr<bool>();
+        for (int64_t i = 0; i < nelems; ++i)
+        {
+            data[i] = fill_value;
+        }
+        break;
+    }
     default:
         TORCH_CHECK(false, "fill_: unsupported dtype on nntile");
     }
@@ -177,6 +193,7 @@ void fill_tensor(at::Tensor &self, const at::Scalar &value)
 
 at::Tensor &fill_scalar(at::Tensor &self, const at::Scalar &value)
 {
+    nntile::GraphFillScope record;
     fill_tensor(self, value);
     return self;
 }
@@ -186,6 +203,7 @@ at::Tensor empty_metadata_tensor(
     c10::ScalarType dtype,
     c10::Device device)
 {
+    nntile::GraphFillScope record;
     const c10::DeviceGuard device_guard(device);
     c10::Allocator *allocator = get_nntile_allocator();
     c10::DataPtr data_ptr = allocator->allocate(0);
@@ -206,6 +224,7 @@ at::Tensor empty_metadata_tensor(
 
 at::Tensor &zero_tensor(at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     return fill_scalar(self, 0);
 }
 
@@ -217,6 +236,7 @@ at::Tensor ones_like(
     std::optional<bool> pin_memory_opt,
     std::optional<at::MemoryFormat> memory_format_opt)
 {
+    nntile::GraphFillScope record;
     at::TensorOptions options = self.options();
     if (dtype_opt.has_value())
     {
@@ -274,6 +294,7 @@ at::Tensor empty_memory_format(
     std::optional<bool> pin_memory_opt,
     std::optional<at::MemoryFormat> memory_format_opt)
 {
+    nntile::GraphFillScope record;
     const auto device = c10::device_or_default(device_opt);
     TORCH_CHECK(is_nntile_device(device), "empty.memory_format: expected nntile");
     TORCH_CHECK(
@@ -296,6 +317,7 @@ at::Tensor empty_strided(
     std::optional<at::Device> device_opt,
     std::optional<bool> pin_memory_opt)
 {
+    nntile::GraphFillScope record;
     const auto device = c10::device_or_default(device_opt);
     TORCH_CHECK(is_nntile_device(device), "empty_strided: expected nntile");
     TORCH_CHECK(
@@ -320,6 +342,7 @@ at::Tensor as_strided(
     at::IntArrayRef stride,
     std::optional<int64_t> storage_offset)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(is_nntile_device(self.device()), "as_strided: expected nntile");
     const int64_t storage_offset_value =
         storage_offset.value_or(self.storage_offset());
@@ -341,6 +364,7 @@ at::Tensor as_strided(
 //! view loses the packed QKV TensorRef and densify invents a wrong node.
 at::Tensor alias(const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(is_nntile_device(self.device()), "alias: expected nntile");
     at::Tensor result = at::detail::make_tensor<at::TensorImpl>(
         c10::Storage(self.storage()),
@@ -358,6 +382,7 @@ at::Tensor reshape_alias(
     at::IntArrayRef size,
     at::IntArrayRef stride)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(self.device()),
         "_reshape_alias: expected nntile");
@@ -376,6 +401,7 @@ at::Tensor reshape_alias(
 
 at::Tensor view(const at::Tensor &self, at::IntArrayRef size)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(is_nntile_device(self.device()), "view: expected nntile");
     const auto inferred = at::infer_size_dv(size, self.numel());
     const auto stride = at::detail::computeStride(
@@ -396,6 +422,7 @@ at::Tensor unsafe_view(
     const at::Tensor &self,
     c10::SymIntArrayRef size)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(self.device()),
         "_unsafe_view: expected nntile");
@@ -413,6 +440,7 @@ const at::Tensor &resize_(
     c10::SymIntArrayRef size,
     std::optional<at::MemoryFormat> memory_format)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(is_nntile_device(self.device()), "resize_: expected nntile");
     if (memory_format.has_value())
     {
@@ -545,6 +573,7 @@ at::Tensor copy_from(
     const at::Tensor &dst,
     bool /*non_blocking*/)
 {
+    nntile::GraphFillScope record;
     // Untiled views: densify nntile src before host I/O.
     at::Tensor src = self;
     if (needs_densify_for_host_io(self))
@@ -626,6 +655,7 @@ at::Tensor copy_from(
 
 at::Tensor copy_from_and_resize(const at::Tensor &self, const at::Tensor &dst)
 {
+    nntile::GraphFillScope record;
     if (self.sizes() != dst.sizes())
     {
         resize_(dst, c10::SymIntArrayRef(self.sym_sizes()), std::nullopt);
@@ -760,6 +790,7 @@ at::Tensor arange_end(
     std::optional<at::Device> device,
     std::optional<bool> pin_memory)
 {
+    nntile::GraphFillScope record;
     return arange_on_nntile(
         /*start=*/0,
         end,
@@ -778,6 +809,7 @@ at::Tensor arange_start(
     std::optional<at::Device> device,
     std::optional<bool> pin_memory)
 {
+    nntile::GraphFillScope record;
     return arange_on_nntile(
         start,
         end,
@@ -797,6 +829,7 @@ at::Tensor arange_start_step(
     std::optional<at::Device> device,
     std::optional<bool> pin_memory)
 {
+    nntile::GraphFillScope record;
     return arange_on_nntile(
         start,
         end,
@@ -811,6 +844,7 @@ at::Tensor &arange_out(
     const at::Scalar &end,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     return arange_fill_out(out, /*start=*/0, end, /*step=*/1);
 }
 
@@ -820,15 +854,21 @@ at::Tensor &arange_start_out(
     const at::Scalar &step,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     return arange_fill_out(out, start, end, step);
 }
 
 at::Scalar local_scalar_dense(const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(self.device()),
         "_local_scalar_dense: expected nntile");
     TORCH_CHECK(self.numel() > 0, "Cannot convert empty tensor to scalar");
+    if (skip_nntile_kernels())
+    {
+        return at::Scalar(0);
+    }
     // HF ``cache_position[-1]`` is a 1-element select into a larger
     // logical. Gather via the shared view helper (handles partial covers).
     nntile::TensorRef binding = tensor_ref(self);
@@ -853,6 +893,7 @@ at::Scalar local_scalar_dense(const at::Tensor &self)
 
 at::Tensor &set_source_tensor(at::Tensor &result, const at::Tensor &source)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(result.device()),
         "set_.source_Tensor: expected nntile result");
@@ -868,6 +909,7 @@ at::Tensor &set_source_tensor(at::Tensor &result, const at::Tensor &source)
 
 at::Tensor &set_source_storage(at::Tensor &result, at::Storage src)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(result.device()),
         "set_.source_Storage: expected nntile");
@@ -890,6 +932,7 @@ at::Tensor &set_source_storage_storage_offset(
     at::IntArrayRef size,
     at::IntArrayRef stride)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(result.device()),
         "set_.source_Storage_storage_offset: expected nntile");
@@ -901,6 +944,7 @@ at::Tensor &set_source_storage_storage_offset(
 
 at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(is_nntile_device(self.device()), "transpose: expected nntile");
     const auto ndim = self.dim();
     TORCH_CHECK(ndim >= 2, "nntile transpose expects at least 2D tensors");
@@ -935,6 +979,7 @@ at::Tensor transpose_int(const at::Tensor &self, int64_t dim0, int64_t dim1)
 
 at::Tensor t(const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(is_nntile_device(self.device()), "t: expected nntile");
     TORCH_CHECK(self.dim() == 2, "t: expected a 2D tensor");
     return transpose_int(self, 0, 1);
@@ -942,6 +987,7 @@ at::Tensor t(const at::Tensor &self)
 
 at::Tensor permute(const at::Tensor &self, at::IntArrayRef dims)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(is_nntile_device(self.device()), "permute: expected nntile");
     const auto ndim = self.dim();
     TORCH_CHECK(
@@ -1005,6 +1051,7 @@ at::Tensor contiguous(
     const at::Tensor &self,
     at::MemoryFormat memory_format)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(is_nntile_device(self.device()), "contiguous: expected nntile");
     TORCH_CHECK(
         memory_format == at::MemoryFormat::Contiguous,
@@ -1098,6 +1145,7 @@ at::Tensor contiguous_autograd(
     const at::Tensor &self,
     at::MemoryFormat memory_format)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(self.device()),
         "contiguous: expected nntile");

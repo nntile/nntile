@@ -113,6 +113,7 @@ std::string AxisDescriptor::tile_sizes_to_string() const
 void merge_axis(std::shared_ptr<AxisDescriptor>& lhs,
                 std::shared_ptr<AxisDescriptor>& rhs)
 {
+    GraphFillScope fill;
     if(lhs == rhs)
     {
         return;

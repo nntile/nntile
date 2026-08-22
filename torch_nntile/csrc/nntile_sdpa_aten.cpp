@@ -8,6 +8,8 @@
 
 #include "nntile_sdpa.h"
 
+#include <nntile/tensor/graph_fill_timer.hh>
+
 #include <ATen/SDPBackend.h>
 #include <ATen/native/transformers/attention.h>
 #include <torch/library.h>
@@ -250,6 +252,10 @@ int64_t fused_sdp_choice(
     std::optional<double> scale,
     bool enable_gqa)
 {
+    nntile::GraphFillScope record;
+    // Debt D8: never OVERRIDEABLE. MATH is CompositeImplicit and
+    // records mm / softmax / mask as TensorGraph nodes. The fused
+    // TorchKind::Sdpa codelet stays unused until a later fused SDPA.
     (void)attn_mask;
     (void)is_causal;
     if (!sdpa_inputs_supported(
@@ -262,7 +268,7 @@ int64_t fused_sdp_choice(
     {
         return static_cast<int64_t>(at::SDPBackend::error);
     }
-    return static_cast<int64_t>(at::SDPBackend::overrideable);
+    return static_cast<int64_t>(at::SDPBackend::math);
 }
 
 std::tuple<
@@ -285,6 +291,7 @@ sdpa_overrideable_forward(
     bool return_debug_mask,
     std::optional<double> scale)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         sdpa_inputs_supported(
             query,
@@ -387,6 +394,7 @@ sdpa_overrideable_backward(
     const at::Tensor &philox_offset,
     std::optional<double> scale)
 {
+    nntile::GraphFillScope record;
     (void)out;
     // PyTorch passes logsumexp from forward; sdpa_backward uses maxsumexp internally.
     (void)logsumexp;

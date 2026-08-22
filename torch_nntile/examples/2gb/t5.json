@@ -8,7 +8,7 @@
   "num_decoder_layers": 10,
   "num_heads": 24,
   "relative_attention_num_buckets": 32,
-  "relative_attention_max_distance": 128,
+  "relative_attention_max_distance": 1024,
   "dropout_rate": 0.0,
   "layer_norm_epsilon": 1e-06,
   "feed_forward_proj": "relu",

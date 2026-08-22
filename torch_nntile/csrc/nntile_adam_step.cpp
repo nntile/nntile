@@ -81,6 +81,7 @@ void adam_step(
     double eps,
     double weight_decay)
 {
+    nntile::GraphFillScope record;
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adam_step");
     TORCH_CHECK(num_iter >= 1, "nntile adam_step: num_iter must be >= 1");
@@ -109,6 +110,7 @@ void adamw_step(
     double eps,
     double weight_decay)
 {
+    nntile::GraphFillScope record;
     check_adam_step_tensors(
         param, grad, first_moment, second_moment, "nntile adamw_step");
     TORCH_CHECK(num_iter >= 1, "nntile adamw_step: num_iter must be >= 1");

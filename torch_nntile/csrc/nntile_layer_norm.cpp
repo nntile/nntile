@@ -166,6 +166,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm(
     const std::optional<at::Tensor> &bias,
     double eps)
 {
+    nntile::GraphFillScope record;
     at::Tensor input_c = as_contiguous_fp32(input, "input");
     const int64_t norm_axis = resolve_norm_axis(
         input_c.sizes(),
@@ -201,6 +202,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm_backward(
     const std::optional<at::Tensor> &bias,
     std::array<bool, 3> output_mask)
 {
+    nntile::GraphFillScope record;
     // Sum/Mean backward often expands a non-contiguous ones view into
     // ``grad_out``; densify before the StarPU codelet.
     at::Tensor grad_out_c = as_contiguous_fp32(grad_out, "grad_out");

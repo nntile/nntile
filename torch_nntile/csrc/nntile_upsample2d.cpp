@@ -64,6 +64,7 @@ at::Tensor upsample_nearest2d(
     std::optional<double> scales_h,
     std::optional<double> scales_w)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input =
         as_contiguous_fp32(self, "nntile upsample_nearest2d");
     TORCH_CHECK(input.dim() == 4, "nntile upsample_nearest2d: NCHW only");
@@ -91,6 +92,7 @@ at::Tensor &upsample_nearest2d_out(
     std::optional<double> scales_w,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input =
         as_contiguous_fp32(self, "nntile upsample_nearest2d.out");
     TORCH_CHECK(is_nntile_device(out.device()), "upsample.out: nntile out");
@@ -111,6 +113,7 @@ at::Tensor upsample_nearest2d_backward(
     std::optional<double> scales_h,
     std::optional<double> scales_w)
 {
+    nntile::GraphFillScope record;
     const at::Tensor go = as_contiguous_fp32(
         grad_output,
         "nntile upsample_nearest2d_backward");
@@ -139,6 +142,7 @@ at::Tensor &upsample_nearest2d_backward_out(
     std::optional<double> scales_w,
     at::Tensor &grad_input)
 {
+    nntile::GraphFillScope record;
     const at::Tensor go = as_contiguous_fp32(
         grad_output,
         "nntile upsample_nearest2d_backward.grad_input");
@@ -161,6 +165,7 @@ at::Tensor upsample_bilinear2d(
     std::optional<double> scales_h,
     std::optional<double> scales_w)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input =
         as_contiguous_fp32(self, "nntile upsample_bilinear2d");
     TORCH_CHECK(input.dim() == 4, "nntile upsample_bilinear2d: NCHW only");
@@ -190,6 +195,7 @@ at::Tensor &upsample_bilinear2d_out(
     std::optional<double> scales_w,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input =
         as_contiguous_fp32(self, "nntile upsample_bilinear2d.out");
     TORCH_CHECK(is_nntile_device(out.device()), "upsample.out: nntile out");
@@ -212,6 +218,7 @@ at::Tensor upsample_bilinear2d_backward(
     std::optional<double> scales_h,
     std::optional<double> scales_w)
 {
+    nntile::GraphFillScope record;
     const at::Tensor go = as_contiguous_fp32(
         grad_output,
         "nntile upsample_bilinear2d_backward");
@@ -242,6 +249,7 @@ at::Tensor &upsample_bilinear2d_backward_out(
     std::optional<double> scales_w,
     at::Tensor &grad_input)
 {
+    nntile::GraphFillScope record;
     const at::Tensor go = as_contiguous_fp32(
         grad_output,
         "nntile upsample_bilinear2d_backward.grad_input");

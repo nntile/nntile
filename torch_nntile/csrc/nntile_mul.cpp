@@ -69,6 +69,7 @@ void run_mul_kernel(
 
 at::Tensor mul_scalar(const at::Tensor &self, const at::Scalar &other)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "mul.Scalar", "self");
     if (self.scalar_type() == at::ScalarType::Long)
     {
@@ -98,6 +99,7 @@ at::Tensor &mul_scalar_out(
     const at::Scalar &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(self.device()) && is_nntile_device(out.device()),
         "nntile mul.Scalar_out expects nntile tensors");
@@ -132,6 +134,7 @@ at::Tensor mul_fp32_bool(
 
 at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     // PyTorch may wrap Python floats as CPU 0-dim tensors for mul.Tensor.
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
@@ -189,6 +192,7 @@ at::Tensor &mul_out(
     const at::Tensor &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
         return mul_scalar_out(self, other.item(), out);
@@ -202,6 +206,7 @@ at::Tensor &mul_out(
 
 at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     if (is_cpu_scalar_tensor(other) &&
         self.scalar_type() == at::ScalarType::Float)
     {

@@ -68,6 +68,7 @@ at::Tensor rope_forward(
     const at::Tensor &cos,
     const at::Tensor &x)
 {
+    nntile::GraphFillScope record;
     check_rope_tensor(sin, "sin");
     check_rope_tensor(cos, "cos");
     check_rope_tensor(x, "x");
@@ -86,6 +87,7 @@ at::Tensor rope_backward(
     const at::Tensor &grad_out,
     std::array<bool, 1> output_mask)
 {
+    nntile::GraphFillScope record;
     check_rope_tensor(sin, "sin");
     check_rope_tensor(cos, "cos");
     check_rope_tensor(grad_out, "grad_out");

@@ -140,6 +140,7 @@ at::Tensor linear(
     const at::Tensor &weight,
     const std::optional<at::Tensor> &bias)
 {
+    nntile::GraphFillScope record;
     // Linear gemm layout / autograd expect dense operands. Transpose
     // views (e.g. weight.t()) densify here; attention QKV views stay
     // zero-copy until SDPA.
@@ -161,6 +162,7 @@ at::Tensor &linear_out(
     const std::optional<at::Tensor> &bias,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input_c =
         input.is_contiguous() ? input : input.contiguous();
     const at::Tensor weight_c =
@@ -184,6 +186,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
     const at::Tensor &weight,
     std::array<bool, 3> output_mask)
 {
+    nntile::GraphFillScope record;
     const auto t0 = std::chrono::steady_clock::now();
     TORCH_CHECK(
         is_nntile_device(input.device()) &&

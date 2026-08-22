@@ -33,11 +33,12 @@
 #include "nntile/dtype.hh"
 #include "nntile/tile/lowering_context.hh"
 
+#include <chrono>
 #include <cstring>
-#include <set>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace nntile
 {
@@ -101,25 +102,27 @@ void allocate_tile_and_register(
     sync_logical_starpu_flag(node);
 }
 
-//! Track both inputs and outputs when an op is needed: many kernels read
-//! accumulator buffers listed only as outputs (in-place / incremental IR).
-void insert_op_io_into_live(const TileGraph::OpNode &op,
-    std::unordered_set<const TileGraph::TileNode *> &live,
-    bool &changed)
+//! Enqueue op I/O tiles that are not yet live. Accumulators listed only as
+//! outputs still need a live edge (in-place / incremental IR).
+void enqueue_op_io(
+    TileGraph::OpNode const &op,
+    std::unordered_set<TileGraph::TileNode const *> &live,
+    std::vector<TileGraph::TileNode const *> &work)
 {
-    for (const auto *in : op.inputs())
+    auto note = [&](TileGraph::TileNode const *tile)
     {
-        if (in != nullptr && live.insert(in).second)
+        if (tile != nullptr && live.insert(tile).second)
         {
-            changed = true;
+            work.push_back(tile);
         }
+    };
+    for (TileGraph::TileNode const *in : op.inputs())
+    {
+        note(in);
     }
-    for (const auto *out : op.outputs())
+    for (TileGraph::TileNode const *out : op.outputs())
     {
-        if (out != nullptr && live.insert(out).second)
-        {
-            changed = true;
-        }
+        note(out);
     }
 }
 
@@ -166,8 +169,14 @@ void Runtime::compile()
         compiled_graph_op_count_ = graph_ops.size();
     }
 
+    auto const t_dce = std::chrono::steady_clock::now();
     eliminate_dead_ops();
+    last_compile_dce_s_ = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - t_dce).count();
+    auto const t_alloc = std::chrono::steady_clock::now();
     allocate_missing_tiles();
+    last_compile_alloc_s_ = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - t_alloc).count();
     tile_adoption_.clear();
 
     execution_schedule_ = ExecutionSchedule{};
@@ -1046,74 +1055,92 @@ void Runtime::flush_queued_dead_tiles()
 void Runtime::eliminate_dead_ops()
 {
     live_tile_nodes_.clear();
-    const size_t n = execution_order_.size();
+    size_t const n = execution_order_.size();
     if (n == 0)
     {
         return;
     }
-    // Already-executed prefix is immutable for incremental sessions; DCE only
-    // the pending suffix so compile stays O(new phase), not O(history).
-    const size_t pending_begin =
+    // Already-executed prefix is immutable for incremental sessions; DCE
+    // only the pending suffix so compile stays O(new phase).
+    size_t const pending_begin =
         executed_op_end_ < n ? executed_op_end_ : n;
     if (pending_begin >= n)
     {
         return;
     }
+    size_t const pending = n - pending_begin;
 
-    using TNode = const TileGraph::TileNode *;
-    std::unordered_map<TNode, std::unordered_set<size_t>> producer;
-    std::unordered_map<TNode, std::unordered_set<size_t>> consumer;
+    using TNode = TileGraph::TileNode const *;
+    // Adjacency is pending-local op indices. A std::set of live ops plus
+    // re-scanning all live tiles every round was O(E log E) and quadratic
+    // in the untilled HF graphs (one tile per tensor, thousands of ops).
+    std::unordered_map<TNode, std::vector<size_t>> producer;
+    std::unordered_map<TNode, std::vector<size_t>> consumer;
     std::unordered_set<TNode> consumed;
+    producer.reserve(pending * 2);
+    consumer.reserve(pending * 2);
+    consumed.reserve(pending * 2);
 
     for (size_t i = pending_begin; i < n; ++i)
     {
-        const auto &op = execution_order_[i];
-        for (const auto *out : op->outputs())
+        size_t const local = i - pending_begin;
+        auto const &op = execution_order_[i];
+        for (TNode out : op->outputs())
         {
             if (out != nullptr)
             {
-                producer[out].insert(i);
+                producer[out].push_back(local);
             }
         }
-        for (const auto *in : op->inputs())
+        for (TNode in : op->inputs())
         {
             if (in != nullptr)
             {
                 consumed.insert(in);
-                consumer[in].insert(i);
+                consumer[in].push_back(local);
             }
         }
     }
 
     std::unordered_set<TNode> live_data;
+    std::vector<TNode> work;
+    live_data.reserve(pending * 2);
+    work.reserve(pending * 2);
+    auto seed_tile = [&](TNode tile)
+    {
+        if (tile != nullptr && live_data.insert(tile).second)
+        {
+            work.push_back(tile);
+        }
+    };
+
     // Seed from tiles whose logical still has a live TensorRef.
     for (size_t i = pending_begin; i < n; ++i)
     {
-        const auto &op = execution_order_[i];
-        for (const auto *out : op->outputs())
+        auto const &op = execution_order_[i];
+        for (TNode out : op->outputs())
         {
             if (out != nullptr && tile_logical_is_live(out))
             {
-                live_data.insert(out);
+                seed_tile(out);
             }
         }
-        for (const auto *in : op->inputs())
+        for (TNode in : op->inputs())
         {
             if (in != nullptr && tile_logical_is_live(in))
             {
-                live_data.insert(in);
+                seed_tile(in);
             }
         }
     }
 
-    const bool any_live_output = !live_data.empty();
-    if (!any_live_output)
+    if (work.empty())
     {
-        for (const auto &p : producer)
+        for (auto const &p : producer)
         {
             if (consumed.count(p.first) == 0)
             {
-                live_data.insert(p.first);
+                seed_tile(p.first);
             }
         }
     }
@@ -1122,49 +1149,50 @@ void Runtime::eliminate_dead_ops()
         return;
     }
 
-    std::set<size_t> live_ops;
-    bool changed = true;
-    while (changed)
+    std::vector<char> live_op(pending, 0);
+    size_t live_op_count = 0;
+    auto mark_ops =
+        [&](std::vector<size_t> const *ops)
     {
-        changed = false;
-        auto live_data_copy = live_data;
-        for (TNode t : live_data_copy)
+        if (ops == nullptr)
         {
-            auto prod_it = producer.find(t);
-            if (prod_it != producer.end())
+            return;
+        }
+        for (size_t local : *ops)
+        {
+            if (live_op[local] != 0)
             {
-                for (size_t op_idx : prod_it->second)
-                {
-                    if (live_ops.insert(op_idx).second)
-                    {
-                        changed = true;
-                        insert_op_io_into_live(
-                            *execution_order_[op_idx], live_data, changed);
-                    }
-                }
+                continue;
             }
-            // Any op that reads a live tile may be needed (sink ops have empty
-            // outputs; others appear here when producer edges are
-            // insufficient).
-            auto cons_it = consumer.find(t);
-            if (cons_it != consumer.end())
-            {
-                for (size_t op_idx : cons_it->second)
-                {
-                    if (live_ops.insert(op_idx).second)
-                    {
-                        changed = true;
-                        insert_op_io_into_live(
-                            *execution_order_[op_idx], live_data, changed);
-                    }
-                }
-            }
+            live_op[local] = 1;
+            ++live_op_count;
+            enqueue_op_io(
+                *execution_order_[pending_begin + local],
+                live_data,
+                work);
+        }
+    };
+
+    size_t wi = 0;
+    while (wi < work.size())
+    {
+        TNode const t = work[wi++];
+        auto const prod_it = producer.find(t);
+        if (prod_it != producer.end())
+        {
+            mark_ops(&prod_it->second);
+        }
+        // Consumers of a live tile may be sinks (empty outputs).
+        auto const cons_it = consumer.find(t);
+        if (cons_it != consumer.end())
+        {
+            mark_ops(&cons_it->second);
         }
     }
 
     // Keep the executed prefix in place. Rebuilding the full vector every
     // compile recopied O(history) shared_ptrs and made step time grow.
-    if (live_ops.size() == n - pending_begin)
+    if (live_op_count == pending)
     {
         live_tile_nodes_ = std::move(live_data);
         return;
@@ -1172,7 +1200,7 @@ void Runtime::eliminate_dead_ops()
     size_t write = pending_begin;
     for (size_t i = pending_begin; i < n; ++i)
     {
-        if (live_ops.count(i) == 0)
+        if (live_op[i - pending_begin] == 0)
         {
             continue;
         }

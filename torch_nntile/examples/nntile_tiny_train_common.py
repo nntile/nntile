@@ -14,20 +14,17 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import torch
+from hf_tiny_train_common import (
+    compare_checkpoints, load_checkpoint, load_json_object)
+from nntile_iter_phases import run_nntile_train_iters
+
 import torch_nntile
 from torch_nntile.training import AdamW
-
-from hf_tiny_train_common import (
-    compare_checkpoints,
-    load_checkpoint,
-    load_json_object,
-)
 
 BatchBuilder = Callable[
     [Any, argparse.Namespace],
@@ -204,6 +201,9 @@ def run_tiny_nntile_train(
             batch = {k: v.to("nntile") for k, v in batch_cpu.items()}
             model = model_cpu.to("nntile")
         del model_cpu, batch_cpu
+        torch_nntile.compile_graph()
+        torch_nntile.run()
+        torch_nntile.wait()
         for p in model.parameters():
             p.requires_grad_(True)
         opt = AdamW(
@@ -211,25 +211,16 @@ def run_tiny_nntile_train(
             lr=args.lr,
         )
         opt.zero_grad(set_to_none=True)
-        t0 = time.perf_counter()
-        for step in range(args.steps):
-            loss = loss_fn(model, batch)
-            loss.backward()
-            opt.step()
-            step_loss = loss.detach()
-            del loss
-            opt.zero_grad(set_to_none=True)
-            torch_nntile.compile_graph()
-            torch_nntile.run()
-            torch_nntile.wait()
-            value = float(step_loss.to("cpu").item())
-            del step_loss
-            print(
-                f"[{name}] step {step + 1}/{args.steps}  "
-                f"loss={value:.6f}"
-            )
-        print(f"[{name}] wall={time.perf_counter() - t0:.3f}s  OK")
-        if args.output_dir:
+        code = run_nntile_train_iters(
+            name=name,
+            model=model,
+            batch=batch,
+            loss_fn=loss_fn,
+            steps=args.steps,
+            opt=opt,
+            torch_nntile=torch_nntile,
+        )
+        if code == 0 and args.output_dir:
             save_nntile_checkpoint(
                 Path(args.output_dir) / "checkpoint.pt",
                 model=model,
@@ -238,9 +229,9 @@ def run_tiny_nntile_train(
                 epoch=0,
                 global_step=global_step + args.steps,
             )
+        return code
     finally:
         torch_nntile.shutdown_context()
-    return 0
 
 
 def run_tiny_nntile_main(

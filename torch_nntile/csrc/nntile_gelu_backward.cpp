@@ -71,6 +71,7 @@ at::Tensor gelu_backward(
     const at::Tensor &self,
     c10::string_view approximate)
 {
+    nntile::GraphFillScope record;
     check_gelu_backward(grad_output, self, approximate);
     at::Tensor grad_input = at::empty_like(self);
     run_gelu_backward(
@@ -87,6 +88,7 @@ at::Tensor &gelu_backward_out(
     c10::string_view approximate,
     at::Tensor &grad_input)
 {
+    nntile::GraphFillScope record;
     check_gelu_backward(grad_output, self, approximate);
     TORCH_CHECK(
         grad_input.sizes() == self.sizes(),

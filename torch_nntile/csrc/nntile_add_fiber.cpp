@@ -74,6 +74,7 @@ at::Tensor add_fiber_forward(
     double alpha,
     double beta)
 {
+    nntile::GraphFillScope record;
     check_add_fiber_inputs(fiber, tensor, axis, batch_ndim);
     at::Tensor out = at::empty(
         tensor.sizes(),
@@ -99,6 +100,7 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
     double alpha,
     double beta)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(grad_out.device()),
         "nntile add_fiber_backward expects nntile grad_out");

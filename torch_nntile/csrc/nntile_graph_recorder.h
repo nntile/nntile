@@ -62,6 +62,18 @@ void print_axis_groups();
 
 void print_info();
 
+//! Cumulative nntile record seconds (``record(nntile)``). Snapshot
+//! around a Python record window; remaining record wall is PyTorch
+//! overhead (``record(torch)``).
+double record_nntile_seconds();
+
+//! ``TORCH_NNTILE_SKIP_KERNELS=1``: still run PrivateUse1 intercept
+//! (output shapes, TensorRefs, pack layout). Do not insert TensorGraph
+//! compute ops. Last-drop ``UNREGISTER`` is still recorded and compiled
+//! to StarPU unregister tasks. Payload copies / compute kernels do not
+//! run. Results are not numerically meaningful.
+bool skip_nntile_kernels();
+
 void copy_nntile_tensor_to_cpu(const at::Tensor &src, at::Tensor &dst);
 
 //! Gather a (possibly strided / offset) nntile view to a contiguous CPU

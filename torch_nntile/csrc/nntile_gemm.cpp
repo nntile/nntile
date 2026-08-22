@@ -70,6 +70,7 @@ at::Tensor gemm_forward(
     bool trans_a,
     bool trans_b)
 {
+    nntile::GraphFillScope record;
     check_gemm_tensors(a, b);
     const PreparedGemmOperands prepared =
         prepare_gemm_operands(a, b, ndim, batch_ndim, trans_a, trans_b);
@@ -88,6 +89,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
     bool trans_a,
     bool trans_b)
 {
+    nntile::GraphFillScope record;
     check_gemm_tensors(a, b);
     TORCH_CHECK(
         is_nntile_device(grad_out.device()),

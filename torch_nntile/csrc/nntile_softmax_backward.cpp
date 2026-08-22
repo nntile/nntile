@@ -73,6 +73,7 @@ at::Tensor softmax_backward_data(
     int64_t dim,
     at::ScalarType input_dtype)
 {
+    nntile::GraphFillScope record;
     check_softmax_backward(grad_output, output, dim, input_dtype);
     at::Tensor grad_input = at::empty_like(output);
     run_softmax_backward(grad_output, output, dim, grad_input);

@@ -38,6 +38,7 @@ void check_mse_loss_input(const at::Tensor &x)
 
 at::Tensor mse_loss_forward(const at::Tensor &x, double scale)
 {
+    nntile::GraphFillScope record;
     check_mse_loss_input(x);
     at::Tensor loss = empty_metadata_tensor({}, at::kFloat, x.device());
     tensor_mse_loss_fp32(x, static_cast<float>(scale), loss);
@@ -49,6 +50,7 @@ at::Tensor mse_loss_backward(
     double scale,
     bool needs_grad)
 {
+    nntile::GraphFillScope record;
     check_mse_loss_input(x);
     at::Tensor grad_x;
     if (needs_grad)

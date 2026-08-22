@@ -25,6 +25,7 @@
 // NNTile headers
 #include <nntile/tensor/graph_decl.hh>
 #include <nntile/tensor/graph_data_node.hh>
+#include <nntile/tensor/graph_fill_timer.hh>
 #include <nntile/tensor/graph_op_node.hh>
 #include <nntile/tensor/tensor_ref.hh>
 
@@ -34,6 +35,7 @@ namespace nntile
 inline TensorGraph::TensorNode *TensorGraph::emplace_data(
     std::vector<Index> shape, DataType dtype)
 {
+    GraphFillScope fill;
     auto node = std::make_unique<TensorNode>(
         next_data_id_, this, std::move(shape), dtype, "");
     ++next_data_id_;
@@ -52,6 +54,7 @@ inline TensorRef TensorGraph::data(
 inline void TensorGraph::add_op(
     std::shared_ptr<OpNode> op_node, const std::string &name)
 {
+    GraphFillScope fill;
     for (const auto *input : op_node->inputs())
     {
         if (input->graph() != this)
@@ -77,6 +80,12 @@ inline void TensorGraph::add_op(
         }
     }
 
+    if (skip_tensor_graph_ops() &&
+        op_node->op_name() != "UNREGISTER")
+    {
+        return;
+    }
+
     op_node->id_ = next_op_id_++;
     if (!name.empty())
     {
@@ -88,6 +97,7 @@ inline void TensorGraph::add_op(
 inline void TensorGraph::prepend_ops(
     std::vector<std::shared_ptr<TensorGraph::OpNode>> op_nodes)
 {
+    GraphFillScope fill;
     for (std::shared_ptr<TensorGraph::OpNode> &op_node : op_nodes)
     {
         if (op_node == nullptr)
@@ -344,6 +354,18 @@ inline std::vector<std::string> TensorGraph::data_names() const
 inline std::vector<AxisDescriptor *> TensorGraph::axis_groups() const
 {
     return {axis_groups_.begin(), axis_groups_.end()};
+}
+
+inline bool TensorGraph::has_tiled_axis_group() const
+{
+    for (AxisDescriptor const *axis : axis_groups_)
+    {
+        if (axis != nullptr && axis->is_tiled())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 inline size_t TensorGraph::num_untiled_groups() const

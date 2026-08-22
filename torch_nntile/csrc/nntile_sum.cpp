@@ -164,6 +164,7 @@ at::Tensor sum_dimlist(
     bool keepdim,
     std::optional<at::ScalarType> /*dtype*/)
 {
+    nntile::GraphFillScope record;
     return run_reduce(
         tensor_sum_dimlist_fp32,
         "sum",
@@ -179,6 +180,7 @@ at::Tensor &sum_dimlist_out(
     std::optional<at::ScalarType> /*dtype*/,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     run_reduce_out(
         tensor_sum_dimlist_fp32,
         "sum",
@@ -195,6 +197,7 @@ at::Tensor mean_dimlist(
     bool keepdim,
     std::optional<at::ScalarType> /*dtype*/)
 {
+    nntile::GraphFillScope record;
     return run_reduce(
         tensor_mean_dimlist_fp32,
         "mean",
@@ -210,6 +213,7 @@ at::Tensor &mean_dimlist_out(
     std::optional<at::ScalarType> /*dtype*/,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     run_reduce_out(
         tensor_mean_dimlist_fp32,
         "mean",

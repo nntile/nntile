@@ -262,6 +262,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::print_info,
         "Print cumulative compile/run/wait/host-readout timing stats");
     m.def(
+        "record_nntile_seconds",
+        &torch_nntile::record_nntile_seconds,
+        "Cumulative nntile record seconds (record(nntile))");
+    m.def(
         "add_fiber_forward",
         &torch_nntile::add_fiber_forward,
         "NNTile add_fiber forward (no broadcast expand)",

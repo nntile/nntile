@@ -152,6 +152,7 @@ at::Tensor convolution_overrideable(
     c10::SymIntArrayRef output_padding,
     c10::SymInt groups)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input_c =
         as_contiguous_fp32(input, "nntile convolution input");
     const at::Tensor weight_c =
@@ -212,6 +213,7 @@ convolution_backward_overrideable(
     c10::SymInt groups,
     std::array<bool, 3> output_mask)
 {
+    nntile::GraphFillScope record;
     const at::Tensor grad_c = as_contiguous_fp32(
         grad_output,
         "nntile convolution_backward grad");

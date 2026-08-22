@@ -58,6 +58,7 @@ at::Tensor to_copy(
     bool /*non_blocking*/,
     std::optional<at::MemoryFormat> /*memory_format*/)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         !pin_memory.has_value() || !*pin_memory,
         "_to_copy: pin_memory is CPU-only");
@@ -129,6 +130,7 @@ at::Tensor full_like_tensor(
     std::optional<bool> pin_memory,
     std::optional<c10::MemoryFormat> /*memory_format*/)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         !pin_memory.has_value() || !*pin_memory,
         "full_like: pin_memory is CPU-only");
@@ -171,6 +173,7 @@ at::Tensor zeros_like_tensor(
     std::optional<bool> pin_memory,
     std::optional<c10::MemoryFormat> memory_format)
 {
+    nntile::GraphFillScope record;
     return full_like_tensor(
         self,
         /*fill_value=*/0,
@@ -185,6 +188,7 @@ at::Tensor pow_tensor_scalar(
     const at::Tensor &self,
     const at::Scalar &exponent)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "pow", "self");
     // RMSNorm forward is ``x.pow(2)``. Autograd of that is
     // ``2 * x.pow(1)``. RsqrtBackward is ``result.pow(3)``.
@@ -232,6 +236,7 @@ at::Tensor &pow_tensor_scalar_out(
     const at::Scalar &exponent,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "pow.out", "self");
     require_nntile_operand(out, "pow.out", "out");
     at::Tensor tmp = pow_tensor_scalar(self, exponent);
@@ -243,6 +248,7 @@ at::Tensor div_scalar(
     const at::Tensor &self,
     const at::Scalar &other)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "div.Scalar", "self");
     const double v = other.toDouble();
     TORCH_CHECK(v != 0.0, "div.Scalar: division by zero");
@@ -259,6 +265,7 @@ at::Tensor &div_scalar_out(
     const at::Scalar &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "div.Scalar_out", "self");
     require_nntile_operand(out, "div.Scalar_out", "out");
     const double v = other.toDouble();
@@ -273,6 +280,7 @@ at::Tensor &div_scalar_out(
 
 at::Tensor div_tensor(const at::Tensor &self, const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     if (is_cpu_scalar_tensor(other))
     {
         return div_scalar(self, other.item());
@@ -290,6 +298,7 @@ at::Tensor &div_out(
     const at::Tensor &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     if (is_cpu_scalar_tensor(other))
     {
         return div_scalar_out(self, other.item(), out);
@@ -304,6 +313,7 @@ at::Tensor where_self(
     const at::Tensor &self,
     const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(condition, "where.self", "condition");
     require_nntile_operand(self, "where.self", "self");
     at::Tensor other_op = other;
@@ -365,6 +375,7 @@ at::Tensor where_self(
 
 at::Tensor triu_tensor(const at::Tensor &self, int64_t diagonal)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "triu", "self");
     TORCH_CHECK(
         self.scalar_type() == at::kFloat,
@@ -381,6 +392,7 @@ at::Tensor &triu_out(
     int64_t diagonal,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "triu.out", "self");
     require_nntile_operand(out, "triu.out", "out");
     TORCH_CHECK(
@@ -394,8 +406,42 @@ at::Tensor &triu_out(
     return out;
 }
 
+at::Tensor tril_tensor(const at::Tensor &self, int64_t diagonal)
+{
+    nntile::GraphFillScope record;
+    require_nntile_operand(self, "tril", "self");
+    TORCH_CHECK(
+        self.scalar_type() == at::kBool,
+        "torch_nntile tril: bool only");
+    TORCH_CHECK(self.dim() >= 2, "torch_nntile tril: expected ndim >= 2");
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    at::Tensor out = at::empty_like(inp);
+    tensor_tril_bool(inp, out, diagonal);
+    return out;
+}
+
+at::Tensor &tril_out(
+    const at::Tensor &self,
+    int64_t diagonal,
+    at::Tensor &out)
+{
+    nntile::GraphFillScope record;
+    require_nntile_operand(self, "tril.out", "self");
+    require_nntile_operand(out, "tril.out", "out");
+    TORCH_CHECK(
+        self.scalar_type() == at::kBool &&
+            out.scalar_type() == at::kBool,
+        "torch_nntile tril.out: bool only");
+    TORCH_CHECK(self.sizes() == out.sizes(), "tril.out: shape mismatch");
+    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
+    TORCH_CHECK(out.is_contiguous(), "tril.out: contiguous out");
+    tensor_tril_bool(inp, out, diagonal);
+    return out;
+}
+
 at::Tensor gt_tensor(const at::Tensor &self, const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     at::Tensor rhs = other;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
@@ -429,6 +475,7 @@ at::Tensor &gt_out(
     const at::Tensor &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "gt.out", "self");
     require_nntile_operand(other, "gt.out", "other");
     require_nntile_operand(out, "gt.out", "out");
@@ -455,6 +502,7 @@ at::Tensor filled_i64_scalar(
 
 at::Tensor gt_scalar(const at::Tensor &self, const at::Scalar &other)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "gt.Scalar", "self");
     TORCH_CHECK(
         self.scalar_type() == at::kLong,
@@ -464,6 +512,7 @@ at::Tensor gt_scalar(const at::Tensor &self, const at::Scalar &other)
 
 at::Tensor lt_tensor(const at::Tensor &self, const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     at::Tensor rhs = other;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
@@ -497,6 +546,7 @@ at::Tensor &lt_out(
     const at::Tensor &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "lt.out", "self");
     require_nntile_operand(other, "lt.out", "other");
     require_nntile_operand(out, "lt.out", "out");
@@ -506,6 +556,7 @@ at::Tensor &lt_out(
 
 at::Tensor lt_scalar(const at::Tensor &self, const at::Scalar &other)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "lt.Scalar", "self");
     TORCH_CHECK(
         self.scalar_type() == at::kLong,
@@ -515,6 +566,7 @@ at::Tensor lt_scalar(const at::Tensor &self, const at::Scalar &other)
 
 at::Tensor abs_tensor(const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "abs", "self");
     TORCH_CHECK(
         self.scalar_type() == at::kLong,
@@ -529,6 +581,7 @@ at::Tensor abs_tensor(const at::Tensor &self)
 
 at::Tensor &abs_out(const at::Tensor &self, at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "abs.out", "self");
     require_nntile_operand(out, "abs.out", "out");
     tensor_abs_i64(self, out);
@@ -539,6 +592,7 @@ at::Tensor minimum_tensor(
     const at::Tensor &self,
     const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "minimum.Tensor", "self");
     require_nntile_operand(other, "minimum.Tensor", "other");
     TORCH_CHECK(
@@ -559,6 +613,7 @@ at::Tensor &minimum_out(
     const at::Tensor &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "minimum.out", "self");
     require_nntile_operand(other, "minimum.out", "other");
     require_nntile_operand(out, "minimum.out", "out");
@@ -582,6 +637,7 @@ at::Tensor eq_tensor(
     const at::Tensor &self,
     const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     at::Tensor rhs = other;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
@@ -611,6 +667,7 @@ at::Tensor &eq_out(
     const at::Tensor &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
         at::Tensor rhs = filled_fp32_scalar(self, other.item());
@@ -629,6 +686,7 @@ at::Tensor eq_scalar(
     const at::Tensor &self,
     const at::Scalar &other)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "eq.Scalar", "self");
     TORCH_CHECK(
         self.scalar_type() == at::kFloat,
@@ -641,6 +699,7 @@ at::Tensor &eq_scalar_out(
     const at::Scalar &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "eq.Scalar_out", "self");
     require_nntile_operand(out, "eq.Scalar_out", "out");
     TORCH_CHECK(
@@ -656,6 +715,7 @@ at::Tensor masked_fill_scalar(
     const at::Tensor &mask,
     const at::Scalar &value)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "masked_fill.Scalar", "self");
     require_nntile_operand(mask, "masked_fill.Scalar", "mask");
     TORCH_CHECK(
@@ -677,6 +737,7 @@ at::Tensor &masked_fill__scalar(
     const at::Tensor &mask,
     const at::Scalar &value)
 {
+    nntile::GraphFillScope record;
     at::Tensor tmp = masked_fill_scalar(self, mask, value);
     self.copy_(tmp);
     return self;
@@ -700,6 +761,8 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("where.self", TORCH_FN(torch_nntile::where_self));
     m.impl("triu", TORCH_FN(torch_nntile::triu_tensor));
     m.impl("triu.out", TORCH_FN(torch_nntile::triu_out));
+    m.impl("tril", TORCH_FN(torch_nntile::tril_tensor));
+    m.impl("tril.out", TORCH_FN(torch_nntile::tril_out));
     m.impl("gt.Tensor", TORCH_FN(torch_nntile::gt_tensor));
     m.impl("gt.out", TORCH_FN(torch_nntile::gt_out));
     m.impl("gt.Scalar", TORCH_FN(torch_nntile::gt_scalar));

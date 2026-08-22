@@ -236,4 +236,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "print_info",
         &torch_nntile::print_info,
         "Print cumulative compile/run/wait/host-readout timing stats");
+    m.def(
+        "record_nntile_seconds",
+        &torch_nntile::record_nntile_seconds,
+        "Cumulative nntile record seconds (record(nntile))");
 }

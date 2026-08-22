@@ -62,6 +62,7 @@ std::tuple<at::Tensor, at::Tensor> nll_loss_forward(
     int64_t reduction,
     int64_t ignore_index)
 {
+    nntile::GraphFillScope record;
     check_nll_inputs(self, target, weight);
     TORCH_CHECK(
         reduction == at::Reduction::Mean ||
@@ -105,6 +106,7 @@ at::Tensor nll_loss_backward(
     int64_t ignore_index,
     const at::Tensor &total_weight)
 {
+    nntile::GraphFillScope record;
     check_nll_inputs(self, target, weight);
     TORCH_CHECK(
         is_nntile_device(grad_output.device()),

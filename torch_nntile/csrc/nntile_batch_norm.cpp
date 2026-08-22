@@ -78,6 +78,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_batch_norm(
     double momentum,
     double eps)
 {
+    nntile::GraphFillScope record;
     const at::Tensor input_c =
         as_contiguous_fp32(input, "nntile native_batch_norm input");
     const at::Tensor weight_c = optional_contiguous(
@@ -133,6 +134,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_batch_norm_backward(
     double eps,
     std::array<bool, 3> output_mask)
 {
+    nntile::GraphFillScope record;
     const at::Tensor grad_c = as_contiguous_fp32(
         grad_out,
         "nntile native_batch_norm_backward grad");

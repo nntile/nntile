@@ -118,6 +118,14 @@ class TensorGraph::TensorNode
     //! Label for debugging/export only (tensor identity is this pointer).
     TensorNode *set_name(std::string new_name);
 
+    //! Process-wide stamp for O(1) phase-touch walks.
+    //!
+    //! ``ensure_phase_layouts`` and ``append_tensor_graph_phase`` both
+    //! walk the same nodes. Separate static counters reused gen=1 and
+    //! skipped every tensor on the first factory-only compile
+    //! (ones / arange).
+    static std::uint32_t next_touch_gen();
+
     //! Generation stamp for O(1) phase touch dedup (mutable / non-identity).
     std::uint32_t touch_gen() const
     {

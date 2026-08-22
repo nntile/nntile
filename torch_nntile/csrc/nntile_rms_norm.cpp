@@ -96,6 +96,7 @@ std::tuple<at::Tensor, at::Tensor> rms_norm_forward(
     const std::optional<at::Tensor> &weight,
     std::optional<double> eps)
 {
+    nntile::GraphFillScope record;
     check_norm_tensor(input, "input");
     const int64_t norm_axis = resolve_norm_axis(input.sizes(), normalized_shape);
     if (weight.has_value())
@@ -136,6 +137,7 @@ std::tuple<at::Tensor, at::Tensor> rms_norm_backward(
     const std::optional<at::Tensor> &weight,
     std::array<bool, 2> output_mask)
 {
+    nntile::GraphFillScope record;
     check_norm_tensor(grad_out, "grad_out");
     check_norm_tensor(input, "input");
     check_norm_tensor(rstd, "rstd");

@@ -10,6 +10,7 @@
 #include "nntile/tile/append_tensor_graph_phase.hh"
 
 #include "context_fixture.hh"
+#include "nntile/tensor/ops/fill.hh"
 #include <nntile/defs.h>
 #include <nntile/tensor.hh>
 #include <nntile/tile.hh>
@@ -70,6 +71,38 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(out[0] == 6.f);
     REQUIRE(out[1] == 9.f);
     REQUIRE(out[2] == 12.f);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "append_tensor_graph_phase factory-only after ensure_phase_layouts",
+    "[graph][tile]")
+{
+    // Mirrors torch_nntile compile_graph: ensure_phase_layouts then
+    // append. Per-TU touch_gen counters used to skip every tensor on
+    // this first factory-only phase (FILL / arange).
+    TensorGraph tg("fill_first");
+    nntile::TensorRef x = tg.data({4}, DataType::FP32);
+    x->set_name("x");
+    gt::fill(Scalar(2.5), x);
+
+    TensorGraph::PhaseSnapshot phase = tg.seal_phase();
+    auto tiling = std::make_shared<TensorGraphTiling>();
+    tiling->ensure_phase_layouts(tg, phase);
+
+    TileGraph tile("tile_fill_first");
+    TileGraphIncrementalState st;
+    TensorNodeToTileMap tm;
+    append_tensor_graph_phase(tg, phase, tiling, tile, st, tm);
+
+    Runtime rt(tile);
+    rt.compile();
+    rt.execute();
+    rt.wait();
+
+    std::vector<float> out = rt.get_output<float>(x);
+    REQUIRE(out.size() == 4);
+    REQUIRE(out[0] == 2.5f);
+    REQUIRE(out[3] == 2.5f);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

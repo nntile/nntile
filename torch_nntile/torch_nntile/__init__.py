@@ -20,8 +20,9 @@ ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 from . import _C  # noqa: E402, F401 - loads kernels and allocator
 
 # Classic aten/pybind models/loss are not compiled under
-# NNTILE_TORCH_NATIVE_OPS. HF compat shims still apply (cache_position,
-# NewGELU→gelu(tanh), device transfer).
+# NNTILE_TORCH_NATIVE_OPS. HF compat still maps NewGELU→gelu(tanh) and
+# re-ties weights after ``.to("nntile")``. Stock GPT-2 uses nntile
+# ``aten::arange`` for ``cache_position`` (no ``GPT2Model.forward`` patch).
 from . import compat as _compat  # noqa: E402, F401
 
 if not TORCH_NATIVE_OPS:
@@ -275,6 +276,16 @@ def print_info() -> None:
     sys.stdout.flush()
 
 
+def record_nntile_seconds() -> float:
+    """Cumulative nntile record time in seconds (``record(nntile)``).
+
+    Snapshot around a train-step record window. Remaining record wall is
+    PyTorch overhead (``record(torch)``): Python, autograd, and dispatch
+    into nntile kernels.
+    """
+    return float(_C.record_nntile_seconds())
+
+
 __all__ = [
     "device",
     "_C",
@@ -300,6 +311,7 @@ __all__ = [
     "format_axis_groups",
     "print_axis_groups",
     "print_info",
+    "record_nntile_seconds",
 ]
 if not TORCH_NATIVE_OPS:
     __all__.append("nn")

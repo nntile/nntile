@@ -133,6 +133,7 @@ at::Tensor sdpa_forward(
     int64_t batch_ndim,
     bool is_causal)
 {
+    nntile::GraphFillScope record;
     // Fused c_attn → split → transpose heads yields views whose last-dim
     // stride spans the full 3H packed width. CUDA SDPA / densify copy_
     // expects dense [B,H,S,D] buffers — densify at this boundary (graph
@@ -188,6 +189,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     int64_t batch_ndim,
     bool is_causal)
 {
+    nntile::GraphFillScope record;
     const at::Tensor q_c = densify_sdpa_operand(q);
     const at::Tensor k_c = densify_sdpa_operand(k);
     const at::Tensor v_c = densify_sdpa_operand(v);

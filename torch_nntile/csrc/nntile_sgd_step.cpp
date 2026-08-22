@@ -66,6 +66,7 @@ void sgd_step(
     double dampening,
     bool nesterov)
 {
+    nntile::GraphFillScope record;
     check_sgd_step_tensors(param, grad, velocity);
     TORCH_CHECK(num_iter >= 1, "nntile sgd_step: num_iter must be >= 1");
     tensor_sgd_step_fp32(

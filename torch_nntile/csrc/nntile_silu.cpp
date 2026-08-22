@@ -62,6 +62,7 @@ void run_silu(const at::Tensor &self, at::Tensor &out)
 
 at::Tensor silu(const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     check_silu_input(self);
     at::Tensor out = at::empty_like(self);
     run_silu(self, out);
@@ -70,6 +71,7 @@ at::Tensor silu(const at::Tensor &self)
 
 at::Tensor &silu_out(const at::Tensor &self, at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_silu_input(self, out);
     run_silu(self, out);
     return out;
@@ -77,6 +79,7 @@ at::Tensor &silu_out(const at::Tensor &self, at::Tensor &out)
 
 at::Tensor &silu_(at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     check_silu_input(self, self);
     run_silu(self, self);
     return self;

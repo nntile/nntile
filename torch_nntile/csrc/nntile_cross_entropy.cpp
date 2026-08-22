@@ -86,6 +86,7 @@ std::tuple<at::Tensor, at::Tensor> cross_entropy_forward(
     int64_t reduction,
     int64_t ignore_index)
 {
+    nntile::GraphFillScope record;
     check_cross_entropy_inputs(logits, target);
     TORCH_CHECK(
         reduction == 1 || reduction == 2,
@@ -114,6 +115,7 @@ at::Tensor cross_entropy_backward(
     int64_t reduction,
     int64_t ignore_index)
 {
+    nntile::GraphFillScope record;
     const auto t0 = std::chrono::steady_clock::now();
     check_cross_entropy_inputs(logits, target);
     TORCH_CHECK(

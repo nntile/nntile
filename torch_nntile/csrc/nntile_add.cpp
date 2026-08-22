@@ -62,6 +62,7 @@ at::Tensor add_scalar(
     const at::Scalar &other,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
     require_nntile_operand(self, "add.Scalar", "self");
     if (self.scalar_type() == at::ScalarType::Long)
     {
@@ -99,6 +100,7 @@ at::Tensor &add_scalar_out(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     TORCH_CHECK(
         is_nntile_device(self.device()) && is_nntile_device(out.device()),
         "nntile add.Scalar_out expects nntile");
@@ -112,6 +114,7 @@ at::Tensor add_tensor(
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
         return add_scalar(self, other.item(), alpha);
@@ -152,6 +155,7 @@ at::Tensor &add_out(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     if (is_nntile_device(self.device()) && is_cpu_scalar_tensor(other))
     {
         return add_scalar_out(self, other.item(), alpha, out);
@@ -179,6 +183,7 @@ at::Tensor &add__tensor(
     const at::Tensor &other,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
     if (is_cpu_scalar_tensor(other))
     {
         at::Tensor tmp = add_scalar(self, other.item(), alpha);
@@ -220,6 +225,7 @@ at::Tensor &add__scalar(
     const at::Scalar &other,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
     at::Tensor tmp = add_scalar(self, other, alpha);
     self.copy_(tmp);
     return self;

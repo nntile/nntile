@@ -55,6 +55,7 @@ void run_relu(const at::Tensor &self, at::Tensor &out)
 
 at::Tensor relu(const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     check_relu_input(self);
     at::Tensor out = at::empty_like(self);
     run_relu(self, out);
@@ -63,6 +64,7 @@ at::Tensor relu(const at::Tensor &self)
 
 at::Tensor &relu_out(const at::Tensor &self, at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_relu_input(self, out);
     run_relu(self, out);
     return out;
@@ -70,6 +72,7 @@ at::Tensor &relu_out(const at::Tensor &self, at::Tensor &out)
 
 at::Tensor &relu_(at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     // Functional SSA rebind (same pattern as gelu_ / silu_).
     check_relu_input(self, self);
     run_relu(self, self);

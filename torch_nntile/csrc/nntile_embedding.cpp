@@ -128,6 +128,7 @@ at::Tensor embedding(
     bool scale_grad_by_freq,
     bool sparse)
 {
+    nntile::GraphFillScope record;
     check_embedding_forward_inputs(weight, indices);
     check_embedding_optional_args(padding_idx, scale_grad_by_freq, sparse);
 
@@ -152,6 +153,7 @@ at::Tensor embedding_dense_backward(
     int64_t padding_idx,
     bool scale_grad_by_freq)
 {
+    nntile::GraphFillScope record;
     const at::Tensor grad_contig = densify_fp32(grad_output);
     const at::Tensor indices_contig = prepare_indices(indices);
     check_embedding_backward_inputs(

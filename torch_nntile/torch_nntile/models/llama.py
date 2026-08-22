@@ -284,7 +284,7 @@ class LlamaModel(nn.Module):
         cached = self._position_ids_cache.get(key)
         if cached is not None and cached.device == input_ids.device:
             return cached
-        # nntile lacks aten::arange; build on host, upload once.
+        # Host arange + upload once (cache); nntile aten::arange exists.
         position_ids = (
             torch.arange(seq, dtype=torch.long, device="cpu")
             .unsqueeze(0)

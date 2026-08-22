@@ -361,13 +361,8 @@ void TensorGraphTiling::ensure_phase_layouts(
     const TensorGraph::PhaseSnapshot& phase)
 {
     std::vector<const TensorGraph::TensorNode*> touched;
-    // Local generation counter: touch_gen is only compared within this call.
-    static std::uint32_t next_gen = 1;
-    std::uint32_t const gen = next_gen++;
-    if(next_gen == 0)
-    {
-        next_gen = 1;
-    }
+    std::uint32_t const gen =
+        TensorGraph::TensorNode::next_touch_gen();
     collect_phase_touched(tg, phase, touched, gen);
     for(const TensorGraph::TensorNode* t : touched)
     {

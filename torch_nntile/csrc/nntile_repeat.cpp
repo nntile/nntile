@@ -72,6 +72,7 @@ void run_repeat(const at::Tensor &self, at::Tensor &out, c10::IntArrayRef repeat
 
 at::Tensor repeat_tensor(const at::Tensor &self, c10::IntArrayRef repeats)
 {
+    nntile::GraphFillScope record;
     check_repeat_input(self);
     const std::vector<int64_t> out_shape =
         repeat_output_shape(self.sizes(), repeats);

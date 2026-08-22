@@ -68,6 +68,7 @@ void run_mm(const PreparedGemmOperands &prepared, at::Tensor &out)
 
 at::Tensor mm(const at::Tensor &self, const at::Tensor &mat2)
 {
+    nntile::GraphFillScope record;
     check_mm_tensors(self, mat2);
     const PreparedGemmOperands prepared = prepare_mm_operands(self, mat2);
     at::Tensor out = make_mm_output(prepared.out_shape, self);
@@ -77,6 +78,7 @@ at::Tensor mm(const at::Tensor &self, const at::Tensor &mat2)
 
 at::Tensor &mm_out(const at::Tensor &self, const at::Tensor &mat2, at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_mm_tensors(self, mat2, out);
     const PreparedGemmOperands prepared = prepare_mm_operands(self, mat2);
     TORCH_CHECK(

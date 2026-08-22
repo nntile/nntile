@@ -168,6 +168,7 @@ at::Tensor addmm(
     const at::Scalar &beta,
     const at::Scalar &alpha)
 {
+    nntile::GraphFillScope record;
     check_addmm_tensors(self, mat1, mat2);
     const PreparedGemmOperands prepared = prepare_mm_operands(mat1, mat2);
     at::Tensor out = make_addmm_output(prepared.out_shape, mat1);
@@ -183,6 +184,7 @@ at::Tensor &addmm_out(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_addmm_tensors(self, mat1, mat2, out);
     const PreparedGemmOperands prepared = prepare_mm_operands(mat1, mat2);
     TORCH_CHECK(

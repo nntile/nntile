@@ -54,6 +54,16 @@ class Runtime
 
     void compile();
 
+    //! Seconds spent in DCE / allocate during the last ``compile()``.
+    double last_compile_dce_seconds() const
+    {
+        return last_compile_dce_s_;
+    }
+    double last_compile_alloc_seconds() const
+    {
+        return last_compile_alloc_s_;
+    }
+
     //! Submit ops [op_begin, op_end) asynchronously (no StarPU drain).
     //! Unmarked-temp reclaim is ordinary ``TILE_INVALIDATE`` ops already in
     //! ``execution_order_`` (appended at compile from phase-touched unmarked
@@ -269,6 +279,8 @@ class Runtime
     //! Ingress may lower marked staging tiles before any new op is appended;
     //! those nodes must still be allocated without scanning full history.
     size_t compiled_tile_node_count_ = 0;
+    double last_compile_dce_s_ = 0.0;
+    double last_compile_alloc_s_ = 0.0;
 };
 
 } // namespace nntile

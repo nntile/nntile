@@ -56,6 +56,7 @@ at::Tensor silu_backward(
     const at::Tensor &grad_output,
     const at::Tensor &self)
 {
+    nntile::GraphFillScope record;
     check_silu_backward(grad_output, self);
     at::Tensor grad_input = at::empty_like(self);
     run_silu_backward(grad_output, self, grad_input);
@@ -67,6 +68,7 @@ at::Tensor &silu_backward_out(
     const at::Tensor &self,
     at::Tensor &grad_input)
 {
+    nntile::GraphFillScope record;
     check_silu_backward(grad_output, self);
     TORCH_CHECK(
         grad_input.sizes() == self.sizes(),

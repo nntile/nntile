@@ -38,13 +38,16 @@ protocol [reproducibility.md](reproducibility.md).
 | Field | Meaning |
 |-------|---------|
 | **Loss** | Last printed `loss=` (synthetic batch, seed 42, SGD). |
-| **Wall** | Train loop only (`wall=…s` or GPT-2 `timing … train wall`). Excludes import, HF construct, StarPU `init_context`. |
+| **Wall** | Train loop only (`wall=…s` or GPT-2 `timing … train wall`). Excludes import, HF construct, StarPU `init_context`, prefetch. CUDA is the training loop plus device synchronize. On nntile it is a single clock from **before the first record** through the **final `wait()`** (every record, compile, wait, and run). Loss readout is after that join. |
+| **record / compile / run / wait** | Cumulative nntile phases: record each step, `compile_graph` each step, **`wait()` for the previous `run()`**, then `run()` the compiled step, plus a final `wait()`. |
 | **VRAM** | `nvidia-smi` peak during the child minus idle-before. Includes leftover CUDA context (~300–500 MiB). |
 
-On nntile each step `compile_graph` / `run`s and syncs loss with
-`.to("cpu")` so StarPU reclaim stays in that step (debt D7). That
-sync is inside the reported wall. CUDA uses `--disable-tf32` (full
-FP32) for a fair numeric compare.
+On nntile each step is recorded and compiled while the previous
+``run()`` is in flight; ``wait()`` then joins that submit before
+``run()`` of the compiled step. A final ``wait()`` joins the last
+submit. CUDA uses `--disable-tf32` (full
+FP32) for a fair numeric compare. Attention on both CUDA and nntile
+is MATH SDPA (debt D8).
 
 The same synthetic batch is reused every step, so CNN losses can
 collapse toward 0 by step 50. That is expected; compare CUDA vs
@@ -112,8 +115,9 @@ python3 -u torch_nntile/examples/bench_cuda_vs_nntile_2gb.py \
   --output-root /tmp/cuda_vs_nntile_2gb_ckpts
 ```
 
-Wall clock on one A40 was ~13 minutes for the full 15-model suite.
-Expect longer if the GPU is slower or contended.
+Wall clock on one A40 was ~12 minutes for the full 15-model suite
+(idle GPU, per-iter compile). Expect longer if the GPU is slower or
+contended.
 
 ### 3. Single-model debug (optional)
 
@@ -171,42 +175,128 @@ T5 is 10+10 layers. CNNs are small spatial size with fat channels
 
 ## Recorded results
 
-Measured 2026-08-21 on a **shared** box of NVIDIA A40 (46 GiB), GPU
-index 2, branch `nntile-no-implicit-host-copy`. Another user may have
-been on other GPUs; **re-run on a quiet GPU** before treating walls as
-gospel. Losses should still match.
+NVIDIA A40 (46 GiB), branch `nntile-no-implicit-host-copy`,
+`NNTILE_TORCH_NATIVE_OPS` CUDA build, MATH SDPA (debt D8).
 
-### 2 GiB, 50 steps (this recipe)
+| Id | When | GPU | Nntile loop |
+|----|------|-----|-------------|
+| **D** | 2026-08-21 16:35 UTC | 1 (idle) | Per-iter record / compile / `run`; **one `wait()` at the end** |
+| A / B / C | earlier 2026-08-21 | see below | Older loop (compile-once or wait-per-step); walls not comparable to D |
 
-HF batch 16, seq 32; CNN/DiT batch 4; seed 42.
+### 2 GiB, 50 steps (run D, this recipe)
 
-| Model | CUDA loss | nntile loss | CUDA VRAM | nntile VRAM | CUDA wall | nntile wall |
+HF batch 16, seq 32; CNN/DiT batch 4; seed 42. Idle GPU 1.
+
+**Nntile wall** = sum of `run()` + the final `wait()` (GPU submit +
+join). **Nntile total** = record + compile + run + wait (host graph
+work plus GPU). Compare **CUDA wall** to **nntile total**, not to
+nntile wall alone.
+
+| Model | CUDA loss | nntile loss | CUDA VRAM | nntile VRAM | CUDA wall | nntile record | nntile compile | nntile run | nntile wait | nntile wall | nntile total |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| GPT-2 HF | 7.760632 | 7.760633 | 6450 MiB | 6666 MiB | 7.196 s | 2.606 s | 2.341 s | 0.745 s | 4.051 s | 4.797 s | 9.743 s |
+| GPT-Neo HF | 2.635335 | 2.631112 | 5920 MiB | 6302 MiB | 7.251 s | 3.350 s | 2.837 s | 0.800 s | 2.299 s | 3.099 s | 9.286 s |
+| GPT-NeoX HF | 6.450442 | 6.450443 | 5582 MiB | 12854 MiB | 6.436 s | 3.772 s | 4.717 s | 1.122 s | 1.788 s | 2.910 s | 11.399 s |
+| Llama HF | 2.314239 | 2.314239 | 6522 MiB | 15144 MiB | 7.909 s | 4.415 s | 6.005 s | 1.496 s | 2.164 s | 3.660 s | 14.080 s |
+| Llama HF GQA | 2.167546 | 2.167546 | 6288 MiB | 12818 MiB | 7.320 s | 3.745 s | 4.970 s | 1.154 s | 2.789 s | 3.942 s | 12.658 s |
+| BERT HF | 5.385140 | 5.635214 | 5198 MiB | 6408 MiB | 6.330 s | 3.058 s | 2.526 s | 0.803 s | 2.874 s | 3.678 s | 9.261 s |
+| RoBERTa HF | 5.267773 | 5.260685 | 5198 MiB | 6632 MiB | 6.336 s | 2.564 s | 2.465 s | 0.767 s | 4.500 s | 5.267 s | 10.296 s |
+| T5 HF | 7.660880 | 7.660872 | 5862 MiB | 7740 MiB | 8.136 s | 4.252 s | 4.919 s | 1.121 s | 2.235 s | 3.357 s | 12.527 s |
+| LeNet | 0.015324 | 0.015325 | 4750 MiB | 6694 MiB | 1.585 s | 0.084 s | 0.038 s | 0.024 s | 2.632 s | 2.656 s | 2.778 s |
+| ResNet | 0.000001 | 0.000099 | 6506 MiB | 5336 MiB | 30.652 s | 0.393 s | 0.266 s | 0.145 s | 17.713 s | 17.859 s | 18.517 s |
+| VGG | 2.202861 | 2.202862 | 8138 MiB | 7598 MiB | 6.492 s | 0.163 s | 0.087 s | 0.050 s | 4.108 s | 4.158 s | 4.408 s |
+| MobileNet | 0.005540 | 0.005539 | 9682 MiB | 13568 MiB | 42.687 s | 0.193 s | 0.121 s | 0.069 s | 23.149 s | 23.218 s | 23.532 s |
+| UNet | 0.432281 | 0.432325 | 6822 MiB | 7782 MiB | 4.742 s | 0.512 s | 0.345 s | 0.175 s | 3.333 s | 3.508 s | 4.365 s |
+| UNet modern | 0.465618 | 0.465730 | 8136 MiB | 9760 MiB | 5.757 s | 0.480 s | 0.324 s | 0.172 s | 3.822 s | 3.994 s | 4.798 s |
+| DiT HF | 0.602640 | 0.602640 | 7136 MiB | 8506 MiB | 4.636 s | 4.362 s | 4.619 s | 1.267 s | 0.782 s | 2.049 s | 11.030 s |
+
+**Loss:** GPT-2, NeoX, Llama, Llama GQA, T5, DiT match CUDA vs nntile
+to printed ~1e-6. VGG / LeNet / MobileNet / UNet are within ~1e-4.
+**BERT is a known outlier** (eager CE / `ignore_index` path). GPT-Neo
+and RoBERTa are slightly off (~4e-3 and ~7e-3). CNN losses near zero
+are repeated-batch overfit; ResNet last-step loss is not stable across
+repeats (still ≪1).
+
+**Speed:** transformer **nntile total** is ~1.3–1.8× CUDA wall; host
+record+compile is a large share (Llama compile 6.0 s). CNN **nntile
+total** beats CUDA on ResNet / VGG / MobileNet (same as earlier runs).
+Older tables that labeled nntile wall as run+wait only omitted that
+host time; the current train wall includes record and compile.
+
+**Memory (run D, wait only at the end):** that loop lets StarPU submit
+many `STARPU_W` destination clears ahead of gemms (debt D7). Llama /
+NeoX / Llama GQA nntile VRAM is ~2× CUDA (~12–15 GiB vs ~6 GiB).
+GPT-2 stays close (6666 vs 6450 MiB). MobileNet remains the CNN VRAM
+outlier (~13.6 GiB nntile vs ~9.7 GiB CUDA).
+
+**Why Llama (and NeoX / GQA), not GPT-2:** CUDA Llama is **flat**
+in step count (6522 MiB at 1 and 50 steps). Nntile Llama is already
+heavier at **one** step (8140 vs 6522 MiB) because the HF graph
+materializes extras CUDA’s allocator reuses: SwiGLU
+(`gate` / `silu` / `up` / product vs GPT-2’s two GEMMs), split
+Q/K/V, and RoPE (`rotate_half`, mul/add) as TensorNodes.
+
+With **wait only after all `run()`s**, VRAM then **grows with
+submitted steps** (D7):
+
+| Steps | Llama CUDA | Llama nntile (wait at end) | GPT-2 nntile |
+|------:|-----------:|---------------------------:|-------------:|
+| 1 | 6522 | 8140 | 6250 |
+| 10 | 6522 | 11020 | — |
+| 50 | 6522 | 12644 | 6570 |
+| 50 + `STARPU_LIMIT_{MAX=100,MIN=50}` | — | 7824 | — |
+
+The current loop is **record → compile → wait → run** (wait joins
+the previous `run()`; record/compile of step \(N\) overlap that
+GPU work). Llama VRAM is then **flat** in step count; loss still
+matches CUDA (2.314239 at 50 steps):
+
+| Steps | Llama CUDA | Llama nntile (wait before run) | GPT-2 nntile |
+|------:|-----------:|-------------------------------:|-------------:|
+| 1 | 6522 | 8140 | — |
+| 10 | 6522 | 8152 | — |
+| 50 | 6522 | 8152 | 6282 |
+
+The leftover ~1.6 GiB vs CUDA is the fatter per-step graph, not
+in-flight steps. GPT-2’s fused `c_attn` / two-GEMM MLP emit far
+fewer `STARPU_W` clears, so even wait-at-end added only ~0.3 GiB.
+
+### Earlier 50-step runs (A / B / C)
+
+Same 2 GiB recipe, older nntile train loop (not per-iter compile with
+a single final wait). Transformer losses matched across A/B/C to
+printed 1e-6. Treat walls on **A** as possibly contended; **B** and
+**C** are idle GPU 0. VRAM is B/C (identical); A is ~4 MiB lower.
+
+| Id | GPU | Notes |
+|----|-----|-------|
+| **A** | 2 | Original recording, shared box |
+| **B** | 0 | Idle; `NNTILE_TORCH_NATIVE_OPS` CUDA build |
+| **C** | 0 | Idle repeat of B (same binary, same GPU) |
+
+| Model | CUDA loss | nntile loss | CUDA VRAM | nntile VRAM | CUDA wall A / B / C | nntile wall A / B / C |
 |---|---:|---:|---:|---:|---:|---:|
-| GPT-2 HF | 7.795432 | 7.795432 | 6416 MiB | 6204 MiB | 7.883 s | 13.606 s |
-| GPT-Neo HF | 2.667529 | 2.670587 | 5902 MiB | 6008 MiB | 8.309 s | 13.770 s |
-| GPT-NeoX HF | 6.450442 | 6.450442 | 5578 MiB | 6660 MiB | 6.911 s | 15.241 s |
-| Llama HF | 2.314239 | 2.314239 | 6518 MiB | 8092 MiB | 8.497 s | 18.115 s |
-| Llama HF GQA | 2.167546 | 2.167546 | 6284 MiB | 7340 MiB | 7.848 s | 17.935 s |
-| BERT HF | 5.879711 | 5.695960 | 5186 MiB | 6060 MiB | 7.168 s | 14.739 s |
-| RoBERTa HF | 5.261613 | 5.267606 | 5186 MiB | 6060 MiB | 6.857 s | 15.011 s |
-| T5 HF | 7.660874 | 7.660884 | 5858 MiB | 7476 MiB | 8.364 s | 18.334 s |
-| LeNet | 0.015324 | 0.015325 | 4746 MiB | 6690 MiB | 1.616 s | 3.507 s |
-| ResNet | 0.000155 | 0.000164 | 6502 MiB | 7492 MiB | 31.105 s | 19.523 s |
-| VGG | 2.202861 | 2.202862 | 8134 MiB | 8170 MiB | 6.131 s | 5.052 s |
-| MobileNet | 0.005540 | 0.005539 | 9678 MiB | 14356 MiB | 42.656 s | 23.751 s |
-| UNet | 0.432288 | 0.432160 | 6818 MiB | 8508 MiB | 5.082 s | 5.816 s |
-| UNet modern | 0.465648 | 0.465919 | 8132 MiB | 10660 MiB | 5.823 s | 6.875 s |
-| DiT HF | 0.602640 | 0.602640 | 7132 MiB | 7852 MiB | 4.814 s | 15.787 s |
+| GPT-2 HF | 7.795432 | 7.795432 | 6420 MiB | 6220 MiB | 7.883 / 7.095 / 7.091 | 13.606 / 12.721 / 12.331 |
+| GPT-Neo HF | 2.667529 | 2.670587 | 5906 MiB | 6012 MiB | 8.309 / 7.218 / 7.236 | 13.770 / 13.514 / 13.474 |
+| GPT-NeoX HF | 6.450442 | 6.450442 | 5582 MiB | 6664 MiB | 6.911 / 6.396 / 6.396 | 15.241 / 14.724 / 15.176 |
+| Llama HF | 2.314239 | 2.314239 | 6522 MiB | 8096 MiB | 8.497 / 8.222 / 7.867 | 18.115 / 16.900 / 16.643 |
+| Llama HF GQA | 2.167546 | 2.167546 | 6288 MiB | 7344 MiB | 7.848 / 7.319 / 7.399 | 17.935 / 16.334 / 16.280 |
+| BERT HF | 5.879711 | 5.695960 | 5190 MiB | 6064 MiB | 7.168 / 6.354 / 6.345 | 14.739 / 13.699 / 13.644 |
+| RoBERTa HF | 5.261613 | 5.267606 | 5190 MiB | 6064 MiB | 6.857 / 6.354 / 6.359 | 15.011 / 13.707 / 13.862 |
+| T5 HF | 7.660874 | 7.660884 | 5862 MiB | 7480 MiB | 8.364 / 7.902 / 8.226 | 18.334 / 17.324 / 17.345 |
+| LeNet | 0.015324 | 0.015325 | 4750 MiB | 6694 MiB | 1.616 / 1.976 / 1.592 | 3.507 / 3.117 / 3.352 |
+| ResNet | 0.000155 / 0.000049 / 0.000106 | 0.000164 / 0.000932 / 0.000052 | 6506 MiB | 7496 MiB | 31.105 / 30.912 / 30.995 | 19.523 / 19.056 / 19.160 |
+| VGG | 2.202861 | 2.202862 | 8138 MiB | 8174 MiB | 6.131 / 6.104 / 6.104 | 5.052 / 4.772 / 4.927 |
+| MobileNet | 0.005540 | 0.005539 / 0.005539 / 0.005538 | 9682 MiB | 14360 MiB | 42.656 / 42.415 / 42.724 | 23.751 / 23.809 / 23.411 |
+| UNet | 0.432288 / 0.432502 / 0.432420 | 0.432160 / 0.432230 / 0.432464 | 6822 MiB | 8512 MiB | 5.082 / 4.739 / 4.729 | 5.816 / 5.712 / 5.734 |
+| UNet modern | 0.465648 / 0.465643 / 0.465861 | 0.465919 / 0.465683 / 0.465909 | 8136 MiB | 10662 MiB | 5.823 / 5.752 / 5.750 | 6.875 / 6.132 / 6.168 |
+| DiT HF | 0.602640 | 0.602640 | 7136 MiB | 7856 MiB | 4.814 / 4.915 / 4.895 | 15.787 / 15.021 / 15.418 |
 
-**Loss:** GPT-2, NeoX, Llama, Llama GQA, DiT match to printed 1e-6.
-Most others are within ~1e-5. **BERT is a known outlier** (eager CE /
-`ignore_index` path). GPT-Neo and RoBERTa are slightly off (~3e-3 and
-~6e-3). CNN losses near zero are repeated-batch overfit.
-
-**Speed / memory (this A40 run):** transformers ~1.7–2.2× slower on
+**Speed / memory (idle GPU 0, B/C):** transformers ~1.7–2.2× slower on
 nntile and a bit more VRAM. ResNet / VGG / MobileNet were faster on
 nntile; MobileNet is the VRAM outlier (~9.7 GiB CUDA vs ~14.4 GiB
-nntile).
+nntile). Walls B vs C agree to a few tenths of a second on most
+models; run A is often ~0.5–1.5 s slower (shared GPU).
 
 ### Tiny configs, 10 steps (same box, earlier)
 

@@ -253,11 +253,12 @@ def build_jobs(
     hf_seq: int,
     cnn_bs: int,
     output_root: Path,
+    hf_only: bool = False,
 ) -> list[tuple[str, list[str], list[str]]]:
     cfg = CFG_DIR
     hf = dict(steps=steps, seed=seed, batch=hf_bs, seq_len=hf_seq)
     cnn = dict(steps=steps, seed=seed, batch=cnn_bs)
-    return [
+    hf_jobs: list[tuple[str, list[str], list[str]]] = [
         (
             "GPT-2 HF",
             gpt2_cmd(
@@ -318,6 +319,10 @@ def build_jobs(
             cuda_train("t5", cfg / "t5.json", hf=True, **hf),
             hf_nntile("train_t5_hf.py", cfg / "t5.json", **hf),
         ),
+    ]
+    if hf_only:
+        return hf_jobs
+    cnn_jobs: list[tuple[str, list[str], list[str]]] = [
         (
             "LeNet",
             cuda_train(
@@ -376,9 +381,15 @@ def build_jobs(
             cnn_nntile("train_dit_hf.py", cfg / "dit.json", **cnn),
         ),
     ]
+    return hf_jobs + cnn_jobs
 
 
-def parse_metrics(text: str) -> tuple[str, str]:
+def _seconds(text: str, pattern: str) -> str:
+    match = re.search(pattern, text)
+    return match.group(1) if match is not None else "—"
+
+
+def parse_metrics(text: str) -> tuple[str, str, str, str, str, str, str]:
     losses = re.findall(r"loss=([0-9.+-eE]+)", text)
     loss = losses[-1] if losses else "FAIL"
     match = re.search(r"\[.+\] wall=([0-9.]+)s", text)
@@ -388,7 +399,16 @@ def parse_metrics(text: str) -> tuple[str, str]:
             text,
         )
     wall = match.group(1) if match is not None else "FAIL"
-    return loss, wall
+    rec_nntile = _seconds(
+        text, r"timing nntile record\(nntile\): ([0-9.]+)s"
+    )
+    rec_torch = _seconds(
+        text, r"timing nntile record\(torch\): ([0-9.]+)s"
+    )
+    compile_s = _seconds(text, r"timing nntile compile[^:]*: ([0-9.]+)s")
+    run_s = _seconds(text, r"timing nntile run: ([0-9.]+)s")
+    wait_s = _seconds(text, r"timing nntile wait[^:]*: ([0-9.]+)s")
+    return loss, wall, rec_nntile, rec_torch, compile_s, run_s, wait_s
 
 
 def run_one(
@@ -444,6 +464,11 @@ def main() -> int:
     parser.add_argument("--seq-len", type=int, default=32)
     parser.add_argument("--cnn-batch-size", type=int, default=4)
     parser.add_argument(
+        "--hf-only",
+        action="store_true",
+        help="Run only HuggingFace transformer jobs (skip CNN / DiT)",
+    )
+    parser.add_argument(
         "--build-dir",
         default="",
         help="NNTile build dir (default: $NNTILE_BUILD_DIR or <repo>/build)",
@@ -474,19 +499,25 @@ def main() -> int:
         hf_seq=args.seq_len,
         cnn_bs=args.cnn_batch_size,
         output_root=output_root,
+        hf_only=args.hf_only,
     )
     env_c = cuda_env(gpu=gpu)
     env_n = nntile_env(gpu=gpu, repo=REPO, build=build)
-    rows: list[tuple[str, str, str, str, str, str, str]] = []
+    rows: list[
+        tuple[
+            str, str, str, str, str, str, str, str, str, str, str, str
+        ]
+    ] = []
     failed = 0
     print(f"# GPU={gpu}  build={build}  output={output_root}", flush=True)
     for name, cuda_cmd, nntile_cmd in jobs:
         print(f"\n==== {name} cuda ====", flush=True)
         rc_c, out_c, vram_c = run_one(cuda_cmd, env_c, gpu=gpu)
-        loss_c, wall_c = parse_metrics(out_c)
+        loss_c, wall_c, _, _, _, _, _ = parse_metrics(out_c)
         if rc_c != 0:
-            loss_c, wall_c = f"FAIL({rc_c})", wall_c
             failed += 1
+            if loss_c == "FAIL":
+                loss_c = f"FAIL({rc_c})"
         print(
             f"  cuda  loss={loss_c}  wall={wall_c}s  vram={vram_c}MiB",
             flush=True,
@@ -494,12 +525,18 @@ def main() -> int:
 
         print(f"==== {name} nntile ====", flush=True)
         rc_n, out_n, vram_n = run_one(nntile_cmd, env_n, gpu=gpu)
-        loss_n, wall_n = parse_metrics(out_n)
+        loss_n, wall_n, rec_nn, rec_th, cmp_n, run_n, wait_n = (
+            parse_metrics(out_n)
+        )
         if rc_n != 0:
-            loss_n, wall_n = f"FAIL({rc_n})", wall_n
             failed += 1
+            if loss_n == "FAIL":
+                loss_n = f"FAIL({rc_n})"
         print(
-            f"  nntile loss={loss_n}  wall={wall_n}s  vram={vram_n}MiB",
+            f"  nntile loss={loss_n}  record(nntile)={rec_nn}s "
+            f"record(torch)={rec_th}s  compile={cmp_n}s "
+            f"run={run_n}s  wait={wait_n}s  wall={wall_n}s  "
+            f"vram={vram_n}MiB",
             flush=True,
         )
         rows.append(
@@ -510,6 +547,11 @@ def main() -> int:
                 str(vram_c),
                 str(vram_n),
                 wall_c,
+                rec_nn,
+                rec_th,
+                cmp_n,
+                run_n,
+                wait_n,
                 wall_n,
             )
         )
@@ -522,13 +564,19 @@ def main() -> int:
     )
     print(
         "| Model | CUDA loss | nntile loss | CUDA VRAM | nntile VRAM "
-        "| CUDA wall | nntile wall |"
+        "| CUDA wall | record(nntile) | record(torch) | nntile compile "
+        "| nntile run | nntile wait | nntile wall |"
     )
-    print("|---|---:|---:|---:|---:|---:|---:|")
-    for name, lc, ln, vc, vn, wc, wn in rows:
+    print(
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+    )
+    for name, lc, ln, vc, vn, wc, rec_nn, rec_th, cmp, run, wait, wn in (
+        rows
+    ):
         print(
             f"| {name} | {lc} | {ln} | {vc} MiB | {vn} MiB "
-            f"| {wc} s | {wn} s |"
+            f"| {wc} s | {rec_nn} s | {rec_th} s | {cmp} s | {run} s "
+            f"| {wait} s | {wn} s |"
         )
     return 1 if failed else 0
 

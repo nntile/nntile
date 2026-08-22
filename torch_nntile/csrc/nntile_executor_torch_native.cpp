@@ -1709,6 +1709,7 @@ void tensor_arange_i64(
     extra.iargs[2] = static_cast<nntile::Index>(step);
     pack_tensor_layout(extra, 0, out, true);
     nntile::tensor::torch_arange(out_node, extra);
+    register_data_node(out, out_node);
 }
 
 void tensor_arange_fp32(
@@ -1729,6 +1730,7 @@ void tensor_arange_fp32(
     extra.scalars[2] = step;
     pack_tensor_layout(extra, 0, out, true);
     nntile::tensor::torch_arange(out_node, extra);
+    register_data_node(out, out_node);
 }
 
 void tensor_gt_i64(
@@ -1961,6 +1963,45 @@ void tensor_fill_i64(at::Tensor &self, int64_t value)
     pack_tensor_layout(extra, 0, self, true);
     nntile::tensor::torch_arange(self_node, extra);
     register_data_node(self, self_node);
+}
+
+void tensor_fill_bool(at::Tensor &self, bool value)
+{
+    auto *self_node = get_or_create_data_node(
+        self,
+        pytorch_shape_to_graph(self.sizes()),
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(self));
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.kind = nntile::starpu::TorchKind::FillBool;
+    extra.iargs[0] = value ? 1 : 0;
+    pack_tensor_layout(extra, 0, self, true);
+    nntile::tensor::torch_arange(self_node, extra);
+    register_data_node(self, self_node);
+}
+
+void tensor_tril_bool(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t diagonal)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+    auto *in_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(input));
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[0] = static_cast<nntile::Index>(diagonal);
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::Tril,
+        in_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
 }
 
 void tensor_cast(const at::Tensor &input, at::Tensor &out)

@@ -5,7 +5,7 @@
   "intermediate_size": 6144,
   "num_hidden_layers": 20,
   "num_attention_heads": 24,
-  "max_position_embeddings": 128,
+  "max_position_embeddings": 1024,
   "type_vocab_size": 2,
   "hidden_dropout_prob": 0.0,
   "attention_probs_dropout_prob": 0.0,

@@ -99,6 +99,7 @@ host-readout timing (and record-path sub-buckets).
 |-----|---------|
 | `STARPU_DISABLE_KERNELS=1` | StarPU submits tasks but skips kernel bodies. Shows submit overhead; often inflates `run`. |
 | `TORCH_NNTILE_SKIP_STARPU=1` | Dry-run in torch_nntile: no StarPU task insert, no staging acquire/memcpy. Still advances the `Runtime` execute watermark and last-consumer reclaim so incremental compile stays O(pending). Isolates record + compile cost. **Results are not numerically meaningful.** |
+| `TORCH_NNTILE_SKIP_KERNELS=1` | Intercept still runs (shapes, TensorRefs, pack layout). No compute-op insert. Last-drop `UNREGISTER` still compiles/submits StarPU unregister tasks. **Results are not numerically meaningful.** |
 
 ```bash
 STARPU_WORKERS_NOBIND=1 TORCH_NNTILE_SKIP_STARPU=1 \

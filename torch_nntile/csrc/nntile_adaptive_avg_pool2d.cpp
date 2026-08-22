@@ -48,6 +48,7 @@ at::Tensor adaptive_avg_pool2d(
     const at::Tensor &input,
     c10::SymIntArrayRef output_size)
 {
+    nntile::GraphFillScope record;
     check_input(input, "nntile _adaptive_avg_pool2d");
     std::vector<int64_t> out_shape(input.sizes().begin(), input.sizes().end());
     TORCH_CHECK(out_shape.size() >= 2, "adaptive_avg_pool2d: rank < 2");
@@ -68,6 +69,7 @@ at::Tensor &adaptive_avg_pool2d_out(
     c10::SymIntArrayRef output_size,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_input(input, "nntile _adaptive_avg_pool2d.out");
     TORCH_CHECK(is_nntile_device(out.device()), "adaptive out: nntile out");
     std::vector<int64_t> out_hw = sym_to_i64(output_size);
@@ -79,6 +81,7 @@ at::Tensor adaptive_avg_pool2d_backward(
     const at::Tensor &grad_output,
     const at::Tensor &input)
 {
+    nntile::GraphFillScope record;
     check_input(input, "nntile _adaptive_avg_pool2d_backward");
     check_input(grad_output, "nntile _adaptive_avg_pool2d_backward grad");
     at::Tensor grad_input = empty_metadata_tensor(
@@ -97,6 +100,7 @@ at::Tensor &adaptive_avg_pool2d_backward_out(
     const at::Tensor &input,
     at::Tensor &grad_input)
 {
+    nntile::GraphFillScope record;
     check_input(input, "nntile _adaptive_avg_pool2d_backward.out input");
     check_input(grad_output, "nntile _adaptive_avg_pool2d_backward.out grad");
     tensor_adaptive_avg_pool2d_backward_fp32(

@@ -12,6 +12,8 @@ import torch.nn.functional as F
 from conftest import nntile_cpu
 from parity_helpers import assert_aten_op_forward_backward, assert_close
 
+import torch_nntile
+
 _RTOL = 1e-4
 _ATOL = 1e-4
 _BWD_RTOL = 1e-3
@@ -271,6 +273,19 @@ def test_aten_op_matches_cpu_forward_only(name, make_inputs, op):
     assert_close(y_nnt, y_ref, rtol=_RTOL, atol=_ATOL)
     # Touch nntile_cpu path for graph flush consistency.
     assert nntile_cpu(y_nnt).shape == y_ref.shape
+
+
+def test_arange_as_first_graph_op_matches_cpu():
+    """Factory ``aten::arange`` must compile even as the first graph op."""
+    torch_nntile.reset_graph_session()
+    ref = torch.arange(8)
+    got = torch.arange(8, device="nntile")
+    torch.testing.assert_close(nntile_cpu(got), ref)
+    got_start = torch.arange(0, 8, device="nntile")
+    torch.testing.assert_close(nntile_cpu(got_start), torch.arange(0, 8))
+    ref_f = torch.arange(4, dtype=torch.float32)
+    got_f = torch.arange(4, dtype=torch.float32, device="nntile")
+    torch.testing.assert_close(nntile_cpu(got_f), ref_f)
 
 
 def test_sdpa_matches_cpu_forward_backward():

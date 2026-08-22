@@ -53,7 +53,6 @@ def test_hf_gpt2_forward_matches_cpu(tiny_gpt2_config):
         input_ids = torch.randint(0, tiny_gpt2_config.vocab_size, (2, 8)).to(
             "nntile"
         )
-    with torch.no_grad():
         ref_logits = ref(nntile_cpu(input_ids)).logits
         out = model(input_ids).logits
     torch.testing.assert_close(
@@ -112,7 +111,12 @@ def test_hf_gpt2_train_full_batch_step_nntile_inputs(tiny_gpt2_config):
         name: tensor.detach().cpu().clone()
         for name, tensor in model.state_dict().items()
     }
-    loss = train_full_batch_step(model, input_ids, labels, learning_rate=1e-3)
+    loss = train_full_batch_step(
+        model,
+        input_ids,
+        labels,
+        learning_rate=1e-3,
+    )
     assert loss > 0.0
     # train_full_batch_step zeros grads before compile; verify the step updated
     # weights instead of inspecting .grad after the call.

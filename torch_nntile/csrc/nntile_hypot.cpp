@@ -72,6 +72,7 @@ void run_hypot_kernel(
 
 at::Tensor hypot_tensor(const at::Tensor &self, const at::Tensor &other)
 {
+    nntile::GraphFillScope record;
     check_hypot_inputs(self, other);
     at::Tensor out = at::empty_like(self);
     run_hypot_kernel(self, other, out);
@@ -83,6 +84,7 @@ at::Tensor &hypot_out(
     const at::Tensor &other,
     at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_hypot_inputs(self, other, out);
     run_hypot_kernel(self, other, out);
     return out;

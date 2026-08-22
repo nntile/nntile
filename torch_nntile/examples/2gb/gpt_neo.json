@@ -5,7 +5,7 @@
   "intermediate_size": 6144,
   "num_layers": 20,
   "num_heads": 24,
-  "max_position_embeddings": 128,
+  "max_position_embeddings": 1024,
   "attention_types": [
     [
       [
@@ -14,7 +14,7 @@
       20
     ]
   ],
-  "window_size": 128,
+  "window_size": 1024,
   "attention_dropout": 0.0,
   "embed_dropout": 0.0,
   "resid_dropout": 0.0,

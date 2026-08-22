@@ -211,6 +211,20 @@ void TileTorchUnaryOp::execute(Runtime &runtime) const
             extra);
         return;
     }
+    if (kind == starpu::TorchKind::Tril)
+    {
+        auto &in_t = runtime.get_tile<bool_t>(in);
+        auto &out_t = runtime.get_tile<bool_t>(out);
+        core::torch_unary_bool_out(
+            runtime.starpu_worker_hint(),
+            kind,
+            in_t,
+            in_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
     if (in->dtype() == DataType::INT64)
     {
         auto &in_t = runtime.get_tile<int64_t>(in);
@@ -415,6 +429,16 @@ void TileTorchArangeOp::execute(Runtime &runtime) const
     {
         auto &out_t = runtime.get_tile<fp32_t>(out);
         core::torch_arange_fp32_out(
+            runtime.starpu_worker_hint(),
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    if (out->dtype() == DataType::BOOL)
+    {
+        auto &out_t = runtime.get_tile<bool_t>(out);
+        core::torch_fill_bool_out(
             runtime.starpu_worker_hint(),
             out_t,
             out_meta,

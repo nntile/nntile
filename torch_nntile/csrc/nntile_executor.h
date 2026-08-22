@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <nntile/base_types.hh>
+#include <nntile/tensor/graph_fill_timer.hh>
 
 namespace torch_nntile
 {
@@ -659,6 +660,13 @@ void tensor_abs_i64(const at::Tensor &input, at::Tensor &out);
 void tensor_neg_i64(const at::Tensor &input, at::Tensor &out);
 
 void tensor_fill_i64(at::Tensor &self, int64_t value);
+
+void tensor_fill_bool(at::Tensor &self, bool value);
+
+void tensor_tril_bool(
+    const at::Tensor &input,
+    at::Tensor &out,
+    int64_t diagonal);
 
 void tensor_cast(
     const at::Tensor &input,

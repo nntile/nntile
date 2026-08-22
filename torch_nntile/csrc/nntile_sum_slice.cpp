@@ -64,6 +64,7 @@ at::Tensor sum_slice_forward(
     double alpha,
     double beta)
 {
+    nntile::GraphFillScope record;
     check_sum_slice_input(src, axis);
     TORCH_CHECK(
         beta == 0.0,
@@ -86,6 +87,7 @@ at::Tensor sum_slice_backward(
     int64_t axis,
     double alpha)
 {
+    nntile::GraphFillScope record;
     check_sum_slice_input(src, axis);
     TORCH_CHECK(
         is_nntile_device(grad_out.device()),

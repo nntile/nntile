@@ -5,7 +5,7 @@
   "n_inner": 6144,
   "n_layer": 20,
   "n_head": 24,
-  "n_positions": 128,
+  "n_positions": 1024,
   "layer_norm_epsilon": 1e-05,
   "attn_pdrop": 0.0,
   "resid_pdrop": 0.0,

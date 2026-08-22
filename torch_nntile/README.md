@@ -140,8 +140,8 @@ remains a separate custom API for NNTile-layout SDPA.
 | `linear` backward / `mm` | `tensor::gemm` |
 | `F.embedding` / `nn.Embedding` | `tensor::embedding` |
 | Embedding backward | `tensor::embedding_backward` |
-| `torch_nntile.nn.SDPA` / `sdpa_eager` | Cyclic transpose → `F.scaled_dot_product_attention` → cyclic transpose; ATen overrideable → `sdpa_forward/backward` (`maxsumexp`, `softmax_inplace`, optional `mask_scalar`; backward: `gemm`, `sumprod_slice`, …) |
-| `F.scaled_dot_product_attention` on `device="nntile"` | Same ATen overrideable backend as above (PyTorch/HF layout `[..., seq, head_size]`, e.g. `(batch, n_heads, seq, head_size)`) |
+| `torch_nntile.nn.SDPA` / `sdpa_eager` | Transpose → `F.scaled_dot_product_attention` (MATH composite: `mm` / `softmax`) → transpose. Fused `TorchKind::Sdpa` unused (debt D8). |
+| `F.scaled_dot_product_attention` on `device="nntile"` | `_fused_sdp_choice` → MATH; same composite as CUDA math SDPA |
 | `torch_nntile.nn.weight_layout` | Pure PyTorch permutes for HF ↔ NNTile attention weights (no kernel) |
 | `torch_nntile.training.cross_entropy` | `maxsumexp`, `logsumexp`, `total_sum_accum`, `softmax`, `subtract_indexed_outputs`; backward: chained `scale_slice`, `multiply_slice` |
 | `torch_nntile.training.mse_loss` | `scale * ||x||^2` via `norm` + `multiply`; backward `2*scale*x` |
@@ -155,19 +155,17 @@ Gradients use **PyTorch autograd** (not `NNGraph` autograd).
 (default); `scale_grad_by_freq=False` and `sparse=False` only. Indices must be
 on `device="nntile"` (use `.to("nntile")` explicitly).
 
-**SDPA v1 limits:** `float32` only. Two entry points share one ATen kernel:
+**SDPA (debt D8):** `F.scaled_dot_product_attention` on `device="nntile"`
+always uses PyTorch **MATH** (CompositeImplicit: `mm` / `softmax` / mask
+as TensorGraph nodes). The fused `TorchKind::Sdpa` / overrideable path is
+unused until workspace can be preallocated as graph tensors.
 
-- **`F.scaled_dot_product_attention`** on `device="nntile"`: Q/K/V in PyTorch layout
-  `[..., seq, head_size]` (e.g. `(batch, n_heads, seq, head_size)` or kernel layout
-  `(n_heads, batch, seq, head_size)`); optional `attn_mask` (bool or float additive),
-  `is_causal=True`; fixed scale `1/sqrt(head_size)`. No dropout, GQA, or custom scale.
-  Forward returns a placeholder `logsumexp` (OpenReg API requirement only). Backward
-  ignores that tensor and delegates to `sdpa_backward`, which uses internal
-  `maxsumexp` buffers (not logsumexp) through the existing softmax backward chain.
+- **`F.scaled_dot_product_attention`**: Q/K/V in PyTorch layout
+  `[..., seq, head_size]`; optional `attn_mask`, `is_causal=True`; scale
+  `1/sqrt(head_size)`. No dropout, GQA, or custom scale (same v1 checks).
 - **`torch_nntile.nn.sdpa_eager` / `SDPA`**: projection layout
-  `[batch, seq, head_size, n_heads]`; internally transposes to kernel layout, calls
-  `F.scaled_dot_product_attention`, transposes back. Optional BOOL mask `[q_seq, k_seq]`
-  on `device="nntile"` (dim0 = query, dim1 = key).
+  `[batch, seq, head_size, n_heads]`; transposes, calls
+  `F.scaled_dot_product_attention` (MATH), transposes back.
 
 Ops record into a shared ``TensorGraph``; flush with ``compile_graph()`` /
 ``run()`` (or ``execute()``, which is compile+run and does **not** wait)
@@ -295,6 +293,9 @@ Architecture reference:
   share that step’s compile phase. Details:
   [torch_nntile_tensor_architecture.md](../docs/dev/torch_nntile_tensor_architecture.md)
   (section *STARPU_W-only clears*, debt D7).
+- **Fused SDPA (D8):** production `F.sdpa` uses MATH (recorded `mm` /
+  `softmax`). A fused `TorchKind::Sdpa` codelet remains for a later
+  graph-native fused kernel.
 
 ### Axis-group naming and tiling
 
@@ -321,6 +322,7 @@ kernels or submits are disabled.
 |-----|--------|
 | `STARPU_DISABLE_KERNELS=1` | StarPU still **submits** tasks but skips kernel bodies. Often makes `run` *slower* (queue overhead without useful work). |
 | `TORCH_NNTILE_SKIP_STARPU=1` | torch_nntile dry-run: skip StarPU **task insert** and staging **acquire/memcpy**. Still calls `Runtime::execute_range(..., submit_tasks=false)` so the executed watermark and last-consumer tile reclaim advance — incremental `compile()` stays O(pending). `print_info()` prints a NOTE when this is set. |
+| `TORCH_NNTILE_SKIP_KERNELS=1` | PrivateUse1 intercept still runs (output shapes, TensorRefs, pack layout). TensorGraph **compute** ops are not inserted. Last-drop `UNREGISTER` is still recorded, compiled, and submitted as StarPU unregister tasks. Isolates Torch + intercept without compute kernels. `print_info()` prints a NOTE. **Results are not numerically meaningful.** |
 
 Example (Google five-layer ReLU MNIST, host-only path):
 

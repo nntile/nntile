@@ -23,6 +23,10 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from nntile_iter_phases import (
+    print_torch_iter_timings,
+    run_nntile_train_iters,
+)
 
 LossFn = Callable[[torch.nn.Module, dict[str, torch.Tensor]], torch.Tensor]
 
@@ -47,6 +51,8 @@ def configure_single_thread_host() -> None:
     except RuntimeError:
         # May already be set after the first parallel op.
         pass
+
+
 BatchBuilder = Callable[
     [Any, argparse.Namespace],
     dict[str, torch.Tensor],
@@ -490,6 +496,7 @@ def run_tiny_hf_train(
             model = model.to("nntile")
         torch_nntile.compile_graph()
         torch_nntile.run()
+        torch_nntile.wait()
         for p in model.parameters():
             p.requires_grad_(True)
 
@@ -545,27 +552,48 @@ def _train_loop(
         lr=lr,
     )
     opt.zero_grad(set_to_none=True)
+    last_loss: torch.Tensor | None = None
+    if torch_nntile is not None:
+        return run_nntile_train_iters(
+            name=name,
+            model=model,
+            batch=batch,
+            loss_fn=loss_fn,
+            steps=steps,
+            opt=opt,
+            torch_nntile=torch_nntile,
+        )
+
+    device = next(model.parameters()).device
+    if device.type == "cuda":
+        torch.cuda.synchronize()
     t0 = time.perf_counter()
     for step in range(steps):
+        t_iter0 = time.perf_counter()
         loss = loss_fn(model, batch)
         loss.backward()
         opt.step()
-        if torch_nntile is not None:
-            # Drop autograd before compile so activation tiles unmark.
-            step_loss = loss.detach()
-            del loss
-            opt.zero_grad(set_to_none=True)
-            torch_nntile.compile_graph()
-            torch_nntile.run()
-            with torch.no_grad():
-                loss_val = float(step_loss.to("cpu").item())
-            del step_loss
+        step_loss = loss.detach()
+        del loss
+        opt.zero_grad(set_to_none=True)
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+        print_torch_iter_timings(
+            step + 1,
+            steps,
+            time.perf_counter() - t_iter0,
+        )
+        if step == steps - 1:
+            last_loss = step_loss
         else:
-            loss_val = float(loss.detach())
-            del loss
-            opt.zero_grad(set_to_none=True)
-        print(f"[{name}] step {step + 1}/{steps}  loss={loss_val:.6f}")
-    print(f"[{name}] wall={time.perf_counter() - t0:.3f}s  OK")
+            del step_loss
+    wall_s = time.perf_counter() - t0
+    if last_loss is None:
+        raise RuntimeError(f"{name}: no steps ran")
+    loss_val = float(last_loss.item())
+    del last_loss
+    print(f"[{name}] final loss={loss_val:.6f}")
+    print(f"[{name}] wall={wall_s:.3f}s  OK")
     return 0
 
 

@@ -14,12 +14,64 @@
  * */
 
 #include "nntile/tensor/graph.hh"
+#include "nntile/tensor/graph_fill_timer.hh"
 
+#include <chrono>
+#include <cstdlib>
+#include <cstring>
 #include <numeric>
 #include <stdexcept>
 
 namespace nntile
 {
+
+namespace
+{
+
+thread_local int g_graph_fill_depth = 0;
+thread_local double g_graph_fill_s = 0.0;
+thread_local std::chrono::steady_clock::time_point g_graph_fill_t0;
+
+} // namespace
+
+GraphFillScope::GraphFillScope()
+{
+    if (g_graph_fill_depth++ == 0)
+    {
+        g_graph_fill_t0 = std::chrono::steady_clock::now();
+    }
+}
+
+GraphFillScope::~GraphFillScope()
+{
+    if (--g_graph_fill_depth == 0)
+    {
+        auto const now = std::chrono::steady_clock::now();
+        g_graph_fill_s +=
+            std::chrono::duration<double>(now - g_graph_fill_t0)
+                .count();
+    }
+}
+
+double GraphFillScope::seconds()
+{
+    return g_graph_fill_s;
+}
+
+bool skip_tensor_graph_ops()
+{
+    static int const cached = []() -> int
+    {
+        char const *env = std::getenv("TORCH_NNTILE_SKIP_KERNELS");
+        if (env == nullptr || env[0] == '\0' ||
+            std::strcmp(env, "0") == 0)
+        {
+            return 0;
+        }
+        return 1;
+    }();
+    return cached != 0;
+}
 
 TensorGraph::TensorNode::TensorNode(
     NodeId id,
@@ -57,6 +109,17 @@ TensorGraph::TensorNode::TensorNode(
         }
         axes_.push_back(std::move(desc));
     }
+}
+
+std::uint32_t TensorGraph::TensorNode::next_touch_gen()
+{
+    static std::uint32_t next = 1;
+    std::uint32_t const gen = next++;
+    if (next == 0)
+    {
+        next = 1;
+    }
+    return gen;
 }
 
 void TensorGraph::TensorNode::note_member_index(int dim, std::size_t idx)

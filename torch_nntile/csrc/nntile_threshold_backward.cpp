@@ -54,6 +54,7 @@ at::Tensor threshold_backward(
     const at::Tensor &self,
     const at::Scalar &threshold)
 {
+    nntile::GraphFillScope record;
     const auto t0 = std::chrono::steady_clock::now();
     check_threshold_backward(grad_output, self);
     TORCH_CHECK(

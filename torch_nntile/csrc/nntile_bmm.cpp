@@ -73,6 +73,7 @@ void run_bmm(const PreparedGemmOperands &prepared, at::Tensor &out)
 
 at::Tensor bmm(const at::Tensor &self, const at::Tensor &mat2)
 {
+    nntile::GraphFillScope record;
     check_bmm_tensors(self, mat2);
     const PreparedGemmOperands prepared = prepare_bmm_operands(self, mat2);
     at::Tensor out = make_bmm_output(prepared.out_shape, self);
@@ -82,6 +83,7 @@ at::Tensor bmm(const at::Tensor &self, const at::Tensor &mat2)
 
 at::Tensor &bmm_out(const at::Tensor &self, const at::Tensor &mat2, at::Tensor &out)
 {
+    nntile::GraphFillScope record;
     check_bmm_tensors(self, mat2, out);
     const PreparedGemmOperands prepared = prepare_bmm_operands(self, mat2);
     TORCH_CHECK(

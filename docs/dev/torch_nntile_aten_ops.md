@@ -189,11 +189,17 @@ when torch-native ops are off.
 
 ### SDPA (`nntile_sdpa_aten.cpp`)
 
-| Schema |
-|--------|
-| `_fused_sdp_choice` |
-| `_scaled_dot_product_fused_attention_overrideable` |
-| `_scaled_dot_product_fused_attention_overrideable_backward` |
+`F.scaled_dot_product_attention` is CompositeImplicit on CUDA and nntile.
+Nntile `_fused_sdp_choice` returns **MATH** (debt **D8**): the composite
+lowers to `mm` / `softmax` / mask, recorded as TensorGraph nodes. Do not
+route production `F.sdpa` through `OVERRIDEABLE` / `TorchKind::Sdpa`
+until fused SDPA preallocates workspace as graph tensors.
+
+| Schema | Role |
+|--------|------|
+| `_fused_sdp_choice` | Always `SDPBackend::math` on nntile |
+| `_scaled_dot_product_fused_attention_overrideable` | Unused fused path (D8) |
+| `_scaled_dot_product_fused_attention_overrideable_backward` | Unused fused path (D8) |
 
 ## Skipped tiled tests (temporary)
 
