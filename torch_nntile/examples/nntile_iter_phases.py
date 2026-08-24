@@ -9,8 +9,9 @@
 Each step is recorded and compiled while the previous ``run()`` is still
 in flight. ``wait()`` joins that previous submit, then ``run()`` starts
 the compiled step. A final ``wait()`` joins the last submit. The printed
-wall starts immediately after a ``wait()`` (GPU idle) and runs through
-that final wait. Phase lines are a breakdown of the same interval.
+wall starts on a GPU-idle ``wait()`` **before the first record** and
+runs through that final wait. Phase lines are a breakdown of the same
+interval.
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ def compile_wait_run_iter(
 
 
 def wait_then_start_timer(torch_nntile: Any) -> float:
-    """Join StarPU, then start the train wall. GPU is idle at ``t0``."""
+    """Join StarPU, then start the train wall before the first record."""
     torch_nntile.wait()
     return time.perf_counter()
 
@@ -93,6 +94,46 @@ def print_nntile_phase_timings(
     print(f"timing nntile compile: {compile_s:.3f}s")
     print(f"timing nntile run: {run_s:.3f}s")
     print(f"timing nntile wait: {wait_s:.3f}s")
+
+
+def print_torch_isolated_iter(wall_s: float) -> None:
+    print(f"timing torch isolated iter wall={wall_s:.3f}s")
+
+
+def measure_isolated_nntile_iter(
+    torch_nntile: Any,
+    record_step: Callable[[], None],
+) -> None:
+    """Sequential record → compile → run → wait after the train wall.
+
+    GPU is idle (a ``wait()`` first). Phases do not overlap. Not part of
+    the train wall. ``run+wait`` is submit plus join of this extra step.
+    """
+    torch_nntile.wait()
+    nntile_t0 = torch_nntile.record_nntile_seconds()
+    t0 = time.perf_counter()
+    record_step()
+    record_wall_s = time.perf_counter() - t0
+    step_nntile_s = max(
+        0.0, torch_nntile.record_nntile_seconds() - nntile_t0
+    )
+    step_torch_s = max(0.0, record_wall_s - step_nntile_s)
+    t0 = time.perf_counter()
+    torch_nntile.compile_graph()
+    compile_s = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    torch_nntile.run()
+    run_s = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    torch_nntile.wait()
+    wait_s = time.perf_counter() - t0
+    print(
+        "timing nntile isolated "
+        f"record(nntile)={step_nntile_s:.3f}s "
+        f"record(torch)={step_torch_s:.3f}s "
+        f"compile={compile_s:.3f}s run={run_s:.3f}s "
+        f"wait={wait_s:.3f}s run+wait={run_s + wait_s:.3f}s"
+    )
 
 
 def run_nntile_train_iters(

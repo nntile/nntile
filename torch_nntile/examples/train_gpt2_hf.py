@@ -33,8 +33,12 @@ starts the compiled step. A final ``wait()`` joins the last submit.
 Cumulative record / compile / run / wait times are printed as a
 breakdown. The train wall is that clock through the final ``wait()``
 (every record, compile, wait, and run). The final loss is read after
-``cuda``/``cpu`` synchronize after every iter so each printed step
-includes device work, then read the final loss after the wall.
+that join. CUDA synchronizes after every iter so each printed step
+includes device work, then reads the final loss after the wall.
+After the loss (and checkpoint), one extra isolated step is timed:
+CUDA prints a synchronized iter wall; nntile prints sequential
+record / compile / run / wait / run+wait with the GPU idle (no
+overlap with a previous ``run()``).
 
 Modes:
 
@@ -85,8 +89,10 @@ import torch
 from hf_tiny_train_common import configure_single_thread_host
 from nntile_iter_phases import (
     compile_wait_run_iter,
+    measure_isolated_nntile_iter,
     print_nntile_iter_timings,
     print_nntile_phase_timings,
+    print_torch_isolated_iter,
     print_torch_iter_timings,
     wait_end,
     wait_then_start_timer,
@@ -660,10 +666,17 @@ def train_torch(args: argparse.Namespace) -> int:
     )
     optimizer.zero_grad(set_to_none=True)
     last_loss: torch.Tensor | None = None
+    last_inputs: torch.Tensor | None = None
+    last_labels: torch.Tensor | None = None
     n_epoch_batches = len(epoch_batches)
     n_steps = sum(len(epoch_data) for epoch_data in epoch_batches)
     synchronize_device(device)
     t_train0 = time.perf_counter()
+    print(
+        "timing torch train wall t0: device idle, "
+        "clock includes first iter through last synchronize",
+        flush=True,
+    )
     for epoch_idx, epoch_data in enumerate(epoch_batches):
         n_batches = len(epoch_data)
         for batch_idx, (inputs, labels) in enumerate(epoch_data):
@@ -683,6 +696,8 @@ def train_torch(args: argparse.Namespace) -> int:
             )
             if is_last:
                 last_loss = step_loss
+                last_inputs = inputs
+                last_labels = labels
             else:
                 del step_loss
             print_torch_iter_timings(global_step, n_steps, iter_s)
@@ -709,6 +724,21 @@ def train_torch(args: argparse.Namespace) -> int:
         optimizer_state=optimizer.state_dict(),
         device_name=device.type,
     )
+    if last_inputs is None or last_labels is None:
+        raise RuntimeError("train_torch: missing last batch")
+    print(
+        "Isolated extra step after loss (not in train wall; "
+        "GPU idle, synchronized)"
+    )
+    synchronize_device(device)
+    t_iso0 = time.perf_counter()
+    loss = causal_lm_loss_torch(model, last_inputs, last_labels)
+    loss.backward()
+    optimizer.step()
+    del loss
+    optimizer.zero_grad(set_to_none=True)
+    synchronize_device(device)
+    print_torch_isolated_iter(time.perf_counter() - t_iso0)
     return 0
 
 
@@ -814,6 +844,8 @@ def train_nntile(args: argparse.Namespace) -> int:
             torch_nntile.compile_graph()
             torch_nntile.run()
         last_loss: torch.Tensor | None = None
+        last_inputs: torch.Tensor | None = None
+        last_labels: torch.Tensor | None = None
         n_epoch_batches = len(epoch_batches)
         n_steps = sum(len(epoch_data) for epoch_data in epoch_batches)
         record_nntile_s = 0.0
@@ -822,6 +854,12 @@ def train_nntile(args: argparse.Namespace) -> int:
         run_s = 0.0
         wait_s = 0.0
         t_train0 = wait_then_start_timer(torch_nntile)
+        print(
+            "timing nntile train wall t0: GPU idle, "
+            "clock includes first record through final wait",
+            flush=True,
+        )
+        first_record_logged = False
         for epoch_idx, epoch_data in enumerate(epoch_batches):
             n_batches = len(epoch_data)
             for batch_idx in range(n_batches):
@@ -838,10 +876,16 @@ def train_nntile(args: argparse.Namespace) -> int:
                 optimizer.step()
                 step_loss = loss.detach()
                 del loss
-                del inputs
-                del labels
                 optimizer.zero_grad(set_to_none=True)
                 record_wall_s = time.perf_counter() - t_record0
+                if not first_record_logged:
+                    print(
+                        "timing nntile elapsed after first record: "
+                        f"{time.perf_counter() - t_train0:.3f}s "
+                        "(must be > 0 if the wall includes that record)",
+                        flush=True,
+                    )
+                    first_record_logged = True
                 step_nntile_s = max(
                     0.0,
                     torch_nntile.record_nntile_seconds() - nntile_t0,
@@ -863,8 +907,12 @@ def train_nntile(args: argparse.Namespace) -> int:
                     wait_s += extra_wait
                     dw += extra_wait
                     last_loss = step_loss
+                    last_inputs = inputs
+                    last_labels = labels
                 else:
                     del step_loss
+                    del inputs
+                    del labels
                 print_nntile_iter_timings(
                     global_step,
                     n_steps,
@@ -910,6 +958,23 @@ def train_nntile(args: argparse.Namespace) -> int:
         }
         torch.save(payload, path)
         print(f"Saved checkpoint to {path}")
+        if last_inputs is None or last_labels is None:
+            raise RuntimeError("train_nntile: missing last batch")
+        print(
+            "Isolated extra step after loss (not in train wall; "
+            "GPU idle, sequential record/compile/run/wait)"
+        )
+
+        def _record_isolated() -> None:
+            loss = causal_lm_loss_nntile(
+                model, last_inputs, last_labels
+            )
+            loss.backward()
+            optimizer.step()
+            del loss
+            optimizer.zero_grad(set_to_none=True)
+
+        measure_isolated_nntile_iter(torch_nntile, _record_isolated)
     finally:
         torch_nntile.shutdown_context()
     return 0

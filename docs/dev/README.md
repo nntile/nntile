@@ -23,6 +23,7 @@ Start with the product docs if you are new:
 | [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md) | Middle (~1 min) torch-native CPU vs nntile |
 | [reproducibility.md](reproducibility.md) | Single-core CPU / GPU overhead measurement protocol |
 | [cuda_vs_nntile_2gb.md](cuda_vs_nntile_2gb.md) | ≥2 GiB CUDA vs nntile GPU table (separate processes) |
+| [gpt2_hf_overhead_scale.md](gpt2_hf_overhead_scale.md) | GPT-2 HF 10-step overhead; `seq_len = n_embd/2` (S/M/L) |
 | [cuda_wheel_single_nvidia_stack_plan.md](cuda_wheel_single_nvidia_stack_plan.md) | CUDA wheel disk / single NVIDIA stack (infra) |
 
 ## Historical
