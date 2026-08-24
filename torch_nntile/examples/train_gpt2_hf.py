@@ -30,6 +30,8 @@ flight when the clock starts. Stock HuggingFace GPT-2 builds
 each iter is **recorded** and ``compile_graph``'d while the previous
 ``run()`` is in flight, then ``wait()`` joins that submit and ``run()``
 starts the compiled step. A final ``wait()`` joins the last submit.
+``--wait-after-run`` instead does ``run()`` then ``wait()`` on the same
+step so record/compile never overlap GPU work (prep vs compute).
 Cumulative record / compile / run / wait times are printed as a
 breakdown. The train wall is that clock through the final ``wait()``
 (every record, compile, wait, and run). The final loss is read after
@@ -88,7 +90,9 @@ from pathlib import Path
 import torch
 from hf_tiny_train_common import configure_single_thread_host
 from nntile_iter_phases import (
+    compile_run_wait_iter,
     compile_wait_run_iter,
+    print_nntile_prep_compute,
     measure_isolated_nntile_iter,
     print_nntile_iter_timings,
     print_nntile_phase_timings,
@@ -835,10 +839,16 @@ def train_nntile(args: argparse.Namespace) -> int:
         end_epoch = start_epoch + args.epochs
 
         print("\nTraining on nntile...")
-        print(
-            "Per-iter record, compile_graph, wait, run "
-            "(wait joins the previous run)"
-        )
+        if args.wait_after_run:
+            print(
+                "Per-iter record, compile_graph, run, wait "
+                "(wait joins this run; no overlap with record/compile)"
+            )
+        else:
+            print(
+                "Per-iter record, compile_graph, wait, run "
+                "(wait joins the previous run)"
+            )
         optimizer.zero_grad(set_to_none=True)
         if torch_nntile.has_pending_graph():
             torch_nntile.compile_graph()
@@ -893,7 +903,10 @@ def train_nntile(args: argparse.Namespace) -> int:
                 step_torch_s = max(0.0, record_wall_s - step_nntile_s)
                 record_nntile_s += step_nntile_s
                 record_torch_s += step_torch_s
-                dc, dw, dr = compile_wait_run_iter(torch_nntile)
+                if args.wait_after_run:
+                    dc, dw, dr = compile_run_wait_iter(torch_nntile)
+                else:
+                    dc, dw, dr = compile_wait_run_iter(torch_nntile)
                 compile_s += dc
                 wait_s += dw
                 run_s += dr
@@ -903,9 +916,10 @@ def train_nntile(args: argparse.Namespace) -> int:
                     and batch_idx == n_batches - 1
                 )
                 if is_last:
-                    extra_wait = wait_end(torch_nntile)
-                    wait_s += extra_wait
-                    dw += extra_wait
+                    if not args.wait_after_run:
+                        extra_wait = wait_end(torch_nntile)
+                        wait_s += extra_wait
+                        dw += extra_wait
                     last_loss = step_loss
                     last_inputs = inputs
                     last_labels = labels
@@ -921,6 +935,7 @@ def train_nntile(args: argparse.Namespace) -> int:
                     dc,
                     dr,
                     dw,
+                    prep_compute=args.wait_after_run,
                 )
         train_wall_s = time.perf_counter() - t_train0
         if args.verbose:
@@ -933,6 +948,11 @@ def train_nntile(args: argparse.Namespace) -> int:
         print_nntile_phase_timings(
             record_nntile_s, record_torch_s, compile_s, run_s, wait_s
         )
+        if args.wait_after_run:
+            print_nntile_prep_compute(
+                record_nntile_s + record_torch_s + compile_s,
+                run_s + wait_s,
+            )
         print(f"[nntile] final loss={loss_value:.6f}  steps={global_step}")
         print(
             f"timing nntile train wall "
@@ -1089,6 +1109,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Pin nntile kernels to CPU workers "
             "(ignored on --device cpu/cuda)"
+        ),
+    )
+    train.add_argument(
+        "--wait-after-run",
+        action="store_true",
+        help=(
+            "Nntile only: wait() immediately after each run() so record "
+            "and compile do not overlap GPU work. Prints prep vs compute."
         ),
     )
     train.add_argument(

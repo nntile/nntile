@@ -41,6 +41,22 @@ def compile_wait_run_iter(
     return compile_s, wait_s, run_s
 
 
+def compile_run_wait_iter(
+    torch_nntile: Any,
+) -> tuple[float, float, float]:
+    """Compile, submit, then wait for this run (no overlap with record)."""
+    t0 = time.perf_counter()
+    torch_nntile.compile_graph()
+    compile_s = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    torch_nntile.run()
+    run_s = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    torch_nntile.wait()
+    wait_s = time.perf_counter() - t0
+    return compile_s, wait_s, run_s
+
+
 def wait_then_start_timer(torch_nntile: Any) -> float:
     """Join StarPU, then start the train wall before the first record."""
     torch_nntile.wait()
@@ -72,13 +88,21 @@ def print_nntile_iter_timings(
     compile_s: float,
     run_s: float,
     wait_s: float,
+    *,
+    prep_compute: bool = False,
 ) -> None:
+    extra = ""
+    if prep_compute:
+        extra = (
+            f" prep={record_nntile_s + record_torch_s + compile_s:.3f}s "
+            f"compute={run_s + wait_s:.3f}s"
+        )
     print(
         f"timing nntile iter {step}/{n_steps} "
         f"record(nntile)={record_nntile_s:.3f}s "
         f"record(torch)={record_torch_s:.3f}s "
         f"compile={compile_s:.3f}s run={run_s:.3f}s "
-        f"wait={wait_s:.3f}s"
+        f"wait={wait_s:.3f}s{extra}"
     )
 
 
@@ -94,6 +118,11 @@ def print_nntile_phase_timings(
     print(f"timing nntile compile: {compile_s:.3f}s")
     print(f"timing nntile run: {run_s:.3f}s")
     print(f"timing nntile wait: {wait_s:.3f}s")
+
+
+def print_nntile_prep_compute(prep_s: float, compute_s: float) -> None:
+    print(f"timing nntile prep (record+compile): {prep_s:.3f}s")
+    print(f"timing nntile compute (run+wait): {compute_s:.3f}s")
 
 
 def print_torch_isolated_iter(wall_s: float) -> None:
