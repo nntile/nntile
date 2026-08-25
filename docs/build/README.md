@@ -218,7 +218,57 @@ ctest --test-dir build-tests -R 'tests_(tile|tensor|core|kernel|starpu)_' \
 
 See [torch_nntile.md](../torch_nntile.md) and [graph.md](../graph.md).
 
-## Build outputs
+### CUDA runtime (source / conda)
+
+CUDA-enabled **libnntile** / **libtorch_nntile** link against NVIDIA math
+libraries at build time and need them on ``LD_LIBRARY_PATH`` at import/run.
+You do **not** need a separate ``pip install nvidia-*-cu12`` stack when PyTorch
+and CUDA already come from the same conda env (or when ``torch`` pulled those
+pip packages as its own dependencies).
+
+**CMake** — point at LibTorch (same as above):
+
+```bash
+TORCH_PREFIX="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+```
+
+**Python runtime** — export before ``import torch_nntile``, pytest, or training
+examples:
+
+```bash
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+export NNTILE_BUILD_DIR=$PWD/build
+export TORCH_NNTILE_BUILD_DIR=$PWD/build
+export NNTILE_SOURCE_DIR=$PWD
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+```
+
+| Variable | Role |
+|----------|------|
+| ``TORCH_PREFIX`` | CMake ``CMAKE_PREFIX_PATH`` entry for LibTorch |
+| ``TORCH_LIB_DIR`` | ``torch/lib`` (`libtorch_cuda.so`, ``libc10_cuda.so``, …) |
+| ``${CONDA_PREFIX}/lib`` | Conda CUDA math libs (`libcublas`, ``libcudnn``, ``libcudart``, …) when using a conda-forge CUDA stack |
+| ``NNTILE_BUILD_DIR`` / ``TORCH_NNTILE_BUILD_DIR`` | In-tree ``torch_nntile._C`` + ``libnntile`` / ``libtorch_nntile`` when not using ``pip install`` |
+
+``torch_nntile`` import checks that CUDA 12 sonames are visible under
+``TORCH_LIB_DIR``, ``CONDA_PREFIX/lib``, ``CUDA_HOME``, ``LD_LIBRARY_PATH``,
+or the pip ``site-packages/nvidia/*/lib`` layout (wheels / ``torch`` cu128
+deps). See ``torch_nntile/torch_nntile/_cuda_deps.py``.
+
+**pip / manylinux wheel CI** still uses
+[`torch_nntile/tools/setup_torch_cuda_env.sh`](../../torch_nntile/tools/setup_torch_cuda_env.sh)
+to install ``torch==2.9.1+cu128`` and wire pip ``nvidia-*-cu12`` paths — that
+is the wheel-build path, not required for a conda dev env that already has
+CUDA + torch.
+
+**Editable install** (after the C++ build):
+
+```bash
+CXX=g++ pip install -e ./torch_nntile --no-build-isolation
+# or PYTHONPATH=$PWD/torch_nntile when developing without reinstalling _C
+```
+
 
 - Core library and C++ test binaries under `build/`, including
   `build/nntile/libnntile.*`
@@ -432,11 +482,12 @@ Layout and fixtures: [`torch_nntile/tests/conftest.py`](../../torch_nntile/tests
 **Correctness:**
 
 ```bash
-# Requires libnntile + libtorch_nntile + StarPU.
+# Requires libnntile + libtorch_nntile + StarPU (+ CUDA libs on GPU builds).
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
 export NNTILE_BUILD_DIR=$PWD/build
 export TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 pytest -vv torch_nntile/tests/
 pytest -vv torch_nntile/tests/test_add_inplace_parity.py
@@ -447,9 +498,13 @@ pytest -vv torch_nntile/tests/test_add_inplace_parity.py::test_add_inplace_match
 
 ```bash
 pip install build/wheelhouse/torch_nntile-*.whl
-export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 pytest -vv torch_nntile/tests/
 ```
+
+On pip-only torch (cu128) without conda CUDA, the wheel's ``nvidia-*-cu12``
+dependencies supply math libs instead of ``${CONDA_PREFIX}/lib``.
 
 ### Python coverage (CI pattern)
 
