@@ -255,6 +255,8 @@ Loss 7.734033.
 
 Host (record + compile) is **22%** of the wall.
 
+![Host overhead per iteration](gpt2_hf_overhead_s_100.svg)
+
 CSV: [`gpt2_hf_overhead_s_100.csv`](gpt2_hf_overhead_s_100.csv) (median run).
 
 ## How to reproduce

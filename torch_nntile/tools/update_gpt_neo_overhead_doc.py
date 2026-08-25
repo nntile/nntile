@@ -6,8 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import sys
 from pathlib import Path
 from typing import Any
+
+_TOOLS = Path(__file__).resolve().parent
+if str(_TOOLS) not in sys.path:
+    sys.path.insert(0, str(_TOOLS))
+from overhead_plot import write_long_plots
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "gpt_neo_hf_overhead_scale.md"
@@ -21,7 +27,18 @@ HIDDEN = {
     "l": "4096 / 32",
 }
 
+# GPT-2 10× reference (from docs/dev/gpt2_hf_overhead_scale.md, same GPU/date).
+GPT2_REF = {
+    "ratios": {"xs": 0.99, "s": 0.96, "m": 0.94, "l": 0.94},
+    "long_steps": 100,
+    "long_wall_s": 27.506,
+    "long_wall_std_s": 0.018,
+    "long_loss": 7.734033,
+    "long_host_pct": 22,
+}
 
+
+from overhead_plot import write_long_plots
 def load_summary(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -292,6 +309,7 @@ def render_doc(
         seq_compute_ratios.append(f"{compute_ratio:.2f}×")
 
     s1k = groups.get(f"s_nntile_{long_mode}")
+    compare_long = ""
     if s1k:
         host1k = (
             100
@@ -302,9 +320,22 @@ def render_doc(
             )
             / g(s1k, "metrics", "train_wall_s", "mean")
         )
-        long_section = f"""## {long_steps}-step S (nntile, mean ± stdev over {repeats} runs)
+        neo_long_wall = g(s1k, "metrics", "train_wall_s", "mean")
+        neo_long_loss = g(s1k, "metrics", "final_loss", "mean")
+        compare_long = f"""
+### {long_steps}-step S (nntile)
 
-Loss {g(s1k, 'metrics', 'final_loss', 'mean'):.6f}.
+| | GPT-2 | GPT-Neo | Notes |
+|--|------:|--------:|-------|
+| train wall | {GPT2_REF['long_wall_s']:.1f} s | **{neo_long_wall:.1f} s** | same ballpark |
+| final loss | {GPT2_REF['long_loss']:.6f} | **{neo_long_loss:.6f}** | Neo drifts vs CUDA on 10-step S |
+| host share | {GPT2_REF['long_host_pct']}% | **{host1k:.0f}%** | flat host, GPU-bound |"""
+        long_section = f"""## {long_steps}-step S (nntile steady state, mean ± stdev over {repeats} runs)
+
+Same **S** config (`hidden_size=2048`, `T=1024`, B=1), **{long_steps} optimizer steps**, nntile
+overlap only. Complements the 10-step ladder above.
+
+Loss **{neo_long_loss:.6f}**.
 
 | | Total | mean / step |
 |--|--:|--:|
@@ -315,12 +346,37 @@ Loss {g(s1k, 'metrics', 'final_loss', 'mean'):.6f}.
 | wait | {ms_s(g(s1k, 'metrics', 'wait_s'))} | {g(s1k, 'metrics', 'wait_s', 'mean') / long_steps * 1000:.0f} ms |
 | **train wall** | **{ms_s(g(s1k, 'metrics', 'train_wall_s'))}** | {g(s1k, 'metrics', 'train_wall_s', 'mean') / long_steps * 1000:.0f} ms |
 
-Host (record + compile) is **{host1k:.0f}%** of the wall.
+Host (record + compile) is **{host1k:.0f}%** of the wall (~{g(s1k, 'metrics', 'host_s', 'mean') / long_steps * 1000:.0f} ms/step).
 
-CSV: [`gpt_neo_hf_overhead_s_{long_steps}.csv`](gpt_neo_hf_overhead_s_{long_steps}.csv) (median run).
+![Host overhead per iteration](gpt_neo_hf_overhead_s_{long_steps}.svg)
+
+CSV: [`gpt_neo_hf_overhead_s_{long_steps}.csv`](gpt_neo_hf_overhead_s_{long_steps}.csv) (median of {repeats} runs).
 """
     else:
         long_section = ""
+        compare_long = ""
+
+    compare_rows = []
+    for size in ["xs", "s", "m", "l"]:
+        c = grp(size, "cuda", "overlap")
+        n = grp(size, "nntile", "overlap")
+        neo_ratio = g(n, "metrics", "train_wall_s", "mean") / g(
+            c, "metrics", "train_wall_s", "mean"
+        )
+        g2_ratio = GPT2_REF["ratios"][size]
+        compare_rows.append(
+            f"| {SIZE_LABEL[size]} | {g2_ratio:.2f}× | **{neo_ratio:.2f}×** |"
+        )
+    compare_section = f"""## Comparison to GPT-2 (same ladder geometry)
+
+See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× run
+(same A40 GPU 0, Aug 2026, CUDA-parity matmul).
+
+| Size | GPT-2 nntile/CUDA | GPT-Neo nntile/CUDA |
+|------|------------------:|--------------------:|
+{chr(10).join(compare_rows)}
+{compare_long}
+"""
 
     # steady sequential compute iter 2
     steady = {}
@@ -383,7 +439,7 @@ nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 0**.
 Separate processes (`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the CUDA child).
 
 Rerun: 2026-08-25, **{repeats} repeats per configuration** (mean ± stdev;
-`{logdir}`).
+`{logdir}`). Includes **S nntile {long_steps}-step** steady-state run per repeat.
 
 ## Overall (10-step train wall)
 
@@ -403,6 +459,8 @@ S {ms(g(grp('s','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('s',
 M {ms(g(grp('m','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('m','cuda','overlap')['isolated'], 'cuda_wall'))} s,
 L {ms(g(grp('l','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('l','cuda','overlap')['isolated'], 'cuda_wall'))} s.
 
+{long_section}
+{compare_section}
 ## Per iteration (mean ± stdev over {repeats} runs)
 
 ### XS (`hidden_size=1536`, `T=768`)
@@ -486,8 +544,8 @@ Steady compute after iter 1 (mean over repeats): ~{steady['xs']:.3f} s (XS),
 4. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** CUDA.
 5. Timings are **mean ± stdev over {repeats} runs** on the same GPU.
 6. Check **CUDA vs nntile loss** above for training parity beyond XS.
+7. **{long_steps}-step S** wall **{ms_s(g(s1k, 'metrics', 'train_wall_s')) if s1k else 'n/a'}** — see section above.
 
-{long_section}
 ## How to reproduce
 
 ```bash
@@ -522,9 +580,23 @@ def main() -> int:
     summary = load_summary(args.summary)
     results = json.loads(args.results.read_text(encoding="utf-8"))
     logdir = args.logdir or str(args.summary.parent)
+    long_steps = int(summary.get("long_steps", 100))
+    long_mode = f"{long_steps}step"
     text = render_doc(summary, results, logdir, args.preliminary_note)
     args.output.write_text(text, encoding="utf-8")
     print(f"wrote {args.output}")
+
+    csv_path = REPO / "docs" / "dev" / f"gpt_neo_hf_overhead_s_{long_steps}.csv"
+    svg_path = REPO / "docs" / "dev" / f"gpt_neo_hf_overhead_s_{long_steps}.svg"
+    if write_long_plots(
+        results,
+        long_mode=long_mode,
+        csv_path=csv_path,
+        svg_path=svg_path,
+        title=f"GPT-Neo S nntile host overhead per iteration ({long_steps} steps)",
+    ):
+        print(f"wrote {csv_path}")
+        print(f"wrote {svg_path}")
     return 0
 
 

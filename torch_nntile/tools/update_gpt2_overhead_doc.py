@@ -6,8 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import sys
 from pathlib import Path
 from typing import Any
+
+_TOOLS = Path(__file__).resolve().parent
+if str(_TOOLS) not in sys.path:
+    sys.path.insert(0, str(_TOOLS))
+from overhead_plot import write_long_plots
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "gpt2_hf_overhead_scale.md"
@@ -466,6 +472,8 @@ Loss {g(s1k, 'metrics', 'final_loss', 'mean'):.6f}.
 
 Host (record + compile) is **{host1k:.0f}%** of the wall.
 
+![Host overhead per iteration](gpt2_hf_overhead_s_{long_steps}.svg)
+
 CSV: [`gpt2_hf_overhead_s_{long_steps}.csv`](gpt2_hf_overhead_s_{long_steps}.csv) (median run).
 
 ## How to reproduce
@@ -502,9 +510,23 @@ def main() -> int:
     summary = load_summary(args.summary)
     results = json.loads(args.results.read_text(encoding="utf-8"))
     logdir = args.logdir or str(args.summary.parent)
+    long_steps = int(summary.get("long_steps", 100))
+    long_mode = f"{long_steps}step"
     text = render_doc(summary, results, logdir, args.preliminary_note)
     args.output.write_text(text, encoding="utf-8")
     print(f"wrote {args.output}")
+
+    csv_path = REPO / "docs" / "dev" / f"gpt2_hf_overhead_s_{long_steps}.csv"
+    svg_path = REPO / "docs" / "dev" / f"gpt2_hf_overhead_s_{long_steps}.svg"
+    if write_long_plots(
+        results,
+        long_mode=long_mode,
+        csv_path=csv_path,
+        svg_path=svg_path,
+        title=f"GPT-2 S nntile host overhead per iteration ({long_steps} steps)",
+    ):
+        print(f"wrote {csv_path}")
+        print(f"wrote {svg_path}")
     return 0
 
 

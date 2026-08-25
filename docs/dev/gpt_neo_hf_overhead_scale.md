@@ -45,7 +45,7 @@ nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 0**.
 Separate processes (`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the CUDA child).
 
 Rerun: 2026-08-25, **10 repeats per configuration** (mean ± stdev;
-`/tmp/gpt_neo_overhead_x10_100step_20260825`).
+`/tmp/gpt_neo_overhead_x10_100step_20260825`). Includes **S nntile 100-step** steady-state run per repeat.
 
 ## Overall (10-step train wall)
 
@@ -75,6 +75,48 @@ XS 0.137 ± 0.001 vs 0.142 s,
 S 0.270 ± 0.002 vs 0.285 ± 0.001 s,
 M 0.783 ± 0.004 vs 0.831 ± 0.004 s,
 L 1.793 ± 0.002 vs 1.883 ± 0.004 s.
+
+## 100-step S (nntile steady state, mean ± stdev over 10 runs)
+
+Same **S** config (`hidden_size=2048`, `T=1024`, B=1), **100 optimizer steps**, nntile
+overlap only. Complements the 10-step ladder above.
+
+Loss **7.932405**.
+
+| | Total | mean / step |
+|--|--:|--:|
+| record(nntile) | 0.789 ± 0.009 s | 7.9 ms |
+| record(torch) | 4.311 ± 0.196 s | 43 ms |
+| compile | 1.383 ± 0.007 s | 14 ms |
+| run | 1.470 ± 0.042 s | 15 ms |
+| wait | 19.596 ± 0.195 s | 196 ms |
+| **train wall** | **27.561 ± 0.058 s** | 276 ms |
+
+Host (record + compile) is **24%** of the wall (~65 ms/step).
+
+![Host overhead per iteration](gpt_neo_hf_overhead_s_100.svg)
+
+CSV: [`gpt_neo_hf_overhead_s_100.csv`](gpt_neo_hf_overhead_s_100.csv) (median of 10 runs).
+
+## Comparison to GPT-2 (same ladder geometry)
+
+See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× run
+(same A40 GPU 0, Aug 2026, CUDA-parity matmul).
+
+| Size | GPT-2 nntile/CUDA | GPT-Neo nntile/CUDA |
+|------|------------------:|--------------------:|
+| XS | 0.99× | **0.99×** |
+| S | 0.96× | **0.97×** |
+| M | 0.94× | **0.95×** |
+| L | 0.94× | **0.95×** |
+
+### 100-step S (nntile)
+
+| | GPT-2 | GPT-Neo | Notes |
+|--|------:|--------:|-------|
+| train wall | 27.5 s | **27.6 s** | same ballpark |
+| final loss | 7.734033 | **7.932405** | Neo drifts vs CUDA on 10-step S |
+| host share | 22% | **24%** | flat host, GPU-bound |
 
 ## Per iteration (mean ± stdev over 10 runs)
 
@@ -240,23 +282,7 @@ Steady compute after iter 1 (mean over repeats): ~0.135 s (XS),
 4. **Sequential GPU time** (`run+wait`): **0.94× → 0.93× → 0.94× → 0.95×** CUDA.
 5. Timings are **mean ± stdev over 10 runs** on the same GPU.
 6. Check **CUDA vs nntile loss** above for training parity beyond XS.
-
-## 100-step S (nntile, mean ± stdev over 10 runs)
-
-Loss 7.932405.
-
-| | Total | mean / step |
-|--|--:|--:|
-| record(nntile) | 0.789 ± 0.009 s | 7.9 ms |
-| record(torch) | 4.311 ± 0.196 s | 43 ms |
-| compile | 1.383 ± 0.007 s | 14 ms |
-| run | 1.470 ± 0.042 s | 15 ms |
-| wait | 19.596 ± 0.195 s | 196 ms |
-| **train wall** | **27.561 ± 0.058 s** | 276 ms |
-
-Host (record + compile) is **24%** of the wall.
-
-CSV: [`gpt_neo_hf_overhead_s_100.csv`](gpt_neo_hf_overhead_s_100.csv) (median run).
+7. **100-step S** wall **27.561 ± 0.058 s** — see section above.
 
 ## How to reproduce
 
