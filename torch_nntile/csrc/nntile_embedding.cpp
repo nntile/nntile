@@ -60,9 +60,6 @@ void check_embedding_forward_inputs(
     TORCH_CHECK(
         weight.scalar_type() == at::ScalarType::Float,
         "nntile embedding supports float32 weight only");
-    TORCH_CHECK(
-        weight.is_contiguous() && indices.is_contiguous(),
-        "nntile embedding requires contiguous tensors");
 }
 
 void check_embedding_backward_inputs(
@@ -82,9 +79,6 @@ void check_embedding_backward_inputs(
     TORCH_CHECK(
         grad_output.scalar_type() == at::ScalarType::Float,
         "nntile embedding_dense_backward supports float32 only");
-    TORCH_CHECK(
-        grad_output.is_contiguous() && indices.is_contiguous(),
-        "nntile embedding_dense_backward requires contiguous tensors");
     TORCH_CHECK(num_weights > 0, "nntile embedding_dense_backward: invalid num_weights");
     TORCH_CHECK(
         grad_output.dim() == indices.dim() + 1,
@@ -98,16 +92,6 @@ void check_embedding_backward_inputs(
             grad_output.size(i) == indices.size(i),
             "nntile embedding_dense_backward: shape mismatch");
     }
-}
-
-at::Tensor prepare_indices(const at::Tensor &indices)
-{
-    return indices.is_contiguous() ? indices : indices.contiguous();
-}
-
-at::Tensor densify_fp32(const at::Tensor &tensor)
-{
-    return tensor.is_contiguous() ? tensor : tensor.contiguous();
 }
 
 std::vector<int64_t> embedding_output_shape(
@@ -132,17 +116,17 @@ at::Tensor embedding(
     check_embedding_forward_inputs(weight, indices);
     check_embedding_optional_args(padding_idx, scale_grad_by_freq, sparse);
 
-    const at::Tensor indices_contig = prepare_indices(indices);
+    const at::Tensor &indices_ref = indices;
     const std::vector<int64_t> out_shape =
-        embedding_output_shape(indices_contig.sizes(), weight.size(1));
+        embedding_output_shape(indices_ref.sizes(), weight.size(1));
     at::Tensor output = empty_metadata_tensor(
         out_shape,
         weight.scalar_type(),
         weight.device());
 
     const nntile::Index axis =
-        static_cast<nntile::Index>(indices_contig.dim());
-    tensor_embedding_forward_fp32(indices_contig, weight, output, axis);
+        static_cast<nntile::Index>(indices_ref.dim());
+    tensor_embedding_forward_fp32(indices_ref, weight, output, axis);
     return output;
 }
 
@@ -154,28 +138,28 @@ at::Tensor embedding_dense_backward(
     bool scale_grad_by_freq)
 {
     nntile::GraphFillScope record;
-    const at::Tensor grad_contig = densify_fp32(grad_output);
-    const at::Tensor indices_contig = prepare_indices(indices);
+    const at::Tensor &grad_ref = grad_output;
+    const at::Tensor &indices_ref = indices;
     check_embedding_backward_inputs(
-        grad_contig,
-        indices_contig,
+        grad_ref,
+        indices_ref,
         num_weights);
     check_embedding_optional_args(padding_idx, scale_grad_by_freq, false);
 
-    const int64_t embed_dim = grad_contig.size(-1);
+    const int64_t embed_dim = grad_ref.size(-1);
     TORCH_CHECK(
         num_weights > 0 && embed_dim > 0,
         "nntile embedding_dense_backward: invalid weight shape");
 
     at::Tensor grad_weight = at::zeros(
         {num_weights, embed_dim},
-        grad_contig.options().memory_format(at::MemoryFormat::Contiguous));
+        grad_ref.options());
 
     const nntile::Index axis =
-        static_cast<nntile::Index>(indices_contig.dim());
+        static_cast<nntile::Index>(indices_ref.dim());
     tensor_embedding_backward_fp32(
-        indices_contig,
-        grad_contig,
+        indices_ref,
+        grad_ref,
         grad_weight,
         axis,
         0);

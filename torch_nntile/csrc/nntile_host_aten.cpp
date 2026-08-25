@@ -190,44 +190,11 @@ at::Tensor pow_tensor_scalar(
 {
     nntile::GraphFillScope record;
     require_nntile_operand(self, "pow", "self");
-    // RMSNorm forward is ``x.pow(2)``. Autograd of that is
-    // ``2 * x.pow(1)``. RsqrtBackward is ``result.pow(3)``.
-    int64_t exp_i = 0;
-    bool is_small_int = false;
-    if (exponent.isIntegral(false))
-    {
-        exp_i = exponent.toLong();
-        is_small_int =
-            (exp_i == 1 || exp_i == 2 || exp_i == 3);
-    }
-    else if (exponent.isFloatingPoint())
-    {
-        const double exp_d = exponent.toDouble();
-        if (exp_d == 1.0 || exp_d == 2.0 || exp_d == 3.0)
-        {
-            exp_i = static_cast<int64_t>(exp_d);
-            is_small_int = true;
-        }
-    }
     TORCH_CHECK(
-        is_small_int && self.scalar_type() == at::kFloat,
-        "torch_nntile pow: only integer exponents 1, 2, 3 on "
-        "float32 (graph mul); got ",
-        exponent);
-    at::Tensor a = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor out = at::empty_like(a);
-    if (exp_i == 1)
-    {
-        tensor_mul_scalar_fp32(a, out, 1.0f);
-        return out;
-    }
-    tensor_mul_fp32(a, a, out);
-    if (exp_i == 3)
-    {
-        at::Tensor out3 = at::empty_like(a);
-        tensor_mul_fp32(out, a, out3);
-        return out3;
-    }
+        self.scalar_type() == at::kFloat,
+        "torch_nntile pow: float32 only");
+    at::Tensor out = at::empty_like(self);
+    tensor_pow_scalar_fp32(self, out, exponent.to<float>());
     return out;
 }
 
@@ -288,9 +255,16 @@ at::Tensor div_tensor(const at::Tensor &self, const at::Tensor &other)
     require_nntile_operand(self, "div.Tensor", "self");
     require_nntile_operand(other, "div.Tensor", "other");
     TORCH_CHECK(
-        false,
-        "torch_nntile div.Tensor: tensor/tensor divide is not "
-        "implemented (no implicit host copy)");
+        self.scalar_type() == at::kFloat &&
+            other.scalar_type() == at::kFloat,
+        "torch_nntile div.Tensor: float32 only");
+    auto bcast = at::infer_size(self.sizes(), other.sizes());
+    at::Tensor out = empty_metadata_tensor(
+        bcast,
+        at::kFloat,
+        self.device());
+    tensor_div_fp32(self, other, out);
+    return out;
 }
 
 at::Tensor &div_out(
@@ -381,9 +355,8 @@ at::Tensor triu_tensor(const at::Tensor &self, int64_t diagonal)
         self.scalar_type() == at::kFloat,
         "torch_nntile triu: float32 only");
     TORCH_CHECK(self.dim() >= 2, "torch_nntile triu: expected ndim >= 2");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor out = at::empty_like(inp);
-    tensor_triu_fp32(inp, out, diagonal);
+    at::Tensor out = at::empty_like(self);
+    tensor_triu_fp32(self, out, diagonal);
     return out;
 }
 
@@ -400,9 +373,7 @@ at::Tensor &triu_out(
             out.scalar_type() == at::kFloat,
         "torch_nntile triu.out: float32 only");
     TORCH_CHECK(self.sizes() == out.sizes(), "triu.out: shape mismatch");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    TORCH_CHECK(out.is_contiguous(), "triu.out: contiguous out");
-    tensor_triu_fp32(inp, out, diagonal);
+    tensor_triu_fp32(self, out, diagonal);
     return out;
 }
 
@@ -414,9 +385,8 @@ at::Tensor tril_tensor(const at::Tensor &self, int64_t diagonal)
         self.scalar_type() == at::kBool,
         "torch_nntile tril: bool only");
     TORCH_CHECK(self.dim() >= 2, "torch_nntile tril: expected ndim >= 2");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor out = at::empty_like(inp);
-    tensor_tril_bool(inp, out, diagonal);
+    at::Tensor out = at::empty_like(self);
+    tensor_tril_bool(self, out, diagonal);
     return out;
 }
 
@@ -433,9 +403,7 @@ at::Tensor &tril_out(
             out.scalar_type() == at::kBool,
         "torch_nntile tril.out: bool only");
     TORCH_CHECK(self.sizes() == out.sizes(), "tril.out: shape mismatch");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    TORCH_CHECK(out.is_contiguous(), "tril.out: contiguous out");
-    tensor_tril_bool(inp, out, diagonal);
+    tensor_tril_bool(self, out, diagonal);
     return out;
 }
 

@@ -139,9 +139,6 @@ void check_cat_inputs(
             out->scalar_type() == at::ScalarType::Float,
             "nntile cat.out supports float32 only");
         TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile cat.out requires contiguous output");
-        TORCH_CHECK(
             out->sizes() == c10::IntArrayRef(out_sizes),
             "nntile cat.out: output shape mismatch");
     }

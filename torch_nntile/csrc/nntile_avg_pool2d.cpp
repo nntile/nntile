@@ -32,7 +32,6 @@ void check_pool_input(const at::Tensor &input, const char *name)
         input.scalar_type() == at::ScalarType::Float,
         name,
         ": float32 only");
-    TORCH_CHECK(input.is_contiguous(), name, ": contiguous input required");
 }
 
 std::vector<int64_t> meta_avg_pool_shape(

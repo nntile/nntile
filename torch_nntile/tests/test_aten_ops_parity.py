@@ -288,6 +288,34 @@ def test_arange_as_first_graph_op_matches_cpu():
     torch.testing.assert_close(nntile_cpu(got_f), ref_f)
 
 
+def test_strided_view_ops_match_cpu_forward_backward():
+    """Non-contiguous views must match CPU/CUDA (no wrapper densify)."""
+    torch.manual_seed(0)
+    x = torch.randn(4, 8, dtype=torch.float32, requires_grad=True)
+    y = x[:, ::2]
+
+    for op in (torch.relu, F.silu, lambda t: F.gelu(t, approximate="tanh")):
+        assert_aten_op_forward_backward(
+            op,
+            inputs_cpu=[y],
+            rtol=_RTOL,
+            atol=_ATOL,
+            bwd_rtol=_BWD_RTOL,
+            bwd_atol=_BWD_ATOL,
+        )
+
+    a = torch.randn(4, 6, dtype=torch.float32, requires_grad=True)
+    b = torch.randn(4, 6, dtype=torch.float32, requires_grad=True)
+    assert_aten_op_forward_backward(
+        lambda u, v: u * v,
+        inputs_cpu=[a[:, ::2], b[:, ::2]],
+        rtol=_RTOL,
+        atol=_ATOL,
+        bwd_rtol=_BWD_RTOL,
+        bwd_atol=_BWD_ATOL,
+    )
+
+
 def test_sdpa_matches_cpu_forward_backward():
     """ATen SDPA overrideable path (fwd + bwd) vs CPU."""
     torch.manual_seed(0)

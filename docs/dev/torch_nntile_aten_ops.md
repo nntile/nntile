@@ -5,6 +5,11 @@
 **Related:** [torch_starpu_kernels.md](torch_starpu_kernels.md),
 [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md)
 
+**Policy:** [torch_nntile_cuda_parity_policy.md](torch_nntile_cuda_parity_policy.md) —
+stock ``torch.nn`` / ``F.*`` on ``device=nntile`` must match CUDA; classic
+NNTile kernels belong in ``torch_nntile.nn.functional``, not alternate ``aten``
+semantics.
+
 Under `NNTILE_TORCH_NATIVE_OPS`, each listed compute schema records a
 torch-native TensorGraph op that lowers to the **same aten call on
 `device=CPU` with no grad** inside a StarPU codelet (see

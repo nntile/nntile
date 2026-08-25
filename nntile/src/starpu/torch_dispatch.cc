@@ -65,6 +65,8 @@
 #include <ATen/ops/mean.h>
 #include <ATen/ops/mm.h>
 #include <ATen/ops/mul.h>
+#include <ATen/ops/pow.h>
+#include <ATen/ops/div.h>
 #include <ATen/ops/native_batch_norm.h>
 #include <ATen/ops/native_batch_norm_backward.h>
 #include <ATen/ops/native_layer_norm.h>
@@ -558,6 +560,12 @@ void run_unary(
             self,
             static_cast<double>(args->scalars[0]));
         break;
+    case TorchKind::PowScalar:
+        at::pow_out(
+            result,
+            self,
+            static_cast<double>(args->scalars[0]));
+        break;
     case TorchKind::TransposeCopy:
     {
         const std::int64_t d0 =
@@ -626,6 +634,9 @@ void run_binary(
             ta,
             tb,
             static_cast<double>(args->scalars[0]));
+        break;
+    case TorchKind::Div:
+        at::div_out(result, ta, tb);
         break;
     case TorchKind::Hypot:
         at::hypot_out(result, ta, tb);
@@ -801,19 +812,15 @@ void run_sdpa_efficient_backward(
     at::Tensor &grad_k,
     at::Tensor &grad_v)
 {
-    at::Tensor qc = q.contiguous();
-    at::Tensor kc = k.contiguous();
-    at::Tensor vc = v.contiguous();
-    at::Tensor goc = grad_out.contiguous();
     c10::optional<at::Tensor> bias = c10::nullopt;
     if (attn_mask.has_value())
     {
-        bias = attn_mask->contiguous();
+        bias = *attn_mask;
     }
     auto fwd = at::_scaled_dot_product_efficient_attention(
-        qc,
-        kc,
-        vc,
+        q,
+        k,
+        v,
         bias,
         /*compute_log_sumexp=*/true,
         /*dropout_p=*/0.0,
@@ -822,10 +829,10 @@ void run_sdpa_efficient_backward(
     at::Tensor bias_tensor =
         bias.has_value() ? *bias : at::Tensor();
     auto bwd = at::_scaled_dot_product_efficient_attention_backward(
-        goc,
-        qc,
-        kc,
-        vc,
+        grad_out,
+        q,
+        k,
+        v,
         bias_tensor,
         std::get<0>(fwd),
         std::get<1>(fwd),
@@ -2455,10 +2462,8 @@ void TorchLayerNorm::cpu(void *buffers[], void *cl_args) noexcept
             has_b ? c10::optional<at::Tensor>(bias) : c10::nullopt,
             static_cast<double>(args->scalars[0]));
         out.copy_(std::get<0>(ln));
-        // ATen may keep normalized dims as size-1; NNTile stores reduced
-        // mean/rstd without those axes.
-        mean.copy_(std::get<1>(ln).reshape(mean.sizes()));
-        rstd.copy_(std::get<2>(ln).reshape(rstd.sizes()));
+        mean.copy_(std::get<1>(ln));
+        rstd.copy_(std::get<2>(ln));
     }
     catch (const std::exception &ex)
     {

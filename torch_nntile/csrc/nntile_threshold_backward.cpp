@@ -42,9 +42,6 @@ void check_threshold_backward(
         grad_output.sizes(),
         " self=",
         self.sizes());
-    TORCH_CHECK(
-        grad_output.is_contiguous() && self.is_contiguous(),
-        "nntile threshold_backward requires contiguous tensors");
 }
 
 } // namespace

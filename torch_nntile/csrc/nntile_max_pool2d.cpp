@@ -28,14 +28,12 @@ void check_fp32(const at::Tensor &tensor, const char *name)
 {
     TORCH_CHECK(is_nntile_device(tensor.device()), name, ": expected nntile");
     TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Float, name, ": fp32");
-    TORCH_CHECK(tensor.is_contiguous(), name, ": contiguous tensor required");
 }
 
 void check_indices(const at::Tensor &tensor)
 {
     TORCH_CHECK(is_nntile_device(tensor.device()), "max_pool indices nntile");
     TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Long, "i64 indices");
-    TORCH_CHECK(tensor.is_contiguous(), "max_pool indices contiguous");
 }
 
 std::vector<int64_t> meta_max_pool_shape(

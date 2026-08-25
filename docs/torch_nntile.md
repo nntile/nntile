@@ -53,11 +53,16 @@ matching `torch` and the editable extension:
 
 ```bash
 pip install 'torch==2.9.1'
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
 export NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation
 ```
+
+CUDA builds: put ``${CONDA_PREFIX}/lib`` (conda) or pip ``nvidia-*-cu12`` libs
+on ``LD_LIBRARY_PATH`` together with ``TORCH_LIB_DIR``; see
+[build/README.md](build/README.md#cuda-runtime-source--conda).
 
 ## TensorGraph execution
 

@@ -36,15 +36,11 @@ void check_silu_input(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile silu supports float32 only");
-    TORCH_CHECK(self.is_contiguous(), "nntile silu requires contiguous input");
     if (out.has_value())
     {
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile silu.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile silu.out requires contiguous out");
     }
 }
 

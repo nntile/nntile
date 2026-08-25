@@ -7,6 +7,7 @@
 #include "nntile_executor.h"
 #include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder_impl.h"
+#include "nntile_layout_checks.h"
 
 #include <ATen/Functions.h>
 #include <ATen/TensorUtils.h>
@@ -141,17 +142,12 @@ at::Tensor linear(
     const std::optional<at::Tensor> &bias)
 {
     nntile::GraphFillScope record;
-    // Linear gemm layout / autograd expect dense operands. Transpose
-    // views (e.g. weight.t()) densify here; attention QKV views stay
-    // zero-copy until SDPA.
-    const at::Tensor input_c =
-        input.is_contiguous() ? input : input.contiguous();
-    const at::Tensor weight_c =
-        weight.is_contiguous() ? weight : weight.contiguous();
-    check_linear_tensors(input_c, weight_c, bias);
+    require_nntile_kernel_dense(input, "linear input");
+    require_nntile_kernel_dense(weight, "linear weight");
+    check_linear_tensors(input, weight, bias);
     const PreparedGemmOperands prepared =
-        prepare_linear_operands(input_c, weight_c);
-    at::Tensor output = make_linear_output(prepared.out_shape, input_c);
+        prepare_linear_operands(input, weight);
+    at::Tensor output = make_linear_output(prepared.out_shape, input);
     run_linear(prepared, output, bias);
     return output;
 }
@@ -163,13 +159,11 @@ at::Tensor &linear_out(
     at::Tensor &out)
 {
     nntile::GraphFillScope record;
-    const at::Tensor input_c =
-        input.is_contiguous() ? input : input.contiguous();
-    const at::Tensor weight_c =
-        weight.is_contiguous() ? weight : weight.contiguous();
-    check_linear_tensors(input_c, weight_c, bias, out);
+    require_nntile_kernel_dense(input, "linear input");
+    require_nntile_kernel_dense(weight, "linear weight");
+    check_linear_tensors(input, weight, bias, out);
     const PreparedGemmOperands prepared =
-        prepare_linear_operands(input_c, weight_c);
+        prepare_linear_operands(input, weight);
     TORCH_CHECK(
         out.sizes().vec() == prepared.out_shape,
         "nntile linear.out: output shape mismatch");
@@ -199,18 +193,15 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             weight.scalar_type() == at::ScalarType::Float,
         "nntile linear_backward supports float32 only");
 
-    const at::Tensor grad_out =
-        grad_output.is_contiguous() ? grad_output
-                                    : grad_output.contiguous();
-    const at::Tensor input_c =
-        input.is_contiguous() ? input : input.contiguous();
-    const at::Tensor weight_c =
-        weight.is_contiguous() ? weight : weight.contiguous();
+    const at::Tensor grad_out = grad_output;
+    require_nntile_kernel_dense(grad_out, "linear_backward grad_output");
+    require_nntile_kernel_dense(input, "linear_backward input");
+    require_nntile_kernel_dense(weight, "linear_backward weight");
 
     const PreparedGemmOperands forward =
-        prepare_linear_operands(input_c, weight_c);
+        prepare_linear_operands(input, weight);
     const GemmMatrixLayout weight_layout =
-        analyze_matrix_layout_for_nntile(weight_c);
+        analyze_matrix_layout_for_nntile(weight);
 
     at::Tensor grad_input;
     at::Tensor grad_weight;
@@ -233,7 +224,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         const at::Tensor &grad_out_prepared = grad_out;
         const at::Tensor &weight_prepared = forward.b;
 
-        grad_input = at::empty_like(input_c);
+        grad_input = at::empty_like(input);
         tensor_gemm_fp32(
             grad_input_params,
             grad_out_prepared,
@@ -268,7 +259,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
         const at::Tensor &grad_out_prepared = grad_out;
         const at::Tensor &input_prepared = forward.a;
 
-        grad_weight = at::empty_like(weight_c);
+        grad_weight = at::empty_like(weight);
         if (weight_layout.trans)
         {
             GemmParams grad_weight_params =
@@ -311,7 +302,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> linear_backward(
             grad_out.dim() >= 1,
             "nntile linear_backward: grad_output must be at least 1D");
         grad_bias = at::empty(
-            {weight_c.size(0)},
+            {weight.size(0)},
             grad_out.options().memory_format(
                 at::MemoryFormat::Contiguous));
         tensor_linear_grad_bias_fp32(grad_out, grad_bias);

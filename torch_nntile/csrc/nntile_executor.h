@@ -158,6 +158,19 @@ void tensor_mm_fp32(
     const at::Tensor &b,
     at::Tensor &out);
 
+void tensor_bmm_fp32(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out);
+
+void tensor_addmm_fp32(
+    const at::Tensor &self,
+    const at::Tensor &mat1,
+    const at::Tensor &mat2,
+    float beta,
+    float alpha,
+    at::Tensor &out);
+
 void tensor_linear_backward_input_fp32(
     const at::Tensor &grad_out,
     const at::Tensor &weight,
@@ -544,6 +557,16 @@ void tensor_mul_scalar_fp32(
     const at::Tensor &input,
     at::Tensor &out,
     float scalar);
+
+void tensor_pow_scalar_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    float exponent);
+
+void tensor_div_fp32(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
 
 void tensor_cat_fp32(
     const std::vector<at::Tensor> &inputs,

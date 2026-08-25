@@ -43,9 +43,6 @@ void check_softmax_backward(
         grad_output.sizes() == output.sizes(),
         "nntile softmax_backward: shape mismatch");
     TORCH_CHECK(
-        grad_output.is_contiguous() && output.is_contiguous(),
-        "nntile softmax_backward requires contiguous tensors");
-    TORCH_CHECK(
         output.dim() > 0,
         "nntile softmax_backward: cannot compute on empty tensor");
     at::maybe_wrap_dim(dim, output.dim());

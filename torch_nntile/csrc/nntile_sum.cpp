@@ -38,11 +38,6 @@ void check_reduce_input(const at::Tensor &self, const char *op)
         op,
         " supports float32 only");
     TORCH_CHECK(
-        self.is_contiguous(),
-        "nntile ",
-        op,
-        " requires contiguous tensor");
-    TORCH_CHECK(
         self.dim() > 0,
         "nntile ",
         op,
@@ -114,26 +109,20 @@ void run_reduce_out(
     bool keepdim,
     at::Tensor &out)
 {
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_reduce_input(inp, op);
+    check_reduce_input(self, op);
     TORCH_CHECK(
         is_nntile_device(out.device()),
         "nntile ",
         op,
         ".out expects output on device nntile");
     const std::vector<int64_t> out_sizes =
-        infer_sum_output_sizes(inp.sizes(), dim, keepdim);
+        infer_sum_output_sizes(self.sizes(), dim, keepdim);
     TORCH_CHECK(
         out.sizes().vec() == out_sizes,
         "nntile ",
         op,
         ".out: output shape mismatch");
-    TORCH_CHECK(
-        out.is_contiguous(),
-        "nntile ",
-        op,
-        ".out requires contiguous out");
-    kernel(inp, out, dim, keepdim);
+    kernel(self, out, dim, keepdim);
 }
 
 at::Tensor run_reduce(
@@ -147,14 +136,11 @@ at::Tensor run_reduce(
     at::OptionalIntArrayRef dim,
     bool keepdim)
 {
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_reduce_input(inp, op);
+    check_reduce_input(self, op);
     const std::vector<int64_t> out_sizes =
-        infer_sum_output_sizes(inp.sizes(), dim, keepdim);
-    at::Tensor out = at::empty(
-        out_sizes,
-        inp.options().memory_format(at::MemoryFormat::Contiguous));
-    kernel(inp, out, dim, keepdim);
+        infer_sum_output_sizes(self.sizes(), dim, keepdim);
+    at::Tensor out = at::empty(out_sizes, self.options());
+    kernel(self, out, dim, keepdim);
     return out;
 }
 

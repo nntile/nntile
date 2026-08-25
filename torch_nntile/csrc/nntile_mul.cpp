@@ -43,17 +43,11 @@ void check_mul_inputs(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile mul supports float32 only in phase 2");
-    TORCH_CHECK(
-        self.is_contiguous() && other.is_contiguous(),
-        "nntile mul requires contiguous tensors");
     if (out.has_value())
     {
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile mul.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile mul.out requires contiguous output");
     }
 }
 
@@ -88,9 +82,8 @@ at::Tensor mul_scalar(const at::Tensor &self, const at::Scalar &other)
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile mul.Scalar supports float32 only");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor out = at::empty_like(inp);
-    tensor_mul_scalar_fp32(inp, out, other.to<float>());
+    at::Tensor out = at::empty_like(self);
+    tensor_mul_scalar_fp32(self, out, other.to<float>());
     return out;
 }
 
@@ -108,11 +101,7 @@ at::Tensor &mul_scalar_out(
         self.scalar_type() == at::ScalarType::Float &&
             out.scalar_type() == at::ScalarType::Float,
         "nntile mul.Scalar_out supports float32 only");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    TORCH_CHECK(
-        out.is_contiguous(),
-        "nntile mul.Scalar_out requires contiguous output");
-    tensor_mul_scalar_fp32(inp, out, other.to<float>());
+    tensor_mul_scalar_fp32(self, out, other.to<float>());
     return out;
 }
 
@@ -173,17 +162,8 @@ at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
         "nntile mul supports float32 only");
     std::vector<int64_t> out_sizes =
         at::infer_size(self.sizes(), other.sizes());
-    at::Tensor a = self.sizes().equals(out_sizes)
-        ? (self.is_contiguous() ? self : self.contiguous())
-        : self.expand(out_sizes).contiguous();
-    at::Tensor b = other.sizes().equals(out_sizes)
-        ? (other.is_contiguous() ? other : other.contiguous())
-        : other.expand(out_sizes).contiguous();
-    check_mul_inputs(a, b);
-    at::Tensor out = at::empty(
-        out_sizes,
-        a.options().memory_format(at::MemoryFormat::Contiguous));
-    run_mul_kernel(a, b, out);
+    at::Tensor out = at::empty(out_sizes, self.options());
+    run_mul_kernel(self, other, out);
     return out;
 }
 

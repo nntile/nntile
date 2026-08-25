@@ -5,7 +5,6 @@
  */
 
 #include "nntile_executor.h"
-#include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
@@ -42,31 +41,24 @@ void check_bmm_tensors(
         self.size(0) == mat2.size(0),
         "nntile bmm: batch dimension mismatch");
     TORCH_CHECK(
+        self.size(2) == mat2.size(1),
+        "nntile bmm: inner dimension mismatch");
+    TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float &&
             mat2.scalar_type() == at::ScalarType::Float,
         "nntile bmm supports float32 only");
 }
 
-at::Tensor make_bmm_output(
-    const std::vector<int64_t> &out_shape,
-    const at::Tensor &ref)
+at::Tensor make_bmm_output(const at::Tensor &self, const at::Tensor &mat2)
 {
-    std::vector<int64_t> sizes(out_shape.begin(), out_shape.end());
     return at::empty(
-        sizes,
-        ref.options().memory_format(at::MemoryFormat::Contiguous));
+        {self.size(0), self.size(1), mat2.size(2)},
+        self.options().memory_format(at::MemoryFormat::Contiguous));
 }
 
-void run_bmm(const PreparedGemmOperands &prepared, at::Tensor &out)
+void run_bmm(const at::Tensor &self, const at::Tensor &mat2, at::Tensor &out)
 {
-    tensor_gemm_fp32(
-        prepared.params,
-        prepared.a,
-        prepared.a_gemm_shape,
-        prepared.b,
-        prepared.b_gemm_shape,
-        out,
-        prepared.out_shape);
+    tensor_bmm_fp32(self, mat2, out);
 }
 
 } // namespace
@@ -75,9 +67,8 @@ at::Tensor bmm(const at::Tensor &self, const at::Tensor &mat2)
 {
     nntile::GraphFillScope record;
     check_bmm_tensors(self, mat2);
-    const PreparedGemmOperands prepared = prepare_bmm_operands(self, mat2);
-    at::Tensor out = make_bmm_output(prepared.out_shape, self);
-    run_bmm(prepared, out);
+    at::Tensor out = make_bmm_output(self, mat2);
+    run_bmm(self, mat2, out);
     return out;
 }
 
@@ -85,12 +76,11 @@ at::Tensor &bmm_out(const at::Tensor &self, const at::Tensor &mat2, at::Tensor &
 {
     nntile::GraphFillScope record;
     check_bmm_tensors(self, mat2, out);
-    const PreparedGemmOperands prepared = prepare_bmm_operands(self, mat2);
     TORCH_CHECK(
-        out.sizes().vec() == prepared.out_shape,
+        out.sizes() ==
+            at::IntArrayRef({self.size(0), self.size(1), mat2.size(2)}),
         "nntile bmm.out: output shape mismatch");
-    TORCH_CHECK(out.is_contiguous(), "nntile bmm.out requires contiguous out");
-    run_bmm(prepared, out);
+    run_bmm(self, mat2, out);
     return out;
 }
 

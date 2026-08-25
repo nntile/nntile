@@ -39,9 +39,6 @@ void check_sub_inputs(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile torch_sub supports float32 only");
-    TORCH_CHECK(
-        self.is_contiguous() && other.is_contiguous(),
-        "nntile sub requires contiguous tensors");
 }
 
 void run_torch_sub(
@@ -65,11 +62,10 @@ at::Tensor sub_scalar(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile sub.Scalar supports float32 only");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor filled = at::empty_like(inp);
+    at::Tensor filled = at::empty_like(self);
     tensor_fill_fp32(filled, other.to<float>());
-    at::Tensor out = at::empty_like(inp);
-    tensor_sub_fp32(inp, filled, alpha.to<float>(), out);
+    at::Tensor out = at::empty_like(self);
+    tensor_sub_fp32(self, filled, alpha.to<float>(), out);
     return out;
 }
 
@@ -97,11 +93,10 @@ at::Tensor rsub_scalar(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile rsub.Scalar supports float32 only");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor filled = at::empty_like(inp);
+    at::Tensor filled = at::empty_like(self);
     tensor_fill_fp32(filled, other.to<float>());
-    at::Tensor out = at::empty_like(inp);
-    tensor_sub_fp32(filled, inp, alpha.to<float>(), out);
+    at::Tensor out = at::empty_like(self);
+    tensor_sub_fp32(filled, self, alpha.to<float>(), out);
     return out;
 }
 
@@ -190,9 +185,8 @@ at::Tensor &sub_out(
         out.sizes().equals(self.sizes()),
         "nntile sub.out: output shape mismatch");
     TORCH_CHECK(
-        out.scalar_type() == at::ScalarType::Float &&
-            out.is_contiguous(),
-        "nntile sub.out requires contiguous float32 output");
+        out.scalar_type() == at::ScalarType::Float,
+        "nntile sub.out expects float32 output");
     run_torch_sub(self, other, alpha, out);
     return out;
 }

@@ -112,6 +112,8 @@ enum class TorchKind : std::int32_t
     Eq = 178,                // R(fp32),R(fp32) → W(bool) aten::eq.out
     FillBool = 182,          // → W(bool) aten fill_ (arange codelet)
     Tril = 183,              // R(bool) → W(bool) aten::tril.out
+    PowScalar = 184,         // R → W    aten::pow.Tensor_Scalar_out
+    Div = 185,               // R,R → W  aten::div.out
 };
 
 inline constexpr Index torch_dispatch_max_ndim = core::torch_native_max_ndim;

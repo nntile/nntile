@@ -84,13 +84,12 @@ at::Tensor add_scalar(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile add.Scalar supports float32 only");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor filled = at::empty_like(inp);
+    at::Tensor filled = at::empty_like(self);
     tensor_fill_fp32(
         filled,
         other.to<float>() * alpha.to<float>());
-    at::Tensor out = at::empty_like(inp);
-    tensor_add_fp32(1.0f, inp, 1.0f, filled, out);
+    at::Tensor out = at::empty_like(self);
+    tensor_add_fp32(1.0f, self, 1.0f, filled, out);
     return out;
 }
 
@@ -171,9 +170,8 @@ at::Tensor &add_out(
             at::infer_size(self.sizes(), other.sizes())),
         "nntile add.out: output shape mismatch");
     TORCH_CHECK(
-        out.scalar_type() == at::ScalarType::Float &&
-            out.is_contiguous(),
-        "nntile add.out requires contiguous float32 output");
+        out.scalar_type() == at::ScalarType::Float,
+        "nntile add.out expects float32 output");
     run_torch_add(self, other, alpha, out);
     return out;
 }

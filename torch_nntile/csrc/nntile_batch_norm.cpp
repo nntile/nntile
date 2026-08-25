@@ -30,10 +30,10 @@ void check_fp32(const at::Tensor &tensor, const char *name)
     TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Float, name, ": fp32");
 }
 
-at::Tensor as_contiguous_fp32(const at::Tensor &tensor, const char *name)
+at::Tensor checked_fp32(const at::Tensor &tensor, const char *name)
 {
     check_fp32(tensor, name);
-    return tensor.is_contiguous() ? tensor : tensor.contiguous();
+    return tensor;
 }
 
 void check_optional(const std::optional<at::Tensor> &tensor, const char *name)
@@ -50,7 +50,7 @@ at::Tensor optional_contiguous(
 {
     if (tensor.has_value() && tensor->defined())
     {
-        return as_contiguous_fp32(*tensor, name);
+        return checked_fp32(*tensor, name);
     }
     return at::Tensor();
 }
@@ -80,7 +80,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_batch_norm(
 {
     nntile::GraphFillScope record;
     const at::Tensor input_c =
-        as_contiguous_fp32(input, "nntile native_batch_norm input");
+        checked_fp32(input, "nntile native_batch_norm input");
     const at::Tensor weight_c = optional_contiguous(
         weight,
         "nntile native_batch_norm weight");
@@ -135,10 +135,10 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_batch_norm_backward(
     std::array<bool, 3> output_mask)
 {
     nntile::GraphFillScope record;
-    const at::Tensor grad_c = as_contiguous_fp32(
+    const at::Tensor grad_c = checked_fp32(
         grad_out,
         "nntile native_batch_norm_backward grad");
-    const at::Tensor input_c = as_contiguous_fp32(
+    const at::Tensor input_c = checked_fp32(
         input,
         "nntile native_batch_norm_backward input");
     const at::Tensor weight_c = optional_contiguous(

@@ -23,15 +23,13 @@ from . import _C  # noqa: E402, F401 - loads kernels and allocator
 # NNTILE_TORCH_NATIVE_OPS. HF compat still maps NewGELU→gelu(tanh) and
 # re-ties weights after ``.to("nntile")``. Stock GPT-2 uses nntile
 # ``aten::arange`` for ``cache_position`` (no ``GPT2Model.forward`` patch).
+# See docs/dev/torch_nntile_cuda_parity_policy.md (stock torch.nn on
+# device=nntile must match CUDA; NNTile kernels live under
+# torch_nntile.nn.functional).
 from . import compat as _compat  # noqa: E402, F401
+from . import nn as nn  # noqa: E402, F401
 
-if not TORCH_NATIVE_OPS:
-    from . import loss as _loss  # noqa: E402, F401
-    from . import nn as nn  # noqa: E402, F401
-    from . import normalization as _normalization  # noqa: E402, F401
-    from . import norm as _norm  # noqa: E402, F401
-else:
-    nn = None  # type: ignore[assignment]
+from . import kernels as kernels  # noqa: E402, backward-compat alias
 
 _registered = False
 _atexit_shutdown_registered = False
@@ -312,6 +310,6 @@ __all__ = [
     "print_axis_groups",
     "print_info",
     "record_nntile_seconds",
+    "nn",
+    "kernels",
 ]
-if not TORCH_NATIVE_OPS:
-    __all__.append("nn")

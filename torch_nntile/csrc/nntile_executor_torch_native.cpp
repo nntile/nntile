@@ -73,6 +73,16 @@ std::vector<nntile::Index> reduced_shape_along_axis(
     return reduced;
 }
 
+//! LayerNorm mean/rstd with keepdim=1 on the normalized axis (CUDA layout).
+std::vector<nntile::Index> keepdim_stats_shape_along_axis(
+    const std::vector<nntile::Index> &input_graph,
+    nntile::Index axis)
+{
+    std::vector<nntile::Index> stats = input_graph;
+    stats[static_cast<std::size_t>(axis)] = 1;
+    return stats;
+}
+
 nntile::starpu::TorchKind torch_gemm_kind(c10::IntArrayRef a_shape,
     c10::IntArrayRef b_shape)
 {
@@ -438,6 +448,64 @@ void tensor_mul_scalar_fp32(
     auto *out_node = nntile::tensor::torch_unary(
         nntile::starpu::TorchKind::MulScalar,
         input_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_pow_scalar_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    float exponent)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(input.sizes());
+
+    auto *input_node = get_or_create_data_node(
+        input,
+        graph_shape,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(input));
+
+    nntile::starpu::TorchDispatchArgs extra;
+    extra.scalars[0] = static_cast<nntile::Scalar>(exponent);
+    pack_tensor_layout(extra, 0, input, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_unary(
+        nntile::starpu::TorchKind::PowScalar,
+        input_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_div_fp32(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        pytorch_shape_to_graph(self.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        pytorch_shape_to_graph(other.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(other));
+
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, self, false);
+    pack_tensor_layout(extra, 1, other, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Div,
+        self_node,
+        other_node,
         graph_shape,
         extra);
     register_data_node(out, out_node);
@@ -955,14 +1023,16 @@ void tensor_gemm_accumulate_fp32(
     pack_tensor_layout(extra, 1, a, false);
     pack_tensor_layout(extra, 2, b, false);
     pack_tensor_layout(extra, 0, out, true);
-    nntile::tensor::torch_ternary(
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+    auto *out_node = nntile::tensor::torch_ternary(
         nntile::starpu::TorchKind::Addmm,
         c_node,
         a_node,
         b_node,
-        c_node,
+        out_graph,
         extra);
-    register_data_node(out, c_node);
+    register_data_node(out, out_node);
 }
 
 void tensor_mm_fp32(
@@ -970,15 +1040,121 @@ void tensor_mm_fp32(
     const at::Tensor &b,
     at::Tensor &out)
 {
-    const PreparedGemmOperands prepared = prepare_mm_operands(a, b);
-    tensor_gemm_fp32(
-        prepared.params,
-        prepared.a,
-        prepared.a_gemm_shape,
-        prepared.b,
-        prepared.b_gemm_shape,
-        out,
-        prepared.out_shape);
+    const std::vector<nntile::Index> a_graph =
+        pytorch_shape_to_graph(a.sizes());
+    const std::vector<nntile::Index> b_graph =
+        pytorch_shape_to_graph(b.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *a_node = get_or_create_data_node(
+        a,
+        a_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        b_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(b));
+
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, a, false);
+    pack_tensor_layout(extra, 1, b, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Mm,
+        a_node,
+        b_node,
+        out_graph,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_bmm_fp32(
+    const at::Tensor &a,
+    const at::Tensor &b,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> a_graph =
+        pytorch_shape_to_graph(a.sizes());
+    const std::vector<nntile::Index> b_graph =
+        pytorch_shape_to_graph(b.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *a_node = get_or_create_data_node(
+        a,
+        a_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(a));
+    auto *b_node = get_or_create_data_node(
+        b,
+        b_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(b));
+
+    nntile::starpu::TorchDispatchArgs extra{};
+    pack_tensor_layout(extra, 0, a, false);
+    pack_tensor_layout(extra, 1, b, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Bmm,
+        a_node,
+        b_node,
+        out_graph,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_addmm_fp32(
+    const at::Tensor &self,
+    const at::Tensor &mat1,
+    const at::Tensor &mat2,
+    float beta,
+    float alpha,
+    at::Tensor &out)
+{
+    const std::vector<nntile::Index> self_graph =
+        pytorch_shape_to_graph(self.sizes());
+    const std::vector<nntile::Index> m1_graph =
+        pytorch_shape_to_graph(mat1.sizes());
+    const std::vector<nntile::Index> m2_graph =
+        pytorch_shape_to_graph(mat2.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        self_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(self));
+    auto *m1_node = get_or_create_data_node(
+        mat1,
+        m1_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(mat1));
+    auto *m2_node = get_or_create_data_node(
+        mat2,
+        m2_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(mat2));
+
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.scalars[0] = static_cast<nntile::Scalar>(beta);
+    extra.scalars[1] = static_cast<nntile::Scalar>(alpha);
+    pack_tensor_layout(extra, 0, self, false);
+    pack_tensor_layout(extra, 1, mat1, false);
+    pack_tensor_layout(extra, 2, mat2, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_ternary(
+        nntile::starpu::TorchKind::Addmm,
+        self_node,
+        m1_node,
+        m2_node,
+        out_graph,
+        extra);
+    register_data_node(out, out_node);
 }
 
 void tensor_linear_fp32(
@@ -1514,8 +1690,8 @@ void tensor_layer_norm_forward_fp32(
     const nntile::Index axis = static_cast<nntile::Index>(norm_axis);
     const nntile::Index norm_len =
         input_graph[static_cast<std::size_t>(axis)];
-    const std::vector<nntile::Index> reduced_graph =
-        reduced_shape_along_axis(input_graph, axis);
+    const std::vector<nntile::Index> stats_graph =
+        keepdim_stats_shape_along_axis(input_graph, axis);
     const nntile::Index normalized_ndim =
         static_cast<nntile::Index>(input_graph.size()) - axis;
 
@@ -1531,12 +1707,12 @@ void tensor_layer_norm_forward_fp32(
         false);
     auto *mean_node = get_or_create_data_node(
         mean,
-        reduced_graph,
+        stats_graph,
         nntile::DataType::FP32,
         false);
     auto *rstd_node = get_or_create_data_node(
         rstd,
-        reduced_graph,
+        stats_graph,
         nntile::DataType::FP32,
         false);
 
@@ -2335,8 +2511,8 @@ void tensor_layer_norm_backward_fp32(
     const nntile::Index axis = static_cast<nntile::Index>(norm_axis);
     const nntile::Index norm_len =
         input_graph[static_cast<std::size_t>(axis)];
-    const std::vector<nntile::Index> reduced_graph =
-        reduced_shape_along_axis(input_graph, axis);
+    const std::vector<nntile::Index> stats_graph =
+        keepdim_stats_shape_along_axis(input_graph, axis);
     const nntile::Index normalized_ndim =
         static_cast<nntile::Index>(input_graph.size()) - axis;
 
@@ -2352,12 +2528,12 @@ void tensor_layer_norm_backward_fp32(
         mark_as_input_for_operand(input));
     auto *mean_node = get_or_create_data_node(
         mean,
-        reduced_graph,
+        stats_graph,
         nntile::DataType::FP32,
         mark_as_input_for_operand(mean));
     auto *rstd_node = get_or_create_data_node(
         rstd,
-        reduced_graph,
+        stats_graph,
         nntile::DataType::FP32,
         mark_as_input_for_operand(rstd));
 

@@ -46,17 +46,11 @@ void check_hypot_inputs(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile hypot supports float32 only in phase 2");
-    TORCH_CHECK(
-        self.is_contiguous() && other.is_contiguous(),
-        "nntile hypot requires contiguous tensors");
     if (out.has_value())
     {
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile hypot.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile hypot.out requires contiguous output");
     }
 }
 

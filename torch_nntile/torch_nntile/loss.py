@@ -76,6 +76,4 @@ def patch_cross_entropy() -> None:
     F.cross_entropy = cross_entropy  # type: ignore[assignment]
 
 
-patch_cross_entropy()
-
 __all__ = ["cross_entropy", "mse_loss", "patch_cross_entropy"]

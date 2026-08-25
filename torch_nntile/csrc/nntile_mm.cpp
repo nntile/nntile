@@ -5,7 +5,6 @@
  */
 
 #include "nntile_executor.h"
-#include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
@@ -42,26 +41,21 @@ void check_mm_tensors(
         self.scalar_type() == at::ScalarType::Float &&
             mat2.scalar_type() == at::ScalarType::Float,
         "nntile mm supports float32 only");
+    TORCH_CHECK(
+        self.size(1) == mat2.size(0),
+        "nntile mm: inner dimension mismatch");
 }
 
-at::Tensor make_mm_output(const std::vector<int64_t> &out_shape, const at::Tensor &ref)
+at::Tensor make_mm_output(const at::Tensor &self, const at::Tensor &mat2)
 {
-    std::vector<int64_t> sizes(out_shape.begin(), out_shape.end());
     return at::empty(
-        sizes,
-        ref.options().memory_format(at::MemoryFormat::Contiguous));
+        {self.size(0), mat2.size(1)},
+        self.options().memory_format(at::MemoryFormat::Contiguous));
 }
 
-void run_mm(const PreparedGemmOperands &prepared, at::Tensor &out)
+void run_mm(const at::Tensor &self, const at::Tensor &mat2, at::Tensor &out)
 {
-    tensor_gemm_fp32(
-        prepared.params,
-        prepared.a,
-        prepared.a_gemm_shape,
-        prepared.b,
-        prepared.b_gemm_shape,
-        out,
-        prepared.out_shape);
+    tensor_mm_fp32(self, mat2, out);
 }
 
 } // namespace
@@ -70,9 +64,8 @@ at::Tensor mm(const at::Tensor &self, const at::Tensor &mat2)
 {
     nntile::GraphFillScope record;
     check_mm_tensors(self, mat2);
-    const PreparedGemmOperands prepared = prepare_mm_operands(self, mat2);
-    at::Tensor out = make_mm_output(prepared.out_shape, self);
-    run_mm(prepared, out);
+    at::Tensor out = make_mm_output(self, mat2);
+    run_mm(self, mat2, out);
     return out;
 }
 
@@ -80,12 +73,10 @@ at::Tensor &mm_out(const at::Tensor &self, const at::Tensor &mat2, at::Tensor &o
 {
     nntile::GraphFillScope record;
     check_mm_tensors(self, mat2, out);
-    const PreparedGemmOperands prepared = prepare_mm_operands(self, mat2);
     TORCH_CHECK(
-        out.sizes().vec() == prepared.out_shape,
+        out.sizes() == at::IntArrayRef({self.size(0), mat2.size(1)}),
         "nntile mm.out: output shape mismatch");
-    TORCH_CHECK(out.is_contiguous(), "nntile mm.out requires contiguous out");
-    run_mm(prepared, out);
+    run_mm(self, mat2, out);
     return out;
 }
 

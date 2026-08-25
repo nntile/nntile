@@ -45,15 +45,11 @@ void check_gelu_input(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile gelu supports float32 only");
-    TORCH_CHECK(self.is_contiguous(), "nntile gelu requires contiguous input");
     if (out.has_value())
     {
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile gelu.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile gelu.out requires contiguous out");
     }
 }
 

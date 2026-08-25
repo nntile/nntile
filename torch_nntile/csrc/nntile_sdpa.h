@@ -9,6 +9,8 @@
 #include <ATen/ATen.h>
 #include <torch/csrc/autograd/custom_function.h>
 
+#include "nntile_layout_checks.h"
+
 #include <cstdint>
 #include <optional>
 #include <tuple>
@@ -48,6 +50,13 @@ public:
         int64_t batch_ndim,
         bool has_mask)
     {
+        require_nntile_kernel_dense(q, "sdpa_kernel q");
+        require_nntile_kernel_dense(k, "sdpa_kernel k");
+        require_nntile_kernel_dense(v, "sdpa_kernel v");
+        if (has_mask)
+        {
+            require_nntile_kernel_dense(mask, "sdpa_kernel mask");
+        }
         ctx->saved_data["batch_ndim"] = batch_ndim;
         ctx->saved_data["has_mask"] = has_mask;
         std::optional<at::Tensor> mask_opt;
@@ -72,6 +81,7 @@ public:
             ctx->saved_data["batch_ndim"].toInt();
         bool const has_mask =
             ctx->saved_data["has_mask"].toBool();
+        require_nntile_kernel_dense(grad_outputs[0], "sdpa_kernel grad_out");
         std::optional<at::Tensor> mask_opt;
         if (has_mask)
         {

@@ -2,6 +2,8 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file torch_nntile/csrc/nntile_layer_norm.cpp
+ * PrivateUse1 ``native_layer_norm`` — record TensorGraph ops that execute the
+ * same ATen kernel as CUDA (no densify, CUDA keepdim mean/rstd layout).
  */
 
 #include "nntile_executor.h"
@@ -25,9 +27,7 @@ bool is_nntile_device(c10::Device device)
     return device.type() == c10::DeviceType::PrivateUse1;
 }
 
-at::Tensor as_contiguous_fp32(
-    const at::Tensor &tensor,
-    const char *name)
+void check_fp32_nntile(const at::Tensor &tensor, const char *name)
 {
     TORCH_CHECK(
         is_nntile_device(tensor.device()),
@@ -36,11 +36,10 @@ at::Tensor as_contiguous_fp32(
     TORCH_CHECK(
         tensor.scalar_type() == at::ScalarType::Float,
         "nntile layer_norm supports float32 only");
-    return tensor.is_contiguous() ? tensor : tensor.contiguous();
 }
 
 //! Autograd may pass an undefined Tensor inside optional instead of nullopt.
-std::optional<at::Tensor> optional_defined_contiguous(
+std::optional<at::Tensor> optional_defined(
     const std::optional<at::Tensor> &tensor,
     const char *name)
 {
@@ -48,20 +47,8 @@ std::optional<at::Tensor> optional_defined_contiguous(
     {
         return std::nullopt;
     }
-    return as_contiguous_fp32(*tensor, name);
-}
-
-void check_norm_tensor(
-    const at::Tensor &tensor,
-    const char *name)
-{
-    TORCH_CHECK(
-        is_nntile_device(tensor.device()),
-        "nntile layer_norm: expected nntile ",
-        name);
-    TORCH_CHECK(
-        tensor.scalar_type() == at::ScalarType::Float,
-        "nntile layer_norm supports float32 only");
+    check_fp32_nntile(*tensor, name);
+    return *tensor;
 }
 
 int64_t resolve_norm_axis(
@@ -86,19 +73,12 @@ int64_t resolve_norm_axis(
     return axis;
 }
 
-std::vector<int64_t> reduced_sizes(
+std::vector<int64_t> keepdim_stats_sizes(
     c10::IntArrayRef input_shape,
     int64_t axis)
 {
-    std::vector<int64_t> sizes;
-    sizes.reserve(static_cast<std::size_t>(input_shape.size()));
-    for (int64_t i = 0; i < static_cast<int64_t>(input_shape.size()); ++i)
-    {
-        if (i != axis)
-        {
-            sizes.push_back(input_shape[static_cast<std::size_t>(i)]);
-        }
-    }
+    auto sizes = input_shape.vec();
+    sizes[static_cast<std::size_t>(axis)] = 1;
     return sizes;
 }
 
@@ -110,7 +90,7 @@ void check_optional_affine(
 {
     if (weight.has_value())
     {
-        check_norm_tensor(*weight, "weight");
+        check_fp32_nntile(*weight, "weight");
         TORCH_CHECK(
             weight->dim() == 1 &&
                 weight->size(0) == input.size(norm_axis),
@@ -118,7 +98,7 @@ void check_optional_affine(
     }
     if (bias.has_value())
     {
-        check_norm_tensor(*bias, "bias");
+        check_fp32_nntile(*bias, "bias");
         TORCH_CHECK(
             bias->dim() == 1 && bias->size(0) == input.size(norm_axis),
             "nntile layer_norm: invalid bias shape");
@@ -135,15 +115,6 @@ void run_layer_norm_forward(
     at::Tensor &mean,
     at::Tensor &rstd)
 {
-    std::vector<at::Tensor> inputs = {input};
-    if (weight.has_value())
-    {
-        inputs.push_back(*weight);
-    }
-    if (bias.has_value())
-    {
-        inputs.push_back(*bias);
-    }
     tensor_layer_norm_forward_fp32(
         input,
         weight.has_value() ? &*weight : nullptr,
@@ -167,28 +138,24 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm(
     double eps)
 {
     nntile::GraphFillScope record;
-    at::Tensor input_c = as_contiguous_fp32(input, "input");
+    check_fp32_nntile(input, "input");
     const int64_t norm_axis = resolve_norm_axis(
-        input_c.sizes(),
+        input.sizes(),
         normalized_shape);
-    std::optional<at::Tensor> weight_c =
-        optional_defined_contiguous(weight, "weight");
-    std::optional<at::Tensor> bias_c =
-        optional_defined_contiguous(bias, "bias");
-    check_optional_affine(input_c, weight_c, bias_c, norm_axis);
+    std::optional<at::Tensor> weight_t = optional_defined(weight, "weight");
+    std::optional<at::Tensor> bias_t = optional_defined(bias, "bias");
+    check_optional_affine(input, weight_t, bias_t, norm_axis);
 
-    at::Tensor output = at::empty_like(input_c);
-    // Reduced (non-keepdim) stats - matches C++ ``NNLayerNormOp`` buffers and
-    // avoids ``scale_slice`` broadcast of mean/rstd.
-    const auto stats_sizes = reduced_sizes(input_c.sizes(), norm_axis);
+    at::Tensor output = at::empty_like(input);
+    const auto stats_sizes = keepdim_stats_sizes(input.sizes(), norm_axis);
     at::Tensor mean = at::empty(
         stats_sizes,
-        input_c.options().memory_format(at::MemoryFormat::Contiguous));
+        input.options().memory_format(at::MemoryFormat::Contiguous));
     at::Tensor rstd = at::empty(
         stats_sizes,
-        input_c.options().memory_format(at::MemoryFormat::Contiguous));
+        input.options().memory_format(at::MemoryFormat::Contiguous));
     run_layer_norm_forward(
-        input_c, weight_c, bias_c, norm_axis, eps, output, mean, rstd);
+        input, weight_t, bias_t, norm_axis, eps, output, mean, rstd);
     return {output, mean, rstd};
 }
 
@@ -203,32 +170,16 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm_backward(
     std::array<bool, 3> output_mask)
 {
     nntile::GraphFillScope record;
-    // Sum/Mean backward often expands a non-contiguous ones view into
-    // ``grad_out``; densify before the StarPU codelet.
-    at::Tensor grad_out_c = as_contiguous_fp32(grad_out, "grad_out");
-    at::Tensor input_c = as_contiguous_fp32(input, "input");
-    at::Tensor mean_c = as_contiguous_fp32(mean, "mean");
-    at::Tensor rstd_c = as_contiguous_fp32(rstd, "rstd");
+    check_fp32_nntile(grad_out, "grad_out");
+    check_fp32_nntile(input, "input");
+    check_fp32_nntile(mean, "mean");
+    check_fp32_nntile(rstd, "rstd");
     const int64_t norm_axis = resolve_norm_axis(
-        input_c.sizes(),
+        input.sizes(),
         normalized_shape);
-    std::optional<at::Tensor> weight_c =
-        optional_defined_contiguous(weight, "weight");
-    std::optional<at::Tensor> bias_c =
-        optional_defined_contiguous(bias, "bias");
-    check_optional_affine(input_c, weight_c, bias_c, norm_axis);
-
-    // Forward now saves reduced stats; accept legacy keepdim tensors too.
-    at::Tensor mean_reduced = mean_c;
-    at::Tensor rstd_reduced = rstd_c;
-    if (mean_c.dim() == input_c.dim() && mean_c.size(norm_axis) == 1)
-    {
-        mean_reduced = mean_c.squeeze(norm_axis).contiguous();
-    }
-    if (rstd_c.dim() == input_c.dim() && rstd_c.size(norm_axis) == 1)
-    {
-        rstd_reduced = rstd_c.squeeze(norm_axis).contiguous();
-    }
+    std::optional<at::Tensor> weight_t = optional_defined(weight, "weight");
+    std::optional<at::Tensor> bias_t = optional_defined(bias, "bias");
+    check_optional_affine(input, weight_t, bias_t, norm_axis);
 
     at::Tensor grad_input;
     at::Tensor grad_weight;
@@ -236,32 +187,32 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> native_layer_norm_backward(
 
     if (output_mask[0])
     {
-        grad_input = at::empty_like(input_c);
+        grad_input = at::empty_like(input);
     }
-    if (output_mask[1] && weight_c.has_value())
+    if (output_mask[1] && weight_t.has_value())
     {
-        grad_weight = at::empty_like(*weight_c);
+        grad_weight = at::empty_like(*weight_t);
     }
-    if (output_mask[2] && bias_c.has_value())
+    if (output_mask[2] && bias_t.has_value())
     {
-        grad_bias = at::empty_like(*bias_c);
+        grad_bias = at::empty_like(*bias_t);
     }
 
     tensor_layer_norm_backward_fp32(
-        grad_out_c,
-        input_c,
-        mean_reduced,
-        rstd_reduced,
-        weight_c.has_value() ? &*weight_c : nullptr,
-        bias_c.has_value() ? &*bias_c : nullptr,
-        weight_c.has_value(),
-        bias_c.has_value(),
+        grad_out,
+        input,
+        mean,
+        rstd,
+        weight_t.has_value() ? &*weight_t : nullptr,
+        bias_t.has_value() ? &*bias_t : nullptr,
+        weight_t.has_value(),
+        bias_t.has_value(),
         output_mask[0] ? &grad_input : nullptr,
-        output_mask[1] && weight_c.has_value() ? &grad_weight : nullptr,
-        output_mask[2] && bias_c.has_value() ? &grad_bias : nullptr,
+        output_mask[1] && weight_t.has_value() ? &grad_weight : nullptr,
+        output_mask[2] && bias_t.has_value() ? &grad_bias : nullptr,
         output_mask[0],
-        output_mask[1] && weight_c.has_value(),
-        output_mask[2] && bias_c.has_value(),
+        output_mask[1] && weight_t.has_value(),
+        output_mask[2] && bias_t.has_value(),
         norm_axis);
 
     return {grad_input, grad_weight, grad_bias};

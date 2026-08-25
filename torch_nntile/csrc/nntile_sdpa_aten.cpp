@@ -86,14 +86,9 @@ at::Tensor make_causal_mask(
     int64_t k_seq,
     const c10::Device &device)
 {
-    const auto idx_opts = at::TensorOptions().dtype(at::kLong);
-    const at::Tensor k_idx = at::arange(k_seq, idx_opts);
-    const at::Tensor q_idx = at::arange(q_seq, idx_opts);
-    at::Tensor mask = (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous();
-    if (mask.device() != device)
-    {
-        mask = mask.to(device);
-    }
+    const auto idx_opts =
+        at::TensorOptions().dtype(at::kBool).device(device);
+    at::Tensor mask = at::ones({q_seq, k_seq}, idx_opts).tril();
     TORCH_CHECK(
         mask.is_contiguous(),
         "nntile sdpa: causal mask must be contiguous");
@@ -133,9 +128,6 @@ at::Tensor broadcastable_attn_bias_to_2d(
     at::Tensor bias = squeeze_size_one_dims(attn_bias);
     if (bias.dim() == 2)
     {
-        TORCH_CHECK(
-            bias.is_contiguous(),
-            "nntile sdpa: attn_bias must be contiguous");
         return bias;
     }
 
@@ -156,9 +148,6 @@ at::Tensor broadcastable_attn_bias_to_2d(
             "nntile sdpa: attn_bias leading dims must be size 1 to "
             "broadcast to [q_seq, k_seq] without host materialization");
     }
-    TORCH_CHECK(
-        canonical.is_contiguous(),
-        "nntile sdpa: attn_bias canonical slice must be contiguous");
     return canonical;
 }
 
@@ -225,19 +214,7 @@ std::optional<at::Tensor> convert_attn_bias_to_mask(
     {
         bool_mask = bool_mask.to(device);
     }
-    TORCH_CHECK(
-        bool_mask.is_contiguous(),
-        "nntile sdpa: mask must be contiguous");
     return bool_mask;
-}
-
-void require_contiguous_nntile(const at::Tensor &tensor, const char *name)
-{
-    TORCH_CHECK(
-        tensor.is_contiguous(),
-        "nntile sdpa: ",
-        name,
-        " must be contiguous");
 }
 
 } // namespace

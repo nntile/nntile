@@ -31,11 +31,11 @@ void check_conv_tensor(const at::Tensor &tensor, const char *name)
     TORCH_CHECK(tensor.scalar_type() == at::ScalarType::Float, name, ": fp32");
 }
 
-// StarPU kernels need dense NCHW; ``cat`` / view grads may be strided.
-at::Tensor as_contiguous_fp32(const at::Tensor &tensor, const char *name)
+// Pass through actual strides; StarPU codelets call matching aten *_out.
+at::Tensor checked_fp32(const at::Tensor &tensor, const char *name)
 {
     check_conv_tensor(tensor, name);
-    return tensor.is_contiguous() ? tensor : tensor.contiguous();
+    return tensor;
 }
 
 std::vector<int64_t> sym_to_i64(c10::SymIntArrayRef values)
@@ -154,16 +154,16 @@ at::Tensor convolution_overrideable(
 {
     nntile::GraphFillScope record;
     const at::Tensor input_c =
-        as_contiguous_fp32(input, "nntile convolution input");
+        checked_fp32(input, "nntile convolution input");
     const at::Tensor weight_c =
-        as_contiguous_fp32(weight, "nntile convolution weight");
+        checked_fp32(weight, "nntile convolution weight");
     // TORCH_FN may wrap Python ``None`` as an undefined Tensor inside
     // optional rather than ``nullopt``.
     const bool has_bias = bias.has_value() && bias->defined();
     at::Tensor bias_c;
     if (has_bias)
     {
-        bias_c = as_contiguous_fp32(*bias, "nntile convolution bias");
+        bias_c = checked_fp32(*bias, "nntile convolution bias");
     }
     std::vector<int64_t> stride_i =
         expand_spatial_2d(sym_to_i64(stride), 1, 1);
@@ -214,13 +214,13 @@ convolution_backward_overrideable(
     std::array<bool, 3> output_mask)
 {
     nntile::GraphFillScope record;
-    const at::Tensor grad_c = as_contiguous_fp32(
+    const at::Tensor grad_c = checked_fp32(
         grad_output,
         "nntile convolution_backward grad");
-    const at::Tensor input_c = as_contiguous_fp32(
+    const at::Tensor input_c = checked_fp32(
         input,
         "nntile convolution_backward input");
-    const at::Tensor weight_c = as_contiguous_fp32(
+    const at::Tensor weight_c = checked_fp32(
         weight,
         "nntile convolution_backward weight");
     std::vector<int64_t> stride_i =

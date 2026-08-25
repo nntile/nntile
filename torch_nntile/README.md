@@ -69,8 +69,12 @@ pip install torch==2.9.1 torchvision==0.24.1
 pip install /path/to/torch_nntile-0.0.6-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-`pip install` of a CUDA wheel pulls the NVIDIA packages on Linux automatically.
-You can also install them manually (or `pip install 'torch_nntile[cuda]'`):
+`pip install` of a CUDA wheel pulls the NVIDIA packages on Linux automatically
+(wheel / pip-torch layout). **Conda or toolkit dev envs** can instead rely on
+``TORCH_LIB_DIR`` plus ``${CONDA_PREFIX}/lib`` on ``LD_LIBRARY_PATH`` — see
+[docs/build/README.md](../docs/build/README.md#cuda-runtime-source--conda).
+You can also install pip nvidia packages manually (or
+``pip install 'torch_nntile[cuda]'``):
 
 ```bash
 pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cusparse-cu12 \
@@ -483,12 +487,18 @@ Then install the thin Python extension against that build:
 
 ```bash
 pip install 'torch==2.9.1' 'torchvision==0.24.1'
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
 export NNTILE_BUILD_DIR=$PWD/build
 export TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
+
+Conda / toolkit CUDA: ``${CONDA_PREFIX}/lib`` supplies ``libcublas``,
+``libcudnn``, ``libcudart``, etc.; ``TORCH_LIB_DIR`` supplies
+``libtorch_cuda``. No extra ``pip install nvidia-*-cu12`` is required in that
+layout (see [docs/build/README.md](../docs/build/README.md#cuda-runtime-source--conda)).
 
 Prefer an install prefix (matches CI):
 

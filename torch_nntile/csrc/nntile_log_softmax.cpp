@@ -44,9 +44,6 @@ void check_log_softmax_input(
         self.scalar_type() == at::ScalarType::Float,
         "nntile log_softmax supports float32 only");
     TORCH_CHECK(
-        self.is_contiguous(),
-        "nntile log_softmax requires contiguous input");
-    TORCH_CHECK(
         self.dim() > 0,
         "nntile log_softmax: cannot compute on empty tensor");
     at::maybe_wrap_dim(dim, self.dim());
@@ -55,9 +52,6 @@ void check_log_softmax_input(
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile log_softmax.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile log_softmax.out requires contiguous out");
     }
 }
 
@@ -90,9 +84,6 @@ void check_log_softmax_backward(
     TORCH_CHECK(
         grad_output.sizes() == output.sizes(),
         "nntile log_softmax_backward: shape mismatch");
-    TORCH_CHECK(
-        grad_output.is_contiguous() && output.is_contiguous(),
-        "nntile log_softmax_backward requires contiguous tensors");
     TORCH_CHECK(
         output.dim() > 0,
         "nntile log_softmax_backward: cannot compute on empty tensor");

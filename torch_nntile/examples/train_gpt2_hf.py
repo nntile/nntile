@@ -718,16 +718,17 @@ def train_torch(args: argparse.Namespace) -> int:
         f"{train_wall_s:.3f}s ({args.epochs} epochs)"
     )
 
-    save_checkpoint(
-        ckpt_path,
-        model=model,
-        config=config,
-        seed=seed,
-        epoch=end_epoch,
-        global_step=global_step,
-        optimizer_state=optimizer.state_dict(),
-        device_name=device.type,
-    )
+    if not args.no_save_checkpoint:
+        save_checkpoint(
+            ckpt_path,
+            model=model,
+            config=config,
+            seed=seed,
+            epoch=end_epoch,
+            global_step=global_step,
+            optimizer_state=optimizer.state_dict(),
+            device_name=device.type,
+        )
     if last_inputs is None or last_labels is None:
         raise RuntimeError("train_torch: missing last batch")
     print(
@@ -960,24 +961,25 @@ def train_nntile(args: argparse.Namespace) -> int:
             f"{train_wall_s:.3f}s ({args.epochs} epochs)"
         )
 
-        with torch.no_grad():
-            weights = {
-                name: tensor.detach().cpu().clone()
-                for name, tensor in model.state_dict().items()
+        if not args.no_save_checkpoint:
+            with torch.no_grad():
+                weights = {
+                    name: tensor.detach().cpu().clone()
+                    for name, tensor in model.state_dict().items()
+                }
+            path = ckpt_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "model_state_dict": weights,
+                "config": config.to_dict(),
+                "seed": seed,
+                "epoch": end_epoch,
+                "global_step": global_step,
+                "device": "nntile",
+                "optimizer_state_dict": None,
             }
-        path = ckpt_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "model_state_dict": weights,
-            "config": config.to_dict(),
-            "seed": seed,
-            "epoch": end_epoch,
-            "global_step": global_step,
-            "device": "nntile",
-            "optimizer_state_dict": None,
-        }
-        torch.save(payload, path)
-        print(f"Saved checkpoint to {path}")
+            torch.save(payload, path)
+            print(f"Saved checkpoint to {path}")
         if last_inputs is None or last_labels is None:
             raise RuntimeError("train_nntile: missing last batch")
         print(
@@ -1046,6 +1048,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="GPT-2 JSON config path",
     )
     train.add_argument("--output-dir", required=True)
+    train.add_argument(
+        "--no-save-checkpoint",
+        action="store_true",
+        help="Skip writing checkpoint.pt (benchmark / overhead runs)",
+    )
     train.add_argument("--epochs", type=int, default=1)
     train.add_argument("--lr", type=float, default=1e-3)
     train.add_argument("--momentum", type=float, default=0.0)

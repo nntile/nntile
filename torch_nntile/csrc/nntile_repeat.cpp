@@ -60,7 +60,6 @@ void check_repeat_input(const at::Tensor &self)
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile repeat supports float32 only");
-    TORCH_CHECK(self.is_contiguous(), "nntile repeat requires contiguous input");
 }
 
 void run_repeat(const at::Tensor &self, at::Tensor &out, c10::IntArrayRef repeats)

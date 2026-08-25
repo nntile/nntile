@@ -38,11 +38,6 @@ void check_unary_fp32(
         "nntile ",
         name,
         " supports float32 only");
-    TORCH_CHECK(
-        self.is_contiguous(),
-        "nntile ",
-        name,
-        " requires contiguous input");
     if (out.has_value())
     {
         TORCH_CHECK(
@@ -56,11 +51,10 @@ void check_unary_fp32(
             name,
             ".out: shape mismatch");
         TORCH_CHECK(
-            out->is_contiguous() &&
-                out->scalar_type() == at::ScalarType::Float,
+            out->scalar_type() == at::ScalarType::Float,
             "nntile ",
             name,
-            ".out requires contiguous float32");
+            ".out: float32 output required");
     }
 }
 
@@ -85,10 +79,9 @@ at::Tensor neg_tensor(const at::Tensor &self)
         self.scalar_type() == at::ScalarType::Float,
         "nntile neg supports float32 and int64 only "
         "(implicit host copy disabled)");
-    check_unary_fp32(self.is_contiguous() ? self : self.contiguous(), "neg");
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    at::Tensor out = at::empty_like(inp);
-    tensor_neg_fp32(inp, out);
+    check_unary_fp32(self, "neg");
+    at::Tensor out = at::empty_like(self);
+    tensor_neg_fp32(self, out);
     return out;
 }
 
@@ -108,104 +101,93 @@ at::Tensor &neg_out(const at::Tensor &self, at::Tensor &out)
         tensor_neg_i64(self, out);
         return out;
     }
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "neg", out);
-    tensor_neg_fp32(inp, out);
+    check_unary_fp32(self, "neg", out);
+    tensor_neg_fp32(self, out);
     return out;
 }
 
 at::Tensor cos_tensor(const at::Tensor &self)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "cos");
-    at::Tensor out = at::empty_like(inp);
-    tensor_cos_fp32(inp, out);
+    check_unary_fp32(self, "cos");
+    at::Tensor out = at::empty_like(self);
+    tensor_cos_fp32(self, out);
     return out;
 }
 
 at::Tensor &cos_out(const at::Tensor &self, at::Tensor &out)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "cos", out);
-    tensor_cos_fp32(inp, out);
+    check_unary_fp32(self, "cos", out);
+    tensor_cos_fp32(self, out);
     return out;
 }
 
 at::Tensor sin_tensor(const at::Tensor &self)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "sin");
-    at::Tensor out = at::empty_like(inp);
-    tensor_sin_fp32(inp, out);
+    check_unary_fp32(self, "sin");
+    at::Tensor out = at::empty_like(self);
+    tensor_sin_fp32(self, out);
     return out;
 }
 
 at::Tensor &sin_out(const at::Tensor &self, at::Tensor &out)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "sin", out);
-    tensor_sin_fp32(inp, out);
+    check_unary_fp32(self, "sin", out);
+    tensor_sin_fp32(self, out);
     return out;
 }
 
 at::Tensor rsqrt_tensor(const at::Tensor &self)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "rsqrt");
-    at::Tensor out = at::empty_like(inp);
-    tensor_rsqrt_fp32(inp, out);
+    check_unary_fp32(self, "rsqrt");
+    at::Tensor out = at::empty_like(self);
+    tensor_rsqrt_fp32(self, out);
     return out;
 }
 
 at::Tensor &rsqrt_out(const at::Tensor &self, at::Tensor &out)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "rsqrt", out);
-    tensor_rsqrt_fp32(inp, out);
+    check_unary_fp32(self, "rsqrt", out);
+    tensor_rsqrt_fp32(self, out);
     return out;
 }
 
 at::Tensor exp_tensor(const at::Tensor &self)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "exp");
-    at::Tensor out = at::empty_like(inp);
-    tensor_exp_fp32(inp, out);
+    check_unary_fp32(self, "exp");
+    at::Tensor out = at::empty_like(self);
+    tensor_exp_fp32(self, out);
     return out;
 }
 
 at::Tensor &exp_out(const at::Tensor &self, at::Tensor &out)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "exp", out);
-    tensor_exp_fp32(inp, out);
+    check_unary_fp32(self, "exp", out);
+    tensor_exp_fp32(self, out);
     return out;
 }
 
 at::Tensor log_tensor(const at::Tensor &self)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "log");
-    at::Tensor out = at::empty_like(inp);
-    tensor_log_fp32(inp, out);
+    check_unary_fp32(self, "log");
+    at::Tensor out = at::empty_like(self);
+    tensor_log_fp32(self, out);
     return out;
 }
 
 at::Tensor &log_out(const at::Tensor &self, at::Tensor &out)
 {
     nntile::GraphFillScope record;
-    at::Tensor inp = self.is_contiguous() ? self : self.contiguous();
-    check_unary_fp32(inp, "log", out);
-    tensor_log_fp32(inp, out);
+    check_unary_fp32(self, "log", out);
+    tensor_log_fp32(self, out);
     return out;
 }
 

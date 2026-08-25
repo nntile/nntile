@@ -37,9 +37,6 @@ void check_silu_backward(
     TORCH_CHECK(
         grad_output.sizes() == self.sizes(),
         "nntile silu_backward: shape mismatch");
-    TORCH_CHECK(
-        grad_output.is_contiguous() && self.is_contiguous(),
-        "nntile silu_backward requires contiguous tensors");
 }
 
 void run_silu_backward(
@@ -76,9 +73,6 @@ at::Tensor &silu_backward_out(
     TORCH_CHECK(
         is_nntile_device(grad_input.device()),
         "nntile silu_backward.out: expected nntile output");
-    TORCH_CHECK(
-        grad_input.is_contiguous(),
-        "nntile silu_backward.out requires contiguous out");
     run_silu_backward(grad_output, self, grad_input);
     return grad_input;
 }

@@ -35,13 +35,11 @@ void check_relu_input(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile relu supports float32 only");
-    TORCH_CHECK(self.is_contiguous(), "nntile relu requires contiguous input");
     if (out.has_value())
     {
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile relu.out: output shape mismatch");
-        TORCH_CHECK(out->is_contiguous(), "nntile relu.out requires contiguous out");
     }
 }
 

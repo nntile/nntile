@@ -14,8 +14,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from torch_nntile.add_fiber import add_fiber
-from torch_nntile.gemm import gemm
+from torch_nntile.nn.functional import add_fiber, gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose
 

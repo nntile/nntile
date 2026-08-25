@@ -28,7 +28,6 @@ void check_input(const at::Tensor &input, const char *name)
 {
     TORCH_CHECK(is_nntile_device(input.device()), name, ": expected nntile");
     TORCH_CHECK(input.scalar_type() == at::ScalarType::Float, name, ": fp32");
-    TORCH_CHECK(input.is_contiguous(), name, ": contiguous input required");
 }
 
 std::vector<int64_t> sym_to_i64(c10::SymIntArrayRef values)

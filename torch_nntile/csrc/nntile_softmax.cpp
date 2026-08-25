@@ -45,7 +45,6 @@ void check_softmax_input(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile softmax supports float32 only");
-    TORCH_CHECK(self.is_contiguous(), "nntile softmax requires contiguous input");
     TORCH_CHECK(
         self.dim() > 0,
         "nntile softmax: cannot compute softmax on empty tensor");
@@ -55,9 +54,6 @@ void check_softmax_input(
         TORCH_CHECK(
             out->sizes() == self.sizes(),
             "nntile softmax.out: output shape mismatch");
-        TORCH_CHECK(
-            out->is_contiguous(),
-            "nntile softmax.out requires contiguous out");
     }
 }
 

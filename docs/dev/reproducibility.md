@@ -58,12 +58,16 @@ cmake --build build --target nntile torch_nntile -j$(nproc)
 
 export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
 export NNTILE_SOURCE_DIR=$PWD
-export LD_LIBRARY_PATH=$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib
+export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib"
 CXX=g++ pip install -e ./torch_nntile --no-build-isolation --force-reinstall
 ```
 
 On a **CUDA** host, rebuild with `-DUSE_CUDA=ON` against a matching
-`torch==2.9.1` CUDA wheel, and install `diffusers` / `datasets` the same way.
+`torch==2.9.1` CUDA build. Runtime needs ``TORCH_LIB_DIR`` plus CUDA math
+libs on ``LD_LIBRARY_PATH`` (conda ``${CONDA_PREFIX}/lib`` or pip
+``nvidia-*-cu12`` from torch) — see
+[build/README.md](../build/README.md#cuda-runtime-source--conda).
 
 ## Tiny smokes (all torch-native models)
 
