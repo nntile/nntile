@@ -1768,6 +1768,40 @@ void TorchGt::cpu(void *buffers[], void *cl_args) noexcept
             reinterpret_cast<VariableInterface **>(buffers);
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
+        if (args->kind == TorchKind::Mul && args->iargs[15] == 3)
+        {
+            float *a_ptr = ifaces[0]->get_ptr<float>();
+            bool_t *b_ptr = ifaces[1]->get_ptr<bool_t>();
+            float *out_ptr = ifaces[2]->get_ptr<float>();
+            at::Tensor ta = in_fp32(a_ptr, *args, 0);
+            at::Tensor tb = in_bool(
+                reinterpret_cast<bool *>(b_ptr),
+                *args,
+                1);
+            at::Tensor result = out_fp32(out_ptr, *args, 0);
+            at::mul_out(result, ta, tb);
+            return;
+        }
+        if (args->kind == TorchKind::Mul && args->iargs[15] == 2)
+        {
+            bool_t *a_ptr = ifaces[0]->get_ptr<bool_t>();
+            bool_t *b_ptr = ifaces[1]->get_ptr<bool_t>();
+            bool_t *out_ptr = ifaces[2]->get_ptr<bool_t>();
+            at::Tensor ta = in_bool(
+                reinterpret_cast<bool *>(a_ptr),
+                *args,
+                0);
+            at::Tensor tb = in_bool(
+                reinterpret_cast<bool *>(b_ptr),
+                *args,
+                1);
+            at::Tensor result = out_bool(
+                reinterpret_cast<bool *>(out_ptr),
+                *args,
+                0);
+            at::mul_out(result, ta, tb);
+            return;
+        }
         if (args->kind == TorchKind::Eq)
         {
             float *a_ptr = ifaces[0]->get_ptr<float>();

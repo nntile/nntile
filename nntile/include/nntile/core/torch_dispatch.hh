@@ -169,6 +169,27 @@ void torch_i64_binary_out(
     const TorchTileMeta &out_meta,
     const starpu::TorchDispatchArgs &extra);
 
+void torch_bool_binary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<bool_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<bool_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
+void torch_fp32_bool_mul_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &fp32,
+    const TorchTileMeta &fp32_meta,
+    const Tile<bool_t> &pred,
+    const TorchTileMeta &pred_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra);
+
 void torch_i64_unary_out(
     int starpu_worker_hint,
     starpu::TorchKind kind,

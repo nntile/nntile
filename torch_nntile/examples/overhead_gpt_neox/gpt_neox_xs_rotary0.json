@@ -1,0 +1,17 @@
+{
+  "_comment": "Ablation: XS with rotary_pct=0 (no RoPE) — isolates RoPE cost vs default gpt_neox_xs.json",
+  "vocab_size": 2048,
+  "hidden_size": 1536,
+  "intermediate_size": 6144,
+  "num_hidden_layers": 12,
+  "num_attention_heads": 24,
+  "max_position_embeddings": 768,
+  "rotary_pct": 0.0,
+  "rotary_emb_base": 10000,
+  "attention_dropout": 0.0,
+  "hidden_dropout": 0.0,
+  "classifier_dropout": 0.0,
+  "tie_word_embeddings": false,
+  "bos_token_id": 0,
+  "eos_token_id": 0
+}

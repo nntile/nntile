@@ -288,6 +288,40 @@ void TileTorchBinaryOp::execute(Runtime &runtime) const
             extra);
         return;
     }
+    if (a->dtype() == DataType::FP32 && b->dtype() == DataType::BOOL &&
+        out->dtype() == DataType::FP32)
+    {
+        auto &a_t = runtime.get_tile<fp32_t>(a);
+        auto &b_t = runtime.get_tile<bool_t>(b);
+        auto &out_t = runtime.get_tile<fp32_t>(out);
+        core::torch_fp32_bool_mul_out(
+            runtime.starpu_worker_hint(),
+            a_t,
+            a_meta,
+            b_t,
+            b_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
+    if (a->dtype() == DataType::BOOL)
+    {
+        auto &a_t = runtime.get_tile<bool_t>(a);
+        auto &b_t = runtime.get_tile<bool_t>(b);
+        auto &out_t = runtime.get_tile<bool_t>(out);
+        core::torch_bool_binary_out(
+            runtime.starpu_worker_hint(),
+            kind,
+            a_t,
+            a_meta,
+            b_t,
+            b_meta,
+            out_t,
+            out_meta,
+            extra);
+        return;
+    }
     auto &a_t = runtime.get_tile<fp32_t>(a);
     auto &b_t = runtime.get_tile<fp32_t>(b);
     auto &out_t = runtime.get_tile<fp32_t>(out);

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Run GPT-Neo HF overhead ladder and emit parsed JSON results.
+"""Run GPT-NeoX HF overhead ladder and emit parsed JSON results.
 
 All runs pin a single physical GPU via ``CUDA_VISIBLE_DEVICES`` (default
-``--gpu 0``). GPT-2 / GPT-NeoX overhead studies use the same GPU.
+``--gpu 0``). Use the same GPU as GPT-2 / GPT-Neo overhead studies.
 """
 
 from __future__ import annotations
@@ -22,15 +22,15 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
-TRAIN = REPO / "torch_nntile" / "examples" / "train_gpt_neo_hf.py"
-CONFIG_DIR = REPO / "torch_nntile" / "examples" / "overhead_gpt_neo"
+TRAIN = REPO / "torch_nntile" / "examples" / "train_gpt_neox_hf.py"
+CONFIG_DIR = REPO / "torch_nntile" / "examples" / "overhead_gpt_neox"
 
 SIZES = {
-    "xs": ("gpt_neo_xs.json", 768),
-    "s": ("gpt_neo_s.json", 1024),
-    "m": ("gpt_neo_m.json", 1536),
-    "l": ("gpt_neo_l.json", 2048),
-    "xl": ("gpt_neo_xl.json", 2880),
+    "xs": ("gpt_neox_xs.json", 768),
+    "s": ("gpt_neox_s.json", 1024),
+    "m": ("gpt_neox_m.json", 1536),
+    "l": ("gpt_neox_l.json", 2048),
+    "xl": ("gpt_neox_xl.json", 2880),
 }
 DEFAULT_LONG_STEPS = 100
 
@@ -210,7 +210,7 @@ def run_one(
         "1",
         "--output-dir",
         str(out),
-        "--no-checkpoint",
+        "--no-save-checkpoint",
     ]
     insert_at = 4
     if device == "cuda":

@@ -521,6 +521,75 @@ void torch_i64_binary_out(
         out);
 }
 
+void torch_bool_binary_out(
+    int starpu_worker_hint,
+    starpu::TorchKind kind,
+    const Tile<bool_t> &a,
+    const TorchTileMeta &a_meta,
+    const Tile<bool_t> &b,
+    const TorchTileMeta &b_meta,
+    const Tile<bool_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    a.mpi_transfer(out_rank, mpi_rank);
+    b.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = kind;
+    args.n_in = 2;
+    args.n_out = 1;
+    args.iargs[15] = 2;
+    pack_meta_into(args, 0, a_meta, false);
+    pack_meta_into(args, 1, b_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_gt.submit(
+        starpu_worker_hint,
+        args,
+        a,
+        b,
+        out);
+}
+
+void torch_fp32_bool_mul_out(
+    int starpu_worker_hint,
+    const Tile<fp32_t> &fp32,
+    const TorchTileMeta &fp32_meta,
+    const Tile<bool_t> &pred,
+    const TorchTileMeta &pred_meta,
+    const Tile<fp32_t> &out,
+    const TorchTileMeta &out_meta,
+    const starpu::TorchDispatchArgs &extra)
+{
+    int mpi_rank = starpu_mpi_world_rank();
+    int out_rank = out.mpi_get_rank();
+    fp32.mpi_transfer(out_rank, mpi_rank);
+    pred.mpi_transfer(out_rank, mpi_rank);
+    if (mpi_rank != out_rank)
+    {
+        return;
+    }
+    starpu::TorchDispatchArgs args = extra;
+    args.kind = starpu::TorchKind::Mul;
+    args.n_in = 2;
+    args.n_out = 1;
+    args.iargs[15] = 3;
+    pack_meta_into(args, 0, fp32_meta, false);
+    pack_meta_into(args, 1, pred_meta, false);
+    pack_meta_into(args, 0, out_meta, true);
+    starpu::torch_gt.submit(
+        starpu_worker_hint,
+        args,
+        fp32,
+        pred,
+        out);
+}
+
 void torch_i64_unary_out(
     int starpu_worker_hint,
     starpu::TorchKind kind,

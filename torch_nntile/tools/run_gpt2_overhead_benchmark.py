@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run GPT-2 HF overhead ladder and emit parsed JSON results."""
+"""Run GPT-2 HF overhead ladder and emit parsed JSON results.
+
+All runs pin a single physical GPU via ``CUDA_VISIBLE_DEVICES`` (default
+``--gpu 0``). GPT-Neo / GPT-NeoX overhead studies use the same GPU.
+"""
 
 from __future__ import annotations
 
@@ -26,6 +30,7 @@ SIZES = {
     "s": ("gpt2_s.json", 1024),
     "m": ("gpt2_m.json", 1536),
     "l": ("gpt2_l.json", 2048),
+    "xl": ("gpt2_xl.json", 2880),
 }
 DEFAULT_LONG_STEPS = 100
 
@@ -363,6 +368,13 @@ def main() -> int:
         action="store_true",
         help="Skip the long S nntile run",
     )
+    parser.add_argument(
+        "--sizes",
+        nargs="+",
+        choices=list(SIZES),
+        default=list(SIZES),
+        help="Ladder sizes to run (default: all)",
+    )
     args = parser.parse_args()
     if args.repeats < 1:
         raise SystemExit("--repeats must be >= 1")
@@ -372,7 +384,7 @@ def main() -> int:
     results: list[RunResult] = []
     for repeat in range(args.repeats):
         print(f"=== repeat {repeat + 1}/{args.repeats} ===", flush=True)
-        for size in SIZES:
+        for size in args.sizes:
             for device in ("cuda", "nntile"):
                 print(
                     f"run {size} {device} overlap rep={repeat}",
@@ -399,7 +411,7 @@ def main() -> int:
                     repeat=repeat,
                 )
             )
-        if not args.skip_long:
+        if not args.skip_long and "s" in args.sizes:
             long_mode = f"{args.long_steps}step"
             print(
                 f"run s nntile {long_mode} rep={repeat}",

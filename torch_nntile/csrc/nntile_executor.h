@@ -80,6 +80,18 @@ void tensor_mul_fp32(
 
 void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self);
 
+void tensor_mul_bool(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out);
+
+void tensor_mul_inplace_bool(const at::Tensor &other, at::Tensor &self);
+
+void tensor_mul_fp32_bool(
+    const at::Tensor &fp32,
+    const at::Tensor &pred,
+    at::Tensor &out);
+
 void tensor_hypot_fp32(
     const at::Tensor &self,
     const at::Tensor &other,

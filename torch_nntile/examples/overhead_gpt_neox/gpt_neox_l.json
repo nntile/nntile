@@ -1,0 +1,17 @@
+{
+  "_comment": "Overhead L: 12 layers, hidden_size=4096, seq_len=2048 (= hidden_size/2)",
+  "vocab_size": 2048,
+  "hidden_size": 4096,
+  "intermediate_size": 16384,
+  "num_hidden_layers": 12,
+  "num_attention_heads": 32,
+  "max_position_embeddings": 2048,
+  "rotary_pct": 0.5,
+  "rotary_emb_base": 10000,
+  "attention_dropout": 0.0,
+  "hidden_dropout": 0.0,
+  "classifier_dropout": 0.0,
+  "tie_word_embeddings": false,
+  "bos_token_id": 0,
+  "eos_token_id": 0
+}

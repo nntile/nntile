@@ -158,7 +158,7 @@ struct TorchDispatchArgs
     // Gt/Lt: none (broadcast via packed layouts)
     // Cast: src dtype tag iargs[0], dst tag iargs[1]
     //   (0=fp32, 1=i64, 2=bool)
-    // Where value dtype: iargs[15] (0=fp32, 1=i64)
+    // Where value dtype: iargs[15] (0=fp32, 1=i64, 2=bool binary, 3=fp32*bool)
     // AvgPool2d: kernel [0..1], stride [2..3], padding [4..5],
     //   ceil_mode [6], count_include_pad [7], has_divisor [8],
     //   divisor [9]

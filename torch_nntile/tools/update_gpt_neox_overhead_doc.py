@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate docs/dev/gpt_neo_hf_overhead_scale.md from benchmark summary."""
+"""Regenerate docs/dev/gpt_neox_hf_overhead_scale.md from benchmark summary."""
 
 from __future__ import annotations
 
@@ -16,17 +16,15 @@ if str(_TOOLS) not in sys.path:
 from overhead_plot import write_long_plots
 
 REPO = Path(__file__).resolve().parents[2]
-DOC = REPO / "docs" / "dev" / "gpt_neo_hf_overhead_scale.md"
+DOC = REPO / "docs" / "dev" / "gpt_neox_hf_overhead_scale.md"
 
-LADDER = ["xs", "s", "m", "l", "xl"]
-SIZE_LABEL = {"xs": "XS", "s": "S", "m": "M", "l": "L", "xl": "XL"}
-SEQ_LEN = {"xs": 768, "s": 1024, "m": 1536, "l": 2048, "xl": 2880}
+SIZE_LABEL = {"xs": "XS", "s": "S", "m": "M", "l": "L"}
+SEQ_LEN = {"xs": 768, "s": 1024, "m": 1536, "l": 2048}
 HIDDEN = {
     "xs": "1536 / 24",
     "s": "2048 / 16",
     "m": "3072 / 24",
     "l": "4096 / 32",
-    "xl": "5760 / 45",
 }
 
 # GPT-2 10× reference (from docs/dev/gpt2_hf_overhead_scale.md, same GPU/date).
@@ -38,9 +36,15 @@ GPT2_REF = {
     "long_loss": 7.734033,
     "long_host_pct": 22,
 }
+# GPT-Neo 10× reference (same GPU 0 ladder as GPT-2).
+GPT_NEO_REF = {
+    "ratios": {"xs": 0.99, "s": 0.97, "m": 0.95, "l": 0.95},
+    "long_wall_s": 27.561,
+    "long_loss": 7.932405,
+    "long_host_pct": 24,
+}
 
 
-from overhead_plot import write_long_plots
 def load_summary(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -203,7 +207,7 @@ def render_doc(
     host_shares = []
     ratios = []
     loss_notes = []
-    for size in LADDER:
+    for size in ["xs", "s", "m", "l"]:
         c = grp(size, "cuda", "overlap")
         n = grp(size, "nntile", "overlap")
         ratio_mean = g(n, "metrics", "train_wall_s", "mean") / g(
@@ -255,7 +259,7 @@ def render_doc(
 
     iso_rows = []
     hidden_rows = []
-    for size in LADDER:
+    for size in ["xs", "s", "m", "l"]:
         n = grp(size, "nntile", "overlap")
         c = grp(size, "cuda", "overlap")
         iso = n["isolated"]
@@ -284,7 +288,7 @@ def render_doc(
     seq_rows = []
     seq_loss = []
     seq_compute_ratios = []
-    for size in LADDER:
+    for size in ["xs", "s", "m", "l"]:
         c = grp(size, "cuda", "overlap")
         sq = grp(size, "nntile", "sequential")
         prep = g(sq, "metrics", "host_s")
@@ -322,22 +326,22 @@ def render_doc(
             )
             / g(s1k, "metrics", "train_wall_s", "mean")
         )
-        neo_long_wall = g(s1k, "metrics", "train_wall_s", "mean")
-        neo_long_loss = g(s1k, "metrics", "final_loss", "mean")
+        neox_long_wall = g(s1k, "metrics", "train_wall_s", "mean")
+        neox_long_loss = g(s1k, "metrics", "final_loss", "mean")
         compare_long = f"""
 ### {long_steps}-step S (nntile)
 
-| | GPT-2 | GPT-Neo | Notes |
-|--|------:|--------:|-------|
-| train wall | {GPT2_REF['long_wall_s']:.1f} s | **{neo_long_wall:.1f} s** | same ballpark |
-| final loss | {GPT2_REF['long_loss']:.6f} | **{neo_long_loss:.6f}** | Neo drifts vs CUDA on 10-step S |
-| host share | {GPT2_REF['long_host_pct']}% | **{host1k:.0f}%** | flat host, GPU-bound |"""
+| | GPT-2 | GPT-Neo | GPT-NeoX | Notes |
+|--|------:|--------:|---------:|-------|
+| train wall | {GPT2_REF['long_wall_s']:.1f} s | {GPT_NEO_REF['long_wall_s']:.1f} s | **{neox_long_wall:.1f} s** | same ballpark |
+| final loss | {GPT2_REF['long_loss']:.6f} | {GPT_NEO_REF['long_loss']:.6f} | **{neox_long_loss:.6f}** | see 10-step loss table |
+| host share | {GPT2_REF['long_host_pct']}% | {GPT_NEO_REF['long_host_pct']}% | **{host1k:.0f}%** | flat host, GPU-bound |"""
         long_section = f"""## {long_steps}-step S (nntile steady state, mean ± stdev over {repeats} runs)
 
 Same **S** config (`hidden_size=2048`, `T=1024`, B=1), **{long_steps} optimizer steps**, nntile
 overlap only. Complements the 10-step ladder above.
 
-Loss **{neo_long_loss:.6f}**.
+Loss **{neox_long_loss:.6f}**.
 
 | | Total | mean / step |
 |--|--:|--:|
@@ -350,40 +354,41 @@ Loss **{neo_long_loss:.6f}**.
 
 Host (record + compile) is **{host1k:.0f}%** of the wall (~{g(s1k, 'metrics', 'host_s', 'mean') / long_steps * 1000:.0f} ms/step).
 
-![Host overhead per iteration](gpt_neo_hf_overhead_s_{long_steps}.svg)
+![Host overhead per iteration](gpt_neox_hf_overhead_s_{long_steps}.svg)
 
-CSV: [`gpt_neo_hf_overhead_s_{long_steps}.csv`](gpt_neo_hf_overhead_s_{long_steps}.csv) (median of {repeats} runs).
+CSV: [`gpt_neox_hf_overhead_s_{long_steps}.csv`](gpt_neox_hf_overhead_s_{long_steps}.csv) (median of {repeats} runs).
 """
     else:
         long_section = ""
         compare_long = ""
 
     compare_rows = []
-    for size in LADDER:
+    for size in ["xs", "s", "m", "l"]:
         c = grp(size, "cuda", "overlap")
         n = grp(size, "nntile", "overlap")
-        neo_ratio = g(n, "metrics", "train_wall_s", "mean") / g(
+        neox_ratio = g(n, "metrics", "train_wall_s", "mean") / g(
             c, "metrics", "train_wall_s", "mean"
         )
-        g2_ratio = GPT2_REF["ratios"].get(size)
-        g2_cell = f"{g2_ratio:.2f}×" if g2_ratio is not None else "—"
+        g2_ratio = GPT2_REF["ratios"][size]
+        neo_ratio = GPT_NEO_REF["ratios"][size]
         compare_rows.append(
-            f"| {SIZE_LABEL[size]} | {g2_cell} | **{neo_ratio:.2f}×** |"
+            f"| {SIZE_LABEL[size]} | {g2_ratio:.2f}× | {neo_ratio:.2f}× | **{neox_ratio:.2f}×** |"
         )
-    compare_section = f"""## Comparison to GPT-2 (same ladder geometry)
+    compare_section = f"""## Comparison to GPT-2 / GPT-Neo (same ladder geometry)
 
-See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× run
-(same A40 GPU 0, Aug 2026, CUDA-parity matmul).
+See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) and
+[`gpt_neo_hf_overhead_scale.md`](gpt_neo_hf_overhead_scale.md) for the GPT-2 and
+GPT-Neo 10× runs (same A40 **GPU 0**, Aug 2026, CUDA-parity matmul).
 
-| Size | GPT-2 nntile/CUDA | GPT-Neo nntile/CUDA |
-|------|------------------:|--------------------:|
+| Size | GPT-2 nntile/CUDA | GPT-Neo nntile/CUDA | GPT-NeoX nntile/CUDA |
+|------|------------------:|--------------------:|---------------------:|
 {chr(10).join(compare_rows)}
 {compare_long}
 """
 
     # steady sequential compute iter 2
     steady = {}
-    for size in LADDER:
+    for size in ["xs", "s", "m", "l"]:
         vals = [
             r["iters"][1]["compute"]
             for r in results
@@ -395,30 +400,27 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× 
         ]
         steady[size] = statistics.mean(vals)
 
-    return f"""# GPT-Neo HF: graph overhead vs width / seqlen
+    return f"""# GPT-NeoX HF: graph overhead vs width / seqlen
 
-{prelim_block}Ten-step stock HuggingFace **GPTNeoForCausalLM** on **CUDA** vs **`device=nntile`**.
-Depth is **12 global-attention layers** (XS–L); **XL** uses **6 layers** at similar
-param count. Width and sequence length grow together with **`seq_len = hidden_size / 2`**.
-XS uses the 2 GiB GPT-Neo width (`hidden_size=1536` from
-[`2gb/gpt_neo.json`](../../torch_nntile/examples/2gb/gpt_neo.json)) with **12 layers**
-instead of that file's 20.
+{prelim_block}Ten-step stock HuggingFace **GPTNeoXForCausalLM** on **CUDA** vs **`device=nntile`**.
+Depth is **12 layers** everywhere. Width and sequence length grow together with
+**`seq_len = hidden_size / 2`**. XS uses the 2 GiB GPT-NeoX width
+(`hidden_size=1536` from [`2gb/gpt_neox.json`](../../torch_nntile/examples/2gb/gpt_neox.json))
+with **12 layers** instead of that file's 20.
 
 > **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep CUDA
 > well under the card limit on large configs so nntile stays on-device (no
 > StarPU CPU↔GPU paging).
 
-Configs: [`torch_nntile/examples/overhead_gpt_neo/`](../../torch_nntile/examples/overhead_gpt_neo/).  
-Script: [`train_gpt_neo_hf.py`](../../torch_nntile/examples/train_gpt_neo_hf.py).  
-Benchmark runner: [`run_gpt_neo_overhead_benchmark.py`](../../torch_nntile/tools/run_gpt_neo_overhead_benchmark.py).
+Configs: [`torch_nntile/examples/overhead_gpt_neox/`](../../torch_nntile/examples/overhead_gpt_neox/).  
+Script: [`train_gpt_neox_hf.py`](../../torch_nntile/examples/train_gpt_neox_hf.py).  
+Benchmark runner: [`run_gpt_neox_overhead_benchmark.py`](../../torch_nntile/tools/run_gpt_neox_overhead_benchmark.py).
 
 ## Attention backend
 
-Stock HF GPT-Neo (transformers **4.52**) registers **`eager`** and
-`flash_attention_2` only — **no `sdpa` class**. This study uses
-**`attn_implementation="eager"`** (`GPTNeoSelfAttention`: explicit
-`matmul` / `softmax` / mask), on both CUDA and nntile. CUDA runs with
-`--disable-tf32`. GPT-2 SDPA / MATH pinning does **not** apply here.
+Same as GPT-2: stock HF GPT-NeoX (transformers **4.52**) with
+**`attn_implementation="sdpa"`**, MATH backend pinned on both CUDA and nntile.
+CUDA runs with `--disable-tf32`.
 
 ## Train wall
 
@@ -430,21 +432,20 @@ Same recipe as
 
 ## Recipe
 
-| | XS | S | M | L | XL |
-|--|--:|--:|--:|--:|--:|
-| Config | `gpt_neo_xs.json` | `gpt_neo_s.json` | `gpt_neo_m.json` | `gpt_neo_l.json` | `gpt_neo_xl.json` |
-| `num_layers` | 12 | 12 | 12 | 12 | **6** |
-| `hidden_size` / `num_heads` | {HIDDEN['xs']} | {HIDDEN['s']} | {HIDDEN['m']} | {HIDDEN['l']} | {HIDDEN['xl']} |
-| `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2880** |
-| Params (FP32) | 344 M (1.28 GiB) | 611 M (2.27 GiB) | 1.37 B (5.10 GiB) | 2.43 B (9.06 GiB) | **2.41 B (8.97 GiB)** |
+| | XS | S | M | L |
+|--|--:|--:|--:|--:|
+| Config | `gpt_neox_xs.json` | `gpt_neox_s.json` | `gpt_neox_m.json` | `gpt_neox_l.json` |
+| `num_hidden_layers` | 12 | 12 | 12 | 12 |
+| `hidden_size` / `num_attention_heads` | {HIDDEN['xs']} | {HIDDEN['s']} | {HIDDEN['m']} | {HIDDEN['l']} |
+| `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** |
+| Params (FP32) | 344 M (1.28 GiB) | 611 M (2.27 GiB) | 1.37 B (5.10 GiB) | 2.43 B (9.06 GiB) |
 
-B=1, 10 steps, seed 42, `--no-shuffle`, eager attention, CUDA `--disable-tf32`,
+B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, CUDA `--disable-tf32`,
 nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 0**.
 Separate processes (`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the CUDA child).
 
-Rerun: 2026-08-26, **{repeats} repeats per configuration** (mean ± stdev;
-[`{logdir}`](../../{logdir}/)). Post **`float32×bool` `at::mul_out`** fix (eager
-causal mask). Includes **S nntile {long_steps}-step** steady-state run per repeat.
+Rerun: 2026-08-25, **{repeats} repeats per configuration** (mean ± stdev;
+`{logdir}`). Includes **S nntile {long_steps}-step** steady-state run per repeat.
 
 ## Overall (10-step train wall)
 
@@ -452,18 +453,17 @@ causal mask). Includes **S nntile {long_steps}-step** steady-state run per repea
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
 {chr(10).join(overall_rows)}
 
-Host = `record(nntile)+record(torch)+compile` (~0.29–0.51 s for 10 steps,
-**flat**). Host **share** drops **{' → '.join(host_shares)}**
+Host = `record(nntile)+record(torch)+compile` (~0.50–0.59 s for 10 steps,
+**flat**). Host **share** drops **{host_shares[0]} → {host_shares[1]} → {host_shares[2]} → {host_shares[3]}**
 as GPU work grows.
 
 {loss_section}
 
 Isolated GPU `run+wait` vs CUDA isolated wall:
-{', '.join(
-    f"{SIZE_LABEL[size]} {ms(g(grp(size, 'nntile', 'overlap')['isolated'], 'run_wait'))} vs "
-    f"{ms(g(grp(size, 'cuda', 'overlap')['isolated'], 'cuda_wall'))} s"
-    for size in LADDER
-)}.
+XS {ms(g(grp('xs','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('xs','cuda','overlap')['isolated'], 'cuda_wall'))} s,
+S {ms(g(grp('s','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('s','cuda','overlap')['isolated'], 'cuda_wall'))} s,
+M {ms(g(grp('m','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('m','cuda','overlap')['isolated'], 'cuda_wall'))} s,
+L {ms(g(grp('l','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('l','cuda','overlap')['isolated'], 'cuda_wall'))} s.
 
 {long_section}
 {compare_section}
@@ -492,12 +492,6 @@ Isolated GPU `run+wait` vs CUDA isolated wall:
 | Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'l', 'nntile', 'overlap')}
-
-### XL (`hidden_size=5760`, `T=2880`, 6 layers, `head_dim=128`)
-
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
-|-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
-{iter_mean_table(results, 'xl', 'nntile', 'overlap')}
 
 ## Isolated extra step (mean ± stdev over {repeats} runs)
 
@@ -543,15 +537,14 @@ Sequential nntile loss: {', '.join(seq_loss)}.
 |-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'l', 'nntile', 'sequential')}
 
-Steady compute after iter 1 (mean over repeats): {', '.join(
-    f"~{steady[size]:.3f} s ({SIZE_LABEL[size]})" for size in LADDER if size in steady
-)}.
+Steady compute after iter 1 (mean over repeats): ~{steady['xs']:.3f} s (XS),
+~{steady['s']:.3f} s (S), ~{steady['m']:.3f} s (M), ~{steady['l']:.3f} s (L).
 
 ## Takeaways
 
-1. **`seq_len = hidden_size / 2`**, 12 global layers, eager HF attention.
-2. **Graph host overhead is flat** (~0.3–0.5 s / 10 steps); share falls as GPU
-   work grows ({host_shares[0]} → {host_shares[-1]}).
+1. **`seq_len = hidden_size / 2`**, 12 layers, MATH SDPA attention.
+2. **Graph host overhead is flat** (~0.5 s / 10 steps); share falls as GPU
+   work grows ({host_shares[0]} → {host_shares[3]}).
 3. **With VRAM headroom, nntile matches or beats CUDA on wall time**
    ({', '.join(ratios)}).
 4. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** CUDA.
@@ -567,12 +560,12 @@ export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
 export LD_LIBRARY_PATH="${{CONDA_PREFIX}}/lib:${{TORCH_LIB_DIR}}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib"
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
-python3 torch_nntile/tools/run_gpt_neo_overhead_benchmark.py \\
-  --logdir /tmp/gpt_neo_overhead_x10_YYYYMMDD --gpu 0 --repeats 10 --long-steps 100
+python3 torch_nntile/tools/run_gpt_neox_overhead_benchmark.py \\
+  --logdir /tmp/gpt_neox_overhead_x10_YYYYMMDD --gpu 0 --repeats 10 --long-steps 100
 
-python3 torch_nntile/tools/update_gpt_neo_overhead_doc.py \\
-  --summary /tmp/gpt_neo_overhead_x10_YYYYMMDD/results_summary.json \\
-  --results /tmp/gpt_neo_overhead_x10_YYYYMMDD/results.json
+python3 torch_nntile/tools/update_gpt_neox_overhead_doc.py \\
+  --summary /tmp/gpt_neox_overhead_x10_YYYYMMDD/results_summary.json \\
+  --results /tmp/gpt_neox_overhead_x10_YYYYMMDD/results.json
 ```
 """
 
@@ -599,14 +592,14 @@ def main() -> int:
     args.output.write_text(text, encoding="utf-8")
     print(f"wrote {args.output}")
 
-    csv_path = REPO / "docs" / "dev" / f"gpt_neo_hf_overhead_s_{long_steps}.csv"
-    svg_path = REPO / "docs" / "dev" / f"gpt_neo_hf_overhead_s_{long_steps}.svg"
+    csv_path = REPO / "docs" / "dev" / f"gpt_neox_hf_overhead_s_{long_steps}.csv"
+    svg_path = REPO / "docs" / "dev" / f"gpt_neox_hf_overhead_s_{long_steps}.svg"
     if write_long_plots(
         results,
         long_mode=long_mode,
         csv_path=csv_path,
         svg_path=svg_path,
-        title=f"GPT-Neo S nntile host overhead per iteration ({long_steps} steps)",
+        title=f"GPT-NeoX S nntile host overhead per iteration ({long_steps} steps)",
     ):
         print(f"wrote {csv_path}")
         print(f"wrote {svg_path}")

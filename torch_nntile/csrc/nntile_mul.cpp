@@ -21,33 +21,40 @@ namespace torch_nntile
 namespace
 {
 
-void check_mul_inputs(
+void check_mul_dtypes(
     const at::Tensor &self,
-    const at::Tensor &other,
-    const std::optional<at::Tensor> &out = std::nullopt)
+    const at::Tensor &other)
 {
     TORCH_CHECK(
         is_nntile_device(self.device()) &&
             is_nntile_device(other.device()),
         "nntile mul expects both operands on device nntile");
-    if (out.has_value())
-    {
-        TORCH_CHECK(
-            is_nntile_device(out->device()),
-            "nntile mul.out expects output on device nntile");
-    }
-    TORCH_CHECK(self.sizes() == other.sizes(), "nntile mul: shape mismatch");
     TORCH_CHECK(
         self.scalar_type() == other.scalar_type(),
         "nntile mul: dtype mismatch");
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile mul supports float32 only in phase 2");
+}
+
+void check_mul_inputs(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    const std::optional<at::Tensor> &out = std::nullopt)
+{
+    check_mul_dtypes(self, other);
     if (out.has_value())
     {
         TORCH_CHECK(
-            out->sizes() == self.sizes(),
+            is_nntile_device(out->device()),
+            "nntile mul.out expects output on device nntile");
+        TORCH_CHECK(
+            out->sizes().equals(
+                at::infer_size(self.sizes(), other.sizes())),
             "nntile mul.out: output shape mismatch");
+        TORCH_CHECK(
+            out->scalar_type() == at::ScalarType::Float,
+            "nntile mul.out expects float32 output");
     }
 }
 
@@ -115,10 +122,11 @@ at::Tensor mul_fp32_bool(
         fp32.scalar_type() == at::kFloat && pred.scalar_type() == at::kBool,
         "nntile mul: expected float32 * bool");
     auto bcast = at::infer_size(fp32.sizes(), pred.sizes());
-    at::Tensor zeros = at::zeros(
+    at::Tensor out = at::empty(
         bcast,
         fp32.options().memory_format(at::MemoryFormat::Contiguous));
-    return at::where(pred, fp32, zeros);
+    tensor_mul_fp32_bool(fp32, pred, out);
+    return out;
 }
 
 at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
@@ -155,6 +163,15 @@ at::Tensor mul_tensor(const at::Tensor &self, const at::Tensor &other)
         other.scalar_type() == at::kFloat)
     {
         return mul_fp32_bool(other, self);
+    }
+    if (self.scalar_type() == at::kBool &&
+        other.scalar_type() == at::kBool)
+    {
+        std::vector<int64_t> out_sizes =
+            at::infer_size(self.sizes(), other.sizes());
+        at::Tensor out = at::empty(out_sizes, self.options());
+        tensor_mul_bool(self, other, out);
+        return out;
     }
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float &&
@@ -196,6 +213,26 @@ at::Tensor &mul_inplace_tensor(at::Tensor &self, const at::Tensor &other)
     }
     require_nntile_operand(self, "mul_.Tensor", "self");
     require_nntile_operand(other, "mul_.Tensor", "other");
+    if (self.scalar_type() == at::kFloat &&
+        other.scalar_type() == at::kFloat)
+    {
+        TORCH_CHECK(
+            self.sizes().equals(
+                at::infer_size(self.sizes(), other.sizes())),
+            "nntile mul_.Tensor: other must broadcast to self");
+        tensor_mul_inplace_fp32(other, self);
+        return self;
+    }
+    if (self.scalar_type() == at::kBool &&
+        other.scalar_type() == at::kBool)
+    {
+        TORCH_CHECK(
+            self.sizes().equals(
+                at::infer_size(self.sizes(), other.sizes())),
+            "nntile mul_.Tensor: other must broadcast to self");
+        tensor_mul_inplace_bool(other, self);
+        return self;
+    }
     at::Tensor tmp = mul_tensor(self, other);
     self.copy_(tmp);
     return self;

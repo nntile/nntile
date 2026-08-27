@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Run GPT-Neo HF overhead ladder and emit parsed JSON results.
+"""Run Llama HF overhead ladder and emit parsed JSON results.
 
 All runs pin a single physical GPU via ``CUDA_VISIBLE_DEVICES`` (default
-``--gpu 0``). GPT-2 / GPT-NeoX overhead studies use the same GPU.
+``--gpu 2`` so Llama can run in parallel with GPT-NeoX on GPU 0).
 """
 
 from __future__ import annotations
@@ -22,17 +22,79 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
-TRAIN = REPO / "torch_nntile" / "examples" / "train_gpt_neo_hf.py"
-CONFIG_DIR = REPO / "torch_nntile" / "examples" / "overhead_gpt_neo"
+TRAIN = REPO / "torch_nntile" / "examples" / "train_llama_hf.py"
+CONFIG_DIR = REPO / "torch_nntile" / "examples" / "overhead_llama"
 
 SIZES = {
-    "xs": ("gpt_neo_xs.json", 768),
-    "s": ("gpt_neo_s.json", 1024),
-    "m": ("gpt_neo_m.json", 1536),
-    "l": ("gpt_neo_l.json", 2048),
-    "xl": ("gpt_neo_xl.json", 2880),
+    "xs": ("llama_xs.json", 768),
+    "s": ("llama_s.json", 1024),
+    "m": ("llama_m.json", 1536),
+    "l": ("llama_l.json", 2048),
+    "xl": ("llama_xl.json", 2880),
 }
 DEFAULT_LONG_STEPS = 100
+
+
+def run_tag(
+    size: str,
+    device: str,
+    mode: str,
+    repeat: int,
+    *,
+    max_sequences: int = 10,
+) -> str:
+    if max_sequences != 10:
+        tag = f"{size}_nntile_{max_sequences}step"
+    else:
+        tag = f"{size}_{device}_{mode}"
+    if repeat > 0:
+        tag = f"{tag}_rep{repeat:02d}"
+    return tag
+
+
+def parse_tag(tag: str) -> tuple[str, str, str, int, int] | None:
+    """Return ``(size, device, mode, repeat, max_sequences)`` from a log stem."""
+    m = re.fullmatch(r"(xs|s|m|l|xl)_nntile_(\d+)step(?:_rep(\d+))?", tag)
+    if m:
+        repeat = int(m.group(3)) if m.group(3) else 0
+        steps = int(m.group(2))
+        return m.group(1), "nntile", f"{steps}step", repeat, steps
+    m = re.fullmatch(
+        r"(xs|s|m|l|xl)_(cuda|nntile)_(overlap|sequential)(?:_rep(\d+))?",
+        tag,
+    )
+    if m:
+        repeat = int(m.group(4)) if m.group(4) else 0
+        return m.group(1), m.group(2), m.group(3), repeat, 10
+    return None
+
+
+def load_results_from_logdir(logdir: Path) -> list[RunResult]:
+    """Rebuild ``RunResult`` rows from per-run ``*.log`` files (for ``--resume``)."""
+    results: list[RunResult] = []
+    for log_path in sorted(logdir.glob("*.log")):
+        if log_path.name == "benchmark.log":
+            continue
+        parsed_tag = parse_tag(log_path.stem)
+        if parsed_tag is None:
+            continue
+        size, device, mode, repeat, _max_seq = parsed_tag
+        text = log_path.read_text(encoding="utf-8")
+        if "final loss=" not in text:
+            continue
+        row = parse_log(text, device)
+        row.name = log_path.stem
+        row.size = size
+        row.device = device
+        row.mode = mode
+        row.repeat = repeat
+        row.log_path = str(log_path)
+        results.append(row)
+    return results
+
+
+def result_key(r: RunResult) -> tuple[str, str, str, int]:
+    return (r.size, r.device, r.mode, r.repeat)
 
 
 @dataclass
@@ -173,11 +235,7 @@ def run_one(
 ) -> RunResult:
     cfg_name, seq_len = SIZES[size]
     cfg = CONFIG_DIR / cfg_name
-    tag = f"{size}_{device}_{mode}"
-    if max_sequences != 10:
-        tag = f"{size}_nntile_{max_sequences}step"
-    if repeat > 0:
-        tag = f"{tag}_rep{repeat:02d}"
+    tag = run_tag(size, device, mode, repeat, max_sequences=max_sequences)
     out = logdir / tag
     out.mkdir(parents=True, exist_ok=True)
     log_path = logdir / f"{tag}.log"
@@ -210,7 +268,7 @@ def run_one(
         "1",
         "--output-dir",
         str(out),
-        "--no-checkpoint",
+        "--no-save-checkpoint",
     ]
     insert_at = 4
     if device == "cuda":
@@ -353,7 +411,7 @@ def summarize_results(results: list[RunResult]) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--logdir", type=Path, required=True)
-    parser.add_argument("--gpu", default="0")
+    parser.add_argument("--gpu", default="2")
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument(
         "--long-steps",
@@ -367,6 +425,17 @@ def main() -> int:
         help="Skip the long S nntile run",
     )
     parser.add_argument(
+        "--start-repeat",
+        type=int,
+        default=0,
+        help="First repeat index to run (0-based; earlier repeats skipped)",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip runs whose .log already exists and parses successfully",
+    )
+    parser.add_argument(
         "--sizes",
         nargs="+",
         choices=list(SIZES),
@@ -378,29 +447,53 @@ def main() -> int:
         raise SystemExit("--repeats must be >= 1")
     if args.long_steps < 1:
         raise SystemExit("--long-steps must be >= 1")
+    if args.start_repeat < 0 or args.start_repeat >= args.repeats:
+        raise SystemExit("--start-repeat must be in [0, repeats)")
     args.logdir.mkdir(parents=True, exist_ok=True)
     results: list[RunResult] = []
-    for repeat in range(args.repeats):
+    done: set[tuple[str, str, str, int]] = set()
+    if args.resume:
+        results = load_results_from_logdir(args.logdir)
+        done = {result_key(r) for r in results}
+        if results:
+            print(
+                f"resume: loaded {len(results)} completed runs from {args.logdir}",
+                flush=True,
+            )
+    for repeat in range(args.start_repeat, args.repeats):
         print(f"=== repeat {repeat + 1}/{args.repeats} ===", flush=True)
         for size in args.sizes:
             for device in ("cuda", "nntile"):
+                key = (size, device, "overlap", repeat)
+                if args.resume and key in done:
+                    print(
+                        f"skip {size} {device} overlap rep={repeat} (log exists)",
+                        flush=True,
+                    )
+                    continue
                 print(
                     f"run {size} {device} overlap rep={repeat}",
                     flush=True,
                 )
-                results.append(
-                    run_one(
-                        size=size,
-                        device=device,
-                        mode="overlap",
-                        logdir=args.logdir,
-                        gpu=args.gpu,
-                        repeat=repeat,
-                    )
+                row = run_one(
+                    size=size,
+                    device=device,
+                    mode="overlap",
+                    logdir=args.logdir,
+                    gpu=args.gpu,
+                    repeat=repeat,
                 )
-            print(f"run {size} nntile sequential rep={repeat}", flush=True)
-            results.append(
-                run_one(
+                results.append(row)
+                done.add(key)
+            key = (size, "nntile", "sequential", repeat)
+            if args.resume and key in done:
+                print(
+                    f"skip {size} nntile sequential rep={repeat} (log exists)",
+                    flush=True,
+                )
+            else:
+                print(f"run {size} nntile sequential rep={repeat}", flush=True)
+                row = run_one(
                     size=size,
                     device="nntile",
                     mode="sequential",
@@ -408,15 +501,22 @@ def main() -> int:
                     gpu=args.gpu,
                     repeat=repeat,
                 )
-            )
+                results.append(row)
+                done.add(key)
         if not args.skip_long and "s" in args.sizes:
             long_mode = f"{args.long_steps}step"
-            print(
-                f"run s nntile {long_mode} rep={repeat}",
-                flush=True,
-            )
-            results.append(
-                run_one(
+            key = ("s", "nntile", long_mode, repeat)
+            if args.resume and key in done:
+                print(
+                    f"skip s nntile {long_mode} rep={repeat} (log exists)",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"run s nntile {long_mode} rep={repeat}",
+                    flush=True,
+                )
+                row = run_one(
                     size="s",
                     device="nntile",
                     mode=long_mode,
@@ -425,7 +525,10 @@ def main() -> int:
                     gpu=args.gpu,
                     repeat=repeat,
                 )
-            )
+                results.append(row)
+                done.add(key)
+    if args.resume:
+        results = load_results_from_logdir(args.logdir)
     out = args.logdir / "results.json"
     out.write_text(
         json.dumps([asdict(r) for r in results], indent=2),

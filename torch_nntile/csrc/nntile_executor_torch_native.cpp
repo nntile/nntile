@@ -371,19 +371,27 @@ void tensor_mul_fp32(
     const at::Tensor &other,
     at::Tensor &out)
 {
-    const std::vector<nntile::Index> graph_shape =
-        pytorch_shape_to_graph(self.sizes());
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat &&
+            other.scalar_type() == at::kFloat &&
+            out.scalar_type() == at::kFloat,
+        "torch_nntile torch_mul: float32 only");
+    TORCH_CHECK(
+        out.sizes().equals(at::infer_size(self.sizes(), other.sizes())),
+        "torch_nntile torch_mul: out must match broadcast shape");
 
     auto *self_node = get_or_create_data_node(
         self,
-        graph_shape,
+        pytorch_shape_to_graph(self.sizes()),
         nntile::DataType::FP32,
         mark_as_input_for_operand(self));
     auto *other_node = get_or_create_data_node(
         other,
-        graph_shape,
+        pytorch_shape_to_graph(other.sizes()),
         nntile::DataType::FP32,
         mark_as_input_for_operand(other));
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(out.sizes());
 
     nntile::starpu::TorchDispatchArgs extra{};
     pack_tensor_layout(extra, 0, self, false);
@@ -400,6 +408,14 @@ void tensor_mul_fp32(
 
 void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
 {
+    TORCH_CHECK(
+        self.scalar_type() == at::kFloat &&
+            other.scalar_type() == at::kFloat,
+        "torch_nntile torch_mul_inplace: float32 only");
+    TORCH_CHECK(
+        self.sizes().equals(at::infer_size(self.sizes(), other.sizes())),
+        "torch_nntile torch_mul_inplace: other must broadcast to self");
+
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(self.sizes());
 
@@ -410,7 +426,7 @@ void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
         mark_as_input_for_operand(self));
     auto *other_node = get_or_create_data_node(
         other,
-        graph_shape,
+        pytorch_shape_to_graph(other.sizes()),
         nntile::DataType::FP32,
         mark_as_input_for_operand(other));
 
@@ -425,6 +441,126 @@ void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
         graph_shape,
         extra);
     register_data_node(self, out_node);
+}
+
+void tensor_mul_bool(
+    const at::Tensor &self,
+    const at::Tensor &other,
+    at::Tensor &out)
+{
+    TORCH_CHECK(
+        self.scalar_type() == at::kBool &&
+            other.scalar_type() == at::kBool &&
+            out.scalar_type() == at::kBool,
+        "torch_nntile torch_mul: bool only");
+    TORCH_CHECK(
+        out.sizes().equals(at::infer_size(self.sizes(), other.sizes())),
+        "torch_nntile torch_mul: out must match broadcast shape");
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        pytorch_shape_to_graph(self.sizes()),
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        pytorch_shape_to_graph(other.sizes()),
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(other));
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(out.sizes());
+
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[15] = 2;
+    pack_tensor_layout(extra, 0, self, false);
+    pack_tensor_layout(extra, 1, other, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Mul,
+        self_node,
+        other_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
+}
+
+void tensor_mul_inplace_bool(const at::Tensor &other, at::Tensor &self)
+{
+    TORCH_CHECK(
+        self.scalar_type() == at::kBool && other.scalar_type() == at::kBool,
+        "torch_nntile torch_mul_inplace: bool only");
+    TORCH_CHECK(
+        self.sizes().equals(
+            at::infer_size(self.sizes(), other.sizes())),
+        "torch_nntile torch_mul_inplace: other must broadcast to self");
+
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(self.sizes());
+
+    auto *self_node = get_or_create_data_node(
+        self,
+        graph_shape,
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(self));
+    auto *other_node = get_or_create_data_node(
+        other,
+        pytorch_shape_to_graph(other.sizes()),
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(other));
+
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[15] = 2;
+    pack_tensor_layout(extra, 0, self, false);
+    pack_tensor_layout(extra, 1, other, false);
+    pack_tensor_layout(extra, 0, self, true);
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Mul,
+        self_node,
+        other_node,
+        graph_shape,
+        extra);
+    register_data_node(self, out_node);
+}
+
+void tensor_mul_fp32_bool(
+    const at::Tensor &fp32,
+    const at::Tensor &pred,
+    at::Tensor &out)
+{
+    TORCH_CHECK(
+        fp32.scalar_type() == at::kFloat &&
+            pred.scalar_type() == at::kBool &&
+            out.scalar_type() == at::kFloat,
+        "torch_nntile torch_mul: expected float32 * bool -> float32");
+    TORCH_CHECK(
+        out.sizes().equals(at::infer_size(fp32.sizes(), pred.sizes())),
+        "torch_nntile torch_mul: out must match broadcast shape");
+
+    auto *fp32_node = get_or_create_data_node(
+        fp32,
+        pytorch_shape_to_graph(fp32.sizes()),
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(fp32));
+    auto *pred_node = get_or_create_data_node(
+        pred,
+        pytorch_shape_to_graph(pred.sizes()),
+        nntile::DataType::BOOL,
+        mark_as_input_for_operand(pred));
+    const std::vector<nntile::Index> graph_shape =
+        pytorch_shape_to_graph(out.sizes());
+
+    nntile::starpu::TorchDispatchArgs extra{};
+    extra.iargs[15] = 3;
+    pack_tensor_layout(extra, 0, fp32, false);
+    pack_tensor_layout(extra, 1, pred, false);
+    pack_tensor_layout(extra, 0, out, true);
+    auto *out_node = nntile::tensor::torch_binary(
+        nntile::starpu::TorchKind::Mul,
+        fp32_node,
+        pred_node,
+        graph_shape,
+        extra);
+    register_data_node(out, out_node);
 }
 
 void tensor_mul_scalar_fp32(
