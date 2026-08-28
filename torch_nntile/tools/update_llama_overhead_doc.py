@@ -14,6 +14,7 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 from overhead_plot import write_long_plots
+from overhead_refs import GPT2_REF, GPT_NEOX_REF
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "llama_hf_overhead_scale.md"
@@ -35,23 +36,6 @@ PARAMS = {
     "m": "1.37 B (5.10 GiB)",
     "l": "2.43 B (9.06 GiB)",
     "xl": "2.41 B (8.96 GiB)",
-}
-
-# GPT-2 10× reference (from docs/dev/gpt2_hf_overhead_scale.md, same GPU/date).
-GPT2_REF = {
-    "ratios": {"xs": 0.99, "s": 0.96, "m": 0.94, "l": 0.94},
-    "long_steps": 100,
-    "long_wall_s": 27.506,
-    "long_wall_std_s": 0.018,
-    "long_loss": 7.734033,
-    "long_host_pct": 22,
-}
-# GPT-NeoX 10× reference (docs/dev/gpt_neox_hf_overhead_scale.md, GPU 0).
-GPT_NEOX_REF = {
-    "ratios": {"xs": 1.14, "s": 1.04, "m": 1.03, "l": 1.00, "xl": 1.01},
-    "long_wall_s": 29.019,
-    "long_loss": 7.945045,
-    "long_host_pct": 25,
 }
 
 

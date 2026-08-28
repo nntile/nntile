@@ -14,6 +14,7 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 from overhead_plot import write_long_plots
+from overhead_refs import GPT2_REF
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "gpt_neo_hf_overhead_scale.md"
@@ -29,18 +30,6 @@ HIDDEN = {
     "xl": "5760 / 45",
 }
 
-# GPT-2 10× reference (from docs/dev/gpt2_hf_overhead_scale.md, same GPU/date).
-GPT2_REF = {
-    "ratios": {"xs": 0.99, "s": 0.96, "m": 0.94, "l": 0.94},
-    "long_steps": 100,
-    "long_wall_s": 27.506,
-    "long_wall_std_s": 0.018,
-    "long_loss": 7.734033,
-    "long_host_pct": 22,
-}
-
-
-from overhead_plot import write_long_plots
 def load_summary(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 

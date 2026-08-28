@@ -14,6 +14,7 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 from overhead_plot import write_long_plots
+from overhead_refs import GPT2_REF
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "dit_hf_overhead_scale.md"
@@ -46,16 +47,6 @@ CUDA_VRAM = {
     "xl": "~31–32 (6 layers; 7-layer CUDA match caused nntile offload)",
 }
 LOSS_MATCH_EPS = 2e-4
-
-# GPT-2 10× reference (from docs/dev/gpt2_hf_overhead_scale.md, same GPU/date).
-GPT2_REF = {
-    "ratios": {"xs": 0.99, "s": 0.96, "m": 0.94, "l": 0.94},
-    "long_steps": 100,
-    "long_wall_s": 27.506,
-    "long_wall_std_s": 0.018,
-    "long_loss": 7.734033,
-    "long_host_pct": 22,
-}
 
 
 def load_summary(path: Path) -> dict[str, Any]:

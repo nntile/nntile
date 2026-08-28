@@ -121,7 +121,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 | S | 0.96× | **1.06×** |
 | M | 0.94× | **1.01×** |
 | L | 0.94× | **0.99×** |
-| XL | — | **0.99×** |
+| XL | 0.96× | **0.99×** |
 
 ### 100-step S (nntile)
 

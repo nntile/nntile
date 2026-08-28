@@ -106,7 +106,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× 
 | S | 0.96× | **1.14×** |
 | M | 0.94× | **1.03×** |
 | L | 0.94× | **1.01×** |
-| XL | — | **1.00×** |
+| XL | 0.96× | **1.00×** |
 
 ### 100-step S (nntile)
 

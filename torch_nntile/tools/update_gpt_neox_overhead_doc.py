@@ -14,34 +14,20 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 from overhead_plot import write_long_plots
+from overhead_refs import GPT2_REF, GPT_NEO_REF
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "gpt_neox_hf_overhead_scale.md"
 
-SIZE_LABEL = {"xs": "XS", "s": "S", "m": "M", "l": "L"}
-SEQ_LEN = {"xs": 768, "s": 1024, "m": 1536, "l": 2048}
+LADDER = ["xs", "s", "m", "l", "xl"]
+SIZE_LABEL = {"xs": "XS", "s": "S", "m": "M", "l": "L", "xl": "XL"}
+SEQ_LEN = {"xs": 768, "s": 1024, "m": 1536, "l": 2048, "xl": 2880}
 HIDDEN = {
     "xs": "1536 / 24",
     "s": "2048 / 16",
     "m": "3072 / 24",
     "l": "4096 / 32",
-}
-
-# GPT-2 10× reference (from docs/dev/gpt2_hf_overhead_scale.md, same GPU/date).
-GPT2_REF = {
-    "ratios": {"xs": 0.99, "s": 0.96, "m": 0.94, "l": 0.94},
-    "long_steps": 100,
-    "long_wall_s": 27.506,
-    "long_wall_std_s": 0.018,
-    "long_loss": 7.734033,
-    "long_host_pct": 22,
-}
-# GPT-Neo 10× reference (same GPU 0 ladder as GPT-2).
-GPT_NEO_REF = {
-    "ratios": {"xs": 0.99, "s": 0.97, "m": 0.95, "l": 0.95},
-    "long_wall_s": 27.561,
-    "long_loss": 7.932405,
-    "long_host_pct": 24,
+    "xl": "5760 / 45",
 }
 
 
@@ -363,7 +349,7 @@ CSV: [`gpt_neox_hf_overhead_s_{long_steps}.csv`](gpt_neox_hf_overhead_s_{long_st
         compare_long = ""
 
     compare_rows = []
-    for size in ["xs", "s", "m", "l"]:
+    for size in LADDER:
         c = grp(size, "cuda", "overlap")
         n = grp(size, "nntile", "overlap")
         neox_ratio = g(n, "metrics", "train_wall_s", "mean") / g(
