@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate docs/dev/bert_hf_overhead_scale.md from benchmark summary."""
+"""Regenerate docs/dev/roberta_hf_overhead_scale.md from benchmark summary."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ if str(_TOOLS) not in sys.path:
 from overhead_plot import write_long_plots
 
 REPO = Path(__file__).resolve().parents[2]
-DOC = REPO / "docs" / "dev" / "bert_hf_overhead_scale.md"
+DOC = REPO / "docs" / "dev" / "roberta_hf_overhead_scale.md"
 
 LADDER = ["xs", "s", "m", "l", "xl"]
 SIZE_LABEL = {"xs": "XS", "s": "S", "m": "M", "l": "L", "xl": "XL"}
@@ -272,8 +272,9 @@ def render_doc(
     else:
         loss_section = (
             "MLM loss matches CUDA vs nntile to printed 1e-4 at all ladder sizes "
-            f"(XS {xs_c_loss:.6f} both). Resolves the historical ~0.25 gap in "
-            "[`cuda_vs_nntile_2gb.md`](cuda_vs_nntile_2gb.md) (mismatched NLL path)."
+            f"(XS {xs_c_loss:.6f} both). Resolves the historical BERT MLM mismatch in "
+            "[`cuda_vs_nntile_2gb.md`](cuda_vs_nntile_2gb.md) when using shared "
+            "`F.cross_entropy`."
         )
 
     iso_rows = []
@@ -350,7 +351,7 @@ def render_doc(
         compare_long = f"""
 ### {long_steps}-step S (nntile)
 
-| | GPT-2 | BERT | Notes |
+| | GPT-2 | RoBERTa | Notes |
 |--|------:|-----:|-------|
 | train wall | {GPT2_REF['long_wall_s']:.1f} s | **{neo_long_wall:.1f} s** | same ballpark |
 | final loss | {GPT2_REF['long_loss']:.6f} | **{neo_long_loss:.6f}** | MLM CE, matches 10-step S |
@@ -373,9 +374,9 @@ Loss **{neo_long_loss:.6f}**.
 
 Host (record + compile) is **{host1k:.0f}%** of the wall (~{g(s1k, 'metrics', 'host_s', 'mean') / long_steps * 1000:.0f} ms/step).
 
-![Host overhead per iteration](bert_hf_overhead_s_{long_steps}.svg)
+![Host overhead per iteration](roberta_hf_overhead_s_{long_steps}.svg)
 
-CSV: [`bert_hf_overhead_s_{long_steps}.csv`](bert_hf_overhead_s_{long_steps}.csv) (median of {repeats} runs).
+CSV: [`roberta_hf_overhead_s_{long_steps}.csv`](roberta_hf_overhead_s_{long_steps}.csv) (median of {repeats} runs).
 """
     else:
         long_section = ""
@@ -398,7 +399,7 @@ CSV: [`bert_hf_overhead_s_{long_steps}.csv`](bert_hf_overhead_s_{long_steps}.csv
 See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× run
 (same A40 GPUs, Aug 2026, CUDA-parity matmul).
 
-| Size | GPT-2 nntile/CUDA | BERT nntile/CUDA |
+| Size | GPT-2 nntile/CUDA | RoBERTa nntile/CUDA |
 |------|------------------:|-----------------:|
 {chr(10).join(compare_rows)}
 {compare_long}
@@ -418,9 +419,9 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× 
         ]
         steady[size] = statistics.mean(vals)
 
-    return f"""# BERT HF: graph overhead vs width / seqlen
+    return f"""# RoBERTa HF: graph overhead vs width / seqlen
 
-Ten-step stock HuggingFace **BertForMaskedLM** on **CUDA** vs **`device=nntile`**.
+Ten-step stock HuggingFace **RobertaForMaskedLM** on **CUDA** vs **`device=nntile`**.
 Depth is **12 layers** (XS–L); **XL** uses **6 layers** at similar param count.
 Width and sequence length grow together with **`seq_len = hidden_size / 2`**.
 
@@ -428,13 +429,13 @@ Width and sequence length grow together with **`seq_len = hidden_size / 2`**.
 > well under the card limit on large configs so nntile stays on-device (no
 > StarPU CPU↔GPU paging). GPUs are in **exclusive mode** — one process per GPU.
 
-Configs: [`torch_nntile/examples/overhead_bert/`](../../torch_nntile/examples/overhead_bert/).  
-Script: [`train_bert_hf_overhead.py`](../../torch_nntile/examples/train_bert_hf_overhead.py).  
-Benchmark runner: [`run_bert_overhead_benchmark.py`](../../torch_nntile/tools/run_bert_overhead_benchmark.py).
+Configs: [`torch_nntile/examples/overhead_roberta/`](../../torch_nntile/examples/overhead_roberta/).  
+Script: [`train_roberta_hf_overhead.py`](../../torch_nntile/examples/train_roberta_hf_overhead.py).  
+Benchmark runner: [`run_roberta_overhead_benchmark.py`](../../torch_nntile/tools/run_roberta_overhead_benchmark.py).
 
 ## Attention backend
 
-Stock HF BERT (transformers **4.52**) uses **eager** `BertSelfAttention` (manual
+Stock HF RoBERTa (transformers **4.52**) uses **eager** `RobertaSelfAttention` (manual
 `matmul` / `softmax`; no `sdpa` backend). This study uses
 **`attn_implementation="eager"`** on both CUDA and nntile. CUDA runs with
 `--disable-tf32`.
@@ -456,7 +457,7 @@ Same recipe as
 
 | | XS | S | M | L | XL |
 |--|--:|--:|--:|--:|--:|
-| Config | `bert_xs.json` | `bert_s.json` | `bert_m.json` | `bert_l.json` | `bert_xl.json` |
+| Config | `roberta_xs.json` | `roberta_s.json` | `roberta_m.json` | `roberta_l.json` | `roberta_xl.json` |
 | `num_hidden_layers` | {LAYERS['xs']} | {LAYERS['s']} | {LAYERS['m']} | {LAYERS['l']} | **{LAYERS['xl']}** |
 | `hidden_size` / `num_attention_heads` | {HIDDEN['xs']} | {HIDDEN['s']} | {HIDDEN['m']} | {HIDDEN['l']} | {HIDDEN['xl']} |
 | `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2880** |
@@ -467,8 +468,8 @@ nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40; **GPU 0** (XS/S/M/L),
 **GPU 2** (XL), **GPU 1** (100-step S). Separate processes (`PYTHONNOUSERSITE=1`;
 never import `torch_nntile` in the CUDA child). **Do not overlap jobs on one GPU.**
 
-Rerun: 2026-08-27–28, **10 repeats per configuration**
-([`benchmark_logs/`](../../benchmark_logs/) `bert_*_20260827_gpu*`, `bert_xs_10x_20260828_gpu1`).
+Rerun: 2026-08-27, **10 repeats per configuration** (XS: **3** repeats;
+[`benchmark_logs/`](../../benchmark_logs/) `roberta_*_20260827_gpu*`).
 Includes **S nntile {long_steps}-step** steady-state run.
 
 ## Overall (10-step train wall)
@@ -574,13 +575,13 @@ Steady compute after iter 1 (mean over repeats): {', '.join(
 
 ## Takeaways
 
-1. **`seq_len = hidden_size / 2`**, eager HF BERT attention, MLM CE loss.
+1. **`seq_len = hidden_size / 2`**, eager HF RoBERTa attention, MLM CE loss.
 2. **Graph host overhead is flat** (~0.3–0.5 s / 10 steps); share falls as GPU
    work grows ({host_shares[0]} → {host_shares[-1]}).
 3. **With VRAM headroom, nntile is within ~5–16% of CUDA on wall time**
    ({', '.join(ratios)}).
 4. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** CUDA.
-5. Timings are **mean ± stdev** over 10 runs per size on the assigned GPU.
+5. Timings are **mean ± stdev** on the same GPU per size (XS: 3 repeats).
 6. **MLM loss** matches CUDA vs nntile to ~1e-4 — see loss section above.
 7. **{long_steps}-step S** wall **{ms_s(g(s1k, 'metrics', 'train_wall_s')) if s1k else 'n/a'}** — see section above.
 
@@ -593,24 +594,24 @@ export LD_LIBRARY_PATH="${{CONDA_PREFIX}}/lib:${{TORCH_LIB_DIR}}:$PWD/build/nnti
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
 # One size per GPU; do not overlap on exclusive-mode GPUs.
-python3 torch_nntile/tools/run_bert_overhead_benchmark.py \\
-  --logdir /tmp/bert_overhead_l_gpu0 --gpu 0 --repeats 10 --sizes l --skip-long
-python3 torch_nntile/tools/run_bert_overhead_benchmark.py \\
-  --logdir /tmp/bert_overhead_xl_gpu2 --gpu 2 --repeats 10 --sizes xl --skip-long
-python3 torch_nntile/tools/run_bert_overhead_benchmark.py \\
-  --logdir /tmp/bert_overhead_s100 --gpu 1 --repeats 10 --only-long
+python3 torch_nntile/tools/run_roberta_overhead_benchmark.py \\
+  --logdir /tmp/roberta_overhead_l_gpu0 --gpu 0 --repeats 10 --sizes l --skip-long
+python3 torch_nntile/tools/run_roberta_overhead_benchmark.py \\
+  --logdir /tmp/roberta_overhead_xl_gpu2 --gpu 2 --repeats 10 --sizes xl --skip-long
+python3 torch_nntile/tools/run_roberta_overhead_benchmark.py \\
+  --logdir /tmp/roberta_overhead_s100 --gpu 1 --repeats 10 --only-long
 
-python3 torch_nntile/tools/update_bert_overhead_doc.py \\
-  --summary benchmark_logs/bert_sm_20260827_gpu0/results_summary.json \\
-  --results benchmark_logs/bert_sm_20260827_gpu0/results.json \\
-  --merge-summary benchmark_logs/bert_xs_loss_20260827_gpu0/results_summary.json \\
-  --merge-results benchmark_logs/bert_xs_loss_20260827_gpu0/results.json \\
-  --merge-summary benchmark_logs/bert_l_20260827_gpu0/results_summary.json \\
-  --merge-results benchmark_logs/bert_l_20260827_gpu0/results.json \\
-  --merge-summary benchmark_logs/bert_xl_20260827_gpu2/results_summary.json \\
-  --merge-results benchmark_logs/bert_xl_20260827_gpu2/results.json \\
-  --merge-summary benchmark_logs/bert_s100_20260827_gpu0/results_summary.json \\
-  --merge-results benchmark_logs/bert_s100_20260827_gpu0/results.json
+python3 torch_nntile/tools/update_roberta_overhead_doc.py \\
+  --summary benchmark_logs/roberta_sm_20260827_gpu0/results_summary.json \\
+  --results benchmark_logs/roberta_sm_20260827_gpu0/results.json \\
+  --merge-summary benchmark_logs/roberta_xs_loss_20260827_gpu0/results_summary.json \\
+  --merge-results benchmark_logs/roberta_xs_loss_20260827_gpu0/results.json \\
+  --merge-summary benchmark_logs/roberta_l_20260827_gpu0/results_summary.json \\
+  --merge-results benchmark_logs/roberta_l_20260827_gpu0/results.json \\
+  --merge-summary benchmark_logs/roberta_xl_20260827_gpu2/results_summary.json \\
+  --merge-results benchmark_logs/roberta_xl_20260827_gpu2/results.json \\
+  --merge-summary benchmark_logs/roberta_s100_20260827_gpu0/results_summary.json \\
+  --merge-results benchmark_logs/roberta_s100_20260827_gpu0/results.json
 ```
 """
 
@@ -655,14 +656,14 @@ def main() -> int:
     args.output.write_text(text, encoding="utf-8")
     print(f"wrote {args.output}")
 
-    csv_path = REPO / "docs" / "dev" / f"bert_hf_overhead_s_{long_steps}.csv"
-    svg_path = REPO / "docs" / "dev" / f"bert_hf_overhead_s_{long_steps}.svg"
+    csv_path = REPO / "docs" / "dev" / f"roberta_hf_overhead_s_{long_steps}.csv"
+    svg_path = REPO / "docs" / "dev" / f"roberta_hf_overhead_s_{long_steps}.svg"
     if write_long_plots(
         results,
         long_mode=long_mode,
         csv_path=csv_path,
         svg_path=svg_path,
-        title=f"BERT S nntile host overhead per iteration ({long_steps} steps)",
+        title=f"RoBERTa S nntile host overhead per iteration ({long_steps} steps)",
     ):
         print(f"wrote {csv_path}")
         print(f"wrote {svg_path}")
