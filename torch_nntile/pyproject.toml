@@ -27,6 +27,8 @@ test = [
     "numpy>=1.21",
     # Cap matches graph_api / CTest fixture generators: 4.53+ breaks Llama.
     "transformers<4.53",
+    "datasets",
+    "diffusers==0.32.2",
 ]
 
 [tool.pytest.ini_options]

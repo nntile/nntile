@@ -20,6 +20,7 @@ Start with the product docs if you are new:
 | [hf_tiny_cpu_vs_nntile_showcase.md](hf_tiny_cpu_vs_nntile_showcase.md) | Tiny HF smokes: CPU vs nntile loss/wall table |
 | [cnn_tiny_cpu_vs_nntile_showcase.md](cnn_tiny_cpu_vs_nntile_showcase.md) | Tiny CNN smokes (LeNet / ResNet): CPU vs nntile |
 | [dit_tiny_cpu_vs_nntile_showcase.md](dit_tiny_cpu_vs_nntile_showcase.md) | Tiny Diffusers DiT: CPU vs nntile loss/wall |
+| [dit_hf_overhead_scale.md](dit_hf_overhead_scale.md) | DiT HF 10-step CUDA vs nntile overhead ladder (VRAM-matched to Llama) |
 | [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md) | Middle (~1 min) torch-native CPU vs nntile |
 | [reproducibility.md](reproducibility.md) | Single-core CPU / GPU overhead measurement protocol |
 | [cuda_vs_nntile_2gb.md](cuda_vs_nntile_2gb.md) | ≥2 GiB CUDA vs nntile GPU table (separate processes) |

@@ -142,6 +142,55 @@ def make_cifar_diffusion_batch(
     }
 
 
+def make_synthetic_diffusion_batch(
+    *,
+    batch_size: int,
+    sample_size: int,
+    in_channels: int,
+    num_timesteps: int,
+    num_classes: int,
+    seed: int,
+) -> dict[str, torch.Tensor]:
+    """Deterministic noise-prediction batch without ``datasets`` I/O."""
+    g = torch.Generator().manual_seed(seed)
+    clean = torch.randn(
+        batch_size,
+        in_channels,
+        sample_size,
+        sample_size,
+        dtype=torch.float32,
+        generator=g,
+    )
+    noise = torch.randn(
+        clean.shape,
+        dtype=torch.float32,
+        generator=g,
+    )
+    timesteps = torch.randint(
+        0,
+        num_timesteps,
+        (batch_size,),
+        dtype=torch.long,
+        generator=g,
+    )
+    t_norm = timesteps.float() / float(max(num_timesteps - 1, 1))
+    t_norm = t_norm.view(batch_size, 1, 1, 1)
+    noisy = (1.0 - t_norm) * clean + t_norm * noise
+    class_labels = torch.randint(
+        0,
+        max(num_classes, 1),
+        (batch_size,),
+        dtype=torch.long,
+        generator=g,
+    )
+    return {
+        "noisy": noisy,
+        "noise": noise,
+        "timesteps": timesteps,
+        "class_labels": class_labels,
+    }
+
+
 def diffusion_mse_loss(
     model: nn.Module,
     batch: dict[str, torch.Tensor],

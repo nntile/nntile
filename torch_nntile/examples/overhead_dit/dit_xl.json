@@ -1,0 +1,18 @@
+{
+  "_comment": "Overhead XL: 6 layers, hidden=5760, sample_size=108 (2916 patches) (1 layer below CUDA VRAM match to avoid nntile host offload)",
+  "sample_size": 108,
+  "patch_size": 2,
+  "in_channels": 3,
+  "out_channels": 3,
+  "num_layers": 6,
+  "attention_head_dim": 128,
+  "num_attention_heads": 45,
+  "dropout": 0.0,
+  "attention_bias": true,
+  "activation_fn": "gelu-approximate",
+  "num_embeds_ada_norm": 1000,
+  "norm_type": "ada_norm_zero",
+  "norm_elementwise_affine": false,
+  "norm_eps": 1e-05,
+  "upcast_attention": false
+}
