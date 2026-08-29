@@ -14,6 +14,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from torch_nntile.nn import Embedding, GELU, LayerNorm, ReLU, SiLU
+from torch_nntile.nn.functional import add
 from torch_nntile.nn.linear import (
     NntileAttentionOutput,
     NntileLinear,
@@ -50,29 +52,29 @@ class BertConfig:
 
 def _bert_activation(name: str) -> nn.Module:
     if name in ("gelu",):
-        return nn.GELU()
+        return GELU(approximate="none")
     if name in ("gelu_pytorch_tanh", "gelutanh", "gelu_new"):
-        return nn.GELU(approximate="tanh")
+        return GELU(approximate="tanh")
     if name == "relu":
-        return nn.ReLU()
+        return ReLU()
     if name in ("silu", "swish"):
-        return nn.SiLU()
+        return SiLU()
     raise ValueError(f"BertConfig: unsupported hidden_act '{name}'")
 
 
 class BertEmbeddings(nn.Module):
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
-        self.word_embeddings = nn.Embedding(
+        self.word_embeddings = Embedding(
             config.vocab_size, config.hidden_size
         )
-        self.position_embeddings = nn.Embedding(
+        self.position_embeddings = Embedding(
             config.max_position_embeddings, config.hidden_size
         )
-        self.token_type_embeddings = nn.Embedding(
+        self.token_type_embeddings = Embedding(
             config.type_vocab_size, config.hidden_size
         )
-        self.LayerNorm = nn.LayerNorm(
+        self.LayerNorm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
         self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
@@ -121,10 +123,12 @@ class BertEmbeddings(nn.Module):
             position_ids = self._cached_arange_ids(input_ids)
         if token_type_ids is None:
             token_type_ids = self._cached_zero_token_types(input_ids)
-        x = (
-            self.word_embeddings(input_ids)
-            + self.position_embeddings(position_ids)
-            + self.token_type_embeddings(token_type_ids)
+        x = add(
+            add(
+                self.word_embeddings(input_ids),
+                self.position_embeddings(position_ids),
+            ),
+            self.token_type_embeddings(token_type_ids),
         )
         return self.LayerNorm(x)
 
@@ -186,12 +190,12 @@ class BertSelfOutput(nn.Module):
             config.hidden_size,
             bias=True,
         )
-        self.LayerNorm = nn.LayerNorm(
+        self.LayerNorm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
 
     def forward(self, hidden: Tensor, input_tensor: Tensor) -> Tensor:
-        return self.LayerNorm(self.dense(hidden) + input_tensor)
+        return self.LayerNorm(add(self.dense(hidden), input_tensor))
 
 
 class BertAttention(nn.Module):
@@ -230,12 +234,12 @@ class BertOutput(nn.Module):
             config.intermediate_size,
             config.hidden_size,
         )
-        self.LayerNorm = nn.LayerNorm(
+        self.LayerNorm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
 
     def forward(self, hidden: Tensor, input_tensor: Tensor) -> Tensor:
-        return self.LayerNorm(self.dense(hidden) + input_tensor)
+        return self.LayerNorm(add(self.dense(hidden), input_tensor))
 
 
 class BertLayer(nn.Module):
@@ -303,7 +307,7 @@ class BertMlmHead(nn.Module):
         self.dense = NntileLinear(config.hidden_size, config.hidden_size)
         # Match HF ``BertPredictionHeadTransform`` (ACT2FN[hidden_act]).
         self.transform_act_fn = _bert_activation(config.hidden_act)
-        self.LayerNorm = nn.LayerNorm(
+        self.LayerNorm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
         self.decoder = NntileLinear(

@@ -8,5 +8,6 @@
 
 from __future__ import annotations
 
-BUILT_WITH_CUDA = True
+BUILT_WITH_CUDA = False
 TORCH_NATIVE_OPS = True
+NNTILE_NATIVE_OPS = True

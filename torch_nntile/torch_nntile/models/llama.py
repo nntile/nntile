@@ -18,11 +18,12 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
 from torch_nntile.gemm import gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
+from torch_nntile.nn import Embedding, SiLU
+from torch_nntile.nn.functional import add, mul
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 from torch_nntile.normalization import rms_norm
@@ -120,9 +121,10 @@ class LlamaMLP(nn.Module):
         self.gate_proj = NntileLinear(h, i, bias=bias)
         self.up_proj = NntileLinear(h, i, bias=bias)
         self.down_proj = NntileLinear(i, h, bias=bias)
+        self.act = SiLU()
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x))
+        return self.down_proj(mul(self.act(self.gate_proj(x)), self.up_proj(x)))
 
 
 class LlamaAttention(nn.Module):
@@ -258,18 +260,18 @@ class LlamaDecoder(nn.Module):
         residual = x
         x = self.input_layernorm(x)
         x = self.self_attn(x, sin, cos, attn_mask, is_causal=is_causal)
-        x = residual + x
+        x = add(residual, x)
         residual = x
         x = self.post_attention_layernorm(x)
         x = self.mlp(x)
-        return residual + x
+        return add(residual, x)
 
 
 class LlamaModel(nn.Module):
     def __init__(self, config: LlamaConfig) -> None:
         super().__init__()
         self.config = config
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embed_tokens = Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
             [LlamaDecoder(config) for _ in range(config.num_hidden_layers)]
         )

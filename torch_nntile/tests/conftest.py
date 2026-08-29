@@ -90,6 +90,8 @@ def subprocess_environ(**extra: str) -> dict[str, str]:
         shadow = _shadow_path_entries()
         ordered = [p for p in existing if _path_entry(Path(p)) not in shadow]
     env["PYTHONPATH"] = ":".join(ordered)
+    env.setdefault("STARPU_NCUDA", "0")
+    env.setdefault("STARPU_NCPU", "1")
     env.update(extra)
     return env
 
@@ -128,59 +130,43 @@ def ensure_nntile_context(
 
 
 def pytest_collection_modifyitems(config, items) -> None:
-    """Under NNTILE_TORCH_NATIVE_OPS, skip classic-only / model suites.
-
-    Aten parity lives in C++ CTest (``-L torch_native|libtorch_nntile``).
-    CI ``test-torch-nntile`` runs an explicit allowlist; this hook still
-    protects full-suite ``pytest torch_nntile/tests/`` from cascading
-    ImportError on gated ``nn`` / models / fused loss.
-    """
+    """Skip classic-kernel tests only when pybind lacks classic symbols."""
     del config
-    if not getattr(torch_nntile, "TORCH_NATIVE_OPS", False):
-        return
-    # Modules that exercise PrivateUse1 I/O + basic aten without classic
-    # pybind models / fused CE / tiling compilers.
-    allow = {
-        "test_device_stub",
-        "test_context_restrict",
-        "test_libtorch_nntile_smoke",
-        "test_cuda_deps",
-        "test_add_parity",
-        "test_add_inplace_parity",
-        "test_mul_parity",
-        "test_hypot_parity",
-        "test_linear_bias_parity",
-        "test_addmm_parity",
-        "test_bmm",
-        "test_cat_parity",
-        "test_split_cat_autograd",
-        "test_softmax_parity",
-        "test_silu_gelu_parity",
-        "test_sum_parity",
-        "test_repeat_parity",
-        "test_embedding_parity",
-        "test_sdpa_parity",
-        "test_sdpa_aten",
-        "test_normalization_parity",
-        "test_norm_parity",
-        "test_transpose_materialize",
-        "test_mm_transpose",
-        "test_storage_offset_copy",
-        "test_graph_execution",
-        "test_grad_accumulation",
-        "test_aten_ops_parity",
-    }
-    skip = pytest.mark.skip(
-        reason=(
-            "NNTILE_TORCH_NATIVE_OPS: classic models/loss/tiling not in "
-            "slim wheel; use ctest -L torch_native|libtorch_nntile "
-            "(see docs/dev/torch_starpu_kernels.md)"
+    import torch_nntile
+
+    try:
+        _ = torch_nntile._C.gemm
+    except AttributeError:
+        skip = pytest.mark.skip(
+            reason="Classic NNTile kernels not linked in this build"
         )
-    )
-    for item in items:
-        mod = item.module.__name__.rsplit(".", 1)[-1]
-        if mod not in allow:
-            item.add_marker(skip)
+        classic_only = {
+            "test_add_fiber_parity",
+            "test_transformer_layer_parity",
+            "test_cross_entropy_parity",
+            "test_sgd_step_parity",
+            "test_adam_step_parity",
+            "test_deep_relu_parity",
+            "test_cpp_models_smoke",
+            "test_axis_group_tiling",
+            "test_simple_matmul_tiling",
+            "test_bmm_tiling",
+            "test_gpt2_lm_head_parity",
+            "test_mlp_mixer_parity",
+            "test_llama_hf_parity",
+            "test_bert_hf_parity",
+            "test_roberta_hf_parity",
+            "test_t5_hf_parity",
+            "test_gpt_neo_hf_parity",
+            "test_gpt_neox_hf_parity",
+            "test_nn_classic",
+            "test_models_classic_graph",
+            "test_models_python_classic_graph",
+        }
+        for item in items:
+            mod = item.module.__name__.rsplit(".", 1)[-1]
+            if mod in classic_only:
+                item.add_marker(skip)
 
 
 def pytest_sessionstart(session) -> None:
@@ -195,13 +181,6 @@ def pytest_sessionfinish(session, exitstatus) -> None:
     if torch_nntile.is_context_initialized():
         torch_nntile.wait()
         torch_nntile.shutdown_context()
-
-
-@pytest.fixture(autouse=True)
-def _reset_nntile_graph_session_after_test():
-    """Isolate parity tests: stale TensorGraph sessions corrupt later tests."""
-    yield
-    torch_nntile.reset_graph_session()
 
 
 def nntile_cpu(tensor: torch.Tensor) -> torch.Tensor:

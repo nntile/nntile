@@ -4,6 +4,16 @@ PyTorch **PrivateUse1** backend registered as `device="nntile"`. Builds always
 link **libnntile**; selected ops record into a shared `TensorGraph`, lower to
 `TileGraph`, and run through `Runtime` (StarPU).
 
+Two APIs in one wheel (CMake: `NNTILE_TORCH_NATIVE_OPS` and
+`NNTILE_NNTILE_NATIVE_OPS`, both default ON):
+
+- Stock `torch.nn` / `F.*` on `device=nntile` — torch-native aten codelets,
+  untiled (`NNTILE_TORCH_NATIVE_OPS`).
+- `torch_nntile.nn` — classic `nntile::kernel` ops; tiling allowed
+  (`NNTILE_NNTILE_NATIVE_OPS`). C++ `torch_nntile::models` are the
+  nntile-native implementations (ports of deleted `nntile::model::*`,
+  not Hugging Face `torch.nn` rewrites).
+
 Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 
 ## Prebuilt wheels
@@ -122,11 +132,11 @@ Tiling in NNTile is defined on **shared axis groups** (`AxisDescriptor` in C++),
 not on individual `torch.Tensor` storage. The workflow mirrors GPT-2 graph
 training (`name_gpt2_training_axis_groups` + `apply_flat_tiling_spec`):
 
-> **Temporary:** axis-group tiling for PrivateUse1 aten ops is disabled while
-> torch-native StarPU codelets are introduced. `set_axis_group_tiling` raises;
-> use untiled tensors only. See
+> Stock ``torch.nn`` / ``F.*`` on ``device=nntile`` stay torch-native and
+> **untiled**. Classic ``torch_nntile.nn`` graphs may tile. Mixing
+> ``TORCH_*`` compute with tiling raises. See
 > [dev/torch_nntile_aten_ops.md](dev/torch_nntile_aten_ops.md) and
-> [dev/torch_starpu_kernels.md](dev/torch_starpu_kernels.md).
+> [dev/torch_nntile_classic_kernels.md](dev/torch_nntile_classic_kernels.md).
 
 1. **Name** selected dimensions of a tensor (partial naming is OK).
 2. Record forward/backward into the pending graph (ops merge related axes).

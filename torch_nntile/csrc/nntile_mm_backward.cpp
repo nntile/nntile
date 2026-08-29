@@ -8,7 +8,7 @@
  * explicit backward kernels.
  */
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder_impl.h"
 
@@ -26,7 +26,7 @@ void run_mm_backward_grad_a(
 {
     const PreparedGemmOperands prepared = prepare_mm_operands(grad_out, b);
     GemmParams params = infer_mm_backward_grad_a_params(forward_params);
-    tensor_gemm_fp32(
+    classic_tensor_gemm_fp32(
         params,
         prepared.a,
         prepared.a_gemm_shape,
@@ -44,7 +44,7 @@ void run_mm_backward_grad_b(
 {
     const PreparedGemmOperands prepared = prepare_mm_operands(a, grad_out);
     GemmParams params = infer_mm_backward_grad_b_params(forward_params);
-    tensor_gemm_fp32(
+    classic_tensor_gemm_fp32(
         params,
         prepared.a,
         prepared.a_gemm_shape,

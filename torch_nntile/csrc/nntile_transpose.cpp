@@ -6,7 +6,7 @@
 
 #include "nntile_model_transpose.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
@@ -73,7 +73,7 @@ at::Tensor model_transpose_forward(
     at::Tensor out = at::empty(
         permuted_sizes(x.sizes(), tensor_ndim),
         x.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_model_transpose_forward_fp32(x, out, model_ndim);
+    classic_tensor_model_transpose_forward_fp32(x, out, model_ndim);
     return out;
 }
 
@@ -88,7 +88,7 @@ at::Tensor model_transpose_backward(
         permuted_sizes(grad_out.sizes(), model_ndim),
         grad_out.scalar_type(),
         grad_out.device());
-    tensor_model_transpose_backward_fp32(grad_out, grad_x, model_ndim);
+    classic_tensor_model_transpose_backward_fp32(grad_out, grad_x, model_ndim);
     if (x.defined())
     {
         std::vector<nntile::Index> grad_shape;

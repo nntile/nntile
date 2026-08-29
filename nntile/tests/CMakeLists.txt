@@ -141,10 +141,9 @@ endfunction()
 
 if(BUILD_TESTING)
     if(NNTILE_TORCH_NATIVE_OPS)
-        # I/O + torch-native compute only; no classic kernel/op suites.
         add_subdirectory(torch_native)
-    else()
-        add_test_set(TARGET_NAME tests_nntile_constants
+    endif()
+    add_test_set(TARGET_NAME tests_nntile_constants
             EXEC_NAME test_constants
             SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/constants.cc
             LINK_LIBRARIES nntile::nntile
@@ -160,7 +159,6 @@ if(BUILD_TESTING)
         add_subdirectory(core)
         add_subdirectory(tile)
         add_subdirectory(tensor)
-    endif()
 endif()
 
 if(BUILD_COVERAGE)

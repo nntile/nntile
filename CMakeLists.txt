@@ -37,10 +37,15 @@ option(BUILD_LIBTORCH_NNTILE_EXAMPLES "Build libtorch_nntile C++ examples" OFF)
 option(BUILD_TORCH_NNTILE
     "Build torch_nntile Python product (_C extension + pip wheel)" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
-# Experimental graph_api_torch_kernels path: drop classic compute kernels/ops
-# and keep I/O + torch-native StarPU codelets (requires LibTorch).
+# Dual-path torch_nntile (both default ON). Turn one off to skip that
+# stack while developing the other.
+#   NNTILE_TORCH_NATIVE_OPS: libnntile torch_dispatch + torch_nntile aten
+#   NNTILE_NNTILE_NATIVE_OPS: classic nntile::kernel ops / models
 option(NNTILE_TORCH_NATIVE_OPS
-    "Build only I/O ops + torch-native compute (experimental)" ON)
+    "Enable torch-native StarPU/aten compute (libnntile + torch_nntile)"
+    ON)
+option(NNTILE_NNTILE_NATIVE_OPS
+    "Enable classic nntile::kernel ops in torch_nntile" ON)
 
 # Standard CMake testing switch (default ON). Tests are added only for
 # enabled components: BUILD_LIBNNTILE, BUILD_LIBTORCH_NNTILE, and/or
@@ -230,7 +235,15 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-# LibTorch is required for libtorch_nntile, and for experimental
+if((BUILD_LIBTORCH_NNTILE OR BUILD_TORCH_NNTILE)
+        AND NOT NNTILE_TORCH_NATIVE_OPS
+        AND NOT NNTILE_NNTILE_NATIVE_OPS)
+    message(FATAL_ERROR
+        "At least one of NNTILE_TORCH_NATIVE_OPS or "
+        "NNTILE_NNTILE_NATIVE_OPS must be ON")
+endif()
+
+# LibTorch is required for libtorch_nntile, and for
 # NNTILE_TORCH_NATIVE_OPS (torch kernels inside libnntile StarPU codelets).
 set(NNTILE_HAVE_TORCH OFF)
 if(BUILD_LIBTORCH_NNTILE OR NNTILE_TORCH_NATIVE_OPS)
@@ -256,7 +269,13 @@ if(BUILD_LIBTORCH_NNTILE)
     if(DEFINED NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
         set(NNTILE_TORCH_NATIVE_OPS
             "${NNTILE_BUILT_WITH_TORCH_NATIVE_OPS}" CACHE BOOL
-            "Build only I/O ops + torch-native compute (experimental)"
+            "Enable torch-native StarPU/aten compute (libnntile + torch_nntile)"
+            FORCE)
+    endif()
+    if(DEFINED NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS)
+        set(NNTILE_NNTILE_NATIVE_OPS
+            "${NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS}" CACHE BOOL
+            "Enable classic nntile::kernel ops in torch_nntile"
             FORCE)
     endif()
     add_subdirectory(torch_nntile)

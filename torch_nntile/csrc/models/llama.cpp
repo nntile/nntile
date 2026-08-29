@@ -8,6 +8,7 @@
 #include <torch_nntile/models/llama.hh>
 
 #include "nntile_gemm.h"
+#include "nntile_nn_classic.h"
 #include "nntile_rms_norm.h"
 #include "nntile_rope.h"
 #include "nntile_sdpa.h"
@@ -108,11 +109,8 @@ torch::Tensor apply_rope(
     int64_t const n_heads = x.size(0);
     if (sin.dim() == 3)
     {
-        int64_t const b = sin.size(0);
-        int64_t const s = sin.size(1);
-        int64_t const half = sin.size(2);
-        sin = sin.view({1, b, s, half}).repeat({n_heads, 1, 1, 1});
-        cos = cos.view({1, b, s, half}).repeat({n_heads, 1, 1, 1});
+        sin = nn_classic::scale_slice(sin, 0, n_heads);
+        cos = nn_classic::scale_slice(cos, 0, n_heads);
     }
     return rope(sin, cos, x);
 }
@@ -125,12 +123,7 @@ torch::Tensor repeat_kv_heads(torch::Tensor x, int64_t n_rep)
     {
         return x;
     }
-    int64_t const n_kv = x.size(0);
-    int64_t const b = x.size(1);
-    int64_t const s = x.size(2);
-    int64_t const d = x.size(3);
-    return x.view({n_kv, 1, b, s, d})
-        .repeat({1, n_rep, 1, 1, 1});
+    return nn_classic::scale_slice(x, 1, n_rep);
 }
 
 } // namespace
@@ -258,7 +251,7 @@ torch::Tensor LlamaMLPImpl::forward(torch::Tensor x)
         /*batch_ndim=*/0,
         /*trans_a=*/false,
         /*trans_b=*/true);
-    auto hidden = torch::silu(gate) * up;
+    auto hidden = nn_classic::mul(nn_classic::silu(gate), up);
     return gemm(
         hidden,
         down_weight,
@@ -294,10 +287,10 @@ torch::Tensor LlamaDecoderImpl::forward(
         sin,
         cos,
         mask);
-    auto post = x + attn_out;
+    auto post = nn_classic::add(x, attn_out);
     auto mlp_out = mlp->forward(
         rms_norm(post, post_attn_norm_w, rms_eps));
-    return post + mlp_out;
+    return nn_classic::add(post, mlp_out);
 }
 
 // -- LlamaCausalImpl ------------------------------------------------------
@@ -311,7 +304,7 @@ LlamaCausalImpl::LlamaCausalImpl(LlamaConfig cfg) : config(std::move(cfg))
     }
     embed_tokens = register_module(
         "embed_tokens",
-        torch::nn::Embedding(config.vocab_size, config.hidden_size));
+        nn_classic::Embedding(config.vocab_size, config.hidden_size));
     torch::nn::ModuleList list;
     for (int64_t i = 0; i < config.num_hidden_layers; ++i)
     {

@@ -18,6 +18,7 @@ include(CMakeFindDependencyMacro)
 set(NNTILE_BUILT_WITH_CUDA "@NNTILE_LINK_CUDA@")
 set(NNTILE_BUILT_WITH_CBLAS "@NNTILE_LINK_CBLAS@")
 set(NNTILE_BUILT_WITH_TORCH_NATIVE_OPS "@NNTILE_TORCH_NATIVE_OPS@")
+set(NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS "@NNTILE_NNTILE_NATIVE_OPS@")
 
 # StarPU (same helper used at build time).
 include("${CMAKE_CURRENT_LIST_DIR}/NNTileFindStarPU.cmake")
@@ -49,8 +50,11 @@ if(NOT nntile_FIND_QUIETLY)
     message(STATUS "libnntile found: ${PACKAGE_PREFIX_DIR}")
     if(NNTILE_BUILT_WITH_TORCH_NATIVE_OPS)
         message(STATUS
-            "libnntile: NNTILE_TORCH_NATIVE_OPS=ON "
-            "(I/O + torch-native compute)")
+            "libnntile: NNTILE_TORCH_NATIVE_OPS=ON")
+    endif()
+    if(NNTILE_BUILT_WITH_NNTILE_NATIVE_OPS)
+        message(STATUS
+            "libnntile: NNTILE_NNTILE_NATIVE_OPS=ON")
     endif()
 endif()
 

@@ -60,6 +60,8 @@ std::string format_axis_groups();
 
 void print_axis_groups();
 
+std::vector<std::string> pending_op_names();
+
 void print_info();
 
 //! Cumulative nntile record seconds (``record(nntile)``). Snapshot

@@ -12,6 +12,8 @@
 #include "nntile_context.h"
 #include "nntile_tensor_gc.h"
 
+#include <nntile/defs.h>
+
 #include <stdexcept>
 
 #include <ATen/Tensor.h>
@@ -61,6 +63,7 @@ void insert_axis_size(
 
 } // namespace
 
+#ifndef NNTILE_TORCH_NATIVE_OPS
 nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
     nntile::TensorGraph::TensorNode *src,
     nntile::TensorGraph::TensorNode *dst,
@@ -98,6 +101,8 @@ nntile::TensorGraph::TensorNode *broadcast_scale_slice_chain(
     }
     return src_node;
 }
+
+#endif // !NNTILE_TORCH_NATIVE_OPS
 
 nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
     nntile::TensorGraph::TensorNode *src,
@@ -196,7 +201,7 @@ nntile::TensorGraph::TensorNode *repeat_scale_slice_chain(
     return cur;
 }
 
-void tensor_repeat_fp32(
+void classic_tensor_repeat_fp32(
     const at::Tensor &input,
     at::Tensor &out,
     c10::IntArrayRef repeats)
@@ -232,6 +237,15 @@ void tensor_repeat_fp32(
     }
 
     register_data_node(out, out_node);
+}
+
+#ifndef NNTILE_TORCH_NATIVE_OPS
+void tensor_repeat_fp32(
+    const at::Tensor &input,
+    at::Tensor &out,
+    c10::IntArrayRef repeats)
+{
+    classic_tensor_repeat_fp32(input, out, repeats);
 }
 
 void tensor_broadcast_scalar_fp32(
@@ -275,6 +289,8 @@ void tensor_broadcast_scalar_fp32(
         dst_graph);
     register_data_node(out, dst_node);
 }
+
+#endif // !NNTILE_TORCH_NATIVE_OPS
 
 } // namespace torch_nntile
 

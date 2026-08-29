@@ -7,7 +7,8 @@
 
 #include "nntile_sum_slice.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
+#include "nntile_graph_recorder_impl.h"
 
 #include <ATen/TensorUtils.h>
 
@@ -72,7 +73,7 @@ at::Tensor sum_slice_forward(
     at::Tensor out = at::empty(
         reduced_sizes(src.sizes(), axis),
         src.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_sum_slice_fp32(
+    classic_tensor_sum_slice_fp32(
         src,
         out,
         axis,
@@ -107,7 +108,7 @@ at::Tensor sum_slice_backward(
     at::Tensor grad_src = at::empty(
         src.sizes(),
         src.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_add_slice_fp32(
+    classic_tensor_add_slice_fp32(
         static_cast<float>(alpha),
         grad_out,
         /*beta=*/0.0f,

@@ -79,11 +79,16 @@ def rope_sin_cos_from_position_ids(
     head_dim: int,
     *,
     rope_theta: float = 10000.0,
+    identity_pad_head_dim: int | None = None,
 ) -> tuple[Tensor, Tensor]:
     """Build ``(sin, cos)`` with shape ``[batch, seq, head_dim // 2]``.
 
     Mirrors HuggingFace default Llama RoPE
     (``_compute_default_rope_parameters``).
+
+    ``identity_pad_head_dim`` (GPT-NeoX partial rotary): keep frequencies
+    for ``head_dim`` and append ``sin=0``, ``cos=1`` pairs up to the full
+    head so ``rope`` can run on the unsplit last axis.
     """
     if head_dim % 2 != 0:
         raise ValueError("head_dim must be even for RoPE")
@@ -102,7 +107,22 @@ def rope_sin_cos_from_position_ids(
         inv_freq = inv_freq.to(device)
     # position_ids: [batch, seq]
     freqs = position_ids.to(dtype).unsqueeze(-1) * inv_freq.view(1, 1, -1)
-    return freqs.sin(), freqs.cos()
+    sin, cos = freqs.sin(), freqs.cos()
+    if identity_pad_head_dim is None:
+        return sin, cos
+    if identity_pad_head_dim % 2 != 0:
+        raise ValueError("identity_pad_head_dim must be even")
+    if identity_pad_head_dim < head_dim:
+        raise ValueError(
+            "identity_pad_head_dim must be >= rotary head_dim"
+        )
+    extra = identity_pad_head_dim // 2 - half
+    if extra <= 0:
+        return sin, cos
+    pad_shape = (*tuple(sin.shape[:-1]), extra)
+    zeros = torch.zeros(pad_shape, dtype=sin.dtype, device=sin.device)
+    ones = torch.ones(pad_shape, dtype=cos.dtype, device=cos.device)
+    return torch.cat([sin, zeros], dim=-1), torch.cat([cos, ones], dim=-1)
 
 
 __all__ = ["rope", "rope_sin_cos_from_position_ids"]

@@ -6,7 +6,7 @@
 
 #include "nntile_sdpa.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_layout_checks.h"
 #include "nntile_tensor_gc.h"
@@ -138,7 +138,7 @@ at::Tensor sdpa_forward(
         mask_ptr = &mask_u8;
     }
 
-    tensor_sdpa_forward_fp32(
+    classic_tensor_sdpa_forward_fp32(
         q,
         k,
         v,
@@ -192,7 +192,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
         mask_ptr = &mask_u8;
     }
 
-    tensor_sdpa_backward_fp32(
+    classic_tensor_sdpa_backward_fp32(
         q,
         k,
         v,

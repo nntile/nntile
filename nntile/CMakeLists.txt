@@ -57,8 +57,8 @@ endif()
 
 add_subdirectory(src)
 
-# Under NNTILE_TORCH_NATIVE_OPS, classic kernel/op suites are skipped; the
-# torch_native layer suite (starpu/core/tile/tensor) is registered instead.
+# Classic kernel/op suites always register. When NNTILE_TORCH_NATIVE_OPS
+# is ON, the torch_native layer suite is added as well.
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()

@@ -144,8 +144,6 @@ at::Tensor rand_hidden(bool requires_grad = true)
 
 TEST_CASE("C++ DeepReLU forward smoke", "[models][smoke]")
 {
-    // DeepReLU uses torch::nn::Linear (aten matmul). Forward works on
-    // nntile; matmul_backward is not implemented yet - smoke forward only.
     ContextGuard guard;
     auto model = DeepReLUImpl::tiny();
     auto x = to_nntile_float(

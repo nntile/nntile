@@ -1,9 +1,9 @@
 # PrivateUse1 aten ops on `device=nntile`
 
-**Status:** temporary single-tile (untiled) only  
-**Branch:** `graph_api_torch_kernels`  
+**Status:** dual-path — aten untiled; classic `torch_nntile.nn` may tile  
 **Related:** [torch_starpu_kernels.md](torch_starpu_kernels.md),
-[torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md)
+[torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md),
+[torch_nntile_classic_kernels.md](torch_nntile_classic_kernels.md)
 
 **Policy:** [torch_nntile_cuda_parity_policy.md](torch_nntile_cuda_parity_policy.md) —
 stock ``torch.nn`` / ``F.*`` on ``device=nntile`` must match CUDA; classic
@@ -14,16 +14,16 @@ Under `NNTILE_TORCH_NATIVE_OPS`, each listed compute schema records a
 torch-native TensorGraph op that lowers to the **same aten call on
 `device=CPU` with no grad** inside a StarPU codelet (see
 [torch_starpu_kernels.md](torch_starpu_kernels.md)). Classic NNTile
-kernels are not used for compute on this path.
+kernels are not used for **aten** compute on this path.
 
-While torch-native StarPU codelets are introduced for untiled tensors,
-**axis-group tiling is disabled** for the PrivateUse1 path:
+**Axis-group tiling:**
 
-- `torch_nntile.set_axis_group_tiling(...)` raises a C++ `std::runtime_error`.
-- `compile_graph` / `execute` rejects any session whose axis groups are
-  already tiled.
-- Multi-tile Python tests under `torch_nntile/tests/` are skipped; keep
-  **untiled** parity/smoke coverage only.
+- Classic-only pending graphs (`torch_nntile.nn`) may call
+  `set_axis_group_tiling` and compile tiled.
+- If any pending compute op name starts with `TORCH_`, tiling is rejected
+  (stock aten stays untiled).
+- `compile_graph` / `execute` also reject a session that is already tiled
+  **and** contains torch-native compute.
 
 Libnntile C++ TensorGraph tiling tests are unchanged (they do not go through
 PrivateUse1).

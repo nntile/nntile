@@ -6,7 +6,7 @@
 
 #include "nntile_rms_norm.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
 
 #include <ATen/Functions.h>
@@ -118,7 +118,7 @@ std::tuple<at::Tensor, at::Tensor> rms_norm_forward(
     {
         inputs.push_back(*weight);
     }
-    tensor_rms_norm_forward_fp32(
+    classic_tensor_rms_norm_forward_fp32(
         input,
         weight.has_value() ? &*weight : nullptr,
         weight.has_value(),
@@ -170,7 +170,7 @@ std::tuple<at::Tensor, at::Tensor> rms_norm_backward(
         grad_weight = at::empty_like(*weight);
     }
 
-    tensor_rms_norm_backward_fp32(
+    classic_tensor_rms_norm_backward_fp32(
         grad_out,
         input,
         rstd_reduced,

@@ -141,6 +141,10 @@ def cross_entropy(
         raise ValueError("nntile cross_entropy supports reduction 'mean' or 'sum'")
     if target.device.type != "nntile":
         raise ValueError("cross_entropy expects nntile target")
+    if not logits.is_contiguous():
+        logits = logits.contiguous()
+    if not target.is_contiguous():
+        target = target.contiguous()
     if not torch.is_grad_enabled() or not logits.requires_grad:
         loss, maxsumexp = _C.cross_entropy_forward(
             logits, target, reduction_enum, ignore_index

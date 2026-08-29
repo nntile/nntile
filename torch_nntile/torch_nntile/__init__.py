@@ -12,20 +12,16 @@ import atexit
 
 import torch
 
-from ._build_info import BUILT_WITH_CUDA, TORCH_NATIVE_OPS
+from ._build_info import BUILT_WITH_CUDA, NNTILE_NATIVE_OPS, TORCH_NATIVE_OPS
 from ._cuda_deps import ensure_linux_cuda_deps
 
 ensure_linux_cuda_deps(required=BUILT_WITH_CUDA)
 
 from . import _C  # noqa: E402, F401 - loads kernels and allocator
 
-# Classic aten/pybind models/loss are not compiled under
-# NNTILE_TORCH_NATIVE_OPS. HF compat still maps NewGELU→gelu(tanh) and
-# re-ties weights after ``.to("nntile")``. Stock GPT-2 uses nntile
-# ``aten::arange`` for ``cache_position`` (no ``GPT2Model.forward`` patch).
-# See docs/dev/torch_nntile_cuda_parity_policy.md (stock torch.nn on
-# device=nntile must match CUDA; NNTile kernels live under
-# torch_nntile.nn.functional).
+# Stock torch.nn on device=nntile uses torch-native TORCH_* codelets when
+# TORCH_NATIVE_OPS is on. Classic nntile::kernel ops live under
+# torch_nntile.nn / C++ models when NNTILE_NATIVE_OPS is on.
 from . import compat as _compat  # noqa: E402, F401
 from . import nn as nn  # noqa: E402, F401
 
@@ -242,9 +238,10 @@ def set_axis_group_tiling(name: str, tile_sizes: int | list[int] | tuple[int, ..
     ``tile_sizes`` may be a uniform tile size (``int``) or explicit per-tile
     sizes (``list``/``tuple``) that sum to the axis extent.
 
-    Temporarily raises: PrivateUse1 aten ops on ``device=nntile`` require
-    untiled (single-tile) tensors while torch-native StarPU codelets land.
-    See ``docs/dev/torch_nntile_aten_ops.md``.
+    Temporarily raises if a torch-native (``TORCH_*``) compute op is in
+    the pending graph: stock aten on ``device=nntile`` stays untiled.
+    Classic ``torch_nntile.nn`` graphs may tile. See
+    ``docs/dev/torch_nntile_aten_ops.md``.
     """
     _C.set_axis_group_tiling(name, tile_sizes)
 
@@ -260,6 +257,11 @@ def format_axis_groups() -> str:
 def print_axis_groups() -> None:
     """Print axis-group summary for the pending TensorGraph to stdout."""
     _C.print_axis_groups()
+
+
+def pending_op_names() -> list[str]:
+    """Return op names in the pending TensorGraph phase (classic vs TORCH_*)."""
+    return list(_C.pending_op_names())
 
 
 def print_info() -> None:
@@ -290,6 +292,7 @@ __all__ = [
     "built_with_cuda",
     "BUILT_WITH_CUDA",
     "TORCH_NATIVE_OPS",
+    "NNTILE_NATIVE_OPS",
     "init_context",
     "execute",
     "compile_graph",
@@ -308,6 +311,7 @@ __all__ = [
     "set_axis_group_tiling",
     "format_axis_groups",
     "print_axis_groups",
+    "pending_op_names",
     "print_info",
     "record_nntile_seconds",
     "nn",

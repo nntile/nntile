@@ -13,6 +13,8 @@
 #include "nntile_tensor_meta.h"
 
 #include <ATen/Tensor.h>
+#include <ATen/ops/arange.h>
+#include <ATen/ops/le.h>
 #include <c10/util/Exception.h>
 
 #include <nntile/base_types.hh>
@@ -217,7 +219,7 @@ nntile::TensorGraph::TensorNode *optimizer_state_node(
 
 } // namespace
 
-void tensor_gemm_fp32(
+void classic_tensor_gemm_fp32(
     const GemmParams &params,
     const at::Tensor &a,
     c10::IntArrayRef a_gemm_shape,
@@ -259,7 +261,7 @@ void tensor_gemm_fp32(
             .count());
 }
 
-void tensor_gemm_accumulate_fp32(
+void classic_tensor_gemm_accumulate_fp32(
     const GemmParams &params,
     const at::Tensor &a,
     c10::IntArrayRef a_gemm_shape,
@@ -307,7 +309,7 @@ void tensor_gemm_accumulate_fp32(
     register_data_node(out, c_node);
 }
 
-void tensor_add_fp32(
+void classic_tensor_add_fp32(
     float alpha,
     const at::Tensor &x,
     float beta,
@@ -336,7 +338,7 @@ void tensor_add_fp32(
     register_data_node(out, z_node);
 }
 
-void tensor_model_transpose_forward_fp32(
+void classic_tensor_model_transpose_forward_fp32(
     const at::Tensor &src,
     at::Tensor &dst,
     int64_t model_ndim)
@@ -371,7 +373,7 @@ void tensor_model_transpose_forward_fp32(
     register_data_node(dst, dst_node);
 }
 
-void tensor_model_transpose_backward_fp32(
+void classic_tensor_model_transpose_backward_fp32(
     const at::Tensor &grad_out,
     at::Tensor &grad_src,
     int64_t model_ndim)
@@ -405,7 +407,7 @@ void tensor_model_transpose_backward_fp32(
     register_data_node(grad_src, grad_src_node);
 }
 
-void tensor_swap_two_axes_fp32(
+void classic_tensor_swap_two_axes_fp32(
     const at::Tensor &src,
     at::Tensor &dst,
     int64_t dim0,
@@ -448,7 +450,7 @@ void tensor_swap_two_axes_fp32(
     register_data_node(dst, dst_node);
 }
 
-void tensor_add_inplace_fp32(
+void classic_tensor_add_inplace_fp32(
     float alpha,
     const at::Tensor &other,
     float beta,
@@ -476,7 +478,7 @@ void tensor_add_inplace_fp32(
     register_data_node(self, self_node);
 }
 
-void tensor_fill_fp32(at::Tensor &self, float value)
+void classic_tensor_fill_fp32(at::Tensor &self, float value)
 {
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(self.sizes());
@@ -490,7 +492,7 @@ void tensor_fill_fp32(at::Tensor &self, float value)
     register_data_node(self, self_node);
 }
 
-void tensor_mul_fp32(
+void classic_tensor_mul_fp32(
     const at::Tensor &self,
     const at::Tensor &other,
     at::Tensor &out)
@@ -516,7 +518,7 @@ void tensor_mul_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
+void classic_tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
 {
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(self.sizes());
@@ -539,7 +541,7 @@ void tensor_mul_inplace_fp32(const at::Tensor &other, at::Tensor &self)
     register_data_node(self, self_node);
 }
 
-void tensor_hypot_fp32(
+void classic_tensor_hypot_fp32(
     const at::Tensor &self,
     const at::Tensor &other,
     at::Tensor &out)
@@ -566,13 +568,13 @@ void tensor_hypot_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_linear_fp32(
+void classic_tensor_linear_fp32(
     const at::Tensor &input,
     const at::Tensor &weight,
     at::Tensor &out)
 {
     const PreparedGemmOperands prepared = prepare_linear_operands(input, weight);
-    tensor_gemm_fp32(
+    classic_tensor_gemm_fp32(
         prepared.params,
         prepared.a,
         prepared.a_gemm_shape,
@@ -582,7 +584,7 @@ void tensor_linear_fp32(
         prepared.out_shape);
 }
 
-void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out)
+void classic_tensor_relu_fp32(const at::Tensor &input, at::Tensor &out)
 {
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(input.sizes());
@@ -598,7 +600,7 @@ void tensor_relu_fp32(const at::Tensor &input, at::Tensor &out)
     register_data_node(out, dst_node);
 }
 
-void tensor_relu_backward_fp32(
+void classic_tensor_relu_backward_fp32(
     const at::Tensor &x,
     const at::Tensor &dy,
     at::Tensor &dx)
@@ -629,7 +631,7 @@ void tensor_relu_backward_fp32(
     register_data_node(dx, dx_node);
 }
 
-void tensor_silu_fp32(const at::Tensor &input, at::Tensor &out)
+void classic_tensor_silu_fp32(const at::Tensor &input, at::Tensor &out)
 {
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(input.sizes());
@@ -644,7 +646,7 @@ void tensor_silu_fp32(const at::Tensor &input, at::Tensor &out)
     register_data_node(out, dst_node);
 }
 
-void tensor_silu_inplace_fp32(at::Tensor &self)
+void classic_tensor_silu_inplace_fp32(at::Tensor &self)
 {
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(self.sizes());
@@ -659,7 +661,7 @@ void tensor_silu_inplace_fp32(at::Tensor &self)
     register_data_node(self, node);
 }
 
-void tensor_silu_backward_fp32(
+void classic_tensor_silu_backward_fp32(
     const at::Tensor &x,
     const at::Tensor &dy,
     at::Tensor &dx)
@@ -689,7 +691,7 @@ void tensor_silu_backward_fp32(
     register_data_node(dx, dx_node);
 }
 
-void tensor_gelu_fp32(
+void classic_tensor_gelu_fp32(
     const at::Tensor &input,
     at::Tensor &out,
     bool approximate_tanh)
@@ -715,7 +717,7 @@ void tensor_gelu_fp32(
     register_data_node(out, dst_node);
 }
 
-void tensor_gelu_inplace_fp32(at::Tensor &self, bool approximate_tanh)
+void classic_tensor_gelu_inplace_fp32(at::Tensor &self, bool approximate_tanh)
 {
     const std::vector<nntile::Index> graph_shape =
         pytorch_shape_to_graph(self.sizes());
@@ -737,7 +739,7 @@ void tensor_gelu_inplace_fp32(at::Tensor &self, bool approximate_tanh)
     register_data_node(self, node);
 }
 
-void tensor_gelu_backward_fp32(
+void classic_tensor_gelu_backward_fp32(
     const at::Tensor &x,
     const at::Tensor &dy,
     at::Tensor &dx,
@@ -784,13 +786,13 @@ void tensor_gelu_backward_fp32(
     register_data_node(dx, dx_node);
 }
 
-void tensor_mm_fp32(
+void classic_tensor_mm_fp32(
     const at::Tensor &a,
     const at::Tensor &b,
     at::Tensor &out)
 {
     const PreparedGemmOperands prepared = prepare_mm_operands(a, b);
-    tensor_gemm_fp32(
+    classic_tensor_gemm_fp32(
         prepared.params,
         prepared.a,
         prepared.a_gemm_shape,
@@ -800,7 +802,7 @@ void tensor_mm_fp32(
         prepared.out_shape);
 }
 
-void tensor_linear_backward_input_fp32(
+void classic_tensor_linear_backward_input_fp32(
     const at::Tensor &grad_out,
     const at::Tensor &weight,
     at::Tensor &grad_input)
@@ -813,7 +815,7 @@ void tensor_linear_backward_input_fp32(
         "nntile linear_backward_input: grad_out must be contiguous or "
         "row/column-contiguous");
     const at::Tensor &grad_out_prepared = grad_out;
-    tensor_gemm_fp32(
+    classic_tensor_gemm_fp32(
         params,
         grad_out_prepared,
         grad_out_layout.gemm_shape,
@@ -823,7 +825,7 @@ void tensor_linear_backward_input_fp32(
         forward.a_gemm_shape);
 }
 
-void tensor_linear_backward_weight_fp32(
+void classic_tensor_linear_backward_weight_fp32(
     const at::Tensor &grad_out,
     const at::Tensor &input,
     at::Tensor &grad_weight)
@@ -840,7 +842,7 @@ void tensor_linear_backward_weight_fp32(
         "nntile linear_backward_weight: input must be contiguous");
     const at::Tensor &grad_out_prepared = grad_out;
     const at::Tensor &input_prepared = forward.a;
-    tensor_gemm_fp32(
+    classic_tensor_gemm_fp32(
         params,
         grad_out_prepared,
         grad_out_layout.gemm_shape,
@@ -850,7 +852,7 @@ void tensor_linear_backward_weight_fp32(
         forward.b_gemm_shape);
 }
 
-void tensor_linear_add_bias_fp32(
+void classic_tensor_linear_add_bias_fp32(
     at::Tensor &output,
     const at::Tensor &bias)
 {
@@ -886,7 +888,7 @@ void tensor_linear_add_bias_fp32(
     register_data_node(output, output_node);
 }
 
-void tensor_linear_grad_bias_fp32(
+void classic_tensor_linear_grad_bias_fp32(
     const at::Tensor &grad_output,
     at::Tensor &grad_bias)
 {
@@ -928,7 +930,7 @@ void tensor_linear_grad_bias_fp32(
     register_data_node(grad_bias, grad_bias_node);
 }
 
-void tensor_add_fiber_fp32(
+void classic_tensor_add_fiber_fp32(
     float alpha,
     const at::Tensor &fiber,
     float beta,
@@ -973,7 +975,7 @@ void tensor_add_fiber_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_sum_fiber_fp32(
+void classic_tensor_sum_fiber_fp32(
     const at::Tensor &src,
     at::Tensor &dst,
     int64_t axis,
@@ -1057,7 +1059,7 @@ float cross_entropy_scale(
 
 } // namespace
 
-void tensor_cross_entropy_forward_fp32(
+void classic_tensor_cross_entropy_forward_fp32(
     const at::Tensor &logits,
     const at::Tensor &labels,
     std::int64_t ignore_index,
@@ -1120,7 +1122,7 @@ void tensor_cross_entropy_forward_fp32(
     register_data_node(maxsumexp, maxsumexp_node);
 }
 
-void tensor_cross_entropy_backward_fp32(
+void classic_tensor_cross_entropy_backward_fp32(
     const at::Tensor &logits,
     const at::Tensor &labels,
     const at::Tensor &grad_output,
@@ -1233,7 +1235,7 @@ void tensor_cross_entropy_backward_fp32(
     register_data_node(grad_logits, grad_logits_node);
 }
 
-void tensor_softmax_fp32(
+void classic_tensor_softmax_fp32(
     const at::Tensor &input,
     at::Tensor &out,
     int64_t dim)
@@ -1277,7 +1279,7 @@ void tensor_softmax_fp32(
     register_data_node(out, dst_node);
 }
 
-void tensor_sgd_step_fp32(
+void classic_tensor_sgd_step_fp32(
     int64_t num_iter,
     float momentum,
     float lr,
@@ -1374,7 +1376,7 @@ void broadcast_slice_to_keepdim(
 
 } // namespace
 
-void tensor_softmax_backward_fp32(
+void classic_tensor_softmax_backward_fp32(
     const at::Tensor &grad_output,
     const at::Tensor &output,
     at::Tensor &grad_input,
@@ -1430,7 +1432,7 @@ void tensor_softmax_backward_fp32(
     register_data_node(grad_input, grad_input_node);
 }
 
-void tensor_layer_norm_forward_fp32(
+void classic_tensor_layer_norm_forward_fp32(
     const at::Tensor &input,
     const at::Tensor *weight,
     const at::Tensor *bias,
@@ -1570,7 +1572,7 @@ void tensor_layer_norm_forward_fp32(
     register_data_node(rstd, rstd_node);
 }
 
-void tensor_layer_norm_backward_fp32(
+void classic_tensor_layer_norm_backward_fp32(
     const at::Tensor &grad_out,
     const at::Tensor &input,
     const at::Tensor &mean,
@@ -1736,7 +1738,7 @@ void tensor_layer_norm_backward_fp32(
 
 }
 
-void tensor_rms_norm_forward_fp32(
+void classic_tensor_rms_norm_forward_fp32(
     const at::Tensor &input,
     const at::Tensor *weight,
     bool has_weight,
@@ -1824,7 +1826,7 @@ void tensor_rms_norm_forward_fp32(
     register_data_node(rstd, rstd_node);
 }
 
-void tensor_rms_norm_backward_fp32(
+void classic_tensor_rms_norm_backward_fp32(
     const at::Tensor &grad_out,
     const at::Tensor &input,
     const at::Tensor &rstd,
@@ -1948,7 +1950,7 @@ void tensor_rms_norm_backward_fp32(
 
 }
 
-void tensor_rope_fp32(
+void classic_tensor_rope_fp32(
     const at::Tensor &sin,
     const at::Tensor &cos,
     const at::Tensor &src,
@@ -1991,7 +1993,7 @@ void tensor_rope_fp32(
     register_data_node(dst, dst_node);
 }
 
-void tensor_rope_backward_fp32(
+void classic_tensor_rope_backward_fp32(
     const at::Tensor &sin,
     const at::Tensor &cos,
     const at::Tensor &dy,
@@ -2034,7 +2036,7 @@ void tensor_rope_backward_fp32(
     register_data_node(dx, dx_node);
 }
 
-void tensor_mse_loss_fp32(
+void classic_tensor_mse_loss_fp32(
     const at::Tensor &x,
     float scale,
     at::Tensor &loss_out)
@@ -2065,7 +2067,7 @@ void tensor_mse_loss_fp32(
     register_data_node(loss_out, loss_node);
 }
 
-void tensor_mse_loss_backward_fp32(
+void classic_tensor_mse_loss_backward_fp32(
     const at::Tensor &x,
     float scale,
     at::Tensor &grad_x)
@@ -2095,7 +2097,7 @@ void tensor_mse_loss_backward_fp32(
     register_data_node(grad_x, grad_x_node);
 }
 
-void tensor_adam_step_fp32(
+void classic_tensor_adam_step_fp32(
     int64_t num_iter,
     float beta_1,
     float beta_2,
@@ -2140,7 +2142,7 @@ void tensor_adam_step_fp32(
     register_data_node(param, param_node);
 }
 
-void tensor_adamw_step_fp32(
+void classic_tensor_adamw_step_fp32(
     int64_t num_iter,
     float beta_1,
     float beta_2,
@@ -2185,7 +2187,7 @@ void tensor_adamw_step_fp32(
     register_data_node(param, param_node);
 }
 
-void tensor_norm_fp32(
+void classic_tensor_norm_fp32(
     const at::Tensor &x,
     at::Tensor &out)
 {
@@ -2212,7 +2214,7 @@ void tensor_norm_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_norm_slice_fp32(
+void classic_tensor_norm_slice_fp32(
     const at::Tensor &x,
     at::Tensor &out,
     int64_t axis,
@@ -2278,7 +2280,7 @@ void tensor_norm_slice_fp32(
     }
 }
 
-void tensor_sum_slice_fp32(
+void classic_tensor_sum_slice_fp32(
     const at::Tensor &src,
     at::Tensor &out,
     int64_t axis,
@@ -2321,7 +2323,7 @@ void tensor_sum_slice_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_add_slice_fp32(
+void classic_tensor_add_slice_fp32(
     float alpha,
     const at::Tensor &slice,
     float beta,
@@ -2375,7 +2377,7 @@ void tensor_add_slice_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_sum_dimlist_fp32(
+void classic_tensor_sum_dimlist_fp32(
     const at::Tensor &input,
     at::Tensor &out,
     at::OptionalIntArrayRef dim,
@@ -2511,7 +2513,7 @@ void tensor_sum_dimlist_fp32(
     }
 }
 
-void tensor_mul_scalar_fp32(
+void classic_tensor_mul_scalar_fp32(
     const at::Tensor &input,
     at::Tensor &out,
     float scalar)
@@ -2535,7 +2537,7 @@ void tensor_mul_scalar_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_cat_fp32(
+void classic_tensor_cat_fp32(
     const std::vector<at::Tensor> &inputs,
     at::Tensor &out,
     int64_t dim)
@@ -2569,7 +2571,7 @@ void tensor_cat_fp32(
     register_data_node(out, acc_node);
 }
 
-void tensor_narrow_fp32(
+void classic_tensor_narrow_fp32(
     const at::Tensor &input,
     int64_t dim,
     int64_t start,
@@ -2598,19 +2600,86 @@ void tensor_narrow_fp32(
     nntile::tensor::clear(out_node);
 
     const nntile::Index ndim = static_cast<nntile::Index>(graph_shape.size());
-    std::vector<nntile::Index> zero(static_cast<size_t>(ndim), 0);
-    std::vector<nntile::Index> dst_off = zero;
-    dst_off[static_cast<size_t>(axis)] = static_cast<nntile::Index>(start);
+    std::vector<nntile::Index> src_off(static_cast<size_t>(ndim), 0);
+    std::vector<nntile::Index> dst_off(static_cast<size_t>(ndim), 0);
+    src_off[static_cast<size_t>(axis)] =
+        static_cast<nntile::Index>(start);
 
     nntile::tensor::copy_intersection(
         input_node,
-        zero,
+        src_off,
         out_node,
         dst_off);
     register_data_node(out, out_node);
 }
 
-void tensor_split_with_sizes_fp32(
+void classic_tensor_scale_slice_fp32(
+    float alpha,
+    const at::Tensor &src,
+    at::Tensor &out,
+    int64_t axis)
+{
+    const std::vector<nntile::Index> src_graph =
+        pytorch_shape_to_graph(src.sizes());
+    const std::vector<nntile::Index> out_graph =
+        pytorch_shape_to_graph(out.sizes());
+    TORCH_CHECK(
+        axis >= 0 &&
+            static_cast<std::size_t>(axis) <= src_graph.size(),
+        "nntile scale_slice: axis out of range");
+    auto *src_node = get_or_create_data_node(
+        src,
+        src_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    auto *out_node = get_or_create_data_node(
+        out,
+        out_graph,
+        nntile::DataType::FP32,
+        false);
+    nntile::tensor::scale_slice(
+        static_cast<nntile::Scalar>(alpha),
+        src_node,
+        out_node,
+        static_cast<nntile::Index>(axis));
+    register_data_node(out, out_node);
+}
+
+void classic_tensor_scatter_slice_fp32(
+    const at::Tensor &src,
+    at::Tensor &dst,
+    int64_t dim,
+    int64_t start)
+{
+    const nntile::Index axis = static_cast<nntile::Index>(dim);
+    const std::vector<nntile::Index> src_graph =
+        pytorch_shape_to_graph(src.sizes());
+    const std::vector<nntile::Index> dst_graph =
+        pytorch_shape_to_graph(dst.sizes());
+    auto *src_node = get_or_create_data_node(
+        src,
+        src_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(src));
+    auto *dst_node = get_or_create_data_node(
+        dst,
+        dst_graph,
+        nntile::DataType::FP32,
+        mark_as_input_for_operand(dst));
+    const nntile::Index ndim = static_cast<nntile::Index>(dst_graph.size());
+    std::vector<nntile::Index> src_off(static_cast<size_t>(ndim), 0);
+    std::vector<nntile::Index> dst_off(static_cast<size_t>(ndim), 0);
+    dst_off[static_cast<size_t>(axis)] =
+        static_cast<nntile::Index>(start);
+    nntile::tensor::copy_intersection(
+        src_node,
+        src_off,
+        dst_node,
+        dst_off);
+    register_data_node(dst, dst_node);
+}
+
+void classic_tensor_split_with_sizes_fp32(
     const at::Tensor &input,
     int64_t dim,
     const std::vector<int64_t> &split_sizes,
@@ -2655,7 +2724,7 @@ void tensor_split_with_sizes_fp32(
 
 }
 
-void tensor_embedding_forward_fp32(
+void classic_tensor_embedding_forward_fp32(
     const at::Tensor &indices,
     const at::Tensor &weight,
     at::Tensor &out,
@@ -2688,7 +2757,7 @@ void tensor_embedding_forward_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_embedding_backward_fp32(
+void classic_tensor_embedding_backward_fp32(
     const at::Tensor &indices,
     const at::Tensor &grad_out,
     at::Tensor &grad_weight,
@@ -2814,7 +2883,7 @@ nntile::TensorGraph::TensorNode *compute_sdpa_attn(
 
 } // namespace
 
-void tensor_sdpa_forward_fp32(
+void classic_tensor_sdpa_forward_fp32(
     const at::Tensor &q,
     const at::Tensor &k,
     const at::Tensor &v,
@@ -2865,7 +2934,7 @@ void tensor_sdpa_forward_fp32(
         const at::Tensor k_idx = at::arange(k_seq, idx_opts);
         const at::Tensor q_idx = at::arange(q_seq, idx_opts);
         causal_mask =
-            (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous().to(
+            at::le(k_idx.unsqueeze(0), q_idx.unsqueeze(1)).contiguous().to(
                 q.device());
         mask_eff = &causal_mask;
     }
@@ -2901,7 +2970,7 @@ void tensor_sdpa_forward_fp32(
     register_data_node(out, out_node);
 }
 
-void tensor_sdpa_backward_fp32(
+void classic_tensor_sdpa_backward_fp32(
     const at::Tensor &q,
     const at::Tensor &k,
     const at::Tensor &v,
@@ -2955,7 +3024,7 @@ void tensor_sdpa_backward_fp32(
         const at::Tensor k_idx = at::arange(k_seq_i, idx_opts);
         const at::Tensor q_idx = at::arange(q_seq_i, idx_opts);
         causal_mask =
-            (k_idx.unsqueeze(0) <= q_idx.unsqueeze(1)).contiguous().to(
+            at::le(k_idx.unsqueeze(0), q_idx.unsqueeze(1)).contiguous().to(
                 q.device());
         mask_eff = &causal_mask;
     }

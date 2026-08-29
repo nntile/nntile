@@ -12,7 +12,8 @@ Start with the product docs if you are new:
 | Doc | Topic |
 |-----|-------|
 | [torch_nntile_tensor_architecture.md](torch_nntile_tensor_architecture.md) | `TensorRef` / logical tiles, I/O, INVALIDATE, session debt |
-| [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md) | PrivateUse1 aten op list; CUDA registration policy; untiled-only |
+| [torch_nntile_aten_ops.md](torch_nntile_aten_ops.md) | PrivateUse1 aten op list; CUDA registration policy; tiling mix rules |
+| [torch_nntile_classic_kernels.md](torch_nntile_classic_kernels.md) | Classic kernels; C++ `torch_nntile::models` (not HF ports) |
 | [torch_starpu_kernels.md](torch_starpu_kernels.md) | Untiled torch kernels as StarPU codelets; match-CUDA dispatch guide |
 | [graph_compiler_on_design.md](graph_compiler_on_design.md) | O(N) incremental TensorGraph → TileGraph → Runtime |
 | [execution_json_schema.md](execution_json_schema.md) | Optional static `execution.json` schedule |

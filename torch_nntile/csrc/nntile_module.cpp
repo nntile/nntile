@@ -33,6 +33,7 @@
 #include "nntile_graph_recorder.h"
 #include "nntile_sgd_step.h"
 #include "nntile_adam_step.h"
+#include "nntile_nn_classic.h"
 
 #include "nntile_module_to.h"
 
@@ -165,6 +166,28 @@ void set_axis_group_tiling_py(
 
 } // namespace torch_nntile
 
+namespace
+{
+
+void maybe_classic_backward(at::Tensor &out, bool do_backward)
+{
+    if (!do_backward)
+    {
+        return;
+    }
+    auto g = torch::ones(
+        out.sizes(),
+        torch::TensorOptions()
+            .dtype(out.dtype())
+            .device(torch::kCPU));
+    at::Tensor g_dev = g.to(out.device());
+    // Autograd must not run while the pybind caller holds the GIL.
+    py::gil_scoped_release no_gil;
+    out.backward(g_dev);
+}
+
+} // namespace
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("is_registered", &torch_nntile::is_registered, "Backend loaded");
@@ -257,6 +280,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "print_axis_groups",
         &torch_nntile::print_axis_groups,
         "Print pending TensorGraph axis groups to stdout");
+    m.def(
+        "pending_op_names",
+        &torch_nntile::pending_op_names,
+        "Op names in the pending TensorGraph phase");
     m.def(
         "print_info",
         &torch_nntile::print_info,
@@ -458,6 +485,80 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("cos"),
         py::arg("x"));
     m.def(
+        "add",
+        &torch_nntile::nn_classic::add,
+        "Classic NNTile add (autograd)",
+        py::arg("x"),
+        py::arg("y"),
+        py::arg("alpha") = 1.0,
+        py::arg("beta") = 1.0);
+    m.def(
+        "mul",
+        &torch_nntile::nn_classic::mul,
+        "Classic NNTile multiply (autograd)",
+        py::arg("a"),
+        py::arg("b"));
+    m.def(
+        "mul_scalar",
+        &torch_nntile::nn_classic::mul_scalar,
+        "Classic NNTile scale (autograd)",
+        py::arg("input"),
+        py::arg("scalar"));
+    m.def(
+        "relu",
+        &torch_nntile::nn_classic::relu,
+        "Classic NNTile ReLU (autograd)",
+        py::arg("input"));
+    m.def(
+        "silu",
+        &torch_nntile::nn_classic::silu,
+        "Classic NNTile SiLU (autograd)",
+        py::arg("input"));
+    m.def(
+        "gelu",
+        &torch_nntile::nn_classic::gelu,
+        "Classic NNTile GELU (autograd)",
+        py::arg("input"),
+        py::arg("approximate_tanh") = true);
+    m.def(
+        "layer_norm",
+        &torch_nntile::nn_classic::layer_norm,
+        "Classic NNTile LayerNorm (autograd)",
+        py::arg("input"),
+        py::arg("normalized_shape"),
+        py::arg("weight") = py::none(),
+        py::arg("bias") = py::none(),
+        py::arg("eps") = 1e-5);
+    m.def(
+        "nn_embedding",
+        &torch_nntile::nn_classic::nn_embedding,
+        "Classic NNTile embedding (autograd)",
+        py::arg("weight"),
+        py::arg("indices"));
+    m.def(
+        "scale_slice",
+        &torch_nntile::nn_classic::scale_slice,
+        "Classic NNTile scale_slice (insert broadcast axis)",
+        py::arg("input"),
+        py::arg("axis"),
+        py::arg("axis_size"),
+        py::arg("alpha") = 1.0);
+    m.def(
+        "cat",
+        &torch_nntile::nn_classic::cat,
+        "Classic NNTile concat of two tensors (autograd)",
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("dim") = -1);
+    m.def(
+        "narrow",
+        &torch_nntile::nn_classic::narrow,
+        "Classic NNTile densifying narrow (autograd)",
+        py::arg("input"),
+        py::arg("dim"),
+        py::arg("start"),
+        py::arg("length"));
+    m.def(
         "mse_loss_forward",
         &torch_nntile::mse_loss_forward,
         "NNTile MSE loss forward: scale * ||x||^2",
@@ -478,7 +579,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("k"),
         py::arg("v"),
         py::arg("mask") = py::none(),
-        py::arg("batch_ndim") = 2);
+        py::arg("batch_ndim") = 2,
+        py::arg("is_causal") = false);
     m.def(
         "sdpa_backward",
         &torch_nntile::sdpa_backward,
@@ -488,7 +590,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("v"),
         py::arg("grad_out"),
         py::arg("mask") = py::none(),
-        py::arg("batch_ndim") = 2);
+        py::arg("batch_ndim") = 2,
+        py::arg("is_causal") = false);
     m.def(
         "sdpa_kernel",
         &torch_nntile::sdpa_kernel,
@@ -567,7 +670,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
            int64_t intermediate_size,
            int64_t num_hidden_layers,
            int64_t num_attention_heads,
-           int64_t num_key_value_heads) {
+           int64_t num_key_value_heads,
+           bool do_backward) {
             using torch_nntile::models::LlamaCausal;
             using torch_nntile::models::LlamaConfig;
             LlamaConfig cfg;
@@ -585,7 +689,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
                 input_ids.size(0),
                 input_ids.size(1),
                 input_ids.device());
-            return model->forward(input_ids);
+            auto out = model->forward(input_ids);
+            maybe_classic_backward(out, do_backward);
+            return out;
         },
         "Run C++ LlamaCausal forward (device follows input_ids)",
         py::arg("input_ids"),
@@ -594,7 +700,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("intermediate_size") = 128,
         py::arg("num_hidden_layers") = 1,
         py::arg("num_attention_heads") = 4,
-        py::arg("num_key_value_heads") = 4);
+        py::arg("num_key_value_heads") = 4,
+        py::arg("do_backward") = false);
     m.def(
         "cpp_bert_mlm_forward",
         [](const at::Tensor &input_ids,
@@ -603,7 +710,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
            int64_t hidden_size,
            int64_t intermediate_size,
            int64_t num_hidden_layers,
-           int64_t num_attention_heads) {
+           int64_t num_attention_heads,
+           bool do_backward) {
             using torch_nntile::models::BertConfig;
             using torch_nntile::models::BertMlm;
             BertConfig cfg;
@@ -616,7 +724,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
                 std::max<int64_t>(input_ids.size(1), 8);
             auto model = BertMlm(cfg);
             torch_nntile::module_to_device(*model, input_ids.device());
-            return model->forward(input_ids, token_type_ids);
+            auto out = model->forward(input_ids, token_type_ids);
+            maybe_classic_backward(out, do_backward);
+            return out;
         },
         "Run C++ BertMlm forward",
         py::arg("input_ids"),
@@ -625,7 +735,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("hidden_size") = 64,
         py::arg("intermediate_size") = 128,
         py::arg("num_hidden_layers") = 1,
-        py::arg("num_attention_heads") = 4);
+        py::arg("num_attention_heads") = 4,
+        py::arg("do_backward") = false);
     m.def(
         "cpp_roberta_mlm_forward",
         [](const at::Tensor &input_ids,
@@ -635,7 +746,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
            int64_t intermediate_size,
            int64_t num_hidden_layers,
            int64_t num_attention_heads,
-           int64_t pad_token_id) {
+           int64_t pad_token_id,
+           bool do_backward) {
             using torch_nntile::models::RobertaConfig;
             using torch_nntile::models::RobertaMlm;
             RobertaConfig cfg;
@@ -649,7 +761,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
                 std::max<int64_t>(input_ids.size(1) + 2, 16);
             auto model = RobertaMlm(cfg);
             torch_nntile::module_to_device(*model, input_ids.device());
-            return model->forward(input_ids, token_type_ids);
+            auto out = model->forward(input_ids, token_type_ids);
+            maybe_classic_backward(out, do_backward);
+            return out;
         },
         "Run C++ RobertaMlm forward (pad-aware positions)",
         py::arg("input_ids"),
@@ -659,7 +773,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("intermediate_size") = 128,
         py::arg("num_hidden_layers") = 1,
         py::arg("num_attention_heads") = 4,
-        py::arg("pad_token_id") = 1);
+        py::arg("pad_token_id") = 1,
+        py::arg("do_backward") = false);
     m.def(
         "cpp_gpt_neo_causal_forward",
         [](const at::Tensor &input_ids,
@@ -668,7 +783,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
            int64_t intermediate_size,
            int64_t num_hidden_layers,
            int64_t num_attention_heads,
-           int64_t window_size) {
+           int64_t window_size,
+           bool do_backward) {
             using torch_nntile::models::GptNeoCausal;
             using torch_nntile::models::GptNeoConfig;
             GptNeoConfig cfg;
@@ -688,7 +804,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             }
             auto model = GptNeoCausal(cfg);
             torch_nntile::module_to_device(*model, input_ids.device());
-            return model->forward(input_ids);
+            auto out = model->forward(input_ids);
+            maybe_classic_backward(out, do_backward);
+            return out;
         },
         "Run C++ GptNeoCausal forward",
         py::arg("input_ids"),
@@ -697,7 +815,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("intermediate_size") = 128,
         py::arg("num_hidden_layers") = 2,
         py::arg("num_attention_heads") = 4,
-        py::arg("window_size") = 4);
+        py::arg("window_size") = 4,
+        py::arg("do_backward") = false);
     m.def(
         "cpp_gpt_neox_causal_forward",
         [](const at::Tensor &input_ids,
@@ -706,7 +825,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
            int64_t intermediate_size,
            int64_t num_hidden_layers,
            int64_t num_attention_heads,
-           double rotary_pct) {
+           double rotary_pct,
+           bool do_backward) {
             using torch_nntile::models::GptNeoXCausal;
             using torch_nntile::models::GptNeoXConfig;
             GptNeoXConfig cfg;
@@ -724,7 +844,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
                 input_ids.size(0),
                 input_ids.size(1),
                 input_ids.device());
-            return model->forward(input_ids);
+            auto out = model->forward(input_ids);
+            maybe_classic_backward(out, do_backward);
+            return out;
         },
         "Run C++ GptNeoXCausal forward",
         py::arg("input_ids"),
@@ -733,14 +855,16 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("intermediate_size") = 128,
         py::arg("num_hidden_layers") = 1,
         py::arg("num_attention_heads") = 4,
-        py::arg("rotary_pct") = 0.25);
+        py::arg("rotary_pct") = 0.25,
+        py::arg("do_backward") = false);
     m.def(
         "cpp_gpt2_causal_forward",
         [](const at::Tensor &input_ids,
            int64_t vocab_size,
            int64_t n_embd,
            int64_t n_head,
-           int64_t n_layer) {
+           int64_t n_layer,
+           bool do_backward) {
             using torch_nntile::models::Gpt2Causal;
             using torch_nntile::models::Gpt2Config;
             Gpt2Config cfg;
@@ -755,14 +879,17 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
                 input_ids.size(0),
                 input_ids.size(1),
                 input_ids.device());
-            return model->forward(input_ids);
+            auto out = model->forward(input_ids);
+            maybe_classic_backward(out, do_backward);
+            return out;
         },
         "Run C++ Gpt2Causal forward",
         py::arg("input_ids"),
         py::arg("vocab_size") = 128,
         py::arg("n_embd") = 64,
         py::arg("n_head") = 4,
-        py::arg("n_layer") = 1);
+        py::arg("n_layer") = 1,
+        py::arg("do_backward") = false);
     m.def(
         "cpp_t5_forward",
         [](const at::Tensor &encoder_ids,
@@ -772,7 +899,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
            int64_t d_kv,
            int64_t d_ff,
            int64_t num_layers,
-           int64_t num_heads) {
+           int64_t num_heads,
+           bool do_backward) {
             using torch_nntile::models::T5Config;
             using torch_nntile::models::T5ForConditionalGeneration;
             T5Config cfg;
@@ -785,7 +913,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             cfg.num_heads = num_heads;
             auto model = T5ForConditionalGeneration(cfg);
             torch_nntile::module_to_device(*model, encoder_ids.device());
-            return model->forward(encoder_ids, decoder_ids);
+            auto out = model->forward(encoder_ids, decoder_ids);
+            maybe_classic_backward(out, do_backward);
+            return out;
         },
         "Run C++ T5ForConditionalGeneration forward",
         py::arg("encoder_ids"),
@@ -795,7 +925,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("d_kv") = 16,
         py::arg("d_ff") = 128,
         py::arg("num_layers") = 1,
-        py::arg("num_heads") = 4);
+        py::arg("num_heads") = 4,
+        py::arg("do_backward") = false);
     m.def(
         "cpp_mlp_mixer_forward",
         [](const at::Tensor &x,
@@ -803,7 +934,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
            int64_t init_patch_dim,
            int64_t projected_patch_dim,
            int64_t num_mixer_layers,
-           int64_t n_classes) {
+           int64_t n_classes,
+           bool do_backward) {
             using torch_nntile::models::MlpMixer;
             using torch_nntile::models::MlpMixerConfig;
             MlpMixerConfig cfg;
@@ -814,7 +946,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             cfg.n_classes = n_classes;
             auto model = MlpMixer(cfg);
             torch_nntile::module_to_device(*model, x.device());
-            return model->forward(x);
+            auto out = model->forward(x);
+            maybe_classic_backward(out, do_backward);
+            return out;
         },
         "Run C++ MlpMixer forward (device follows x)",
         py::arg("x"),
@@ -822,5 +956,32 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         py::arg("init_patch_dim") = 4,
         py::arg("projected_patch_dim") = 4,
         py::arg("num_mixer_layers") = 2,
-        py::arg("n_classes") = 3);
+        py::arg("n_classes") = 3,
+        py::arg("do_backward") = false);
+    m.def(
+        "cpp_deep_relu_forward",
+        [](const at::Tensor &x,
+           int64_t input_dim,
+           int64_t hidden_dim,
+           int64_t output_dim,
+           int64_t depth,
+           bool do_backward) {
+            using torch_nntile::models::DeepReLU;
+            auto model = DeepReLU(
+                input_dim,
+                hidden_dim,
+                output_dim,
+                depth);
+            torch_nntile::module_to_device(*model, x.device());
+            auto out = model->forward(x);
+            maybe_classic_backward(out, do_backward);
+            return out;
+        },
+        "Run C++ DeepReLU forward (device follows x)",
+        py::arg("x"),
+        py::arg("input_dim") = 32,
+        py::arg("hidden_dim") = 64,
+        py::arg("output_dim") = 8,
+        py::arg("depth") = 2,
+        py::arg("do_backward") = false);
 }

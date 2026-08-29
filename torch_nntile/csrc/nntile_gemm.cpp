@@ -6,7 +6,7 @@
 
 #include "nntile_gemm.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_gemm_layout.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_layout_checks.h"
@@ -51,7 +51,7 @@ at::Tensor make_gemm_output(
 
 void run_gemm(const PreparedGemmOperands &prepared, at::Tensor &out)
 {
-    tensor_gemm_fp32(
+    classic_tensor_gemm_fp32(
         prepared.params,
         prepared.a,
         prepared.a_gemm_shape,
@@ -127,7 +127,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = false;
             params.trans_b = !forward.params.trans_b;
-            tensor_gemm_fp32(
+            classic_tensor_gemm_fp32(
                 params,
                 grad_out_prepared,
                 grad_out_layout.gemm_shape,
@@ -140,7 +140,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = forward.params.trans_b;
             params.trans_b = true;
-            tensor_gemm_fp32(
+            classic_tensor_gemm_fp32(
                 params,
                 forward.b,
                 forward.b_gemm_shape,
@@ -162,7 +162,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = !forward.params.trans_a;
             params.trans_b = false;
-            tensor_gemm_fp32(
+            classic_tensor_gemm_fp32(
                 params,
                 forward.a,
                 forward.a_gemm_shape,
@@ -175,7 +175,7 @@ std::tuple<at::Tensor, at::Tensor> gemm_backward(
         {
             params.trans_a = true;
             params.trans_b = forward.params.trans_a;
-            tensor_gemm_fp32(
+            classic_tensor_gemm_fp32(
                 params,
                 grad_out_prepared,
                 grad_out_layout.gemm_shape,

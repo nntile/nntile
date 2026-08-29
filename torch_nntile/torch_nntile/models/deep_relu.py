@@ -16,6 +16,8 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
+from torch_nntile.nn import Linear, ReLU
+
 
 class DeepReLU(nn.Module):
     """Bias-free deep ReLU network."""
@@ -34,13 +36,13 @@ class DeepReLU(nn.Module):
         layers: list[nn.Module] = []
         in_features = input_dim
         out_features = output_dim if depth == 1 else hidden_dim
-        layers.append(nn.Linear(in_features, out_features, bias=False))
+        layers.append(Linear(in_features, out_features, bias=False))
 
         for i in range(1, depth):
-            layers.append(nn.ReLU())
+            layers.append(ReLU())
             in_features = hidden_dim
             out_features = output_dim if i == depth - 1 else hidden_dim
-            layers.append(nn.Linear(in_features, out_features, bias=False))
+            layers.append(Linear(in_features, out_features, bias=False))
 
         self.net = nn.Sequential(*layers)
         self.depth = depth
@@ -80,7 +82,7 @@ class DeepReLU(nn.Module):
         generator = torch.Generator(device="cpu")
         generator.manual_seed(seed)
         for module in self.modules():
-            if isinstance(module, nn.Linear):
+            if isinstance(module, Linear):
                 fan_in = module.in_features
                 bound = (1.0 / fan_in) ** 0.5
                 module.weight.data.uniform_(-bound, bound, generator=generator)

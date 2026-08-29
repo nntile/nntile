@@ -6,7 +6,7 @@
 
 #include "nntile_add_fiber.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
@@ -79,7 +79,7 @@ at::Tensor add_fiber_forward(
     at::Tensor out = at::empty(
         tensor.sizes(),
         tensor.options().memory_format(at::MemoryFormat::Contiguous));
-    tensor_add_fiber_fp32(
+    classic_tensor_add_fiber_fp32(
         static_cast<float>(alpha),
         fiber,
         static_cast<float>(beta),
@@ -125,7 +125,7 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
         grad_fiber = at::empty(
             fiber.sizes(),
             fiber.options().memory_format(at::MemoryFormat::Contiguous));
-        tensor_sum_fiber_fp32(
+        classic_tensor_sum_fiber_fp32(
             grad_out,
             grad_fiber,
             axis,

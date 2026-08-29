@@ -11,6 +11,7 @@
 #include <torch_nntile/models/mlp_mixer.hh>
 
 #include "nntile_gemm.h"
+#include "nntile_nn_classic.h"
 #include "nntile_sum_slice.h"
 
 #include <cmath>
@@ -78,11 +79,11 @@ torch::Tensor MixerMlpImpl::forward(torch::Tensor x)
     if (side == 'R')
     {
         auto h = linear_leading_dim(fc1_weight, x);
-        h = torch::gelu(h);
+        h = nn_classic::gelu(h, false);
         return linear_leading_dim(fc2_weight, h);
     }
     auto h = linear_last_dim(x, fc1_weight);
-    h = torch::gelu(h);
+    h = nn_classic::gelu(h, false);
     return linear_last_dim(h, fc2_weight);
 }
 
@@ -93,20 +94,22 @@ MixerBlockImpl::MixerBlockImpl(
 {
     norm_1 = register_module(
         "norm_1",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({patch_dim}).eps(eps)));
+        nn_classic::LayerNorm(patch_dim, eps));
     mlp_1 = register_module("mlp_1", MixerMlp('R', channel_dim));
     norm_2 = register_module(
         "norm_2",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({patch_dim}).eps(eps)));
+        nn_classic::LayerNorm(patch_dim, eps));
     mlp_2 = register_module("mlp_2", MixerMlp('L', patch_dim));
 }
 
 torch::Tensor MixerBlockImpl::forward(torch::Tensor x)
 {
-    auto y = mlp_1->forward(norm_1->forward(x)) + x;
-    return mlp_2->forward(norm_2->forward(y)) + y;
+    auto y = nn_classic::add(
+        mlp_1->forward(norm_1->forward(x)),
+        x);
+    return nn_classic::add(
+        mlp_2->forward(norm_2->forward(y)),
+        y);
 }
 
 MlpMixerImpl::MlpMixerImpl(MlpMixerConfig cfg) : config(std::move(cfg))

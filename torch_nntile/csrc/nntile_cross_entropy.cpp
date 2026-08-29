@@ -4,7 +4,7 @@
  * @file torch_nntile/csrc/nntile_cross_entropy.cpp
  */
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
@@ -97,7 +97,7 @@ std::tuple<at::Tensor, at::Tensor> cross_entropy_forward(
         maxsumexp_pytorch_shape(logits.sizes()),
         at::kFloat,
         logits.device());
-    tensor_cross_entropy_forward_fp32(
+    classic_tensor_cross_entropy_forward_fp32(
         logits,
         target,
         ignore_index,
@@ -139,7 +139,7 @@ at::Tensor cross_entropy_backward(
         target.sizes(),
         logits.scalar_type(),
         logits.device());
-    tensor_cross_entropy_backward_fp32(
+    classic_tensor_cross_entropy_backward_fp32(
         logits,
         target,
         grad_out,

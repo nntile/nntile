@@ -2377,21 +2377,7 @@ void tensor_where_i64(
     register_data_node(out, out_node);
 }
 
-void tensor_model_transpose_forward_fp32(
-    const at::Tensor &,
-    at::Tensor &,
-    int64_t)
-{
-    throw_op_disabled("model_transpose");
-}
 
-void tensor_model_transpose_backward_fp32(
-    const at::Tensor &,
-    at::Tensor &,
-    int64_t)
-{
-    throw_op_disabled("model_transpose_backward");
-}
 
 void tensor_swap_two_axes_fp32(
     const at::Tensor &src,
@@ -2514,116 +2500,14 @@ void tensor_copy_into_view_i64(
         extra);
 }
 
-void tensor_add_fiber_fp32(
-    float,
-    const at::Tensor &,
-    float,
-    const at::Tensor &,
-    at::Tensor &,
-    int64_t,
-    int64_t)
-{
-    throw_op_disabled("add_fiber");
-}
 
-void tensor_sum_fiber_fp32(
-    const at::Tensor &,
-    at::Tensor &,
-    int64_t,
-    int64_t,
-    float)
-{
-    throw_op_disabled("sum_fiber");
-}
 
-void tensor_sum_slice_fp32(
-    const at::Tensor &,
-    at::Tensor &,
-    int64_t,
-    float,
-    float)
-{
-    throw_op_disabled("sum_slice");
-}
 
-void tensor_add_slice_fp32(
-    float,
-    const at::Tensor &,
-    float,
-    const at::Tensor &,
-    at::Tensor &,
-    int64_t)
-{
-    throw_op_disabled("add_slice");
-}
 
-void tensor_cross_entropy_forward_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    std::int64_t,
-    bool,
-    at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("cross_entropy_forward");
-}
 
-void tensor_cross_entropy_backward_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    const at::Tensor &,
-    const at::Tensor &,
-    at::Tensor &,
-    at::Tensor &,
-    std::int64_t,
-    bool)
-{
-    throw_op_disabled("cross_entropy_backward");
-}
 
-void tensor_sgd_step_fp32(
-    int64_t,
-    float,
-    float,
-    float,
-    float,
-    bool,
-    const at::Tensor &,
-    at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("sgd_step");
-}
 
-void tensor_adam_step_fp32(
-    int64_t,
-    float,
-    float,
-    float,
-    float,
-    float,
-    const at::Tensor &,
-    at::Tensor &,
-    at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("adam_step");
-}
 
-void tensor_adamw_step_fp32(
-    int64_t,
-    float,
-    float,
-    float,
-    float,
-    float,
-    const at::Tensor &,
-    at::Tensor &,
-    at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("adamw_step");
-}
 
 void tensor_layer_norm_backward_fp32(
     const at::Tensor &grad_out,
@@ -2749,77 +2633,11 @@ void tensor_layer_norm_backward_fp32(
     }
 }
 
-void tensor_rms_norm_forward_fp32(
-    const at::Tensor &input,
-    const at::Tensor *weight,
-    bool has_weight,
-    at::Tensor &output,
-    at::Tensor &rstd,
-    int64_t norm_axis,
-    float eps)
-{
-    (void)input;
-    (void)weight;
-    (void)has_weight;
-    (void)output;
-    (void)rstd;
-    (void)norm_axis;
-    (void)eps;
-    throw_op_disabled("rms_norm_forward");
-}
 
-void tensor_rms_norm_backward_fp32(
-    const at::Tensor &grad_out,
-    const at::Tensor &input,
-    const at::Tensor &rstd,
-    const at::Tensor *weight,
-    bool has_weight,
-    at::Tensor *grad_input,
-    at::Tensor *grad_weight,
-    bool grad_input_needed,
-    bool grad_weight_needed,
-    int64_t norm_axis)
-{
-    (void)grad_out;
-    (void)input;
-    (void)rstd;
-    (void)weight;
-    (void)has_weight;
-    (void)grad_input;
-    (void)grad_weight;
-    (void)grad_input_needed;
-    (void)grad_weight_needed;
-    (void)norm_axis;
-    throw_op_disabled("rms_norm_backward");
-}
 
-void tensor_rope_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    const at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("rope");
-}
 
-void tensor_rope_backward_fp32(
-    const at::Tensor &,
-    const at::Tensor &,
-    const at::Tensor &,
-    at::Tensor &)
-{
-    throw_op_disabled("rope_backward");
-}
 
-void tensor_mse_loss_fp32(const at::Tensor &, float, at::Tensor &)
-{
-    throw_op_disabled("mse_loss");
-}
 
-void tensor_mse_loss_backward_fp32(const at::Tensor &, float, at::Tensor &)
-{
-    throw_op_disabled("mse_loss_backward");
-}
 
 void tensor_embedding_backward_fp32(
     const at::Tensor &indices,

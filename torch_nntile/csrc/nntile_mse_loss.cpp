@@ -6,7 +6,8 @@
 
 #include "nntile_mse_loss.h"
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
+#include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
 #include <ATen/TensorUtils.h>
@@ -41,7 +42,7 @@ at::Tensor mse_loss_forward(const at::Tensor &x, double scale)
     nntile::GraphFillScope record;
     check_mse_loss_input(x);
     at::Tensor loss = empty_metadata_tensor({}, at::kFloat, x.device());
-    tensor_mse_loss_fp32(x, static_cast<float>(scale), loss);
+    classic_tensor_mse_loss_fp32(x, static_cast<float>(scale), loss);
     return loss;
 }
 
@@ -58,7 +59,7 @@ at::Tensor mse_loss_backward(
         grad_x = at::empty(
             x.sizes(),
             x.options().memory_format(at::MemoryFormat::Contiguous));
-        tensor_mse_loss_backward_fp32(
+        classic_tensor_mse_loss_backward_fp32(
             x,
             static_cast<float>(scale),
             grad_x);

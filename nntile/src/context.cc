@@ -174,6 +174,22 @@ Context::Context(
             std::cout << "Set STARPU_NCUDA to " << ncuda << "\n";
         }
     }
+#else
+    // CPU-only libnntile: StarPU may still be CUDA-enabled (conda).
+    // Never start CUDA workers.
+    if(getenv("STARPU_NCUDA") != nullptr)
+    {
+        unsetenv("STARPU_NCUDA");
+        if(verbose > 0)
+        {
+            std::cout << "Unset STARPU_NCUDA (CPU-only libnntile)\n";
+        }
+    }
+    starpu_config.ncuda = 0;
+    if(verbose > 0)
+    {
+        std::cout << "Set STARPU_NCUDA to 0 (CPU-only libnntile)\n";
+    }
 #endif // NNTILE_USE_CUDA
 
     // Set history-based scheduler to utilize performance models in case

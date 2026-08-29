@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch_nntile/classic_nn.hh>
 
 #include <cstdint>
 #include <string>
@@ -79,9 +80,9 @@ TORCH_MODULE(GptNeoMLP);
 
 struct GptNeoDecoderImpl : torch::nn::Module
 {
-    torch::nn::LayerNorm input_norm{nullptr};
+    nn_classic::LayerNorm input_norm{nullptr};
     GptNeoAttention attn{nullptr};
-    torch::nn::LayerNorm post_attn_norm{nullptr};
+    nn_classic::LayerNorm post_attn_norm{nullptr};
     GptNeoMLP mlp{nullptr};
 
     GptNeoDecoderImpl(
@@ -98,10 +99,10 @@ TORCH_MODULE(GptNeoDecoder);
 struct GptNeoCausalImpl : torch::nn::Module
 {
     GptNeoConfig config;
-    torch::nn::Embedding wte{nullptr};
-    torch::nn::Embedding wpe{nullptr};
+    nn_classic::Embedding wte{nullptr};
+    nn_classic::Embedding wpe{nullptr};
     torch::nn::ModuleList blocks{nullptr};
-    torch::nn::LayerNorm ln_f{nullptr};
+    nn_classic::LayerNorm ln_f{nullptr};
     torch::Tensor lm_weight;
     torch::Tensor cached_pos_;
     torch::Tensor cached_global_mask_;

@@ -4,7 +4,7 @@
  * @file torch_nntile/csrc/nntile_sgd_step.cpp
  */
 
-#include "nntile_executor.h"
+#include "nntile_executor_classic.h"
 #include "nntile_graph_recorder_impl.h"
 #include "nntile_tensor_gc.h"
 
@@ -69,7 +69,7 @@ void sgd_step(
     nntile::GraphFillScope record;
     check_sgd_step_tensors(param, grad, velocity);
     TORCH_CHECK(num_iter >= 1, "nntile sgd_step: num_iter must be >= 1");
-    tensor_sgd_step_fp32(
+    classic_tensor_sgd_step_fp32(
         num_iter,
         static_cast<float>(momentum),
         static_cast<float>(lr),

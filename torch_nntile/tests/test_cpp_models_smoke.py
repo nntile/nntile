@@ -6,9 +6,16 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
+from classic_graph import assert_classic_graph
 
-from torch_nntile import _C
+from torch_nntile import NNTILE_NATIVE_OPS, _C
+
+pytestmark = pytest.mark.skipif(
+    not NNTILE_NATIVE_OPS,
+    reason="classic nntile-native ops not built",
+)
 
 
 def test_cpp_models_listed():
@@ -40,6 +47,7 @@ def test_cpp_llama_causal_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)
+    assert_classic_graph()
 
 
 def test_cpp_bert_mlm_forward_on_nntile():
@@ -61,6 +69,7 @@ def test_cpp_bert_mlm_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)
+    assert_classic_graph()
 
 
 def test_cpp_roberta_mlm_forward_on_nntile():
@@ -80,6 +89,7 @@ def test_cpp_roberta_mlm_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)
+    assert_classic_graph()
 
 
 def test_cpp_gpt_neo_causal_forward_on_nntile():
@@ -99,6 +109,7 @@ def test_cpp_gpt_neo_causal_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)
+    assert_classic_graph()
 
 
 def test_cpp_gpt_neox_causal_forward_on_nntile():
@@ -118,6 +129,7 @@ def test_cpp_gpt_neox_causal_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)
+    assert_classic_graph()
 
 
 def test_cpp_gpt2_causal_forward_on_nntile():
@@ -135,6 +147,7 @@ def test_cpp_gpt2_causal_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)
+    assert_classic_graph()
 
 
 def test_cpp_t5_forward_on_nntile():
@@ -162,6 +175,7 @@ def test_cpp_t5_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 8, 128)
+    assert_classic_graph()
 
 
 def test_cpp_mlp_mixer_forward_on_nntile():
@@ -176,3 +190,18 @@ def test_cpp_mlp_mixer_forward_on_nntile():
     )
     assert out.device.type == "nntile"
     assert tuple(out.shape) == (2, 3)
+    assert_classic_graph()
+
+
+def test_cpp_deep_relu_forward_on_nntile():
+    x = torch.randn(4, 32).contiguous().to("nntile")
+    out = _C.cpp_deep_relu_forward(
+        x,
+        input_dim=32,
+        hidden_dim=64,
+        output_dim=8,
+        depth=2,
+    )
+    assert out.device.type == "nntile"
+    assert tuple(out.shape) == (4, 8)
+    assert_classic_graph()

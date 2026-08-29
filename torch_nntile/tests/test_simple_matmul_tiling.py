@@ -14,15 +14,6 @@ from pathlib import Path
 import pytest
 from conftest import subprocess_environ
 
-pytestmark = pytest.mark.skip(
-    reason=(
-        "Temporarily disabled: device=nntile PrivateUse1 aten ops require "
-        "untiled tensors while torch-native StarPU codelets land "
-        "(docs/dev/torch_nntile_aten_ops.md)."
-    ),
-)
-
-
 def _run_subprocess(script: str) -> None:
     env = subprocess_environ()
     proc = subprocess.run(
@@ -58,6 +49,8 @@ def test_simple_matmul_tiled_two_epochs():
         )
         torch_nntile.restrict_cpu()
 
+        from torch_nntile.nn.functional import gemm
+
         a = torch.randn(m, k)
         b = torch.randn(k, n)
         a_nnt = a.to("nntile")
@@ -65,7 +58,9 @@ def test_simple_matmul_tiled_two_epochs():
 
         def run_round() -> torch.Tensor:
             for _ in range(repeat):
-                c_nnt = a_nnt @ b_nnt
+                c_nnt = gemm(
+                    a_nnt, b_nnt, ndim=1, batch_ndim=0
+                )
             torch_nntile.set_axis_group_name(a_nnt, {0: "M", 1: "K"})
             torch_nntile.set_axis_group_name(b_nnt, {1: "N"})
             torch_nntile.set_axis_group_tiling("M", mt)

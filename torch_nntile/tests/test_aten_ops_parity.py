@@ -333,3 +333,41 @@ def test_sdpa_matches_cpu_forward_backward():
         bwd_rtol=_BWD_RTOL,
         bwd_atol=_BWD_ATOL,
     )
+
+
+@pytest.mark.skipif(
+    not getattr(torch_nntile, "TORCH_NATIVE_OPS", False),
+    reason="torch-native aten ops not built",
+)
+def test_aten_relu_records_torch_native_graph():
+    from classic_graph import assert_torch_native_graph
+
+    torch_nntile.reset_graph_session()
+    x_n = (
+        torch.randn(4, 8, dtype=torch.float32)
+        .to("nntile")
+        .requires_grad_(True)
+    )
+    y_n = torch.relu(x_n)
+    ones = torch.ones(tuple(y_n.shape), dtype=y_n.dtype)
+    torch.autograd.grad(y_n, x_n, ones.to(y_n.device))
+    assert_torch_native_graph()
+
+
+@pytest.mark.skipif(
+    not getattr(torch_nntile, "TORCH_NATIVE_OPS", False),
+    reason="torch-native aten ops not built",
+)
+def test_stock_linear_records_torch_native_graph():
+    from classic_graph import assert_torch_native_graph
+
+    torch_nntile.reset_graph_session()
+    layer = torch.nn.Linear(8, 5, bias=True).float().to("nntile")
+    x = torch.randn(3, 8, dtype=torch.float32).to("nntile").requires_grad_(
+        True
+    )
+    y = layer(x)
+    ones = torch.ones(tuple(y.shape), dtype=y.dtype)
+    torch.autograd.grad(y, x, ones.to(y.device))
+    assert_torch_native_graph()
+

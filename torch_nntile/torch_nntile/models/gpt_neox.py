@@ -21,6 +21,8 @@ from torch import Tensor
 from torch_nntile.add_fiber import add_fiber
 from torch_nntile.gemm import gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
+from torch_nntile.nn import Embedding, GELU, LayerNorm
+from torch_nntile.nn.functional import add
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 
@@ -165,17 +167,15 @@ class GPTNeoXAttention(nn.Module):
         return out
 
     def _apply_rope(self, x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
-        # Partial RoPE on-device via narrow + rope + cat (nntile kernels).
-        rot = self.rotary_ndims
-        if rot <= 0:
+        # Partial rotary: sin/cos are identity-padded to ``head_dim // 2``
+        # (host tables). Full-head ``rope`` matches Llama; densifying
+        # ``narrow`` + ``cat`` disagrees with the RoPE kernel layout.
+        if self.rotary_ndims <= 0:
             return x
         if sin.device != x.device:
             sin = sin.to(x.device)
             cos = cos.to(x.device)
-        x_rot = torch.narrow(x, -1, 0, rot)
-        x_pass = torch.narrow(x, -1, rot, self.head_dim - rot)
-        x_rot = rope(sin, cos, x_rot)
-        return torch.cat([x_rot, x_pass], dim=-1)
+        return rope(sin, cos, x)
 
     def forward(
         self,
@@ -218,7 +218,7 @@ class GPTNeoXMLP(nn.Module):
         self.dense_4h_to_h = NntileLinear(
             config.intermediate_size, config.hidden_size
         )
-        self.act = nn.GELU()
+        self.act = GELU(approximate="none")
 
     def forward(self, x: Tensor) -> Tensor:
         return self.dense_4h_to_h(self.act(self.dense_h_to_4h(x)))
@@ -228,11 +228,11 @@ class GPTNeoXLayer(nn.Module):
     def __init__(self, config: GPTNeoXConfig) -> None:
         super().__init__()
         self.use_parallel_residual = config.use_parallel_residual
-        self.input_layernorm = nn.LayerNorm(
+        self.input_layernorm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
         self.attention = GPTNeoXAttention(config)
-        self.post_attention_layernorm = nn.LayerNorm(
+        self.post_attention_layernorm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
         self.mlp = GPTNeoXMLP(config)
@@ -252,26 +252,26 @@ class GPTNeoXLayer(nn.Module):
                 normed, sin, cos, attn_mask, is_causal=is_causal
             )
             mlp_out = self.mlp(self.post_attention_layernorm(x))
-            return x + attn_out + mlp_out
+            return add(add(x, attn_out), mlp_out)
         residual = x
         x = self.input_layernorm(x)
         x = self.attention(x, sin, cos, attn_mask, is_causal=is_causal)
-        x = residual + x
+        x = add(residual, x)
         residual = x
         x = self.post_attention_layernorm(x)
         x = self.mlp(x)
-        return residual + x
+        return add(residual, x)
 
 
 class GPTNeoXModel(nn.Module):
     def __init__(self, config: GPTNeoXConfig) -> None:
         super().__init__()
         self.config = config
-        self.embed_in = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embed_in = Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
             [GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)]
         )
-        self.final_layer_norm = nn.LayerNorm(
+        self.final_layer_norm = LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps
         )
         self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
@@ -317,6 +317,7 @@ class GPTNeoXModel(nn.Module):
             pos_host,
             self.config.rotary_ndims,
             rope_theta=self.config.rotary_emb_base,
+            identity_pad_head_dim=self.config.head_dim,
         )
         if position_ids.device.type != "cpu":
             sin = sin.to(position_ids.device)

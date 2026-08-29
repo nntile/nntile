@@ -8,6 +8,7 @@
 #include <torch_nntile/models/t5.hh>
 
 #include "nntile_gemm.h"
+#include "nntile_nn_classic.h"
 #include "nntile_rms_norm.h"
 #include "nntile_sdpa.h"
 #include "nntile_model_transpose.h"
@@ -152,7 +153,9 @@ torch::Tensor T5LayerFFImpl::forward(torch::Tensor x)
         /*batch_ndim=*/0,
         /*trans_a=*/false,
         /*trans_b=*/true);
-    auto hidden = torch::gelu(gate, "tanh") * up;
+    auto hidden = nn_classic::mul(
+        nn_classic::gelu(gate, true),
+        up);
     auto ff_out = gemm(
         hidden,
         down_weight,
@@ -160,7 +163,7 @@ torch::Tensor T5LayerFFImpl::forward(torch::Tensor x)
         /*batch_ndim=*/0,
         /*trans_a=*/false,
         /*trans_b=*/true);
-    return x + ff_out;
+    return nn_classic::add(x, ff_out);
 }
 
 // -- T5EncoderBlockImpl ----------------------------------------------------
@@ -181,7 +184,7 @@ torch::Tensor T5EncoderBlockImpl::forward(torch::Tensor x)
 {
     auto x_norm = rms_norm(x, ln0_weight, eps);
     auto attn = self_attn->forward(x_norm, {}, {});
-    return ff->forward(x + attn);
+    return ff->forward(nn_classic::add(x, attn));
 }
 
 // -- T5DecoderBlockImpl ----------------------------------------------------
@@ -211,13 +214,13 @@ torch::Tensor T5DecoderBlockImpl::forward(
 {
     auto x_norm = rms_norm(x, ln0_weight, eps);
     auto self_out = self_attn->forward(x_norm, {}, self_mask);
-    auto post = x + self_out;
+    auto post = nn_classic::add(x, self_out);
     auto y_norm = rms_norm(post, ln1_weight, eps);
     auto cross_out = cross_attn->forward(
         y_norm,
         encoder_hidden,
         {});
-    return ff->forward(post + cross_out);
+    return ff->forward(nn_classic::add(post, cross_out));
 }
 
 // -- T5ForConditionalGenerationImpl ----------------------------------------
@@ -228,7 +231,7 @@ T5ForConditionalGenerationImpl::T5ForConditionalGenerationImpl(
 {
     shared = register_module(
         "shared",
-        torch::nn::Embedding(config.vocab_size, config.d_model));
+        nn_classic::Embedding(config.vocab_size, config.d_model));
     torch::nn::ModuleList enc;
     for (int64_t i = 0; i < config.num_layers; ++i)
     {

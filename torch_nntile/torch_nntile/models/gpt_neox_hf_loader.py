@@ -26,8 +26,23 @@ from torch_nntile.nn.linear import (
 )
 
 
+def _hf_rotary_params(hf: HfGPTNeoXConfig) -> tuple[float, float]:
+    """``rotary_pct`` / ``rotary_emb_base`` (HF 4) or ``rope_parameters`` (5)."""
+    rope = getattr(hf, "rope_parameters", None)
+    if isinstance(rope, dict):
+        return (
+            float(rope.get("partial_rotary_factor", 0.25)),
+            float(rope.get("rope_theta", 10000.0)),
+        )
+    return (
+        float(getattr(hf, "rotary_pct", 0.25)),
+        float(getattr(hf, "rotary_emb_base", 10000.0)),
+    )
+
+
 def gpt_neox_config_from_hf(hf: HfGPTNeoXConfig) -> GPTNeoXConfig:
     """Build a local ``GPTNeoXConfig`` from an HF config."""
+    rotary_pct, rotary_emb_base = _hf_rotary_params(hf)
     return GPTNeoXConfig(
         vocab_size=int(hf.vocab_size),
         hidden_size=int(hf.hidden_size),
@@ -36,12 +51,20 @@ def gpt_neox_config_from_hf(hf: HfGPTNeoXConfig) -> GPTNeoXConfig:
         num_attention_heads=int(hf.num_attention_heads),
         max_position_embeddings=int(hf.max_position_embeddings),
         layer_norm_eps=float(hf.layer_norm_eps),
-        rotary_pct=float(hf.rotary_pct),
-        rotary_emb_base=float(hf.rotary_emb_base),
+        rotary_pct=rotary_pct,
+        rotary_emb_base=rotary_emb_base,
         use_parallel_residual=bool(hf.use_parallel_residual),
         attention_bias=bool(getattr(hf, "attention_bias", True)),
         tie_word_embeddings=False,  # local models stay untied (migration debt)
     )
+
+
+def _hf_lm_head(hf: GPTNeoXForCausalLM):
+    """HF 4 used ``embed_out``; HF 5 uses ``lm_head``."""
+    head = getattr(hf, "lm_head", None)
+    if head is not None:
+        return head
+    return hf.embed_out
 
 
 def _rotary_pct(cfg: GPTNeoXConfig) -> float:
@@ -173,7 +196,7 @@ def load_hf_into_gpt_neox_causal(
         copy_linear(dst_layer.mlp.dense_4h_to_h, src_layer.mlp.dense_4h_to_h)
 
     # Always keep an independent embed_out (tying deferred; migration debt).
-    minimal.embed_out.weight.data.copy_(hf.embed_out.weight.data)
+    minimal.embed_out.weight.data.copy_(_hf_lm_head(hf).weight.data)
 
 
 def export_gpt_neox_causal_to_hf_state_dict(
@@ -226,7 +249,7 @@ def export_gpt_neox_causal_to_hf_state_dict(
         copy_linear(dst_layer.mlp.dense_h_to_4h, src_layer.mlp.dense_h_to_4h)
         copy_linear(dst_layer.mlp.dense_4h_to_h, src_layer.mlp.dense_4h_to_h)
 
-    hf.embed_out.weight.data.copy_(minimal.embed_out.weight.data)
+    _hf_lm_head(hf).weight.data.copy_(minimal.embed_out.weight.data)
     # Keep embed_out untied (migration debt).
 
     with torch.no_grad():

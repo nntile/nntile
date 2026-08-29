@@ -17,6 +17,8 @@ from torch import Tensor
 from torch_nntile.add_fiber import add_fiber
 from torch_nntile.gemm import gemm
 from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
+from torch_nntile.nn import Embedding, GELU, LayerNorm
+from torch_nntile.nn.functional import add, mul_scalar
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
 
@@ -158,7 +160,7 @@ class GPTNeoAttention(nn.Module):
         v = self._project(x, self.v_weight)
         # HF GPT-Neo scores are unscaled; cancel SDPA ``1/sqrt(d)``.
         # Use aten mul.Scalar - ``q * float`` may dispatch TensorxCPU-scalar.
-        q = torch.ops.aten.mul.Scalar(q, float(self.head_dim) ** 0.5)
+        q = mul_scalar(q, float(self.head_dim) ** 0.5)
         # Local layers use a sliding causal window when the caller does not
         # supply an explicit mask (matches HF ``attention_layers`` / bias).
         if attn_mask is None and self.local:
@@ -199,7 +201,7 @@ class GPTNeoMLP(nn.Module):
             config.intermediate_size,
             config.hidden_size,
         )
-        self.act = nn.GELU(approximate="tanh")
+        self.act = GELU(approximate="tanh")
 
     def forward(self, x: Tensor) -> Tensor:
         return self.c_proj(self.act(self.c_fc(x)))
@@ -209,9 +211,9 @@ class GPTNeoBlock(nn.Module):
     def __init__(self, config: GPTNeoConfig, layer_id: int) -> None:
         super().__init__()
         local = config.is_local_attention_layer(layer_id)
-        self.ln_1 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.ln_1 = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.attn = GPTNeoAttention(config, local=local)
-        self.ln_2 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.ln_2 = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.mlp = GPTNeoMLP(config)
 
     def forward(
@@ -224,19 +226,19 @@ class GPTNeoBlock(nn.Module):
         residual = x
         x = self.ln_1(x)
         x = self.attn(x, attn_mask, is_causal=is_causal)
-        x = residual + x
+        x = add(residual, x)
         residual = x
         x = self.ln_2(x)
         x = self.mlp(x)
-        return residual + x
+        return add(residual, x)
 
 
 class GPTNeoModel(nn.Module):
     def __init__(self, config: GPTNeoConfig) -> None:
         super().__init__()
         self.config = config
-        self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.wpe = nn.Embedding(
+        self.wte = Embedding(config.vocab_size, config.hidden_size)
+        self.wpe = Embedding(
             config.max_position_embeddings, config.hidden_size
         )
         self.h = nn.ModuleList(
@@ -245,7 +247,7 @@ class GPTNeoModel(nn.Module):
                 for i in range(config.num_hidden_layers)
             ]
         )
-        self.ln_f = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.ln_f = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self._position_ids_cache: dict[tuple[int, int], Tensor] = {}
 
     def _cached_position_ids(self, input_ids: Tensor) -> Tensor:
@@ -276,7 +278,7 @@ class GPTNeoModel(nn.Module):
     ) -> Tensor:
         if position_ids is None:
             position_ids = self._cached_position_ids(input_ids)
-        x = self.wte(input_ids) + self.wpe(position_ids)
+        x = add(self.wte(input_ids), self.wpe(position_ids))
         for block in self.h:
             x = block(x, attn_mask)
         return self.ln_f(x)

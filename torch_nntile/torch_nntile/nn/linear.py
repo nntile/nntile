@@ -15,8 +15,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from torch_nntile.nn.functional import add_fiber, gemm
-from torch_nntile.models.gpt2_minimal import make_causal_sdpa_mask
-from torch_nntile.nn.sdpa import nntile_model_transpose
+from torch_nntile.nn.sdpa import make_causal_sdpa_mask, nntile_model_transpose
 
 
 class NntileLinear(nn.Module):
@@ -47,6 +46,8 @@ class NntileLinear(nn.Module):
             nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, x: Tensor) -> Tensor:
+        if x.device.type != "nntile":
+            return nn.functional.linear(x, self.weight, self.bias)
         out = gemm(
             x,
             self.weight,

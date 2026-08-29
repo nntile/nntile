@@ -48,14 +48,14 @@ struct RobertaConfig
 struct RobertaMlmImpl : torch::nn::Module
 {
     RobertaConfig config;
-    torch::nn::Embedding word_embeddings{nullptr};
-    torch::nn::Embedding position_embeddings{nullptr};
-    torch::nn::Embedding token_type_embeddings{nullptr};
-    torch::nn::LayerNorm emb_ln{nullptr};
+    nn_classic::Embedding word_embeddings{nullptr};
+    nn_classic::Embedding position_embeddings{nullptr};
+    nn_classic::Embedding token_type_embeddings{nullptr};
+    nn_classic::LayerNorm emb_ln{nullptr};
     torch::nn::ModuleList layers{nullptr};
     torch::Tensor lm_dense_weight;
     torch::Tensor lm_dense_bias;
-    torch::nn::LayerNorm lm_ln{nullptr};
+    nn_classic::LayerNorm lm_ln{nullptr};
     torch::Tensor lm_decoder_weight;
     torch::Tensor lm_decoder_bias;
     bool gelu_tanh = false;

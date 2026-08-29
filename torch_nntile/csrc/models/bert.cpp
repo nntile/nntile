@@ -9,6 +9,7 @@
 
 #include "nntile_add_fiber.h"
 #include "nntile_gemm.h"
+#include "nntile_nn_classic.h"
 #include "nntile_sdpa.h"
 #include "nntile_model_transpose.h"
 
@@ -24,9 +25,9 @@ torch::Tensor apply_bert_gelu(torch::Tensor x, bool tanh_approx)
 {
     if (tanh_approx)
     {
-        return torch::gelu(x, "tanh");
+        return nn_classic::gelu(x, true);
     }
-    return torch::gelu(x);
+    return nn_classic::gelu(x, false);
 }
 
 bool is_gelu_tanh(std::string const &act)
@@ -132,8 +133,7 @@ BertSelfOutputImpl::BertSelfOutputImpl(BertConfig const &cfg)
     dense_bias = register_parameter("dense_bias", torch::zeros({h}));
     ln = register_module(
         "ln",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({h}).eps(cfg.layer_norm_eps)));
+        nn_classic::LayerNorm(h, cfg.layer_norm_eps));
     torch::nn::init::normal_(dense_weight, 0.0, 0.02);
 }
 
@@ -152,7 +152,7 @@ torch::Tensor BertSelfOutputImpl::forward(
         dense_out,
         /*axis=*/dense_out.dim() - 1,
         /*batch_ndim=*/0);
-    return ln->forward(residual + dense_out);
+    return ln->forward(nn_classic::add(residual, dense_out));
 }
 
 BertAttentionImpl::BertAttentionImpl(BertConfig const &cfg)
@@ -183,8 +183,7 @@ BertLayerImpl::BertLayerImpl(BertConfig const &cfg)
     out_bias = register_parameter("out_bias", torch::zeros({h}));
     out_ln = register_module(
         "out_ln",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({h}).eps(cfg.layer_norm_eps)));
+        nn_classic::LayerNorm(h, cfg.layer_norm_eps));
     torch::nn::init::normal_(inter_weight, 0.0, 0.02);
     torch::nn::init::normal_(out_weight, 0.0, 0.02);
 }
@@ -219,7 +218,7 @@ torch::Tensor BertLayerImpl::forward(torch::Tensor x)
         proj,
         /*axis=*/proj.dim() - 1,
         /*batch_ndim=*/0);
-    return out_ln->forward(attn_out + proj);
+    return out_ln->forward(nn_classic::add(attn_out, proj));
 }
 
 BertMlmImpl::BertMlmImpl(BertConfig cfg) : config(std::move(cfg))
@@ -227,20 +226,20 @@ BertMlmImpl::BertMlmImpl(BertConfig cfg) : config(std::move(cfg))
     gelu_tanh = is_gelu_tanh(config.hidden_act);
     word_embeddings = register_module(
         "word_embeddings",
-        torch::nn::Embedding(config.vocab_size, config.hidden_size));
+        nn_classic::Embedding(config.vocab_size, config.hidden_size));
     position_embeddings = register_module(
         "position_embeddings",
-        torch::nn::Embedding(
+        nn_classic::Embedding(
             config.max_position_embeddings,
             config.hidden_size));
     token_type_embeddings = register_module(
         "token_type_embeddings",
-        torch::nn::Embedding(config.type_vocab_size, config.hidden_size));
+        nn_classic::Embedding(config.type_vocab_size, config.hidden_size));
     emb_ln = register_module(
         "emb_ln",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({config.hidden_size})
-                .eps(config.layer_norm_eps)));
+        nn_classic::LayerNorm(
+            config.hidden_size,
+            config.layer_norm_eps));
     torch::nn::ModuleList list;
     for (int64_t i = 0; i < config.num_hidden_layers; ++i)
     {
@@ -256,8 +255,7 @@ BertMlmImpl::BertMlmImpl(BertConfig cfg) : config(std::move(cfg))
         torch::zeros({h}));
     transform_ln = register_module(
         "transform_ln",
-        torch::nn::LayerNorm(
-            torch::nn::LayerNormOptions({h}).eps(config.layer_norm_eps)));
+        nn_classic::LayerNorm(h, config.layer_norm_eps));
     decoder_weight = register_parameter(
         "decoder_weight",
         torch::empty({config.vocab_size, h}));
@@ -293,9 +291,11 @@ torch::Tensor BertMlmImpl::forward(
             cache_seq_ = s;
         }
     }
-    auto h = word_embeddings->forward(input_ids) +
-        position_embeddings->forward(pos) +
-        token_type_embeddings->forward(token_type_ids);
+    auto h = nn_classic::add(
+        nn_classic::add(
+            word_embeddings->forward(input_ids),
+            position_embeddings->forward(pos)),
+        token_type_embeddings->forward(token_type_ids));
     h = emb_ln->forward(h);
     for (auto &module : *layers)
     {

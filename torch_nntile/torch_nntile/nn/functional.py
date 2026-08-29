@@ -8,66 +8,47 @@ Stock ``torch.nn`` / ``torch.nn.functional`` on ``device=nntile`` follow the
 CUDA dispatch path (torch-native ``aten`` codelets). Use **this** module for
 classic NNTile tiled / hand-written ops (``gemm``, ``rope``, ``sum_slice``,
 …).
-
-Requires a classic build (``NNTILE_TORCH_NATIVE_OPS=OFF``). Torch-native
-wheels expose the same names but raise if called.
 """
 
 from __future__ import annotations
 
-from torch_nntile import TORCH_NATIVE_OPS
+from torch_nntile.add_fiber import add_fiber
+from torch_nntile.gemm import gemm, matmul
+from torch_nntile.loss import cross_entropy, mse_loss
+from torch_nntile.norm import vector_norm
+from torch_nntile.nn.activations import gelu, relu, silu
+from torch_nntile.nn.add import add
+from torch_nntile.nn.embedding import embedding
+from torch_nntile.nn.mul import mul, mul_scalar
+from torch_nntile.nn.norm import layer_norm, rms_norm
+from torch_nntile.nn.sdpa import sdpa_eager, sdpa_kernel
+from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
+from torch_nntile.sum_slice import gap, sum_slice
 
-__all__: list[str] = []
-
-if not TORCH_NATIVE_OPS:
-    from torch_nntile.add_fiber import add_fiber
-    from torch_nntile.gemm import gemm, matmul
-    from torch_nntile.loss import cross_entropy, mse_loss
-    from torch_nntile.norm import vector_norm
-    from torch_nntile.normalization import rms_norm
-    from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
-    from torch_nntile.sum_slice import gap, sum_slice
-
-    __all__ = [
-        "add_fiber",
-        "apply_nntile_patches",
-        "cross_entropy",
-        "gap",
-        "gemm",
-        "matmul",
-        "mse_loss",
-        "rms_norm",
-        "rope",
-        "rope_sin_cos_from_position_ids",
-        "sum_slice",
-        "vector_norm",
-    ]
-
-else:
-
-    def _torch_native_only(name: str) -> None:
-        raise RuntimeError(
-            f"torch_nntile.nn.functional.{name} requires a classic NNTile build "
-            "(NNTILE_TORCH_NATIVE_OPS=OFF). On torch-native wheels use stock "
-            "torch.nn.functional on device=nntile (CUDA parity)."
-        )
-
-    def __getattr__(name: str) -> object:
-        if name in {
-            "add_fiber",
-            "cross_entropy",
-            "gap",
-            "gemm",
-            "matmul",
-            "mse_loss",
-            "rms_norm",
-            "rope",
-            "rope_sin_cos_from_position_ids",
-            "sum_slice",
-            "vector_norm",
-        }:
-            _torch_native_only(name)
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+__all__ = [
+    "add",
+    "add_fiber",
+    "apply_nntile_patches",
+    "cross_entropy",
+    "embedding",
+    "gap",
+    "gelu",
+    "gemm",
+    "layer_norm",
+    "matmul",
+    "mul",
+    "mul_scalar",
+    "mse_loss",
+    "relu",
+    "rms_norm",
+    "rope",
+    "rope_sin_cos_from_position_ids",
+    "sdpa_eager",
+    "sdpa_kernel",
+    "silu",
+    "sum_slice",
+    "vector_norm",
+]
 
 
 def apply_nntile_patches() -> None:
@@ -78,11 +59,6 @@ def apply_nntile_patches() -> None:
     ``device=nntile`` (CUDA parity). Do **not** call this in torch-native
     training stacks.
     """
-    if TORCH_NATIVE_OPS:
-        raise RuntimeError(
-            "apply_nntile_patches() is for classic NNTile builds only "
-            "(NNTILE_TORCH_NATIVE_OPS=OFF)"
-        )
     from torch_nntile.loss import patch_cross_entropy
     from torch_nntile.norm import patch_vector_norm
     from torch_nntile.normalization import patch_rms_norm

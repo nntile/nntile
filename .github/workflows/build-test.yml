@@ -85,6 +85,8 @@ jobs:
       - run: .github/scripts/check-nntile-includes.sh .
       - run: chmod +x .github/scripts/check-model-no-swap-axes.sh
       - run: .github/scripts/check-model-no-swap-axes.sh .
+      - run: chmod +x .github/scripts/check-model-classic-nn.sh
+      - run: .github/scripts/check-model-classic-nn.sh .
       - name: Install LibTorch (CPU)
         run: |
           set -euo pipefail
@@ -462,9 +464,14 @@ jobs:
           print(f"TORCH_NATIVE_OPS={t.TORCH_NATIVE_OPS} BUILT_WITH_CUDA={t.built_with_cuda()}")
           PY
           # Aten fwd+bwd parity is C++ ctest (test-libtorch-nntile).
-          # Under torch-native, run the allowlisted Python smoke suite only.
+          # Python: device smoke + torch-native HF models + classic models.
           pytest -vv --override-ini='pythonpath=' \
             torch_nntile/tests/test_device_stub.py \
             torch_nntile/tests/test_context_restrict.py \
             torch_nntile/tests/test_libtorch_nntile_smoke.py \
-            torch_nntile/tests/test_cuda_deps.py
+            torch_nntile/tests/test_cuda_deps.py \
+            torch_nntile/tests/test_aten_ops_parity.py \
+            torch_nntile/tests/test_hf_stock_models_on_nntile.py \
+            torch_nntile/tests/test_nn_classic.py \
+            torch_nntile/tests/test_models_classic_graph.py \
+            torch_nntile/tests/test_models_python_classic_graph.py

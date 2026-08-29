@@ -6,10 +6,53 @@
 
 #include <torch_nntile/models/deep_relu.hh>
 
+#include "nntile_gemm.h"
+#include "nntile_nn_classic.h"
+
 #include <stdexcept>
 
 namespace torch_nntile::models
 {
+
+namespace
+{
+
+struct BiasFreeLinearImpl : torch::nn::Module
+{
+    torch::Tensor weight;
+
+    BiasFreeLinearImpl(int64_t in_features, int64_t out_features)
+    {
+        weight = register_parameter(
+            "weight",
+            torch::empty({out_features, in_features}));
+    }
+
+    torch::Tensor forward(torch::Tensor x)
+    {
+        return torch_nntile::gemm(
+            x,
+            weight,
+            1,
+            0,
+            false,
+            true);
+    }
+};
+
+TORCH_MODULE(BiasFreeLinear);
+
+struct ReluImpl : torch::nn::Module
+{
+    torch::Tensor forward(torch::Tensor x)
+    {
+        return torch_nntile::nn_classic::relu(x);
+    }
+};
+
+TORCH_MODULE(Relu);
+
+} // namespace
 
 DeepReLUImpl::DeepReLUImpl(
     int64_t input_dim_,
@@ -28,17 +71,14 @@ DeepReLUImpl::DeepReLUImpl(
     torch::nn::Sequential seq;
     int64_t in_features = input_dim;
     int64_t out_features = (depth == 1) ? output_dim : hidden_dim;
-    seq->push_back(torch::nn::Linear(
-        torch::nn::LinearOptions(in_features, out_features).bias(false)));
+    seq->push_back(BiasFreeLinear(in_features, out_features));
     for (int64_t i = 1; i < depth; ++i)
     {
-        seq->push_back(torch::nn::ReLU());
+        seq->push_back(Relu());
         in_features = hidden_dim;
         out_features =
             (i == depth - 1) ? output_dim : hidden_dim;
-        seq->push_back(torch::nn::Linear(
-            torch::nn::LinearOptions(in_features, out_features)
-                .bias(false)));
+        seq->push_back(BiasFreeLinear(in_features, out_features));
     }
     net = register_module("net", seq);
 }
