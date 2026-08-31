@@ -43,7 +43,8 @@ def _fwd_bwd_classic(out: torch.Tensor) -> None:
     assert_classic_graph()
 
 
-def test_python_llama_classic_graph_fwd_bwd():
+@pytest.mark.parametrize("n_kv", [4, 2])
+def test_python_llama_classic_graph_fwd_bwd(n_kv: int):
     torch_nntile.reset_graph_session()
     cfg = LlamaConfig(
         vocab_size=128,
@@ -51,7 +52,7 @@ def test_python_llama_classic_graph_fwd_bwd():
         intermediate_size=128,
         num_hidden_layers=1,
         num_attention_heads=4,
-        num_key_value_heads=4,
+        num_key_value_heads=n_kv,
         max_position_embeddings=16,
     )
     model = LlamaCausal(cfg).eval().float().to("nntile")

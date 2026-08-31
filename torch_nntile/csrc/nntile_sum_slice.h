@@ -11,6 +11,7 @@
 #include <torch/csrc/autograd/custom_function.h>
 
 #include <cstdint>
+#include <vector>
 
 namespace torch_nntile
 {
@@ -23,7 +24,7 @@ at::Tensor sum_slice_forward(
 
 at::Tensor sum_slice_backward(
     const at::Tensor &grad_out,
-    const at::Tensor &src,
+    at::IntArrayRef src_sizes,
     int64_t axis,
     double alpha = 1.0);
 
@@ -42,7 +43,9 @@ public:
     {
         ctx->saved_data["axis"] = axis;
         ctx->saved_data["alpha"] = alpha;
-        ctx->save_for_backward({src});
+        ctx->saved_data["src_sizes"] = at::tensor(
+            src.sizes().vec(),
+            at::TensorOptions().dtype(at::kLong).device(at::kCPU));
         return sum_slice_forward(src, axis, alpha, beta);
     }
 
@@ -50,15 +53,19 @@ public:
         torch::autograd::AutogradContext *ctx,
         torch::autograd::variable_list grad_outputs)
     {
-        auto saved = ctx->get_saved_variables();
         int64_t const axis = ctx->saved_data["axis"].toInt();
         double const alpha = ctx->saved_data["alpha"].toDouble();
+        at::Tensor sizes_t =
+            ctx->saved_data["src_sizes"].toTensor().contiguous();
+        std::vector<int64_t> src_sizes(
+            sizes_t.data_ptr<int64_t>(),
+            sizes_t.data_ptr<int64_t>() + sizes_t.numel());
         torch::autograd::variable_list result(4);
         if (ctx->needs_input_grad(0))
         {
             result[0] = sum_slice_backward(
                 grad_outputs[0],
-                saved[0],
+                src_sizes,
                 axis,
                 alpha);
         }

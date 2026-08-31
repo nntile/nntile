@@ -13,20 +13,13 @@ def pending_op_names() -> list[str]:
     return torch_nntile.pending_op_names()
 
 
-# Autograd combines multiple incoming grads with aten add (residual
-# fan-in, QKV from one activation, ...). That is the engine, not model
-# compute; classic models still record GEMM / ADD / SILU / ... for the
-# actual stack.
-_AUTOGRAD_COMBINE_OPS = frozenset({"TORCH_BINARY"})
-
-
 def assert_classic_graph() -> None:
     """Fail if the pending TensorGraph contains torch-native compute."""
     names = pending_op_names()
     torch_ops = [
         name
         for name in names
-        if name.startswith("TORCH_") and name not in _AUTOGRAD_COMBINE_OPS
+        if name.startswith("TORCH_")
     ]
     if torch_ops:
         preview = ", ".join(torch_ops[:12])

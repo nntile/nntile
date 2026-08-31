@@ -9,6 +9,7 @@ from __future__ import annotations
 import torch
 from conftest import nntile_cpu
 from torch_nntile.add_fiber import add_fiber
+from torch_nntile.nn.functional import relu
 
 import torch_nntile
 
@@ -69,3 +70,34 @@ def test_add_fiber_backward_matches_broadcast_add():
     torch.testing.assert_close(
         nntile_cpu(gb), bias_cpu.grad, rtol=1e-4, atol=1e-4
     )
+
+
+def test_add_fiber_nonleaf_tensor_backward():
+    """Activation input is not saved; dT = dZ when beta=1."""
+    torch.manual_seed(3)
+    n_heads, batch, seq, hs = 4, 2, 8, 16
+    x_cpu = torch.randn(n_heads, batch, seq, hs, requires_grad=True)
+    bias_cpu = torch.randn(n_heads, hs, requires_grad=True)
+    h_cpu = torch.relu(x_cpu)
+    y_cpu = h_cpu + bias_cpu.view(n_heads, 1, 1, hs)
+    dy = torch.randn_like(y_cpu)
+    gx_cpu, gb_cpu = torch.autograd.grad(
+        y_cpu, (x_cpu, bias_cpu), grad_outputs=dy
+    )
+
+    x_n = x_cpu.detach().to("nntile").requires_grad_(True)
+    bias_n = bias_cpu.detach().to("nntile").requires_grad_(True)
+    y_n = add_fiber(
+        bias_n,
+        relu(x_n),
+        axis=3,
+        batch_ndim=1,
+    )
+    gx, gb = torch.autograd.grad(
+        y_n,
+        (x_n, bias_n),
+        grad_outputs=dy.to("nntile"),
+    )
+    torch.testing.assert_close(nntile_cpu(gx), gx_cpu, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(nntile_cpu(gb), gb_cpu, rtol=1e-4, atol=1e-4)
+

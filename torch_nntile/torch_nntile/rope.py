@@ -7,8 +7,10 @@
 """RoPE: ``y = rope(sin, cos, x)``.
 
 Matches ``nntile::rope`` / ``NNRopeOp``. ``sin`` and ``cos`` share shape
-``[..., head_dim // 2]``; ``x`` has the same leading dims with last axis
-``head_dim`` (interleaved pairs). Only ``x`` receives gradients.
+``[..., head_dim // 2]``. ``x`` may have extra leading modes (heads);
+those are the kernel batch ``n``. Trailing dims of ``x`` match sin/cos
+with last axis ``head_dim`` (interleaved pairs). Only ``x`` receives
+gradients.
 """
 
 from __future__ import annotations

@@ -15,7 +15,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from torch_nntile.gemm import gemm
-from torch_nntile.nn import Embedding, GELU
+from torch_nntile.nn import Embedding, GELU, ReLU
 from torch_nntile.nn.functional import add, mul, mul_scalar
 from torch_nntile.nn.linear import NntileLinear, prepare_sdpa_mask
 from torch_nntile.nn.sdpa import nntile_model_transpose, sdpa_kernel
@@ -66,6 +66,19 @@ class T5LayerNorm(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return rms_norm(x, self.normalized_shape, self.weight, self.eps)
+
+
+class T5DenseActDense(nn.Module):
+    """Non-gated FF: ``wo(relu(wi(x)))`` (HF ``feed_forward_proj=relu``)."""
+
+    def __init__(self, config: T5Config) -> None:
+        super().__init__()
+        self.wi = NntileLinear(config.d_model, config.d_ff, bias=False)
+        self.wo = NntileLinear(config.d_ff, config.d_model, bias=False)
+        self.act = ReLU()
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.wo(self.act(self.wi(x)))
 
 
 class T5DenseGatedActDense(nn.Module):
@@ -161,7 +174,10 @@ class T5LayerFF(nn.Module):
         self.layer_norm = T5LayerNorm(
             config.d_model, eps=config.layer_norm_epsilon
         )
-        self.DenseReluDense = T5DenseGatedActDense(config)
+        if config.is_gated_act:
+            self.DenseReluDense = T5DenseGatedActDense(config)
+        else:
+            self.DenseReluDense = T5DenseActDense(config)
 
     def forward(self, x: Tensor) -> Tensor:
         return add(x, self.DenseReluDense(self.layer_norm(x)))

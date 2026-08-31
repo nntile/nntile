@@ -136,15 +136,11 @@ at::Tensor add_forward(
 
 std::tuple<at::Tensor, at::Tensor> add_backward(
     const at::Tensor &grad_out,
-    const at::Tensor &x,
-    const at::Tensor &y,
     std::array<bool, 2> output_mask,
     double alpha,
     double beta)
 {
     nntile::GraphFillScope record;
-    (void)x;
-    (void)y;
     check_fp32_contiguous_nntile(grad_out, "add_backward");
     at::Tensor grad_x;
     at::Tensor grad_y;

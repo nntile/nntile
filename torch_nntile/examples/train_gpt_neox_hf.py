@@ -1084,6 +1084,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     train.add_argument(
+        "--steps",
+        type=int,
+        default=None,
+        help="Alias for --max-sequences (tiny smoke scripts)",
+    )
+    train.add_argument(
         "--no-shuffle",
         action="store_true",
         help="Disable per-epoch shuffle",
@@ -1159,6 +1165,8 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.checkpoint_b),
         )
     if args.command == "train":
+        if args.steps is not None:
+            args.max_sequences = args.steps
         if not args.checkpoint and args.seed is None:
             raise SystemExit("--seed is required when training from scratch")
         configure_single_thread_host()

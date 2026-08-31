@@ -63,9 +63,12 @@ from pathlib import Path
 
 import torch
 from nntile_iter_phases import (
+    compile_run_wait_iter,
     compile_wait_run_iter,
+    measure_isolated_nntile_iter,
     print_nntile_iter_timings,
     print_nntile_phase_timings,
+    print_nntile_prep_compute,
     wait_end,
     wait_then_start_timer,
 )
@@ -566,12 +569,20 @@ def train_nntile(args: argparse.Namespace) -> int:
         end_epoch = start_epoch + args.epochs
 
         print("\nTraining on nntile (GPT2LMHead)...")
-        print(
-            "Per-iter record, compile_graph, wait, run "
-            "(wait joins the previous run)"
-        )
+        if args.wait_after_run:
+            print(
+                "Per-iter record, compile_graph, run, wait "
+                "(wait joins this run; no overlap with record/compile)"
+            )
+        else:
+            print(
+                "Per-iter record, compile_graph, wait, run "
+                "(wait joins the previous run)"
+            )
         optimizer.zero_grad(set_to_none=True)
         last_loss: torch.Tensor | None = None
+        last_inputs: torch.Tensor | None = None
+        last_labels: torch.Tensor | None = None
         n_epoch_batches = len(epoch_batches)
         n_steps = sum(len(epoch_data) for epoch_data in epoch_batches)
         record_nntile_s = 0.0
@@ -580,6 +591,12 @@ def train_nntile(args: argparse.Namespace) -> int:
         run_s = 0.0
         wait_s = 0.0
         t_train0 = wait_then_start_timer(torch_nntile)
+        print(
+            "timing nntile train wall t0: GPU idle, "
+            "clock includes first record through final wait",
+            flush=True,
+        )
+        first_record_logged = False
         for epoch_idx, epoch_data in enumerate(epoch_batches):
             n_batches = len(epoch_data)
             for batch_idx in range(n_batches):
@@ -592,10 +609,16 @@ def train_nntile(args: argparse.Namespace) -> int:
                 optimizer.step()
                 step_loss = loss.detach()
                 del loss
-                del inputs
-                del labels
                 optimizer.zero_grad(set_to_none=True)
                 record_wall_s = time.perf_counter() - t_record0
+                if not first_record_logged:
+                    print(
+                        "timing nntile elapsed after first record: "
+                        f"{time.perf_counter() - t_train0:.3f}s "
+                        "(must be > 0 if the wall includes that record)",
+                        flush=True,
+                    )
+                    first_record_logged = True
                 step_nntile_s = max(
                     0.0,
                     torch_nntile.record_nntile_seconds() - nntile_t0,
@@ -603,7 +626,10 @@ def train_nntile(args: argparse.Namespace) -> int:
                 step_torch_s = max(0.0, record_wall_s - step_nntile_s)
                 record_nntile_s += step_nntile_s
                 record_torch_s += step_torch_s
-                dc, dw, dr = compile_wait_run_iter(torch_nntile)
+                if args.wait_after_run:
+                    dc, dw, dr = compile_run_wait_iter(torch_nntile)
+                else:
+                    dc, dw, dr = compile_wait_run_iter(torch_nntile)
                 compile_s += dc
                 wait_s += dw
                 run_s += dr
@@ -613,12 +639,17 @@ def train_nntile(args: argparse.Namespace) -> int:
                     and batch_idx == n_batches - 1
                 )
                 if is_last:
-                    extra_wait = wait_end(torch_nntile)
-                    wait_s += extra_wait
-                    dw += extra_wait
+                    if not args.wait_after_run:
+                        extra_wait = wait_end(torch_nntile)
+                        wait_s += extra_wait
+                        dw += extra_wait
                     last_loss = step_loss
+                    last_inputs = inputs
+                    last_labels = labels
                 else:
                     del step_loss
+                    del inputs
+                    del labels
                 print_nntile_iter_timings(
                     global_step,
                     n_steps,
@@ -627,6 +658,7 @@ def train_nntile(args: argparse.Namespace) -> int:
                     dc,
                     dr,
                     dw,
+                    prep_compute=args.wait_after_run,
                 )
         train_wall_s = time.perf_counter() - t_train0
         if args.verbose:
@@ -639,6 +671,11 @@ def train_nntile(args: argparse.Namespace) -> int:
         print_nntile_phase_timings(
             record_nntile_s, record_torch_s, compile_s, run_s, wait_s
         )
+        if args.wait_after_run:
+            print_nntile_prep_compute(
+                record_nntile_s + record_torch_s + compile_s,
+                run_s + wait_s,
+            )
         print(f"[nntile] final loss={loss_value:.6f}  steps={global_step}")
         print(
             f"timing nntile train wall "
@@ -646,14 +683,32 @@ def train_nntile(args: argparse.Namespace) -> int:
             f"{train_wall_s:.3f}s ({args.epochs} epochs)"
         )
 
-        save_hf_checkpoint(
-            ckpt_path,
-            model=model,
-            config=config,
-            seed=seed,
-            epoch=end_epoch,
-            global_step=global_step,
+        if not args.no_save_checkpoint:
+            save_hf_checkpoint(
+                ckpt_path,
+                model=model,
+                config=config,
+                seed=seed,
+                epoch=end_epoch,
+                global_step=global_step,
+            )
+        if last_inputs is None or last_labels is None:
+            raise RuntimeError("train_nntile: missing last batch")
+        print(
+            "Isolated extra step after loss (not in train wall; "
+            "GPU idle, sequential record/compile/run/wait)"
         )
+
+        def _record_isolated() -> None:
+            loss = causal_lm_loss_nntile(
+                model, last_inputs, last_labels
+            )
+            loss.backward()
+            optimizer.step()
+            del loss
+            optimizer.zero_grad(set_to_none=True)
+
+        measure_isolated_nntile_iter(torch_nntile, _record_isolated)
     finally:
         torch_nntile.shutdown_context()
     return 0
@@ -696,6 +751,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="GPT-2 JSON config path",
     )
     train.add_argument("--output-dir", required=True)
+    train.add_argument(
+        "--no-save-checkpoint",
+        action="store_true",
+        help="Skip writing checkpoint.pt (benchmark / overhead runs)",
+    )
     train.add_argument("--epochs", type=int, default=1)
     train.add_argument("--lr", type=float, default=1e-3)
     train.add_argument("--momentum", type=float, default=0.0)
@@ -747,6 +807,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Pin nntile kernels to CPU workers",
     )
     train.add_argument(
+        "--wait-after-run",
+        action="store_true",
+        help=(
+            "Wait() immediately after each run() so record "
+            "and compile do not overlap GPU work. Prints prep vs compute."
+        ),
+    )
+    train.add_argument(
         "--verbose",
         action="store_true",
         help=(
@@ -774,6 +842,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train":
         if not args.checkpoint and args.seed is None:
             raise SystemExit("--seed is required when training from scratch")
+        from hf_tiny_train_common import configure_single_thread_host
+        configure_single_thread_host()
         return train_nntile(args)
     raise SystemExit(f"unknown command: {args.command}")
 

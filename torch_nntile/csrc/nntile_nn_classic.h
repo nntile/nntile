@@ -32,8 +32,6 @@ at::Tensor add_forward(
 
 std::tuple<at::Tensor, at::Tensor> add_backward(
     const at::Tensor &grad_out,
-    const at::Tensor &x,
-    const at::Tensor &y,
     std::array<bool, 2> output_mask,
     double alpha = 1.0,
     double beta = 1.0);
@@ -179,7 +177,7 @@ public:
     {
         ctx->saved_data["alpha"] = alpha;
         ctx->saved_data["beta"] = beta;
-        ctx->save_for_backward({x, y});
+        // d(alpha x + beta y) = alpha dZ, beta dZ; payloads unused.
         return nn_classic::add_forward(x, y, alpha, beta);
     }
 
@@ -187,7 +185,6 @@ public:
         torch::autograd::AutogradContext *ctx,
         torch::autograd::variable_list grad_outputs)
     {
-        auto saved = ctx->get_saved_variables();
         double const alpha = ctx->saved_data["alpha"].toDouble();
         double const beta = ctx->saved_data["beta"].toDouble();
         std::array<bool, 2> const mask = {
@@ -196,8 +193,6 @@ public:
         };
         auto gb = nn_classic::add_backward(
             grad_outputs[0],
-            saved[0],
-            saved[1],
             mask,
             alpha,
             beta);
@@ -271,6 +266,7 @@ public:
         at::Tensor input)
     {
         at::Tensor out = nn_classic::relu_forward(input);
+        // ReluBackward0 saves the result; mask is (y > 0), not the input.
         ctx->save_for_backward({out});
         return out;
     }

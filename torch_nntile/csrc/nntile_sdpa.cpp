@@ -16,6 +16,7 @@
 #include <ATen/core/LegacyTypeDispatch.h>
 
 #include <cmath>
+#include <vector>
 
 namespace torch_nntile
 {
@@ -103,7 +104,19 @@ at::Tensor mask_for_nntile_sdpa(const at::Tensor &mask)
 
 } // namespace
 
-at::Tensor sdpa_forward(
+std::vector<int64_t> sdpa_attn_sizes(
+    const at::Tensor &q,
+    const at::Tensor &k)
+{
+    std::vector<int64_t> sizes(q.sizes().begin(), q.sizes().end());
+    TORCH_CHECK(
+        !sizes.empty(),
+        "nntile sdpa: Q rank must be >= 1");
+    sizes.back() = k.size(-2);
+    return sizes;
+}
+
+std::tuple<at::Tensor, at::Tensor> sdpa_forward_with_attn(
     const at::Tensor &q,
     const at::Tensor &k,
     const at::Tensor &v,
@@ -126,6 +139,10 @@ at::Tensor sdpa_forward(
         q.sizes(),
         q.scalar_type(),
         q.device());
+    at::Tensor attn = empty_metadata_tensor(
+        sdpa_attn_sizes(q, k),
+        q.scalar_type(),
+        q.device());
     at::Tensor mask_u8;
     if (mask.has_value())
     {
@@ -144,34 +161,48 @@ at::Tensor sdpa_forward(
         v,
         mask_ptr,
         out,
+        attn,
         batch_ndim,
         is_causal);
-    return out;
+    return {out, attn};
+}
+
+at::Tensor sdpa_forward(
+    const at::Tensor &q,
+    const at::Tensor &k,
+    const at::Tensor &v,
+    const std::optional<at::Tensor> &mask,
+    int64_t batch_ndim,
+    bool is_causal)
+{
+    return std::get<0>(
+        sdpa_forward_with_attn(
+            q,
+            k,
+            v,
+            mask,
+            batch_ndim,
+            is_causal));
 }
 
 std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     const at::Tensor &q,
     const at::Tensor &k,
     const at::Tensor &v,
+    const at::Tensor &attn,
     const at::Tensor &grad_out,
-    const std::optional<at::Tensor> &mask,
-    int64_t batch_ndim,
-    bool is_causal)
+    int64_t batch_ndim)
 {
     nntile::GraphFillScope record;
     check_sdpa_qkv(q, k, v, batch_ndim);
     check_sdpa_tensor(grad_out, "grad_out");
+    check_sdpa_tensor(attn, "attn");
     TORCH_CHECK(
         grad_out.sizes() == q.sizes(),
         "nntile sdpa_backward: grad_out shape must match Q");
-    if (mask.has_value())
-    {
-        TORCH_CHECK(
-            mask->scalar_type() == at::ScalarType::Bool ||
-                mask->scalar_type() == at::ScalarType::Byte,
-            "nntile sdpa: mask must be bool or uint8");
-        check_sdpa_mask(*mask, q, k);
-    }
+    TORCH_CHECK(
+        attn.sizes().equals(sdpa_attn_sizes(q, k)),
+        "nntile sdpa_backward: attn shape must be softmax weights");
 
     at::Tensor grad_q = empty_metadata_tensor(
         q.sizes(), q.scalar_type(), q.device());
@@ -180,29 +211,16 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> sdpa_backward(
     at::Tensor grad_v = empty_metadata_tensor(
         v.sizes(), v.scalar_type(), v.device());
 
-    at::Tensor mask_u8;
-    if (mask.has_value())
-    {
-        mask_u8 = mask_for_nntile_sdpa(*mask);
-    }
-
-    const at::Tensor *mask_ptr = nullptr;
-    if (mask.has_value())
-    {
-        mask_ptr = &mask_u8;
-    }
-
     classic_tensor_sdpa_backward_fp32(
         q,
         k,
         v,
-        mask_ptr,
+        attn,
         grad_out,
         grad_q,
         grad_k,
         grad_v,
-        batch_ndim,
-        is_causal);
+        batch_ndim);
     return {grad_q, grad_k, grad_v};
 }
 

@@ -285,6 +285,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::pending_op_names,
         "Op names in the pending TensorGraph phase");
     m.def(
+        "format_pending_data_sizes",
+        &torch_nntile::format_pending_data_sizes,
+        "Pending TensorGraph data nbytes grouped by name");
+    m.def(
         "print_info",
         &torch_nntile::print_info,
         "Print cumulative compile/run/wait/host-readout timing stats");
@@ -337,7 +341,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         &torch_nntile::sum_slice_backward,
         "NNTile sum_slice backward (add_slice broadcast)",
         py::arg("grad_out"),
-        py::arg("src"),
+        py::arg("src_sizes"),
         py::arg("axis"),
         py::arg("alpha") = 1.0);
     m.def(
@@ -584,14 +588,13 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def(
         "sdpa_backward",
         &torch_nntile::sdpa_backward,
-        "NNTile SDPA eager backward",
+        "NNTile SDPA eager backward (saved softmax weights)",
         py::arg("q"),
         py::arg("k"),
         py::arg("v"),
+        py::arg("attn"),
         py::arg("grad_out"),
-        py::arg("mask") = py::none(),
-        py::arg("batch_ndim") = 2,
-        py::arg("is_causal") = false);
+        py::arg("batch_ndim") = 2);
     m.def(
         "sdpa_kernel",
         &torch_nntile::sdpa_kernel,
@@ -613,7 +616,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "NNTile model-code transpose backward",
         py::arg("grad_out"),
         py::arg("model_ndim"),
-        py::arg("x"));
+        py::arg("x") = at::Tensor{});
     m.def(
         "model_transpose",
         &torch_nntile::model_transpose,

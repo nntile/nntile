@@ -33,7 +33,8 @@ Rules:
   `TORCH_*` except autograd grad-combine `TORCH_BINARY`).
 - Python `torch_nntile.models` are the same stacks for the Python API
   (CI: `.github/scripts/check-model-classic-nn.sh`; graph:
-  `test_models_python_classic_graph.py`). They are not a second HF port.
+  `test_models_python_classic_graph.py`; tiled smoke:
+  `test_models_python_tiled_smoke.py`). They are not a second HF port.
 - Stock Hugging Face / `torch.nn` on `device=nntile` (torch-native):
   `test_hf_stock_models_on_nntile.py` and `test_aten_ops_parity.py`.
 

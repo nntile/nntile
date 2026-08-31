@@ -264,6 +264,11 @@ def pending_op_names() -> list[str]:
     return list(_C.pending_op_names())
 
 
+def format_pending_data_sizes() -> str:
+    """Pending TensorGraph data nbytes grouped by tensor name."""
+    return str(_C.format_pending_data_sizes())
+
+
 def print_info() -> None:
     """Print cumulative ``compile_graph`` / ``run`` / ``wait`` / host-readout timing.
 
@@ -312,6 +317,7 @@ __all__ = [
     "format_axis_groups",
     "print_axis_groups",
     "pending_op_names",
+    "format_pending_data_sizes",
     "print_info",
     "record_nntile_seconds",
     "nn",

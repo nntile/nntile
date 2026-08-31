@@ -1,6 +1,23 @@
 # GPT-2 HF: graph overhead vs width / seqlen
 
-Ten-step stock HuggingFace GPT-2 on **CUDA** vs **`device=nntile`**.
+Three paths, same configs / seq_len / 10 steps:
+
+1. **CUDA** — stock HuggingFace `GPT2LMHeadModel`, `device=cuda`, no
+   `torch_nntile` import.
+2. **`torch.nn` on nntile** — same HF model on `device=nntile` (aten /
+   torch-native StarPU codelets).
+3. **`torch_nntile.nn` on nntile** — `torch_nntile.models.gpt2_minimal.GPT2LMHead`
+   (`gemm`, `add_fiber`, `sdpa_kernel`, classic `LayerNorm` / `Embedding` /
+   `GELU`, `training.cross_entropy`, fused `SGD`). Hand-written NNTile
+   kernels only. `gpt2_minimal.py` was not changed for this study.
+
+Three-way loss and wall: [Three paths](#three-paths-1-run). Paths 1–2
+10-repeat detail is below that. Path 3 (saved SDPA attn, no QK'
+recompute) is in
+[torch_nntile.nn vs CUDA](#torch_nntilenn-vs-cuda).
+Path 3 per-iter is in
+[torch_nntile.nn (classic kernels)](#torch_nntilenn-classic-kernels).
+
 Depth is **12 layers** (XS–L); **XL** uses **6 layers** at similar param count. Width and sequence length grow
 together with **`seq_len = n_embd / 2`**. XS is the 2 GiB GPT-2
 width (`n_embd=1536` from [`2gb/gpt2.json`](../../torch_nntile/examples/2gb/gpt2.json))
@@ -10,13 +27,16 @@ with **12 layers** instead of that file's 20.
 > **more GPU memory than CUDA** on the same model. If that footprint
 > no longer fits in device memory, StarPU **moves data between CPU and
 > GPU**. Those transfers dominate step time and make nntile look much
-> slower than CUDA. Keep CUDA well under the card limit (this ladder
-> peaks at ~28 GiB CUDA / ~40 GiB nntile on L; XL is ~26 GiB CUDA on a 46 GiB A40) so nntile
-> stays on-device.
+> slower than CUDA. Keep CUDA well under the card limit so nntile
+> stays on-device. On this ladder (1 repeat): CUDA XL **34.5 GiB**,
+> `torch.nn` XL **32.1 GiB** (no D2H), classic XL **37.3 GiB** (no D2H).
+> See [Peak VRAM and bus](#peak-vram-and-bus-1-repeat).
 
 Configs: [`torch_nntile/examples/overhead_gpt2/`](../../torch_nntile/examples/overhead_gpt2/).  
-Script: [`train_gpt2_hf.py`](../../torch_nntile/examples/train_gpt2_hf.py).  
-Benchmark runner: [`run_gpt2_overhead_benchmark.py`](../../torch_nntile/tools/run_gpt2_overhead_benchmark.py).
+Paths 1–2: [`train_gpt2_hf.py`](../../torch_nntile/examples/train_gpt2_hf.py),
+[`run_gpt2_overhead_benchmark.py`](../../torch_nntile/tools/run_gpt2_overhead_benchmark.py).  
+Path 3: [`train_gpt2.py`](../../torch_nntile/examples/train_gpt2.py),
+[`run_gpt2_nntile_native_overhead_benchmark.py`](../../torch_nntile/tools/run_gpt2_nntile_native_overhead_benchmark.py).
 
 ## Train wall
 
@@ -51,20 +71,111 @@ B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, CUDA `--disable-tf32`,
 nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 0** (XS–L), **GPU 1** (XL).
 Separate processes (never import `torch_nntile` in the CUDA child).
 
-Rerun: 2026-08-25 (XS–L) and 2026-08-28 (XL), **10 repeats per configuration** (mean ± stdev; [`benchmark_logs/`](../../benchmark_logs/) `gpt2_*_20260828_gpu1`, `/tmp/gpt2_overhead_x10_100step_20260825`).
+Paths 1–2 rerun: 2026-08-25 (XS–L) and 2026-08-28 (XL), **10 repeats**
+(mean ± stdev; [`benchmark_logs/`](../../benchmark_logs/)
+`gpt2_*_20260828_gpu1`, `/tmp/gpt2_overhead_x10_100step_20260825`).
+Path 3 (classic `sdpa_kernel` **saves attn**; QK' recompute is gone):
+2026-08-30, 1 repeat, `STARPU_LIMIT_CUDA_MEM=46000`. Logs:
+[`benchmark_logs/classic_saveattn_mem_20260830/gpt2/`](../../benchmark_logs/classic_saveattn_mem_20260830/gpt2/).
 
-## Overall (10-step train wall)
+## Three paths (1 run)
 
-Loss matches CUDA vs nntile to printed 1e-6 (XS 7.888845 both; L
-8.127417 both; XL 8.389783 both).
+Same recipe as the 10-repeat study. **1 repeat**. CUDA and `torch.nn`
+from the torch-native ladder (2026-08-29). `torch_nntile.nn` is the
+saved-attn run (2026-08-30). Logs:
+`/tmp/bench_check_20260829/overhead/gpt2/` (paths 1–2),
+[`benchmark_logs/classic_saveattn_mem_20260830/gpt2/`](../../benchmark_logs/classic_saveattn_mem_20260830/gpt2/)
+(path 3).
 
-| Setup | CUDA wall | nntile wall | nntile/CUDA | record(nntile) | record(torch) | compile | run | wait | host/wall | peak VRAM CUDA / nntile |
-|-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|------------------------:|
-| XS T=768 | 1.614 ± 0.007 s | 1.600 ± 0.014 s | **0.99×** | 0.055 ± 0.002 s | 0.267 ± 0.007 s | 0.127 ± 0.005 s | 0.124 ± 0.004 s | 1.027 ± 0.019 s | **28.0%** | 4.5 / 5.8 GiB |
-| S T=1024 | 3.024 ± 0.008 s | 2.890 ± 0.012 s | **0.96×** | 0.057 ± 0.003 s | 0.283 ± 0.011 s | 0.133 ± 0.006 s | 0.132 ± 0.005 s | 2.284 ± 0.014 s | **16.3%** | 7.2 / 8.7 GiB |
-| M T=1536 | 8.502 ± 0.010 s | 7.982 ± 0.007 s | **0.94×** | 0.053 ± 0.003 s | 0.270 ± 0.004 s | 0.120 ± 0.006 s | 0.132 ± 0.005 s | 7.407 ± 0.016 s | **5.5%** | 16.3 / 21.1 GiB |
-| L T=2048 | 18.953 ± 0.027 s | 17.843 ± 0.046 s | **0.94×** | 0.052 ± 0.002 s | 0.273 ± 0.006 s | 0.118 ± 0.005 s | 0.133 ± 0.004 s | 17.266 ± 0.049 s | **2.5%** | 28.2 / 40.4 GiB |
-| XL T=2880 | 26.332 ± 0.177 s | 25.259 ± 0.150 s | **0.96×** | 0.032 ± 0.001 s | 0.173 ± 0.003 s | 0.069 ± 0.003 s | 0.076 ± 0.003 s | 24.906 ± 0.157 s | **1.1%** | — |
+### Loss
+
+| Setup | CUDA | torch.nn nntile | torch_nntile.nn |
+|-------|-----:|----------------:|----------------:|
+| XS T=768 | 7.888845 | 7.888845 | 7.888844 |
+| S T=1024 | 7.929048 | 7.929048 | 7.929047 |
+| M T=1536 | 7.996911 | 7.996911 | 7.996909 |
+| L T=2048 | 8.127417 | 8.127417 | 8.127415 |
+| XL T=2880 | 8.389783 | 8.389783 | 8.389775 |
+
+CUDA and `torch.nn` match to printed 1e-6. `torch_nntile.nn` is within
+~1e-6. Different kernels; not bit-identical.
+
+### 10-step train wall
+
+Classic `sdpa_kernel` **saves softmax weights** (no QK' recompute).
+1 repeat, 2026-08-30, `STARPU_LIMIT_CUDA_MEM=46000`. CUDA / `torch.nn`
+columns are the older 1-run paths 1–2 (2026-08-29).
+
+| Setup | CUDA | torch.nn | torch_nntile.nn | torch.nn/CUDA | classic/CUDA |
+|-------|-----:|---------:|----------------:|--------------:|-------------:|
+| XS T=768 | 1.623 s | 1.640 s | 1.650 s | **1.01×** | **1.02×** |
+| S T=1024 | 3.045 s | 2.912 s | 3.034 s | **0.96×** | **1.00×** |
+| M T=1536 | 8.572 s | 8.053 s | 8.304 s | **0.94×** | **0.97×** |
+| L T=2048 | 18.815 s | 17.798 s | 18.578 s | **0.95×** | **0.99×** |
+| XL T=2880 | 25.703 s | 24.469 s | 25.582 s | **0.95×** | **1.00×** |
+
+Classic tracks CUDA (**0.97–1.02×**).
+
+### Peak VRAM and bus (1 repeat)
+
+Peak VRAM is `nvidia-smi memory.used`. H2D/D2H are StarPU bus stats at
+shutdown (prefetch + 10 steps + isolated). CUDA has no StarPU bus.
+Logs: [`hf_path12_mem_20260830/gpt2/`](../../benchmark_logs/hf_path12_mem_20260830/gpt2/)
+(CUDA / `torch.nn`);
+[`classic_saveattn_mem_20260830/gpt2/`](../../benchmark_logs/classic_saveattn_mem_20260830/gpt2/)
+(`torch_nntile.nn`).
+
+| Setup | CUDA VRAM | torch.nn VRAM | torch.nn H2D | torch.nn D2H | torch_nntile.nn VRAM | torch_nntile.nn H2D | torch_nntile.nn D2H |
+|-------|----------:|--------------:|-------------:|-------------:|---------------------:|--------------------:|--------------------:|
+| XS T=768 | 4.5 GiB | 3.8 GiB | 1.29 GB | **0** | 5.0 GiB | 1.30 GB | **0** |
+| S T=1024 | 7.2 GiB | 5.5 GiB | 2.29 GB | **0** | 7.6 GiB | 2.29 GB | **0** |
+| M T=1536 | 16.3 GiB | 13.4 GiB | 5.13 GB | **0** | 17.8 GiB | 5.13 GB | **0** |
+| L T=2048 | 28.2 GiB | 25.2 GiB | 9.11 GB | **0** | 32.9 GiB | 9.10 GB | **0** |
+| XL T=2880 | 34.5 GiB | 32.1 GiB | 9.05 GB | **0** | **37.3 GiB** | 9.06 GB | **0** |
+
+No D2H on any path. `torch.nn` peak is **below** CUDA; classic is above.
+
+## torch_nntile.nn vs CUDA
+
+Path 3 only, overlap, 10 steps, **1 repeat**, 2026-08-30, saved attn.
+CUDA walls are the published paths 1–2 10-repeat means (not re-run).
+Peak VRAM / H2D / D2H below are **`torch_nntile.nn`**. CUDA VRAM and
+`torch.nn` bus stats are in [Peak VRAM and bus](#peak-vram-and-bus-1-repeat).
+[`benchmark_logs/classic_saveattn_mem_20260830/gpt2/`](../../benchmark_logs/classic_saveattn_mem_20260830/gpt2/).
+
+| Setup | CUDA wall | classic wall | classic/CUDA | isolated | peak VRAM | H2D | D2H | host/wall | classic loss |
+|-------|----------:|-------------:|-------------:|---------:|----------:|----:|----:|----------:|-------------:|
+| XS T=768 | 1.614 ± 0.007 s | 1.650 s | **1.02×** | 0.148 s | 5.0 GiB | 1.30 GB | **0** | **25.0%** | 7.888844 |
+| S T=1024 | 3.024 ± 0.008 s | 3.034 s | **1.00×** | 0.289 s | 7.6 GiB | 2.29 GB | **0** | **13.1%** | 7.929048 |
+| M T=1536 | 8.502 ± 0.010 s | 8.304 s | **0.98×** | 0.815 s | 17.8 GiB | 5.13 GB | **0** | **4.3%** | 7.996910 |
+| L T=2048 | 18.953 ± 0.027 s | 18.578 s | **0.98×** | 1.851 s | 32.9 GiB | 9.10 GB | **0** | **1.9%** | 8.127415 |
+| XL T=2880 | 26.332 ± 0.177 s | 25.582 s | **0.97×** | 2.570 s | **37.3 GiB** | 9.06 GB | **0** | **0.8%** | 8.389775 |
+
+Host = `record(nntile)+record(torch)+compile`. Host **share** drops **25.0% → 13.1% → 4.3% → 1.9% → 0.8%**. No StarPU reclaim. H2D is the initial prefetch.
+
+| Setup | record(nntile) | record(torch) | compile | run | wait |
+|-------|---------------:|--------------:|--------:|----:|-----:|
+| XS T=768 | 0.041 s | 0.199 s | 0.173 s | 0.153 s | 1.084 s |
+| S T=1024 | 0.040 s | 0.194 s | 0.164 s | 0.156 s | 2.479 s |
+| M T=1536 | 0.036 s | 0.170 s | 0.155 s | 0.154 s | 7.787 s |
+| L T=2048 | 0.032 s | 0.187 s | 0.141 s | 0.151 s | 18.064 s |
+| XL T=2880 | 0.021 s | 0.114 s | 0.082 s | 0.085 s | 25.277 s |
+
+## torch.nn vs CUDA (10 repeats)
+
+Loss matches CUDA vs `torch.nn` nntile to printed 1e-6 (XS 7.888845
+both; L 8.127417 both; XL 8.389783 both).
+
+| Setup | CUDA wall | nntile wall | nntile/CUDA | record(nntile) | record(torch) | compile | run | wait | host/wall |
+|-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|
+| XS T=768 | 1.614 ± 0.007 s | 1.600 ± 0.014 s | **0.99×** | 0.055 ± 0.002 s | 0.267 ± 0.007 s | 0.127 ± 0.005 s | 0.124 ± 0.004 s | 1.027 ± 0.019 s | **28.0%** |
+| S T=1024 | 3.024 ± 0.008 s | 2.890 ± 0.012 s | **0.96×** | 0.057 ± 0.003 s | 0.283 ± 0.011 s | 0.133 ± 0.006 s | 0.132 ± 0.005 s | 2.284 ± 0.014 s | **16.3%** |
+| M T=1536 | 8.502 ± 0.010 s | 7.982 ± 0.007 s | **0.94×** | 0.053 ± 0.003 s | 0.270 ± 0.004 s | 0.120 ± 0.006 s | 0.132 ± 0.005 s | 7.407 ± 0.016 s | **5.5%** |
+| L T=2048 | 18.953 ± 0.027 s | 17.843 ± 0.046 s | **0.94×** | 0.052 ± 0.002 s | 0.273 ± 0.006 s | 0.118 ± 0.005 s | 0.133 ± 0.004 s | 17.266 ± 0.049 s | **2.5%** |
+| XL T=2880 | 26.332 ± 0.177 s | 25.259 ± 0.150 s | **0.96×** | 0.032 ± 0.001 s | 0.173 ± 0.003 s | 0.069 ± 0.003 s | 0.076 ± 0.003 s | 24.906 ± 0.157 s | **1.1%** |
+
+VRAM for CUDA / `torch.nn` / `torch_nntile.nn` is in
+[Peak VRAM and bus](#peak-vram-and-bus-1-repeat) (`nvidia-smi`, 1 repeat).
 
 Host = `record(nntile)+record(torch)+compile` (~0.42–0.47 s for 10
 steps, **flat**). Host **share** drops **28.0% → 16.3% → 5.5% → 2.5% → 1.1%**
@@ -292,6 +403,48 @@ Host (record + compile) is **22%** of the wall.
 
 CSV: [`gpt2_hf_overhead_s_100.csv`](gpt2_hf_overhead_s_100.csv) (median run).
 
+## torch_nntile.nn (classic kernels)
+
+Same XS–XL configs as above. This is path 3 only:
+[`train_gpt2.py`](../../torch_nntile/examples/train_gpt2.py) records
+`torch_nntile.models.gpt2_minimal.GPT2LMHead` (`torch_nntile.nn` /
+classic kernels). HF is used only to **init** weights
+(`load_hf_into_gpt2_lm_head`), then discarded. The train loop is
+classic `cross_entropy` + fused `SGD`. `--ncpu 0 --ncuda 1
+--restrict-cuda --no-save-checkpoint`. Sequential uses
+`--wait-after-run`.
+
+Three-way loss and wall are in [Three paths](#three-paths-1-run).
+Tables below are path-3 record/compile/run/wait from the saved-attn
+run (2026-08-30). Peak VRAM / H2D / D2H are **`torch_nntile.nn`**.
+See [torch_nntile.nn vs CUDA](#torch_nntilenn-vs-cuda) and
+[Peak VRAM and bus](#peak-vram-and-bus-1-repeat).
+
+### Overall (path 3 record breakdown)
+
+| Setup | wall | record(nntile) | record(torch) | compile | run | wait | host/wall | peak VRAM | H2D | D2H |
+|-------|-----:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|----:|----:|
+| XS T=768 | 1.650 s | 0.041 s | 0.199 s | 0.173 s | 0.153 s | 1.084 s | **25.0%** | 5.0 GiB | 1.30 GB | **0** |
+| S T=1024 | 3.034 s | 0.040 s | 0.194 s | 0.164 s | 0.156 s | 2.479 s | **13.1%** | 7.6 GiB | 2.29 GB | **0** |
+| M T=1536 | 8.304 s | 0.036 s | 0.170 s | 0.155 s | 0.154 s | 7.787 s | **4.3%** | 17.8 GiB | 5.13 GB | **0** |
+| L T=2048 | 18.578 s | 0.032 s | 0.187 s | 0.141 s | 0.151 s | 18.064 s | **1.9%** | 32.9 GiB | 9.10 GB | **0** |
+| XL T=2880 | 25.582 s | 0.021 s | 0.114 s | 0.082 s | 0.085 s | 25.277 s | **0.8%** | **37.3 GiB** | 9.06 GB | **0** |
+
+Host = `record(nntile)+record(torch)+compile`. Host **share** drops **25.0% → 13.1% → 4.3% → 1.9% → 0.8%**.
+Isolated `run+wait`: XS 0.148 s, S 0.289 s, M 0.815 s, L 1.851 s,
+XL 2.570 s.
+
+Per-iteration and sequential tables from the 2026-08-29 QK'
+recompute path are omitted.
+
+### `torch_nntile.nn` takeaways
+
+1. Path 3 is `GPT2LMHead` / `torch_nntile.nn`, not stock `torch.nn`.
+2. Classic SDPA **saves attn**; QK' recompute is not used.
+3. Walls vs CUDA: [torch_nntile.nn vs CUDA](#torch_nntilenn-vs-cuda)
+   (**0.97–1.02×**). Classic XL peak **37.3 GiB**, **no D2H**. CUDA /
+   `torch.nn` VRAM is in [Peak VRAM and bus](#peak-vram-and-bus-1-repeat).
+
 ## How to reproduce
 
 ```bash
@@ -306,4 +459,10 @@ python3 torch_nntile/tools/run_gpt2_overhead_benchmark.py \
 python3 torch_nntile/tools/update_gpt2_overhead_doc.py \
   --summary /tmp/gpt2_overhead_x10_YYYYMMDD/results_summary.json \
   --results /tmp/gpt2_overhead_x10_YYYYMMDD/results.json
+
+# Classic nntile (GPT2LMHead), same configs. CUDA and nntile must be
+# separate processes; Exclusive_Process: one size-group per GPU.
+python3 torch_nntile/tools/run_gpt2_nntile_native_overhead_benchmark.py \
+  --logdir benchmark_logs/gpt2_nntile_native_YYYYMMDD --gpu 1 \
+  --repeats 1 --skip-long --sizes xs s
 ```

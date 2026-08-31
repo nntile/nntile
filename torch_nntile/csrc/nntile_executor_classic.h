@@ -46,6 +46,13 @@ void classic_tensor_add_fp32(
     const at::Tensor &y,
     at::Tensor &out);
 
+//! ``self = alpha * other + beta * self`` (classic ``add_inplace``).
+void classic_tensor_add_inplace_fp32(
+    float alpha,
+    const at::Tensor &other,
+    float beta,
+    at::Tensor &self);
+
 void classic_tensor_mul_scalar_fp32(
     const at::Tensor &input,
     at::Tensor &out,
@@ -258,26 +265,28 @@ void classic_tensor_mse_loss_backward_fp32(
     float scale,
     at::Tensor &grad_x);
 
+//! Forward writes softmax weights into ``attn`` (saved for backward).
 void classic_tensor_sdpa_forward_fp32(
     const at::Tensor &q,
     const at::Tensor &k,
     const at::Tensor &v,
     const at::Tensor *mask,
     at::Tensor &out,
+    at::Tensor &attn,
     int64_t batch_ndim,
     bool is_causal = false);
 
+//! Backward uses saved softmax weights; does not rebuild QK'.
 void classic_tensor_sdpa_backward_fp32(
     const at::Tensor &q,
     const at::Tensor &k,
     const at::Tensor &v,
-    const at::Tensor *mask,
+    const at::Tensor &attn,
     const at::Tensor &grad_out,
     at::Tensor &grad_q,
     at::Tensor &grad_k,
     at::Tensor &grad_v,
-    int64_t batch_ndim,
-    bool is_causal = false);
+    int64_t batch_ndim);
 
 void classic_tensor_fill_fp32(at::Tensor &self, float value);
 

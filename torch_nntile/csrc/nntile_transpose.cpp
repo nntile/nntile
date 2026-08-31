@@ -89,6 +89,8 @@ at::Tensor model_transpose_backward(
         grad_out.scalar_type(),
         grad_out.device());
     classic_tensor_model_transpose_backward_fp32(grad_out, grad_x, model_ndim);
+    // Optional: leaf param handle for fused SGD. Autograd does not pass
+    // activation inputs (dX = dY.T() does not need X).
     if (x.defined())
     {
         std::vector<nntile::Index> grad_shape;

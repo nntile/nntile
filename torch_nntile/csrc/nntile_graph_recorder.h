@@ -62,6 +62,9 @@ void print_axis_groups();
 
 std::vector<std::string> pending_op_names();
 
+//! Named TensorGraph data totals (nbytes) for the pending session.
+std::string format_pending_data_sizes();
+
 void print_info();
 
 //! Cumulative nntile record seconds (``record(nntile)``). Snapshot

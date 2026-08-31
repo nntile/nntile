@@ -162,6 +162,7 @@ def pytest_collection_modifyitems(config, items) -> None:
             "test_nn_classic",
             "test_models_classic_graph",
             "test_models_python_classic_graph",
+            "test_models_python_tiled_smoke",
         }
         for item in items:
             mod = item.module.__name__.rsplit(".", 1)[-1]

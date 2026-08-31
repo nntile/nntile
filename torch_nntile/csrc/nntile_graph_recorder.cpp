@@ -52,12 +52,15 @@ std::vector<Index> tile_sizes_for_axis_extent(
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace torch_nntile
@@ -2057,6 +2060,105 @@ std::vector<std::string> pending_op_names()
         names.push_back(ops[i]->op_name());
     }
     return names;
+}
+
+std::string format_pending_data_sizes()
+{
+    std::lock_guard<std::recursive_mutex> lock(g_recorder_mutex);
+    if (g_graph == nullptr)
+    {
+        return "Pending TensorGraph data: (no graph)\n";
+    }
+
+    struct Agg
+    {
+        std::uint64_t nbytes = 0;
+        std::size_t count = 0;
+    };
+    std::map<std::string, Agg> by_key;
+    std::uint64_t total = 0;
+    std::size_t n_live = 0;
+    for (auto const &up : g_graph->tensor_nodes())
+    {
+        if (!up)
+        {
+            continue;
+        }
+        ++n_live;
+        nntile::TensorGraph::TensorNode const *node = up.get();
+        std::uint64_t nelem = 1;
+        for (nntile::Index d : node->shape())
+        {
+            nelem *= static_cast<std::uint64_t>(d);
+        }
+        std::uint64_t const nbytes =
+            nelem * nntile::dtype_size(node->dtype());
+        total += nbytes;
+        std::string key = node->name();
+        if (key.empty())
+        {
+            key = "(unnamed)";
+        }
+        key += " ";
+        key += nntile::dtype_to_string(node->dtype());
+        key += " [";
+        bool first = true;
+        for (nntile::Index d : node->shape())
+        {
+            if (!first)
+            {
+                key += ",";
+            }
+            first = false;
+            key += std::to_string(static_cast<long long>(d));
+        }
+        key += "]";
+        Agg &agg = by_key[key];
+        agg.nbytes += nbytes;
+        agg.count += 1;
+    }
+
+    std::vector<std::pair<std::string, Agg>> rows;
+    rows.reserve(by_key.size());
+    for (auto const &kv : by_key)
+    {
+        rows.emplace_back(kv.first, kv.second);
+    }
+    std::sort(
+        rows.begin(),
+        rows.end(),
+        [](auto const &a, auto const &b)
+        {
+            return a.second.nbytes > b.second.nbytes;
+        });
+
+    std::ostringstream ss;
+    double const total_gib =
+        static_cast<double>(total) / (1024.0 * 1024.0 * 1024.0);
+    ss << "Pending TensorGraph data: live=" << n_live
+       << " groups=" << rows.size()
+       << " total=" << std::fixed << std::setprecision(3) << total_gib
+       << " GiB\n";
+    std::size_t shown = 0;
+    for (auto const &row : rows)
+    {
+        if (shown >= 40)
+        {
+            break;
+        }
+        double const gib =
+            static_cast<double>(row.second.nbytes)
+            / (1024.0 * 1024.0 * 1024.0);
+        ss << "  " << std::setw(8) << std::setprecision(3) << gib
+           << " GiB  n=" << row.second.count
+           << "  " << row.first << "\n";
+        ++shown;
+    }
+    if (rows.size() > shown)
+    {
+        ss << "  ... " << (rows.size() - shown) << " more groups\n";
+    }
+    return ss.str();
 }
 
 std::string format_info_locked()

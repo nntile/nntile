@@ -42,31 +42,9 @@ set(TORCH_NNTILE_CSRC_COMMON
     csrc/nntile_graph_recorder.cpp
     csrc/nntile_gemm_layout.cpp
     csrc/nntile_add.cpp
-    csrc/nntile_mul.cpp
-    csrc/nntile_cat.cpp
     csrc/nntile_narrow.cpp
     csrc/nntile_split.cpp
-    csrc/nntile_hypot.cpp
-    csrc/nntile_linear.cpp
-    csrc/nntile_relu.cpp
-    csrc/nntile_threshold_backward.cpp
-    csrc/nntile_silu.cpp
-    csrc/nntile_trig.cpp
-    csrc/nntile_silu_backward.cpp
-    csrc/nntile_gelu.cpp
-    csrc/nntile_gelu_backward.cpp
-    csrc/nntile_softmax.cpp
-    csrc/nntile_softmax_backward.cpp
-    csrc/nntile_mm.cpp
-    csrc/nntile_bmm.cpp
-    csrc/nntile_addmm.cpp
-    csrc/nntile_sum.cpp
-    csrc/nntile_layer_norm.cpp
     csrc/nntile_norm.cpp
-    csrc/nntile_repeat.cpp
-    csrc/nntile_embedding.cpp
-    csrc/nntile_sdpa_aten.cpp
-    csrc/nntile_transpose.cpp
 )
 
 set(TORCH_NNTILE_CSRC_CLASSIC
@@ -83,6 +61,8 @@ set(TORCH_NNTILE_CSRC_CLASSIC
     csrc/nntile_rope.cpp
     csrc/nntile_mse_loss.cpp
     csrc/nntile_nn_classic.cpp
+    csrc/nntile_repeat.cpp
+    csrc/nntile_transpose.cpp
     csrc/models/deep_relu.cpp
     csrc/models/gpt2.cpp
     csrc/models/gpt_neo.cpp
@@ -96,6 +76,26 @@ set(TORCH_NNTILE_CSRC_CLASSIC
 
 set(TORCH_NNTILE_CSRC_ATEN
     csrc/nntile_executor_torch_native.cpp
+    csrc/nntile_mul.cpp
+    csrc/nntile_cat.cpp
+    csrc/nntile_hypot.cpp
+    csrc/nntile_linear.cpp
+    csrc/nntile_relu.cpp
+    csrc/nntile_threshold_backward.cpp
+    csrc/nntile_silu.cpp
+    csrc/nntile_trig.cpp
+    csrc/nntile_silu_backward.cpp
+    csrc/nntile_gelu.cpp
+    csrc/nntile_gelu_backward.cpp
+    csrc/nntile_softmax.cpp
+    csrc/nntile_softmax_backward.cpp
+    csrc/nntile_mm.cpp
+    csrc/nntile_bmm.cpp
+    csrc/nntile_addmm.cpp
+    csrc/nntile_sum.cpp
+    csrc/nntile_layer_norm.cpp
+    csrc/nntile_embedding.cpp
+    csrc/nntile_sdpa_aten.cpp
     csrc/nntile_sub.cpp
     csrc/nntile_host_aten.cpp
     csrc/nntile_log_softmax.cpp
@@ -122,6 +122,12 @@ if(NNTILE_NNTILE_NATIVE_OPS)
 endif()
 if(NNTILE_TORCH_NATIVE_OPS)
     list(APPEND TORCH_NNTILE_CSRC ${TORCH_NNTILE_CSRC_ATEN})
+    # Aten SDPA calls ``sdpa_forward`` / ``sdpa_backward`` in nntile_sdpa.cpp.
+    if(NOT NNTILE_NNTILE_NATIVE_OPS)
+        list(APPEND TORCH_NNTILE_CSRC
+            csrc/nntile_sdpa.cpp
+            csrc/nntile_executor.cpp)
+    endif()
 endif()
 
 if(NNTILE_TORCH_NATIVE_OPS AND NNTILE_NNTILE_NATIVE_OPS)

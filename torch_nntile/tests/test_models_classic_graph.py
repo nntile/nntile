@@ -43,7 +43,8 @@ def _assert_classic_fwd_bwd(
     assert_classic_graph()
 
 
-def test_cpp_llama_classic_graph_fwd_bwd():
+@pytest.mark.parametrize("n_kv", [4, 2])
+def test_cpp_llama_classic_graph_fwd_bwd(n_kv: int):
     torch_nntile.reset_graph_session()
     out = _C.cpp_llama_causal_forward(
         _ids(),
@@ -52,7 +53,7 @@ def test_cpp_llama_classic_graph_fwd_bwd():
         intermediate_size=128,
         num_hidden_layers=1,
         num_attention_heads=4,
-        num_key_value_heads=4,
+        num_key_value_heads=n_kv,
         do_backward=True,
     )
     _assert_classic_fwd_bwd(out, already_backward=True)

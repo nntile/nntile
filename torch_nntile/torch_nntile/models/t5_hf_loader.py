@@ -111,9 +111,13 @@ def _export_attn(dst, src) -> None:
 def _load_ff(dst_ff, src_ff) -> None:
     dst_ff.layer_norm.weight.data.copy_(src_ff.layer_norm.weight.data)
     dense = src_ff.DenseReluDense
-    copy_linear(dst_ff.DenseReluDense.wi_0, dense.wi_0)
-    copy_linear(dst_ff.DenseReluDense.wi_1, dense.wi_1)
-    copy_linear(dst_ff.DenseReluDense.wo, dense.wo)
+    dst_dense = dst_ff.DenseReluDense
+    if hasattr(dense, "wi_0"):
+        copy_linear(dst_dense.wi_0, dense.wi_0)
+        copy_linear(dst_dense.wi_1, dense.wi_1)
+    else:
+        copy_linear(dst_dense.wi, dense.wi)
+    copy_linear(dst_dense.wo, dense.wo)
 
 
 def _load_encoder_block(dst, src) -> None:

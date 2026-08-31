@@ -314,8 +314,8 @@ sdpa_overrideable_forward(
         batch_ndim,
         causal_flag);
     const at::Tensor logsumexp = logsumexp_placeholder(query);
-    // PyTorch SDPA API requires logsumexp; nntile softmax uses maxsumexp internally.
-    // Backward ignores this tensor and uses maxsumexp buffers in sdpa_backward.
+    // PyTorch SDPA API requires logsumexp; nntile softmax uses
+    // maxsumexp internally. Backward ignores this placeholder.
     // Keep philox tensors on CPU - they are unused API placeholders only.
     const at::Tensor philox_seed = at::empty(
         {},
@@ -373,7 +373,6 @@ sdpa_overrideable_backward(
 {
     nntile::GraphFillScope record;
     (void)out;
-    // PyTorch passes logsumexp from forward; sdpa_backward uses maxsumexp internally.
     (void)logsumexp;
     (void)cum_seq_q;
     (void)cum_seq_k;
@@ -415,14 +414,21 @@ sdpa_overrideable_backward(
     }
 
     // Untiled: grad_out may be a strided view; layout is packed at record.
+    // Fused ATen SDPA does not save softmax weights; rebuild attn from Q/K.
+    auto fwd = sdpa_forward_with_attn(
+        query,
+        key,
+        value,
+        mask,
+        batch_ndim,
+        causal_flag);
     auto grad_qkv = sdpa_backward(
         query,
         key,
         value,
+        std::get<1>(fwd),
         grad_out,
-        mask,
-        batch_ndim,
-        causal_flag);
+        batch_ndim);
 
     at::Tensor grad_q = grad_input_mask[0] ? std::get<0>(grad_qkv)
                                           : at::Tensor();

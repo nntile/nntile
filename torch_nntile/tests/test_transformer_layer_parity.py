@@ -108,6 +108,42 @@ def test_rope_backward_matches_ref():
     assert_close(dx_nnt, dx_ref, rtol=RTOL, atol=ATOL)
 
 
+def test_rope_heads_as_batch_matches_ref():
+    """sin/cos stay ``[B, S, half]``; heads are extra leading modes of x."""
+    torch.manual_seed(3)
+    heads, batch, seq, head_dim = 4, 2, 8, 16
+    position_ids = (
+        torch.arange(seq, dtype=torch.long).unsqueeze(0).expand(batch, seq)
+    )
+    sin, cos = rope_sin_cos_from_position_ids(position_ids, head_dim)
+    x = torch.randn(heads, batch, seq, head_dim, dtype=torch.float32)
+    grad_y = torch.randn_like(x)
+    sin_ref = sin.unsqueeze(0).expand(heads, batch, seq, head_dim // 2)
+    cos_ref = cos.unsqueeze(0).expand(heads, batch, seq, head_dim // 2)
+
+    y_ref = _rope_ref_forward(sin_ref, cos_ref, x)
+    y_nnt = rope(
+        contiguous_to_nntile(sin),
+        contiguous_to_nntile(cos),
+        contiguous_to_nntile(x),
+    )
+    assert_close(y_nnt, y_ref, rtol=RTOL, atol=ATOL)
+
+    dx_ref = _rope_ref_backward(sin_ref, cos_ref, grad_y)
+    x_nnt = contiguous_to_nntile(x).requires_grad_(True)
+    y_nnt = rope(
+        contiguous_to_nntile(sin),
+        contiguous_to_nntile(cos),
+        x_nnt,
+    )
+    (dx_nnt,) = torch.autograd.grad(
+        y_nnt,
+        x_nnt,
+        grad_outputs=contiguous_to_nntile(grad_y),
+    )
+    assert_close(dx_nnt, dx_ref, rtol=RTOL, atol=ATOL)
+
+
 # ---------------------------------------------------------------------------
 # B. RMSNorm
 # ---------------------------------------------------------------------------

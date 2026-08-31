@@ -53,7 +53,20 @@ public:
         ctx->saved_data["batch_ndim"] = batch_ndim;
         ctx->saved_data["alpha"] = alpha;
         ctx->saved_data["beta"] = beta;
-        ctx->save_for_backward({fiber, tensor});
+        // d(beta T + alpha f) / dT = beta I (beta=1: pass-through).
+        // Fiber is a 1-mode bias; keep it for sum_fiber shape + param
+        // grad. Do not pin the full activation unless it is a leaf.
+        bool const save_tensor =
+            tensor.is_leaf() && tensor.requires_grad();
+        ctx->saved_data["saved_tensor"] = save_tensor;
+        if (save_tensor)
+        {
+            ctx->save_for_backward({fiber, tensor});
+        }
+        else
+        {
+            ctx->save_for_backward({fiber});
+        }
         return add_fiber_forward(
             fiber,
             tensor,
@@ -73,6 +86,13 @@ public:
             ctx->saved_data["batch_ndim"].toInt();
         double const alpha = ctx->saved_data["alpha"].toDouble();
         double const beta = ctx->saved_data["beta"].toDouble();
+        bool const saved_tensor =
+            ctx->saved_data["saved_tensor"].toBool();
+        at::Tensor tensor;
+        if (saved_tensor)
+        {
+            tensor = saved[1];
+        }
         std::array<bool, 2> const mask = {
             ctx->needs_input_grad(0),
             ctx->needs_input_grad(1),
@@ -80,7 +100,7 @@ public:
         auto gb = add_fiber_backward(
             grad_outputs[0],
             saved[0],
-            saved[1],
+            tensor,
             axis,
             batch_ndim,
             mask,

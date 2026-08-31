@@ -118,6 +118,9 @@ class Embedding(nn.Module):
         super().__init__()
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
+        # Classic kernel ignores padding; expose the torch.nn attribute so
+        # HF-parity checks and loaders can read it (always unused / None).
+        self.padding_idx: int | None = None
         self.weight = nn.Parameter(torch.empty(num_embeddings, embedding_dim))
         self.reset_parameters()
 

@@ -105,13 +105,9 @@ torch::Tensor apply_rope(
     torch::Tensor sin,
     torch::Tensor cos)
 {
-    // x layout: [n_heads, batch, seq, head_dim] (after model_transpose).
-    int64_t const n_heads = x.size(0);
-    if (sin.dim() == 3)
-    {
-        sin = nn_classic::scale_slice(sin, 0, n_heads);
-        cos = nn_classic::scale_slice(cos, 0, n_heads);
-    }
+    // x: [n_heads, batch, seq, head_dim] (or GQA [n_kv, n_rep, ...]).
+    // sin/cos stay [batch, seq, head_dim/2]; the kernel folds extra
+    // leading modes of x into batch n. Do not scale_slice-expand them.
     return rope(sin, cos, x);
 }
 

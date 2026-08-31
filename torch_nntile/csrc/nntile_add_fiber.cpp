@@ -110,10 +110,18 @@ std::tuple<at::Tensor, at::Tensor> add_fiber_backward(
     TORCH_CHECK(
         grad_out.is_contiguous(),
         "nntile add_fiber_backward requires contiguous grad_out");
-    check_add_fiber_inputs(fiber, tensor, axis, batch_ndim);
-    TORCH_CHECK(
-        grad_out.sizes().equals(tensor.sizes()),
-        "nntile add_fiber_backward: grad_out shape must match tensor");
+    if (tensor.defined())
+    {
+        check_add_fiber_inputs(fiber, tensor, axis, batch_ndim);
+        TORCH_CHECK(
+            grad_out.sizes().equals(tensor.sizes()),
+            "nntile add_fiber_backward: grad_out shape must match "
+            "tensor");
+    }
+    else
+    {
+        check_add_fiber_inputs(fiber, grad_out, axis, batch_ndim);
+    }
     TORCH_CHECK(
         beta == 1.0,
         "nntile add_fiber_backward currently supports beta=1 only");

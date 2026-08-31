@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Run DiT HF overhead ladder and emit parsed JSON results.
+"""Run GPT-2 nntile-native overhead ladder vs CUDA.
 
-All runs pin a single physical GPU via ``CUDA_VISIBLE_DEVICES`` (default
-``--gpu 0``).
+CUDA child: stock HF ``train_gpt2_hf.py --device cuda``.
+Nntile child: classic ``GPT2LMHead`` via ``train_gpt2.py`` (nntile kernels,
+not stock ``torch.nn`` on ``device=nntile``).
+
+Same XS–XL configs and seq_len as ``run_gpt2_overhead_benchmark.py``.
 """
 
 from __future__ import annotations
@@ -22,15 +25,16 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
-TRAIN = REPO / "torch_nntile" / "examples" / "train_dit_hf_overhead.py"
-CONFIG_DIR = REPO / "torch_nntile" / "examples" / "overhead_dit"
+TRAIN_HF = REPO / "torch_nntile" / "examples" / "train_gpt2_hf.py"
+TRAIN_NATIVE = REPO / "torch_nntile" / "examples" / "train_gpt2.py"
+CONFIG_DIR = REPO / "torch_nntile" / "examples" / "overhead_gpt2"
 
 SIZES = {
-    "xs": ("dit_xs.json", 784),
-    "s": ("dit_s.json", 1024),
-    "m": ("dit_m.json", 1521),
-    "l": ("dit_l.json", 2025),
-    "xl": ("dit_xl.json", 2916),
+    "xs": ("gpt2_xs.json", 768),
+    "s": ("gpt2_s.json", 1024),
+    "m": ("gpt2_m.json", 1536),
+    "l": ("gpt2_l.json", 2048),
+    "xl": ("gpt2_xl.json", 2880),
 }
 DEFAULT_LONG_STEPS = 100
 
@@ -170,13 +174,14 @@ def run_one(
     max_sequences: int = 10,
     gpu: str = "0",
     repeat: int = 0,
+    tag_repeat: bool = False,
 ) -> RunResult:
-    cfg_name, _patches = SIZES[size]
+    cfg_name, seq_len = SIZES[size]
     cfg = CONFIG_DIR / cfg_name
     tag = f"{size}_{device}_{mode}"
     if max_sequences != 10:
         tag = f"{size}_nntile_{max_sequences}step"
-    if repeat > 0:
+    if tag_repeat:
         tag = f"{tag}_rep{repeat:02d}"
     out = logdir / tag
     out.mkdir(parents=True, exist_ok=True)
@@ -186,27 +191,24 @@ def run_one(
     env.setdefault("PYTHONNOUSERSITE", "1")
     env["CUDA_VISIBLE_DEVICES"] = gpu
     examples_path = str(REPO / "torch_nntile" / "examples")
-    extra_pp = os.environ.get("PYTHONPATH", "")
     if device == "cuda":
-        env["PYTHONPATH"] = (
-            f"{extra_pp}:{examples_path}" if extra_pp else examples_path
-        )
+        env["PYTHONPATH"] = examples_path
+        script = TRAIN_HF
     else:
-        env["PYTHONPATH"] = (
-            f"{extra_pp}:{REPO / 'torch_nntile'}:{examples_path}"
-            if extra_pp
-            else f"{REPO / 'torch_nntile'}:{examples_path}"
-        )
+        env["PYTHONPATH"] = f"{REPO / 'torch_nntile'}:{examples_path}"
+        script = TRAIN_NATIVE
     cmd = [
         sys.executable,
         "-u",
-        str(TRAIN),
+        str(script),
         "train",
         "--seed",
         "42",
         "--no-shuffle",
         "--config",
         str(cfg),
+        "--seq-len",
+        str(seq_len),
         "--batch-size",
         "1",
         "--max-sequences",
@@ -215,15 +217,13 @@ def run_one(
         "1",
         "--output-dir",
         str(out),
-        "--no-checkpoint",
     ]
+    cmd.append("--no-save-checkpoint")
     insert_at = 4
     if device == "cuda":
         cmd[insert_at:insert_at] = ["--device", "cuda", "--disable-tf32"]
     else:
         cmd[insert_at:insert_at] = [
-            "--device",
-            "nntile",
             "--restrict-cuda",
             "--ncpu",
             "0",
@@ -233,9 +233,11 @@ def run_one(
         if mode == "sequential":
             cmd.append("--wait-after-run")
 
+    exec_cmd = cmd
+
     t0 = time.perf_counter()
     proc = subprocess.run(
-        cmd,
+        exec_cmd,
         cwd=str(REPO),
         env=env,
         capture_output=True,
@@ -361,10 +363,14 @@ def main() -> int:
     parser.add_argument("--gpu", default="0")
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument(
-        "--repeat-offset",
-        type=int,
-        default=0,
-        help="First repeat index (for resuming a partial ladder)",
+        "--nntile-only",
+        action="store_true",
+        help="Skip CUDA child (classic nntile path only)",
+    )
+    parser.add_argument(
+        "--skip-sequential",
+        action="store_true",
+        help="Skip nntile --wait-after-run sequential runs",
     )
     parser.add_argument(
         "--long-steps",
@@ -378,11 +384,6 @@ def main() -> int:
         help="Skip the long S nntile run",
     )
     parser.add_argument(
-        "--only-long",
-        action="store_true",
-        help="Run only the long S nntile steady-state benchmark",
-    )
-    parser.add_argument(
         "--sizes",
         nargs="+",
         choices=list(SIZES),
@@ -394,15 +395,45 @@ def main() -> int:
         raise SystemExit("--repeats must be >= 1")
     if args.long_steps < 1:
         raise SystemExit("--long-steps must be >= 1")
-    if args.repeat_offset < 0:
-        raise SystemExit("--repeat-offset must be >= 0")
     args.logdir.mkdir(parents=True, exist_ok=True)
     results: list[RunResult] = []
-    if args.only_long and args.skip_long:
-        raise SystemExit("--only-long and --skip-long are mutually exclusive")
-    repeat_end = args.repeat_offset + args.repeats
-    if args.only_long:
-        for repeat in range(args.repeat_offset, repeat_end):
+    for repeat in range(args.repeats):
+        print(f"=== repeat {repeat + 1}/{args.repeats} ===", flush=True)
+        for size in args.sizes:
+            devices = ("nntile",) if args.nntile_only else ("cuda", "nntile")
+            for device in devices:
+                print(
+                    f"run {size} {device} overlap rep={repeat}",
+                    flush=True,
+                )
+                results.append(
+                    run_one(
+                        size=size,
+                        device=device,
+                        mode="overlap",
+                        logdir=args.logdir,
+                        gpu=args.gpu,
+                        repeat=repeat,
+                        tag_repeat=args.repeats > 1,
+                    )
+                )
+            if not args.skip_sequential:
+                print(
+                    f"run {size} nntile sequential rep={repeat}",
+                    flush=True,
+                )
+                results.append(
+                    run_one(
+                        size=size,
+                        device="nntile",
+                        mode="sequential",
+                        logdir=args.logdir,
+                        gpu=args.gpu,
+                        repeat=repeat,
+                        tag_repeat=args.repeats > 1,
+                    )
+                )
+        if not args.skip_long and "s" in args.sizes:
             long_mode = f"{args.long_steps}step"
             print(
                 f"run s nntile {long_mode} rep={repeat}",
@@ -417,59 +448,9 @@ def main() -> int:
                     max_sequences=args.long_steps,
                     gpu=args.gpu,
                     repeat=repeat,
+                    tag_repeat=args.repeats > 1,
                 )
             )
-    else:
-        for repeat in range(args.repeat_offset, repeat_end):
-            print(
-                f"=== repeat {repeat + 1}/"
-                f"{repeat_end} (offset {args.repeat_offset}) ===",
-                flush=True,
-            )
-            for size in args.sizes:
-                for device in ("cuda", "nntile"):
-                    print(
-                        f"run {size} {device} overlap rep={repeat}",
-                        flush=True,
-                    )
-                    results.append(
-                        run_one(
-                            size=size,
-                            device=device,
-                            mode="overlap",
-                            logdir=args.logdir,
-                            gpu=args.gpu,
-                            repeat=repeat,
-                        )
-                    )
-                print(f"run {size} nntile sequential rep={repeat}", flush=True)
-                results.append(
-                    run_one(
-                        size=size,
-                        device="nntile",
-                        mode="sequential",
-                        logdir=args.logdir,
-                        gpu=args.gpu,
-                        repeat=repeat,
-                    )
-                )
-            if not args.skip_long and "s" in args.sizes:
-                long_mode = f"{args.long_steps}step"
-                print(
-                    f"run s nntile {long_mode} rep={repeat}",
-                    flush=True,
-                )
-                results.append(
-                    run_one(
-                        size="s",
-                        device="nntile",
-                        mode=long_mode,
-                        logdir=args.logdir,
-                        max_sequences=args.long_steps,
-                        gpu=args.gpu,
-                        repeat=repeat,
-                    )
-                )
     out = args.logdir / "results.json"
     out.write_text(
         json.dumps([asdict(r) for r in results], indent=2),
