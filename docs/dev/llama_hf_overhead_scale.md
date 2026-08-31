@@ -14,21 +14,22 @@ Three-way loss and wall: [Three paths](#three-paths-1-run). Paths 1–2
 10-repeat detail is below that. Path 3 (saved SDPA attn, no QK'
 recompute) is in
 [torch_nntile.nn vs CUDA](#torch_nntilenn-vs-cuda).
-Classic Llama XL still pages — see that section.
+Classic Llama XL **fits** on the A40 with this config — see that section.
 
 Depth is **12 layers** for XS–L (MHA: ``num_key_value_heads = num_attention_heads``).
-**XL** uses **6 layers** with wider ``hidden_size`` (~same parameter count / VRAM as L).
-Width and sequence length grow together with **`seq_len = hidden_size / 2`**. XS uses
+**XL** uses **6 layers**, ``hidden_size=5120`` / 40 heads (head dim 128),
+``seq_len = hidden_size / 2 = 2560``. That is slightly below the original
+5760 / 45 / T=2880 rung so classic stays on-device on an A40. XS uses
 the 2 GiB Llama width (`hidden_size=1536` from
 [`2gb/llama.json`](../../torch_nntile/examples/2gb/llama.json)) with **12 layers**
 instead of that file's 18.
 
 > **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep CUDA
 > well under the card limit on large configs so nntile stays on-device (no
-> StarPU CPU↔GPU paging). Classic Llama XL after saved SDPA attn still
-> pages (peak **44.3 GiB**, **14.2 GB D2H**). `torch.nn` XL on the same
-> ladder does **not** (peak **40.7 GiB**, D2H **0**). CUDA XL is
-> **36.8 GiB**.
+> StarPU CPU↔GPU paging). With this XL config, classic **fits** (peak
+> **35.6 GiB**, D2H **0**). `torch.nn` XL is **31.1 GiB** (D2H **0**);
+> CUDA XL is **27.7 GiB**. The old 5760 / T=2880 classic XL paged
+> (~44 GiB, **14.2 GB D2H**).
 
 Configs: [`torch_nntile/examples/overhead_llama/`](../../torch_nntile/examples/overhead_llama/).  
 Paths 1–2: [`train_llama_hf.py`](../../torch_nntile/examples/train_llama_hf.py),
@@ -55,9 +56,9 @@ Same recipe as
 |--|--:|--:|--:|--:|--:|
 | Config | `llama_xs.json` | `llama_s.json` | `llama_m.json` | `llama_l.json` | `llama_xl.json` |
 | `num_hidden_layers` | 12 | 12 | 12 | 12 | 6 |
-| `hidden_size` / `num_attention_heads` | 1536 / 24 | 2048 / 16 | 3072 / 24 | 4096 / 32 | 5760 / 45 |
-| `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2880** |
-| Params (FP32) | 344 M (1.28 GiB) | 611 M (2.27 GiB) | 1.37 B (5.10 GiB) | 2.43 B (9.06 GiB) | 2.41 B (8.96 GiB) |
+| `hidden_size` / `num_attention_heads` | 1536 / 24 | 2048 / 16 | 3072 / 24 | 4096 / 32 | 5120 / 40 |
+| `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2560** |
+| Params (FP32) | 344 M (1.28 GiB) | 611 M (2.27 GiB) | 1.37 B (5.10 GiB) | 2.43 B (9.06 GiB) | 2.54 B (9.45 GiB) |
 
 B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, CUDA `--disable-tf32`,
 nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 2** for every
@@ -69,16 +70,19 @@ Paths 1–2 rerun: 2026-08-26, **10 repeats per configuration** (mean ± stdev;
 `benchmark_logs/llama_rerun_20260827_gpu0`). Includes **S nntile 100-step** steady-state run per repeat.
 Path 3 1-run three-way: 2026-08-29 (paths 1–2 CUDA / `torch.nn`;
 classic XS–L in that table used QK' recompute and are omitted below).
-Path 3 **saved SDPA attn** XL (VRAM + bus): 2026-08-30, 1 repeat,
-`STARPU_LIMIT_CUDA_MEM=46000`, after not saving transpose activations.
+Path 3 **and** paths 1–2 XL after shrinking `llama_xl.json` to 5120 /
+T=2560: 2026-08-31, **1 repeat**. Classic on GPU 2, CUDA / `torch.nn`
+on GPU 3. `STARPU_LIMIT_CUDA_MEM=46000`.
 
 ## Three paths (1 run)
 
-Same recipe as the 10-repeat study. CUDA and `torch.nn` from the
-torch-native ladder (**1 repeat**, 2026-08-29). Classic XL is the
-saved-attn run (2026-08-30); XS–L classic omitted. Logs:
-`/tmp/bench_check_20260829/overhead/llama/` (paths 1–2),
-[`benchmark_logs/llama_nntile_native_xl_transpose_nosave_20260830_gpu0/`](../../benchmark_logs/llama_nntile_native_xl_transpose_nosave_20260830_gpu0/)
+Same recipe as the 10-repeat study. CUDA and `torch.nn` XS–L from the
+torch-native ladder (**1 repeat**, 2026-08-29). XL (all three paths) is
+the 2026-08-31 5120 / T=2560 rerun. Classic XS–L omitted. Logs:
+`/tmp/bench_check_20260829/overhead/llama/` (paths 1–2 XS–L),
+[`benchmark_logs/llama_hf_xl_5120_20260831_gpu3/`](../../benchmark_logs/llama_hf_xl_5120_20260831_gpu3/)
+(paths 1–2 XL),
+[`benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/`](../../benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/)
 (path 3 XL).
 
 ### Loss
@@ -89,7 +93,7 @@ saved-attn run (2026-08-30); XS–L classic omitted. Logs:
 | S T=1024 | 8.045213 | 8.045213 | 8.045214 |
 | M T=1536 | 8.244499 | 8.244499 | 8.244499 |
 | L T=2048 | 8.443067 | 8.443067 | 8.443068 |
-| XL T=2880 | 8.744809 | 8.744809 | 8.744809 |
+| XL T=2560 | 8.657223 | 8.657223 | 8.657222 |
 
 All three paths match to printed 1e-6.
 
@@ -98,8 +102,9 @@ All three paths match to printed 1e-6.
 Classic `sdpa_kernel` **saves softmax weights** (no QK' recompute).
 XS–L classic were not rerun after that change and are omitted (the
 old QK' recompute walls are not current). XL is 1 repeat,
-2026-08-30, `STARPU_LIMIT_CUDA_MEM=46000`. CUDA / `torch.nn` columns
-are the older 1-run paths 1–2 (2026-08-29).
+2026-08-31, `STARPU_LIMIT_CUDA_MEM=46000`, **5120 / T=2560**. CUDA /
+`torch.nn` XL columns are the same-day 1-repeat rerun (not the
+2026-08-29 5760 numbers).
 
 | Setup | CUDA | torch.nn | torch_nntile.nn | torch.nn/CUDA | classic/CUDA |
 |-------|-----:|---------:|----------------:|--------------:|-------------:|
@@ -107,19 +112,20 @@ are the older 1-run paths 1–2 (2026-08-29).
 | S T=1024 | 3.708 s | 3.965 s | — | **1.07×** | — |
 | M T=1536 | 10.533 s | 10.721 s | — | **1.02×** | — |
 | L T=2048 | 23.785 s | 23.808 s | — | **1.00×** | — |
-| XL T=2880 | 32.705 s | 32.495 s | 34.227 s | **0.99×** | **1.05×** |
+| XL T=2560 | 22.874 s | 23.000 s | 21.900 s | **1.01×** | **0.96×** |
 
-Classic XL is **1.05×** CUDA (isolated `run+wait` 3.420 s vs
-`torch.nn` ~3.2 s). Host/wall **0.7%** — the leftover is GPU work plus
-StarPU paging, not record/compile.
+Classic XL is **0.96×** CUDA (isolated `run+wait` 2.186 s vs CUDA
+isolated 2.289 s). Host/wall **0.9%**. No StarPU paging.
 
 ### Peak VRAM and bus (1 repeat)
 
 Peak VRAM is `nvidia-smi memory.used`. H2D/D2H are StarPU bus stats at
 shutdown. CUDA has no StarPU bus. Logs:
 [`hf_path12_mem_20260830/llama/`](../../benchmark_logs/hf_path12_mem_20260830/llama/)
-(CUDA / `torch.nn`);
-[`llama_nntile_native_xl_transpose_nosave_20260830_gpu0/`](../../benchmark_logs/llama_nntile_native_xl_transpose_nosave_20260830_gpu0/)
+(CUDA / `torch.nn` XS–L);
+[`llama_hf_xl_5120_20260831_gpu3/`](../../benchmark_logs/llama_hf_xl_5120_20260831_gpu3/)
+(CUDA / `torch.nn` XL);
+[`llama_nntile_native_xl_5120_20260831_gpu2/`](../../benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/)
 (`torch_nntile.nn` XL). Classic XS–L not rerun after save-attn.
 
 | Setup | CUDA VRAM | torch.nn VRAM | torch.nn H2D | torch.nn D2H | torch_nntile.nn VRAM | torch_nntile.nn H2D | torch_nntile.nn D2H |
@@ -128,9 +134,9 @@ shutdown. CUDA has no StarPU bus. Logs:
 | S T=1024 | 7.9 GiB | 7.8 GiB | 3.03 GB | **0** | — | — | — |
 | M T=1536 | 18.7 GiB | 18.3 GiB | 6.80 GB | **0** | — | — | — |
 | L T=2048 | 30.7 GiB | 34.0 GiB | 12.06 GB | **0** | — | — | — |
-| XL T=2880 | 36.8 GiB | 40.7 GiB | 11.95 GB | **0** | **44.3 GiB** | 26.08 GB | **14.16 GB** |
+| XL T=2560 | 27.7 GiB | 31.1 GiB | 9.45 GB | **0** | **35.6 GiB** | 9.46 GB | **0** |
 
-`torch.nn` XL does **not** page (D2H **0**). Classic XL still pages.
+`torch.nn` and classic XL **do not page** (D2H **0**).
 
 ### Path 3 record breakdown
 
@@ -138,50 +144,53 @@ XL only (saved attn). XS–L omitted.
 
 | Setup | wall | record(nntile) | record(torch) | compile | run | wait | host/wall |
 |-------|-----:|---------------:|--------------:|--------:|----:|-----:|----------:|
-| XL T=2880 | 34.227 s | 0.024 s | 0.131 s | 0.079 s | 0.090 s | 33.900 s | **0.7%** |
+| XL T=2560 | 21.900 s | 0.020 s | 0.108 s | 0.069 s | 0.078 s | 21.623 s | **0.9%** |
 
-Isolated `run+wait`: XL 3.420 s.
+Isolated `run+wait`: XL 2.186 s.
 
 ## torch_nntile.nn vs CUDA
 
-Path 3 only, overlap, 10 steps, **1 repeat**, 2026-08-30, saved attn,
-no transpose-activation `save_for_backward`.
-`STARPU_LIMIT_CUDA_MEM=46000`. CUDA walls are the published paths 1–2
-10-repeat means (not re-run). Peak VRAM / H2D / D2H below are
-**`torch_nntile.nn`**. CUDA VRAM and `torch.nn` bus stats are in
-[Peak VRAM and bus](#peak-vram-and-bus-1-repeat). Logs:
-[`benchmark_logs/llama_nntile_native_xl_transpose_nosave_20260830_gpu0/`](../../benchmark_logs/llama_nntile_native_xl_transpose_nosave_20260830_gpu0/).
+Path 3 only, overlap, 10 steps, **1 repeat**, 2026-08-31, GPU 2,
+saved SDPA attn, extra autograd saves dropped (transpose / add /
+`add_fiber` / `sum_slice`). `llama_xl.json` is **5120 / 40 heads /
+T=2560**. `STARPU_LIMIT_CUDA_MEM=46000`. CUDA wall is the same-day
+1-repeat rerun (not the 10-repeat 5760 mean). Peak VRAM / H2D / D2H
+below are **`torch_nntile.nn`**. CUDA VRAM and `torch.nn` bus stats
+are in [Peak VRAM and bus](#peak-vram-and-bus-1-repeat). Logs:
+[`benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/`](../../benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/).
 
 XS–L classic were not rerun after save-attn; those QK' recompute
 walls are omitted.
 
 | Setup | CUDA wall | classic wall | classic/CUDA | isolated | peak VRAM | H2D | D2H | host/wall | classic loss |
 |-------|----------:|-------------:|-------------:|---------:|----------:|----:|----:|----------:|-------------:|
-| XL T=2880 | 32.536 ± 0.037 s | 34.227 s | **1.05×** | 3.420 s | **44.3 GiB** | 26.08 GB | **14.16 GB** | **0.7%** | 8.744810 |
+| XL T=2560 | 22.874 s | 21.900 s | **0.96×** | 2.186 s | **35.6 GiB** | 9.46 GB | **0** | **0.9%** | 8.657222 |
 
-StarPU reclaim: purge **570 MiB**. Bus stats at shutdown (prefetch +
-10 steps + isolated):
+No StarPU reclaim. Bus stats at shutdown (prefetch + 10 steps +
+isolated):
 
 | Direction | Volume | Transfers | avg size |
 |--|--:|--:|--:|
-| NUMA 0 → CUDA 0 | **26.08 GB** | 167 | 160 MB |
-| CUDA 0 → NUMA 0 | **14.16 GB** | 99 | 146 MB |
-| **Total** | **40.24 GB** | 266 | |
+| NUMA 0 → CUDA 0 | **9.46 GB** | 81 | 120 MB |
+| CUDA 0 → NUMA 0 | **0** | 1 | 0 |
+| **Total** | **9.46 GB** | 82 | |
 
-Classic Llama XL **still pages** on the A40 (unlike T5 XL, which
-fits with **no D2H**). Isolated 3.420 s is still above CUDA
-3.246 ± 0.007 s and `torch.nn` ~3.22 s. Not saving transpose
-activations did not change H2D/D2H vs the previous saved-attn run.
+Classic Llama XL **fits** on the A40 (D2H **0**), unlike the old
+5760 / T=2880 config. Isolated 2.186 s is slightly under CUDA
+isolated 2.289 s and `torch.nn` 2.287 s.
 
 Llama `_apply_rope` already keeps `sin`/`cos` as `[B, S, 64]` (no
 `scale_slice` expand to heads). Remaining extra footprint vs T5 is
-mostly **SwiGLU** (`gate`+`SiLU`+`up`+`mul`: four `[B, S, 23040]`
-activations × 6 ≈ **6.4 GiB/step**) vs T5 ReLU FF.
+mostly **SwiGLU** (`gate`+`SiLU`+`up`+`mul`: four `[B, S, 20480]`
+activations × 6 ≈ **4.7 GiB/step**) vs T5 ReLU FF.
 
 ## torch.nn vs CUDA (10 repeats)
 
 VRAM for CUDA / `torch.nn` / `torch_nntile.nn` is in
 [Peak VRAM and bus](#peak-vram-and-bus-1-repeat) (`nvidia-smi`, 1 repeat).
+XL 10-repeat walls below are **omitted** (they were the old 5760 /
+T=2880 config). 1-repeat 5120 / T=2560 is in
+[Three paths](#three-paths-1-run).
 
 | Setup | CUDA wall | nntile wall | nntile/CUDA | record(nntile) | record(torch) | compile | run | wait | host/wall | CUDA loss | nntile loss |
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
@@ -189,16 +198,15 @@ VRAM for CUDA / `torch.nn` / `torch_nntile.nn` is in
 | S T=1024 | 3.709 ± 0.010 s | 3.932 ± 0.012 s | **1.06×** | 0.070 ± 0.004 s | 0.399 ± 0.032 s | 0.186 ± 0.007 s | 0.195 ± 0.012 s | 3.083 ± 0.042 s | **16.6%** | 8.045213 | **8.045213** |
 | M T=1536 | 10.496 ± 0.014 s | 10.632 ± 0.040 s | **1.01×** | 0.065 ± 0.003 s | 0.380 ± 0.014 s | 0.175 ± 0.013 s | 0.189 ± 0.008 s | 9.822 ± 0.029 s | **5.8%** | 8.244499 | **8.244499** |
 | L T=2048 | 23.703 ± 0.065 s | 23.677 ± 0.049 s | **1.00×** | 0.064 ± 0.003 s | 0.376 ± 0.015 s | 0.171 ± 0.005 s | 0.189 ± 0.008 s | 22.875 ± 0.036 s | **2.6%** | 8.443067 | **8.443067** |
-| XL T=2880 | 32.536 ± 0.037 s | 32.256 ± 0.047 s | **0.99×** | 0.049 ± 0.001 s | 0.264 ± 0.006 s | 0.120 ± 0.004 s | 0.133 ± 0.003 s | 31.688 ± 0.050 s | **1.3%** | 8.744809 | **8.744809** |
 
 Host = `record(nntile)+record(torch)+compile` (~0.50–0.59 s for 10 steps,
-**flat**). Host **share** drops **31.6% → 16.6% → 5.8% → 2.6% → 1.3%**
-as GPU work grows.
+**flat**). Host **share** drops **31.6% → 16.6% → 5.8% → 2.6%**
+as GPU work grows (XS–L).
 
 Loss matches CUDA vs nntile to printed 1e-5 (XS 7.943643 both).
 
 Isolated GPU `run+wait` vs CUDA isolated wall:
-XS 0.188 ± 0.001 vs 0.169 ± 0.001 s, S 0.366 ± 0.001 vs 0.349 ± 0.001 s, M 1.037 ± 0.003 vs 1.032 ± 0.005 s, L 2.338 ± 0.004 vs 2.348 ± 0.003 s, XL 3.215 ± 0.005 vs 3.246 ± 0.007 s.
+XS 0.188 ± 0.001 vs 0.169 ± 0.001 s, S 0.366 ± 0.001 vs 0.349 ± 0.001 s, M 1.037 ± 0.003 vs 1.032 ± 0.005 s, L 2.338 ± 0.004 vs 2.348 ± 0.003 s. XL 1-repeat: `torch.nn` 2.287 s vs CUDA 2.289 s.
 
 ## 100-step S (nntile steady state, mean ± stdev over 10 runs)
 
@@ -227,7 +235,8 @@ CSV: [`llama_hf_overhead_s_100.csv`](llama_hf_overhead_s_100.csv) (median of 10 
 See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) and
 [`gpt_neox_hf_overhead_scale.md`](gpt_neox_hf_overhead_scale.md) for the GPT-2 and
 GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
-(see recipe).
+(see recipe). Llama XL is **5120 / T=2560**; GPT-2 / GPT-NeoX XL stay
+5760 / T=2880.
 
 | Size | GPT-2 nntile/CUDA | GPT-NeoX nntile/CUDA | Llama nntile/CUDA |
 |------|------------------:|---------------------:|------------------:|
@@ -235,7 +244,7 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 | S | 0.96× | 1.04× | **1.06×** |
 | M | 0.94× | 1.03× | **1.01×** |
 | L | 0.94× | 1.00× | **1.00×** |
-| XL | 0.96× | 1.01× | **0.99×** |
+| XL | 0.96× | 1.01× | **1.01×** (1 repeat) |
 
 ### 100-step S (nntile)
 
@@ -307,22 +316,26 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 | 9 | 2.348 ± 0.009 | 0.008 ± 0.001 | 0.049 ± 0.002 | 0.019 ± 0.002 | 0.021 ± 0.003 | 2.249 ± 0.011 |
 | 10 | 2.348 ± 0.005 | 0.007 ± 0.001 | 0.048 ± 0.006 | 0.022 ± 0.001 | 0.019 ± 0.003 | 4.575 ± 0.015 |
 
-### XL (`hidden_size=5760`, `T=2880`, 6 layers, head_dim=128)
+### XL (`hidden_size=5120`, `T=2560`, 6 layers, head_dim=128, 1 repeat)
+
+`torch.nn` overlap vs CUDA, 2026-08-31. Not a 10-repeat mean.
 
 | Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
-| 1 | 3.413 ± 0.006 | 0.002 | 0.016 ± 0.001 | 0.006 ± 0.000 | 0.009 ± 0.000 | 0.000 |
-| 2 | 3.246 ± 0.004 | 0.002 | 0.012 ± 0.001 | 0.006 ± 0.000 | 0.008 ± 0.001 | 3.347 ± 0.008 |
-| 3 | 3.231 ± 0.013 | 0.003 ± 0.000 | 0.017 ± 0.001 | 0.010 ± 0.001 | 0.012 ± 0.002 | 3.172 ± 0.005 |
-| 4 | 3.230 ± 0.013 | 0.005 ± 0.000 | 0.022 ± 0.001 | 0.012 ± 0.001 | 0.016 ± 0.001 | 3.147 ± 0.015 |
-| 5 | 3.229 ± 0.008 | 0.006 ± 0.001 | 0.026 ± 0.002 | 0.014 ± 0.001 | 0.016 ± 0.002 | 3.142 ± 0.018 |
-| 6 | 3.231 ± 0.004 | 0.006 ± 0.000 | 0.030 ± 0.002 | 0.013 ± 0.000 | 0.013 ± 0.001 | 3.130 ± 0.007 |
-| 7 | 3.235 ± 0.005 | 0.006 ± 0.000 | 0.031 ± 0.002 | 0.013 ± 0.001 | 0.015 ± 0.001 | 3.140 ± 0.005 |
-| 8 | 3.238 ± 0.004 | 0.006 ± 0.000 | 0.035 ± 0.001 | 0.014 ± 0.001 | 0.016 ± 0.001 | 3.137 ± 0.007 |
-| 9 | 3.240 ± 0.006 | 0.006 ± 0.001 | 0.038 ± 0.002 | 0.015 ± 0.004 | 0.014 ± 0.002 | 3.135 ± 0.012 |
-| 10 | 3.243 ± 0.005 | 0.007 ± 0.000 | 0.037 ± 0.001 | 0.016 ± 0.001 | 0.015 ± 0.002 | 6.339 ± 0.012 |
+| 1 | 2.443 | 0.002 | 0.016 | 0.006 | 0.009 | 0.000 |
+| 2 | 2.249 | 0.002 | 0.011 | 0.006 | 0.010 | 2.407 |
+| 3 | 2.259 | 0.005 | 0.020 | 0.011 | 0.015 | 2.223 |
+| 4 | 2.263 | 0.005 | 0.021 | 0.012 | 0.014 | 2.216 |
+| 5 | 2.268 | 0.006 | 0.026 | 0.014 | 0.018 | 2.221 |
+| 6 | 2.272 | 0.007 | 0.029 | 0.014 | 0.014 | 2.209 |
+| 7 | 2.277 | 0.006 | 0.029 | 0.014 | 0.014 | 2.221 |
+| 8 | 2.277 | 0.007 | 0.037 | 0.015 | 0.018 | 2.211 |
+| 9 | 2.282 | 0.007 | 0.027 | 0.014 | 0.015 | 2.221 |
+| 10 | 2.283 | 0.007 | 0.025 | 0.017 | 0.018 | 4.507 |
 
 ## Isolated extra step (mean ± stdev over 10 runs)
+
+XL is **1 repeat** (`torch.nn`, 5120 / T=2560). XS–L are 10-repeat means.
 
 | Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | CUDA isolated |
 |-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
@@ -330,7 +343,7 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 | S | 0.010 ± 0.001 | 0.059 ± 0.003 | 0.025 ± 0.000 | 0.023 ± 0.001 | 0.343 ± 0.002 | **0.366 ± 0.001** | 0.349 ± 0.001 |
 | M | 0.009 ± 0.001 | 0.054 ± 0.003 | 0.023 ± 0.001 | 0.021 ± 0.001 | 1.016 ± 0.003 | **1.037 ± 0.003** | 1.032 ± 0.005 |
 | L | 0.007 ± 0.001 | 0.051 ± 0.010 | 0.020 ± 0.003 | 0.018 ± 0.003 | 2.320 ± 0.004 | **2.338 ± 0.004** | 2.348 ± 0.003 |
-| XL | 0.006 ± 0.001 | 0.039 ± 0.002 | 0.015 ± 0.001 | 0.014 ± 0.001 | 3.201 ± 0.006 | **3.215 ± 0.005** | 3.246 ± 0.007 |
+| XL | 0.007 | 0.028 | 0.014 | 0.014 | 2.273 | **2.287** | 2.289 |
 
 | Setup | Full isolated (record+compile+run+wait) | Hidden host (`run+wait`) | Saved |
 |-------|----------------------------------------:|-------------------------:|------:|
@@ -338,7 +351,7 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 | S | 0.460 s | 0.366 s | 0.093 s (**20%**) |
 | M | 1.123 s | 1.037 s | 0.086 s (**8%**) |
 | L | 2.417 s | 2.338 s | 0.079 s (**3%**) |
-| XL | 3.275 s | 3.215 s | 0.060 s (**2%**) |
+| XL | 3.336 s | 2.287 s | 0.049 s (**2%**) |
 
 ## Sequential prep vs compute (`--wait-after-run`)
 
@@ -348,9 +361,11 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 | S T=1024 | 3.709 ± 0.010 s | 4.503 ± 0.018 s | 0.689 ± 0.014 s | **3.813 ± 0.008 s** | **1.03×** | 15.3% |
 | M T=1536 | 10.496 ± 0.014 s | 11.153 ± 0.027 s | 0.657 ± 0.018 s | **10.495 ± 0.016 s** | **1.00×** | 5.9% |
 | L T=2048 | 23.703 ± 0.065 s | 24.185 ± 0.046 s | 0.642 ± 0.009 s | **23.541 ± 0.047 s** | **0.99×** | 2.7% |
-| XL T=2880 | 32.536 ± 0.037 s | 32.640 ± 0.041 s | 0.479 ± 0.007 s | **32.158 ± 0.042 s** | **0.99×** | 1.5% |
 
-Sequential nntile loss: XS 7.943643, S 8.045213, M 8.244499, L 8.443067, XL 8.744809.
+XL sequential (`--wait-after-run`) was not rerun after shrinking
+`llama_xl.json`. 1-repeat overlap is in [Three paths](#three-paths-1-run).
+
+Sequential nntile loss: XS 7.943643, S 8.045213, M 8.244499, L 8.443067.
 
 ### Per iteration (prep / compute, mean ± stdev)
 
@@ -423,16 +438,17 @@ Steady compute after iter 1 (mean over repeats): ~0.183 s (XS),
 2. **Graph host overhead is flat** (~0.5 s / 10 steps); share falls as GPU
    work grows (31.6% → 2.6%).
 3. **With VRAM headroom, nntile matches or beats CUDA on wall time**
-   (XS 1.14×, S 1.06×, M 1.01×, L 1.00×, XL 0.99×).
-4. **Sequential GPU time** (`run+wait`): **1.07× → 1.03× → 1.00× → 0.99× → 0.99×** CUDA.
-5. Timings are **mean ± stdev over 10 runs** on the same GPU.
+   (XS 1.14×, S 1.06×, M 1.01×, L 1.00×, XL 1.01× 1-repeat).
+4. **Sequential GPU time** (`run+wait`): **1.07× → 1.03× → 1.00× → 0.99×** CUDA (XS–L).
+5. Timings are **mean ± stdev over 10 runs** on the same GPU (XS–L).
+   XL is 1 repeat after the 5120 shrink.
 6. Check **CUDA vs nntile loss** above for training parity beyond XS.
 7. **100-step S** wall **37.449 ± 0.110 s** — see section above.
-8. Classic Llama XL (saved attn): wall **34.227 s** (**1.05×** CUDA),
-   peak **44.3 GiB**, still **14.2 GB D2H**. `torch.nn` XL is
-   **40.7 GiB** with D2H **0**; CUDA XL is **36.8 GiB**. XS–L classic
-   not rerun. See [Peak VRAM and bus](#peak-vram-and-bus-1-repeat)
-   and [torch_nntile.nn vs CUDA](#torch_nntilenn-vs-cuda).
+8. Classic Llama XL (5120 / T=2560): wall **21.900 s** (**0.96×** CUDA),
+   peak **35.6 GiB**, D2H **0**. `torch.nn` XL is **31.1 GiB** with D2H
+   **0**; CUDA XL is **27.7 GiB**. XS–L classic not rerun. See
+   [Peak VRAM and bus](#peak-vram-and-bus-1-repeat) and
+   [torch_nntile.nn vs CUDA](#torch_nntilenn-vs-cuda).
 
 ## How to reproduce
 

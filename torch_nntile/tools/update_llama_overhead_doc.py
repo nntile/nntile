@@ -21,13 +21,13 @@ DOC = REPO / "docs" / "dev" / "llama_hf_overhead_scale.md"
 
 SIZE_LABEL = {"xs": "XS", "s": "S", "m": "M", "l": "L", "xl": "XL"}
 LADDER = ("xs", "s", "m", "l", "xl")
-SEQ_LEN = {"xs": 768, "s": 1024, "m": 1536, "l": 2048, "xl": 2880}
+SEQ_LEN = {"xs": 768, "s": 1024, "m": 1536, "l": 2048, "xl": 2560}
 HIDDEN = {
     "xs": "1536 / 24",
     "s": "2048 / 16",
     "m": "3072 / 24",
     "l": "4096 / 32",
-    "xl": "5760 / 45",
+    "xl": "5120 / 40",
 }
 LAYERS = {"xs": 12, "s": 12, "m": 12, "l": 12, "xl": 6}
 PARAMS = {
@@ -35,7 +35,7 @@ PARAMS = {
     "s": "611 M (2.27 GiB)",
     "m": "1.37 B (5.10 GiB)",
     "l": "2.43 B (9.06 GiB)",
-    "xl": "2.41 B (8.96 GiB)",
+    "xl": "2.54 B (9.45 GiB)",
 }
 
 
@@ -451,7 +451,7 @@ Same recipe as
 | Config | `llama_xs.json` | `llama_s.json` | `llama_m.json` | `llama_l.json` | `llama_xl.json` |
 | `num_hidden_layers` | {LAYERS['xs']} | {LAYERS['s']} | {LAYERS['m']} | {LAYERS['l']} | {LAYERS['xl']} |
 | `hidden_size` / `num_attention_heads` | {HIDDEN['xs']} | {HIDDEN['s']} | {HIDDEN['m']} | {HIDDEN['l']} | {HIDDEN['xl']} |
-| `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2880** |
+| `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2560** |
 | Params (FP32) | {PARAMS['xs']} | {PARAMS['s']} | {PARAMS['m']} | {PARAMS['l']} | {PARAMS['xl']} |
 
 B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, CUDA `--disable-tf32`,
@@ -510,7 +510,7 @@ Isolated GPU `run+wait` vs CUDA isolated wall:
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'l', 'nntile', 'overlap')}
 
-### XL (`hidden_size=5760`, `T=2880`, 6 layers, head_dim=128)
+### XL (`hidden_size=5120`, `T=2560`, 6 layers, head_dim=128)
 
 | Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|

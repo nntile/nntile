@@ -48,7 +48,7 @@ FAMILIES = {
             "s": ("llama_s.json", 1024),
             "m": ("llama_m.json", 1536),
             "l": ("llama_l.json", 2048),
-            "xl": ("llama_xl.json", 2880),
+            "xl": ("llama_xl.json", 2560),
         },
     ),
     "bert": (
