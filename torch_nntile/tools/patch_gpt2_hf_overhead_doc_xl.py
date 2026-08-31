@@ -141,15 +141,13 @@ def patch_doc(text: str, rows: dict[str, str]) -> str:
         "| Params (FP32) | 344 M (1.28 GiB) | 611 M (2.44 GiB) | 1.37 B (5.49 GiB) | 2.44 B (9.74 GiB) | **2.41 B (8.97 GiB)** |",
     )
     text = text.replace(
-        "nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 0**.",
-        "nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 0** (XS–L), **GPU 1** (XL).",
+        "`device=nntile` `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 0**.",
+        "`device=nntile` `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, one GPU per job.",
     )
     text = text.replace(
         "Rerun: 2026-08-25, **10 repeats per configuration** (mean ± stdev;\n"
         "`/tmp/gpt2_overhead_x10_100step_20260825`).",
-        "Rerun: 2026-08-25 (XS–L) and 2026-08-28 (XL), **10 repeats per configuration** "
-        "(mean ± stdev; [`benchmark_logs/`](../../benchmark_logs/) "
-        "`gpt2_*_20260828_gpu1`, `/tmp/gpt2_overhead_x10_100step_20260825`).",
+        "**10 repeats** per configuration (mean ± stdev).",
     )
     text = text.replace(
         "8.127417 both).",
@@ -242,10 +240,9 @@ def patch_doc(text: str, rows: dict[str, str]) -> str:
     if "--sizes xl" not in text:
         text = text.replace(
             "python3 torch_nntile/tools/run_gpt2_overhead_benchmark.py \\\n"
-            "  --logdir /tmp/gpt2_overhead_x10_YYYYMMDD --gpu 0 --repeats 10",
+            "  --logdir /tmp/gpt2_overhead --gpu 0 --repeats 10",
             "python3 torch_nntile/tools/run_gpt2_overhead_benchmark.py \\\n"
-            "  --logdir benchmark_logs/gpt2_xl_10x_YYYYMMDD_gpu1 --gpu 1 --repeats 10 "
-            "--sizes xl --skip-long",
+            "  --logdir /tmp/gpt2_overhead --gpu 0 --repeats 10 --sizes xl --skip-long",
         )
     return text
 
@@ -255,12 +252,12 @@ def main() -> int:
     parser.add_argument(
         "--summary",
         type=Path,
-        default=REPO / "benchmark_logs/gpt2_xl_10x_20260828_gpu1/results_summary.json",
+        default=Path("/tmp/gpt2_overhead/results_summary.json"),
     )
     parser.add_argument(
         "--results",
         type=Path,
-        default=REPO / "benchmark_logs/gpt2_xl_10x_20260828_gpu1/results.json",
+        default=Path("/tmp/gpt2_overhead/results.json"),
     )
     parser.add_argument("--output", type=Path, default=DOC)
     args = parser.parse_args()

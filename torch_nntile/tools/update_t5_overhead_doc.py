@@ -14,7 +14,7 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 from overhead_plot import write_long_plots
-from overhead_refs import GPT2_REF
+from overhead_refs import GPT2_REF, NOTATION_HF
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "t5_hf_overhead_scale.md"
@@ -239,7 +239,7 @@ def render_doc(
         )
         if abs(c_loss - n_loss) >= LOSS_MATCH_EPS:
             loss_notes.append(
-                f"- **{SIZE_LABEL[size]}:** CUDA {c_loss:.6f} vs nntile "
+                f"- **{SIZE_LABEL[size]}:** HF(cuda) {c_loss:.6f} vs HF(nntile) "
                 f"{n_loss:.6f} (Δ {abs(c_loss - n_loss):.6f})."
             )
         overall_rows.append(
@@ -268,7 +268,7 @@ def render_doc(
         )
     else:
         loss_section = (
-            "T5 CE loss matches CUDA vs nntile to printed 1e-4 at all ladder sizes "
+            "T5 CE loss matches HF(cuda) vs HF(nntile) to printed 1e-4 at all ladder sizes "
             f"(XS {xs_c_loss:.6f} both)."
         )
 
@@ -391,10 +391,9 @@ CSV: [`t5_hf_overhead_s_{long_steps}.csv`](t5_hf_overhead_s_{long_steps}.csv) (m
         )
     compare_section = f"""## Comparison to GPT-2 (same ladder geometry)
 
-See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× run
-(same A40 GPUs, Aug 2026, CUDA-parity matmul).
+See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× run.
 
-| Size | GPT-2 nntile/CUDA | T5 nntile/CUDA |
+| Size | GPT-2 HF(nntile)/HF(cuda) | T5 HF(nntile)/HF(cuda) |
 |------|------------------:|-----------------:|
 {chr(10).join(compare_rows)}
 {compare_long}
@@ -416,15 +415,16 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) for the GPT-2 10× 
 
     return f"""# T5 HF: graph overhead vs width / seqlen
 
-Ten-step stock HuggingFace **T5ForConditionalGeneration** on **CUDA** vs **`device=nntile`**.
-Depth is tuned per size so **CUDA train peak VRAM matches the Llama ladder**
+{NOTATION_HF}
+Ten-step stock HuggingFace **T5ForConditionalGeneration** on **HF(cuda)** vs **HF(nntile)**.
+Depth is tuned per size so **HF(cuda) train peak VRAM matches the Llama ladder**
 (same ``d_model`` / ``seq_len``; enc+dec layer counts differ — see recipe table).
 Width and sequence length
 grow together with **`seq_len = d_model / 2`** (encoder and decoder share
 ``--seq-len``).
 
-> **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep CUDA
-> well under the card limit on large configs so nntile stays on-device (no
+> **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep HF(cuda)
+> well under the card limit on large configs so `device=nntile` stays on-device (no
 > StarPU CPU↔GPU paging). GPUs are in **exclusive mode** — one process per GPU.
 
 Configs: [`torch_nntile/examples/overhead_t5/`](../../torch_nntile/examples/overhead_t5/).  
@@ -435,20 +435,19 @@ Benchmark runner: [`run_t5_overhead_benchmark.py`](../../torch_nntile/tools/run_
 
 Stock HF T5 (transformers **4.52**) uses **eager** attention (manual
 `matmul` / `softmax`; no `sdpa` backend). This study uses
-**`attn_implementation="eager"`** and **`use_cache=False`** on both CUDA and
-nntile. CUDA runs with `--disable-tf32`.
+**`attn_implementation="eager"`** and **`use_cache=False`** on both HF(cuda) and HF(nntile). HF(cuda) runs with `--disable-tf32`.
 
 ## Loss
 
 Encoder-decoder CE via stock T5 **`labels`** forward (`t5_ce_loss` in
-`hf_tiny_train_common.py`; same on CUDA and nntile).
+`hf_tiny_train_common.py`; same on HF(cuda) and HF(nntile)).
 
 ## Train wall
 
 Same recipe as
 [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md): nntile
 `record → compile → wait(prev) → run`, wall from first record through final
-`wait()`; CUDA synced per iter. Prefetch outside the wall. Iter 1 nntile
+`wait()`; HF(cuda) synced per iter. Prefetch outside the wall. Iter 1 nntile
 `wait=0`; iter 10 `wait` includes the final join.
 
 ## Recipe
@@ -461,18 +460,17 @@ Same recipe as
 | `--seq-len` (`= d_model/2`, enc+dec) | **768** | **1024** | **1536** | **2048** | **2880** |
 | Params (FP32) | {PARAMS['xs']} | {PARAMS['s']} | {PARAMS['m']} | {PARAMS['l']} | **{PARAMS['xl']}** |
 
-B=1, 10 steps, seed 42, `--no-shuffle`, eager attention, CUDA `--disable-tf32`,
-nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40; **GPU 0** (XS/S/M,
-100-step S), **GPU 2** (L), **GPU 3** (XL). Separate processes (`PYTHONNOUSERSITE=1`;
-never import `torch_nntile` in the CUDA child). **Do not overlap jobs on one GPU.**
+B=1, 10 steps, seed 42, `--no-shuffle`, eager attention, HF(cuda) `--disable-tf32`,
+`device=nntile` `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, one GPU per job.
+Separate processes (`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the
+HF(cuda) process).
 
-Rerun: 2026-08-27, **10 repeats per configuration**
-([`benchmark_logs/`](../../benchmark_logs/) `t5_*_vrammatch_20260827_gpu*`).
-Includes **S nntile {long_steps}-step** steady-state run.
+**10 repeats** per configuration (mean ± stdev). Includes **S HF(nntile)
+{long_steps}-step** steady-state run.
 
 ## Overall (10-step train wall)
 
-| Setup | CUDA wall | nntile wall | nntile/CUDA | record(nntile) | record(torch) | compile | run | wait | host/wall | CUDA loss | nntile loss |
+| Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | HF(cuda) loss | HF(nntile) loss |
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
 {chr(10).join(overall_rows)}
 
@@ -482,7 +480,7 @@ as GPU work grows.
 
 {loss_section}
 
-Isolated GPU `run+wait` vs CUDA isolated wall:
+Isolated GPU `run+wait` vs HF(cuda) isolated wall:
 {', '.join(
     f"{SIZE_LABEL[size]} {ms(g(grp(size, 'nntile', 'overlap')['isolated'], 'run_wait'))} vs "
     f"{ms(g(grp(size, 'cuda', 'overlap')['isolated'], 'cuda_wall'))} s"
@@ -495,37 +493,37 @@ Isolated GPU `run+wait` vs CUDA isolated wall:
 
 ### XS (`d_model=1536`, `T=768`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'xs', 'nntile', 'overlap')}
 
 ### S (`d_model=2048`, `T=1024`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 's', 'nntile', 'overlap')}
 
 ### M (`d_model=3072`, `T=1536`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'm', 'nntile', 'overlap')}
 
 ### L (`d_model=4096`, `T=2048`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'l', 'nntile', 'overlap')}
 
 ### XL (`d_model=5760`, `T=2880`, 3 enc + 3 dec layers)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'xl', 'nntile', 'overlap')}
 
 ## Isolated extra step (mean ± stdev over {repeats} runs)
 
-| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | CUDA isolated |
+| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | HF(cuda) isolated |
 |-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
 {chr(10).join(iso_rows)}
 
@@ -535,11 +533,11 @@ Isolated GPU `run+wait` vs CUDA isolated wall:
 
 ## Sequential prep vs compute (`--wait-after-run`)
 
-| Setup | CUDA wall | sequential wall | prep | compute | compute/CUDA | prep/wall |
+| Setup | HF(cuda) wall | sequential wall | prep | compute | compute / HF(cuda) | prep/wall |
 |-------|----------:|----------------:|-----:|--------:|-------------:|----------:|
 {chr(10).join(seq_rows)}
 
-Sequential nntile loss: {', '.join(seq_loss)}.
+Sequential HF(nntile) loss: {', '.join(seq_loss)}.
 
 ### Per iteration (prep / compute, mean ± stdev)
 
@@ -576,11 +574,11 @@ Steady compute after iter 1 (mean over repeats): {', '.join(
 1. **`seq_len = d_model / 2`**, eager HF T5 enc+dec, stock T5 CE loss.
 2. **Graph host overhead is flat** (~0.3–0.5 s / 10 steps); share falls as GPU
    work grows ({host_shares[0]} → {host_shares[-1]}).
-3. **With VRAM headroom, nntile is within ~5–16% of CUDA on wall time**
+3. **With VRAM headroom, HF(nntile) is within ~5–16% of HF(cuda) on wall time**
    ({', '.join(ratios)}).
-4. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** CUDA.
-5. Timings are **mean ± stdev** over 10 runs per size on the assigned GPU.
-6. **T5 CE loss** matches CUDA vs nntile to ~1e-4 — see loss section above.
+4. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** HF(cuda).
+5. Timings are **mean ± stdev** over 10 runs per size.
+6. **T5 CE loss** matches HF(cuda) vs HF(nntile) to ~1e-4 — see loss section above.
 7. **{long_steps}-step S** wall **{ms_s(g(s1k, 'metrics', 'train_wall_s')) if s1k else 'n/a'}** — see section above.
 
 ## How to reproduce
@@ -591,25 +589,15 @@ export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
 export LD_LIBRARY_PATH="${{CONDA_PREFIX}}/lib:${{TORCH_LIB_DIR}}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib"
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
-# One size per GPU; do not overlap on exclusive-mode GPUs.
 python3 torch_nntile/tools/run_t5_overhead_benchmark.py \\
-  --logdir /tmp/t5_overhead_l_gpu0 --gpu 0 --repeats 10 --sizes l --skip-long
-python3 torch_nntile/tools/run_t5_overhead_benchmark.py \\
-  --logdir /tmp/t5_overhead_xl_gpu2 --gpu 2 --repeats 10 --sizes xl --skip-long
-python3 torch_nntile/tools/run_t5_overhead_benchmark.py \\
-  --logdir /tmp/t5_overhead_s100 --gpu 1 --repeats 10 --only-long
+  --logdir /tmp/t5_overhead --gpu 0 --repeats 10 --long-steps 100
+
+python3 torch_nntile/tools/run_nntile_native_overhead_benchmark.py \\
+  --family t5 --logdir /tmp/t5_native --gpu 0 --repeats 10
 
 python3 torch_nntile/tools/update_t5_overhead_doc.py \\
-  --summary benchmark_logs/t5_sm_20260827_gpu0/results_summary.json \\
-  --results benchmark_logs/t5_sm_20260827_gpu0/results.json \\
-  --merge-summary benchmark_logs/t5_xs_loss_20260827_gpu0/results_summary.json \\
-  --merge-results benchmark_logs/t5_xs_loss_20260827_gpu0/results.json \\
-  --merge-summary benchmark_logs/t5_l_20260827_gpu0/results_summary.json \\
-  --merge-results benchmark_logs/t5_l_20260827_gpu0/results.json \\
-  --merge-summary benchmark_logs/t5_xl_20260827_gpu2/results_summary.json \\
-  --merge-results benchmark_logs/t5_xl_20260827_gpu2/results.json \\
-  --merge-summary benchmark_logs/t5_s100_20260827_gpu0/results_summary.json \\
-  --merge-results benchmark_logs/t5_s100_20260827_gpu0/results.json
+  --summary /tmp/t5_overhead/results_summary.json \\
+  --results /tmp/t5_overhead/results.json
 ```
 """
 
@@ -661,7 +649,7 @@ def main() -> int:
         long_mode=long_mode,
         csv_path=csv_path,
         svg_path=svg_path,
-        title=f"T5 S nntile host overhead per iteration ({long_steps} steps)",
+        title=f"T5 S HF(nntile) host overhead per iteration ({long_steps} steps)",
     ):
         print(f"wrote {csv_path}")
         print(f"wrote {svg_path}")

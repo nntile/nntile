@@ -1,53 +1,68 @@
 # Llama HF: graph overhead vs width / seqlen
 
-Three paths, same configs / seq_len / 10 steps:
+**Notation.** Each label is **implementation(backend)**. The word
+*outside* the brackets is the implementation; the word *inside* is the
+backend.
 
-1. **CUDA** — stock HuggingFace `LlamaForCausalLM`, `device=cuda`, no
+- **HF** — HuggingFace Transformers implementation (`transformers` 4.52;
+  constraint `transformers<4.53`).
+- **nntile** (as implementation) — `torch_nntile.models`, based on
+  `torch_nntile.nn` operations and backed by hand-written nntile kernels.
+- **cuda** — PyTorch CUDA (`device=cuda`).
+- **nntile** (as backend) — StarPU / nntile (`device=nntile`).
+
+**HF(cuda)** is Transformers on CUDA. **HF(nntile)** is the same
+Transformers graph on `device=nntile`. **nntile(nntile)** is the
+`torch_nntile.models` rewrite on `device=nntile`.
+
+Three setups, same configs / seq_len / 10 steps:
+
+1. **HF(cuda)** — stock HuggingFace `LlamaForCausalLM`, `device=cuda`, no
    `torch_nntile` import.
-2. **`torch.nn` on nntile** — same HF model on `device=nntile` (aten /
+2. **HF(nntile)** — same HF model on `device=nntile` (aten /
    torch-native StarPU codelets).
-3. **`torch_nntile.nn` on nntile** —
-   `torch_nntile.models.llama.LlamaCausal` (classic kernels). HF is used
+3. **nntile(nntile)** —
+   `torch_nntile.models.llama.LlamaCausal` (hand-written nntile kernels). HF is used
    only to init weights.
 
-Three-way loss and wall: [Three paths](#three-paths-1-run). Paths 1–2
-10-repeat detail is below that. Path 3 (saved SDPA attn, no QK'
-recompute) is in
-[torch_nntile.nn vs CUDA](#torch_nntilenn-vs-cuda).
-Classic Llama XL **fits** on the A40 with this config — see that section.
+Three-setup loss and wall: [Three setups](#three-setups). HF(cuda) / HF(nntile)
+10-repeat detail is below that. nntile(nntile) is in
+[nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
+nntile(nntile) **fits** on the A40 on every size (D2H **0**); L peaks at
+**42.0 GiB**, XL at **35.6 GiB**.
 
 Depth is **12 layers** for XS–L (MHA: ``num_key_value_heads = num_attention_heads``).
 **XL** uses **6 layers**, ``hidden_size=5120`` / 40 heads (head dim 128),
 ``seq_len = hidden_size / 2 = 2560``. That is slightly below the original
-5760 / 45 / T=2880 rung so classic stays on-device on an A40. XS uses
+5760 / 45 / T=2880 rung so nntile(nntile) stays on-device on an A40. XS uses
 the 2 GiB Llama width (`hidden_size=1536` from
 [`2gb/llama.json`](../../torch_nntile/examples/2gb/llama.json)) with **12 layers**
 instead of that file's 18.
 
-> **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep CUDA
-> well under the card limit on large configs so nntile stays on-device (no
-> StarPU CPU↔GPU paging). With this XL config, classic **fits** (peak
-> **35.6 GiB**, D2H **0**). `torch.nn` XL is **31.1 GiB** (D2H **0**);
-> CUDA XL is **27.7 GiB**. The old 5760 / T=2880 classic XL paged
-> (~44 GiB, **14.2 GB D2H**).
+> **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep HF(cuda)
+> well under the card limit on large configs so `device=nntile` stays on-device (no
+> StarPU CPU↔GPU paging). nntile(nntile) **fits** on every size (D2H **0**).
+> Peak is L **42.0 GiB** (12 layers); XL is **35.6 GiB** (6 layers). HF(nntile)
+> XL is **31.1 GiB** (D2H **0**); HF(cuda) XL is **27.7 GiB**. The old 5760 /
+> T=2880 nntile(nntile) XL paged (~44 GiB, **14.2 GB D2H**).
 
-Configs: [`torch_nntile/examples/overhead_llama/`](../../torch_nntile/examples/overhead_llama/).  
-Paths 1–2: [`train_llama_hf.py`](../../torch_nntile/examples/train_llama_hf.py),
-[`run_llama_overhead_benchmark.py`](../../torch_nntile/tools/run_llama_overhead_benchmark.py).  
-Path 3: [`train_nntile_native_overhead.py`](../../torch_nntile/examples/train_nntile_native_overhead.py),
+Configs: [`torch_nntile/examples/overhead_llama/`](../../torch_nntile/examples/overhead_llama/).
+HF(cuda) / HF(nntile): [`train_llama_hf.py`](../../torch_nntile/examples/train_llama_hf.py),
+[`run_llama_overhead_benchmark.py`](../../torch_nntile/tools/run_llama_overhead_benchmark.py).
+nntile(nntile): [`train_nntile_native_overhead.py`](../../torch_nntile/examples/train_nntile_native_overhead.py),
 [`run_nntile_native_overhead_benchmark.py`](../../torch_nntile/tools/run_nntile_native_overhead_benchmark.py).
 
 ## Attention backend
 
 Same as GPT-2 / GPT-NeoX: stock HF Llama with **`attn_implementation="sdpa"`**,
-MATH backend pinned on both CUDA and nntile. CUDA runs with `--disable-tf32`.
+MATH backend pinned on HF(cuda) and HF(nntile). HF(cuda) runs with `--disable-tf32`.
 
 ## Train wall
 
 Same recipe as
 [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md): nntile
 `record → compile → wait(prev) → run`, wall from first record through final
-`wait()`; CUDA synced per iter. Prefetch outside the wall. Iter 1 nntile
+`wait()`; HF(cuda) synced per iter. Prefetch outside the wall. Iter 1 nntile
 `wait=0`; iter 10 `wait` includes the final join.
 
 ## Recipe
@@ -60,114 +75,97 @@ Same recipe as
 | `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2560** |
 | Params (FP32) | 344 M (1.28 GiB) | 611 M (2.27 GiB) | 1.37 B (5.10 GiB) | 2.43 B (9.06 GiB) | 2.54 B (9.45 GiB) |
 
-B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, CUDA `--disable-tf32`,
-nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 2** for every
-config (`CUDA_VISIBLE_DEVICES=2` via the runner). Separate processes
-(`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the CUDA child).
+B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, HF(cuda) `--disable-tf32`,
+`device=nntile` `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, one GPU per job
+(`CUDA_VISIBLE_DEVICES` via `--gpu`). Separate processes
+(`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the HF(cuda) process).
 **No checkpoints** (`--no-save-checkpoint`; output dirs deleted after each run).
+nntile(nntile) uses `STARPU_LIMIT_CUDA_MEM=46000`.
 
-Paths 1–2 rerun: 2026-08-26, **10 repeats per configuration** (mean ± stdev;
-`benchmark_logs/llama_rerun_20260827_gpu0`). Includes **S nntile 100-step** steady-state run per repeat.
-Path 3 1-run three-way: 2026-08-29 (paths 1–2 CUDA / `torch.nn`;
-classic XS–L in that table used QK' recompute and are omitted below).
-Path 3 **and** paths 1–2 XL after shrinking `llama_xl.json` to 5120 /
-T=2560: 2026-08-31, **1 repeat**. Classic on GPU 2, CUDA / `torch.nn`
-on GPU 3. `STARPU_LIMIT_CUDA_MEM=46000`.
+HF(cuda) / HF(nntile): **10 repeats** (mean ± stdev) plus **S HF(nntile) 100-step**.
+nntile(nntile): **10 repeats** (mean ± stdev), `STARPU_LIMIT_CUDA_MEM=46000`.
+HF XL is **1 repeat** on `llama_xl.json` (5120 / T=2560).
 
-## Three paths (1 run)
+## Three setups
 
-Same recipe as the 10-repeat study. CUDA and `torch.nn` XS–L from the
-torch-native ladder (**1 repeat**, 2026-08-29). XL (all three paths) is
-the 2026-08-31 5120 / T=2560 rerun. Classic XS–L omitted. Logs:
-`/tmp/bench_check_20260829/overhead/llama/` (paths 1–2 XS–L),
-[`benchmark_logs/llama_hf_xl_5120_20260831_gpu3/`](../../benchmark_logs/llama_hf_xl_5120_20260831_gpu3/)
-(paths 1–2 XL),
-[`benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/`](../../benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/)
-(path 3 XL).
+Same recipe. Walls are **10-repeat** means except HF XL (1 repeat after
+the 5120 shrink). nntile(nntile) record breakdown is in
+[nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
 
 ### Loss
 
-| Setup | CUDA | torch.nn nntile | torch_nntile.nn |
+| Setup | HF(cuda) | HF(nntile) | nntile(nntile) |
 |-------|-----:|----------------:|----------------:|
 | XS T=768 | 7.943643 | 7.943643 | 7.943644 |
 | S T=1024 | 8.045213 | 8.045213 | 8.045214 |
 | M T=1536 | 8.244499 | 8.244499 | 8.244499 |
 | L T=2048 | 8.443067 | 8.443067 | 8.443068 |
-| XL T=2560 | 8.657223 | 8.657223 | 8.657222 |
+| XL T=2560 | 8.657223 | 8.657223 | 8.657223 |
 
-All three paths match to printed 1e-6.
+All three setups match to printed 1e-6.
 
 ### 10-step train wall
 
-Classic `sdpa_kernel` **saves softmax weights** (no QK' recompute).
-XS–L classic were not rerun after that change and are omitted (the
-old QK' recompute walls are not current). XL is 1 repeat,
-2026-08-31, `STARPU_LIMIT_CUDA_MEM=46000`, **5120 / T=2560**. CUDA /
-`torch.nn` XL columns are the same-day 1-repeat rerun (not the
-2026-08-29 5760 numbers).
+**10 repeats** (mean ± stdev), `STARPU_LIMIT_CUDA_MEM=46000`. XL is
+**5120 / T=2560**. HF(cuda) / HF(nntile) XL are 1-repeat (no 10-repeat
+at 5120).
 
-| Setup | CUDA | torch.nn | torch_nntile.nn | torch.nn/CUDA | classic/CUDA |
+| Setup | HF(cuda) | HF(nntile) | nntile(nntile) | HF(nntile) / HF(cuda) | nntile(nntile) / HF(cuda) |
 |-------|-----:|---------:|----------------:|--------------:|-------------:|
-| XS T=768 | 1.915 s | 2.297 s | — | **1.20×** | — |
-| S T=1024 | 3.708 s | 3.965 s | — | **1.07×** | — |
-| M T=1536 | 10.533 s | 10.721 s | — | **1.02×** | — |
-| L T=2048 | 23.785 s | 23.808 s | — | **1.00×** | — |
-| XL T=2560 | 22.874 s | 23.000 s | 21.900 s | **1.01×** | **0.96×** |
+| XS T=768 | 1.917 ± 0.008 s | 2.176 ± 0.013 s | 1.830 ± 0.020 s | **1.14×** | **0.95×** |
+| S T=1024 | 3.709 ± 0.010 s | 3.932 ± 0.012 s | 3.569 ± 0.012 s | **1.06×** | **0.96×** |
+| M T=1536 | 10.496 ± 0.014 s | 10.632 ± 0.040 s | 10.163 ± 0.016 s | **1.01×** | **0.97×** |
+| L T=2048 | 23.703 ± 0.065 s | 23.677 ± 0.049 s | 22.961 ± 0.060 s | **1.00×** | **0.97×** |
+| XL T=2560 | 22.874 s | 23.000 s | 22.306 ± 0.115 s | **1.01×** | **0.98×** |
 
-Classic XL is **0.96×** CUDA (isolated `run+wait` 2.186 s vs CUDA
-isolated 2.289 s). Host/wall **0.9%**. No StarPU paging.
+nntile(nntile) is **0.95–0.98×** HF(cuda). No StarPU paging.
 
-### Peak VRAM and bus (1 repeat)
+### Peak VRAM and bus
 
 Peak VRAM is `nvidia-smi memory.used`. H2D/D2H are StarPU bus stats at
-shutdown. CUDA has no StarPU bus. Logs:
-[`hf_path12_mem_20260830/llama/`](../../benchmark_logs/hf_path12_mem_20260830/llama/)
-(CUDA / `torch.nn` XS–L);
-[`llama_hf_xl_5120_20260831_gpu3/`](../../benchmark_logs/llama_hf_xl_5120_20260831_gpu3/)
-(CUDA / `torch.nn` XL);
-[`llama_nntile_native_xl_5120_20260831_gpu2/`](../../benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/)
-(`torch_nntile.nn` XL). Classic XS–L not rerun after save-attn.
+shutdown. HF(cuda) has no StarPU bus.
 
-| Setup | CUDA VRAM | torch.nn VRAM | torch.nn H2D | torch.nn D2H | torch_nntile.nn VRAM | torch_nntile.nn H2D | torch_nntile.nn D2H |
+| Setup | HF(cuda) VRAM | HF(nntile) VRAM | HF(nntile) H2D | HF(nntile) D2H | nntile(nntile) VRAM | nntile(nntile) H2D | nntile(nntile) D2H |
 |-------|----------:|--------------:|-------------:|-------------:|---------------------:|--------------------:|--------------------:|
-| XS T=768 | 5.1 GiB | 5.7 GiB | 1.71 GB | **0** | — | — | — |
-| S T=1024 | 7.9 GiB | 7.8 GiB | 3.03 GB | **0** | — | — | — |
-| M T=1536 | 18.7 GiB | 18.3 GiB | 6.80 GB | **0** | — | — | — |
-| L T=2048 | 30.7 GiB | 34.0 GiB | 12.06 GB | **0** | — | — | — |
+| XS T=768 | 5.1 GiB | 5.7 GiB | 1.71 GB | **0** | 6.3 GiB | 1.71 GB | **0** |
+| S T=1024 | 7.9 GiB | 7.8 GiB | 3.03 GB | **0** | 9.9 GiB | 3.03 GB | **0** |
+| M T=1536 | 18.7 GiB | 18.3 GiB | 6.80 GB | **0** | 22.9 GiB | 6.80 GB | **0** |
+| L T=2048 | 30.7 GiB | 34.0 GiB | 12.06 GB | **0** | **42.0 GiB** | 12.07 GB | **0** |
 | XL T=2560 | 27.7 GiB | 31.1 GiB | 9.45 GB | **0** | **35.6 GiB** | 9.46 GB | **0** |
 
-`torch.nn` and classic XL **do not page** (D2H **0**).
+No D2H on any nntile setup. nntile(nntile) L (12 layers) peaks above XL
+(6 layers). H2D is the initial prefetch.
 
-### Path 3 record breakdown
+## nntile(nntile) vs HF(cuda)
 
-XL only (saved attn). XS–L omitted.
+nntile(nntile) only, overlap, 10 steps, **10 repeats** (mean ± stdev).
+`STARPU_LIMIT_CUDA_MEM=46000`. XL is **5120 / 40 heads / T=2560**.
+HF(cuda) walls for XS–L are the published 10-repeat means; XL is the
+1-repeat 5120 wall. Peak VRAM / H2D / D2H below are **nntile(nntile)**.
+HF(cuda) VRAM and HF(nntile) bus stats are in
+[Peak VRAM and bus](#peak-vram-and-bus).
 
-| Setup | wall | record(nntile) | record(torch) | compile | run | wait | host/wall |
-|-------|-----:|---------------:|--------------:|--------:|----:|-----:|----------:|
-| XL T=2560 | 21.900 s | 0.020 s | 0.108 s | 0.069 s | 0.078 s | 21.623 s | **0.9%** |
-
-Isolated `run+wait`: XL 2.186 s.
-
-## torch_nntile.nn vs CUDA
-
-Path 3 only, overlap, 10 steps, **1 repeat**, 2026-08-31, GPU 2,
-saved SDPA attn, extra autograd saves dropped (transpose / add /
-`add_fiber` / `sum_slice`). `llama_xl.json` is **5120 / 40 heads /
-T=2560**. `STARPU_LIMIT_CUDA_MEM=46000`. CUDA wall is the same-day
-1-repeat rerun (not the 10-repeat 5760 mean). Peak VRAM / H2D / D2H
-below are **`torch_nntile.nn`**. CUDA VRAM and `torch.nn` bus stats
-are in [Peak VRAM and bus](#peak-vram-and-bus-1-repeat). Logs:
-[`benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/`](../../benchmark_logs/llama_nntile_native_xl_5120_20260831_gpu2/).
-
-XS–L classic were not rerun after save-attn; those QK' recompute
-walls are omitted.
-
-| Setup | CUDA wall | classic wall | classic/CUDA | isolated | peak VRAM | H2D | D2H | host/wall | classic loss |
+| Setup | HF(cuda) wall | nntile(nntile) wall | nntile(nntile) / HF(cuda) | isolated | peak VRAM | H2D | D2H | host/wall | nntile(nntile) loss |
 |-------|----------:|-------------:|-------------:|---------:|----------:|----:|----:|----------:|-------------:|
-| XL T=2560 | 22.874 s | 21.900 s | **0.96×** | 2.186 s | **35.6 GiB** | 9.46 GB | **0** | **0.9%** | 8.657222 |
+| XS T=768 | 1.917 ± 0.008 s | 1.830 ± 0.020 s | **0.95×** | 0.170 ± 0.001 s | 6.3 GiB | 1.71 GB | **0** | **19.2%** | 7.943644 |
+| S T=1024 | 3.709 ± 0.010 s | 3.569 ± 0.012 s | **0.96×** | 0.344 ± 0.002 s | 9.9 GiB | 3.03 GB | **0** | **10.0%** | 8.045214 |
+| M T=1536 | 10.496 ± 0.014 s | 10.163 ± 0.016 s | **0.97×** | 1.005 ± 0.004 s | 22.9 GiB | 6.80 GB | **0** | **3.3%** | 8.244499 |
+| L T=2048 | 23.703 ± 0.065 s | 22.961 ± 0.060 s | **0.97×** | 2.297 ± 0.009 s | **42.0 GiB** | 12.07 GB | **0** | **1.4%** | 8.443068 |
+| XL T=2560 | 22.874 s | 22.306 ± 0.115 s | **0.98×** | 2.232 ± 0.012 s | **35.6 GiB** | 9.46 GB | **0** | **0.9%** | 8.657223 |
 
-No StarPU reclaim. Bus stats at shutdown (prefetch + 10 steps +
-isolated):
+Host = `record(nntile)+record(torch)+compile`. Host **share** drops
+**19.2% → 10.0% → 3.3% → 1.4% → 0.9%**.
+
+| Setup | record(nntile) | record(torch) | compile | run | wait |
+|-------|---------------:|--------------:|--------:|----:|-----:|
+| XS T=768 | 0.036 ± 0.005 s | 0.178 ± 0.019 s | 0.137 ± 0.019 s | 0.122 ± 0.015 s | 1.355 ± 0.046 s |
+| S T=1024 | 0.036 ± 0.004 s | 0.185 ± 0.012 s | 0.136 ± 0.014 s | 0.123 ± 0.012 s | 3.088 ± 0.033 s |
+| M T=1536 | 0.035 ± 0.004 s | 0.178 ± 0.011 s | 0.127 ± 0.011 s | 0.121 ± 0.008 s | 9.701 ± 0.032 s |
+| L T=2048 | 0.032 ± 0.005 s | 0.179 ± 0.011 s | 0.118 ± 0.016 s | 0.122 ± 0.016 s | 22.507 ± 0.067 s |
+| XL T=2560 | 0.021 ± 0.003 s | 0.115 ± 0.006 s | 0.073 ± 0.007 s | 0.073 ± 0.008 s | 22.022 ± 0.117 s |
+
+No StarPU reclaim. D2H is **0** on every size. XL bus at shutdown
+(prefetch + 10 steps + isolated):
 
 | Direction | Volume | Transfers | avg size |
 |--|--:|--:|--:|
@@ -175,24 +173,24 @@ isolated):
 | CUDA 0 → NUMA 0 | **0** | 1 | 0 |
 | **Total** | **9.46 GB** | 82 | |
 
-Classic Llama XL **fits** on the A40 (D2H **0**), unlike the old
-5760 / T=2880 config. Isolated 2.186 s is slightly under CUDA
-isolated 2.289 s and `torch.nn` 2.287 s.
+nntile(nntile) Llama **fits** on the A40 on every size (D2H **0**), unlike
+the old 5760 / T=2880 XL. Isolated XL 2.232 ± 0.012 s is slightly under
+HF(cuda) isolated 2.289 s and HF(nntile) 2.287 s.
 
 Llama `_apply_rope` already keeps `sin`/`cos` as `[B, S, 64]` (no
 `scale_slice` expand to heads). Remaining extra footprint vs T5 is
 mostly **SwiGLU** (`gate`+`SiLU`+`up`+`mul`: four `[B, S, 20480]`
 activations × 6 ≈ **4.7 GiB/step**) vs T5 ReLU FF.
 
-## torch.nn vs CUDA (10 repeats)
+## HF(nntile) vs HF(cuda) (10 repeats)
 
-VRAM for CUDA / `torch.nn` / `torch_nntile.nn` is in
-[Peak VRAM and bus](#peak-vram-and-bus-1-repeat) (`nvidia-smi`, 1 repeat).
+VRAM for HF(cuda) / HF(nntile) / nntile(nntile) is in
+[Peak VRAM and bus](#peak-vram-and-bus) (`nvidia-smi`).
 XL 10-repeat walls below are **omitted** (they were the old 5760 /
-T=2880 config). 1-repeat 5120 / T=2560 is in
-[Three paths](#three-paths-1-run).
+T=2880 config). HF XL at 5120 / T=2560 is in
+[Three setups](#three-setups).
 
-| Setup | CUDA wall | nntile wall | nntile/CUDA | record(nntile) | record(torch) | compile | run | wait | host/wall | CUDA loss | nntile loss |
+| Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | HF(cuda) loss | HF(nntile) loss |
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
 | XS T=768 | 1.917 ± 0.008 s | 2.176 ± 0.013 s | **1.14×** | 0.073 ± 0.004 s | 0.417 ± 0.027 s | 0.198 ± 0.018 s | 0.187 ± 0.008 s | 1.301 ± 0.047 s | **31.6%** | 7.943643 | **7.943643** |
 | S T=1024 | 3.709 ± 0.010 s | 3.932 ± 0.012 s | **1.06×** | 0.070 ± 0.004 s | 0.399 ± 0.032 s | 0.186 ± 0.007 s | 0.195 ± 0.012 s | 3.083 ± 0.042 s | **16.6%** | 8.045213 | **8.045213** |
@@ -203,10 +201,10 @@ Host = `record(nntile)+record(torch)+compile` (~0.50–0.59 s for 10 steps,
 **flat**). Host **share** drops **31.6% → 16.6% → 5.8% → 2.6%**
 as GPU work grows (XS–L).
 
-Loss matches CUDA vs nntile to printed 1e-5 (XS 7.943643 both).
+Loss matches HF(cuda) vs HF(nntile) to printed 1e-5 (XS 7.943643 both).
 
-Isolated GPU `run+wait` vs CUDA isolated wall:
-XS 0.188 ± 0.001 vs 0.169 ± 0.001 s, S 0.366 ± 0.001 vs 0.349 ± 0.001 s, M 1.037 ± 0.003 vs 1.032 ± 0.005 s, L 2.338 ± 0.004 vs 2.348 ± 0.003 s. XL 1-repeat: `torch.nn` 2.287 s vs CUDA 2.289 s.
+Isolated GPU `run+wait` vs HF(cuda) isolated wall:
+XS 0.188 ± 0.001 vs 0.169 ± 0.001 s, S 0.366 ± 0.001 vs 0.349 ± 0.001 s, M 1.037 ± 0.003 vs 1.032 ± 0.005 s, L 2.338 ± 0.004 vs 2.348 ± 0.003 s. XL 1-repeat: HF(nntile) 2.287 s vs HF(cuda) 2.289 s.
 
 ## 100-step S (nntile steady state, mean ± stdev over 10 runs)
 
@@ -234,11 +232,10 @@ CSV: [`llama_hf_overhead_s_100.csv`](llama_hf_overhead_s_100.csv) (median of 10 
 
 See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) and
 [`gpt_neox_hf_overhead_scale.md`](gpt_neox_hf_overhead_scale.md) for the GPT-2 and
-GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
-(see recipe). Llama XL is **5120 / T=2560**; GPT-2 / GPT-NeoX XL stay
-5760 / T=2880.
+GPT-NeoX 10× runs. All **Llama** configs use one GPU (see recipe).
+Llama XL is **5120 / T=2560**; GPT-2 / GPT-NeoX XL stay 5760 / T=2880.
 
-| Size | GPT-2 nntile/CUDA | GPT-NeoX nntile/CUDA | Llama nntile/CUDA |
+| Size | GPT-2 HF(nntile)/HF(cuda) | GPT-NeoX HF(nntile)/HF(cuda) | Llama HF(nntile)/HF(cuda) |
 |------|------------------:|---------------------:|------------------:|
 | XS | 0.99× | 1.14× | **1.14×** |
 | S | 0.96× | 1.04× | **1.06×** |
@@ -258,7 +255,7 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 
 ### XS (`hidden_size=1536`, `T=768`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 0.393 ± 0.004 | 0.003 ± 0.000 | 0.027 ± 0.001 | 0.010 ± 0.001 | 0.010 ± 0.002 | 0.000 |
 | 2 | 0.170 ± 0.001 | 0.004 | 0.021 ± 0.001 | 0.010 ± 0.002 | 0.013 ± 0.002 | 0.339 ± 0.005 |
@@ -273,7 +270,7 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 
 ### S (`hidden_size=2048`, `T=1024`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 0.566 ± 0.004 | 0.003 ± 0.000 | 0.027 ± 0.001 | 0.011 ± 0.000 | 0.011 ± 0.001 | 0.000 |
 | 2 | 0.348 ± 0.001 | 0.004 | 0.022 ± 0.002 | 0.012 ± 0.001 | 0.015 ± 0.004 | 0.504 ± 0.004 |
@@ -288,7 +285,7 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 
 ### M (`hidden_size=3072`, `T=1536`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 1.233 ± 0.004 | 0.003 ± 0.001 | 0.028 ± 0.004 | 0.010 ± 0.003 | 0.015 ± 0.002 | 0.000 |
 | 2 | 1.026 ± 0.002 | 0.004 ± 0.001 | 0.022 ± 0.001 | 0.014 ± 0.003 | 0.015 ± 0.002 | 1.169 ± 0.019 |
@@ -303,7 +300,7 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 
 ### L (`hidden_size=4096`, `T=2048`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 2.546 ± 0.026 | 0.003 ± 0.000 | 0.028 ± 0.002 | 0.013 ± 0.001 | 0.016 ± 0.001 | 0.000 |
 | 2 | 2.351 ± 0.004 | 0.004 | 0.022 ± 0.003 | 0.014 ± 0.001 | 0.014 ± 0.003 | 2.466 ± 0.006 |
@@ -318,9 +315,9 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 
 ### XL (`hidden_size=5120`, `T=2560`, 6 layers, head_dim=128, 1 repeat)
 
-`torch.nn` overlap vs CUDA, 2026-08-31. Not a 10-repeat mean.
+HF(nntile) overlap vs HF(cuda). **1 repeat** (not a 10-repeat mean).
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 2.443 | 0.002 | 0.016 | 0.006 | 0.009 | 0.000 |
 | 2 | 2.249 | 0.002 | 0.011 | 0.006 | 0.010 | 2.407 |
@@ -335,9 +332,9 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 
 ## Isolated extra step (mean ± stdev over 10 runs)
 
-XL is **1 repeat** (`torch.nn`, 5120 / T=2560). XS–L are 10-repeat means.
+XL is **1 repeat** (HF(nntile), 5120 / T=2560). XS–L are 10-repeat means.
 
-| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | CUDA isolated |
+| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | HF(cuda) isolated |
 |-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
 | XS | 0.010 ± 0.001 | 0.064 ± 0.003 | 0.026 ± 0.003 | 0.023 ± 0.001 | 0.165 ± 0.001 | **0.188 ± 0.001** | 0.169 ± 0.001 |
 | S | 0.010 ± 0.001 | 0.059 ± 0.003 | 0.025 ± 0.000 | 0.023 ± 0.001 | 0.343 ± 0.002 | **0.366 ± 0.001** | 0.349 ± 0.001 |
@@ -355,7 +352,7 @@ XL is **1 repeat** (`torch.nn`, 5120 / T=2560). XS–L are 10-repeat means.
 
 ## Sequential prep vs compute (`--wait-after-run`)
 
-| Setup | CUDA wall | sequential wall | prep | compute | compute/CUDA | prep/wall |
+| Setup | HF(cuda) wall | sequential wall | prep | compute | compute / HF(cuda) | prep/wall |
 |-------|----------:|----------------:|-----:|--------:|-------------:|----------:|
 | XS T=768 | 1.917 ± 0.008 s | 2.736 ± 0.013 s | 0.683 ± 0.014 s | **2.051 ± 0.012 s** | **1.07×** | 25.0% |
 | S T=1024 | 3.709 ± 0.010 s | 4.503 ± 0.018 s | 0.689 ± 0.014 s | **3.813 ± 0.008 s** | **1.03×** | 15.3% |
@@ -363,9 +360,9 @@ XL is **1 repeat** (`torch.nn`, 5120 / T=2560). XS–L are 10-repeat means.
 | L T=2048 | 23.703 ± 0.065 s | 24.185 ± 0.046 s | 0.642 ± 0.009 s | **23.541 ± 0.047 s** | **0.99×** | 2.7% |
 
 XL sequential (`--wait-after-run`) was not rerun after shrinking
-`llama_xl.json`. 1-repeat overlap is in [Three paths](#three-paths-1-run).
+`llama_xl.json`. HF XL overlap is in [Three setups](#three-setups).
 
-Sequential nntile loss: XS 7.943643, S 8.045213, M 8.244499, L 8.443067.
+Sequential HF(nntile) loss: XS 7.943643, S 8.045213, M 8.244499, L 8.443067.
 
 ### Per iteration (prep / compute, mean ± stdev)
 
@@ -437,18 +434,17 @@ Steady compute after iter 1 (mean over repeats): ~0.183 s (XS),
 1. **`seq_len = hidden_size / 2`**, 12 layers, MATH SDPA attention.
 2. **Graph host overhead is flat** (~0.5 s / 10 steps); share falls as GPU
    work grows (31.6% → 2.6%).
-3. **With VRAM headroom, nntile matches or beats CUDA on wall time**
+3. **With VRAM headroom, HF(nntile) matches or beats HF(cuda) on wall time**
    (XS 1.14×, S 1.06×, M 1.01×, L 1.00×, XL 1.01× 1-repeat).
-4. **Sequential GPU time** (`run+wait`): **1.07× → 1.03× → 1.00× → 0.99×** CUDA (XS–L).
-5. Timings are **mean ± stdev over 10 runs** on the same GPU (XS–L).
-   XL is 1 repeat after the 5120 shrink.
-6. Check **CUDA vs nntile loss** above for training parity beyond XS.
+4. **Sequential GPU time** (`run+wait`): **1.07× → 1.03× → 1.00× → 0.99×** HF(cuda) (XS–L).
+5. Timings are **mean ± stdev over 10 runs** on the same GPU (XS–L HF;
+   nntile(nntile) XS–XL). HF XL is 1 repeat after the 5120 shrink.
+6. Check **HF(cuda) vs HF(nntile) loss** above for training parity beyond XS.
 7. **100-step S** wall **37.449 ± 0.110 s** — see section above.
-8. Classic Llama XL (5120 / T=2560): wall **21.900 s** (**0.96×** CUDA),
-   peak **35.6 GiB**, D2H **0**. `torch.nn` XL is **31.1 GiB** with D2H
-   **0**; CUDA XL is **27.7 GiB**. XS–L classic not rerun. See
-   [Peak VRAM and bus](#peak-vram-and-bus-1-repeat) and
-   [torch_nntile.nn vs CUDA](#torch_nntilenn-vs-cuda).
+8. nntile(nntile) is **0.95–0.98×** HF(cuda) on XS–XL (10 repeats). Peak VRAM: L **42.0 GiB**, XL **35.6 GiB**; D2H **0** on every
+   size. Host share **19.2% → 10.0% → 3.3% → 1.4% → 0.9%**. See
+   [Peak VRAM and bus](#peak-vram-and-bus) and
+   [nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
 
 ## How to reproduce
 
@@ -459,9 +455,12 @@ export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${TORCH_LIB_DIR}:$PWD/build/nntile:$
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
 python3 torch_nntile/tools/run_llama_overhead_benchmark.py \
-  --logdir /tmp/llama_overhead_x10_YYYYMMDD --gpu 2 --repeats 10 --long-steps 100
+  --logdir /tmp/llama_overhead --gpu 0 --repeats 10 --long-steps 100
+
+python3 torch_nntile/tools/run_nntile_native_overhead_benchmark.py \
+  --family llama --logdir /tmp/llama_native --gpu 0 --repeats 10
 
 python3 torch_nntile/tools/update_llama_overhead_doc.py \
-  --summary /tmp/llama_overhead_x10_YYYYMMDD/results_summary.json \
-  --results /tmp/llama_overhead_x10_YYYYMMDD/results.json
+  --summary /tmp/llama_overhead/results_summary.json \
+  --results /tmp/llama_overhead/results.json
 ```

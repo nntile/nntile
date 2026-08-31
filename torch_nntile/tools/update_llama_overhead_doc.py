@@ -14,7 +14,7 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 from overhead_plot import write_long_plots
-from overhead_refs import GPT2_REF, GPT_NEOX_REF
+from overhead_refs import GPT2_REF, GPT_NEOX_REF, NOTATION_HF
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "llama_hf_overhead_scale.md"
@@ -232,7 +232,7 @@ def render_doc(
         )
         if abs(c_loss - n_loss) >= 1e-5:
             loss_notes.append(
-                f"- **{SIZE_LABEL[size]}:** CUDA {c_loss:.6f} vs nntile "
+                f"- **{SIZE_LABEL[size]}:** HF(cuda) {c_loss:.6f} vs HF(nntile) "
                 f"{n_loss:.6f} (Δ {abs(c_loss - n_loss):.6f})."
             )
         overall_rows.append(
@@ -263,7 +263,7 @@ def render_doc(
         )
     else:
         loss_section = (
-            f"Loss matches CUDA vs nntile to printed 1e-5 "
+            f"Loss matches HF(cuda) vs HF(nntile) to printed 1e-5 "
             f"(XS {xs_c_loss:.6f} both)."
         )
 
@@ -390,10 +390,10 @@ CSV: [`llama_hf_overhead_s_{long_steps}.csv`](llama_hf_overhead_s_{long_steps}.c
 
 See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) and
 [`gpt_neox_hf_overhead_scale.md`](gpt_neox_hf_overhead_scale.md) for the GPT-2 and
-GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
+GPT-NeoX 10× runs. All **Llama** configs below use one GPU
 (see recipe).
 
-| Size | GPT-2 nntile/CUDA | GPT-NeoX nntile/CUDA | Llama nntile/CUDA |
+| Size | GPT-2 HF(nntile)/HF(cuda) | GPT-NeoX HF(nntile)/HF(cuda) | Llama HF(nntile)/HF(cuda) |
 |------|------------------:|---------------------:|------------------:|
 {chr(10).join(compare_rows)}
 {compare_long}
@@ -415,7 +415,8 @@ GPT-NeoX 10× runs (A40, Aug 2026). All **Llama** configs below use one GPU
 
     return f"""# Llama HF: graph overhead vs width / seqlen
 
-{prelim_block}Ten-step stock HuggingFace **LlamaForCausalLM** on **CUDA** vs **`device=nntile`**.
+{NOTATION_HF}
+{prelim_block}Ten-step stock HuggingFace **LlamaForCausalLM** on **HF(cuda)** vs **HF(nntile)**.
 Depth is **12 layers** for XS–L (MHA: ``num_key_value_heads = num_attention_heads``).
 **XL** uses **6 layers** with wider ``hidden_size`` (~same parameter count / VRAM as L).
 Width and sequence length grow together with **`seq_len = hidden_size / 2`**. XS uses
@@ -423,8 +424,8 @@ the 2 GiB Llama width (`hidden_size=1536` from
 [`2gb/llama.json`](../../torch_nntile/examples/2gb/llama.json)) with **12 layers**
 instead of that file's 18.
 
-> **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep CUDA
-> well under the card limit on large configs so nntile stays on-device (no
+> **VRAM warning.** Same as GPT-2: nntile keeps extra graph buffers. Keep HF(cuda)
+> well under the card limit on large configs so `device=nntile` stays on-device (no
 > StarPU CPU↔GPU paging).
 
 Configs: [`torch_nntile/examples/overhead_llama/`](../../torch_nntile/examples/overhead_llama/).  
@@ -434,14 +435,14 @@ Benchmark runner: [`run_llama_overhead_benchmark.py`](../../torch_nntile/tools/r
 ## Attention backend
 
 Same as GPT-2 / GPT-NeoX: stock HF Llama with **`attn_implementation="sdpa"`**,
-MATH backend pinned on both CUDA and nntile. CUDA runs with `--disable-tf32`.
+MATH backend pinned on HF(cuda) and HF(nntile). HF(cuda) runs with `--disable-tf32`.
 
 ## Train wall
 
 Same recipe as
 [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md): nntile
 `record → compile → wait(prev) → run`, wall from first record through final
-`wait()`; CUDA synced per iter. Prefetch outside the wall. Iter 1 nntile
+`wait()`; HF(cuda) synced per iter. Prefetch outside the wall. Iter 1 nntile
 `wait=0`; iter 10 `wait` includes the final join.
 
 ## Recipe
@@ -454,18 +455,18 @@ Same recipe as
 | `--seq-len` (`= hidden_size/2`) | **768** | **1024** | **1536** | **2048** | **2560** |
 | Params (FP32) | {PARAMS['xs']} | {PARAMS['s']} | {PARAMS['m']} | {PARAMS['l']} | {PARAMS['xl']} |
 
-B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, CUDA `--disable-tf32`,
-nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 2** for every
-config (`CUDA_VISIBLE_DEVICES=2` via the runner). Separate processes
-(`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the CUDA child).
+B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, HF(cuda) `--disable-tf32`,
+`device=nntile` `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, one GPU per job
+(`CUDA_VISIBLE_DEVICES` via `--gpu`). Separate processes
+(`PYTHONNOUSERSITE=1`; never import `torch_nntile` in the HF(cuda) process).
 **No checkpoints** (`--no-save-checkpoint`; output dirs deleted after each run).
 
-Rerun: 2026-08-26, **{repeats} repeats per configuration** (mean ± stdev;
-`{logdir}`). Includes **S nntile {long_steps}-step** steady-state run per repeat.
+**{repeats} repeats** per configuration (mean ± stdev). Includes **S HF(nntile)
+{long_steps}-step** steady-state run per repeat.
 
 ## Overall (10-step train wall)
 
-| Setup | CUDA wall | nntile wall | nntile/CUDA | record(nntile) | record(torch) | compile | run | wait | host/wall | CUDA loss | nntile loss |
+| Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | HF(cuda) loss | HF(nntile) loss |
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
 {chr(10).join(overall_rows)}
 
@@ -475,7 +476,7 @@ as GPU work grows.
 
 {loss_section}
 
-Isolated GPU `run+wait` vs CUDA isolated wall:
+Isolated GPU `run+wait` vs HF(cuda) isolated wall:
 {', '.join(
     f"{SIZE_LABEL[size]} {ms(g(grp(size, 'nntile', 'overlap')['isolated'], 'run_wait'))} vs "
     f"{ms(g(grp(size, 'cuda', 'overlap')['isolated'], 'cuda_wall'))} s"
@@ -488,37 +489,37 @@ Isolated GPU `run+wait` vs CUDA isolated wall:
 
 ### XS (`hidden_size=1536`, `T=768`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'xs', 'nntile', 'overlap')}
 
 ### S (`hidden_size=2048`, `T=1024`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 's', 'nntile', 'overlap')}
 
 ### M (`hidden_size=3072`, `T=1536`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'm', 'nntile', 'overlap')}
 
 ### L (`hidden_size=4096`, `T=2048`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'l', 'nntile', 'overlap')}
 
 ### XL (`hidden_size=5120`, `T=2560`, 6 layers, head_dim=128)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'xl', 'nntile', 'overlap')}
 
 ## Isolated extra step (mean ± stdev over {repeats} runs)
 
-| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | CUDA isolated |
+| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | HF(cuda) isolated |
 |-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
 {chr(10).join(iso_rows)}
 
@@ -528,11 +529,11 @@ Isolated GPU `run+wait` vs CUDA isolated wall:
 
 ## Sequential prep vs compute (`--wait-after-run`)
 
-| Setup | CUDA wall | sequential wall | prep | compute | compute/CUDA | prep/wall |
+| Setup | HF(cuda) wall | sequential wall | prep | compute | compute / HF(cuda) | prep/wall |
 |-------|----------:|----------------:|-----:|--------:|-------------:|----------:|
 {chr(10).join(seq_rows)}
 
-Sequential nntile loss: {', '.join(seq_loss)}.
+Sequential HF(nntile) loss: {', '.join(seq_loss)}.
 
 ### Per iteration (prep / compute, mean ± stdev)
 
@@ -568,11 +569,11 @@ Steady compute after iter 1 (mean over repeats): ~{steady['xs']:.3f} s (XS),
 1. **`seq_len = hidden_size / 2`**, 12 layers, MATH SDPA attention.
 2. **Graph host overhead is flat** (~0.5 s / 10 steps); share falls as GPU
    work grows ({host_shares[0]} → {host_shares[3]}).
-3. **With VRAM headroom, nntile matches or beats CUDA on wall time**
+3. **With VRAM headroom, HF(nntile) matches or beats HF(cuda) on wall time**
    ({', '.join(ratios)}).
-4. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** CUDA.
+4. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** HF(cuda).
 5. Timings are **mean ± stdev over {repeats} runs** on the same GPU.
-6. Check **CUDA vs nntile loss** above for training parity beyond XS.
+6. Check **HF(cuda) vs HF(nntile) loss** above for training parity beyond XS.
 7. **{long_steps}-step S** wall **{ms_s(g(s1k, 'metrics', 'train_wall_s')) if s1k else 'n/a'}** — see section above.
 
 ## How to reproduce
@@ -584,11 +585,14 @@ export LD_LIBRARY_PATH="${{CONDA_PREFIX}}/lib:${{TORCH_LIB_DIR}}:$PWD/build/nnti
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
 python3 torch_nntile/tools/run_llama_overhead_benchmark.py \\
-  --logdir /tmp/llama_overhead_x10_YYYYMMDD --gpu 2 --repeats 10 --long-steps 100
+  --logdir /tmp/llama_overhead --gpu 0 --repeats 10 --long-steps 100
+
+python3 torch_nntile/tools/run_nntile_native_overhead_benchmark.py \\
+  --family llama --logdir /tmp/llama_native --gpu 0 --repeats 10
 
 python3 torch_nntile/tools/update_llama_overhead_doc.py \\
-  --summary /tmp/llama_overhead_x10_YYYYMMDD/results_summary.json \\
-  --results /tmp/llama_overhead_x10_YYYYMMDD/results.json
+  --summary /tmp/llama_overhead/results_summary.json \\
+  --results /tmp/llama_overhead/results.json
 ```
 """
 
@@ -640,7 +644,7 @@ def main() -> int:
         long_mode=long_mode,
         csv_path=csv_path,
         svg_path=svg_path,
-        title=f"Llama S nntile host overhead per iteration ({long_steps} steps)",
+        title=f"Llama S HF(nntile) host overhead per iteration ({long_steps} steps)",
     ):
         print(f"wrote {csv_path}")
         print(f"wrote {svg_path}")

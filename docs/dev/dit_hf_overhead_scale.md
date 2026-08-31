@@ -1,28 +1,40 @@
 # DiT HF: graph overhead vs width / patch count
 
+**Notation.** Each label is **implementation(backend)**. The word
+*outside* the brackets is the implementation; the word *inside* is the
+backend.
+
+- **HF** — HuggingFace Diffusers `DiTTransformer2DModel`
+  (`diffusers==0.32.2`).
+- **cuda** — PyTorch CUDA (`device=cuda`).
+- **nntile** (as backend) — StarPU / nntile (`device=nntile`).
+
+This study is **HF(cuda)** vs **HF(nntile)** only (no `torch_nntile.models`
+rewrite).
+
 Ten-step stock **Diffusers**
 [`DiTTransformer2DModel`](https://huggingface.co/docs/diffusers/api/models/dit_transformer2d)
-noise-prediction training on **CUDA** vs **`device=nntile`**. Inputs are
+noise-prediction training on **HF(cuda)** vs **HF(nntile)**. Inputs are
 **synthetic diffusion batches** (deterministic `float32` images + noise; no
 `datasets` I/O). Loss is MSE between predicted and target noise
 (`diffusion_mse_loss` in
 [`dit_hf_tiny_train_common.py`](../../torch_nntile/examples/dit_hf_tiny_train_common.py)).
 
-**VRAM ladder (matched to Llama CUDA peaks).** Hidden size follows the Llama
+**VRAM ladder (matched to Llama HF(cuda) peaks).** Hidden size follows the Llama
 overhead rungs (1536 … 5760). `sample_size` is set so patch count
 `(sample_size / patch_size)²` is close to Llama `seq_len` at each rung.
-`num_layers` is searched so **CUDA** 10-step train peak VRAM matches Llama —
-except **XL: 6 layers** (one below the 7-layer CUDA match) so **nntile stays
+`num_layers` is searched so **HF(cuda)** 10-step train peak VRAM matches Llama —
+except **XL: 6 layers** (one below the 7-layer HF(cuda) match) so **HF(nntile) stays
 on-GPU** without StarPU host paging (7 layers gave ~1.10× wall; 6 layers
 ~0.99×).
 
 > **VRAM / nntile.** nntile allocates extra graph buffers. Keep the published
-> configs within device memory on both paths. This study used one **NVIDIA A40**
+> configs within device memory on both setups. This study used one **NVIDIA A40**
 > per job (`CUDA_VISIBLE_DEVICES`); do not overlap processes on one GPU.
 
-Configs: [`torch_nntile/examples/overhead_dit/`](../../torch_nntile/examples/overhead_dit/).  
-Train: [`train_dit_hf_overhead.py`](../../torch_nntile/examples/train_dit_hf_overhead.py).  
-Runner: [`run_dit_overhead_benchmark.py`](../../torch_nntile/tools/run_dit_overhead_benchmark.py).  
+Configs: [`torch_nntile/examples/overhead_dit/`](../../torch_nntile/examples/overhead_dit/).
+Train: [`train_dit_hf_overhead.py`](../../torch_nntile/examples/train_dit_hf_overhead.py).
+Runner: [`run_dit_overhead_benchmark.py`](../../torch_nntile/tools/run_dit_overhead_benchmark.py).
 VRAM search: [`match_dit_vram_to_llama.py`](../../torch_nntile/tools/match_dit_vram_to_llama.py).
 
 ## Model and data
@@ -38,14 +50,14 @@ VRAM search: [`match_dit_vram_to_llama.py`](../../torch_nntile/tools/match_dit_v
 ## Loss
 
 MSE noise prediction: `model(noisy, timestep, class_labels)` vs ground-truth
-`noise` (same reduction on CUDA and nntile).
+`noise` (same reduction on HF(cuda) and HF(nntile)).
 
 ## Train wall
 
 Same protocol as
 [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md): nntile
 `record → compile → wait(prev) → run`, wall from first record through final
-`wait()`; CUDA synchronized per iter. Prefetch outside the wall. Iter 1 nntile
+`wait()`; HF(cuda) synchronized per iter. Prefetch outside the wall. Iter 1 nntile
 `wait=0`; iter 10 `wait` includes the final join.
 
 ## Recipe
@@ -57,17 +69,16 @@ Same protocol as
 | hidden (`heads×head_dim`) | 1536 (24×64) | 2048 (16×128) | 3072 (24×128) | 4096 (32×128) | 5760 (45×128) |
 | `sample_size` | 56 | 64 | 78 | 90 | 108 |
 | patches `T` (`(size/2)²`) | **784** | **1024** | **1521** | **2025** | **2916** |
-| CUDA VRAM target (10-step) | ~3.93 GiB | ~6.49 GiB | ~15.61 GiB | ~29.58 GiB | ~31–32 (6 layers; 7-layer CUDA match caused nntile offload) |
+| HF(cuda) VRAM target (10-step) | ~3.93 GiB | ~6.49 GiB | ~15.61 GiB | ~29.58 GiB | ~31–32 (6 layers; 7-layer HF(cuda) match caused nntile offload) |
 
-Measured on **GPU 1** (NVIDIA A40), **10 repeats** per configuration,
-2026-08-28 ([`benchmark_logs/dit_xsm_20260828_gpu1/`](../../benchmark_logs/dit_xsm_20260828_gpu1/)).
-Includes **S nntile 100-step** steady-state run. Requires
+NVIDIA A40, one GPU per job, **10 repeats** per configuration.
+Includes **S HF(nntile) 100-step** steady-state run. Requires
 `diffusers==0.32.2` (see
 [`reproducibility.md`](reproducibility.md)).
 
 ## Overall (10-step train wall)
 
-| Setup | CUDA wall | nntile wall | nntile/CUDA | record(nntile) | record(torch) | compile | run | wait | host/wall | CUDA loss | nntile loss |
+| Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | HF(cuda) loss | HF(nntile) loss |
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
 | XS T=784 | 1.480 ± 0.059 s | 2.080 ± 0.159 s | **1.41×** | 0.125 ± 0.004 s | 0.428 ± 0.028 s | 0.171 ± 0.014 s | 0.181 ± 0.011 s | 1.174 ± 0.163 s | **35.0%** | 1.209802 | **1.209802** |
 | S T=1024 | 2.841 ± 0.178 s | 3.015 ± 0.171 s | **1.06×** | 0.119 ± 0.010 s | 0.381 ± 0.018 s | 0.142 ± 0.006 s | 0.166 ± 0.013 s | 2.206 ± 0.161 s | **21.3%** | 1.192550 | **1.192550** |
@@ -79,9 +90,9 @@ Host = `record(nntile)+record(torch)+compile` (~0.29–0.51 s for 10 steps,
 **flat**). Host **share** drops **35.0% → 21.3% → 8.1% → 3.6% → 1.9%**
 as GPU work grows.
 
-MSE noise-prediction loss matches CUDA vs nntile to printed 1e-4 at all ladder sizes (XS 1.209802 both).
+MSE noise-prediction loss matches HF(cuda) vs HF(nntile) to printed 1e-4 at all ladder sizes (XS 1.209802 both).
 
-Isolated GPU `run+wait` vs CUDA isolated wall:
+Isolated GPU `run+wait` vs HF(cuda) isolated wall:
 XS 0.158 ± 0.005 vs 0.127 ± 0.001 s, S 0.256 ± 0.002 vs 0.244 ± 0.001 s, M 0.762 ± 0.002 vs 0.766 ± 0.002 s, L 1.862 ± 0.004 vs 1.913 ± 0.005 s, XL 2.535 ± 0.018 vs 2.626 ± 0.016 s.
 
 ## 100-step S (nntile steady state, mean ± stdev over 10 runs)
@@ -110,12 +121,12 @@ CSV: [`dit_hf_overhead_s_100.csv`](dit_hf_overhead_s_100.csv) (median of 10 runs
 ## Comparison to GPT-2 (wall time only)
 
 GPT-2 uses the same **hidden / token-count ladder** but a different task
-(causal LM cross-entropy vs DiT MSE noise prediction). Compare **nntile/CUDA
+(causal LM cross-entropy vs DiT MSE noise prediction). Compare **HF(nntile) / HF(cuda)
 wall ratios** only; loss values are not comparable.
 
-See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
+See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md).
 
-| Size | GPT-2 nntile/CUDA | DiT nntile/CUDA |
+| Size | GPT-2 HF(nntile)/HF(cuda) | DiT HF(nntile)/HF(cuda) |
 |------|------------------:|-----------------:|
 | XS | 0.99× | **1.41×** |
 | S | 0.96× | **1.06×** |
@@ -135,7 +146,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 
 ### XS (hidden 1536, T=784 patches)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 0.342 ± 0.058 | 0.008 ± 0.001 | 0.027 ± 0.002 | 0.011 ± 0.001 | 0.013 ± 0.001 | 0.000 |
 | 2 | 0.126 ± 0.001 | 0.007 ± 0.000 | 0.023 ± 0.002 | 0.011 ± 0.001 | 0.017 ± 0.003 | 0.507 ± 0.161 |
@@ -150,7 +161,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 
 ### S (hidden 2048, T=1024 patches)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 0.638 ± 0.179 | 0.006 ± 0.000 | 0.024 ± 0.001 | 0.011 ± 0.002 | 0.013 ± 0.002 | 0.000 |
 | 2 | 0.245 ± 0.001 | 0.007 ± 0.001 | 0.022 ± 0.001 | 0.011 ± 0.002 | 0.016 ± 0.004 | 0.580 ± 0.164 |
@@ -165,7 +176,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 
 ### M (hidden 3072, T=1521 patches)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 1.179 ± 0.137 | 0.007 | 0.027 ± 0.002 | 0.010 ± 0.000 | 0.013 ± 0.001 | 0.000 |
 | 2 | 0.766 ± 0.002 | 0.007 ± 0.000 | 0.023 ± 0.001 | 0.011 ± 0.001 | 0.015 ± 0.003 | 1.168 ± 0.164 |
@@ -180,7 +191,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 
 ### L (hidden 4096, T=2025 patches)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 2.389 ± 0.170 | 0.007 ± 0.001 | 0.029 ± 0.001 | 0.012 ± 0.001 | 0.014 ± 0.001 | 0.000 |
 | 2 | 1.908 ± 0.003 | 0.007 ± 0.000 | 0.026 ± 0.001 | 0.012 ± 0.001 | 0.017 ± 0.003 | 2.442 ± 0.009 |
@@ -195,7 +206,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 
 ### XL (hidden 5760, T=2916 patches, 6 layers)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 | 1 | 2.978 ± 0.157 | 0.006 ± 0.001 | 0.017 ± 0.001 | 0.006 | 0.008 ± 0.000 | 0.000 |
 | 2 | 2.600 ± 0.015 | 0.004 | 0.014 ± 0.001 | 0.006 ± 0.000 | 0.009 ± 0.001 | 3.331 ± 0.156 |
@@ -210,7 +221,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 
 ## Isolated extra step (mean ± stdev over 10 runs)
 
-| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | CUDA isolated |
+| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | HF(cuda) isolated |
 |-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
 | XS | 0.016 ± 0.002 | 0.063 ± 0.009 | 0.018 ± 0.001 | 0.019 ± 0.002 | 0.139 ± 0.005 | **0.158 ± 0.005** | 0.127 ± 0.001 |
 | S | 0.018 ± 0.004 | 0.058 ± 0.006 | 0.020 ± 0.003 | 0.018 ± 0.002 | 0.239 ± 0.001 | **0.256 ± 0.002** | 0.244 ± 0.001 |
@@ -228,7 +239,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 
 ## Sequential prep vs compute (`--wait-after-run`)
 
-| Setup | CUDA wall | sequential wall | prep | compute | compute/CUDA | prep/wall |
+| Setup | HF(cuda) wall | sequential wall | prep | compute | compute / HF(cuda) | prep/wall |
 |-------|----------:|----------------:|-----:|--------:|-------------:|----------:|
 | XS T=784 | 1.480 ± 0.059 s | 2.709 ± 0.180 s | 0.734 ± 0.009 s | **1.974 ± 0.177 s** | **1.33×** | 27.1% |
 | S T=1024 | 2.841 ± 0.178 s | 3.618 ± 0.146 s | 0.720 ± 0.010 s | **2.896 ± 0.153 s** | **1.02×** | 19.9% |
@@ -236,7 +247,7 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md) (A40, Aug 2026).
 | L T=2025 | 19.541 ± 0.167 s | 19.952 ± 0.035 s | 0.755 ± 0.041 s | **19.195 ± 0.059 s** | **0.98×** | 3.8% |
 | XL T=2916 | 26.490 ± 0.296 s | 26.637 ± 0.192 s | 0.563 ± 0.029 s | **26.070 ± 0.206 s** | **0.98×** | 2.1% |
 
-Sequential nntile loss: XS 1.209802, S 1.192550, M 1.141145, L 1.141843, XL 1.022619.
+Sequential HF(nntile) loss: XS 1.209802, S 1.192550, M 1.141145, L 1.141843, XL 1.022619.
 
 ### Per iteration (prep / compute, mean ± stdev)
 
@@ -320,16 +331,16 @@ Steady compute after iter 1 (mean over repeats): ~0.152 s (XS), ~0.253 s (S), ~0
 ## Takeaways
 
 1. **Diffusers DiT**, synthetic diffusion batches, MSE noise loss; ladder
-   geometry aligned to Llama via hidden size + patch count + CUDA VRAM match.
+   geometry aligned to Llama via hidden size + patch count + HF(cuda) VRAM match.
 2. **Graph host overhead is flat** (~0.3–0.5 s / 10 steps); share falls as GPU
    work grows (35.0% → 1.9%).
-3. **With on-device headroom, nntile is within ~5–40% of CUDA on wall time**
+3. **With on-device headroom, HF(nntile) is within ~5–40% of HF(cuda) on wall time**
    (XS 1.41×, S 1.06×, M 1.01×, L 0.99×, XL 0.99×). XS is host-bound; M/L/XL are near parity.
-4. **XL needs one fewer layer than the CUDA VRAM match** (6 vs 7) to avoid
+4. **XL needs one fewer layer than the HF(cuda) VRAM match** (6 vs 7) to avoid
    nntile host offload; wall ratio improves from ~1.10× to ~0.99×.
-5. **Sequential GPU time** (`run+wait`): **1.33× → 1.02× → 1.00× → 0.98× → 0.98×** vs CUDA.
-6. Timings are **mean ± stdev** over 10 runs (GPU 1).
-7. **MSE loss** matches CUDA vs nntile to ~1e-4 — see loss section above.
+5. **Sequential GPU time** (`run+wait`): **1.33× → 1.02× → 1.00× → 0.98× → 0.98×** vs HF(cuda).
+6. Timings are **mean ± stdev** over 10 runs.
+7. **MSE loss** matches HF(cuda) vs HF(nntile) to ~1e-4 — see loss section above.
 8. **100-step S** wall **26.721 ± 0.274 s** — see section above.
 
 ## How to reproduce
@@ -349,11 +360,10 @@ export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
 # Full ladder, 10 repeats, one GPU:
 .venv/bin/python torch_nntile/tools/run_dit_overhead_benchmark.py \
-  --logdir benchmark_logs/dit_xsm_20260828_gpu1 --gpu 1 --repeats 10
+  --logdir /tmp/dit_overhead --gpu 0 --repeats 10
 
 # Regenerate this doc from parsed logs:
 .venv/bin/python torch_nntile/tools/update_dit_overhead_doc.py \
-  --summary benchmark_logs/dit_xsm_20260828_gpu1/results_summary.json \
-  --results benchmark_logs/dit_xsm_20260828_gpu1/results.json \
-  --logdir benchmark_logs/dit_xsm_20260828_gpu1
+  --summary /tmp/dit_overhead/results_summary.json \
+  --results /tmp/dit_overhead/results.json
 ```

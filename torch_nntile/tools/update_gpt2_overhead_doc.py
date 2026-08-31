@@ -14,6 +14,7 @@ _TOOLS = Path(__file__).resolve().parent
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
 from overhead_plot import write_long_plots
+from overhead_refs import NOTATION_HF
 
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "dev" / "gpt2_hf_overhead_scale.md"
@@ -301,18 +302,19 @@ def render_doc(
 
     return f"""# GPT-2 HF: graph overhead vs width / seqlen
 
-{prelim_block}Ten-step stock HuggingFace GPT-2 on **CUDA** vs **`device=nntile`**.
+{NOTATION_HF}
+{prelim_block}Ten-step stock HuggingFace GPT-2 on **HF(cuda)** vs **HF(nntile)**.
 Depth is **12 layers** everywhere. Width and sequence length grow
 together with **`seq_len = n_embd / 2`**. XS is the 2 GiB GPT-2
 width (`n_embd=1536` from [`2gb/gpt2.json`](../../torch_nntile/examples/2gb/gpt2.json))
 with **12 layers** instead of that file's 20.
 
 > **VRAM warning.** Nntile keeps extra graph buffers, so it uses
-> **more GPU memory than CUDA** on the same model. If that footprint
+> **more GPU memory than HF(cuda)** on the same model. If that footprint
 > no longer fits in device memory, StarPU **moves data between CPU and
-> GPU**. Those transfers dominate step time and make nntile look much
-> slower than CUDA. Keep CUDA well under the card limit (this ladder
-> peaks at ~28 GiB CUDA / ~40 GiB nntile on a 46 GiB A40) so nntile
+> GPU**. Those transfers dominate step time and make HF(nntile) look much
+> slower than HF(cuda). Keep HF(cuda) well under the card limit (this ladder
+> peaks at ~28 GiB HF(cuda) / ~40 GiB nntile on a 46 GiB A40) so nntile
 > stays on-device.
 
 Configs: [`torch_nntile/examples/overhead_gpt2/`](../../torch_nntile/examples/overhead_gpt2/).  
@@ -321,7 +323,7 @@ Benchmark runner: [`run_gpt2_overhead_benchmark.py`](../../torch_nntile/tools/ru
 
 ## Train wall
 
-Nntile:
+On `device=nntile`:
 
 1. Drain leftover work (`wait()`). GPU idle.
 2. **Start timer** — *before* the first `record`.
@@ -332,10 +334,10 @@ Nntile:
 Logs print `elapsed after first record` (~20 ms). That time is inside
 the wall.
 
-CUDA: `synchronize`, start timer, 10 synced steps, stop after the last
+HF(cuda): `synchronize`, start timer, 10 synced steps, stop after the last
 synchronize. Prefetch is outside both walls.
 
-Iter 1 nntile `wait=0` (no previous `run()`). Iter 10 `wait` includes
+Iter 1 on `device=nntile` `wait=0` (no previous `run()`). Iter 10 `wait` includes
 the final join (~2× a steady `wait`).
 
 ## Recipe
@@ -348,19 +350,18 @@ the final join (~2× a steady `wait`).
 | `--seq-len` (`= n_embd/2`) | **768** | **1024** | **1536** | **2048** |
 | Params (FP32) | 344 M (1.28 GiB) | 611 M (2.44 GiB) | 1.37 B (5.49 GiB) | 2.44 B (9.74 GiB) |
 
-B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, CUDA `--disable-tf32`,
-nntile `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, **GPU 0**.
-Separate processes (never import `torch_nntile` in the CUDA child).
+B=1, 10 steps, seed 42, `--no-shuffle`, MATH SDPA, HF(cuda) `--disable-tf32`,
+`device=nntile` `--ncpu 0 --ncuda 1 --restrict-cuda`. NVIDIA A40, one GPU per job.
+Separate processes (never import `torch_nntile` in the HF(cuda) process).
 
-Rerun: 2026-08-25, **{repeats} repeats per configuration** (mean ± stdev;
-`{logdir}`).
+**{repeats} repeats** per configuration (mean ± stdev).
 
 ## Overall (10-step train wall)
 
-Loss matches CUDA vs nntile to printed 1e-6 (XS {xs_loss:.6f} both; L
+Loss matches HF(cuda) vs HF(nntile) to printed 1e-6 (XS {xs_loss:.6f} both; L
 {l_loss:.6f} both).
 
-| Setup | CUDA wall | nntile wall | nntile/CUDA | record(nntile) | record(torch) | compile | run | wait | host/wall | peak VRAM CUDA / nntile |
+| Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | peak VRAM HF(cuda) / HF(nntile) |
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|------------------------:|
 {chr(10).join(overall_rows)}
 
@@ -368,8 +369,8 @@ Host = `record(nntile)+record(torch)+compile` (~0.42–0.47 s for 10
 steps, **flat**). Host **share** drops **{host_shares[0]} → {host_shares[1]} → {host_shares[2]} → {host_shares[3]}**
 as GPU work grows.
 
-On this ladder CUDA stays ≤28 GiB, so nntile's extra ~1–12 GiB still
-fits on the 46 GiB card. Isolated GPU `wait` is then close to CUDA
+On this ladder HF(cuda) stays ≤28 GiB, so HF(nntile)'s extra ~1–12 GiB still
+fits on the 46 GiB card. Isolated GPU `wait` is then close to HF(cuda)
 (XS {ms(g(grp('xs','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('xs','cuda','overlap')['isolated'], 'cuda_wall'))} s,
 S {ms(g(grp('s','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('s','cuda','overlap')['isolated'], 'cuda_wall'))} s,
 M {ms(g(grp('m','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('m','cuda','overlap')['isolated'], 'cuda_wall'))} s,
@@ -379,31 +380,31 @@ L {ms(g(grp('l','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('l',
 
 ### XS (`n_embd=1536`, `T=768`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'xs', 'nntile', 'overlap')}
 
 ### S (`n_embd=2048`, `T=1024`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 's', 'nntile', 'overlap')}
 
 ### M (`n_embd=3072`, `T=1536`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'm', 'nntile', 'overlap')}
 
 ### L (`n_embd=4096`, `T=2048`)
 
-| Iter | CUDA wall | record(nntile) | record(torch) | compile | run | wait |
+| Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
 {iter_mean_table(results, 'l', 'nntile', 'overlap')}
 
 ## Isolated extra step (mean ± stdev over {repeats} runs)
 
-| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | CUDA isolated |
+| Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | HF(cuda) isolated |
 |-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
 {chr(10).join(iso_rows)}
 
@@ -413,7 +414,7 @@ L {ms(g(grp('l','nntile','overlap')['isolated'], 'run_wait'))} vs {ms(g(grp('l',
 
 ## Sequential prep vs compute (`--wait-after-run`)
 
-| Setup | CUDA wall | sequential wall | prep | compute | compute/CUDA | prep/wall |
+| Setup | HF(cuda) wall | sequential wall | prep | compute | compute / HF(cuda) | prep/wall |
 |-------|----------:|----------------:|-----:|--------:|-------------:|----------:|
 {chr(10).join(seq_rows)}
 
@@ -453,8 +454,8 @@ Steady compute after iter 1 (mean over repeats): ~{steady['xs']:.3f} s (XS),
 1. **`seq_len = n_embd / 2`**: XS 768, S 1024, M 1536, L 2048.
 2. **First record is in the wall** (~20 ms after `t0`).
 3. **Host overhead is flat** (~46–50 ms/step). Share **{host_shares[0]} → {host_shares[1]} → {host_shares[2]} → {host_shares[3]}**.
-4. **With VRAM headroom, nntile matches or beats CUDA** ({', '.join(ratios)}).
-5. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** CUDA.
+4. **With VRAM headroom, HF(nntile) matches or beats HF(cuda)** ({', '.join(ratios)}).
+5. **Sequential GPU time** (`run+wait`): **{' → '.join(seq_compute_ratios)}** HF(cuda).
 6. Timings are **mean ± stdev over {repeats} runs** on the same GPU.
 
 ## {long_steps}-step S (nntile, mean ± stdev over {repeats} runs)
@@ -485,11 +486,15 @@ export LD_LIBRARY_PATH="${{CONDA_PREFIX}}/lib:${{TORCH_LIB_DIR}}:$PWD/build/nnti
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
 python3 torch_nntile/tools/run_gpt2_overhead_benchmark.py \\
-  --logdir /tmp/gpt2_overhead_x10_YYYYMMDD --gpu 0 --repeats 10
+  --logdir /tmp/gpt2_overhead --gpu 0 --repeats 10
 
 python3 torch_nntile/tools/update_gpt2_overhead_doc.py \\
-  --summary /tmp/gpt2_overhead_x10_YYYYMMDD/results_summary.json \\
-  --results /tmp/gpt2_overhead_x10_YYYYMMDD/results.json
+  --summary /tmp/gpt2_overhead/results_summary.json \\
+  --results /tmp/gpt2_overhead/results.json
+
+# nntile(nntile) (GPT2LMHead), same configs.
+python3 torch_nntile/tools/run_gpt2_nntile_native_overhead_benchmark.py \\
+  --logdir /tmp/gpt2_native --gpu 0 --repeats 10
 ```
 """
 
@@ -523,7 +528,7 @@ def main() -> int:
         long_mode=long_mode,
         csv_path=csv_path,
         svg_path=svg_path,
-        title=f"GPT-2 S nntile host overhead per iteration ({long_steps} steps)",
+        title=f"GPT-2 S HF(nntile) host overhead per iteration ({long_steps} steps)",
     ):
         print(f"wrote {csv_path}")
         print(f"wrote {svg_path}")
