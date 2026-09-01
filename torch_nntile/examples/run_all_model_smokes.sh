@@ -38,6 +38,7 @@ run_py "${EXAMPLES}/train_gpt_neox.py" train --steps "${STEPS}" --seed "${SEED}"
 run_py "${EXAMPLES}/train_bert.py" train --steps "${STEPS}" --seed "${SEED}" --ncpu "${NCPU}"
 run_py "${EXAMPLES}/train_roberta.py" train --steps "${STEPS}" --seed "${SEED}" --ncpu "${NCPU}"
 run_py "${EXAMPLES}/train_t5.py" train --steps "${STEPS}" --seed "${SEED}" --ncpu "${NCPU}"
+run_py "${EXAMPLES}/train_dit.py" train --steps "${STEPS}" --seed "${SEED}" --ncpu "${NCPU}"
 
 echo "==> train_deep_relu_mnist.py --help"
 python3 "${EXAMPLES}/train_deep_relu_mnist.py" --help >/dev/null

@@ -39,9 +39,22 @@ def count_batch_elems(
     n_labels = 0
     for epoch_data in epoch_batches:
         for batch in epoch_data:
-            n_inputs += int(batch["input_ids"].numel())
-            n_labels += int(batch["labels"].numel())
+            if "input_ids" in batch:
+                n_inputs += int(batch["input_ids"].numel())
+            elif "patches" in batch:
+                n_inputs += int(batch["patches"].numel())
+            if "labels" in batch:
+                n_labels += int(batch["labels"].numel())
+            elif "noise" in batch:
+                n_labels += int(batch["noise"].numel())
     return n_inputs, n_labels
+
+
+def _batch_n(batch: BatchDict) -> int:
+    for key in ("input_ids", "patches"):
+        if key in batch:
+            return int(batch[key].size(0))
+    return int(next(iter(batch.values())).size(0))
 
 
 @torch.no_grad()
@@ -119,6 +132,9 @@ def run_native_overhead(
     try:
         print("Prefetching batches + model to nntile...")
         t_pre0 = time.perf_counter()
+        want_grad = {
+            pname: p.requires_grad for pname, p in cpu_model.named_parameters()
+        }
         with torch.no_grad():
             epoch_batches = preload_batches_to_nntile(epoch_batches_cpu)
             model = cpu_model.to("nntile")
@@ -132,19 +148,17 @@ def run_native_overhead(
         torch_nntile.run()
         del cpu_model
         del epoch_batches_cpu
-        for param in model.parameters():
-            param.requires_grad_(True)
+        for pname, param in model.named_parameters():
+            param.requires_grad_(want_grad.get(pname, True))
 
         batch_sizes = sorted(
             {
-                int(batch["input_ids"].size(0))
+                _batch_n(batch)
                 for epoch_data in epoch_batches
                 for batch in epoch_data
             }
         )
-        _warm_sequence_caches(
-            model, batch_sizes=batch_sizes, seq_len=seq_len
-        )
+        _warm_sequence_caches(model, batch_sizes=batch_sizes, seq_len=seq_len)
         if torch_nntile.has_pending_graph():
             torch_nntile.compile_graph()
             torch_nntile.run()

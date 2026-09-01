@@ -302,3 +302,30 @@ def test_tiled_mlp_mixer():
         _ = out.detach().cpu()
         """
     )
+
+
+def test_tiled_dit():
+    _run(
+        """
+        from torch_nntile.models.dit import DiT, DiTConfig
+        cfg = DiTConfig(
+            sample_size=8, patch_size=2, in_channels=3,
+            num_layers=1, num_attention_heads=2, attention_head_dim=8,
+            num_embeds_ada_norm=8,
+        )
+        model = DiT(cfg).eval().float().to("nntile")
+        patches = torch.randn(2, cfg.num_patches, cfg.patch_dim)
+        patches = patches.contiguous().to("nntile")
+        timestep = torch.randint(0, cfg.num_embeds_ada_norm, (2,))
+        timestep = timestep.to(dtype=torch.long).contiguous().to("nntile")
+        labels = torch.randint(0, cfg.num_embeds_ada_norm, (2,))
+        labels = labels.to(dtype=torch.long).contiguous().to("nntile")
+        out = model(patches, timestep, labels)
+        for t in (patches, timestep, labels, out):
+            torch_nntile.set_axis_group_name(t, {0: "batch"})
+        torch_nntile.set_axis_group_tiling("batch", [1, 1])
+        torch_nntile.execute()
+        assert_classic_graph()
+        _ = out.detach().cpu()
+        """
+    )

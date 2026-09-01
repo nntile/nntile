@@ -12,6 +12,9 @@ classic NNTile tiled / hand-written ops (``gemm``, ``rope``, ``sum_slice``,
 
 from __future__ import annotations
 
+import torch
+from torch import Tensor
+
 from torch_nntile.add_fiber import add_fiber
 from torch_nntile.gemm import gemm, matmul
 from torch_nntile.loss import cross_entropy, mse_loss
@@ -25,10 +28,49 @@ from torch_nntile.nn.sdpa import sdpa_eager, sdpa_kernel
 from torch_nntile.rope import rope, rope_sin_cos_from_position_ids
 from torch_nntile.sum_slice import gap, sum_slice
 
+
+def cat(a: Tensor, b: Tensor, dim: int = -1) -> Tensor:
+    """Classic two-tensor ``cat`` (autograd)."""
+    if a.device.type != "nntile":
+        return torch.cat((a, b), dim=dim)
+    from torch_nntile import _C
+
+    return _C.cat(a, b, dim)
+
+
+def narrow(input: Tensor, dim: int, start: int, length: int) -> Tensor:
+    """Classic densifying ``narrow`` (autograd)."""
+    if input.device.type != "nntile":
+        return input.narrow(dim, start, length)
+    from torch_nntile import _C
+
+    return _C.narrow(input, dim, start, length)
+
+
+def scale_slice(
+    input: Tensor,
+    axis: int,
+    axis_size: int,
+    alpha: float = 1.0,
+) -> Tensor:
+    """Insert ``axis_size`` at ``axis`` (``out = alpha * src``)."""
+    if input.device.type != "nntile":
+        shape = list(input.shape)
+        axis = axis if axis >= 0 else axis + input.dim() + 1
+        shape.insert(axis, axis_size)
+        view = list(input.shape)
+        view.insert(axis, 1)
+        return (alpha * input).reshape(view).expand(shape).contiguous()
+    from torch_nntile import _C
+
+    return _C.scale_slice(input, axis, axis_size, alpha)
+
+
 __all__ = [
     "add",
     "add_fiber",
     "apply_nntile_patches",
+    "cat",
     "cross_entropy",
     "embedding",
     "gap",
@@ -39,10 +81,12 @@ __all__ = [
     "mul",
     "mul_scalar",
     "mse_loss",
+    "narrow",
     "relu",
     "rms_norm",
     "rope",
     "rope_sin_cos_from_position_ids",
+    "scale_slice",
     "sdpa_eager",
     "sdpa_kernel",
     "silu",

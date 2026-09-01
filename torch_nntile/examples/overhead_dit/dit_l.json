@@ -1,10 +1,10 @@
 {
-  "_comment": "Overhead L: 12 layers, hidden=4096, sample_size=90 (2025 patches) (CUDA VRAM matched to Llama ~29.58 GiB)",
+  "_comment": "Overhead L: 11 layers, hidden=4096, sample_size=90 (2025 patches). 12 layers paged on nntile(nntile) (A40, STARPU_LIMIT_CUDA_MEM=46000); 11 fits with D2H 0 (~42.7 GiB).",
   "sample_size": 90,
   "patch_size": 2,
   "in_channels": 3,
   "out_channels": 3,
-  "num_layers": 12,
+  "num_layers": 11,
   "attention_head_dim": 128,
   "num_attention_heads": 32,
   "dropout": 0.0,

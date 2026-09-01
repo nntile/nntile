@@ -81,6 +81,16 @@ FAMILIES = {
             "xl": ("t5_xl.json", 2880),
         },
     ),
+    "dit": (
+        REPO / "torch_nntile" / "examples" / "overhead_dit",
+        {
+            "xs": ("dit_xs.json", 784),
+            "s": ("dit_s.json", 1024),
+            "m": ("dit_m.json", 1521),
+            "l": ("dit_l.json", 2025),
+            "xl": ("dit_xl.json", 2916),
+        },
+    ),
 }
 
 
@@ -259,7 +269,9 @@ def run_one(
     env.setdefault("PYTHONNOUSERSITE", "1")
     env["CUDA_VISIBLE_DEVICES"] = gpu
     examples = str(REPO / "torch_nntile" / "examples")
-    env["PYTHONPATH"] = f"{REPO / 'torch_nntile'}:{examples}"
+    extra_pp = os.environ.get("PYTHONPATH", "")
+    prefix = f"{REPO / 'torch_nntile'}:{examples}"
+    env["PYTHONPATH"] = f"{extra_pp}:{prefix}" if extra_pp else prefix
     cmd = [
         sys.executable,
         "-u",
@@ -354,8 +366,7 @@ def main() -> int:
         )
         for size in want:
             print(
-                f"run {args.family} {size} nntile_native overlap "
-                f"rep={repeat}",
+                f"run {args.family} {size} nntile_native overlap rep={repeat}",
                 flush=True,
             )
             results.append(

@@ -84,12 +84,11 @@ nntile(nntile) uses `STARPU_LIMIT_CUDA_MEM=46000`.
 
 HF(cuda) / HF(nntile): **10 repeats** (mean ± stdev) plus **S HF(nntile) 100-step**.
 nntile(nntile): **10 repeats** (mean ± stdev), `STARPU_LIMIT_CUDA_MEM=46000`.
-HF XL is **1 repeat** on `llama_xl.json` (5120 / T=2560).
 
 ## Three setups
 
-Same recipe. Walls are **10-repeat** means except HF XL (1 repeat after
-the 5120 shrink). nntile(nntile) record breakdown is in
+Same recipe. Walls are **10-repeat** means. nntile(nntile) record
+breakdown is in
 [nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
 
 ### Loss
@@ -107,8 +106,7 @@ All three setups match to printed 1e-6.
 ### 10-step train wall
 
 **10 repeats** (mean ± stdev), `STARPU_LIMIT_CUDA_MEM=46000`. XL is
-**5120 / T=2560**. HF(cuda) / HF(nntile) XL are 1-repeat (no 10-repeat
-at 5120).
+**5120 / T=2560**.
 
 | Setup | HF(cuda) | HF(nntile) | nntile(nntile) | HF(nntile) / HF(cuda) | nntile(nntile) / HF(cuda) |
 |-------|-----:|---------:|----------------:|--------------:|-------------:|
@@ -116,9 +114,9 @@ at 5120).
 | S T=1024 | 3.709 ± 0.010 s | 3.932 ± 0.012 s | 3.569 ± 0.012 s | **1.06×** | **0.96×** |
 | M T=1536 | 10.496 ± 0.014 s | 10.632 ± 0.040 s | 10.163 ± 0.016 s | **1.01×** | **0.97×** |
 | L T=2048 | 23.703 ± 0.065 s | 23.677 ± 0.049 s | 22.961 ± 0.060 s | **1.00×** | **0.97×** |
-| XL T=2560 | 22.874 s | 23.000 s | 22.306 ± 0.115 s | **1.01×** | **0.98×** |
+| XL T=2560 | 22.885 ± 0.077 s | 22.663 ± 0.115 s | 22.306 ± 0.115 s | **0.99×** | **0.97×** |
 
-nntile(nntile) is **0.95–0.98×** HF(cuda). No StarPU paging.
+nntile(nntile) is **0.95–0.97×** HF(cuda). No StarPU paging.
 
 ### Peak VRAM and bus
 
@@ -140,8 +138,8 @@ No D2H on any nntile setup. nntile(nntile) L (12 layers) peaks above XL
 
 nntile(nntile) only, overlap, 10 steps, **10 repeats** (mean ± stdev).
 `STARPU_LIMIT_CUDA_MEM=46000`. XL is **5120 / 40 heads / T=2560**.
-HF(cuda) walls for XS–L are the published 10-repeat means; XL is the
-1-repeat 5120 wall. Peak VRAM / H2D / D2H below are **nntile(nntile)**.
+HF(cuda) walls are the published 10-repeat means. Peak VRAM / H2D / D2H
+below are **nntile(nntile)**.
 HF(cuda) VRAM and HF(nntile) bus stats are in
 [Peak VRAM and bus](#peak-vram-and-bus).
 
@@ -151,7 +149,7 @@ HF(cuda) VRAM and HF(nntile) bus stats are in
 | S T=1024 | 3.709 ± 0.010 s | 3.569 ± 0.012 s | **0.96×** | 0.344 ± 0.002 s | 9.9 GiB | 3.03 GB | **0** | **10.0%** | 8.045214 |
 | M T=1536 | 10.496 ± 0.014 s | 10.163 ± 0.016 s | **0.97×** | 1.005 ± 0.004 s | 22.9 GiB | 6.80 GB | **0** | **3.3%** | 8.244499 |
 | L T=2048 | 23.703 ± 0.065 s | 22.961 ± 0.060 s | **0.97×** | 2.297 ± 0.009 s | **42.0 GiB** | 12.07 GB | **0** | **1.4%** | 8.443068 |
-| XL T=2560 | 22.874 s | 22.306 ± 0.115 s | **0.98×** | 2.232 ± 0.012 s | **35.6 GiB** | 9.46 GB | **0** | **0.9%** | 8.657223 |
+| XL T=2560 | 22.885 ± 0.077 s | 22.306 ± 0.115 s | **0.97×** | 2.232 ± 0.012 s | **35.6 GiB** | 9.46 GB | **0** | **0.9%** | 8.657223 |
 
 Host = `record(nntile)+record(torch)+compile`. Host **share** drops
 **19.2% → 10.0% → 3.3% → 1.4% → 0.9%**.
@@ -175,7 +173,7 @@ No StarPU reclaim. D2H is **0** on every size. XL bus at shutdown
 
 nntile(nntile) Llama **fits** on the A40 on every size (D2H **0**), unlike
 the old 5760 / T=2880 XL. Isolated XL 2.232 ± 0.012 s is slightly under
-HF(cuda) isolated 2.289 s and HF(nntile) 2.287 s.
+HF(cuda) isolated 2.281 ± 0.013 s and HF(nntile) 2.253 ± 0.013 s.
 
 Llama `_apply_rope` already keeps `sin`/`cos` as `[B, S, 64]` (no
 `scale_slice` expand to heads). Remaining extra footprint vs T5 is
@@ -186,9 +184,7 @@ activations × 6 ≈ **4.7 GiB/step**) vs T5 ReLU FF.
 
 VRAM for HF(cuda) / HF(nntile) / nntile(nntile) is in
 [Peak VRAM and bus](#peak-vram-and-bus) (`nvidia-smi`).
-XL 10-repeat walls below are **omitted** (they were the old 5760 /
-T=2880 config). HF XL at 5120 / T=2560 is in
-[Three setups](#three-setups).
+XL is **5120 / T=2560**, 10 repeats.
 
 | Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | HF(cuda) loss | HF(nntile) loss |
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
@@ -196,15 +192,16 @@ T=2880 config). HF XL at 5120 / T=2560 is in
 | S T=1024 | 3.709 ± 0.010 s | 3.932 ± 0.012 s | **1.06×** | 0.070 ± 0.004 s | 0.399 ± 0.032 s | 0.186 ± 0.007 s | 0.195 ± 0.012 s | 3.083 ± 0.042 s | **16.6%** | 8.045213 | **8.045213** |
 | M T=1536 | 10.496 ± 0.014 s | 10.632 ± 0.040 s | **1.01×** | 0.065 ± 0.003 s | 0.380 ± 0.014 s | 0.175 ± 0.013 s | 0.189 ± 0.008 s | 9.822 ± 0.029 s | **5.8%** | 8.244499 | **8.244499** |
 | L T=2048 | 23.703 ± 0.065 s | 23.677 ± 0.049 s | **1.00×** | 0.064 ± 0.003 s | 0.376 ± 0.015 s | 0.171 ± 0.005 s | 0.189 ± 0.008 s | 22.875 ± 0.036 s | **2.6%** | 8.443067 | **8.443067** |
+| XL T=2560 | 22.885 ± 0.077 s | 22.663 ± 0.115 s | **0.99×** | 0.048 ± 0.008 s | 0.251 ± 0.021 s | 0.116 ± 0.016 s | 0.126 ± 0.016 s | 22.120 ± 0.163 s | **1.8%** | 8.657223 | **8.657223** |
 
-Host = `record(nntile)+record(torch)+compile` (~0.50–0.59 s for 10 steps,
-**flat**). Host **share** drops **31.6% → 16.6% → 5.8% → 2.6%**
-as GPU work grows (XS–L).
+Host = `record(nntile)+record(torch)+compile` (~0.42–0.69 s for 10 steps,
+**flat**). Host **share** drops **31.6% → 16.6% → 5.8% → 2.6% → 1.8%**
+as GPU work grows.
 
 Loss matches HF(cuda) vs HF(nntile) to printed 1e-5 (XS 7.943643 both).
 
 Isolated GPU `run+wait` vs HF(cuda) isolated wall:
-XS 0.188 ± 0.001 vs 0.169 ± 0.001 s, S 0.366 ± 0.001 vs 0.349 ± 0.001 s, M 1.037 ± 0.003 vs 1.032 ± 0.005 s, L 2.338 ± 0.004 vs 2.348 ± 0.003 s. XL 1-repeat: HF(nntile) 2.287 s vs HF(cuda) 2.289 s.
+XS 0.188 ± 0.001 vs 0.169 ± 0.001 s, S 0.366 ± 0.001 vs 0.349 ± 0.001 s, M 1.037 ± 0.003 vs 1.032 ± 0.005 s, L 2.338 ± 0.004 vs 2.348 ± 0.003 s, XL 2.253 ± 0.013 vs 2.281 ± 0.013 s.
 
 ## 100-step S (nntile steady state, mean ± stdev over 10 runs)
 
@@ -241,7 +238,7 @@ Llama XL is **5120 / T=2560**; GPT-2 / GPT-NeoX XL stay 5760 / T=2880.
 | S | 0.96× | 1.04× | **1.06×** |
 | M | 0.94× | 1.03× | **1.01×** |
 | L | 0.94× | 1.00× | **1.00×** |
-| XL | 0.96× | 1.01× | **1.01×** (1 repeat) |
+| XL | 0.96× | 1.01× | **0.99×** |
 
 ### 100-step S (nntile)
 
@@ -313,26 +310,22 @@ Llama XL is **5120 / T=2560**; GPT-2 / GPT-NeoX XL stay 5760 / T=2880.
 | 9 | 2.348 ± 0.009 | 0.008 ± 0.001 | 0.049 ± 0.002 | 0.019 ± 0.002 | 0.021 ± 0.003 | 2.249 ± 0.011 |
 | 10 | 2.348 ± 0.005 | 0.007 ± 0.001 | 0.048 ± 0.006 | 0.022 ± 0.001 | 0.019 ± 0.003 | 4.575 ± 0.015 |
 
-### XL (`hidden_size=5120`, `T=2560`, 6 layers, head_dim=128, 1 repeat)
-
-HF(nntile) overlap vs HF(cuda). **1 repeat** (not a 10-repeat mean).
+### XL (`hidden_size=5120`, `T=2560`, 6 layers, head_dim=128)
 
 | Iter | HF(cuda) wall | record(nntile) | record(torch) | compile | run | wait |
 |-----:|----------:|---------------:|--------------:|--------:|----:|-----:|
-| 1 | 2.443 | 0.002 | 0.016 | 0.006 | 0.009 | 0.000 |
-| 2 | 2.249 | 0.002 | 0.011 | 0.006 | 0.010 | 2.407 |
-| 3 | 2.259 | 0.005 | 0.020 | 0.011 | 0.015 | 2.223 |
-| 4 | 2.263 | 0.005 | 0.021 | 0.012 | 0.014 | 2.216 |
-| 5 | 2.268 | 0.006 | 0.026 | 0.014 | 0.018 | 2.221 |
-| 6 | 2.272 | 0.007 | 0.029 | 0.014 | 0.014 | 2.209 |
-| 7 | 2.277 | 0.006 | 0.029 | 0.014 | 0.014 | 2.221 |
-| 8 | 2.277 | 0.007 | 0.037 | 0.015 | 0.018 | 2.211 |
-| 9 | 2.282 | 0.007 | 0.027 | 0.014 | 0.015 | 2.221 |
-| 10 | 2.283 | 0.007 | 0.025 | 0.017 | 0.018 | 4.507 |
+| 1 | 2.449 ± 0.008 | 0.002 | 0.017 ± 0.001 | 0.006 ± 0.001 | 0.009 ± 0.001 | 0.000 |
+| 2 | 2.264 ± 0.008 | 0.002 ± 0.000 | 0.012 ± 0.000 | 0.006 ± 0.000 | 0.008 ± 0.001 | 2.400 ± 0.088 |
+| 3 | 2.266 ± 0.008 | 0.003 ± 0.000 | 0.017 ± 0.001 | 0.009 ± 0.002 | 0.012 ± 0.003 | 2.198 ± 0.009 |
+| 4 | 2.267 ± 0.008 | 0.004 ± 0.001 | 0.020 ± 0.002 | 0.011 ± 0.002 | 0.012 ± 0.002 | 2.192 ± 0.011 |
+| 5 | 2.269 ± 0.007 | 0.005 ± 0.001 | 0.024 ± 0.003 | 0.013 ± 0.002 | 0.014 ± 0.002 | 2.188 ± 0.010 |
+| 6 | 2.272 ± 0.006 | 0.006 ± 0.001 | 0.029 ± 0.004 | 0.013 ± 0.002 | 0.015 ± 0.003 | 2.181 ± 0.009 |
+| 7 | 2.273 ± 0.007 | 0.006 ± 0.001 | 0.030 ± 0.004 | 0.013 ± 0.002 | 0.013 ± 0.003 | 2.177 ± 0.013 |
+| 8 | 2.272 ± 0.010 | 0.006 ± 0.001 | 0.034 ± 0.004 | 0.014 ± 0.002 | 0.015 ± 0.003 | 2.182 ± 0.011 |
+| 9 | 2.275 ± 0.010 | 0.007 ± 0.001 | 0.034 ± 0.005 | 0.013 ± 0.002 | 0.013 ± 0.003 | 2.179 ± 0.014 |
+| 10 | 2.277 ± 0.012 | 0.007 ± 0.002 | 0.034 ± 0.003 | 0.015 ± 0.003 | 0.014 ± 0.003 | 4.423 ± 0.023 |
 
 ## Isolated extra step (mean ± stdev over 10 runs)
-
-XL is **1 repeat** (HF(nntile), 5120 / T=2560). XS–L are 10-repeat means.
 
 | Setup | record(nntile) | record(torch) | compile | run | wait | run+wait | HF(cuda) isolated |
 |-------|---------------:|--------------:|--------:|----:|-----:|---------:|--------------:|
@@ -340,7 +333,7 @@ XL is **1 repeat** (HF(nntile), 5120 / T=2560). XS–L are 10-repeat means.
 | S | 0.010 ± 0.001 | 0.059 ± 0.003 | 0.025 ± 0.000 | 0.023 ± 0.001 | 0.343 ± 0.002 | **0.366 ± 0.001** | 0.349 ± 0.001 |
 | M | 0.009 ± 0.001 | 0.054 ± 0.003 | 0.023 ± 0.001 | 0.021 ± 0.001 | 1.016 ± 0.003 | **1.037 ± 0.003** | 1.032 ± 0.005 |
 | L | 0.007 ± 0.001 | 0.051 ± 0.010 | 0.020 ± 0.003 | 0.018 ± 0.003 | 2.320 ± 0.004 | **2.338 ± 0.004** | 2.348 ± 0.003 |
-| XL | 0.007 | 0.028 | 0.014 | 0.014 | 2.273 | **2.287** | 2.289 |
+| XL | 0.007 ± 0.001 | 0.038 ± 0.004 | 0.015 ± 0.001 | 0.013 ± 0.002 | 2.240 ± 0.014 | **2.253 ± 0.013** | 2.281 ± 0.013 |
 
 | Setup | Full isolated (record+compile+run+wait) | Hidden host (`run+wait`) | Saved |
 |-------|----------------------------------------:|-------------------------:|------:|
@@ -348,7 +341,7 @@ XL is **1 repeat** (HF(nntile), 5120 / T=2560). XS–L are 10-repeat means.
 | S | 0.460 s | 0.366 s | 0.093 s (**20%**) |
 | M | 1.123 s | 1.037 s | 0.086 s (**8%**) |
 | L | 2.417 s | 2.338 s | 0.079 s (**3%**) |
-| XL | 3.336 s | 2.287 s | 0.049 s (**2%**) |
+| XL | 2.313 s | 2.253 s | 0.060 s (**3%**) |
 
 ## Sequential prep vs compute (`--wait-after-run`)
 
@@ -358,11 +351,9 @@ XL is **1 repeat** (HF(nntile), 5120 / T=2560). XS–L are 10-repeat means.
 | S T=1024 | 3.709 ± 0.010 s | 4.503 ± 0.018 s | 0.689 ± 0.014 s | **3.813 ± 0.008 s** | **1.03×** | 15.3% |
 | M T=1536 | 10.496 ± 0.014 s | 11.153 ± 0.027 s | 0.657 ± 0.018 s | **10.495 ± 0.016 s** | **1.00×** | 5.9% |
 | L T=2048 | 23.703 ± 0.065 s | 24.185 ± 0.046 s | 0.642 ± 0.009 s | **23.541 ± 0.047 s** | **0.99×** | 2.7% |
+| XL T=2560 | 22.885 ± 0.077 s | 23.252 ± 0.105 s | 0.474 ± 0.012 s | **22.776 ± 0.111 s** | **1.00×** | 2.0% |
 
-XL sequential (`--wait-after-run`) was not rerun after shrinking
-`llama_xl.json`. HF XL overlap is in [Three setups](#three-setups).
-
-Sequential HF(nntile) loss: XS 7.943643, S 8.045213, M 8.244499, L 8.443067.
+Sequential HF(nntile) loss: XS 7.943643, S 8.045213, M 8.244499, L 8.443067, XL 8.657223.
 
 ### Per iteration (prep / compute, mean ± stdev)
 
@@ -426,22 +417,36 @@ Sequential HF(nntile) loss: XS 7.943643, S 8.045213, M 8.244499, L 8.443067.
 | 9 | 0.077 ± 0.006 | 2.333 ± 0.006 | 0.009 ± 0.001 | 0.046 ± 0.005 | 0.022 ± 0.002 | 0.018 ± 0.001 | 2.315 ± 0.007 |
 | 10 | 0.083 ± 0.005 | 2.338 ± 0.003 | 0.009 ± 0.001 | 0.051 ± 0.003 | 0.022 ± 0.003 | 0.018 ± 0.002 | 2.319 ± 0.004 |
 
+#### XL (`T=2560`)
+
+| Iter | prep | compute | record(nntile) | record(torch) | compile | run | wait |
+|-----:|-----:|--------:|---------------:|--------------:|--------:|----:|-----:|
+| 1 | 0.026 ± 0.002 | 2.422 ± 0.010 | 0.002 ± 0.000 | 0.017 ± 0.001 | 0.006 ± 0.001 | 0.009 ± 0.001 | 2.413 ± 0.010 |
+| 2 | 0.028 ± 0.002 | 2.251 ± 0.011 | 0.004 ± 0.000 | 0.016 ± 0.001 | 0.008 ± 0.001 | 0.007 ± 0.001 | 2.243 ± 0.012 |
+| 3 | 0.038 ± 0.004 | 2.254 ± 0.010 | 0.006 ± 0.001 | 0.020 ± 0.002 | 0.012 ± 0.002 | 0.011 ± 0.002 | 2.243 ± 0.011 |
+| 4 | 0.044 ± 0.003 | 2.256 ± 0.009 | 0.006 ± 0.001 | 0.024 ± 0.001 | 0.014 ± 0.001 | 0.012 ± 0.001 | 2.244 ± 0.009 |
+| 5 | 0.052 ± 0.005 | 2.259 ± 0.007 | 0.007 ± 0.001 | 0.029 ± 0.004 | 0.015 ± 0.002 | 0.013 ± 0.001 | 2.246 ± 0.006 |
+| 6 | 0.053 ± 0.004 | 2.262 ± 0.010 | 0.007 ± 0.001 | 0.030 ± 0.002 | 0.015 ± 0.002 | 0.013 ± 0.002 | 2.248 ± 0.011 |
+| 7 | 0.054 ± 0.003 | 2.264 ± 0.014 | 0.007 ± 0.001 | 0.033 ± 0.001 | 0.015 ± 0.001 | 0.013 ± 0.001 | 2.251 ± 0.014 |
+| 8 | 0.060 ± 0.004 | 2.267 ± 0.015 | 0.008 ± 0.001 | 0.037 ± 0.003 | 0.015 ± 0.002 | 0.013 ± 0.002 | 2.254 ± 0.016 |
+| 9 | 0.060 ± 0.003 | 2.269 ± 0.014 | 0.008 ± 0.001 | 0.037 ± 0.001 | 0.015 ± 0.002 | 0.013 ± 0.002 | 2.257 ± 0.014 |
+| 10 | 0.059 ± 0.009 | 2.272 ± 0.013 | 0.008 ± 0.001 | 0.034 ± 0.005 | 0.017 ± 0.006 | 0.014 ± 0.003 | 2.258 ± 0.015 |
+
 Steady compute after iter 1 (mean over repeats): ~0.183 s (XS),
-~0.360 s (S), ~1.029 s (M), ~2.337 s (L).
+~0.360 s (S), ~1.029 s (M), ~2.337 s (L), ~2.262 s (XL).
 
 ## Takeaways
 
 1. **`seq_len = hidden_size / 2`**, 12 layers, MATH SDPA attention.
-2. **Graph host overhead is flat** (~0.5 s / 10 steps); share falls as GPU
-   work grows (31.6% → 2.6%).
+2. **Graph host overhead is flat** (~0.4–0.7 s / 10 steps); share falls as GPU
+   work grows (31.6% → 1.8%).
 3. **With VRAM headroom, HF(nntile) matches or beats HF(cuda) on wall time**
-   (XS 1.14×, S 1.06×, M 1.01×, L 1.00×, XL 1.01× 1-repeat).
-4. **Sequential GPU time** (`run+wait`): **1.07× → 1.03× → 1.00× → 0.99×** HF(cuda) (XS–L).
-5. Timings are **mean ± stdev over 10 runs** on the same GPU (XS–L HF;
-   nntile(nntile) XS–XL). HF XL is 1 repeat after the 5120 shrink.
+   (XS 1.14×, S 1.06×, M 1.01×, L 1.00×, XL **0.99×**).
+4. **Sequential GPU time** (`run+wait`): **1.07× → 1.03× → 1.00× → 0.99× → 1.00×** vs HF(cuda).
+5. Timings are **mean ± stdev over 10 runs** on the same GPU (all sizes).
 6. Check **HF(cuda) vs HF(nntile) loss** above for training parity beyond XS.
 7. **100-step S** wall **37.449 ± 0.110 s** — see section above.
-8. nntile(nntile) is **0.95–0.98×** HF(cuda) on XS–XL (10 repeats). Peak VRAM: L **42.0 GiB**, XL **35.6 GiB**; D2H **0** on every
+8. nntile(nntile) is **0.95–0.97×** HF(cuda) on XS–XL (10 repeats). Peak VRAM: L **42.0 GiB**, XL **35.6 GiB**; D2H **0** on every
    size. Host share **19.2% → 10.0% → 3.3% → 1.4% → 0.9%**. See
    [Peak VRAM and bus](#peak-vram-and-bus) and
    [nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).

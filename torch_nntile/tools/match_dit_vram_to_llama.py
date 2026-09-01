@@ -33,6 +33,11 @@ DIT_SHAPE = {
     "xl": (45, 128, 108),
 }
 
+# Largest depth with nntile(nntile) D2H=0 on an A40
+# (STARPU_LIMIT_CUDA_MEM=46000). CUDA VRAM match wanted L=12 / XL=7;
+# XL was already 6 for HF(nntile); nntile(nntile) needs L=11 / XL=5.
+NNTILE_FIT_MAX_LAYERS = {"l": 11, "xl": 5}
+
 
 def _llama_train_cmd(config: Path, seq_len: int, out: str) -> list[str]:
     return [
@@ -282,17 +287,29 @@ def main() -> None:
         print("\n=== Writing overhead_dit/*.json ===", flush=True)
         for size, (layers, peak) in matches.items():
             num_heads, head_dim, sample_size = DIT_SHAPE[size]
+            cap = NNTILE_FIT_MAX_LAYERS.get(size)
+            write_layers = layers if cap is None else min(layers, cap)
             path = DIT_DIR / f"dit_{size}.json"
             write_dit_config(
                 path,
                 num_heads=num_heads,
                 head_dim=head_dim,
                 sample_size=sample_size,
-                num_layers=layers,
+                num_layers=write_layers,
                 size=size,
                 target_gib=llama_targets[size],
             )
-            print(f"  wrote {path}  (layers={layers}, {peak:.3f} GiB)", flush=True)
+            extra = ""
+            if cap is not None and write_layers < layers:
+                extra = (
+                    f" (CUDA match {layers} capped to {write_layers} "
+                    "for nntile(nntile) D2H=0)"
+                )
+            print(
+                f"  wrote {path}  (layers={write_layers}, "
+                f"CUDA peak {peak:.3f} GiB){extra}",
+                flush=True,
+            )
 
     summary = {
         "llama_gib": llama_targets,

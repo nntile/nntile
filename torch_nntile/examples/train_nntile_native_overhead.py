@@ -5,7 +5,11 @@
 # @file torch_nntile/examples/train_nntile_native_overhead.py
 # Overhead train for torch_nntile.models (HF init, classic kernels).
 
-"""Classic-kernel overhead trainer. HF is used only to initialize weights."""
+"""Classic-kernel overhead trainer. HF is used only to initialize weights.
+
+DiT (``--family dit``): host patchify + integer timesteps, then
+``torch_nntile.models.DiT`` noise-prediction MSE on ``device=nntile``.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ import torch
 from hf_tiny_train_common import (
     configure_single_thread_host,
     load_hf_config_from_json,
+    load_json_object,
     make_encoder_decoder_batch,
     make_mlm_batch,
 )
@@ -164,6 +169,46 @@ def t5_epochs(
     return epochs
 
 
+def dit_epochs(
+    config,
+    args: argparse.Namespace,
+) -> list[list[BatchDict]]:
+    from dit_hf_tiny_train_common import make_synthetic_diffusion_batch
+    from torch_nntile.models.dit import (
+        nchw_to_unpatchify_tokens,
+        patchify_nchw,
+    )
+
+    patch = int(config.patch_size)
+    sample = int(config.sample_size)
+    in_channels = int(config.in_channels)
+    num_embeds = int(config.num_embeds_ada_norm)
+    epochs: list[list[BatchDict]] = []
+    for epoch in range(args.epochs):
+        steps: list[BatchDict] = []
+        for step in range(args.max_sequences):
+            raw = make_synthetic_diffusion_batch(
+                batch_size=args.batch_size,
+                sample_size=sample,
+                in_channels=in_channels,
+                num_timesteps=num_embeds,
+                num_classes=num_embeds,
+                seed=args.data_seed + epoch * args.max_sequences + step,
+            )
+            steps.append(
+                {
+                    "patches": patchify_nchw(raw["noisy"], patch).contiguous(),
+                    "noise": nchw_to_unpatchify_tokens(
+                        raw["noise"], patch
+                    ).contiguous(),
+                    "timesteps": raw["timesteps"].contiguous(),
+                    "class_labels": raw["class_labels"].contiguous(),
+                }
+            )
+        epochs.append(steps)
+    return epochs
+
+
 def causal_loss(model: torch.nn.Module, batch: BatchDict) -> torch.Tensor:
     logits = model(batch["input_ids"])
     return cross_entropy(logits, batch["labels"], reduction="mean")
@@ -187,6 +232,18 @@ def mlm_loss(model: torch.nn.Module, batch: BatchDict) -> torch.Tensor:
 def t5_loss(model: torch.nn.Module, batch: BatchDict) -> torch.Tensor:
     logits = model(batch["input_ids"], batch["decoder_input_ids"])
     return cross_entropy(logits, batch["labels"], reduction="mean")
+
+
+def dit_loss(model: torch.nn.Module, batch: BatchDict) -> torch.Tensor:
+    from torch_nntile.nn.functional import add, mse_loss
+
+    pred = model(
+        batch["patches"],
+        batch["timesteps"],
+        batch["class_labels"],
+    )
+    diff = add(pred, batch["noise"], alpha=1.0, beta=-1.0)
+    return mse_loss(diff, scale=1.0 / float(pred.numel()))
 
 
 def llama_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
@@ -267,6 +324,19 @@ def t5_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
     return model
 
 
+def dit_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
+    from torch_nntile.models.dit import DiT
+    from torch_nntile.models.dit_hf_loader import (
+        dit_config_from_hf,
+        load_hf_into_dit,
+    )
+
+    model = DiT(dit_config_from_hf(hf.config)).float()
+    load_hf_into_dit(model, hf)
+    model.train()
+    return model
+
+
 def _hf_pair(name: str) -> tuple[type, type, str | None]:
     if name == "llama":
         from transformers import LlamaConfig, LlamaForCausalLM
@@ -302,6 +372,7 @@ NATIVE: dict[str, Callable[[torch.nn.Module], torch.nn.Module]] = {
     "bert": bert_from_hf,
     "roberta": roberta_from_hf,
     "t5": t5_from_hf,
+    "dit": dit_from_hf,
 }
 
 KIND = {
@@ -311,6 +382,7 @@ KIND = {
     "bert": "mlm",
     "roberta": "mlm",
     "t5": "t5",
+    "dit": "dit",
 }
 
 
@@ -344,12 +416,40 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _train_dit(args: argparse.Namespace) -> int:
+    from dit_hf_tiny_train_common import disable_dit_label_dropout
+
+    try:
+        from diffusers import DiTTransformer2DModel
+    except ImportError as exc:
+        raise SystemExit(
+            "dit nntile(nntile) needs diffusers==0.32.2 for HF init"
+        ) from exc
+
+    fields = load_json_object(Path(args.config))
+    set_seed(args.seed)
+    hf = DiTTransformer2DModel(**fields).float().train()
+    disable_dit_label_dropout(hf)
+    cpu_model = dit_from_hf(hf)
+    del hf
+    return run_native_overhead(
+        name="dit",
+        args=args,
+        cpu_model=cpu_model,
+        epoch_batches_cpu=dit_epochs(cpu_model.config, args),
+        loss_fn=dit_loss,
+        seq_len=int(cpu_model.config.num_patches),
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     configure_single_thread_host()
     args.data_seed = (
         int(args.data_seed) if args.data_seed is not None else args.seed
     )
+    if args.family == "dit":
+        return _train_dit(args)
     hf_cfg_cls, hf_model_cls, attn = _hf_pair(args.family)
     hf_config = load_hf_config_from_json(
         Path(args.config),

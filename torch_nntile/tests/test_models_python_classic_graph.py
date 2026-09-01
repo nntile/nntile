@@ -14,6 +14,7 @@ from transformers import GPT2Config
 import torch_nntile
 from torch_nntile.models.bert import BertConfig, BertMlm
 from torch_nntile.models.deep_relu import DeepReLU
+from torch_nntile.models.dit import DiT, DiTConfig
 from torch_nntile.models.gpt2_minimal import GPT2LMHead
 from torch_nntile.models.gpt_neo import GPTNeoCausal, GPTNeoConfig
 from torch_nntile.models.gpt_neox import GPTNeoXCausal, GPTNeoXConfig
@@ -184,4 +185,29 @@ def test_python_deep_relu_classic_graph_fwd_bwd():
     model = DeepReLU(32, 64, 8, 2).eval().float().to("nntile")
     x = torch.randn(4, 32).contiguous().to("nntile")
     out = model(x)
+    _fwd_bwd_classic(out)
+
+
+def test_python_dit_classic_graph_fwd_bwd():
+    torch_nntile.reset_graph_session()
+    cfg = DiTConfig(
+        sample_size=8,
+        patch_size=2,
+        in_channels=3,
+        num_layers=1,
+        num_attention_heads=2,
+        attention_head_dim=8,
+        num_embeds_ada_norm=8,
+    )
+    model = DiT(cfg).eval().float().to("nntile")
+    patches = torch.randn(2, cfg.num_patches, cfg.patch_dim).contiguous()
+    timestep = torch.randint(
+        0, cfg.num_embeds_ada_norm, (2,), dtype=torch.long
+    )
+    labels = torch.randint(0, cfg.num_embeds_ada_norm, (2,), dtype=torch.long)
+    out = model(
+        patches.to("nntile"),
+        timestep.contiguous().to("nntile"),
+        labels.contiguous().to("nntile"),
+    )
     _fwd_bwd_classic(out)

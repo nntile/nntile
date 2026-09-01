@@ -29,11 +29,14 @@ backend.
 
 - **HF** — HuggingFace Diffusers `DiTTransformer2DModel`
   (`diffusers==0.32.2`).
+- **nntile** (as implementation) — `torch_nntile.models.dit.DiT`, based on
+  `torch_nntile.nn` operations and backed by hand-written nntile kernels.
 - **cuda** — PyTorch CUDA (`device=cuda`).
 - **nntile** (as backend) — StarPU / nntile (`device=nntile`).
 
-This study is **HF(cuda)** vs **HF(nntile)** only (no `torch_nntile.models`
-rewrite).
+**HF(cuda)** is Diffusers on CUDA. **HF(nntile)** is the same Diffusers
+graph on `device=nntile`. **nntile(nntile)** is the
+`torch_nntile.models` rewrite on `device=nntile`.
 """
 
 # GPT-2 10× reference (docs/dev/gpt2_hf_overhead_scale.md).

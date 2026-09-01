@@ -1,10 +1,10 @@
 {
-  "_comment": "Overhead XL: 6 layers, hidden=5760, sample_size=108 (2916 patches) (1 layer below CUDA VRAM match to avoid nntile host offload)",
+  "_comment": "Overhead XL: 5 layers, hidden=5760, sample_size=108 (2916 patches). 6 layers paged on nntile(nntile) (A40, STARPU_LIMIT_CUDA_MEM=46000); 5 fits with D2H 0 (~43.6 GiB).",
   "sample_size": 108,
   "patch_size": 2,
   "in_channels": 3,
   "out_channels": 3,
-  "num_layers": 6,
+  "num_layers": 5,
   "attention_head_dim": 128,
   "num_attention_heads": 45,
   "dropout": 0.0,
