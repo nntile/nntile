@@ -5,9 +5,11 @@
  * PrivateUse1 ``aten::add`` (torch autograd InputBuffer / AccumulateGrad
  * and user ``torch.add``).
  *
- * When classic nntile is enabled, always lower to ``nntile::tensor::add``
- * / ``add_inplace`` (same-shape fp32, so later tiling can apply). Otherwise
- * fall back to torch-native aten kernels.
+ * Dual-path: if torch-native ops are enabled, ``aten::add`` always uses
+ * torch-native kernels (HF / ``torch.nn`` graphs: broadcast, SDPA, mixed
+ * layouts). Classic ``nntile::tensor::add`` is used only when torch-native
+ * is off (classic-only builds). ``torch_nntile.nn`` still calls classic
+ * add directly.
  */
 
 #include "nntile_graph_recorder.h"
@@ -106,16 +108,15 @@ void run_add(
     const at::Scalar &alpha,
     at::Tensor &out)
 {
-#ifdef NNTILE_NNTILE_NATIVE_OPS
-    classic_add_out(self, other, alpha.to<float>(), out);
-    return;
-#elif defined(NNTILE_TORCH_NATIVE_OPS)
+#ifdef NNTILE_TORCH_NATIVE_OPS
     tensor_add_fp32(
         1.0f,
         self,
         alpha.to<float>(),
         other,
         out);
+#elif defined(NNTILE_NNTILE_NATIVE_OPS)
+    classic_add_out(self, other, alpha.to<float>(), out);
 #else
     TORCH_CHECK(false, "nntile add is not available in this build");
 #endif
@@ -156,7 +157,15 @@ at::Tensor add_scalar(
     TORCH_CHECK(
         self.scalar_type() == at::ScalarType::Float,
         "nntile add.Scalar supports float32 only");
-#ifdef NNTILE_NNTILE_NATIVE_OPS
+#ifdef NNTILE_TORCH_NATIVE_OPS
+    at::Tensor filled = at::empty_like(self);
+    at::Tensor out = at::empty_like(self);
+    tensor_fill_fp32(
+        filled,
+        other.to<float>() * alpha.to<float>());
+    tensor_add_fp32(1.0f, self, 1.0f, filled, out);
+    return out;
+#elif defined(NNTILE_NNTILE_NATIVE_OPS)
     TORCH_CHECK(
         self.is_contiguous(),
         "nntile add.Scalar: classic add requires a contiguous tensor");
@@ -166,14 +175,6 @@ at::Tensor add_scalar(
         filled,
         other.to<float>() * alpha.to<float>());
     classic_tensor_add_fp32(1.0f, self, 1.0f, filled, out);
-    return out;
-#elif defined(NNTILE_TORCH_NATIVE_OPS)
-    at::Tensor filled = at::empty_like(self);
-    at::Tensor out = at::empty_like(self);
-    tensor_fill_fp32(
-        filled,
-        other.to<float>() * alpha.to<float>());
-    tensor_add_fp32(1.0f, self, 1.0f, filled, out);
     return out;
 #else
     TORCH_CHECK(false, "nntile add.Scalar is not available in this build");
@@ -308,15 +309,15 @@ at::Tensor &add__tensor(
         self.sizes().equals(
             at::infer_size(self.sizes(), other.sizes())),
         "nntile add_.Tensor: other must broadcast to self");
-#ifdef NNTILE_NNTILE_NATIVE_OPS
-    classic_add_inplace(self, other, alpha.to<float>());
-    return self;
-#elif defined(NNTILE_TORCH_NATIVE_OPS)
+#ifdef NNTILE_TORCH_NATIVE_OPS
     tensor_add_inplace_fp32(
         alpha.to<float>(),
         other,
         1.0f,
         self);
+    return self;
+#elif defined(NNTILE_NNTILE_NATIVE_OPS)
+    classic_add_inplace(self, other, alpha.to<float>());
     return self;
 #else
     TORCH_CHECK(false, "nntile add_ is not available in this build");
