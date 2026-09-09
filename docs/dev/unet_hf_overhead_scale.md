@@ -138,17 +138,26 @@ step (GPU idle): HF(cuda) **0.034 s**, HF(nntile) sequential run+wait
 
 ## S HF(nntile) 100-step
 
-Overlap, size S, 100 steps, 10 repeats: wall 9.676 ± 0.195 s, loss 1.123617, host/wall 23.0%.
+Overlap, size S, 100 steps, 10 repeats (mean ± stdev). Complements the 10-step HF ladder above.
+
+Loss **1.123617**.
+
+| | Total | mean / step |
+|--|--:|--:|
+| record(nntile) | 0.350 ± 0.006 s | 3.5 ms |
+| record(torch) | 1.146 ± 0.022 s | 11 ms |
+| compile | 0.751 ± 0.020 s | 7.5 ms |
+| run | 0.637 ± 0.015 s | 6.4 ms |
+| wait | 6.663 ± 0.026 s | 67 ms |
+| **train wall** | **9.560 ± 0.046 s** | 96 ms |
+
+Host (record + compile) is **24%** of the wall.
+
+![Host overhead per iteration](unet_hf_overhead_s_100.svg)
+
+CSV: [`unet_hf_overhead_s_100.csv`](unet_hf_overhead_s_100.csv) (median of 10 runs).
 
 ## How to reproduce
-
-Probe **HF(nntile) VRAM** (all sizes, D2H must stay 0) before the
-10-repeat ladder:
-
-```bash
-python3 torch_nntile/tools/probe_cnn_nntile_vram.py \
-  --family unet --logdir /tmp/unet_vram --gpu 0 --steps 10
-```
 
 ```bash
 export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"

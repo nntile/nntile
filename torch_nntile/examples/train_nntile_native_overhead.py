@@ -7,8 +7,10 @@
 
 """Classic-kernel overhead trainer. HF is used only to initialize weights.
 
-DiT (``--family dit``): host patchify + integer timesteps, then
-``torch_nntile.models.DiT`` noise-prediction MSE on ``device=nntile``.
+GPT-2 / GPT-Neo / GPT-NeoX / Llama / BERT / RoBERTa / T5 use
+``--family`` plus a HF config JSON. DiT (``--family dit``): host
+patchify + integer timesteps, then ``torch_nntile.models.DiT``
+noise-prediction MSE on ``device=nntile``.
 """
 
 from __future__ import annotations
@@ -246,6 +248,16 @@ def dit_loss(model: torch.nn.Module, batch: BatchDict) -> torch.Tensor:
     return mse_loss(diff, scale=1.0 / float(pred.numel()))
 
 
+def gpt2_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
+    from torch_nntile.models.gpt2_hf_loader import load_hf_into_gpt2_lm_head
+    from torch_nntile.models.gpt2_minimal import GPT2LMHead
+
+    model = GPT2LMHead(hf.config).float()
+    load_hf_into_gpt2_lm_head(model, hf)
+    model.train()
+    return model
+
+
 def llama_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
     from torch_nntile.models.llama import LlamaCausal
     from torch_nntile.models.llama_hf_loader import (
@@ -338,6 +350,10 @@ def dit_from_hf(hf: torch.nn.Module) -> torch.nn.Module:
 
 
 def _hf_pair(name: str) -> tuple[type, type, str | None]:
+    if name == "gpt2":
+        from transformers import GPT2Config, GPT2LMHeadModel
+
+        return GPT2Config, GPT2LMHeadModel, "sdpa"
     if name == "llama":
         from transformers import LlamaConfig, LlamaForCausalLM
 
@@ -366,6 +382,7 @@ def _hf_pair(name: str) -> tuple[type, type, str | None]:
 
 
 NATIVE: dict[str, Callable[[torch.nn.Module], torch.nn.Module]] = {
+    "gpt2": gpt2_from_hf,
     "llama": llama_from_hf,
     "gpt_neo": gpt_neo_from_hf,
     "gpt_neox": gpt_neox_from_hf,
@@ -376,6 +393,7 @@ NATIVE: dict[str, Callable[[torch.nn.Module], torch.nn.Module]] = {
 }
 
 KIND = {
+    "gpt2": "causal",
     "llama": "causal",
     "gpt_neo": "causal",
     "gpt_neox": "causal",

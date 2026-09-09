@@ -184,6 +184,7 @@ def run_one(
 
     env = os.environ.copy()
     env.setdefault("PYTHONNOUSERSITE", "1")
+    env.setdefault("STARPU_LIMIT_CUDA_MEM", "46000")
     env["CUDA_VISIBLE_DEVICES"] = gpu
     examples_path = str(REPO / "torch_nntile" / "examples")
     extra_pp = os.environ.get("PYTHONPATH", "")
@@ -219,12 +220,18 @@ def run_one(
     ]
     insert_at = 4
     if device == "cuda":
-        cmd[insert_at:insert_at] = ["--device", "cuda", "--disable-tf32"]
+        cmd[insert_at:insert_at] = [
+            "--device",
+            "cuda",
+            "--disable-tf32",
+            "--disable-cudnn",
+        ]
     else:
         cmd[insert_at:insert_at] = [
             "--device",
             "nntile",
             "--disable-tf32",
+            "--disable-cudnn",
             "--restrict-cuda",
             "--ncpu",
             "0",

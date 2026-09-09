@@ -25,7 +25,7 @@ Start with the product docs if you are new:
 | [torch_native_middle_cpu_vs_nntile.md](torch_native_middle_cpu_vs_nntile.md) | Middle (~1 min) torch-native CPU vs nntile |
 | [reproducibility.md](reproducibility.md) | Single-core CPU / GPU overhead measurement protocol |
 | [cuda_vs_nntile_2gb.md](cuda_vs_nntile_2gb.md) | ≥2 GiB CUDA vs nntile GPU table (separate processes) |
-| [gpt2_hf_overhead_scale.md](gpt2_hf_overhead_scale.md) | GPT-2 HF 10-step overhead; `seq_len = n_embd/2` (XS/S/M/L) |
+| [gpt2_hf_overhead_scale.md](gpt2_hf_overhead_scale.md) | GPT-2 HF 10-step overhead; `seq_len = n_embd/2` (XS/S/M/L/XL) |
 | [lenet_hf_overhead_scale.md](lenet_hf_overhead_scale.md) | LeNet HF(cuda)/HF(nntile) overhead ladder (no nntile(nntile)) |
 | [resnet_hf_overhead_scale.md](resnet_hf_overhead_scale.md) | ResNet HF(cuda)/HF(nntile) overhead ladder (no nntile(nntile)) |
 | [vgg_hf_overhead_scale.md](vgg_hf_overhead_scale.md) | VGG HF(cuda)/HF(nntile) overhead ladder (no nntile(nntile)) |

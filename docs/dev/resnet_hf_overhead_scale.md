@@ -131,17 +131,26 @@ Overlap mode. Host = `record(nntile)+record(torch)+compile`.
 
 ## S HF(nntile) 100-step
 
-Overlap, size S, 100 steps, 10 repeats: wall 121.546 ± 0.212 s, loss 3.270159, host/wall 1.3%.
+Overlap, size S, 100 steps, 10 repeats (mean ± stdev). Complements the 10-step HF ladder above.
+
+Loss **3.270159**.
+
+| | Total | mean / step |
+|--|--:|--:|
+| record(nntile) | 0.214 ± 0.015 s | 2.1 ms |
+| record(torch) | 0.936 ± 0.060 s | 9.4 ms |
+| compile | 0.536 ± 0.033 s | 5.4 ms |
+| run | 0.500 ± 0.032 s | 5.0 ms |
+| wait | 119.952 ± 0.313 s | 1200 ms |
+| **train wall** | **122.155 ± 0.265 s** | 1222 ms |
+
+Host (record + compile) is **1%** of the wall.
+
+![Host overhead per iteration](resnet_hf_overhead_s_100.svg)
+
+CSV: [`resnet_hf_overhead_s_100.csv`](resnet_hf_overhead_s_100.csv) (median of 10 runs).
 
 ## How to reproduce
-
-Probe **HF(nntile) VRAM** (all sizes, D2H must stay 0) before the
-10-repeat ladder:
-
-```bash
-python3 torch_nntile/tools/probe_cnn_nntile_vram.py \
-  --family resnet --logdir /tmp/resnet_vram --gpu 0 --steps 10
-```
 
 ```bash
 export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"

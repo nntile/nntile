@@ -21,6 +21,16 @@ REPO = Path(__file__).resolve().parents[2]
 TRAIN = REPO / "torch_nntile" / "examples" / "train_nntile_native_overhead.py"
 
 FAMILIES = {
+    "gpt2": (
+        REPO / "torch_nntile" / "examples" / "overhead_gpt2",
+        {
+            "xs": ("gpt2_xs.json", 768),
+            "s": ("gpt2_s.json", 1024),
+            "m": ("gpt2_m.json", 1536),
+            "l": ("gpt2_l.json", 2048),
+            "xl": ("gpt2_xl.json", 2880),
+        },
+    ),
     "gpt_neo": (
         REPO / "torch_nntile" / "examples" / "overhead_gpt_neo",
         {

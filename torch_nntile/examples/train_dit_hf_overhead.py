@@ -14,7 +14,10 @@ separate runs, then ``compare`` two checkpoints.
 Diffusion: stock Diffusers ``DiTTransformer2DModel`` noise-prediction MSE
 (``diffusion_mse_loss``). ``--disable-tf32`` turns off TF32 for cuBLAS
 (GEMM) and cuDNN (conv / RNN) on both ``--device cuda`` and
-``--device nntile``.
+``--device nntile``. ``--disable-cudnn`` sets
+``torch.backends.cudnn.enabled=False`` so patch-embed convolution uses
+the same ATen kernels on both backends (no cuDNN workspace buffers;
+debt D9).
 
 Before training, all epoch batches (inputs + labels) and the model are moved
 onto the training device; the script prints prefetch time and wall training
@@ -40,7 +43,7 @@ overlap with a previous ``run()``).
 Examples::
 
     python torch_nntile/examples/train_dit_hf_overhead.py train \\
-        --device cuda --disable-tf32 --seed 42 \\
+        --device cuda --disable-tf32 --disable-cudnn --seed 42 \\
         --config torch_nntile/examples/overhead_dit/dit_xs.json \\
         --batch-size 1 --max-sequences 10 --epochs 1 \\
         --output-dir /tmp/dit_overhead_s_cuda
@@ -56,7 +59,11 @@ import time
 from pathlib import Path
 
 import torch
-from hf_tiny_train_common import configure_single_thread_host, configure_tf32
+from hf_tiny_train_common import (
+    configure_cudnn,
+    configure_single_thread_host,
+    configure_tf32,
+)
 from nntile_iter_phases import (
     compile_run_wait_iter,
     compile_wait_run_iter,
@@ -804,6 +811,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     train.add_argument(
+        "--disable-cudnn",
+        action="store_true",
+        help=(
+            "Set torch.backends.cudnn.enabled=False so HF(cuda) "
+            "patch-embed conv uses the same ATen kernels as nntile "
+            "(not cuDNN). Apply on both --device cuda and nntile."
+        ),
+    )
+    train.add_argument(
         "--ncpu",
         type=int,
         default=-1,
@@ -877,6 +893,7 @@ def main(argv: list[str] | None = None) -> int:
             disable_tf32=bool(args.disable_tf32),
             device=args.device,
         )
+        configure_cudnn(disable_cudnn=bool(args.disable_cudnn))
         if args.device == "nntile":
             return train_nntile(args)
         return train_torch(args)

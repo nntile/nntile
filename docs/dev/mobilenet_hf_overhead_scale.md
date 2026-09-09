@@ -130,17 +130,26 @@ Overlap mode. Host = `record(nntile)+record(torch)+compile`.
 
 ## S HF(nntile) 100-step
 
-Overlap, size S, 100 steps, 10 repeats: wall 17.027 ± 0.155 s, loss 28.558474, host/wall 5.5%.
+Overlap, size S, 100 steps, 10 repeats (mean ± stdev). Complements the 10-step HF ladder above.
+
+Loss **28.558474**.
+
+| | Total | mean / step |
+|--|--:|--:|
+| record(nntile) | 0.116 ± 0.006 s | 1.2 ms |
+| record(torch) | 0.536 ± 0.045 s | 5.4 ms |
+| compile | 0.282 ± 0.013 s | 2.8 ms |
+| run | 0.268 ± 0.011 s | 2.7 ms |
+| wait | 15.632 ± 0.077 s | 156 ms |
+| **train wall** | **16.846 ± 0.021 s** | 168 ms |
+
+Host (record + compile) is **6%** of the wall.
+
+![Host overhead per iteration](mobilenet_hf_overhead_s_100.svg)
+
+CSV: [`mobilenet_hf_overhead_s_100.csv`](mobilenet_hf_overhead_s_100.csv) (median of 10 runs).
 
 ## How to reproduce
-
-Probe **HF(nntile) VRAM** (all sizes, D2H must stay 0) before the
-10-repeat ladder:
-
-```bash
-python3 torch_nntile/tools/probe_cnn_nntile_vram.py \
-  --family mobilenet --logdir /tmp/mobilenet_vram --gpu 0 --steps 10
-```
 
 ```bash
 export TORCH_LIB_DIR="$(python3 -c 'import os, torch; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"

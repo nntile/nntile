@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -38,7 +39,7 @@ LAYERS = {
     "l": "11",
     "xl": "5",
 }
-# Approximate CUDA train peaks from `match_dit_vram_to_llama.py` (GiB).
+# Approximate CUDA train peaks from the published recipe (GiB).
 CUDA_VRAM = {
     "xs": "~3.93",
     "s": "~6.49",
@@ -398,7 +399,7 @@ CSV: [`dit_hf_overhead_s_{long_steps}.csv`](dit_hf_overhead_s_{long_steps}.csv) 
 GPT-2 uses the same **hidden / token-count ladder** but a different task
 (causal LM cross-entropy vs DiT MSE noise prediction). Compare **HF(nntile) / HF(cuda)
 wall ratios** only; loss values are not comparable.
-nntile(nntile) is not in this table (DiT XL nntile(nntile) is **1.41×**).
+nntile(nntile) is not in this table.
 
 See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md).
 
@@ -421,6 +422,10 @@ See [`gpt2_hf_overhead_scale.md`](gpt2_hf_overhead_scale.md).
             and r["iters"][1].get("compute") is not None
         ]
         steady[size] = statistics.mean(vals)
+
+    xl_hf_ratio = g(
+        grp("xl", "nntile", "overlap"), "metrics", "train_wall_s", "mean"
+    ) / g(grp("xl", "cuda", "overlap"), "metrics", "train_wall_s", "mean")
 
     return f"""# DiT HF: graph overhead vs width / patch count
 
@@ -459,7 +464,6 @@ HF(cuda) / HF(nntile): [`train_dit_hf_overhead.py`](../../torch_nntile/examples/
 nntile(nntile): [`train_nntile_native_overhead.py`](../../torch_nntile/examples/train_nntile_native_overhead.py)
 (`--family dit`),
 [`run_nntile_native_overhead_benchmark.py`](../../torch_nntile/tools/run_nntile_native_overhead_benchmark.py).
-VRAM search: [`match_dit_vram_to_llama.py`](../../torch_nntile/tools/match_dit_vram_to_llama.py).
 
 ## Model and data
 
@@ -469,7 +473,9 @@ VRAM search: [`match_dit_vram_to_llama.py`](../../torch_nntile/tools/match_dit_v
 - **Batch:** `make_synthetic_diffusion_batch()` — random `noisy` / `noise`
   tensors, timesteps, class labels; seed `42 + step`.
 - **Optimizer:** SGD, lr `1e-3`, B=1, 10 steps (100 for long S), `--no-shuffle`.
-- **CUDA / nntile:** `--disable-tf32` (cuBLAS GEMM and cuDNN conv/RNN). **nntile also:** `--ncpu 0 --ncuda 1 --restrict-cuda`.
+- **CUDA / nntile:** `--disable-tf32 --disable-cudnn` (IEEE FP32 GEMM;
+  no cuDNN, including patch-embed `Conv2d`). **nntile also:** `--ncpu 0
+  --ncuda 1 --restrict-cuda`.
 
 ## Loss
 
@@ -503,8 +509,8 @@ Includes **S HF(nntile) {long_steps}-step** steady-state run. Requires
 ## HF(nntile) vs HF(cuda) (10-step train wall)
 
 This section is **HF(nntile) only** (stock Diffusers on `device=nntile`).
-XL is **0.99×** HF(cuda) here. **nntile(nntile) XL is 1.41×**, not parity
-— see [nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
+XL is **{xl_hf_ratio:.2f}×** HF(cuda) here. nntile(nntile) is not in this
+table — see [nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).
 
 | Setup | HF(cuda) wall | HF(nntile) wall | HF(nntile) / HF(cuda) | record(nntile) | record(torch) | compile | run | wait | host/wall | HF(cuda) loss | HF(nntile) loss |
 |-------|----------:|------------:|------------:|---------------:|--------------:|--------:|----:|-----:|----------:|----------:|------------:|
@@ -619,8 +625,7 @@ Steady compute after iter 1 (mean over repeats): {', '.join(
    falls as GPU work grows ({host_shares[0]} → {host_shares[-1]}).
 3. **HF(nntile)** is within ~5–40% of HF(cuda) on wall time
    ({', '.join(ratios)}). XS is host-bound; **HF(nntile)** M/L/XL are near
-   parity. That XL **0.97× is not nntile(nntile)** — nntile(nntile) XL is
-   **1.00×**.
+   parity.
 4. **L=11 / XL=5** keep nntile(nntile) on-GPU (D2H **0**). Isolated GPU
    time is still a bit above HF(cuda) because AdaLN-Zero is six `H→H`
    GEMMs, not a fused `H→6H`.
@@ -641,10 +646,8 @@ export NNTILE_BUILD_DIR=$PWD/build TORCH_NNTILE_BUILD_DIR=$PWD/build
 export LD_LIBRARY_PATH="${{CONDA_PREFIX}}/lib:${{TORCH_LIB_DIR}}:$PWD/build/nntile:$PWD/build/torch_nntile:/opt/starpu/lib"
 export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 
-# VRAM-match configs (optional --apply writes overhead_dit/*.json):
-.venv/bin/python torch_nntile/tools/match_dit_vram_to_llama.py 1 --apply
-
-# Full ladder, 10 repeats, one GPU (HF(cuda) / HF(nntile)):
+# Full ladder, 10 repeats, one GPU (HF(cuda) / HF(nntile)).
+# Runner passes --disable-tf32 --disable-cudnn on both backends.
 .venv/bin/python torch_nntile/tools/run_dit_overhead_benchmark.py \\
   --logdir /tmp/dit_overhead --gpu 0 --repeats 10
 
@@ -660,6 +663,334 @@ export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
   --results /tmp/dit_overhead/results.json
 ```
 """
+
+
+def _section_span(text: str, header: str) -> tuple[int, int]:
+    start = text.find(header)
+    if start < 0:
+        raise ValueError(f"missing section {header!r}")
+    match = re.search(r"\n## [^#\n]", text[start + 1 :])
+    end = start + 1 + match.start() if match else len(text)
+    return start, end
+
+
+def _extract_section(text: str, header: str) -> str:
+    start, end = _section_span(text, header)
+    return text[start:end]
+
+
+def _replace_section(text: str, header: str, new_section: str) -> str:
+    start, end = _section_span(text, header)
+    if not new_section.endswith("\n"):
+        new_section += "\n"
+    return text[:start] + new_section + text[end:]
+
+
+def _native_wall_cells(existing: str) -> dict[str, str]:
+    start, end = _section_span(existing, "### 10-step train wall")
+    block = existing[start:end]
+    cells: dict[str, str] = {}
+    for size in LADDER:
+        label = SIZE_LABEL[size]
+        match = re.search(
+            rf"\| {label} T={PATCHES[size]} \| [^|]+\| [^|]+\| ([^|]+) \|",
+            block,
+        )
+        if not match:
+            raise ValueError(f"nntile(nntile) wall missing for {label}")
+        cells[size] = match.group(1).strip()
+    return cells
+
+
+def _native_mean(cell: str) -> float:
+    match = re.match(r"([0-9.]+)", cell.strip())
+    if not match:
+        raise ValueError(f"cannot parse nntile(nntile) wall {cell!r}")
+    return float(match.group(1))
+
+
+def _replace_numbered_item(text: str, number: int, body: str) -> str:
+    nxt = number + 1
+    pattern = rf"{number}\. .*?(?=\n+(?:{nxt}\. |## )|\Z)"
+    replacement = body.rstrip()
+    updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+    if count != 1:
+        raise ValueError(f"takeaway {number} not found")
+    return updated
+
+
+def splice_hf_into_existing(
+    existing: str,
+    generated: str,
+    summary: dict[str, Any],
+) -> str:
+    """Refresh HF(cuda)/HF(nntile) sections; keep nntile(nntile) walls."""
+    native_cells = _native_wall_cells(existing)
+    groups = summary["groups"]
+    repeats = int(summary.get("repeats", 10))
+    long_steps = int(summary.get("long_steps", 100))
+    cuda_cells = {
+        size: ms_s(g(groups[f"{size}_cuda_overlap"], "metrics", "train_wall_s"))
+        for size in LADDER
+    }
+    nntile_cells = {
+        size: ms_s(
+            g(groups[f"{size}_nntile_overlap"], "metrics", "train_wall_s")
+        )
+        for size in LADDER
+    }
+    hf_ratios = {
+        size: (
+            g(groups[f"{size}_nntile_overlap"], "metrics", "train_wall_s", "mean")
+            / g(groups[f"{size}_cuda_overlap"], "metrics", "train_wall_s", "mean")
+        )
+        for size in LADDER
+    }
+    native_ratios = {
+        size: _native_mean(native_cells[size])
+        / g(groups[f"{size}_cuda_overlap"], "metrics", "train_wall_s", "mean")
+        for size in LADDER
+    }
+    host_shares = [
+        f"{g(groups[f'{size}_nntile_overlap'], 'metrics', 'host_frac', 'mean') * 100:.1f}%"
+        for size in LADDER
+    ]
+    seq_compute_ratios = []
+    for size in LADDER:
+        sq = groups[f"{size}_nntile_sequential"]
+        compute = g(sq, "metrics", "run_s", "mean") + g(
+            sq, "metrics", "wait_s", "mean"
+        )
+        cuda_wall = g(
+            groups[f"{size}_cuda_overlap"], "metrics", "train_wall_s", "mean"
+        )
+        seq_compute_ratios.append(f"{compute / cuda_wall:.2f}×")
+
+    hf_header = "## HF(nntile) vs HF(cuda) (10-step train wall)"
+    hf_section = _extract_section(generated, hf_header)
+    hf_section, n_hf_intro = re.subn(
+        r"nntile\(nntile\) is not in this\n?table — see "
+        r"\[nntile\(nntile\) vs HF\(cuda\)\]\(#nntilenntile-vs-hfcuda\)\.\n",
+        "nntile(nntile) is not in this table. "
+        f"**nntile(nntile) XL is {native_ratios['xl']:.2f}×** — see "
+        "[nntile(nntile) vs HF(cuda)](#nntilenntile-vs-hfcuda).\n"
+        "VRAM for HF(cuda) / HF(nntile) / nntile(nntile) is in\n"
+        "[Peak VRAM and bus](#peak-vram-and-bus) (`nvidia-smi`).\n",
+        hf_section,
+        count=1,
+    )
+    if n_hf_intro != 1:
+        raise ValueError("HF section intro inject failed")
+    text = _replace_section(existing, hf_header, hf_section)
+
+    long_header = (
+        f"## {long_steps}-step S (HF(nntile) steady state, "
+        f"mean ± stdev over {repeats} runs)"
+    )
+    text = _replace_section(
+        text, long_header, _extract_section(generated, long_header)
+    )
+
+    cmp_header = "## Comparison to GPT-2 (wall time only)"
+    cmp = _extract_section(generated, cmp_header)
+    cmp = cmp.replace(
+        "nntile(nntile) is not in this table.",
+        "nntile(nntile) is not in this table "
+        f"(DiT XL nntile(nntile) is **{native_ratios['xl']:.2f}×**).",
+        1,
+    )
+    text = _replace_section(text, cmp_header, cmp)
+
+    per_header = f"## Per iteration (HF(nntile), mean ± stdev over {repeats} runs)"
+    text = _replace_section(
+        text, per_header, _extract_section(generated, per_header)
+    )
+    iso_header = (
+        f"## Isolated extra step (HF(nntile), mean ± stdev over {repeats} runs)"
+    )
+    text = _replace_section(
+        text, iso_header, _extract_section(generated, iso_header)
+    )
+    seq_header = "## Sequential prep vs compute (`--wait-after-run`, HF(nntile))"
+    text = _replace_section(
+        text, seq_header, _extract_section(generated, seq_header)
+    )
+
+    three_rows = [
+        "| Setup | HF(cuda) | HF(nntile) | nntile(nntile) | "
+        "HF(nntile) / HF(cuda) | nntile(nntile) / HF(cuda) |",
+        "|-------|-----:|---------:|----------------:|"
+        "--------------:|-------------:|",
+    ]
+    for size in LADDER:
+        three_rows.append(
+            f"| {SIZE_LABEL[size]} T={PATCHES[size]} | {cuda_cells[size]} | "
+            f"{nntile_cells[size]} | {native_cells[size]} | "
+            f"**{hf_ratios[size]:.2f}×** | **{native_ratios[size]:.2f}×** |"
+        )
+    three_table = "\n".join(three_rows) + "\n"
+    three_pat = re.compile(
+        r"\| Setup \| HF\(cuda\) \| HF\(nntile\) \| nntile\(nntile\) \| "
+        r"HF\(nntile\) / HF\(cuda\) \| nntile\(nntile\) / HF\(cuda\) \|\n"
+        r"\|-------.*\n"
+        r"(?:\| .*\n){5}"
+    )
+    text, n_three = three_pat.subn(three_table, text, count=1)
+    if n_three != 1:
+        raise ValueError("three-setup wall table not found")
+
+    l_cuda_iso = ms(
+        g(groups["l_cuda_overlap"], "isolated", "cuda_wall"),
+    )
+    xl_cuda_iso = ms(
+        g(groups["xl_cuda_overlap"], "isolated", "cuda_wall"),
+    )
+    commentary = (
+        "nntile(nntile) walls are the published classic-kernel 10-repeat "
+        "means (FP32; not rerun). HF(cuda) / HF(nntile) are this "
+        "`--disable-tf32 --disable-cudnn` campaign.\n"
+        "\n"
+        f"nntile(nntile) / HF(cuda): XS **{native_ratios['xs']:.2f}×**, "
+        f"S **{native_ratios['s']:.2f}×**, M **{native_ratios['m']:.2f}×**, "
+        f"L **{native_ratios['l']:.2f}×**, XL **{native_ratios['xl']:.2f}×**. "
+        f"Isolated GPU time: L **1.770** vs HF(cuda) **{l_cuda_iso}** s; "
+        f"XL **2.242** vs **{xl_cuda_iso}** s.\n"
+        f"**XL train wall: HF(nntile) {hf_ratios['xl']:.2f}×, "
+        f"nntile(nntile) {native_ratios['xl']:.2f}×.**\n"
+    )
+    old_commentary = re.compile(
+        r"(?:nntile\(nntile\) tracks HF\(cuda\) on S–XL|"
+        r"nntile\(nntile\) walls are the published classic-kernel "
+        r"10-repeat means).*?\n"
+        r"\*\*XL train wall:.*?\n",
+        re.S,
+    )
+    text, n_com = old_commentary.subn(commentary, text, count=1)
+    if n_com != 1:
+        raise ValueError("three-setup commentary not found")
+
+    native_sec_start, native_sec_end = _section_span(
+        text, "## nntile(nntile) vs HF(cuda)"
+    )
+    native_sec = text[native_sec_start:native_sec_end]
+    for size in LADDER:
+        label = SIZE_LABEL[size]
+        row_pat = (
+            rf"(\| {label} T={PATCHES[size]} \| )[^|]+"
+            rf"(\| [^|]+\| )\*\*[0-9.]+×\*\*"
+        )
+        row_repl = (
+            rf"\g<1>{cuda_cells[size]} \2**{native_ratios[size]:.2f}×**"
+        )
+        native_sec, n_row = re.subn(row_pat, row_repl, native_sec, count=1)
+        if n_row != 1:
+            raise ValueError(f"nntile(nntile) vs HF(cuda) row {label}")
+    native_sec = native_sec.replace(
+        "HF(cuda) walls are this `--disable-tf32` 10-repeat campaign. "
+        "nntile(nntile) walls are the published classic-kernel means "
+        "(FP32; not rerun).",
+        "HF(cuda) walls are this `--disable-tf32 --disable-cudnn` "
+        "10-repeat campaign. nntile(nntile) walls are the published "
+        "classic-kernel means (FP32; not rerun).",
+        1,
+    )
+    native_sec = native_sec.replace(
+        "HF(cuda) walls are the published 10-repeat means.",
+        "HF(cuda) walls are this `--disable-tf32 --disable-cudnn` "
+        "10-repeat campaign. nntile(nntile) walls are the published "
+        "classic-kernel means (FP32; not rerun).",
+        1,
+    )
+    text = text[:native_sec_start] + native_sec + text[native_sec_end:]
+
+    text = text.replace(
+        "- **CUDA:** `--disable-tf32`. **nntile:** `--ncpu 0 --ncuda 1 "
+        "--restrict-cuda`.",
+        "- **CUDA / nntile:** `--disable-tf32 --disable-cudnn` "
+        "(IEEE FP32 GEMM; no cuDNN, including patch-embed `Conv2d`). "
+        "**nntile also:** `--ncpu 0 --ncuda 1 --restrict-cuda`.",
+        1,
+    )
+    text = text.replace(
+        "- **CUDA / nntile:** `--disable-tf32` (cuBLAS GEMM and cuDNN). "
+        "**nntile also:** `--ncpu 0 --ncuda 1 --restrict-cuda`.",
+        "- **CUDA / nntile:** `--disable-tf32 --disable-cudnn` "
+        "(IEEE FP32 GEMM; no cuDNN, including patch-embed `Conv2d`). "
+        "**nntile also:** `--ncpu 0 --ncuda 1 --restrict-cuda`.",
+        1,
+    )
+    text = text.replace(
+        "Includes **S HF(nntile) 100-step** steady-state run. Requires",
+        "Includes **S HF(nntile) 100-step** steady-state run.\n"
+        "HF(cuda) and HF(nntile) both use `--disable-tf32 --disable-cudnn`. "
+        "Requires",
+        1,
+    )
+    text = text.replace(
+        "HF(cuda) and HF(nntile) both use `--disable-tf32`. Requires",
+        "HF(cuda) and HF(nntile) both use `--disable-tf32 --disable-cudnn`. "
+        "Requires",
+        1,
+    )
+    text = text.replace(
+        "# Full ladder, 10 repeats, one GPU (HF(cuda) / HF(nntile)):",
+        "# Full ladder, 10 repeats, one GPU (HF(cuda) / HF(nntile)).\n"
+        "# Runner passes --disable-tf32 --disable-cudnn on both backends.",
+        1,
+    )
+
+    s1k = groups.get(f"s_nntile_{long_steps}step")
+    s_xl_lo = min(native_ratios[size] for size in ("s", "m", "l", "xl"))
+    s_xl_hi = max(native_ratios[size] for size in ("s", "m", "l", "xl"))
+    ratio_list = ", ".join(
+        f"{SIZE_LABEL[size]} {hf_ratios[size]:.2f}×" for size in LADDER
+    )
+    take_start, take_end = _section_span(text, "## Takeaways")
+    takeaways = text[take_start:take_end]
+    takeaways = _replace_numbered_item(
+        takeaways,
+        2,
+        "2. **HF(nntile) graph host overhead is flat** (~0.3–0.5 s / 10 steps); "
+        f"share\n   falls as GPU work grows ({host_shares[0]} → {host_shares[-1]}).",
+    )
+    takeaways = _replace_numbered_item(
+        takeaways,
+        3,
+        "3. **HF(nntile)** is within ~5–40% of HF(cuda) on wall time\n"
+        f"   ({ratio_list}). XS is host-bound;\n"
+        "   **HF(nntile)** M/L/XL are near parity. That XL "
+        f"**{hf_ratios['xl']:.2f}× is not\n"
+        f"   nntile(nntile)** — nntile(nntile) XL is "
+        f"**{native_ratios['xl']:.2f}×** (takeaway 9).",
+    )
+    takeaways = _replace_numbered_item(
+        takeaways,
+        5,
+        "5. **HF(nntile) sequential GPU time** (`run+wait`): "
+        f"**{' → '.join(seq_compute_ratios)}** vs HF(cuda).",
+    )
+    long_wall = (
+        ms_s(g(s1k, "metrics", "train_wall_s")) if s1k else "n/a"
+    )
+    takeaways = _replace_numbered_item(
+        takeaways,
+        8,
+        f"8. **{long_steps}-step S HF(nntile)** wall **{long_wall}** — "
+        "see section above.",
+    )
+    takeaways = _replace_numbered_item(
+        takeaways,
+        9,
+        "9. nntile(nntile): "
+        f"**{s_xl_lo:.2f}–{s_xl_hi:.2f}×** HF(cuda) on S–XL (D2H **0**); "
+        f"XS **{native_ratios['xs']:.2f}×**\n"
+        "   (host-bound; HF(nntile) XS is "
+        f"**{hf_ratios['xs']:.2f}×**). Peak VRAM L **42.7 GiB**,\n"
+        "   XL **43.6 GiB**. Peak VRAM / H2D / D2H are in\n"
+        "   [Peak VRAM and bus](#peak-vram-and-bus).",
+    )
+    text = text[:take_start] + takeaways.rstrip() + "\n" + text[take_end:]
+    return text
 
 
 def main() -> int:
@@ -688,6 +1019,11 @@ def main() -> int:
         default=[],
         help="Additional results.json files to merge",
     )
+    parser.add_argument(
+        "--replace-all",
+        action="store_true",
+        help="Rewrite the whole markdown (drops nntile(nntile) tables)",
+    )
     args = parser.parse_args()
     summary = load_summary(args.summary)
     for extra_path in args.merge_summary:
@@ -698,7 +1034,20 @@ def main() -> int:
     logdir = args.logdir or str(args.summary.parent)
     long_steps = int(summary.get("long_steps", 100))
     long_mode = f"{long_steps}step"
-    text = render_doc(summary, results, logdir, args.preliminary_note)
+    generated = render_doc(summary, results, logdir, args.preliminary_note)
+    splice = (
+        args.output.resolve() == DOC.resolve()
+        and not args.replace_all
+        and DOC.exists()
+    )
+    if splice:
+        text = splice_hf_into_existing(
+            DOC.read_text(encoding="utf-8"),
+            generated,
+            summary,
+        )
+    else:
+        text = generated
     args.output.write_text(text, encoding="utf-8")
     print(f"wrote {args.output}")
 

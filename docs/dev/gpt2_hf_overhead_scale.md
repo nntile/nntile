@@ -48,8 +48,8 @@ with **12 layers** instead of that file's 20.
 Configs: [`torch_nntile/examples/overhead_gpt2/`](../../torch_nntile/examples/overhead_gpt2/).
 HF(cuda) / HF(nntile): [`train_gpt2_hf.py`](../../torch_nntile/examples/train_gpt2_hf.py),
 [`run_gpt2_overhead_benchmark.py`](../../torch_nntile/tools/run_gpt2_overhead_benchmark.py).
-nntile(nntile): [`train_gpt2.py`](../../torch_nntile/examples/train_gpt2.py),
-[`run_gpt2_nntile_native_overhead_benchmark.py`](../../torch_nntile/tools/run_gpt2_nntile_native_overhead_benchmark.py).
+nntile(nntile): [`train_nntile_native_overhead.py`](../../torch_nntile/examples/train_nntile_native_overhead.py),
+[`run_nntile_native_overhead_benchmark.py`](../../torch_nntile/tools/run_nntile_native_overhead_benchmark.py).
 
 ## Train wall
 
@@ -399,7 +399,8 @@ CSV: [`gpt2_hf_overhead_s_100.csv`](gpt2_hf_overhead_s_100.csv) (median run).
 ## nntile(nntile)
 
 Same XS–XL configs as above. This is nntile(nntile) only:
-[`train_gpt2.py`](../../torch_nntile/examples/train_gpt2.py) records
+[`train_nntile_native_overhead.py`](../../torch_nntile/examples/train_nntile_native_overhead.py)
+`--family gpt2` records
 `torch_nntile.models.gpt2_minimal.GPT2LMHead` (nntile(nntile) /
 hand-written nntile kernels). HF is used only to **init** weights
 (`load_hf_into_gpt2_lm_head`), then discarded. The train loop is
@@ -445,12 +446,10 @@ export STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 python3 torch_nntile/tools/run_gpt2_overhead_benchmark.py \
   --logdir /tmp/gpt2_overhead --gpu 0 --repeats 10
 
+python3 torch_nntile/tools/run_nntile_native_overhead_benchmark.py \
+  --family gpt2 --logdir /tmp/gpt2_native --gpu 0 --repeats 10
+
 python3 torch_nntile/tools/update_gpt2_overhead_doc.py \
   --summary /tmp/gpt2_overhead/results_summary.json \
   --results /tmp/gpt2_overhead/results.json
-
-# nntile(nntile) (GPT2LMHead), same configs. HF(cuda) and nntile(nntile) must be
-# separate processes; Exclusive_Process: one size-group per GPU.
-python3 torch_nntile/tools/run_gpt2_nntile_native_overhead_benchmark.py \
-  --logdir /tmp/gpt2_native --gpu 0 --repeats 10
 ```
