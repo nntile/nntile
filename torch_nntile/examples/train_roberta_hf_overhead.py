@@ -57,7 +57,7 @@ import time
 from pathlib import Path
 
 import torch
-from hf_tiny_train_common import configure_single_thread_host
+from hf_tiny_train_common import configure_single_thread_host, configure_tf32
 from nntile_iter_phases import (
     compile_run_wait_iter,
     compile_wait_run_iter,
@@ -265,26 +265,6 @@ def compare_checkpoints(path_a: Path, path_b: Path) -> int:
 def synchronize_device(device: torch.device) -> None:
     if device.type == "cuda":
         torch.cuda.synchronize(device)
-
-
-def configure_tf32(*, disable_tf32: bool, device: str) -> None:
-    if not disable_tf32:
-        return
-    if device != "cuda":
-        print(
-            f"Note: --disable-tf32 is mainly for --device cuda "
-            f"(got --device {device}); applying PyTorch CUDA TF32 flags anyway "
-            "if CUDA backends exist."
-        )
-    if hasattr(torch.backends, "cuda") and hasattr(
-        torch.backends.cuda, "matmul"
-    ):
-        torch.backends.cuda.matmul.allow_tf32 = False
-    if hasattr(torch.backends, "cudnn"):
-        torch.backends.cudnn.allow_tf32 = False
-    if hasattr(torch, "set_float32_matmul_precision"):
-        torch.set_float32_matmul_precision("highest")
-    print("TF32 disabled (cuda.matmul.allow_tf32=False, cudnn.allow_tf32=False)")
 
 
 def prepare_epoch_batches_cpu(
@@ -877,9 +857,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--disable-tf32",
         action="store_true",
         help=(
-            "Disable CUDA TF32 for matmul/cuDNN (full FP32). "
-            "Recommended for fair numerical compares vs nntile FP32 "
-            "(applies on --device cuda)"
+            "Disable CUDA TF32 (cuBLAS matmul, cuDNN conv/RNN). "
+            "Without this flag, TF32 is enabled on those paths. "
+            "Honored by ATen CUDA kernels on --device nntile too."
         ),
     )
     train.add_argument(

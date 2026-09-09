@@ -469,7 +469,7 @@ VRAM search: [`match_dit_vram_to_llama.py`](../../torch_nntile/tools/match_dit_v
 - **Batch:** `make_synthetic_diffusion_batch()` — random `noisy` / `noise`
   tensors, timesteps, class labels; seed `42 + step`.
 - **Optimizer:** SGD, lr `1e-3`, B=1, 10 steps (100 for long S), `--no-shuffle`.
-- **CUDA:** `--disable-tf32`. **nntile:** `--ncpu 0 --ncuda 1 --restrict-cuda`.
+- **CUDA / nntile:** `--disable-tf32` (cuBLAS GEMM and cuDNN conv/RNN). **nntile also:** `--ncpu 0 --ncuda 1 --restrict-cuda`.
 
 ## Loss
 

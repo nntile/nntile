@@ -34,13 +34,6 @@ def _abort_if_nntile(where: str) -> None:
         )
 
 
-def disable_tf32() -> None:
-    import torch
-
-    torch.backends.cuda.matmul.allow_tf32 = False
-    torch.backends.cudnn.allow_tf32 = False
-
-
 def train_loop(
     name: str,
     model,
@@ -109,6 +102,7 @@ def main() -> int:
     )
     from hf_tiny_train_common import (
         causal_ce_loss,
+        configure_tf32,
         load_hf_config_from_json,
         load_json_object,
         make_causal_batch,
@@ -135,7 +129,7 @@ def main() -> int:
     parser.add_argument("--seq-len", type=int, default=0)
     parser.add_argument("--lr", type=float, default=0.0)
     args = parser.parse_args()
-    disable_tf32()
+    configure_tf32(disable_tf32=True, device="cuda")
     torch.manual_seed(args.seed)
     name = args.model
     steps = args.steps

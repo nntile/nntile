@@ -219,6 +219,7 @@ def run_one(
         cmd[insert_at:insert_at] = [
             "--device",
             "nntile",
+            "--disable-tf32",
             "--restrict-cuda",
             "--ncpu",
             "0",

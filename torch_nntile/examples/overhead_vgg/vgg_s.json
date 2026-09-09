@@ -1,0 +1,14 @@
+{
+  "_comment": "Overhead S: 48^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 48,
+  "width": 48,
+  "channels": [
+    1280,
+    2560,
+    5120,
+    5120
+  ],
+  "fc_hidden": 2048
+}

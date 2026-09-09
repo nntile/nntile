@@ -25,7 +25,14 @@ codelet:
 
 1. `at::from_blob` on **`device=CPU`** or **`device=CUDA`** (StarPU-owned
    buffers; empty deleter). The tensor is **meta + pointer only**.
-2. Call the matching `at::*_out` / `*_copy_out` / functional aten API.
+2. Call the matching **leaf** `at::*_out` that writes into that blob.
+   If `native_functions.yaml` marks `foo.out` as **autogen**, do **not**
+   call `at::foo_out` — that is `functional()` + `copy_` into a
+   CUDACachingAllocator tensor. Find the kernel CUDA actually writes
+   with (`LayerNormKernel`, `cudnn_convolution.out`, …) and pass the
+   StarPU blob as that out argument. If that leaf is not a public
+   operator, call the public autogen `*.out` instead of a hidden
+   `raw_*` symbol (convolution: debt **D9**).
 3. Wrap with `at::NoGradGuard` and
    `at::AutoDispatchBelowADInplaceOrView` so execution does not re-enter
    PrivateUse1 or Autograd.
@@ -357,17 +364,17 @@ Specialized codelets:
 | `torch_embedding` | `embedding.out` | weight `R`, indices `R`, out `W` |
 | `torch_embedding_dense_backward` | `embedding_dense_backward.out` | grad `R`, indices `R`, grad_weight `W` |
 | `torch_cat` | `cat.out` | each input `R`, out `W` |
-| `torch_layer_norm` | `native_layer_norm` | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
-| `torch_layer_norm_backward` | `native_layer_norm_backward` | grad_out / input / mean / rstd `R`; optional weight/bias `R`; needed grad outs `W` |
+| `torch_layer_norm` | `LayerNormKernel` (not autogen `native_layer_norm.out`) | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
+| `torch_layer_norm_backward` | `LayerNormBackwardKernel` (not autogen `native_layer_norm_backward.out`) | grad_out / input / mean / rstd `R`; optional weight `R`; needed grad outs `W` |
 | `torch_sdpa_backward` | flash-CPU bwd; CUDA: efficient (math fallback) | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |
-| `torch_convolution` | `convolution` | input / weight `R`; optional bias `R`; out `W` |
-| `torch_convolution_backward` | `convolution_backward` | grad_out / input / weight `R`; needed grad outs `W` |
+| `torch_convolution` | `select_conv_backend` then public `*_out` (`cudnn_convolution.out`, `cudnn_convolution_transpose.out`, `_conv_depthwise2d.out`, `_slow_conv2d_forward.output`, `slow_conv_transpose2d.out`, …); debt **D9** | input / weight `R`; optional bias `R`; out `W` |
+| `torch_convolution_backward` | CUDA cuDNN/depthwise/transpose: public `convolution_backward.out`; Slow2d: `_slow_conv2d_backward.grad_input`; debt **D9** | grad_out / input / weight `R`; needed grad outs `W` |
 | `torch_max_pool2d_with_indices` | `max_pool2d_with_indices.out` | input `R`, out `W`, indices `W` |
 | `torch_max_pool2d_with_indices_backward` | `max_pool2d_with_indices_backward.grad_input` | grad_out / input / indices `R`, grad_input `W` |
-| `torch_native_batch_norm` | `native_batch_norm` | input `R`; optional weight/bias `R`; running stats `RW` when training; out / saved stats `W` |
-| `torch_native_batch_norm_backward` | `native_batch_norm_backward` | grad_out / input / optional stats `R`; needed grad outs `W` |
+| `torch_native_batch_norm` | `native_batch_norm.out` | input `R`; optional weight/bias `R`; running stats `RW` when training; out / saved stats `W` |
+| `torch_native_batch_norm_backward` | `native_batch_norm_backward.out` | grad_out / input / optional stats `R`; needed grad outs `W` |
 
 Classic I/O kept on this path (not torch-native compute, but same rules):
 

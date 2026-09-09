@@ -7,6 +7,10 @@
 
 """Tiny ResNet-style CNN (Conv / BN / ReLU / residual / AdaptiveAvgPool).
 
+BatchNorm ``eps`` defaults to ``1e-3`` (PyTorch default is ``1e-5``) so
+short B=1 runs are less sensitive to tiny channel variance. Override with
+config ``layer_norm_eps`` / ``bn_eps``.
+
 Exercises StarPU-backed ``convolution_overrideable``,
 ``native_batch_norm``, ``_adaptive_avg_pool2d``, and residual ``add``::
 
@@ -31,9 +35,24 @@ from cnn_tiny_train_common import (
     run_tiny_cnn_main,
 )
 
+# Raised vs nn.BatchNorm2d / nn.LayerNorm default (1e-5).
+_DEFAULT_NORM_EPS = 1e-3
+
+
+def _norm_eps(cfg: dict[str, Any]) -> float:
+    if "layer_norm_eps" in cfg:
+        return float(cfg["layer_norm_eps"])
+    if "bn_eps" in cfg:
+        return float(cfg["bn_eps"])
+    return _DEFAULT_NORM_EPS
+
 
 class BasicBlock(nn.Module):
-    def __init__(self, channels: int) -> None:
+    def __init__(
+        self,
+        channels: int,
+        eps: float = _DEFAULT_NORM_EPS,
+    ) -> None:
         super().__init__()
         self.conv1 = nn.Conv2d(
             channels,
@@ -42,7 +61,7 @@ class BasicBlock(nn.Module):
             padding=1,
             bias=False,
         )
-        self.bn1 = nn.BatchNorm2d(channels)
+        self.bn1 = nn.BatchNorm2d(channels, eps=eps)
         self.conv2 = nn.Conv2d(
             channels,
             channels,
@@ -50,7 +69,7 @@ class BasicBlock(nn.Module):
             padding=1,
             bias=False,
         )
-        self.bn2 = nn.BatchNorm2d(channels)
+        self.bn2 = nn.BatchNorm2d(channels, eps=eps)
 
     def forward(self, x):
         identity = x
@@ -68,13 +87,14 @@ class TinyResNet(nn.Module):
         base = int(cfg["base_channels"])
         blocks = int(cfg["blocks"])
         num_classes = int(cfg["num_classes"])
+        eps = _norm_eps(cfg)
         self.stem = nn.Sequential(
             nn.Conv2d(in_ch, base, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(base),
+            nn.BatchNorm2d(base, eps=eps),
             nn.ReLU(inplace=True),
         )
         self.layers = nn.Sequential(
-            *[BasicBlock(base) for _ in range(blocks)]
+            *[BasicBlock(base, eps=eps) for _ in range(blocks)]
         )
         self.head = nn.Linear(base, num_classes)
 

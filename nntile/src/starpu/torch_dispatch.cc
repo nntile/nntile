@@ -14,12 +14,18 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <ATen/ATen.h>
+#ifdef NNTILE_USE_CUDA
+#include <ATen/Context.h>
+#endif
+#include <ATen/native/ConvUtils.h>
+#include <ATen/native/layer_norm.h>
 #include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/core/grad_mode.h>
 #include <ATen/ops/_adaptive_avg_pool2d.h>
@@ -41,6 +47,16 @@
 #include <ATen/ops/cat.h>
 #include <ATen/ops/convolution.h>
 #include <ATen/ops/convolution_backward.h>
+#ifdef NNTILE_USE_CUDA
+#include <ATen/ops/cudnn_convolution.h>
+#include <ATen/ops/cudnn_convolution_transpose.h>
+#include <ATen/ops/_conv_depthwise2d.h>
+#endif
+#include <ATen/ops/_slow_conv2d_backward.h>
+#include <ATen/ops/_slow_conv2d_forward.h>
+#include <ATen/ops/slow_conv3d_forward.h>
+#include <ATen/ops/slow_conv_transpose2d.h>
+#include <ATen/ops/slow_conv_transpose3d.h>
 #include <ATen/ops/cos.h>
 #include <ATen/ops/_log_softmax.h>
 #include <ATen/ops/_log_softmax_backward_data.h>
@@ -69,8 +85,6 @@
 #include <ATen/ops/div.h>
 #include <ATen/ops/native_batch_norm.h>
 #include <ATen/ops/native_batch_norm_backward.h>
-#include <ATen/ops/native_layer_norm.h>
-#include <ATen/ops/native_layer_norm_backward.h>
 #include <ATen/ops/neg.h>
 #include <ATen/ops/nll_loss_backward.h>
 #include <ATen/ops/nll_loss_forward.h>
@@ -302,6 +316,543 @@ c10::optional<double> optional_scale(
         return c10::nullopt;
     }
     return static_cast<double>(args.scalars[scalar_slot]);
+}
+
+at::Tensor unused_fp32(const at::Tensor &like)
+{
+    return at::empty({0}, like.options());
+}
+
+// Public aten out for CUDA conv bwd (cuDNN / depthwise / transpose).
+// convolution_backward.out is autogen: functional + copy_ into the
+// provided outs. Unused grads need same-dtype throwaways; autogen
+// cannot copy into an undefined tensor.
+void convolution_backward_public_out(
+    at::Tensor &grad_input,
+    at::Tensor &grad_weight,
+    at::Tensor &grad_bias,
+    const at::Tensor &grad_out,
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    bool transposed,
+    at::IntArrayRef stride,
+    at::IntArrayRef padding,
+    at::IntArrayRef dilation,
+    at::IntArrayRef output_padding,
+    std::int64_t groups,
+    at::OptionalIntArrayRef bias_sizes)
+{
+    std::array<bool, 3> const mask = {true, true, true};
+    at::Tensor gi = grad_input.defined()
+        ? grad_input
+        : at::empty_like(input);
+    at::Tensor gw = grad_weight.defined()
+        ? grad_weight
+        : at::empty_like(weight);
+    std::vector<std::int64_t> bias_vec;
+    at::OptionalIntArrayRef bias_ref = bias_sizes;
+    if (!bias_ref.has_value())
+    {
+        bias_vec = {grad_out.size(1)};
+        bias_ref = at::IntArrayRef(bias_vec);
+    }
+    at::Tensor gb = grad_bias.defined()
+        ? grad_bias
+        : at::empty(*bias_ref, weight.options());
+    at::convolution_backward_out(
+        gi,
+        gw,
+        gb,
+        grad_out,
+        input,
+        weight,
+        bias_ref,
+        stride,
+        padding,
+        dilation,
+        transposed,
+        output_padding,
+        groups,
+        mask);
+}
+
+// CUDA _convolution selects a backend then writes through a leaf.
+// Prefer a public leaf *_out into the StarPU blob (skip empty_cuda).
+// If that leaf is not a public operator, use the public autogen
+// *.out (cudnn_convolution_transpose.out / convolution_backward.out).
+void view1d_as_2d_inplace(
+    at::Tensor &input,
+    at::Tensor &weight,
+    at::Tensor *out,
+    at::Tensor *grad_out,
+    std::vector<std::int64_t> &stride,
+    std::vector<std::int64_t> &padding,
+    std::vector<std::int64_t> &dilation,
+    std::vector<std::int64_t> &output_padding)
+{
+    if (weight.ndimension() != 3)
+    {
+        return;
+    }
+    input = input.contiguous().unsqueeze(2);
+    weight = weight.unsqueeze(2);
+    if (out != nullptr)
+    {
+        *out = out->unsqueeze(2);
+    }
+    if (grad_out != nullptr)
+    {
+        *grad_out = grad_out->unsqueeze(2);
+    }
+    if (stride.size() == 1)
+    {
+        stride.insert(stride.begin(), 1);
+        padding.insert(padding.begin(), 0);
+        dilation.insert(dilation.begin(), 1);
+        output_padding.insert(output_padding.begin(), 0);
+    }
+}
+
+at::native::ConvBackend select_conv_backend_train(
+    const at::Tensor &input,
+    const at::Tensor &weight,
+    const std::optional<at::Tensor> &bias_opt,
+    at::IntArrayRef stride,
+    at::IntArrayRef padding,
+    at::IntArrayRef dilation,
+    bool transposed,
+    at::IntArrayRef output_padding,
+    std::int64_t groups,
+    const at::OptionalSymIntArrayRef bias_sizes)
+{
+    // Public select_conv_backend uses GradMode. The codelet runs under
+    // NoGradGuard; force training selection (skip XNNPACK / Winograd).
+    at::Tensor input_sel = input;
+    input_sel.set_requires_grad(true);
+    at::native::ConvBackend backend;
+    {
+        at::AutoGradMode guard(true);
+        backend = at::native::select_conv_backend(
+            input_sel,
+            weight,
+            bias_opt,
+            c10::fromIntArrayRefSlow(stride),
+            c10::fromIntArrayRefSlow(padding),
+            c10::fromIntArrayRefSlow(dilation),
+            transposed,
+            c10::fromIntArrayRefSlow(output_padding),
+            c10::SymInt(groups),
+            bias_sizes);
+    }
+    input_sel.set_requires_grad(false);
+    return backend;
+}
+
+std::vector<std::int64_t> kernel_spatial(const at::Tensor &weight)
+{
+    return std::vector<std::int64_t>(
+        weight.sizes().begin() + 2,
+        weight.sizes().end());
+}
+
+void convolution_into(
+    at::Tensor &out,
+    const at::Tensor &input_r,
+    const at::Tensor &weight_r,
+    const at::Tensor &bias,
+    bool has_bias,
+    bool transposed,
+    at::IntArrayRef stride_r,
+    at::IntArrayRef padding_r,
+    at::IntArrayRef dilation_r,
+    at::IntArrayRef output_padding_r,
+    std::int64_t groups)
+{
+    at::Tensor input = input_r;
+    at::Tensor weight = weight_r;
+    std::vector<std::int64_t> stride = stride_r.vec();
+    std::vector<std::int64_t> padding = padding_r.vec();
+    std::vector<std::int64_t> dilation = dilation_r.vec();
+    std::vector<std::int64_t> output_padding = output_padding_r.vec();
+    view1d_as_2d_inplace(
+        input,
+        weight,
+        &out,
+        nullptr,
+        stride,
+        padding,
+        dilation,
+        output_padding);
+    std::optional<at::Tensor> bias_opt = c10::nullopt;
+    if (has_bias)
+    {
+        bias_opt = bias;
+    }
+    at::native::ConvBackend const backend = select_conv_backend_train(
+        input,
+        weight,
+        bias_opt,
+        stride,
+        padding,
+        dilation,
+        transposed,
+        output_padding,
+        groups,
+        c10::nullopt);
+    at::MemoryFormat const fmt =
+        at::native::_determine_backend_memory_format(
+            input,
+            weight,
+            backend);
+    std::vector<std::int64_t> const ksize = kernel_spatial(weight);
+    switch (backend)
+    {
+#ifdef NNTILE_USE_CUDA
+    case at::native::ConvBackend::Cudnn:
+    {
+        at::Context const &ctx = at::globalContext();
+        at::cudnn_convolution_out(
+            out,
+            input.contiguous(fmt),
+            weight,
+            padding,
+            stride,
+            dilation,
+            groups,
+            ctx.benchmarkCuDNN(),
+            ctx.deterministicCuDNN()
+                || ctx.deterministicAlgorithms(),
+            ctx.allowTF32CuDNN("conv"));
+        if (has_bias)
+        {
+            out.add_(
+                at::native::reshape_bias(input.dim(), bias));
+        }
+        break;
+    }
+    case at::native::ConvBackend::CudaDepthwise2d:
+        at::_conv_depthwise2d_out(
+            out,
+            input.contiguous(),
+            weight,
+            ksize,
+            bias_opt,
+            stride,
+            padding,
+            dilation);
+        break;
+    case at::native::ConvBackend::CudnnTranspose:
+    {
+        at::Context const &ctx = at::globalContext();
+        at::cudnn_convolution_transpose_out(
+            out,
+            input.contiguous(fmt),
+            weight,
+            padding,
+            output_padding,
+            stride,
+            dilation,
+            groups,
+            ctx.benchmarkCuDNN(),
+            ctx.deterministicCuDNN()
+                || ctx.deterministicAlgorithms(),
+            ctx.allowTF32CuDNN("conv"));
+        if (has_bias)
+        {
+            out.add_(
+                at::native::reshape_bias(input.dim(), bias));
+        }
+        break;
+    }
+#endif
+    case at::native::ConvBackend::Slow2d:
+    case at::native::ConvBackend::NnpackSpatial:
+        if (groups != 1)
+        {
+            throw std::runtime_error(
+                "torch conv Slow2d groups>1 has no public *_out");
+        }
+        at::_slow_conv2d_forward_out(
+            out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            bias_opt,
+            stride,
+            padding);
+        break;
+    case at::native::ConvBackend::SlowTranspose2d:
+        if (groups != 1)
+        {
+            throw std::runtime_error(
+                "torch conv SlowTranspose2d groups>1 has no public *_out");
+        }
+        at::slow_conv_transpose2d_out(
+            out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            bias_opt,
+            stride,
+            padding,
+            output_padding,
+            dilation);
+        break;
+    case at::native::ConvBackend::SlowTranspose3d:
+        if (groups != 1)
+        {
+            throw std::runtime_error(
+                "torch conv SlowTranspose3d groups>1 has no public *_out");
+        }
+        at::slow_conv_transpose3d_out(
+            out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            bias_opt,
+            stride,
+            padding,
+            output_padding,
+            dilation);
+        break;
+    case at::native::ConvBackend::Slow3d:
+        at::slow_conv3d_forward_out(
+            out,
+            input,
+            weight,
+            ksize,
+            bias_opt,
+            stride,
+            padding);
+        break;
+    case at::native::ConvBackend::Empty:
+        out.zero_();
+        break;
+    default:
+        throw std::runtime_error(
+            "torch conv: unsupported select_conv_backend");
+    }
+}
+
+void convolution_backward_into(
+    at::Tensor &grad_input,
+    at::Tensor &grad_weight,
+    at::Tensor &grad_bias,
+    const at::Tensor &grad_out_r,
+    const at::Tensor &input_r,
+    const at::Tensor &weight_r,
+    bool transposed,
+    at::IntArrayRef stride_r,
+    at::IntArrayRef padding_r,
+    at::IntArrayRef dilation_r,
+    at::IntArrayRef output_padding_r,
+    std::int64_t groups,
+    at::OptionalIntArrayRef bias_sizes)
+{
+    at::Tensor input = input_r;
+    at::Tensor weight = weight_r;
+    at::Tensor grad_out = grad_out_r;
+    std::vector<std::int64_t> stride = stride_r.vec();
+    std::vector<std::int64_t> padding = padding_r.vec();
+    std::vector<std::int64_t> dilation = dilation_r.vec();
+    std::vector<std::int64_t> output_padding = output_padding_r.vec();
+    view1d_as_2d_inplace(
+        input,
+        weight,
+        nullptr,
+        &grad_out,
+        stride,
+        padding,
+        dilation,
+        output_padding);
+    if (grad_input.defined() && input_r.ndimension() == 3)
+    {
+        grad_input = grad_input.unsqueeze(2);
+    }
+    if (grad_weight.defined() && weight_r.ndimension() == 3)
+    {
+        grad_weight = grad_weight.unsqueeze(2);
+    }
+    at::OptionalSymIntArrayRef bias_sizes_sym = c10::nullopt;
+    std::vector<c10::SymInt> bias_sym;
+    if (bias_sizes.has_value())
+    {
+        for (std::int64_t const s : *bias_sizes)
+        {
+            bias_sym.emplace_back(s);
+        }
+        bias_sizes_sym = at::OptionalSymIntArrayRef(bias_sym);
+    }
+    at::native::ConvBackend const backend = select_conv_backend_train(
+        input,
+        weight,
+        c10::nullopt,
+        stride,
+        padding,
+        dilation,
+        transposed,
+        output_padding,
+        groups,
+        bias_sizes_sym);
+    at::MemoryFormat const fmt =
+        at::native::_determine_backend_memory_format(
+            input,
+            weight,
+            backend);
+    std::vector<std::int64_t> const ksize = kernel_spatial(weight);
+    switch (backend)
+    {
+#ifdef NNTILE_USE_CUDA
+    case at::native::ConvBackend::Cudnn:
+    case at::native::ConvBackend::CudnnTranspose:
+    case at::native::ConvBackend::CudaDepthwise2d:
+    case at::native::ConvBackend::SlowTranspose2d:
+        convolution_backward_public_out(
+            grad_input,
+            grad_weight,
+            grad_bias,
+            grad_out,
+            grad_weight.defined()
+                ? input.contiguous(fmt)
+                : input,
+            weight,
+            transposed,
+            stride,
+            padding,
+            dilation,
+            output_padding,
+            groups,
+            bias_sizes);
+        break;
+#endif
+    case at::native::ConvBackend::Slow2d:
+    case at::native::ConvBackend::NnpackSpatial:
+        at::_slow_conv2d_backward_out(
+            grad_input,
+            grad_weight,
+            grad_bias,
+            grad_out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            stride,
+            padding);
+        break;
+    case at::native::ConvBackend::Empty:
+        if (grad_input.defined())
+        {
+            grad_input.zero_();
+        }
+        if (grad_weight.defined())
+        {
+            grad_weight.zero_();
+        }
+        if (grad_bias.defined())
+        {
+            grad_bias.zero_();
+        }
+        break;
+    default:
+        throw std::runtime_error(
+            "torch conv bwd: unsupported select_conv_backend");
+    }
+}
+
+// native_layer_norm.out / native_layer_norm_backward.out are autogen:
+// functional kernel + copy_ into a CUDACachingAllocator tensor. CUDA
+// writes through LayerNormKernel / LayerNormBackwardKernel into the
+// output storage; pass the StarPU blobs as those outs (view keepdim
+// mean/rstd as {M} — same storage, no copy).
+std::pair<std::int64_t, std::int64_t> layer_norm_MN(
+    const at::Tensor &input,
+    at::IntArrayRef normalized_shape)
+{
+    const std::int64_t axis = input.dim()
+        - static_cast<std::int64_t>(normalized_shape.size());
+    auto const sizes = input.sizes();
+    const std::int64_t M = c10::multiply_integers(
+        sizes.cbegin(),
+        sizes.cbegin() + axis);
+    const std::int64_t N = c10::multiply_integers(
+        sizes.cbegin() + axis,
+        sizes.cend());
+    return {M, N};
+}
+
+void layer_norm_into(
+    at::Tensor &out,
+    at::Tensor &mean,
+    at::Tensor &rstd,
+    const at::Tensor &input,
+    at::IntArrayRef normalized_shape,
+    const at::Tensor &weight,
+    const at::Tensor &bias,
+    double eps)
+{
+    auto const MN = layer_norm_MN(input, normalized_shape);
+    const std::int64_t M = MN.first;
+    const std::int64_t N = MN.second;
+    at::Tensor X = input.contiguous();
+    at::Tensor gamma = weight.defined()
+        ? weight.contiguous()
+        : weight;
+    at::Tensor beta = bias.defined()
+        ? bias.contiguous()
+        : bias;
+    at::Tensor mean_m = mean.view({M});
+    at::Tensor rstd_m = rstd.view({M});
+    if (M > 0)
+    {
+        at::native::LayerNormKernel(
+            X.device().type(),
+            X,
+            gamma,
+            beta,
+            M,
+            N,
+            eps,
+            &out,
+            &mean_m,
+            &rstd_m);
+    }
+}
+
+void layer_norm_backward_into(
+    at::Tensor &grad_input,
+    at::Tensor &grad_weight,
+    at::Tensor &grad_bias,
+    const at::Tensor &grad_out,
+    const at::Tensor &input,
+    at::IntArrayRef normalized_shape,
+    const at::Tensor &mean,
+    const at::Tensor &rstd,
+    const at::Tensor &weight)
+{
+    auto const MN = layer_norm_MN(input, normalized_shape);
+    const std::int64_t M = MN.first;
+    const std::int64_t N = MN.second;
+    at::Tensor X = input.contiguous();
+    at::Tensor dY = grad_out.contiguous();
+    at::Tensor gamma = weight.defined()
+        ? weight.contiguous()
+        : weight;
+    at::Tensor mean_m = mean.view({M});
+    at::Tensor rstd_m = rstd.view({M});
+    if (M > 0 && N > 0)
+    {
+        at::native::LayerNormBackwardKernel(
+            X.device().type(),
+            dY,
+            X,
+            mean_m,
+            rstd_m,
+            gamma,
+            M,
+            N,
+            &grad_input,
+            &grad_weight,
+            &grad_bias);
+    }
 }
 
 void run_unary(
@@ -2489,15 +3040,15 @@ void TorchLayerNorm::cpu(void *buffers[], void *cl_args) noexcept
         }
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        auto ln = at::native_layer_norm(
+        layer_norm_into(
+            out,
+            mean,
+            rstd,
             input,
             normalized_shape,
-            has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
-            has_b ? c10::optional<at::Tensor>(bias) : c10::nullopt,
+            weight,
+            bias,
             static_cast<double>(args->scalars[0]));
-        out.copy_(std::get<0>(ln));
-        mean.copy_(std::get<1>(ln));
-        rstd.copy_(std::get<2>(ln));
     }
     catch (const std::exception &ex)
     {
@@ -2657,7 +3208,6 @@ void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
         float *gb_ptr = need_gb ? ifaces[buf++]->get_ptr<float>()
             : nullptr;
         at::Tensor weight;
-        at::Tensor bias;
         if (has_w)
         {
             weight = in_fp32(
@@ -2667,16 +3217,12 @@ void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
         }
         if (has_b)
         {
-            bias = in_fp32(
-                ifaces[buf++]->get_ptr<float>(),
-                *args,
-                5);
+            ++buf;
         }
         at::Tensor grad_out = in_fp32(grad_out_ptr, *args, 0);
         at::Tensor input = in_fp32(input_ptr, *args, 1);
         at::Tensor mean = in_fp32(mean_ptr, *args, 2);
         at::Tensor rstd = in_fp32(rstd_ptr, *args, 3);
-        // ATen may expect keepdim stats; reshape reduced buffers.
         const std::int64_t n =
             static_cast<std::int64_t>(args->iargs[0]);
         std::vector<std::int64_t> normalized_shape;
@@ -2684,16 +3230,6 @@ void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
         {
             normalized_shape.push_back(
                 input.size(input.dim() - n + i));
-        }
-        if (mean.dim() + n == input.dim())
-        {
-            std::vector<std::int64_t> stats = mean.sizes().vec();
-            for (std::int64_t i = 0; i < n; ++i)
-            {
-                stats.push_back(1);
-            }
-            mean = mean.reshape(stats);
-            rstd = rstd.reshape(stats);
         }
         at::Tensor grad_input;
         at::Tensor grad_weight;
@@ -2710,57 +3246,18 @@ void TorchLayerNormBackward::cpu(void *buffers[], void *cl_args) noexcept
         {
             grad_bias = out_fp32(gb_ptr, *args, 2);
         }
-        std::array<bool, 3> output_mask = {
-            need_gi,
-            need_gw,
-            need_gb};
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        // ATen empty_like(bias/weight) requires defined affine tensors when
-        // the corresponding output_mask bit is set.
-        const bool use_out = need_gi && need_gw && need_gb && has_w
-            && has_b;
-        if (use_out)
-        {
-            at::native_layer_norm_backward_out(
-                grad_input,
-                grad_weight,
-                grad_bias,
-                grad_out,
-                input,
-                normalized_shape,
-                mean,
-                rstd,
-                weight,
-                bias,
-                output_mask);
-        }
-        else
-        {
-            auto grads = at::native_layer_norm_backward(
-                grad_out,
-                input,
-                normalized_shape,
-                mean,
-                rstd,
-                has_w ? c10::optional<at::Tensor>(weight)
-                    : c10::nullopt,
-                has_b ? c10::optional<at::Tensor>(bias)
-                    : c10::nullopt,
-                output_mask);
-            if (need_gi)
-            {
-                grad_input.copy_(std::get<0>(grads));
-            }
-            if (need_gw)
-            {
-                grad_weight.copy_(std::get<1>(grads));
-            }
-            if (need_gb)
-            {
-                grad_bias.copy_(std::get<2>(grads));
-            }
-        }
+        layer_norm_backward_into(
+            grad_input,
+            grad_weight,
+            grad_bias,
+            grad_out,
+            input,
+            normalized_shape,
+            mean,
+            rstd,
+            weight);
     }
     catch (const std::exception &ex)
     {
@@ -3153,17 +3650,18 @@ void TorchConvolution::cpu(void *buffers[], void *cl_args) noexcept
         const Index ndim = args->iargs[0];
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        at::Tensor result = at::convolution(
+        convolution_into(
+            out,
             input,
             weight,
-            has_bias ? c10::optional<at::Tensor>(bias) : c10::nullopt,
+            bias,
+            has_bias,
+            args->iargs[2] != 0,
             iarg_vec(*args, 3, ndim),
             iarg_vec(*args, 5, ndim),
             iarg_vec(*args, 7, ndim),
-            args->iargs[2] != 0,
             iarg_vec(*args, 9, ndim),
             static_cast<std::int64_t>(args->iargs[1]));
-        out.copy_(result);
     }
     catch (const std::exception &ex)
     {
@@ -3278,33 +3776,22 @@ void TorchConvolutionBackward::cpu(void *buffers[], void *cl_args) noexcept
             bias_sizes_vec = sizes_of(*args, 2, true);
             bias_sizes = at::IntArrayRef(bias_sizes_vec);
         }
-        std::array<bool, 3> output_mask = {need_gi, need_gw, need_gb};
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        auto grads = at::convolution_backward(
+        convolution_backward_into(
+            grad_input,
+            grad_weight,
+            grad_bias,
             grad_out,
             input,
             weight,
-            bias_sizes,
+            args->iargs[2] != 0,
             iarg_vec(*args, 3, ndim),
             iarg_vec(*args, 5, ndim),
             iarg_vec(*args, 7, ndim),
-            args->iargs[2] != 0,
             iarg_vec(*args, 9, ndim),
             static_cast<std::int64_t>(args->iargs[1]),
-            output_mask);
-        if (need_gi)
-        {
-            grad_input.copy_(std::get<0>(grads));
-        }
-        if (need_gw)
-        {
-            grad_weight.copy_(std::get<1>(grads));
-        }
-        if (need_gb)
-        {
-            grad_bias.copy_(std::get<2>(grads));
-        }
+            bias_sizes);
     }
     catch (const std::exception &ex)
     {
@@ -3637,7 +4124,10 @@ void TorchNativeBatchNorm::cpu(void *buffers[], void *cl_args) noexcept
         }
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        auto result = at::native_batch_norm(
+        at::native_batch_norm_out(
+            out,
+            save_mean,
+            save_invstd,
             input,
             has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
             has_b ? c10::optional<at::Tensor>(bias) : c10::nullopt,
@@ -3646,9 +4136,6 @@ void TorchNativeBatchNorm::cpu(void *buffers[], void *cl_args) noexcept
             training,
             static_cast<double>(args->scalars[0]),
             static_cast<double>(args->scalars[1]));
-        out.copy_(std::get<0>(result));
-        save_mean.copy_(std::get<1>(result).reshape(save_mean.sizes()));
-        save_invstd.copy_(std::get<2>(result).reshape(save_invstd.sizes()));
     }
     catch (const std::exception &ex)
     {
@@ -3818,7 +4305,13 @@ void TorchNativeBatchNormBackward::cpu(
         std::array<bool, 3> output_mask = {need_gi, need_gw, need_gb};
         at::AutoDispatchBelowADInplaceOrView guard;
         at::NoGradGuard no_grad;
-        auto grads = at::native_batch_norm_backward(
+        at::Tensor gi = need_gi ? grad_input : unused_fp32(grad_out);
+        at::Tensor gw = need_gw ? grad_weight : unused_fp32(grad_out);
+        at::Tensor gb = need_gb ? grad_bias : unused_fp32(grad_out);
+        at::native_batch_norm_backward_out(
+            gi,
+            gw,
+            gb,
             grad_out,
             input,
             has_w ? c10::optional<at::Tensor>(weight) : c10::nullopt,
@@ -3829,18 +4322,6 @@ void TorchNativeBatchNormBackward::cpu(
             training,
             static_cast<double>(args->scalars[1]),
             output_mask);
-        if (need_gi)
-        {
-            grad_input.copy_(std::get<0>(grads));
-        }
-        if (need_gw)
-        {
-            grad_weight.copy_(std::get<1>(grads));
-        }
-        if (need_gb)
-        {
-            grad_bias.copy_(std::get<2>(grads));
-        }
     }
     catch (const std::exception &ex)
     {

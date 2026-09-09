@@ -1,0 +1,10 @@
+{
+  "_comment": "Overhead S: 48^2, wider convs",
+  "in_channels": 1,
+  "num_classes": 10,
+  "height": 48,
+  "width": 48,
+  "conv1_channels": 448,
+  "conv2_channels": 1792,
+  "fc_hidden": 4096
+}

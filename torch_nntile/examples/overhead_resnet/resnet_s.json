@@ -1,0 +1,11 @@
+{
+  "_comment": "Overhead S: C=3456, 48^2",
+  "in_channels": 3,
+  "num_classes": 10,
+  "height": 48,
+  "width": 48,
+  "base_channels": 3456,
+  "blocks": 8,
+  "layer_norm_eps": 1e-3,
+  "lr": 1e-4
+}

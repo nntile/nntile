@@ -616,6 +616,13 @@ if(NNTILE_TORCH_NATIVE_OPS)
                 target_compile_options(${_torch_obj} PRIVATE
                     ${TORCH_CXX_FLAGS})
             endif()
+            # Match libtorch DispatchStub ABI (get_call_ptr extras).
+            target_compile_definitions(
+                ${_torch_obj}
+                PRIVATE
+                HAVE_AVX2_CPU_DEFINITION
+                HAVE_AVX512_CPU_DEFINITION)
+
         endif()
     endforeach()
 endif()

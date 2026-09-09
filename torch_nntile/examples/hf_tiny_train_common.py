@@ -53,6 +53,87 @@ def configure_single_thread_host() -> None:
         pass
 
 
+def _try_set_fp32_precision(obj: Any, value: str) -> bool:
+    """Set ``obj.fp32_precision`` (PyTorch 2.9+). Skip if missing."""
+    if obj is None:
+        return False
+    try:
+        getattr(obj, "fp32_precision")
+    except AttributeError:
+        return False
+    obj.fp32_precision = value
+    return True
+
+
+def configure_tf32(*, disable_tf32: bool, device: str) -> None:
+    """Force TF32 on or off for cuBLAS and cuDNN.
+
+    PyTorch 2.9 defaults leave GEMM TF32 off (``fp32_precision=none``)
+    while cuDNN conv/RNN TF32 is already on. Omitting ``--disable-tf32``
+    therefore has to *enable* cuBLAS TF32, not leave those defaults.
+    Prefer the 2.9 ``fp32_precision`` API; do not mix it with
+    ``allow_tf32`` / ``set_float32_matmul_precision``. ATen CUDA kernels
+    honor these flags for ``--device nntile`` torch-native codelets too.
+    """
+    del device
+    precision = "ieee" if disable_tf32 else "tf32"
+    allow = not disable_tf32
+    applied: list[str] = []
+    used_new_matmul = False
+    cuda_be = getattr(torch.backends, "cuda", None)
+    matmul = getattr(cuda_be, "matmul", None) if cuda_be is not None else None
+    if _try_set_fp32_precision(matmul, precision):
+        applied.append(f"cuda.matmul.fp32_precision={precision}")
+        used_new_matmul = True
+    elif matmul is not None and hasattr(matmul, "allow_tf32"):
+        matmul.allow_tf32 = allow
+        applied.append(f"cuda.matmul.allow_tf32={allow}")
+    cudnn = getattr(torch.backends, "cudnn", None)
+    if cudnn is not None:
+        conv = getattr(cudnn, "conv", None)
+        rnn = getattr(cudnn, "rnn", None)
+        set_new = False
+        if _try_set_fp32_precision(cudnn, precision):
+            applied.append(f"cudnn.fp32_precision={precision}")
+            set_new = True
+        if _try_set_fp32_precision(conv, precision):
+            applied.append(f"cudnn.conv.fp32_precision={precision}")
+            set_new = True
+        if _try_set_fp32_precision(rnn, precision):
+            applied.append(f"cudnn.rnn.fp32_precision={precision}")
+            set_new = True
+        if not set_new and hasattr(cudnn, "allow_tf32"):
+            cudnn.allow_tf32 = allow
+            applied.append(f"cudnn.allow_tf32={allow}")
+    if (
+        not used_new_matmul
+        and hasattr(torch, "set_float32_matmul_precision")
+    ):
+        level = "highest" if disable_tf32 else "high"
+        torch.set_float32_matmul_precision(level)
+        applied.append(f"float32_matmul_precision={level}")
+    label = "disabled" if disable_tf32 else "enabled"
+    print(f"TF32 {label} (" + ", ".join(applied) + ")")
+
+
+def configure_cudnn(*, disable_cudnn: bool) -> None:
+    """Turn off cuDNN so CUDA eager uses the same ATen kernels as nntile.
+
+    ``nn.BatchNorm2d`` on CUDA otherwise calls cuDNN; the nntile StarPU
+    codelet always uses ``native_batch_norm_out``. Disabling cuDNN also
+    steers convolution off cuDNN on both backends (``select_conv_backend``
+    honors ``torch.backends.cudnn.enabled``).
+    """
+    if not disable_cudnn:
+        return
+    cudnn = getattr(torch.backends, "cudnn", None)
+    if cudnn is None or not hasattr(cudnn, "enabled"):
+        print("cuDNN disable skipped (torch.backends.cudnn missing)")
+        return
+    cudnn.enabled = False
+    print("cuDNN disabled (torch.backends.cudnn.enabled=False)")
+
+
 BatchBuilder = Callable[
     [Any, argparse.Namespace],
     dict[str, torch.Tensor],
