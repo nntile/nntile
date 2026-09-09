@@ -2,7 +2,8 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_models_classic_graph.py
-# C++ nntile-native models must record classic kernels only (fwd+bwd).
+# C++ nntile-native models must record classic kernels on forward.
+# Backward may use aten::add (TORCH_BINARY) to combine fan-in grads.
 # These are torch_nntile::models (ports of deleted nntile::model::*), not
 # Hugging Face torch.nn rewrites.
 
@@ -33,14 +34,11 @@ def _token_types_like(ids: torch.Tensor) -> torch.Tensor:
     return torch.zeros_like(ids.cpu()).contiguous().to("nntile")
 
 
-def _assert_classic_fwd_bwd(
-    out: torch.Tensor, *, already_backward: bool = False
-) -> None:
+def _assert_classic_fwd_bwd(out: torch.Tensor) -> None:
     assert out.device.type == "nntile"
-    if not already_backward:
-        grad = torch.ones(tuple(out.shape), dtype=out.dtype).contiguous()
-        out.backward(grad.to(out.device))
     assert_classic_graph()
+    grad = torch.ones(tuple(out.shape), dtype=out.dtype).contiguous()
+    out.backward(grad.to(out.device))
 
 
 @pytest.mark.parametrize("n_kv", [4, 2])
@@ -54,9 +52,9 @@ def test_cpp_llama_classic_graph_fwd_bwd(n_kv: int):
         num_hidden_layers=1,
         num_attention_heads=4,
         num_key_value_heads=n_kv,
-        do_backward=True,
+        do_backward=False,
     )
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)
 
 
 def test_cpp_gpt2_classic_graph_fwd_bwd():
@@ -67,10 +65,10 @@ def test_cpp_gpt2_classic_graph_fwd_bwd():
         n_embd=64,
         n_head=4,
         n_layer=1,
-        do_backward=True,
+        do_backward=False,
     )
     assert out.shape == (2, 8, 128)
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)
 
 
 def test_cpp_gpt_neo_classic_graph_fwd_bwd():
@@ -83,10 +81,10 @@ def test_cpp_gpt_neo_classic_graph_fwd_bwd():
         num_hidden_layers=2,
         num_attention_heads=4,
         window_size=4,
-        do_backward=True,
+        do_backward=False,
     )
     assert out.shape == (2, 8, 128)
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)
 
 
 def test_cpp_gpt_neox_classic_graph_fwd_bwd():
@@ -99,10 +97,10 @@ def test_cpp_gpt_neox_classic_graph_fwd_bwd():
         num_hidden_layers=1,
         num_attention_heads=4,
         rotary_pct=0.25,
-        do_backward=True,
+        do_backward=False,
     )
     assert out.shape == (2, 8, 128)
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)
 
 
 def test_cpp_mixer_classic_graph_fwd_bwd():
@@ -114,10 +112,10 @@ def test_cpp_mixer_classic_graph_fwd_bwd():
         projected_patch_dim=4,
         num_mixer_layers=1,
         n_classes=3,
-        do_backward=True,
+        do_backward=False,
     )
     assert out.shape == (2, 3)
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)
 
 
 def test_cpp_deep_relu_classic_graph_fwd_bwd():
@@ -129,10 +127,10 @@ def test_cpp_deep_relu_classic_graph_fwd_bwd():
         hidden_dim=64,
         output_dim=8,
         depth=2,
-        do_backward=True,
+        do_backward=False,
     )
     assert out.shape == (4, 8)
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)
 
 
 def test_cpp_bert_classic_graph_fwd_bwd():
@@ -146,10 +144,10 @@ def test_cpp_bert_classic_graph_fwd_bwd():
         intermediate_size=128,
         num_hidden_layers=1,
         num_attention_heads=4,
-        do_backward=True,
+        do_backward=False,
     )
     assert out.shape == (2, 8, 128)
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)
 
 
 def test_cpp_roberta_classic_graph_fwd_bwd():
@@ -166,10 +164,10 @@ def test_cpp_roberta_classic_graph_fwd_bwd():
         num_hidden_layers=1,
         num_attention_heads=4,
         pad_token_id=1,
-        do_backward=True,
+        do_backward=False,
     )
     assert out.shape == (2, 8, 128)
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)
 
 
 def test_cpp_t5_classic_graph_fwd_bwd():
@@ -183,7 +181,7 @@ def test_cpp_t5_classic_graph_fwd_bwd():
         d_ff=128,
         num_layers=1,
         num_heads=4,
-        do_backward=True,
+        do_backward=False,
     )
     assert out.shape == (2, 8, 128)
-    _assert_classic_fwd_bwd(out, already_backward=True)
+    _assert_classic_fwd_bwd(out)

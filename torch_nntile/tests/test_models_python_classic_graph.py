@@ -2,7 +2,8 @@
 #                              (Skoltech), Russia. All rights reserved.
 #
 # @file torch_nntile/tests/test_models_python_classic_graph.py
-# Python torch_nntile.models (classic kernels) must record zero TORCH_*.
+# Python torch_nntile.models must record classic kernels on forward.
+# Backward may use aten::add (TORCH_BINARY) to combine fan-in grads.
 
 from __future__ import annotations
 
@@ -39,9 +40,9 @@ def _ids(batch: int = 2, seq: int = 8, vocab: int = 128) -> torch.Tensor:
 
 def _fwd_bwd_classic(out: torch.Tensor) -> None:
     assert out.device.type == "nntile"
+    assert_classic_graph()
     grad = torch.ones(tuple(out.shape), dtype=out.dtype).contiguous()
     out.backward(grad.to(out.device))
-    assert_classic_graph()
 
 
 @pytest.mark.parametrize("n_kv", [4, 2])

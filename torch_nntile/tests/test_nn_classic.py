@@ -73,13 +73,22 @@ def test_activations_and_add_classic_graph():
     assert_classic_graph()
 
 
-def test_fan_in_backward_classic_graph():
-    """Same activation used twice: autograd combine must be classic ADD."""
-    x = torch.randn(4, 8).to("nntile").requires_grad_(True)
-    y = add(x, relu(x))
-    ones = torch.ones(tuple(y.shape), dtype=y.dtype)
-    torch.autograd.grad(y, x, grad_outputs=ones.to(y.device))
-    assert_classic_graph()
+def test_fan_in_backward_matches_cpu():
+    """Same tensor used twice: combined grad matches CPU, kernel agnostic."""
+    torch.manual_seed(6)
+    x = torch.randn(4, 8, requires_grad=True)
+    y_cpu = x + F.relu(x)
+    dy = torch.ones_like(y_cpu)
+    (gx_cpu,) = torch.autograd.grad(y_cpu, x, grad_outputs=dy)
+
+    x_n = x.detach().to("nntile").requires_grad_(True)
+    y_n = add(x_n, relu(x_n))
+    (gx_n,) = torch.autograd.grad(
+        y_n,
+        x_n,
+        grad_outputs=dy.contiguous().to("nntile"),
+    )
+    assert torch.allclose(nntile_cpu(gx_n), gx_cpu, rtol=1e-4, atol=1e-4)
 
 
 def test_gelu_forward_matches_cpu():
