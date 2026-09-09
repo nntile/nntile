@@ -2,6 +2,12 @@
 
 PyTorch **PrivateUse1** device registered as `device="nntile"`.
 
+Stock `torch.nn` / `F.*` on this device run through public high-level ATen
+`*.out` ops inside StarPU codelets (not internal PyTorch kernels). Some of
+those schemas copy into the output buffer; that extra traffic is PyTorch
+API debt and is not something NNTile will work around. See
+[docs/torch_nntile.md](../docs/torch_nntile.md).
+
 ## Prebuilt wheels (0.0.6)
 
 Wheels are built in CI, not published to PyPI. Install from a downloaded

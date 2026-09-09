@@ -49,7 +49,8 @@ Previous `nntile_layer_norm.cpp` forced `.contiguous()` and allocated **reduced*
 
 - passes tensors with their **actual strides** into `pack_tensor_layout`;
 - allocates mean/rstd with **keepdim** shapes matching CUDA;
-- lets the StarPU codelet call `at::native_layer_norm` without reshaping stats.
+- lets the StarPU codelet call public `at::native_layer_norm_out`
+  (D9: no DispatchStub `LayerNormKernel`).
 
 ## Layout / densification policy (Aug 2026)
 

@@ -20,19 +20,18 @@ torch-native aten ops (`TorchKind` / `TensorTorch*Op`). Classic NNTile
 kernels (`swap_two_axes`, `scale_slice`, gemm codelets, …) are **not**
 TensorGraph compute ops on this path.
 
-Each such op must lower to the **same aten schema** inside the StarPU
-codelet:
+Each such op must lower to the **same public aten schema** inside the
+StarPU codelet:
 
 1. `at::from_blob` on **`device=CPU`** or **`device=CUDA`** (StarPU-owned
    buffers; empty deleter). The tensor is **meta + pointer only**.
-2. Call the matching **leaf** `at::*_out` that writes into that blob.
-   If `native_functions.yaml` marks `foo.out` as **autogen**, do **not**
-   call `at::foo_out` — that is `functional()` + `copy_` into a
-   CUDACachingAllocator tensor. Find the kernel CUDA actually writes
-   with (`LayerNormKernel`, `cudnn_convolution.out`, …) and pass the
-   StarPU blob as that out argument. If that leaf is not a public
-   operator, call the public autogen `*.out` instead of a hidden
-   `raw_*` symbol (convolution: debt **D9**).
+2. Call a **public** `at::*_out` from `ATen/ops/*.h` that takes the StarPU
+   blob as the out argument. **Never** call `at::native::*Kernel`
+   DispatchStubs, `raw_*` symbols, or other hidden leaves. Those do not
+   link on every LibTorch (macOS arm64 has no AVX2/AVX512 stubs).
+   Autogen `foo.out` may be `functional()` + `copy_` into the blob
+   (extra traffic vs a fused kernel). That is PyTorch API debt
+   (**D9**); do not “fix” it by dropping to internal kernels.
 3. Wrap with `at::NoGradGuard` and
    `at::AutoDispatchBelowADInplaceOrView` so execution does not re-enter
    PrivateUse1 or Autograd.
@@ -364,8 +363,8 @@ Specialized codelets:
 | `torch_embedding` | `embedding.out` | weight `R`, indices `R`, out `W` |
 | `torch_embedding_dense_backward` | `embedding_dense_backward.out` | grad `R`, indices `R`, grad_weight `W` |
 | `torch_cat` | `cat.out` | each input `R`, out `W` |
-| `torch_layer_norm` | `LayerNormKernel` (not autogen `native_layer_norm.out`) | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
-| `torch_layer_norm_backward` | `LayerNormBackwardKernel` (not autogen `native_layer_norm_backward.out`) | grad_out / input / mean / rstd `R`; optional weight `R`; needed grad outs `W` |
+| `torch_layer_norm` | `native_layer_norm.out` (D9) | input `R`; optional weight/bias `R`; out / mean / rstd `W` |
+| `torch_layer_norm_backward` | `native_layer_norm_backward.out` (D9) | grad_out / input / mean / rstd `R`; optional weight `R`; needed grad outs `W` |
 | `torch_sdpa_backward` | flash-CPU bwd; CUDA: efficient (math fallback) | q / k / v / grad_out `R`; optional mask `R`; grad_q / grad_k / grad_v `W` |
 | `torch_nll_loss_forward` | `nll_loss_forward.output` | log_probs `R`, target `R`, loss `W`, total_weight `W` |
 | `torch_nll_loss_backward` | `nll_loss_backward.grad_input` | grad_output / log_probs / target / total_weight `R`, grad_input `W` |

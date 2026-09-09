@@ -14,6 +14,13 @@ Two APIs in one wheel (CMake: `NNTILE_TORCH_NATIVE_OPS` and
   nntile-native implementations (ports of deleted `nntile::model::*`,
   not Hugging Face `torch.nn` rewrites).
 
+Torch-native StarPU codelets call **only** public high-level ATen ops
+(`at::add_out`, `at::native_layer_norm_out`, …). They do not call internal
+DispatchStubs or hidden `raw_*` kernels. Some of those public `*.out`
+schemas are autogen (`functional` + `copy_` into the caller buffer), so a
+codelet may copy more than a fused CUDA kernel would. That extra traffic
+is PyTorch’s own API debt; NNTile will not bypass it.
+
 Package README: [`torch_nntile/README.md`](../torch_nntile/README.md).
 
 ## Prebuilt wheels

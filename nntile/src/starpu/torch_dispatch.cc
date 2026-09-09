@@ -2,7 +2,9 @@
  *                              (Skoltech), Russia. All rights reserved.
  *
  * @file src/starpu/torch_dispatch.cc
- * Torch-native family StarPU codelets (CPU/CUDA aten *_out).
+ * Torch-native family StarPU codelets (CPU/CUDA public aten *_out only).
+ * Never call ATen DispatchStubs / hidden raw_* kernels (macOS arm64
+ * cannot link them). Autogen *.out may copy_; that is accepted debt.
  *
  * @version 1.1.0
  */
@@ -25,7 +27,6 @@
 #include <ATen/Context.h>
 #endif
 #include <ATen/native/ConvUtils.h>
-#include <ATen/native/layer_norm.h>
 #include <ATen/core/LegacyTypeDispatch.h>
 #include <ATen/core/grad_mode.h>
 #include <ATen/ops/_adaptive_avg_pool2d.h>
@@ -87,6 +88,8 @@
 #include <ATen/ops/div.h>
 #include <ATen/ops/native_batch_norm.h>
 #include <ATen/ops/native_batch_norm_backward.h>
+#include <ATen/ops/native_layer_norm.h>
+#include <ATen/ops/native_layer_norm_backward.h>
 #include <ATen/ops/neg.h>
 #include <ATen/ops/nll_loss_backward.h>
 #include <ATen/ops/nll_loss_forward.h>
@@ -804,11 +807,9 @@ void convolution_backward_into(
     }
 }
 
-// native_layer_norm.out / native_layer_norm_backward.out are autogen:
-// functional kernel + copy_ into a CUDACachingAllocator tensor. CUDA
-// writes through LayerNormKernel / LayerNormBackwardKernel into the
-// output storage; pass the StarPU blobs as those outs (view keepdim
-// mean/rstd as {M} — same storage, no copy).
+// Public native_layer_norm.out / native_layer_norm_backward.out only
+// (contract: no DispatchStub LayerNormKernel). Mean/rstd StarPU blobs
+// are viewed as {M} (same storage). Autogen *.out may copy_.
 std::pair<std::int64_t, std::int64_t> layer_norm_MN(
     const at::Tensor &input,
     at::IntArrayRef normalized_shape)
@@ -837,29 +838,26 @@ void layer_norm_into(
 {
     auto const MN = layer_norm_MN(input, normalized_shape);
     const std::int64_t M = MN.first;
-    const std::int64_t N = MN.second;
     at::Tensor X = input.contiguous();
-    at::Tensor gamma = weight.defined()
-        ? weight.contiguous()
-        : weight;
-    at::Tensor beta = bias.defined()
-        ? bias.contiguous()
-        : bias;
+    c10::optional<at::Tensor> const gamma = weight.defined()
+        ? c10::optional<at::Tensor>(weight.contiguous())
+        : c10::nullopt;
+    c10::optional<at::Tensor> const beta = bias.defined()
+        ? c10::optional<at::Tensor>(bias.contiguous())
+        : c10::nullopt;
     at::Tensor mean_m = mean.view({M});
     at::Tensor rstd_m = rstd.view({M});
     if (M > 0)
     {
-        at::native::LayerNormKernel(
-            X.device().type(),
+        at::native_layer_norm_out(
+            out,
+            mean_m,
+            rstd_m,
             X,
+            normalized_shape,
             gamma,
             beta,
-            M,
-            N,
-            eps,
-            &out,
-            &mean_m,
-            &rstd_m);
+            eps);
     }
 }
 
@@ -879,25 +877,38 @@ void layer_norm_backward_into(
     const std::int64_t N = MN.second;
     at::Tensor X = input.contiguous();
     at::Tensor dY = grad_out.contiguous();
-    at::Tensor gamma = weight.defined()
-        ? weight.contiguous()
-        : weight;
+    c10::optional<at::Tensor> const gamma = weight.defined()
+        ? c10::optional<at::Tensor>(weight.contiguous())
+        : c10::nullopt;
     at::Tensor mean_m = mean.view({M});
     at::Tensor rstd_m = rstd.view({M});
+    std::array<bool, 3> const output_mask = {
+        grad_input.defined(),
+        grad_weight.defined(),
+        grad_bias.defined()};
+    at::Tensor gi = grad_input.defined()
+        ? grad_input
+        : unused_fp32(grad_out);
+    at::Tensor gw = grad_weight.defined()
+        ? grad_weight
+        : unused_fp32(grad_out);
+    at::Tensor gb = grad_bias.defined()
+        ? grad_bias
+        : unused_fp32(grad_out);
     if (M > 0 && N > 0)
     {
-        at::native::LayerNormBackwardKernel(
-            X.device().type(),
+        at::native_layer_norm_backward_out(
+            gi,
+            gw,
+            gb,
             dY,
             X,
+            normalized_shape,
             mean_m,
             rstd_m,
             gamma,
-            M,
-            N,
-            &grad_input,
-            &grad_weight,
-            &grad_bias);
+            c10::nullopt,
+            output_mask);
     }
 }
 
