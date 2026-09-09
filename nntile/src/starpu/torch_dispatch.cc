@@ -54,7 +54,9 @@
 #endif
 #include <ATen/ops/_slow_conv2d_backward.h>
 #include <ATen/ops/_slow_conv2d_forward.h>
+#include <ATen/ops/mkldnn_convolution.h>
 #include <ATen/ops/slow_conv3d_forward.h>
+#include <ATen/ops/slow_conv_dilated2d.h>
 #include <ATen/ops/slow_conv_transpose2d.h>
 #include <ATen/ops/slow_conv_transpose3d.h>
 #include <ATen/ops/cos.h>
@@ -625,12 +627,37 @@ void convolution_into(
             stride,
             padding);
         break;
+    case at::native::ConvBackend::SlowDilated2d:
+        at::slow_conv_dilated2d_out(
+            out,
+            input.contiguous(fmt),
+            weight.contiguous(fmt),
+            ksize,
+            bias_opt,
+            stride,
+            padding,
+            dilation);
+        break;
+    // CPU oneDNN (pip/conda torch). Write dense StarPU storage via *.out.
+    case at::native::ConvBackend::Mkldnn:
+        at::mkldnn_convolution_out(
+            out,
+            input.contiguous(fmt),
+            weight,
+            bias_opt,
+            padding,
+            stride,
+            dilation,
+            groups);
+        break;
     case at::native::ConvBackend::Empty:
+    case at::native::ConvBackend::MkldnnEmpty:
         out.zero_();
         break;
     default:
         throw std::runtime_error(
-            "torch conv: unsupported select_conv_backend");
+            std::string("torch conv: unsupported select_conv_backend ")
+            + std::to_string(static_cast<int>(backend)));
     }
 }
 
@@ -738,7 +765,25 @@ void convolution_backward_into(
             stride,
             padding);
         break;
+    case at::native::ConvBackend::Mkldnn:
+    case at::native::ConvBackend::SlowDilated2d:
+        convolution_backward_public_out(
+            grad_input,
+            grad_weight,
+            grad_bias,
+            grad_out,
+            input.contiguous(fmt),
+            weight,
+            transposed,
+            stride,
+            padding,
+            dilation,
+            output_padding,
+            groups,
+            bias_sizes);
+        break;
     case at::native::ConvBackend::Empty:
+    case at::native::ConvBackend::MkldnnEmpty:
         if (grad_input.defined())
         {
             grad_input.zero_();
@@ -754,7 +799,8 @@ void convolution_backward_into(
         break;
     default:
         throw std::runtime_error(
-            "torch conv bwd: unsupported select_conv_backend");
+            std::string("torch conv bwd: unsupported select_conv_backend ")
+            + std::to_string(static_cast<int>(backend)));
     }
 }
 
